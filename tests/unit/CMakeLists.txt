@@ -42,6 +42,8 @@ set(UNIT_TESTS_SRCS
   enzyme/test_enzyme_scratch.cpp
   enzyme/test_enzyme_scratch_multikernel.cpp
   enzyme/test_enzyme_reverse_tape.cpp
+  dfem/test_hyperelasticity.cpp
+  dfem/test_functional.cpp
   dfem/test_jvp_vjp.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp

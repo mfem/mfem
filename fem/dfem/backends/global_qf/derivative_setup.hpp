@@ -36,7 +36,7 @@ struct DerivativeSetup
       Vector &qp_cache) :
       ctx(ctx),
       qfunc(qfunc),
-      qfunc_shadow(detail::MakePersistentQFunctionShadow(this->qfunc)),
+      qfunc_shadow(detail::MakeQFunctionShadowStorage(this->qfunc)),
       inputs(inputs),
       outputs(outputs),
       qp_cache(qp_cache)
@@ -136,6 +136,7 @@ struct DerivativeSetup
             for (int m = 0; m < trial_op_dim_s; m++)
             {
                shadow_xq = 0.0;
+               shadow_xq.SyncToBlocks();
 
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
@@ -146,13 +147,25 @@ struct DerivativeSetup
                }
 
                yq = 0.0;
+               yq.SyncToBlocks();
 
-               detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t,
-                      inputs_t, outputs_t>(
-                         qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
-                         input_qlayouts, output_qlayouts,
-                         std::make_index_sequence<ninputs> {},
-                         std::make_index_sequence<noutputs> {});
+               if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
+               {
+                  detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t,
+                         inputs_t, outputs_t>(
+                            qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
+                            input_qlayouts, output_qlayouts,
+                            std::make_index_sequence<ninputs> {},
+                            std::make_index_sequence<noutputs> {});
+               }
+               else
+               {
+                  detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+                     qfunc, xq, shadow_xq, yq, gnqp,
+                     input_qlayouts, output_qlayouts,
+                     std::make_index_sequence<ninputs> {},
+                     std::make_index_sequence<noutputs> {});
+               }
 
                yq.SyncToBlocks();
                real_t *cache_d = qp_cache.ReadWrite();

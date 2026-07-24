@@ -11,13 +11,15 @@
 #pragma once
 
 #include "../../../../mfem.hpp"
-
+#include "../tuple.hpp"
 #include <memory>
+#include <type_traits>
 #include <vector>
 
 namespace mfem::future
 {
-// Scratch storage for global qfunctions. The bank supports two scratch kinds:
+// Scratch storage and q-function shadow helpers for dFEM backends. The bank
+// supports two scratch kinds:
 // - quadrature-point scratch: real_t buffers sized as NQ * components_per_qp,
 // - global scratch: one tuple of qfunction-local temporaries, independent of
 //   NQ, used for values such as flags, scalars, or small Vector workspaces.
@@ -147,8 +149,8 @@ struct ScratchBank
    int Size() const { return static_cast<int>(ptrs.size()); }
 };
 
-// Shared base for global Q-functions that use ScratchBank and need a matching
-// scratch shadow for forward differentiation.
+// Shared base for Q-functions that use ScratchBank and need a matching scratch
+// shadow for forward differentiation.
 template <typename... GlobalScratchTypes>
 struct QFWithScratch
 {
@@ -204,9 +206,77 @@ struct QFWithScratch
       shadow.nq = nq;
       scratch.CloneScratchLayoutTo(shadow.scratch);
    }
+
+   QFWithScratch CreateShadow() const
+   {
+      QFWithScratch shadow;
+      CloneScratchLayoutTo(shadow);
+      return shadow;
+   }
 };
 
 using QFWithScratchType = QFWithScratch<>;
 using QFWithGlobalScratchType = QFWithScratch<bool, real_t, Vector>;
 
+<<<<<<< HEAD:fem/dfem/backends/global_qf/scratch_bank.hpp
 }
+=======
+namespace detail
+{
+
+template <typename T>
+struct qfunc_uses_scratch
+{
+private:
+   template <typename... GlobalScratchTypes>
+   static std::true_type Test(const QFWithScratch<GlobalScratchTypes...> *);
+
+   static std::false_type Test(...);
+
+public:
+   static constexpr bool value = decltype(Test(
+                                             static_cast<std::remove_cv_t<std::remove_reference_t<T>> *>(nullptr)))::value;
+};
+
+template <typename T>
+inline constexpr bool qfunc_uses_scratch_v =
+   qfunc_uses_scratch<T>::value;
+
+struct unused_qfunc_shadow { };
+
+template <typename qfunc_t, bool uses_scratch>
+struct qfunc_shadow_type
+{
+   using type = unused_qfunc_shadow;
+};
+
+template <typename qfunc_t>
+struct qfunc_shadow_type<qfunc_t, true>
+{
+   using type = decltype(std::declval<const qfunc_t &>().CreateShadow());
+};
+
+template <typename qfunc_t>
+using qfunc_shadow_t = typename qfunc_shadow_type<qfunc_t,
+      qfunc_uses_scratch_v<qfunc_t>>::type;
+
+// Create a persistent q-function shadow if the q-function uses scratch, otherwise return an empty struct.
+template <typename qfunc_t>
+inline qfunc_shadow_t<qfunc_t> MakeQFunctionShadowStorage(
+   const qfunc_t &qfunc)
+{
+   if constexpr (qfunc_uses_scratch_v<qfunc_t>)
+   {
+      return qfunc.CreateShadow();
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(qfunc);
+      return {};
+   }
+}
+
+} // namespace detail
+
+}
+>>>>>>> 666c1d5389f956cae8c918a379a750f71d4ac092:fem/dfem/backends/scratch_bank.hpp

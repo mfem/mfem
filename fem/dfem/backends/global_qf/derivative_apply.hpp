@@ -105,7 +105,9 @@ struct DerivativeApply
 
       // Re-zero pre-allocated Q temporaries
       dir_q_local = 0.0;
+      dir_q_local.SyncToBlocks();
       result_q_local = 0.0;
+      result_q_local.SyncToBlocks();
 
       // Restrict trial direction from the derivative field
       size_t in_fd = SIZE_MAX;

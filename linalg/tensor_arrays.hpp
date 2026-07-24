@@ -185,6 +185,9 @@ public:
 
        @note This method does not permute the global 1D data array. */
    MFEM_HOST_DEVICE
+#ifdef MFEM_USE_ENZYME
+   __attribute__((annotate("enzyme_inactive")))
+#endif
    void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
    {
       std::size_t stride = 1;
@@ -330,7 +333,7 @@ public:
           expecting a @c scalar_t& in/out parameter. */
       template <bool Enable = (sizeof...(tensor_sizes) == 0),
                 std::enable_if_t<Enable, int> = 0>
-         MFEM_HOST_DEVICE
+      MFEM_HOST_DEVICE
       operator scalar_t &()
       {
          return *offset_data;

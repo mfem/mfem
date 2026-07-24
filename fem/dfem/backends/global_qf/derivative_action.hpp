@@ -34,7 +34,7 @@ struct DerivativeAction
       inputs_t inputs,
       outputs_t outputs):
       ctx(ctx), qfunc(qfunc),
-      qfunc_shadow(detail::MakePersistentQFunctionShadow(this->qfunc)),
+      qfunc_shadow(detail::MakeQFunctionShadowStorage(this->qfunc)),
       inputs(inputs), outputs(outputs)
    {
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
@@ -110,6 +110,7 @@ struct DerivativeAction
          direction_fd, *de, direction_e, dof_ordering);
 
       shadow_xq = 0.0;
+      shadow_xq.SyncToBlocks();
       constexpr_for<0, ninputs>([&](auto i)
       {
          if (!input_active[i]) { return; }
@@ -123,18 +124,35 @@ struct DerivativeAction
 
       // Q -> Q
       yq = 0.0;
-      detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,
-             outputs_t>(
-                qfunc,
-                qfunc_shadow,
-                xq,
-                shadow_xq,
-                yq,
-                gnqp,
-                input_qlayouts,
-                output_qlayouts,
-                std::make_index_sequence<ninputs> {},
-                std::make_index_sequence<noutputs> {});
+      yq.SyncToBlocks();
+      if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
+      {
+         detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,
+                outputs_t>(
+                   qfunc,
+                   qfunc_shadow,
+                   xq,
+                   shadow_xq,
+                   yq,
+                   gnqp,
+                   input_qlayouts,
+                   output_qlayouts,
+                   std::make_index_sequence<ninputs> {},
+                   std::make_index_sequence<noutputs> {});
+      }
+      else
+      {
+         detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
+            qfunc,
+            xq,
+            shadow_xq,
+            yq,
+            gnqp,
+            input_qlayouts,
+            output_qlayouts,
+            std::make_index_sequence<ninputs> {},
+            std::make_index_sequence<noutputs> {});
+      }
 
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);
