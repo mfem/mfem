@@ -137,6 +137,12 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
 
+  add_mfem_miniapp(pmesh-digital-twin
+    MAIN pmesh-digital-twin.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+  add_dependencies(pmesh-digital-twin copy_miniapps_meshing_data)
+
   add_mfem_miniapp(fit-node-position
     MAIN fit-node-position.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
@@ -157,6 +163,7 @@ if (MFEM_USE_MPI)
       mesh-bounding-boxes
       pmesh-optimizer
       pmesh-fitting
+      pmesh-digital-twin
       fit-node-position
       pminimal-surface
       phpref

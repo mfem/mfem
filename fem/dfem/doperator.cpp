@@ -38,10 +38,10 @@ using DerivativeFieldMap =
    std::map<size_t, std::vector<FieldDescriptor>>;
 using SparseAssemblyMap =
    std::map<size_t,
-       std::vector<assemble_derivative_sparsematrix_callback_t>>;
+   std::vector<assemble_derivative_sparsematrix_callback_t>>;
 using HypreAssemblyMap =
    std::map<size_t,
-       std::vector<assemble_derivative_hypreparmatrix_callback_t>>;
+   std::vector<assemble_derivative_hypreparmatrix_callback_t>>;
 using DiagonalAssemblyMap =
    std::map<size_t, std::vector<assemble_diagonal_callback_t>>;
 
@@ -184,16 +184,18 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 {
    return MakeStatefulDerivativeOperator(
              derivative_id, x, infds, outfds,
-             { derivative_action_callbacks,
-               derivative_apply_callbacks,
-               daction_transpose_callbacks,
-               derivative_outfds,
-               assemble_derivative_sparsematrix_callbacks,
-               assemble_derivative_hypreparmatrix_callbacks,
-               assemble_diagonal_callbacks,
-               derivative_setup_callbacks,
-               "no derivative action has been found for ID " },
-             true);
+   {
+      derivative_action_callbacks,
+      derivative_apply_callbacks,
+      daction_transpose_callbacks,
+      derivative_outfds,
+      assemble_derivative_sparsematrix_callbacks,
+      assemble_derivative_hypreparmatrix_callbacks,
+      assemble_diagonal_callbacks,
+      derivative_setup_callbacks,
+      "no derivative action has been found for ID "
+   },
+   true);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -201,16 +203,18 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 {
    return MakeStatefulDerivativeOperator(
              derivative_id, x, infds, outfds,
-             { derivative_action_callbacks,
-               derivative_apply_callbacks,
-               daction_transpose_callbacks,
-               derivative_outfds,
-               assemble_derivative_sparsematrix_callbacks,
-               assemble_derivative_hypreparmatrix_callbacks,
-               assemble_diagonal_callbacks,
-               derivative_setup_callbacks,
-               "no derivative action has been found for ID " },
-             use_cached_setup);
+   {
+      derivative_action_callbacks,
+      derivative_apply_callbacks,
+      daction_transpose_callbacks,
+      derivative_outfds,
+      assemble_derivative_sparsematrix_callbacks,
+      assemble_derivative_hypreparmatrix_callbacks,
+      assemble_diagonal_callbacks,
+      derivative_setup_callbacks,
+      "no derivative action has been found for ID "
+   },
+   use_cached_setup);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -243,16 +247,18 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
 
    return MakeStatefulDerivativeOperator(
              derivative_id, x, infds, outfds,
-             { second_derivative_action_callbacks,
-               second_derivative_apply_callbacks,
-               second_daction_transpose_callbacks,
-               second_derivative_outfds,
-               assemble_second_derivative_sparsematrix_callbacks,
-               assemble_second_derivative_hypreparmatrix_callbacks,
-               assemble_second_derivative_diagonal_callbacks,
-               second_derivative_setup_callbacks,
-               "no second derivative action has been found for ID " },
-             false);
+   {
+      second_derivative_action_callbacks,
+      second_derivative_apply_callbacks,
+      second_daction_transpose_callbacks,
+      second_derivative_outfds,
+      assemble_second_derivative_sparsematrix_callbacks,
+      assemble_second_derivative_hypreparmatrix_callbacks,
+      assemble_second_derivative_diagonal_callbacks,
+      second_derivative_setup_callbacks,
+      "no second derivative action has been found for ID "
+   },
+   false);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
@@ -263,16 +269,18 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
 
    return MakeStatefulDerivativeOperator(
              derivative_id, x, infds, outfds,
-             { second_derivative_action_callbacks,
-               second_derivative_apply_callbacks,
-               second_daction_transpose_callbacks,
-               second_derivative_outfds,
-               assemble_second_derivative_sparsematrix_callbacks,
-               assemble_second_derivative_hypreparmatrix_callbacks,
-               assemble_second_derivative_diagonal_callbacks,
-               second_derivative_setup_callbacks,
-               "no second derivative action has been found for ID " },
-             use_cached_setup);
+   {
+      second_derivative_action_callbacks,
+      second_derivative_apply_callbacks,
+      second_daction_transpose_callbacks,
+      second_derivative_outfds,
+      assemble_second_derivative_sparsematrix_callbacks,
+      assemble_second_derivative_hypreparmatrix_callbacks,
+      assemble_second_derivative_diagonal_callbacks,
+      second_derivative_setup_callbacks,
+      "no second derivative action has been found for ID "
+   },
+   use_cached_setup);
 }
 
 #endif // MFEM_USE_MPI

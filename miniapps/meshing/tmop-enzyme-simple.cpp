@@ -27,10 +27,10 @@
 // Sample runs and equivalent pmesh-optimizer runs:
 //   Constant ideal target:
 //     mpirun -np 4 tmop-enzyme-simple -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
-//     mpirun -np 4 pmesh-optimizer     -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer     -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -pa
 //   3D constant ideal target:
 //     mpirun -np 4 tmop-enzyme-simple -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1
-//     mpirun -np 8 pmesh-optimizer     -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1 -pa
+//     mpirun -np 4 pmesh-optimizer     -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1 -pa
 //   Constant ideal target with node limiting:
 //     mpirun -np 4 tmop-enzyme-simple -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 2 -art 1 -bnd -qt 1 -qo 8 -ex -lc 5000
 //     mpirun -np 4 pmesh-optimizer     -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 2 -art 1 -bnd -qt 1 -qo 8 -ex -lc 5000
@@ -69,19 +69,17 @@ using namespace mfem;
 
 namespace future = mfem::future;
 
-using future::Active;
-using future::Const;
 using future::DerivativeOperator;
 using future::DifferentiableOperator;
 using future::FieldDescriptor;
 using future::Identity;
+using future::FunctionalValue;
 using future::LocalQFBackend;
-using future::RevDiff;
 using future::tensor;
 using future::Value;
 using future::Weight;
 
-namespace
+namespace tmop_enzyme_simple
 {
 
 static constexpr int X = 0;
@@ -342,7 +340,7 @@ public:
    SingleOutputDerivativeOperator(std::shared_ptr<DerivativeOperator> op,
                                   const ParFiniteElementSpace &fes)
       : Operator(fes.GetTrueVSize()),
-        derivative(std::move(op))
+   derivative(std::move(op))
    { }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -416,9 +414,20 @@ public:
    void Gradient(const Vector &x, Vector &g) const
    {
       g = 0.0;
+      if (!exact_action)
+      {
+         MFEM_VERIFY(frozen_target_updater != nullptr,
+                     "Frozen target updater was not initialized.");
+         frozen_target_updater(*this, x);
+         MultiVector Xmv{x, target_w};
+         MultiVector Gmv{g};
+         frozen_target_energy_dop->GetDerivative(X)->Mult(Xmv, Gmv);
+         return;
+      }
+
       MultiVector Xmv{x, reference_nodes, target_w, limit_qdata};
       MultiVector Gmv{g};
-      residual_dop->Mult(Xmv, Gmv);
+      energy_dop->GetDerivative(X)->Mult(Xmv, Gmv);
    }
 
    std::unique_ptr<Operator> HessianOperator(const Vector &x) const
@@ -430,12 +439,12 @@ public:
          frozen_target_updater(*this, x);
          MultiVector Xmv{x, target_w};
          return std::make_unique<SingleOutputDerivativeOperator>(
-                   hessian_residual_dop->GetDerivative(X, Xmv), fes);
+                   frozen_target_energy_dop->GetSecondDerivative(X, Xmv), fes);
       }
 
       MultiVector Xmv{x, reference_nodes, target_w, limit_qdata};
       return std::make_unique<SingleOutputDerivativeOperator>(
-                residual_dop->GetDerivative(X, Xmv), fes);
+                energy_dop->GetSecondDerivative(X, Xmv), fes);
    }
 
 private:
@@ -517,54 +526,14 @@ private:
 
          energy_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          TMOPEnergy<real_t, dim, target_id_val, metric_id_val> energy;
+         auto derivatives = std::integer_sequence<size_t, X> {};
          energy_dop->AddDomainIntegrator<LocalQFBackend>(
             energy,
             future::tuple{Value<X>{}, future::Gradient<X>{},
                           Value<REFERENCE_X>{}, Identity<TARGET_W>{},
                           Identity<LIMIT_COEFF>{}, Weight{}},
-            future::tuple{Identity<Q>{}},
-            ir, all_domain_attr);
-      }
-
-      {
-         const std::vector<FieldDescriptor> in
-         {
-            FieldDescriptor{X, &fes},
-            FieldDescriptor{REFERENCE_X, &fes},
-            FieldDescriptor{TARGET_W, &target_qspace_vec},
-            FieldDescriptor{LIMIT_COEFF, &qspace_vec}
-         };
-         const std::vector<FieldDescriptor> out
-         {
-            FieldDescriptor{X, &fes}
-         };
-
-         residual_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
-         auto derivatives = std::integer_sequence<size_t, X> {};
-         const auto inputs =
-            future::tuple{Value<X>{}, future::Gradient<X>{},
-                          Value<REFERENCE_X>{}, Identity<TARGET_W>{},
-                          Identity<LIMIT_COEFF>{}, Weight{}};
-         if (exact_action)
-         {
-            RevDiff<TMOPEnergy<real_t, dim, target_id_val, metric_id_val>,
-                    future::tuple<Active, Active, Const, Const, Const, Const>,
-                    future::tuple<Active>> denergy;
-            residual_dop->AddDomainIntegrator<LocalQFBackend>(
-               denergy, inputs,
-               future::tuple{Value<X>{}, future::Gradient<X>{}},
-               ir, all_domain_attr, derivatives);
-         }
-         else
-         {
-            RevDiff<TMOPEnergy<real_t, dim, target_id_val, metric_id_val>,
-                    future::tuple<Const, Active, Const, Const, Const, Const>,
-                    future::tuple<Active>> denergy;
-            residual_dop->AddDomainIntegrator<LocalQFBackend>(
-               denergy, inputs,
-               future::tuple{future::Gradient<X>{}},
-               ir, all_domain_attr, derivatives);
-         }
+            future::tuple{FunctionalValue<Q>{}},
+            ir, all_domain_attr, derivatives);
       }
 
       SetupFrozenTargetHessian<metric_id_val>(ir, all_domain_attr);
@@ -583,19 +552,17 @@ private:
       };
       const std::vector<FieldDescriptor> out
       {
-         FieldDescriptor{X, &fes}
+         FieldDescriptor{Q, &qspace_vec}
       };
 
-      hessian_residual_dop =
+      frozen_target_energy_dop =
          std::make_unique<DifferentiableOperator>(in, out, mesh);
-      RevDiff<FrozenTargetTMOPEnergy<real_t, dim, metric_id_val>,
-              future::tuple<Active, Const, Const>,
-              future::tuple<Active>> denergy;
       auto derivatives = std::integer_sequence<size_t, X> {};
-      hessian_residual_dop->AddDomainIntegrator<LocalQFBackend>(
-         denergy,
+      FrozenTargetTMOPEnergy<real_t, dim, metric_id_val> energy;
+      frozen_target_energy_dop->AddDomainIntegrator<LocalQFBackend>(
+         energy,
          future::tuple{future::Gradient<X>{}, Identity<TARGET_W>{}, Weight{}},
-         future::tuple{future::Gradient<X>{}},
+         future::tuple{FunctionalValue<Q>{}},
          ir, all_domain_attr, derivatives);
    }
 
@@ -694,8 +661,7 @@ private:
    real_t limit_coeff;
    FrozenTargetUpdater frozen_target_updater = nullptr;
    std::unique_ptr<DifferentiableOperator> energy_dop;
-   std::unique_ptr<DifferentiableOperator> residual_dop;
-   std::unique_ptr<DifferentiableOperator> hessian_residual_dop;
+   std::unique_ptr<DifferentiableOperator> frozen_target_energy_dop;
 };
 
 template <int dim>
@@ -1077,7 +1043,9 @@ int RunOptimizer(ParMesh &pmesh,
    return converged ? 0 : 2;
 }
 
-} // namespace
+} // namespace tmop_enzyme_simple
+
+using namespace tmop_enzyme_simple;
 
 int main(int argc, char *argv[])
 {

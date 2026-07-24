@@ -26,14 +26,17 @@ template<
    size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeSetup
 {
+   using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
+
    DerivativeSetup(
       IntegratorContext ctx,
-      qfunc_t qfunc,
+      const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
       Vector &qp_cache) :
       ctx(ctx),
-      qfunc(std::move(qfunc)),
+      qfunc(qfunc),
+      qfunc_shadow(detail::MakePersistentQFunctionShadow(this->qfunc)),
       inputs(inputs),
       outputs(outputs),
       qp_cache(qp_cache)
@@ -107,7 +110,7 @@ struct DerivativeSetup
       qp_cache.UseDevice(true);
    }
 
-   void operator()(const std::vector<Vector *> &xe) const
+   void operator()(const std::vector<Vector *> &xe)
    {
       if (ctx.attr.Size() == 0) { return; }
 
@@ -144,14 +147,15 @@ struct DerivativeSetup
 
                yq = 0.0;
 
-               detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-                  qfunc, xq, shadow_xq, yq, gnqp,
-                  input_qlayouts, output_qlayouts,
-                  std::make_index_sequence<ninputs> {},
-                  std::make_index_sequence<noutputs> {});
-               yq.SyncToBlocks();
+               detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t,
+                      inputs_t, outputs_t>(
+                         qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
+                         input_qlayouts, output_qlayouts,
+                         std::make_index_sequence<ninputs> {},
+                         std::make_index_sequence<noutputs> {});
 
-               real_t *cache_ptr = qp_cache.HostReadWrite();
+               yq.SyncToBlocks();
+               real_t *cache_d = qp_cache.ReadWrite();
 
                // Write yq into the cache column
                const int m_global = m + m_offset;
@@ -159,29 +163,24 @@ struct DerivativeSetup
                int out_offset = 0;
                constexpr_for<0, noutputs>([&](auto o)
                {
-                  const int test_vdim_o  = out_vdim[o];
+                  const int test_vdim_o   = out_vdim[o];
                   const int test_op_dim_o = out_op_dim[o];
                   const int yq_out_size   = test_vdim_o * test_op_dim_o;
                   const int out_offset_o  = out_offset;
-                  const real_t *yq_ptr    = yq.GetBlock(o.value).HostRead();
+                  const real_t *yq_d      = yq.GetBlock(o.value).Read();
 
-                  for (int gq = 0; gq < gnqp_local; gq++)
+                  mfem::forall(gnqp_local * yq_out_size, [=] MFEM_HOST_DEVICE(int idx)
                   {
-                     for (int i = 0; i < test_vdim_o; i++)
-                     {
-                        for (int k = 0; k < test_op_dim_o; k++)
-                        {
-                           const int c_out = i * test_op_dim_o + k;
-                           const int out_comp = out_offset_o + c_out;
-                           const int cache_idx =
-                              out_comp * trial_vdim_local * total_trial_op_dim_local +
-                              j_cur * total_trial_op_dim_local +
-                              m_global;
-                           cache_ptr[cache_idx + residual_size_local * gq] =
-                              yq_ptr[c_out + yq_out_size * gq];
-                        }
-                     }
-                  }
+                     const int gq       = idx / yq_out_size;
+                     const int c_out    = idx % yq_out_size;
+                     const int out_comp = out_offset_o + c_out;
+                     const int cache_idx =
+                        out_comp * trial_vdim_local * total_trial_op_dim_local +
+                        j_cur * total_trial_op_dim_local +
+                        m_global;
+                     cache_d[cache_idx + residual_size_local * gq] =
+                        yq_d[c_out + yq_out_size * gq];
+                  });
                   out_offset += yq_out_size;
                });
             }
@@ -192,6 +191,7 @@ struct DerivativeSetup
 
    IntegratorContext ctx;
    qfunc_t qfunc;
+   qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;
    outputs_t outputs;
    Vector &qp_cache;

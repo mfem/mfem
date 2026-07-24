@@ -23,7 +23,6 @@ namespace mfem::future::GlobalQFImpl
 // Q-function-shape-agnostic cached forward apply (J·v)
 template<
    int derivative_id,
-   typename qfunc_t,
    typename inputs_t,
    typename outputs_t>
 struct DerivativeApply
@@ -33,7 +32,6 @@ struct DerivativeApply
 
    DerivativeApply(
       IntegratorContext ctx,
-      qfunc_t /*qfunc*/,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache):

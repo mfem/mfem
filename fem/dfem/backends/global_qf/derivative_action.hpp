@@ -26,12 +26,16 @@ template<
    size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeAction
 {
+   using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
+
    DerivativeAction(
       IntegratorContext ctx,
-      qfunc_t qfunc,
+      const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs):
-      ctx(ctx), qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs)
+      ctx(ctx), qfunc(qfunc),
+      qfunc_shadow(detail::MakePersistentQFunctionShadow(this->qfunc)),
+      inputs(inputs), outputs(outputs)
    {
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
@@ -91,7 +95,7 @@ struct DerivativeAction
    void operator()(
       const std::vector<Vector *> &xe,
       const Vector *de,
-      std::vector<Vector *> &ye) const
+      std::vector<Vector *> &ye)
    {
       if (ctx.attr.Size() == 0) { return; }
 
@@ -119,16 +123,18 @@ struct DerivativeAction
 
       // Q -> Q
       yq = 0.0;
-      detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-         qfunc,
-         xq,
-         shadow_xq,
-         yq,
-         gnqp,
-         input_qlayouts,
-         output_qlayouts,
-         std::make_index_sequence<ninputs> {},
-         std::make_index_sequence<noutputs> {});
+      detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,
+             outputs_t>(
+                qfunc,
+                qfunc_shadow,
+                xq,
+                shadow_xq,
+                yq,
+                gnqp,
+                input_qlayouts,
+                output_qlayouts,
+                std::make_index_sequence<ninputs> {},
+                std::make_index_sequence<noutputs> {});
 
       // Q -> E
       integrate(output_to_outfd, output_bases, yq, ye);
@@ -136,6 +142,7 @@ struct DerivativeAction
 
    IntegratorContext ctx;
    qfunc_t qfunc;
+   qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;
    outputs_t outputs;
 

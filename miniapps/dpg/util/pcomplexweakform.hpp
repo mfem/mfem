@@ -98,6 +98,17 @@ public:
 
    virtual void Update();
 
+   void GetTraceFESpaces(Array<ParFiniteElementSpace *> & trace_fes) const
+   {
+      Array<FiniteElementSpace *> sr_trace_fes;
+      ComplexDPGWeakForm::GetTraceFESpaces(sr_trace_fes);
+      trace_fes.SetSize(sr_trace_fes.Size());
+      for (int i = 0; i < sr_trace_fes.Size(); i++)
+      {
+         trace_fes[i] = dynamic_cast<ParFiniteElementSpace *>(sr_trace_fes[i]);
+      }
+   }
+
    /// Destroys bilinear form.
    virtual ~ParComplexDPGWeakForm();
 

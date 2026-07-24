@@ -37,13 +37,17 @@ include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 set(UNIT_TESTS_SRCS
   dfem/test_diffusion.cpp
   dfem/test_divergence.cpp
-  dfem/test_functional.cpp
+  dfem/test_functional.cpp  
+  dfem/test_dfem_scratch.cpp
+  enzyme/test_enzyme_scratch.cpp
+  enzyme/test_enzyme_scratch_multikernel.cpp
+  enzyme/test_enzyme_reverse_tape.cpp
   dfem/test_jvp_vjp.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
   dfem/test_multiple_inputs.cpp
   dfem/test_multiple_outputs.cpp
-  # dfem/test_second_derivative.cpp
+  dfem/test_second_derivative.cpp
   dfem/test_tmop.cpp
   general/test_array.cpp
   general/test_scan.cpp
@@ -153,6 +157,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp

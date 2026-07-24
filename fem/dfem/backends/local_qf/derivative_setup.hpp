@@ -41,7 +41,7 @@ class DerivativeSetup
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
 
-   const qfunc_t qfunc;
+   qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext ctx;
@@ -89,21 +89,32 @@ public:
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(
          get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-                           out_vdim(get_vdim(outputs)), out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(out_vdim, out_op_dim)), output_size_on_qp(
-                              [&]
-   {
-      int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
-      { s += get<o>(outputs).size_on_qp; });
-      return s;
-   }()),
-   trial_vdim(compute_trial_vdim(inputs, derivative_id)),
-   total_trial_op_dim(compute_total_trial_op_dim(
-                         inputs, input_is_dependent, input_size_on_qp)),
-   residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
-   dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
-   q1d(tensor_1d_size(nq, dim))
+      out_vdim(
+         [&]
+      {
+         // Functional derivatives synthesize their output field operators
+         // after AddIntegrator has initialized the original tuples. Fill their
+         // runtime dimensions before using them to size the qp cache.
+         create_output_vector_map(ctx, outputs);
+         return get_vdim(outputs);
+      }()),
+      out_op_dim(compute_out_op_dim(outputs)),
+      out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
+      output_size_on_qp(
+         [&]
+      {
+         int s = 0;
+         for_constexpr<n_outputs>([&](auto o)
+         { s += get<o>(outputs).size_on_qp; });
+         return s;
+      }()),
+      trial_vdim(compute_trial_vdim(inputs, derivative_id)),
+      total_trial_op_dim(compute_total_trial_op_dim(
+                            inputs, input_is_dependent, input_size_on_qp)),
+      residual_size_on_qp(output_size_on_qp * trial_vdim *
+                          total_trial_op_dim),
+      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+      q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
@@ -113,10 +124,14 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
-   void operator()(const std::vector<Vector *> &xe) const
+   void operator()(const std::vector<Vector *> &xe)
    {
       if (ctx.attr.Size() == 0) { return; }
 
+      const int expected_cache_size = ne * nq * residual_size_on_qp;
+      MFEM_VERIFY(qp_cache.Size() == expected_cache_size,
+                  "DerivativeSetup cache size mismatch before fill: expected "
+                  << expected_cache_size << ", got " << qp_cache.Size());
       auto cache_tensor = DeviceTensor<3, real_t>(
                              qp_cache.ReadWrite(), residual_size_on_qp, nq, ne);
 
@@ -137,7 +152,7 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
-                    DeviceTensor<3, real_t> &cache_tensor) const
+                    DeviceTensor<3, real_t> &cache_tensor)
    {
       Backend::Run(dim,
                    q1d,
@@ -171,7 +186,7 @@ public:
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
    derivative_setup_callback(const IntegratorContext &ctx,
-                             const qfunc_t &qfunc,
+                             qfunc_t &qfunc,
                              // inputs: idx, B, G, vdim, d1d, q1d
                              const std::array<size_t, n_inputs> &in_idx,
                              const std::array<const real_t *, n_inputs> in_B,

@@ -716,6 +716,20 @@ constexpr auto filter_fields([[maybe_unused]] const std::tuple<Ts...> &t)
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
 
+template <typename... Ts>
+constexpr bool check_if_functional(const tuple<Ts...>&)
+{
+   return (is_functionalvalue_fop<std::decay_t<Ts>>() && ...);
+}
+
+template <typename T>
+constexpr bool check_if_functional_v = false;
+
+template <typename... Ts>
+constexpr bool check_if_functional_v<tuple<Ts...>> =
+                                                   (is_functionalvalue_fop<std::decay_t<Ts>>() && ...);
+
+
 namespace dfem
 {
 template <class... T> constexpr bool always_false = false;
@@ -2186,6 +2200,10 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       return GetVDim(f);
    }
+   else if constexpr (is_functionalvalue_fop<field_operator_t>::value)
+   {
+      return GetVDim(f);
+   }
    else if constexpr (is_sum_fop<field_operator_t>::value)
    {
       return 1;
@@ -2359,6 +2377,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          // }
 
          if ((!is_identity_fop<decltype(fop)>::value) &&
+             (!is_functionalvalue_fop<decltype(fop)>::value) &&
              (dtq->mode != DofToQuad::Mode::TENSOR) &&
              (dtq->FE != nullptr))
          {
@@ -2401,7 +2420,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          };
       }
       else if constexpr (is_identity_fop<decltype(fop)>::value ||
-                         is_sum_fop<decltype(fop)>::value)
+                         is_sum_fop<decltype(fop)>::value ||
+                         is_functionalvalue_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
 

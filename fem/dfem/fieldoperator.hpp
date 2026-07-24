@@ -186,4 +186,30 @@ inline std::ostream& operator<<(std::ostream& out, Sum<FIELD_ID>)
    return out << "Sum<" << FIELD_ID << ">";
 }
 
+/// @brief FunctionalValue FieldOperator.
+///
+/// This FieldOperator is commonly used to signal that an output of a quadrature
+/// function should be summed.
+template <int FIELD_ID = -1>
+class FunctionalValue : public FieldOperator<FIELD_ID>
+{
+public:
+   constexpr FunctionalValue() : FieldOperator<FIELD_ID>() {};
+};
+
+template< typename T >
+struct is_functionalvalue_fop : std::false_type {};
+
+template <int FIELD_ID>
+struct is_functionalvalue_fop<FunctionalValue<FIELD_ID>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_functionalvalue_fop_v = is_functionalvalue_fop<T>::value;
+
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, FunctionalValue<FIELD_ID>)
+{
+   return out << "FunctionalValue<" << FIELD_ID << ">";
+}
+
 } // namespace mfem::future

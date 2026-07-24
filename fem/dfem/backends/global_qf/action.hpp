@@ -31,11 +31,11 @@ struct Action
 {
    Action(
       IntegratorContext ctx,
-      qfunc_t qfunc,
+      const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs) :
       ctx(ctx),
-      qfunc(std::move(qfunc)),
+      qfunc(qfunc),
       inputs(inputs),
       outputs(outputs)
    {

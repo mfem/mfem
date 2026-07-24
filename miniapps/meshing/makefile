@@ -29,7 +29,7 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	phpref mesh-bounding-boxes
+	phpref mesh-bounding-boxes pmesh-digital-twin
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -92,6 +92,8 @@ mesh-quality-test-seq: mesh-quality
 	@$(call mfem-test,$<,, Mesh quality miniapp)
 pmesh-fitting-test-par: pmesh-fitting
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel mesh fitting miniapp)
+pmesh-digital-twin-test-par: pmesh-digital-twin
+	@$(call mfem-test,$< -no-save -ii 1 -nx 4 -ny 4 -ni 5, $(RUN_MPI), Parallel digital twin miniapp)
 fit-node-position-test-par: fit-node-position
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel position fitting miniapp)
 minimal-surface-test-seq: minimal-surface

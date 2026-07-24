@@ -1220,14 +1220,18 @@ decltype(S {} * T{})
 }
 
 // tensor<T> (rank-0 scalar wrapper) acts as a scalar in multiplication
-template <typename S, typename T, int... m> MFEM_HOST_DEVICE
+template <typename S, typename T, int... m,
+          typename = typename std::enable_if<(sizeof...(m) > 0)>::type>
+MFEM_HOST_DEVICE
 auto operator*(const tensor<S, m...>& A, const tensor<T>& scale) ->
 tensor<decltype(S {} * T{}), m...>
 {
    return A * static_cast<T>(scale);
 }
 
-template <typename S, typename T, int... m> MFEM_HOST_DEVICE
+template <typename S, typename T, int... m,
+          typename = typename std::enable_if<(sizeof...(m) > 0)>::type>
+MFEM_HOST_DEVICE
 auto operator*(const tensor<T>& scale, const tensor<S, m...>& A) ->
 tensor<decltype(T {} * S{}), m...>
 {
