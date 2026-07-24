@@ -475,7 +475,7 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
 
       if (tp.Norml2() < 1.0e-6)
       {
-         return 0.0;
+         return (real_t) 0.0;
       }
 
       int iter = 0;
@@ -895,9 +895,9 @@ void GetSpacedPatchGrid(Mesh &mesh,
    {
       const int ei_ = u_g * ne;
       ei = std::min(ei_, ne - 1);
-      real_t u = std::max(u_g - (ei / (real_t) ne), 0.0);
+      real_t u = std::max(u_g - (ei / (real_t) ne), (real_t) 0.0);
       u *= (real_t) ne;
-      u = std::min(u, 1.0);
+      u = std::min(u, (real_t) 1.0);
       return u;
    };
 

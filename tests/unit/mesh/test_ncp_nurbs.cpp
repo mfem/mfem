@@ -265,9 +265,9 @@ void GetCircleCP(real_t radius, int n, real_t theta0, real_t theta,
       const real_t r = radius + (i * 0.5);
       for (int j=0; j<3; ++j)
       {
-         const real_t theta = theta0 + (j * dtheta);
-         grid(i, j, 0) = r * cos(theta);
-         grid(i, j, 1) = r * sin(theta);
+         const real_t theta_j = theta0 + (j * dtheta);
+         grid(i, j, 0) = r * cos(theta_j);
+         grid(i, j, 1) = r * sin(theta_j);
       }
    }
 
@@ -344,8 +344,6 @@ Mesh* NCPatchCircles()
 
       Array<int> dofs;
       mesh.NURBSext->GetPatchDofs(p, dofs);
-
-      const int nj = p2g.ny() + 1;
 
       // For each i, the curve in j is set as part of a circle.
       const real_t hr = 1.0 / p2g.nx();
