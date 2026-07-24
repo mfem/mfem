@@ -15,10 +15,10 @@
 # at Lawrence Livermore National Laboratory (LLNL).
 # This entire pipeline is LLNL-specific
 #
-# Important note: This file is a template provided by llnl/radiuss-shared-ci.
-# Remains to set variable values, change the reference to the radiuss-shared-ci
-# repo, opt-in and out optional features. The project can then extend it with
-# additional stages.
+# Important note: This file is based on a template provided by
+# llnl/radiuss-shared-ci. It includes that project's CI components (pinned to a
+# version below), sets variable values, and opts in/out of optional features.
+# The project can then extend it with additional stages.
 #
 # In addition, each project should copy over and complete:
 # - .gitlab/custom-variables.yml
@@ -102,7 +102,7 @@ variables:
 
 ###############################################################################
 ##### High level stages
-# We organize the build-and-test stage with sub-pipelines. Each sub-pipeline
+# We organize the build-and-test stage with child pipelines. Each one
 # corresponds to a test batch on a given machine.
 stages:
   - prerequisites
