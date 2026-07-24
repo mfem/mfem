@@ -281,6 +281,11 @@ TEST_CASE("Vector Sum", "[Vector],[GPU]")
 
 TEST_CASE("Vector aliases require SyncAliasMemory", "[Vector][GPU]")
 {
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      return;
+   }
+
    const real_t expected = sqrt(real_t(alias_block_size));
 
    const real_t synced_norm = ModifyThroughAlias(true);
