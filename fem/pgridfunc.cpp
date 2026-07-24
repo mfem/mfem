@@ -22,10 +22,20 @@ using namespace std;
 namespace mfem
 {
 
-ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf)
+ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
+                                 bool preserve)
 {
    fes = pfes = pf;
    SetDataAndSize(gf->GetData(), gf->Size());
+
+   if (pfes->HaveDofSigns())
+   {
+      MFEM_ASSERT(!preserve, "Differing sign conventions for the serial and "
+                  "parallel grid functions will prevent preserving the serial "
+                  "GridFunctions in this context.");
+
+      pfes->ApplyDofSigns(HostReadWrite());
+   }
 }
 
 ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv)
