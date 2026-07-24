@@ -100,8 +100,12 @@ public:
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
        data from @a *gf is used as the local data of the ParGridFunction on each
-       processor. The ParGridFunction does not assume ownership of the data. */
-   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
+       processor. The ParGridFunction does not assume ownership of the data.
+       The boolean, @a preserve, indicates that the data stored in @a *gf should
+       remain unchanged. An error will occur if @a preserve is true and
+       construction of a valid ParGridFunction requires the data to change. */
+   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
+                   bool preserve = true);
 
    /** @brief Creates grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
