@@ -481,7 +481,7 @@ void RajaHipWrap1D(const int N, DBODY &&d_body)
 {
    //true denotes asynchronous kernel
    RAJA::forall<RAJA::hip_exec<MFEM_HIP_BLOCKS, true> >(
-       Device::GetRajaResource(), RAJA::RangeSegment(0, N), d_body);
+      Device::GetRajaResource(), RAJA::RangeSegment(0, N), d_body);
 }
 
 template <typename DBODY>
