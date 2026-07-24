@@ -30,7 +30,7 @@ ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
 
    if (pfes->HaveDofSigns())
    {
-      MFEM_ASSERT(!preserve, "Differing sign conventions for the serial and "
+      MFEM_VERIFY(!preserve, "Differing sign conventions for the serial and "
                   "parallel grid functions will prevent preserving the serial "
                   "GridFunctions in this context.");
 
