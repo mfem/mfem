@@ -195,4 +195,123 @@ TEST_CASE("ParGridFunction Save", "[ParGridFunction][Pyramid][Parallel]")
    REQUIRE(std::remove(name_l2.str().c_str()) == 0);
 }
 
+TEST_CASE("ParGridFunction From Multiple GridFunctions",
+          "[ParGridFunction][Pyramid][Parallel]")
+{
+   const int num_procs = Mpi::WorldSize();
+   const int my_rank = Mpi::WorldRank();
+   const int order = 3;
+
+   const int nx = (int)rint(cbrt(real_t(num_procs)));
+   const int ny = (int)rint(2.0 * cbrt(real_t(num_procs)));
+   const int nz = (int)rint(3.0 * cbrt(real_t(num_procs)));
+   Mesh mesh = Mesh::MakeCartesian3D(nx, ny, nz, Element::PYRAMID,
+                                     1.0, 2.0, 3.0);
+
+   // Define a parallel mesh by a partitioning of the serial mesh.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // Print local partition of mesh to a file
+   std::ostringstream mesh_name;
+   mesh_name << "mesh." << std::setfill('0') << std::setw(6) << my_rank;
+
+   std::ofstream mesh_ofs(mesh_name.str().c_str());
+   mesh_ofs.precision(8);
+   pmesh.Print(mesh_ofs);
+
+   H1_FECollection fec_h1(order, mesh.Dimension());
+   ND_FECollection fec_nd(order, mesh.Dimension());
+   RT_FECollection fec_rt(order-1, mesh.Dimension());
+   L2_FECollection fec_l2(order-1, mesh.Dimension());
+
+   ParFiniteElementSpace pfes_h1(&pmesh, &fec_h1);
+   ParFiniteElementSpace pfes_nd(&pmesh, &fec_nd);
+   ParFiniteElementSpace pfes_rt(&pmesh, &fec_rt);
+   ParFiniteElementSpace pfes_l2(&pmesh, &fec_l2);
+
+   ParGridFunction pgf_h1(&pfes_h1);
+   ParGridFunction pgf_nd(&pfes_nd);
+   ParGridFunction pgf_rt(&pfes_rt);
+   ParGridFunction pgf_l2(&pfes_l2);
+
+   pgf_h1.Randomize(1);
+   pgf_nd.Randomize(1);
+   pgf_rt.Randomize(1);
+   pgf_l2.Randomize(1);
+
+   // Ensure that the L-DOFs are set consistently on all ranks
+   pgf_h1.SetTrueVector(); pgf_h1.SetFromTrueVector();
+   pgf_nd.SetTrueVector(); pgf_nd.SetFromTrueVector();
+   pgf_rt.SetTrueVector(); pgf_rt.SetFromTrueVector();
+   pgf_l2.SetTrueVector(); pgf_l2.SetFromTrueVector();
+
+   Vector zeroVec(3); zeroVec = 0.0;
+   ConstantCoefficient zeroCoef(0.0);
+   VectorConstantCoefficient zeroVecCoef(zeroVec);
+
+   const double norm_h1 = pgf_h1.ComputeL2Error(zeroCoef);
+   const double norm_nd = pgf_nd.ComputeL2Error(zeroVecCoef);
+   const double norm_rt = pgf_rt.ComputeL2Error(zeroVecCoef);
+   const double norm_l2 = pgf_l2.ComputeL2Error(zeroCoef);
+
+   std::ostringstream name_h1, name_nd, name_rt, name_l2;
+   name_h1 << "real_gf_h1." << std::setfill('0') << std::setw(6) << my_rank;
+   name_nd << "real_gf_nd." << std::setfill('0') << std::setw(6) << my_rank;
+   name_rt << "real_gf_rt." << std::setfill('0') << std::setw(6) << my_rank;
+   name_l2 << "real_gf_l2." << std::setfill('0') << std::setw(6) << my_rank;
+
+   std::ofstream ofs_h1(name_h1.str().c_str()); ofs_h1.precision(8);
+   std::ofstream ofs_nd(name_nd.str().c_str()); ofs_nd.precision(8);
+   std::ofstream ofs_rt(name_rt.str().c_str()); ofs_rt.precision(8);
+   std::ofstream ofs_l2(name_l2.str().c_str()); ofs_l2.precision(8);
+
+   pgf_h1.Save(ofs_h1); ofs_h1.close();
+   pgf_nd.Save(ofs_nd); ofs_nd.close();
+   pgf_rt.Save(ofs_rt); ofs_rt.close();
+   pgf_l2.Save(ofs_l2); ofs_l2.close();
+
+   // Read local mesh
+   std::ifstream mesh_ifs(mesh_name.str().c_str());
+   Mesh local_mesh(mesh_ifs);
+
+   std::ifstream ifs_h1(name_h1.str().c_str());
+   std::ifstream ifs_nd(name_nd.str().c_str());
+   std::ifstream ifs_rt(name_rt.str().c_str());
+   std::ifstream ifs_l2(name_l2.str().c_str());
+
+   GridFunction gf_h1_read(&local_mesh, ifs_h1); ifs_h1.close();
+   GridFunction gf_nd_read(&local_mesh, ifs_nd); ifs_nd.close();
+   GridFunction gf_rt_read(&local_mesh, ifs_rt); ifs_rt.close();
+   GridFunction gf_l2_read(&local_mesh, ifs_l2); ifs_l2.close();
+
+   ParGridFunction pgf_h1_read(&pfes_h1, &gf_h1_read);
+   ParGridFunction pgf_nd_read(&pfes_nd, &gf_nd_read, false);
+   ParGridFunction pgf_rt_read(&pfes_rt, &gf_rt_read, false);
+   ParGridFunction pgf_l2_read(&pfes_l2, &gf_l2_read);
+
+   pgf_h1_read -= pgf_h1;
+   pgf_nd_read -= pgf_nd;
+   pgf_rt_read -= pgf_rt;
+   pgf_l2_read -= pgf_l2;
+
+   const double diff_h1 = pgf_h1_read.ComputeL2Error(zeroCoef);
+   const double diff_nd = pgf_nd_read.ComputeL2Error(zeroVecCoef);
+   const double diff_rt = pgf_rt_read.ComputeL2Error(zeroVecCoef);
+   const double diff_l2 = pgf_l2_read.ComputeL2Error(zeroCoef);
+
+   if (my_rank == 0)
+   {
+      REQUIRE(diff_h1 < 1e-8 * norm_h1);
+      REQUIRE(diff_nd < 1e-8 * norm_nd);
+      REQUIRE(diff_rt < 1e-8 * norm_rt);
+      REQUIRE(diff_l2 < 1e-8 * norm_l2);
+   }
+
+   // Clean up
+   REQUIRE(std::remove(name_h1.str().c_str()) == 0);
+   REQUIRE(std::remove(name_nd.str().c_str()) == 0);
+   REQUIRE(std::remove(name_rt.str().c_str()) == 0);
+   REQUIRE(std::remove(name_l2.str().c_str()) == 0);
+}
+
 #endif // MFEM_USE_MPI
