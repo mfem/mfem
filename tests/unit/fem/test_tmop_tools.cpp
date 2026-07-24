@@ -81,7 +81,7 @@ void ForceHost(Vector &x)
 }
 
 void RunAdvectorCGRemap(AssemblyLevel al, bool use_device,
-                           Vector &initial_field, Vector &result)
+                        Vector &initial_field, Vector &result)
 {
    const int dim = 2;
    const int mesh_order = 2;
@@ -138,7 +138,7 @@ TEST_CASE("AdvectorCG byNODES device matches host", "[TMOP][GPU]")
 
    use_device = true;
    RunAdvectorCGRemap(AssemblyLevel::PARTIAL, use_device,
-                         gpu_initial, gpu_result);
+                      gpu_initial, gpu_result);
 
    // reference result forces host computation where sync is not
    // needed.
@@ -146,7 +146,7 @@ TEST_CASE("AdvectorCG byNODES device matches host", "[TMOP][GPU]")
 
    use_device = false;
    RunAdvectorCGRemap(AssemblyLevel::PARTIAL, use_device,
-                         reference_initial, reference_result);
+                      reference_initial, reference_result);
 
    REQUIRE(IsFinite(reference_result));
    REQUIRE(IsFinite(gpu_result));
