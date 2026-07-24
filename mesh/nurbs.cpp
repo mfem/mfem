@@ -5057,6 +5057,7 @@ void NURBSExtension::SetCoordsFromPatches(Vector &Nodes, int vdim)
    if (patches.Size() == 0) { return; }
 
    SetSolutionVector(Nodes, vdim);
+   for (auto &patch : patches) { delete patch; }
    patches.SetSize(0);
 }
 
@@ -5094,8 +5095,14 @@ void NURBSExtension::SetKnotsFromPatches()
 
    GenerateActiveVertices();
    InitDofMap();
+
+   delete el_dof;
+   el_dof = nullptr;
    GenerateElementDofTable();
    GenerateActiveBdrElems();
+
+   delete bel_dof;
+   bel_dof = nullptr;
    GenerateBdrElementDofTable();
 
    ConnectBoundaries();
@@ -5602,6 +5609,7 @@ void NURBSExtension::Set1DSolutionVector(Vector &coords, int vdim)
       }
 
       delete patches[p];
+      patches[p] = nullptr;
    }
 }
 
@@ -5634,6 +5642,7 @@ void NURBSExtension::Set2DSolutionVector(Vector &coords, int vdim)
          }
       }
       delete patches[p];
+      patches[p] = nullptr;
    }
 }
 
@@ -5669,6 +5678,7 @@ void NURBSExtension::Set3DSolutionVector(Vector &coords, int vdim)
          }
       }
       delete patches[p];
+      patches[p] = nullptr;
    }
 }
 

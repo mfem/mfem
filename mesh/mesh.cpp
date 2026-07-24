@@ -4857,13 +4857,14 @@ Mesh::Mesh(const NURBSExtension& ext)
    vertices.SetSize(NumOfVertices);
    if (NURBSext->HavePatches())
    {
-      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
       const int vdim = NURBSext->GetPatchSpaceDimension();
+      NURBSext->SetKnotsFromPatches();
+
+      NURBSFECollection  *fec = new NURBSFECollection(NURBSext->GetOrder());
       FiniteElementSpace *fes = new FiniteElementSpace(this, fec, vdim,
                                                        Ordering::byVDIM);
       Nodes = new GridFunction(fes);
       Nodes->MakeOwner(fec);
-      NURBSext->SetKnotsFromPatches();
       NURBSext->SetCoordsFromPatches(*Nodes, vdim);
       own_nodes = 1;
       spaceDim = Nodes->VectorDim();
