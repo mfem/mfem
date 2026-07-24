@@ -157,5 +157,5 @@ baselinepublish_mfem_dane:
     - .gitlab/scripts/rebaseline
 
 include:
-  - local: .gitlab/custom-jobs-and-variables.yml
+  - local: .gitlab/custom-variables.yml
   - local: .gitlab/configs/setup-baseline.yml
