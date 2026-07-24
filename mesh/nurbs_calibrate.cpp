@@ -417,19 +417,19 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
    const int ncp = (nel[dir] * ned) + 1;
    const int ncp_o = (nel[odir] * ned) + 1;
 
-   // Set the grid points for this boundary segment.
-   std::vector<Vector> bgrid(ncp);
+   // Set the grid points for this boundary segment, omitting the endpoints.
+   std::vector<Vector> bgrid(ncp - 2);
 
    const int sideIndex = (side == 0) ? 0 : ncp_o - 1;
 
-   for (int i=0; i<ncp; ++i)
+   for (int i = 1; i < ncp-1; ++i) // No endpoints
    {
-      bgrid[i].SetSize(sdim);
+      bgrid[i - 1].SetSize(sdim);
       const int ig = (dir == 0) ? i : sideIndex;
       const int jg = (dir == 0) ? sideIndex : i;
       for (int k=0; k<sdim; ++k)
       {
-         bgrid[i][k] = grid(ig, jg, k);
+         bgrid[i - 1][k] = grid(ig, jg, k);
       }
    }
 
@@ -489,8 +489,8 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
 
          ComputePointOnSegment0(um, v2);
 
-         // Check whether v2 is before or after p. This assumes the curvature is limited.
-         // TODO: what exactly is the curvature limitation?
+         // Check whether v2 is before or after p. This method assumes the
+         // curvature is limited.
          // TODO: can the implementation be generalized to avoid this assumption?
 
          for (int j=0; j<sdim; ++j)
@@ -520,12 +520,11 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
       return u0;
    };
 
-   // TODO: don't need bgrid at all grid points.
    Vector knots(nel[dir] - 1);
    for (int i=0; i<nel[dir] - 1; ++i)
    {
       const int cp = (i + 1) * ned;
-      knots[i] = FindPointOnSegment(bgrid[cp]);
+      knots[i] = FindPointOnSegment(bgrid[cp - 1]);
    }
 
    // Insert the knots into the single-element patch.
@@ -782,8 +781,8 @@ void SolvePhysicalGridBdry(Mesh &mesh, const Mesh &mesh0, int patchIndex,
    }
    else // dim == 3
    {
-      // TODO: the boundary edges of the patch are solved twice.
-      // Eliminate this inefficiency.
+      // Note that the boundary edges of the patch are solved twice, which is an
+      // insignificant inefficiency.
       for (int dir=0; dir<3; ++dir)
          for (int side=0; side<2; ++side)
             SolveBoundaryFace(mesh0, patchIndex, coarsePatchCP, order, ned, nel,
