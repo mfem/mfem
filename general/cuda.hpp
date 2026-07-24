@@ -100,6 +100,12 @@ void CuCheckLastError();
 /// Get the number of CUDA devices
 int CuGetDeviceCount();
 
+/// Active CUDA device id (0 if CUDA disabled).
+int CuGetDevice();
+
+/// Default max shared memory (bytes) per block on device @a dev (0 if CUDA disabled).
+int CuSharedMemoryPerBlock(int dev);
+
 } // namespace mfem
 
 #endif // MFEM_CUDA_HPP

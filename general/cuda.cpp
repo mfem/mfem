@@ -191,4 +191,25 @@ int CuGetDeviceCount()
    return num_gpus;
 }
 
+int CuGetDevice()
+{
+   int dev = 0;
+#ifdef MFEM_USE_CUDA
+   MFEM_GPU_CHECK(cudaGetDevice(&dev));
+#endif
+   return dev;
+}
+
+int CuSharedMemoryPerBlock(int dev)
+{
+   int res = 0;
+#ifdef MFEM_USE_CUDA
+   MFEM_GPU_CHECK(cudaDeviceGetAttribute(
+                     &res, cudaDevAttrMaxSharedMemoryPerBlock, dev));
+#else
+   MFEM_CONTRACT_VAR(dev);
+#endif
+   return res;
+}
+
 } // namespace mfem

@@ -120,6 +120,15 @@ inline void SmemDLFAssembleSimplexMma(const int NE,
    MFEM_VERIFY(p_.Size() == NQ1 * ndof, "");
    MFEM_VERIFY(vdim >= 1 && vc >= 0 && vc < vdim, "");
 
+   {
+      constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
+      constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
+      constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+      constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
+      // DomainLF only stages Us[U_LD * NB] in shared memory.
+      simplex_mma::VerifySharedMemBytes(int(sizeof(real_t)) * U_LD * NB);
+   }
+
    const auto P = p_.Read();
    const auto D = d_.Read();
 

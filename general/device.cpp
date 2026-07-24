@@ -799,4 +799,27 @@ int Device::WarpSize()
    return WarpSize(dev);
 }
 
+int Device::SharedMemoryPerBlock(int dev)
+{
+#if defined(MFEM_USE_CUDA)
+   return CuSharedMemoryPerBlock(dev);
+#elif defined(MFEM_USE_HIP)
+   return HipSharedMemoryPerBlock(dev);
+#else
+   MFEM_CONTRACT_VAR(dev);
+   return 0;
+#endif
+}
+
+int Device::SharedMemoryPerBlock()
+{
+#if defined(MFEM_USE_CUDA)
+   return SharedMemoryPerBlock(CuGetDevice());
+#elif defined(MFEM_USE_HIP)
+   return SharedMemoryPerBlock(HipGetDevice());
+#else
+   return 0;
+#endif
+}
+
 } // namespace mfem
