@@ -152,8 +152,8 @@ void SolveFaceNURBS(const Array3D<real_t> &grid, Mesh &mesh)
 
    IntegrationPoint ip;
 
-   const int nz = 3;
-   const double h = 1.0 / 2.0;
+   constexpr int nz = 3;
+   constexpr double h = 0.5;
 
    DenseMatrix A(x.Size());
    std::vector<Vector> b(2);

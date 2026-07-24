@@ -521,6 +521,7 @@ public:
    /// Copy the control points and weights from another NURBSPatch @a p to this.
    void SetControlPoints(const NURBSPatch &p);
 
+   /// Divide weights from control points.
    void DivideOutWeights();
 
    /// Compute the 2D rotation matrix @a T for angle @a angle.
@@ -1142,15 +1143,19 @@ public:
       patches[patch]->SetControlPoints(p);
    }
 
+   /// Set the coarse patch control points.
    void SetCoarsePatchCP(int p, const Array2D<real_t> &cp);
 
+   /// Get the coarse patch control points.
    void GetCoarsePatchCP(int p, Array2D<real_t> &cp) const;
 
+   /// Return true if coarse patch control point data is set.
    bool HaveCoarsePatchData() const
    {
       return patchCP.GetSize1() > 0;
    }
 
+   /// Return the number of patches with coarse control point data.
    int NumCoarsePatches() const
    {
       return patchCP.GetSize1();
@@ -1172,12 +1177,17 @@ public:
    /// Print control points for coarse patches @a patchCP.
    void PrintCoarsePatches(std::ostream &os);
 
-   // If sweep1D is true, an approximate 1D sweeping solver is used; otherwise,
-   // a more expensive full-dimensional system solver is used on each patch. The
-   // 1D sweeping solver is more efficient, usually with a small loss of
-   // accuracy.
+   /** @brief Recompute control points so that the relative physical spacing of
+       elements approximately matches the reference spacing of knots.
+
+       If patches are not already set, then they will be set by using control
+       point data from the input @a Nodes. If @a sweep1D is true, an approximate
+       1D sweeping solver is used; otherwise, a more expensive full-dimensional
+       system solver is used on each patch. The 1D sweeping solver is more
+       efficient, usually with a small loss of accuracy. */
    void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true);
 
+   /// Set the number of patches which should have coarse control point data.
    void SetNumCoarsePatches(int n);
 };
 

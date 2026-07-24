@@ -5862,6 +5862,8 @@ void NURBSExtension::RefineWithKVFactors(int rf,
    MFEM_ABORT("RefineWithKVFactors is supported only in NCNURBSExtension");
 }
 
+// Return a newly constructed 2D or 3D mesh with a single patch, using the
+// input data.
 Mesh GetPatchMesh(int p, int dim, int sdim, int degree, int ncp,
                   const Array3D<double> &patchCP)
 {
@@ -6051,7 +6053,7 @@ NURBSPatch::NURBSPatch(Array<const KnotVector *> &kv_,  int dim_,
 
 void NURBSPatch::DivideOutWeights()
 {
-   // Set weights and weighted control points
+   // Divide weights from control points
    if (Dim == 4) // 3D case
    {
       for (int i=0; i<ni; ++i)

@@ -22,7 +22,7 @@ set(SRCS
   ncmesh.cpp
   ncnurbs.cpp
   nurbs.cpp
-  nurbs_spacing.cpp
+  nurbs_calibrate.cpp
   point.cpp
   pyramid.cpp
   quadrilateral.cpp

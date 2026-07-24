@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "ncnurbs.hpp"
-#include "../fem/gridfunc.hpp"
 
 namespace mfem
 {
@@ -3949,7 +3948,6 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
    KnotVector kvz(degree, spacing, continuity); // Knots in z-direction
 
    const int ncpz = kvz.GetNCP();
-
    const real_t hz = sz / ((real_t) (ncpz - 1));
 
    // Construct 3D patches.
@@ -3959,7 +3957,7 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
       const KnotVector *kv[3];
       p2g.SetPatchDofMap(p, kv);
 
-      KnotVector *kv0 = patches[p]->GetKV(0); // TODO: is this the same as kv[0]?
+      KnotVector *kv0 = patches[p]->GetKV(0);
       KnotVector *kv1 = patches[p]->GetKV(1);
       patches3D[p] = new NURBSPatch(kv0, kv1, &kvz, 4);
 
