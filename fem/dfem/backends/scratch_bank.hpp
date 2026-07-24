@@ -9,8 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #pragma once
-
-#include "../../../../mfem.hpp"
+#include "../../../mfem.hpp"
 #include "../tuple.hpp"
 #include <memory>
 #include <type_traits>
@@ -218,9 +217,6 @@ struct QFWithScratch
 using QFWithScratchType = QFWithScratch<>;
 using QFWithGlobalScratchType = QFWithScratch<bool, real_t, Vector>;
 
-<<<<<<< HEAD:fem/dfem/backends/global_qf/scratch_bank.hpp
-}
-=======
 namespace detail
 {
 
@@ -279,4 +275,3 @@ inline qfunc_shadow_t<qfunc_t> MakeQFunctionShadowStorage(
 } // namespace detail
 
 }
->>>>>>> 666c1d5389f956cae8c918a379a750f71d4ac092:fem/dfem/backends/scratch_bank.hpp

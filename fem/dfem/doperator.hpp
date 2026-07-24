@@ -491,8 +491,6 @@ public:
    {
       MFEM_ASSERT(!assemble_diagonal_callbacks.empty(),
                   "derivative can't assemble diagonal");
-      MFEM_VERIFY(!derivative_setup_callbacks.empty(),
-                  "AssembleDiagonal requires derivative setup callbacks");
       EnsureQpCache();
       MFEM_ASSERT(outfds.size() == 1,
                   "AssembleDiagonal currently requires a single output field");

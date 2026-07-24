@@ -89,32 +89,21 @@ public:
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(
          get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-      out_vdim(
-         [&]
-      {
-         // Functional derivatives synthesize their output field operators
-         // after AddIntegrator has initialized the original tuples. Fill their
-         // runtime dimensions before using them to size the qp cache.
-         create_output_vector_map(ctx, outputs);
-         return get_vdim(outputs);
-      }()),
-      out_op_dim(compute_out_op_dim(outputs)),
-      out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
-      output_size_on_qp(
-         [&]
-      {
-         int s = 0;
-         for_constexpr<n_outputs>([&](auto o)
-         { s += get<o>(outputs).size_on_qp; });
-         return s;
-      }()),
-      trial_vdim(compute_trial_vdim(inputs, derivative_id)),
-      total_trial_op_dim(compute_total_trial_op_dim(
-                            inputs, input_is_dependent, input_size_on_qp)),
-      residual_size_on_qp(output_size_on_qp * trial_vdim *
-                          total_trial_op_dim),
-      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
-      q1d(tensor_1d_size(nq, dim))
+                           out_vdim(get_vdim(outputs)), out_op_dim(compute_out_op_dim(outputs)),
+                           out_offsets(compute_out_offsets(out_vdim, out_op_dim)), output_size_on_qp(
+                              [&]
+   {
+      int s = 0;
+      for_constexpr<n_outputs>([&](auto o)
+      { s += get<o>(outputs).size_on_qp; });
+      return s;
+   }()),
+   trial_vdim(compute_trial_vdim(inputs, derivative_id)),
+   total_trial_op_dim(compute_total_trial_op_dim(
+                         inputs, input_is_dependent, input_size_on_qp)),
+   residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
+   dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+   q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
@@ -128,10 +117,6 @@ public:
    {
       if (ctx.attr.Size() == 0) { return; }
 
-      const int expected_cache_size = ne * nq * residual_size_on_qp;
-      MFEM_VERIFY(qp_cache.Size() == expected_cache_size,
-                  "DerivativeSetup cache size mismatch before fill: expected "
-                  << expected_cache_size << ", got " << qp_cache.Size());
       auto cache_tensor = DeviceTensor<3, real_t>(
                              qp_cache.ReadWrite(), residual_size_on_qp, nq, ne);
 

@@ -221,7 +221,6 @@ public:
                    output_dtq_maps,
                    input_dtq_maps,
                    test_vdim,
-                   output_vdim,
                    output_op_dim,
                    output_offsets,
                    num_test_dof,
@@ -279,7 +278,6 @@ public:
       const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
       const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
       const int test_vdim,
-      const std::array<int, n_outputs> &output_vdim,
       const std::array<int, n_outputs> &output_op_dim,
       const std::array<int, n_outputs> &output_offsets,
       const int num_test_dof,
@@ -303,18 +301,10 @@ public:
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      const int expected_cache_size = residual_size_on_qp * nq * ne;
-      MFEM_VERIFY(qp_cache.Size() == expected_cache_size,
-                  "DerivativeAssembleDiagonal cache size mismatch: expected "
-                  << expected_cache_size << ", got " << qp_cache.Size());
-      const real_t *cache_data = qp_cache.Read();
-      MFEM_VERIFY(cache_data != nullptr,
-                  "DerivativeAssembleDiagonal cache is not allocated");
       auto cache_tensor = DeviceTensor<3, const real_t>(
-                             cache_data, residual_size_on_qp, nq, ne);
+                             qp_cache.Read(), residual_size_on_qp, nq, ne);
       const int num_dofs_per_elem = num_test_dof * test_vdim;
       auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, ne);
-      MFEM_CONTRACT_VAR(output_vdim);
 
       dfem::forall<MTPB>(
          [=] MFEM_HOST_DEVICE(const int e, void *)
