@@ -373,6 +373,7 @@ miniapps/tools/compare-dc
 miniapps/tools/gridfunction-bounds
 miniapps/tools/lor-transfer
 miniapps/tools/plor-transfer
+miniapps/tools/weighted-lor-transfer
 miniapps/tools/get-values
 miniapps/tools/tmop-check-metric
 miniapps/tools/tmop-metric-magnitude
