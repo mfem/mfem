@@ -11,41 +11,46 @@
 Version 4.9.1 (development)
 ===========================
 
-- Policy for AI-assisted contribution added to CONTRIBUTING.md
+- Added policy for AI-assisted contribution to CONTRIBUTING.md.
 
 Discretization improvements
 ---------------------------
-- Added NVIDIA cuDSS library interface. Implementation examples have been 
-  added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more 
-  details. Supported versions >= 0.6.0.
+- Improved FindPointsGSLIB surface mesh capability with support for simplices
+  and an option to specify axis-aligned bounding box padding for near-surface
+  point queries.
+
+- Added GPU-enabled partial assembly for simplicial Bernstein H1 basis based on
+  ragged tensor algorithms (see DOI: 10.1137/11082539X) for mass and diffusion
+  integrators.
+
+- Replaced legacy simplex quadrature rules with symmetric positive weight rules
+  for triangles (orders 0-25) and tetrahedra (orders 0-20). These rules
+  guarantee all-positive weights and interior quadrature points, improving
+  numerical stability. Higher orders fall back to Grundmann-Moller.
+  * Triangle rules: Witherden and Vincent, DOI: 10.1016/j.camwa.2015.03.017
+  * Tet rules (d=1-13): Witherden and  Vincent (same as above)
+  * Tet rules (d=14-20): Chuluunbaatar et al., DOI: 10.1016/j.camwa.2022.08.016
+
+- Added support for general 1D Gauss-Jacobi quadrature rules and Stroud conical
+  quadrature rules on triangles and tetrahedra.
+
+- Improved the GridFunction projection routines. Projections work for Scalar,
+  Vector and VectorFE, also NURBS versions. Optionally different types of
+  projections can be selected, default behavior has not changed.
+
+- Added GridFunction projection methods for trace spaces, i.e., project
+  coefficients on the mesh skeleton.
+
+- Added methods to estimate function extremum using piecewise linear bounds plus
+  recursive subdivision.
 
 - Extend FindPointsGSLIB to support surface meshes.
 
-- Replaced legacy simplex quadrature rules with symmetric positive-weight
-  rules for triangles (orders 0-25) and tetrahedra (orders 0-20). These
-  rules guarantee all-positive weights and interior quadrature points,
-  improving numerical stability. Higher orders fall back to Grundmann-Moller.
-  Triangle rules: Witherden & Vincent, Comput. Math. Appl. 69(10):1232-1241,
-  2015.
-  Tet rules (d=1-13): Witherden & Vincent (ibid).
-  Tet rules (d=14-20): Chuluunbaatar et al., Comput. Math. Appl. 124:89-97,
-  2022.
-
-- Improved the gridfunction projection routines. Projections work for Scalar,
-  Vector and VectorFE, also NURBS versions. Optionally different types of
-  projections can be selected, default behaviour has not changed.
-- Added grid function projection methods for trace spaces, i.e., project
-  coefficients on the mesh skeleton.   
-
-- GPU-enabled partial assembly (PA) for simplicial Bernstein (H1) basis based on
-  ragged tensor algorithms in (https://doi.org/10.1137/11082539X) for mass and
-  diffusion integrators.
-
-- Added methods to estimate function extremum using piecewise linear bounds +
-  recursive subdivision.
-
 Meshing improvements
 --------------------
+- Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
+  bounds on the determinant of the mesh transformation Jacobian.
+
 - Added PA support for TMOP's adaptive limiting functionality. Multiple
   GridFunctions and Coefficients can be combined to form a composite term.
 
@@ -57,12 +62,6 @@ Meshing improvements
   parallel visualization, e.g. with GLVis. This is supported by both the Print
   and PrintAsOne methods of ParMesh. See ParMesh::SetPrintInterfaces().
 
-New and updated examples and miniapps
--------------------------------------
-- Electromagnetics/lorentz miniapp has been updated to leverage the ParticleSet
-  capability.
-- Added (Complex)PRefinementMultigrid solver option in DPG miniapps.
-
 Linear and nonlinear solvers
 ----------------------------
 - Added support for trace spaces in PRefinementTransferOperator. This is used in
@@ -71,18 +70,28 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
+
+- Added NVIDIA cuDSS library interface. Implementation examples have been
+  added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
+  details. Supported versions >= 0.6.0.
+
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
+New and updated examples and miniapps
+-------------------------------------
+- The Lorentz miniapp (in miniapps/electromagnetics) has been updated to
+  leverage the ParticleSet capability.
+
+- Added (Complex)PRefinementMultigrid solver option in the DPG miniapps.
 
 Miscellaneous
 -------------
-- Added support for general 1D Gauss-Jacobi quadrature rules and Stroud conical
-  quadrature rules on triangles and tetrahedra.
+- Fixed signed DOF handling in ParGridFunction reading (read constructor) and
+  saving via SaveAsOne(). Simplified the process of applying the DOF signs by
+  using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
+  method will return immediately if no sign flips are needed.
 
-- Fixed signed DOF handling in parallel grid-function reading (read constructor)
-  and saving via ParGridFunction::SaveAsOne(). Simplified the process of
-  applying the DOF signs by using the new method ApplyDofSigns() in class
-  ParFiniteElementSpace -- the method will return immediately if no sign flips
-  are needed.
 
 Version 4.9, released on Dec 11, 2025
 =====================================

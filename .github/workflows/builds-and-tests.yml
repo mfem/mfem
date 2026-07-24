@@ -111,6 +111,7 @@ jobs:
             build-system: make
             hypre-target: int64
             precision: fp64
+            gitignore-check: YES
           - os: ubuntu-latest
             target: opt
             codecov: NO
@@ -170,20 +171,6 @@ jobs:
         run: |
           env
         shell: bash
-
-      # For info on Xcode see:
-      #  - https://github.com/actions/runner-images/issues/12541
-      #  - https://github.com/actions/runner-images/blob/releases/macos-15-arm64/20250811/images/macos/macos-15-arm64-Readme.md#xcode
-      - name: Xcode version setup (MacOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          XCODE_PATH="/Applications/Xcode_16.4.app"
-          echo "> sudo xcode-select -s ${XCODE_PATH}"
-          sudo xcode-select -s ${XCODE_PATH}
-          echo "> g++ -v"
-          g++ -v
-          echo "> clang++ -v"
-          clang++ -v
 
       # Only get MPI if defined for the job.
       # TODO: It would be nice to have only one step, e.g. with a dedicated
@@ -331,7 +318,13 @@ jobs:
       - name: tests
         if: matrix.build-system == 'make' && (matrix.target == 'opt' || matrix.os == 'ubuntu-latest')
         run: |
-          cd ${{ env.MFEM_TOP_DIR }} && make test
+          cd ${{ env.MFEM_TOP_DIR }}
+          if [[ "${{ matrix.gitignore-check }}" == "YES" ]]; then
+            make test-noclean
+          else
+            make test
+          fi
+        shell: bash
 
       - name: cmake checks
         if: matrix.build-system == 'cmake' && matrix.target == 'dbg'
@@ -383,3 +376,9 @@ jobs:
           directories: "fem general linalg mesh"
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: gitignore
+        if: matrix.gitignore-check == 'YES'
+        run: |
+          cd ${{ env.MFEM_TOP_DIR }}/tests/scripts
+          ./runtest gitignore
