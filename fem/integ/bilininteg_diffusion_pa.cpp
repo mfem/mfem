@@ -15,16 +15,18 @@
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
+#include "bilininteg_diffusion_pa_tensor_sf_mma.hpp"
 #include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_tensor_sf_mma.hpp"
 
 namespace mfem
 {
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_simplex_mma)
+   if (pa_simplex_mma || pa_tensor_mma)
    {
-      MFEM_ABORT("AssembleDiagonalPA not implemented for simplex MMA PA");
+      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
    else if (DeviceCanUseCeed())
    {
@@ -49,6 +51,16 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
                                     simplex_mma_G, pa_data, x, y,
                                     dofs1D, quad1D);
+   }
+   else if (pa_tensor_mma)
+   {
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
+      ApplyTensorSfMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                     B, G, Bt, Gt, pa_data, x, y,
+                                     dofs1D, quad1D);
    }
    else if (DeviceCanUseCeed())
    {
@@ -118,6 +130,7 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    pa_simplex_mma = false;
+   pa_tensor_mma = false;
    simplex_mma_G.DeleteAll();
 
    if (CanUseSimplexMmaPA(fes))
@@ -205,6 +218,12 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    internal::PADiffusionSetup(dim, sdim, dofs1D, quad1D, coeff_dim, ne,
                               ir->GetWeights(), geom->J, coeff, pa_data);
+
+   // Opt-in sum-factored tensor MMA apply (reuse maps + pa_data)
+   if (CanUseTensorMmaPA(fes))
+   {
+      pa_tensor_mma = true;
+   }
 }
 
 void DiffusionIntegrator::AssembleNURBSPA(const FiniteElementSpace &fes)
@@ -236,7 +255,8 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Ceed AbsMult not implemented yet");
    }
-   MFEM_VERIFY(!pa_simplex_mma, "AbsMultPA not implemented for simplex MMA PA");
+   MFEM_VERIFY(!pa_simplex_mma && !pa_tensor_mma,
+               "AbsMultPA not implemented for MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
    auto abs_maps = maps->Abs();

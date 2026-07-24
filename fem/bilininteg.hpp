@@ -2198,6 +2198,9 @@ public:
                                              const Vector&, const Vector&, Vector&,
                                              const int, const int);
 
+   /// Same signature as ApplyKernelType (Bt/Gt unused; SF-MMA uses B/G only).
+   using ApplyTensorSfMmaKernelType = ApplyKernelType;
+
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
@@ -2206,6 +2209,8 @@ public:
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTensorSfMmaPAKernels, ApplyTensorSfMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2232,6 +2237,8 @@ private:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
    /// True when using CUDA simplex MMA diffusion PA (dense GradP + DMMA apply)
    bool pa_simplex_mma = false;
+   /// True when using sum-factored Tensor-Core MMA apply (quad/hex, opt-in)
+   bool pa_tensor_mma = false;
    /// Dense reference gradients at quads: nq × ndof × dim
    Array<real_t> simplex_mma_G;
 
@@ -2396,8 +2403,19 @@ public:
       }
    }
 
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorSfMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplyTensorSfMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
    /// Register specialized simplex MMA apply kernels (separate TU).
    static void RegisterSimplexMmaKernels();
+   /// Register specialized tensor sum-factored MMA apply kernels.
+   static void RegisterTensorSfMmaKernels();
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
       const FiniteElement& trial_fe,
@@ -2426,6 +2444,8 @@ protected:
    int dim, ne, nq, dofs1D, quad1D;
    /// True when using CUDA simplex MMA mass PA (dense P + DMMA apply).
    bool pa_simplex_mma = false;
+   /// True when using sum-factored Tensor-Core MMA apply (quad/hex, opt-in).
+   bool pa_tensor_mma = false;
    /// Dense basis evaluation at quadrature points (nq × ndof).
    Array<real_t> simplex_mma_P;
 
@@ -2450,6 +2470,9 @@ public:
                                              const Vector&, const Vector&, Vector&,
                                              const int, const int);
 
+   /// Same signature as ApplyKernelType (Bt unused; SF-MMA uses B only).
+   using ApplyTensorSfMmaKernelType = ApplyKernelType;
+
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
                                        const int);
@@ -2458,6 +2481,8 @@ public:
    MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTensorSfMmaPAKernels, ApplyTensorSfMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2540,8 +2565,19 @@ public:
       }
    }
 
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorSfMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplyTensorSfMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
    /// Register specialized simplex MMA apply kernels (separate TU).
    static void RegisterSimplexMmaKernels();
+   /// Register specialized tensor sum-factored MMA apply kernels.
+   static void RegisterTensorSfMmaKernels();
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

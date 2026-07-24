@@ -149,6 +149,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_kernels.cpp
   fem/test_pa_simplices.cpp
   fem/test_pa_simplices_mma.cpp
+  fem/test_pa_tensor_sf_mma.cpp
   fem/test_lininteg_simplices_mma.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp

@@ -81,6 +81,8 @@ MassIntegrator::Kernels::Kernels()
 
    // Simplex MMA specs: bilininteg_mass_pa_simplices_mma.cpp
    RegisterSimplexMmaKernels();
+   // Tensor SF-MMA specs: bilininteg_mass_pa_tensor_sf_mma.cpp
+   RegisterTensorSfMmaKernels();
 }
 
 namespace internal
