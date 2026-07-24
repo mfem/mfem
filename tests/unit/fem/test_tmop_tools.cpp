@@ -80,7 +80,7 @@ void ForceHost(Vector &x)
    x.UseDevice(false);
 }
 
-void RunAdvectorCGOneRemap(AssemblyLevel al, bool use_device,
+void RunAdvectorCGRemap(AssemblyLevel al, bool use_device,
                            Vector &initial_field, Vector &result)
 {
    const int dim = 2;
@@ -131,14 +131,21 @@ void RunAdvectorCGOneRemap(AssemblyLevel al, bool use_device,
 
 } // namespace
 
-TEST_CASE("AdvectorCG byNODES device one remap matches host", "[TMOP][GPU]")
+TEST_CASE("AdvectorCG byNODES device matches host", "[TMOP][GPU]")
 {
    Vector gpu_initial, gpu_result;
-   RunAdvectorCGOneRemap(AssemblyLevel::PARTIAL, true,
+   bool use_device;
+
+   use_device = true;
+   RunAdvectorCGRemap(AssemblyLevel::PARTIAL, use_device,
                          gpu_initial, gpu_result);
 
+   // reference result forces host computation where sync is not
+   // needed.
    Vector reference_initial, reference_result;
-   RunAdvectorCGOneRemap(AssemblyLevel::LEGACY, false,
+
+   use_device = false;
+   RunAdvectorCGRemap(AssemblyLevel::PARTIAL, use_device,
                          reference_initial, reference_result);
 
    REQUIRE(IsFinite(reference_result));
@@ -146,6 +153,7 @@ TEST_CASE("AdvectorCG byNODES device one remap matches host", "[TMOP][GPU]")
 
    Vector reference_change(reference_result);
    reference_change -= reference_initial;
+   REQUIRE(reference_change.Norml2() > 1.0e-8);
 
    reference_result.UseDevice(true);
    Vector gpu_minus_reference(reference_result.Size());
@@ -159,6 +167,5 @@ TEST_CASE("AdvectorCG byNODES device one remap matches host", "[TMOP][GPU]")
       1.0e-8*std::max(real_t(1.0), reference_result.Norml2());
    CAPTURE(tolerance);
 
-   REQUIRE(reference_change.Norml2() > 1.0e-8);
    REQUIRE(gpu_minus_reference.Norml2() <= tolerance);
 }
