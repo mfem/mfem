@@ -229,20 +229,6 @@ void Intersect3DLines(const Vector &p0, const Vector &t0, const Vector &p1,
    rhs = p1;
    rhs -= p0;
 
-   // Find the max entry of t0.
-   int i0 = 0;
-   real_t t0max = std::abs(t0[0]);
-
-   for (int i=1; i<t0.Size(); ++i)
-   {
-      const real_t v = std::abs(t0[i]);
-      if (v > t0max)
-      {
-         t0max = v;
-         i0 = i;
-      }
-   }
-
    DenseMatrix A(3,2);
    DenseMatrix Ainv(2,3);
 

@@ -152,7 +152,6 @@ void SolvePhysicalGridInterior(const Array3D<real_t> &grid, int ned,
    for (int dir=0; dir<sdim; ++dir)
    {
       // Set b[dir]
-      int dofprev = -1;
       x = 0.0;
 
       for (int l_k=0; l_k<ncps[2]; ++l_k)
@@ -281,10 +280,7 @@ void SolvePhysicalGridSweep(const Array3D<real_t> &grid, int ned,
    std::vector<Vector> ugrid(dim);
 
    for (int i = 0; i < dim; ++i)
-   {
-      const KnotVector *kv_i = mesh.NURBSext->GetKnotVector(i);
       mesh.NURBSext->GetKnotVector(i)->GetDemko(ugrid[i]);
-   }
 
    Array<int> pdofs;
    mesh.NURBSext->GetPatchDofs(patch, pdofs);
