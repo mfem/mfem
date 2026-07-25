@@ -29,6 +29,7 @@ inline void SmemPAMassApplyTensorSfMma3D(const int NE,
                                          Vector &y_)
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
+   constexpr int NB = tensor_sf_mma::SfMmaMassNB3D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -36,57 +37,58 @@ inline void SmemPAMassApplyTensorSfMma3D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
 
-   const int nthreads = ((Q1D * Q1D * Q1D + 31) / 32) * 32;
-   mfem::forall_3D(NE, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int e)
+   const int nthreads = tensor_sf_mma::SfMmaMassThreads3D<D1D, Q1D>();
+   const int nblocks = (NE + NB - 1) / NB;
+   // Serial multi-element batch: shared B once; one element smem at a time.
+   // Parallel z-batch (threadIdx.z) was correct but ~30% slower at (5,6).
+   mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
       constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
       MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
       MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
       MFEM_SHARED real_t sB[MD1 * MQ1];
+      MFEM_SHARED real_t sBt[MD1 * MQ1];
 
-      tensor_sf_mma::LoadB<MD1, MQ1>(D1D, Q1D, B, sB);
+      tensor_sf_mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
       {
-         const int tid = tensor_sf_mma::getThreadIdx();
-         if (tid < D1D * D1D * D1D)
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
          {
-            const int dx = tid % D1D;
-            const int div = tid / D1D;
-            const int dy = div % D1D;
-            const int dz = div / D1D;
-            sm0[dx + D1D * (dy + D1D * dz)] = X(dx, dy, dz, e);
+            const int tid = tensor_sf_mma::getThreadIdx();
+            const int nd = D1D * D1D * D1D;
+#ifdef __CUDA_ARCH__
+            const int stride = static_cast<int>(blockDim.x);
+#else
+            const int stride = nd;
+#endif
+            for (int t = tid; t < nd; t += stride)
+            {
+               const int dx = t % D1D;
+               const int div = t / D1D;
+               const int dy = div % D1D;
+               const int dz = div / D1D;
+               sm0[dx + D1D * (dy + D1D * dz)] = X(dx, dy, dz, e);
+            }
+            MFEM_SYNC_THREAD;
          }
+
+         tensor_sf_mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpZMass<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1, D, e);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sm1, Y, e);
+         MFEM_SYNC_THREAD;
       }
-      MFEM_SYNC_THREAD;
-
-      tensor_sf_mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpZ<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-      MFEM_SYNC_THREAD;
-
-      {
-         const int tid = tensor_sf_mma::getThreadIdx();
-         if (tid < Q1D * Q1D * Q1D)
-         {
-            const int qx = tid % Q1D;
-            const int div = tid / Q1D;
-            const int qy = div % Q1D;
-            const int qz = div / Q1D;
-            const int idx = qx + Q1D * qy + Q1D * Q1D * qz;
-            const int q = qx + Q1D * (qy + Q1D * qz);
-            sm0[idx] = sm1[idx] * D(q, e);
-         }
-      }
-      MFEM_SYNC_THREAD;
-
-      tensor_sf_mma::LoadBt<MD1, MQ1>(D1D, Q1D, B, sB);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpZt<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpYt<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpXt<MD1, MQ1>(D1D, Q1D, sB, sm0, Y, e);
    });
 }
 
@@ -99,6 +101,7 @@ inline void SmemPAMassApplyTensorSfMma2D(const int NE,
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int MDQ = (Q1D > D1D ? Q1D : D1D);
+   constexpr int NB = tensor_sf_mma::SfMmaNB2D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -106,40 +109,55 @@ inline void SmemPAMassApplyTensorSfMma2D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
 
-   const int nthreads = ((Q1D * Q1D + 31) / 32) * 32;
-   mfem::forall_3D(NE, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int e)
+   const int nthreads = tensor_sf_mma::SfMmaThreads2D<D1D, Q1D>();
+   const int nblocks = (NE + NB - 1) / NB;
+   mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
       constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
-      MFEM_SHARED real_t sm0[MDQ * MDQ * MDQ];
-      MFEM_SHARED real_t sm1[MDQ * MDQ * MDQ];
+      MFEM_SHARED real_t sm0[MDQ * MDQ];
+      MFEM_SHARED real_t sm1[MDQ * MDQ];
       MFEM_SHARED real_t sB[MD1 * MQ1];
+      MFEM_SHARED real_t sBt[MD1 * MQ1];
 
-      tensor_sf_mma::LoadB<MD1, MQ1>(D1D, Q1D, B, sB);
-      tensor_sf_mma::LoadX2D<MQ1>(e, D1D, X, sm0);
+      tensor_sf_mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
       MFEM_SYNC_THREAD;
 
-      tensor_sf_mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
-      MFEM_SYNC_THREAD;
-
+      for (int i = 0; i < NB; i++)
       {
-         const int tid = tensor_sf_mma::getThreadIdx();
-         if (tid < Q1D * Q1D)
-         {
-            const int qx = tid % Q1D;
-            const int qy = tid / Q1D;
-            const int idx = qx + Q1D * qy;
-            sm1[idx] = sm0[idx] * D(idx, e);
-         }
-      }
-      MFEM_SYNC_THREAD;
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
 
-      tensor_sf_mma::LoadBt<MD1, MQ1>(D1D, Q1D, B, sB);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
-      MFEM_SYNC_THREAD;
-      tensor_sf_mma::InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, Y, e);
+         tensor_sf_mma::LoadX2D<MQ1>(e, D1D, X, sm0);
+         MFEM_SYNC_THREAD;
+
+         tensor_sf_mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
+         MFEM_SYNC_THREAD;
+
+         {
+            const int tid = tensor_sf_mma::getThreadIdx();
+            const int nq = Q1D * Q1D;
+#ifdef __CUDA_ARCH__
+            const int stride = blockDim.x;
+#else
+            const int stride = nq;
+#endif
+            for (int t = tid; t < nq; t += stride)
+            {
+               const int qx = t % Q1D;
+               const int qy = t / Q1D;
+               const int idx = qx + Q1D * qy;
+               sm1[idx] = sm0[idx] * D(idx, e);
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         tensor_sf_mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
+         MFEM_SYNC_THREAD;
+         tensor_sf_mma::InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm0, Y, e);
+         MFEM_SYNC_THREAD;
+      }
    });
 }
 
