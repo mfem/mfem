@@ -50,7 +50,11 @@ void SmemPAMassApplySimplexMma_Batch(const int e0,
       real_t XY[X_LD * NB];
       real_t Us[U_LD * NB];
    };
-   MFEM_SHARED Smem sm;
+#if defined(__CUDA_ARCH__)
+   Smem &sm = *reinterpret_cast<Smem *>(simplex_mma::SimplexMmaDynSmem());
+#else
+   MFEM_SHARED Smem sm; // HIP static / host automatic
+#endif
 
    const int tid = simplex_mma::getThreadIdx();
    [[maybe_unused]] const int nthreads = simplex_mma::getBlockNthreads();
@@ -127,15 +131,13 @@ inline void SmemPAMassApplySimplexMma(const int NE,
    MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() == NQ1 * NE, "");
    MFEM_VERIFY(p_.Size() == NQ1 * ndof, "");
 
-   {
-      constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
-      constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
-      constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
-      constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
-      constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
-      simplex_mma::VerifySharedMemBytes(
-         int(sizeof(real_t)) * (X_LD + U_LD) * NB);
-   }
+   constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
+   constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+   constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
+   constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
+   constexpr int smem_bytes = int(sizeof(real_t)) * (X_LD + U_LD) * NB;
+   simplex_mma::VerifySharedMemBytes(smem_bytes);
 
    const auto P = p_.Read();
    const auto D = d_.Read();
@@ -144,11 +146,20 @@ inline void SmemPAMassApplySimplexMma(const int NE,
 
    const int nthreads = simplex_mma::LaunchNthreads(NQ1, ndof);
    const int nbatches = (NE + NB - 1) / NB;
+#if defined(MFEM_USE_CUDA)
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
+                        [=] MFEM_HOST_DEVICE (int batch)
+   {
+      SmemPAMassApplySimplexMma_Batch<DIM, T_D1D, T_Q1D>(
+         batch * NB, NE, P, D, X, Y, d1d, nq1);
+   });
+#else
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       SmemPAMassApplySimplexMma_Batch<DIM, T_D1D, T_Q1D>(
          batch * NB, NE, P, D, X, Y, d1d, nq1);
    });
+#endif
 }
 
 } // namespace internal

@@ -65,8 +65,9 @@ inline bool CanUseTensorMmaPA(const FiniteElementSpace &fes)
       if (el.GetGeomType() != Geometry::CUBE) { return false; }
    }
    if (!IsTensorSfMmaH1Element(el, dim)) { return false; }
-   // dfem MMA fragment math requires D1D >= 3 (p >= 2)
-   if (el.GetOrder() < 2) { return false; }
+   // m8n8k4 pad waste dominates at p=2 (D,Q)=(3,4); use SUM there.
+   // Fragment math needs D1D >= 3; require p >= 3 for MMA competitiveness.
+   if (el.GetOrder() < 3) { return false; }
    return true;
 #endif
 }
@@ -226,15 +227,16 @@ MFEM_HOST_DEVICE inline int MapM(int lane_group, int warp_tile, int mPass)
  */
 
 
-/** Launch knobs (A/B winners; do not change without re-benching BP1/BP3):
+/** Launch knobs (re-bench BP1/BP3 after changes):
  *  Mass 3D: threads=64, NB=8 | Diff 3D: threads=128, NB=4 | 2D: threads=32, NB=8
+ *  Low-order (D1D<=4): fewer serial NB iterations, threads cover mPass tiles.
  *  Strip-mined mPass (SfMmaNWarps) lets Mass/Diff under-subscribe vs full mPass*32.
  */
 
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int SfMmaNB2D()
 {
-   return 8;
+   return (D1D <= 4) ? 4 : 8;
 }
 
 template <int D1D, int Q1D>
@@ -249,25 +251,40 @@ MFEM_HOST_DEVICE constexpr int SfMmaThreads2D()
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int SfMmaMassThreads3D()
 {
+   if (D1D <= 4)
+   {
+      constexpr int mPassD = (D1D + mmaM - 1) / mmaM;
+      constexpr int mPassQ = (Q1D + mmaM - 1) / mmaM;
+      constexpr int mP = mPassD > mPassQ ? mPassD : mPassQ;
+      return mP * 32;
+   }
    return 64;
 }
 
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int SfMmaMassNB3D()
 {
-   return 8;
+   return (D1D <= 4) ? 4 : 8;
 }
 
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int SfMmaDiffThreads3D()
 {
+   if (D1D <= 4)
+   {
+      constexpr int mPassD = (D1D + mmaM - 1) / mmaM;
+      constexpr int mPassQ = (Q1D + mmaM - 1) / mmaM;
+      constexpr int mP = mPassD > mPassQ ? mPassD : mPassQ;
+      constexpr int t = mP * 32;
+      return t < 64 ? 64 : t;
+   }
    return 128;
 }
 
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int SfMmaDiffNB3D()
 {
-   return 4;
+   return (D1D <= 4) ? 2 : 4;
 }
 
 template <int D1D, int Q1D>

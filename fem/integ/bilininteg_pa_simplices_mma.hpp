@@ -260,6 +260,7 @@ constexpr int MmaMapForDims(int ndof, int nq1)
 
    // Tetrahedra (BP3tet q=2p+3 and nearby)
    if (ndof == 20 && nq1 == 59) { return 0xcfa868; }
+   if (ndof == 35 && nq1 == 96) { return 0xcd7328; } // p=4 bake-off
    if (ndof == 56 && nq1 == 145) { return 0xfa54c8; }
    if (ndof == 84 && nq1 == 209) { return 0xcd7328; }
    if (ndof == 120 && nq1 == 284) { return 0xde5688; }
@@ -431,12 +432,27 @@ struct SmemMatAcc
 constexpr int MAX_N_TILES = 2;
 constexpr int NBATCH = 16; // 2*8 CUDA, or 1*16 / 4*4 HIP
 
-/** Compile-time default shared-memory cap for static MFEM_SHARED sizing.
-    Matches Device::SharedMemoryPerBlock() for CUDA/HIP without opt-in carveout. */
+/** Shared-memory budgets for NB / Q-tile planning.
+    CUDA: prefer 48KB (occupancy); allow up to 128KB dynamic for full-NQ when needed.
+    HIP: 64KB static (unchanged). */
 #if defined(MFEM_USE_HIP)
+constexpr int SharedMemBytesPrefer = 64 * 1024;
 constexpr int SharedMemBytesPerBlock = 64 * 1024;
+#elif defined(MFEM_USE_CUDA)
+constexpr int SharedMemBytesPrefer = 48 * 1024;
+constexpr int SharedMemBytesPerBlock = 128 * 1024; // dynamic smem opt-in
 #else
-constexpr int SharedMemBytesPerBlock = 48 * 1024; // CUDA default / CPU fallback
+constexpr int SharedMemBytesPrefer = 48 * 1024;
+constexpr int SharedMemBytesPerBlock = 48 * 1024;
+#endif
+
+/** CUDA dynamic shared memory base (one per block; size set at launch). */
+#if defined(__CUDA_ARCH__)
+MFEM_DEVICE inline char *SimplexMmaDynSmem()
+{
+   extern __shared__ char mfem_simplex_mma_dyn_smem[];
+   return mfem_simplex_mma_dyn_smem;
+}
 #endif
 
 /** Host-side check that planned static smem fits the probed device limit. */
@@ -1174,9 +1190,9 @@ MFEM_HOST_DEVICE inline int SimplexNdofFromD1D(const int dim, const int d1d)
           : (d1d * (d1d + 1) * (d1d + 2) / 6);
 }
 
-/** Mass / DomainLF batch width: NBATCH when specialized, capped to SharedMemBytesPerBlock. */
+/** Max NB for mass-like X+U buffers under a byte cap. */
 template <int DIM, int T_D1D, int T_Q1D>
-constexpr int MassLikeNB()
+constexpr int MassLikeNBAt(int bytes_cap)
 {
    if (!(T_D1D && T_Q1D)) { return mmaN; }
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
@@ -1184,19 +1200,33 @@ constexpr int MassLikeNB()
    constexpr int MAP = MmaMapFor<DIM, T_D1D, T_Q1D>();
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr int U_LD = PadLdBank<MAP>(MQ);
-   constexpr int max_nb =
-      SharedMemBytesPerBlock / (int(sizeof(real_t)) * (X_LD + U_LD));
+   const int max_nb = bytes_cap / (int(sizeof(real_t)) * (X_LD + U_LD));
    if (NBATCH <= max_nb) { return NBATCH; }
-   // Keep a multiple of mmaN when possible for N-tile fill.
    const int nb = (max_nb / mmaN) * mmaN;
    return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
 }
 
-/** Diffusion NB so X + DIM*U shared buffers stay within SharedMemBytesPerBlock.
-    CUDA: full-nq planes (may shrink NB).
-    HIP: when full-nq would force NB < 16 in 3D, keep NB=16 and use Q-tiling. */
+/** Mass / DomainLF batch width.
+    CUDA: use dynamic smem to restore NBATCH=16 when 48KB would shrink NB. */
 template <int DIM, int T_D1D, int T_Q1D>
-constexpr int DiffusionMmaNBFullNq()
+constexpr int MassLikeNB()
+{
+#if defined(MFEM_USE_CUDA)
+   constexpr int nb_pref = MassLikeNBAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPrefer);
+   constexpr int nb_dyn = MassLikeNBAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPerBlock);
+   // Prefer full NBATCH via dynamic smem when it fits (tet p=7 mass ~52KB).
+   if (nb_dyn >= NBATCH) { return NBATCH; }
+   if (nb_pref >= mmaN) { return nb_pref; }
+   if (nb_dyn >= mmaN) { return mmaN; }
+   return nb_dyn > 0 ? nb_dyn : 1;
+#else
+   return MassLikeNBAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPerBlock);
+#endif
+}
+
+/** Max diffusion NB for full-NQ X+DIM*U under a byte cap. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionMmaNBFullNqAt(int bytes_cap)
 {
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
    constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
@@ -1204,34 +1234,56 @@ constexpr int DiffusionMmaNBFullNq()
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr int U_LD = PadLdBank<MAP>(MQ);
    constexpr int per_batch_col = X_LD + DIM * U_LD;
-   constexpr int max_nb =
-      SharedMemBytesPerBlock / (int(sizeof(real_t)) * per_batch_col);
+   const int max_nb = bytes_cap / (int(sizeof(real_t)) * per_batch_col);
    if (T_D1D && T_Q1D)
    {
       if (NBATCH <= max_nb) { return NBATCH; }
+#if defined(MFEM_USE_HIP)
       return max_nb > 0 ? max_nb : 1;
+#else
+      const int nb = (max_nb / mmaN) * mmaN;
+      return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+#endif
    }
    if (mmaN <= max_nb) { return mmaN; }
    return max_nb > 0 ? max_nb : 1;
 }
 
-/** True when diffusion should Q-tile (restore NB=16 under SharedMemBytesPerBlock). */
+/** Diffusion full-NQ NB.
+    CUDA: plan under 48KB only. Larger full-NQ (dynamic) loses to Q-tile on H100
+          due to occupancy (tet p=7 measured). Q-tile path uses Prefer budget. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionMmaNBFullNq()
+{
+#if defined(MFEM_USE_CUDA)
+   return DiffusionMmaNBFullNqAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPrefer);
+#else
+   return DiffusionMmaNBFullNqAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPerBlock);
+#endif
+}
+
+/** True when diffusion should Q-tile.
+    HIP: when full-NQ would force NB < NBATCH (16).
+    CUDA: only when full-NQ cannot keep NB >= mmaN even with dynamic smem. */
 template <int DIM, int T_D1D, int T_Q1D>
 constexpr bool DiffusionUseQTile()
 {
-   return DIM == 3 && T_D1D && T_Q1D &&
-          (DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < NBATCH);
+   if (!(DIM == 3 && T_D1D && T_Q1D)) { return false; }
+#if defined(MFEM_USE_HIP)
+   return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < NBATCH;
+#else
+   return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < mmaN;
+#endif
 }
 
-/** Largest TQ (multiple of MMA M) that fits X + 3·U in SharedMemBytesPerBlock at NB=16. */
-template <int DIM, int T_D1D, int T_Q1D>
-constexpr int DiffusionQTileFor()
+/** Largest TQ (multiple of MMA M) that fits X + DIM·U at a given NB and byte cap. */
+template <int DIM, int T_D1D, int T_Q1D, int NB>
+constexpr int DiffusionQTileForNBAt(int bytes_cap)
 {
    constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
    constexpr int MAP = MmaMapFor<DIM, T_D1D, T_Q1D>();
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
-   constexpr int bytes_cap = SharedMemBytesPerBlock;
    constexpr int step = mmaM;
 
    int best = step;
@@ -1242,11 +1294,42 @@ constexpr int DiffusionQTileFor()
 #else
       const int U_LD = PadLdBank<MAP>(tq);
 #endif
-      const int bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NBATCH;
+      const int bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
       if (bytes > bytes_cap) { break; }
       best = tq;
    }
    return best;
+}
+
+template <int DIM, int T_D1D, int T_Q1D, int NB>
+constexpr int DiffusionQTileForNB()
+{
+   // Keep Q-tiles in the occupancy-friendly 48KB/Prefer budget (H100).
+   return DiffusionQTileForNBAt<DIM, T_D1D, T_Q1D, NB>(SharedMemBytesPrefer);
+}
+
+/** Q-tile element batch: HIP keeps NBATCH; CUDA picks NB in {8,16} with fewer passes. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionQTileNB()
+{
+#if defined(MFEM_USE_HIP)
+   return NBATCH;
+#else
+   constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int tq16 = DiffusionQTileForNB<DIM, T_D1D, T_Q1D, NBATCH>();
+   constexpr int tq8 = DiffusionQTileForNB<DIM, T_D1D, T_Q1D, mmaN>();
+   constexpr int passes16 = (MQ + tq16 - 1) / tq16;
+   constexpr int passes8 = (MQ + tq8 - 1) / tq8;
+   return (passes8 < passes16) ? mmaN : NBATCH;
+#endif
+}
+
+/** Largest TQ for the selected Q-tile NB. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionQTileFor()
+{
+   return DiffusionQTileForNB<DIM, T_D1D, T_Q1D,
+          DiffusionQTileNB<DIM, T_D1D, T_Q1D>()>();
 }
 
 /** @deprecated prefer DiffusionQTileFor — kept as MMA-M hint. */
@@ -1257,7 +1340,7 @@ constexpr int DiffusionMmaNB()
 {
    if constexpr (DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
    {
-      return NBATCH;
+      return DiffusionQTileNB<DIM, T_D1D, T_Q1D>();
    }
    return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>();
 }

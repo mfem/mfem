@@ -33,7 +33,9 @@
 #include "fem/integ/bilininteg_pa_tensor_sf_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
-// Argument sweep is always the 3D-hex reference
+// Argument sweep is always the 3D-hex reference.
+// Sides are snapped to side = k*p with even k so meshes stay cubic/square and
+// NE is a multiple of MMA batch widths (hex/quad NB=4/8, tet/tri NB=16).
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
@@ -52,45 +54,61 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 
    for (auto p : orders)
    {
-      for (int n = 16; ndofs_hex(n) <= MAX_NDOFS; n += inc(n))
+      int prev_side = -1;
+      for (int n_ref = 16; ndofs_hex(n_ref) <= MAX_NDOFS; n_ref += inc(n_ref))
       {
-         if ((p == 1 && n > 128) ||
-             (p == 2 && n > 160) ||
-             (p == 3 && n > 200)) { continue; }
-         b->Args({p, n});
+         if ((p == 1 && n_ref > 128) ||
+             (p == 2 && n_ref > 160) ||
+             (p == 3 && n_ref > 200)) { continue; }
+         // Elements/direction: round to even so NE=k^3 (% 8) and 6*k^3 (% 16).
+         int k = (n_ref + p / 2) / p;
+         if (k < 2) { k = 2; }
+         if (k & 1) { ++k; }
+         const int side = k * p; // MeshExtentsFromHexRef → nx=ny=nz=k
+         if (side == prev_side) { continue; }
+         if (ndofs_hex(side) > MAX_NDOFS) { break; }
+         prev_side = side;
+         b->Args({p, side});
       }
    }
 }
 
 struct MeshExtents { int n, nx, ny, nz; };
 
+/** Cubic (3D) / square (2D) meshes with NE aligned to MMA element batches.
+ *  - 3D hex: NE = n^3, n even ⇒ NE % 8 == 0 (Mass NB=8, Diff NB=4)
+ *  - 3D tet: NE = 6*n^3, n even ⇒ NE % 16 == 0 (simplex NBATCH=16)
+ *  - 2D quad: NE = n^2, n % 4 == 0 ⇒ NE % 16 == 0
+ *  - 2D tri:  NE = 2*n^2, n % 4 == 0 ⇒ NE % 16 == 0
+ *  No asymmetric nx/ny bumps (those caused plot "wiggles"). */
 template <int DIM>
 static MeshExtents MeshExtentsFromHexRef(int p, int side) noexcept
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
-   int s = side;
+   MFEM_ASSERT(p >= 1, "invalid order");
+   MFEM_ASSERT(side >= p, "hex-reference side too small for order p");
+
    if constexpr (DIM == 2)
    {
-      // (s+1)^2 ≈ (side+1)^3  =>  s+1 ≈ (side+1)^{3/2}
-      s = static_cast<int>(
-             std::lround(
-                std::pow(static_cast<double>(side + 1), 1.5))) - 1;
+      // Match ~ (side+1)^3 true DOFs with a square mesh: (s+1)^2 ≈ (side+1)^3.
+      int s = static_cast<int>(
+                 std::lround(
+                    std::pow(static_cast<double>(side + 1), 1.5))) - 1;
       if (s < p) { s = p; }
-   }
-   MFEM_ASSERT(s >= p, "hex-reference side too small for order p");
-   const int n = s / p;
-   int nx = n, ny = n, nz = (DIM == 2 ? 1 : n);
-   if constexpr (DIM == 2)
-   {
-      if (p * (n + 1) * p * n < s * s) { ++nx; }
-      if (p * (n + 1) * p * (n + 1) < s * s) { ++ny; }
+      int n = s / p;
+      if (n < 1) { n = 1; }
+      // Round up to multiple of 4 for quad/tri NB alignment.
+      n = (n + 3) / 4 * 4;
+      if (n < 4) { n = 4; }
+      return {n, n, n, 1};
    }
    else
    {
-      if (p * (n + 1) * p * n * p * n < s * s * s) { ++nx; }
-      if (p * (n + 1) * p * (n + 1) * p * n < s * s * s) { ++ny; }
+      int n = side / p;
+      if (n < 1) { n = 1; }
+      if (n & 1) { ++n; } // even → hex NE%8==0, tet NE%16==0
+      return {n, n, n, n};
    }
-   return {n, nx, ny, nz};
 }
 
 // Register kernel specializations used in the benchmarks (both 2D and 3D)

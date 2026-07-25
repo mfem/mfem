@@ -108,7 +108,8 @@ void test_pa_tensor_sf_mma_cartesian(int dim, int p)
 TEST_CASE("Tensor SF-MMA PA vs FA", "[TensorSfMMA][GPU]")
 {
    const int dim = GENERATE(2, 3);
-   const int p = GENERATE(2, 3, 4, 5, 6, 7);
+   // p=2 uses SUM (m8n8k4 pad); MMA path starts at p>=3.
+   const int p = GENERATE(3, 4, 5, 6, 7);
    test_pa_tensor_sf_mma_cartesian(dim, p);
 }
 
@@ -179,11 +180,14 @@ TEST_CASE("Tensor SF-MMA eligibility", "[TensorSfMMA]")
    }
    ForceTensorMmaPA(false);
 
-   // p=1 is intentionally unsupported
+   // p=1 and p=2 are intentionally unsupported (pad / SUM preferred)
    H1_FECollection fec1(1, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes1(&mesh, &fec1);
    ForceTensorMmaPA(true);
    REQUIRE_FALSE(CanUseTensorMmaPA(fes1));
+   H1_FECollection fec2(2, 3, BasisType::GaussLobatto);
+   FiniteElementSpace fes2(&mesh, &fec2);
+   REQUIRE_FALSE(CanUseTensorMmaPA(fes2));
    ForceTensorMmaPA(false);
 }
 

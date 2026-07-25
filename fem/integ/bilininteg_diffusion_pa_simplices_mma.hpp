@@ -194,7 +194,11 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
          real_t XY[X_LD * NB];
          real_t UV[DIM * U_LD * NB];
       };
+#if defined(__CUDA_ARCH__)
+      SmemQ &sm = *reinterpret_cast<SmemQ *>(simplex_mma::SimplexMmaDynSmem());
+#else
       MFEM_SHARED SmemQ sm;
+#endif
 
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
     !defined(MFEM_USE_SINGLE)
@@ -286,7 +290,11 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
          real_t XY[X_LD * NB];
          real_t UV[DIM * U_LD * NB];
       };
+#if defined(__CUDA_ARCH__)
+      Smem &sm = *reinterpret_cast<Smem *>(simplex_mma::SimplexMmaDynSmem());
+#else
       MFEM_SHARED Smem sm;
+#endif
 
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
     !defined(MFEM_USE_SINGLE)
@@ -503,11 +511,43 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
       nthreads = simplex_mma::LaunchNthreads(NQ1, ndof);
    }
    const int nbatches = (NE + NB - 1) / NB;
+   int smem_bytes = 0;
+   {
+      constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
+      constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+      constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
+      if constexpr (simplex_mma::DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
+      {
+         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, T_D1D, T_Q1D>();
+#if defined(MFEM_USE_HIP)
+         constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
+#else
+         constexpr int U_LD = simplex_mma::PadLdBank<MAP>(TQ);
+#endif
+         smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
+      }
+      else
+      {
+         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
+         constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
+         smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
+      }
+   }
+#if defined(MFEM_USE_CUDA)
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
+                        [=] MFEM_HOST_DEVICE (int batch)
+   {
+      SmemPADiffusionApplySimplexMma_Batch<DIM, T_D1D, T_Q1D, SYM>(
+         batch * NB, NE, G, D, X, Y, d1d, nq1);
+   });
+#else
+   MFEM_CONTRACT_VAR(smem_bytes);
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       SmemPADiffusionApplySimplexMma_Batch<DIM, T_D1D, T_Q1D, SYM>(
          batch * NB, NE, G, D, X, Y, d1d, nq1);
    });
+#endif
 }
 
 /** Host dispatch matching ApplySimplexMmaKernelType (runtime symmetric flag). */

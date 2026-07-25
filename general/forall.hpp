@@ -19,6 +19,7 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#include <type_traits>
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>
 #endif
@@ -800,6 +801,33 @@ void CuWrap3D(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
+/** 3D CUDA launch with dynamic shared memory (bytes). Opt-in for >48KB (H100). */
+template <typename DBODY>
+void CuWrap3DSmem(const int N, DBODY &&d_body,
+                  const int X, const int Y, const int Z, const int G,
+                  const int smem_bytes)
+{
+   if (N==0) { return; }
+   const int GRID = G == 0 ? N : G;
+   const dim3 BLCK(X,Y,Z);
+   using Body = typename std::remove_reference<DBODY>::type;
+   if (smem_bytes > 48 * 1024)
+   {
+      // Per-Body static: raise attribute once to the high-water mark.
+      static int max_dyn_smem = 0;
+      if (smem_bytes > max_dyn_smem)
+      {
+         MFEM_GPU_CHECK(cudaFuncSetAttribute(
+                           CuKernel3D<Body>,
+                           cudaFuncAttributeMaxDynamicSharedMemorySize,
+                           smem_bytes));
+         max_dyn_smem = smem_bytes;
+      }
+   }
+   CuKernel3D<<<GRID, BLCK, smem_bytes>>>(N, d_body);
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
 template <int MAX_THREADS_PER_BLOCK, typename DBODY>
 void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
                           const int X, const int Y, const int Z, const int G)
@@ -1254,6 +1282,23 @@ template<typename lambda>
 inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
+}
+
+/** Like forall_3D, but pass @a smem_bytes of dynamic shared memory (CUDA).
+    Body should use: extern __shared__ char ...[]; HIP/CPU fall back to forall_3D. */
+template<typename lambda>
+inline void forall_3D_smem(int N, int X, int Y, int Z, int smem_bytes,
+                           lambda &&body)
+{
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+   if (Device::Allows(Backend::CUDA))
+   {
+      CuWrap3DSmem(N, body, X, Y, Z, 0, smem_bytes);
+      return;
+   }
+#endif
+   MFEM_CONTRACT_VAR(smem_bytes);
+   ForallWrap<3>(true, N, body, X, Y, Z, 0);
 }
 
 #ifdef MFEM_USE_MPI
