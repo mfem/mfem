@@ -167,6 +167,12 @@ MFEM_HOST_DEVICE constexpr int MagicMapForMassN(int n)
    return MagicMapDefault();
 }
 
+/** Physical N index: mmaN-tile origin + 3-bit magic remap (handles N>8, e.g. Q1D=9). */
+MFEM_HOST_DEVICE inline int MagicNCol(int magicNumber, int slot, int n0)
+{
+   return n0 + ((magicNumber >> (3 * slot)) & 0b111);
+}
+
 /// Load 3D input into a flat shared buffer (mass).
 template<int MQ1>
 MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
@@ -200,9 +206,9 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    LoadX<MQ1>(e, D1D, x, sm[0]);
 }
 
-// using the m8n8k4 DMMA instriction
+// using the m8n8k4 DMMA instruction
 constexpr int mmaM = 8;
-[[maybe_unused]] constexpr int mmaN = 8;
+constexpr int mmaN = 8;
 constexpr int mmaK = 4;
 
 /** Paper §III-C f_m: m_p = m_i + w * mmaM (preferred over m_i*mPass+w). */
@@ -323,49 +329,52 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[4] = {};
-      for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < n; n0 += mmaN)
       {
-         double bReg[1];
-         double gReg[1];
-         int bRow = bRowInWarp + mK * mmaK;
-         int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-         if (bColumn < n && bRow < k)
+         double cReg[4] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
          {
-            bReg[0] = B(bRow, bColumn);
-            gReg[0] = G(bRow, bColumn);
-         }
-         else
-         {
-            bReg[0] = 0;
-            gReg[0] = 0;
-         }
-         double aReg[1];
-         int aRow = MapM(aRowInWarp, mM, mPass);
-         int aColumn = aColumnInWarp + mK * mmaK;
-         if (aRow < m && aColumn < k)
-         {
-            ConstDeviceMatrix aA(A[0], k, m);
-            aReg[0] = aA(aColumn, aRow);
-         }
-         else
-         {
-            aReg[0] = 0;
-         }
-         dmmaSync(aReg, gReg, &cReg[0]);
-         dmmaSync(aReg, bReg, &cReg[2]);
-      }
-      for (int d = 0; d < 2; d++)
-      {
-#pragma unroll
-         for (int i = 0; i < 2; i++)
-         {
-            int cRow = MapM(groupId, mM, mPass);
-            int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-            if (cRow < m && cColumn < n)
+            double bReg[1];
+            double gReg[1];
+            int bRow = bRowInWarp + mK * mmaK;
+            int bColumn = MagicNCol(magicNumber, bColumnInWarp, n0);
+            if (bColumn < n && bRow < k)
             {
-               DeviceMatrix cC(C[d], m, n);
-               cC(cRow, cColumn) = cReg[d * 2 + i];
+               bReg[0] = B(bRow, bColumn);
+               gReg[0] = G(bRow, bColumn);
+            }
+            else
+            {
+               bReg[0] = 0;
+               gReg[0] = 0;
+            }
+            double aReg[1];
+            int aRow = MapM(aRowInWarp, mM, mPass);
+            int aColumn = aColumnInWarp + mK * mmaK;
+            if (aRow < m && aColumn < k)
+            {
+               ConstDeviceMatrix aA(A[0], k, m);
+               aReg[0] = aA(aColumn, aRow);
+            }
+            else
+            {
+               aReg[0] = 0;
+            }
+            dmmaSync(aReg, gReg, &cReg[0]);
+            dmmaSync(aReg, bReg, &cReg[2]);
+         }
+         for (int d = 0; d < 2; d++)
+         {
+#pragma unroll
+            for (int i = 0; i < 2; i++)
+            {
+               int cRow = MapM(groupId, mM, mPass);
+               int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               if (cRow < m && cColumn < n)
+               {
+                  DeviceMatrix cC(C[d], m, n);
+                  cC(cRow, cColumn) = cReg[d * 2 + i];
+               }
             }
          }
       }
@@ -408,54 +417,57 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[6] = {};
-      for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < n; n0 += mmaN)
       {
-         double bReg[1];
-         double gReg[1];
-         int bRow = bRowInWarp + mK * mmaK;
-         int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-         if (bColumn < n && bRow < k)
+         double cReg[6] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
          {
-            bReg[0] = B(bRow, bColumn);
-            gReg[0] = G(bRow, bColumn);
-         }
-         else
-         {
-            bReg[0] = 0;
-            gReg[0] = 0;
-         }
-         double agReg[1];
-         double abReg[1];
-         int aRow = MapM(aRowInWarp, mM, mPass);
-         int aColumn = aColumnInWarp + mK * mmaK;
-         if (aRow < m && aColumn < k)
-         {
-            ConstDeviceMatrix gA(A[0], k, m);
-            ConstDeviceMatrix bA(A[1], k, m);
-            agReg[0] = gA(aColumn, aRow);
-            abReg[0] = bA(aColumn, aRow);
-         }
-         else
-         {
-            agReg[0] = 0;
-            abReg[0] = 0;
-         }
-         dmmaSync(agReg, bReg, &cReg[0]);
-         dmmaSync(abReg, gReg, &cReg[2]);
-         dmmaSync(abReg, bReg, &cReg[4]);
-      }
-      for (int d = 0; d < 3; d++)
-      {
-#pragma unroll
-         for (int i = 0; i < 2; i++)
-         {
-            int cRow = MapM(groupId, mM, mPass);
-            int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-            if (cRow < m && cColumn < n)
+            double bReg[1];
+            double gReg[1];
+            int bRow = bRowInWarp + mK * mmaK;
+            int bColumn = MagicNCol(magicNumber, bColumnInWarp, n0);
+            if (bColumn < n && bRow < k)
             {
-               DeviceMatrix cC(C[d], m, n);
-               cC(cRow, cColumn) = cReg[d * 2 + i];
+               bReg[0] = B(bRow, bColumn);
+               gReg[0] = G(bRow, bColumn);
+            }
+            else
+            {
+               bReg[0] = 0;
+               gReg[0] = 0;
+            }
+            double agReg[1];
+            double abReg[1];
+            int aRow = MapM(aRowInWarp, mM, mPass);
+            int aColumn = aColumnInWarp + mK * mmaK;
+            if (aRow < m && aColumn < k)
+            {
+               ConstDeviceMatrix gA(A[0], k, m);
+               ConstDeviceMatrix bA(A[1], k, m);
+               agReg[0] = gA(aColumn, aRow);
+               abReg[0] = bA(aColumn, aRow);
+            }
+            else
+            {
+               agReg[0] = 0;
+               abReg[0] = 0;
+            }
+            dmmaSync(agReg, bReg, &cReg[0]);
+            dmmaSync(abReg, gReg, &cReg[2]);
+            dmmaSync(abReg, bReg, &cReg[4]);
+         }
+         for (int d = 0; d < 3; d++)
+         {
+#pragma unroll
+            for (int i = 0; i < 2; i++)
+            {
+               int cRow = MapM(groupId, mM, mPass);
+               int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               if (cRow < m && cColumn < n)
+               {
+                  DeviceMatrix cC(C[d], m, n);
+                  cC(cRow, cColumn) = cReg[d * 2 + i];
+               }
             }
          }
       }
@@ -499,51 +511,54 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[6] = {};
-      for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < n; n0 += mmaN)
       {
-         double bReg[1];
-         double gReg[1];
-         int bRow = bRowInWarp + mK * mmaK;
-         int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-         if (bColumn < n && bRow < k)
+         double cReg[6] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
          {
-            bReg[0] = B(bRow, bColumn);
-            gReg[0] = G(bRow, bColumn);
-         }
-         else
-         {
-            bReg[0] = 0;
-            gReg[0] = 0;
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            double aReg[1];
-            int aRow = MapM(aRowInWarp, mM, mPass);
-            int aColumn = aColumnInWarp + mK * mmaK;
-            if (aRow < m && aColumn < k)
+            double bReg[1];
+            double gReg[1];
+            int bRow = bRowInWarp + mK * mmaK;
+            int bColumn = MagicNCol(magicNumber, bColumnInWarp, n0);
+            if (bColumn < n && bRow < k)
             {
-               ConstDeviceMatrix aA(A[d], k, m);
-               aReg[0] = aA(aColumn, aRow);
+               bReg[0] = B(bRow, bColumn);
+               gReg[0] = G(bRow, bColumn);
             }
             else
             {
-               aReg[0] = 0;
+               bReg[0] = 0;
+               gReg[0] = 0;
             }
-            dmmaSync(aReg, d == gIdx ? gReg : bReg, &cReg[d * 2]);
-         }
-      }
-      for (int d = 0; d < 3; d++)
-      {
-#pragma unroll
-         for (int i = 0; i < 2; i++)
-         {
-            int cRow = MapM(groupId, mM, mPass);
-            int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-            if (cRow < m && cColumn < n)
+            for (int d = 0; d < 3; d++)
             {
-               DeviceMatrix cC(C[d], m, n);
-               cC(cRow, cColumn) = cReg[d * 2 + i];
+               double aReg[1];
+               int aRow = MapM(aRowInWarp, mM, mPass);
+               int aColumn = aColumnInWarp + mK * mmaK;
+               if (aRow < m && aColumn < k)
+               {
+                  ConstDeviceMatrix aA(A[d], k, m);
+                  aReg[0] = aA(aColumn, aRow);
+               }
+               else
+               {
+                  aReg[0] = 0;
+               }
+               dmmaSync(aReg, d == gIdx ? gReg : bReg, &cReg[d * 2]);
+            }
+         }
+         for (int d = 0; d < 3; d++)
+         {
+#pragma unroll
+            for (int i = 0; i < 2; i++)
+            {
+               int cRow = MapM(groupId, mM, mPass);
+               int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               if (cRow < m && cColumn < n)
+               {
+                  DeviceMatrix cC(C[d], m, n);
+                  cC(cRow, cColumn) = cReg[d * 2 + i];
+               }
             }
          }
       }
@@ -586,51 +601,54 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[6] = {};
-      for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < n; n0 += mmaN)
       {
-         double BtReg[1];
-         double GtReg[1];
-         const int bRow = bRowInWarp + mK * mmaK;
-         const int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-         if (bColumn < n && bRow < k)
+         double cReg[6] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
          {
-            BtReg[0] = Bt(bRow, bColumn);
-            GtReg[0] = Gt(bRow, bColumn);
-         }
-         else
-         {
-            BtReg[0] = 0;
-            GtReg[0] = 0;
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            double aReg[1];
-            const int aRow = MapM(aRowInWarp, mM, mPass);
-            const int aColumn = aColumnInWarp + mK * mmaK;
-            if (aRow < m && aColumn < k)
+            double BtReg[1];
+            double GtReg[1];
+            const int bRow = bRowInWarp + mK * mmaK;
+            const int bColumn = MagicNCol(magicNumber, bColumnInWarp, n0);
+            if (bColumn < n && bRow < k)
             {
-               ConstDeviceMatrix aA(A[d], k, m);
-               aReg[0] = aA(aColumn, aRow);
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
             }
             else
             {
-               aReg[0] = 0;
+               BtReg[0] = 0;
+               GtReg[0] = 0;
             }
-            dmmaSync(aReg, d == gIdx ? GtReg : BtReg, &cReg[d * 2]);
-         }
-      }
-      for (int d = 0; d < 3; d++)
-      {
-#pragma unroll
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-            if (cRow < m && cColumn < n)
+            for (int d = 0; d < 3; d++)
             {
-               DeviceMatrix cC(C[d], m, n);
-               cC(cRow, cColumn) = cReg[d * 2 + i];
+               double aReg[1];
+               const int aRow = MapM(aRowInWarp, mM, mPass);
+               const int aColumn = aColumnInWarp + mK * mmaK;
+               if (aRow < m && aColumn < k)
+               {
+                  ConstDeviceMatrix aA(A[d], k, m);
+                  aReg[0] = aA(aColumn, aRow);
+               }
+               else
+               {
+                  aReg[0] = 0;
+               }
+               dmmaSync(aReg, d == gIdx ? GtReg : BtReg, &cReg[d * 2]);
+            }
+         }
+         for (int d = 0; d < 3; d++)
+         {
+#pragma unroll
+            for (int i = 0; i < 2; i++)
+            {
+               const int cRow = MapM(groupId, mM, mPass);
+               const int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               if (cRow < m && cColumn < n)
+               {
+                  DeviceMatrix cC(C[d], m, n);
+                  cC(cRow, cColumn) = cReg[d * 2 + i];
+               }
             }
          }
       }
@@ -688,53 +706,56 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double BtReg[1];
-      double GtReg[1];
-      double cReg[2] = {};
-
-      for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
       {
-         int bRow = bRowInWarp + mK * mmaK;
-         int bColumn = (magicNumber >> (3 * bColumnInWarp)) & 0b111;
-         if (bColumn < D1D && bRow < Q1D)
+         double BtReg[1];
+         double GtReg[1];
+         double cReg[2] = {};
+
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
          {
-            BtReg[0] = Bt(bRow, bColumn);
-            GtReg[0] = Gt(bRow, bColumn);
-         }
-         else
-         {
-            BtReg[0] = 0;
-            GtReg[0] = 0;
-         }
-         for (int d = 0; d < 3; d++)
-         {
-            double aReg[1];
-            int aRow = MapM(aRowInWarp, mM, mPass);
-            int aColumn = aColumnInWarp + mK * mmaK;
-            if (aRow < D1D * D1D && aColumn < Q1D)
+            int bRow = bRowInWarp + mK * mmaK;
+            int bColumn = MagicNCol(magicNumber, bColumnInWarp, n0);
+            if (bColumn < D1D && bRow < Q1D)
             {
-               ConstDeviceMatrix Xx(sDDQ[d], Q1D, D1D * D1D); // qz, dx, dy
-               aReg[0] = Xx(aColumn, aRow);
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
             }
             else
             {
-               aReg[0] = 0;
+               BtReg[0] = 0;
+               GtReg[0] = 0;
             }
+            for (int d = 0; d < 3; d++)
+            {
+               double aReg[1];
+               int aRow = MapM(aRowInWarp, mM, mPass);
+               int aColumn = aColumnInWarp + mK * mmaK;
+               if (aRow < D1D * D1D && aColumn < Q1D)
+               {
+                  ConstDeviceMatrix Xx(sDDQ[d], Q1D, D1D * D1D); // qz, dx, dy
+                  aReg[0] = Xx(aColumn, aRow);
+               }
+               else
+               {
+                  aReg[0] = 0;
+               }
 
-            dmmaSync(aReg, d == 2 ? GtReg : BtReg, cReg);
+               dmmaSync(aReg, d == 2 ? GtReg : BtReg, cReg);
+            }
          }
-      }
 #pragma unroll
-      for (int i = 0; i < 2; i++)
-      {
-         int cRow = MapM(groupId, mM, mPass);
-         int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-         if (cRow < D1D * D1D && cColumn < D1D)
+         for (int i = 0; i < 2; i++)
          {
-            int dx = cRow % D1D;
-            int dy = cRow / D1D;
-            int dz = cColumn;
-            Y(dx,dy,dz,e) += cReg[i];
+            int cRow = MapM(groupId, mM, mPass);
+            int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+            if (cRow < D1D * D1D && cColumn < D1D)
+            {
+               int dx = cRow % D1D;
+               int dy = cRow / D1D;
+               int dz = cColumn;
+               Y(dx,dy,dz,e) += cReg[i];
+            }
          }
       }
    }
@@ -786,38 +807,41 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[2] = {};
-      for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < n; n0 += mmaN)
       {
-         double bReg[1];
-         const int bRow = threadIdInGroup + mK * mmaK;
-         const int bColumn = (magicNumber >> (3 * groupId)) & 0b111;
-         bReg[0] = (bColumn < n && bRow < k) ? B(bRow, bColumn) : 0.0;
-         double aReg[1];
-         const int aRow = MapM(groupId, mM, mPass);
-         const int aColumn = threadIdInGroup + mK * mmaK;
-         if (aRow < m && aColumn < k)
+         double cReg[2] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
          {
-            ConstDeviceMatrix aA(A, k, m);
-            aReg[0] = aA(aColumn, aRow);
-         }
-         else { aReg[0] = 0; }
-         dmmaSync(aReg, bReg, cReg);
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = MapM(groupId, mM, mPass);
-         const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-         if (cRow < m && cColumn < n)
-         {
-            DeviceMatrix cC(C, m, n);
-            if constexpr (ScaleAtStore)
+            double bReg[1];
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MagicNCol(magicNumber, groupId, n0);
+            bReg[0] = (bColumn < n && bRow < k) ? B(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = threadIdInGroup + mK * mmaK;
+            if (aRow < m && aColumn < k)
             {
-               cC(cRow, cColumn) = cReg[i] * (*D)(cRow + m * cColumn, e);
+               ConstDeviceMatrix aA(A, k, m);
+               aReg[0] = aA(aColumn, aRow);
             }
-            else
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+            if (cRow < m && cColumn < n)
             {
-               cC(cRow, cColumn) = cReg[i];
+               DeviceMatrix cC(C, m, n);
+               if constexpr (ScaleAtStore)
+               {
+                  cC(cRow, cColumn) = cReg[i] * (*D)(cRow + m * cColumn, e);
+               }
+               else
+               {
+                  cC(cRow, cColumn) = cReg[i];
+               }
             }
          }
       }
@@ -885,31 +909,34 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[2] = {};
-      for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < n; n0 += mmaN)
       {
-         double bReg[1];
-         const int bRow = threadIdInGroup + mK * mmaK;
-         const int bColumn = (magicNumber >> (3 * groupId)) & 0b111;
-         bReg[0] = (bColumn < n && bRow < k) ? Bt(bRow, bColumn) : 0.0;
-         double aReg[1];
-         const int aRow = MapM(groupId, mM, mPass);
-         const int aColumn = threadIdInGroup + mK * mmaK;
-         if (aRow < m && aColumn < k)
+         double cReg[2] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
          {
-            ConstDeviceMatrix Xx(sDDQ, k, m);
-            aReg[0] = Xx(aColumn, aRow);
+            double bReg[1];
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MagicNCol(magicNumber, groupId, n0);
+            bReg[0] = (bColumn < n && bRow < k) ? Bt(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = threadIdInGroup + mK * mmaK;
+            if (aRow < m && aColumn < k)
+            {
+               ConstDeviceMatrix Xx(sDDQ, k, m);
+               aReg[0] = Xx(aColumn, aRow);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
          }
-         else { aReg[0] = 0; }
-         dmmaSync(aReg, bReg, cReg);
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = MapM(groupId, mM, mPass);
-         const int cColumn = (magicNumber >> (3 * (threadIdInGroup * 2 + i))) & 0b111;
-         if (cRow < m && cColumn < n)
+         for (int i = 0; i < 2; i++)
          {
-            Y(cRow % D1D, cRow / D1D, cColumn, e) += cReg[i];
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MagicNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+            if (cRow < m && cColumn < n)
+            {
+               Y(cRow % D1D, cRow / D1D, cColumn, e) += cReg[i];
+            }
          }
       }
    }
@@ -967,42 +994,45 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[4] = {};
-      for (int mK = 0; mK < (D1D + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < Q1D; n0 += mmaN)
       {
-         double bReg[1], gReg[1];
-         const int bRow = tinG + mK * mmaK;
-         const int bColumn = (magic >> (3 * groupId)) & 0b111;
-         if (bColumn < Q1D && bRow < D1D)
+         double cReg[4] = {};
+         for (int mK = 0; mK < (D1D + mmaK - 1) / mmaK; mK++)
          {
-            bReg[0] = B(bRow, bColumn);
-            gReg[0] = G(bRow, bColumn);
-         }
-         else { bReg[0] = gReg[0] = 0; }
-         double a0[1], a1[1];
-         const int aRow = MapM(groupId, mM, mPass);
-         const int aColumn = tinG + mK * mmaK;
-         if (aRow < Q1D && aColumn < D1D)
-         {
-            ConstDeviceMatrix A0(sDQ[0], D1D, Q1D);
-            ConstDeviceMatrix A1(sDQ[1], D1D, Q1D);
-            a0[0] = A0(aColumn, aRow);
-            a1[0] = A1(aColumn, aRow);
-         }
-         else { a0[0] = a1[0] = 0; }
-         dmmaSync(a0, bReg, &cReg[0]);
-         dmmaSync(a1, gReg, &cReg[2]);
-      }
-      for (int d = 0; d < 2; d++)
-      {
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = (magic >> (3 * (tinG * 2 + i))) & 0b111;
-            if (cRow < Q1D && cColumn < Q1D)
+            double bReg[1], gReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MagicNCol(magic, groupId, n0);
+            if (bColumn < Q1D && bRow < D1D)
             {
-               DeviceMatrix C(sQQ[d], Q1D, Q1D);
-               C(cRow, cColumn) = cReg[d * 2 + i];
+               bReg[0] = B(bRow, bColumn);
+               gReg[0] = G(bRow, bColumn);
+            }
+            else { bReg[0] = gReg[0] = 0; }
+            double a0[1], a1[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = tinG + mK * mmaK;
+            if (aRow < Q1D && aColumn < D1D)
+            {
+               ConstDeviceMatrix A0(sDQ[0], D1D, Q1D);
+               ConstDeviceMatrix A1(sDQ[1], D1D, Q1D);
+               a0[0] = A0(aColumn, aRow);
+               a1[0] = A1(aColumn, aRow);
+            }
+            else { a0[0] = a1[0] = 0; }
+            dmmaSync(a0, bReg, &cReg[0]);
+            dmmaSync(a1, gReg, &cReg[2]);
+         }
+         for (int d = 0; d < 2; d++)
+         {
+            for (int i = 0; i < 2; i++)
+            {
+               const int cRow = MapM(groupId, mM, mPass);
+               const int cColumn = MagicNCol(magic, tinG * 2 + i, n0);
+               if (cRow < Q1D && cColumn < Q1D)
+               {
+                  DeviceMatrix C(sQQ[d], Q1D, Q1D);
+                  C(cRow, cColumn) = cReg[d * 2 + i];
+               }
             }
          }
       }
@@ -1028,42 +1058,45 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[4] = {};
-      for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
       {
-         double BtReg[1], GtReg[1];
-         const int bRow = tinG + mK * mmaK;
-         const int bColumn = (magic >> (3 * groupId)) & 0b111;
-         if (bColumn < D1D && bRow < Q1D)
+         double cReg[4] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
          {
-            BtReg[0] = Bt(bRow, bColumn);
-            GtReg[0] = Gt(bRow, bColumn);
+            double BtReg[1], GtReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MagicNCol(magic, groupId, n0);
+            if (bColumn < D1D && bRow < Q1D)
+            {
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
+            }
+            else { BtReg[0] = GtReg[0] = 0; }
+            for (int d = 0; d < 2; d++)
+            {
+               double aReg[1];
+               const int aRow = MapM(groupId, mM, mPass);
+               const int aColumn = tinG + mK * mmaK;
+               if (aRow < Q1D && aColumn < Q1D)
+               {
+                  ConstDeviceMatrix A(sQQ[d], Q1D, Q1D);
+                  aReg[0] = A(aRow, aColumn);
+               }
+               else { aReg[0] = 0; }
+               dmmaSync(aReg, d == 1 ? GtReg : BtReg, &cReg[d * 2]);
+            }
          }
-         else { BtReg[0] = GtReg[0] = 0; }
          for (int d = 0; d < 2; d++)
          {
-            double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = tinG + mK * mmaK;
-            if (aRow < Q1D && aColumn < Q1D)
+            for (int i = 0; i < 2; i++)
             {
-               ConstDeviceMatrix A(sQQ[d], Q1D, Q1D);
-               aReg[0] = A(aRow, aColumn);
-            }
-            else { aReg[0] = 0; }
-            dmmaSync(aReg, d == 1 ? GtReg : BtReg, &cReg[d * 2]);
-         }
-      }
-      for (int d = 0; d < 2; d++)
-      {
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = (magic >> (3 * (tinG * 2 + i))) & 0b111;
-            if (cRow < Q1D && cColumn < D1D)
-            {
-               DeviceMatrix C(sQD[d], Q1D, D1D); // (qx, dy)
-               C(cRow, cColumn) = cReg[d * 2 + i];
+               const int cRow = MapM(groupId, mM, mPass);
+               const int cColumn = MagicNCol(magic, tinG * 2 + i, n0);
+               if (cRow < Q1D && cColumn < D1D)
+               {
+                  DeviceMatrix C(sQD[d], Q1D, D1D); // (qx, dy)
+                  C(cRow, cColumn) = cReg[d * 2 + i];
+               }
             }
          }
       }
@@ -1089,39 +1122,42 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[2] = {};
-      for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
       {
-         double BtReg[1], GtReg[1];
-         const int bRow = tinG + mK * mmaK;
-         const int bColumn = (magic >> (3 * groupId)) & 0b111;
-         if (bColumn < D1D && bRow < Q1D)
+         double cReg[2] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
          {
-            BtReg[0] = Bt(bRow, bColumn);
-            GtReg[0] = Gt(bRow, bColumn);
-         }
-         else { BtReg[0] = GtReg[0] = 0; }
-         for (int d = 0; d < 2; d++)
-         {
-            double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = tinG + mK * mmaK;
-            if (aRow < D1D && aColumn < Q1D)
+            double BtReg[1], GtReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MagicNCol(magic, groupId, n0);
+            if (bColumn < D1D && bRow < Q1D)
             {
-               ConstDeviceMatrix A(sQD[d], Q1D, D1D); // (qx, dy)
-               aReg[0] = A(aColumn, aRow);
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
             }
-            else { aReg[0] = 0; }
-            dmmaSync(aReg, d == 0 ? GtReg : BtReg, cReg);
+            else { BtReg[0] = GtReg[0] = 0; }
+            for (int d = 0; d < 2; d++)
+            {
+               double aReg[1];
+               const int aRow = MapM(groupId, mM, mPass);
+               const int aColumn = tinG + mK * mmaK;
+               if (aRow < D1D && aColumn < Q1D)
+               {
+                  ConstDeviceMatrix A(sQD[d], Q1D, D1D); // (qx, dy)
+                  aReg[0] = A(aColumn, aRow);
+               }
+               else { aReg[0] = 0; }
+               dmmaSync(aReg, d == 0 ? GtReg : BtReg, cReg);
+            }
          }
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = MapM(groupId, mM, mPass); // dy
-         const int cColumn = (magic >> (3 * (tinG * 2 + i))) & 0b111; // dx
-         if (cRow < D1D && cColumn < D1D)
+         for (int i = 0; i < 2; i++)
          {
-            Y(cColumn, cRow, e) += cReg[i];
+            const int cRow = MapM(groupId, mM, mPass); // dy
+            const int cColumn = MagicNCol(magic, tinG * 2 + i, n0); // dx
+            if (cRow < D1D && cColumn < D1D)
+            {
+               Y(cColumn, cRow, e) += cReg[i];
+            }
          }
       }
    }
@@ -1160,32 +1196,35 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[2] = {};
-      for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
       {
-         double bReg[1];
-         const int bRow = tinG + mK * mmaK;
-         const int bColumn = (magic >> (3 * groupId)) & 0b111;
-         bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
-         double aReg[1];
-         const int aRow = MapM(groupId, mM, mPass);
-         const int aColumn = tinG + mK * mmaK;
-         if (aRow < Q1D && aColumn < Q1D)
+         double cReg[2] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
          {
-            ConstDeviceMatrix A(sQQ, Q1D, Q1D);
-            aReg[0] = A(aRow, aColumn);
+            double bReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MagicNCol(magic, groupId, n0);
+            bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = tinG + mK * mmaK;
+            if (aRow < Q1D && aColumn < Q1D)
+            {
+               ConstDeviceMatrix A(sQQ, Q1D, Q1D);
+               aReg[0] = A(aRow, aColumn);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
          }
-         else { aReg[0] = 0; }
-         dmmaSync(aReg, bReg, cReg);
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = MapM(groupId, mM, mPass);
-         const int cColumn = (magic >> (3 * (tinG * 2 + i))) & 0b111;
-         if (cRow < Q1D && cColumn < D1D)
+         for (int i = 0; i < 2; i++)
          {
-            DeviceMatrix C(sQD, Q1D, D1D);
-            C(cRow, cColumn) = cReg[i];
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MagicNCol(magic, tinG * 2 + i, n0);
+            if (cRow < Q1D && cColumn < D1D)
+            {
+               DeviceMatrix C(sQD, Q1D, D1D);
+               C(cRow, cColumn) = cReg[i];
+            }
          }
       }
    }
@@ -1208,31 +1247,34 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
    const int nWarps = SfMmaNWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
-      double cReg[2] = {};
-      for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
       {
-         double bReg[1];
-         const int bRow = tinG + mK * mmaK;
-         const int bColumn = (magic >> (3 * groupId)) & 0b111;
-         bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
-         double aReg[1];
-         const int aRow = MapM(groupId, mM, mPass);
-         const int aColumn = tinG + mK * mmaK;
-         if (aRow < D1D && aColumn < Q1D)
+         double cReg[2] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
          {
-            ConstDeviceMatrix A(sQD, Q1D, D1D);
-            aReg[0] = A(aColumn, aRow);
+            double bReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MagicNCol(magic, groupId, n0);
+            bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = tinG + mK * mmaK;
+            if (aRow < D1D && aColumn < Q1D)
+            {
+               ConstDeviceMatrix A(sQD, Q1D, D1D);
+               aReg[0] = A(aColumn, aRow);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
          }
-         else { aReg[0] = 0; }
-         dmmaSync(aReg, bReg, cReg);
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         const int cRow = MapM(groupId, mM, mPass);
-         const int cColumn = (magic >> (3 * (tinG * 2 + i))) & 0b111;
-         if (cRow < D1D && cColumn < D1D)
+         for (int i = 0; i < 2; i++)
          {
-            Y(cColumn, cRow, e) += cReg[i];
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MagicNCol(magic, tinG * 2 + i, n0);
+            if (cRow < D1D && cColumn < D1D)
+            {
+               Y(cColumn, cRow, e) += cReg[i];
+            }
          }
       }
    }

@@ -318,8 +318,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
       cg.SetOperator(*A);
       cg.SetAbsTol(0.0);
       cg.iterative_mode = false;
-#ifdef MFEM_DEBUG
-      if (dofs < 128 * 1024)
+      if (dofs < 64 * 1024)
       {
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(1000);
@@ -338,7 +337,6 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
             glvis << "solution\n" << mesh << x << std::flush;
          }
       }
-#endif // MFEM_DEBUG
       cg.SetRelTol(0.0);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
