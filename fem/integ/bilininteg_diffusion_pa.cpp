@@ -181,6 +181,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int sdim = mesh->SpaceDimension();
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
+   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);

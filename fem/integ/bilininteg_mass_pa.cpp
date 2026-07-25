@@ -76,6 +76,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
+   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
    pa_data.SetSize(ne*nq, mt);
 
    QuadratureSpace qs(*mesh, *ir);

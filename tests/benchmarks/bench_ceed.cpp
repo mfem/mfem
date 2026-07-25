@@ -211,10 +211,13 @@ struct BakeOff
 
    BakeOff(int p, int side, MeshExtents e):
       p(p), c(side), // hex-reference 1D size; NDOf target ≈ (side+1)^3
-      q(2 * p + (GLL ? (SIMPLEX ? 0 : -1) : 3)),
+      // with simplex, mass D1D = Q1D; diffusion D1D = Q1D + 1
+      q(2 * p + (GLL ? -1 : (SIMPLEX ? (BFI==1 ? 0 : -1) : 3))),
       n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
       mesh([&]()
    {
+      // dbg("GLL:{} SIMPLEX:{} POS:{} MMA:{} TENSOR_MMA:{} p:{} q:{}",
+      //     GLL, SIMPLEX, POS, MMA, TENSOR_MMA, p, q);
       if constexpr (DIM == 2)
       {
          return Mesh::MakeCartesian2D(e.nx, e.ny,
