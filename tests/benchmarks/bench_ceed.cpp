@@ -33,12 +33,21 @@
 #include "fem/integ/bilininteg_pa_tensor_sf_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
-// Argument sweep is always the 3D-hex reference.
-// Sides are snapped to side = k*p with even k so meshes stay cubic/square and
-// NE is a multiple of MMA batch widths (hex/quad NB=4/8, tet/tri NB=16).
+static int SnapMmaElementsPerDir(int n) noexcept
+{
+   if (n < 8) { n = 8; }
+   if (n < 32)
+   {
+      n = (n + 3) / 4 * 4;
+      if (n == 28) { n = 32; }
+      return n;
+   }
+   return (n + 7) / 8 * 8;
+}
+
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
+   constexpr int MAX_NDOFS = 12 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
@@ -47,25 +56,20 @@ static void CustomArguments(bm::Benchmark *b) noexcept
       return (n + 1) * (n + 1) * (n + 1);
    };
 
-   constexpr auto inc = [](int n) constexpr noexcept -> int
-   {
-      return n < 160 ?  4 : n < 240 ?  8 : n < 320 ? 16 : 32;
-   };
-
    for (auto p : orders)
    {
+      const int max_side = (p == 1) ? 128 : (p == 2) ? 160 : 1 << 30;
       int prev_side = -1;
-      for (int n_ref = 16; ndofs_hex(n_ref) <= MAX_NDOFS; n_ref += inc(n_ref))
+      for (double ndofs_t = 1.0e4;
+           ndofs_t <= static_cast<double>(MAX_NDOFS) * 1.01;
+           ndofs_t *= 1.25)
       {
-         if ((p == 1 && n_ref > 128) ||
-             (p == 2 && n_ref > 160) ||
-             (p == 3 && n_ref > 200)) { continue; }
-         // Elements/direction: round to even so NE=k^3 (% 8) and 6*k^3 (% 16).
-         int k = (n_ref + p / 2) / p;
-         if (k < 2) { k = 2; }
-         if (k & 1) { ++k; }
-         const int side = k * p; // MeshExtentsFromHexRef → nx=ny=nz=k
+         const double p3 = static_cast<double>(p) * p * p;
+         int N = static_cast<int>(std::lround(std::cbrt(ndofs_t / p3)));
+         N = SnapMmaElementsPerDir(N);
+         const int side = N * p; // MeshExtents → nx=ny=nz=N for hex
          if (side == prev_side) { continue; }
+         if (side > max_side) { break; }
          if (ndofs_hex(side) > MAX_NDOFS) { break; }
          prev_side = side;
          b->Args({p, side});
@@ -75,12 +79,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 
 struct MeshExtents { int n, nx, ny, nz; };
 
-/** Cubic (3D) / square (2D) meshes with NE aligned to MMA element batches.
- *  - 3D hex: NE = n^3, n even ⇒ NE % 8 == 0 (Mass NB=8, Diff NB=4)
- *  - 3D tet: NE = 6*n^3, n even ⇒ NE % 16 == 0 (simplex NBATCH=16)
- *  - 2D quad: NE = n^2, n % 4 == 0 ⇒ NE % 16 == 0
- *  - 2D tri:  NE = 2*n^2, n % 4 == 0 ⇒ NE % 16 == 0
- *  No asymmetric nx/ny bumps (those caused plot "wiggles"). */
+// Cubic (3D) / square (2D) meshes from the hex-ref DOF budget
 template <int DIM>
 static MeshExtents MeshExtentsFromHexRef(int p, int side) noexcept
 {
@@ -88,26 +87,23 @@ static MeshExtents MeshExtentsFromHexRef(int p, int side) noexcept
    MFEM_ASSERT(p >= 1, "invalid order");
    MFEM_ASSERT(side >= p, "hex-reference side too small for order p");
 
-   if constexpr (DIM == 2)
+   const int N_hex = std::max(1, side / p);
+   const double ndofs_t =
+      std::pow(static_cast<double>(N_hex) * p, 3.0); // == N_hex^3 * p^3
+
+   if constexpr (DIM == 3)
    {
-      // Match ~ (side+1)^3 true DOFs with a square mesh: (s+1)^2 ≈ (side+1)^3.
-      int s = static_cast<int>(
-                 std::lround(
-                    std::pow(static_cast<double>(side + 1), 1.5))) - 1;
-      if (s < p) { s = p; }
-      int n = s / p;
-      if (n < 1) { n = 1; }
-      // Round up to multiple of 4 for quad/tri NB alignment.
-      n = (n + 3) / 4 * 4;
-      if (n < 4) { n = 4; }
-      return {n, n, n, 1};
+      const int n = SnapMmaElementsPerDir(N_hex);
+      return {n, n, n, n};
    }
    else
    {
-      int n = side / p;
-      if (n < 1) { n = 1; }
-      if (n & 1) { ++n; } // even → hex NE%8==0, tet NE%16==0
-      return {n, n, n, n};
+      // Match hex-ref DOF budget: N^2 * p^2 ≈ ndofs_t.
+      const double p2 = static_cast<double>(p) * p;
+      int n = static_cast<int>(std::lround(std::sqrt(ndofs_t / p2)));
+      n = (n + 3) / 4 * 4;
+      if (n < 4) { n = 4; }
+      return {n, n, n, 1};
    }
 }
 
@@ -604,9 +600,6 @@ REGISTER(BK, 6, QuadSum);
  * require CUDA (tensor) or CUDA/HIP (positive), e.g.:
  *    --benchmark_context=device=cuda
  *    --benchmark_context=device=hip
- *
- * Benchmark args are {order, side} from the 3D-hex reference sweep:
- * scalar NDOf ≈ (side+1)^3. 2D geometries scale the mesh so NDOf matches.
  */
 int main(int argc, char *argv[])
 {
