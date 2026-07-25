@@ -316,13 +316,13 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
 
       cg.SetOperator(*A);
-      cg.SetAbsTol(0.0);
       cg.iterative_mode = false;
       if (dofs < 64 * 1024)
       {
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(1000);
          cg.SetRelTol(1e-8);
+         cg.SetAbsTol(1e-8);
          cg.Mult(B, X);
          if (!cg.GetConverged())
          {
@@ -338,6 +338,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
          }
       }
       cg.SetRelTol(0.0);
+      cg.SetAbsTol(0.0);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
 
