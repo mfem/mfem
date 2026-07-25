@@ -88,6 +88,11 @@ int main(int argc, char *argv[])
    // Solve for the physical spacing of elements.
    mesh->NURBSext->PhysicalSpacing(*mesh->GetNodes(), sweep1D);
 
+   // Update mesh nodes from patches.
+   mesh->NURBSext->SetCoordsFromPatches(*mesh->GetNodes(),
+                                        mesh->GetNodes()->FESpace()->GetVDim());
+   mesh->NURBSext->ConvertToPatches(*mesh->GetNodes());
+
    // Output the physically spaced mesh to file.
    ofstream mesh_ofs("spaced.mesh");
    mesh_ofs.precision(8);

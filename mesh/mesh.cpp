@@ -5249,6 +5249,7 @@ void Mesh::Loader(std::istream &input, int generate_edges,
          MFEM_VERIFY(ident == "patch_cp", "Invalid mesh format");
          NURBSext->ReadCoarsePatchCP(input);
 
+         skip_comment_lines(input, '#');
          // Check for the optional section "patch_w"
          if (input.peek() == 'p')
          {
