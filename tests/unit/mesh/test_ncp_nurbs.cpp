@@ -236,6 +236,8 @@ void GetCircleCP(real_t radius, int n, real_t theta0, real_t theta,
    NURBSExtension ne(&patch_topology_2d, patches);
    Mesh mesh(ne);
 
+   delete patches[0];
+
    // Set the weights, using a simplified version of Algorithm A7.1 in
    // The NURBS Book, assuming one arc.
    MFEM_VERIFY(theta <= 0.5 * M_PI, "");
@@ -425,6 +427,8 @@ Mesh* NCPatchCircles()
       } // i
 
       mesh.NURBSext->SetPatchControlPoints(p, *mpatch[p]);
+      delete mpatch[p];
+      mpatch[p] = nullptr;
    } // p
 
    mesh.NURBSUniformRefinement(2);

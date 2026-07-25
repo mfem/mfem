@@ -3933,7 +3933,9 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
    Array<NURBSPatch*> patches;
    mesh.GetNURBSPatches(patches);
 
-   Array<NURBSPatch*> patches3D(patches.Size());
+   const int np = patches.Size();
+
+   Array<NURBSPatch*> patches3D(np);
 
    Vector spacing(nz);
    spacing = 1.0 / ((real_t) nz);
@@ -3951,7 +3953,7 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
    const real_t hz = sz / ((real_t) (ncpz - 1));
 
    // Construct 3D patches.
-   for (int p=0; p<patches.Size(); ++p)
+   for (int p=0; p<np; ++p)
    {
       NURBSPatchMap p2g(mesh.NURBSext);
       const KnotVector *kv[3];
@@ -3979,9 +3981,19 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
             }
          }
       }
+
+      delete patches[p];
+      patches[p] = nullptr;
    }
 
    NURBSExtension nex(ptop3D, patches3D);
+   delete ptop3D;
+   for (int p=0; p<np; ++p)
+   {
+      delete patches3D[p];
+      patches3D[p] = nullptr;
+   }
+
    Mesh *mesh3D_ptr = new Mesh(nex);
    Mesh &mesh3D = *mesh3D_ptr;
 
@@ -3990,11 +4002,9 @@ Mesh *ExtrudeNURBS2D(Mesh &mesh, int degree, int nz, real_t sz)
       const int ncpz0 = degree + 1;
       const real_t hz0 = sz / ((real_t) (ncpz0 - 1));
 
-      mesh3D.NURBSext->SetNumCoarsePatches(patches.Size());
+      mesh3D.NURBSext->SetNumCoarsePatches(np);
 
-      MFEM_VERIFY(mesh.NURBSext->NumCoarsePatches() == patches.Size(), "");
-
-      for (int p=0; p<patches.Size(); ++p)
+      for (int p=0; p<np; ++p)
       {
          Array2D<real_t> cp2D, cp3D;
          mesh.NURBSext->GetCoarsePatchCP(p, cp2D);

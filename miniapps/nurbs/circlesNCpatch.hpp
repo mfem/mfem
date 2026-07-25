@@ -151,6 +151,8 @@ Mesh* CirclesMesh(int num_refinements)
       } // i
 
       mesh.NURBSext->SetPatchControlPoints(p, *mpatch[p]);
+      delete mpatch[p];
+      mpatch[p] = nullptr;
    } // p
 
    // Set coarse patch CP
@@ -301,6 +303,8 @@ void GetCircleCP_A7(real_t radius, int n, real_t theta0, bool is90,
 
    NURBSExtension ne(&patch_topology_2d, patches);
    Mesh mesh(ne);
+
+   delete patches[0];
 
    // Set the weights. The following uses a simplified version of Algorithm A7.1
    // in The NURBS Book, assuming one arc.

@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
    {
       Mesh *mesh2D = CirclesMesh(4);
       mesh = ExtrudeNURBS2D(*mesh2D, 2, 3, 1.0);
+      delete mesh2D;
    }
    else
    {

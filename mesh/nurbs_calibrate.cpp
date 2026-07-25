@@ -537,11 +537,9 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
    mesh0.NURBSext->ConvertToPatches(*mesh0.GetNodes());
    mesh.NURBSext->ConvertToPatches(*mesh.GetNodes());
 
-   Array<NURBSPatch*> mpatch, patch;
-   mesh.NURBSext->GetPatches(mpatch);
-   MFEM_VERIFY(mpatch.Size() == 1, "");
-   patch.SetSize(1);
-   patch[0] = new NURBSPatch(*mpatch[0]); // Deep copy
+   Array<NURBSPatch*> patch;
+   mesh.NURBSext->GetPatches(patch);
+   MFEM_VERIFY(patch.Size() == 1, "");
    patch[0]->DivideOutWeights();
 
    Array<NURBSPatch*> patch0;
@@ -587,6 +585,7 @@ void SolveBoundarySegment(const Mesh &mesh0_, int ned, std::array<int, 3> nel,
    // patch[0].
    mesh.NURBSext->SetPatchControlPoints(0, *patch[0]);
    delete patch[0];
+   delete patch0[0];
 
    mesh.NURBSext->SetKnotsFromPatches();
    mesh.NURBSext->SetCoordsFromPatches(*mesh.GetNodes(), sdim);
@@ -650,10 +649,7 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
       MFEM_VERIFY(dcnt == 2, "");
    }
 
-   for (int i=0; i<2; ++i)
-   {
-      ncp[i] = (nelFace[i] * ned) + 1;
-   }
+   for (int i=0; i<2; ++i) { ncp[i] = (nelFace[i] * ned) + 1; }
 
    const int ncp_dir = (nel[dir] * ned) + 1;
 
@@ -694,10 +690,7 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
       }
 
       const int degree = faceMesh.NURBSext->GetOrder();
-      for (int i=0; i<degree; ++i)
-      {
-         faceMesh.KnotInsert(knots);
-      }
+      for (int i=0; i<degree; ++i) { faceMesh.KnotInsert(knots); }
 
       for (int i=0; i<2; ++i)
       {
@@ -705,6 +698,7 @@ void SolveBoundaryFace(const Mesh &mesh0_, int patchIndex,
                      "");
          MFEM_VERIFY(faceMesh.NURBSext->GetKnotVector(i)->GetNE() == nelFace[i],
                      "");
+         delete knots[i];
       }
    }
 
