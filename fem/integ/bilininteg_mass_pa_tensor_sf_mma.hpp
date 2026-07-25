@@ -57,24 +57,8 @@ inline void SmemPAMassApplyTensorSfMma3D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         {
-            const int tid = tensor_sf_mma::getThreadIdx();
-            const int nd = D1D * D1D * D1D;
-#ifdef __CUDA_ARCH__
-            const int stride = static_cast<int>(blockDim.x);
-#else
-            const int stride = nd;
-#endif
-            for (int t = tid; t < nd; t += stride)
-            {
-               const int dx = t % D1D;
-               const int div = t / D1D;
-               const int dy = div % D1D;
-               const int dz = div / D1D;
-               sm0[dx + D1D * (dy + D1D * dz)] = X(dx, dy, dz, e);
-            }
-            MFEM_SYNC_THREAD;
-         }
+         tensor_sf_mma::LoadX<MQ1>(e, D1D, X, sm0);
+         MFEM_SYNC_THREAD;
 
          tensor_sf_mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
          MFEM_SYNC_THREAD;

@@ -22,12 +22,14 @@ void MassIntegrator::RegisterTensorSfMmaKernels()
    AddTensorSfMmaSpecialization<2,5,6>();
    AddTensorSfMmaSpecialization<2,6,7>();
    AddTensorSfMmaSpecialization<2,7,8>();
+   AddTensorSfMmaSpecialization<2,8,9>();
 
    AddTensorSfMmaSpecialization<3,3,4>();
    AddTensorSfMmaSpecialization<3,4,5>();
    AddTensorSfMmaSpecialization<3,5,6>();
    AddTensorSfMmaSpecialization<3,6,7>();
    AddTensorSfMmaSpecialization<3,7,8>();
+   AddTensorSfMmaSpecialization<3,8,9>();
 }
 
 } // namespace mfem
