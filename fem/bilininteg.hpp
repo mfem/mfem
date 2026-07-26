@@ -1110,20 +1110,36 @@ public:
    MixedDotProductIntegrator(VectorCoefficient &vq)
       : MixedScalarVectorIntegrator(vq, true) {}
 
-   inline virtual bool VerifyFiniteElementTypes(
+   inline bool VerifyFiniteElementTypes(
       const FiniteElement & trial_fe,
-      const FiniteElement & test_fe) const
+      const FiniteElement & test_fe) const override
    {
       return (trial_fe.GetRangeType() == mfem::FiniteElement::VECTOR &&
               test_fe.GetRangeType()  == mfem::FiniteElement::SCALAR );
    }
 
-   inline virtual const char * FiniteElementTypeFailureMessage() const
+   inline const char * FiniteElementTypeFailureMessage() const override
    {
       return "MixedDotProductIntegrator:  "
              "Trial space must be a vector field "
              "and the test space must be a scalar field";
    }
+
+   using BilinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override;
+
+   void AddMultPA(const Vector&, Vector&) const override;
+   void AddMultTransposePA(const Vector&, Vector&) const override;
+
+private:
+   Vector pa_data;
+   const DofToQuad *mapsO = nullptr;      ///< Not owned. Trial open map.
+   const DofToQuad *mapsC = nullptr;      ///< Not owned. Trial closed map.
+   const DofToQuad *mapsTest = nullptr;   ///< Not owned. Scalar test map.
+   const GeometricFactors *geom = nullptr;///< Not owned.
+   int dim = 0, ne = 0, dofs1D = 0, dofs1Dtest = 0, quad1D = 0;
+   bool test_map_integral = false;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (-\vec{V} \cdot u, \nabla \cdot v)$ in 2D or
@@ -2995,11 +3011,10 @@ public:
     vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
     $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
     $v_i$ are in $H^1$. */
-class VectorFEMassIntegrator: public BilinearFormIntegrator
+class VectorFEMassIntegrator : public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
-   { Q = q; DQ = dq; MQ = mq; }
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq);
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -3022,7 +3037,8 @@ protected:
    const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D;
+   FiniteElement::DerivType trial_fetype, test_fetype;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
@@ -3053,6 +3069,29 @@ public:
                    const bool add) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   using ApplyKernelType =
+      void (*)(const int NE, bool symmetric, const bool scalar_coeff,
+               const Array<real_t> &trialBO, const Array<real_t> &trialBC,
+               const Array<real_t> &testBOt, const Array<real_t> &testBCt,
+               const Vector &pa_data, const Vector &x, Vector &y,
+               const int triald1d, const int testd1d, const int q1d);
+
+   /// parameters: trial_fetype, test_fetype, ndims, trial_d1d, test_d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType,
+                         (FiniteElement::DerivType, FiniteElement::DerivType,
+                          int, int, int, int));
+
+   struct Kernels { Kernels(); };
+
+   template <FiniteElement::DerivType TrialType,
+             FiniteElement::DerivType TestType, int DIM, int TRIAL_D1D,
+             int TEST_D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<TrialType, TestType, DIM, TRIAL_D1D,
+                     TEST_D1D, Q1D>::Add();
+   }
 };
 
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
@@ -3906,7 +3945,7 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 
 
 /** Class for constructing the gradient as a DiscreteLinearOperator from an
-    $H^1$-conforming space to an $H(curl$-conforming space. The range space can be
+    $H^1$-conforming space to an $H(curl)$-conforming space. The range space can be
     vector $L_2$ space as well. */
 class GradientInterpolator : public DiscreteInterpolator
 {
@@ -4015,12 +4054,48 @@ public:
     discrete curl matrix. */
 class CurlInterpolator : public DiscreteInterpolator
 {
+   int dim, ne;
+   // "dof" are the domain fespace dof counts
+   int ndof_o;
+   // "quads" are the range fespace dof counts
+   int nquad_o;
+
+   Vector pa_data;
+
 public:
+   CurlInterpolator();
+
    void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                const FiniteElement &ran_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override
    { ran_fe.ProjectCurl(dom_fe, Trans, elmat); }
+
+   void AssemblePA(const FiniteElementSpace &dom_fes,
+                   const FiniteElementSpace &ran_fes) override;
+   void AssemblePA(const FiniteElementSpace &fes) override
+   {
+      AssemblePA(fes, fes);
+   }
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   using ApplyKernelType = void (*)(const int ne, const int ndof_o,
+                                    const int nquad_o, const Vector &pa,
+                                    const Vector &x, Vector &y);
+
+   /// arguments: DIM, ndof_o, nquad_o
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIM, ndof_o, nquad_o
+   MFEM_REGISTER_KERNELS(ApplyTPAKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int NDOF_O, int NQUAD_O> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, NDOF_O, NQUAD_O>::Add();
+      ApplyTPAKernels::Specialization<DIM, NDOF_O, NQUAD_O>::Add();
+   }
+
+   struct Kernels { Kernels(); };
 };
 
 

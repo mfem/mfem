@@ -14,6 +14,8 @@
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 
+#include "bilininteg_hcurlhdiv_kernels.hpp"
+
 namespace mfem
 {
 
@@ -1949,5 +1951,139 @@ void IdentityInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
       mfem_error("Bad dimension!");
    }
 }
+
+void CurlInterpolator::AssemblePA(const FiniteElementSpace &dom_fes,
+                                  const FiniteElementSpace &ran_fes)
+{
+   // TODO: 1D and 2D meshes
+   Mesh *mesh = dom_fes.GetMesh();
+   const VectorTensorFiniteElement *dom_el =
+      dynamic_cast<const VectorTensorFiniteElement *>(dom_fes.GetTypicalFE());
+   const VectorTensorFiniteElement *ran_el =
+      dynamic_cast<const VectorTensorFiniteElement *>(ran_fes.GetTypicalFE());
+   MFEM_VERIFY(dom_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   MFEM_VERIFY(ran_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   // only supports H(curl) -> H(div) because of discontinuity requirements
+   MFEM_VERIFY(dom_el->GetDerivType() == FiniteElement::CURL,
+               "Domain space must be H(curl)");
+   MFEM_VERIFY(ran_el->GetDerivType() == FiniteElement::DIV,
+               "Range space must be H(div)");
+
+   const int dims = dom_el->GetDim();
+   MFEM_VERIFY(dims == 3, "");
+   dim = mesh->Dimension();
+
+   ne = dom_fes.GetNE();
+   ndof_o = dom_el->GetOrder();
+   int ndof_c = ndof_o + 1;
+   nquad_o = ran_el->GetOrder();
+   int nquad_c = nquad_o + 1;
+
+   // extract the tensor product range dof locations
+   std::vector<real_t> qc(nquad_c);
+   std::vector<real_t> qo(nquad_o);
+   {
+      const IntegrationRule &ran_nodes = ran_el->GetNodes();
+      const Array<int> &quad_map = ran_el->GetDofMap();
+      for (int i = 0; i < nquad_c; ++i)
+      {
+         int idx = UnsignIndex(quad_map[i]);
+         qc[i] = ran_nodes.IntPoint(idx).x;
+      }
+      int offset = ndof_c * ndof_o * ndof_o;
+      for (int i = 0; i < nquad_o; ++i)
+      {
+         int idx = UnsignIndex(quad_map[i + offset]);
+         qo[i] = ran_nodes.IntPoint(idx).x;
+      }
+   }
+
+   // evaluate closed/open 1D basis (and their derivatives) at closed and
+   // open quads
+   // storage order: GCO, BCC, BOO
+   pa_data.SetSize(ndof_c * nquad_o + ndof_c * nquad_c + ndof_o * nquad_o);
+   auto ptr = pa_data.HostWrite();
+   auto &cbasis1d = dom_el->GetBasis1D();
+   auto &obasis1d = dom_el->GetOpenBasis1D();
+   Vector b, g;
+   b.SetSize(ndof_c);
+   g.SetSize(ndof_c);
+   for (int j = 0; j < nquad_o; ++j)
+   {
+      cbasis1d.Eval(qo[j], b, g);
+      for (int i = 0; i < ndof_c; ++i)
+      {
+         ptr[j + i * nquad_o] = g[i];
+      }
+   }
+   ptr += nquad_o * ndof_c;
+
+   for (int j = 0; j < nquad_c; ++j)
+   {
+      cbasis1d.Eval(qc[j], b);
+      for (int i = 0; i < ndof_c; ++i)
+      {
+         ptr[j + i * nquad_c] = b[i];
+      }
+   }
+   ptr += ndof_c * nquad_c;
+
+   b.SetSize(ndof_o);
+   for (int j = 0; j < nquad_o; ++j)
+   {
+      obasis1d.Eval(qo[j], b);
+      for (int i = 0; i < ndof_o; ++i)
+      {
+         ptr[j + i * nquad_o] = b[i];
+      }
+   }
+}
+
+CurlInterpolator::Kernels::Kernels()
+{
+   CurlInterpolator::AddSpecialization<3, 1, 1>();
+   CurlInterpolator::AddSpecialization<3, 2, 2>();
+   CurlInterpolator::AddSpecialization<3, 3, 3>();
+   CurlInterpolator::AddSpecialization<3, 4, 4>();
+   CurlInterpolator::AddSpecialization<3, 5, 5>();
+}
+
+CurlInterpolator::CurlInterpolator() { static Kernels kernels{}; }
+
+void CurlInterpolator::AddMultPA(const Vector &x, Vector &y) const
+{
+   ApplyPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x,
+                       y);
+}
+
+void CurlInterpolator::AddMultTransposePA(const Vector &x, Vector &y) const
+{
+   ApplyTPAKernels::Run(dim, ndof_o, nquad_o, ne, ndof_o, nquad_o, pa_data, x,
+                        y);
+}
+
+/// \cond DO_NOT_DOCUMENT
+
+CurlInterpolator::ApplyKernelType
+CurlInterpolator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 3)
+   {
+      return internal::CurlInterpolatorApply3DSmem<0, 0>;
+   }
+   MFEM_ABORT("Bad dimension!");
+}
+
+CurlInterpolator::ApplyKernelType
+CurlInterpolator::ApplyTPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 3)
+   {
+      return internal::CurlInterpolatorTApply3DSmem<0, 0>;
+   }
+   MFEM_ABORT("Bad dimension!");
+}
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem
