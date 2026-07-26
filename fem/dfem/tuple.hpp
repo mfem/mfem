@@ -193,6 +193,19 @@ struct tuple<T0, T1, T2, T3, T4, T5, T6, T7>
    T7 v7;  ///< The eighth member of the tuple
 };
 
+/**
+ * @brief Type that mimics std::tuple
+ *
+ * @tparam T0 The first type stored in the tuple
+ * @tparam T1 The second type stored in the tuple
+ * @tparam T2 The third type stored in the tuple
+ * @tparam T3 The fourth type stored in the tuple
+ * @tparam T4 The fifth type stored in the tuple
+ * @tparam T5 The sixth type stored in the tuple
+ * @tparam T6 The seventh type stored in the tuple
+ * @tparam T7 The eighth type stored in the tuple
+ * @tparam T8 The ninth type stored in the tuple
+ */
 template <typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8>
 struct tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
 {
@@ -204,7 +217,69 @@ struct tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8>
    T5 v5;  ///< The sixth member of the tuple
    T6 v6;  ///< The seventh member of the tuple
    T7 v7;  ///< The eighth member of the tuple
-   T8 v8;
+   T8 v8;  ///< The ninth member in the tuple
+};
+
+/**
+ * @brief Type that mimics std::tuple
+ *
+ * @tparam T0 The first type stored in the tuple
+ * @tparam T1 The second type stored in the tuple
+ * @tparam T2 The third type stored in the tuple
+ * @tparam T3 The fourth type stored in the tuple
+ * @tparam T4 The fifth type stored in the tuple
+ * @tparam T5 The sixth type stored in the tuple
+ * @tparam T6 The seventh type stored in the tuple
+ * @tparam T7 The eighth type stored in the tuple
+ * @tparam T8 The ninth type stored in the tuple
+ * @tparam T9 The tenth type stored in the tuple
+ */
+template <typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7,
+          typename T8, typename T9>
+struct tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
+{
+   T0 v0;  ///< The first member of the tuple
+   T1 v1;  ///< The second member of the tuple
+   T2 v2;  ///< The third member of the tuple
+   T3 v3;  ///< The fourth member of the tuple
+   T4 v4;  ///< The fifth member of the tuple
+   T5 v5;  ///< The sixth member of the tuple
+   T6 v6;  ///< The seventh member of the tuple
+   T7 v7;  ///< The eighth member of the tuple
+   T8 v8;  ///< The ninth member of the tuple
+   T9 v9;  ///< The tenth member of the tuple
+};
+
+/**
+ * @brief Type that mimics std::tuple
+ *
+ * @tparam T0 The first type stored in the tuple
+ * @tparam T1 The second type stored in the tuple
+ * @tparam T2 The third type stored in the tuple
+ * @tparam T3 The fourth type stored in the tuple
+ * @tparam T4 The fifth type stored in the tuple
+ * @tparam T5 The sixth type stored in the tuple
+ * @tparam T6 The seventh type stored in the tuple
+ * @tparam T7 The eighth type stored in the tuple
+ * @tparam T8 The ninth type stored in the tuple
+ * @tparam T9 The tenth type stored in the tuple
+ * @tparam T10 The eleventh type stored in the tuple
+ */
+template <typename T0, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7,
+          typename T8, typename T9, typename T10>
+struct tuple<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
+{
+   T0 v0;    ///< The first member of the tuple
+   T1 v1;    ///< The second member of the tuple
+   T2 v2;    ///< The third member of the tuple
+   T3 v3;    ///< The fourth member of the tuple
+   T4 v4;    ///< The fifth member of the tuple
+   T5 v5;    ///< The sixth member of the tuple
+   T6 v6;    ///< The seventh member of the tuple
+   T7 v7;    ///< The eighth member of the tuple
+   T8 v8;    ///< The ninth member of the tuple
+   T9 v9;    ///< The tenth member of the tuple
+   T10 v10;  ///< The eleventh member of the tuple
 };
 
 /**
@@ -282,6 +357,14 @@ MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& values)
    {
       return values.v8;
    }
+   if constexpr (i == 9)
+   {
+      return values.v9;
+   }
+   if constexpr (i == 10)
+   {
+      return values.v10;
+   }
    MFEM_UNREACHABLE();
 }
 
@@ -329,6 +412,14 @@ MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& values)
    if constexpr (i == 8)
    {
       return values.v8;
+   }
+   if constexpr (i == 9)
+   {
+      return values.v9;
+   }
+   if constexpr (i == 10)
+   {
+      return values.v10;
    }
    MFEM_UNREACHABLE();
 }
@@ -382,6 +473,14 @@ MFEM_HOST_DEVICE constexpr auto type(const tuple<T...>& values)
    if constexpr (i == 8)
    {
       return values.v8;
+   }
+   if constexpr (i == 9)
+   {
+      return values.v9;
+   }
+   if constexpr (i == 10)
+   {
+      return values.v10;
    }
 }
 
