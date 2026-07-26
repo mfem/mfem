@@ -183,54 +183,18 @@ MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
    A33 = (J11 * J22) - (J12 * J21);
 }
 
-/** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ. */
-inline void PAMassSetupSimplexFromNodes(const int dim,
-                                        const int NE,
-                                        const int NQ,
-                                        const int ND,
-                                        const bool by_val,
-                                        const Array<real_t> &w,
-                                        const Array<real_t> &g,
-                                        const Vector &nodes_e,
-                                        const Vector &c,
-                                        Vector &d)
-{
-   const bool const_c = c.Size() == 1;
-   const auto W = Reshape(w.Read(), NQ);
-   // DofToQuad::FULL G layout: (nq x dim x ndof), matches QI Eval*.
-   const auto G = Reshape(g.Read(), NQ, dim, ND);
-   const auto E = Reshape(nodes_e.Read(), ND, dim, NE);
-   const auto C = const_c ? Reshape(c.Read(), 1, 1)
-                  : Reshape(c.Read(), NQ, NE);
-   auto D = Reshape(d.Write(), NQ, NE);
-
-   if (dim == 2)
-   {
-      mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
-      {
-         const int e = idx / NQ;
-         const int q = idx - NQ * e;
-         real_t J11, J21, J12, J22;
-         EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
-         const real_t detJ = DetJ2(J11, J21, J12, J22);
-         const real_t coeff = const_c ? C(0, 0) : C(q, e);
-         D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
-      });
-      return;
-   }
-
-   MFEM_VERIFY(dim == 3, "PAMassSetupSimplexFromNodes only supports dim 2/3");
-   mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int e = idx / NQ;
-      const int q = idx - NQ * e;
-      real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
-      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
-      const real_t detJ = DetJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33);
-      const real_t coeff = const_c ? C(0, 0) : C(q, e);
-      D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
-   });
-}
+/** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ.
+    Defined in bilininteg_pa_simplices_mma.cpp (CUDA extended-lambda ODR). */
+void PAMassSetupSimplexFromNodes(const int dim,
+                                 const int NE,
+                                 const int NQ,
+                                 const int ND,
+                                 const bool by_val,
+                                 const Array<real_t> &w,
+                                 const Array<real_t> &g,
+                                 const Vector &nodes_e,
+                                 const Vector &c,
+                                 Vector &d);
 
 /** CUDA DMMA (m8n8k4) / HIP MFMA (16x16x4 or 4x4x4_4b) helpers for simplex PA. */
 namespace simplex_mma
@@ -290,6 +254,7 @@ constexpr int MmaMapForDims(int ndof, int nq1)
 
    // Tetrahedra (BP3tet q=2p+3 and nearby)
    if (ndof == 20 && nq1 == 59) { return 0xcfa868; }
+   if (ndof == 35 && nq1 == 96) { return 0xcd7328; } // p=4 bake-off
    if (ndof == 56 && nq1 == 145) { return 0xfa54c8; }
    if (ndof == 84 && nq1 == 209) { return 0xcd7328; }
    if (ndof == 120 && nq1 == 284) { return 0xde5688; }
@@ -306,9 +271,22 @@ constexpr int MmaMapFor()
    return MmaMapForDims(ndof, Q1D);
 }
 
+/** Fallback MFEM_SHARED bounds for T_D1D/T_Q1D == 0.
+    Use CUDA/HIP architecture limits (not host DofQuadLimits_CPU) so host-side
+    NB/smem checks match the device compilation pass (__CUDA_ARCH__/HIP). */
+#if defined(MFEM_USE_HIP)
+constexpr int FallbackMaxD1D2 = DofQuadLimits_HIP::MAX_D1D;
+constexpr int FallbackMaxNq2 =
+   DofQuadLimits_HIP::MAX_Q1D * DofQuadLimits_HIP::MAX_Q1D;
+#elif defined(MFEM_USE_CUDA)
+constexpr int FallbackMaxD1D2 = DofQuadLimits_CUDA::MAX_D1D;
+constexpr int FallbackMaxNq2 =
+   DofQuadLimits_CUDA::MAX_Q1D * DofQuadLimits_CUDA::MAX_Q1D;
+#else
 constexpr int FallbackMaxD1D2 = DofQuadLimits::MAX_D1D;
-constexpr int FallbackMaxD1D3 = 8;
 constexpr int FallbackMaxNq2 = DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D;
+#endif
+constexpr int FallbackMaxD1D3 = 8;
 constexpr int FallbackMaxNq3 = 256;
 
 template <int DIM, int D1D>
@@ -448,6 +426,38 @@ struct SmemMatAcc
 constexpr int MAX_N_TILES = 2;
 constexpr int NBATCH = 16; // 2*8 CUDA, or 1*16 / 4*4 HIP
 
+/** Shared-memory budgets for NB / Q-tile planning.
+    CUDA: prefer 48KB (occupancy); allow up to 128KB dynamic for full-NQ when needed.
+    HIP: 64KB static (unchanged). */
+#if defined(MFEM_USE_HIP)
+constexpr int SharedMemBytesPrefer = 64 * 1024;
+constexpr int SharedMemBytesPerBlock = 64 * 1024;
+#elif defined(MFEM_USE_CUDA)
+constexpr int SharedMemBytesPrefer = 48 * 1024;
+constexpr int SharedMemBytesPerBlock = 128 * 1024; // dynamic smem opt-in
+#else
+constexpr int SharedMemBytesPrefer = 48 * 1024;
+constexpr int SharedMemBytesPerBlock = 48 * 1024;
+#endif
+
+/** CUDA dynamic shared memory base (one per block; size set at launch). */
+#if defined(__CUDA_ARCH__)
+MFEM_DEVICE inline char *SimplexMmaDynSmem()
+{
+   extern __shared__ char mfem_simplex_mma_dyn_smem[];
+   return mfem_simplex_mma_dyn_smem;
+}
+#endif
+
+/** Host-side check that planned static smem fits the probed device limit. */
+inline void VerifySharedMemBytes(const int needed_bytes)
+{
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      MFEM_VERIFY(needed_bytes <= Device::SharedMemoryPerBlock(),
+                  "Simplex MMA shared memory exceeds Device::SharedMemoryPerBlock()");
+   }
+}
 MFEM_HOST_DEVICE inline int getNumWarps()
 {
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
@@ -584,6 +594,130 @@ MFEM_HOST_DEVICE inline void dmma_GemmT8(const int M, const int K, const int N,
    }
 }
 
+/** Fused 3-comp forward: U_d = G_d * X (shared X loads). */
+template <int MAP, typename TA0, typename TA1, typename TA2, typename TB,
+          typename TC0, typename TC1, typename TC2>
+MFEM_HOST_DEVICE inline void dmma_Gemm8_Fwd3(const int M, const int K,
+                                             const int N,
+                                             TA0 A0, TA1 A1, TA2 A2, TB B,
+                                             TC0 C0, TC1 C1, TC2 C2)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int mPass = (M + mmaM - 1) / mmaM;
+   const int nTiles = (N + mmaN - 1) / mmaN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * mmaM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * mmaN;
+         const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         double c0[2] = {}, c1[2] = {}, c2[2] = {};
+
+         for (int mK = 0; mK < (K + mmaK - 1) / mmaK; mK++)
+         {
+            const int aRow = row0 + groupId;
+            const int aColumn = threadIdInGroup + mK * mmaK;
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MagicCol<MAP>(groupId);
+            const double bV = (bRow < K && bColumn < nTile)
+                              ? static_cast<double>(B(bRow, n0 + bColumn))
+                              : 0.0;
+            double aReg[1], bReg[1] = {bV};
+            aReg[0] = (aRow < M && aColumn < K)
+                      ? static_cast<double>(A0(aRow, aColumn)) : 0.0;
+            dmmaSync(aReg, bReg, c0);
+            aReg[0] = (aRow < M && aColumn < K)
+                      ? static_cast<double>(A1(aRow, aColumn)) : 0.0;
+            dmmaSync(aReg, bReg, c1);
+            aReg[0] = (aRow < M && aColumn < K)
+                      ? static_cast<double>(A2(aRow, aColumn)) : 0.0;
+            dmmaSync(aReg, bReg, c2);
+         }
+         MFEM_UNROLL(2)
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = row0 + groupId;
+            const int cColumn = MagicCol<MAP>(threadIdInGroup * 2 + i);
+            if (cRow < M && cColumn < nTile)
+            {
+               C0(cRow, n0 + cColumn) = static_cast<real_t>(c0[i]);
+               C1(cRow, n0 + cColumn) = static_cast<real_t>(c1[i]);
+               C2(cRow, n0 + cColumn) = static_cast<real_t>(c2[i]);
+            }
+         }
+      }
+   }
+}
+
+/** Fused 3-comp GemmT: Y += G_d^T * U_d (shared Y accumulate). */
+template <int MAP, typename TA0, typename TA1, typename TA2,
+          typename TB0, typename TB1, typename TB2, typename TC>
+MFEM_HOST_DEVICE inline void dmma_GemmT8_3(const int M, const int K,
+                                           const int N,
+                                           TA0 A0, TA1 A1, TA2 A2,
+                                           TB0 B0, TB1 B1, TB2 B2, TC C,
+                                           const int e0, const int NE)
+{
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = getNumWarps();
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int mPass = (K + mmaM - 1) / mmaM;
+   const int nTiles = (N + mmaN - 1) / mmaN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * mmaM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * mmaN;
+         const int nTile = (N - n0 < mmaN) ? (N - n0) : mmaN;
+         double cReg[2] = {};
+
+         for (int mK = 0; mK < (M + mmaK - 1) / mmaK; mK++)
+         {
+            const int aT_row = row0 + groupId;
+            const int aT_col = threadIdInGroup + mK * mmaK;
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MagicCol<MAP>(groupId);
+            const bool a_ok = (aT_row < K && aT_col < M);
+            const bool b_ok = (bRow < M && bColumn < nTile);
+            double aReg[1], bReg[1];
+            aReg[0] = a_ok ? static_cast<double>(A0(aT_col, aT_row)) : 0.0;
+            bReg[0] = b_ok ? static_cast<double>(B0(bRow, n0 + bColumn)) : 0.0;
+            dmmaSync(aReg, bReg, cReg);
+            aReg[0] = a_ok ? static_cast<double>(A1(aT_col, aT_row)) : 0.0;
+            bReg[0] = b_ok ? static_cast<double>(B1(bRow, n0 + bColumn)) : 0.0;
+            dmmaSync(aReg, bReg, cReg);
+            aReg[0] = a_ok ? static_cast<double>(A2(aT_col, aT_row)) : 0.0;
+            bReg[0] = b_ok ? static_cast<double>(B2(bRow, n0 + bColumn)) : 0.0;
+            dmmaSync(aReg, bReg, cReg);
+         }
+         MFEM_UNROLL(2)
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = row0 + groupId;
+            const int cColumn = MagicCol<MAP>(threadIdInGroup * 2 + i);
+            const int e = e0 + n0 + cColumn;
+            if (cRow < K && cColumn < nTile && e < NE)
+            {
+               C(cRow, n0 + cColumn) += static_cast<real_t>(cReg[i]);
+            }
+         }
+      }
+   }
+}
+
+/** CUDA m8n8k4 entry points (single tile shape). */
 template
 <int MAP, bool SCALE, typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void dmma_Gemm(const int M, const int K, const int N,
@@ -766,17 +900,17 @@ MFEM_HOST_DEVICE inline void mfma_GemmT16_3(const int M, const int K,
             const bool a_ok = (aT_row < K && aT_col < M);
             const bool b_ok = (bR < M && bCol < nTile);
             const double a0V = a_ok ? static_cast<double>(A0(aT_col, aT_row))
-                                    : 0.0;
+                               : 0.0;
             const double a1V = a_ok ? static_cast<double>(A1(aT_col, aT_row))
-                                    : 0.0;
+                               : 0.0;
             const double a2V = a_ok ? static_cast<double>(A2(aT_col, aT_row))
-                                    : 0.0;
+                               : 0.0;
             const double b0V = b_ok ? static_cast<double>(B0(bR, n0 + bCol))
-                                    : 0.0;
+                               : 0.0;
             const double b1V = b_ok ? static_cast<double>(B1(bR, n0 + bCol))
-                                    : 0.0;
+                               : 0.0;
             const double b2V = b_ok ? static_cast<double>(B2(bR, n0 + bCol))
-                                    : 0.0;
+                               : 0.0;
             // Accumulate all three components into one C tile.
             mfmaSync16(a0V, b0V, cReg);
             mfmaSync16(a1V, b1V, cReg);
@@ -1022,7 +1156,7 @@ struct GAcc
    }
 };
 
-/** GradP rows [q0, q0+M): used by HIP diffusion Q-tiling. */
+/** GradP rows [q0, q0+M): used by diffusion Q-tiling. */
 struct GAccQTile
 {
    const real_t *g;
@@ -1050,18 +1184,43 @@ MFEM_HOST_DEVICE inline int SimplexNdofFromD1D(const int dim, const int d1d)
           : (d1d * (d1d + 1) * (d1d + 2) / 6);
 }
 
-/** Mass / DomainLF batch width: NBATCH when specialized (except large 3D Q). */
+/** Max NB for mass-like X+U buffers under a byte cap. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int MassLikeNBAt(int bytes_cap)
+{
+   if (!(T_D1D && T_Q1D)) { return mmaN; }
+   constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
+   constexpr int MAP = MmaMapFor<DIM, T_D1D, T_Q1D>();
+   constexpr int X_LD = PadLdBank<MAP>(BASIS);
+   constexpr int U_LD = PadLdBank<MAP>(MQ);
+   const int max_nb = bytes_cap / (int(sizeof(real_t)) * (X_LD + U_LD));
+   if (NBATCH <= max_nb) { return NBATCH; }
+   const int nb = (max_nb / mmaN) * mmaN;
+   return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+}
+
+/** Mass / DomainLF batch width.
+    CUDA: use dynamic smem to restore NBATCH=16 when 48KB would shrink NB. */
 template <int DIM, int T_D1D, int T_Q1D>
 constexpr int MassLikeNB()
 {
-   return (T_D1D && T_Q1D && !(DIM == 3 && T_Q1D > 160)) ? NBATCH : mmaN;
+#if defined(MFEM_USE_CUDA)
+   constexpr int nb_pref = MassLikeNBAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPrefer);
+   constexpr int nb_dyn = MassLikeNBAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPerBlock);
+   // Prefer full NBATCH via dynamic smem when it fits (tet p=7 mass ~52KB).
+   if (nb_dyn >= NBATCH) { return NBATCH; }
+   if (nb_pref >= mmaN) { return nb_pref; }
+   if (nb_dyn >= mmaN) { return mmaN; }
+   return nb_dyn > 0 ? nb_dyn : 1;
+#else
+   return MassLikeNBAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPerBlock);
+#endif
 }
 
-/** Diffusion NB so X + DIM*U shared buffers stay within 48 KiB.
-    CUDA: full-nq planes (may shrink NB).
-    HIP: when full-nq would force NB < 16 in 3D, keep NB=16 and use Q-tiling. */
+/** Max diffusion NB for full-NQ X+DIM*U under a byte cap. */
 template <int DIM, int T_D1D, int T_Q1D>
-constexpr int DiffusionMmaNBFullNq()
+constexpr int DiffusionMmaNBFullNqAt(int bytes_cap)
 {
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
    constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
@@ -1069,60 +1228,114 @@ constexpr int DiffusionMmaNBFullNq()
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr int U_LD = PadLdBank<MAP>(MQ);
    constexpr int per_batch_col = X_LD + DIM * U_LD;
-   constexpr int max_nb =
-      (48 * 1024) / (int(sizeof(real_t)) * per_batch_col);
+   const int max_nb = bytes_cap / (int(sizeof(real_t)) * per_batch_col);
    if (T_D1D && T_Q1D)
    {
       if (NBATCH <= max_nb) { return NBATCH; }
+#if defined(MFEM_USE_HIP)
       return max_nb > 0 ? max_nb : 1;
+#else
+      const int nb = (max_nb / mmaN) * mmaN;
+      return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+#endif
    }
    if (mmaN <= max_nb) { return mmaN; }
    return max_nb > 0 ? max_nb : 1;
 }
 
-#if defined(MFEM_USE_HIP)
-/** True when HIP diffusion should Q-tile (restore NB=16 vs MFMA N=16). */
+/** Diffusion full-NQ NB.
+    CUDA: plan under 48KB only. Larger full-NQ (dynamic) loses to Q-tile on H100
+          due to occupancy (tet p=7 measured). Q-tile path uses Prefer budget. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionMmaNBFullNq()
+{
+#if defined(MFEM_USE_CUDA)
+   return DiffusionMmaNBFullNqAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPrefer);
+#else
+   return DiffusionMmaNBFullNqAt<DIM, T_D1D, T_Q1D>(SharedMemBytesPerBlock);
+#endif
+}
+
+/** True when diffusion should Q-tile.
+    HIP: when full-NQ would force NB < NBATCH (16).
+    CUDA: only when full-NQ cannot keep NB >= mmaN even with dynamic smem. */
 template <int DIM, int T_D1D, int T_Q1D>
 constexpr bool DiffusionUseQTile()
 {
-   return DIM == 3 && T_D1D && T_Q1D &&
-          (DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < NBATCH);
+   if (!(DIM == 3 && T_D1D && T_Q1D)) { return false; }
+#if defined(MFEM_USE_HIP)
+   return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < NBATCH;
+#else
+   return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>() < mmaN;
+#endif
 }
 
-/** Largest TQ (multiple of MFMA M=16) that fits X + 3·U in 48 KiB at NB=16.
-    Larger tiles cut barrier count vs TQ=16; still match MFMA M. */
-template <int DIM, int T_D1D, int T_Q1D>
-constexpr int DiffusionQTileFor()
+/** Largest TQ (multiple of MMA M) that fits X + DIM·U at a given NB and byte cap. */
+template <int DIM, int T_D1D, int T_Q1D, int NB>
+constexpr int DiffusionQTileForNBAt(int bytes_cap)
 {
    constexpr int BASIS = SimplexNdof<DIM, T_D1D>();
    constexpr int MAP = MmaMapFor<DIM, T_D1D, T_Q1D>();
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
-   constexpr int bytes_cap = 48 * 1024;
-   int best = 16;
-   for (int tq = 16; tq <= MQ; tq += 16)
+   constexpr int step = mmaM;
+
+   int best = step;
+   for (int tq = step; tq <= MQ; tq += step)
    {
+#if defined(MFEM_USE_HIP)
       const int U_LD = PadLdBankHip(tq);
-      const int bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NBATCH;
+#else
+      const int U_LD = PadLdBank<MAP>(tq);
+#endif
+      const int bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
       if (bytes > bytes_cap) { break; }
       best = tq;
    }
    return best;
 }
 
-/** @deprecated prefer DiffusionQTileFor — kept as MFMA-M hint. */
-constexpr int DiffusionQTile = 16;
+template <int DIM, int T_D1D, int T_Q1D, int NB>
+constexpr int DiffusionQTileForNB()
+{
+   // Keep Q-tiles in the occupancy-friendly 48KB/Prefer budget (H100).
+   return DiffusionQTileForNBAt<DIM, T_D1D, T_Q1D, NB>(SharedMemBytesPrefer);
+}
+
+/** Q-tile element batch: HIP keeps NBATCH; CUDA picks NB in {8,16} with fewer passes. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionQTileNB()
+{
+#if defined(MFEM_USE_HIP)
+   return NBATCH;
+#else
+   constexpr int MQ = SimplexMaxNq<DIM, T_Q1D>();
+   constexpr int tq16 = DiffusionQTileForNB<DIM, T_D1D, T_Q1D, NBATCH>();
+   constexpr int tq8 = DiffusionQTileForNB<DIM, T_D1D, T_Q1D, mmaN>();
+   constexpr int passes16 = (MQ + tq16 - 1) / tq16;
+   constexpr int passes8 = (MQ + tq8 - 1) / tq8;
+   return (passes8 < passes16) ? mmaN : NBATCH;
 #endif
+}
+
+/** Largest TQ for the selected Q-tile NB. */
+template <int DIM, int T_D1D, int T_Q1D>
+constexpr int DiffusionQTileFor()
+{
+   return DiffusionQTileForNB<DIM, T_D1D, T_Q1D,
+          DiffusionQTileNB<DIM, T_D1D, T_Q1D>()>();
+}
+
+/** @deprecated prefer DiffusionQTileFor — kept as MMA-M hint. */
+constexpr int DiffusionQTile = mmaM;
 
 template <int DIM, int T_D1D, int T_Q1D>
 constexpr int DiffusionMmaNB()
 {
-#if defined(MFEM_USE_HIP)
    if constexpr (DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
    {
-      return NBATCH;
+      return DiffusionQTileNB<DIM, T_D1D, T_Q1D>();
    }
-#endif
    return DiffusionMmaNBFullNq<DIM, T_D1D, T_Q1D>();
 }
 
@@ -1229,8 +1442,8 @@ MFEM_HOST_DEVICE inline void BasisGemmT(const int NQ1, const int ndof,
 #endif
 }
 
-/** HIP-only fused 3D GradP forward: U0,U1,U2 = G0,G1,G2 * X. */
-template <typename Basis0, typename Basis1, typename Basis2,
+/** Fused 3D GradP forward: U0,U1,U2 = G0,G1,G2 * X. */
+template <int MAP, typename Basis0, typename Basis1, typename Basis2,
           typename XAcc, typename U0, typename U1, typename U2>
 MFEM_HOST_DEVICE inline void BasisGemmForward3(const int NQ1, const int ndof,
                                                const int NB,
@@ -1238,7 +1451,11 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int NQ1, const int ndof,
                                                XAcc X, U0 U0a, U1 U1a, U2 U2a,
                                                const int e0, const int NE)
 {
-#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   (void)e0; (void)NE;
+   dmma_Gemm8_Fwd3<MAP>(NQ1, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a);
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MAP;
    if (PreferMfma4(NQ1, ndof))
    {
       NullDAcc nullD;
@@ -1252,13 +1469,25 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int NQ1, const int ndof,
       mfma_Gemm16_Fwd3(NQ1, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a);
    }
 #else
-   (void)NQ1; (void)ndof; (void)NB; (void)B0; (void)B1; (void)B2;
+   (void)MAP; (void)NQ1; (void)ndof; (void)NB; (void)B0; (void)B1; (void)B2;
    (void)X; (void)U0a; (void)U1a; (void)U2a; (void)e0; (void)NE;
 #endif
 }
 
-/** HIP-only fused 3D GradP^T accumulate into Y. */
+/** Convenience overload (MAP = 0). */
 template <typename Basis0, typename Basis1, typename Basis2,
+          typename XAcc, typename U0, typename U1, typename U2>
+MFEM_HOST_DEVICE inline void BasisGemmForward3(const int NQ1, const int ndof,
+                                               const int NB,
+                                               Basis0 B0, Basis1 B1, Basis2 B2,
+                                               XAcc X, U0 U0a, U1 U1a, U2 U2a,
+                                               const int e0, const int NE)
+{
+   BasisGemmForward3<0>(NQ1, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a, e0, NE);
+}
+
+/** Fused 3D GradP^T accumulate into Y. */
+template <int MAP, typename Basis0, typename Basis1, typename Basis2,
           typename U0, typename U1, typename U2, typename YAcc>
 MFEM_HOST_DEVICE inline void BasisGemmT3(const int NQ1, const int ndof,
                                          const int NB,
@@ -1266,7 +1495,10 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int NQ1, const int ndof,
                                          U0 U0a, U1 U1a, U2 U2a, YAcc Y,
                                          const int e0, const int NE)
 {
-#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GemmT8_3<MAP>(NQ1, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MAP;
    if (PreferMfma4(NQ1, ndof))
    {
       BasisGemmT<0>(NQ1, ndof, NB, B0, U0a, Y, e0, NE);
@@ -1278,9 +1510,20 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int NQ1, const int ndof,
       mfma_GemmT16_3(NQ1, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
    }
 #else
-   (void)NQ1; (void)ndof; (void)NB; (void)B0; (void)B1; (void)B2;
+   (void)MAP; (void)NQ1; (void)ndof; (void)NB; (void)B0; (void)B1; (void)B2;
    (void)U0a; (void)U1a; (void)U2a; (void)Y; (void)e0; (void)NE;
 #endif
+}
+
+template <typename Basis0, typename Basis1, typename Basis2,
+          typename U0, typename U1, typename U2, typename YAcc>
+MFEM_HOST_DEVICE inline void BasisGemmT3(const int NQ1, const int ndof,
+                                         const int NB,
+                                         Basis0 B0, Basis1 B1, Basis2 B2,
+                                         U0 U0a, U1 U1a, U2 U2a, YAcc Y,
+                                         const int e0, const int NE)
+{
+   BasisGemmT3<0>(NQ1, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
 }
 
 // ---------------------------------------------------------------------------

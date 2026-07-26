@@ -336,6 +336,13 @@ public:
    /// Same as WarpSize(int), for the currently active device.
    static int WarpSize();
 
+   /** @brief Max shared memory (bytes) per block on @a device_id.
+       CUDA: opt-in limit when available (e.g. H100 ~227KB); HIP: device max. */
+   static int SharedMemoryPerBlock(int device_id);
+
+   /// Same as SharedMemoryPerBlock(int), for the currently active device.
+   static int SharedMemoryPerBlock();
+
    /** @brief Gets the @a free and @a total memory on the device. */
    static void DeviceMem(size_t *free, size_t *total);
 };

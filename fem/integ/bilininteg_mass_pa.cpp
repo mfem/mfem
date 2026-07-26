@@ -14,10 +14,12 @@
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_tensor_sf_mma.hpp"
 
 #include "bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
 #include "bilininteg_mass_pa_simplices_mma.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_tensor_sf_mma.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -27,6 +29,7 @@ namespace mfem
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    pa_simplex_mma = false;
+   pa_tensor_mma = false;
    simplex_mma_P.DeleteAll();
 
    if (CanUseSimplexMmaPA(fes))
@@ -73,6 +76,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
+   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
    pa_data.SetSize(ne*nq, mt);
 
    QuadratureSpace qs(*mesh, *ir);
@@ -112,6 +116,11 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          const real_t coeff = const_c ? C(0, 0) : C(q, e);
          v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
       });
+   }
+
+   if (CanUseTensorMmaPA(fes))
+   {
+      pa_tensor_mma = true;
    }
 }
 
@@ -162,9 +171,9 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_simplex_mma)
+   if (pa_simplex_mma || pa_tensor_mma)
    {
-      MFEM_ABORT("AssembleDiagonalPA not implemented for simplex MMA PA");
+      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
    else if (DeviceCanUseCeed())
    {
@@ -183,6 +192,13 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, simplex_mma_P,
                                     pa_data, x, y, dofs1D, quad1D);
+   }
+   else if (pa_tensor_mma)
+   {
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+      ApplyTensorSfMmaPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
+                                     y, dofs1D, quad1D);
    }
    else if (DeviceCanUseCeed())
    {
@@ -249,7 +265,8 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
                   "AbsMultPA not implemented for ragged tensor basis");
-      MFEM_VERIFY(!pa_simplex_mma, "AbsMultPA not implemented for simplex MMA PA");
+      MFEM_VERIFY(!pa_simplex_mma && !pa_tensor_mma,
+                  "AbsMultPA not implemented for MMA PA");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();
       Array<real_t> absB(maps->B);

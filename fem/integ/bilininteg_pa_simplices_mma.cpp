@@ -42,4 +42,57 @@ bool GetForceSimplexPositiveMMA()
    return env_mma == 1;
 }
 
+namespace internal
+{
+
+void PAMassSetupSimplexFromNodes(const int dim,
+                                 const int NE,
+                                 const int NQ,
+                                 const int ND,
+                                 const bool by_val,
+                                 const Array<real_t> &w,
+                                 const Array<real_t> &g,
+                                 const Vector &nodes_e,
+                                 const Vector &c,
+                                 Vector &d)
+{
+   const bool const_c = c.Size() == 1;
+   const auto W = Reshape(w.Read(), NQ);
+   // DofToQuad::FULL G layout: (nq x dim x ndof), matches QI Eval*.
+   const auto G = Reshape(g.Read(), NQ, dim, ND);
+   const auto E = Reshape(nodes_e.Read(), ND, dim, NE);
+   const auto C = const_c ? Reshape(c.Read(), 1, 1)
+                  : Reshape(c.Read(), NQ, NE);
+   auto D = Reshape(d.Write(), NQ, NE);
+
+   if (dim == 2)
+   {
+      mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / NQ;
+         const int q = idx - NQ * e;
+         real_t J11, J21, J12, J22;
+         EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
+         const real_t detJ = DetJ2(J11, J21, J12, J22);
+         const real_t coeff = const_c ? C(0, 0) : C(q, e);
+         D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
+      });
+      return;
+   }
+
+   MFEM_VERIFY(dim == 3, "PAMassSetupSimplexFromNodes only supports dim 2/3");
+   mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int e = idx / NQ;
+      const int q = idx - NQ * e;
+      real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
+      EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t detJ = DetJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t coeff = const_c ? C(0, 0) : C(q, e);
+      D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
+   });
+}
+
+} // namespace internal
+
 } // namespace mfem

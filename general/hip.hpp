@@ -102,6 +102,12 @@ void HipCheckLastError();
 /// Get the number of HIP devices
 int HipGetDeviceCount();
 
+/// Active HIP device id (0 if HIP disabled).
+int HipGetDevice();
+
+/// Default max shared memory (bytes) per block on device @a dev (0 if HIP disabled).
+int HipSharedMemoryPerBlock(int dev);
+
 } // namespace mfem
 
 #endif // MFEM_HIP_HPP

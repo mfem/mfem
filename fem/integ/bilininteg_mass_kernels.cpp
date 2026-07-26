@@ -18,6 +18,13 @@ namespace mfem
 MassIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q = P, only for simplex
+   MassIntegrator::AddSimplexSpecialization<2,2,1>();
+   MassIntegrator::AddSimplexSpecialization<2,3,2>();
+   MassIntegrator::AddSimplexSpecialization<2,4,3>();
+   MassIntegrator::AddSimplexSpecialization<2,5,4>();
+   MassIntegrator::AddSimplexSpecialization<2,6,5>();
+   MassIntegrator::AddSimplexSpecialization<2,7,6>();
    // Q=P+1
    MassIntegrator::AddSpecialization<2,1,1>();
    MassIntegrator::AddSpecialization<2,2,2>();
@@ -54,6 +61,14 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,7,10>();
 
    // 3D
+   // Q = P, only for simplex
+   MassIntegrator::AddSimplexSpecialization<3,2,1>();
+   MassIntegrator::AddSimplexSpecialization<3,3,2>();
+   MassIntegrator::AddSimplexSpecialization<3,4,3>();
+   MassIntegrator::AddSimplexSpecialization<3,5,4>();
+   MassIntegrator::AddSimplexSpecialization<3,6,5>();
+   MassIntegrator::AddSimplexSpecialization<3,7,6>();
+   MassIntegrator::AddSimplexSpecialization<3,8,7>();
    // Q=P+1
    MassIntegrator::AddSpecialization<3,1,1>();
    MassIntegrator::AddSpecialization<3,2,2>();
@@ -81,6 +96,8 @@ MassIntegrator::Kernels::Kernels()
 
    // Simplex MMA specs: bilininteg_mass_pa_simplices_mma.cpp
    RegisterSimplexMmaKernels();
+   // Tensor SF-MMA specs: bilininteg_mass_pa_tensor_sf_mma.cpp
+   RegisterTensorSfMmaKernels();
 }
 
 namespace internal

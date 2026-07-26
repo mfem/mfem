@@ -45,6 +45,7 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
       IntRule ? *IntRule : IntRules.Get(geom_t, q_order);
    const int nq1 = ir.GetNPoints();
    quad1D = nq1;
+   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
    this->nq = nq1;
    ne = mesh->GetNE();
    pa_simplex_mma = true;
