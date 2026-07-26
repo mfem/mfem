@@ -189,6 +189,7 @@ find_package(BLAS   REQUIRED)
 
 add_library(mma_mfem_lib STATIC MMA_MFEM.cpp)
 target_sources(mma_mfem_lib PRIVATE LatentMirrorOptimizer.cpp)
+target_sources(mma_mfem_lib PRIVATE CCSA_Bregman_MFEM.cpp)
 
 
 # ── Adding extra library source files ────────────────────────────────────────
