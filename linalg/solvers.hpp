@@ -622,6 +622,184 @@ void SLI(const Operator &A, Solver &B, const Vector &b, Vector &x,
          real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24);
 
 
+
+/**
+   @brief A class to handle fixed point iteration relaxation methods.
+   This class provides a base for implementing various relaxation strategies
+   for fixed point iteration solvers.
+ */
+class FPIRelaxation
+{
+#ifdef MFEM_USE_MPI
+private:
+   MPI_Comm comm = MPI_COMM_NULL;
+#endif
+
+protected:
+   const Operator *oper = nullptr;
+   real_t lbnd = std::numeric_limits<real_t>::lowest();
+   real_t ubnd = std::numeric_limits<real_t>::max();
+   real_t abs_lbnd = 0.0;
+   InnerProductOperator *dot_oper = nullptr;
+
+public:
+   FPIRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+   FPIRelaxation(MPI_Comm comm_) {comm = comm_;}
+   void SetComm(MPI_Comm comm_) {comm = comm_;}
+#endif
+
+   /// @brief Set the operator for the relaxation method.
+   virtual void SetOperator(const Operator &op) {oper = &op;}
+
+   /// @brief Initialize the relaxation method.
+   virtual void Init() {}
+
+   /// @brief Set the lower bound for the relaxation factor.
+   virtual void SetLowerBound(real_t lb) { lbnd = lb; }
+
+   /// @brief Set the upper bound for the relaxation factor.
+   virtual void SetUpperBound(real_t ub) { ubnd = ub; }
+
+   /// @brief Set both lower and upper bounds for the relaxation factor.
+   virtual void SetBounds(real_t lb, real_t ub)
+   { lbnd = lb; ubnd = ub;}
+
+   /// @brief Set the absolute bound for the relaxation factor.
+   virtual void SetAbsoluteLowerBound(real_t abs_lb)
+   { abs_lbnd = std::abs(abs_lb); }
+
+   /// @brief Set a user-defined inner product operator (not owned)
+   void SetInnerProduct(InnerProductOperator *ipo) { dot_oper = ipo; }
+
+   /// @brief Clamp the relaxation factor to the specified range.
+   virtual real_t Clamp(real_t factor) const
+   {
+      real_t afac = (abs_lbnd == 0.0) ? factor :
+                    std::copysign(std::max(std::abs(factor), abs_lbnd), factor);
+      return std::max(std::min(afac, ubnd), lbnd);
+   }
+
+   /**
+    @brief Compute the relaxation factor for Fixed Point Iteration.
+
+      @param state Current state vector
+      @param residual Current residual vector
+      @param res_norm Norm of the current residual vector
+      @param rfactor Current relaxation factor
+      @return real_t The computed relaxation factor
+   */
+   virtual real_t Eval(const Vector &state, const Vector &residual,
+                       real_t res_norm, real_t rfactor)
+   {
+      return rfactor; // Default implementation returns the fixed factor
+   };
+
+   real_t Dot(const Vector &x, const Vector &y) const;
+
+   real_t SquaredDistance(const Vector &x, const Vector &y) const;
+
+   virtual ~FPIRelaxation() {}
+};
+
+/**
+   @brief A class to implement Aitken relaxation for Fixed Point Iteration
+   to accelerate the convergence of fixed point iterations.
+ */
+class AitkenRelaxation : public FPIRelaxation
+{
+protected:
+   Vector rold; // Old residual vector
+   real_t rold_nsq = 0.0;
+
+public:
+   AitkenRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+   AitkenRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_) {}
+#endif
+
+   void Init() override;
+
+   /**
+    @brief Compute the Aitken relaxation factor for Fixed Point Iteration.
+
+      @param state Current state vector
+      @param residual Current residual vector
+      @param res_norm Norm of the current residual vector
+      @param rfactor Current relaxation factor
+      @return The computed relaxation factor
+   */
+   real_t Eval(const Vector &state, const Vector &residual, real_t res_norm,
+               real_t rfactor) override;
+};
+
+/**
+   @brief A class to implement steepest descent relaxation for Fixed Point Iteration
+   to accelerate the convergence of fixed point iterations.
+ */
+class SteepestDescentRelaxation : public FPIRelaxation
+{
+protected:
+   Vector z;
+
+public:
+   SteepestDescentRelaxation() = default;
+
+#ifdef MFEM_USE_MPI
+   SteepestDescentRelaxation(MPI_Comm comm_) : FPIRelaxation(comm_) {}
+#endif
+
+   void Init() override;
+
+   /**
+      @brief Compute the steepest descent relaxation factor for Fixed Point Iteration.
+
+      @param state Current state vector
+      @param residual Current residual vector
+      @param res_norm Norm of the current residual vector
+      @param rfactor Current relaxation factor
+      @return The computed relaxation factor
+    */
+   real_t Eval(const Vector &state, const Vector &residual, real_t res_norm,
+               real_t rfactor) override;
+};
+
+/// Fixed point iteration solver: x <- f(x)
+class FPISolver : public IterativeSolver
+{
+protected:
+   FPIRelaxation *relax_method = nullptr; ///< Relaxation strategy for FPI
+   bool relax_owned = false;
+   mutable real_t relax_factor = 1.0;
+   mutable Vector r, z;
+
+   void UpdateVectors();
+
+public:
+   FPISolver() { }
+
+#ifdef MFEM_USE_MPI
+   FPISolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+#endif
+
+   virtual void SetOperator(const Operator &op) override;
+
+   void SetRelaxation(real_t rfactor, FPIRelaxation *relaxation = nullptr,
+                      bool own = false);
+
+   /// Iterative solution of the (non)linear system using Fixed Point Iteration
+   /// b is not used
+   void Mult(const Vector &b, Vector &x) const override;
+};
+
+/// Fixed point iteration. (tolerances are squared)
+void FPI(const Operator &A, const Vector &b, Vector &x,
+         int print_iter = 0, int max_num_iter = 1000,
+         real_t RTOLERANCE = 1e-12, real_t ATOLERANCE = 1e-24,
+         real_t relax_factor = 1.0, FPIRelaxation *relax_method = nullptr);
+
 /// Conjugate gradient method
 class CGSolver : public IterativeSolver
 {
