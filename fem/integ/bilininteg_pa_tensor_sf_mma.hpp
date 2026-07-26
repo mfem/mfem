@@ -41,7 +41,11 @@ inline bool IsTensorSfMmaH1Element(const FiniteElement &el, int dim)
    return dynamic_cast<const H1_HexahedronElement *>(&el) != nullptr;
 }
 
-/** Opt-in sum-factored tensor MMA for fixed-order H1 GLL quad/hex on CUDA. */
+/** Opt-in sum-factored tensor MMA for fixed-order H1 GLL quad/hex on CUDA.
+
+    Host / CPU / HIP: not selected — stock SUM PA is used instead (same math
+    as SF on host; Tensor-Core path is the GPU win). ForceTensorMmaPA /
+    MFEM_TENSOR_MMA only takes effect when CUDA is active. */
 inline bool CanUseTensorMmaPA(const FiniteElementSpace &fes)
 {
    if (!GetForceTensorMmaPA()) { return false; }

@@ -45,6 +45,10 @@ static int SnapMmaElementsPerDir(int n) noexcept
    return (n + 7) / 8 * 8;
 }
 
+// Note: use the public ::benchmark::Benchmark type (Homebrew google-benchmark).
+// Some newer/custom installs nest Benchmark under ::benchmark::internal; if
+// build fails with "no type named Benchmark", point BENCHMARK_DIR at Homebrew
+// or change the parameter type to bm::internal::Benchmark*.
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 12 * 1024 * (mfem_use_gpu ? 1024 : 8);
@@ -186,7 +190,8 @@ struct BakeOff
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
    static constexpr bool tensor_mma = TENSOR_MMA;
-   static constexpr bool requires_gpu_tensor_mma = TENSOR_MMA;
+   // Tensor SF-MMA apply is CUDA-only; host always uses stock SUM.
+   static constexpr bool requires_cuda_tensor_mma = TENSOR_MMA;
 
    const int p, c, q, n, nx, ny, nz;
 
@@ -428,7 +433,7 @@ static void Benchmark(bm::State& state) noexcept
    {
       ForceSimplexPositiveMMA(false);
    }
-   if constexpr (T::requires_gpu_tensor_mma)
+   if constexpr (T::requires_cuda_tensor_mma)
    {
       if (!Device::Allows(Backend::CUDA_MASK))
       {
