@@ -12,6 +12,7 @@
 
 #include "../bilininteg.hpp"
 #include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_simplices_mma_host.hpp"
 
 namespace mfem
 {
@@ -20,6 +21,47 @@ namespace mfem
 
 namespace internal
 {
+
+/** Host-optimized dense mass: y += P^T ( D ⊙ (P x) ) per element.
+    Large (nq,ndof): BLAS multi-RHS when MFEM_USE_LAPACK is on.
+    Specialized sizes: hand multi-RHS tiles; else runtime single-element. */
+template<int DIM, int T_D1D, int T_Q1D>
+inline void PAMassApplySimplexDenseHost(const int NE,
+                                        const Array<real_t> &p_,
+                                        const Vector &d_,
+                                        const Vector &x_,
+                                        Vector &y_,
+                                        const int d1d,
+                                        const int nq1)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int NQ1 = T_Q1D ? T_Q1D : nq1;
+   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
+
+   const real_t *P = p_.Read();
+   const real_t *D = d_.Read();
+   const real_t *X = x_.Read();
+   real_t *Y = y_.ReadWrite();
+
+#ifdef MFEM_USE_LAPACK
+   if (simplex_mma::PreferHostBlas(NQ1, ndof))
+   {
+      simplex_mma::MassApplyBlas(NE, NQ1, ndof, P, D, X, Y);
+      return;
+   }
+#endif
+
+   if constexpr (T_D1D != 0 && T_Q1D != 0)
+   {
+      constexpr int NDOF = simplex_mma::SimplexNdof<DIM, T_D1D>();
+      constexpr int NQ = T_Q1D;
+      static_assert(NDOF > 0 && NQ > 0, "");
+      simplex_mma::MassApplyHandSpecialized<DIM, NDOF, NQ>(NE, P, D, X, Y);
+      return;
+   }
+
+   simplex_mma::MassApplyHandRuntime(NE, NQ1, ndof, P, D, X, Y);
+}
 
 template<int DIM, int T_D1D, int T_Q1D>
 MFEM_HOST_DEVICE inline
@@ -70,6 +112,7 @@ void SmemPAMassApplySimplexMma_Batch(const int e0,
    MFEM_SYNC_THREAD;
    simplex_mma::BasisGemmT<MAP>(NQ1, ndof, NB, A, Uacc, Yacc, e0, NE);
 #else
+   // Device-compiled fallback (e.g. single precision): serial dense per batch.
    auto Y = DeviceMatrix(y_, ndof, NE);
    if (tid == 0)
    {
@@ -126,6 +169,14 @@ inline void SmemPAMassApplySimplexMma(const int NE,
    MFEM_VERIFY(NQ1 <= max_nq, "");
    MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() == NQ1 * NE, "");
    MFEM_VERIFY(p_.Size() == NQ1 * ndof, "");
+
+   // Dedicated host path: multi-RHS dense GEMM without GPU batch/smem layout.
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      PAMassApplySimplexDenseHost<DIM, T_D1D, T_Q1D>(
+         NE, p_, d_, x_, y_, d1d, nq1);
+      return;
+   }
 
    const auto P = p_.Read();
    const auto D = d_.Read();

@@ -166,7 +166,6 @@ struct BakeOff
    static constexpr bool simplex = SIMPLEX;
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
-   static constexpr bool requires_gpu_mma = SIMPLEX && POS && MMA;
 
    const int p, c, q, n, nx, ny, nz;
 
@@ -403,15 +402,6 @@ static void Benchmark(bm::State& state) noexcept
    {
       ForceSimplexPositiveMMA(false);
    }
-   if constexpr (T::requires_gpu_mma)
-   {
-      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         state.SkipWithError("Positive MMA benchmarks require CUDA or HIP");
-         return;
-      }
-   }
-
    T run(state.range(0), state.range(1));
    while (state.KeepRunning()) { run.benchmark(); }
    state.counters["Dofs"] = bm::Counter(run.dofs);
@@ -551,7 +541,8 @@ REGISTER(BK, 6, Quad);
  *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud sum-factorized
  *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA
  *
- * Positive MMA (`*_pos_mma`) requires CUDA or HIP, e.g.:
+ * Positive MMA (`*_pos_mma`) runs on CPU (dense host path) as well as CUDA/HIP:
+ *    --benchmark_context=device=cpu
  *    --benchmark_context=device=cuda
  *    --benchmark_context=device=hip
  *

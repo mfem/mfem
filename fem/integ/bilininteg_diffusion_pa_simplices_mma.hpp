@@ -11,6 +11,7 @@
 #pragma once
 
 #include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_simplices_mma_host.hpp"
 #include "../bilininteg.hpp"
 
 namespace mfem
@@ -574,6 +575,49 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
    }
 }
 
+/** Host-optimized dense diffusion:
+    U_d = G_d x,  V = O(D) U,  y += sum_d G_d^T V_d.
+    Large (nq,ndof): BLAS multi-RHS when MFEM_USE_LAPACK is on.
+    Specialized sizes: hand multi-RHS tiles; else runtime single-element. */
+template<int DIM, int T_D1D, int T_Q1D, bool SYM>
+inline void PADiffusionApplySimplexDenseHost(const int NE,
+                                             const Array<real_t> &g_,
+                                             const Vector &d_,
+                                             const Vector &x_,
+                                             Vector &y_,
+                                             const int d1d,
+                                             const int nq1)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int NQ1 = T_Q1D ? T_Q1D : nq1;
+   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
+
+   const real_t *G = g_.Read();
+   const real_t *Dv = d_.Read();
+   const real_t *X = x_.Read();
+   real_t *Y = y_.ReadWrite();
+
+#ifdef MFEM_USE_LAPACK
+   if (simplex_mma::PreferHostBlas(NQ1, ndof))
+   {
+      simplex_mma::DiffusionApplyBlas<DIM, SYM>(NE, NQ1, ndof, G, Dv, X, Y);
+      return;
+   }
+#endif
+
+   if constexpr (T_D1D != 0 && T_Q1D != 0)
+   {
+      constexpr int NDOF = simplex_mma::SimplexNdof<DIM, T_D1D>();
+      constexpr int NQ = T_Q1D;
+      static_assert(NDOF > 0 && NQ > 0, "");
+      simplex_mma::DiffusionApplyHandSpecialized<DIM, NDOF, NQ, SYM>(
+         NE, G, Dv, X, Y);
+      return;
+   }
+
+   simplex_mma::DiffusionApplyHandRuntime<DIM, SYM>(NE, NQ1, ndof, G, Dv, X, Y);
+}
+
 template<int DIM, int T_D1D, int T_Q1D, bool SYM>
 inline void SmemPADiffusionApplySimplexMma(const int NE,
                                            const Array<real_t> &g_,
@@ -597,6 +641,13 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    MFEM_VERIFY(NQ1 <= max_nq, "");
    MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() == PA_SIZE * NQ1 * NE, "");
    MFEM_VERIFY(g_.Size() == NQ1 * ndof * DIM, "");
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      PADiffusionApplySimplexDenseHost<DIM, T_D1D, T_Q1D, SYM>(
+         NE, g_, d_, x_, y_, d1d, nq1);
+      return;
+   }
 
    const auto G = g_.Read(), D = d_.Read(), X = x_.Read();
    auto Y = y_.ReadWrite();

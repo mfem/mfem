@@ -142,15 +142,7 @@ TEST_CASE("PA Simplices Positive force MMA",
    REQUIRE_FALSE(CanUseSimplexMmaPA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 
-   const bool gpu_mma = Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK);
    ForceSimplexPositiveMMA(true);
-   if (!gpu_mma)
-   {
-      REQUIRE_FALSE(CanUseSimplexMmaPA(fes));
-      ForceSimplexPositiveMMA(false);
-      return;
-   }
-
    REQUIRE(CanUseSimplexMmaPA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
 

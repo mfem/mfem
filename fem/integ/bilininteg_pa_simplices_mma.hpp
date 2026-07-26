@@ -16,6 +16,7 @@
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
+#include "../../linalg/lapack.hpp"
 #include "../fespace.hpp"
 #include "../fe/fe_h1.hpp"
 #include "../fe/fe_pos.hpp"
@@ -51,14 +52,14 @@ inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
           dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
 }
 
-/** True if dense simplex PA (DMMA on CUDA, MFMA on HIP gfx942, scalar
-    fallback on CPU / non-MatrixCore HIP for GLL) can be used for this H1
-    triangle/tet space.
+/** True if dense simplex PA (DMMA on CUDA, MFMA on HIP gfx942, optimized
+    dense host path on CPU / non-MatrixCore HIP for GLL) can be used for
+    this H1 triangle/tet space.
 
     - GLL (`H1_*`): eligible on CUDA/HIP/CPU.
     - Positive (`H1Pos_*`): eligible only when explicitly forced with
-      ForceSimplexPositiveMMA / MFEM_SIMPLEX_POSITIVE_MMA, and only on
-      CUDA or HIP. */
+      ForceSimplexPositiveMMA / MFEM_SIMPLEX_POSITIVE_MMA (all devices,
+      including the CPU dense path). */
 inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
 {
    if (fes.IsVariableOrder()) { return false; }
@@ -83,14 +84,7 @@ inline bool CanUseSimplexMmaPA(const FiniteElementSpace &fes)
    const bool positive =
       dynamic_cast<const H1Pos_TriangleElement *>(&el) ||
       dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
-   if (positive)
-   {
-      if (!GetForceSimplexPositiveMMA()) { return false; }
-      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         return false;
-      }
-   }
+   if (positive && !GetForceSimplexPositiveMMA()) { return false; }
    return true;
 }
 
@@ -1288,6 +1282,50 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int NQ1, const int ndof,
    (void)U0a; (void)U1a; (void)U2a; (void)Y; (void)e0; (void)NE;
 #endif
 }
+
+// ---------------------------------------------------------------------------
+// Host dense apply: optional BLAS GEMM (MFEM_USE_LAPACK) for large nq*ndof
+// ---------------------------------------------------------------------------
+
+/** Prefer vendor GEMM when matrices are large enough that call overhead is
+    amortized. Tuned for OpenBLAS/MKL-class libraries on host; small tris stay
+    on hand multi-RHS loops. */
+inline bool PreferHostBlas(int nq, int ndof)
+{
+#ifdef MFEM_USE_LAPACK
+   const int mx = (nq > ndof) ? nq : ndof;
+   // ~ tet p>=4 (nq*ndof ≳ 1600) and larger; skip tiny tri low-p
+   return mx >= 24 && (nq * ndof) >= 1600;
+#else
+   (void)nq; (void)ndof;
+   return false;
+#endif
+}
+
+/** Multi-RHS tile width for the BLAS path (independent of hand NB=4..8). */
+inline int HostBlasNB(int nq, int ndof)
+{
+   const long long work = static_cast<long long>(nq) * ndof;
+   if (work >= 8000) { return 32; }
+   if (work >= 2000) { return 16; }
+   return 8;
+}
+
+#ifdef MFEM_USE_LAPACK
+/** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
+inline void HostGemm(char ta, char tb, int m, int n, int k,
+                     real_t alpha, const real_t *A, int lda,
+                     const real_t *B, int ldb,
+                     real_t beta, real_t *C, int ldc)
+{
+   // Match densemat.cpp: Fortran dgemm_/sgemm_ via MFEM_LAPACK_PREFIX.
+   MFEM_LAPACK_PREFIX(gemm_)(
+      &ta, &tb, &m, &n, &k, &alpha,
+      const_cast<real_t *>(A), &lda,
+      const_cast<real_t *>(B), &ldb,
+      &beta, C, &ldc);
+}
+#endif
 
 } // namespace simplex_mma
 
