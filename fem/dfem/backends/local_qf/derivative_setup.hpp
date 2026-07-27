@@ -310,7 +310,6 @@ public:
                for (int m = 0; m < op_dim_s; m++)
                {
                   const int col_m = m + m_offset;
-                  const int seed_c = j + vdim_s * m;
 
                   MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
                   {
@@ -350,7 +349,7 @@ public:
                               }
                            });
 
-                           qf_set_flat_value(get<s>(shadow_args), seed_c, 1.0);
+                           qf_set_value_at(get<s>(shadow_args), j, m, 1.0);
 
                            call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
 
@@ -368,7 +367,7 @@ public:
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
                                     cache_tensor(cache_idx, q, e) =
-                                       qf_flat_value(tangent, i + tv * k);
+                                       qf_value_at(tangent, i, k);
                                  }
                               }
                            });
@@ -416,7 +415,7 @@ public:
                               }
                            });
 
-                           qf_set_flat_gradient(get<s>(qargs), seed_c, 1.0);
+                           qf_set_gradient_at(get<s>(qargs), j, m, 1.0);
 
                            call_qfunc_no_move(qfunc, qargs);
 
@@ -434,7 +433,7 @@ public:
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
                                     cache_tensor(cache_idx, q, e) =
-                                       qf_flat_gradient(tangent, i + tv * k);
+                                       qf_gradient_at(tangent, i, k);
                                  }
                               }
                            });

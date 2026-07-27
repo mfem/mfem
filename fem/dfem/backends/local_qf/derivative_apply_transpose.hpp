@@ -431,7 +431,7 @@ public:
                                           total_trial_op_dim +
                                           col;
                                        sum += cache(cache_idx, q, e) *
-                                              qf_flat_value(wvec, i + tv * k);
+                                              qf_value_at(wvec, i, k);
                                     }
                                  }
                               }
@@ -453,7 +453,7 @@ public:
                                  }
                               }
                            });
-                           qf_set_flat_value(fhat, j + vdim_s * m, sum);
+                           qf_set_value_at(fhat, j, m, sum);
                         }
                      }
                      backend_t::template qp_push<SARG>(

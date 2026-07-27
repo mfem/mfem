@@ -409,12 +409,12 @@ public:
                                        cache_row + j * total_trial_op_dim +
                                        (m + m_offset);
                                     sum += cache_tensor(cache_idx, q, e) *
-                                           qf_flat_value(dvec, j + vdim_s * m);
+                                           qf_value_at(dvec, j, m);
                                  }
                               }
                               m_offset += op_dim_s;
                            });
-                           qf_set_flat_value(fhat, i + tv * k, sum);
+                           qf_set_value_at(fhat, i, k, sum);
                         }
                      }
 
@@ -426,7 +426,7 @@ public:
                            for (int k = 0; k < to; k++)
                            {
                               YE(i + tv * k, qx, qy, qz, e) =
-                                 qf_flat_value(fhat, i + tv * k);
+                                 qf_value_at(fhat, i, k);
                            }
                         }
                      }
