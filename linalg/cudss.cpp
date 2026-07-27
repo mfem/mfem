@@ -15,10 +15,20 @@
 
 #ifdef MFEM_USE_CUDSS
 
+#if CUDSS_VERSION >= 800
 #ifdef MFEM_USE_SINGLE
-#define CUDA_REAL_T CUDA_R_32F
+#define CUDSS_REAL_T CUDSS_R_32F
 #else
-#define CUDA_REAL_T CUDA_R_64F
+#define CUDSS_REAL_T CUDSS_R_64F
+#endif
+#define CUDSS_INT_T CUDSS_R_32I
+#else
+#ifdef MFEM_USE_SINGLE
+#define CUDSS_REAL_T CUDA_R_32F
+#else
+#define CUDSS_REAL_T CUDA_R_64F
+#endif
+#define CUDSS_INT_T CUDA_R_32I
 #endif
 
 // Define a cuDSS error check macro, MFEM_CUDSS_CHECK(x), where x returns/is of
@@ -65,8 +75,13 @@ CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 #endif
    MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, comm_lib));
 
+#if CUDSS_VERSION >= 800
+   MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM_HOST,
+                                 &mpi_comm, sizeof(MPI_Comm *)));
+#else
    MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM,
                                  &mpi_comm, sizeof(MPI_Comm *)));
+#endif
 }
 #endif // MFEM_USE_MPI
 
@@ -257,11 +272,19 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
          CuMemcpyDtoD(csr_offsets_d, csr_offsets, (n_loc + 1) * sizeof(int));
          CuMemcpyDtoD(csr_columns_d, csr_columns, nnz * sizeof(int));
 
+#if CUDSS_VERSION >= 800
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
                Ac.get(), n_global, n_global, nnz, csr_offsets_d, NULL,
-               csr_columns_d, csr_values_d, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
-               CUDSS_BASE_ZERO));
+               csr_columns_d, csr_values_d, CUDSS_INT_T, CUDSS_INT_T, CUDSS_REAL_T,
+               mat_type, mview, CUDSS_BASE_ZERO));
+#else
+         MFEM_CUDSS_CHECK(
+            cudssMatrixCreateCsr(
+               Ac.get(), n_global, n_global, nnz, csr_offsets_d, NULL,
+               csr_columns_d, csr_values_d, CUDSS_INT_T, CUDSS_REAL_T,
+               mat_type, mview, CUDSS_BASE_ZERO));
+#endif
       }
       else    // !reorder_reuse
       {
@@ -269,11 +292,19 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
          {
             MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
          }
+#if CUDSS_VERSION >= 800
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
-               Ac.get(), n_global, n_global, nnz, csr_offsets, NULL, csr_columns,
-               csr_values_d, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
-               CUDSS_BASE_ZERO));
+               Ac.get(), n_global, n_global, nnz, csr_offsets, NULL,
+               csr_columns, csr_values_d, CUDSS_INT_T, CUDSS_INT_T, CUDSS_REAL_T,
+               mat_type, mview, CUDSS_BASE_ZERO));
+#else
+         MFEM_CUDSS_CHECK(
+            cudssMatrixCreateCsr(
+               Ac.get(), n_global, n_global, nnz, csr_offsets, NULL,
+               csr_columns, csr_values_d, CUDSS_INT_T, CUDSS_REAL_T,
+               mat_type, mview, CUDSS_BASE_ZERO));
+#endif
       }
 #ifdef MFEM_USE_MPI
       if (Mpi::IsInitialized())
@@ -334,10 +365,10 @@ void CuDSSSolver::SetNumRHS(int nrhs_) const
       }
       // Create empty RHS and solution vectors
       MFEM_CUDSS_CHECK(cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
-                                           CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+                                           CUDSS_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
 
       MFEM_CUDSS_CHECK(cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
-                                           CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+                                           CUDSS_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
 
 #ifdef MFEM_USE_MPI
       MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(xc, row_start, row_end));
