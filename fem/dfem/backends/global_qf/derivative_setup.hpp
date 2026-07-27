@@ -114,7 +114,6 @@ struct DerivativeSetup
    {
       if (ctx.attr.Size() == 0) { return; }
 
-      qp_cache = 0.0;
       interpolate(input_to_infd, input_bases, xe, xq);
 
       const int gnqp_local = gnqp;
@@ -140,11 +139,11 @@ struct DerivativeSetup
 
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
-               real_t *shadow_ptr = shadow_xq.GetBlock(s.value).HostReadWrite();
-               for (int gq = 0; gq < gnqp_local; gq++)
+               real_t *shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
+               mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
                {
                   shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
-               }
+               });
 
                yq = 0.0;
                yq.SyncToBlocks();

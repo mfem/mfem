@@ -80,16 +80,10 @@ struct DerivativeAction
 
       dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-      for (size_t i = 0; i < ctx.infds.size(); i++)
-      {
-         if (static_cast<int>(ctx.infds[i].id) == derivative_id)
-         {
-            direction_fd = ctx.infds[i];
-            break;
-         }
-      }
-      MFEM_ASSERT(direction_fd.id != SIZE_MAX,
+      const size_t direction_fd_idx = FindIdx(derivative_id, ctx.infds);
+      MFEM_ASSERT(direction_fd_idx != SIZE_MAX,
                   "derivative direction field not found in infds");
+      direction_fd = ctx.infds[direction_fd_idx];
    }
 
    void operator()(

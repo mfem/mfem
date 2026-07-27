@@ -1612,7 +1612,7 @@ void prolongation(const std::array<FieldDescriptor, N> fields,
 /// @param is_lvector whether @a x already stores L-vector data.
 inline
 void prolongation(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    const BlockVector &x,
    std::vector<Vector *> &x_l,
    const bool is_lvector = false)
@@ -1635,14 +1635,13 @@ void prolongation(
       }
       else
       {
-         const auto prolongation = get_prolongation(fields[i]);
-         MFEM_ASSERT(prolongation->Width() == x.GetBlock(i).Size(),
+         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
                      "prolongation not applicable to given input data size " <<
-                     prolongation->Width() << " vs " << x.GetBlock(i).Size());
-         MFEM_ASSERT(prolongation->Height() == x_l[i]->Size(),
+                     P->Width() << " vs " << x.GetBlock(i).Size());
+         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
                      "prolongation not applicable to given output data size " <<
-                     prolongation->Height() << " vs " << x_l[i]->Size());
-         prolongation->Mult(x.GetBlock(i), *x_l[i]);
+                     P->Height() << " vs " << x_l[i]->Size());
+         P->Mult(x.GetBlock(i), *x_l[i]);
       }
    }
 }
@@ -1662,7 +1661,7 @@ void prolongation(
 /// @param is_lvector whether @a x already stores L-vector data.
 inline
 void prolongation(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    const MultiVector &x,
    std::vector<Vector *> &x_l,
    const bool is_lvector = false)
@@ -1726,7 +1725,7 @@ void prolongation(
 
 inline
 void prolongation_transpose(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    const std::vector<Vector *> &x_l,
    BlockVector &x,
    const bool is_lvector = false)
@@ -1757,7 +1756,7 @@ void prolongation_transpose(
 
 inline
 void prolongation_transpose(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    const std::vector<Vector *> &x_l,
    MultiVector &x,
    const bool is_lvector = false)
@@ -1797,7 +1796,7 @@ void prolongation_transpose(
 
 template <typename entity_t>
 void restriction(
-   const std::vector<FieldDescriptor> fields,
+   const std::vector<FieldDescriptor> &fields,
    const std::vector<Vector *> &x_l,
    std::vector<Vector *> &x_e)
 {
@@ -1918,7 +1917,7 @@ void restriction_transpose(
 }
 
 inline
-void get_lvectors(const std::vector<FieldDescriptor> fields,
+void get_lvectors(const std::vector<FieldDescriptor> &fields,
                   const Vector &x,
                   std::vector<Vector> &fields_l)
 {
@@ -2007,7 +2006,7 @@ void restriction(const FieldDescriptor u,
 /// @param offset the array index offset to start writing in fields_e.
 /// @tparam entity_t the entity type (see Entity).
 template <typename entity_t>
-void restriction(const std::vector<FieldDescriptor> u,
+void restriction(const std::vector<FieldDescriptor> &u,
                  const std::vector<Vector> &u_l,
                  std::vector<Vector> &fields_e,
                  ElementDofOrdering ordering,
