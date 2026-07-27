@@ -62,7 +62,7 @@
 //               (heat flux q) and piecewise discontinuous polynomials
 //               (temperature T). Alternatively, the piecewise discontinuous
 //               polynomials are used for both quantities with stabilization,
-//               yielding the Local Discontinous Galerkin method. Optionally,
+//               yielding the Local Discontinuous Galerkin method. Optionally,
 //               the mixed system is algebraically reduced or hybridized with
 //               DG interface elements or H1 trace elements. The schemes can be
 //               also upwinded along the velocity field in both, diffusion and
