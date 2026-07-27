@@ -141,15 +141,17 @@ generate-job-lists:
 
       add_reports=false
       [[ "${AUTOTEST:-}" == "ON" || "${AUTOTEST:-}" == "YES" ]] && add_reports=true
-      
+
       cat "${LOCAL_JOBS_PATH}/dane.yml" > dane-jobs.yml
       [[ "${add_reports}" == "true" ]] && cat "${LOCAL_JOBS_PATH}/dane-reports.yml" >> dane-jobs.yml
-      
+
       cat "${LOCAL_JOBS_PATH}/matrix.yml" > matrix-jobs.yml
       [[ "${add_reports}" == "true" ]] && cat "${LOCAL_JOBS_PATH}/matrix-reports.yml" >> matrix-jobs.yml
 
       cat "${LOCAL_JOBS_PATH}/tioga.yml" > tioga-jobs.yml
       [[ "${add_reports}" == "true" ]] && cat "${LOCAL_JOBS_PATH}/tioga-reports.yml" >> tioga-jobs.yml
+
+      true
   artifacts:
     paths:
       - dane-jobs.yml
