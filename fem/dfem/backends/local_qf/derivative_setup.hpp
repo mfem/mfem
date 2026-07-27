@@ -168,6 +168,23 @@ public:
    }
 
    //////////////////////////////////////////////////////////////////
+   /// Zeroes the q-function *output* slots of an argument tuple.
+   ///
+   /// The argument tuple is built once per quadrature point and reused for
+   /// every trial seed. The q-function writes through its output parameters,
+   /// so those slots have to be restored before each call to give every seed
+   /// the same starting state a freshly value-initialized tuple would.
+   static MFEM_HOST_DEVICE inline void reset_output_args(args_tuple_t &args)
+   {
+      for_constexpr<n_outputs>([&](auto oc)
+      {
+         constexpr size_t ao = n_inputs + oc.value;
+         auto &oarg = get<ao>(args);
+         oarg = std::remove_reference_t<decltype(oarg)> {};
+      });
+   }
+
+   //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
    derivative_setup_callback(const IntegratorContext &ctx,
@@ -292,63 +309,72 @@ public:
          MFEM_SYNC_THREAD;
 
          // -----------------------------------------------
-         // For each trial seed (j, dependent input s, m), differentiate the
+         // Build the primal arguments once per quadrature point, then, for
+         // each trial seed (j, dependent input s, m), differentiate the
          // q-function with a unit tangent and store the result row in the
-         // cache.
+         // cache. Nothing in the primal pull depends on the seed, so the
+         // thread loop is the outermost one here. The seed loops only touch
+         // per-thread state, hence no barrier inside them.
+         // Warning: no 'DIRECT' on the 'Z' direction,
+         // as one backend may need to iterate over it.
          // -----------------------------------------------
-         for (int j = 0; j < trial_vdim; j++)
+         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
          {
-            int m_offset = 0;
-            for_constexpr<n_inputs>([&](auto sc)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
-               constexpr size_t s = sc.value;
-               if (!input_dep[s]) { return; }
-
-               const int vdim_s = in_vdim[s];
-               const int op_dim_s = in_size_on_qp[s] / vdim_s;
-
-               for (int m = 0; m < op_dim_s; m++)
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
-                  const int col_m = m + m_offset;
-
-                  MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
-                  {
-                     MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-                     {
-                        MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-                        {
-                           const int q = qx + q1d * (qy + q1d * qz);
+                  const int q = qx + q1d * (qy + q1d * qz);
 #ifdef MFEM_USE_ENZYME
-                           args_tuple_t primal_args {}, shadow_args {};
-                           for_constexpr<n_inputs>([&](auto ic)
-                           {
-                              constexpr size_t i = ic.value;
-                              auto &parg = get<i>(primal_args);
-                              const auto &XE = in_XE[i];
-                              using FOP = tuple_element_t<i, inputs_t>;
-                              using ARG =
-                                 typename qf_param_slot<qfunc_t,
-                                 i>::qf_reg_param_t;
-                              if constexpr (is_identity_fop_v<FOP>)
-                              {
-                                 parg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
-                              }
-                              else if constexpr (is_weight_fop_v<FOP>)
-                              {
-                                 parg = XE(qx, qy, qz, 0, 0);
-                              }
-                              else if constexpr (is_value_fop_v<FOP> ||
-                                                 is_gradient_fop_v<FOP>)
-                              {
-                                 parg = backend_t::template qp_pull<ARG>(
-                                    get<i>(rargs), qx, qy, qz);
-                              }
-                              else
-                              {
-                                 static_assert(false, "Unsupported");
-                              }
-                           });
+                  args_tuple_t primal_args {};
+                  for_constexpr<n_inputs>([&](auto ic)
+                  {
+                     constexpr size_t i = ic.value;
+                     auto &parg = get<i>(primal_args);
+                     const auto &XE = in_XE[i];
+                     using FOP = tuple_element_t<i, inputs_t>;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                     if constexpr (is_identity_fop_v<FOP>)
+                     {
+                        parg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                     }
+                     else if constexpr (is_weight_fop_v<FOP>)
+                     {
+                        parg = XE(qx, qy, qz, 0, 0);
+                     }
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
+                     {
+                        parg = backend_t::template qp_pull<ARG>(
+                           get<i>(rargs), qx, qy, qz);
+                     }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                  });
 
+                  for (int j = 0; j < trial_vdim; j++)
+                  {
+                     int m_offset = 0;
+                     for_constexpr<n_inputs>([&](auto sc)
+                     {
+                        constexpr size_t s = sc.value;
+                        if (!input_dep[s]) { return; }
+
+                        const int vdim_s = in_vdim[s];
+                        const int op_dim_s = in_size_on_qp[s] / vdim_s;
+
+                        for (int m = 0; m < op_dim_s; m++)
+                        {
+                           const int col_m = m + m_offset;
+
+                           // Enzyme writes through the output slots of the
+                           // primal tuple, so they are reset per seed.
+                           reset_output_args(primal_args);
+
+                           args_tuple_t shadow_args {};
                            qf_set_value_at(get<s>(shadow_args), j, m, 1.0);
 
                            call_enzyme_fwddiff(qfunc, primal_args, shadow_args);
@@ -371,49 +397,68 @@ public:
                                  }
                               }
                            });
+                        }
+                        m_offset += op_dim_s;
+                     });
+                  }
 #else  // MFEM_USE_ENZYME
-                           args_tuple_t qargs;
-                           for_constexpr<n_inputs>([&](auto ic)
-                           {
-                              constexpr size_t i = ic.value;
-                              auto &qarg = get<i>(qargs);
-                              const auto &XE = in_XE[i];
-                              using FOP = tuple_element_t<i, inputs_t>;
-                              using ARG =
-                                 typename qf_param_slot<qfunc_t,
-                                 i>::qf_reg_param_t;
-                              if constexpr (is_identity_fop_v<FOP>)
-                              {
-                                 using DT =
-                                    typename qf_param_slot<qfunc_t,
-                                    i>::qf_decay_param_t;
-                                 if constexpr (qf_param_uses_dual_v<DT>)
-                                 {
-                                    qarg = backend_t::
-                                           template identity_qp_pull_dual<DT>(
-                                              false, XE, XE, qx, qy, qz, e);
-                                 }
-                                 else
-                                 {
-                                    qarg =
-                                       as_tensor<ARG>(&XE(0, qx, qy, qz, e));
-                                 }
-                              }
-                              else if constexpr (is_weight_fop_v<FOP>)
-                              {
-                                 qarg = XE(qx, qy, qz, 0, 0);
-                              }
-                              else if constexpr (is_value_fop_v<FOP> ||
-                                                 is_gradient_fop_v<FOP>)
-                              {
-                                 qarg = backend_t::template qp_pull<ARG>(
-                                    get<i>(rargs), qx, qy, qz);
-                              }
-                              else
-                              {
-                                 static_assert(false, "Unsupported");
-                              }
-                           });
+                  args_tuple_t qargs {};
+                  for_constexpr<n_inputs>([&](auto ic)
+                  {
+                     constexpr size_t i = ic.value;
+                     auto &qarg = get<i>(qargs);
+                     const auto &XE = in_XE[i];
+                     using FOP = tuple_element_t<i, inputs_t>;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                     if constexpr (is_identity_fop_v<FOP>)
+                     {
+                        using DT =
+                           typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+                        if constexpr (qf_param_uses_dual_v<DT>)
+                        {
+                           qarg = backend_t::template identity_qp_pull_dual<DT>(
+                                     false, XE, XE, qx, qy, qz, e);
+                        }
+                        else
+                        {
+                           qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                        }
+                     }
+                     else if constexpr (is_weight_fop_v<FOP>)
+                     {
+                        qarg = XE(qx, qy, qz, 0, 0);
+                     }
+                     else if constexpr (is_value_fop_v<FOP> ||
+                                        is_gradient_fop_v<FOP>)
+                     {
+                        qarg = backend_t::template qp_pull<ARG>(
+                           get<i>(rargs), qx, qy, qz);
+                     }
+                     else
+                     {
+                        static_assert(false, "Unsupported");
+                     }
+                  });
+
+                  for (int j = 0; j < trial_vdim; j++)
+                  {
+                     int m_offset = 0;
+                     for_constexpr<n_inputs>([&](auto sc)
+                     {
+                        constexpr size_t s = sc.value;
+                        if (!input_dep[s]) { return; }
+
+                        const int vdim_s = in_vdim[s];
+                        const int op_dim_s = in_size_on_qp[s] / vdim_s;
+
+                        for (int m = 0; m < op_dim_s; m++)
+                        {
+                           const int col_m = m + m_offset;
+
+                           // The q-function writes through the output slots,
+                           // so they are reset per seed.
+                           reset_output_args(qargs);
 
                            qf_set_gradient_at(get<s>(qargs), j, m, 1.0);
 
@@ -437,14 +482,17 @@ public:
                                  }
                               }
                            });
-#endif // MFEM_USE_ENZYME
+
+                           // Clear the seed so the next direction starts from
+                           // the pristine (zero-tangent) primal state.
+                           qf_set_gradient_at(get<s>(qargs), j, m, 0.0);
                         }
-                     }
+                        m_offset += op_dim_s;
+                     });
                   }
-                  MFEM_SYNC_THREAD;
+#endif // MFEM_USE_ENZYME
                }
-               m_offset += op_dim_s;
-            });
+            }
          }
       },
       ne,
