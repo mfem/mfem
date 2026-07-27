@@ -56,11 +56,11 @@ void GSSmoother::Mult(const Vector &x, Vector &y) const
    }
    for (int i = 0; i < iterations; i++)
    {
-      if (type != 2)
+      if (type != GSType::GS_BACKWARD)
       {
          oper->Gauss_Seidel_forw(x, y);
       }
-      if (type != 1)
+      if (type != GSType::GS_FORWARD)
       {
          oper->Gauss_Seidel_back(x, y);
       }
@@ -78,11 +78,11 @@ void GSSmoother::MultTranspose(const Vector &x, Vector &y) const
 
    for (int i = 0; i < iterations; i++)
    {
-      if (type != 1)
+      if (type != GSType::GS_FORWARD)
       {
          oper_T->Gauss_Seidel_forw(x, y);
       }
-      if (type != 2)
+      if (type != GSType::GS_BACKWARD)
       {
          oper_T->Gauss_Seidel_back(x, y);
       }
