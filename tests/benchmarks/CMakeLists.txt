@@ -33,6 +33,12 @@ function(add_benchmark name)
 
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
     target_link_libraries(bench_${name} mfem pthread)
+    if (MFEM_USE_CODSPEED)
+        # CodSpeed's benchmark fork is not in TPL_LIBRARIES; link the target
+        # directly (see the GOOGLE-BENCHMARK section in the top-level
+        # CMakeLists.txt).
+        target_link_libraries(bench_${name} benchmark::benchmark)
+    endif()
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
     add_test(NAME bench_${name}_cpu
