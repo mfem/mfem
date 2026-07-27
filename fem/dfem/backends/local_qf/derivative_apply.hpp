@@ -36,6 +36,7 @@ class DerivativeApply
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
 
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
@@ -371,6 +372,21 @@ public:
                {
                   const int q = qx + q1d * (qy + q1d * qz);
 
+                  // The trial direction at this quadrature point is the same
+                  // for every test row (i, k), so pull each dependent input
+                  // slot out of the register bank once, here, instead of once
+                  // per row inside the contraction below.
+                  args_tuple_t dvecs {};
+                  for_constexpr<n_inputs>([&](auto sc)
+                  {
+                     constexpr size_t s = sc.value;
+                     if (!input_dep[s]) { return; }
+                     using SARG =
+                        typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                     get<s>(dvecs) = backend_t::template qp_pull<SARG>(
+                                        get<s>(sargs), qx, qy, qz);
+                  });
+
                   for_constexpr<n_outputs>([&](auto oc)
                   {
                      constexpr size_t o = oc.value, ao = n_inputs + o;
@@ -393,14 +409,9 @@ public:
                            {
                               constexpr size_t s = sc.value;
                               if (!input_dep[s]) { return; }
-                              using SARG =
-                                 typename qf_param_slot<qfunc_t,
-                                 s>::qf_reg_param_t;
                               const int vdim_s = in_vdim[s];
                               const int op_dim_s = in_size_on_qp[s] / vdim_s;
-                              const auto dvec =
-                                 backend_t::template qp_pull<SARG>(
-                                    get<s>(sargs), qx, qy, qz);
+                              const auto &dvec = get<s>(dvecs);
                               for (int j = 0; j < trial_vdim; j++)
                               {
                                  for (int m = 0; m < op_dim_s; m++)

@@ -35,6 +35,7 @@ class DerivativeApplyTranspose
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
 
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
@@ -387,6 +388,27 @@ public:
                {
                   const int q = qx + q1d * (qy + q1d * qz);
 
+                  // The test cotangent at this quadrature point is the same
+                  // for every trial column (j, m), so pull each interpolated
+                  // output slot out of the register bank once, here, instead
+                  // of once per column inside the contraction below. Identity
+                  // outputs have no register bank and are read from
+                  // out_XE_dir at the point of use.
+                  args_tuple_t wvecs {};
+                  for_constexpr<n_outputs>([&](auto oc)
+                  {
+                     constexpr size_t o = oc.value, ao = n_inputs + o;
+                     using OFOP = tuple_element_t<o, outputs_t>;
+                     if constexpr (is_value_fop_v<OFOP> ||
+                                   is_gradient_fop_v<OFOP>)
+                     {
+                        using OARG =
+                           typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
+                        get<ao>(wvecs) = backend_t::template qp_pull<OARG>(
+                                            get<ao>(rargs), qx, qy, qz);
+                     }
+                  });
+
                   int m_offset = 0;
                   for_constexpr<n_inputs>([&](auto sc)
                   {
@@ -409,18 +431,13 @@ public:
                            {
                               constexpr size_t o = oc.value, ao = n_inputs + o;
                               using OFOP = tuple_element_t<o, outputs_t>;
-                              using OARG =
-                                 typename qf_param_slot<qfunc_t,
-                                 ao>::qf_reg_param_t;
                               const int tv = out_vdim[o], to = out_op_dim[o];
                               const auto offset_o = out_offsets[o];
                               const auto &cache = cache_tensor;
                               if constexpr (is_value_fop_v<OFOP> ||
                                             is_gradient_fop_v<OFOP>)
                               {
-                                 const auto wvec =
-                                    backend_t::template qp_pull<OARG>(
-                                       get<ao>(rargs), qx, qy, qz);
+                                 const auto &wvec = get<ao>(wvecs);
                                  for (int i = 0; i < tv; i++)
                                  {
                                     for (int k = 0; k < to; k++)
