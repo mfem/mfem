@@ -2,6 +2,7 @@
 *.o
 DiffuTopOpt
 ElastTopOpt
+ElastTopOpt_std
 ElastTopOpt_maxlen
 ElastTopOpt_maxthick
 ElastTopOpt_adv

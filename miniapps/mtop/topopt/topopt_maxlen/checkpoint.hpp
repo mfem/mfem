@@ -1,18 +1,19 @@
 // Checkpoint: save/restore of topology-optimization design variables (the
 // `rho` density true-dof vector plus one `alpha[r]` true-dof vector per ray
-// direction) so a long-running MPI run can survive HPC wall-clock limits and
+// direction, and optionally MMA optimizer state: xold1, xold2, lower/upper
+// asymptotes) so a long-running MPI run can survive HPC wall-clock limits and
 // resume instead of restarting from scratch.
 //
 // Each Save() writes one binary file per rank for rho, one per (ray, rank)
-// for alpha, and a metadata.txt (iteration, n_dir, rank count, refinement
-// level, FE order, epsilon, plus the objective/residual normalization
-// constants init_comp and init_thickness_res so a resumed run rescales the
-// same way as the original) written last so its presence marks a complete
-// checkpoint. All writes go through a ".tmp" + atomic rename so a crash
-// mid-write never leaves a corrupt checkpoint that looks complete.
-// ValidateCompatibility() checks rank count/refinement/order/n_dir before
-// Load(); RestartIfRequested() combines Exists+ValidateCompatibility+Load
-// into one call for driver code, and is a no-op if `restart` is false.
+// for alpha, optionally 4 files for MMA state, and a metadata.txt (iteration,
+// n_dir, rank count, refinement level, FE order, epsilon, plus the objective/
+// residual normalization constants init_comp and init_thickness_res so a
+// resumed run rescales the same way as the original) written last so its
+// presence marks a complete checkpoint. All writes go through a ".tmp" +
+// atomic rename so a crash mid-write never leaves a corrupt checkpoint that
+// looks complete. ValidateCompatibility() checks rank count/refinement/order/
+// n_dir before Load(). Typical usage: call Exists() and ValidateCompatibility()
+// for verification, then Load() to restore state.
 
 #pragma once
 
@@ -34,6 +35,10 @@ class Checkpoint
 private:
     static constexpr int32_t magic_rho_ = 0x52484F31;   // rho file tag
     static constexpr int32_t magic_alpha_ = 0x414C5048;  // alpha file tag
+    static constexpr int32_t magic_xold1_ = 0x584F4C31;  // xold1 file tag
+    static constexpr int32_t magic_xold2_ = 0x584F4C32;  // xold2 file tag
+    static constexpr int32_t magic_low_ = 0x4C4F5731;    // lower asymptote tag
+    static constexpr int32_t magic_upp_ = 0x55505031;    // upper asymptote tag
 
     std::string dir_;   // checkpoint directory
     MPI_Comm comm_;      // MPI communicator
@@ -51,6 +56,10 @@ private:
     std::string MetadataPath() const;
     std::string RhoPath(int rank) const;
     std::string AlphaPath(int ray, int rank) const;
+    std::string XOld1Path(int rank) const;
+    std::string XOld2Path(int rank) const;
+    std::string LowerAsymptotePath(int rank) const;
+    std::string UpperAsymptotePath(int rank) const;
 
     // Rank 0 creates the checkpoint directory if it doesn't exist.
     bool CreateDirectoryIfNeeded() const;
@@ -64,11 +73,22 @@ private:
     bool LoadVector(const std::string& path, int32_t expected_magic, Vector& vec,
                     int& iteration) const;
 
+    // MMA state vectors for proper restart (stored alongside rho/alpha)
+    Vector xold1_tv_, xold2_tv_, lower_asymptotes_tv_, upper_asymptotes_tv_;
+
 public:
     Checkpoint(const char* dir, MPI_Comm comm);
 
     // Saves rho and alpha true-dof vectors plus run metadata.
     bool Save(const Vector& rho_tv, const std::vector<Vector>& alpha_tv,
+              int iteration = 0, int n_dir = -1, int ref_level = 0, int order = 0,
+              real_t epsilon = 0, real_t init_comp = 1,
+              const std::vector<real_t>& init_thickness_res = {});
+
+    // Saves rho, alpha, and MMA state vectors plus run metadata (for proper restart).
+    bool Save(const Vector& rho_tv, const std::vector<Vector>& alpha_tv,
+              const Vector& xold1_tv, const Vector& xold2_tv,
+              const Vector& lower_asymptotes_tv, const Vector& upper_asymptotes_tv,
               int iteration = 0, int n_dir = -1, int ref_level = 0, int order = 0,
               real_t epsilon = 0, real_t init_comp = 1,
               const std::vector<real_t>& init_thickness_res = {});
@@ -90,11 +110,11 @@ public:
     real_t GetInitComp() const { return init_comp_; }
     const std::vector<real_t>& GetInitThicknessRes() const { return init_thickness_res_; }
 
-    // Exists + ValidateCompatibility + Load in one call; no-op if !restart.
-    bool RestartIfRequested(bool restart, int ref_level, int order, int n_dir,
-                            Vector& rho_tv, std::vector<Vector>& alpha_tv,
-                            int& start_iteration, real_t& epsilon,
-                            real_t& init_comp, std::vector<real_t>& init_thickness_res);
+    // MMA state accessors (for restoring optimizer state after load)
+    const Vector& GetXOld1() const { return xold1_tv_; }
+    const Vector& GetXOld2() const { return xold2_tv_; }
+    const Vector& GetLowerAsymptotes() const { return lower_asymptotes_tv_; }
+    const Vector& GetUpperAsymptotes() const { return upper_asymptotes_tv_; }
 };
 
 inline std::string Checkpoint::MetadataPath() const
@@ -114,6 +134,34 @@ inline std::string Checkpoint::AlphaPath(int ray, int rank) const
     std::ostringstream name;
     name << dir_ << "/alpha_" << ray << "."
          << std::setfill('0') << std::setw(6) << rank;
+    return name.str();
+}
+
+inline std::string Checkpoint::XOld1Path(int rank) const
+{
+    std::ostringstream name;
+    name << dir_ << "/xold1." << std::setfill('0') << std::setw(6) << rank;
+    return name.str();
+}
+
+inline std::string Checkpoint::XOld2Path(int rank) const
+{
+    std::ostringstream name;
+    name << dir_ << "/xold2." << std::setfill('0') << std::setw(6) << rank;
+    return name.str();
+}
+
+inline std::string Checkpoint::LowerAsymptotePath(int rank) const
+{
+    std::ostringstream name;
+    name << dir_ << "/lower_asymptote." << std::setfill('0') << std::setw(6) << rank;
+    return name.str();
+}
+
+inline std::string Checkpoint::UpperAsymptotePath(int rank) const
+{
+    std::ostringstream name;
+    name << dir_ << "/upper_asymptote." << std::setfill('0') << std::setw(6) << rank;
     return name.str();
 }
 
@@ -206,6 +254,22 @@ inline bool Checkpoint::Save(const Vector& rho_tv,
                              int order, real_t epsilon, real_t init_comp,
                              const std::vector<real_t>& init_thickness_res)
 {
+    // Legacy Save without MMA state - delegate to new version with empty MMA vectors
+    static const Vector empty;
+    return Save(rho_tv, alpha_tv, empty, empty, empty, empty,
+                iteration, n_dir, ref_level, order, epsilon, init_comp,
+                init_thickness_res);
+}
+
+inline bool Checkpoint::Save(const Vector& rho_tv,
+                             const std::vector<Vector>& alpha_tv,
+                             const Vector& xold1_tv, const Vector& xold2_tv,
+                             const Vector& lower_asymptotes_tv,
+                             const Vector& upper_asymptotes_tv,
+                             int iteration, int n_dir, int ref_level,
+                             int order, real_t epsilon, real_t init_comp,
+                             const std::vector<real_t>& init_thickness_res)
+{
     if (!CreateDirectoryIfNeeded()) { return false; }
 
     iteration_ = iteration;
@@ -225,6 +289,26 @@ inline bool Checkpoint::Save(const Vector& rho_tv,
             ok = SaveVector(AlphaPath(r, myid_), magic_alpha_,
                            alpha_tv[r], iteration);
         }
+    }
+
+    // Save MMA state if provided (non-empty vectors)
+    if (ok && xold1_tv.Size() > 0)
+    {
+        ok = SaveVector(XOld1Path(myid_), magic_xold1_, xold1_tv, iteration);
+    }
+    if (ok && xold2_tv.Size() > 0)
+    {
+        ok = SaveVector(XOld2Path(myid_), magic_xold2_, xold2_tv, iteration);
+    }
+    if (ok && lower_asymptotes_tv.Size() > 0)
+    {
+        ok = SaveVector(LowerAsymptotePath(myid_), magic_low_,
+                       lower_asymptotes_tv, iteration);
+    }
+    if (ok && upper_asymptotes_tv.Size() > 0)
+    {
+        ok = SaveVector(UpperAsymptotePath(myid_), magic_upp_,
+                       upper_asymptotes_tv, iteration);
     }
 
     if (!AllOk(ok))
@@ -419,55 +503,32 @@ inline bool Checkpoint::Load(Vector& rho_tv,
         }
     }
 
+    // Try to load MMA state (optional - may not exist in older checkpoints)
+    // Allocate storage for MMA state vectors (same size as rho)
+    xold1_tv_.SetSize(rho_tv.Size());
+    xold2_tv_.SetSize(rho_tv.Size());
+    lower_asymptotes_tv_.SetSize(rho_tv.Size());
+    upper_asymptotes_tv_.SetSize(rho_tv.Size());
+
+    bool mma_ok = LoadVector(XOld1Path(myid_), magic_xold1_, xold1_tv_, iter_check);
+    mma_ok = mma_ok && LoadVector(XOld2Path(myid_), magic_xold2_, xold2_tv_, iter_check);
+    mma_ok = mma_ok && LoadVector(LowerAsymptotePath(myid_), magic_low_,
+                                   lower_asymptotes_tv_, iter_check);
+    mma_ok = mma_ok && LoadVector(UpperAsymptotePath(myid_), magic_upp_,
+                                   upper_asymptotes_tv_, iter_check);
+
+    if (!mma_ok && myid_ == 0)
+    {
+        MFEM_WARNING("Checkpoint: MMA state not found (old checkpoint format). "
+                     "MMA will restart fresh - expect conservative first steps.");
+        // Zero out the vectors so GetXOld1() etc return empty state
+        xold1_tv_.SetSize(0);
+        xold2_tv_.SetSize(0);
+        lower_asymptotes_tv_.SetSize(0);
+        upper_asymptotes_tv_.SetSize(0);
+    }
+
     return AllOk(ok);
-}
-
-inline bool Checkpoint::RestartIfRequested(bool restart, int ref_level,
-                                           int order, int n_dir,
-                                           Vector& rho_tv,
-                                           std::vector<Vector>& alpha_tv,
-                                           int& start_iteration,
-                                           real_t& epsilon,
-                                           real_t& init_comp,
-                                           std::vector<real_t>& init_thickness_res)
-{
-    if (!restart) { return true; }
-
-    if (!Exists())
-    {
-        if (myid_ == 0)
-        {
-            MFEM_WARNING("-restart specified but no checkpoint found.");
-        }
-        return false;
-    }
-    if (!ValidateCompatibility(ref_level, order, n_dir))
-    {
-        if (myid_ == 0)
-        {
-            MFEM_WARNING("Checkpoint incompatible. Exiting.");
-        }
-        return false;
-    }
-    if (!Load(rho_tv, alpha_tv))
-    {
-        if (myid_ == 0)
-        {
-            MFEM_WARNING("Failed to load checkpoint. Exiting.");
-        }
-        return false;
-    }
-
-    start_iteration = iteration_;
-    epsilon = epsilon_;
-    init_comp = init_comp_;
-    init_thickness_res = init_thickness_res_;
-    if (myid_ == 0)
-    {
-        mfem::out << "\nRestarting from iteration " << start_iteration
-                   << " with epsilon = " << epsilon << "\n";
-    }
-    return true;
 }
 
 } // namespace mfem

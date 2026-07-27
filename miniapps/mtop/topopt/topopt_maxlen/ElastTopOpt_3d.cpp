@@ -314,14 +314,38 @@ int main(int argc, char *argv[])
     rho.GetTrueDofs(rho_tv);
     for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
     
-    // Initialize checkpoint system and restart from a saved design if requested.
+    // Initialize checkpoint system
     Checkpoint checkpoint("checkpoints", MPI_COMM_WORLD);
     int start_iteration = 0;
     const int cp_interval = 5;
-    MFEM_VERIFY(checkpoint.RestartIfRequested(restart, ref_levels, order, n_dir,
-                                        rho_tv, alpha_tv, start_iteration, epsilon,
-                                        init_comp, init_thickness_res),
-                                    "Failed to restart from checkpoint.");
+
+    // Verification: check if restart is requested and checkpoint is compatible
+    if (restart)
+    {
+        MFEM_VERIFY(checkpoint.Exists(),
+                    "Restart requested but no checkpoint found.");
+        MFEM_VERIFY(checkpoint.ValidateCompatibility(ref_levels, order, n_dir),
+                    "Checkpoint incompatible with current run parameters.");
+    }
+
+    // Loading: restore design variables and metadata from checkpoint
+    if (restart)
+    {
+        MFEM_VERIFY(checkpoint.Load(rho_tv, alpha_tv),
+                    "Failed to load checkpoint data.");
+
+        start_iteration = checkpoint.GetIteration();
+        epsilon = checkpoint.GetEpsilon();
+        init_comp = checkpoint.GetInitComp();
+        init_thickness_res = checkpoint.GetInitThicknessRes();
+
+        if (myid == 0)
+        {
+            mfem::out << "\nRestarting from iteration " << start_iteration
+                      << " with epsilon = " << epsilon << "\n";
+        }
+    }
+
     rho.SetFromTrueDofs(rho_tv);
     for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
 
@@ -329,6 +353,17 @@ int main(int argc, char *argv[])
     tx_local.GetBlock(0) = rho_tv;
     for (int r = 0; r < n_dir; r++) { tx_local.GetBlock(1 + r) = alpha_tv[r]; }
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, toffsets.Last(), num_con, tx_local);
+
+    // Restore MMA state if restarting (enables proper move-limit adaptation)
+    if (start_iteration > 0 && checkpoint.GetXOld1().Size() > 0)
+    {
+        mma.RestoreState(checkpoint.GetXOld1(), checkpoint.GetXOld2(),
+                         checkpoint.GetLowerAsymptotes(), checkpoint.GetUpperAsymptotes());
+        if (myid == 0)
+        {
+            mfem::out << "MMA state restored from checkpoint.\n";
+        }
+    }
 
     BlockVector tx_min(toffsets), tx_max(toffsets);
     BlockVector df0dx(toffsets);                     // objective gradient: df0/dx = [ dc/drho ; 0 ; ... ; 0 ]
@@ -543,8 +578,8 @@ int main(int argc, char *argv[])
             mfem::out << "c = " << scientific << setprecision(6) << compliance
                       << "   vol = " << fixed << setprecision(4) << vol
                       << "   res_max = " << scientific << setprecision(3) << res_max
-                      << "   eps = " << fixed << setprecision(4) << epsilon
-                      << "   iterErr = " << setprecision(4) << iterationError
+                      << "   eps = " << setprecision(3) << epsilon
+                      << "   iterErr = " << setprecision(3) << iterationError
                       << "\nelapsed time at end: " << fixed << setprecision(2)
                       << iter_end_time << " s"
                       << ",   iteration runtime: " << setprecision(2) << iter_runtime << " s" << endl;
@@ -564,7 +599,12 @@ int main(int argc, char *argv[])
         {
             rho.GetTrueDofs(rho_tv);
             for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
-            checkpoint.Save(rho_tv, alpha_tv, k + 1, n_dir, ref_levels, order, epsilon,
+
+            // Save with MMA state for proper restart
+            checkpoint.Save(rho_tv, alpha_tv,
+                            mma.GetXOld1(), mma.GetXOld2(),
+                            mma.GetLowerAsymptotes(), mma.GetUpperAsymptotes(),
+                            k + 1, n_dir, ref_levels, order, epsilon,
                             init_comp, init_thickness_res);
         }
 
@@ -578,12 +618,12 @@ int main(int argc, char *argv[])
                 << "window_title 'Design density r(rho~)'"  << flush;
         }
 
-        if (paraview)
-        {
-            paraview_dc.SetCycle(k + 1);
-            paraview_dc.SetTime(k + 1);
-            paraview_dc.Save();
-        }
+        // if (paraview)
+        // {
+        //     paraview_dc.SetCycle(k + 1);
+        //     paraview_dc.SetTime(k + 1);
+        //     paraview_dc.Save();
+        // }
 
         // cin.get();
     }
@@ -598,12 +638,12 @@ int main(int argc, char *argv[])
     }
 
     // Option: save only the final solution instead of all iterations
-    // if (paraview)
-    // {
-    //     paraview_dc.SetCycle(k);
-    //     paraview_dc.SetTime(k);
-    //     paraview_dc.Save();
-    // }
+    if (paraview)
+    {
+        paraview_dc.SetCycle(k);
+        paraview_dc.SetTime(k);
+        paraview_dc.Save();
+    }
 
     return 0;
 }
