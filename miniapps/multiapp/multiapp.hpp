@@ -15,8 +15,6 @@
 
 #include "mfem.hpp"
 
-#ifdef MFEM_USE_MPI
-
 namespace mfem
 {
 
@@ -26,8 +24,6 @@ class FieldCollection;
 class GraphNode;
 class DAGraph;
 class GraphGradient;
-
-
 
 
 /// @brief Base class for storing data (Vector) and distinguishing
@@ -123,11 +119,15 @@ protected:
 /// @brief A collection of Fields, each identified by a name
 class FieldCollection
 {
+public:
+    using FieldMap = AbstractMap<std::string, Field*>;
+    using IndexMap = AbstractMap<std::string, int>;
+
 private:
     std::string name; /// Name of the collection
     Operator *oper = nullptr; /// Operator associated with this collection (not owned)
-    NamedFieldsMap<Field> fields;
-    NamedFieldsMap<int> index_map; /// Map from field name to index in input/output vectors
+    FieldMap fields; /// Map from field name to Field pointer
+    IndexMap index_map; /// Map from field name to index in input/output vectors
 
     Array<Field*> input_fields;  // Input fields for this node
     Array<Field*> output_fields; // Output fields for this node
@@ -179,15 +179,16 @@ public:
                   Field *field, bool own = false)
     {
         bool has_field = fields.Has(field_name);
-        auto i = index_map.Get(field_name);
-        if(has_field && i != nullptr)
+        bool has_index = index_map.Has(field_name);
+        if(has_field && has_index)
         {
-            input_fields[*i] = field;
+            int i = index_map.Get(field_name);
+            input_fields[i] = field;
         }
         else
         {
             input_fields.push_back(field);
-            index_map.Register(field_name, new int(input_fields.Size() - 1), true);
+            index_map.Register(field_name, input_fields.Size() - 1);
         }
         AddField(field_name, field, own);
     }
@@ -196,15 +197,16 @@ public:
                    Field *field, bool own = false)
     {
         bool has_field = fields.Has(field_name);
-        auto i = index_map.Get(field_name);
-        if(has_field && i != nullptr)
+        bool has_index = index_map.Has(field_name);
+        if(has_field && has_index)
         {
-            output_fields[*i] = field;
+            int i = index_map.Get(field_name);
+            output_fields[i] = field;
         }
         else
         {
             output_fields.push_back(field);
-            index_map.Register(field_name, new int(output_fields.Size() - 1), true);
+            index_map.Register(field_name, output_fields.Size() - 1);
         }
 
         AddField(field_name, field, own);
@@ -222,15 +224,15 @@ public:
 
     Field *InputField(const std::string &field_name) const
     {
-        auto idx = index_map.Get(field_name);
-        if(!idx)
+        bool has_index = index_map.Has(field_name);
+        if(!has_index)
         {
             MFEM_WARNING("FieldCollection::InputField: Field with name "
                          << field_name << " does not exist in the collection.");
             return nullptr;
         }
 
-        int index = *idx;
+        int index = index_map.Get(field_name);
         MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.Size()),
                     "FieldCollection::InputField: Invalid index for field name: "
                     << field_name << ".");
@@ -240,23 +242,23 @@ public:
     Field* OutputField(int i) const { return output_fields[i]; }
     Field *OutputField(const std::string &field_name) const
     {
-        auto idx = index_map.Get(field_name);
-        if(!idx)
+        bool has_index = index_map.Has(field_name);
+        if(!has_index)
         {
             MFEM_WARNING("FieldCollection::OutputField: Field with name "
                          << field_name << " does not exist in the collection.");
             return nullptr;
         }
 
-        int index = *idx;
+        int index = index_map.Get(field_name);
         MFEM_VERIFY(index >= 0 && index < static_cast<int>(output_fields.Size()),
                     "FieldCollection::OutputField: Invalid index for field name: "
                     << field_name << ".");
         return output_fields[index];
     }
 
-    NamedFieldsMap<Field> &Fields() { return fields; }
-    NamedFieldsMap<Field> Fields() const { return fields; }
+    FieldMap &Fields() { return fields; }
+    FieldMap Fields() const { return fields; }
 
     virtual void Save (std::ostream &out) const
     {
@@ -392,10 +394,10 @@ public:
     void SetID(int id_) { id = id_; }
     int ID() const { return id; }
 
-    NamedFieldsMap<Field>& Fields() { return field_collection.Fields(); }
+    FieldCollection::FieldMap& Fields() { return field_collection.Fields(); }
     Field* Fields(const std::string &f) { return field_collection.GetField(f); }
 
-    NamedFieldsMap<Field> Fields() const { return field_collection.Fields(); }
+    FieldCollection::FieldMap Fields() const { return field_collection.Fields(); }
     Field* Fields(const std::string &f) const { return field_collection.GetField(f); }
 
     Array<Field*>& InputFields() const { return field_collection.InputFields(); }
@@ -620,20 +622,31 @@ public:
         MATRIX_FREE  ///< Matrix-free Jacobian
     };
 
+    enum InputType
+    {
+        VECTOR,      ///< Asemble the input vector from individual fields
+        MULTIVECTOR, ///< Asemble the multivector from individual fields
+        NONE         ///< No input
+    };
+
 protected:
     Array<GraphNode*> nodes; ///< Vector of individual operators
     Array<bool> node_owned; ///< Whether the operators are owned
     Array<int> node_depth; ///< Depth of each operator in the graph
 
-    int max_width  =0;      ///< Largest operator width
-    int max_height =0;      ///< Largest operator height
+    int max_width  = 0;     ///< Largest operator width
+    int max_height = 0;     ///< Largest operator height
     int nnodes     = 0;     ///< The number of nodes
     bool sorted    = false; ///< True if the nodes are topologically sorted
     bool assembled = false; ///< True if the graph is assembled
     
     mutable Operator *grad = nullptr; ///< Jacobain operator
     GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
+
     mutable Vector fx; ///< Temporary vector for function evaluation
+
+    InputType input_type = InputType::VECTOR; ///< Input type for the graph
+    mutable Vector x_node, y_node; ///< Temporary vectors for node evaluation
     // mutable Vector dx, dy; ///< Temporary vectors for Jacobian computations
 
     mutable Vector xlin; ///< Point of linearization for gradient computations
@@ -703,8 +716,8 @@ public:
     int Size(){return nnodes;}
 
     /// @brief Get the size of the largest operator
-    int MaxWidth(){return max_width;}
-    int MaxHeight(){return max_height;}
+    int MaxWidth() const {return max_width;}
+    int MaxHeight() const {return max_height;}
 
     /// @brief Get the operator at index @a i
     GraphNode* GetNode(const int i)
@@ -729,6 +742,8 @@ public:
     void ComputeDepth();
 
     void ValidateOffsets();
+
+    void CollectFields();
 
     using GraphNode::AddInput;
     void AddInput(Field *field, int sz, bool own = false)
@@ -760,6 +775,11 @@ public:
             if(grad) { delete grad; grad = nullptr; }
             grad_mode = mode;
         }
+    }
+
+    void SetInputType(InputType type)
+    {
+        input_type = type;
     }
 
     /**
@@ -812,16 +832,14 @@ public:
 
     Operator &GetGradient(const Vector &x) const override;
 
-    virtual void Forward(const Vector &x, Vector &y) const;
+    void Forward(const Vector &x, Vector &y) const;
 
-    virtual void Backward(const Vector &x, Vector &y) const;
+    void Backward(const Vector &x, Vector &y) const;
 
     ~GraphGradient() = default;
 };
 
 
 } //mfem namespace
-
-#endif // MFEM_USE_MPI
 
 #endif

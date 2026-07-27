@@ -16,6 +16,50 @@
 namespace mfem
 {
 
+
+void AssembleBlockVectorFromFields(const Array<int> &offsets, const Array<Field*> &fields, Vector &vec)
+{
+    int nblocks = offsets.Size() - 1;
+    MFEM_ASSERT(nblocks == fields.Size(),
+                "Number of blocks in offsets does not match number of fields");
+
+    vec.SetSize(offsets.Last());
+    for(int i=0; i < nblocks; i++)
+    {
+        auto field = fields[i];
+        MFEM_ASSERT(field->Data() != nullptr,
+                    "Field data is null for field: " << field->Name()
+                    << " with ID: " << field->ID());
+        MFEM_ASSERT(field->Data()->Size() == offsets[i+1] - offsets[i],
+                    "Field size mismatch for field: " << field->Name()
+                    << " with ID: " << field->ID());
+
+        vec.SetVector(*field->Data(),offsets[i]);
+    }
+}
+
+void AssembleFieldsFromBlockVector(const Array<int> &offsets, const Vector &vec, Array<Field*> &fields)
+{
+    int nblocks = offsets.Size() - 1;
+    MFEM_ASSERT(nblocks == fields.Size(),
+                "Number of blocks in offsets does not match number of fields");
+
+    BlockVector xb(vec.GetData(), offsets);
+    for(int i=0; i < nblocks; i++)
+    {
+        auto field = fields[i];
+        MFEM_ASSERT(field->Data() != nullptr,
+                    "Field data is null for field: " << field->Name()
+                    << " with ID: " << field->ID());
+        MFEM_ASSERT(field->Data()->Size() == offsets[i+1] - offsets[i],
+                    "Field size mismatch for field: " << field->Name()
+                    << " with ID: " << field->ID());
+
+        *field->Data() = xb.GetBlock(i);
+    }
+}
+
+
 DAGraph::~DAGraph()
 {
     for(int i=0; i < nnodes; i++)
@@ -32,6 +76,9 @@ void DAGraph::Assemble()
 
     // Compute depth of the graph nodes
     ComputeDepth();
+
+    // Collect all fields from the nodes into the field map
+    CollectFields();
 
     // Update width and height of the DAG from offsets
     // Check that the input and output offsets are consistent
@@ -139,6 +186,9 @@ void DAGraph::ComputeDepth()
     }
 }
 
+void DAGraph::CollectFields()
+{ }
+
 void DAGraph::Mult(const Vector &x, Vector &y) const
 {
     MFEM_ASSERT(assembled, "DAGraph must be assembled before calling Mult()");
@@ -162,11 +212,41 @@ void DAGraph::Mult(const Vector &x, Vector &y) const
         field->SetData(&yb.GetBlock(i));
     }
 
-    Vector xtmp, ytmp;
-    for (int i=0; i < nnodes; i++)
+    if(input_type == InputType::VECTOR)
     {
-        auto node = nodes[i];
-        node->Mult(xtmp, ytmp);
+        x_node.SetSize(MaxWidth());
+        y_node.SetSize(MaxHeight());
+
+        for (int i=0; i < nnodes; i++)
+        {
+            auto node = nodes[i];
+            x_node.SetSize(node->Width());
+            y_node.SetSize(node->Height());
+
+            AssembleBlockVectorFromFields(node->InputOffsets(), node->InputFields(), x_node);
+
+            node->Mult(x_node, y_node);
+
+            AssembleFieldsFromBlockVector(node->OutputOffsets(), y_node, node->OutputFields());
+        }
+    }
+    else if(input_type == InputType::MULTIVECTOR)
+    {
+        MFEM_ABORT("DAGraph::Mult() not implemented for input type: MULTIVECTOR");
+    }
+    else if(input_type == InputType::NONE)
+    {
+        Vector x_unused, y_unused;
+        for (int i=0; i < nnodes; i++)
+        {
+            auto node = nodes[i];
+            node->Mult(x_unused, y_unused);
+        }
+    }
+    else
+    {
+        MFEM_ABORT("DAGraph::Mult() not implemented for input type: "
+                    << static_cast<int>(input_type));
     }
 }
 
