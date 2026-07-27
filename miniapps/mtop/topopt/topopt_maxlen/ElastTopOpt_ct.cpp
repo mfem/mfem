@@ -1,8 +1,8 @@
 // Linear elasticity topology optimization with a thickness constraint.
 //
-// Sample run:  mpirun -np 4 ./ElastTopOpt_ct -m "../../data/d_square_4_holes.msh" -vf 0.4 -amax 0.6
-//              mpirun -np 4 ./ElastTopOpt_ct -m "../../data/circular_5_holes_pentagon.msh" -vf 0.4 -amax 0.6
-//
+// Sample run:  mpirun -np 8 ./ElastTopOpt_ct -m "../../data/d_square_4_holes.msh" -vf 0.4 -amax 0.6
+//              mpirun -np 8 ./ElastTopOpt_ct -m "../../data/circular_5_holes_pentagon.msh" -vf 0.4 -amax 0.6
+//              mpirun -np 8 ./ElastTopOpt_ct -m "../../data/disk_6_holes.msh" -vf 0.4 -amax 0.6
 //
 //
 
@@ -118,7 +118,8 @@ int main(int argc, char *argv[])
     loadMesh(myid, mesh_file, mesh, domain_attr, outer_bdr_attrs,
             clamp_attrs, load_attrs, load_fx, load_fy, load_fz,
             n_elast_solve, ray_dirs);
-    const int n_dir = static_cast<int>(ray_dirs.size());
+    // const int n_dir = static_cast<int>(ray_dirs.size());
+    const int n_dir = 0;
 
     // 3. Preprocess the mesh.
     const int dim = mesh.Dimension();
@@ -314,8 +315,9 @@ int main(int argc, char *argv[])
                 if (load_attrs[i][j] == a) { is_load = true; }
             }
         }
-        if (!is_load) { filter_solver.AddBoundaryID(a); }
+        // if (!is_load) { filter_solver.AddBoundaryID(a); }
     }
+    filter_solver.AddBoundaryID(1);
     filter.Assemble();
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
@@ -650,9 +652,57 @@ void loadMesh(int myid, const char *mesh_file,
     {
 
     }
-    else if (strstr(mesh_file, "b_circular_9_holes.msh") != NULL)
+    else if (strstr(mesh_file, "disk_6_holes.msh") != NULL)
     {
+        n_elast_solve = 1;
+        mesh = Mesh(mesh_file);
 
+        domain_attr.Append(1);
+        outer_bdr_attrs = Array<int>({1});
+
+        clamp_attrs.resize(n_elast_solve);
+        load_attrs.resize(n_elast_solve);
+        load_fx.resize(n_elast_solve);
+        load_fy.resize(n_elast_solve);
+        load_fz.resize(n_elast_solve);
+
+        const int dim = mesh.Dimension();
+        const real_t angles_deg[] = {18.0, 90.0, 162.0, 234.0, 306.0};
+        for (real_t ang_deg : angles_deg)
+        {
+            const real_t ang = ang_deg * M_PI / 180.0;
+            Vector v(dim);
+            v(0) = cos(ang);
+            v(1) = sin(ang);
+            ray_dirs.push_back(v);
+        }
+
+        const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
+        vector<real_t> force_dirs[5];
+        for (int k = 0; k < 5; k++)
+        {
+            const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
+            force_dirs[k] = { cos(ang), sin(ang) };
+        }
+
+        clamp_attrs[0] = Array<int>({ 7 });
+
+        Array<int> loads;
+        Array<real_t> fx, fy, fz;
+        for (int j = 0; j < 5; j++)
+        {
+            const int attr = 2 + j;
+
+            loads.Append(attr);
+            fx.Append(-force_dirs[j][0]);
+            fy.Append(-force_dirs[j][1]);
+            fz.Append(0.0);
+        }
+
+        load_attrs[0] = loads;
+        load_fx[0] = fx;
+        load_fy[0] = fy;
+        load_fz[0] = fz;
     }
     else if(strstr(mesh_file, "d_square_4_holes.msh") != NULL)
     {
@@ -724,7 +774,7 @@ void loadMesh(int myid, const char *mesh_file,
             }
         }
 
-        const real_t angles_deg_forces[] = {18.0, 90.0, 162.0, 234.0, 306.0};
+        const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
         vector<real_t> force_dirs[5];
         for (int k = 0; k < n_elast_solve; k++)
         {
