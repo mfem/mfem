@@ -25,7 +25,151 @@
 namespace mfem
 {
 
+/// Lightweight adaptor over an std::map from type K to type to V
+template<typename K, typename V,
+         typename = typename std::enable_if<std::is_default_constructible<V>::value>::type>
+class GenericMap
+{
+private:
+   static constexpr bool ValueIsPointer = std::is_pointer<V>::value;
+
+public:
+   typedef std::map<K, V> MapType;
+   typedef typename MapType::iterator iterator;
+   typedef typename MapType::const_iterator const_iterator;
+
+   /// Register field @a field with name @a key
+   /// Only enable this if the parameter V is not a pointer
+   template<typename = std::enable_if<!ValueIsPointer, bool>>
+   void Register(const K& key, V field)
+   {
+      field_map[key] = field;
+   }
+
+   /// Register field @a field with name @a key
+   /** Replace existing field associated with @a key (and optionally
+       delete associated pointer if @a own_data is true)
+       only enable this if the parameter V is a pointer */
+   template<typename = std::enable_if<ValueIsPointer, bool>>
+   void Register(const K& key, V field, bool own_data)
+   {
+      V& ref = field_map[key];
+      if (own_data)
+      {
+         delete ref; // if newly allocated -> ref is null -> OK
+      }
+      ref = field;
+   }
+
+   /// Unregister association between field @a field and name @a key
+   /// only enable this if the parameter V is not a pointer
+   template<typename = std::enable_if<!ValueIsPointer, bool>>
+   void Deregister(const K& key)
+   {
+      iterator it = field_map.find(key);
+      if ( it != field_map.end() )
+      {
+         field_map.erase(it);
+      }
+   }
+
+   /// Unregister association between field @a field and name @a key
+   /** Optionally delete associated pointer if @a own_data is true */
+   /// only enable this if the parameter V is a pointer
+   template<typename = std::enable_if<ValueIsPointer, bool>>
+   void Deregister(const K& key, bool own_data)
+   {
+      iterator it = field_map.find(key);
+      if ( it != field_map.end() )
+      {
+         if (own_data)
+         {
+            delete it->second;
+            it->second = nullptr;
+         }
+         field_map.erase(it);
+      }
+   }
+
+   /// Clear all associations between names and fields
+   /** Delete associated pointers when @a own_data is true */
+   /// only enable this if the parameter V is a pointer
+   template<typename = std::enable_if<ValueIsPointer, bool>>
+   void DeleteData(bool own_data)
+   {
+      for (iterator it = field_map.begin(); it != field_map.end(); ++it)
+      {
+         if (own_data)
+         {
+            delete it->second;
+         }
+         it->second = NULL;
+      }
+   }
+
+   /// Predicate to check if a field is associated with name @a key
+   bool Has(const K& key) const
+   {
+      return field_map.find(key) != field_map.end();
+   }
+
+   /// Get a pointer to the field associated with name @a key
+   /** @return Field associated with @a key or NULL
+    * (if value is pointer and key not found) */
+   V Get(const K& key) const
+   {
+      const_iterator it = field_map.find(key);
+      if (it != field_map.end())
+      {
+         return it->second;
+      }
+      else
+      {
+         if constexpr (ValueIsPointer)
+         {
+            return nullptr;
+         }
+         else
+         {
+            return V(); // Return default-constructed value for non-pointer types
+         }
+      }
+   }
+
+   /// Returns a const reference to the underlying map
+   const MapType &GetMap() const { return field_map; }
+
+   /// Returns the number of registered fields
+   int NumFields() const { return field_map.size(); }
+
+   /// Returns a begin iterator to the registered fields
+   iterator begin() { return field_map.begin(); }
+   /// Returns a begin const iterator to the registered fields
+   const_iterator begin() const { return field_map.begin(); }
+
+   /// Returns an end iterator to the registered fields
+   iterator end() { return field_map.end(); }
+   /// Returns an end const iterator to the registered fields
+   const_iterator end() const { return field_map.end(); }
+
+   /// Returns an iterator to the field @a key
+   iterator find(const K& key)
+   { return field_map.find(key); }
+
+   /// Returns a const iterator to the field @a key
+   const_iterator find(const K& key) const
+   { return field_map.find(key); }
+
+   /// Clears the map of registered fields
+   void clear() { field_map.clear(); }
+
+protected:
+   MapType field_map;
+};
+
 /// Lightweight adaptor over an std::map from strings to pointer to T
+// template<typename T>
+// using NamedFieldsMap = GenericMap<std::string, T*>;
 template<typename T>
 class NamedFieldsMap
 {
