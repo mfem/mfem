@@ -308,6 +308,7 @@ TEST_CASE("ParGridFunction From Multiple GridFunctions",
    }
 
    // Clean up
+   REQUIRE(std::remove(mesh_name.str().c_str()) == 0);
    REQUIRE(std::remove(name_h1.str().c_str()) == 0);
    REQUIRE(std::remove(name_nd.str().c_str()) == 0);
    REQUIRE(std::remove(name_rt.str().c_str()) == 0);
