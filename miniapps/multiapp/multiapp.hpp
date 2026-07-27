@@ -120,8 +120,8 @@ protected:
 class FieldCollection
 {
 public:
-    using FieldMap = AbstractMap<std::string, Field*>;
-    using IndexMap = AbstractMap<std::string, int>;
+    using FieldMap = GenericMap<std::string, Field*>;
+    using IndexMap = GenericMap<std::string, int>;
 
 private:
     std::string name; /// Name of the collection
