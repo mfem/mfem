@@ -108,40 +108,44 @@ struct qf_param_slot
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Builds a register-bank tuple covering the q-function parameter slots
+/// `[K0, N)`. `K` is the recursion cursor and starts at `K0`; the resulting
+/// tuple is indexed from 0, so a bank starting at `K0 > 0` has its slot indices
+/// rebased by `-K0` relative to the q-function parameter list.
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
-   std::size_t K, std::size_t N, typename... Acc>
+   std::size_t K0, std::size_t K, std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl;
 
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
-   std::size_t N, typename... Acc>
-struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, N, N, Acc...>
+   std::size_t K0, std::size_t N, typename... Acc>
+struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, K0, N, N, Acc...>
 {
    using type = tuple<Acc...>;
-   static_assert(sizeof...(Acc) == N);
+   static_assert(sizeof...(Acc) == N - K0);
    static_assert(sizeof...(Acc) <= 9);
 };
 
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
-   std::size_t K, std::size_t N, typename... Acc>
+   std::size_t K0, std::size_t K, std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl
 {
    using qf_reg_param_t = typename qf_param_slot<qfunc_t, K>::qf_reg_param_t;
    using R = typename backend_t::template QReg<qf_reg_param_t>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
-         outputs_t, MQ1, K + 1, N, Acc..., R>::type;
+         outputs_t, MQ1, K0, K + 1, N, Acc..., R>::type;
 };
 
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
 using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
-      inputs_t, outputs_t, MQ1, 0,
+      inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
 /// Register bank covering q-function inputs only (same types as first
@@ -151,8 +155,21 @@ template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
 using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
-      inputs_t, outputs_t, MQ1, 0,
+      inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value>::type;
+
+/// Register bank covering q-function outputs only (same types as the slots
+/// from `n_inputs` onward in args_reg_t). Used where the primal / trial inputs
+/// live in a separate bank and only the test registers are integrated.
+/// Slot `o` of this bank is q-function parameter `n_inputs + o`.
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
+using output_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
+      inputs_t, outputs_t, MQ1,
+      tuple_size<inputs_t>::value,
+      tuple_size<inputs_t>::value,
+      tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
 template <typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)

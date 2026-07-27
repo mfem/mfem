@@ -268,7 +268,7 @@ public:
          // -----------------------------------------------
          // Inputs argument registers + shared memory
          // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         input_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
          MFEM_SHARED typename backend_t::Shared smem;
 
          // -----------------------------------------------

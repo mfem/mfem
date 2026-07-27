@@ -316,9 +316,11 @@ public:
 
          // -----------------------------------------------
          // Output integration registers, trial direction (shadow) registers
-         // and shared memory.
+         // and shared memory. `rargs` only ever holds test-function data, so
+         // it is an output-only bank: slot `o` is q-function parameter
+         // `n_inputs + o`.
          // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         output_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
          input_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> sargs;
          MFEM_SHARED typename backend_t::Shared smem;
 
@@ -444,7 +446,7 @@ public:
                      else
                      {
                         backend_t::template qp_push<ARG>(
-                           get<ao>(rargs), qx, qy, qz, fhat);
+                           get<o>(rargs), qx, qy, qz, fhat);
                      }
                   });
                }
@@ -461,7 +463,7 @@ public:
             const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
             const auto B = out_B[i], G = out_G[i];
             auto &YE = out_YE[i];
-            auto &rarg = get<o>(rargs);
+            auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop_v<FOP>)
             {
