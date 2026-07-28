@@ -117,6 +117,7 @@ struct DerivativeSetup
       interpolate(input_to_infd, input_bases, xe, xq);
 
       const int gnqp_local = gnqp;
+      const int num_qp_local = num_qp;
       const int trial_vdim_local = trial_vdim;
       const int total_trial_op_dim_local = total_trial_op_dim;
       const int residual_size_local = residual_size_on_qp;
@@ -181,16 +182,22 @@ struct DerivativeSetup
                   const int out_offset_o  = out_offset;
                   const real_t *yq_d      = yq.GetBlock(o.value).Read();
 
+                  // The cache is (q, cache_idx, e) with the quadrature index
+                  // fastest, so gq is the fastest-varying thread index to keep
+                  // the stores coalesced.
                   mfem::forall(gnqp_local * yq_out_size, [=] MFEM_HOST_DEVICE(int idx)
                   {
-                     const int gq       = idx / yq_out_size;
-                     const int c_out    = idx % yq_out_size;
+                     const int gq       = idx % gnqp_local;
+                     const int c_out    = idx / gnqp_local;
+                     const int q        = gq % num_qp_local;
+                     const int entity   = gq / num_qp_local;
                      const int out_comp = out_offset_o + c_out;
                      const int cache_idx =
                         out_comp * trial_vdim_local * total_trial_op_dim_local +
                         j_cur * total_trial_op_dim_local +
                         m_global;
-                     cache_d[cache_idx + residual_size_local * gq] =
+                     cache_d[q + num_qp_local *
+                                 (cache_idx + residual_size_local * entity)] =
                         yq_d[c_out + yq_out_size * gq];
                   });
                   out_offset += yq_out_size;

@@ -51,6 +51,7 @@ struct DerivativeApply
 
       const int nqp = ctx.ir.GetNPoints();
       const int ne = ctx.nentities;
+      num_qp = nqp;
       gnqp = nqp * ne;
 
       // Precompute Q-space BlockVector layouts
@@ -137,6 +138,7 @@ struct DerivativeApply
       const real_t *cache_ptr = qp_cache.Read();
       const int res_sz = residual_size_on_qp;
       const int gnqp_local = gnqp;
+      const int num_qp_local = num_qp;
       const int trial_vdim_local = trial_vdim;
       const int total_trial_op_dim_local = total_trial_op_dim;
 
@@ -165,6 +167,12 @@ struct DerivativeApply
 
             mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
             {
+               // Cache is (q, cache_idx, e): adjacent threads (adjacent gq)
+               // read adjacent addresses for a fixed cache_idx.
+               const int cache_base =
+                  (gq % num_qp_local) +
+                  num_qp_local * res_sz * (gq / num_qp_local);
+
                for (int j = 0; j < tv; ++j)
                {
                   for (int m = 0; m < to; ++m)
@@ -182,7 +190,8 @@ struct DerivativeApply
                               out_comp * trial_vdim_local * total_trial_op_dim_local +
                               j * total_trial_op_dim_local + m_global;
 
-                           const real_t c = cache_ptr[cache_idx + res_sz * gq];
+                           const real_t c =
+                              cache_ptr[cache_base + num_qp_local * cache_idx];
                            res_o[(i * to_o + k) + (tv_o * to_o) * gq] += c * v;
                         }
                      }
@@ -217,6 +226,7 @@ private:
    std::array<FieldBasis, n_outputs> output_bases;
 
    int gnqp = 0;
+   int num_qp = 0;
 
    Array<int> dir_q_offsets;
    Array<int> result_q_offsets;
