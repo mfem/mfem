@@ -210,6 +210,7 @@ private:
    mutable std::array<Vector, n_outputs> dir_out_e_owned;
    mutable std::vector<Vector *> dir_out_l;
    mutable std::vector<Vector *> dir_out_e;
+   mutable RestrictionCache<Entity::Element> out_rcache;
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;
@@ -236,7 +237,7 @@ private:
          l_offset += l_size;
       });
 
-      restriction<Entity::Element>(ctx.outfds, dir_out_l, dir_out_e);
+      restriction(ctx.outfds, out_rcache, dir_out_l, dir_out_e);
 
       constexpr_for<0, n_outputs>([&](auto i)
       {

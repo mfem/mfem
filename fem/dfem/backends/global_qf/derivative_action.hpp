@@ -100,8 +100,8 @@ struct DerivativeAction
          detail::make_activity_map<derivative_id>(inputs_t{});
 
       MFEM_ASSERT(de != nullptr, "derivative direction vector is null");
-      restriction<Entity::Element>(
-         direction_fd, *de, direction_e, dof_ordering);
+      restriction(direction_fd, direction_rcache, *de, direction_e,
+                  dof_ordering);
 
       shadow_xq = 0.0;
       shadow_xq.SyncToBlocks();
@@ -174,6 +174,7 @@ struct DerivativeAction
    FieldDescriptor direction_fd;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
    mutable Vector direction_e;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 };
 
 } // namespace mfem::future::GlobalQFImpl

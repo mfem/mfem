@@ -86,6 +86,9 @@ class DerivativeApplyTranspose
    // output cotangent restriction workspace (blocked by element)
    std::array<int, n_outputs> out_elem_dof_size;
    mutable Vector dir_out_e;
+   /// One restriction cache per output field, resolved on first use.
+   mutable std::array<RestrictionCache<Entity::Element>, n_outputs>
+   out_rcaches;
 
 public:
    //////////////////////////////////////////////////////////////////
@@ -218,8 +221,8 @@ public:
          const int elem_sz = out_elem_dof_size[o];
          Vector dir_o_e(dir_out_e, e_offset, elem_sz * ne);
          dir_o_e.UseDevice(true);
-         restriction<Entity::Element>(
-            fd, dir_o_l, dir_o_e, ElementDofOrdering::LEXICOGRAPHIC);
+         restriction(fd, out_rcaches[o], dir_o_l, dir_o_e,
+                     ElementDofOrdering::LEXICOGRAPHIC);
          l_offset += l_size;
          e_offset += elem_sz * ne;
       });

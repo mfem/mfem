@@ -124,8 +124,8 @@ struct DerivativeApply
       const auto &fd = ctx.infds[in_fd];
 
       Vector dir_e;
-      restriction<Entity::Element>(
-         fd, *direction_l, dir_e, ElementDofOrdering::LEXICOGRAPHIC);
+      restriction(fd, direction_rcache, *direction_l, dir_e,
+                  ElementDofOrdering::LEXICOGRAPHIC);
 
       // Forward the trial direction into active input Q block
       constexpr_for<0, n_inputs>([&](auto s)
@@ -222,6 +222,7 @@ private:
    Array<int> result_q_offsets;
    mutable BlockVector dir_q_local;
    mutable BlockVector result_q_local;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;

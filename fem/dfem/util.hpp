@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -782,7 +783,11 @@ __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
 {
-   for (int k = blockIdx.x; k < n; k += gridDim.x) { f(k, nullptr); }
+   // Every launch site uses <<<n, block_size>>>, i.e. one block per item, so
+   // this is deliberately not a grid-stride loop.
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   f(i, nullptr);
 }
 
 /// @brief Per-block dynamic shared-memory limits in bytes for the active GPU.
@@ -1440,6 +1445,118 @@ std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
    return nullptr;
 }
 
+/// @brief Restriction operators for a fixed list of fields, resolved once.
+///
+/// get_restriction() runs a std::visit over the descriptor variant and wraps
+/// its result in a std::shared_ptr with a no-op deleter, which allocates a
+/// control block on every call. Callers additionally dynamic_cast the result to
+/// detect identity restrictions. Both are properties that are fixed for the
+/// lifetime of the owning operator, so resolve them once and index into the
+/// result on the hot path instead.
+///
+/// A cache instance is bound to the field list it was first set up with; the
+/// owning operator should keep one instance per (field list, entity type) pair.
+///
+/// @tparam entity_t the entity type (see Entity).
+template <typename entity_t>
+class RestrictionCache
+{
+public:
+   /// @brief Resolve the restrictions for @a fields. A no-op after the first
+   /// call.
+   void EnsureSetup(const std::vector<FieldDescriptor> &fields,
+                    ElementDofOrdering o = ElementDofOrdering::LEXICOGRAPHIC)
+   {
+      if (ready)
+      {
+         MFEM_ASSERT(entries.size() == fields.size() && ordering == o,
+                     "restriction cache reused with a different field list");
+         return;
+      }
+      entries.reserve(fields.size());
+      for (const auto &f : fields) { entries.push_back(Resolve(f, o)); }
+      ordering = o;
+      ready = true;
+   }
+
+   /// @brief Resolve the restriction for the single field @a f. A no-op after
+   /// the first call.
+   void EnsureSetup(const FieldDescriptor &f,
+                    ElementDofOrdering o = ElementDofOrdering::LEXICOGRAPHIC)
+   {
+      if (ready)
+      {
+         MFEM_ASSERT(entries.size() == 1 && ordering == o,
+                     "restriction cache reused with a different field");
+         return;
+      }
+      entries.push_back(Resolve(f, o));
+      ordering = o;
+      ready = true;
+   }
+
+   /// @brief The restriction operator of field @a i, or nullptr if the field
+   /// has none (in which case the identity is assumed).
+   const Operator *Get(std::size_t i = 0) const { return entries[i].op; }
+
+   /// @brief True if applying the restriction of field @a i is a no-op, i.e.
+   /// the field has no restriction or an identity one. Such fields alias the
+   /// L-vector memory instead of copying through the operator.
+   bool IsPassthrough(std::size_t i = 0) const
+   {
+      return entries[i].op == nullptr || entries[i].is_identity;
+   }
+
+   /// @brief The height of the restriction of field @a i, or -1 if it has none.
+   int Height(std::size_t i = 0) const { return entries[i].height; }
+
+   /// @brief The width of the restriction of field @a i, or -1 if it has none.
+   int Width(std::size_t i = 0) const { return entries[i].width; }
+
+private:
+   struct Entry
+   {
+      const Operator *op = nullptr;
+      bool is_identity = false;
+      int height = -1;
+      int width = -1;
+   };
+
+   Entry Resolve(const FieldDescriptor &f, ElementDofOrdering o)
+   {
+      Entry e;
+      if (std::holds_alternative<const VectorQuadratureSpace *>(f.data))
+      {
+         // Data already lives at quadrature points, so the restriction is the
+         // identity regardless of the entity type. Resolving this through
+         // get_restriction() would abort for boundary entities, and would
+         // allocate a fresh IdentityOperator per call for element entities.
+         const int size = std::get<const VectorQuadratureSpace *>(f.data)->GetVSize();
+         owned.push_back(std::make_shared<const IdentityOperator>(size));
+         e.op = owned.back().get();
+      }
+      else
+      {
+         // The shared_ptr returned here is non-owning (no-op deleter): the
+         // FiniteElementSpace owns the restriction and outlives this cache, so
+         // the raw pointer stays valid past the temporary.
+         const std::shared_ptr<const Operator> R = get_restriction<entity_t>(f, o);
+         e.op = R.get();
+      }
+      e.is_identity = dynamic_cast<const IdentityOperator *>(e.op) != nullptr;
+      if (e.op != nullptr) { e.height = e.op->Height(); e.width = e.op->Width(); }
+      return e;
+   }
+
+   std::vector<Entry> entries;
+   /// Identity operators synthesized for quadrature space fields. Shared
+   /// rather than unique so that the cache stays copyable: the backend structs
+   /// holding one are stored in a std::function.
+   std::vector<std::shared_ptr<const IdentityOperator>> owned;
+   ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   bool ready = false;
+};
+
 /// @brief Get a transpose restriction callback for a field descriptor.
 ///
 /// @param f the field descriptor.
@@ -1794,29 +1911,24 @@ void prolongation_transpose(
    }
 }
 
+/// @brief Apply the restrictions of @a fields, using @a cache to avoid
+/// re-resolving them on every call.
+///
+/// @see RestrictionCache
 template <typename entity_t>
 void restriction(
    const std::vector<FieldDescriptor> &fields,
+   RestrictionCache<entity_t> &cache,
    const std::vector<Vector *> &x_l,
    std::vector<Vector *> &x_e)
 {
    MFEM_ASSERT(x_l.size() == x_e.size(),
                "internal error " << x_l.size() << " vs " << x_e.size());
+   cache.EnsureSetup(fields);
    for (size_t i = 0; i < fields.size(); i++)
    {
-      int s = 0;
-      const auto R = get_restriction<entity_t>(
-                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
-
-      // If nullptr, assume Identity.
-      if (R == nullptr)
-      {
-         s = x_l[i]->Size();
-      }
-      else
-      {
-         s = R->Height();
-      }
+      // If there is no restriction, assume Identity.
+      const int s = (cache.Get(i) == nullptr) ? x_l[i]->Size() : cache.Height(i);
 
       // TODO
       if (x_e[i] == nullptr)
@@ -1825,43 +1937,35 @@ void restriction(
       }
       x_e[i]->SetSize(s);
 
-      if (R == nullptr)
-      {
-         x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
-      }
-      else if (dynamic_cast<const IdentityOperator*>(R.get()))
+      if (cache.IsPassthrough(i))
       {
          x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
       }
       else
       {
-         MFEM_ASSERT(R->Width() == x_l[i]->Size(),
+         MFEM_ASSERT(cache.Width(i) == x_l[i]->Size(),
                      "restriction not applicable to given input data size " <<
-                     R->Width() << " vs " << x_l[i]->Size());
-         R->Mult(*x_l[i], *x_e[i]);
+                     cache.Width(i) << " vs " << x_l[i]->Size());
+         cache.Get(i)->Mult(*x_l[i], *x_e[i]);
       }
    }
 }
 
+/// @brief Size the residual E-vectors of @a fields, using @a cache to avoid
+/// re-resolving the restrictions on every call.
+///
+/// @see RestrictionCache
 template <typename entity_t>
 void prepare_residual(
    const std::vector<FieldDescriptor> &fields,
+   RestrictionCache<entity_t> &cache,
    std::vector<Vector *> &r_e)
 {
+   cache.EnsureSetup(fields);
    for (size_t i = 0; i < fields.size(); i++)
    {
-      int s = 0;
-      if (std::holds_alternative<const VectorQuadratureSpace *>(fields[i].data))
-      {
-         const auto fd = std::get<const VectorQuadratureSpace *>(fields[i].data);
-         s = fd->GetVSize();
-      }
-      else
-      {
-         const auto R = get_restriction<entity_t>(
-                           fields[i], ElementDofOrdering::LEXICOGRAPHIC);
-         s = R->Height();
-      }
+      const int s = cache.Height(i);
+      MFEM_ASSERT(s >= 0, "output field has no restriction");
 
       // TODO
       if (r_e[i] == nullptr)
@@ -1875,26 +1979,33 @@ void prepare_residual(
    }
 }
 
+/// @brief Apply the transposed restrictions of @a fields, using @a cache to
+/// avoid re-resolving them on every call.
+///
+/// @see RestrictionCache
 template <typename entity_t>
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
+   RestrictionCache<entity_t> &cache,
    const std::vector<Vector *> &x_e,
    std::vector<Vector *> &x_l)
 {
+   cache.EnsureSetup(fields);
    for (size_t i = 0; i < fields.size(); i++)
    {
-      int s = 0;
-      const auto R = get_restriction<entity_t>(
-                        fields[i], ElementDofOrdering::LEXICOGRAPHIC);
-      // TODO: if nullptr, assume Identity
+      const Operator *R = cache.Get(i);
+
+      // If there is no restriction, assume Identity and alias the E-vector.
+      // This is decided before allocating, so nothing is allocated only to be
+      // freed again on the same call.
       if (R == nullptr)
       {
-         s = x_e[i]->Size();
+         if (x_l[i] != nullptr && x_l[i] != x_e[i]) { delete x_l[i]; }
+         x_l[i] = x_e[i];
+         continue;
       }
-      else
-      {
-         s = R->Width();
-      }
+
+      const int s = cache.Width(i);
 
       // TODO
       if (x_l[i] == nullptr)
@@ -1903,16 +2014,7 @@ void restriction_transpose(
       }
       x_l[i]->SetSize(s);
 
-      // TODO: if nullptr, assume Identity
-      if (R == nullptr)
-      {
-         if (x_l[i] != x_e[i]) { delete x_l[i]; }
-         x_l[i] = x_e[i];
-      }
-      else
-      {
-         R->MultTranspose(*x_e[i], *x_l[i]);
-      }
+      R->MultTranspose(*x_e[i], *x_l[i]);
    }
 }
 
@@ -1976,25 +2078,28 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
    return PT;
 }
 
-/// @brief Apply the restriction operator to a field.
+/// @brief Apply the restriction operator to a field, using @a cache to avoid
+/// re-resolving it on every call.
 ///
 /// @param u the field descriptor.
+/// @param cache the restriction cache belonging to the caller.
 /// @param u_l the input vector in vdofs.
 /// @param field_e the output vector in edofs.
 /// @param ordering the element dof ordering.
 /// @tparam entity_t the entity type (see Entity).
+/// @see RestrictionCache
 template <typename entity_t>
-void restriction(const FieldDescriptor u,
+void restriction(const FieldDescriptor &u,
+                 RestrictionCache<entity_t> &cache,
                  const Vector &u_l,
                  Vector &field_e,
                  ElementDofOrdering ordering)
 {
-   const auto R = get_restriction<entity_t>(u, ordering);
-   MFEM_ASSERT(R->Width() == u_l.Size(),
+   cache.EnsureSetup(u, ordering);
+   MFEM_ASSERT(cache.Width() == u_l.Size(),
                "restriction not applicable to given data size");
-   const int height = R->Height();
-   field_e.SetSize(height);
-   R->Mult(u_l, field_e);
+   field_e.SetSize(cache.Height());
+   cache.Get()->Mult(u_l, field_e);
 }
 
 /// @brief Apply the restriction operator to a vector of fields.

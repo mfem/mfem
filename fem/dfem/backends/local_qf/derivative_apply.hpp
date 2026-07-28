@@ -71,6 +71,7 @@ class DerivativeApply
    const int dim, ne, nq, q1d;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 
 public:
    DerivativeApply() = delete;
@@ -186,10 +187,11 @@ public:
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeApply: direction vector is null");
 
-      restriction<Entity::Element>(direction_fd,
-                                   *direction_l,
-                                   direction_e,
-                                   ElementDofOrdering::LEXICOGRAPHIC);
+      restriction(direction_fd,
+                  direction_rcache,
+                  *direction_l,
+                  direction_e,
+                  ElementDofOrdering::LEXICOGRAPHIC);
       if (q1d <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeApplyLO>(ye);

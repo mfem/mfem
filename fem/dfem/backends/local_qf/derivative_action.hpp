@@ -60,6 +60,7 @@ class DerivativeAction
    std::array<bool, n_inputs> input_is_dependent;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 
 public:
    //////////////////////////////////////////////////////////////////
@@ -167,10 +168,11 @@ public:
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeAction: direction vector is null");
 
-      restriction<Entity::Element>(direction_fd,
-                                   *direction_l,
-                                   direction_e,
-                                   ElementDofOrdering::LEXICOGRAPHIC);
+      restriction(direction_fd,
+                  direction_rcache,
+                  *direction_l,
+                  direction_e,
+                  ElementDofOrdering::LEXICOGRAPHIC);
       if (q1d <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeActionLO>(xe, ye);
