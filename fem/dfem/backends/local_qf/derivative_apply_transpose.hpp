@@ -323,7 +323,7 @@ public:
                       ye[deriv_infd_idx]->ReadWrite(), d_in, d_in, B2D ? 1 : d_in, v_in, ne);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+                             qp_cache.Read(), nq, residual_size_on_qp, ne);
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
@@ -450,7 +450,7 @@ public:
                                           row * trial_vdim *
                                           total_trial_op_dim +
                                           col;
-                                       sum += cache(cache_idx, q, e) *
+                                       sum += cache(q, cache_idx, e) *
                                               qf_value_at(wvec, i, k);
                                     }
                                  }
@@ -467,7 +467,7 @@ public:
                                           row * trial_vdim *
                                           total_trial_op_dim +
                                           col;
-                                       sum += cache(cache_idx, q, e) *
+                                       sum += cache(q, cache_idx, e) *
                                               XEo(i + tv * k, qx, qy, qz, e);
                                     }
                                  }

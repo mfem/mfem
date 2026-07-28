@@ -305,7 +305,7 @@ public:
       });
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+                             qp_cache.Read(), nq, residual_size_on_qp, ne);
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
@@ -423,7 +423,7 @@ public:
                                     const int cache_idx =
                                        cache_row + j * total_trial_op_dim +
                                        (m + m_offset);
-                                    sum += cache_tensor(cache_idx, q, e) *
+                                    sum += cache_tensor(q, cache_idx, e) *
                                            qf_value_at(dvec, j, m);
                                  }
                               }

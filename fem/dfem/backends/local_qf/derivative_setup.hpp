@@ -117,8 +117,10 @@ public:
    {
       if (ctx.attr.Size() == 0) { return; }
 
+      // Quadrature index is fastest-varying so that adjacent threads (one per
+      // quadrature point) touch adjacent addresses.
       auto cache_tensor = DeviceTensor<3, real_t>(
-                             qp_cache.ReadWrite(), residual_size_on_qp, nq, ne);
+                             qp_cache.ReadWrite(), nq, residual_size_on_qp, ne);
 
       if (q1d <= LocalQFLOBackendMQ1())
       {
@@ -392,7 +394,7 @@ public:
                                     const int cache_idx =
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
-                                    cache_tensor(cache_idx, q, e) =
+                                    cache_tensor(q, cache_idx, e) =
                                        qf_value_at(tangent, i, k);
                                  }
                               }
@@ -477,7 +479,7 @@ public:
                                     const int cache_idx =
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
-                                    cache_tensor(cache_idx, q, e) =
+                                    cache_tensor(q, cache_idx, e) =
                                        qf_gradient_at(tangent, i, k);
                                  }
                               }
