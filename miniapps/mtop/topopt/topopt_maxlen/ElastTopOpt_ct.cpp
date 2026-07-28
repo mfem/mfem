@@ -118,8 +118,8 @@ int main(int argc, char *argv[])
     loadMesh(myid, mesh_file, mesh, domain_attr, outer_bdr_attrs,
             clamp_attrs, load_attrs, load_fx, load_fy, load_fz,
             n_elast_solve, ray_dirs);
-    // const int n_dir = static_cast<int>(ray_dirs.size());
-    const int n_dir = 0;
+    const int n_dir = static_cast<int>(ray_dirs.size());
+    // const int n_dir = 0;
 
     // 3. Preprocess the mesh.
     const int dim = mesh.Dimension();
@@ -307,17 +307,13 @@ int main(int argc, char *argv[])
     DiffusionMassSolver &filter_solver = filter.GetSolver();
     for (int a = 1; a <= design_domain.bdr_attributes.Max(); a++)
     {
-        bool is_load = false;
-        for (int i = 0; i < n_elast_solve; i++)
-        {
-            for (int j = 0; j < load_attrs[i].Size(); j++)
-            {
-                if (load_attrs[i][j] == a) { is_load = true; }
-            }
-        }
-        // if (!is_load) { filter_solver.AddBoundaryID(a); }
+        bool is_outer = (outer_bdr_attrs.Find(a) >= 0);
+        filter_solver.AddBoundaryID(a);
+        if (is_outer)
+            filter_solver.Boundary().Add(a, 0.0);  // Outer boundaries: density = 0
+        else
+            filter_solver.Boundary().Add(a, 1.0);  // Holes: density = 1
     }
-    filter_solver.AddBoundaryID(1);
     filter.Assemble();
 
     // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
@@ -667,10 +663,10 @@ void loadMesh(int myid, const char *mesh_file,
         load_fz.resize(n_elast_solve);
 
         const int dim = mesh.Dimension();
-        const real_t angles_deg[] = {18.0, 90.0, 162.0, 234.0, 306.0};
-        for (real_t ang_deg : angles_deg)
+        const int n_dir = 18;
+        for (int i = 0; i < n_dir; i++)
         {
-            const real_t ang = ang_deg * M_PI / 180.0;
+            const real_t ang = i * M_PI / n_dir;
             Vector v(dim);
             v(0) = cos(ang);
             v(1) = sin(ang);
@@ -682,7 +678,7 @@ void loadMesh(int myid, const char *mesh_file,
         for (int k = 0; k < 5; k++)
         {
             const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
-            force_dirs[k] = { cos(ang), sin(ang) };
+            force_dirs[k] = { -sin(ang), cos(ang) };
         }
 
         clamp_attrs[0] = Array<int>({ 7 });
