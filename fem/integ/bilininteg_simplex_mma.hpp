@@ -15,8 +15,8 @@
 #include "../../general/device.hpp"
 #include "../../general/forall.hpp"
 #include "../../linalg/dtensor.hpp"
-#include "../../linalg/vector.hpp"
 #include "../../linalg/lapack.hpp"
+#include "../../linalg/vector.hpp"
 #include "../fespace.hpp"
 #include "../fe/fe_h1.hpp"
 #include "../fe/fe_pos.hpp"
@@ -26,7 +26,9 @@
 
 #include <algorithm>
 #include <cstdlib> // alloca
-// #include <vector>
+#ifdef MFEM_USE_LAPACK
+#include <vector>
+#endif
 
 namespace mfem
 {
@@ -187,8 +189,6 @@ MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
    A33 = (J11 * J22) - (J12 * J21);
 }
 
-/** One-kernel mass PA data: J from (nodes_e, Gn), then w*c*detJ.
-    Defined in bilininteg_pa_simplices_mma.cpp (CUDA extended-lambda ODR). */
 void PAMassSetupSimplexFromNodes(const int dim,
                                  const int NE,
                                  const int NQ,

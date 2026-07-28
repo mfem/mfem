@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "bilininteg_diffusion_pa_tensor_sf_mma.hpp"
+#include "bilininteg_diffusion_pa_tensors_mma.hpp"
 
 namespace mfem
 {

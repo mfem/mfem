@@ -16,11 +16,11 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_pa_simplices_mma.hpp"
+#include "fem/integ/bilininteg_simplex_mma.hpp"
 
 using namespace mfem;
 
-namespace lininteg_simplices_mma
+namespace lininteg_simplex_mma
 {
 
 void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir)
@@ -106,4 +106,4 @@ TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][SimplexMMA][GPU]")
    }
 }
 
-} // namespace lininteg_simplices_mma
+} // namespace lininteg_simplex_mma

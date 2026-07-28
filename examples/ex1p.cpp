@@ -44,7 +44,7 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
 //               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/beam-tet.mesh
 //
-// Device simplices sample runs:
+// Device simplex sample runs:
 //               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tet.mesh
 //               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tri.mesh
 //

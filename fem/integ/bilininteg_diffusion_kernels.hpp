@@ -19,7 +19,7 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
-#include "bilininteg_diffusion_pa_simplices.hpp"
+#include "bilininteg_diffusion_pa_simplex.hpp"
 
 namespace mfem
 {

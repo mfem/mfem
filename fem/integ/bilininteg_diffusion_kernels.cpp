@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_diffusion_kernels.hpp"
-#include "bilininteg_diffusion_pa_simplices.hpp" // IWYU pragma: keep
+#include "bilininteg_diffusion_pa_simplex.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -93,9 +93,9 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<3,4,6>();
    DiffusionIntegrator::AddSpecialization<3,5,8>();
 
-   // Simplex MMA specs: bilininteg_diffusion_pa_simplices_mma.cpp
+   // Simplex MMA specs: bilininteg_diffusion_pa_simplex_mma.cpp
    RegisterSimplexMmaKernels();
-   // Tensor SUM-MMA specs: bilininteg_diffusion_pa_tensor_sf_mma.cpp
+   // Tensors MMA specs: bilininteg_diffusion_pa_tensors_mma.cpp
    RegisterTensorsMmaKernels();
 }
 

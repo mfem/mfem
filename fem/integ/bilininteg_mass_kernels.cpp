@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_mass_kernels.hpp"
-#include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_simplex.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -94,9 +94,7 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<3,4,6>();
    MassIntegrator::AddSpecialization<3,5,8>();
 
-   // Simplex MMA specs: bilininteg_mass_pa_simplices_mma.cpp
    RegisterSimplexMmaKernels();
-   // Tensors MMA specs: bilininteg_mass_pa_tensor_sf_mma.cpp
    RegisterTensorsMmaKernels();
 }
 

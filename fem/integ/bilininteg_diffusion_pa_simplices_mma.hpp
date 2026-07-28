@@ -11,7 +11,6 @@
 #pragma once
 
 #include "bilininteg_simplex_mma.hpp"
-// #include "bilininteg_simplex_mma_host.hpp"
 #include "../bilininteg.hpp"
 
 namespace mfem
