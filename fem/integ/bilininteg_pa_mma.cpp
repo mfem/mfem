@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_tensors_mma.hpp"
 
 #include "../../general/globals.hpp"
 
@@ -20,23 +21,23 @@ namespace mfem
 
 namespace
 {
-bool force_simplex_positive_mma = false;
+bool force_mma = false;
 }
 
-void ForceSimplexPositiveMMA(bool enable)
+void ForceMMA(bool enable)
 {
-   force_simplex_positive_mma = enable;
+   force_mma = enable;
 }
 
-bool GetForceSimplexPositiveMMA()
+bool GetForceMMA()
 {
-   if (force_simplex_positive_mma) { return true; }
+   if (force_mma) { return true; }
 
-   // Cached env lookup: MFEM_SIMPLEX_POSITIVE_MMA set (and not "0") forces MMA
+   // Cached env lookup: MFEM_USE_MMA set (and not "0") forces MMA
    static int env_mma = -1; // -1 unset, 0 no, 1 yes
    if (env_mma < 0)
    {
-      const char *e = GetEnv("MFEM_SIMPLEX_POSITIVE_MMA");
+      const char *e = GetEnv("MFEM_USE_MMA");
       env_mma = (e && std::strcmp(e, "0") != 0) ? 1 : 0;
    }
    return env_mma == 1;
