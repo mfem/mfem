@@ -48,7 +48,7 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
    this->nq = nq1;
    ne = mesh->GetNE();
-   pa_simplices_mma = true;
+   use_simplices_mma = true;
    maps = nullptr;
 
    simplex_mma_P.SetSize(nq1 * ndof, mt);

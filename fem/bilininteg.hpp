@@ -2435,8 +2435,8 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   bool pa_simplices_mma = false; ///< True when using simplices MMA
-   bool pa_tensors_mma = false; ///< True when using tensors MMA
+   bool use_simplices_mma = false;
+   bool use_tensors_mma = false;
    /// Dense basis evaluation at quadrature points (nq × ndof).
    Array<real_t> simplex_mma_P;
 

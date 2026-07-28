@@ -27,10 +27,10 @@
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
-#include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
-#include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_pa_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
 
 static int SnapMmaElementsPerDir(int n) noexcept
 {

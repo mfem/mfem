@@ -162,12 +162,12 @@ public:
       AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
 
-   template <int DIM, int D1D, int Q1D>
+   template <int DIM, int D1D, int NQP>
    static void AddSimplexMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         AssembleSimplexMmaKernels::Specialization<DIM, D1D, Q1D>::Add();
+         AssembleSimplexMmaKernels::Specialization<DIM, D1D, NQP>::Add();
       }
    }
 

@@ -21,14 +21,13 @@ namespace mfem
 namespace internal
 {
 
-/** Sum-factored DMMA diffusion apply (3D hex). MFEM packed pa_data metric. */
 template <int T_D1D, int T_Q1D, bool SYM>
-inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
-                                              const Array<real_t> &b_,
-                                              const Array<real_t> &g_,
-                                              const Vector &d_,
-                                              const Vector &x_,
-                                              Vector &y_)
+inline void MmaPADiffusionApplyTensors3D(const int NE,
+                                         const Array<real_t> &b_,
+                                         const Array<real_t> &g_,
+                                         const Vector &d_,
+                                         const Vector &x_,
+                                         Vector &y_)
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int PA_SIZE = SYM ? 6 : 9;
@@ -123,7 +122,7 @@ inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPADiffusionApplyTensorSfMma3DDispatch(
+inline void MmaPADiffusionApplyTensors3D_Dispatch(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
    const Vector &d, const Vector &x, Vector &y,
@@ -131,21 +130,21 @@ inline void SmemPADiffusionApplyTensorSfMma3DDispatch(
 {
    if (symmetric)
    {
-      SmemPADiffusionApplyTensorSfMma3D<T_D1D, T_Q1D, true>(NE, b, g, d, x, y);
+      MmaPADiffusionApplyTensors3D<T_D1D, T_Q1D, true>(NE, b, g, d, x, y);
    }
    else
    {
-      SmemPADiffusionApplyTensorSfMma3D<T_D1D, T_Q1D, false>(NE, b, g, d, x, y);
+      MmaPADiffusionApplyTensors3D<T_D1D, T_Q1D, false>(NE, b, g, d, x, y);
    }
 }
 
 template <int T_D1D, int T_Q1D, bool SYM>
-inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
-                                              const Array<real_t> &b_,
-                                              const Array<real_t> &g_,
-                                              const Vector &d_,
-                                              const Vector &x_,
-                                              Vector &y_)
+inline void MmaPADiffusionApplyTensors2D(const int NE,
+                                         const Array<real_t> &b_,
+                                         const Array<real_t> &g_,
+                                         const Vector &d_,
+                                         const Vector &x_,
+                                         Vector &y_)
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int PA_SIZE = SYM ? 3 : 4;
@@ -219,7 +218,7 @@ inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPADiffusionApplyTensorSfMma2DDispatch(
+inline void MmaPADiffusionApplyTensors2D_Dispatch(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
    const Vector &d, const Vector &x, Vector &y,
@@ -227,16 +226,16 @@ inline void SmemPADiffusionApplyTensorSfMma2DDispatch(
 {
    if (symmetric)
    {
-      SmemPADiffusionApplyTensorSfMma2D<T_D1D, T_Q1D, true>(NE, b, g, d, x, y);
+      MmaPADiffusionApplyTensors2D<T_D1D, T_Q1D, true>(NE, b, g, d, x, y);
    }
    else
    {
-      SmemPADiffusionApplyTensorSfMma2D<T_D1D, T_Q1D, false>(NE, b, g, d, x, y);
+      MmaPADiffusionApplyTensors2D<T_D1D, T_Q1D, false>(NE, b, g, d, x, y);
    }
 }
 
 template <int DIM, int T_D1D, int T_Q1D>
-inline void SmemPADiffusionApplyTensorSfMma(
+inline void MmaPADiffusionApplyTensors(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &, const Array<real_t> &,
@@ -245,12 +244,12 @@ inline void SmemPADiffusionApplyTensorSfMma(
 {
    if constexpr (DIM == 3)
    {
-      SmemPADiffusionApplyTensorSfMma3DDispatch<T_D1D, T_Q1D>(
+      MmaPADiffusionApplyTensors3D_Dispatch<T_D1D, T_Q1D>(
          NE, symmetric, b, g, d, x, y, d1d, q1d);
    }
    else
    {
-      SmemPADiffusionApplyTensorSfMma2DDispatch<T_D1D, T_Q1D>(
+      MmaPADiffusionApplyTensors2D_Dispatch<T_D1D, T_Q1D>(
          NE, symmetric, b, g, d, x, y, d1d, q1d);
    }
 }
@@ -261,7 +260,7 @@ template <int DIM, int T_D1D, int T_Q1D>
 DiffusionIntegrator::ApplyTensorsMmaKernelType
 DiffusionIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
-   return internal::SmemPADiffusionApplyTensorSfMma<DIM, T_D1D, T_Q1D>;
+   return internal::MmaPADiffusionApplyTensors<DIM, T_D1D, T_Q1D>;
 }
 
 inline DiffusionIntegrator::ApplyTensorsMmaKernelType

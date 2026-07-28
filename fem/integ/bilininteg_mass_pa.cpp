@@ -27,8 +27,8 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   pa_simplices_mma = false;
-   pa_tensors_mma = false;
+   use_simplices_mma = false;
+   use_tensors_mma = false;
    simplex_mma_P.DeleteAll();
 
    if (UsesSimplexMMA(fes))
@@ -117,9 +117,9 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       });
    }
 
-   if (CanUseTensorMMA(fes))
+   if (UsesTensorMMA(fes))
    {
-      pa_tensors_mma = true;
+      use_tensors_mma = true;
    }
 }
 
@@ -170,7 +170,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_simplices_mma || pa_tensors_mma)
+   if (use_simplices_mma || use_tensors_mma)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
@@ -187,12 +187,12 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (pa_simplices_mma)
+   if (use_simplices_mma)
    {
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, simplex_mma_P,
                                     pa_data, x, y, dofs1D, quad1D);
    }
-   else if (pa_tensors_mma)
+   else if (use_tensors_mma)
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &Bt = maps->Bt;
@@ -264,7 +264,7 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
                   "AbsMultPA not implemented for ragged tensor basis");
-      MFEM_VERIFY(!pa_simplices_mma && !pa_tensors_mma,
+      MFEM_VERIFY(!use_simplices_mma && !use_tensors_mma,
                   "AbsMultPA not implemented for MMA PA");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();

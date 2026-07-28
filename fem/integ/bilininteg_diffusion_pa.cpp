@@ -220,7 +220,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                               ir->GetWeights(), geom->J, coeff, pa_data);
 
    // Opt-in sum-factored tensor MMA apply (reuse maps + pa_data)
-   if (CanUseTensorMMA(fes))
+   if (UsesTensorMMA(fes))
    {
       use_tensors_mma = true;
    }

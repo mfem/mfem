@@ -22,7 +22,7 @@ using namespace mfem;
 namespace pa_kernels
 {
 
-void test_pa_simplex(const char *filename, int p)
+void test_pa_simplices(const char *filename, int p)
 {
    CAPTURE(filename, p);
 
@@ -80,15 +80,15 @@ void test_pa_simplex(const char *filename, int p)
    fa.Mult(x, y_fa);
    pa.Mult(x, y_pa);
    y_fa -= y_pa;
-   // High-order FA vs PA can be ~1e-12 abs on some curved meshes
-   if (p >= 5)
-   {
-      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
-   }
-   else
-   {
-      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
-   }
+   // // High-order FA vs PA can be ~1e-10 abs on some curved meshes
+   // if (p >= 5)
+   // {
+   //    REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
+   // }
+   // else
+   // {
+   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   // }
 }
 
 TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
@@ -121,7 +121,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/fichera-quad.mesh",
                      "../../data/periodic-square.mesh"
                    };
-      test_pa_simplex(GenMesh(meshs, extra), p);
+      test_pa_simplices(GenMesh(meshs, extra), p);
    }
 
    SECTION("3D")
@@ -136,7 +136,7 @@ TEST_CASE("PA Simplices", "[PartialAssembly][Simplices][GPU]")
                      "../../data/fichera-q2.mesh",
                      "../../data/periodic-cube.mesh"
                    };
-      test_pa_simplex(GenMesh(meshs, extra), p);
+      test_pa_simplices(GenMesh(meshs, extra), p);
    }
 }
 

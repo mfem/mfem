@@ -204,7 +204,6 @@ int CuSharedMemoryPerBlock(int dev)
 {
    int res = 0;
 #ifdef MFEM_USE_CUDA
-   // Prefer opt-in limit (H100 ~227KB) so static MFEM_SHARED > 48KB can launch.
    MFEM_GPU_CHECK(cudaDeviceGetAttribute(
                      &res, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev));
    if (res <= 0)

@@ -22,7 +22,7 @@ namespace internal
 {
 
 template <int T_D1D, int T_Q1D>
-inline void SmemPAMassApplyTensorSfMma3D(const int NE,
+inline void MmaPAMassApplyTensors3D(const int NE,
                                          const Array<real_t> &b_,
                                          const Vector &d_,
                                          const Vector &x_,
@@ -77,7 +77,7 @@ inline void SmemPAMassApplyTensorSfMma3D(const int NE,
 }
 
 template <int T_D1D, int T_Q1D>
-inline void SmemPAMassApplyTensorSfMma2D(const int NE,
+inline void MmaPAMassApplyTensors2D(const int NE,
                                          const Array<real_t> &b_,
                                          const Vector &d_,
                                          const Vector &x_,
@@ -146,7 +146,7 @@ inline void SmemPAMassApplyTensorSfMma2D(const int NE,
 }
 
 template <int DIM, int T_D1D, int T_Q1D>
-inline void SmemPAMassApplyTensorSfMma(
+inline void MmaPAMassApplyTensors(
    const int NE,
    const Array<real_t> &b, const Array<real_t> &,
    const Vector &d, const Vector &x, Vector &y,
@@ -154,11 +154,11 @@ inline void SmemPAMassApplyTensorSfMma(
 {
    if constexpr (DIM == 3)
    {
-      SmemPAMassApplyTensorSfMma3D<T_D1D, T_Q1D>(NE, b, d, x, y);
+      MmaPAMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, d, x, y);
    }
    else
    {
-      SmemPAMassApplyTensorSfMma2D<T_D1D, T_Q1D>(NE, b, d, x, y);
+      MmaPAMassApplyTensors2D<T_D1D, T_Q1D>(NE, b, d, x, y);
    }
 }
 
@@ -168,7 +168,7 @@ template <int DIM, int T_D1D, int T_Q1D>
 MassIntegrator::ApplyTensorsMmaKernelType
 MassIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
-   return internal::SmemPAMassApplyTensorSfMma<DIM, T_D1D, T_Q1D>;
+   return internal::MmaPAMassApplyTensors<DIM, T_D1D, T_Q1D>;
 }
 
 inline MassIntegrator::ApplyTensorsMmaKernelType

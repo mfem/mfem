@@ -43,7 +43,7 @@ void test_pa_tensor_sf_mma(Mesh &mesh, int p)
    FiniteElementSpace fes(&mesh, &fec);
 
    ForceMMA(true);
-   if (!CanUseTensorMMA(fes))
+   if (!UsesTensorMMA(fes))
    {
       ForceMMA(false);
       // Catch2 v2 has no SKIP; GPU jobs should still hit eligible meshes
@@ -171,17 +171,17 @@ TEST_CASE("Tensors MMA eligibility", "[MMA]")
    FiniteElementSpace fes(&mesh, &fec);
 
    ForceMMA(false);
-   REQUIRE_FALSE(CanUseTensorMMA(fes));
+   REQUIRE_FALSE(UsesTensorMMA(fes));
 
    ForceMMA(true);
    // CUDA only; on host, force is ignored and stock SUM is used.
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      REQUIRE(CanUseTensorMMA(fes));
+      REQUIRE(UsesTensorMMA(fes));
    }
    else
    {
-      REQUIRE_FALSE(CanUseTensorMMA(fes));
+      REQUIRE_FALSE(UsesTensorMMA(fes));
    }
    ForceMMA(false);
 
@@ -189,10 +189,10 @@ TEST_CASE("Tensors MMA eligibility", "[MMA]")
    H1_FECollection fec1(1, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes1(&mesh, &fec1);
    ForceMMA(true);
-   REQUIRE_FALSE(CanUseTensorMMA(fes1));
+   REQUIRE_FALSE(UsesTensorMMA(fes1));
    H1_FECollection fec2(2, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes2(&mesh, &fec2);
-   REQUIRE_FALSE(CanUseTensorMMA(fes2));
+   REQUIRE_FALSE(UsesTensorMMA(fes2));
    ForceMMA(false);
 }
 

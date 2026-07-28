@@ -105,7 +105,7 @@ inline bool IsTensorSfMmaH1Element(const FiniteElement &el, int dim)
     Host / CPU / HIP: not selected — stock SUM PA is used instead (same math
     as SF on host; Tensor-Core path is the GPU win). ForceMMA / MFEM_USE_MMA
     only takes effect when CUDA is active. */
-inline bool CanUseTensorMMA(const FiniteElementSpace &fes)
+inline bool UsesTensorMMA(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
    if (fes.IsVariableOrder()) { return false; }
