@@ -93,9 +93,7 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<3,4,6>();
    DiffusionIntegrator::AddSpecialization<3,5,8>();
 
-   // Simplex MMA specs: bilininteg_diffusion_pa_simplex_mma.cpp
    RegisterSimplexMmaKernels();
-   // Tensors MMA specs: bilininteg_diffusion_pa_tensors_mma.cpp
    RegisterTensorsMmaKernels();
 }
 
