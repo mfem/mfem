@@ -153,6 +153,7 @@ MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
 MFEM_USE_MUMPS         = NO
 MFEM_USE_STRUMPACK     = NO
+MFEM_USE_CUDSS         = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
@@ -367,6 +368,19 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # STRUMPACK_OPT += $(OPENMP_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
+
+# CUDSS library configuration
+CUDSS_DIR         = @MFEM_DIR@/../cudss
+CUDSS_INCLUDE_DIR = $(CUDSS_DIR)/include
+CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
+CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
+CUDSS_LIB         = \
+ $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
+# The cuDSS communication and threading libraries. 
+MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
 
 # Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
