@@ -16,7 +16,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_simplex_mma.hpp"
+#include "fem/integ/bilininteg_pa_simplices_mma.hpp"
 
 using namespace mfem;
 

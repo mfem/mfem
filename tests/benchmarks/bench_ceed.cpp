@@ -28,8 +28,8 @@
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
-#include "fem/integ/lininteg_domain_simplex_mma.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_simplex_mma.hpp" // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_pa_simplices_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_tensors_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 

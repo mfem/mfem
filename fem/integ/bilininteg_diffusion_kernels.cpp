@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_diffusion_kernels.hpp"
-#include "bilininteg_diffusion_pa_simplex.hpp" // IWYU pragma: keep
+#include "bilininteg_diffusion_pa_simplices.hpp" // IWYU pragma: keep
 
 namespace mfem
 {

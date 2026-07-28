@@ -25,7 +25,7 @@ set(SRCS
   integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
-  integ/bilininteg_diffusion_pa_simplex_mma.cpp
+  integ/bilininteg_diffusion_pa_simplices_mma.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_diffusion_pa_tensors_mma.cpp
   integ/bilininteg_divdiv_pa.cpp
@@ -42,11 +42,11 @@ set(SRCS
   integ/bilininteg_mass_kernels.cpp
   integ/bilininteg_mass_mf.cpp
   integ/bilininteg_mass_pa.cpp
-  integ/bilininteg_mass_pa_simplex_mma.cpp
+  integ/bilininteg_mass_pa_simplices_mma.cpp
   integ/bilininteg_mass_pa_tensors_mma.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
-  integ/bilininteg_simplex_mma.cpp
+  integ/bilininteg_pa_simplices_mma.cpp
   integ/bilininteg_tensors_mma.cpp
   integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
@@ -61,7 +61,7 @@ set(SRCS
   integ/lininteg_boundary_flux.cpp
   integ/lininteg_domain.cpp
   integ/lininteg_domain_grad.cpp
-  integ/lininteg_domain_simplex_mma.cpp
+  integ/lininteg_domain_simplices_mma.cpp
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_pa.cpp
   integ/nonlininteg_vecconvection_mf.cpp
@@ -201,24 +201,24 @@ set(HDRS
   integ/bilininteg_dgdiffusion_kernels.hpp
   integ/bilininteg_dgtrace_kernels.hpp
   integ/bilininteg_diffusion_kernels.hpp
-  integ/bilininteg_diffusion_pa_simplex.hpp
-  integ/bilininteg_diffusion_pa_simplex_mma.hpp
+  integ/bilininteg_diffusion_pa_simplices.hpp
+  integ/bilininteg_diffusion_pa_simplices_mma.hpp
   integ/bilininteg_diffusion_pa_tensors_mma.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
-  integ/bilininteg_mass_pa_simplex.hpp
-  integ/bilininteg_mass_pa_simplex_mma.hpp
+  integ/bilininteg_mass_pa_simplices.hpp
+  integ/bilininteg_mass_pa_simplices_mma.hpp
   integ/bilininteg_mass_pa_tensors_mma.hpp
-  integ/bilininteg_simplex_mma.hpp
+  integ/bilininteg_pa_simplices_mma.hpp
   integ/bilininteg_tensors_mma.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
   integ/lininteg_domain_kernels.hpp
-  integ/lininteg_domain_simplex_mma.hpp
+  integ/lininteg_domain_simplices_mma.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
