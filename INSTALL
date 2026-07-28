@@ -513,6 +513,11 @@ MFEM_USE_BENCHMARK = YES/NO
    Enables support for Google Benchmark, a library to support the benchmarking
    of functions, in the tests/benchmarks directory.
 
+MFEM_USE_CODSPEED = YES/NO
+   (CMake only) Build the benchmarks against CodSpeed's fork of Google
+   Benchmark (https://codspeed.io) for continuous benchmarking in CI.
+   Requires MFEM_USE_BENCHMARK = YES and CMake >= 3.18.
+
 MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
@@ -904,6 +909,8 @@ The specific libraries and their options are:
   URL: https://github.com/google/benchmark
   Options: BENCHMARK_DIR, BENCHMARK_LIB.
   Versions: Benchmark >= 1.5.6.
+  With MFEM_USE_CODSPEED = YES, CodSpeed's fork of Google Benchmark is
+  downloaded and built instead: https://github.com/CodSpeedHQ/codspeed-cpp
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -1089,6 +1096,7 @@ MFEM_USE_MOONOLITH
 MFEM_USE_CALIPER
 MFEM_USE_FMS
 MFEM_USE_BENCHMARK
+MFEM_USE_CODSPEED - CMake only, no GNU make equivalent.
 MFEM_USE_PARELAG
 MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
