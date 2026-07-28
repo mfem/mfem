@@ -111,6 +111,34 @@ struct MinimalSurfaceHessianAction
    }
 };
 
+template <typename dscalar_t, int dim>
+struct DensityWeightedQuadraticFunctional
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const dscalar_t &u,
+                   const dscalar_t &rho,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &f) const
+   {
+      f = rho * u * u * det(J) * w;
+   }
+};
+
+template <typename dscalar_t, int dim>
+struct DensityWeightedQuadraticMixedAction
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const real_t &drho,
+                   const dscalar_t &u,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &v) const
+   {
+      v = 2.0_r * u * drho * det(J) * w;
+   }
+};
+
 template <int dim>
 class MyFunctional
 {
@@ -385,6 +413,118 @@ void second_derivative(const char *filename, int p)
    // pretty_print(Hv);
 }
 
+template <int DIM>
+void mixed_second_derivative(const char *filename, int p)
+{
+   static constexpr int U = 0, Rho = 1, Coords = 2, Q = 3, DRho = 4;
+   CAPTURE(filename, DIM, p);
+
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const int tvsize = fes.GetTrueVSize();
+
+   const IntegrationRule &ir =
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   Array<int> all_domain_attr;
+   if (pmesh.attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.attributes.Max());
+      all_domain_attr = 1;
+   }
+
+   // Use smooth, non-constant fields so the mixed action is nontrivial while
+   // keeping the exact expression simple: d/dRho(grad_U J)[drho] = 2 u drho.
+   // The current rho state is intentionally non-constant, even though this
+   // particular mixed block does not depend on rho itself.
+   ParGridFunction u_gf(&fes), rho_gf(&fes), drho_gf(&fes);
+   FunctionCoefficient u_coeff(
+      [](const auto &x)
+   {
+      return 1.0_r + x[0] + 0.25_r * x[1];
+   });
+   FunctionCoefficient rho_coeff(
+      [](const auto &x)
+   {
+      return 0.5_r + 0.2_r * x[0] * x[0] + 0.1_r * x[1];
+   });
+   FunctionCoefficient drho_coeff(
+      [](const auto &x)
+   {
+      return sin(M_PI * x[0]) + 0.5_r * x[1];
+   });
+   u_gf.ProjectCoefficient(u_coeff);
+   rho_gf.ProjectCoefficient(rho_coeff);
+   drho_gf.ProjectCoefficient(drho_coeff);
+
+   Vector u(tvsize), rho(tvsize), drho(tvsize), coords;
+   u_gf.GetTrueDofs(u);
+   rho_gf.GetTrueDofs(rho);
+   drho_gf.GetTrueDofs(drho);
+   pmesh.GetNodes()->GetTrueDofs(coords);
+
+   const auto functional_in = std::vector
+   {
+      FieldDescriptor{U, &fes},
+      FieldDescriptor{Rho, &fes},
+      FieldDescriptor{Coords, mfes}
+   };
+   QuadratureSpace qspace(pmesh, ir);
+   VectorQuadratureSpace qspace_vec(qspace, 1);
+   const auto functional_out = std::vector
+   {
+      FieldDescriptor{Q, &qspace_vec}
+   };
+
+   DifferentiableOperator functional_dop(functional_in, functional_out, pmesh);
+   DensityWeightedQuadraticFunctional<real_t, DIM> functional;
+   functional_dop.AddDomainIntegrator<LocalQFBackend>(
+      functional,
+      Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
+      Outputs<FunctionalValue<Q>> {},
+      ir, all_domain_attr,
+      Derivatives<U, Rho> {});
+
+   const auto exact_in = std::vector
+   {
+      FieldDescriptor{DRho, &fes},
+      FieldDescriptor{U, &fes},
+      FieldDescriptor{Coords, mfes}
+   };
+   const auto exact_out = std::vector
+   {
+      FieldDescriptor{U, &fes}
+   };
+   DifferentiableOperator exact_dop(exact_in, exact_out, pmesh);
+   DensityWeightedQuadraticMixedAction<real_t, DIM> exact_action;
+   exact_dop.AddDomainIntegrator<LocalQFBackend>(
+      exact_action,
+      Inputs<Value<DRho>, Value<U>, Gradient<Coords>, Weight> {},
+      Outputs<Value<U>> {},
+      ir, all_domain_attr);
+
+   MultiVector X{u, rho, coords};
+   Vector mixed(tvsize);
+   MultiVector Mixed{mixed};
+   functional_dop.GetSecondDerivative(U, Rho, X)->Mult(drho, Mixed);
+
+   MultiVector XExact{drho, u, coords};
+   Vector exact(tvsize);
+   MultiVector Exact{exact};
+   exact_dop.Mult(XExact, Exact);
+
+   Vector diff(mixed);
+   diff -= exact;
+   REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
+}
+
 } // namespace second_derivative_test
 
 TEST_CASE("dFEM functional second derivative action matches mfem",
@@ -417,6 +557,19 @@ TEST_CASE("dFEM functional second derivative action matches mfem",
    //       );
    //    second_derivative_test::second_derivative<3>(f, p);
    // }
+}
+
+TEST_CASE("dFEM functional mixed second derivative action matches exact action",
+          "[Parallel][dFEM][second-derivative]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+
+   SECTION("2d")
+   {
+      const auto f = GENERATE("../../data/inline-quad.mesh");
+      second_derivative_test::mixed_second_derivative<2>(f, p);
+   }
 }
 
 #endif // MFEM_USE_MPI
