@@ -29,7 +29,7 @@ inline void MmaPAMassApplyTensors3D(const int NE,
                                          Vector &y_)
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
-   constexpr int NB = tensors_mma::SfMmaMassNB3D<D1D, Q1D>();
+   constexpr int NB = tensors_mma::MassNB3D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -37,7 +37,7 @@ inline void MmaPAMassApplyTensors3D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
 
-   const int nthreads = tensors_mma::SfMmaMassThreads3D<D1D, Q1D>();
+   const int nthreads = tensors_mma::MassThreads3D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    // Serial multi-element batch: shared B once; one element smem at a time.
    // Parallel z-batch (threadIdx.z) was correct but ~30% slower at (5,6).
@@ -85,7 +85,7 @@ inline void MmaPAMassApplyTensors2D(const int NE,
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int MDQ = (Q1D > D1D ? Q1D : D1D);
-   constexpr int NB = tensors_mma::SfMmaNB2D<D1D, Q1D>();
+   constexpr int NB = tensors_mma::NB2D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -93,7 +93,7 @@ inline void MmaPAMassApplyTensors2D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
 
-   const int nthreads = tensors_mma::SfMmaThreads2D<D1D, Q1D>();
+   const int nthreads = tensors_mma::Threads2D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
@@ -174,7 +174,7 @@ MassIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 inline MassIntegrator::ApplyTensorsMmaKernelType
 MassIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
 {
-   MFEM_ABORT("Tensor SUM-MMA mass requires a specialized (D1D,Q1D) kernel"
+   MFEM_ABORT("Tensors MMA mass requires a specialized (D1D,Q1D) kernel"
               " (dim=" << dim << ")");
    return nullptr;
 }

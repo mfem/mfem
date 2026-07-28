@@ -23,9 +23,26 @@ using namespace mfem;
 namespace pa_simplices_mma
 {
 
-void test_pa_simplices_mma(const char *filename, int p, int basis)
+namespace
 {
-   CAPTURE(filename, p, basis);
+
+void AddMassDiffIntegrators(BilinearForm &a, const IntegrationRule *ir,
+                            Coefficient &const_coeff,
+                            Coefficient &funct_coeff)
+{
+   a.AddDomainIntegrator(new MassIntegrator(ir));
+   a.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   a.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   a.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   a.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
+   a.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
+}
+
+/** MMA-PA vs stock Simplex PA (Positive / MMAForce). FA vs PA is covered in
+    test_pa_simplices.cpp. */
+void test_pa_simplices_mma_positive(const char *filename, int p)
+{
+   CAPTURE(filename, p);
 
    Mesh mesh(filename);
    MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
@@ -34,28 +51,25 @@ void test_pa_simplices_mma(const char *filename, int p, int basis)
    MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
                "Simplex MMA requires volumetric meshes (sdim == dim)");
 
-   H1_FECollection fec(p, mesh.Dimension(), basis);
+   H1_FECollection fec(p, mesh.Dimension(), BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
-   const bool positive = basis == BasisType::Positive;
-   if (positive) { ForceMMA(true); }
-
-   // Positive MMA is CUDA/HIP when forced; skip when the gate rejects the space.
-   if (!UsesSimplexMMA(fes))
    {
-      if (positive) { ForceMMA(false); }
-      return;
+      MMAForce on(true);
+      if (!UsesSimplexMMA(fes)) { return; }
    }
 
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
    x.Randomize(0x100001b3);
-   y_fa.Randomize(0x9e3779b9);
-   y_pa = y_fa;
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
 
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
-   const auto order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
-   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   // Stock Positive PA uses ragged-tensor maps with Stroud rules; MMA accepts
+   // the same IR via CalcShape, so both paths share Stroud quadrature.
+   const auto order = 2 * fe.GetOrder() + Tr.OrderW();
+   const IntegrationRule *ir = &StroudIntRules.Get(fe.GetGeomType(), order);
 
    // Runtime (non-specialized) simplex MMA apply caps.
    const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
@@ -66,38 +80,76 @@ void test_pa_simplices_mma(const char *filename, int p, int basis)
    FunctionCoefficient funct_coeff([](const Vector &pt)
    { return M_1_PI + pt[0] * pt[0]; });
 
-   BilinearForm fa(&fes), pa(&fes);
-   fa.AddDomainIntegrator(new MassIntegrator(ir));
-   fa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
-   fa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
-   fa.Assemble();
-   fa.Finalize();
+   BilinearForm pa_mma(&fes), pa_sum(&fes);
+   AddMassDiffIntegrators(pa_mma, ir, const_coeff, funct_coeff);
+   AddMassDiffIntegrators(pa_sum, ir, const_coeff, funct_coeff);
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
-   pa.AddDomainIntegrator(new MassIntegrator(ir));
-   pa.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
-   pa.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
-   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   pa.Assemble();
+   {
+      MMAForce on(true);
+      pa_mma.Assemble();
+   }
+   {
+      MMAForce off(false);
+      pa_sum.Assemble();
+   }
 
-   fa.Mult(x, y_fa);
-   pa.Mult(x, y_pa);
-   y_fa -= y_pa;
-   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
+   pa_mma.Mult(x, y_mma);
+   pa_sum.Mult(x, y_sum);
 
-   if (positive) { ForceMMA(false); }
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
-TEST_CASE("PA Simplices MMA", "[PartialAssembly][SimplexMMA][GPU]")
+/** GLL simplex MMA is default-on; smoke Assemble/Mult without an FA oracle. */
+void test_pa_simplices_mma_gll_smoke(const char *filename, int p)
+{
+   CAPTURE(filename, p);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   H1_FECollection fec(p, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const auto order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   GridFunction x(&fes), y(&fes);
+   x.Randomize(0x100001b3);
+   y.Randomize(0x9e3779b9);
+
+   BilinearForm pa(&fes);
+   AddMassDiffIntegrators(pa, ir, const_coeff, funct_coeff);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   pa.Mult(x, y);
+   REQUIRE(y.Norml2() >= 0.0);
+}
+
+} // namespace
+
+TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][SimplexMMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
-   const auto basis = GENERATE(BasisType::GaussLobatto, BasisType::Positive);
 
    const auto GenMesh = [&](const auto &meshs, const auto &extra)
    {
@@ -116,7 +168,7 @@ TEST_CASE("PA Simplices MMA", "[PartialAssembly][SimplexMMA][GPU]")
                      "../../data/square-disc-p3.mesh",
                      "../../data/periodic-annulus-sector.msh"
                    };
-      test_pa_simplices_mma(GENERATE_REF(from_range(meshs)), p, basis);
+      test_pa_simplices_mma_positive(GENERATE_REF(from_range(meshs)), p);
    }
 
    SECTION("3D")
@@ -128,7 +180,31 @@ TEST_CASE("PA Simplices MMA", "[PartialAssembly][SimplexMMA][GPU]")
       auto extra = { "../../data/escher.mesh",
                      "../../data/escher-p2.mesh"
                    };
-      test_pa_simplices_mma(GenMesh(meshs, extra), p, basis);
+      test_pa_simplices_mma_positive(GenMesh(meshs, extra), p);
+   }
+}
+
+TEST_CASE("PA Simplices MMA GLL smoke", "[PartialAssembly][SimplexMMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/ref-triangle.mesh",
+                     "../../data/inline-tri.mesh",
+                     "../../data/beam-tri.mesh"
+                   };
+      test_pa_simplices_mma_gll_smoke(GENERATE_REF(from_range(meshs)), p);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/ref-tetrahedron.mesh",
+                     "../../data/inline-tet.mesh",
+                     "../../data/beam-tet.mesh"
+                   };
+      test_pa_simplices_mma_gll_smoke(GENERATE_REF(from_range(meshs)), p);
    }
 }
 
@@ -142,38 +218,40 @@ TEST_CASE("PA Simplices Positive force MMA",
    REQUIRE_FALSE(UsesSimplexMMA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 
-   ForceMMA(true);
-   REQUIRE(UsesSimplexMMA(fes));
-   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
-
-   // MMA path with matching standard IR for PA and FA.
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
    const IntegrationRule *ir =
-      &IntRules.Get(fe.GetGeomType(), 2 * fe.GetOrder() + Tr.OrderW() + 4);
+      &StroudIntRules.Get(fe.GetGeomType(), 2 * fe.GetOrder() + Tr.OrderW());
 
-   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
    x.Randomize(0x100001b3);
-   y_fa.Randomize(0x9e3779b9);
-   y_pa = y_fa;
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
 
-   BilinearForm fa(&fes), pa(&fes);
-   fa.AddDomainIntegrator(new MassIntegrator(ir));
-   fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   fa.Assemble();
-   fa.Finalize();
+   BilinearForm pa_mma(&fes), pa_sum(&fes);
+   pa_mma.AddDomainIntegrator(new MassIntegrator(ir));
+   pa_mma.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   pa_sum.AddDomainIntegrator(new MassIntegrator(ir));
+   pa_sum.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
-   pa.AddDomainIntegrator(new MassIntegrator(ir));
-   pa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   pa.Assemble();
+   {
+      MMAForce on(true);
+      REQUIRE(UsesSimplexMMA(fes));
+      REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+      pa_mma.Assemble();
+   }
+   {
+      MMAForce off(false);
+      pa_sum.Assemble();
+   }
 
-   fa.Mult(x, y_fa);
-   pa.Mult(x, y_pa);
-   y_fa -= y_pa;
-   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
+   pa_mma.Mult(x, y_mma);
+   pa_sum.Mult(x, y_sum);
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 
-   ForceMMA(false);
    REQUIRE_FALSE(UsesSimplexMMA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 }

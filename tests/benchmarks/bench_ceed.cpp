@@ -415,7 +415,7 @@ struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
-   ForceMMA(T::mma);
+   MMAForce mma(T::mma);
    if constexpr (!T::simplex && T::mma)
    {
       if (!Device::Allows(Backend::CUDA_MASK))

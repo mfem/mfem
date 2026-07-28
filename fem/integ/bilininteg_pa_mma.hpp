@@ -38,9 +38,21 @@ namespace mfem
     Enables opt-in tensor MMA and Bernstein simplex MMA
     instead of their default SUM / Stroud paths.
 
-    Also enabled when MFEM_USE_MMA is set to any value other than "0". */
-void ForceMMA(bool enable = true);
+    Also enabled when MFEM_USE_MMA is set to any value other than "0".
+    @return Previous programmatic force flag (not including env). */
+bool ForceMMA(bool enable = true);
 bool GetForceMMA();
+
+/** @brief RAII: ForceMMA(enable) for this scope, then restore the previous flag. */
+class MMAForce
+{
+   const bool previous;
+public:
+   explicit MMAForce(bool enable) : previous(ForceMMA(enable)) { }
+   ~MMAForce() { ForceMMA(previous); }
+   MMAForce(const MMAForce &) = delete;
+   MMAForce &operator=(const MMAForce &) = delete;
+};
 
 /// \cond DO_NOT_DOCUMENT
 
@@ -91,7 +103,7 @@ inline bool UsesSimplexMMA(const FiniteElementSpace &fes)
    return true;
 }
 
-inline bool IsTensorSfMmaH1Element(const FiniteElement &el, int dim)
+inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
 {
    if (dim == 2)
    {
@@ -127,7 +139,7 @@ inline bool UsesTensorMMA(const FiniteElementSpace &fes)
    {
       if (el.GetGeomType() != Geometry::CUBE) { return false; }
    }
-   if (!IsTensorSfMmaH1Element(el, dim)) { return false; }
+   if (!IsTensorsMmaH1Element(el, dim)) { return false; }
    // m8n8k4 pad waste dominates at p=2 (D,Q)=(3,4); use SUM there.
    // Fragment math needs D1D >= 3; require p >= 3 for MMA competitiveness.
    if (el.GetOrder() < 3) { return false; }
@@ -2120,7 +2132,7 @@ namespace tensors_mma
 MFEM_HOST_DEVICE inline int getThreadIdx()
 {
 #ifdef __CUDA_ARCH__
-   // SUM-MMA tiles warps along threadIdx.x only; y/z are for element batching.
+   // Tensors MMA tiles warps along threadIdx.x only; y/z are for element batching.
    return static_cast<int>(threadIdx.x);
 #else
    return 0;
@@ -2269,17 +2281,17 @@ MFEM_HOST_DEVICE inline int MapM(int lane_group, int warp_tile, int mPass)
 /** Launch knobs (re-bench BP1/BP3 after changes):
  *  Mass 3D: threads=64, NB=8 | Diff 3D: threads=128, NB=4 | 2D: threads=32, NB=8
  *  Low-order (D1D<=4): fewer serial NB iterations, threads cover mPass tiles.
- *  Strip-mined mPass (SfMmaNWarps) lets Mass/Diff under-subscribe vs full mPass*32.
+ *  Strip-mined mPass (NWarps) lets Mass/Diff under-subscribe vs full mPass*32.
  */
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaNB2D()
+MFEM_HOST_DEVICE constexpr int NB2D()
 {
    return (D1D <= 4) ? 4 : 8;
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaThreads2D()
+MFEM_HOST_DEVICE constexpr int Threads2D()
 {
    constexpr int mPassD = (D1D + mmaM - 1) / mmaM;
    constexpr int mPassQ = (Q1D + mmaM - 1) / mmaM;
@@ -2288,7 +2300,7 @@ MFEM_HOST_DEVICE constexpr int SfMmaThreads2D()
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaMassThreads3D()
+MFEM_HOST_DEVICE constexpr int MassThreads3D()
 {
    if (D1D <= 4)
    {
@@ -2301,13 +2313,13 @@ MFEM_HOST_DEVICE constexpr int SfMmaMassThreads3D()
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaMassNB3D()
+MFEM_HOST_DEVICE constexpr int MassNB3D()
 {
    return (D1D <= 4) ? 4 : 8;
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaDiffThreads3D()
+MFEM_HOST_DEVICE constexpr int DiffThreads3D()
 {
    if (D1D <= 4)
    {
@@ -2321,25 +2333,25 @@ MFEM_HOST_DEVICE constexpr int SfMmaDiffThreads3D()
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaDiffNB3D()
+MFEM_HOST_DEVICE constexpr int DiffNB3D()
 {
    return (D1D <= 4) ? 2 : 4;
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaDiffThreads2D()
+MFEM_HOST_DEVICE constexpr int DiffThreads2D()
 {
-   return SfMmaThreads2D<D1D, Q1D>();
+   return Threads2D<D1D, Q1D>();
 }
 
 template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int SfMmaDiffNB2D()
+MFEM_HOST_DEVICE constexpr int DiffNB2D()
 {
-   return SfMmaNB2D<D1D, Q1D>();
+   return NB2D<D1D, Q1D>();
 }
 
 /** Warps available for strip-mined mPass (host: cover all tiles). */
-MFEM_HOST_DEVICE inline int SfMmaNWarps(int mPass)
+MFEM_HOST_DEVICE inline int NWarps(int mPass)
 {
 #ifdef __CUDA_ARCH__
    (void)mPass;
@@ -2376,7 +2388,7 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
    int threadIdInGroup = getThreadIdInGroup(laneId);
 
    int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    int aRowInWarp = groupId;
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
@@ -2464,7 +2476,7 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
    int threadIdInGroup = getThreadIdInGroup(laneId);
 
    int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    int aRowInWarp = groupId;
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
@@ -2558,7 +2570,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
    int threadIdInGroup = getThreadIdInGroup(laneId);
 
    int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    int aRowInWarp = groupId;
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
@@ -2648,7 +2660,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
    const int groupId = getGroupId(laneId);
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    const int magicNumber = MagicMapForN(n);
    const int aRowInWarp = groupId;
    const int aColumnInWarp = threadIdInGroup;
@@ -2753,7 +2765,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 
    // dx (D1D), dy (D1D) === M, dz (D1D) === N, qz (Q1D) === K
    int mPass = (D1D * D1D + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    int aRowInWarp = groupId;
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
@@ -2860,7 +2872,7 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int magicNumber = MagicMapForMassN(n);
    const int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < n; n0 += mmaN)
@@ -2962,7 +2974,7 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
    const int magicNumber = MagicMapForMassN(D1D);
    const int m = D1D * D1D, n = D1D, k = Q1D;
    const int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < n; n0 += mmaN)
@@ -3047,7 +3059,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
    const int tinG = getThreadIdInGroup(laneId);
    const int magic = MagicMapForN(Q1D);
    const int mPass = (Q1D + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < Q1D; n0 += mmaN)
@@ -3111,7 +3123,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
    const int tinG = getThreadIdInGroup(laneId);
    const int magic = MagicMapForN(D1D);
    const int mPass = (Q1D + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < D1D; n0 += mmaN)
@@ -3175,7 +3187,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    const int tinG = getThreadIdInGroup(laneId);
    const int magic = MagicMapForN(D1D);
    const int mPass = (D1D + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < D1D; n0 += mmaN)
@@ -3249,7 +3261,7 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
    const int tinG = getThreadIdInGroup(laneId);
    const int magic = MagicMapForMassN(D1D);
    const int mPass = (Q1D + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < D1D; n0 += mmaN)
@@ -3300,7 +3312,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
    const int tinG = getThreadIdInGroup(laneId);
    const int magic = MagicMapForMassN(D1D);
    const int mPass = (D1D + mmaM - 1) / mmaM;
-   const int nWarps = SfMmaNWarps(mPass);
+   const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
       for (int n0 = 0; n0 < D1D; n0 += mmaN)

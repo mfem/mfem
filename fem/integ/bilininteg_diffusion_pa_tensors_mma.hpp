@@ -31,7 +31,7 @@ inline void MmaPADiffusionApplyTensors3D(const int NE,
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int PA_SIZE = SYM ? 6 : 9;
-   constexpr int NB = tensors_mma::SfMmaDiffNB3D<D1D, Q1D>();
+   constexpr int NB = tensors_mma::DiffNB3D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(d_.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
@@ -41,7 +41,7 @@ inline void MmaPADiffusionApplyTensors3D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
 
-   const int nthreads = tensors_mma::SfMmaDiffThreads3D<D1D, Q1D>();
+   const int nthreads = tensors_mma::DiffThreads3D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
@@ -149,7 +149,7 @@ inline void MmaPADiffusionApplyTensors2D(const int NE,
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int PA_SIZE = SYM ? 3 : 4;
    constexpr int MDQ = (Q1D > D1D ? Q1D : D1D);
-   constexpr int NB = tensors_mma::SfMmaDiffNB2D<D1D, Q1D>();
+   constexpr int NB = tensors_mma::DiffNB2D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -158,7 +158,7 @@ inline void MmaPADiffusionApplyTensors2D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
 
-   const int nthreads = tensors_mma::SfMmaDiffThreads2D<D1D, Q1D>();
+   const int nthreads = tensors_mma::DiffThreads2D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {

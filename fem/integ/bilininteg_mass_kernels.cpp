@@ -25,6 +25,23 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSimplexSpecialization<2,5,4>();
    MassIntegrator::AddSimplexSpecialization<2,6,5>();
    MassIntegrator::AddSimplexSpecialization<2,7,6>();
+   MassIntegrator::AddSimplexSpecialization<2,8,7>();
+   MassIntegrator::AddSimplexSpecialization<2,9,8>();
+   // Higher Q (Stroud / Positive PA, Q > P)
+   MassIntegrator::AddSimplexSpecialization<2,2,4>();
+   MassIntegrator::AddSimplexSpecialization<2,3,5>();
+   MassIntegrator::AddSimplexSpecialization<2,4,6>();
+   MassIntegrator::AddSimplexSpecialization<2,4,7>();
+   MassIntegrator::AddSimplexSpecialization<2,5,7>();
+   MassIntegrator::AddSimplexSpecialization<2,5,8>();
+   MassIntegrator::AddSimplexSpecialization<2,6,8>();
+   MassIntegrator::AddSimplexSpecialization<2,6,9>();
+   MassIntegrator::AddSimplexSpecialization<2,7,9>();
+   MassIntegrator::AddSimplexSpecialization<2,7,10>();
+   MassIntegrator::AddSimplexSpecialization<2,8,10>();
+   MassIntegrator::AddSimplexSpecialization<2,8,11>();
+   MassIntegrator::AddSimplexSpecialization<2,9,11>();
+   MassIntegrator::AddSimplexSpecialization<2,9,12>();
    // Q=P+1
    MassIntegrator::AddSpecialization<2,1,1>();
    MassIntegrator::AddSpecialization<2,2,2>();

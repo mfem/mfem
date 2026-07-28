@@ -23,9 +23,11 @@ namespace
 bool force_mma = false;
 }
 
-void ForceMMA(bool enable)
+bool ForceMMA(bool enable)
 {
+   const bool previous = force_mma;
    force_mma = enable;
+   return previous;
 }
 
 bool GetForceMMA()

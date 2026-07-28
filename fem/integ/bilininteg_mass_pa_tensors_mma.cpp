@@ -17,14 +17,12 @@ namespace mfem
 
 void MassIntegrator::RegisterTensorsMmaKernels()
 {
-   AddTensorsMmaSpecialization<2,3,4>();
    AddTensorsMmaSpecialization<2,4,5>();
    AddTensorsMmaSpecialization<2,5,6>();
    AddTensorsMmaSpecialization<2,6,7>();
    AddTensorsMmaSpecialization<2,7,8>();
    AddTensorsMmaSpecialization<2,8,9>();
 
-   AddTensorsMmaSpecialization<3,3,4>();
    AddTensorsMmaSpecialization<3,4,5>();
    AddTensorsMmaSpecialization<3,5,6>();
    AddTensorsMmaSpecialization<3,6,7>();
