@@ -369,8 +369,8 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F,
+                              const IntegrationRule *ir = nullptr);
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -387,6 +387,40 @@ public:
                        Vector &b) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// @param ne number of elements
+   /// @param markers array where entry markers[e] == 0 to skip assembly over
+   /// element e element
+   /// @param jac Spatial Jacobians evaluated at all quadrature points
+   /// @param weights 1D quadrature weights
+   /// @param testBO 1D open basis test functions
+   /// @param testBC 1D closed basis test functions
+   /// @param coeff coefficient values evaluated at quadrature points, possibly
+   /// compressed.
+   /// @param d number of 1D closed dofs
+   /// @param q number of 1D quadrature points
+   using AssembleKernelType = void (*)(const int NE, const Array<int> &markers,
+                                       const Vector &jac,
+                                       const Array<real_t> &weights,
+                                       const Array<real_t> &testBO,
+                                       const Array<real_t> &testBC,
+                                       const Vector &coeff, Vector &y,
+                                       const int testd1d, const int q1d);
+
+   /// parameters: test_fetype, ndims, test_d1d, q1d
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType,
+                         (FiniteElement::DerivType, int, int, int));
+
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <FiniteElement::DerivType TestType, int DIM, int TEST_D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<TestType, DIM, TEST_D1D, Q1D>::Add();
+   }
 };
 
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
