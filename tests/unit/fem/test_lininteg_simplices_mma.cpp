@@ -16,7 +16,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_pa_simplices_mma.hpp"
+#include "fem/integ/bilininteg_pa_mma.hpp"
 
 using namespace mfem;
 
@@ -37,7 +37,7 @@ void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir)
    H1_FECollection fec(p, mesh.Dimension(), BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
-   REQUIRE(CanUseSimplexMmaPA(fes));
+   REQUIRE(UsesSimplexMMA(fes));
 
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();

@@ -29,8 +29,7 @@
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_pa_simplices_mma.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_pa_tensors_mma.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_pa_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 static int SnapMmaElementsPerDir(int n) noexcept
@@ -169,29 +168,25 @@ static void AddKernelSpecializations()
 }
 
 // Bake-off base class.
-// POS / MMA only matter when SIMPLEX == true:
-//   GLL MMA:      POS=false
-//   Positive SUM: POS=true,  MMA=false
-//   Positive MMA: POS=true,  MMA=true
-// TENSOR_MMA: opt-in sum-factored Tensor-Core MMA for quad/hex (not simplex).
+// POS / MMA:
+//   GLL MMA:      SIMPLEX, !POS  (MMA default-on; force unused)
+//   Positive SUM: SIMPLEX, POS, !MMA  (Stroud)
+//   Positive MMA: SIMPLEX, POS, MMA   (ForceMMA)
+//   Tensor SUM:   !SIMPLEX, !MMA
+//   Tensor MMA:   !SIMPLEX, MMA       (ForceMMA, CUDA)
 template <int BFI, int DIM, int VDIM, bool GLL,
-          bool SIMPLEX, bool POS, bool MMA, bool TENSOR_MMA = false>
+          bool SIMPLEX, bool POS, bool MMA>
 struct BakeOff
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
-   static_assert(!MMA || (SIMPLEX && POS),
-                 "MMA only applies to Positive simplex");
-   static_assert(!TENSOR_MMA || !SIMPLEX,
-                 "Tensors SUM-MMA only applies to quads/hexes");
+   static_assert(!MMA || !SIMPLEX || POS,
+                 "On simplices, MMA marks Positive MMA only");
    static constexpr bool visualization = false;
 
    static constexpr bool Simplex = SIMPLEX;
    static constexpr bool simplex = SIMPLEX;
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
-   static constexpr bool tensor_mma = TENSOR_MMA;
-   // Tensors MMA apply kernels are CUDA-only
-   static constexpr bool requires_cuda_tensor_mma = TENSOR_MMA;
 
    const int p, c, q, n, nx, ny, nz;
 
@@ -220,8 +215,6 @@ struct BakeOff
       n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
       mesh([&]()
    {
-      // dbg("GLL:{} SIMPLEX:{} POS:{} MMA:{} TENSOR_MMA:{} p:{} q:{}",
-      //     GLL, SIMPLEX, POS, MMA, TENSOR_MMA, p, q);
       if constexpr (DIM == 2)
       {
          return Mesh::MakeCartesian2D(e.nx, e.ny,
@@ -288,9 +281,8 @@ struct BakeOff
 
 // Bake-off Problems (BPs)
 template
-<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA,
- bool TENSOR_MMA = false>
-struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
+<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA>
+struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 {
    const int max_it = 32, print_lvl = -1;
 
@@ -301,7 +293,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
    Vector B, X;
    CGSolver cg;
 
-   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>;
    using base::a;
    using base::ir_rhs;
    using base::one;
@@ -377,13 +369,12 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
 
 // Bake-off Kernels (BKs)
 template
-<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA,
- bool TENSOR_MMA = false>
-struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
+<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA>
+struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 {
    Vector xe, ye;
 
-   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>;
    using base::ir;
    using base::one;
    using base::bfi;
@@ -424,16 +415,8 @@ struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA, TENSOR_MMA>
 template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
-   ForceTensorMmaPA(T::tensor_mma);
-   if constexpr (T::simplex && T::pos)
-   {
-      ForceSimplexPositiveMMA(T::mma);
-   }
-   else
-   {
-      ForceSimplexPositiveMMA(false);
-   }
-   if constexpr (T::requires_cuda_tensor_mma)
+   ForceMMA(T::mma);
+   if constexpr (!T::simplex && T::mma)
    {
       if (!Device::Allows(Backend::CUDA_MASK))
       {
@@ -453,13 +436,11 @@ static void Benchmark(bm::State& state) noexcept
 namespace ceed_bench
 {
 
-template <int Dim, bool Simplex, bool Pos, bool Mma, bool TensorMma,
-          const char *Suffix>
+template <int Dim, bool Simplex, bool Pos, bool Mma, const char *Suffix>
 struct Geom
 {
    static constexpr int dim = Dim;
    static constexpr bool simplex = Simplex, pos = Pos, mma = Mma;
-   static constexpr bool tensor_mma = TensorMma;
    static constexpr const char *suffix = Suffix;
 };
 
@@ -474,16 +455,16 @@ inline constexpr char s_tri_gll_mma[] = "tri_gll_mma";
 inline constexpr char s_tri_pos_sum[] = "tri_pos_sum";
 inline constexpr char s_tri_pos_mma[] = "tri_pos_mma";
 
-using HexSum    = Geom<3, false, false, false, false, s_hex_sum>;
-using HexMma    = Geom<3, false, false, false, true,  s_hex_mma>;
-using QuadSum   = Geom<2, false, false, false, false, s_quad_sum>;
-using QuadMma   = Geom<2, false, false, false, true,  s_quad_mma>;
-using TetGllMma = Geom<3, true,  false, false, false, s_tet_gll_mma>;
-using TetPosSum = Geom<3, true,  true,  false, false, s_tet_pos_sum>;
-using TetPosMma = Geom<3, true,  true,  true,  false, s_tet_pos_mma>;
-using TriGllMma = Geom<2, true,  false, false, false, s_tri_gll_mma>;
-using TriPosSum = Geom<2, true,  true,  false, false, s_tri_pos_sum>;
-using TriPosMma = Geom<2, true,  true,  true,  false, s_tri_pos_mma>;
+using HexSum    = Geom<3, false, false, false, s_hex_sum>;
+using HexMma    = Geom<3, false, false, true,  s_hex_mma>;
+using QuadSum   = Geom<2, false, false, false, s_quad_sum>;
+using QuadMma   = Geom<2, false, false, true,  s_quad_mma>;
+using TetGllMma = Geom<3, true,  false, false, s_tet_gll_mma>;
+using TetPosSum = Geom<3, true,  true,  false, s_tet_pos_sum>;
+using TetPosMma = Geom<3, true,  true,  true,  s_tet_pos_mma>;
+using TriGllMma = Geom<2, true,  false, false, s_tri_gll_mma>;
+using TriPosSum = Geom<2, true,  true,  false, s_tri_pos_sum>;
+using TriPosMma = Geom<2, true,  true,  true,  s_tri_pos_mma>;
 
 } // namespace ceed_bench
 
@@ -503,7 +484,7 @@ using ceed_bench::TriPosMma;
       PK<BFI, GEOM::dim, \
          ((BFI) % 2 ? 1 : GEOM::dim), \
          ((BFI) >= 5), \
-         GEOM::simplex, GEOM::pos, GEOM::mma, GEOM::tensor_mma>) \
+         GEOM::simplex, GEOM::pos, GEOM::mma>) \
    ->Name(std::string(#PK #BFI) + GEOM::suffix) \
    ->Apply(CustomArguments)->Unit(bm::kMillisecond)
 

@@ -12,7 +12,7 @@
 // Implementation of class LinearForm
 
 #include "linearform.hpp"
-#include "integ/bilininteg_pa_simplices_mma.hpp"
+#include "integ/bilininteg_pa_mma.hpp"
 
 namespace mfem
 {
@@ -158,7 +158,7 @@ bool LinearForm::SupportsDevice() const
    if (UsesTensorBasis(*fes)) { return true; }
 
    // Simplices with no boundary linear form can use MMA
-   if (CanUseSimplexMmaPA(*fes) && boundary_integs.Size() == 0)
+   if (UsesSimplexMMA(*fes) && boundary_integs.Size() == 0)
    {
       return true;
    }

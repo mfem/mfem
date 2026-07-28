@@ -16,7 +16,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_pa_simplices_mma.hpp"
+#include "fem/integ/bilininteg_pa_mma.hpp"
 
 using namespace mfem;
 
@@ -38,12 +38,12 @@ void test_pa_simplices_mma(const char *filename, int p, int basis)
    FiniteElementSpace fes(&mesh, &fec);
 
    const bool positive = basis == BasisType::Positive;
-   if (positive) { ForceSimplexPositiveMMA(true); }
+   if (positive) { ForceMMA(true); }
 
    // Positive MMA is CUDA/HIP when forced; skip when the gate rejects the space.
-   if (!CanUseSimplexMmaPA(fes))
+   if (!UsesSimplexMMA(fes))
    {
-      if (positive) { ForceSimplexPositiveMMA(false); }
+      if (positive) { ForceMMA(false); }
       return;
    }
 
@@ -90,7 +90,7 @@ void test_pa_simplices_mma(const char *filename, int p, int basis)
    y_fa -= y_pa;
    REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
 
-   if (positive) { ForceSimplexPositiveMMA(false); }
+   if (positive) { ForceMMA(false); }
 }
 
 TEST_CASE("PA Simplices MMA", "[PartialAssembly][SimplexMMA][GPU]")
@@ -139,11 +139,11 @@ TEST_CASE("PA Simplices Positive force MMA",
    H1_FECollection fec(3, mesh.Dimension(), BasisType::Positive);
    FiniteElementSpace fes(&mesh, &fec);
 
-   REQUIRE_FALSE(CanUseSimplexMmaPA(fes));
+   REQUIRE_FALSE(UsesSimplexMMA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 
-   ForceSimplexPositiveMMA(true);
-   REQUIRE(CanUseSimplexMmaPA(fes));
+   ForceMMA(true);
+   REQUIRE(UsesSimplexMMA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
 
    // MMA path with matching standard IR for PA and FA.
@@ -173,8 +173,8 @@ TEST_CASE("PA Simplices Positive force MMA",
    y_fa -= y_pa;
    REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0, 1e-10));
 
-   ForceSimplexPositiveMMA(false);
-   REQUIRE_FALSE(CanUseSimplexMmaPA(fes));
+   ForceMMA(false);
+   REQUIRE_FALSE(UsesSimplexMMA(fes));
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 }
 

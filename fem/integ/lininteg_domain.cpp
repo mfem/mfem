@@ -22,7 +22,7 @@ static void DLFEvalAssemble(const FiniteElementSpace &fes,
                             const Array<int> &markers, const Vector &coeff,
                             Vector &y)
 {
-   if (CanUseSimplexMmaPA(fes))
+   if (UsesSimplexMMA(fes))
    {
       DLFEvalAssembleSimplexMma(fes, ir, markers, coeff, y);
       return;

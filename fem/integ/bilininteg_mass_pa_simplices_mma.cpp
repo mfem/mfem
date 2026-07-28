@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_mma.hpp"
 #include "bilininteg_mass_pa_simplices_mma.hpp" // IWYU pragma: keep
 
 namespace mfem

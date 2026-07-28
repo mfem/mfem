@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "bilininteg_pa_tensors_mma.hpp"
+#include "bilininteg_pa_mma.hpp"
 
 namespace mfem
 {
@@ -32,7 +32,7 @@ inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
 {
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int PA_SIZE = SYM ? 6 : 9;
-   constexpr int NB = tensor_sf_mma::SfMmaDiffNB3D<D1D, Q1D>();
+   constexpr int NB = tensors_mma::SfMmaDiffNB3D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(d_.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
@@ -42,7 +42,7 @@ inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
 
-   const int nthreads = tensor_sf_mma::SfMmaDiffThreads3D<D1D, Q1D>();
+   const int nthreads = tensors_mma::SfMmaDiffThreads3D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
@@ -53,7 +53,7 @@ inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
       MFEM_SHARED real_t BGt[2][MD1 * MQ1];
 
       // One global B/G load for all NB elements in this block.
-      tensor_sf_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      tensors_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
       MFEM_SYNC_THREAD;
 
       for (int i = 0; i < NB; i++)
@@ -61,19 +61,19 @@ inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         tensor_sf_mma::LoadX<MQ1>(e, D1D, X, sm0);
+         tensors_mma::LoadX<MQ1>(e, D1D, X, sm0);
          MFEM_SYNC_THREAD;
 
-         tensor_sf_mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         tensors_mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensor_sf_mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+         tensors_mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensor_sf_mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         tensors_mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
 
          // Q-fn: grid-stride so thread count can be < Q^3.
          {
-            const int tid = tensor_sf_mma::getThreadIdx();
+            const int tid = tensors_mma::getThreadIdx();
             const int nq = Q1D * Q1D * Q1D;
 #ifdef __CUDA_ARCH__
             const int stride = blockDim.x;
@@ -112,11 +112,11 @@ inline void SmemPADiffusionApplyTensorSfMma3D(const int NE,
          // No mid-kernel global BtGt reload; use BGt from LoadBGBoth.
          MFEM_SYNC_THREAD;
 
-         tensor_sf_mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
+         tensors_mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensor_sf_mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
+         tensors_mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensor_sf_mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y, e);
+         tensors_mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y, e);
          MFEM_SYNC_THREAD;
       }
    });
@@ -150,7 +150,7 @@ inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
    constexpr int D1D = T_D1D, Q1D = T_Q1D;
    constexpr int PA_SIZE = SYM ? 3 : 4;
    constexpr int MDQ = (Q1D > D1D ? Q1D : D1D);
-   constexpr int NB = tensor_sf_mma::SfMmaDiffNB2D<D1D, Q1D>();
+   constexpr int NB = tensors_mma::SfMmaDiffNB2D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
@@ -159,7 +159,7 @@ inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
 
-   const int nthreads = tensor_sf_mma::SfMmaDiffThreads2D<D1D, Q1D>();
+   const int nthreads = tensors_mma::SfMmaDiffThreads2D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
@@ -169,7 +169,7 @@ inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
       MFEM_SHARED real_t BG[2][MD1 * MQ1];
       MFEM_SHARED real_t BGt[2][MD1 * MQ1];
 
-      tensor_sf_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      tensors_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
       MFEM_SYNC_THREAD;
 
       for (int i = 0; i < NB; i++)
@@ -177,16 +177,16 @@ inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         tensor_sf_mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
+         tensors_mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
          MFEM_SYNC_THREAD;
 
-         tensor_sf_mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
+         tensors_mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensor_sf_mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
+         tensors_mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
          MFEM_SYNC_THREAD;
 
          {
-            const int tid = tensor_sf_mma::getThreadIdx();
+            const int tid = tensors_mma::getThreadIdx();
             const int nq = Q1D * Q1D;
 #ifdef __CUDA_ARCH__
             const int stride = blockDim.x;
@@ -210,9 +210,9 @@ inline void SmemPADiffusionApplyTensorSfMma2D(const int NE,
          }
          MFEM_SYNC_THREAD;
 
-         tensor_sf_mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
+         tensors_mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensor_sf_mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y, e);
+         tensors_mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y, e);
          MFEM_SYNC_THREAD;
       }
    });

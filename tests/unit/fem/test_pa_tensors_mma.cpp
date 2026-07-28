@@ -11,7 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_pa_tensors_mma.hpp"
+#include "fem/integ/bilininteg_pa_mma.hpp"
 
 using namespace mfem;
 
@@ -42,13 +42,13 @@ void test_pa_tensor_sf_mma(Mesh &mesh, int p)
    H1_FECollection fec(p, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
-   ForceTensorMmaPA(true);
-   if (!CanUseTensorMmaPA(fes))
+   ForceMMA(true);
+   if (!CanUseTensorMMA(fes))
    {
-      ForceTensorMmaPA(false);
+      ForceMMA(false);
       // Catch2 v2 has no SKIP; GPU jobs should still hit eligible meshes
       // Host/CPU uses SUM (SUM-MMA is CUDA-only).
-      WARN("CanUseTensorMmaPA returned false; skipping Tensors MMA checks");
+      WARN("CanUseTensorMMA returned false; skipping Tensors MMA checks");
       return;
    }
 
@@ -71,13 +71,13 @@ void test_pa_tensor_sf_mma(Mesh &mesh, int p)
    fa.Assemble();
    fa.Finalize();
 
-   ForceTensorMmaPA(true);
+   ForceMMA(true);
    BilinearForm pa_mma(&fes);
    AddMassDiffIntegrators(pa_mma, ir, const_coeff, funct_coeff);
    pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    pa_mma.Assemble();
 
-   ForceTensorMmaPA(false);
+   ForceMMA(false);
    BilinearForm pa_sum(&fes);
    AddMassDiffIntegrators(pa_sum, ir, const_coeff, funct_coeff);
    pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -93,7 +93,7 @@ void test_pa_tensor_sf_mma(Mesh &mesh, int p)
    y_sum -= y_mma;
    REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 
-   ForceTensorMmaPA(false);
+   ForceMMA(false);
 }
 
 void test_pa_tensor_sf_mma_cartesian(int dim, int p)
@@ -170,30 +170,30 @@ TEST_CASE("Tensors MMA eligibility", "[MMA]")
    H1_FECollection fec(3, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
-   ForceTensorMmaPA(false);
-   REQUIRE_FALSE(CanUseTensorMmaPA(fes));
+   ForceMMA(false);
+   REQUIRE_FALSE(CanUseTensorMMA(fes));
 
-   ForceTensorMmaPA(true);
+   ForceMMA(true);
    // CUDA only; on host, force is ignored and stock SUM is used.
    if (Device::Allows(Backend::CUDA_MASK))
    {
-      REQUIRE(CanUseTensorMmaPA(fes));
+      REQUIRE(CanUseTensorMMA(fes));
    }
    else
    {
-      REQUIRE_FALSE(CanUseTensorMmaPA(fes));
+      REQUIRE_FALSE(CanUseTensorMMA(fes));
    }
-   ForceTensorMmaPA(false);
+   ForceMMA(false);
 
    // p=1 and p=2 are intentionally unsupported (pad / SUM preferred)
    H1_FECollection fec1(1, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes1(&mesh, &fec1);
-   ForceTensorMmaPA(true);
-   REQUIRE_FALSE(CanUseTensorMmaPA(fes1));
+   ForceMMA(true);
+   REQUIRE_FALSE(CanUseTensorMMA(fes1));
    H1_FECollection fec2(2, 3, BasisType::GaussLobatto);
    FiniteElementSpace fes2(&mesh, &fec2);
-   REQUIRE_FALSE(CanUseTensorMmaPA(fes2));
-   ForceTensorMmaPA(false);
+   REQUIRE_FALSE(CanUseTensorMMA(fes2));
+   ForceMMA(false);
 }
 
 } // namespace pa_tensor_sf_mma

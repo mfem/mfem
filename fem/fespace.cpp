@@ -16,7 +16,7 @@
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
-#include "integ/bilininteg_pa_simplices_mma.hpp"
+#include "integ/bilininteg_pa_mma.hpp"
 
 #include "derefmat_op.hpp"
 
@@ -4630,11 +4630,13 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
    return r_fec;
 }
 
-ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
+ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace &fes)
 {
-   if (CanUseSimplexMmaPA(fes)) { return ElementDofOrdering::NATIVE; }
-   return (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) ?
-          ElementDofOrdering::LEXICOGRAPHIC:
-          ElementDofOrdering::NATIVE;
+   // Tensor and Stroud-simplex (Positive) bases use lexicographic E-ordering;
+   // MMA simplex PA (including forced Positive) needs NATIVE.
+   const bool lex = (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) &&
+                    !UsesSimplexMMA(fes);
+   return lex ? ElementDofOrdering::LEXICOGRAPHIC
+          : ElementDofOrdering::NATIVE;
 }
 } // namespace mfem

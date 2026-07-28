@@ -50,15 +50,6 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,2,5>();
    MassIntegrator::AddSpecialization<2,3,6>();
    MassIntegrator::AddSpecialization<2,4,6>();
-   // Stroud / simplex PA extras (pairs not covered above)
-   MassIntegrator::AddSpecialization<2,3,5>();
-   MassIntegrator::AddSpecialization<2,4,7>();
-   MassIntegrator::AddSpecialization<2,5,7>();
-   MassIntegrator::AddSpecialization<2,5,8>();
-   MassIntegrator::AddSpecialization<2,6,8>();
-   MassIntegrator::AddSpecialization<2,6,9>();
-   MassIntegrator::AddSpecialization<2,7,9>();
-   MassIntegrator::AddSpecialization<2,7,10>();
 
    // 3D
    // Q = P, only for simplex

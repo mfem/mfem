@@ -24,7 +24,7 @@ void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
-   MFEM_VERIFY(CanUseSimplexMmaPA(fes), "");
+   MFEM_VERIFY(UsesSimplexMMA(fes), "");
 
    const FiniteElement &el = *fes.GetTypicalFE();
    const MemoryType mt = Device::GetDeviceMemoryType();
@@ -116,6 +116,7 @@ void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
 
 void DomainLFIntegrator::RegisterSimplexMmaKernels()
 {
+   // 2D
    AddSimplexMmaSpecialization<2,2,3>();
    AddSimplexMmaSpecialization<2,2,12>();
 

@@ -2233,10 +2233,8 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   /// True when using simplices MMA
-   bool pa_simplices_mma = false;
-   /// True when using tensors MMA
-   bool pa_tensors_mma = false;
+   bool use_simplices_mma = false;
+   bool use_tensors_mma = false;
    /// Dense reference gradients at quads: nq × ndof × dim
    Array<real_t> simplex_mma_G;
 
@@ -2391,13 +2389,12 @@ public:
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
-   /// @param Q1D Number of simplex quadrature points (not a 1D count).
-   template <int DIM, int D1D, int Q1D>
+   template <int DIM, int D1D, int NQP>
    static void AddSimplexMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,NQP>::Add();
       }
    }
 
@@ -2410,9 +2407,7 @@ public:
       }
    }
 
-   /// Register specialized simplex MMA apply kernels (separate TU).
    static void RegisterSimplexMmaKernels();
-   /// Register specialized tensors MMA apply kernels.
    static void RegisterTensorsMmaKernels();
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
@@ -2440,10 +2435,8 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   /// True when using simplices MMA
-   bool pa_simplices_mma = false;
-   /// True when using tensors MMA
-   bool pa_tensors_mma = false;
+   bool pa_simplices_mma = false; ///< True when using simplices MMA
+   bool pa_tensors_mma = false; ///< True when using tensors MMA
    /// Dense basis evaluation at quadrature points (nq × ndof).
    Array<real_t> simplex_mma_P;
 
@@ -2467,8 +2460,6 @@ public:
    using ApplySimplexMmaKernelType = void(*)(const int, const Array<real_t>&,
                                              const Vector&, const Vector&, Vector&,
                                              const int, const int);
-
-   /// Same signature as ApplyKernelType (Bt unused; SUM-MMA uses B only).
    using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
@@ -2553,13 +2544,12 @@ public:
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
-   /// @param Q1D Number of simplex quadrature points (not a 1D count).
-   template <int DIM, int D1D, int Q1D>
+   template <int DIM, int D1D, int NQP>
    static void AddSimplexMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,NQP>::Add();
       }
    }
 
@@ -2572,9 +2562,7 @@ public:
       }
    }
 
-   /// Register specialized simplex MMA apply kernels (separate TU).
    static void RegisterSimplexMmaKernels();
-   /// Register specialized tensor sum-factored MMA apply kernels.
    static void RegisterTensorsMmaKernels();
 
 protected:

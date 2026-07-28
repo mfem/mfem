@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_pa_mma.hpp"
 #include "../lininteg.hpp"
 
 namespace mfem

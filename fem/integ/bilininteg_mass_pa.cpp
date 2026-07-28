@@ -13,8 +13,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
-#include "bilininteg_pa_simplices_mma.hpp"
-#include "bilininteg_pa_tensors_mma.hpp"
+#include "bilininteg_pa_mma.hpp"
 
 #include "bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
@@ -32,7 +31,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    pa_tensors_mma = false;
    simplex_mma_P.DeleteAll();
 
-   if (CanUseSimplexMmaPA(fes))
+   if (UsesSimplexMMA(fes))
    {
       AssembleSimplexMmaPA(fes);
       return;
@@ -118,7 +117,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       });
    }
 
-   if (CanUseTensorMmaPA(fes))
+   if (CanUseTensorMMA(fes))
    {
       pa_tensors_mma = true;
    }

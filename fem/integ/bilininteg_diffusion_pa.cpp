@@ -16,15 +16,14 @@
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
 #include "bilininteg_diffusion_pa_tensors_mma.hpp"
-#include "bilininteg_pa_simplices_mma.hpp"
-#include "bilininteg_pa_tensors_mma.hpp"
+#include "bilininteg_pa_mma.hpp"
 
 namespace mfem
 {
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_simplices_mma || pa_tensors_mma)
+   if (use_simplices_mma || use_tensors_mma)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
@@ -46,13 +45,13 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (pa_simplices_mma)
+   if (use_simplices_mma)
    {
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
                                     simplex_mma_G, pa_data, x, y,
                                     dofs1D, quad1D);
    }
-   else if (pa_tensors_mma)
+   else if (use_tensors_mma)
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
@@ -129,11 +128,11 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   pa_simplices_mma = false;
-   pa_tensors_mma = false;
+   use_simplices_mma = false;
+   use_tensors_mma = false;
    simplex_mma_G.DeleteAll();
 
-   if (CanUseSimplexMmaPA(fes))
+   if (UsesSimplexMMA(fes))
    {
       AssembleSimplexMmaPA(fes);
       return;
@@ -221,9 +220,9 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                               ir->GetWeights(), geom->J, coeff, pa_data);
 
    // Opt-in sum-factored tensor MMA apply (reuse maps + pa_data)
-   if (CanUseTensorMmaPA(fes))
+   if (CanUseTensorMMA(fes))
    {
-      pa_tensors_mma = true;
+      use_tensors_mma = true;
    }
 }
 
@@ -256,7 +255,7 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Ceed AbsMult not implemented yet");
    }
-   MFEM_VERIFY(!pa_simplices_mma && !pa_tensors_mma,
+   MFEM_VERIFY(!use_simplices_mma && !use_tensors_mma,
                "AbsMultPA not implemented for MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
