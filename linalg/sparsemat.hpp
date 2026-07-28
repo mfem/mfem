@@ -582,6 +582,10 @@ public:
    void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      DenseMatrix &subm) const;
 
+   void GetSubMatrix(const Array<int> &rows, const Array<int> &cols,
+                     SparseMatrix &subm) const;
+
+
    /** @brief Initialize the SparseMatrix for fast access to the entries of the
        given @a row which becomes the "current row". */
    /** Fast access to the entries of the "current row" can be performed using
@@ -629,6 +633,12 @@ public:
        unless it would break the symmetric structure of the SparseMatrix. */
    void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
                      const DenseMatrix &subm, int skip_zeros = 1);
+
+   void SetSubMatrix(const Array<int> &rows, const Array<int> &cols,
+                     const SparseMatrix &subm);
+
+   void AddSubMatrix(const Array<int> &rows, const Array<int> &cols,
+                     const SparseMatrix &subm);
 
    bool RowIsEmpty(const int row) const;
 

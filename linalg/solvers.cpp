@@ -1133,6 +1133,42 @@ inline void Update(Vector &x, int k, DenseMatrix &h, Vector &s,
 
 void GMRESSolver::Mult(const Vector &b, Vector &x) const
 {
+   Solve<false>(b, x);
+}
+
+void GMRESSolver::MultTranspose(const Vector &b, Vector &x) const
+{
+   Solve<true>(b, x);
+}
+
+template<bool trans>
+void GMRESSolver::Solve(const Vector &b, Vector &x) const
+{
+   // Select which operators tu use.
+   auto oMult = [this](const Vector &x, Vector &y)
+   {
+      if constexpr(trans)
+      {
+         oper->MultTranspose(x, y);
+      }
+      else
+      {
+         oper->Mult(x, y);
+      }
+   };
+
+   auto pMult = [this](const Vector &x, Vector &y)
+   {
+      if constexpr(trans)
+      {
+         prec->MultTranspose(x, y);
+      }
+      else
+      {
+         prec->Mult(x, y);
+      }
+   };
+
    // Generalized Minimum Residual method following the algorithm
    // on p. 20 of the SIAM Templates book.
 
@@ -1162,7 +1198,7 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
    if (iterative_mode)
    {
-      oper->Mult(x, r);
+      oMult(x, r);
    }
    else
    {
@@ -1174,11 +1210,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       if (iterative_mode)
       {
          subtract(b, r, w);
-         prec->Mult(w, r);    // r = M (b - A x)
+         pMult(w, r);    // r = M (b - A x)
       }
       else
       {
-         prec->Mult(b, r);
+         pMult(b, r);
       }
    }
    else
@@ -1230,12 +1266,12 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
       {
          if (prec)
          {
-            oper->Mult(*v[i], r);
-            prec->Mult(r, w);        // w = M A v[i]
+            oMult(*v[i], r);
+            pMult(r, w);        // w = M A v[i]
          }
          else
          {
-            oper->Mult(*v[i], w);
+            oMult(*v[i], w);
          }
 
          for (k = 0; k <= i; k++)
@@ -1291,11 +1327,11 @@ void GMRESSolver::Mult(const Vector &b, Vector &x) const
 
       Update(x, i-1, H, s, v);
 
-      oper->Mult(x, r);
+      oMult(x, r);
       if (prec)
       {
          subtract(b, r, w);
-         prec->Mult(w, r);    // r = M (b - A x)
+         pMult(w, r);    // r = M (b - A x)
       }
       else
       {

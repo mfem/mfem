@@ -662,6 +662,12 @@ class GMRESSolver : public IterativeSolver
 protected:
    int m; // see SetKDim()
 
+   /// Iterative solution  or using the GMRES method
+   /// Dpending on the template argument of the original or its transposed
+   /// linear system is solved.
+   template<bool trans>
+   void Solve(const Vector &b, Vector &x) const;
+
 public:
    GMRESSolver() { m = 50; }
 
@@ -674,6 +680,9 @@ public:
 
    /// Iterative solution of the linear system using the GMRES method
    void Mult(const Vector &b, Vector &x) const override;
+
+   /// Iterative solution of the transposed linear system using the GMRES method
+   void MultTranspose(const Vector &b, Vector &x) const override;
 };
 
 /// FGMRES method

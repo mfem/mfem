@@ -142,6 +142,7 @@ const Operator &GridTransfer::MakeTrueOperator(
 InterpolationGridTransfer::~InterpolationGridTransfer()
 {
    if (own_mass_integ) { delete mass_integ; }
+   if (own_prec) { delete prec; }
 }
 
 void InterpolationGridTransfer::SetMassIntegrator(
@@ -161,7 +162,11 @@ const Operator &InterpolationGridTransfer::ForwardOperator()
    }
 
    // Construct F
-   if (oper_type == Operator::ANY_TYPE)
+   if (ran_fes.GetNURBSext())
+   {
+      F.Reset(dom_fes.NURBSInterpolationMatrix(&ran_fes, NURBSPointSet::DEMKO));
+   }
+   else if (oper_type == Operator::ANY_TYPE)
    {
       F.Reset(new FiniteElementSpace::RefinementOperator(&ran_fes, &dom_fes));
    }
@@ -215,7 +220,33 @@ const Operator &InterpolationGridTransfer::BackwardOperator()
       }
       own_mass_integ = true;
    }
-   if (oper_type == Operator::ANY_TYPE)
+   if (ran_fes.GetNURBSext())
+   {
+      MFEM_VERIFY(dom_fes.GetNURBSext(),
+                  "Can only transfer one NURBS GF to another NURBS GF");
+      if (ran_fes.GetVSize() == dom_fes.GetVSize())
+      {
+         prec = new GSSmoother((SparseMatrix&)(ForwardOperator()));
+         own_prec = true;
+         GMRESSolver *gmres = new GMRESSolver();
+         gmres->SetOperator(ForwardOperator());
+         gmres->SetAbsTol(0.0);
+         gmres->SetRelTol(1e-12);
+         gmres->SetMaxIter(1250);
+         gmres->SetKDim(250);
+         gmres->SetPrintLevel(0);
+         gmres->SetPreconditioner(*prec);
+         gmres->iterative_mode = false;
+         B.Reset(gmres);
+      }
+      else
+      {
+         B.Reset(new FiniteElementSpace::GlobalDerefinementOperator(
+                    &ran_fes, &dom_fes, mass_integ, &ForwardOperator()));
+         own_mass_integ = false;
+      }
+   }
+   else if (oper_type == Operator::ANY_TYPE)
    {
       B.Reset(new FiniteElementSpace::DerefinementOperator(
                  &ran_fes, &dom_fes, mass_integ));

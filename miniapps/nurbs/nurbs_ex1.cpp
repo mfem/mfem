@@ -159,6 +159,7 @@ real_t sol(const Vector & x)
 
 int main(int argc, char *argv[])
 {
+
    // 1. Parse command-line options.
    const char *mesh_file = "../../data/square-nurbs.mesh";
    const char *per_file  = "none";
@@ -168,6 +169,7 @@ int main(int argc, char *argv[])
    Array<int> slave(0);
    Array<int> neu(0);
    bool static_cond = false;
+   bool use_lor = false;
    bool visualization = 1;
    int lod = 0;
    bool ibp = 1;
@@ -210,6 +212,8 @@ int main(int argc, char *argv[])
                   " Negative values are replaced with (order+1)^2.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&use_lor, "-lor", "--use-lor", "-no-lor",
+                  "--no-lor", "Enable LOR preconditioning.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -412,7 +416,6 @@ int main(int argc, char *argv[])
    cout <<" - Essential : "; ess_bdr.Print();
    cout <<" - Neumann   : "; neu_bdr.Print();
 
-
    // 6. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system, which in this case is (1,phi_i) where phi_i are
    //    the basis functions in the finite element fespace.
@@ -435,6 +438,7 @@ int main(int argc, char *argv[])
    //    projection type, also in the case of a NURBS spaces. For a NURBS space
    //    this will give a projection without any over and undershoots.
    GridFunction x(fespace);
+
    if (homogenousBC)
    {
       x = 0.0;
@@ -482,18 +486,24 @@ int main(int argc, char *argv[])
 
    cout << "Size of linear system: " << A.Height() << endl;
 
-#ifndef MFEM_USE_SUITESPARSE
    // 10. Define a simple Jacobi preconditioner and use it to
    //     solve the system A X = B with PCG.
-   GSSmoother M(A);
-   PCG(A, M, B, X, 1, 200, 1e-12, 0.0);
+   Solver *P;
+   if (use_lor)
+   {
+#ifndef MFEM_USE_SUITESPARSE
+      P = new LORSolver<GSSmoother>(*a, ess_tdof_list);
 #else
-   // 10. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
-   UMFPackSolver umf_solver;
-   umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
-   umf_solver.SetOperator(A);
-   umf_solver.Mult(B, X);
+      std::cout<<"UMF"<<std::endl;
+      P = new LORSolver<UMFPackSolver>(*a, ess_tdof_list);
 #endif
+   }
+   else
+   {
+      P = new GSSmoother(A);
+   }
+
+   PCG(A, *P, B, X, 1, 200, 1e-12, 0.0);
 
    // 11. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
@@ -576,6 +586,7 @@ int main(int argc, char *argv[])
    delete fespace;
    if (own_fec) { delete fec; }
    delete mesh;
+   delete P;
 
    return 0;
 }

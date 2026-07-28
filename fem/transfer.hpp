@@ -14,6 +14,7 @@
 
 #include "../linalg/linalg.hpp"
 #include "fespace.hpp"
+#include "../mesh/nurbs.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pfespace.hpp"
@@ -142,6 +143,8 @@ protected:
    OperatorHandle F; ///< Forward, coarse-to-fine, operator
    OperatorHandle B; ///< Backward, fine-to-coarse, operator
 
+   Solver *prec = nullptr;
+   bool own_prec = false;
 public:
    InterpolationGridTransfer(FiniteElementSpace &coarse_fes,
                              FiniteElementSpace &fine_fes)
