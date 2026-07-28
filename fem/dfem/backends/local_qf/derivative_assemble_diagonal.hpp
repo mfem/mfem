@@ -300,7 +300,7 @@ public:
       const auto d_elem_attr = ctx.elem_attr->Read();
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+                             qp_cache.Read(), nq, residual_size_on_qp, ne);
       const int num_dofs_per_elem = num_test_dof * test_vdim;
       auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, ne);
 
@@ -309,13 +309,14 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
-         // The cache is written with the trial op index fastest and the
-         // (test vdim, test op) rows of all outputs stacked via out_offsets.
+         // The cache is written with the quadrature index fastest, then the
+         // trial op index, then the (test vdim, test op) rows of all outputs
+         // stacked via out_offsets.
          auto qpdc = Reshape(&cache_tensor(0, 0, e),
+                             nq,
                              total_trial_op_dim,
                              trial_vdim,
-                             output_size_on_qp,
-                             nq);
+                             output_size_on_qp);
 
          // Backend-owned shared scratch for the sum-factorized contraction.
          MFEM_SHARED typename backend_t::Shared s_diag;
@@ -411,7 +412,7 @@ public:
                         { return eval_test(k, axis, q, d); },
                         [&](int axis, int q, int d)
                         { return eval_input(m, axis, q, d); },
-                        [&](int q) { return qpdc(col, vd, row, q); },
+                        [&](int q) { return qpdc(q, col, vd, row); },
                         [&](int dx, int dy, int dz, real_t u)
                         { Y(dx, dy, dz) += u; });
                      }

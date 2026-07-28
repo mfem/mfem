@@ -51,6 +51,7 @@ struct DerivativeApply
 
       const int nqp = ctx.ir.GetNPoints();
       const int ne = ctx.nentities;
+      num_qp = nqp;
       gnqp = nqp * ne;
 
       // Precompute Q-space BlockVector layouts
@@ -124,8 +125,8 @@ struct DerivativeApply
       const auto &fd = ctx.infds[in_fd];
 
       Vector dir_e;
-      restriction<Entity::Element>(
-         fd, *direction_l, dir_e, ElementDofOrdering::LEXICOGRAPHIC);
+      restriction(fd, direction_rcache, *direction_l, dir_e,
+                  ElementDofOrdering::LEXICOGRAPHIC);
 
       // Forward the trial direction into active input Q block
       constexpr_for<0, n_inputs>([&](auto s)
@@ -134,11 +135,12 @@ struct DerivativeApply
          input_bases[s.value].forward(dir_e, dir_q_local.GetBlock(s.value));
       });
 
-      dir_q_local.SyncFromBlocks();
-      const real_t *dir_mono = dir_q_local.HostRead();
-      real_t *res_mono = result_q_local.HostReadWrite();
-      const real_t *cache_ptr = qp_cache.HostRead();
+      const real_t *cache_ptr = qp_cache.Read();
       const int res_sz = residual_size_on_qp;
+      const int gnqp_local = gnqp;
+      const int num_qp_local = num_qp;
+      const int trial_vdim_local = trial_vdim;
+      const int total_trial_op_dim_local = total_trial_op_dim;
 
       constexpr_for<0, n_outputs>([&](auto o)
       {
@@ -152,7 +154,7 @@ struct DerivativeApply
             return off;
          }();
 
-         real_t *res_o = res_mono + result_q_offsets[o.value];
+         real_t *res_o = result_q_local.GetBlock(o.value).ReadWrite();
 
          int m_offset = 0;
          constexpr_for<0, n_inputs>([&](auto s)
@@ -161,10 +163,16 @@ struct DerivativeApply
 
             const int tv = get<s>(inputs).vdim;
             const int to = get<s>(inputs).size_on_qp / tv;
-            const real_t *dir_s = dir_mono + dir_q_offsets[s.value];
+            const real_t *dir_s = dir_q_local.GetBlock(s.value).Read();
 
-            for (int gq = 0; gq < gnqp; ++gq)
+            mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
             {
+               // Cache is (q, cache_idx, e): adjacent threads (adjacent gq)
+               // read adjacent addresses for a fixed cache_idx.
+               const int cache_base =
+                  (gq % num_qp_local) +
+                  num_qp_local * res_sz * (gq / num_qp_local);
+
                for (int j = 0; j < tv; ++j)
                {
                   for (int m = 0; m < to; ++m)
@@ -179,16 +187,17 @@ struct DerivativeApply
                            const int out_comp = out_base + i * to_o + k;
 
                            const int cache_idx =
-                              out_comp * trial_vdim * total_trial_op_dim +
-                              j * total_trial_op_dim + m_global;
+                              out_comp * trial_vdim_local * total_trial_op_dim_local +
+                              j * total_trial_op_dim_local + m_global;
 
-                           const real_t c = cache_ptr[cache_idx + res_sz * gq];
+                           const real_t c =
+                              cache_ptr[cache_base + num_qp_local * cache_idx];
                            res_o[(i * to_o + k) + (tv_o * to_o) * gq] += c * v;
                         }
                      }
                   }
                }
-            }
+            });
             m_offset += to;
          });
       });
@@ -217,11 +226,13 @@ private:
    std::array<FieldBasis, n_outputs> output_bases;
 
    int gnqp = 0;
+   int num_qp = 0;
 
    Array<int> dir_q_offsets;
    Array<int> result_q_offsets;
    mutable BlockVector dir_q_local;
    mutable BlockVector result_q_local;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;

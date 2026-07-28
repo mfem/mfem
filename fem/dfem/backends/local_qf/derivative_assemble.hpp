@@ -294,11 +294,12 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
 
-   const int test_vdim = qpdc.GetShape()[3];
-   const int test_op_dim = qpdc.GetShape()[2];
-   const int trial_vdim = qpdc.GetShape()[1];
+   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, ne)
+   const int test_vdim = qpdc.GetShape()[4];
+   const int test_op_dim = qpdc.GetShape()[3];
+   const int trial_vdim = qpdc.GetShape()[2];
    const int num_test_dof = Ae.GetShape()[0];
-   const int nq = qpdc.GetShape()[4];
+   const int nq = qpdc.GetShape()[0];
    const int size_on_qp = output.size_on_qp;
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -370,7 +371,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(m + m_offset, j, k, tv, q, e);
+                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -395,7 +396,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(m + m_offset, j, k, tv, q, e);
+                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -474,7 +475,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(m + m_offset, j, k, i, q, e);
+                                       qpdc(q, m + m_offset, j, k, i, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -495,7 +496,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(m + m_offset, j, k, i, q, e);
+                                       qpdc(q, m + m_offset, j, k, i, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -809,11 +810,11 @@ public:
       const auto d_elem_attr = ctx.elem_attr->Read();
 
       const auto qpdc = Reshape(qp_cache.Read(),
+                                nq,
                                 total_trial_op_dim,
                                 trial_vdim,
                                 test_op_dim,
                                 test_vdim,
-                                nq,
                                 ne);
       const auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
 

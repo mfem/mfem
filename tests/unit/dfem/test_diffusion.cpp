@@ -19,6 +19,7 @@
 
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
+#include "../../../linalg/tensor_arrays.hpp"
 
 using namespace mfem;
 using namespace mfem::future;
@@ -70,6 +71,30 @@ struct Diffusion
       {
          dvdxi = qdata * dudxi;
       };
+   };
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Global-QF diffusion. Used to exercise the GlobalQFBackend derivative cache
+// with residual_size_on_qp = DIM*DIM > 1; the other GlobalQFBackend tests are
+// all scalar Value-in/Value-out, where residual_size_on_qp == 1 and the cache
+// index layout is degenerate.
+template <int DIM>
+struct GlobalDiffusion
+{
+   struct MFApply
+   {
+      void operator()(tensor_array<const dscalar_t, DIM> &dudxi,
+                      tensor_array<const real_t, DIM, DIM> &J,
+                      tensor_array<const real_t> &w,
+                      tensor_array<dscalar_t, DIM> &dvdxi) const
+      {
+         mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+         {
+            const auto invJ = inv(J(q));
+            dvdxi(q) = (dudxi(q) * invJ) * transpose(invJ) * det(J(q)) * w(q);
+         });
+      }
    };
 };
 
@@ -503,6 +528,152 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
                         "../../data/periodic-square.mesh"
                       };
    diffusion<2>(GenAll(meshs, extra), p);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// The GlobalQFBackend writes the derivative qp_cache, but Assemble and
+// AssembleDiagonal are served by the LocalQF implementations (see
+// GlobalQFBackend::MakeDerivativeAssemble*), so writer and readers live in
+// different backends and must agree on the cache layout.
+template <int DIM>
+void diffusion_globalqf(const char *filename, int p)
+{
+   CAPTURE(filename, DIM, p);
+
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
+
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   smesh.Clear();
+
+   p = std::max(p, pmesh.GetNodalFESpace()->GetMaxElementOrder());
+
+   Array<int> all_domain_attr;
+   if (pmesh.attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.attributes.Max());
+      all_domain_attr = 1;
+   }
+
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+
+   static constexpr int U = 0, Coords = 1;
+
+   ParGridFunction x(&pfes), y(&pfes);
+   Vector xtvec(pfes.GetTrueVSize()), ytvec(pfes.GetTrueVSize()),
+          ztvec(pfes.GetTrueVSize());
+   xtvec.Randomize(1);
+   x.SetFromTrueDofs(xtvec);
+
+   ParBilinearForm blf_fa(&pfes);
+   blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &pfes },
+      FieldDescriptor{ Coords, mfes }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+
+   DifferentiableOperator dop(in_fds, out_fds, pmesh);
+   typename GlobalDiffusion<DIM>::MFApply global_qfn;
+   dop.AddDomainIntegrator<GlobalQFBackend>(
+      global_qfn,
+      Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
+      Outputs<Gradient<U>> {},
+      *ir, all_domain_attr,
+      Derivatives<U> {});
+
+   Vector nodestv;
+   nodes->GetTrueDofs(nodestv);
+   pfes.GetRestrictionMatrix()->Mult(x, xtvec);
+   MultiVector X{ xtvec, nodestv };
+   auto dRdU = dop.GetDerivative(U, X);
+
+   const auto max_error = [&](const Vector &v)
+   {
+      real_t norm_global = 0.0, norm_local = v.Normlinf();
+      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
+                    pmesh.GetComm());
+      return norm_global;
+   };
+
+   // GlobalQF setup writer -> GlobalQF apply reader
+   {
+      MultiVector Z{ ztvec };
+      dRdU->Mult(xtvec, Z);
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      ytvec -= ztvec;
+      REQUIRE(max_error(ytvec) == MFEM_Approx(0.0));
+   }
+
+   // GlobalQF setup writer -> GlobalQF apply-transpose reader
+   {
+      Vector wtvec(pfes.GetTrueVSize());
+      wtvec.Randomize(0x9e3779b9);
+      MultiVector W{ wtvec }, Z{ ztvec };
+      dRdU->MultTranspose(W, Z);
+
+      ParGridFunction w(&pfes);
+      w.SetFromTrueDofs(wtvec);
+      blf_fa.MultTranspose(w, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      ytvec -= ztvec;
+      REQUIRE(max_error(ytvec) == MFEM_Approx(0.0));
+   }
+
+   // GlobalQF setup writer -> LocalQF assemble reader
+   {
+      SparseMatrix *A = nullptr;
+      dRdU->Assemble(A);
+      TestSameMatrices(*A, blf_fa.SpMat());
+      delete A;
+   }
+
+   // GlobalQF setup writer -> LocalQF assemble-diagonal reader
+   {
+      Vector dfem_diag(pfes.GetTrueVSize()), mfem_diag(pfes.GetTrueVSize());
+      dRdU->AssembleDiagonal(dfem_diag);
+      blf_fa.AssembleDiagonal(mfem_diag);
+      dfem_diag -= mfem_diag;
+      REQUIRE(max_error(dfem_diag) == MFEM_Approx(0.0));
+   }
+
+   MPI_Barrier(MPI_COMM_WORLD);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
+{
+   if constexpr (!mfem_use_gpu)
+   {
+      const auto p = GenAll({1}, {2, 3});
+      const auto meshs = { "../../data/inline-quad.mesh" };
+      const auto extra = { "../../data/star.mesh" };
+      diffusion_globalqf<2>(GenAll(meshs, extra), p);
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
+{
+   if constexpr (!mfem_use_gpu)
+   {
+      const auto p = GenAll({1}, {2, 3});
+      const auto meshs = { "../../data/inline-hex.mesh" };
+      const auto extra = { "../../data/fichera.mesh" };
+      diffusion_globalqf<3>(GenAll(meshs, extra), p);
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
