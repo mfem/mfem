@@ -2197,9 +2197,7 @@ public:
                                              const Array<real_t>&,
                                              const Vector&, const Vector&, Vector&,
                                              const int, const int);
-
-   /// Same signature as ApplyKernelType (Bt/Gt unused; SF-MMA uses B/G only).
-   using ApplyTensorSfMmaKernelType = ApplyKernelType;
+   using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
                                       const Array<real_t>&, const Vector&, Vector&,
@@ -2210,7 +2208,7 @@ public:
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTensorSfMmaPAKernels, ApplyTensorSfMmaKernelType,
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2404,18 +2402,18 @@ public:
    }
 
    template <int DIM, int D1D, int Q1D>
-   static void AddTensorSfMmaSpecialization()
+   static void AddTensorsMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplyTensorSfMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplyTensorsMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 
    /// Register specialized simplex MMA apply kernels (separate TU).
    static void RegisterSimplexMmaKernels();
-   /// Register specialized tensor sum-factored MMA apply kernels.
-   static void RegisterTensorSfMmaKernels();
+   /// Register specialized tensors MMA apply kernels.
+   static void RegisterTensorsMmaKernels();
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
       const FiniteElement& trial_fe,
@@ -2470,8 +2468,8 @@ public:
                                              const Vector&, const Vector&, Vector&,
                                              const int, const int);
 
-   /// Same signature as ApplyKernelType (Bt unused; SF-MMA uses B only).
-   using ApplyTensorSfMmaKernelType = ApplyKernelType;
+   /// Same signature as ApplyKernelType (Bt unused; SUM-MMA uses B only).
+   using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
@@ -2482,7 +2480,7 @@ public:
                          (int, int, int));
    MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
                          (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplyTensorSfMmaPAKernels, ApplyTensorSfMmaKernelType,
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
                          (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -2566,18 +2564,18 @@ public:
    }
 
    template <int DIM, int D1D, int Q1D>
-   static void AddTensorSfMmaSpecialization()
+   static void AddTensorsMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplyTensorSfMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+         ApplyTensorsMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       }
    }
 
    /// Register specialized simplex MMA apply kernels (separate TU).
    static void RegisterSimplexMmaKernels();
    /// Register specialized tensor sum-factored MMA apply kernels.
-   static void RegisterTensorSfMmaKernels();
+   static void RegisterTensorsMmaKernels();
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(

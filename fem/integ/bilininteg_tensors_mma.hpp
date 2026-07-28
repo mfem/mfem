@@ -85,7 +85,7 @@ namespace tensor_sf_mma
 MFEM_HOST_DEVICE inline int getThreadIdx()
 {
 #ifdef __CUDA_ARCH__
-   // SF-MMA tiles warps along threadIdx.x only; y/z are for element batching.
+   // SUM-MMA tiles warps along threadIdx.x only; y/z are for element batching.
    return static_cast<int>(threadIdx.x);
 #else
    return 0;

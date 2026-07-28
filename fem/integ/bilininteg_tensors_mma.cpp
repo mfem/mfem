@@ -9,7 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "bilininteg_pa_tensor_sf_mma.hpp"
+#include "bilininteg_tensors_mma.hpp"
 
 #include "../../general/globals.hpp"
 

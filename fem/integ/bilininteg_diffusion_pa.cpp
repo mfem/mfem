@@ -16,8 +16,8 @@
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
 #include "bilininteg_diffusion_pa_tensor_sf_mma.hpp"
-#include "bilininteg_pa_simplices_mma.hpp"
-#include "bilininteg_pa_tensor_sf_mma.hpp"
+#include "bilininteg_simplex_mma.hpp"
+#include "bilininteg_tensors_mma.hpp"
 
 namespace mfem
 {
@@ -58,9 +58,9 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const Array<real_t> &G = maps->G;
       const Array<real_t> &Bt = maps->Bt;
       const Array<real_t> &Gt = maps->Gt;
-      ApplyTensorSfMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                                     B, G, Bt, Gt, pa_data, x, y,
-                                     dofs1D, quad1D);
+      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                    B, G, Bt, Gt, pa_data, x, y,
+                                    dofs1D, quad1D);
    }
    else if (DeviceCanUseCeed())
    {

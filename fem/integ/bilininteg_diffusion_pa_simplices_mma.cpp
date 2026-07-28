@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_simplex_mma.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
 
 namespace mfem

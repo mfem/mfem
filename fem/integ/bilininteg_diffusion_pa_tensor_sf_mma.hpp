@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "bilininteg_pa_tensor_sf_mma.hpp"
+#include "bilininteg_tensors_mma.hpp"
 
 namespace mfem
 {
@@ -258,16 +258,16 @@ inline void SmemPADiffusionApplyTensorSfMma(
 } // namespace internal
 
 template <int DIM, int T_D1D, int T_Q1D>
-DiffusionIntegrator::ApplyTensorSfMmaKernelType
-DiffusionIntegrator::ApplyTensorSfMmaPAKernels::Kernel()
+DiffusionIntegrator::ApplyTensorsMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
    return internal::SmemPADiffusionApplyTensorSfMma<DIM, T_D1D, T_Q1D>;
 }
 
-inline DiffusionIntegrator::ApplyTensorSfMmaKernelType
-DiffusionIntegrator::ApplyTensorSfMmaPAKernels::Fallback(int dim, int, int)
+inline DiffusionIntegrator::ApplyTensorsMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
 {
-   MFEM_ABORT("Tensor SF-MMA diffusion requires a specialized (D1D,Q1D) kernel"
+   MFEM_ABORT("Tensors MMA diffusion requires a specialized (D1D,Q1D) kernel"
               " (dim=" << dim << ")");
    return nullptr;
 }

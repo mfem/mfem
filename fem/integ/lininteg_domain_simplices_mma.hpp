@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "bilininteg_pa_simplices_mma.hpp"
+#include "bilininteg_simplex_mma.hpp"
 #include "../lininteg.hpp"
 
 namespace mfem
@@ -122,7 +122,7 @@ inline void SmemDLFAssembleSimplexMma(const int NE,
 
    {
       constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
-      constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
+      // constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
       constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
       constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
       // DomainLF only stages Us[U_LD * NB] in shared memory.

@@ -29,13 +29,13 @@
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_pa_simplices_mma.hpp" // IWYU pragma: keep
-#include "fem/integ/bilininteg_pa_tensor_sf_mma.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_simplex_mma.hpp" // IWYU pragma: keep
+#include "fem/integ/bilininteg_tensors_mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 static int SnapMmaElementsPerDir(int n) noexcept
 {
-   if (n < 8) { n = 8; }
+   // if (n < 8) { n = 8; }
    if (n < 32)
    {
       n = (n + 3) / 4 * 4;
@@ -182,7 +182,7 @@ struct BakeOff
    static_assert(!MMA || (SIMPLEX && POS),
                  "MMA only applies to Positive simplex");
    static_assert(!TENSOR_MMA || !SIMPLEX,
-                 "Tensor SF-MMA only applies to quads/hexes");
+                 "Tensors SUM-MMA only applies to quads/hexes");
    static constexpr bool visualization = false;
 
    static constexpr bool Simplex = SIMPLEX;
@@ -190,7 +190,7 @@ struct BakeOff
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
    static constexpr bool tensor_mma = TENSOR_MMA;
-   // Tensor SF-MMA apply is CUDA-only; host always uses stock SUM.
+   // Tensors MMA apply kernels are CUDA-only
    static constexpr bool requires_cuda_tensor_mma = TENSOR_MMA;
 
    const int p, c, q, n, nx, ny, nz;
@@ -437,7 +437,7 @@ static void Benchmark(bm::State& state) noexcept
    {
       if (!Device::Allows(Backend::CUDA_MASK))
       {
-         state.SkipWithError("Tensor SF-MMA benchmarks require CUDA");
+         state.SkipWithError("Tensors MMA benchmarks require CUDA device enabled");
          return;
       }
    }
@@ -595,7 +595,7 @@ REGISTER(BK, 6, QuadSum);
  *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud sum-factorized
  *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA
  *
- * Positive MMA (`*_pos_mma`) and tensor SF-MMA (`hex_mma` / `quad_mma`)
+ * Positive MMA (`*_pos_mma`) and tensors MMA (`hex_mma` / `quad_mma`)
  * runs on CPU (dense host path) as well as GPU, e.g.:
  *    --benchmark_context=device=cuda
  *    --benchmark_context=device=hip

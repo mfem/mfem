@@ -95,8 +95,8 @@ DiffusionIntegrator::Kernels::Kernels()
 
    // Simplex MMA specs: bilininteg_diffusion_pa_simplices_mma.cpp
    RegisterSimplexMmaKernels();
-   // Tensor SF-MMA specs: bilininteg_diffusion_pa_tensor_sf_mma.cpp
-   RegisterTensorSfMmaKernels();
+   // Tensor SUM-MMA specs: bilininteg_diffusion_pa_tensor_sf_mma.cpp
+   RegisterTensorsMmaKernels();
 }
 
 namespace internal

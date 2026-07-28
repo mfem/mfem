@@ -13,8 +13,8 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
-#include "bilininteg_pa_simplices_mma.hpp"
-#include "bilininteg_pa_tensor_sf_mma.hpp"
+#include "bilininteg_simplex_mma.hpp"
+#include "bilininteg_tensors_mma.hpp"
 
 #include "bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
@@ -197,8 +197,8 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &Bt = maps->Bt;
-      ApplyTensorSfMmaPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
-                                     y, dofs1D, quad1D);
+      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt, pa_data, x,
+                                    y, dofs1D, quad1D);
    }
    else if (DeviceCanUseCeed())
    {

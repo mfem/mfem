@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "bilininteg_pa_tensor_sf_mma.hpp"
+#include "bilininteg_tensors_mma.hpp"
 
 namespace mfem
 {
@@ -165,16 +165,16 @@ inline void SmemPAMassApplyTensorSfMma(
 } // namespace internal
 
 template <int DIM, int T_D1D, int T_Q1D>
-MassIntegrator::ApplyTensorSfMmaKernelType
-MassIntegrator::ApplyTensorSfMmaPAKernels::Kernel()
+MassIntegrator::ApplyTensorsMmaKernelType
+MassIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
    return internal::SmemPAMassApplyTensorSfMma<DIM, T_D1D, T_Q1D>;
 }
 
-inline MassIntegrator::ApplyTensorSfMmaKernelType
-MassIntegrator::ApplyTensorSfMmaPAKernels::Fallback(int dim, int, int)
+inline MassIntegrator::ApplyTensorsMmaKernelType
+MassIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
 {
-   MFEM_ABORT("Tensor SF-MMA mass requires a specialized (D1D,Q1D) kernel"
+   MFEM_ABORT("Tensor SUM-MMA mass requires a specialized (D1D,Q1D) kernel"
               " (dim=" << dim << ")");
    return nullptr;
 }

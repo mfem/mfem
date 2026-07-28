@@ -46,9 +46,9 @@ void test_pa_tensor_sf_mma(Mesh &mesh, int p)
    if (!CanUseTensorMmaPA(fes))
    {
       ForceTensorMmaPA(false);
-      // Catch2 v2 has no SKIP; GPU jobs should still hit eligible meshes.
-      // Host/CPU uses stock SUM (SF-MMA is CUDA-only).
-      WARN("CanUseTensorMmaPA returned false; skipping Tensor SF-MMA checks");
+      // Catch2 v2 has no SKIP; GPU jobs should still hit eligible meshes
+      // Host/CPU uses SUM (SUM-MMA is CUDA-only).
+      WARN("CanUseTensorMmaPA returned false; skipping Tensors MMA checks");
       return;
    }
 
@@ -59,7 +59,7 @@ void test_pa_tensor_sf_mma(Mesh &mesh, int p)
    y_sum = y_fa;
 
    const auto &fe = *fes.GetTypicalFE();
-   // Match specialized (D1D,Q1D)=(p+1,p+2) pairs used by SF-MMA kernels.
+   // Match specialized (D1D,Q1D)=(p+1,p+2) pairs used by SUM-MMA kernels
    const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), 2 * p + 2);
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
@@ -106,7 +106,7 @@ void test_pa_tensor_sf_mma_cartesian(int dim, int p)
 
 } // namespace
 
-TEST_CASE("Tensor SF-MMA PA vs FA", "[TensorSfMMA][GPU]")
+TEST_CASE("Tensors MMA PA vs FA", "[MMA][GPU]")
 {
    const int dim = GENERATE(2, 3);
    // p=2 uses SUM (m8n8k4 pad); MMA path starts at p>=3.
@@ -114,7 +114,7 @@ TEST_CASE("Tensor SF-MMA PA vs FA", "[TensorSfMMA][GPU]")
    test_pa_tensor_sf_mma_cartesian(dim, p);
 }
 
-TEST_CASE("Tensor SF-MMA PA vs FA uneven NE", "[TensorSfMMA][GPU]")
+TEST_CASE("Tensor SUM-MMA PA vs FA uneven NE", "[TensorSumMMA][GPU]")
 {
    // Partial serial NB batches: mass NB=8, diffusion NB=4.
    SECTION("quad 5x3")
@@ -131,7 +131,7 @@ TEST_CASE("Tensor SF-MMA PA vs FA uneven NE", "[TensorSfMMA][GPU]")
    }
 }
 
-TEST_CASE("Tensor SF-MMA PA vs FA on meshes", "[TensorSfMMA][GPU]")
+TEST_CASE("Tensor SUM-MMA PA vs FA on meshes", "[MMA][GPU]")
 {
    // Paths assume cwd = build/tests/unit (MFEM unit-test convention).
    // Tensor-only subset of dfem mass/diffusion mesh lists (no tri / mixed).
@@ -164,7 +164,7 @@ TEST_CASE("Tensor SF-MMA PA vs FA on meshes", "[TensorSfMMA][GPU]")
    }
 }
 
-TEST_CASE("Tensor SF-MMA eligibility", "[TensorSfMMA]")
+TEST_CASE("Tensors MMA eligibility", "[MMA]")
 {
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
    H1_FECollection fec(3, 3, BasisType::GaussLobatto);

@@ -10,8 +10,8 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "bilininteg_pa_simplices_mma.hpp"
-#include "bilininteg_pa_simplices_mma_host.hpp"
+#include "bilininteg_simplex_mma.hpp"
+// #include "bilininteg_simplex_mma_host.hpp"
 #include "../bilininteg.hpp"
 
 namespace mfem
