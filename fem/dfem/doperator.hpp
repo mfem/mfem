@@ -345,14 +345,14 @@ public:
    {
       EnsureQpCache();
       prolongation(direction, x, direction_l);
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-      prepare_residual<Entity::Element>(outfds, daction_e);
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          f(infields_e, &direction_l, daction_e);
       }
-      restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
       prolongation_transpose(outfds, daction_l, y);
    }
 
@@ -369,15 +369,15 @@ public:
    void Mult(const MultiVector &x, MultiVector &y) const
    {
       prolongation(infds, x, infields_l);
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-      prepare_residual<Entity::Element>(outfds, daction_e);
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
          // The first-derivative (gradient) action ignores the direction.
          f(infields_e, nullptr, daction_e);
       }
-      restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
       prolongation_transpose(outfds, daction_l, y);
    }
 
@@ -429,9 +429,9 @@ public:
          }
       }
 
-      restriction<Entity::Element>(infds, infields_l, infields_e);
+      restriction(infds, in_rcache, infields_l, infields_e);
 
-      prepare_residual<Entity::Element>(infds, transpose_result_e);
+      prepare_residual(infds, in_rcache, transpose_result_e);
       for (auto *v : transpose_result_e) { *v = 0.0; }
 
       for (const auto &f : derivative_actions_transpose)
@@ -439,8 +439,8 @@ public:
          f(infields_e, &transpose_direction_l, transpose_result_e);
       }
 
-      restriction_transpose<Entity::Element>(infds, transpose_result_e,
-                                             transpose_result_l);
+      restriction_transpose(infds, in_rcache, transpose_result_e,
+                            transpose_result_l);
 
       const size_t deriv_idx = FindIdx(direction.id, infds);
       if constexpr (std::is_same_v<result_t, MultiVector>)
@@ -503,7 +503,7 @@ public:
       MFEM_VERIFY(test_pf && *test_pf,
                   "AssembleDiagonal: test field must be a ParFiniteElementSpace");
 
-      prepare_residual<Entity::Element>(outfds, daction_e);
+      prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
 
       for (const auto &f : assemble_diagonal_callbacks)
@@ -511,7 +511,7 @@ public:
          f(*daction_e[0]);
       }
 
-      restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
       prolongation_transpose(outfds[0], *daction_l[0], diag);
    }
 
@@ -526,6 +526,10 @@ private:
 
    mutable std::vector<Vector *> infields_l;
    mutable std::vector<Vector *> infields_e;
+
+   /// Restrictions of infds/outfds, resolved on first use.
+   mutable RestrictionCache<Entity::Element> in_rcache;
+   mutable RestrictionCache<Entity::Element> out_rcache;
 
    FieldDescriptor direction;
 
@@ -573,7 +577,7 @@ private:
    {
       if (qp_cache_filled || derivative_setup_callbacks.empty()) { return; }
 
-      restriction<Entity::Element>(infds, infields_l, infields_e);
+      restriction(infds, in_rcache, infields_l, infields_e);
       for (const auto &setup_callback : derivative_setup_callbacks)
       {
          setup_callback(infields_e);
@@ -680,14 +684,14 @@ public:
 
       const bool is_lvector = (mult_level == MultLevel::LVECTOR);
       prolongation(infds, x, infields_l, is_lvector);
-      restriction<Entity::Element>(infds, infields_l, infields_e);
-      prepare_residual<Entity::Element>(outfds, residual_e);
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, residual_e);
       for (auto *v : residual_e) { *v = 0.0; }
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
          action_callbacks[i](infields_e, residual_e);
       }
-      restriction_transpose<Entity::Element>(outfds, residual_e, residual_l);
+      restriction_transpose(outfds, out_rcache, residual_e, residual_l);
       prolongation_transpose(outfds, residual_l, y, is_lvector);
    }
 
@@ -993,6 +997,10 @@ private:
 
    mutable std::vector<Vector *> residual_l;
    mutable std::vector<Vector *> residual_e;
+
+   /// Restrictions of infds/outfds, resolved on first use.
+   mutable RestrictionCache<Entity::Element> in_rcache;
+   mutable RestrictionCache<Entity::Element> out_rcache;
 
    // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;

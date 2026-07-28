@@ -1172,12 +1172,26 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    std::integer_sequence<int, Is...>)
 {
 #ifdef MFEM_USE_ENZYME
-   __enzyme_fwddiff<void>(
-      (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))
-      enzyme_fwddiff_wrapper<qfunc_t,
-      std::remove_reference_t<decltype(get<Is>(primal_args))>...>,
-      enzyme_dup, &qfunc, &get<Is>(primal_args)..., enzyme_interleave,
-      &qfunc_shadow, &get<Is>(shadow_args)..., enzyme_runtime_activity);
+   if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
+   {
+      __enzyme_fwddiff<void>(
+         (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))
+         enzyme_fwddiff_wrapper<qfunc_t,
+         std::remove_reference_t<decltype(get<Is>(primal_args))>...>,
+         enzyme_dup, &qfunc, &get<Is>(primal_args)..., enzyme_interleave,
+         &qfunc_shadow, &get<Is>(shadow_args)..., enzyme_runtime_activity);
+   }
+   else
+   {
+      MFEM_CONTRACT_VAR(qfunc_shadow);
+      __enzyme_fwddiff<void>(
+         (void (*)(qfunc_t*, decltype(get<Is>(primal_args))&...))
+         enzyme_fwddiff_wrapper<qfunc_t,
+         std::remove_reference_t<decltype(get<Is>(primal_args))>...>,
+         enzyme_const, &qfunc, enzyme_dup, &get<Is>(primal_args)...,
+         enzyme_interleave, &get<Is>(shadow_args)...,
+         enzyme_runtime_activity);
+   }
 #else
    MFEM_CONTRACT_VAR(qfunc);
    MFEM_CONTRACT_VAR(qfunc_shadow);

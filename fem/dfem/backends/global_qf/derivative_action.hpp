@@ -80,16 +80,10 @@ struct DerivativeAction
 
       dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
-      for (size_t i = 0; i < ctx.infds.size(); i++)
-      {
-         if (static_cast<int>(ctx.infds[i].id) == derivative_id)
-         {
-            direction_fd = ctx.infds[i];
-            break;
-         }
-      }
-      MFEM_ASSERT(direction_fd.id != SIZE_MAX,
+      const size_t direction_fd_idx = FindIdx(derivative_id, ctx.infds);
+      MFEM_ASSERT(direction_fd_idx != SIZE_MAX,
                   "derivative direction field not found in infds");
+      direction_fd = ctx.infds[direction_fd_idx];
    }
 
    void operator()(
@@ -106,10 +100,11 @@ struct DerivativeAction
          detail::make_activity_map<derivative_id>(inputs_t{});
 
       MFEM_ASSERT(de != nullptr, "derivative direction vector is null");
-      restriction<Entity::Element>(
-         direction_fd, *de, direction_e, dof_ordering);
+      restriction(direction_fd, direction_rcache, *de, direction_e,
+                  dof_ordering);
 
       shadow_xq = 0.0;
+      shadow_xq.SyncToBlocks();
       constexpr_for<0, ninputs>([&](auto i)
       {
          if (!input_active[i]) { return; }
@@ -123,6 +118,7 @@ struct DerivativeAction
 
       // Q -> Q
       yq = 0.0;
+      yq.SyncToBlocks();
       if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
       {
          detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,
@@ -178,6 +174,7 @@ struct DerivativeAction
    FieldDescriptor direction_fd;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
    mutable Vector direction_e;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 };
 
 } // namespace mfem::future::GlobalQFImpl
