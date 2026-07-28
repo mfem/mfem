@@ -20,10 +20,11 @@ namespace
 
 constexpr int alias_block_size = 1024;
 
-real_t ModifyThroughAlias(bool sync_aliases)
+real_t SumBaseAfterAliasWrites(real_t left_value, real_t right_value,
+                               bool sync_aliases)
 {
    Vector base(2*alias_block_size);
-   base = 100.0;
+   base = 0.0;
    base.UseDevice(true);
 
    Vector left, right;
@@ -32,8 +33,8 @@ real_t ModifyThroughAlias(bool sync_aliases)
    left.UseDevice(true);
    right.UseDevice(true);
 
-   left = 0.0;
-   right = 1.0;
+   left = left_value;
+   right = right_value;
 
    if (sync_aliases)
    {
@@ -41,7 +42,7 @@ real_t ModifyThroughAlias(bool sync_aliases)
       right.SyncAliasMemory(base);
    }
 
-   return base.Norml2();
+   return base.Sum();
 }
 
 } // namespace
@@ -286,13 +287,17 @@ TEST_CASE("Vector aliases require SyncAliasMemory", "[Vector][GPU]")
       return;
    }
 
-   const real_t expected = sqrt(real_t(alias_block_size));
+   const real_t left_value = 1.0;
+   const real_t right_value = 2.0;
+   const real_t expected_sum = alias_block_size*(left_value + right_value);
 
-   const real_t synced_norm = ModifyThroughAlias(true);
-   REQUIRE(synced_norm == MFEM_Approx(expected));
+   const real_t synced_sum =
+      SumBaseAfterAliasWrites(left_value, right_value, true);
+   REQUIRE(synced_sum == MFEM_Approx(expected_sum));
 
-   const real_t unsynced_norm = ModifyThroughAlias(false);
-   REQUIRE(unsynced_norm != MFEM_Approx(expected));
+   const real_t unsynced_sum =
+      SumBaseAfterAliasWrites(left_value, right_value, false);
+   REQUIRE(unsynced_sum != MFEM_Approx(expected_sum));
 }
 
 TEST_CASE("Vector delete at indices", "[Vector],[GPU]")
