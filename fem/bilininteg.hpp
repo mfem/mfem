@@ -2233,9 +2233,9 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
-   /// True when using simplex MMA diffusion PA (dense GradP + DMMA apply)
-   bool pa_simplex_mma = false;
-   /// True when using tensors MMA apply (sum-factored quad/hex, opt-in)
+   /// True when using simplices MMA
+   bool pa_simplices_mma = false;
+   /// True when using tensors MMA
    bool pa_tensors_mma = false;
    /// Dense reference gradients at quads: nq × ndof × dim
    Array<real_t> simplex_mma_G;
@@ -2440,9 +2440,9 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
-   /// True when using simplex MMA mass PA (dense P + DMMA apply).
-   bool pa_simplex_mma = false;
-   /// True when using tensors MMA apply (sum-factored quad/hex, opt-in).
+   /// True when using simplices MMA
+   bool pa_simplices_mma = false;
+   /// True when using tensors MMA
    bool pa_tensors_mma = false;
    /// Dense basis evaluation at quadrature points (nq × ndof).
    Array<real_t> simplex_mma_P;

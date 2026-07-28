@@ -206,7 +206,7 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    quad1D = nq;
    // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
    ne = mesh->GetNE();
-   pa_simplex_mma = true;
+   pa_simplices_mma = true;
 
    simplex_mma_G.SetSize(nq * dof * dim, mt);
    {

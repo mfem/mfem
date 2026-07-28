@@ -50,7 +50,7 @@
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
 //               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
-// Device simplex sample runs:
+// Device simplices sample runs:
 //               ex1 -pa -d gpu -m ../data/inline-tet.mesh
 //               ex1 -pa -d gpu -m ../data/inline-tri.mesh
 //

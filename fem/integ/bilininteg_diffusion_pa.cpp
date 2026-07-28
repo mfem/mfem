@@ -24,7 +24,7 @@ namespace mfem
 
 void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (pa_simplex_mma || pa_tensors_mma)
+   if (pa_simplices_mma || pa_tensors_mma)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
@@ -46,7 +46,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 // PA Diffusion Apply kernel
 void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (pa_simplex_mma)
+   if (pa_simplices_mma)
    {
       ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
                                     simplex_mma_G, pa_data, x, y,
@@ -129,7 +129,7 @@ void DiffusionIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 
 void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   pa_simplex_mma = false;
+   pa_simplices_mma = false;
    pa_tensors_mma = false;
    simplex_mma_G.DeleteAll();
 
@@ -256,7 +256,7 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("Ceed AbsMult not implemented yet");
    }
-   MFEM_VERIFY(!pa_simplex_mma && !pa_tensors_mma,
+   MFEM_VERIFY(!pa_simplices_mma && !pa_tensors_mma,
                "AbsMultPA not implemented for MMA PA");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();

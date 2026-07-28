@@ -50,16 +50,6 @@ DiffusionIntegrator::Kernels::Kernels()
    // others
    DiffusionIntegrator::AddSimplexSpecialization<2,2,5>();
    DiffusionIntegrator::AddSimplexSpecialization<2,3,6>();
-   // CEED-style Stroud: Q1D = p+2
-   DiffusionIntegrator::AddSimplexSpecialization<2,2,3>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,3,4>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,4,5>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,5,6>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,6,7>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,7,8>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,8,7>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,8,9>();
-   DiffusionIntegrator::AddSimplexSpecialization<2,9,10>();
 
    // 3D
    // Q = P, only for simplex

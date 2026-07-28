@@ -20,10 +20,10 @@
 
 using namespace mfem;
 
-namespace pa_simplex_mma
+namespace pa_simplices_mma
 {
 
-void test_pa_simplex_mma(const char *filename, int p, int basis)
+void test_pa_simplices_mma(const char *filename, int p, int basis)
 {
    CAPTURE(filename, p, basis);
 
@@ -116,7 +116,7 @@ TEST_CASE("PA Simplices MMA", "[PartialAssembly][SimplexMMA][GPU]")
                      "../../data/square-disc-p3.mesh",
                      "../../data/periodic-annulus-sector.msh"
                    };
-      test_pa_simplex_mma(GENERATE_REF(from_range(meshs)), p, basis);
+      test_pa_simplices_mma(GENERATE_REF(from_range(meshs)), p, basis);
    }
 
    SECTION("3D")
@@ -128,7 +128,7 @@ TEST_CASE("PA Simplices MMA", "[PartialAssembly][SimplexMMA][GPU]")
       auto extra = { "../../data/escher.mesh",
                      "../../data/escher-p2.mesh"
                    };
-      test_pa_simplex_mma(GenMesh(meshs, extra), p, basis);
+      test_pa_simplices_mma(GenMesh(meshs, extra), p, basis);
    }
 }
 
@@ -178,4 +178,4 @@ TEST_CASE("PA Simplices Positive force MMA",
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 }
 
-} // namespace pa_simplex_mma
+} // namespace pa_simplices_mma
