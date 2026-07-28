@@ -11,7 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_tensors_mma.hpp"
+#include "fem/integ/bilininteg_pa_tensors_mma.hpp"
 
 using namespace mfem;
 

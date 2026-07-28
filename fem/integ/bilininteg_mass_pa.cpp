@@ -14,7 +14,7 @@
 #include "../gridfunc.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_pa_simplices_mma.hpp"
-#include "bilininteg_tensors_mma.hpp"
+#include "bilininteg_pa_tensors_mma.hpp"
 
 #include "bilininteg_mass_kernels.hpp" // IWYU pragma: keep
 #include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep

@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "bilininteg_tensors_mma.hpp"
+#include "bilininteg_pa_tensors_mma.hpp"
 
 namespace mfem
 {
