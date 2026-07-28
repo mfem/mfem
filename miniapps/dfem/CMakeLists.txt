@@ -14,6 +14,14 @@ if (MFEM_USE_MPI)
         MAIN dfem-minimal-surface.cpp
         LIBRARIES mfem)
 
+    add_mfem_miniapp(dfem-hyperelasticity-energy
+        MAIN dfem-hyperelasticity_energy.cpp
+        LIBRARIES mfem)
+
+    add_mfem_miniapp(dfem-hyperelasticity-stress
+        MAIN dfem-hyperelasticity_stress.cpp
+        LIBRARIES mfem)
+
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
         add_test(NAME dfem-minimal-surface=${MFEM_MPI_NP}
