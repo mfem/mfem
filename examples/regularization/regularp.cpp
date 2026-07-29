@@ -8,7 +8,7 @@
 //               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -vis
 //               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -pv
 //               mpirun -np 8 regularp -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -vis
-//               mpirun -np 8 regularp -r 1 -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -pv
+//               mpirun -np 8 regularp -r 2 -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -pv
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
