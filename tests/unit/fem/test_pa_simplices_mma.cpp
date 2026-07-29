@@ -102,8 +102,8 @@ void test_pa_simplices_mma_positive(const char *filename, int p)
    REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
-/** GLL simplex MMA is default-on; smoke Assemble/Mult without an FA oracle. */
-void test_pa_simplices_mma_gll_smoke(const char *filename, int p)
+/** H1 simplex MMA is default-on; smoke Assemble/Mult without an FA oracle. */
+void test_pa_simplices_mma_h1_smoke(const char *filename, int p)
 {
    CAPTURE(filename, p);
 
@@ -195,7 +195,7 @@ TEST_CASE("PA Simplices MMA GLL smoke", "[PartialAssembly][SimplexMMA][GPU]")
                      "../../data/inline-tri.mesh",
                      "../../data/beam-tri.mesh"
                    };
-      test_pa_simplices_mma_gll_smoke(GENERATE_REF(from_range(meshs)), p);
+      test_pa_simplices_mma_h1_smoke(GENERATE_REF(from_range(meshs)), p);
    }
 
    SECTION("3D")
@@ -204,7 +204,7 @@ TEST_CASE("PA Simplices MMA GLL smoke", "[PartialAssembly][SimplexMMA][GPU]")
                      "../../data/inline-tet.mesh",
                      "../../data/beam-tet.mesh"
                    };
-      test_pa_simplices_mma_gll_smoke(GENERATE_REF(from_range(meshs)), p);
+      test_pa_simplices_mma_h1_smoke(GENERATE_REF(from_range(meshs)), p);
    }
 }
 
