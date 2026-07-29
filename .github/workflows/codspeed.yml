@@ -57,13 +57,12 @@ jobs:
         uses: CodSpeedHQ/action@v4
         with:
           mode: simulation
-          # elasticity and dg_amr run out of memory at their largest cases,
-          # so cap their problem sizes
+          # Filter to a few smaller cases to keep runtime and memory bounded.
           run: |
             cd build/tests/benchmarks
             ./bench_vector
             ./bench_virtuals
             ./bench_tmop
-            ./bench_assembly_levels
-            ./bench_elasticity --benchmark_filter='/(10|20|30|40|50|60)/'
-            ./bench_dg_amr --benchmark_filter='\[(1024|2048|4096|8192|16384|32768|65536|131072|262144|524288|1048576|2097152)/'
+            ./bench_assembly_levels --benchmark_filter='BK[0-9]PARTIAL\[262144/'
+            ./bench_elasticity --benchmark_filter='/30/'
+            ./bench_dg_amr --benchmark_filter='\[262144/'
