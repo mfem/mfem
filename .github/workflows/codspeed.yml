@@ -41,16 +41,29 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Configure and build MFEM benchmark
+        # TODO: bench_ceed doesn't compile with CodSpeed's gbenchmark fork.
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DMFEM_USE_BENCHMARK=YES \
             -DMFEM_USE_CODSPEED=YES \
             -DCODSPEED_MODE=simulation
-          cmake --build build --target bench_vector -j"$(nproc)"
+          cmake --build build \
+            --target bench_vector bench_virtuals bench_tmop \
+                     bench_elasticity bench_assembly_levels bench_dg_amr \
+            -j"$(nproc)"
 
       - name: Run benchmarks with CodSpeed
         uses: CodSpeedHQ/action@v4
         with:
           mode: simulation
-          run: ./build/tests/benchmarks/bench_vector
+          # elasticity and dg_amr run out of memory at their largest cases,
+          # so cap their problem sizes
+          run: |
+            cd build/tests/benchmarks
+            ./bench_vector
+            ./bench_virtuals
+            ./bench_tmop
+            ./bench_assembly_levels
+            ./bench_elasticity --benchmark_filter='/(10|20|30|40|50|60)/'
+            ./bench_dg_amr --benchmark_filter='\[(1024|2048|4096|8192|16384|32768|65536|131072|262144|524288|1048576|2097152)/'
