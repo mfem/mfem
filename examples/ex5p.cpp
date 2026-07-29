@@ -33,7 +33,7 @@
 //               finite elements (velocity u) and piecewise discontinuous
 //               polynomials (pressure p).
 //
-//               The example demonstrates the use of the DarcyForm class, as
+//               The example demonstrates the use of the ParDarcyForm class, as
 //               well as hybridization of mixed systems and the collective
 //               saving of several grid functions in VisIt (visit.llnl.gov) and
 //               ParaView (paraview.org) formats. Optional saving with ADIOS2
