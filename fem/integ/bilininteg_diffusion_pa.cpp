@@ -47,9 +47,8 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (use_simplices_mma)
    {
-      ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
-                                    simplex_mma_G, pa_data, x, y,
-                                    dofs1D, quad1D);
+      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq, ne, symmetric,
+                                    simplex_mma_G, pa_data, x, y);
    }
    else if (use_tensors_mma)
    {
@@ -130,6 +129,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    use_simplices_mma = false;
    use_tensors_mma = false;
+   nq = 0;
    simplex_mma_G.DeleteAll();
 
    if (UsesSimplexMMA(fes))

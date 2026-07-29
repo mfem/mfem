@@ -199,12 +199,11 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    const int symmDims = (dims * (dims + 1)) / 2;
 
    const IntegrationRule &ir = IntRule ? *IntRule : GetRule(el, el);
-   const int nq = ir.GetNPoints();
+   nq = ir.GetNPoints();
    const int dof = el.GetDof();
 
    dofs1D = p + 1;
-   quad1D = nq;
-   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
+   quad1D = 0;
    ne = mesh->GetNE();
    use_simplices_mma = true;
 

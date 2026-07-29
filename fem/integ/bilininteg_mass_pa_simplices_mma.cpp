@@ -43,25 +43,23 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
                        : 2 * p + T0->OrderW() + 4;
    const IntegrationRule &ir =
       IntRule ? *IntRule : IntRules.Get(geom_t, q_order);
-   const int nq1 = ir.GetNPoints();
-   quad1D = nq1;
-   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
-   this->nq = nq1;
+   nq = ir.GetNPoints();
+   quad1D = 0;
    ne = mesh->GetNE();
    use_simplices_mma = true;
    maps = nullptr;
 
-   simplex_mma_P.SetSize(nq1 * ndof, mt);
+   simplex_mma_P.SetSize(nq * ndof, mt);
    {
       real_t *Ph = simplex_mma_P.HostWrite();
       Vector shape_ref(ndof);
-      for (int q = 0; q < nq1; q++)
+      for (int q = 0; q < nq; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          el.CalcShape(ip, shape_ref);
          for (int i = 0; i < ndof; i++)
          {
-            Ph[q + nq1 * i] = shape_ref(i);
+            Ph[q + nq * i] = shape_ref(i);
          }
       }
    }
@@ -74,17 +72,17 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    MFEM_VERIFY(sdim == dim, "");
    const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
    const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
-   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq1, "");
+   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
 
-   pa_data.SetSize(nq1 * ne, mt);
+   pa_data.SetSize(nq * ne, mt);
 
    QuadratureSpace qs(*mesh, ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const bool by_val = map_type == FiniteElement::VALUE;
    internal::PAMassSetupSimplexFromNodes(
-      dim, ne, nq1, nd_n, by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff,
-      pa_data);
+      dim, ne, nq, nd_n,
+      by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff, pa_data);
 }
 
 void MassIntegrator::RegisterSimplexMmaKernels()

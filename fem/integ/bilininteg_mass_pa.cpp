@@ -29,6 +29,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    use_simplices_mma = false;
    use_tensors_mma = false;
+   nq = 0;
    simplex_mma_P.DeleteAll();
 
    if (UsesSimplexMMA(fes))
@@ -189,8 +190,8 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    if (use_simplices_mma)
    {
-      ApplySimplexMmaPAKernels::Run(dim, dofs1D, quad1D, ne, simplex_mma_P,
-                                    pa_data, x, y, dofs1D, quad1D);
+      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq, ne, simplex_mma_P,
+                                    pa_data, x, y);
    }
    else if (use_tensors_mma)
    {

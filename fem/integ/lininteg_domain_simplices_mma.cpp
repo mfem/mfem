@@ -110,7 +110,7 @@ void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
 
       zero_unmarked(D);
       DomainLFIntegrator::AssembleSimplexMmaKernels::Run(
-         dim, dofs1D, nq, ne, P, D, Y, vdim, vc, dofs1D, nq);
+         dim, dofs1D, nq, ne, P, D, Y, vdim, vc);
    }
 }
 

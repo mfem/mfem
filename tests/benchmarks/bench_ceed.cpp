@@ -165,6 +165,8 @@ struct BakeOff
    static constexpr bool mma = MMA;
 
    const int p, c, q, n, nx, ny, nz;
+   int qnd{};  // ir->GetNPoints(); comparable across tensor / Stroud / MMA
+   int q1d{};  // 1D size when structured (tensor / Stroud); 0 for simplex MMA
 
    Mesh mesh;
    H1_FECollection fec;
@@ -185,7 +187,10 @@ struct BakeOff
       : BakeOff(p, side, MeshExtentsFromHexRef<DIM>(p, side)) {}
 
    BakeOff(int p, int side, MeshExtents e): p(p), c(side),
-      // with simplex, mass D1D = Q1D; diffusion D1D = Q1D + 1
+      // q = integration-rule exactness (not CEED 1D point count).
+      // Tensor GL: q=2p+3 → Q1D=p+2; tensor GLL: q=2p-1 → Q1D=p+1.
+      // Simplex Stroud: mass q=2p → D1D==Q1D; diffusion q=2p-1 → D1D==Q1D+1.
+      // Simplex MMA: same q, but compare via QND=ir.GetNPoints() (template T_QND).
       q(2 * p + (GLL ? -1 : (SIMPLEX ? (BFI==1 ? 0 : -1) : 3))),
       n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
       mesh([&]()
@@ -223,6 +228,52 @@ struct BakeOff
    y(&fes),
    a(&fes)
    {
+      constexpr auto ipow = [](int b, int e)
+      {
+         int r = 1;
+         for (int i = 0; i < e; i++) { r *= b; }
+         return r;
+      };
+
+      qnd = ir->GetNPoints();
+      const int d1d = p + 1;
+      // Matches q(...): only BFI==1 uses mass exactness 2p on simplices.
+      constexpr bool mass = (BFI == 1);
+
+      if constexpr (!SIMPLEX)
+      {
+         // GL: Q1D = Order/2+1; GLL: Q1D = Order/2+2
+         q1d = GLL ? (q / 2 + 2) : (q / 2 + 1);
+         MFEM_VERIFY(q == (GLL ? 2 * p - 1 : 2 * p + 3),
+                     "tensor rule order");
+         MFEM_VERIFY(q1d == (GLL ? p + 1 : p + 2),
+                     "tensor Q1D must be p+2 (GL) or p+1 (GLL)");
+         MFEM_VERIFY(qnd == ipow(q1d, DIM),
+                     "tensor QND must be Q1D^dim");
+      }
+      else if constexpr (POS && !MMA) // Stroud sum-factorization
+      {
+         q1d = static_cast<int>(std::lround(std::pow(static_cast<double>(qnd),
+                                                     1.0 / DIM)));
+         MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 1), "Stroud rule order");
+         MFEM_VERIFY(qnd == ipow(q1d, DIM), "Stroud QND must be Q1D^dim");
+         if constexpr (mass)
+         {
+            MFEM_VERIFY(d1d == q1d, "simplex mass: D1D == Q1D");
+         }
+         else
+         {
+            MFEM_VERIFY(d1d == q1d + 1, "simplex diffusion: D1D == Q1D+1");
+         }
+      }
+      else // simplex MMA (H1 or Positive+ForceMMA): QND only, no 1D Q1D
+      {
+         q1d = 0;
+         MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 1), "simplex MMA rule order");
+         MFEM_VERIFY(ir->GetOrder() >= q, "simplex MMA integration rule order");
+         MFEM_VERIFY(qnd > 0, "simplex MMA QND");
+      }
+
       x = 0.0;
       if constexpr (BFI == 1)
       {
@@ -405,6 +456,11 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["Dofs"] = bm::Counter(run.dofs);
    state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Order"] = bm::Counter(state.range(0));
+   state.counters["QND"] = bm::Counter(run.qnd);
+   if (run.q1d > 0)
+   {
+      state.counters["Q1D"] = bm::Counter(run.q1d);
+   }
    state.counters["Simplex"] = bm::Counter(run.simplex);
 }
 

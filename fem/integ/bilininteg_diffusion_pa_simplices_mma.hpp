@@ -33,20 +33,19 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
                                       const Vector &c,
                                       Vector &d);
 
-
-template <int DIM, int U_LD, int NB, bool SYM, typename TD>
+template <int DIM, int U_LD, int NB, bool SYM, int QND, typename TD>
 MFEM_HOST_DEVICE inline
 void ApplyDiffusionMetric(real_t *UV, TD D,
                           const int e0, const int NE,
-                          const int NQ1, const int tid,
+                          const int tid,
                           const int nthreads)
 {
-   for (int i = tid; i < NQ1 * NB; i += nthreads)
+   for (int i = tid; i < QND * NB; i += nthreads)
    {
-      const int b = i / NQ1;
-      const int q = i - b * NQ1;
+      const int b = i / QND;
+      const int q = i - b * QND;
       const int e = e0 + b;
-      if (e >= NE || q >= NQ1) { continue; }
+      if (e >= NE || q >= QND) { continue; }
       if constexpr (DIM == 2)
       {
          const real_t u1 = UV[0 * U_LD * NB + q + U_LD * b];
@@ -101,12 +100,12 @@ void ApplyDiffusionMetric(real_t *UV, TD D,
 }
 
 /** Q-tile metric: UV holds TQ local rows; D indexed at global q0+q. */
-template <int DIM, int U_LD, int NB, bool SYM, typename TD>
+template <int DIM, int U_LD, int NB, bool SYM, int QND, typename TD>
 MFEM_HOST_DEVICE inline
 void ApplyDiffusionMetricQTile(real_t *UV, TD D,
                                const int e0, const int NE,
                                const int q0, const int nq_tile,
-                               const int NQ1, const int tid,
+                               const int tid,
                                const int nthreads)
 {
    for (int i = tid; i < nq_tile * NB; i += nthreads)
@@ -115,7 +114,7 @@ void ApplyDiffusionMetricQTile(real_t *UV, TD D,
       const int qloc = i - b * nq_tile;
       const int e = e0 + b;
       const int q = q0 + qloc;
-      if (e >= NE || q >= NQ1) { continue; }
+      if (e >= NE || q >= QND) { continue; }
       if constexpr (DIM == 3)
       {
          const real_t u1 = UV[0 * U_LD * NB + qloc + U_LD * b];
@@ -149,37 +148,35 @@ void ApplyDiffusionMetricQTile(real_t *UV, TD D,
    }
 }
 
-template<int DIM, int T_D1D, int T_Q1D, bool SYM>
+template<int DIM, int D1D, int QND, bool SYM>
 MFEM_HOST_DEVICE inline
-void SmemPADiffusionApplySimplexMma_Batch(const int e0,
-                                          const int NE,
-                                          const real_t *g_,
-                                          const real_t *d_,
-                                          const real_t *x_,
-                                          real_t *y_,
-                                          const int d1d,
-                                          const int nq1)
+void MmaPADiffusionApplySimplex_Batch(const int e0,
+                                      const int NE,
+                                      const real_t *g_,
+                                      const real_t *d_,
+                                      const real_t *x_,
+                                      real_t *y_)
 {
-   constexpr int BASIS_DIM = simplex_mma::SimplexNdof<DIM, T_D1D>();
-   constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+   static_assert(D1D > 0 && QND > 0,
+                 "Simplex MMA diffusion requires specialized D1D/QND");
+   constexpr int BASIS_DIM = simplex_mma::SimplexNdof<DIM, D1D>();
+   constexpr int MAP = simplex_mma::MmaMapFor<DIM, D1D, QND>();
    constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS_DIM);
-   constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
+   constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, D1D, QND>();
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
-   constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
-   const int NQ1 = T_Q1D ? T_Q1D : nq1;
+   constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, QND>();
+   constexpr int ndof = BASIS_DIM;
 
-   const auto D = Reshape(d_, NQ1, PA_SIZE, NE);
+   const auto D = Reshape(d_, QND, PA_SIZE, NE);
    const auto x = ConstDeviceMatrix(x_, ndof, NE);
 
    const int tid = simplex_mma::getThreadIdx();
    [[maybe_unused]] const int nthreads = simplex_mma::getBlockNthreads();
 
    // Q-tiled path: keep NB=16 with TQ-row U planes (CUDA DMMA / HIP MFMA N util).
-   if constexpr (simplex_mma::DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
+   if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
    {
-      constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, T_D1D, T_Q1D>();
+      constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
 #if defined(MFEM_USE_HIP)
       constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
 #else
@@ -210,17 +207,17 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
       simplex_mma::LoadXToSmem(sm.XY, x, e0, NE, ndof, X_LD, NB, tid, nthreads);
       MFEM_SYNC_THREAD;
 
-      for (int q0 = 0; q0 < NQ1; q0 += TQ)
+      for (int q0 = 0; q0 < QND; q0 += TQ)
       {
-         const int nq_tile = (NQ1 - q0 < TQ) ? (NQ1 - q0) : TQ;
-         simplex_mma::GAccQTile A0{g_, NQ1, ndof, 0, q0};
-         simplex_mma::GAccQTile A1{g_, NQ1, ndof, 1, q0};
-         simplex_mma::GAccQTile A2{g_, NQ1, ndof, 2, q0};
+         const int nq_tile = (QND - q0 < TQ) ? (QND - q0) : TQ;
+         simplex_mma::GAccQTile A0{g_, QND, ndof, 0, q0};
+         simplex_mma::GAccQTile A1{g_, QND, ndof, 1, q0};
+         simplex_mma::GAccQTile A2{g_, QND, ndof, 2, q0};
          simplex_mma::BasisGemmForward3<MAP>(nq_tile, ndof, NB, A0, A1, A2, Xacc,
                                              U0, U1, U2, e0, NE);
          MFEM_SYNC_THREAD;
-         ApplyDiffusionMetricQTile<DIM, U_LD, NB, SYM>(
-            sm.UV, D, e0, NE, q0, nq_tile, NQ1, tid, nthreads);
+         ApplyDiffusionMetricQTile<DIM, U_LD, NB, SYM, QND>(
+            sm.UV, D, e0, NE, q0, nq_tile, tid, nthreads);
          MFEM_SYNC_THREAD;
          simplex_mma::BasisGemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2,
                                        Yacc, e0, NE);
@@ -238,9 +235,9 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
             {
                sm.XY[i + X_LD * b] = (i < ndof) ? x(i, e) : real_t(0);
             }
-            for (int q0 = 0; q0 < NQ1; q0 += TQ)
+            for (int q0 = 0; q0 < QND; q0 += TQ)
             {
-               const int nq_tile = (NQ1 - q0 < TQ) ? (NQ1 - q0) : TQ;
+               const int nq_tile = (QND - q0 < TQ) ? (QND - q0) : TQ;
                for (int d = 0; d < DIM; ++d)
                {
                   for (int qloc = 0; qloc < nq_tile; ++qloc)
@@ -249,14 +246,14 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
                      const int q = q0 + qloc;
                      for (int i = 0; i < ndof; ++i)
                      {
-                        u += g_[q + NQ1 * (i + ndof * d)] *
+                        u += g_[q + QND * (i + ndof * d)] *
                              sm.XY[i + X_LD * b];
                      }
                      sm.UV[d * U_LD * NB + qloc + U_LD * b] = u;
                   }
                }
-               ApplyDiffusionMetricQTile<DIM, U_LD, NB, SYM>(
-                  sm.UV, D, e0, NE, q0, nq_tile, NQ1, 0, 1);
+               ApplyDiffusionMetricQTile<DIM, U_LD, NB, SYM, QND>(
+                  sm.UV, D, e0, NE, q0, nq_tile, 0, 1);
                for (int i = 0; i < ndof; ++i)
                {
                   real_t yi = 0.0;
@@ -265,7 +262,7 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
                      for (int qloc = 0; qloc < nq_tile; ++qloc)
                      {
                         const int q = q0 + qloc;
-                        yi += g_[q + NQ1 * (i + ndof * d)] *
+                        yi += g_[q + QND * (i + ndof * d)] *
                               sm.UV[d * U_LD * NB + qloc + U_LD * b];
                      }
                   }
@@ -309,41 +306,41 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
          MFEM_UNROLL(2)
          for (int d = 0; d < 2; ++d)
          {
-            simplex_mma::GAcc A{g_, NQ1, ndof, d};
+            simplex_mma::GAcc A{g_, QND, ndof, d};
             simplex_mma::SmemMatAcc<U_LD> Uacc{sm.UV + d * U_LD * NB};
-            simplex_mma::BasisGemmForward<MAP, false>(NQ1, ndof, NB, A, Xacc,
+            simplex_mma::BasisGemmForward<MAP, false>(QND, ndof, NB, A, Xacc,
                                                       Uacc, nullD, e0, NE);
          }
          MFEM_SYNC_THREAD;
-         ApplyDiffusionMetric<2, U_LD, NB, SYM>(sm.UV, D, e0, NE, NQ1, tid,
-                                                nthreads);
+         ApplyDiffusionMetric<2, U_LD, NB, SYM, QND>(sm.UV, D, e0, NE, tid,
+                                                     nthreads);
          MFEM_SYNC_THREAD;
          MFEM_UNROLL(2)
          for (int d = 0; d < 2; ++d)
          {
-            simplex_mma::GAcc A{g_, NQ1, ndof, d};
+            simplex_mma::GAcc A{g_, QND, ndof, d};
             simplex_mma::SmemMatAcc<U_LD> Vacc{sm.UV + d * U_LD * NB};
-            simplex_mma::BasisGemmT<MAP>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
+            simplex_mma::BasisGemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
          }
       }
       else if constexpr (DIM == 3)
       {
          for (int d = 0; d < 3; ++d)
          {
-            simplex_mma::GAcc A{g_, NQ1, ndof, d};
+            simplex_mma::GAcc A{g_, QND, ndof, d};
             simplex_mma::SmemMatAcc<U_LD> Uacc{sm.UV + d * U_LD * NB};
-            simplex_mma::BasisGemmForward<MAP, false>(NQ1, ndof, NB, A, Xacc,
+            simplex_mma::BasisGemmForward<MAP, false>(QND, ndof, NB, A, Xacc,
                                                       Uacc, nullD, e0, NE);
          }
          MFEM_SYNC_THREAD;
-         ApplyDiffusionMetric<3, U_LD, NB, SYM>(sm.UV, D, e0, NE, NQ1, tid,
-                                                nthreads);
+         ApplyDiffusionMetric<3, U_LD, NB, SYM, QND>(sm.UV, D, e0, NE, tid,
+                                                     nthreads);
          MFEM_SYNC_THREAD;
          for (int d = 0; d < 3; ++d)
          {
-            simplex_mma::GAcc A{g_, NQ1, ndof, d};
+            simplex_mma::GAcc A{g_, QND, ndof, d};
             simplex_mma::SmemMatAcc<U_LD> Vacc{sm.UV + d * U_LD * NB};
-            simplex_mma::BasisGemmT<MAP>(NQ1, ndof, NB, A, Vacc, Yacc, e0, NE);
+            simplex_mma::BasisGemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
          }
       }
 #else
@@ -360,17 +357,17 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
             }
             for (int d = 0; d < DIM; ++d)
             {
-               for (int q = 0; q < NQ1; ++q)
+               for (int q = 0; q < QND; ++q)
                {
                   real_t u = 0.0;
                   for (int i = 0; i < ndof; ++i)
                   {
-                     u += g_[q + NQ1 * (i + ndof * d)] * sm.XY[i + X_LD * b];
+                     u += g_[q + QND * (i + ndof * d)] * sm.XY[i + X_LD * b];
                   }
                   sm.UV[d * U_LD * NB + q + U_LD * b] = u;
                }
             }
-            for (int q = 0; q < NQ1; ++q)
+            for (int q = 0; q < QND; ++q)
             {
                if constexpr (DIM == 2)
                {
@@ -432,9 +429,9 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
                real_t yi = 0.0;
                for (int d = 0; d < DIM; ++d)
                {
-                  for (int q = 0; q < NQ1; ++q)
+                  for (int q = 0; q < QND; ++q)
                   {
-                     yi += g_[q + NQ1 * (i + ndof * d)] *
+                     yi += g_[q + QND * (i + ndof * d)] *
                            sm.UV[d * U_LD * NB + q + U_LD * b];
                   }
                }
@@ -451,18 +448,16 @@ void SmemPADiffusionApplySimplexMma_Batch(const int e0,
     U_d = G_d x,  V = O(D) U,  y += sum_d G_d^T V_d.
     Large (nq,ndof): BLAS multi-RHS when MFEM_USE_LAPACK is on.
     Specialized sizes: hand multi-RHS tiles; else runtime single-element. */
-template<int DIM, int T_D1D, int T_Q1D, bool SYM>
+template<int DIM, int D1D, int QND, bool SYM>
 inline void PADiffusionApplySimplexDenseHost(const int NE,
                                              const Array<real_t> &g_,
                                              const Vector &d_,
                                              const Vector &x_,
-                                             Vector &y_,
-                                             const int d1d,
-                                             const int nq1)
+                                             Vector &y_)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int NQ1 = T_Q1D ? T_Q1D : nq1;
-   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
+   static_assert(D1D > 0 && QND > 0,
+                 "Simplex MMA diffusion requires specialized D1D/QND");
+   constexpr int ndof = simplex_mma::SimplexNdof<DIM, D1D>();
 
    const real_t *G = g_.Read();
    const real_t *Dv = d_.Read();
@@ -470,64 +465,46 @@ inline void PADiffusionApplySimplexDenseHost(const int NE,
    real_t *Y = y_.ReadWrite();
 
 #ifdef MFEM_USE_LAPACK
-   if (simplex_mma::PreferHostBlas(NQ1, ndof))
+   if (simplex_mma::PreferHostBlas(QND, ndof))
    {
-      simplex_mma::DiffusionApplyBlas<DIM, SYM>(NE, NQ1, ndof, G, Dv, X, Y);
+      simplex_mma::DiffusionApplyBlas<DIM, SYM>(NE, QND, ndof, G, Dv, X, Y);
       return;
    }
 #endif
 
-   if constexpr (T_D1D != 0 && T_Q1D != 0)
-   {
-      constexpr int NDOF = simplex_mma::SimplexNdof<DIM, T_D1D>();
-      constexpr int NQ = T_Q1D;
-      static_assert(NDOF > 0 && NQ > 0, "");
-      simplex_mma::DiffusionApplyHandSpecialized<DIM, NDOF, NQ, SYM>(
-         NE, G, Dv, X, Y);
-      return;
-   }
-
-   simplex_mma::DiffusionApplyHandRuntime<DIM, SYM>(NE, NQ1, ndof, G, Dv, X, Y);
+   simplex_mma::DiffusionApplyHandSpecialized<DIM, ndof, QND, SYM>(
+      NE, G, Dv, X, Y);
 }
 
-template<int DIM, int T_D1D, int T_Q1D, bool SYM>
-inline void SmemPADiffusionApplySimplexMma(const int NE,
-                                           const Array<real_t> &g_,
-                                           const Vector &d_,
-                                           const Vector &x_,
-                                           Vector &y_,
-                                           const int d1d = 0,
-                                           const int nq1 = 0)
+template<int DIM, int D1D, int QND, bool SYM>
+inline void MmaPADiffusionApplySimplex(const int NE,
+                                       const Array<real_t> &g_,
+                                       const Vector &d_,
+                                       const Vector &x_,
+                                       Vector &y_)
 {
-   constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, T_D1D, T_Q1D>();
+   static_assert(D1D > 0 && QND > 0,
+                 "Simplex MMA diffusion requires specialized D1D/QND");
+   constexpr int NB = simplex_mma::DiffusionMmaNB<DIM, D1D, QND>();
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int NQ1 = T_Q1D ? T_Q1D : nq1;
-   const int ndof = simplex_mma::SimplexNdofFromD1D(DIM, D1D);
-   const int max_d1d = T_D1D ? T_D1D
-                       : ((DIM == 3)
-                          ? simplex_mma::FallbackMaxD1D3
-                          : DeviceDofQuadLimits::Get().MAX_D1D);
-   const int max_nq = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
-   MFEM_VERIFY(D1D <= max_d1d, "");
-   MFEM_VERIFY(NQ1 <= max_nq, "");
-   MFEM_VERIFY(NQ1 > 0 && NE > 0 && d_.Size() == PA_SIZE * NQ1 * NE, "");
-   MFEM_VERIFY(g_.Size() == NQ1 * ndof * DIM, "");
+   constexpr int ndof = simplex_mma::SimplexNdof<DIM, D1D>();
+   MFEM_VERIFY(NE > 0 && d_.Size() == PA_SIZE * QND * NE, "");
+   MFEM_VERIFY(g_.Size() == QND * ndof * DIM, "");
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      PADiffusionApplySimplexDenseHost<DIM, T_D1D, T_Q1D, SYM>(
-         NE, g_, d_, x_, y_, d1d, nq1);
+      PADiffusionApplySimplexDenseHost<DIM, D1D, QND, SYM>(
+         NE, g_, d_, x_, y_);
       return;
    }
 
    {
-      constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
-      constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+      constexpr int BASIS = ndof;
+      constexpr int MAP = simplex_mma::MmaMapFor<DIM, D1D, QND>();
       constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
-      if constexpr (simplex_mma::DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
+      if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
       {
-         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, T_D1D, T_Q1D>();
+         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
 #if defined(MFEM_USE_HIP)
          constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
 #else
@@ -538,7 +515,7 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
       }
       else
       {
-         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
+         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, QND>();
          constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
          simplex_mma::VerifySharedMemBytes(
             int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB);
@@ -550,24 +527,24 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
 
    // Match thread count to Q-tile M when Q-tiling (avoids idle warps/waves at TQ<<nq).
    int nthreads;
-   if constexpr (simplex_mma::DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
+   if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
    {
-      constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, T_D1D, T_Q1D>();
-      nthreads = simplex_mma::LaunchNthreads(TQ, ndof);
+      constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
+      nthreads = simplex_mma::LaunchNthreads<TQ>(TQ, ndof);
    }
    else
    {
-      nthreads = simplex_mma::LaunchNthreads(NQ1, ndof);
+      nthreads = simplex_mma::LaunchNthreads<QND>(QND, ndof);
    }
    const int nbatches = (NE + NB - 1) / NB;
    int smem_bytes = 0;
    {
-      constexpr int BASIS = simplex_mma::SimplexNdof<DIM, T_D1D>();
-      constexpr int MAP = simplex_mma::MmaMapFor<DIM, T_D1D, T_Q1D>();
+      constexpr int BASIS = ndof;
+      constexpr int MAP = simplex_mma::MmaMapFor<DIM, D1D, QND>();
       constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
-      if constexpr (simplex_mma::DiffusionUseQTile<DIM, T_D1D, T_Q1D>())
+      if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
       {
-         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, T_D1D, T_Q1D>();
+         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
 #if defined(MFEM_USE_HIP)
          constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
 #else
@@ -577,7 +554,7 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
       }
       else
       {
-         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, T_Q1D>();
+         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, QND>();
          constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
          smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
       }
@@ -586,55 +563,51 @@ inline void SmemPADiffusionApplySimplexMma(const int NE,
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
                         [=] MFEM_HOST_DEVICE (int batch)
    {
-      SmemPADiffusionApplySimplexMma_Batch<DIM, T_D1D, T_Q1D, SYM>(
-         batch * NB, NE, G, D, X, Y, d1d, nq1);
+      MmaPADiffusionApplySimplex_Batch<DIM, D1D, QND, SYM>(
+         batch * NB, NE, G, D, X, Y);
    });
 #else
    MFEM_CONTRACT_VAR(smem_bytes);
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
-      SmemPADiffusionApplySimplexMma_Batch<DIM, T_D1D, T_Q1D, SYM>(
-         batch * NB, NE, G, D, X, Y, d1d, nq1);
+      MmaPADiffusionApplySimplex_Batch<DIM, D1D, QND, SYM>(
+         batch * NB, NE, G, D, X, Y);
    });
 #endif
 }
 
 /** Host dispatch matching ApplySimplexMmaKernelType (runtime symmetric flag). */
-template<int DIM = 2, int T_D1D = 0, int T_Q1D = 0>
+template<int DIM, int D1D, int QND>
 inline void SmemPADiffusionApplySimplexMmaDispatch(const int NE,
                                                    const bool symmetric,
                                                    const Array<real_t> &g_,
                                                    const Vector &d_,
                                                    const Vector &x_,
-                                                   Vector &y_,
-                                                   const int d1d = 0,
-                                                   const int nq1 = 0)
+                                                   Vector &y_)
 {
    if (symmetric)
    {
-      SmemPADiffusionApplySimplexMma<DIM, T_D1D, T_Q1D, true>(
-         NE, g_, d_, x_, y_, d1d, nq1);
+      MmaPADiffusionApplySimplex<DIM, D1D, QND, true>(NE, g_, d_, x_, y_);
    }
    else
    {
-      SmemPADiffusionApplySimplexMma<DIM, T_D1D, T_Q1D, false>(
-         NE, g_, d_, x_, y_, d1d, nq1);
+      MmaPADiffusionApplySimplex<DIM, D1D, QND, false>(NE, g_, d_, x_, y_);
    }
 }
 
 } // namespace internal
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int QND>
 DiffusionIntegrator::ApplySimplexMmaKernelType
 DiffusionIntegrator::ApplySimplexMmaPAKernels::Kernel()
 {
    if constexpr (DIM == 2)
    {
-      return internal::SmemPADiffusionApplySimplexMmaDispatch<2, T_D1D, T_Q1D>;
+      return internal::SmemPADiffusionApplySimplexMmaDispatch<2, D1D, QND>;
    }
    else if constexpr (DIM == 3)
    {
-      return internal::SmemPADiffusionApplySimplexMmaDispatch<3, T_D1D, T_Q1D>;
+      return internal::SmemPADiffusionApplySimplexMmaDispatch<3, D1D, QND>;
    }
    else
    {
@@ -648,11 +621,8 @@ DiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim == 2 || dim == 3,
                "Simplex MMA diffusion PA is only implemented for triangles/tets");
-   if (dim == 3)
-   {
-      return internal::SmemPADiffusionApplySimplexMmaDispatch<3>;
-   }
-   return internal::SmemPADiffusionApplySimplexMmaDispatch<2>;
+   MFEM_ABORT("No fallback for Simplex MMA diffusion PA");
+   return nullptr;
 }
 
 /// \endcond DO_NOT_DOCUMENT

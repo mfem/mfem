@@ -2195,8 +2195,7 @@ public:
 
    using ApplySimplexMmaKernelType = void(*)(const int, const bool,
                                              const Array<real_t>&,
-                                             const Vector&, const Vector&, Vector&,
-                                             const int, const int);
+                                             const Vector&, const Vector&, Vector&);
    using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
@@ -2230,7 +2229,7 @@ private:
    const FiniteElementSpace *fespace;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, ne, nq, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
    bool use_simplices_mma = false;
@@ -2389,12 +2388,12 @@ public:
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
-   template <int DIM, int D1D, int NQP>
+   template <int DIM, int D1D, int QND>
    static void AddSimplexMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,NQP>::Add();
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,QND>::Add();
       }
    }
 
@@ -2458,8 +2457,7 @@ public:
                                           const int, const int);
 
    using ApplySimplexMmaKernelType = void(*)(const int, const Array<real_t>&,
-                                             const Vector&, const Vector&, Vector&,
-                                             const int, const int);
+                                             const Vector&, const Vector&, Vector&);
    using ApplyTensorsMmaKernelType = ApplyKernelType;
 
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
@@ -2544,12 +2542,12 @@ public:
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
-   template <int DIM, int D1D, int NQP>
+   template <int DIM, int D1D, int QND>
    static void AddSimplexMmaSpecialization()
    {
       if constexpr (DIM == 2 || DIM == 3)
       {
-         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,NQP>::Add();
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,QND>::Add();
       }
    }
 
