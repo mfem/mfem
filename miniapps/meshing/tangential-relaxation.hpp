@@ -207,7 +207,7 @@ Mesh *SetupEdgeMesh3D(Mesh *mesh, GridFunction &attr_count_ser,
 {
    Array<int> facedofs(0);
    int spaceDim = mesh->SpaceDimension();
-   MFEM_VERIFY(spaceDim == 3, "Only 2D meshes supported right now.");
+   MFEM_VERIFY(spaceDim == 3, "Only 3D meshes supported right now.");
    Array<int> edofs;
    GridFunction *x = mesh->GetNodes();
    MFEM_VERIFY(x, "Mesh nodal space not set\n");
@@ -291,7 +291,7 @@ Mesh *SetupFaceMesh3D(Mesh *mesh, int attr)
 {
    Array<int> facedofs(0);
    int spaceDim = mesh->SpaceDimension();
-   MFEM_VERIFY(spaceDim == 3, "Only 2D meshes supported right now.");
+   MFEM_VERIFY(spaceDim == 3, "Only 3D meshes supported right now.");
    Array<int> fdofs;
    GridFunction *x = mesh->GetNodes();
    MFEM_VERIFY(x, "Mesh nodal space not set\n");
@@ -477,7 +477,7 @@ real_t GetMinDet(ParMesh *pmesh,
          min_det = fmin(min_det, det);
       }
    }
-   MPI_Allreduce(MPI_IN_PLACE, &min_det, 1, MPI_DOUBLE,
+   MPI_Allreduce(MPI_IN_PLACE, &min_det, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_MIN, pfes.GetComm());
    return min_det;
 }

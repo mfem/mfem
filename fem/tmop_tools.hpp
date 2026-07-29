@@ -429,7 +429,10 @@ public:
 
        @param[in] ref_mesh_arr_ Reference curve/surface meshes. Each mesh must
                                 have a nodal GridFunction.
-       @param[in] fdofs_arr_    Boundary DOF lists, one per reference mesh.
+       @param[in] fdofs_arr_    Scalar DOF lists in the solver finite element
+                                space on the optimized mesh. The i-th list
+                                contains the boundary DOFs projected onto
+                                @a ref_mesh_arr_[i].
        @param[in] aabb_sz_inc   Absolute AABB expansion used by
                                 FindPointsGSLIB in all physical directions.
 
@@ -457,7 +460,6 @@ protected:
 
    /// Extend boundary displacement corrections smoothly into the mesh interior.
    void BlendDisplacement(FiniteElementSpace *fes,
-                          const Vector &d_loc,
                           Vector &uvals,
                           double beta=1.0) const;
 #endif

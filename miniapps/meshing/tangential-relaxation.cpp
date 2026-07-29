@@ -161,6 +161,7 @@ int main (int argc, char *argv[])
    // Initialize and refine the starting mesh.
    Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   auto s = mesh->GetNodalFESpace();
    mesh->SetCurvature(mesh_poly_deg, false, -1, 0);
 
    // Apply the requested mesh transformation.
@@ -273,6 +274,7 @@ int main (int argc, char *argv[])
             Mesh *meshsurf = SetupFaceMesh3D(mesh, surf_mesh_attr[i]);
             int *part = meshsurf->GeneratePartitioning(nranks, 0);
             surf_mesh_arr[i] = new ParMesh(MPI_COMM_WORLD, *meshsurf, part);
+            delete [] part;
             delete meshsurf;
          }
       }
@@ -494,17 +496,19 @@ int main (int argc, char *argv[])
    real_t aabb_sz_inc = 0.2; // Absolute AABB expansion for FindPointsGSLIB.
    if (bdr_opt_case)
    {
+      Array<Mesh *> tang_mesh_arr;
       Array<Array<int> *> tang_dofs_arr;
       for (int i = 0; i < surf_mesh_attr.Size(); i++)
       {
+         tang_mesh_arr.Append(surf_mesh_arr[i]);
          tang_dofs_arr.Append(bdr_face_dofs[i]);
       }
-      int noff = surf_mesh_attr.Size();
       for (int i = 0; i < surf_mesh_edge_attr.Size(); i++)
       {
+         tang_mesh_arr.Append(surf_mesh_arr[i+surf_mesh_attr.Size()]);
          tang_dofs_arr.Append(bdr_edge_dofs[i]);
       }
-      solver->EnableTangentialRelaxation(surf_mesh_arr, tang_dofs_arr,
+      solver->EnableTangentialRelaxation(tang_mesh_arr, tang_dofs_arr,
                                          aabb_sz_inc);
    }
 

@@ -1044,6 +1044,8 @@ bool TMOPNewtonSolver::TangentialRelaxation(const Vector &d_loc_in,
 #ifdef MFEM_USE_GSLIB
    MFEM_VERIFY(tangential_relaxation,
                "Tangential relaxation is not enabled.");
+   MFEM_VERIFY(!periodic,
+               "Tangential relaxation is not supported for periodic meshes.");
 
    const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
    FiniteElementSpace *d_fes = const_cast<FiniteElementSpace *>(nlf->FESpace());
@@ -1209,12 +1211,13 @@ void TMOPNewtonSolver::TangentialRelaxationImpl(const Vector &d_loc,
       FindPointsGSLIB *finder = finder_arr[i];
       GridFunction *intnodes = nodes_int_arr[i];
 
-      Array<unsigned int> elems = finder->GetElem();
-      Vector rst = finder->GetReferencePosition();
       Vector int_nodes_vals;
       finder->InterpolateSurf(*intnodes, int_nodes_vals);
+      MFEM_VERIFY(int_nodes_vals.Size() == facedofs.Size()*dim,
+                  "TangentialRelaxation: interpolation size mismatch.");
       int node_val_ordering = intnodes->FESpace()->GetOrdering();
-      for (int e = 0; e < elems.Size(); e++)
+      const int n_f_nodes = facedofs.Size();
+      for (int e = 0; e < facedofs.Size(); e++)
       {
          int dof_index = facedofs[e];
          for (int d = 0; d < dim; d++)
@@ -1223,7 +1226,7 @@ void TMOPNewtonSolver::TangentialRelaxationImpl(const Vector &d_loc,
                             (dof_index + d*n_m_nodes) :
                             (dof_index*dim + d);
             int offset_val = node_val_ordering == Ordering::byNODES ?
-                             (e + d*int_nodes_vals.Size()/dim) :
+                             (e + d*n_f_nodes) :
                              e*dim + d;
             dx(offset_in) = int_nodes_vals(offset_val)-pos(offset_in);
             d_out(offset_in) += dx(offset_in);
@@ -1233,20 +1236,15 @@ void TMOPNewtonSolver::TangentialRelaxationImpl(const Vector &d_loc,
 
    d_out = d_loc;
 
-   BlendDisplacement(d_fes, d_loc, dx, 1.0);
+   BlendDisplacement(d_fes, dx, 1.0);
 
    d_out += dx;
 }
 
 void TMOPNewtonSolver::BlendDisplacement(FiniteElementSpace *fes,
-                                         const Vector &d_loc,
                                          Vector &uvals,
                                          double beta) const
 {
-   Vector pos(d_loc.Size());
-   if (x_0.Size() > 0) { add(x_0, d_loc, pos); }
-   else { pos = d_loc; }
-
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes = dynamic_cast<ParFiniteElementSpace *>(fes);
    bool parallel = (pfes != nullptr);
@@ -1280,8 +1278,7 @@ void TMOPNewtonSolver::BlendDisplacement(FiniteElementSpace *fes,
       ParMesh *pmesh = pfes->GetParMesh();
       ParFiniteElementSpace fespace(pmesh, &fec, dim);
 
-      ParGridFunction u(&fespace);
-      u = uvals;
+      ParGridFunction u(&fespace, uvals);
 
       ParLinearForm b(&fespace);
       b = 0.0;
@@ -1325,15 +1322,13 @@ void TMOPNewtonSolver::BlendDisplacement(FiniteElementSpace *fes,
       delete amg;
 
       a.RecoverFEMSolution(X, b, u);
-      uvals = u;
    }
    else
 #endif
    {
       FiniteElementSpace fespace(mesh, &fec, dim);
 
-      GridFunction u(&fespace);
-      u = uvals;
+      GridFunction u(&fespace, uvals);
 
       LinearForm b(&fespace);
       b = 0.0;
@@ -1370,7 +1365,6 @@ void TMOPNewtonSolver::BlendDisplacement(FiniteElementSpace *fes,
       cg.Mult(B, X);
 
       a.RecoverFEMSolution(X, b, u);
-      uvals = u;
    }
 }
 #else
