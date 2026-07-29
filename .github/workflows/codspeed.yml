@@ -62,7 +62,7 @@ jobs:
             cd build/tests/benchmarks
             ./bench_vector
             ./bench_virtuals
-            ./bench_tmop
+            ./bench_tmop --benchmark_filter='/2]|/4]'
             ./bench_assembly_levels --benchmark_filter='BK[0-9]PARTIAL\[262144/'
             ./bench_elasticity --benchmark_filter='/30/'
-            ./bench_dg_amr --benchmark_filter='\[262144/'
+            ./bench_dg_amr --benchmark_filter='262144/[0-9]/-1]|262144/[0-9]/30]'
