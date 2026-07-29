@@ -28,7 +28,7 @@
 //               polynomials (pressure p). Alternatively, the piecewise
 //               discontinuous polynomials are used for both quantities.
 //
-//               The example demonstrates the use of the DarcyForm class, as
+//               The example demonstrates the use of the ParDarcyForm class, as
 //               well as algebraic reduction and hybridization of mixed systems
 //               and the collective saving of several grid functions in VisIt
 //               (visit.llnl.gov) and ParaView (paraview.org) formats. Optional
