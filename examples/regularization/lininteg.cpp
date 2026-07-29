@@ -1,0 +1,111 @@
+#include "mfem.hpp"
+#include "lininteg.hpp"
+
+namespace mfem
+{
+
+void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   mfem_error("BoundaryProjectionLFIntegrator::AssembleRHSElementVect");
+}
+
+void BoundaryProjectionLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, FaceElementTransformations &Tr, Vector &elvect)
+{
+   MFEM_ASSERT(Tr.Elem2No < 0,
+               "support for interior faces is not implemented");
+
+   int spaceDim = Tr.GetSpaceDim();
+   int vdim = std::max(spaceDim, el.GetRangeDim());
+   int dof  = el.GetDof();
+
+   real_t val, cf;
+   Vector w(spaceDim);
+
+   shape.SetSize(dof);
+   elvect.SetSize(dof * vdim);
+   elvect = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      int intorder = oa * el.GetOrder() + ob;    // <------ user control
+      ir = &IntRules.Get(Tr.FaceGeom, intorder); // of integration order
+   }
+
+   Vector n(spaceDim);
+
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+
+      // Set the integration point in the face and the neighboring element
+      Tr.SetAllIntPoints(&ip);
+
+      el.CalcPhysShape(*Tr.Elem1, shape);
+
+      val = ip.weight * Tr.Weight() * Q.Eval(Tr, ip);
+
+      if (!W)
+      {
+         Tr.SetIntPoint(&Geometries.GetCenter(Tr.GetGeometryType()));
+         CalcOrtho(Tr.Jacobian(), n);
+         n /= n.Norml2();
+         w = n;
+      }
+      else { W->Eval(w, Tr, ip); }
+
+      for (int k = 0; k < vdim; k++)
+      {
+         cf = val * w(k);
+
+         for (int s = 0; s < dof; s++)
+         {
+            elvect(dof*k+s) += cf * shape(s);
+         }
+      }
+   }
+}
+
+void VectorDomainLFStrainIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   const int dof = el.GetDof();
+   const int vdim = Q.GetVDim();
+   const int sdim = Tr.GetSpaceDim();
+
+   dshape.SetSize(dof, sdim);
+   elvect.SetSize(dof * (vdim / sdim));
+   elvect = 0.0;
+
+   const IntegrationRule *ir = GetIntegrationRule(el, Tr);
+   if (ir == NULL)
+   {
+      int intorder = 2 * el.GetOrder();
+      ir = &IntRules.Get(el.GetGeomType(), intorder);
+   }
+
+   Vector pelvect(dof);
+   Vector part_x(sdim);
+
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+
+      Tr.SetIntPoint(&ip);
+      el.CalcPhysDShape(Tr, dshape);
+
+      Q.Eval(Qvec, Tr, ip);
+      Qvec *= 0.5 * ip.weight * Tr.Weight();
+
+      for (int k = 0; k < vdim / sdim; k++)
+      {
+         for (int d = 0; d < sdim; ++d) { part_x(d) = Qvec(k*sdim+d) + Qvec(d*sdim+k); }
+         dshape.Mult(part_x, pelvect);
+         for (int s = 0; s < dof; s++) { elvect(k*dof+s) += pelvect(s); }
+      }
+   }
+}
+
+} // namespace mfem
