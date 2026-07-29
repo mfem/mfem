@@ -1144,9 +1144,9 @@ bool TMOPNewtonSolver::PreprocessTangentialRelaxation(
    Vector pos(d_loc.Size());
    if (x_0.Size() > 0) { add(x_0, d_loc, pos); }
    else { pos = d_loc; }
-   const int dim = x_0.FESpace()->GetMesh()->Dimension();
+   const int dim = d_fes->GetMesh()->Dimension();
 
-   int ordering = x_0.FESpace()->GetOrdering();
+   int ordering = d_fes->GetOrdering();
    int n_m_nodes = pos.Size()/dim;
 
    for (int ii = 0; ii < fdofs_arr.Size(); ii++)
@@ -1198,12 +1198,11 @@ void TMOPNewtonSolver::TangentialRelaxationImpl(const Vector &d_loc,
    if (x_0.Size() > 0) { add(x_0, d_loc, pos); }
    else { pos = d_loc; }
 
-   const int dim = x_0.FESpace()->GetMesh()->Dimension();
+   const int dim = d_fes->GetMesh()->Dimension();
    Vector dx(d_loc.Size());
    dx = 0.0;
    int n_m_nodes = pos.Size()/dim;
-   d_out = d_loc;
-   int ordering = x_0.FESpace()->GetOrdering();
+   int ordering = d_fes->GetOrdering();
 
    for (int i = 0; i < fdofs_arr.Size(); i++)
    {
@@ -1229,7 +1228,6 @@ void TMOPNewtonSolver::TangentialRelaxationImpl(const Vector &d_loc,
                              (e + d*n_f_nodes) :
                              e*dim + d;
             dx(offset_in) = int_nodes_vals(offset_val)-pos(offset_in);
-            d_out(offset_in) += dx(offset_in);
          }
       }
    }
@@ -1304,6 +1302,8 @@ void TMOPNewtonSolver::BlendDisplacement(FiniteElementSpace *fes,
          }
       }
       ess_tdof_list.Append(ess_tdof_list2);
+      ess_tdof_list.Sort();
+      ess_tdof_list.Unique();
 
       OperatorPtr A;
       Vector B, X;
