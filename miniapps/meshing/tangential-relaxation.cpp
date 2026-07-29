@@ -28,9 +28,10 @@
 // otherwise the miniapp cannot correctly classify the face- and edge-based
 // boundary nodes used by the relaxation step.
 //
-// See the following SIAM IMR 2026 paper, Mittal et al., "High-Order Mesh
+// See K. Mittal, V. Dobrev, T. Kolev, and V. Tomov, "High-Order Mesh
 // r-Adaptivity with Tangential Relaxation and Guaranteed Mesh Validity",
-// arXiv. https://doi.org/10.48550/arXiv.2601.17708 for technical details.
+// in Proceedings of the 2026 SIAM International Meshing Roundtable (IMR32),
+// pp. 61-73, 2026. https://doi.org/10.1137/1.9781611979138.5
 //
 // Compile with: make tangential-relaxation
 //
