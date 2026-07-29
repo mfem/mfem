@@ -806,6 +806,9 @@ private:
    bool RealInteg();
    bool ImagInteg();
 
+   void SetImaginaryEssentialDiagonalToZero(
+      const Array<int> &ess_tdof_list, OperatorHandle &A);
+
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
                        ComplexOperator::Convention

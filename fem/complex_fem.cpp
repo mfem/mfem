@@ -1473,6 +1473,49 @@ ParSesquilinearForm::ParallelAssemble()
                                     true, true, conv);
 }
 
+namespace
+{
+struct ZeroHypreDiagonal
+{
+   const int *ess_tdof_list;
+   const HYPRE_Int *diag_i;
+   real_t *diag_data;
+
+   void MFEM_HOST_DEVICE operator()(int k) const
+   {
+      const int j = ess_tdof_list[k];
+      diag_data[diag_i[j]] = 0.0;
+   }
+};
+}
+
+void
+ParSesquilinearForm::SetImaginaryEssentialDiagonalToZero(
+   const Array<int> &ess_tdof_list, OperatorHandle &A)
+{
+   if (A.Type() == Operator::Hypre_ParCSR)
+   {
+      const int n = ess_tdof_list.Size();
+      HypreParMatrix *Ah;
+      A.Get(Ah);
+      hypre_ParCSRMatrix *Aih = *Ah;
+      Ah->HypreReadWrite();
+      const int *d_ess_tdof_list =
+         ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
+      HYPRE_Int *d_diag_i = Aih->diag->i;
+      real_t *d_diag_data = Aih->diag->data;
+      mfem::hypre_forall(n, ZeroHypreDiagonal
+      {
+         d_ess_tdof_list, d_diag_i, d_diag_data
+      });
+   }
+   else
+   {
+      A.As<ConstrainedOperator>()->SetDiagonalPolicy
+      (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
+   }
+}
+
 void
 ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                       Vector &x, Vector &b,
@@ -1573,27 +1616,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
       });
       // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      if (A_i.Type() == Operator::Hypre_ParCSR)
-      {
-         HypreParMatrix * Ah;
-         A_i.Get(Ah);
-         hypre_ParCSRMatrix *Aih = *Ah;
-         Ah->HypreReadWrite();
-         const int *d_ess_tdof_list =
-            ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
-         HYPRE_Int *d_diag_i = Aih->diag->i;
-         real_t *d_diag_data = Aih->diag->data;
-         mfem::hypre_forall(n, [=] MFEM_HOST_DEVICE (int k)
-         {
-            const int j = d_ess_tdof_list[k];
-            d_diag_data[d_diag_i[j]] = 0.0;
-         });
-      }
-      else
-      {
-         A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
-      }
+      SetImaginaryEssentialDiagonalToZero(ess_tdof_list, A_i);
    }
 
    if (conv == ComplexOperator::BLOCK_SYMMETRIC)
@@ -1661,28 +1684,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
    {
       // Modify off-diagonal blocks (imaginary parts of the matrix) to conform
       // with standard essential BC treatment
-      if ( A_i.Type() == Operator::Hypre_ParCSR )
-      {
-         const int n = ess_tdof_list.Size();
-         HypreParMatrix * Ah;
-         A_i.Get(Ah);
-         hypre_ParCSRMatrix * Aih = *Ah;
-         Ah->HypreReadWrite();
-         const int *d_ess_tdof_list =
-            ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
-         HYPRE_Int *d_diag_i = Aih->diag->i;
-         real_t *d_diag_data = Aih->diag->data;
-         mfem::hypre_forall(n, [=] MFEM_HOST_DEVICE (int k)
-         {
-            const int j = d_ess_tdof_list[k];
-            d_diag_data[d_diag_i[j]] = 0.0;
-         });
-      }
-      else
-      {
-         A_i.As<ConstrainedOperator>()->SetDiagonalPolicy
-         (mfem::Operator::DiagonalPolicy::DIAG_ZERO);
-      }
+      SetImaginaryEssentialDiagonalToZero(ess_tdof_list, A_i);
    }
 
    // A = A_r + i A_i
