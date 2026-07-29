@@ -475,7 +475,12 @@ public:
        @param[out] dof_to_edge Optional map from DOFs to edge indices
        @param[out] dof_to_orientation Optional map from DOFs to edge orientations
        @param[out] dof_to_boundary_element_out Optional map from DOFs to boundary elements
-       @param[out] ess_edge_list Optional array of edge indices */
+       @param[out] ess_edge_list Optional array of edge indices, in one-to-one
+                                 correspondence with @a ess_tdof_list. An entry
+                                 is -1 when the true DOF is owned by this rank
+                                 but no local edge can be associated with it,
+                                 which can happen for a shared vertex DOF whose
+                                 boundary elements are all on other ranks. */
    void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
                                 Array<int> &ess_tdof_list,
                                 Array<int> &ldof_marker,

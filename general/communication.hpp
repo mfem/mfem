@@ -22,6 +22,7 @@
 #include "globals.hpp"
 #include <mpi.h>
 #include <cstdint>
+#include <type_traits>
 
 // can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
 // doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
@@ -447,7 +448,18 @@ public:
          case Sum_Op:    Op = GroupCommunicator::Sum; break;
          case Min_Op:    Op = GroupCommunicator::Min; break;
          case Max_Op:    Op = GroupCommunicator::Max; break;
-         case BitOR_Op:  Op = GroupCommunicator::BitOR; break;
+         case BitOR_Op:
+            // BitOR is only instantiated for integral types, so the reference
+            // to it must be discarded at compile time for other types.
+            if constexpr (std::is_integral<T>::value)
+            {
+               Op = GroupCommunicator::BitOR;
+            }
+            else
+            {
+               MFEM_ABORT("BitOR reduction requires an integral type.");
+            }
+            break;
          case MaxAbs_Op: Op = GroupCommunicator::MaxAbs; break;
          default:        Op = GroupCommunicator::Sum; break;
       }

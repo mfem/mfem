@@ -1451,8 +1451,37 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
          }
       }
    }
-   // In 2D: No artificial boundary detection needed
-   // Boundary elements ARE edges, so no geometric complexity or artificial boundaries
+   else if (dim == 2)
+   {
+      // In 2D the boundary elements are themselves the edges, so there are no
+      // artificial boundary edges to detect. However, for collections with
+      // vertex DoFs (e.g. ND_R2D), a vertex shared by two boundary segments is
+      // interior to the boundary curve and must be dropped. The serial code
+      // does this by erasing a DoF on its second occurrence, which only sees
+      // the occurrences local to this rank. When the two segments meeting at a
+      // vertex live on different ranks, each rank sees a single occurrence and
+      // wrongly keeps the DoF. Reconcile the occurrence parity across each
+      // sharing group: membership in boundary_edge_dofs is the local parity,
+      // and the parities sum (mod 2) to the global occurrence parity.
+      Array<int> boundary_dof_count(GetVSize());
+      boundary_dof_count = 0;
+      for (const int dof : boundary_edge_dofs)
+      {
+         boundary_dof_count[dof] = 1;
+      }
+
+      // implement allreduce(+) as reduce(+) + broadcast
+      gcomm->Reduce<int>(boundary_dof_count, GroupCommunicator::Sum);
+      gcomm->Bcast(boundary_dof_count);
+
+      for (const int dof : boundary_edge_dofs)
+      {
+         if (boundary_dof_count[dof] % 2 == 0)
+         {
+            dofs_to_remove.insert(dof);
+         }
+      }
+   }
 
    // Remove artificial DoFs
    for (int dof : dofs_to_remove)
@@ -1469,23 +1498,78 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    // Convert to true DoFs and output
    ess_tdof_list.SetSize(0);
    ess_tdof_list.Reserve(boundary_edge_dofs.size());
+   if (ess_edge_list)
+   {
+      // Reset as well, so that it stays in correspondence with ess_tdof_list
+      // when the same output array is reused across calls.
+      ess_edge_list->SetSize(0);
+      ess_edge_list->Reserve(boundary_edge_dofs.size());
+   }
    // initialize ldof_marker
    ldof_marker.SetSize(GetVSize());
    ldof_marker = 0;
+
+   for (int dof : boundary_edge_dofs)
+   {
+      ldof_marker[dof] = 1; // Mark all boundary edge dofs
+   }
+
+   // Make sure that a selected shared DoF is marked on every rank of its
+   // sharing group, including ranks holding none of the selected boundary
+   // elements. Only the group master owns the corresponding true DoF, so
+   // without this the true DoF would be emitted by no rank at all: the
+   // non-master ranks get -1 from GetLocalTDofNumber(), while the master may
+   // not have selected the DoF locally.
+   Synchronize(ldof_marker);
+
+   // A DoF marked only through the synchronization above has no local
+   // dof_to_edge_map entry, but the shared edge carrying it is still present in
+   // the local mesh. Build the missing DoF -> edge entries from the shared
+   // edges of the groups, so that ess_edge_list stays in correspondence with
+   // ess_tdof_list. Note that a vertex DoF is not associated with a unique
+   // edge, so it is only resolved when it is an interior DoF of an edge.
+   std::unordered_map<int, int> shared_dof_to_edge;
+   Array<int> shared_edge_dofs;
+   for (int group = 1; group < num_groups; group++)
+   {
+      const int num_edges_in_group = pmesh->GroupNEdges(group);
+      for (int i = 0; i < num_edges_in_group; i++)
+      {
+         const int edge = pmesh->GroupEdge(group, i);
+         GetEdgeInteriorDofs(edge, shared_edge_dofs);
+         for (int k = 0; k < shared_edge_dofs.Size(); k++)
+         {
+            shared_dof_to_edge.emplace(shared_edge_dofs[k], edge);
+         }
+      }
+   }
 
    // Build parallel arrays for DOFs and corresponding edges
    std::vector<std::pair<int, int>> tdof_edge_pairs;
    tdof_edge_pairs.reserve(boundary_edge_dofs.size());
 
-   for (int dof : boundary_edge_dofs)
+   for (int dof = 0; dof < ldof_marker.Size(); dof++)
    {
-      ldof_marker[dof] = 1; // Mark all boundary edge dofs
-      int tdof = GetLocalTDofNumber(dof);
-      if (tdof >= 0) // tdof == -1 means not present on this rank
+      if (!ldof_marker[dof]) { continue; }
+
+      const int tdof = GetLocalTDofNumber(dof);
+      if (tdof < 0) { continue; } // tdof == -1 means not owned by this rank
+
+      int edge = -1;
+      auto it = dof_to_edge_map.find(dof);
+      if (it != dof_to_edge_map.end())
       {
-         int edge = dof_to_edge_map[dof];
-         tdof_edge_pairs.push_back({tdof, edge});
+         edge = it->second;
       }
+      else
+      {
+         auto shared_it = shared_dof_to_edge.find(dof);
+         if (shared_it != shared_dof_to_edge.end())
+         {
+            edge = shared_it->second;
+         }
+      }
+      tdof_edge_pairs.push_back({tdof, edge});
    }
 
    // Sort by true DOF index to maintain consistent ordering

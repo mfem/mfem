@@ -13,6 +13,9 @@
 #include "mfem.hpp"
 #include "../mesh/mesh_test_utils.hpp"
 
+#include <set>
+#include <vector>
+
 using namespace mfem;
 
 #ifdef MFEM_USE_MPI
@@ -466,6 +469,245 @@ TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
          REQUIRE(result == expected_dofs);
       }
    } // End of inner_attr loop
+}
+
+TEST_CASE("BoundaryEdgeDoFsSharedDoFsAreOwnedBySomeRank",
+          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+{
+   // Every selected shared DoF must appear in exactly one rank's ess_tdof_list.
+   // Only the group master owns the corresponding true DoF and returns a
+   // non-negative value from GetLocalTDofNumber(), so if the master holds none
+   // of the selected boundary elements the DoF would be emitted by no rank at
+   // all unless the local marker is synchronized across the sharing group.
+   const int nranks = Mpi::WorldSize();
+   if (nranks < 2) { return; }
+
+   constexpr int order = 1;
+   ND_FECollection fec(order, 3);
+
+   for (int orientation : {1, 3, 5})
+   {
+      Mesh probe = OrientedTriFaceMesh(orientation, true);
+      probe.UniformRefinement();
+      const int ne = probe.GetNE();
+
+      // Several partitionings, to vary which rank masters each shared group
+      std::vector<std::vector<int>> partitionings;
+      {
+         std::vector<int> round_robin(ne), block(ne), strided(ne);
+         for (int i = 0; i < ne; i++)
+         {
+            round_robin[i] = i % nranks;
+            block[i] = (i < ne/2) ? 0 : nranks-1;
+            strided[i] = (i * 7 + 3) % nranks;
+         }
+         partitionings = {round_robin, block, strided};
+      }
+
+      for (const auto &partition : partitionings)
+      {
+         Mesh mesh = OrientedTriFaceMesh(orientation, true);
+         mesh.UniformRefinement();
+         ParMesh pmesh(MPI_COMM_WORLD, mesh, partition.data());
+         ParFiniteElementSpace fes(&pmesh, &fec);
+
+         const int bdr_attr = pmesh.bdr_attributes.Max();
+         Array<int> bdr_attrs(1);
+         bdr_attrs[0] = bdr_attr;
+         std::unordered_map<int, Array<int>> attr_to_elements;
+         fes.GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
+         Array<int> bdr_elements = attr_to_elements[bdr_attr];
+
+         Array<int> ess_tdofs, ldof_marker;
+         std::unordered_set<int> boundary_dofs;
+         fes.GetBoundaryLoopEdgeDofs(bdr_elements, ess_tdofs, ldof_marker,
+                                     boundary_dofs);
+
+         // Identify DoFs by global true DoF number, which is agreed upon by all
+         // ranks sharing the DoF, then compare the set selected anywhere with
+         // the set actually emitted in ess_tdof_list.
+         std::set<HYPRE_BigInt> selected, emitted;
+         for (int dof : boundary_dofs)
+         {
+            selected.insert(fes.GetGlobalTDofNumber(dof));
+         }
+         for (int i = 0; i < ess_tdofs.Size(); i++)
+         {
+            emitted.insert(fes.GetMyTDofOffset() + ess_tdofs[i]);
+         }
+
+         auto all_gather = [nranks](const std::set<HYPRE_BigInt> &s)
+         {
+            std::vector<HYPRE_BigInt> local(s.begin(), s.end());
+            int n = static_cast<int>(local.size()), total = 0;
+            std::vector<int> counts(nranks), bytes(nranks), displs(nranks);
+            MPI_Allgather(&n, 1, MPI_INT, counts.data(), 1, MPI_INT,
+                          MPI_COMM_WORLD);
+            constexpr int sz = sizeof(HYPRE_BigInt);
+            for (int r = 0; r < nranks; r++)
+            {
+               displs[r] = total * sz;
+               total += counts[r];
+               bytes[r] = counts[r] * sz;
+            }
+            std::vector<HYPRE_BigInt> all(total);
+            MPI_Allgatherv(local.data(), n * sz, MPI_BYTE, all.data(),
+                           bytes.data(), displs.data(), MPI_BYTE,
+                           MPI_COMM_WORLD);
+            return std::set<HYPRE_BigInt>(all.begin(), all.end());
+         };
+
+         const std::set<HYPRE_BigInt> global_selected = all_gather(selected);
+         const std::set<HYPRE_BigInt> global_emitted = all_gather(emitted);
+
+         int num_missing = 0;
+         for (auto gtdof : global_selected)
+         {
+            if (!global_emitted.count(gtdof)) { num_missing++; }
+         }
+
+         CAPTURE(orientation, nranks, global_selected.size(),
+                 global_emitted.size(), num_missing);
+         REQUIRE(num_missing == 0);
+      }
+   }
+}
+
+TEST_CASE("BoundaryEdgeDoFs2DLoopVertexDoFsPartitionInvariant",
+          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+{
+   // A closed boundary loop split between ranks must give the same result as
+   // the serial code. With a collection carrying vertex DoFs (ND_R2D), a vertex
+   // shared by two boundary segments is interior to the loop and must be
+   // dropped. When the two segments live on different ranks, each rank sees the
+   // vertex only once locally, so the occurrence parity has to be reconciled
+   // across the sharing group.
+   if (Mpi::WorldSize() < 2) { return; }
+
+   constexpr int order = 1;
+   ND_R2D_FECollection fec(order, 2);
+
+   // Serial reference result
+   Mesh serial_mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                            1.0, 1.0);
+   FiniteElementSpace serial_fes(&serial_mesh, &fec);
+
+   Array<int> serial_bdr_elements(serial_mesh.GetNBE());
+   for (int i = 0; i < serial_bdr_elements.Size(); i++)
+   {
+      serial_bdr_elements[i] = i;
+   }
+
+   std::unordered_set<int> serial_boundary_dofs;
+   std::unordered_map<int, int> serial_dof_to_edge;
+   std::unordered_map<int, int> serial_dof_to_boundary;
+   std::unordered_map<int, int> serial_dof_to_orientation;
+
+   serial_fes.GetBoundaryLoopEdgeDofs(serial_bdr_elements,
+                                      serial_boundary_dofs,
+                                      serial_dof_to_edge,
+                                      serial_dof_to_boundary,
+                                      serial_dof_to_orientation);
+
+   const int serial_count = static_cast<int>(serial_boundary_dofs.size());
+
+   // Compare against several partitionings of the same mesh
+   const int num_procs = Mpi::WorldSize();
+   std::vector<std::vector<int>> partitionings;
+   {
+      Mesh probe = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                         1.0, 1.0);
+      const int ne = probe.GetNE();
+
+      std::vector<int> block(ne), round_robin(ne);
+      for (int i = 0; i < ne; i++)
+      {
+         block[i] = (i < ne/2) ? 0 : num_procs-1;
+         round_robin[i] = i % num_procs;
+      }
+      partitionings.push_back(block);
+      partitionings.push_back(round_robin);
+   }
+
+   for (const auto &partition : partitionings)
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                        1.0, 1.0);
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partition.data());
+      ParFiniteElementSpace pfes(&pmesh, &fec);
+
+      Array<int> local_bdr_elements(pmesh.GetNBE());
+      for (int i = 0; i < local_bdr_elements.Size(); i++)
+      {
+         local_bdr_elements[i] = i;
+      }
+
+      Array<int> ess_tdofs, ldof_marker;
+      std::unordered_set<int> local_boundary_dofs;
+      pfes.GetBoundaryLoopEdgeDofs(local_bdr_elements, ess_tdofs, ldof_marker,
+                                   local_boundary_dofs);
+
+      // The true DoFs are owned by exactly one rank each, so summing the local
+      // counts gives a partition-independent global count.
+      int local_tdofs = ess_tdofs.Size();
+      int global_tdofs = 0;
+      MPI_Allreduce(&local_tdofs, &global_tdofs, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+
+      CAPTURE(num_procs, serial_count, global_tdofs);
+      REQUIRE(global_tdofs == serial_count);
+   }
+}
+
+TEST_CASE("GroupCommunicatorReduceMarkedByGroupStride",
+          "[Parallel][GroupCommunicator]")
+{
+   // Regression test for the neighbor-major stride of the byGroup receive
+   // buffer: with more than one DoF in a group, the contributions to DoF i are
+   // at buf[j*nldofs + i], so reducing a single marked DoF must gather the
+   // strided values rather than reading a contiguous run.
+   const int rank = Mpi::WorldRank();
+   const int nranks = Mpi::WorldSize();
+   if (nranks < 3) { return; }
+
+   ListOfIntegerSets groups;
+
+   IntegerSet local_group(1);
+   local_group[0] = rank;
+   groups.Insert(local_group);
+
+   IntegerSet shared_group(nranks);
+   for (int r = 0; r < nranks; r++)
+   {
+      shared_group[r] = r;
+   }
+   groups.Insert(shared_group);
+
+   GroupTopology topology(MPI_COMM_WORLD);
+   topology.Create(groups, 4983);
+
+   GroupCommunicator comm(topology, GroupCommunicator::byGroup);
+   // Two DoFs in the same shared group, so the buffer stride is 2.
+   Array<int> ldof_group(2);
+   ldof_group = 1;
+   comm.Create(ldof_group);
+
+   Array<real_t> values(2);
+   values[0] = real_t(10.0) * rank + real_t(1.0);
+   values[1] = real_t(100.0) * rank + real_t(2.0);
+
+   Array<int> marker(2);
+   marker = 1;
+
+   comm.ReduceBegin(values.GetData());
+   comm.ReduceMarked<real_t>(values.GetData(), marker, 0,
+                             GroupCommunicator::Sum<real_t>);
+   comm.Bcast(values);
+
+   const real_t rank_sum = real_t(nranks) * real_t(nranks - 1) / real_t(2.0);
+   REQUIRE(values[0] == MFEM_Approx(real_t(10.0) * rank_sum + real_t(nranks)));
+   REQUIRE(values[1] == MFEM_Approx(real_t(100.0) * rank_sum +
+                                    real_t(2.0) * real_t(nranks)));
 }
 
 #endif // MFEM_USE_MPI
