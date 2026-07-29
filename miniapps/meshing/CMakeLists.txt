@@ -19,6 +19,7 @@ set(MESH_FILES
   square01.mesh
   square01-tri.mesh
   stretched2D.mesh
+  stretched3D.mesh
 )
 
 # Add a target to copy the mesh files from the source directory; used by sample

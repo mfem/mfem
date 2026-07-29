@@ -71,6 +71,7 @@ endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
+SUBDIRS_TEST_NOCLEAN = $(addsuffix /test-noclean,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
 SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
@@ -87,8 +88,9 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
-.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
-$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) \
+   $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
+$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) $(SUBDIRS_CLEAN):
 	$(MAKE) -C $(@D) $(@F)
 $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
@@ -107,6 +109,7 @@ endif
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 test: $(SUBDIRS_TEST)
+test-noclean: $(SUBDIRS_TEST_NOCLEAN)
 test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Parallel vs. serial runs

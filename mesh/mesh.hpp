@@ -60,12 +60,15 @@ class CubitBlock;
 }
 #endif
 
+namespace gmsh { class GmshReader; }
+
 /// Mesh data type
 class Mesh
 {
    friend class NCMesh;
    friend class NURBSExtension;
    friend class NCNURBSExtension;
+   friend class gmsh::GmshReader;
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
@@ -362,7 +365,7 @@ protected:
    void ReadNURBSMesh(std::istream &input, int &curved, int &read_gf,
                       bool spacing=false, bool nc=false);
    void ReadInlineMesh(std::istream &input, bool generate_edges = false);
-   void ReadGmshMesh(std::istream &input, int &curved, int &read_gf);
+   void ReadGmshMesh(std::istream &input);
 
    /* Note NetCDF (optional library) is used for reading cubit files */
 #ifdef MFEM_USE_NETCDF
@@ -1359,6 +1362,11 @@ public:
    /// A mixed mesh is one where there are multiple types of element geometries.
    bool IsMixedMesh() const;
 
+   /// @brief Returns true if the mesh is a simplex mesh, false otherwise.
+   ///
+   /// A simplex mesh is one where all the elements are simplices.
+   bool IsSimplexMesh() const { return (MeshGenerator() == 1); }
+
    /// Returns the minimum and maximum corners of the mesh bounding box.
    /** For high-order meshes, the geometry is first refined @a ref times. */
    void GetBoundingBox(Vector &min, Vector &max, int ref = 2);
@@ -2201,6 +2209,13 @@ public:
        by Mesh::GetFaceElements() and Mesh::GetFaceInfos(). */
    FaceInformation GetFaceInformation(int f) const;
 
+   /// @brief Return the indices of the elements sharing face @a Face.
+   ///
+   /// @param[in]  Face  Index of the face.
+   /// @param[out] Elem1 Index of the first element.
+   /// @param[out] Elem2 Index of the second neighboring element.
+   ///
+   /// @sa GetFaceInfos(), GetFaceInformation(), FaceInfo
    void GetFaceElements (int Face, int *Elem1, int *Elem2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2) const;
    void GetFaceInfos (int Face, int *Inf1, int *Inf2, int *NCFace) const;
@@ -2415,6 +2430,12 @@ public:
                              int ordering = 1);
 
    /// @}
+
+   /// Create a GridFunction representing the Jacobian determinant
+   std::unique_ptr<GridFunction> GetJacobianDeterminantGF() const;
+
+   /// Update Jacobian determinant values in a given gridfunction
+   void UpdateJacobianDeterminantGF(GridFunction &detgf) const;
 
    /// @name Methods related to mesh refinement
    /// @{

@@ -64,7 +64,7 @@ PARALLEL_NAME := Parallel AMGX example
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not build)
 
-clean: clean-build
+clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)

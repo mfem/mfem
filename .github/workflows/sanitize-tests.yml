@@ -146,7 +146,7 @@ jobs:
         if: ${{steps.restore.outputs.cache-hit != 'true'}}
         working-directory: mfem/build/tests/unit
         run: find . -type f -name '*.o' -delete
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tests-${{inputs.par}}-${{inputs.sanitizer}}
           path: mfem/build/tests/unit/${{env.unit_tests}}
@@ -172,7 +172,7 @@ jobs:
           par: ${{inputs.par}}
           sanitizer: ${{inputs.sanitizer}}
           cache-path: mfem/build/tests/unit/${{env.unit_tests}}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: ${{steps.restore.outputs.cache-hit != 'true'}}
         with:
           name: tests-${{inputs.par}}-${{inputs.sanitizer}}

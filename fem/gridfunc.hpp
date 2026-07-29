@@ -578,6 +578,13 @@ protected:
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
+   void AccumulateAndCountTraceValues(Coefficient *coeff[],
+                                      VectorCoefficient *vcoeff,
+                                      Array<int> &values_counter);
+
+   void AccumulateAndCountTraceTangentValues(VectorCoefficient &vcoeff,
+                                             Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
    void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
@@ -662,6 +669,23 @@ public:
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
+
+   /// Project a Coefficient on a GridFunction defined on H1 trace space
+   void ProjectTraceCoefficient(Coefficient *coeff[]);
+   void ProjectTraceCoefficient(Coefficient &coeff);
+
+   /** @brief Project a VectorCoefficient @a vcoeff on a GridFunction
+       defined on a Vector H1 trace space. Note that this also works
+       for a scalar H1 trace space, where only the first component of
+       @a vcoeff is used. */
+   void ProjectTraceCoefficient(VectorCoefficient &vcoeff);
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an RT trace space */
+   void ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff);
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an ND trace space */
+   void ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff);
+
 
    /** @brief Project a VectorCoefficient on the GridFunction, modifying only
        DOFs on the boundary associated with the boundary attributes marked in
@@ -1767,8 +1791,8 @@ public:
                              const int ref_factor=1, const int vdim=-1) const;
 
    /// Computes the \ref PLBound for the gridfunction with number of control
-   /// points based on \p ref_factor, and returns the bounds for each element
-   /// ordered byNodes:
+   /// points based on @a ref_factor, and returns the bounds for each element
+   /// ordered byNODES:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}. We also return the
    /// PLBound object used to compute the bounds.
@@ -1802,7 +1826,7 @@ public:
                          const int vdim = -1) const;
 
    /// Compute bounds on the grid function for all the elements. The bounds
-   /// are returned in @b lower and @b upper, ordered byNodes:
+   /// are returned in @b lower and @b upper, ordered byNODES:
    /// lower_{0,0}, lower_{1,0}, ..., lower_{ne-1,0},
    /// lower_{0,1}, ..., lower_{ne-1,vdim-1}
    void GetElementBounds(const PLBound &plb, Vector &lower, Vector &upper,
