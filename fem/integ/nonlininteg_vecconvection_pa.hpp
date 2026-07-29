@@ -183,7 +183,7 @@ VectorConvectionNLFIntegrator::AddMultPAKernels::Kernel()
    {
       return internal::SmemPAConvectionNLApply3D<T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorConvectionNLFIntegrator::AddMultPAType
@@ -201,7 +201,7 @@ VectorConvectionNLFIntegrator::AddMultPAKernels::Fallback
    {
       return internal::SmemPAConvectionNLApply3D<>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 /// \endcond DO_NOT_DOCUMENT
