@@ -328,7 +328,7 @@ VectorMassIntegrator::VectorMassAddMultPA::Kernel()
    {
       return internal::SmemPAVectorMassApply3D<T_D1D, T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorMassIntegrator::VectorMassAddMultPAType
@@ -342,7 +342,7 @@ VectorMassIntegrator::VectorMassAddMultPA::Fallback(int dim, int, int)
    {
       return internal::SmemPAVectorMassApply3D;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 // DiagonalPA kernels
@@ -358,7 +358,7 @@ VectorMassIntegrator::VectorMassAssembleDiagonalPA::Kernel()
    {
       return internal::SmemPAVectorMassAssembleDiagonal3D<T_Q1D>;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 inline VectorMassIntegrator::VectorMassAssembleDiagonalPAType
@@ -372,7 +372,7 @@ VectorMassIntegrator::VectorMassAssembleDiagonalPA::Fallback(int dim, int)
    {
       return internal::SmemPAVectorMassAssembleDiagonal3D;
    }
-   else { MFEM_ABORT("Unsupported kernel"); }
+   MFEM_ABORT("Unsupported kernel");
 }
 
 /// \endcond DO_NOT_DOCUMENT
