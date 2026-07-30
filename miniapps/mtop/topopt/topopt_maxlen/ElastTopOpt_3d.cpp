@@ -103,13 +103,20 @@ int main(int argc, char *argv[])
     const int dim = mesh.Dimension();
     const int clamp_attr = 5;  // X=0 face (left end)
 
-    for (int l = 0; l < ref_levels; l++)
+    const int serial_refinment = 4;
+    for (int l = 0; l < serial_refinment; l++)
     {
         mesh.UniformRefinement();
     }
    
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
+
+    ref_levels -= serial_refinment;
+    for (int l = 0; l < ref_levels; l++ )
+    {
+        pmesh.UniformRefinement();
+    }
 
     // 3b. Build ray fields and outflow submeshes for thickness constraint
     Array<int> candidate_be;        // all boundary elements

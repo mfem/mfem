@@ -25,7 +25,7 @@ void PseudoTransientSolver::MarchToSteadyState(LinearEvolutionOperator &evol,
     real_t t = 0.0;
     real_t rate = 2.0 * tol;
 
-    while (rate > tol && t < final_t)
+    while (rate > tol || t < final_t)
     {
         u_prev = u;
         real_t u_prev_norm = ParNormlp(u_prev, 2.0, comm);

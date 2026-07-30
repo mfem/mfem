@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
     for (int r = 0; r < n_dir; r++)
     {
         advect[r]->GetSolver().SetTimeStep(dt);
-        advect[r]->GetSolver().SetTerminalTime(5.0);
+        advect[r]->GetSolver().SetTerminalTime(2.0);
     }
 
     // Lame constants and SIMP material coefficients
@@ -308,16 +308,38 @@ int main(int argc, char *argv[])
     for (int a = 1; a <= design_domain.bdr_attributes.Max(); a++)
     {
         bool is_outer = (outer_bdr_attrs.Find(a) >= 0);
-        filter_solver.AddBoundaryID(a);
         if (is_outer)
-            filter_solver.Boundary().Add(a, 0.0);  // Outer boundaries: density = 0
+        {
+            filter_solver.Boundary().Add(a, 0.0);  // Outer boundaries: ρ̃ = 0
+        }
         else
-            filter_solver.Boundary().Add(a, 1.0);  // Holes: density = 1
+        {
+            filter_solver.Boundary().Add(a, 1.0);  // Holes: ρ̃ = 1
+        }
     }
     filter.Assemble();
 
-    // 8. Volume constraint data:  g(rho) = (1, rho)/Vstar - 1.
-    ParLinearForm vol_form(&control_fes);
+    // PDEFilter::Mult solves the constrained system without eliminating the
+    // essential columns, so nonzero Dirichlet data never reaches the interior
+    // (rho~ decays to 0 next to the holes). The filter is linear, so recover the
+    // missing A_fe*g lifting once via the FormLinearSystem path and add it back.
+    Array<int> filter_bdr_marker(design_domain.bdr_attributes.Max());
+    filter_bdr_marker = 1;
+    Array<int> filter_ess_tdofs;
+    filter_fes.GetEssentialTrueDofs(filter_bdr_marker, filter_ess_tdofs);
+
+    Vector rho_filter_lift_tv;
+    {
+        ParGridFunction lift(&filter_fes);
+        filter_solver.Solve(lift);
+        lift.GetTrueDofs(rho_filter_lift_tv);
+        rho_filter_lift_tv.SetSubVector(filter_ess_tdofs, real_t(0));
+    }
+
+    // 8. Volume constraint data:  g(rho) = (1, rho~)/Vstar - 1, measured on the
+    //    filtered density since that is what SIMP sees. The Dirichlet filter BCs
+    //    make the filter non-volume-preserving, so (1,rho) is not equivalent.
+    ParLinearForm vol_form(&filter_fes);
     vol_form.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
     vol_form.Assemble();
     std::unique_ptr<HypreParVector> vol_w(vol_form.ParallelAssemble());
@@ -326,6 +348,11 @@ int main(int argc, char *argv[])
     real_t loc = vol_w->Sum();
     MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
     const real_t Vstar = vol_fraction * domain_volume;
+
+    // d(1,rho~)/drho = L^T w is constant: the filter operator never changes, and
+    // the Dirichlet lifting contributes a constant offset with zero derivative.
+    Vector dvol_drho(control_fes.GetTrueVSize());
+    filter.MultTranspose(*vol_w, dvol_drho);
 
     // 9. MMA optimizer and its per-iteration work vectors.
     // stacked design  x = [ rho ; alpha_0 ; alpha_1 ; ... ; alpha_{nrays-1} ]
@@ -355,7 +382,7 @@ int main(int argc, char *argv[])
     BlockVector tx_min(toffsets), tx_max(toffsets);
     BlockVector df0dx(toffsets);                     // objective gradient  df0/dx = [ dc/drho ; 0 ; ... ; 0 ]
     BlockVector dvol(toffsets);                       // volume constraint gradient is constant
-    dvol.GetBlock(0) = *vol_w;  dvol.GetBlock(0) /= Vstar;
+    dvol.GetBlock(0) = dvol_drho;  dvol.GetBlock(0) /= Vstar;
     for (int r = 0; r < n_dir; r++) { dvol.GetBlock(1 + r) = 0.0; }
 
     // one full-size gradient BlockVector per ray-thickness constraint; only
@@ -443,6 +470,7 @@ int main(int argc, char *argv[])
         rho.GetTrueDofs(rho_tv);
         Vector rho_filter_tv(filter_fes.GetTrueVSize());
         filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter_tv += rho_filter_lift_tv;
         rho_filter.SetFromTrueDofs(rho_filter_tv);
 
         // (2) state solve:  K(ρ~) u = f   (self-adjoint compliance)
@@ -511,9 +539,10 @@ int main(int argc, char *argv[])
         // (6) MMA update (rho_tv already set in step (1))
         for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
 
-        // volume constraint:  (1,rho)/Vstar - 1 <= 0
-        real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
-        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 1.0;
+        // volume constraint:  (1,rho~)/Vstar - 1 <= 0
+        const real_t vol_int = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_filter_tv);
+        real_t vol = vol_int / domain_volume;
+        fival(0) = vol_int / Vstar - 1.0;
 
         // box constraints:  rho ∈ [0,1],  α_i ∈ [alpha_min, alpha_max]  (move limits)
         for (int i = 0; i < n; i++)
@@ -540,26 +569,26 @@ int main(int argc, char *argv[])
         compliance /= init_comp;
         df0dx /= init_comp;
 
-        for (int r = 0; r < n_dir; r++)
-        {
-            real_t local_max = advect[r]->GetRhoA().Max();
-            real_t global_max = local_max;
-            MPI_Allreduce(&local_max, &global_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                        advect[r]->GetRhoA().ParFESpace()->GetComm());
+        // for (int r = 0; r < n_dir; r++)
+        // {
+        //     real_t local_max = advect[r]->GetRhoA().Max();
+        //     real_t global_max = local_max;
+        //     MPI_Allreduce(&local_max, &global_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+        //                 advect[r]->GetRhoA().ParFESpace()->GetComm());
 
-            real_t local_alpha_max = alpha[r]->Max();
-            real_t global_alpha_max = local_alpha_max;
-            MPI_Allreduce(&local_alpha_max, &global_alpha_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                        alpha[r]->ParFESpace()->GetComm());
+        //     real_t local_alpha_max = alpha[r]->Max();
+        //     real_t global_alpha_max = local_alpha_max;
+        //     MPI_Allreduce(&local_alpha_max, &global_alpha_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+        //                 alpha[r]->ParFESpace()->GetComm());
 
-            if (myid == 0)
-            {
-                mfem::out << "ray direction [" << r << "]"
-                        << ":    max rho_a = " << fixed << setprecision(8) << global_max 
-                        << ",    max alpha = " << fixed << setprecision(8) << global_alpha_max
-                        << ",    residual = " << scientific << setprecision(8) << fival[r+1] << endl;
-            }
-        }
+        //     if (myid == 0)
+        //     {
+        //         mfem::out << "ray direction [" << r << "]"
+        //                 << ":    max rho_a = " << fixed << setprecision(8) << global_max 
+        //                 << ",    max alpha = " << fixed << setprecision(8) << global_alpha_max
+        //                 << ",    residual = " << scientific << setprecision(8) << fival[r+1] << endl;
+        //     }
+        // }
         mma.Update(tx_local, df0dx, compliance, fival, dfidx.data(), tx_min, tx_max);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
         for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(tx_local.GetBlock(1 + r)); }
@@ -663,7 +692,7 @@ void loadMesh(int myid, const char *mesh_file,
         load_fz.resize(n_elast_solve);
 
         const int dim = mesh.Dimension();
-        const int n_dir = 18;
+        const int n_dir = 4;
         for (int i = 0; i < n_dir; i++)
         {
             const real_t ang = i * M_PI / n_dir;
