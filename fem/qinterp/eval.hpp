@@ -49,22 +49,7 @@ static void ImplValues1D(const int NE, const real_t *b_, const real_t *detJ_,
             real_t u = 0.0;
             for (int d = 0; d < d1d; d++)
             {
-               if constexpr (Integral)
-               {
-                  u += b(q, d) * x(d, c, e) / detJ(d, e);
-               }
-               if constexpr (!Integral)
-               {
-                  u += b(q, d) * x(d, c, e);
-               }
-            }
-            if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
-            {
-               y(c, q, e) = u;
-            }
-            if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
-            {
-               y(q, c, e) = u;
+               u += b(q, d) * x(d, c, e);
             }
             if constexpr (Integral)
             {
