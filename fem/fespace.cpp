@@ -1432,6 +1432,24 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
    return cR.get();
 }
 
+void FiniteElementSpace::ConformingAssemble(
+   std::vector<SparseMatrix *> &mats) const
+{
+   const SparseMatrix *P = GetConformingProlongation();
+   if (!P) { return; } // conforming mesh
+
+   SparseMatrix *R = Transpose(*P);
+   for (auto *&mat : mats)
+   {
+      MFEM_ASSERT(mat, "null mat passed in");
+      SparseMatrix *RA = mfem::Mult(*R, *mat);
+      delete mat;
+      mat = mfem::Mult(*RA, *P);
+      delete RA;
+   }
+   delete R;
+}
+
 const SparseMatrix* FiniteElementSpace::GetHpConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
