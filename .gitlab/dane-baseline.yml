@@ -11,6 +11,7 @@
 
 variables:
   BASELINE_TEST: baseline
+  MACHINE_NAME: dane
 
 stages:
   - setup
@@ -18,6 +19,25 @@ stages:
   - baseline_report
   - cleanup
   - baseline_publish
+
+.on_dane:
+  tags:
+    - shell
+    - dane
+  rules:
+    # Don't run dane jobs if...
+    - if: '$ON_DANE == "OFF"'
+      when: never
+    # Don't run autotest update if...
+    # Note: in some cases, the content of AUTOTEST can be '${AUTOTEST}', so we
+    # need to treat that value as the default value of 'OFF'.
+    - if: '$CI_JOB_NAME =~ /report/ && $AUTOTEST != "ON" && $AUTOTEST != "YES"'
+      when: never
+    # Always cleanup
+    - if: '$CI_JOB_NAME =~ /cleanup/'
+      when: always
+    # Default is to run if previous stage succeeded
+    - when: on_success
 
 baselinecheck_mfem_intel_dane:
   extends: [.on_dane]
@@ -29,6 +49,9 @@ baselinecheck_mfem_intel_dane:
     #       .gitlab/configs/setup-baseline.yml.
     TPLS_DIR: ${BUILD_ROOT}/tpls
   script:
+    - echo "AUTOTEST=$AUTOTEST"
+    - echo "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
+    - echo "AUTOTEST_ROOT=$AUTOTEST_ROOT"
     - echo ${BUILD_ROOT}
     - echo ${TPLS_DIR}
     # Used by the tests in MFEM/tests, dane has 224 threads/node:
@@ -89,7 +112,13 @@ report_baseline:
           cp ${rundir}/pipeline.txt ${rundir}/autotest-email.html
         fi
         msg="GitLab CI log for ${BASELINE_TEST} on ${MACHINE_NAME} ($(date +%Y-%m-%d))"
-        if [[ "$AUTOTEST_COMMIT" != "NO" ]]; then
+        # Note: in some cases, the content of AUTOTEST_COMMIT can be
+        # '${AUTOTEST_COMMIT}', so we need to treat that value as the default
+        # value of 'ON'.
+        if [[ "$AUTOTEST_COMMIT" == '${AUTOTEST_COMMIT}' ]]; then
+          AUTOTEST_COMMIT="ON"
+        fi
+        if [[ "$AUTOTEST_COMMIT" == "ON" || "$AUTOTEST_COMMIT" == "YES" ]]; then
           git pull && \
           git add ${rundir} && \
           git commit -m "${msg}" && \
@@ -117,8 +146,8 @@ baselinepublish_mfem_dane:
   extends: [.on_dane]
   stage: baseline_publish
   rules:
-    # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "YES"'
-    - if: '$REBASELINE == "YES"'
+    # - if: '$CI_COMMIT_BRANCH == "master" || $REBASELINE == "ON"'
+    - if: '$REBASELINE == "ON"'
       when: manual
   script:
     - echo ${BUILD_ROOT}
@@ -128,6 +157,5 @@ baselinepublish_mfem_dane:
     - .gitlab/scripts/rebaseline
 
 include:
-  - local: .gitlab/configs/common.yml
-  - local: .gitlab/configs/dane-config.yml
+  - local: .gitlab/custom-jobs-and-variables.yml
   - local: .gitlab/configs/setup-baseline.yml

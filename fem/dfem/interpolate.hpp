@@ -338,6 +338,92 @@ void map_field_to_quadrature_data_tensor_product_2d(
    }
 }
 
+
+template <typename field_operator_t>
+MFEM_HOST_DEVICE inline
+void map_field_to_quadrature_data_tensor_product_1d(
+   DeviceTensor<2> &field_qp,
+   const DofToQuadMap &dtq,
+   const DeviceTensor<1> &field_e,
+   const field_operator_t &input,
+   const DeviceTensor<1, const real_t> &integration_weights,
+   const std::array<DeviceTensor<1>, 6> &scratch_mem)
+{
+   [[maybe_unused]] auto B = dtq.B;
+   [[maybe_unused]] auto G = dtq.G;
+
+   if constexpr (is_value_fop<std::decay_t<field_operator_t>>::value)
+   {
+      auto [q1d, unused, d1d] = B.GetShape();
+      const int vdim = input.vdim;
+      const auto field = Reshape(&field_e[0], d1d, vdim);
+      auto fqp = Reshape(&field_qp[0], vdim, q1d);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t acc = 0.0;
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               acc += B(qx, 0, dx) * field(dx, vd);
+            }
+            fqp(vd, qx) = acc;
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else if constexpr (
+      is_gradient_fop<std::decay_t<field_operator_t>>::value)
+   {
+      const auto [q1d, unused, d1d] = B.GetShape();
+      const int vdim = input.vdim;
+      const int dim = input.dim;
+      const auto field = Reshape(&field_e[0], d1d, vdim);
+      auto fqp = Reshape(&field_qp[0], vdim, dim, q1d);
+
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         MFEM_FOREACH_THREAD(qx, x, q1d)
+         {
+            real_t acc = 0.0;
+            for (int dx = 0; dx < d1d; dx++)
+            {
+               acc += G(qx, 0, dx) * field(dx, vd);
+            }
+            fqp(vd, 0, qx) = acc;
+         }
+         MFEM_SYNC_THREAD;
+      }
+   }
+   // TODO: Create separate function for clarity
+   else if constexpr (
+      std::is_same_v<std::decay_t<field_operator_t>, Weight>)
+   {
+      const int num_qp = integration_weights.GetShape()[0];
+      // TODO: eeek
+      const int q1d = (int)floor(std::pow(num_qp, 1.0/input.dim) + 0.5);
+      auto w = Reshape(&integration_weights[0], q1d);
+      auto f = Reshape(&field_qp[0], q1d);
+      MFEM_FOREACH_THREAD(qx, x, q1d)
+      {
+         f(qx) = w(qx);
+      }
+      MFEM_SYNC_THREAD;
+   }
+   else if constexpr (is_identity_fop<std::decay_t<field_operator_t>>::value)
+   {
+      const int q1d = B.GetShape()[0];
+      auto field = Reshape(&field_e[0], input.size_on_qp, q1d);
+      field_qp = field;
+   }
+   else
+   {
+      static_assert(dfem::always_false<std::decay_t<field_operator_t>>,
+                    "can't map field to quadrature data");
+   }
+}
+
 template <typename field_operator_t>
 MFEM_HOST_DEVICE
 void map_field_to_quadrature_data(
@@ -425,7 +511,7 @@ void map_fields_to_quadrature_data(
    std::array<DeviceTensor<2>, num_inputs> &fields_qp,
    const std::array<DeviceTensor<1>, num_fields> &fields_e,
    const std::array<DofToQuadMap, num_inputs> &dtqmaps,
-   const std::array<int, num_inputs> &input_to_field,
+   const std::array<size_t, num_inputs> &input_to_field,
    const field_operator_ts &fops,
    const DeviceTensor<1, const real_t> &integration_weights,
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
@@ -440,11 +526,18 @@ void map_fields_to_quadrature_data(
    for_constexpr<num_inputs>([&](auto i)
    {
       const DeviceTensor<1> &field_e =
-         (input_to_field[i] == -1) ? dummy_field_weight : fields_e[input_to_field[i]];
+         (input_to_field[i] == SIZE_MAX) ? dummy_field_weight :
+         fields_e[input_to_field[i]];
 
       if (use_sum_factorization)
       {
-         if (dimension == 2)
+         if (dimension == 1)
+         {
+            map_field_to_quadrature_data_tensor_product_1d(
+               fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
+               integration_weights, scratch_mem);
+         }
+         else if (dimension == 2)
          {
             map_field_to_quadrature_data_tensor_product_2d(
                fields_qp[i], dtqmaps[i], field_e, get<i>(fops),
@@ -489,14 +582,20 @@ void map_field_to_quadrature_data_conditional(
    {
       if (use_sum_factorization)
       {
-         if (dimension == 2)
+         if (dimension == 1)
          {
-            map_field_to_quadrature_data_tensor_product_3d(
+            map_field_to_quadrature_data_tensor_product_1d(
+               field_qp, dtqmap, field_e, fop, integration_weights, scratch_mem);
+
+         }
+         else if (dimension == 2)
+         {
+            map_field_to_quadrature_data_tensor_product_2d(
                field_qp, dtqmap, field_e, fop, integration_weights, scratch_mem);
          }
          else if (dimension == 3)
          {
-            map_field_to_quadrature_data_tensor_product_2d(
+            map_field_to_quadrature_data_tensor_product_3d(
                field_qp, dtqmap, field_e, fop, integration_weights, scratch_mem);
          }
       }
@@ -539,7 +638,7 @@ void map_direction_to_quadrature_data_conditional(
    const std::array<DeviceTensor<1>, 6> &scratch_mem,
    const std::array<bool, num_inputs> &conditions,
    const int &dimension,
-   const bool &use_sum_factorization = false)
+   const bool &use_sum_factorization)
 {
    for_constexpr<num_inputs>([&](auto i)
    {
@@ -547,7 +646,13 @@ void map_direction_to_quadrature_data_conditional(
       {
          if (use_sum_factorization)
          {
-            if (dimension == 2)
+            if (dimension == 1)
+            {
+               map_field_to_quadrature_data_tensor_product_1d(
+                  directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),
+                  integration_weights, scratch_mem);
+            }
+            else if (dimension == 2)
             {
                map_field_to_quadrature_data_tensor_product_2d(
                   directions_qp[i], dtqmaps[i], direction_e, get<i>(fops),

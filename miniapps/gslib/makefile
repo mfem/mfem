@@ -17,16 +17,12 @@ SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/gslib/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
-
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 ifeq ($(MFEM_USE_GSLIB),YES)
    SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
-   PAR_MINIAPPS = pfindpts schwarz_ex1p
+   PAR_MINIAPPS = pfindpts schwarz_ex1p particles_redist
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =
@@ -42,8 +38,7 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -88,11 +83,16 @@ include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+ifeq ($(MFEM_USE_MPI),YES)
+   RUN_MPI_SER = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) 1
+else
+   RUN_MPI_SER =
+endif
 TEST_NAME := GSLIB miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
+	@$(call mfem-test,$<, $(RUN_MPI_SER), $(TEST_NAME))
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

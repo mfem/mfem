@@ -50,6 +50,8 @@ public:
        contains the derivative of one shape function */
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
 };
 
 /// A 2D linear element on triangle with nodes at the vertices of the triangle
@@ -70,6 +72,8 @@ public:
        so that each row contains the derivatives of one shape function */
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
    void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };
@@ -404,6 +408,9 @@ public:
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
 
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
+
    void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 
@@ -445,7 +452,8 @@ public:
        so that each row contains the derivatives of one shape function */
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
-
+   void CalcHessian(const IntegrationPoint &ip,
+                    DenseMatrix &h) const override;
    void ProjectDelta(int vertex, Vector &dofs) const override
    { dofs = 0.0; dofs(vertex) = 1.0; }
 };

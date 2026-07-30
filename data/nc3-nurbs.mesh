@@ -1,0 +1,96 @@
+MFEM NURBS NC-patch mesh v1.0
+dimension
+2
+
+# rank attr geom ref_type nodes/children
+elements
+3
+0 1 3 0 0 4 5 1
+0 1 3 0 6 7 4 2
+0 1 3 0 6 3 5 7
+
+# attr geom nodes
+boundary
+7
+1 1 0 4
+1 1 5 1
+1 1 1 0
+1 1 2 6
+1 1 6 3
+1 1 4 2
+1 1 5 3
+
+vertex_to_knotspan
+1
+7 1 4 5
+
+# top-level node coordinates
+coordinates
+8
+2
+0 0
+0 1
+2 0
+2 1
+1 0
+1 1
+2 0.5
+1 0.5
+
+edges
+11
+0 0 4
+1 4 5
+0 1 5
+1 0 1
+2 6 7
+4 7 4
+2 2 4
+4 6 2
+3 6 3
+2 3 5
+3 7 5
+
+knotvectors
+5
+1 3 0 0 0.5 1 1
+1 3 0 0 0.5 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+
+spacing
+0
+
+weights
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+1.0
+
+FiniteElementSpace
+FiniteElementCollection: NURBS1
+VDim: 2
+Ordering: 1
+
+0 0
+0 1
+2 0
+2 1
+1 0
+1 1
+2 0.5
+1 0.5
+0.5 0
+0.5 1
+0 0.5
+0.5 0.5
+mfem_mesh_end

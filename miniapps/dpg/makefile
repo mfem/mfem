@@ -17,19 +17,15 @@ SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/dpg/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
-# Include defaults.mk to get XLINKER
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
-include $(DEFAULTS_MK)
-
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-DPG_REAL_SEQ_SRC = util/weakform.cpp util/blockstaticcond.cpp
+DPG_REAL_SEQ_SRC = util/weakform.cpp util/blockstaticcond.cpp util/preconditioners.cpp
 DPG_REAL_PAR_SRC = $(DPG_REAL_SEQ_SRC) util/pweakform.cpp 
 DPG_REAL_OBJ = $(DPG_REAL_PAR_SRC:.cpp=.o)
 
-DPG_COMPLEX_SEQ_SRC = util/complexweakform.cpp util/complexstaticcond.cpp util/pml.cpp
-DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) util/pcomplexweakform.cpp 
+DPG_COMPLEX_SEQ_SRC = util/complexweakform.cpp util/complexstaticcond.cpp util/pml.cpp util/preconditioners.cpp
+DPG_COMPLEX_PAR_SRC = $(DPG_COMPLEX_SEQ_SRC) util/pcomplexweakform.cpp
 DPG_COMPLEX_OBJ = $(DPG_COMPLEX_PAR_SRC:.cpp=.o)
 
 DIFFUSION_SRC = diffusion.cpp $(DPG_REAL_SEQ_SRC)
@@ -69,8 +65,7 @@ COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 
 # If MFEM_SHARED is set, add the ../common rpath
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk

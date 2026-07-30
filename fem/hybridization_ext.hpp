@@ -14,7 +14,10 @@
 
 #include "../config/config.hpp"
 #include "../general/array.hpp"
+#include "../linalg/operator.hpp"
 #include "../linalg/vector.hpp"
+
+#include <memory>
 
 namespace mfem
 {
@@ -45,14 +48,29 @@ protected:
    Array<int> hat_dof_gather_map;
    Array<DofType> hat_dof_marker;
 
-   Array<int> el_to_face;
-   Array<int> face_to_el;
+   Array<int> el_to_face; ///< Element to face connectivity.
+   Array<int> el_face_offsets; ///< Per-element offsets into @a el_to_face.
+   Array<int> face_to_el; ///< Face-to-element connectivity.
+   Array<int> face_face_offsets; ///< Face-to-face offsets.
+
+   int n_el_face; ///< Total number of element-to-face connections.
+   int n_face_face; ///< Total number of face-to-face connections.
+
    Vector Ct_mat; ///< Constraint matrix (transposed) stored element-wise.
+
+   /// @name For parallel non-conforming meshes
+   ///@{
+   std::unique_ptr<Operator> P_pc; ///< Partially conforming prolongation.
+   std::unique_ptr<Operator> P_nbr; ///< Face-neighbor prolongation.
+   ///@}
 
    Array<int> idofs, bdofs;
 
    Vector Ahat, Ahat_ii, Ahat_ib, Ahat_bi, Ahat_bb;
    Array<int> Ahat_ii_piv, Ahat_bb_piv;
+
+   /// Return the (partially) conforming prolongation on the constraint space.
+   const Operator &GetProlongation() const;
 
 public:
    /// Construct the constraint matrix.

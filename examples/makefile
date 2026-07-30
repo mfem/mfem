@@ -71,6 +71,7 @@ endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
+SUBDIRS_TEST_NOCLEAN = $(addsuffix /test-noclean,$(SUBDIRS))
 SUBDIRS_CLEAN = $(addsuffix /clean,$(SUBDIRS))
 SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
@@ -87,8 +88,9 @@ SUBDIRS_TPRINT = $(addsuffix /test-print,$(SUBDIRS))
 
 all: $(EXAMPLES) $(SUBDIRS_ALL)
 
-.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
-$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_CLEAN):
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) \
+   $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
+$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) $(SUBDIRS_CLEAN):
 	$(MAKE) -C $(@D) $(@F)
 $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
@@ -107,6 +109,7 @@ endif
 MFEM_TESTS = EXAMPLES
 include $(MFEM_TEST_MK)
 test: $(SUBDIRS_TEST)
+test-noclean: $(SUBDIRS_TEST_NOCLEAN)
 test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Parallel vs. serial runs
@@ -157,6 +160,12 @@ ex37-test-seq: ex37
 	@$(call mfem-test,$<,, Serial example,-mi 3)
 ex37p-test-par: ex37p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-mi 3)
+ex39-test-seq: ex39
+	@$(call mfem-test,$<,, Serial example,-m ../data/compass.mesh)
+ex41-test-seq: ex41
+	@$(call mfem-test,$<,, Serial example,-tf 1.0)
+ex41p-test-par: ex41p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 1.0)
 # Testing: optional tests
 ifeq ($(MFEM_USE_STRUMPACK),YES)
 ex11p-test-strumpack: ex11p
@@ -172,6 +181,12 @@ ifeq ($(MFEM_USE_MKL_CPARDISO),YES)
 ex11p-test-cpardiso: ex11p
 	@$(call mfem-test,$<, $(RUN_MPI), MKL_CPARDISO example,--cpardiso)
 test-par-YES: ex11p-test-cpardiso
+endif
+ifeq ($(MFEM_USE_CEED),YES)
+ex1p-test-ceed: ex1p
+	@$(call mfem-test,$<, $(RUN_MPI),\
+	   Parallel libCEED example,-d ceed-cpu -pa -a)
+test-par-YES: ex1p-test-ceed
 endif
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
@@ -189,8 +204,8 @@ clean-build:
 clean-exec:
 	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh ex6p-checkpoint.*
 	@rm -rf Example5* Example9* Example15* Example16* Example23* ParaView
-	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.* order.*
-	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
+	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.* sol_z.*
+	@rm -f order.* ex9.mesh ex9-mesh.* ex9-init.* ex9-final.*
 	@rm -f deformed.* velocity.* elastic_energy.* mode_* mode_deriv_* flux.*
 	@rm -f ex5-p-*.bp ex9-p-*.bp ex12-p-*.bp ex16-p-*.bp
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.*

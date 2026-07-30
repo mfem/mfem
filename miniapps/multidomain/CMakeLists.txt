@@ -19,11 +19,9 @@ set(SRC_MESH_FILES)
 foreach(MESH_FILE ${MESH_FILES})
   list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
 endforeach()
-add_custom_command(OUTPUT data_is_copied
+add_custom_target(copy_miniapps_multidomain_data
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying multidomain miniapps data files ...")
-add_custom_target(copy_miniapps_multidomain_data DEPENDS data_is_copied)
+  COMMENT "Syncing multidomain miniapps data files ...")
 
 # Parallel apps.
 if (MFEM_USE_MPI)

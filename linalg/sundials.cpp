@@ -215,11 +215,23 @@ Sundials::Sundials()
    MFEM_VERIFY(return_val == 0, "Call to SUNContext_Create failed");
    SundialsMemHelper actual_helper(context);
    memHelper = std::move(actual_helper);
+   isInitialized = true;
 }
 
 Sundials::~Sundials()
 {
-   SUNContext_Free(&context);
+   Sundials::Finalize();
+}
+
+void Sundials::Finalize()
+{
+   Sundials& sundials = Instance();
+   if (sundials.isInitialized)
+   {
+      SUNContext context = GetContext();
+      SUNContext_Free(&context);
+      sundials.isInitialized = false;
+   }
 }
 
 #else // SUNDIALS_VERSION_MAJOR >= 6
@@ -230,6 +242,11 @@ Sundials::Sundials()
 }
 
 Sundials::~Sundials()
+{
+   // Do nothing
+}
+
+void Sundials::Finalize()
 {
    // Do nothing
 }

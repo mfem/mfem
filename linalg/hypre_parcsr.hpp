@@ -21,6 +21,10 @@
 // hypre header files
 #include <_hypre_parcsr_mv.h>
 
+#if MFEM_HYPRE_VERSION < 30000
+#define hypre_GenerateDiagAndOffd GenerateDiagAndOffd
+#endif
+
 // Older hypre versions do not define HYPRE_BigInt and HYPRE_MPI_BIG_INT, so we
 // define them here for backward compatibility.
 #if MFEM_HYPRE_VERSION < 21600

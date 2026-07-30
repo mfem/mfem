@@ -850,7 +850,7 @@ ParPumiMesh::ParPumiMesh(MPI_Comm comm, apf::Mesh2* apf_mesh,
       int id1, id2;
       id1 = apf::getNumber(v_num_loc, verts[0], 0, 0);
       id2 = apf::getNumber(v_num_loc, verts[1], 0, 0);
-      if (id1 > id2) { swap(id1,id2); }
+      if (id1 > id2) { std::swap(id1,id2); }
 
       shared_edges[i] = new Segment(id1, id2, 1);
    }
