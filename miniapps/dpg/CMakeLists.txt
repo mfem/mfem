@@ -14,14 +14,16 @@ util/weakform.cpp
 util/complexweakform.cpp
 util/blockstaticcond.cpp
 util/complexstaticcond.cpp
-util/pml.cpp)
+util/pml.cpp
+util/preconditioners.cpp)
 
 list(APPEND DPG_HEADERS
 util/weakform.hpp
 util/complexweakform.hpp
 util/blockstaticcond.hpp
 util/complexstaticcond.hpp
-util/pml.hpp)
+util/pml.hpp
+util/preconditioners.hpp)
 
 if (MFEM_USE_MPI)
   list(APPEND DPG_SOURCES

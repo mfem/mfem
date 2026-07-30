@@ -16,6 +16,11 @@
 #include "globals.hpp"
 #include "mem_manager.hpp"
 
+#ifdef MFEM_USE_RAJA
+#include "RAJA/RAJA.hpp"
+#endif
+
+#include <memory>
 #include <string>
 
 namespace mfem
@@ -265,6 +270,18 @@ public:
        Backend::*_MASK, or combinations of those. */
    static inline bool Allows(unsigned long b_mask)
    { return Get().backends & b_mask; }
+
+#if defined(MFEM_USE_RAJA) &&                                                  \
+   (defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP))
+   static inline auto GetRajaResource()
+   {
+#if defined(RAJA_ENABLE_CUDA)
+      return RAJA::resources::Cuda::CudaFromStream(0, Get().GetId());
+#elif defined(RAJA_ENABLE_HIP)
+      return RAJA::resources::Hip::HipFromStream(0, Get().GetId());
+#endif
+   }
+#endif
 
    /** @brief Get the current Host MemoryType. This is the MemoryType used by
        most MFEM classes when allocating memory used on the host.
