@@ -1498,9 +1498,9 @@ void ParFiniteElementSpace::ParallelRAP(SparseMatrix &loc_A,
    }
    else
    {
-      OperatorHandle P(Operator::Hypre_ParCSR);
-      P.ConvertFrom(Dof_TrueDof_Matrix());
-      A.MakePtAP(A_diag, P);
+      OperatorHandle P_handle(Operator::Hypre_ParCSR);
+      P_handle.ConvertFrom(Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P_handle);
    }
 }
 
