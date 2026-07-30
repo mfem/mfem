@@ -73,6 +73,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    const auto *ir = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
+   nq = ir->GetNPoints();
 
    if (DeviceCanUseCeed())
    {
@@ -95,7 +96,6 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ne = fes.GetNE();
    dim = mesh->Dimension();
    sdim = mesh->SpaceDimension();
-   const int nq = ir->GetNPoints();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;

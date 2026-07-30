@@ -48,6 +48,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    const bool stroud = fes.UsesRaggedTensorBasis();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0, stroud);
+   nq = ir->GetNPoints();
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -65,7 +66,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    int map_type = el.GetMapType();
    ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
    if (stroud)
    {
       maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);

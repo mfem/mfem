@@ -262,19 +262,19 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    const int dims = dim;  // TODO: generalize
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
 
-   int nq = Q1D[0];
+   int nq0 = Q1D[0];
    for (int i=1; i<dim; ++i)
    {
-      nq *= Q1D[i];
+      nq0 *= Q1D[i];
    }
 
    int coeffDim = 1;
    Vector coeff;
-   Array<real_t> weights(nq);
+   Array<real_t> weights(nq0);
    const int MQfullDim = MQ ? MQ->GetHeight() * MQ->GetWidth() : 0;
    IntegrationPoint ip;
 
-   Vector jac(dim * dim * nq);  // Computed as in GeometricFactors::Compute
+   Vector jac(dim * dim * nq0);  // Computed as in GeometricFactors::Compute
 
    for (int qz=0; qz<Q1D[2]; ++qz)
    {
@@ -295,7 +295,7 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
             for (int i=0; i<dim; ++i)
                for (int j=0; j<dim; ++j)
                {
-                  jac[p + ((i + (j * dim)) * nq)] = Jp(i,j);
+                  jac[p + ((i + (j * dim)) * nq0)] = Jp(i,j);
                }
          }
       }
@@ -305,12 +305,12 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    {
       MFEM_VERIFY(SMQ->GetSize() == dim, "");
       coeffDim = symmDims;
-      coeff.SetSize(symmDims * nq);
+      coeff.SetSize(symmDims * nq0);
 
       DenseSymmetricMatrix sym_mat;
       sym_mat.SetSize(dim);
 
-      auto C = Reshape(coeff.HostWrite(), symmDims, nq);
+      auto C = Reshape(coeff.HostWrite(), symmDims, nq0);
       for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)
@@ -340,12 +340,12 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
 
       coeffDim = MQfullDim;
 
-      coeff.SetSize(MQfullDim * nq);
+      coeff.SetSize(MQfullDim * nq0);
 
       DenseMatrix mat;
       mat.SetSize(dim);
 
-      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq);
+      auto C = Reshape(coeff.HostWrite(), MQfullDim, nq0);
       for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)
@@ -371,8 +371,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    {
       MFEM_VERIFY(VQ->GetVDim() == dim, "");
       coeffDim = VQ->GetVDim();
-      coeff.SetSize(coeffDim * nq);
-      auto C = Reshape(coeff.HostWrite(), coeffDim, nq);
+      coeff.SetSize(coeffDim * nq0);
+      auto C = Reshape(coeff.HostWrite(), coeffDim, nq0);
       Vector DM(coeffDim);
       for (int qz=0; qz<Q1D[2]; ++qz)
       {
@@ -410,8 +410,8 @@ void DiffusionIntegrator::SetupPatchPA(const int patch, Mesh *mesh,
    }
    else
    {
-      coeff.SetSize(nq);
-      auto C = Reshape(coeff.HostWrite(), nq);
+      coeff.SetSize(nq0);
+      auto C = Reshape(coeff.HostWrite(), nq0);
       for (int qz=0; qz<Q1D[2]; ++qz)
       {
          for (int qy=0; qy<Q1D[1]; ++qy)

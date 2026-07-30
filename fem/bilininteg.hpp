@@ -2345,6 +2345,8 @@ public:
 
    void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
 
+   int GetNq() const { return nq; }
+
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
@@ -2496,6 +2498,8 @@ public:
    void AssemblePA(const FiniteElementSpace &fes) override;
 
    void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
+
+   int GetNq() const { return nq; }
 
    void AssemblePABoundary(const FiniteElementSpace &fes) override;
 
@@ -2717,7 +2721,7 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int ne, dim, dofs1D, quad1D, coeff_vdim;
+   int ne, dim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
 
 public:
@@ -2742,6 +2746,8 @@ public:
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
+
+   int GetNq() const { return nq; }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3250,7 +3256,7 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int ne, dim, sdim, dofs1D, quad1D, coeff_vdim;
+   int ne, dim, sdim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
 
 public:
@@ -3298,6 +3304,8 @@ public:
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
    VectorDiffusionIntegrator(MatrixCoefficient& mq);
+
+   int GetNq() const { return nq; }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,

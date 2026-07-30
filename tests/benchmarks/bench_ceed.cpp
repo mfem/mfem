@@ -151,22 +151,33 @@ static void AddKernelSpecializations()
    VDIFF::Specialization<3, 3, 8, 8>::Add();
 }
 
+// Map CEED BP/BK index to the concrete bilinear-form integrator type
+template <int BFI> struct BakeOffIntegrator;
+template <> struct BakeOffIntegrator<1> { using type = MassIntegrator; };
+template <> struct BakeOffIntegrator<2> { using type = VectorMassIntegrator; };
+template <> struct BakeOffIntegrator<3> { using type = DiffusionIntegrator; };
+template <> struct BakeOffIntegrator<4> { using type = VectorDiffusionIntegrator; };
+template <> struct BakeOffIntegrator<5> { using type = DiffusionIntegrator; };
+template <> struct BakeOffIntegrator<6> { using type = VectorDiffusionIntegrator; };
+
 // Bake-off base class
 template <int BFI, int DIM, int VDIM, bool GLL,
           bool SIMPLEX, bool POS, bool MMA>
 struct BakeOff
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+   static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
    static_assert(!GLL || !SIMPLEX, "GLL (q=p+1) is only for tensor elements");
+
+   using IntegratorType = typename BakeOffIntegrator<BFI>::type;
 
    static constexpr bool visualization = false;
    static constexpr bool simplex = SIMPLEX;
    static constexpr bool pos = POS;
    static constexpr bool mma = MMA;
+   static constexpr bool mass = (BFI == 1);
 
    const int p, c, q, n, nx, ny, nz;
-   int qnd{};  // ir->GetNPoints(); comparable across tensor / Stroud / MMA
-   int q1d{};  // 1D size when structured (tensor / Stroud); 0 for simplex MMA
 
    Mesh mesh;
    H1_FECollection fec;
@@ -174,6 +185,8 @@ struct BakeOff
    const Geometry::Type geom_type;
    IntegrationRules irs;
    const IntegrationRule *ir, *ir_rhs;
+   const int qnd;
+   int q1d;
    ConstantCoefficient one;
    Vector uvec;
    VectorConstantCoefficient unit_vec;
@@ -182,16 +195,21 @@ struct BakeOff
    BilinearForm a;
    double mdofs{};
    BilinearFormIntegrator *bfi;
+   int cg_final_iter{-1};
+   real_t cg_final_norm{-1.0};
 
    BakeOff(int p, int side)
       : BakeOff(p, side, MeshExtentsFromHexRef<DIM>(p, side)) {}
 
    BakeOff(int p, int side, MeshExtents e): p(p), c(side),
-      // q = integration-rule exactness (not CEED 1D point count).
-      // Tensor GL: q=2p+3 → Q1D=p+2; tensor GLL: q=2p-1 → Q1D=p+1.
-      // Simplex Stroud: mass q=2p → D1D==Q1D; diffusion q=2p-1 → D1D==Q1D+1.
-      // Simplex MMA: same q, but compare via QND=ir.GetNPoints() (template T_QND).
-      q(2 * p + (GLL ? -1 : (SIMPLEX ? (BFI==1 ? 0 : -1) : 3))),
+      // q = integration-rule exactness (not CEED 1D point count)
+      // Tensor GL: q=2p+3 → Q1D=p+2; tensor GLL: q=2p-1 → Q1D=p+1
+      // Simplex Stroud: mass q=2p → D1D==Q1D; diffusion q=2p-1 → D1D==Q1D+1
+      // Simplex MMA: mass q=2p; diffusion q=2p-2 (match FA GetRule on Pk)
+      q(2 * p + (GLL ? -1
+                 : (SIMPLEX ? (mass ? 0
+                               : ((POS && !MMA) ? -1 : -2))
+                    : 3))),
       n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
       mesh([&]()
    {
@@ -220,6 +238,8 @@ struct BakeOff
       ? &StroudIntRules.Get(geom_type, q)
       : &irs.Get(geom_type, q)),
    ir_rhs(&IntRules.Get(geom_type, 2*p)),
+   qnd(ir->GetNPoints()),
+   q1d(0),
    one(1.0),
    uvec(DIM),
    unit_vec((uvec = 1.0, uvec /= uvec.Norml2(), uvec)),
@@ -235,14 +255,10 @@ struct BakeOff
          return r;
       };
 
-      qnd = ir->GetNPoints();
       const int d1d = p + 1;
-      // Matches q(...): only BFI==1 uses mass exactness 2p on simplices.
-      constexpr bool mass = (BFI == 1);
 
-      if constexpr (!SIMPLEX)
+      if constexpr (!SIMPLEX) // tensor
       {
-         // GL: Q1D = Order/2+1; GLL: Q1D = Order/2+2
          q1d = GLL ? (q / 2 + 2) : (q / 2 + 1);
          MFEM_VERIFY(q == (GLL ? 2 * p - 1 : 2 * p + 3),
                      "tensor rule order");
@@ -253,49 +269,34 @@ struct BakeOff
       }
       else if constexpr (POS && !MMA) // Stroud sum-factorization
       {
-         q1d = static_cast<int>(std::lround(std::pow(static_cast<double>(qnd),
-                                                     1.0 / DIM)));
+         // mass: D1D == Q1D; diffusion: D1D == Q1D + 1
+         q1d = mass ? d1d : d1d - 1;
          MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 1), "Stroud rule order");
          MFEM_VERIFY(qnd == ipow(q1d, DIM), "Stroud QND must be Q1D^dim");
-         if constexpr (mass)
-         {
-            MFEM_VERIFY(d1d == q1d, "simplex mass: D1D == Q1D");
-         }
-         else
-         {
-            MFEM_VERIFY(d1d == q1d + 1, "simplex diffusion: D1D == Q1D+1");
-         }
       }
       else // simplex MMA (H1 or Positive+ForceMMA): QND only, no 1D Q1D
       {
-         q1d = 0;
-         MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 1), "simplex MMA rule order");
+         MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 2), "simplex MMA rule order");
          MFEM_VERIFY(ir->GetOrder() >= q, "simplex MMA integration rule order");
-         MFEM_VERIFY(qnd > 0, "simplex MMA QND");
+
+         const FiniteElement &el = *fes.GetTypicalFE();
+         ElementTransformation &T0 = *mesh.GetTypicalElementTransformation();
+         const IntegrationRule &fa_ir = mass
+                                        ? MassIntegrator::GetRule(el, el, T0, false)
+                                        : DiffusionIntegrator::GetRule(el, el, false);
+         const int fa_nq = fa_ir.GetNPoints();
+         MFEM_VERIFY(qnd == fa_nq, "simplex MMA qnd must match FA GetRule nq");
       }
 
       x = 0.0;
-      if constexpr (BFI == 1)
-      {
-         bfi = new MassIntegrator(one, ir);
-      }
-      else if constexpr (BFI == 2)
-      {
-         bfi = new VectorMassIntegrator(one, ir);
-      }
-      else if constexpr (BFI == 3 || BFI == 5)
-      {
-         bfi = new DiffusionIntegrator(one, ir);
-      }
-      else if constexpr (BFI == 4 || BFI == 6)
-      {
-         bfi = new VectorDiffusionIntegrator(one, ir);
-      }
-      else
-      {
-         static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
-      }
+      bfi = new IntegratorType(one, ir);
       a.AddDomainIntegrator(bfi);
+   }
+
+   void VerifyIntegratorNq() const
+   {
+      const int integ_nq = static_cast<const IntegratorType *>(bfi)->GetNq();
+      MFEM_VERIFY(integ_nq == qnd, "integrator nq must match BakeOff qnd");
    }
 
    virtual void benchmark() = 0;
@@ -353,6 +354,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       a.Assemble();
       a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+      this->VerifyIntegratorNq();
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
@@ -369,6 +371,8 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
             cg.Mult(B, X);
          }
          MFEM_VERIFY(cg.GetConverged(), "CG solver did not converge!");
+         this->cg_final_iter = cg.GetNumIterations();
+         this->cg_final_norm = cg.GetFinalNorm();
          if constexpr (base::visualization)
          {
             a.RecoverFEMSolution(X, b, x);
@@ -410,6 +414,7 @@ struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
    BK(int order, int side) noexcept: base(order, side)
    {
       bfi->AssemblePA(fes);
+      this->VerifyIntegratorNq();
 
       const Table &el2dof = fes.GetElementToDofTable();
       const int e_size = el2dof.Size_of_connections()*fes.GetVDim();
@@ -462,6 +467,11 @@ static void Benchmark(bm::State& state) noexcept
       state.counters["Q1D"] = bm::Counter(run.q1d);
    }
    state.counters["Simplex"] = bm::Counter(run.simplex);
+   if (run.cg_final_iter >= 0)
+   {
+      state.counters["CG_Iter"] = bm::Counter(run.cg_final_iter);
+      state.counters["CG_Norm"] = bm::Counter(run.cg_final_norm);
+   }
 }
 
 inline constexpr char s_hex_sum[] = "hex_sum";

@@ -146,6 +146,7 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetTypicalFE();
    const bool stroud = fes.UsesRaggedTensorBasis();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
+   nq = ir->GetNPoints();
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -166,7 +167,6 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
-   const int nq = ir->GetNPoints();
    dim = mesh->Dimension();
    ne = fes.GetNE();
    if (stroud)
