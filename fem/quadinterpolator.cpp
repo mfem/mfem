@@ -111,10 +111,10 @@ namespace quadrature_interpolator
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <bool Integral>
-void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *detJgeom, const GeometricFactors *geom,
-               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-               Vector &q_der, Vector &q_det, const int eval_flags)
+void ImplEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
+                const real_t *detJ_, const GeometricFactors *geom,
+                const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+                Vector &q_der, Vector &q_det, const int eval_flags)
 {
    using QI = QuadratureInterpolator;
 
@@ -123,13 +123,15 @@ void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
    MFEM_ASSERT(maps.mode == DofToQuad::FULL, "internal error");
    MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 1, "");
    MFEM_VERIFY(vdim == 1 || !(eval_flags & QI::DETERMINANTS), "");
-   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
-               "'geom' must be given (non-null) only when evaluating physical"
-               " derivatives");
+   if constexpr(Integral)
+   {
+      MFEM_VERIFY(!(eval_flags & (QI::DERIVATIVES | QI::PHYSICAL_DERIVATIVES |
+                                  QI::DETERMINANTS)),
+                  "Integral FE does not support computing derivatives");
+   }
    const auto B_ = maps.B.Read();
    const auto G_ = maps.G.Read();
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, nq, NE);
-   const auto detJ_ = Integral ? detJgeom->detJ.Read() : nullptr;
    const auto E_ = e_vec.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), nq, vdim, NE):
@@ -143,7 +145,7 @@ void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
       const auto B = Reshape(B_, nq, nd);
       const auto G = Reshape(G_, nq, nd);
       const auto E = Reshape(E_, nd, vdim, NE);
-      const auto detJ = Reshape(detJ_, nd, NE);
+      const auto detJ = Reshape(detJ_, nq, NE);
       for (int q = 0; q < nq; ++q)
       {
          if (eval_flags & (QI::VALUES | QI::PHYSICAL_VALUES))
@@ -153,14 +155,11 @@ void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                real_t q_val = 0.0;
                for (int d = 0; d < nd; ++d)
                {
-                  if constexpr (Integral)
-                  {
-                     q_val += B(q, d) * E(d, c, e) / detJ(d, e);
-                  }
-                  else if constexpr (!Integral)
-                  {
-                     q_val += B(q, d) * E(d, c, e);
-                  }
+                  q_val += B(q, d) * E(d, c, e);
+               }
+               if constexpr (Integral)
+               {
+                  q_val /= detJ(q, e);
                }
                if (q_layout == QVectorLayout::byVDIM)
                {
@@ -181,14 +180,7 @@ void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                real_t q_d = 0.0;
                for (int d = 0; d < nd; ++d)
                {
-                  if constexpr (Integral)
-                  {
-                     q_d += G(q, d) * E(d, c, e) / detJ(d, e);
-                  }
-                  else if constexpr (!Integral)
-                  {
-                     q_d += G(q, d) * E(d, c, e);
-                  }
+                  q_d += G(q, d) * E(d, c, e);
                }
                if (eval_flags & QI::PHYSICAL_DERIVATIVES)
                {
@@ -214,6 +206,18 @@ void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
       }
    });
 }
+
+template void
+ImplEval1D<true>(const int NE, const int vdim, const QVectorLayout q_layout,
+                 const real_t *detJ, const GeometricFactors *geom,
+                 const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+                 Vector &q_der, Vector &q_det, const int eval_flags);
+
+template void
+ImplEval1D<false>(const int NE, const int vdim, const QVectorLayout q_layout,
+                  const real_t *detJ, const GeometricFactors *geom,
+                  const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+                  Vector &q_der, Vector &q_det, const int eval_flags);
 
 template void
 IntEval1D<true>(const int NE, const int vdim, const QVectorLayout q_layout,
@@ -263,17 +267,20 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
    const GeometricFactors *geom = nullptr;
-   // evaluated at DOFs for INTEGRAL spaces
-   const GeometricFactors *detJgeom = nullptr;
-   if (eval_flags & PHYSICAL_DERIVATIVES)
    {
-      geom = fespace->GetMesh()->GetGeometricFactors(
-                *ir, GeometricFactors::JACOBIANS);
-   }
-   if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
-   {
-      detJgeom = fespace->GetMesh()->GetGeometricFactors(
-                    fe->GetNodes(), GeometricFactors::DETERMINANTS);
+      int jac_factors = 0;
+      if (eval_flags & PHYSICAL_DERIVATIVES)
+      {
+         jac_factors = GeometricFactors::JACOBIANS;
+      }
+      if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
+      {
+         jac_factors |= GeometricFactors::DETERMINANTS;
+      }
+      if (jac_factors)
+      {
+         geom = fespace->GetMesh()->GetGeometricFactors(*ir, jac_factors);
+      }
    }
 
    MFEM_ASSERT(!(eval_flags & DETERMINANTS) || dim == vdim ||
@@ -290,7 +297,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
          {
             IntTensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne,
-                                      maps.B.Read(), detJgeom->detJ.Read(),
+                                      maps.B.Read(), geom->detJ.Read(),
                                       e_vec.Read(), q_val.Write(), vdim, nd, nq);
          }
          else
@@ -334,8 +341,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
       if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
       {
          IntEvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne, vdim,
-                             q_layout, detJgeom, geom, maps, e_vec, q_val,
-                             q_der, q_det, eval_flags);
+                             q_layout, geom->detJ.Read(), geom, maps, e_vec,
+                             q_val, q_der, q_det, eval_flags);
       }
       else
       {
@@ -471,15 +478,15 @@ template <QVectorLayout Q_LAYOUT> auto IntFallbackTensorEvalKernel(int DIM)
 {
    if (DIM == 1)
    {
-      return IntValues1D<Q_LAYOUT, true>;
+      return ImplValues1D<Q_LAYOUT, true>;
    }
    else if (DIM == 2)
    {
-      return IntValues2D<Q_LAYOUT, true>;
+      return ImplValues2D<Q_LAYOUT, true>;
    }
    else if (DIM == 3)
    {
-      return IntValues3D<Q_LAYOUT, true>;
+      return ImplValues3D<Q_LAYOUT, true>;
    }
    MFEM_ABORT("");
 }

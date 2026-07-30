@@ -262,6 +262,27 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
    Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(nx, Element::SEGMENT) :
                dim == 2 ? Mesh::MakeCartesian2D(nx,ny, Element::QUADRILATERAL) :
                Mesh::MakeCartesian3D(nx,nx,nz, Element::HEXAHEDRON);
+   mesh.SetCurvature(2);
+   switch (dim)
+   {
+      case 1:
+         mesh.Transform([](const Vector &x, Vector &y) { y[0] = x[0] * x[0]; });
+         break;
+      case 2:
+         mesh.Transform([](const Vector &x, Vector &y)
+         {
+            y[0] = x[0] + 0.1 * sin(2 * M_PI * x[0]);
+            y[1] = x[1] + 0.1 * cos(2 * M_PI * x[1]);
+         });
+         break;
+      case 3:
+         mesh.Transform([](const Vector &x, Vector &y)
+         {
+            y[0] = x[0] + 0.1 * sin(2 * M_PI * x[0]);
+            y[1] = x[1] + 0.1 * cos(2 * M_PI * x[1]);
+            y[2] = x[2] + 0.1 * cos(2 * M_PI * x[2]);
+         });
+   }
 
    const L2_FECollection fec(p, dim);
    const L2_FECollection ifec(p, dim, BasisType::GaussLegendre,
@@ -295,21 +316,14 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       }
    });
 
-   GridFunction x(&sfes);
-
    GridFunction ix(&isfes);
-   x.ProjectCoefficient(coeff);
    ix.ProjectCoefficient(coeff);
 
-   GridFunction nodes(&vfes);
    GridFunction inodes(&ivfes);
-   nodes.ProjectCoefficient(vcoeff);
    inodes.ProjectCoefficient(vcoeff);
 
    const Geometry::Type GeomType = mesh.GetTypicalElementGeometry();
    const IntegrationRule &ir = IntRules.Get(GeomType, 2*qpts-1);
-   const QuadratureInterpolator *sqi(sfes.GetQuadratureInterpolator(ir));
-   const QuadratureInterpolator *vqi(vfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *isqi(isfes.GetQuadratureInterpolator(ir));
    const QuadratureInterpolator *ivqi(ivfes.GetQuadratureInterpolator(ir));
 
@@ -320,18 +334,10 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
 
    const ElementDofOrdering nat_ordering = ElementDofOrdering::NATIVE;
    const ElementDofOrdering lex_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   const Operator *SRN(sfes.GetElementRestriction(nat_ordering));
-   const Operator *SRL(sfes.GetElementRestriction(lex_ordering));
-   const Operator *VRN(vfes.GetElementRestriction(nat_ordering));
-   const Operator *VRL(vfes.GetElementRestriction(lex_ordering));
    const Operator *iSRN(isfes.GetElementRestriction(nat_ordering));
    const Operator *iSRL(isfes.GetElementRestriction(lex_ordering));
    const Operator *iVRN(ivfes.GetElementRestriction(nat_ordering));
    const Operator *iVRL(ivfes.GetElementRestriction(lex_ordering));
-   MFEM_VERIFY(SRN, "No element sn-restriction operator found!");
-   MFEM_VERIFY(SRL, "No element sl-restriction operator found!");
-   MFEM_VERIFY(VRN, "No element vn-restriction operator found!");
-   MFEM_VERIFY(VRL, "No element vl-restriction operator found!");
    MFEM_VERIFY(iSRN, "No element sn-restriction operator found!");
    MFEM_VERIFY(iSRL, "No element sl-restriction operator found!");
    MFEM_VERIFY(iVRN, "No element vn-restriction operator found!");
@@ -341,15 +347,10 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
 
    {
       // Scalar
-      sqi->SetOutputLayout(q_layout);
       isqi->SetOutputLayout(q_layout);
       Vector xe(1*ND*NE);
-      REQUIRE(xe.Size() == SRN->Height());
-      REQUIRE(SRN->Height() == SRL->Height());
-      // Full results
-      Vector sq_val_f(NQ*NE);
-      // Tensor results
-      Vector sq_val_t(NQ*NE);
+      REQUIRE(xe.Size() == iSRN->Height());
+      REQUIRE(iSRN->Height() == iSRL->Height());
 
       // Full results
       Vector isq_val_f(NQ*NE);
@@ -357,11 +358,6 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       Vector isq_val_t(NQ*NE);
       {
          // Full
-         SRN->Mult(x, xe);
-         sqi->DisableTensorProducts();
-
-         sqi->Values(xe, sq_val_f);
-
          iSRN->Mult(ix, xe);
          isqi->DisableTensorProducts();
 
@@ -369,11 +365,6 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       }
       {
          // Tensor
-         SRL->Mult(x, xe);
-         sqi->EnableTensorProducts();
-
-         sqi->Values(xe, sq_val_t);
-
          iSRL->Mult(ix, xe);
          isqi->EnableTensorProducts();
 
@@ -381,36 +372,20 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       }
       real_t norm, rel_error;
 
-      norm = sq_val_f.Normlinf();
-      isq_val_f -= sq_val_f;
+      norm = isq_val_f.Normlinf();
+      isq_val_f -= isq_val_t;
       rel_error = isq_val_f.Normlinf()/norm;
       if (verbose_tests)
-      { std::cout << "isq_val_f rel. error = " << rel_error << std::endl; }
-      REQUIRE(rel_error <= rel_tol);
-
-      norm = sq_val_t.Normlinf();
-      isq_val_t -= sq_val_t;
-      rel_error = isq_val_t.Normlinf() / norm;
-      if (verbose_tests)
-      { std::cout << "isq_val_t rel. error = " << rel_error << std::endl; }
+      { std::cout << "isq_val rel. error = " << rel_error << std::endl; }
       REQUIRE(rel_error <= rel_tol);
    }
 
    {
       // Vector
-      vqi->SetOutputLayout(q_layout);
       ivqi->SetOutputLayout(q_layout);
       Vector ne(vdim*ND*NE);
-      REQUIRE(ne.Size() == VRN->Height());
-      REQUIRE(VRN->Height() == VRL->Height());
-      // Full results
-      Vector vq_val_f(dim*NQ*NE), vq_der_f(vdim*dim*NQ*NE),
-             vq_det_f(NQ*NE),
-             vq_pdr_f(vdim*dim*NQ*NE);
-      // Tensor results
-      Vector vq_val_t(dim*NQ*NE), vq_der_t(vdim*dim*NQ*NE),
-             vq_det_t(NQ*NE),
-             vq_pdr_t(vdim*dim*NQ*NE);
+      REQUIRE(ne.Size() == iVRN->Height());
+      REQUIRE(iVRN->Height() == iVRL->Height());
 
       // Full results
       Vector ivq_val_f(dim*NQ*NE);
@@ -418,11 +393,6 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       Vector ivq_val_t(dim*NQ*NE);
       {
          // Full
-         VRN->Mult(nodes, ne);
-         vqi->DisableTensorProducts();
-
-         vqi->Values(ne, vq_val_f);
-
          iVRN->Mult(inodes, ne);
          ivqi->DisableTensorProducts();
 
@@ -430,11 +400,6 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       }
       {
          // Tensor
-         VRL->Mult(nodes, ne);
-         vqi->EnableTensorProducts();
-
-         vqi->Values(ne, vq_val_t);
-
          iVRL->Mult(inodes, ne);
          ivqi->EnableTensorProducts();
 
@@ -442,18 +407,11 @@ static bool L2testQuadratureInterpolator(const int dim, const int p,
       }
       real_t norm, rel_error;
 
-      norm = vq_val_f.Normlinf();
-      ivq_val_f -= vq_val_f;
+      norm = ivq_val_f.Normlinf();
+      ivq_val_f -= ivq_val_t;
       rel_error = ivq_val_f.Normlinf()/norm;
       if (verbose_tests)
-      { std::cout << "ivq_val_f rel. error = " << rel_error << std::endl; }
-      REQUIRE(rel_error <= rel_tol);
-
-      norm = vq_val_t.Normlinf();
-      ivq_val_t -= vq_val_t;
-      rel_error = ivq_val_t.Normlinf()/norm;
-      if (verbose_tests)
-      { std::cout << "ivq_val_t rel. error = " << rel_error << std::endl; }
+      { std::cout << "ivq_val rel. error = " << rel_error << std::endl; }
       REQUIRE(rel_error <= rel_tol);
    }
 

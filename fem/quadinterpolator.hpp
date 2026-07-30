@@ -117,6 +117,10 @@ public:
        FiniteElementSpace is a vector space) and their determinants are computed
        and stored in @a q_det.
 
+       For Integral spaces, the flags VALUES requests the computation of the
+       scalar field values. The result is stored in @a q_val. Derivative types
+       are not supported.
+
        For H(div)-conforming spaces, the flags VALUES / PHYSICAL_VALUES request
        the computation of the vector field values in reference or physical
        space, respectively. The flag PHYSICAL_MAGNITUDES requests the
@@ -193,7 +197,7 @@ public:
                                             const int nq);
    using IntEvalKernelType =
       void (*)(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *detJgeom, const GeometricFactors *geom,
+               const real_t *detJ, const GeometricFactors *geom,
                const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
                Vector &q_der, Vector &q_det, const int eval_flags);
 

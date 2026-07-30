@@ -31,15 +31,15 @@ namespace quadrature_interpolator
 {
 
 template <QVectorLayout Q_LAYOUT, bool Integral>
-static void IntValues1D(const int NE, const real_t *b_, const real_t *detJ_,
-                        const real_t *x_, real_t *y_, const int vdim,
-                        const int d1d, const int q1d)
+static void ImplValues1D(const int NE, const real_t *b_, const real_t *detJ_,
+                         const real_t *x_, real_t *y_, const int vdim,
+                         const int d1d, const int q1d)
 {
    mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
    {
       const auto b = Reshape(b_, q1d, d1d);
       const auto x = Reshape(x_, d1d, vdim, NE);
-      const auto detJ = Reshape(detJ_, d1d, NE);
+      const auto detJ = Reshape(detJ_, q1d, NE);
       auto y = Q_LAYOUT == QVectorLayout::byNODES ? Reshape(y_, q1d, vdim, NE)
                : Reshape(y_, vdim, q1d, NE);
       for (int c = 0; c < vdim; c++)
@@ -66,6 +66,18 @@ static void IntValues1D(const int NE, const real_t *b_, const real_t *detJ_,
             {
                y(q, c, e) = u;
             }
+            if constexpr (Integral)
+            {
+               u /= detJ(q, e);
+            }
+            if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
+            {
+               y(c, q, e) = u;
+            }
+            if constexpr (Q_LAYOUT == QVectorLayout::byNODES)
+            {
+               y(q, c, e) = u;
+            }
          }
       }
    });
@@ -75,15 +87,15 @@ template <QVectorLayout Q_LAYOUT>
 static void Values1D(const int NE, const real_t *b_, const real_t *x_,
                      real_t *y_, const int vdim, const int d1d, const int q1d)
 {
-   IntValues1D<Q_LAYOUT, false>(NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
+   ImplValues1D<Q_LAYOUT, false>(NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
 }
 
 // Template compute kernel for Values in 2D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool Integral, int T_VDIM = 0, int T_D1D = 0,
           int T_Q1D = 0, int T_NBZ = 1>
-static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ_,
-                        const real_t *x_, real_t *y_, const int vdim = 0,
-                        const int d1d = 0, const int q1d = 0)
+static void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
+                         const real_t *x_, real_t *y_, const int vdim = 0,
+                         const int d1d = 0, const int q1d = 0)
 {
    static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
@@ -96,7 +108,7 @@ static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ_,
    mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
       const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
-      const auto detJ = Reshape(detJ_, D1D, D1D, NE);
+      const auto detJ = Reshape(detJ_, Q1D, Q1D, NE);
       auto y = Q_LAYOUT == QVectorLayout::byNODES
                ? Reshape(y_, Q1D, Q1D, VDIM, NE)
                : Reshape(y_, VDIM, Q1D, Q1D, NE);
@@ -125,14 +137,7 @@ static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ_,
          {
             MFEM_FOREACH_THREAD(dx, x, D1D)
             {
-               if constexpr (Integral)
-               {
-                  DD(dx, dy) = x(dx, dy, c, e) / detJ(dx, dy, e);
-               }
-               if constexpr (!Integral)
-               {
-                  DD(dx, dy) = x(dx, dy, c, e);
-               }
+               DD(dx, dy) = x(dx, dy, c, e);
             }
          }
          MFEM_SYNC_THREAD;
@@ -143,6 +148,10 @@ static void IntValues2D(const int NE, const real_t *b_, const real_t *detJ_,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u = QQ(qx, qy);
+               if constexpr (Integral)
+               {
+                  u /= detJ(qx, qy, e);
+               }
                if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
                {
                   y(c, qx, qy, e) = u;
@@ -165,16 +174,16 @@ static void Values2D(const int NE, const real_t *b_, const real_t *x_,
                      real_t *y_, const int vdim = 0, const int d1d = 0,
                      const int q1d = 0)
 {
-   return IntValues2D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D, T_NBZ>(
+   return ImplValues2D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D, T_NBZ>(
              NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
 }
 
 // Template compute kernel for Values in 3D: tensor product version.
 template <QVectorLayout Q_LAYOUT, bool Integral, int T_VDIM = 0, int T_D1D = 0,
           int T_Q1D = 0>
-static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ_,
-                        const real_t *x_, real_t *y_, const int vdim = 0,
-                        const int d1d = 0, const int q1d = 0)
+static void ImplValues3D(const int NE, const real_t *b_, const real_t *detJ_,
+                         const real_t *x_, real_t *y_, const int vdim = 0,
+                         const int d1d = 0, const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -185,7 +194,7 @@ static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ_,
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
-      const auto detJ = Reshape(detJ_, D1D, D1D, D1D, NE);
+      const auto detJ = Reshape(detJ_, Q1D, Q1D, Q1D, NE);
       auto y = Q_LAYOUT == QVectorLayout::byNODES
                ? Reshape(y_, Q1D, Q1D, Q1D, VDIM, NE)
                : Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
@@ -216,15 +225,7 @@ static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ_,
             {
                MFEM_FOREACH_THREAD(dx, x, D1D)
                {
-                  if constexpr (Integral)
-                  {
-                     DDD(dx, dy, dz) =
-                        x(dx, dy, dz, c, e) / detJ(dx, dy, dz, e);
-                  }
-                  if constexpr (!Integral)
-                  {
-                     DDD(dx, dy, dz) = x(dx, dy, dz, c, e);
-                  }
+                  DDD(dx, dy, dz) = x(dx, dy, dz, c, e);
                }
             }
          }
@@ -238,7 +239,11 @@ static void IntValues3D(const int NE, const real_t *b_, const real_t *detJ_,
             {
                MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  const real_t u = QQQ(qz,qy,qx);
+                  real_t u = QQQ(qz,qy,qx);
+                  if constexpr (Integral)
+                  {
+                     u /= detJ(qx, qy, qz, e);
+                  }
                   if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
                   {
                      y(c, qx, qy, qz, e) = u;
@@ -261,23 +266,23 @@ static void Values3D(const int NE, const real_t *b_, const real_t *x_,
                      real_t *y_, const int vdim = 0, const int d1d = 0,
                      const int q1d = 0)
 {
-   return IntValues3D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D>(
+   return ImplValues3D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D>(
              NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
 }
 
 template <bool Integral>
-void IntEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
-               const GeometricFactors *detJgeom, const GeometricFactors *geom,
-               const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-               Vector &q_der, Vector &q_det, const int eval_flags);
+void ImplEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
+                const real_t *detJ, const GeometricFactors *geom,
+                const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
+                Vector &q_der, Vector &q_det, const int eval_flags);
 
 inline void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
                    const GeometricFactors *geom, const DofToQuad &maps,
                    const Vector &e_vec, Vector &q_val, Vector &q_der, Vector &q_det,
                    const int eval_flags)
 {
-   IntEval1D<false>(NE, vdim, q_layout, nullptr, geom, maps, e_vec, q_val,
-                    q_der, q_det, eval_flags);
+   ImplEval1D<false>(NE, vdim, q_layout, nullptr, geom, maps, e_vec, q_val,
+                     q_der, q_det, eval_flags);
 }
 
 // Template compute kernel for 2D quadrature interpolation:
@@ -285,11 +290,11 @@ inline void Eval1D(const int NE, const int vdim, const QVectorLayout q_layout,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <bool Integral, const int T_VDIM, const int T_ND, const int T_NQ>
-static void
-IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
-          const GeometricFactors *detJgeom, const GeometricFactors *geom,
-          const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-          Vector &q_der, Vector &q_det, const int eval_flags)
+static void ImplEval2D(const int NE, const int vdim,
+                       const QVectorLayout q_layout, const real_t *detJ_,
+                       const GeometricFactors *geom, const DofToQuad &maps,
+                       const Vector &e_vec, Vector &q_val, Vector &q_der,
+                       Vector &q_det, const int eval_flags)
 {
    using QI = QuadratureInterpolator;
 
@@ -303,13 +308,15 @@ IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
    MFEM_ASSERT(!geom || geom->mesh->SpaceDimension() == 2, "");
    MFEM_VERIFY(ND <= QI::MAX_ND2D, "");
    MFEM_VERIFY(NQ <= QI::MAX_NQ2D, "");
-   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
-               "'geom' must be given (non-null) only when evaluating physical"
-               " derivatives");
+   if constexpr(Integral)
+   {
+      MFEM_VERIFY(!(eval_flags & (QI::DERIVATIVES | QI::PHYSICAL_DERIVATIVES |
+                                  QI::DETERMINANTS)),
+                  "Integral FE does not support computing derivatives");
+   }
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 2, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 2, 2, NE);
-   auto detJ_ = detJgeom ? detJgeom->detJ.Read() : nullptr;
    const auto E_ = e_vec.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ, VDIM, NE):
@@ -321,7 +328,7 @@ IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
    mfem::forall_2D(NE, NMAX, 1, [=] MFEM_HOST_DEVICE(int e)
    {
       const auto E = Reshape(E_, ND, VDIM, NE);
-      const auto detJ = Reshape(detJ_, ND, NE);
+      const auto detJ = Reshape(detJ_, NQ, NE);
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -332,14 +339,7 @@ IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
       {
          for (int c = 0; c < VDIM; c++)
          {
-            if constexpr (Integral)
-            {
-               s_E[c + d * VDIM] = E(d, c, e) / detJ(d, e);
-            }
-            if constexpr (!Integral)
-            {
-               s_E[c + d * VDIM] = E(d, c, e);
-            }
+            s_E[c + d * VDIM] = E(d, c, e);
          }
       }
       MFEM_SYNC_THREAD;
@@ -363,6 +363,10 @@ IntEval2D(const int NE, const int vdim, const QVectorLayout q_layout,
             }
             for (int c = 0; c < VDIM; c++)
             {
+               if constexpr (Integral)
+               {
+                  ed[c] /= detJ(q, e);
+               }
                if (q_layout == QVectorLayout::byVDIM)
                {
                   val(c, q, e) = ed[c];
@@ -466,8 +470,9 @@ static void Eval2D(const int NE, const int vdim, const QVectorLayout q_layout,
                    const Vector &e_vec, Vector &q_val, Vector &q_der,
                    Vector &q_det, const int eval_flags)
 {
-   IntEval2D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom, maps,
-                                        e_vec, q_val, q_der, q_det, eval_flags);
+   ImplEval2D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom,
+                                         maps, e_vec, q_val, q_der, q_det,
+                                         eval_flags);
 }
 
 // Template compute kernel for 3D quadrature interpolation:
@@ -475,11 +480,11 @@ static void Eval2D(const int NE, const int vdim, const QVectorLayout q_layout,
 // * assumes 'e_vec' is using ElementDofOrdering::NATIVE,
 // * assumes 'maps.mode == FULL'.
 template <bool Integral, const int T_VDIM, const int T_ND, const int T_NQ>
-static void
-IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
-          const GeometricFactors *detJgeom, const GeometricFactors *geom,
-          const DofToQuad &maps, const Vector &e_vec, Vector &q_val,
-          Vector &q_der, Vector &q_det, const int eval_flags)
+static void ImplEval3D(const int NE, const int vdim,
+                       const QVectorLayout q_layout, const real_t *detJ_,
+                       const GeometricFactors *geom, const DofToQuad &maps,
+                       const Vector &e_vec, Vector &q_val, Vector &q_der,
+                       Vector &q_det, const int eval_flags)
 {
    using QI = QuadratureInterpolator;
 
@@ -494,13 +499,15 @@ IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
    MFEM_VERIFY(ND <= QI::MAX_ND3D, "");
    MFEM_VERIFY(NQ <= QI::MAX_NQ3D, "");
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & QI::DETERMINANTS), "");
-   MFEM_VERIFY(bool(geom) == bool(eval_flags & QI::PHYSICAL_DERIVATIVES),
-               "'geom' must be given (non-null) only when evaluating physical"
-               " derivatives");
+   if constexpr(Integral)
+   {
+      MFEM_VERIFY(!(eval_flags & (QI::DERIVATIVES | QI::PHYSICAL_DERIVATIVES |
+                                  QI::DETERMINANTS)),
+                  "Integral FE does not support computing derivatives");
+   }
    const auto B = Reshape(maps.B.Read(), NQ, ND);
    const auto G = Reshape(maps.G.Read(), NQ, 3, ND);
    const auto J = Reshape(geom ? geom->J.Read() : nullptr, NQ, 3, 3, NE);
-   auto detJ_ = detJgeom ? detJgeom->detJ.Read() : nullptr;
    auto E_ = e_vec.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
               Reshape(q_val.Write(), NQ, VDIM, NE):
@@ -512,7 +519,7 @@ IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
    mfem::forall_2D(NE, NMAX, 1, [=] MFEM_HOST_DEVICE(int e)
    {
       const auto E = Reshape(E_, ND, VDIM, NE);
-      const auto detJ = Reshape(detJ_, ND, NE);
+      const auto detJ = Reshape(detJ_, NQ, NE);
       const int ND = T_ND ? T_ND : nd;
       const int NQ = T_NQ ? T_NQ : nq;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -523,14 +530,7 @@ IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
       {
          for (int c = 0; c < VDIM; c++)
          {
-            if constexpr (Integral)
-            {
-               s_E[c + d * VDIM] = E(d, c, e) / detJ(d, e);
-            }
-            if constexpr (!Integral)
-            {
-               s_E[c + d * VDIM] = E(d, c, e);
-            }
+            s_E[c + d * VDIM] = E(d, c, e);
          }
       }
       MFEM_SYNC_THREAD;
@@ -554,6 +554,10 @@ IntEval3D(const int NE, const int vdim, const QVectorLayout q_layout,
             }
             for (int c = 0; c < VDIM; c++)
             {
+               if constexpr (Integral)
+               {
+                  ed[c] /= detJ(q, e);
+               }
                if (q_layout == QVectorLayout::byVDIM)
                {
                   val(c, q, e) = ed[c];
@@ -659,8 +663,9 @@ static void Eval3D(const int NE, const int vdim, const QVectorLayout q_layout,
                    const Vector &e_vec, Vector &q_val, Vector &q_der,
                    Vector &q_det, const int eval_flags)
 {
-   IntEval3D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom, maps,
-                                        e_vec, q_val, q_der, q_det, eval_flags);
+   ImplEval3D<false, T_VDIM, T_ND, T_NQ>(NE, vdim, q_layout, nullptr, geom,
+                                         maps, e_vec, q_val, q_der, q_det,
+                                         eval_flags);
 }
 
 } // namespace quadrature_interpolator
@@ -673,9 +678,9 @@ template <int DIM, QVectorLayout Q_LAYOUT, int VDIM, int D1D, int Q1D, int NBZ>
 QuadratureInterpolator::IntTensorEvalKernelType
 QuadratureInterpolator::IntTensorEvalKernels::Kernel()
 {
-   if constexpr (DIM == 1) { return internal::quadrature_interpolator::IntValues1D<Q_LAYOUT, true>; }
-   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::IntValues2D<Q_LAYOUT, true, VDIM, D1D, Q1D, NBZ>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::IntValues3D<Q_LAYOUT, true, VDIM, D1D, Q1D>; }
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::ImplValues1D<Q_LAYOUT, true>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::ImplValues2D<Q_LAYOUT, true, VDIM, D1D, Q1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::ImplValues3D<Q_LAYOUT, true, VDIM, D1D, Q1D>; }
    MFEM_ABORT("");
 }
 
@@ -694,9 +699,9 @@ QuadratureInterpolator::IntEvalKernelType
 QuadratureInterpolator::IntEvalKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;
-   if constexpr (DIM == 1) { return IntEval1D<true>; }
-   else if constexpr (DIM == 2) { return IntEval2D<true,VDIM,ND,NQ>; }
-   else if constexpr (DIM == 3) { return IntEval3D<true,VDIM,ND,NQ>; }
+   if constexpr (DIM == 1) { return ImplEval1D<true>; }
+   else if constexpr (DIM == 2) { return ImplEval2D<true,VDIM,ND,NQ>; }
+   else if constexpr (DIM == 3) { return ImplEval3D<true,VDIM,ND,NQ>; }
    MFEM_ABORT("");
 }
 
