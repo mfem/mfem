@@ -555,10 +555,12 @@ if (MFEM_USE_CODSPEED AND NOT MFEM_USE_BENCHMARK)
 endif()
 if (MFEM_USE_BENCHMARK)
    if (MFEM_USE_CODSPEED)
-      # Fetch CodSpeed's instrumented fork of Google Benchmark (drop-in
-      # replacement, see https://codspeed.io/docs/benchmarks/cpp). It must be
-      # consumed as a CMake target so its public compile definitions
-      # propagate. Select the mode with -DCODSPEED_MODE=<simulation|walltime>.
+      # Fetch CodSpeed's instrumented fork of Google Benchmark. This is a
+      # FetchContent target, not an installed library, so leave
+      # BENCHMARK_FOUND/BENCHMARK_LIBRARIES/BENCHMARK_INCLUDE_DIRS unset to keep
+      # it out of TPL_LIBRARIES. The benchmark executables link the target
+      # directly in tests/benchmarks/CMakeLists.txt, which propagates the public
+      # compile definitions that enable CodSpeed's instrumentation.
       if (CMAKE_VERSION VERSION_LESS 3.18.0)
          message(FATAL_ERROR "MFEM_USE_CODSPEED requires CMake >= 3.18")
       endif()
@@ -570,9 +572,6 @@ if (MFEM_USE_BENCHMARK)
       set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
       set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
       FetchContent_MakeAvailable(google_benchmark)
-      # BENCHMARK_FOUND/BENCHMARK_LIBRARIES stay unset: the config.mk export
-      # cannot handle non-imported targets in TPL_LIBRARIES. The target is
-      # linked directly in tests/benchmarks/CMakeLists.txt instead.
       set(BENCHMARK_INCLUDE_DIRS "")
    else()
       find_package(Benchmark REQUIRED)
