@@ -1,11 +1,11 @@
-//                                MFEM Example 41
+//                                MFEM Example 42
 //
-// Compile with: make ex41p
+// Compile with: make ex42p
 //
-// Sample runs: ex41 -r 3
-//              ex41 -m ../data/hexagon.mesh -r 3 -o 3
-//              ex41 -m ../data/square-mixed.mesh -r 2 -eta 5
-//              ex41 -m ../data/l-shape.mesh -r 3
+// Sample runs: ex42 -r 3
+//              ex42 -m ../data/hexagon.mesh -r 3 -o 3
+//              ex42 -m ../data/square-mixed.mesh -r 2 -eta 5
+//              ex42 -m ../data/l-shape.mesh -r 3
 //
 // Description: This example solves the clamped biharmonic equation,
 //
