@@ -589,6 +589,38 @@ SesquilinearForm::AssembleComplexSparseMatrix()
 }
 
 void
+SesquilinearForm::BuildComplexOperator(OperatorHandle &A_r,
+                                       OperatorHandle &A_i,
+                                       OperatorHandle &A) const
+{
+   // A = A_r + i A_i
+   A.Clear();
+   if ( A_r.Type() == Operator::MFEM_SPARSEMAT ||
+        A_i.Type() == Operator::MFEM_SPARSEMAT )
+   {
+      ComplexSparseMatrix * A_sp =
+         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
+                                 A_i.As<SparseMatrix>(),
+                                 A_r.OwnsOperator(),
+                                 A_i.OwnsOperator(),
+                                 conv);
+      A.Reset<ComplexSparseMatrix>(A_sp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.Ptr(),
+                             A_i.Ptr(),
+                             A_r.OwnsOperator(),
+                             A_i.OwnsOperator(),
+                             conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
+}
+
+void
 SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
                                    Vector &x, Vector &b,
                                    OperatorHandle &A,
@@ -716,31 +748,7 @@ SesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    B_r.SyncAliasMemory(B);
    B_i.SyncAliasMemory(B);
 
-   // A = A_r + i A_i
-   A.Clear();
-   if ( A_r.Type() == Operator::MFEM_SPARSEMAT ||
-        A_i.Type() == Operator::MFEM_SPARSEMAT )
-   {
-      ComplexSparseMatrix * A_sp =
-         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
-                                 A_i.As<SparseMatrix>(),
-                                 A_r.OwnsOperator(),
-                                 A_i.OwnsOperator(),
-                                 conv);
-      A.Reset<ComplexSparseMatrix>(A_sp, true);
-   }
-   else
-   {
-      ComplexOperator * A_op =
-         new ComplexOperator(A_r.Ptr(),
-                             A_i.Ptr(),
-                             A_r.OwnsOperator(),
-                             A_i.OwnsOperator(),
-                             conv);
-      A.Reset<ComplexOperator>(A_op, true);
-   }
-   A_r.SetOperatorOwner(false);
-   A_i.SetOperatorOwner(false);
+   BuildComplexOperator(A_r, A_i, A);
 }
 
 void
@@ -777,31 +785,7 @@ SesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       }
    }
 
-   // A = A_r + i A_i
-   A.Clear();
-   if ( A_r.Type() == Operator::MFEM_SPARSEMAT ||
-        A_i.Type() == Operator::MFEM_SPARSEMAT )
-   {
-      ComplexSparseMatrix * A_sp =
-         new ComplexSparseMatrix(A_r.As<SparseMatrix>(),
-                                 A_i.As<SparseMatrix>(),
-                                 A_r.OwnsOperator(),
-                                 A_i.OwnsOperator(),
-                                 conv);
-      A.Reset<ComplexSparseMatrix>(A_sp, true);
-   }
-   else
-   {
-      ComplexOperator * A_op =
-         new ComplexOperator(A_r.Ptr(),
-                             A_i.Ptr(),
-                             A_r.OwnsOperator(),
-                             A_i.OwnsOperator(),
-                             conv);
-      A.Reset<ComplexOperator>(A_op, true);
-   }
-   A_r.SetOperatorOwner(false);
-   A_i.SetOperatorOwner(false);
+   BuildComplexOperator(A_r, A_i, A);
 }
 
 void
@@ -1473,6 +1457,38 @@ ParSesquilinearForm::ParallelAssemble()
                                     true, true, conv);
 }
 
+void
+ParSesquilinearForm::BuildComplexOperator(OperatorHandle &A_r,
+                                          OperatorHandle &A_i,
+                                          OperatorHandle &A) const
+{
+   // A = A_r + i A_i
+   A.Clear();
+   if ( A_r.Type() == Operator::Hypre_ParCSR ||
+        A_i.Type() == Operator::Hypre_ParCSR )
+   {
+      ComplexHypreParMatrix * A_hyp =
+         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
+                                   A_i.As<HypreParMatrix>(),
+                                   A_r.OwnsOperator(),
+                                   A_i.OwnsOperator(),
+                                   conv);
+      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
+   }
+   else
+   {
+      ComplexOperator * A_op =
+         new ComplexOperator(A_r.As<Operator>(),
+                             A_i.As<Operator>(),
+                             A_r.OwnsOperator(),
+                             A_i.OwnsOperator(),
+                             conv);
+      A.Reset<ComplexOperator>(A_op, true);
+   }
+   A_r.SetOperatorOwner(false);
+   A_i.SetOperatorOwner(false);
+}
+
 namespace
 {
 struct ZeroHypreDiagonal
@@ -1635,31 +1651,7 @@ ParSesquilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list,
    B_r.SyncAliasMemory(B);
    B_i.SyncAliasMemory(B);
 
-   // A = A_r + i A_i
-   A.Clear();
-   if ( A_r.Type() == Operator::Hypre_ParCSR ||
-        A_i.Type() == Operator::Hypre_ParCSR )
-   {
-      ComplexHypreParMatrix * A_hyp =
-         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
-                                   A_i.As<HypreParMatrix>(),
-                                   A_r.OwnsOperator(),
-                                   A_i.OwnsOperator(),
-                                   conv);
-      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
-   }
-   else
-   {
-      ComplexOperator * A_op =
-         new ComplexOperator(A_r.As<Operator>(),
-                             A_i.As<Operator>(),
-                             A_r.OwnsOperator(),
-                             A_i.OwnsOperator(),
-                             conv);
-      A.Reset<ComplexOperator>(A_op, true);
-   }
-   A_r.SetOperatorOwner(false);
-   A_i.SetOperatorOwner(false);
+   BuildComplexOperator(A_r, A_i, A);
 }
 
 void
@@ -1687,31 +1679,7 @@ ParSesquilinearForm::FormSystemMatrix(const Array<int> &ess_tdof_list,
       SetImaginaryEssentialDiagonalToZero(ess_tdof_list, A_i);
    }
 
-   // A = A_r + i A_i
-   A.Clear();
-   if ( A_r.Type() == Operator::Hypre_ParCSR ||
-        A_i.Type() == Operator::Hypre_ParCSR )
-   {
-      ComplexHypreParMatrix * A_hyp =
-         new ComplexHypreParMatrix(A_r.As<HypreParMatrix>(),
-                                   A_i.As<HypreParMatrix>(),
-                                   A_r.OwnsOperator(),
-                                   A_i.OwnsOperator(),
-                                   conv);
-      A.Reset<ComplexHypreParMatrix>(A_hyp, true);
-   }
-   else
-   {
-      ComplexOperator * A_op =
-         new ComplexOperator(A_r.As<Operator>(),
-                             A_i.As<Operator>(),
-                             A_r.OwnsOperator(),
-                             A_i.OwnsOperator(),
-                             conv);
-      A.Reset<ComplexOperator>(A_op, true);
-   }
-   A_r.SetOperatorOwner(false);
-   A_i.SetOperatorOwner(false);
+   BuildComplexOperator(A_r, A_i, A);
 }
 
 void
