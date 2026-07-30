@@ -774,7 +774,7 @@ void BilinearForm::ConformingAssemble()
    {
       mats_to_assemble.push_back(mat_e);
    }
-   mfem::ConformingAssemble(*fes, mats_to_assemble);
+   fes->ConformingAssemble(mats_to_assemble);
    mat = mats_to_assemble.front();
    if (mat_e)
    {

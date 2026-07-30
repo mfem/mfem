@@ -124,7 +124,7 @@ void ParBilinearForm::pAllocMat()
 void ParBilinearForm::ParallelRAP(SparseMatrix &loc_A, OperatorHandle &A,
                                   bool steal_loc_A)
 {
-   mfem::ParallelRAP(*ParFESpace(), loc_A, A, steal_loc_A);
+   ParFESpace()->ParallelRAP(loc_A, A, steal_loc_A);
 }
 
 HypreParMatrix *ParBilinearForm::ParallelAssembleInternalMatrix()
