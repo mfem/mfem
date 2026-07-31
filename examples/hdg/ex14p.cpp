@@ -2,27 +2,27 @@
 //
 // Compile with: make ex14p
 //
-// Sample runs:  mpirun -np 4 ex14p -m ../data/inline-quad.mesh -o 0
-//               mpirun -np 4 ex14p -m ../data/star.mesh -o 2
-//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2
-//               mpirun -np 4 ex14p -m ../data/star-mixed.mesh -o 2 -k 0 -e 1
-//               mpirun -np 4 ex14p -m ../data/escher.mesh -s 1
-//               mpirun -np 4 ex14p -m ../data/fichera.mesh -s 1 -k 1
-//               mpirun -np 4 ex14p -m ../data/fichera-mixed.mesh -s 1 -k 1
-//               mpirun -np 4 ex14p -m ../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex14p -m ../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex14p -m ../data/square-disc-nurbs.mesh -o 1
-//               mpirun -np 4 ex14p -m ../data/disc-nurbs.mesh -rs 4 -o 2 -s 1 -k 0
-//               mpirun -np 4 ex14p -m ../data/pipe-nurbs.mesh -o 1
-//               mpirun -np 4 ex14p -m ../data/inline-segment.mesh -rs 5
-//               mpirun -np 4 ex14p -m ../data/amr-quad.mesh -rs 3
-//               mpirun -np 4 ex14p -m ../data/amr-hex.mesh
+// Sample runs:  mpirun -np 4 ex14p -m ../../data/inline-quad.mesh -o 0
+//               mpirun -np 4 ex14p -m ../../data/star.mesh -o 2
+//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -o 2
+//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -o 2 -k 0 -e 1
+//               mpirun -np 4 ex14p -m ../../data/escher.mesh -s 1
+//               mpirun -np 4 ex14p -m ../../data/fichera.mesh -s 1 -k 1
+//               mpirun -np 4 ex14p -m ../../data/fichera-mixed.mesh -s 1 -k 1
+//               mpirun -np 4 ex14p -m ../../data/square-disc-p2.vtk -o 2
+//               mpirun -np 4 ex14p -m ../../data/square-disc-p3.mesh -o 3
+//               mpirun -np 4 ex14p -m ../../data/square-disc-nurbs.mesh -o 1
+//               mpirun -np 4 ex14p -m ../../data/disc-nurbs.mesh -rs 4 -o 2 -s 1 -k 0
+//               mpirun -np 4 ex14p -m ../../data/pipe-nurbs.mesh -o 1
+//               mpirun -np 4 ex14p -m ../../data/inline-segment.mesh -rs 5
+//               mpirun -np 4 ex14p -m ../../data/amr-quad.mesh -rs 3
+//               mpirun -np 4 ex14p -m ../../data/amr-hex.mesh
 //               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -o 3
-//               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -m ../data/fichera.mesh -o 3
+//               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -m ../../data/fichera.mesh -o 3
 //
 // Device sample runs:
 //               mpirun -np 4 ex14p -pa -rs 2 -rp 0 -d cuda -o 3
-//               mpirun -np 4 ex14p -pa -rs 2 -rp 0 -d cuda -m ../data/fichera.mesh -o 3
+//               mpirun -np 4 ex14p -pa -rs 2 -rp 0 -d cuda -m ../../data/fichera.mesh -o 3
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               mixed / local / hybridizable discontinuous Galerkin (DG) finite
