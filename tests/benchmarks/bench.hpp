@@ -18,6 +18,7 @@
 
 #include "benchmark/benchmark.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -35,6 +36,18 @@ namespace mfem
 {
 
 constexpr std::size_t KB = (1 << 10);
+
+/// Parse a boolean from --benchmark_context=key=value (true/false/1/0/yes/no).
+inline bool ParseBoolContext(const std::string &value)
+{
+   std::string v = value;
+   for (char &c : v) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+   if (v == "true" || v == "1" || v == "yes") { return true; }
+   if (v == "false" || v == "0" || v == "no") { return false; }
+   MFEM_ABORT("Invalid boolean context value: '" << value
+              << "' (expected true/false/1/0/yes/no)");
+   return false;
+}
 
 // Specific MFEM Reporter
 class Reporter : public benchmark::BenchmarkReporter

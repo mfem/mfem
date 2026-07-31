@@ -32,6 +32,9 @@
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
 
+// CG verification for BP setups; enabled via --benchmark_context=cg_verify=true
+static bool cg_verify = false;
+
 static int SnapMmaElementsPerDir(int n) noexcept
 {
    if (n < 32)
@@ -161,13 +164,15 @@ template <> struct BakeOffIntegrator<5> { using type = DiffusionIntegrator; };
 template <> struct BakeOffIntegrator<6> { using type = VectorDiffusionIntegrator; };
 
 // Bake-off base class
-template <int BFI, int DIM, int VDIM, bool GLL,
+// QGL: true → CEED GL quadrature q=p+2 (BP/BK 1–4); false → GLL q=p+1 (BP/BK 5–6)
+template <int BFI, int DIM, int VDIM, bool QGL,
           bool SIMPLEX, bool POS, bool MMA>
 struct BakeOff
 {
    static_assert(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
    static_assert(BFI >= 1 && BFI <= 6, "Invalid BilinearFormIntegrator");
-   static_assert(!GLL || !SIMPLEX, "GLL (q=p+1) is only for tensor elements");
+   static_assert(QGL ||
+                 !SIMPLEX, "GLL quadrature (q=p+1) is only for tensor elements");
 
    using IntegratorType = typename BakeOffIntegrator<BFI>::type;
 
@@ -203,13 +208,13 @@ struct BakeOff
 
    BakeOff(int p, int side, MeshExtents e): p(p), c(side),
       // q = integration-rule exactness (not CEED 1D point count)
-      // Tensor GL: q=2p+3 → Q1D=p+2; tensor GLL: q=2p-1 → Q1D=p+1
+      // Tensor QGL: q=2p+3 → Q1D=p+2; tensor !QGL (GLL): q=2p-1 → Q1D=p+1
       // Simplex Stroud: mass q=2p → D1D==Q1D; diffusion q=2p-1 → D1D==Q1D+1
       // Simplex MMA: mass q=2p; diffusion q=2p-2 (match FA GetRule on Pk)
-      q(2 * p + (GLL ? -1
-                 : (SIMPLEX ? (mass ? 0
-                               : ((POS && !MMA) ? -1 : -2))
-                    : 3))),
+      q(2 * p + (QGL ? (SIMPLEX ? (mass ? 0
+                                   : ((POS && !MMA) ? -1 : -2))
+                        : 3)
+                 : -1)),
       n(e.n), nx(e.nx), ny(e.ny), nz(e.nz),
       mesh([&]()
    {
@@ -232,8 +237,8 @@ struct BakeOff
        : BasisType::GaussLobatto),
    fes(&mesh, &fec, VDIM, VDIM == DIM ? Ordering::byVDIM : Ordering::byNODES),
    geom_type(mesh.GetTypicalElementGeometry()),
-   irs(0, GLL ? Quadrature1D::GaussLobatto : Quadrature1D::GaussLegendre),
-   // pos_sum uses Stroud; h1_mma / pos_mma use standard simplex rules
+   irs(0, QGL ? Quadrature1D::GaussLegendre : Quadrature1D::GaussLobatto),
+   // pos_sum uses Stroud; gll_mma / pos_mma use standard simplex rules
    ir((SIMPLEX && POS && !MMA)
       ? &StroudIntRules.Get(geom_type, q)
       : &irs.Get(geom_type, q)),
@@ -259,10 +264,10 @@ struct BakeOff
 
       if constexpr (!SIMPLEX) // tensor
       {
-         q1d = GLL ? (q / 2 + 2) : (q / 2 + 1);
-         MFEM_VERIFY(q == (GLL ? 2 * p - 1 : 2 * p + 3),
+         q1d = QGL ? (q / 2 + 1) : (q / 2 + 2);
+         MFEM_VERIFY(q == (QGL ? 2 * p + 3 : 2 * p - 1),
                      "tensor rule order");
-         MFEM_VERIFY(q1d == (GLL ? p + 1 : p + 2),
+         MFEM_VERIFY(q1d == (QGL ? p + 2 : p + 1),
                      "tensor Q1D must be p+2 (GL) or p+1 (GLL)");
          MFEM_VERIFY(qnd == ipow(q1d, DIM),
                      "tensor QND must be Q1D^dim");
@@ -274,7 +279,7 @@ struct BakeOff
          MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 1), "Stroud rule order");
          MFEM_VERIFY(qnd == ipow(q1d, DIM), "Stroud QND must be Q1D^dim");
       }
-      else // simplex MMA (H1 or Positive+ForceMMA): QND only, no 1D Q1D
+      else // simplex MMA (GLL nodal or Positive+ForceMMA): QND only, no 1D Q1D
       {
          MFEM_VERIFY(q == (mass ? 2 * p : 2 * p - 2), "simplex MMA rule order");
          MFEM_VERIFY(ir->GetOrder() >= q, "simplex MMA integration rule order");
@@ -308,8 +313,8 @@ struct BakeOff
 
 // Bake-off Problems (BPs)
 template
-<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA>
-struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
+<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA>
+struct BP : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
 {
    const int max_it = 32, print_lvl = -1;
 
@@ -320,7 +325,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
    Vector B, X;
    CGSolver cg;
 
-   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>;
    using base::a;
    using base::ir_rhs;
    using base::one;
@@ -358,7 +363,7 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 
       cg.SetOperator(*A);
       cg.iterative_mode = false;
-      if (dofs < 64 * 1024)
+      if (cg_verify)
       {
          cg.SetPrintLevel(-1);
          cg.SetMaxIter(1000);
@@ -399,12 +404,12 @@ struct BP : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
 
 // Bake-off Kernels (BKs)
 template
-<int BFI, int DIM, int VDIM, bool GLL, bool SIMPLEX, bool POS, bool MMA>
-struct BK : public BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>
+<int BFI, int DIM, int VDIM, bool QGL, bool SIMPLEX, bool POS, bool MMA>
+struct BK : public BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>
 {
    Vector xe, ye;
 
-   using base = BakeOff<BFI, DIM, VDIM, GLL, SIMPLEX, POS, MMA>;
+   using base = BakeOff<BFI, DIM, VDIM, QGL, SIMPLEX, POS, MMA>;
    using base::ir;
    using base::one;
    using base::bfi;
@@ -482,10 +487,10 @@ inline constexpr char s_hex_sum[] = "hex_sum";
 inline constexpr char s_hex_mma[] = "hex_mma";
 inline constexpr char s_quad_sum[] = "quad_sum";
 inline constexpr char s_quad_mma[] = "quad_mma";
-inline constexpr char s_tet_h1_mma[] = "tet_h1_mma";
+inline constexpr char s_tet_gll_mma[] = "tet_gll_mma";
 inline constexpr char s_tet_pos_sum[] = "tet_pos_sum";
 inline constexpr char s_tet_pos_mma[] = "tet_pos_mma";
-inline constexpr char s_tri_h1_mma[] = "tri_h1_mma";
+inline constexpr char s_tri_gll_mma[] = "tri_gll_mma";
 inline constexpr char s_tri_pos_sum[] = "tri_pos_sum";
 inline constexpr char s_tri_pos_mma[] = "tri_pos_mma";
 
@@ -502,10 +507,11 @@ using HexSum    = Geom<3, false, false, false, s_hex_sum>;
 using HexMma    = Geom<3, false, false, true,  s_hex_mma>;
 using QuadSum   = Geom<2, false, false, false, s_quad_sum>;
 using QuadMma   = Geom<2, false, false, true,  s_quad_mma>;
-using TetH1Mma  = Geom<3, true,  false, false, s_tet_h1_mma>;
+// GLL simplices already use dense MMA without ForceMMA; MMA=true matches *_mma
+using TetGllMma = Geom<3, true,  false, true,  s_tet_gll_mma>;
 using TetPosSum = Geom<3, true,  true,  false, s_tet_pos_sum>;
 using TetPosMma = Geom<3, true,  true,  true,  s_tet_pos_mma>;
-using TriH1Mma  = Geom<2, true,  false, false, s_tri_h1_mma>;
+using TriGllMma = Geom<2, true,  false, true,  s_tri_gll_mma>;
 using TriPosSum = Geom<2, true,  true,  false, s_tri_pos_sum>;
 using TriPosMma = Geom<2, true,  true,  true,  s_tri_pos_mma>;
 
@@ -514,7 +520,7 @@ using TriPosMma = Geom<2, true,  true,  true,  s_tri_pos_mma>;
       PK<BFI,\
         /* DIM*/ GEOM::dim, \
         /*VDIM*/ ((BFI) % 2 ? 1 : GEOM::dim), \
-        /* GLL*/ ((BFI) >= 5), \
+        /* QGL*/ ((BFI) <= 4), \
          GEOM::simplex, GEOM::pos, GEOM::mma>) \
    ->Name(std::string(#PK #BFI) + GEOM::suffix) \
    ->Apply(CustomArguments)->Unit(bm::kMillisecond)
@@ -524,10 +530,10 @@ REGISTER(BP, 1, HexSum);
 REGISTER(BP, 1, HexMma);
 REGISTER(BP, 1, QuadSum);
 REGISTER(BP, 1, QuadMma);
-REGISTER(BP, 1, TetH1Mma);
+REGISTER(BP, 1, TetGllMma);
 REGISTER(BP, 1, TetPosSum);
 REGISTER(BP, 1, TetPosMma);
-REGISTER(BP, 1, TriH1Mma);
+REGISTER(BP, 1, TriGllMma);
 REGISTER(BP, 1, TriPosSum);
 REGISTER(BP, 1, TriPosMma);
 
@@ -540,10 +546,10 @@ REGISTER(BP, 3, HexSum);
 REGISTER(BP, 3, HexMma);
 REGISTER(BP, 3, QuadSum);
 REGISTER(BP, 3, QuadMma);
-REGISTER(BP, 3, TetH1Mma);
+REGISTER(BP, 3, TetGllMma);
 REGISTER(BP, 3, TetPosSum);
 REGISTER(BP, 3, TetPosMma);
-REGISTER(BP, 3, TriH1Mma);
+REGISTER(BP, 3, TriGllMma);
 REGISTER(BP, 3, TriPosSum);
 REGISTER(BP, 3, TriPosMma);
 
@@ -587,24 +593,23 @@ REGISTER(BK, 6, QuadSum);
  * @brief CEED Bake-off Problems main entry point
  * Command line options:
  *    --benchmark_context=device=gpu
- *    --benchmark_filter=BP1hex
+ *    --benchmark_context=cg_verify=true|false  (default false)
+ *    --benchmark_filter=BP1hex_sum
  *    --benchmark_filter=BP3hex_mma
+ *    --benchmark_filter=BP1tet_gll_mma
  *    --benchmark_filter=BP1tri_pos_sum
  *    --benchmark_filter=BP1tri_pos_mma
  *    --benchmark_out_format=csv
  *    --benchmark_out=bp1.csv
  *
- * Names encode geometry and PA backend:
- *    hex / quad           — tensor-product SUM (3D / 2D)
- *    hex_mma / quad_mma   — tensor-product sum-factored MMA (CUDA)
- *    tet_h1_mma / tri_h1_mma — simplex H1/Gauss-Lobatto, dense MMA
- *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud sum-factorized
- *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA
+ * Names: {geom}[_{basis}]_{algo}
+ *    hex_sum / quad_sum     — classic tensor sum-factorization
+ *    hex_mma / quad_mma     — tensor sum-fact + small per-direction MMA
+ *    tet_gll_mma / tri_gll_mma — simplex GLL nodal, dense MMA GEMM
+ *    tet_pos_sum / tri_pos_sum — simplex Positive, Stroud sum-fact
+ *    tet_pos_mma / tri_pos_mma — simplex Positive, dense MMA
  *
- * Positive MMA (`*_pos_mma`) and tensors MMA (`hex_mma` / `quad_mma`)
- * runs on CPU (dense host path) as well as GPU, e.g.:
- *    --benchmark_context=device=cuda
- *    --benchmark_context=device=hip
+ * QGL (template): true for BP/BK 1–4 (GL q=p+2), false for 5–6 (GLL q=p+1).
  */
 int main(int argc, char *argv[])
 {
@@ -623,6 +628,12 @@ int main(int argc, char *argv[])
       {
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;
+      }
+      const auto ctx_cg = global_context->find("cg_verify");
+      if (ctx_cg != global_context->end())
+      {
+         mfem::out << ctx_cg->first << " : " << ctx_cg->second << std::endl;
+         cg_verify = ParseBoolContext(ctx_cg->second);
       }
    }
 
