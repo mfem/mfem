@@ -47,7 +47,7 @@ void test_pa_tensors_mma(Mesh &mesh, int p)
       if (!UsesTensorMMA(fes))
       {
          // Catch2 v2 has no SKIP; GPU jobs should still hit eligible meshes
-         // Host/CPU uses SUM (Tensors MMA is CUDA-only).
+         // Host/CPU uses SUM (Tensors MMA is CUDA/HIP only).
          WARN("UsesTensorMMA returned false; skipping Tensors MMA checks");
          return;
       }
@@ -168,8 +168,8 @@ TEST_CASE("Tensors MMA eligibility", "[MMA][GPU]")
 
    {
       MMAForce on(true);
-      // CUDA only; on host, force is ignored and stock SUM is used.
-      if (Device::Allows(Backend::CUDA_MASK))
+      // CUDA/HIP only; on host, force is ignored and stock SUM is used.
+      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
          REQUIRE(UsesTensorMMA(fes));
       }

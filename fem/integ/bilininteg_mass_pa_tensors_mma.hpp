@@ -122,7 +122,7 @@ inline void MmaPAMassApplyTensors2D(const int NE,
          {
             const int tid = tensors_mma::getThreadIdx();
             const int nq = Q1D * Q1D;
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
             const int stride = blockDim.x;
 #else
             const int stride = nq;

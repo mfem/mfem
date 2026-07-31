@@ -454,9 +454,9 @@ static void Benchmark(bm::State& state) noexcept
    MMAForce mma(T::mma);
    if constexpr (!T::simplex && T::mma)
    {
-      if (!Device::Allows(Backend::CUDA_MASK))
+      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         state.SkipWithError("Tensors MMA benchmarks require CUDA device enabled");
+         state.SkipWithError("Tensors MMA benchmarks require CUDA or HIP");
          return;
       }
    }
