@@ -42,6 +42,9 @@
 #if !defined(PETSC_USE_64BIT_INDICES) && (defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT))
 #error "Mismatch between HYPRE (64bit) and PETSc (32bit) integer types"
 #endif
+#if !defined(PETSC_HAVE_HYPRE)
+#error "MFEM requires PETSc built with HYPRE support"
+#endif
 
 #include "petscversion.h"
 #if PETSC_VERSION_GE(3,12,0)
