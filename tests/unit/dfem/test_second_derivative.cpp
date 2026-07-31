@@ -111,6 +111,78 @@ struct MinimalSurfaceHessianAction
    }
 };
 
+
+// Functional for the mixed problem with two fields u and rho, with the energy functional:
+// J(u, rho) = int (rho u^2 + 0.5 rho^2) dx
+template <typename dscalar_t, int dim>
+struct MixedFunctional
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const dscalar_t &u,
+                   const dscalar_t &rho,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &f) const
+   {
+      f = (rho * u * u + 0.5_r * rho * rho) * det(J) * w;
+   }
+};
+
+template <typename dscalar_t, int dim>
+struct MixedFunctionalUUAction
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const real_t &du,
+                   const dscalar_t &rho,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &v) const
+   {
+      v = 2.0_r * rho * du * det(J) * w;
+   }
+};
+
+template <typename dscalar_t, int dim>
+struct MixedFunctionalURhoAction
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const real_t &drho,
+                   const dscalar_t &u,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &v) const
+   {
+      v = 2.0_r * u * drho * det(J) * w;
+   }
+};
+
+template <typename dscalar_t, int dim>
+struct MixedFunctionalRhoUAction
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const real_t &du,
+                   const dscalar_t &u,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &v) const
+   {
+      v = 2.0_r * u * du * det(J) * w;
+   }
+};
+
+template <typename dscalar_t, int dim>
+struct MixedFunctionalRhoRhoAction
+{
+   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   auto operator()(const real_t &drho,
+                   const tensor<real_t, dim, dim> &J,
+                   const real_t &w,
+                   real_t &v) const
+   {
+      v = drho * det(J) * w;
+   }
+};
+
 template <int dim>
 class MyFunctional
 {
@@ -385,6 +457,160 @@ void second_derivative(const char *filename, int p)
    // pretty_print(Hv);
 }
 
+template <int DIM>
+void mixed_second_derivative(const char *filename, int p)
+{
+   static constexpr int U = 0, Rho = 1, Coords = 2, Q = 3;
+   static constexpr int DU = 4, DRho = 5;
+   CAPTURE(filename, DIM, p);
+
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const int tvsize = fes.GetTrueVSize();
+
+   const IntegrationRule &ir =
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   Array<int> all_domain_attr;
+   if (pmesh.attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.attributes.Max());
+      all_domain_attr = 1;
+   }
+
+   // Use smooth, non-constant fields so all four second-derivative blocks are
+   // nontrivial while keeping the exact expressions simple.
+   ParGridFunction u_gf(&fes), rho_gf(&fes), du_gf(&fes), drho_gf(&fes);
+   FunctionCoefficient u_coeff(
+      [](const auto &x)
+   {
+      return 1.0_r + x[0] + 0.25_r * x[1];
+   });
+   FunctionCoefficient rho_coeff(
+      [](const auto &x)
+   {
+      return 0.5_r + 0.2_r * x[0] * x[0] + 0.1_r * x[1];
+   });
+   FunctionCoefficient du_coeff(
+      [](const auto &x)
+   {
+      return cos(M_PI * x[0]) + 0.25_r * x[0] * x[1];
+   });
+   FunctionCoefficient drho_coeff(
+      [](const auto &x)
+   {
+      return sin(M_PI * x[0]) + 0.5_r * x[1];
+   });
+   u_gf.ProjectCoefficient(u_coeff);
+   rho_gf.ProjectCoefficient(rho_coeff);
+   du_gf.ProjectCoefficient(du_coeff);
+   drho_gf.ProjectCoefficient(drho_coeff);
+
+   Vector u(tvsize), rho(tvsize), du(tvsize), drho(tvsize), coords;
+   u_gf.GetTrueDofs(u);
+   rho_gf.GetTrueDofs(rho);
+   du_gf.GetTrueDofs(du);
+   drho_gf.GetTrueDofs(drho);
+   pmesh.GetNodes()->GetTrueDofs(coords);
+
+   const auto functional_in = std::vector
+   {
+      FieldDescriptor{U, &fes},
+      FieldDescriptor{Rho, &fes},
+      FieldDescriptor{Coords, mfes}
+   };
+   QuadratureSpace qspace(pmesh, ir);
+   VectorQuadratureSpace qspace_vec(qspace, 1);
+   const auto functional_out = std::vector
+   {
+      FieldDescriptor{Q, &qspace_vec}
+   };
+
+   DifferentiableOperator functional_dop(functional_in, functional_out, pmesh);
+   MixedFunctional<real_t, DIM> functional;
+   functional_dop.AddDomainIntegrator<LocalQFBackend>(
+      functional,
+      Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
+      Outputs<FunctionalValue<Q>> {},
+      ir, all_domain_attr,
+      Derivatives<U, Rho> {});
+
+   MultiVector X{u, rho, coords};
+
+   auto check_block = [&](auto gradient_id,
+                          auto direction_id,
+                          const Vector &direction,
+                          auto exact_qfunc,
+                          auto exact_inputs,
+                          auto exact_outputs,
+                          const std::vector<FieldDescriptor> &exact_in,
+                          const std::vector<FieldDescriptor> &exact_out,
+                          MultiVector exact_x)
+   {
+      Vector actual(tvsize);
+      MultiVector Actual{actual};
+      functional_dop.GetSecondDerivative(gradient_id, direction_id, X)->Mult(
+         direction, Actual);
+
+      Vector expected(tvsize);
+      MultiVector Expected{expected};
+      DifferentiableOperator exact_dop(exact_in, exact_out, pmesh);
+      exact_dop.AddDomainIntegrator<LocalQFBackend>(
+         exact_qfunc, exact_inputs, exact_outputs, ir, all_domain_attr);
+      exact_dop.Mult(exact_x, Expected);
+
+      Vector diff(actual);
+      diff -= expected;
+      REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
+   };
+
+   check_block(U, U, du,
+               MixedFunctionalUUAction<real_t, DIM> {},
+               Inputs<Value<DU>, Value<Rho>, Gradient<Coords>, Weight> {},
+               Outputs<Value<U>> {},
+               std::vector{FieldDescriptor{DU, &fes},
+                           FieldDescriptor{Rho, &fes},
+                           FieldDescriptor{Coords, mfes}},
+               std::vector{FieldDescriptor{U, &fes}},
+               MultiVector{du, rho, coords});
+
+   check_block(U, Rho, drho,
+               MixedFunctionalURhoAction<real_t, DIM> {},
+               Inputs<Value<DRho>, Value<U>, Gradient<Coords>, Weight> {},
+               Outputs<Value<U>> {},
+               std::vector{FieldDescriptor{DRho, &fes},
+                           FieldDescriptor{U, &fes},
+                           FieldDescriptor{Coords, mfes}},
+               std::vector{FieldDescriptor{U, &fes}},
+               MultiVector{drho, u, coords});
+
+   check_block(Rho, U, du,
+               MixedFunctionalRhoUAction<real_t, DIM> {},
+               Inputs<Value<DU>, Value<U>, Gradient<Coords>, Weight> {},
+               Outputs<Value<Rho>> {},
+               std::vector{FieldDescriptor{DU, &fes},
+                           FieldDescriptor{U, &fes},
+                           FieldDescriptor{Coords, mfes}},
+               std::vector{FieldDescriptor{Rho, &fes}},
+               MultiVector{du, u, coords});
+
+   check_block(Rho, Rho, drho,
+               MixedFunctionalRhoRhoAction<real_t, DIM> {},
+               Inputs<Value<DRho>, Gradient<Coords>, Weight> {},
+               Outputs<Value<Rho>> {},
+               std::vector{FieldDescriptor{DRho, &fes},
+                           FieldDescriptor{Coords, mfes}},
+               std::vector{FieldDescriptor{Rho, &fes}},
+               MultiVector{drho, coords});
+}
+
 } // namespace second_derivative_test
 
 TEST_CASE("dFEM functional second derivative action matches mfem",
@@ -417,6 +643,19 @@ TEST_CASE("dFEM functional second derivative action matches mfem",
    //       );
    //    second_derivative_test::second_derivative<3>(f, p);
    // }
+}
+
+TEST_CASE("dFEM functional mixed second derivative action matches exact action",
+          "[Parallel][dFEM][second-derivative]")
+{
+   const bool all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
+
+   SECTION("2d")
+   {
+      const auto f = GENERATE("../../data/inline-quad.mesh");
+      second_derivative_test::mixed_second_derivative<2>(f, p);
+   }
 }
 
 #endif // MFEM_USE_MPI
