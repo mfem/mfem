@@ -4,7 +4,7 @@
 //
 // Sample runs:  mpirun -np 4 ex21p -trdg
 //               mpirun -np 4 ex21p -o 3
-//               mpirun -np 4 ex21p -m ../../data/beam-quad.mesh -trdg
+//               mpirun -np 4 ex21p -m ../../data/beam-quad.mesh
 //               mpirun -np 4 ex21p -m ../../data/beam-quad.mesh -o 3
 //               mpirun -np 4 ex21p -m ../../data/beam-tet.mesh -trdg
 //               mpirun -np 4 ex21p -m ../../data/beam-tet.mesh -o 2 -trdg
