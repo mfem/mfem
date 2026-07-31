@@ -1739,9 +1739,10 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
-                                 const int pyrtype)
+                                 const int pyr_type)
    : FiniteElementCollection(p)
    , dim(dim)
+   , p_type(pyr_type)
 {
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
@@ -1754,13 +1755,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
    {
       case BasisType::GaussLobatto:
       {
-         if (pyrtype == ScalarPyramid::DefaultType)
+         if (pyr_type == ScalarPyramid::DefaultType)
          {
             snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
          }
          else
          {
-            snprintf(h1_name, 32, "H1_%dD_P%d_Pyr%d", dim, p, pyrtype);
+            snprintf(h1_name, 32, "H1_%dD_P%d_Pyr%d", dim, p, pyr_type);
          }
          break;
       }
@@ -1947,11 +1948,11 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-         if (pyrtype == 0 || b_type == BasisType::Positive)
+         if (pyr_type == 0 || b_type == BasisType::Positive)
          {
             H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6; // Bergot (JSC)
          }
-         else if (pyrtype == 1)
+         else if (pyr_type == 1)
          {
             H1_dof[Geometry::PYRAMID] = pm1*pm1*pm1; // Fuentes
          }
@@ -1972,7 +1973,7 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
                new H1_TetrahedronElement(p, btype);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
-            if (pyrtype == 0)
+            if (pyr_type == 0)
             {
                H1_Elements[Geometry::PYRAMID] =
                   new H1_BergotPyramidElement(p, btype);
@@ -2187,6 +2188,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    : FiniteElementCollection(p)
    , dim(dim)
    , m_type(map_type)
+   , p_type(pyr_type)
 {
    MFEM_VERIFY(p >= 0, "L2_FECollection requires order >= 0.");
 
