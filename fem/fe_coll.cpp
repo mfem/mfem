@@ -1754,7 +1754,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
    {
       case BasisType::GaussLobatto:
       {
-         snprintf(h1_name, 32, "H1_%dD_P%d_Pyr%d", dim, p, pyrtype);
+         if (pyrtype == ScalarPyramid::DefaultType)
+         {
+            snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
+         }
+         else
+         {
+            snprintf(h1_name, 32, "H1_%dD_P%d_Pyr%d", dim, p, pyrtype);
+         }
          break;
       }
       case BasisType::Positive:
@@ -1967,11 +1974,13 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
             if (pyrtype == 0)
             {
-               H1_Elements[Geometry::PYRAMID] = new H1_BergotPyramidElement(p, btype);
+               H1_Elements[Geometry::PYRAMID] =
+                  new H1_BergotPyramidElement(p, btype);
             }
             else
             {
-               H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
+               H1_Elements[Geometry::PYRAMID] =
+                  new H1_FuentesPyramidElement(p, btype);
             }
          }
 
@@ -2193,11 +2202,25 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    switch (btype)
    {
       case BasisType::GaussLegendre:
-         snprintf(d_name, 32, "%s_%dD_P%d_Pyr%d", prefix, dim, p, pyr_type);
+         if (pyr_type == ScalarPyramid::DefaultType)
+         {
+            snprintf(d_name, 32, "%s_%dD_P%d", prefix, dim, p);
+         }
+         else
+         {
+            snprintf(d_name, 32, "%s_%dD_P%d_Pyr%d", prefix, dim, p, pyr_type);
+         }
          break;
       default:
-         snprintf(d_name, 32, "%s_T%d_%dD_P%d_Pyr%d",
-                  prefix, btype, dim, p, pyr_type);
+         if (pyr_type == ScalarPyramid::DefaultType)
+         {
+            snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
+         }
+         else
+         {
+            snprintf(d_name, 32, "%s_T%d_%dD_P%d_Pyr%d",
+                     prefix, btype, dim, p, pyr_type);
+         }
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -2316,11 +2339,13 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
          if (pyr_type == 0)
          {
-            L2_Elements[Geometry::PYRAMID] = new L2_BergotPyramidElement(p, btype);
+            L2_Elements[Geometry::PYRAMID] =
+               new L2_BergotPyramidElement(p, btype);
          }
          else
          {
-            L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
+            L2_Elements[Geometry::PYRAMID] =
+               new L2_FuentesPyramidElement(p, btype);
          }
       }
 
