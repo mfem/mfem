@@ -35,7 +35,11 @@
 //               saving with ADIOS2 (adios2.readthedocs.io) streams is also
 //               illustrated.
 //
-//               We recommend viewing examples 1-4 before viewing this example.
+//               We recommend viewing the standard version of this example
+//               to understand the extension for the Local / Hybridizable
+//               Discontinuous Galerkin methods. The benefits of lower
+//               iterations count, number of DOFs, and essential pressure trace
+//               boundary condition can be assesed.
 
 #include "mfem.hpp"
 #include <fstream>

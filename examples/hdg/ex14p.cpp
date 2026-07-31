@@ -32,8 +32,10 @@
 //               supported. The example highlights the use of discontinuous
 //               spaces and L/HDG-specific face integrators.
 //
-//               We recommend viewing examples 1 and 5 before viewing this
-//               example.
+//               We recommend viewing the standard version of this example
+//               to understand the extension for the Local / Hybridizable
+//               Discontinuous Galerkin methods. The benefits of lower
+//               iterations count and number of DOFs can be assesed.
 
 #include "mfem.hpp"
 #include <fstream>

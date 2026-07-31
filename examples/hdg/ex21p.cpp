@@ -25,8 +25,11 @@
 //               coarse to fine meshes, as well as persistent GLVis
 //               visualization are also illustrated.
 //
-//               We recommend viewing Examples 2p and 6p before viewing this
-//               example.
+//               We recommend viewing the standard version of this example
+//               to understand the construction with the Hybridizable
+//               Discontinuous Galerkin method. The benefits of the native error
+//               estimate, lower number of DOFs, and faster execution can be
+//               assesed.
 
 #include "mfem.hpp"
 #include <fstream>
