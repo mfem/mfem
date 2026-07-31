@@ -1876,6 +1876,34 @@ dual<value_type, gradient_type> inv(
 }
 
 /**
+ * @brief Returns a square diagonal matrix by specifying the diagonal entries
+ * @param[in] d a list of diagonal entries
+ */
+template <typename T, int n> MFEM_HOST_DEVICE
+constexpr tensor<T, n, n> diag(const tensor<T, n>& d)
+{
+  tensor<T, n, n> D{};
+  for (int i = 0; i < n; i++) {
+    D[i][i] = d[i];
+  }
+  return D;
+}
+
+/**
+ * @brief Returns an array containing the diagonal entries of a square matrix
+ * @param[in] D the matrix to extract the diagonal entries from
+ */
+template <typename T, int n> MFEM_HOST_DEVICE
+constexpr tensor<T, n> diag(const tensor<T, n, n>& D)
+{
+  tensor<T, n> d{};
+  for (int i = 0; i < n; i++) {
+    d[i] = D[i][i];
+  }
+  return d;
+}
+
+/**
  * @brief recursively serialize the entries in a tensor to an output stream.
  * Output format uses braces and comma separators to mimic C syntax for multidimensional array
  * initialization.

@@ -178,6 +178,7 @@ set(UNIT_TESTS_SRCS
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
   enzyme/compatibility.cpp
+  dfem/test_tensor.cpp
   # The following are tested separately (keep the comment as a reminder).
   # This list can be updated using (in bash):
   #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
