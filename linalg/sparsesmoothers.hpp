@@ -49,7 +49,7 @@ public:
 class GSSmoother : public SparseSmoother
 {
 public:
-   enum class GSType
+   enum GSType
    {
       GS_SYMMETRIC, ///< Forward Gauss-Seidel, then backward.
       GS_FORWARD, ///< Forward Gauss-Seidel ($L^{-1}$).
@@ -65,7 +65,7 @@ public:
    ///
    /// @param[in]  t        Type of GS smoother (see GSSmoother::GSType)
    /// @param[in]  it       Number of stationary iterations to perform
-   GSSmoother(GSType t = GSType::GS_SYMMETRIC, int it = 1)
+   GSSmoother(GSType t = GS_SYMMETRIC, int it = 1)
    { type = t; iterations = it; }
 
    /// @brief Create a Jacobi smoother using the SparseMatrix @a a.
@@ -73,7 +73,7 @@ public:
    /// @param[in]  a        The underlying SparseMatrix
    /// @param[in]  t        Type of GS smoother (see GSSmoother::GSType)
    /// @param[in]  it       Number of stationary iterations to perform
-   GSSmoother(const SparseMatrix &a, GSType t = GSType::GS_SYMMETRIC, int it = 1)
+   GSSmoother(const SparseMatrix &a, GSType t = GS_SYMMETRIC, int it = 1)
       : GSSmoother(t, it) { SetOperator(a); }
 
    /// Same as GSSmoother(GSType,int), for backwards compatibility.
