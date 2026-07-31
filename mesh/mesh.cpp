@@ -7130,7 +7130,7 @@ const FiniteElementSpace *Mesh::GetNodalFESpace() const
 }
 
 void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering,
-                        int pyrtype)
+                        int pyr_type)
 {
    if (order <= 0)
    {
@@ -7144,11 +7144,11 @@ void Mesh::SetCurvature(int order, bool discont, int space_dim, int ordering,
    {
       const int type = 1; // Gauss-Lobatto points
       nfec = new L2_FECollection(order, Dim, type, FiniteElement::VALUE,
-                                 pyrtype);
+                                 pyr_type);
    }
    else
    {
-      nfec = new H1_FECollection(order, Dim, BasisType::GaussLobatto, pyrtype);
+      nfec = new H1_FECollection(order, Dim, BasisType::GaussLobatto, pyr_type);
    }
    FiniteElementSpace* nfes = new FiniteElementSpace(this, nfec, space_dim,
                                                      ordering);
