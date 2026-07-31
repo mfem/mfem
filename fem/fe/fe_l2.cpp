@@ -1113,7 +1113,7 @@ L2_BergotPyramidElement::L2_BergotPyramidElement(const int p, const int btype)
             else
             {
                Nodes.IntPoint(o++).Set3(op[i] * (op[j] + op[p-j-k]) / w,
-                                        op[j] * (op[j] + op[p-j-k]) / w,
+                                        op[j] * (op[i] + op[p-i-k]) / w,
                                         op[k] * op[p-k] / w);
             }
          }
