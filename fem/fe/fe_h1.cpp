@@ -1757,22 +1757,45 @@ H1_BergotPyramidElement::H1_BergotPyramidElement(const int p, const int btype)
       real_t y = (ip.z < 1.0) ? (ip.y / (1.0 - ip.z)) : 0.0;
       real_t z = ip.z;
 
-      poly1d.CalcLegendre(p, x, shape_x.GetData());
-      poly1d.CalcLegendre(p, y, shape_y.GetData());
-
-      o = 0;
-      for (int i = 0; i <= p; i++)
+      if (std::abs(z - 1.0) < apex_tol)
       {
-         for (int j = 0; j <= p; j++)
-         {
-            int maxij = std::max(i, j);
-            FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
-                                             z, 1.0, shape_z);
-
-            for (int k = 0; k <= p - maxij; k++)
+         // Compute the limit of the basis functions as z->1 with x and y on the
+         // line between the center of the base and the apex
+         o = 0;
+         for (int i = 0; i <= p; i++)
+            for (int j = 0; j <= p; j++)
             {
-               T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
-                           pow(1.0 - ip.z, maxij);
+               int maxij = std::max(i, j);
+               for (int k = 0; k <= p - maxij; k++)
+                  if (i == 0 && j == 0)
+                  {
+                     T(o++, m) = ((k + 3.) * k + 2.) / 2.;
+                  }
+                  else
+                  {
+                     T(o++, m) = 0.;
+                  }
+            }
+      }
+      else
+      {
+         poly1d.CalcLegendre(p, x, shape_x.GetData());
+         poly1d.CalcLegendre(p, y, shape_y.GetData());
+
+         o = 0;
+         for (int i = 0; i <= p; i++)
+         {
+            for (int j = 0; j <= p; j++)
+            {
+               int maxij = std::max(i, j);
+               FuentesPyramid::CalcScaledJacobi(p-maxij, 2.0 * (maxij + 1.0),
+                                                z, 1.0, shape_z);
+
+               for (int k = 0; k <= p - maxij; k++)
+               {
+                  T(o++, m) = shape_x(i) * shape_y(j) * shape_z(k) *
+                              pow(1.0 - ip.z, maxij);
+               }
             }
          }
       }
