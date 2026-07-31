@@ -26,6 +26,11 @@
 //               The example demonstrates the use of Local / Hybridizable
 //               Discontinuous Galerkin (L/HDG) bilinear forms in MFEM, and the
 //               use of IMEX ODE time integrators.
+//
+//               We recommend viewing the standard version of this example
+//               to understand the construction with the Local / Hybridizable
+//               Discontinuous Galerkin methods. The benefits of lower
+//               iterations count and number of DOFs can be assesed.
 
 #include "mfem.hpp"
 

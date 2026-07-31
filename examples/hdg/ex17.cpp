@@ -38,8 +38,11 @@
 //               non-homogeneous Dirichlet b.c. imposed weakly or strongly on
 //               the trace variable, is also illustrated.
 //
-//               We recommend viewing examples 2 and 14 before viewing this
-//               example.
+//               We recommend viewing the standard version of this example
+//               to understand the extension for the Local / Hybridizable
+//               Discontinuous Galerkin methods. The benefits of lower
+//               iterations count, number of DOFs, and essential displacement
+//               trace boundary condition can be assesed.
 
 #include "mfem.hpp"
 #include <fstream>
