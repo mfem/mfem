@@ -2810,6 +2810,12 @@ protected:
    };
 
 public:
+   /// `true` when this part describes a nonconforming mesh.
+   bool is_nonconforming = false;
+
+   /// `true` when the NC vertex parent relations use nonuniform split scales.
+   bool nc_using_scaling = false;
+
    /// Reference space dimension of the elements
    int dimension;
 
@@ -2897,6 +2903,18 @@ public:
    Array<real_t> vertex_coordinates;
 
    /**
+      Optional local NC vertex hierarchy. Each entry stores a local hanging
+      vertex id together with the two local parent vertex ids.
+   */
+   Array<Triple<int, int, int> > vertex_parents;
+
+   /**
+      Optional NC split scales corresponding to `vertex_parents`. When present,
+      the size matches `vertex_parents.Size()`.
+   */
+   Array<real_t> vertex_parent_scale;
+
+   /**
       Optional serial Mesh object constructed on demand using the method
       GetMesh(). One use case for it is when one wants to construct FE spaces
       and GridFunction%s on the MeshPart for saving or MPI communication.
@@ -2961,8 +2979,11 @@ public:
 
    ///@}
 
-   /** @brief Write the MeshPart to a stream using the parallel format
-       "MFEM mesh v1.2". */
+   /** @brief Write the MeshPart to a stream.
+
+       Conforming parts use the parallel format "MFEM mesh v1.2". Serial
+       nonconforming parts use the serial NC mesh format.
+   */
    void Print(std::ostream &os) const;
 
    /** @brief Construct a serial Mesh object from the MeshPart.
@@ -2973,6 +2994,9 @@ public:
        the method simply returns the object held by 'mesh'.
    */
    Mesh &GetMesh();
+
+   bool IsConforming() const { return !is_nonconforming; }
+   bool IsNonconforming() const { return is_nonconforming; }
 };
 
 

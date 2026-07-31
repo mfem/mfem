@@ -566,7 +566,14 @@ public:
     * @param node
     * @return int
     */
-   int GetNodeVertex(int node) { return nodes[node].vert_index; }
+   int GetNodeVertex(int node) const { return nodes[node].vert_index; }
+   int GetVertexNodeId(int vertex) const { return vertex_nodeId[vertex]; }
+   bool UsingScaling() const { return using_scaling; }
+   void SetVertexParentScale(int node, real_t scale)
+   {
+      MFEM_VERIFY(nodes.IdExists(node), "node " << node << " not found");
+      nodes[node].SetScale(scale, true);
+   }
 
 protected: // non-public interface for the Mesh class
 
