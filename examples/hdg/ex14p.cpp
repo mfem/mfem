@@ -2,21 +2,21 @@
 //
 // Compile with: make ex14p
 //
-// Sample runs:  mpirun -np 4 ex14p -m ../../data/inline-quad.mesh -o 0
-//               mpirun -np 4 ex14p -m ../../data/star.mesh -o 2
-//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -o 2
-//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -o 2 -k 0 -e 1
-//               mpirun -np 4 ex14p -m ../../data/escher.mesh -s 1
-//               mpirun -np 4 ex14p -m ../../data/fichera.mesh -s 1 -k 1
-//               mpirun -np 4 ex14p -m ../../data/fichera-mixed.mesh -s 1 -k 1
-//               mpirun -np 4 ex14p -m ../../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex14p -m ../../data/square-disc-p3.mesh -o 3
+// Sample runs:  mpirun -np 4 ex14p -m ../../data/inline-quad.mesh -o 0 -hb -dg
+//               mpirun -np 4 ex14p -m ../../data/star.mesh -rs 4 -o 2 -hb -brt -trh1
+//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -rs 4 -o 2 -hb
+//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -rs 2 -o 2 -rd -dg
+//               mpirun -np 4 ex14p -m ../../data/star-mixed.mesh -rs 2 -o 2
+//               mpirun -np 4 ex14p -m ../../data/escher.mesh -hb
+//               mpirun -np 4 ex14p -m ../../data/fichera.mesh -hb -dg -trh1
+//               mpirun -np 4 ex14p -m ../../data/fichera-mixed.mesh -rd -brt
+//               mpirun -np 4 ex14p -m ../../data/square-disc-p2.vtk -rs 3 -o 2 -hb -dg
+//               mpirun -np 4 ex14p -m ../../data/square-disc-p3.mesh -rs 2 -o 3 -hb -trh1
 //               mpirun -np 4 ex14p -m ../../data/square-disc-nurbs.mesh -o 1
-//               mpirun -np 4 ex14p -m ../../data/disc-nurbs.mesh -rs 4 -o 2 -s 1 -k 0
-//               mpirun -np 4 ex14p -m ../../data/pipe-nurbs.mesh -o 1
-//               mpirun -np 4 ex14p -m ../../data/inline-segment.mesh -rs 5
-//               mpirun -np 4 ex14p -m ../../data/amr-quad.mesh -rs 3
-//               mpirun -np 4 ex14p -m ../../data/amr-hex.mesh
+//               mpirun -np 4 ex14p -m ../../data/disc-nurbs.mesh -rs 4 -o 2 -rd -dg
+//               mpirun -np 4 ex14p -m ../../data/pipe-nurbs.mesh -o 1 -hb -dg
+//               mpirun -np 4 ex14p -m ../../data/amr-quad.mesh -rs 3 -hb -dg
+//               mpirun -np 4 ex14p -m ../../data/amr-hex.mesh -hb -trh1
 //               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -o 3
 //               mpirun -np 4 ex14p -pa -rs 1 -rp 0 -m ../../data/fichera.mesh -o 3
 //
