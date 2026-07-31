@@ -458,19 +458,20 @@ static void Benchmark(bm::State& state) noexcept
 
    T run(state.range(0), state.range(1));
    while (state.KeepRunning()) { run.benchmark(); }
-   state.counters["Dofs"] = bm::Counter(run.dofs);
-   state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
-   state.counters["Order"] = bm::Counter(state.range(0));
-   state.counters["QND"] = bm::Counter(run.qnd);
-   if (run.q1d > 0)
-   {
-      state.counters["Q1D"] = bm::Counter(run.q1d);
-   }
-   state.counters["Simplex"] = bm::Counter(run.simplex);
+   BeginCounters();
+   AddCounter(state, "Dofs", bm::Counter(run.dofs));
+   AddCounter(state, "MDof/s",
+              bm::Counter(run.SumMdofs(), bm::Counter::kIsRate));
+   AddCounter(state, "Order", bm::Counter(state.range(0)));
+   AddCounter(state, "Q1D", bm::Counter(run.q1d));
+   AddCounter(state, "QND", bm::Counter(run.qnd));
+   // AddCounter(state, "Simplex", bm::Counter(run.simplex));
    if (run.cg_final_iter >= 0)
    {
-      state.counters["CG_Iter"] = bm::Counter(run.cg_final_iter);
-      state.counters["CG_Norm"] = bm::Counter(run.cg_final_norm);
+      AddCounter(state, "CG_Iter", bm::Counter(run.cg_final_iter),
+                 CounterColor::Magenta);
+      AddCounter(state, "CG_Norm", bm::Counter(run.cg_final_norm),
+                 CounterColor::Magenta);
    }
 }
 
@@ -604,7 +605,7 @@ REGISTER(BK, 6, QuadSum);
  */
 int main(int argc, char *argv[])
 {
-   bm::ConsoleReporter CR;
+   ColorConsoleReporter CR;
    bm::Initialize(&argc, argv);
 
    AddKernelSpecializations();
