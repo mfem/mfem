@@ -449,9 +449,9 @@ static void Benchmark(bm::State& state) noexcept
    MMAForce mma(T::mma);
    if constexpr (!T::simplex && T::mma)
    {
-      if (!Device::Allows(Backend::CUDA_MASK))
+      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
-         state.SkipWithError("Tensors MMA benchmarks require CUDA device enabled");
+         state.SkipWithError("Tensors MMA benchmarks require CUDA or HIP");
          return;
       }
    }
@@ -596,13 +596,13 @@ REGISTER(BK, 6, QuadSum);
  *
  * Names encode geometry and PA backend:
  *    hex / quad           — tensor-product SUM (3D / 2D)
- *    hex_mma / quad_mma   — tensor-product sum-factored MMA (CUDA)
+ *    hex_mma / quad_mma   — tensor-product sum-factored MMA (CUDA / HIP)
  *    tet_h1_mma / tri_h1_mma — simplex H1/Gauss-Lobatto, dense MMA
  *    tet_pos_sum / tri_pos_sum — simplex Positive/Bernstein, Stroud sum-factorized
  *    tet_pos_mma / tri_pos_mma — simplex Positive/Bernstein, dense MMA
  *
- * Positive MMA (`*_pos_mma`) and tensors MMA (`hex_mma` / `quad_mma`)
- * runs on CPU (dense host path) as well as GPU, e.g.:
+ * Tensors MMA (`hex_mma` / `quad_mma`) and Positive MMA (`*_pos_mma`)
+ * require a GPU device, e.g.:
  *    --benchmark_context=device=cuda
  *    --benchmark_context=device=hip
  */

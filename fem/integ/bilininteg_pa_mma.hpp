@@ -112,16 +112,16 @@ inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
    return dynamic_cast<const H1_HexahedronElement *>(&el) != nullptr;
 }
 
-/** Opt-in sum-factored tensor MMA for fixed-order H1 GLL quad/hex on CUDA.
+/** Opt-in sum-factored tensor MMA for fixed-order H1 GLL quad/hex on CUDA
+    or HIP (Tensor Cores / Matrix Cores).
 
-    Host / CPU / HIP: not selected — stock SUM PA is used instead (same math
-    as SF on host; Tensor-Core path is the GPU win). ForceMMA / MFEM_USE_MMA
-    only takes effect when CUDA is active. */
+    Host / CPU: not selected — stock SUM PA is used instead. ForceMMA /
+    MFEM_USE_MMA only takes effect when a CUDA or HIP device is active. */
 inline bool UsesTensorMMA(const FiniteElementSpace &fes)
 {
    if (!GetForceMMA()) { return false; }
    if (fes.IsVariableOrder()) { return false; }
-   if (!Device::Allows(Backend::CUDA_MASK)) { return false; }
+   if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK)) { return false; }
 #if defined(MFEM_USE_SINGLE)
    return false;
 #else
@@ -2135,10 +2135,16 @@ inline void DiffusionApplyHandRuntime(int NE, int ndof, const real_t *G,
 namespace tensors_mma
 {
 
+#if defined(MFEM_USE_HIP)
+constexpr int WarpSize = 64;
+#else
+constexpr int WarpSize = 32;
+#endif
+
 MFEM_HOST_DEVICE inline int getThreadIdx()
 {
-#ifdef __CUDA_ARCH__
-   // Tensors MMA tiles warps along threadIdx.x only; y/z are for element batching.
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   // Tensors MMA tiles warps along threadIdx.x only; y/z unused (serial NB).
    return static_cast<int>(threadIdx.x);
 #else
    return 0;
@@ -2147,14 +2153,15 @@ MFEM_HOST_DEVICE inline int getThreadIdx()
 
 MFEM_HOST_DEVICE inline int getWarpId(int thread)
 {
-   return thread / 32;
+   return thread / WarpSize;
 }
 
 MFEM_HOST_DEVICE inline int getLaneId(int thread)
 {
-   return thread % 32;
+   return thread % WarpSize;
 }
 
+// CUDA m8n8k4 lane grouping (unused on HIP MFMA paths).
 MFEM_HOST_DEVICE inline int getGroupId(int laneId)
 {
    return laneId / 4;
@@ -2179,7 +2186,7 @@ MFEM_HOST_DEVICE inline void LoadBGBoth(const int D1D, const int Q1D,
    DeviceMatrix Gt(sBGt[1], Q1D, D1D);
    const int tid = getThreadIdx();
    const int n = D1D * Q1D;
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    const int stride = blockDim.x * blockDim.y * blockDim.z;
 #else
    const int stride = n;
@@ -2240,7 +2247,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    const int DDD = D1D * D1D * D1D;
    DeviceCube X(sm, D1D, D1D, D1D);
    const int tid = getThreadIdx();
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    const int stride = blockDim.x * blockDim.y * blockDim.z;
 #else
    const int stride = DDD;
@@ -2264,7 +2271,7 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
    LoadX<MQ1>(e, D1D, x, sm[0]);
 }
 
-// using the m8n8k4 DMMA instruction
+// CUDA m8n8k4 tile constants (used by dmma_* / MapM). HIP MFMA tiles are 4/16.
 constexpr int mmaM = 8;
 constexpr int mmaN = 8;
 constexpr int mmaK = 4;
@@ -2285,9 +2292,8 @@ MFEM_HOST_DEVICE inline int MapM(int lane_group, int warp_tile, int mPass)
 
 
 /** Launch knobs (re-bench BP1/BP3 after changes):
- *  Mass 3D: threads=64, NB=8 | Diff 3D: threads=128, NB=4 | 2D: threads=32, NB=8
- *  Low-order (D1D<=4): fewer serial NB iterations, threads cover mPass tiles.
- *  Strip-mined mPass (NWarps) lets Mass/Diff under-subscribe vs full mPass*32.
+ *  CUDA: Mass 3D threads=64, NB=8 | Diff 3D threads=128, NB=4 | 2D mPass*32
+ *  HIP:  threads multiples of WarpSize=64; NB unchanged initially.
  */
 
 template <int D1D, int Q1D>
@@ -2299,15 +2305,37 @@ MFEM_HOST_DEVICE constexpr int NB2D()
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int Threads2D()
 {
+#if defined(MFEM_USE_HIP)
+   // Cover M-tiles with wave64; at least one wave.
+   constexpr int tile = 16;
+   constexpr int mPassD = (D1D + tile - 1) / tile;
+   constexpr int mPassQ = (Q1D + tile - 1) / tile;
+   constexpr int mP = mPassD > mPassQ ? mPassD : mPassQ;
+   constexpr int t = mP * WarpSize;
+   return t < WarpSize ? WarpSize : t;
+#else
    constexpr int mPassD = (D1D + mmaM - 1) / mmaM;
    constexpr int mPassQ = (Q1D + mmaM - 1) / mmaM;
    constexpr int mP = mPassD > mPassQ ? mPassD : mPassQ;
-   return mP * 32; // 32 for (D,Q) in p=3..7 bake-off
+   return mP * 32;
+#endif
 }
 
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int MassThreads3D()
 {
+#if defined(MFEM_USE_HIP)
+   if (D1D <= 4)
+   {
+      constexpr int tile = 16;
+      constexpr int mPassD = (D1D + tile - 1) / tile;
+      constexpr int mPassQ = (Q1D + tile - 1) / tile;
+      constexpr int mP = mPassD > mPassQ ? mPassD : mPassQ;
+      constexpr int t = mP * WarpSize;
+      return t < WarpSize ? WarpSize : t;
+   }
+   return 64;
+#else
    if (D1D <= 4)
    {
       constexpr int mPassD = (D1D + mmaM - 1) / mmaM;
@@ -2316,6 +2344,7 @@ MFEM_HOST_DEVICE constexpr int MassThreads3D()
       return mP * 32;
    }
    return 64;
+#endif
 }
 
 template <int D1D, int Q1D>
@@ -2327,6 +2356,18 @@ MFEM_HOST_DEVICE constexpr int MassNB3D()
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int DiffThreads3D()
 {
+#if defined(MFEM_USE_HIP)
+   if (D1D <= 4)
+   {
+      constexpr int tile = 16;
+      constexpr int mPassD = (D1D + tile - 1) / tile;
+      constexpr int mPassQ = (Q1D + tile - 1) / tile;
+      constexpr int mP = mPassD > mPassQ ? mPassD : mPassQ;
+      constexpr int t = mP * WarpSize;
+      return t < 128 ? 128 : t;
+   }
+   return 128;
+#else
    if (D1D <= 4)
    {
       constexpr int mPassD = (D1D + mmaM - 1) / mmaM;
@@ -2336,6 +2377,7 @@ MFEM_HOST_DEVICE constexpr int DiffThreads3D()
       return t < 64 ? 64 : t;
    }
    return 128;
+#endif
 }
 
 template <int D1D, int Q1D>
@@ -2359,9 +2401,9 @@ MFEM_HOST_DEVICE constexpr int DiffNB2D()
 /** Warps available for strip-mined mPass (host: cover all tiles). */
 MFEM_HOST_DEVICE inline int NWarps(int mPass)
 {
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    (void)mPass;
-   return static_cast<int>(blockDim.x) / 32;
+   return static_cast<int>(blockDim.x) / WarpSize;
 #else
    return mPass > 0 ? mPass : 1;
 #endif
@@ -2378,12 +2420,213 @@ MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
 #endif
 }
 
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+/** SF layout: storage is DeviceMatrix(p, k, m); A_fwd(m_idx,k_idx)=storage(k_idx,m_idx). */
+struct SfAFromKbyM
+{
+   const real_t *p;
+   int k, m;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return ConstDeviceMatrix(p, k, m)(col, row);
+   }
+};
+
+/** Already (M,K) layout: DeviceMatrix(p, m, k); A_fwd(row,col)=storage(row,col). */
+struct SfAFromMbyK
+{
+   const real_t *p;
+   int m, k;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return ConstDeviceMatrix(p, m, k)(row, col);
+   }
+};
+
+struct SfBFromKbyN
+{
+   const real_t *p;
+   int k, n;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return ConstDeviceMatrix(p, k, n)(row, col);
+   }
+};
+
+struct SfCToMbyN
+{
+   real_t *p;
+   int m, n;
+   MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+   {
+      return DeviceMatrix(p, m, n)(row, col);
+   }
+};
+
+struct SfNullD
+{
+   MFEM_HOST_DEVICE inline real_t operator()(int, int) const { return real_t(1); }
+};
+
+struct SfMassD
+{
+   const DeviceTensor<2, const real_t> *D;
+   int m, e;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return (*D)(row + m * col, e);
+   }
+};
+
+/** C = A * B via MFMA 16x16x4. A is (M,K), B is (K,N), C is (M,N). */
+template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
+          typename TD>
+MFEM_HOST_DEVICE inline void mfma_SfGemm16(const int M, const int K,
+                                           const int N, TA A, TB B, TC C, TD D)
+{
+   constexpr int TM = 16, TN = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = NWarps(1);
+   const int lane = getLaneId(thread);
+   const int aRow = lane % TM;
+   const int aColK = lane / TM;
+   const int bCol = lane % TN;
+   const int cRowBase = lane / TN;
+   const int mPass = (M + TM - 1) / TM;
+   const int nTiles = (N + TN - 1) / TN;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * TN;
+         const int nTile = (N - n0 < TN) ? (N - n0) : TN;
+         simplex_mma::mfma_double4 cReg = {0, 0, 0, 0};
+
+         for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aR = row0 + aRow;
+            const int aC = k0 + aColK;
+            const double aV = (aR < M && aC < K)
+                              ? static_cast<double>(A(aR, aC)) : 0.0;
+            const int bR = k0 + aColK;
+            const double bV = (bR < K && bCol < nTile)
+                              ? static_cast<double>(B(bR, n0 + bCol)) : 0.0;
+            simplex_mma::mfmaSync16(aV, bV, cReg);
+         }
+
+         for (int i = 0; i < 4; ++i)
+         {
+            const int cRow = row0 + cRowBase + 4 * i;
+            const int cCol = bCol;
+            if (cRow < M && cCol < nTile)
+            {
+               real_t v = static_cast<real_t>(cReg[i]);
+               if constexpr (SCALE) { v *= D(cRow, n0 + cCol); }
+               if constexpr (ACCUM) { C(cRow, n0 + cCol) += v; }
+               else { C(cRow, n0 + cCol) = v; }
+            }
+         }
+      }
+   }
+}
+
+/** C = A * B via MFMA 4x4x4_4b covering N=16. */
+template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
+          typename TD>
+MFEM_HOST_DEVICE inline void mfma_SfGemm4(const int M, const int K,
+                                          const int N, TA A, TB B, TC C, TD D)
+{
+   constexpr int TM = 4, TN_BLK = 4, N_EFF = 16, TK = 4;
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int nWarps = NWarps(1);
+   const int lane = getLaneId(thread);
+   const int block = (lane % 16) / 4;
+   const int mLoc = (lane % 16) % 4;
+   const int kLoc = lane / 16;
+   const int mPass = (M + TM - 1) / TM;
+   const int nTiles = (N + N_EFF - 1) / N_EFF;
+
+   for (int tile = warpId; tile < mPass; tile += nWarps)
+   {
+      const int row0 = tile * TM;
+      for (int nt = 0; nt < nTiles; ++nt)
+      {
+         const int n0 = nt * N_EFF;
+         double cReg = 0.0;
+
+         for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
+         {
+            const int k0 = mK * TK;
+            const int aR = row0 + mLoc;
+            const int aC = k0 + kLoc;
+            const double aV = (aR < M && aC < K)
+                              ? static_cast<double>(A(aR, aC)) : 0.0;
+            const int bR = k0 + kLoc;
+            const int bC = n0 + TN_BLK * block + mLoc;
+            const double bV = (bR < K && bC < N)
+                              ? static_cast<double>(B(bR, bC)) : 0.0;
+            simplex_mma::mfmaSync4(aV, bV, cReg);
+         }
+
+         const int cRow = row0 + kLoc;
+         const int cCol = n0 + TN_BLK * block + mLoc;
+         if (cRow < M && cCol < N)
+         {
+            real_t v = static_cast<real_t>(cReg);
+            if constexpr (SCALE) { v *= D(cRow, cCol); }
+            if constexpr (ACCUM) { C(cRow, cCol) += v; }
+            else { C(cRow, cCol) = v; }
+         }
+      }
+   }
+}
+
+template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
+          typename TD>
+MFEM_HOST_DEVICE inline void mfma_SfGemm(const int M, const int K, const int N,
+                                         TA A, TB B, TC C, TD D)
+{
+   if (simplex_mma::PreferMfma4(M, N))
+   {
+      mfma_SfGemm4<SCALE, ACCUM>(M, K, N, A, B, C, D);
+   }
+   else
+   {
+      mfma_SfGemm16<SCALE, ACCUM>(M, K, N, A, B, C, D);
+   }
+}
+
+/** SF contraction C(m,n) = sum_k storageA(k,m) * storageB(k,n). */
+template <bool SCALE, bool ACCUM, typename TD>
+MFEM_HOST_DEVICE inline void mfma_SfContract(const int m, const int n,
+                                             const int k, const real_t *A,
+                                             const real_t *B1d, real_t *C,
+                                             TD D)
+{
+   mfma_SfGemm<SCALE, ACCUM>(m, k, n, SfAFromKbyM{A, k, m},
+                             SfBFromKbyN{B1d, k, n}, SfCToMbyN{C, m, n}, D);
+}
+#endif // __HIP_DEVICE_COMPILE__ && !MFEM_USE_SINGLE
+
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
                                         const real_t (&BG)[2][MQ1*MD1],
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1;
+   SfNullD nd;
+   // C[0] from G, C[1] from B (matches CUDA dmma_GradX store order).
+   mfma_SfContract<false, false>(m, n, k, A[0], BG[1], C[0], nd);
+   mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[1], nd);
+   return;
+#endif
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2472,6 +2715,14 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1;
+   SfNullD nd;
+   mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[0], nd); // A0*B
+   mfma_SfContract<false, false>(m, n, k, A[1], BG[1], C[1], nd); // A1*G
+   mfma_SfContract<false, false>(m, n, k, A[1], BG[0], C[2], nd); // A1*B
+   return;
+#endif
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2566,6 +2817,16 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
                                         real_t (*C)[BUF],
                                         int gIdx)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1;
+   SfNullD nd;
+   for (int d = 0; d < 3; d++)
+   {
+      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
+      mfma_SfContract<false, false>(m, n, k, A[d], B1d, C[d], nd);
+   }
+   return;
+#endif
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2658,6 +2919,16 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
                                              const real_t (*A)[BUF],
                                              real_t (*C)[BUF])
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1;
+   SfNullD nd;
+   for (int d = 0; d < 3; d++)
+   {
+      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
+      mfma_SfContract<false, false>(m, n, k, A[d], B1d, C[d], nd);
+   }
+   return;
+#endif
    ConstDeviceMatrix Bt(BG[0], k, n);
    ConstDeviceMatrix Gt(BG[1], k, n);
    const int thread = getThreadIdx();
@@ -2761,6 +3032,29 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const DeviceTensor<4> &Y, // output
                                     const int e)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1; (void)MDQ;
+   const int m = D1D * D1D, n = D1D, k = Q1D;
+   struct Y3Acc
+   {
+      const DeviceTensor<4> *Y;
+      int D1D, e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(row % D1D, row / D1D, col, e);
+      }
+   };
+   SfNullD nd;
+   Y3Acc Yacc{&Y, D1D, e};
+   // Y += A0*Bt + A1*Bt + A2*Gt
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[0], k, m},
+                            SfBFromKbyN{sBG[0], k, n}, Yacc, nd);
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[1], k, m},
+                            SfBFromKbyN{sBG[0], k, n}, Yacc, nd);
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[2], k, m},
+                            SfBFromKbyN{sBG[1], k, n}, Yacc, nd);
+   return;
+#endif
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
    int thread = getThreadIdx();
@@ -2846,7 +3140,7 @@ MFEM_HOST_DEVICE inline void LoadBBoth(const int D1D, const int Q1D,
    DeviceMatrix Bt(sBt, Q1D, D1D);
    const int tid = getThreadIdx();
    const int n = D1D * Q1D;
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    const int stride = blockDim.x * blockDim.y * blockDim.z;
 #else
    const int stride = n;
@@ -2870,6 +3164,20 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
                                       const DeviceTensor<2, const real_t> *D = nullptr,
                                       const int e = 0)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1;
+   if constexpr (ScaleAtStore)
+   {
+      SfMassD Dd{D, m, e};
+      mfma_SfContract<true, false>(m, n, k, A, B1d, C, Dd);
+   }
+   else
+   {
+      SfNullD nd;
+      mfma_SfContract<false, false>(m, n, k, A, B1d, C, nd);
+   }
+   return;
+#endif
    ConstDeviceMatrix B(B1d, k, n);
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -2971,6 +3279,22 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
                                       const real_t *sDDQ,
                                       const DeviceTensor<4> &Y, const int e)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1;
+   const int m = D1D * D1D, n = D1D, k = Q1D;
+   struct Y3Acc
+   {
+      const DeviceTensor<4> *Y;
+      int D1D, e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(row % D1D, row / D1D, col, e);
+      }
+   };
+   SfNullD nd;
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ, k, m},
+                            SfBFromKbyN{sBt, k, n}, Y3Acc{&Y, D1D, e}, nd);
+#else
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -3014,6 +3338,7 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
          }
       }
    }
+#endif
 }
 
 // ---- 2D (quad) helpers ----
@@ -3026,7 +3351,7 @@ MFEM_HOST_DEVICE inline void LoadX2D(const int e, const int D1D,
    DeviceMatrix X(sm, D1D, D1D);
    const int tid = getThreadIdx();
    const int n = D1D * D1D;
-#ifdef __CUDA_ARCH__
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    const int stride = blockDim.x * blockDim.y * blockDim.z;
 #else
    const int stride = n;
@@ -3056,6 +3381,13 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
                                      const real_t (*sDQ)[MDQ*MDQ],
                                      real_t (*sQQ)[MDQ*MDQ])
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1; (void)MDQ;
+   SfNullD nd;
+   mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0], nd);
+   mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1], nd);
+   return;
+#endif
    ConstDeviceMatrix B(sBG[0], D1D, Q1D);
    ConstDeviceMatrix G(sBG[1], D1D, Q1D);
    const int thread = getThreadIdx();
@@ -3120,6 +3452,18 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
                                       const real_t (*sQQ)[MDQ*MDQ],
                                       real_t (*sQD)[MDQ*MDQ])
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1; (void)MDQ;
+   SfNullD nd;
+   // A is (qx,qy)=(M,K); B is Bt/Gt (K,N)=(Q,D)
+   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[0], Q1D, Q1D},
+                             SfBFromKbyN{sBG[0], Q1D, D1D},
+                             SfCToMbyN{sQD[0], Q1D, D1D}, nd);
+   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[1], Q1D, Q1D},
+                             SfBFromKbyN{sBG[1], Q1D, D1D},
+                             SfCToMbyN{sQD[1], Q1D, D1D}, nd);
+   return;
+#endif
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
    const int thread = getThreadIdx();
@@ -3184,6 +3528,26 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
                                       const real_t (*sQD)[MDQ*MDQ],
                                       const DeviceTensor<3> &Y, const int e)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1; (void)MDQ;
+   // A storage (qx,dy)=(K,M); C row=dy, col=dx → Y(dx,dy) = Y(col,row)
+   struct Y2Acc
+   {
+      const DeviceTensor<3> *Y;
+      int e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(col, row, e);
+      }
+   };
+   SfNullD nd;
+   Y2Acc Yacc{&Y, e};
+   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD[0], Q1D, D1D},
+                            SfBFromKbyN{sBG[1], Q1D, D1D}, Yacc, nd); // Gt
+   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD[1], Q1D, D1D},
+                            SfBFromKbyN{sBG[0], Q1D, D1D}, Yacc, nd); // Bt
+   return;
+#endif
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
    const int thread = getThreadIdx();
@@ -3258,6 +3622,15 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
                                         const real_t *sBt,
                                         const real_t *sQQ, real_t *sQD)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1; (void)MDQ;
+   // K=qy fastest in A(qx,qy); N=dy — (M,K) layout, not InterpAx's (K,M).
+   SfNullD nd;
+   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ, Q1D, Q1D},
+                             SfBFromKbyN{sBt, Q1D, D1D},
+                             SfCToMbyN{sQD, Q1D, D1D}, nd);
+   return;
+#endif
    // K=qy fastest in A(qx,qy); N=dy — not the same A layout as InterpAx.
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdx();
@@ -3310,6 +3683,22 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
                                         const real_t *sQD,
                                         const DeviceTensor<3> &Y, const int e)
 {
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   (void)MD1; (void)MQ1; (void)MDQ;
+   struct Y2Acc
+   {
+      const DeviceTensor<3> *Y;
+      int e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(col, row, e);
+      }
+   };
+   SfNullD nd;
+   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD, Q1D, D1D},
+                            SfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
+   return;
+#endif
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
