@@ -70,6 +70,9 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Improved partial-assembly diagonal kernels for VectorMassIntegrator (shared-
+  memory specializations) and ElasticityIntegrator (no scratch Q-vector).
+
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
 - Added NVIDIA cuDSS library interface. Implementation examples have been
