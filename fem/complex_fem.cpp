@@ -1491,7 +1491,7 @@ ParSesquilinearForm::BuildComplexOperator(OperatorHandle &A_r,
 
 namespace
 {
-struct ZeroHypreDiagonal
+struct ZeroDiagonalHypreKernel
 {
    const int *ess_tdof_list;
    const HYPRE_Int *diag_i;
@@ -1520,7 +1520,7 @@ ParSesquilinearForm::SetImaginaryEssentialDiagonalToZero(
          ess_tdof_list.GetMemory().Read(GetHypreForallMemoryClass(), n);
       HYPRE_Int *d_diag_i = Aih->diag->i;
       real_t *d_diag_data = Aih->diag->data;
-      mfem::hypre_forall(n, ZeroHypreDiagonal
+      mfem::hypre_forall(n, ZeroDiagonalHypreKernel
       {
          d_ess_tdof_list, d_diag_i, d_diag_data
       });
