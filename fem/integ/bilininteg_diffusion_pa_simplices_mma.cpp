@@ -253,111 +253,78 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 
 void DiffusionIntegrator::RegisterSimplexMmaKernels()
 {
+   // Usage-based (DIM,D1D,QND): GetRule, Stroud unit tests, default/H1-smoke
+   // over all [SimplexMMA] meshes. Bench MMA diffusion uses GetRule nq (q=2p-2).
+
    // 2D
-   AddSimplexMmaSpecialization<2,2,1>();
-   AddSimplexMmaSpecialization<2,2,3>();
-   AddSimplexMmaSpecialization<2,2,4>();
-   AddSimplexMmaSpecialization<2,2,7>();
-   AddSimplexMmaSpecialization<2,2,9>();
-   AddSimplexMmaSpecialization<2,2,12>();
-   AddSimplexMmaSpecialization<2,2,16>();
-   AddSimplexMmaSpecialization<2,2,25>();
-   AddSimplexMmaSpecialization<2,2,33>();
+   AddSimplexMmaSpecialization<2,2,1>(); // GetRule
+   AddSimplexMmaSpecialization<2,2,4>(); // Stroud
+   AddSimplexMmaSpecialization<2,2,9>(); // Stroud
+   AddSimplexMmaSpecialization<2,2,12>(); // default/smoke
+   AddSimplexMmaSpecialization<2,2,16>(); // Stroud, default/smoke
+   AddSimplexMmaSpecialization<2,2,25>(); // default/smoke
+   AddSimplexMmaSpecialization<2,2,33>(); // default/smoke (curved)
 
-   AddSimplexMmaSpecialization<2,3,3>();
-   AddSimplexMmaSpecialization<2,3,6>();
-   AddSimplexMmaSpecialization<2,3,9>();
-   AddSimplexMmaSpecialization<2,3,15>();
-   AddSimplexMmaSpecialization<2,3,16>();
-   AddSimplexMmaSpecialization<2,3,25>();
-   AddSimplexMmaSpecialization<2,3,33>();
-   AddSimplexMmaSpecialization<2,3,36>();
-   AddSimplexMmaSpecialization<2,3,42>();
+   AddSimplexMmaSpecialization<2,3,3>(); // GetRule
+   AddSimplexMmaSpecialization<2,3,9>(); // Stroud
+   AddSimplexMmaSpecialization<2,3,16>(); // Stroud, default/smoke
+   AddSimplexMmaSpecialization<2,3,25>(); // Stroud, default/smoke
+   AddSimplexMmaSpecialization<2,3,33>(); // default/smoke
+   AddSimplexMmaSpecialization<2,3,36>(); // Stroud (curved)
+   AddSimplexMmaSpecialization<2,3,42>(); // default/smoke (curved)
 
-   AddSimplexMmaSpecialization<2,4,6>();
-   AddSimplexMmaSpecialization<2,4,7>();
-   AddSimplexMmaSpecialization<2,4,12>();
-   AddSimplexMmaSpecialization<2,4,16>();
-   AddSimplexMmaSpecialization<2,4,19>();
-   AddSimplexMmaSpecialization<2,4,25>();
+   AddSimplexMmaSpecialization<2,4,6>(); // GetRule
+   AddSimplexMmaSpecialization<2,4,16>(); // Stroud
+   AddSimplexMmaSpecialization<2,4,25>(); // Stroud, default/smoke
 
-   AddSimplexMmaSpecialization<2,5,12>();
-   AddSimplexMmaSpecialization<2,5,15>();
-   AddSimplexMmaSpecialization<2,5,16>();
-   AddSimplexMmaSpecialization<2,5,28>();
-   AddSimplexMmaSpecialization<2,5,33>();
+   AddSimplexMmaSpecialization<2,5,12>(); // GetRule
+   AddSimplexMmaSpecialization<2,5,33>(); // default/smoke
 
-   AddSimplexMmaSpecialization<2,6,16>();
-   AddSimplexMmaSpecialization<2,6,19>();
-   AddSimplexMmaSpecialization<2,6,25>();
-   AddSimplexMmaSpecialization<2,6,36>();
-   AddSimplexMmaSpecialization<2,6,37>();
-   AddSimplexMmaSpecialization<2,6,42>();
-   AddSimplexMmaSpecialization<2,6,49>();
-   AddSimplexMmaSpecialization<2,6,55>();
-   AddSimplexMmaSpecialization<2,6,64>();
-   AddSimplexMmaSpecialization<2,6,67>();
-   AddSimplexMmaSpecialization<2,6,79>();
-   AddSimplexMmaSpecialization<2,6,81>();
+   AddSimplexMmaSpecialization<2,6,16>(); // GetRule
+   AddSimplexMmaSpecialization<2,6,36>(); // Stroud
+   AddSimplexMmaSpecialization<2,6,42>(); // default/smoke
+   AddSimplexMmaSpecialization<2,6,49>(); // Stroud
+   AddSimplexMmaSpecialization<2,6,55>(); // default/smoke
+   AddSimplexMmaSpecialization<2,6,64>(); // Stroud
+   AddSimplexMmaSpecialization<2,6,67>(); // default/smoke
+   AddSimplexMmaSpecialization<2,6,79>(); // default/smoke (curved)
+   AddSimplexMmaSpecialization<2,6,81>(); // Stroud (curved)
 
-   AddSimplexMmaSpecialization<2,7,25>();
-   AddSimplexMmaSpecialization<2,7,28>();
-   AddSimplexMmaSpecialization<2,7,33>();
-   AddSimplexMmaSpecialization<2,7,49>();
-   AddSimplexMmaSpecialization<2,7,55>();
-   AddSimplexMmaSpecialization<2,7,64>();
-   AddSimplexMmaSpecialization<2,7,67>();
-   AddSimplexMmaSpecialization<2,7,79>();
-   AddSimplexMmaSpecialization<2,7,81>();
-   AddSimplexMmaSpecialization<2,7,100>();
-   AddSimplexMmaSpecialization<2,7,126>();
+   AddSimplexMmaSpecialization<2,7,25>(); // GetRule
+   AddSimplexMmaSpecialization<2,7,49>(); // Stroud
+   AddSimplexMmaSpecialization<2,7,55>(); // default/smoke
+   AddSimplexMmaSpecialization<2,7,64>(); // Stroud
+   AddSimplexMmaSpecialization<2,7,67>(); // default/smoke
+   AddSimplexMmaSpecialization<2,7,79>(); // default/smoke
+   AddSimplexMmaSpecialization<2,7,81>(); // Stroud
+   AddSimplexMmaSpecialization<2,7,100>(); // default/smoke (curved)
+   AddSimplexMmaSpecialization<2,7,126>(); // Stroud (curved)
 
-   AddSimplexMmaSpecialization<2,8,37>();
-   AddSimplexMmaSpecialization<2,8,42>();
-   AddSimplexMmaSpecialization<2,8,60>();
+   AddSimplexMmaSpecialization<2,8,33>(); // GetRule
 
    // 3D
-   AddSimplexMmaSpecialization<3,2,1>();
-   AddSimplexMmaSpecialization<3,2,4>();
-   AddSimplexMmaSpecialization<3,2,8>();
-   AddSimplexMmaSpecialization<3,2,14>();
-   AddSimplexMmaSpecialization<3,2,24>();
+   AddSimplexMmaSpecialization<3,2,1>(); // GetRule
+   AddSimplexMmaSpecialization<3,2,8>(); // Stroud
+   AddSimplexMmaSpecialization<3,2,24>(); // default/smoke
 
-   AddSimplexMmaSpecialization<3,3,4>();
-   AddSimplexMmaSpecialization<3,3,8>();
-   AddSimplexMmaSpecialization<3,3,14>();
-   AddSimplexMmaSpecialization<3,3,27>();
-   AddSimplexMmaSpecialization<3,3,35>();
-   AddSimplexMmaSpecialization<3,3,46>();
+   AddSimplexMmaSpecialization<3,3,4>(); // GetRule
+   AddSimplexMmaSpecialization<3,3,27>(); // Stroud
+   AddSimplexMmaSpecialization<3,3,46>(); // default/smoke
 
-   AddSimplexMmaSpecialization<3,4,11>();
-   AddSimplexMmaSpecialization<3,4,14>();
-   AddSimplexMmaSpecialization<3,4,24>();
-   AddSimplexMmaSpecialization<3,4,59>();
-   AddSimplexMmaSpecialization<3,4,81>();
+   AddSimplexMmaSpecialization<3,4,14>(); // GetRule
+   AddSimplexMmaSpecialization<3,4,81>(); // default/smoke
 
-   AddSimplexMmaSpecialization<3,5,24>();
-   AddSimplexMmaSpecialization<3,5,35>();
-   AddSimplexMmaSpecialization<3,5,46>();
-   AddSimplexMmaSpecialization<3,5,96>();
-   AddSimplexMmaSpecialization<3,5,123>();
+   AddSimplexMmaSpecialization<3,5,24>(); // GetRule
+   AddSimplexMmaSpecialization<3,5,123>(); // default/smoke
 
-   AddSimplexMmaSpecialization<3,6,45>();
-   AddSimplexMmaSpecialization<3,6,59>();
-   AddSimplexMmaSpecialization<3,6,81>();
-   AddSimplexMmaSpecialization<3,6,145>();
-   AddSimplexMmaSpecialization<3,6,175>();
-   AddSimplexMmaSpecialization<3,6,216>();
+   AddSimplexMmaSpecialization<3,6,46>(); // GetRule
+   AddSimplexMmaSpecialization<3,6,175>(); // default/smoke
+   AddSimplexMmaSpecialization<3,6,216>(); // Stroud
 
-   AddSimplexMmaSpecialization<3,7,74>();
-   AddSimplexMmaSpecialization<3,7,96>();
-   AddSimplexMmaSpecialization<3,7,123>();
-   AddSimplexMmaSpecialization<3,7,209>();
-   AddSimplexMmaSpecialization<3,7,248>();
+   AddSimplexMmaSpecialization<3,7,81>(); // GetRule
+   AddSimplexMmaSpecialization<3,7,248>(); // default/smoke
 
-   AddSimplexMmaSpecialization<3,8,145>();
-   AddSimplexMmaSpecialization<3,8,175>();
-   AddSimplexMmaSpecialization<3,8,284>();
+   AddSimplexMmaSpecialization<3,8,123>(); // GetRule
 }
 
 } // namespace mfem

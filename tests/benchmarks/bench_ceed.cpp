@@ -462,14 +462,17 @@ static void Benchmark(bm::State& state) noexcept
    AddCounter(state, "Dofs", bm::Counter(run.dofs));
    AddCounter(state, "MDof/s",
               bm::Counter(run.SumMdofs(), bm::Counter::kIsRate));
-   AddCounter(state, "Order", bm::Counter(state.range(0)));
-   AddCounter(state, "Q1D", bm::Counter(run.q1d));
-   AddCounter(state, "QND", bm::Counter(run.qnd));
+   AddCounter(state, "Order", bm::Counter(state.range(0)),
+              CounterColor::Default, true);
+   AddCounter(state, "Q1D", bm::Counter(run.q1d),
+              CounterColor::Default, true);
+   AddCounter(state, "QND", bm::Counter(run.qnd),
+              CounterColor::Default, true);
    // AddCounter(state, "Simplex", bm::Counter(run.simplex));
    if (run.cg_final_iter >= 0)
    {
       AddCounter(state, "CG_Iter", bm::Counter(run.cg_final_iter),
-                 CounterColor::Magenta);
+                 CounterColor::Magenta, true);
       AddCounter(state, "CG_Norm", bm::Counter(run.cg_final_norm),
                  CounterColor::Magenta);
    }

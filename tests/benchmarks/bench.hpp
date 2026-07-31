@@ -72,10 +72,16 @@ enum class CounterColor : int
    Default = 0, Red, Green, Yellow, Blue, Magenta, Cyan, White
 };
 
-/// Side channel: insertion order + color (UserCounters is an alphabetical map).
+/// Side channel: insertion order + color + display (UserCounters is alphabetical).
 struct CounterMeta
 {
-   std::vector<std::pair<std::string, CounterColor>> entries;
+   struct Entry
+   {
+      std::string name;
+      CounterColor color = CounterColor::Default;
+      bool as_int = false;
+   };
+   std::vector<Entry> entries;
 
    static CounterMeta &Instance()
    {
@@ -85,22 +91,36 @@ struct CounterMeta
 
    void Clear() { entries.clear(); }
 
-   void Note(const std::string &name, CounterColor color)
+   void Note(const std::string &name, CounterColor color, bool as_int = false)
    {
       for (auto &e : entries)
       {
-         if (e.first == name) { e.second = color; return; }
+         if (e.name == name)
+         {
+            e.color = color;
+            e.as_int = as_int;
+            return;
+         }
       }
-      entries.emplace_back(name, color);
+      entries.push_back({name, color, as_int});
    }
 
    CounterColor ColorOf(const std::string &name) const
    {
       for (const auto &e : entries)
       {
-         if (e.first == name) { return e.second; }
+         if (e.name == name) { return e.color; }
       }
       return CounterColor::Default;
+   }
+
+   bool IsInt(const std::string &name) const
+   {
+      for (const auto &e : entries)
+      {
+         if (e.name == name) { return e.as_int; }
+      }
+      return false;
    }
 };
 
@@ -108,10 +128,11 @@ inline void BeginCounters() { CounterMeta::Instance().Clear(); }
 
 inline void AddCounter(bm::State &state, const std::string &name,
                        bm::Counter value,
-                       CounterColor color = CounterColor::Default)
+                       CounterColor color = CounterColor::Default,
+                       bool as_int = false)
 {
    state.counters[name] = value;
-   CounterMeta::Instance().Note(name, color);
+   CounterMeta::Instance().Note(name, color, as_int);
 }
 
 /// Console reporter with per-counter color and insertion-order columns.
@@ -173,9 +194,17 @@ protected:
          const bm::Counter &c = it->second;
          const int width = static_cast<int>(std::max<std::size_t>(10, name.size()));
          const char *rate = (c.flags & bm::Counter::kIsRate) ? "/s" : "";
-         Print(os, color, CounterMeta::Instance().ColorOf(name), " %*s%s",
-               width - static_cast<int>(std::strlen(rate)),
-               HumanReadable(c.value).c_str(), rate);
+         const int field = width - static_cast<int>(std::strlen(rate));
+         const CounterColor cc = CounterMeta::Instance().ColorOf(name);
+         if (CounterMeta::Instance().IsInt(name))
+         {
+            Print(os, color, cc, " %*.0f%s", field, c.value, rate);
+         }
+         else
+         {
+            Print(os, color, cc, " %*s%s", field,
+                  HumanReadable(c.value).c_str(), rate);
+         }
       }
       Print(os, color, CounterColor::Default, "\n");
    }
@@ -187,10 +216,10 @@ private:
       std::unordered_set<std::string> seen;
       for (const auto &e : CounterMeta::Instance().entries)
       {
-         if (run.counters.count(e.first))
+         if (run.counters.count(e.name))
          {
-            names.push_back(e.first);
-            seen.insert(e.first);
+            names.push_back(e.name);
+            seen.insert(e.name);
          }
       }
       for (const auto &kv : run.counters)
