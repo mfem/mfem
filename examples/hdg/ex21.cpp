@@ -4,7 +4,7 @@
 //
 // Sample runs:  ex21 -trdg
 //               ex21 -o 3
-//               ex21 -m ../../data/beam-quad.mesh -trdg
+//               ex21 -m ../../data/beam-quad.mesh
 //               ex21 -m ../../data/beam-quad.mesh -o 3
 //               ex21 -m ../../data/beam-quad.mesh -o 3 -trdg
 //               ex21 -m ../../data/beam-tet.mesh -trdg
