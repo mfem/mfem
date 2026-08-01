@@ -14,6 +14,11 @@
 // #include "bilininteg_pa_simplices_mma_host.hpp"
 #include "../bilininteg.hpp"
 
+#ifdef MFEM_USE_LAPACK
+#include <vector>
+#include <algorithm>
+#endif
+
 namespace mfem
 {
 
@@ -21,6 +26,503 @@ namespace mfem
 
 namespace internal
 {
+
+namespace simplex_mma
+{
+
+// ---------------------------------------------------------------------------
+// Simplex diffusion PA helpers (NB / Q-tile / host dense / metrics)
+// ---------------------------------------------------------------------------
+
+/** Max diffusion NB for full-NQ X+DIM*U under a byte cap. */
+template <int DIM, int D1D, int QND>
+constexpr int DiffusionMmaNBFullNqAt(int bytes_cap)
+{
+   constexpr int MQ = SimplexMaxNq<DIM, QND>();
+   constexpr int BASIS = SimplexNdof<DIM, D1D>();
+   constexpr int MAP = MmaMapFor<DIM, D1D, QND>();
+   constexpr int X_LD = PadLdBank<MAP>(BASIS);
+   constexpr int U_LD = PadLdBank<MAP>(MQ);
+   constexpr int per_batch_col = X_LD + DIM * U_LD;
+   const int max_nb = bytes_cap / (int(sizeof(real_t)) * per_batch_col);
+   if (D1D && QND)
+   {
+      if (NBATCH <= max_nb) { return NBATCH; }
+#if defined(MFEM_USE_HIP)
+      return max_nb > 0 ? max_nb : 1;
+#else
+      const int nb = (max_nb / mmaN) * mmaN;
+      return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+#endif
+   }
+   if (mmaN <= max_nb) { return mmaN; }
+   return max_nb > 0 ? max_nb : 1;
+}
+
+/** Diffusion full-NQ NB.
+    CUDA: plan under 48KB only. Larger full-NQ (dynamic) loses to Q-tile on H100
+          due to occupancy (tet p=7 measured). Q-tile path uses Prefer budget. */
+template <int DIM, int D1D, int QND>
+constexpr int DiffusionMmaNBFullNq()
+{
+#if defined(MFEM_USE_CUDA)
+   return DiffusionMmaNBFullNqAt<DIM, D1D, QND>(SharedMemBytesPrefer);
+#else
+   return DiffusionMmaNBFullNqAt<DIM, D1D, QND>(SharedMemBytesPerBlock);
+#endif
+}
+
+/** True when diffusion should Q-tile.
+    HIP: when full-NQ would force NB < NBATCH (16).
+    CUDA: only when full-NQ cannot keep NB >= mmaN even with dynamic smem. */
+template <int DIM, int D1D, int QND>
+constexpr bool DiffusionUseQTile()
+{
+   if (!(DIM == 3 && D1D && QND)) { return false; }
+#if defined(MFEM_USE_HIP)
+   return DiffusionMmaNBFullNq<DIM, D1D, QND>() < NBATCH;
+#else
+   return DiffusionMmaNBFullNq<DIM, D1D, QND>() < mmaN;
+#endif
+}
+
+/** Largest TQ (multiple of MMA M) that fits X + DIM·U at a given NB and byte cap. */
+template <int DIM, int D1D, int QND, int NB>
+constexpr int DiffusionQTileForNBAt(int bytes_cap)
+{
+   constexpr int BASIS = SimplexNdof<DIM, D1D>();
+   constexpr int MAP = MmaMapFor<DIM, D1D, QND>();
+   constexpr int X_LD = PadLdBank<MAP>(BASIS);
+   constexpr int MQ = SimplexMaxNq<DIM, QND>();
+   constexpr int step = mmaM;
+
+   int best = step;
+   for (int tq = step; tq <= MQ; tq += step)
+   {
+      const int U_LD = PadLdBank<MAP>(tq);
+      const int bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
+      if (bytes > bytes_cap) { break; }
+      best = tq;
+   }
+   return best;
+}
+
+template <int DIM, int D1D, int QND, int NB>
+constexpr int DiffusionQTileForNB()
+{
+   // Keep Q-tiles in the occupancy-friendly 48KB/Prefer budget (H100).
+   return DiffusionQTileForNBAt<DIM, D1D, QND, NB>(SharedMemBytesPrefer);
+}
+
+/** Q-tile element batch: HIP keeps NBATCH; CUDA picks NB in {8,16} with fewer passes. */
+template <int DIM, int D1D, int QND>
+constexpr int DiffusionQTileNB()
+{
+#if defined(MFEM_USE_HIP)
+   return NBATCH;
+#else
+   constexpr int MQ = SimplexMaxNq<DIM, QND>();
+   constexpr int tq16 = DiffusionQTileForNB<DIM, D1D, QND, NBATCH>();
+   constexpr int tq8 = DiffusionQTileForNB<DIM, D1D, QND, mmaN>();
+   constexpr int passes16 = (MQ + tq16 - 1) / tq16;
+   constexpr int passes8 = (MQ + tq8 - 1) / tq8;
+   return (passes8 < passes16) ? mmaN : NBATCH;
+#endif
+}
+
+/** Largest TQ for the selected Q-tile NB. */
+template <int DIM, int D1D, int QND>
+constexpr int DiffusionQTileFor()
+{
+   return DiffusionQTileForNB<DIM, D1D, QND,
+          DiffusionQTileNB<DIM, D1D, QND>()>();
+}
+
+/** @deprecated prefer DiffusionQTileFor — kept as MMA-M hint. */
+constexpr int DiffusionQTile = mmaM;
+
+template <int DIM, int D1D, int QND>
+constexpr int DiffusionMmaNB()
+{
+   if constexpr (DiffusionUseQTile<DIM, D1D, QND>())
+   {
+      return DiffusionQTileNB<DIM, D1D, QND>();
+   }
+   return DiffusionMmaNBFullNq<DIM, D1D, QND>();
+}
+
+/** Runtime diffusion full-NQ NB under a byte cap. */
+inline int DiffusionMmaNBFullNqAtRuntime(int ndof, int nq, int pa_comps,
+                                         int bytes_cap)
+{
+   const int x_ld = PadLdBankRuntime(ndof);
+   const int u_ld = PadLdBankRuntime(nq);
+   const int denom = int(sizeof(real_t)) * (x_ld + pa_comps * u_ld);
+   const int max_nb = (denom > 0) ? (bytes_cap / denom) : 0;
+   if (NBATCH <= max_nb) { return NBATCH; }
+#if defined(MFEM_USE_HIP)
+   return max_nb > 0 ? max_nb : 1;
+#else
+   const int nb = (max_nb / mmaN) * mmaN;
+   return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+#endif
+}
+
+inline int DiffusionMmaNBFullNqRuntime(int /*dim*/, int ndof, int nq,
+                                       int pa_comps)
+{
+#if defined(MFEM_USE_CUDA)
+   return DiffusionMmaNBFullNqAtRuntime(ndof, nq, pa_comps,
+                                        SharedMemBytesPrefer);
+#else
+   return DiffusionMmaNBFullNqAtRuntime(ndof, nq, pa_comps,
+                                        SharedMemBytesPerBlock);
+#endif
+}
+
+/** True when runtime diffusion should Q-tile (DIM==3 only). */
+inline bool DiffusionUseQTileRuntime(int dim, int ndof, int nq, int pa_comps)
+{
+   if (dim != 3) { return false; }
+#if defined(MFEM_USE_HIP)
+   return DiffusionMmaNBFullNqRuntime(dim, ndof, nq, pa_comps) < NBATCH;
+#else
+   return DiffusionMmaNBFullNqRuntime(dim, ndof, nq, pa_comps) < mmaN;
+#endif
+}
+
+inline int DiffusionQTileForNBAtRuntime(int ndof, int nq, int nb, int bytes_cap)
+{
+   const int x_ld = PadLdBankRuntime(ndof);
+   const int step = mmaM;
+   int best = step;
+   for (int tq = step; tq <= nq; tq += step)
+   {
+      const int u_ld = PadLdBankRuntime(tq);
+      const int bytes = int(sizeof(real_t)) * (x_ld + 3 * u_ld) * nb;
+      if (bytes > bytes_cap) { break; }
+      best = tq;
+   }
+   return best;
+}
+
+inline int DiffusionQTileNBRuntime(int ndof, int nq)
+{
+#if defined(MFEM_USE_HIP)
+   MFEM_CONTRACT_VAR(ndof);
+   MFEM_CONTRACT_VAR(nq);
+   return NBATCH;
+#else
+   const int tq16 = DiffusionQTileForNBAtRuntime(ndof, nq, NBATCH,
+                                                 SharedMemBytesPrefer);
+   const int tq8 = DiffusionQTileForNBAtRuntime(ndof, nq, mmaN,
+                                                SharedMemBytesPrefer);
+   const int passes16 = (nq + tq16 - 1) / tq16;
+   const int passes8 = (nq + tq8 - 1) / tq8;
+   return (passes8 < passes16) ? mmaN : NBATCH;
+#endif
+}
+
+inline int DiffusionQTileForRuntime(int ndof, int nq)
+{
+   const int nb = DiffusionQTileNBRuntime(ndof, nq);
+   return DiffusionQTileForNBAtRuntime(ndof, nq, nb, SharedMemBytesPrefer);
+}
+
+/** Runtime diffusion NB (Q-tile or full-NQ), matching DiffusionMmaNB. */
+inline int DiffusionMmaNBRuntime(int dim, int ndof, int nq, int pa_comps)
+{
+   if (DiffusionUseQTileRuntime(dim, ndof, nq, pa_comps))
+   {
+      return DiffusionQTileNBRuntime(ndof, nq);
+   }
+   return DiffusionMmaNBFullNqRuntime(dim, ndof, nq, pa_comps);
+}
+
+/** Hand multi-RHS NB for specialized diffusion. */
+template <int DIM, int NQ>
+constexpr int HandDiffusionNB()
+{
+   return (DIM == 3 && NQ > 60) ? 2 : 4;
+}
+
+// ---- Diffusion metric at one quadrature point (vector length DIM) ----------
+
+/** In-place metric: u[0:DIM) := O(D(q,e)) * u. PA D is (q, pa, e). */
+template <int DIM, bool SYM>
+MFEM_HOST_DEVICE inline void ApplyDiffusionMetricVec(real_t *u, const real_t *Dv,
+                                                     int q, int nq, int e,
+                                                     int pa_size)
+{
+   if constexpr (DIM == 2)
+   {
+      const real_t u1 = u[0], u2 = u[1];
+      const real_t O11 = Dv[q + nq * (0 + pa_size * e)];
+      const real_t O21 = Dv[q + nq * (1 + pa_size * e)];
+      if constexpr (SYM)
+      {
+         const real_t O22 = Dv[q + nq * (2 + pa_size * e)];
+         u[0] = O11 * u1 + O21 * u2;
+         u[1] = O21 * u1 + O22 * u2;
+      }
+      else
+      {
+         const real_t O12 = Dv[q + nq * (2 + pa_size * e)];
+         const real_t O22 = Dv[q + nq * (3 + pa_size * e)];
+         u[0] = O11 * u1 + O12 * u2;
+         u[1] = O21 * u1 + O22 * u2;
+      }
+   }
+   else
+   {
+      const real_t u1 = u[0], u2 = u[1], u3 = u[2];
+      const real_t O11 = Dv[q + nq * (0 + pa_size * e)];
+      const real_t O12 = Dv[q + nq * (1 + pa_size * e)];
+      const real_t O13 = Dv[q + nq * (2 + pa_size * e)];
+      if constexpr (SYM)
+      {
+         const real_t O22 = Dv[q + nq * (3 + pa_size * e)];
+         const real_t O23 = Dv[q + nq * (4 + pa_size * e)];
+         const real_t O33 = Dv[q + nq * (5 + pa_size * e)];
+         u[0] = O11 * u1 + O12 * u2 + O13 * u3;
+         u[1] = O12 * u1 + O22 * u2 + O23 * u3;
+         u[2] = O13 * u1 + O23 * u2 + O33 * u3;
+      }
+      else
+      {
+         const real_t O21 = Dv[q + nq * (3 + pa_size * e)];
+         const real_t O22 = Dv[q + nq * (4 + pa_size * e)];
+         const real_t O23 = Dv[q + nq * (5 + pa_size * e)];
+         const real_t O31 = Dv[q + nq * (6 + pa_size * e)];
+         const real_t O32 = Dv[q + nq * (7 + pa_size * e)];
+         const real_t O33 = Dv[q + nq * (8 + pa_size * e)];
+         u[0] = O11 * u1 + O12 * u2 + O13 * u3;
+         u[1] = O21 * u1 + O22 * u2 + O23 * u3;
+         u[2] = O31 * u1 + O32 * u2 + O33 * u3;
+      }
+   }
+}
+
+/** Metric on BLAS column-major U planes: uloc[d * nq * NB + q + nq * b]. */
+template <int DIM, bool SYM>
+inline void ApplyDiffusionMetricColMajor(real_t *uloc, const real_t *Dv,
+                                         int nq, int e0, int NE, int NB,
+                                         int pa_size)
+{
+   for (int b = 0; b < NB; ++b)
+   {
+      const int e = e0 + b;
+      if (e >= NE) { break; }
+      for (int q = 0; q < nq; ++q)
+      {
+         real_t u[DIM];
+         for (int d = 0; d < DIM; ++d)
+         {
+            u[d] = uloc[static_cast<size_t>(d) * nq * NB + q +
+                        static_cast<size_t>(nq) * b];
+         }
+         ApplyDiffusionMetricVec<DIM, SYM>(u, Dv, q, nq, e, pa_size);
+         for (int d = 0; d < DIM; ++d)
+         {
+            uloc[static_cast<size_t>(d) * nq * NB + q +
+                 static_cast<size_t>(nq) * b] = u[d];
+         }
+      }
+   }
+}
+
+/** Metric on hand b-innermost U: uloc[(d * NQ + q) * NB + b]. */
+template <int DIM, int NQ, int NB, bool SYM>
+inline void ApplyDiffusionMetricHand(real_t *uloc, const real_t *Dv,
+                                     int e0, int NE, int pa_size)
+{
+   for (int q = 0; q < NQ; ++q)
+   {
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b)
+      {
+         const int e = e0 + b;
+         if (e >= NE) { continue; }
+         real_t u[DIM];
+         for (int d = 0; d < DIM; ++d)
+         {
+            u[d] = uloc[(d * NQ + q) * NB + b];
+         }
+         ApplyDiffusionMetricVec<DIM, SYM>(u, Dv, q, NQ, e, pa_size);
+         for (int d = 0; d < DIM; ++d)
+         {
+            uloc[(d * NQ + q) * NB + b] = u[d];
+         }
+      }
+   }
+}
+
+/** Diffusion hand: forward all GradP components into uloc[(d*NQ+q)*NB+b]. */
+template <int DIM, int NDOF, int NQ, int NB>
+inline void HandDiffusionForward(const real_t *G, const real_t *xloc,
+                                 real_t *uloc)
+{
+   for (int d = 0; d < DIM; ++d)
+   {
+      const real_t *Gd = G + static_cast<size_t>(d) * NQ * NDOF;
+      HandGemmForward<NDOF, NQ, NB, false>(Gd, xloc, uloc + d * NQ * NB,
+                                           nullptr, 0, 0);
+   }
+}
+
+/** Diffusion hand: Y += sum_d G_d^T U_d. */
+template <int DIM, int NDOF, int NQ, int NB>
+inline void HandDiffusionBackward(const real_t *G, const real_t *uloc,
+                                  real_t *Y, int e0, int NE)
+{
+   for (int i = 0; i < NDOF; ++i)
+   {
+      real_t yb[NB];
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b) { yb[b] = real_t(0); }
+      for (int d = 0; d < DIM; ++d)
+      {
+         const real_t *Gd = G + static_cast<size_t>(d) * NQ * NDOF;
+         const real_t *Ud = uloc + d * NQ * NB;
+         for (int q = 0; q < NQ; ++q)
+         {
+            const real_t gqi = Gd[q + NQ * i];
+            MFEM_UNROLL(NB)
+            for (int b = 0; b < NB; ++b)
+            {
+               yb[b] += gqi * Ud[q * NB + b];
+            }
+         }
+      }
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b)
+      {
+         const int e = e0 + b;
+         if (e < NE) { Y[i + NDOF * e] += yb[b]; }
+      }
+   }
+}
+
+#ifdef MFEM_USE_LAPACK
+/** Diffusion: U_d = G_d X, metric, Y += sum G_d^T V_d. */
+template <int DIM, bool SYM>
+inline void DiffusionApplyBlas(int NE, int nq, int ndof, const real_t *G,
+                               const real_t *Dv, const real_t *X, real_t *Y)
+{
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   const int NB = HostBlasNB(nq, ndof);
+   const int ntiles = (NE + NB - 1) / NB;
+   std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
+   std::vector<real_t> uloc(static_cast<size_t>(DIM) * nq * NB);
+   std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
+
+   for (int tile = 0; tile < ntiles; ++tile)
+   {
+      const int e0 = tile * NB;
+      PackXColMajor(X, ndof, e0, NE, NB, xloc.data());
+
+      for (int d = 0; d < DIM; ++d)
+      {
+         const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
+         real_t *Ud = uloc.data() + static_cast<size_t>(d) * nq * NB;
+         HostGemm('N', 'N', nq, NB, ndof, real_t(1), Gd, nq, xloc.data(), ndof,
+                  real_t(0), Ud, nq);
+      }
+
+      ApplyDiffusionMetricColMajor<DIM, SYM>(uloc.data(), Dv, nq, e0, NE, NB,
+                                             PA_SIZE);
+
+      std::fill(ytmp.begin(), ytmp.end(), real_t(0));
+      for (int d = 0; d < DIM; ++d)
+      {
+         const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
+         const real_t *Vd = uloc.data() + static_cast<size_t>(d) * nq * NB;
+         HostGemm('T', 'N', ndof, NB, nq, real_t(1), Gd, nq, Vd, nq,
+                  real_t(1), ytmp.data(), ndof);
+      }
+      ScatterAddYColMajor(ytmp.data(), ndof, e0, NE, NB, Y);
+   }
+}
+#endif // MFEM_USE_LAPACK
+
+template <int DIM, int NDOF, int NQ, bool SYM>
+inline void DiffusionApplyHandSpecialized(int NE, const real_t *G,
+                                          const real_t *Dv, const real_t *X,
+                                          real_t *Y)
+{
+   constexpr int NB = HandDiffusionNB<DIM, NQ>();
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   const int ntiles = (NE + NB - 1) / NB;
+   for (int tile = 0; tile < ntiles; ++tile)
+   {
+      const int e0 = tile * NB;
+      alignas(64) real_t xloc[NDOF * NB];
+      alignas(64) real_t uloc[DIM * NQ * NB];
+      PackXHand<NDOF, NB>(X, e0, NE, xloc);
+      HandDiffusionForward<DIM, NDOF, NQ, NB>(G, xloc, uloc);
+      ApplyDiffusionMetricHand<DIM, NQ, NB, SYM>(uloc, Dv, e0, NE, PA_SIZE);
+      HandDiffusionBackward<DIM, NDOF, NQ, NB>(G, uloc, Y, e0, NE);
+   }
+}
+
+/** Serial dense diffusion for one element; u_scratch holds DIM*nq reals. */
+template <int DIM, bool SYM>
+MFEM_HOST_DEVICE inline void DiffusionApplyDenseElement(
+   const int nq, const int ndof, const real_t *G, const real_t *Dv_e,
+   const real_t *X_e, real_t *Y_e, real_t *u_scratch)
+{
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   for (int d = 0; d < DIM; ++d)
+   {
+      for (int q = 0; q < nq; ++q)
+      {
+         real_t s = 0.0;
+         for (int i = 0; i < ndof; ++i)
+         {
+            s += G[q + nq * (i + ndof * d)] * X_e[i];
+         }
+         u_scratch[d * nq + q] = s;
+      }
+   }
+   for (int q = 0; q < nq; ++q)
+   {
+      real_t uv[DIM];
+      for (int d = 0; d < DIM; ++d) { uv[d] = u_scratch[d * nq + q]; }
+      // Dv layout (q, pa, e) with e=0 relative base.
+      ApplyDiffusionMetricVec<DIM, SYM>(uv, Dv_e, q, nq, 0, PA_SIZE);
+      for (int d = 0; d < DIM; ++d) { u_scratch[d * nq + q] = uv[d]; }
+   }
+   for (int i = 0; i < ndof; ++i)
+   {
+      real_t s = 0.0;
+      for (int d = 0; d < DIM; ++d)
+      {
+         for (int q = 0; q < nq; ++q)
+         {
+            s += G[q + nq * (i + ndof * d)] * u_scratch[d * nq + q];
+         }
+      }
+      Y_e[i] += s;
+   }
+}
+
+template <int DIM, bool SYM>
+inline void DiffusionApplyHandRuntime(int NE, int nq, int ndof, const real_t *G,
+                                      const real_t *Dv, const real_t *X,
+                                      real_t *Y)
+{
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   for (int e = 0; e < NE; ++e)
+   {
+      auto *u = static_cast<real_t *>(
+                   alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
+      DiffusionApplyDenseElement<DIM, SYM>(
+         nq, ndof, G, Dv + nq * PA_SIZE * e, X + ndof * e, Y + ndof * e, u);
+   }
+}
+
+
+} // namespace simplex_mma
 
 void PADiffusionSetupSimplexFromNodes(const int dim,
                                       const int coeffDim,
@@ -150,7 +652,7 @@ void ApplyDiffusionMetricQTile(real_t *UV, TD D,
 
 template<int DIM, int D1D, int QND, bool SYM>
 MFEM_HOST_DEVICE inline
-void MmaPADiffusionApplySimplex_Batch(const int e0,
+void MmaDiffusionApplySimplex_Batch(const int e0,
                                       const int NE,
                                       const real_t *g_,
                                       const real_t *d_,
@@ -177,11 +679,7 @@ void MmaPADiffusionApplySimplex_Batch(const int e0,
    if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
    {
       constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
-#if defined(MFEM_USE_HIP)
-      constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
-#else
       constexpr int U_LD = simplex_mma::PadLdBank<MAP>(TQ);
-#endif
       static_assert(sizeof(real_t) * (X_LD + DIM * U_LD) * NB <=
                     simplex_mma::SharedMemBytesPerBlock,
                     "Q-tiled diffusion smem exceeds SharedMemBytesPerBlock");
@@ -190,11 +688,7 @@ void MmaPADiffusionApplySimplex_Batch(const int e0,
          real_t XY[X_LD * NB];
          real_t UV[DIM * U_LD * NB];
       };
-#if defined(__CUDA_ARCH__)
-      SmemQ &sm = *reinterpret_cast<SmemQ *>(simplex_mma::SimplexMmaDynSmem());
-#else
-      MFEM_SHARED SmemQ sm;
-#endif
+      MFEM_SIMPLEX_MMA_SMEM(SmemQ, sm);
 
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
     !defined(MFEM_USE_SINGLE)
@@ -286,11 +780,7 @@ void MmaPADiffusionApplySimplex_Batch(const int e0,
          real_t XY[X_LD * NB];
          real_t UV[DIM * U_LD * NB];
       };
-#if defined(__CUDA_ARCH__)
-      Smem &sm = *reinterpret_cast<Smem *>(simplex_mma::SimplexMmaDynSmem());
-#else
-      MFEM_SHARED Smem sm;
-#endif
+      MFEM_SIMPLEX_MMA_SMEM(Smem, sm);
 
 #if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
     !defined(MFEM_USE_SINGLE)
@@ -477,7 +967,7 @@ inline void PADiffusionApplySimplexDenseHost(const int NE,
 }
 
 template<int DIM, int D1D, int QND, bool SYM>
-inline void MmaPADiffusionApplySimplex(const int NE,
+inline void MmaDiffusionApplySimplex(const int NE,
                                        const Array<real_t> &g_,
                                        const Vector &d_,
                                        const Vector &x_,
@@ -498,101 +988,329 @@ inline void MmaPADiffusionApplySimplex(const int NE,
       return;
    }
 
-   {
-      constexpr int BASIS = ndof;
-      constexpr int MAP = simplex_mma::MmaMapFor<DIM, D1D, QND>();
-      constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
-      if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
-      {
-         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
-#if defined(MFEM_USE_HIP)
-         constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
-#else
-         constexpr int U_LD = simplex_mma::PadLdBank<MAP>(TQ);
-#endif
-         simplex_mma::VerifySharedMemBytes(
-            int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB);
-      }
-      else
-      {
-         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, QND>();
-         constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
-         simplex_mma::VerifySharedMemBytes(
-            int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB);
-      }
-   }
-
-   const auto G = g_.Read(), D = d_.Read(), X = x_.Read();
-   auto Y = y_.ReadWrite();
-
-   // Match thread count to Q-tile M when Q-tiling (avoids idle warps/waves at TQ<<nq).
-   int nthreads;
+   constexpr int BASIS = ndof;
+   constexpr int MAP = simplex_mma::MmaMapFor<DIM, D1D, QND>();
+   constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
+   int smem_bytes = 0;
+   int nthreads = 0;
    if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
    {
       constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
+      constexpr int U_LD = simplex_mma::PadLdBank<MAP>(TQ);
+      smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
       nthreads = simplex_mma::LaunchNthreads<TQ>(TQ, ndof);
    }
    else
    {
+      constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, QND>();
+      constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
+      smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
       nthreads = simplex_mma::LaunchNthreads<QND>(QND, ndof);
    }
+   simplex_mma::VerifySharedMemBytes(smem_bytes);
+
+   const auto G = g_.Read(), D = d_.Read(), X = x_.Read();
+   auto Y = y_.ReadWrite();
    const int nbatches = (NE + NB - 1) / NB;
-   int smem_bytes = 0;
-   {
-      constexpr int BASIS = ndof;
-      constexpr int MAP = simplex_mma::MmaMapFor<DIM, D1D, QND>();
-      constexpr int X_LD = simplex_mma::PadLdBank<MAP>(BASIS);
-      if constexpr (simplex_mma::DiffusionUseQTile<DIM, D1D, QND>())
-      {
-         constexpr int TQ = simplex_mma::DiffusionQTileFor<DIM, D1D, QND>();
-#if defined(MFEM_USE_HIP)
-         constexpr int U_LD = simplex_mma::PadLdBankHip(TQ);
-#else
-         constexpr int U_LD = simplex_mma::PadLdBank<MAP>(TQ);
-#endif
-         smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
-      }
-      else
-      {
-         constexpr int MQ = simplex_mma::SimplexMaxNq<DIM, QND>();
-         constexpr int U_LD = simplex_mma::PadLdBank<MAP>(MQ);
-         smem_bytes = int(sizeof(real_t)) * (X_LD + DIM * U_LD) * NB;
-      }
-   }
-#if defined(MFEM_USE_CUDA)
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
                         [=] MFEM_HOST_DEVICE (int batch)
    {
-      MmaPADiffusionApplySimplex_Batch<DIM, D1D, QND, SYM>(
+      MmaDiffusionApplySimplex_Batch<DIM, D1D, QND, SYM>(
          batch * NB, NE, G, D, X, Y);
    });
-#else
-   MFEM_CONTRACT_VAR(smem_bytes);
-   mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
-   {
-      MmaPADiffusionApplySimplex_Batch<DIM, D1D, QND, SYM>(
-         batch * NB, NE, G, D, X, Y);
-   });
-#endif
 }
 
 /** Host dispatch matching ApplySimplexMmaKernelType (runtime symmetric flag). */
 template<int DIM, int D1D, int QND>
-inline void SmemPADiffusionApplySimplexMmaDispatch(const int NE,
-                                                   const bool symmetric,
-                                                   const Array<real_t> &g_,
-                                                   const Vector &d_,
-                                                   const Vector &x_,
-                                                   Vector &y_)
+inline void MmaDiffusionApplySimplex_Dispatch(const int NE,
+                                              const bool symmetric,
+                                              const Array<real_t> &g_,
+                                              const Vector &d_,
+                                              const Vector &x_,
+                                              Vector &y_)
 {
-   if (symmetric)
+   using Fn = decltype(&MmaDiffusionApplySimplex<DIM, D1D, QND, true>);
+   const Fn apply = symmetric ? &MmaDiffusionApplySimplex<DIM, D1D, QND, true>
+                              : &MmaDiffusionApplySimplex<DIM, D1D, QND, false>;
+   apply(NE, g_, d_, x_, y_);
+}
+
+/** Runtime dense diffusion (host BLAS/hand; device per-element). */
+template<int DIM, bool SYM>
+inline void PADiffusionApplySimplexDenseRuntime(const int NE,
+                                                const Array<real_t> &g_,
+                                                const Vector &d_,
+                                                const Vector &x_,
+                                                Vector &y_)
+{
+   MFEM_VERIFY(NE > 0, "");
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   MFEM_VERIFY(d_.Size() % (PA_SIZE * NE) == 0, "");
+   const int nq = d_.Size() / (PA_SIZE * NE);
+   MFEM_VERIFY(nq > 0 && g_.Size() % (nq * DIM) == 0, "");
+   const int ndof = g_.Size() / (nq * DIM);
+   MFEM_VERIFY(x_.Size() >= ndof * NE && y_.Size() >= ndof * NE, "");
+
+   constexpr int max_nq = simplex_mma::SimplexMaxNq<DIM, 0>();
+   constexpr int max_ndof = simplex_mma::SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
+               "Simplex MMA diffusion runtime Fallback exceeds size caps");
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      MmaPADiffusionApplySimplex<DIM, D1D, QND, true>(NE, g_, d_, x_, y_);
+      const real_t *G = g_.Read();
+      const real_t *Dv = d_.Read();
+      const real_t *X = x_.Read();
+      real_t *Y = y_.ReadWrite();
+#ifdef MFEM_USE_LAPACK
+      if (simplex_mma::PreferHostBlas(nq, ndof))
+      {
+         simplex_mma::DiffusionApplyBlas<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
+         return;
+      }
+#endif
+      simplex_mma::DiffusionApplyHandRuntime<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
+      return;
    }
-   else
+
+   const auto G = g_.Read();
+   const auto Dv = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      MmaPADiffusionApplySimplex<DIM, D1D, QND, false>(NE, g_, d_, x_, y_);
+      real_t u[DIM * max_nq];
+      simplex_mma::DiffusionApplyDenseElement<DIM, SYM>(
+         nq, ndof, G, Dv + nq * PA_SIZE * e,
+         X + ndof * e, Y + ndof * e, u);
+   });
+}
+
+template <int DIM, bool SYM, typename TD>
+MFEM_HOST_DEVICE inline
+void ApplyDiffusionMetricRuntime(real_t *UV, TD D,
+                                 const int e0, const int NE,
+                                 const int nq, const int u_ld, const int nb,
+                                 const int tid, const int nthreads)
+{
+   for (int i = tid; i < nq * nb; i += nthreads)
+   {
+      const int b = i / nq;
+      const int q = i - b * nq;
+      const int e = e0 + b;
+      if (e >= NE || q >= nq) { continue; }
+      if constexpr (DIM == 2)
+      {
+         const real_t u1 = UV[0 * u_ld * nb + q + u_ld * b];
+         const real_t u2 = UV[1 * u_ld * nb + q + u_ld * b];
+         const real_t O11 = D(q, 0, e);
+         const real_t O21 = D(q, 1, e);
+         if constexpr (SYM)
+         {
+            const real_t O22 = D(q, 2, e);
+            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O21 * u2;
+            UV[1 * u_ld * nb + q + u_ld * b] = O21 * u1 + O22 * u2;
+         }
+         else
+         {
+            const real_t O12 = D(q, 2, e);
+            const real_t O22 = D(q, 3, e);
+            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O12 * u2;
+            UV[1 * u_ld * nb + q + u_ld * b] = O21 * u1 + O22 * u2;
+         }
+      }
+      else
+      {
+         const real_t u1 = UV[0 * u_ld * nb + q + u_ld * b];
+         const real_t u2 = UV[1 * u_ld * nb + q + u_ld * b];
+         const real_t u3 = UV[2 * u_ld * nb + q + u_ld * b];
+         const real_t O11 = D(q, 0, e);
+         const real_t O12 = D(q, 1, e);
+         const real_t O13 = D(q, 2, e);
+         if constexpr (SYM)
+         {
+            const real_t O22 = D(q, 3, e);
+            const real_t O23 = D(q, 4, e);
+            const real_t O33 = D(q, 5, e);
+            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O12 * u2 + O13 * u3;
+            UV[1 * u_ld * nb + q + u_ld * b] = O12 * u1 + O22 * u2 + O23 * u3;
+            UV[2 * u_ld * nb + q + u_ld * b] = O13 * u1 + O23 * u2 + O33 * u3;
+         }
+         else
+         {
+            const real_t O21 = D(q, 3, e);
+            const real_t O22 = D(q, 4, e);
+            const real_t O23 = D(q, 5, e);
+            const real_t O31 = D(q, 6, e);
+            const real_t O32 = D(q, 7, e);
+            const real_t O33 = D(q, 8, e);
+            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O12 * u2 + O13 * u3;
+            UV[1 * u_ld * nb + q + u_ld * b] = O21 * u1 + O22 * u2 + O23 * u3;
+            UV[2 * u_ld * nb + q + u_ld * b] = O31 * u1 + O32 * u2 + O33 * u3;
+         }
+      }
    }
+}
+
+/** Full-NQ runtime batch (Fallback). Q-tile sizes use dense element path. */
+template<int DIM, bool SYM>
+MFEM_HOST_DEVICE inline
+void MmaDiffusionApplySimplex_Batch(const int e0,
+                                    const int NE,
+                                    const int nq,
+                                    const int ndof,
+                                    const int x_ld,
+                                    const int u_ld,
+                                    const int nb,
+                                    const real_t *g_,
+                                    const real_t *d_,
+                                    const real_t *x_,
+                                    real_t *y_)
+{
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   constexpr int max_nq = simplex_mma::SimplexMaxNq<DIM, 0>();
+   constexpr int max_ndof = simplex_mma::SimplexNdof<DIM, 0>();
+   constexpr int max_x_ld = simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(
+                               max_ndof);
+   constexpr int max_u_ld = simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(
+                               max_nq);
+   constexpr int max_nb = simplex_mma::NBATCH;
+
+   const auto D = Reshape(d_, nq, PA_SIZE, NE);
+   const auto x = ConstDeviceMatrix(x_, ndof, NE);
+   const int tid = simplex_mma::getThreadIdx();
+   [[maybe_unused]] const int nthreads = simplex_mma::getBlockNthreads();
+
+   // Dyn layout matches launch smem_bytes; static uses caps.
+#if defined(__CUDA_ARCH__)
+   real_t *XY = reinterpret_cast<real_t *>(simplex_mma::SimplexMmaDynSmem());
+   real_t *UV = XY + x_ld * nb;
+   MFEM_CONTRACT_VAR(max_x_ld);
+   MFEM_CONTRACT_VAR(max_u_ld);
+   MFEM_CONTRACT_VAR(max_nb);
+#else
+   MFEM_SHARED real_t XY[max_x_ld * max_nb];
+   MFEM_SHARED real_t UV[DIM * max_u_ld * max_nb];
+#endif
+
+#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
+    !defined(MFEM_USE_SINGLE)
+   constexpr int MAP = simplex_mma::MmaMapDefault;
+   simplex_mma::SmemMatAccRt Xacc{XY, x_ld};
+   simplex_mma::YBatchAcc Yacc{y_, ndof, e0};
+   simplex_mma::NullDAcc nullD;
+
+   simplex_mma::LoadXToSmem(XY, x, e0, NE, ndof, x_ld, nb, tid, nthreads);
+   MFEM_SYNC_THREAD;
+
+   for (int d = 0; d < DIM; ++d)
+   {
+      simplex_mma::GAcc A{g_, nq, ndof, d};
+      simplex_mma::SmemMatAccRt Uacc{UV + d * u_ld * nb, u_ld};
+      simplex_mma::BasisGemmForward<MAP, false>(nq, ndof, nb, A, Xacc,
+                                                Uacc, nullD, e0, NE);
+   }
+   MFEM_SYNC_THREAD;
+   ApplyDiffusionMetricRuntime<DIM, SYM>(UV, D, e0, NE, nq, u_ld, nb,
+                                          tid, nthreads);
+   MFEM_SYNC_THREAD;
+   for (int d = 0; d < DIM; ++d)
+   {
+      simplex_mma::GAcc A{g_, nq, ndof, d};
+      simplex_mma::SmemMatAccRt Vacc{UV + d * u_ld * nb, u_ld};
+      simplex_mma::BasisGemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
+   }
+#else
+   auto Y = DeviceMatrix(y_, ndof, NE);
+   if (tid == 0)
+   {
+      for (int b = 0; b < nb; ++b)
+      {
+         const int e = e0 + b;
+         if (e >= NE) { continue; }
+         real_t u_scratch[DIM * max_nq];
+         for (int i = 0; i < ndof; ++i)
+         {
+            XY[i + x_ld * b] = x(i, e);
+         }
+         simplex_mma::DiffusionApplyDenseElement<DIM, SYM>(
+            nq, ndof, g_, &D(0, 0, e), &XY[x_ld * b], &Y(0, e), u_scratch);
+         MFEM_CONTRACT_VAR(UV);
+         MFEM_CONTRACT_VAR(u_ld);
+      }
+   }
+   MFEM_SYNC_THREAD;
+#endif
+}
+
+/** Runtime Fallback: host dense; device full-NQ batch or dense if Q-tile. */
+template<int DIM, bool SYM>
+inline void MmaDiffusionApplySimplex(const int NE,
+                                     const Array<real_t> &g_,
+                                     const Vector &d_,
+                                     const Vector &x_,
+                                     Vector &y_)
+{
+   MFEM_VERIFY(NE > 0, "");
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   MFEM_VERIFY(d_.Size() % (PA_SIZE * NE) == 0, "");
+   const int nq = d_.Size() / (PA_SIZE * NE);
+   MFEM_VERIFY(nq > 0 && g_.Size() % (nq * DIM) == 0, "");
+   const int ndof = g_.Size() / (nq * DIM);
+   MFEM_VERIFY(x_.Size() >= ndof * NE && y_.Size() >= ndof * NE, "");
+
+   constexpr int max_nq = simplex_mma::SimplexMaxNq<DIM, 0>();
+   constexpr int max_ndof = simplex_mma::SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
+               "Simplex MMA diffusion runtime Fallback exceeds size caps");
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      PADiffusionApplySimplexDenseRuntime<DIM, SYM>(NE, g_, d_, x_, y_);
+      return;
+   }
+
+   // Q-tile budget: keep correctness via dense element path (rare Fallback).
+   if (simplex_mma::DiffusionUseQTileRuntime(DIM, ndof, nq, DIM))
+   {
+      PADiffusionApplySimplexDenseRuntime<DIM, SYM>(NE, g_, d_, x_, y_);
+      return;
+   }
+
+   const int x_ld = simplex_mma::PadLdBankRuntime(ndof);
+   const int u_ld = simplex_mma::PadLdBankRuntime(nq);
+   const int nb = simplex_mma::DiffusionMmaNBRuntime(DIM, ndof, nq, DIM);
+   MFEM_VERIFY(x_ld <= simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(max_ndof) &&
+               u_ld <= simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(max_nq) &&
+               nb <= simplex_mma::NBATCH,
+               "Simplex MMA diffusion runtime Fallback smem layout exceeds caps");
+   const int smem_bytes = int(sizeof(real_t)) * (x_ld + DIM * u_ld) * nb;
+   simplex_mma::VerifySharedMemBytes(smem_bytes);
+
+   const auto G = g_.Read(), Dv = d_.Read(), X = x_.Read();
+   auto Y = y_.ReadWrite();
+   const int nthreads = simplex_mma::LaunchNthreads(nq, ndof);
+   const int nbatches = (NE + nb - 1) / nb;
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
+                        [=] MFEM_HOST_DEVICE (int batch)
+   {
+      MmaDiffusionApplySimplex_Batch<DIM, SYM>(
+         batch * nb, NE, nq, ndof, x_ld, u_ld, nb, G, Dv, X, Y);
+   });
+}
+
+template<int DIM>
+inline void MmaDiffusionApplySimplex_Dispatch(const int NE,
+                                              const bool symmetric,
+                                              const Array<real_t> &g_,
+                                              const Vector &d_,
+                                              const Vector &x_,
+                                              Vector &y_)
+{
+   using Fn = decltype(&MmaDiffusionApplySimplex<DIM, true>);
+   const Fn apply = symmetric ? &MmaDiffusionApplySimplex<DIM, true>
+                              : &MmaDiffusionApplySimplex<DIM, false>;
+   apply(NE, g_, d_, x_, y_);
 }
 
 } // namespace internal
@@ -603,11 +1321,11 @@ DiffusionIntegrator::ApplySimplexMmaPAKernels::Kernel()
 {
    if constexpr (DIM == 2)
    {
-      return internal::SmemPADiffusionApplySimplexMmaDispatch<2, D1D, QND>;
+      return internal::MmaDiffusionApplySimplex_Dispatch<2, D1D, QND>;
    }
    else if constexpr (DIM == 3)
    {
-      return internal::SmemPADiffusionApplySimplexMmaDispatch<3, D1D, QND>;
+      return internal::MmaDiffusionApplySimplex_Dispatch<3, D1D, QND>;
    }
    else
    {
@@ -621,8 +1339,11 @@ DiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim == 2 || dim == 3,
                "Simplex MMA diffusion PA is only implemented for triangles/tets");
-   MFEM_ABORT("No fallback for Simplex MMA diffusion PA");
-   return nullptr;
+   if (dim == 2)
+   {
+      return internal::MmaDiffusionApplySimplex_Dispatch<2>;
+   }
+   return internal::MmaDiffusionApplySimplex_Dispatch<3>;
 }
 
 /// \endcond DO_NOT_DOCUMENT

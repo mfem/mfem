@@ -134,16 +134,10 @@ inline void MmaDiffusionApplyTensors3D_Dispatch(
 {
    MFEM_CONTRACT_VAR(bt);
    MFEM_CONTRACT_VAR(gt);
-   if (symmetric)
-   {
-      MmaDiffusionApplyTensors3D<T_D1D, T_Q1D, true>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
-   else
-   {
-      MmaDiffusionApplyTensors3D<T_D1D, T_Q1D, false>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
+   using Fn = decltype(&MmaDiffusionApplyTensors3D<T_D1D, T_Q1D>);
+   const Fn apply = symmetric ? &MmaDiffusionApplyTensors3D<T_D1D, T_Q1D>
+                              : &MmaDiffusionApplyTensors3D<T_D1D, T_Q1D, false>;
+   apply(NE, b, g, d, x, y, d1d, q1d);
 }
 
 template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
@@ -242,16 +236,10 @@ inline void MmaDiffusionApplyTensors2D_Dispatch(
 {
    MFEM_CONTRACT_VAR(bt);
    MFEM_CONTRACT_VAR(gt);
-   if (symmetric)
-   {
-      MmaDiffusionApplyTensors2D<T_D1D, T_Q1D, true>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
-   else
-   {
-      MmaDiffusionApplyTensors2D<T_D1D, T_Q1D, false>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
+   using Fn = decltype(&MmaDiffusionApplyTensors2D<T_D1D, T_Q1D>);
+   const Fn apply = symmetric ? &MmaDiffusionApplyTensors2D<T_D1D, T_Q1D>
+                              : &MmaDiffusionApplyTensors2D<T_D1D, T_Q1D, false>;
+   apply(NE, b, g, d, x, y, d1d, q1d);
 }
 
 /** Runtime overload for Fallback / unregistered (D1D,Q1D). */
