@@ -1608,6 +1608,18 @@ inline bool PreferHostBlas(int nq, int ndof)
 #endif
 }
 
+/** True when CUDA/HIP device double path can use tensor MMA / MFMA.
+    Architecture gate lives here so mass kernels dispatch via functions. */
+MFEM_HOST_DEVICE constexpr bool TensorMmaEnabled()
+{
+#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
+    !defined(MFEM_USE_SINGLE)
+   return true;
+#else
+   return false;
+#endif
+}
+
 /** Multi-RHS tile width for the BLAS path (independent of hand NB=4..8). */
 inline int HostBlasNB(int nq, int ndof)
 {
@@ -2017,6 +2029,21 @@ inline void DiffusionApplyBlas(int NE, int nq, int ndof, const real_t *G,
 }
 #endif // MFEM_USE_LAPACK
 
+/** Always-available host BLAS entry: runs MassApplyBlas when LAPACK is on and
+    PreferHostBlas is true. Returns whether the BLAS path ran. */
+inline bool TryMassApplyBlas(int NE, int nq, int ndof, const real_t *P,
+                             const real_t *D, const real_t *X, real_t *Y)
+{
+#ifdef MFEM_USE_LAPACK
+   if (!PreferHostBlas(nq, ndof)) { return false; }
+   MassApplyBlas(NE, nq, ndof, P, D, X, Y);
+   return true;
+#else
+   (void)NE; (void)nq; (void)ndof; (void)P; (void)D; (void)X; (void)Y;
+   return false;
+#endif
+}
+
 // ---- Specialized hand tiles ------------------------------------------------
 
 template <int DIM, int NDOF, int NQ>
@@ -2056,8 +2083,37 @@ inline void DiffusionApplyHandSpecialized(int NE, const real_t *G,
    }
 }
 
-// ---- Runtime (unspecialized) single-element fallbacks ----------------------
+// ---- Portable dense mass (device stub / single / runtime Fallback) ---------
 
+/** Serial dense: Y_e += P^T (D_e ⊙ (P X_e)). u_scratch must hold nq reals. */
+MFEM_HOST_DEVICE inline void MassApplyDenseElement(const int nq, const int ndof,
+                                                   const real_t *P,
+                                                   const real_t *D_e,
+                                                   const real_t *X_e,
+                                                   real_t *Y_e,
+                                                   real_t *u_scratch)
+{
+   for (int q = 0; q < nq; ++q)
+   {
+      real_t s = 0.0;
+      for (int i = 0; i < ndof; ++i)
+      {
+         s += P[q + nq * i] * X_e[i];
+      }
+      u_scratch[q] = s * D_e[q];
+   }
+   for (int i = 0; i < ndof; ++i)
+   {
+      real_t s = 0.0;
+      for (int q = 0; q < nq; ++q)
+      {
+         s += P[q + nq * i] * u_scratch[q];
+      }
+      Y_e[i] += s;
+   }
+}
+
+/** Host multi-element driver over MassApplyDenseElement. */
 inline void MassApplyHandRuntime(int NE, int nq, int ndof, const real_t *P,
                                  const real_t *D, const real_t *X, real_t *Y)
 {
@@ -2065,25 +2121,63 @@ inline void MassApplyHandRuntime(int NE, int nq, int ndof, const real_t *P,
    {
       auto *u = static_cast<real_t *>(
                    alloca(sizeof(real_t) * static_cast<size_t>(nq)));
-      for (int q = 0; q < nq; ++q)
-      {
-         real_t s = 0.0;
-         for (int i = 0; i < ndof; ++i)
-         {
-            s += P[q + nq * i] * X[i + ndof * e];
-         }
-         u[q] = s * D[q + nq * e];
-      }
-      for (int i = 0; i < ndof; ++i)
-      {
-         real_t s = 0.0;
-         for (int q = 0; q < nq; ++q)
-         {
-            s += P[q + nq * i] * u[q];
-         }
-         Y[i + ndof * e] += s;
-      }
+      MassApplyDenseElement(nq, ndof, P, D + nq * e, X + ndof * e,
+                            Y + ndof * e, u);
    }
+}
+
+/** Batch dense mass using padded smem tiles XY[X_LD*NB], Us[U_LD*NB].
+    Only tid == 0 performs work; callers must MFEM_SYNC_THREAD afterward. */
+template <int QND, int NDOF, int X_LD, int U_LD, int NB>
+MFEM_HOST_DEVICE inline void MassBatchApplyDense(const int e0, const int NE,
+                                                 const real_t *p_,
+                                                 const real_t *d_,
+                                                 const real_t *x_,
+                                                 real_t *y_,
+                                                 real_t *XY, real_t *Us,
+                                                 const int tid)
+{
+   if (tid != 0) { return; }
+   const auto D = ConstDeviceMatrix(d_, QND, NE);
+   const auto x = ConstDeviceMatrix(x_, NDOF, NE);
+   auto Y = DeviceMatrix(y_, NDOF, NE);
+   for (int b = 0; b < NB; ++b)
+   {
+      const int e = e0 + b;
+      if (e >= NE) { continue; }
+      for (int i = 0; i < X_LD; ++i)
+      {
+         XY[i + X_LD * b] = (i < NDOF) ? x(i, e) : real_t(0);
+      }
+      MassApplyDenseElement(QND, NDOF, p_, &D(0, e), &XY[X_LD * b],
+                            &Y(0, e), &Us[U_LD * b]);
+   }
+}
+
+/** Tensor MMA / MFMA batch mass: LoadX + BasisGemmForward + BasisGemmT. */
+template <int MAP, int QND, int NDOF, int X_LD, int U_LD, int NB>
+MFEM_HOST_DEVICE inline void MassBatchApplyMma(const int e0, const int NE,
+                                               const real_t *p_,
+                                               const real_t *d_,
+                                               const real_t *x_,
+                                               real_t *y_,
+                                               real_t *XY, real_t *Us,
+                                               const int tid,
+                                               const int nthreads)
+{
+   const auto D = ConstDeviceMatrix(d_, QND, NE);
+   const auto x = ConstDeviceMatrix(x_, NDOF, NE);
+   SmemMatAcc<X_LD> Xacc{XY};
+   SmemMatAcc<U_LD> Uacc{Us};
+   YBatchAcc Yacc{y_, NDOF, e0};
+
+   LoadXToSmem(XY, x, e0, NE, NDOF, X_LD, NB, tid, nthreads);
+   MFEM_SYNC_THREAD;
+
+   PAcc A{p_, QND, NDOF};
+   BasisGemmForward<MAP, true>(QND, NDOF, NB, A, Xacc, Uacc, D, e0, NE);
+   MFEM_SYNC_THREAD;
+   BasisGemmT<MAP>(QND, NDOF, NB, A, Uacc, Yacc, e0, NE);
 }
 
 template <int DIM, int QND, bool SYM>

@@ -12,7 +12,6 @@
 
 #include "../bilininteg.hpp"
 #include "bilininteg_pa_mma.hpp"
-// #include "bilininteg_pa_simplices_mma_host.hpp"
 
 namespace mfem
 {
@@ -23,8 +22,7 @@ namespace internal
 {
 
 /** Host-optimized dense mass: y += P^T ( D ⊙ (P x) ) per element.
-    Large (QND,ndof): BLAS multi-RHS when MFEM_USE_LAPACK is on.
-    Specialized sizes: hand multi-RHS tiles. */
+    Large (QND,ndof): BLAS multi-RHS when profitable; else hand tiles. */
 template<int DIM, int D1D, int QND>
 inline void PAMassApplySimplexDenseHost(const int NE,
                                         const Array<real_t> &p_,
@@ -39,14 +37,52 @@ inline void PAMassApplySimplexDenseHost(const int NE,
    const real_t *X = x_.Read();
    real_t *Y = y_.ReadWrite();
 
-#ifdef MFEM_USE_LAPACK
-   if (simplex_mma::PreferHostBlas(QND, ndof))
+   if (simplex_mma::TryMassApplyBlas(NE, QND, ndof, P, D, X, Y)) { return; }
+   simplex_mma::MassApplyHandSpecialized<DIM, ndof, QND>(NE, P, D, X, Y);
+}
+
+/** Portable runtime dense mass for unspecialized (D1D,QND). Works on CPU and
+    GPU; sizes inferred from P/D; bounded by SimplexMaxNq/SimplexNdof caps. */
+template<int DIM>
+inline void PAMassApplySimplexDenseRuntime(const int NE,
+                                           const Array<real_t> &p_,
+                                           const Vector &d_,
+                                           const Vector &x_,
+                                           Vector &y_)
+{
+   MFEM_VERIFY(NE > 0, "");
+   MFEM_VERIFY(d_.Size() % NE == 0, "");
+   const int nq = d_.Size() / NE;
+   MFEM_VERIFY(nq > 0 && p_.Size() % nq == 0, "");
+   const int ndof = p_.Size() / nq;
+   MFEM_VERIFY(x_.Size() >= ndof * NE && y_.Size() >= ndof * NE, "");
+
+   constexpr int max_nq = simplex_mma::SimplexMaxNq<DIM, 0>();
+   constexpr int max_ndof = simplex_mma::SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
+               "Simplex MMA mass runtime Fallback exceeds size caps");
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      simplex_mma::MassApplyBlas(NE, QND, ndof, P, D, X, Y);
+      const real_t *P = p_.Read();
+      const real_t *D = d_.Read();
+      const real_t *X = x_.Read();
+      real_t *Y = y_.ReadWrite();
+      if (simplex_mma::TryMassApplyBlas(NE, nq, ndof, P, D, X, Y)) { return; }
+      simplex_mma::MassApplyHandRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
-#endif
-   simplex_mma::MassApplyHandSpecialized<DIM, ndof, QND>(NE, P, D, X, Y);
+
+   const auto P = p_.Read();
+   const auto D = d_.Read();
+   const auto X = x_.Read();
+   auto Y = y_.ReadWrite();
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t u[max_nq];
+      simplex_mma::MassApplyDenseElement(nq, ndof, P, D + nq * e,
+                                         X + ndof * e, Y + ndof * e, u);
+   });
 }
 
 template<int DIM, int D1D, int QND>
@@ -67,72 +103,32 @@ void SmemPAMassApplySimplexMma_Batch(const int e0,
    constexpr int NB = simplex_mma::MassLikeNB<DIM, D1D, QND>();
    constexpr int ndof = BASIS_DIM;
 
-   const auto D = ConstDeviceMatrix(d_, QND, NE);
-   const auto x = ConstDeviceMatrix(x_, ndof, NE);
-
    struct alignas(16) Smem
    {
       real_t XY[X_LD * NB];
       real_t Us[U_LD * NB];
    };
+   // Dyn smem on CUDA device; static/automatic otherwise (must stay local).
 #if defined(__CUDA_ARCH__)
    Smem &sm = *reinterpret_cast<Smem *>(simplex_mma::SimplexMmaDynSmem());
 #else
-   MFEM_SHARED Smem sm; // HIP static / host automatic
+   MFEM_SHARED Smem sm;
 #endif
 
    const int tid = simplex_mma::getThreadIdx();
    [[maybe_unused]] const int nthreads = simplex_mma::getBlockNthreads();
 
-#if (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) && \
-    !defined(MFEM_USE_SINGLE)
-   simplex_mma::SmemMatAcc<X_LD> Xacc {sm.XY};
-   simplex_mma::SmemMatAcc<U_LD> Uacc{sm.Us};
-   simplex_mma::YBatchAcc Yacc{y_, ndof, e0};
-
-   simplex_mma::LoadXToSmem(sm.XY, x, e0, NE, ndof, X_LD, NB, tid, nthreads);
-   MFEM_SYNC_THREAD;
-
-   simplex_mma::PAcc A{p_, QND, ndof};
-   simplex_mma::BasisGemmForward<MAP, true>(QND, ndof, NB, A, Xacc, Uacc,
-                                            D, e0, NE);
-   MFEM_SYNC_THREAD;
-   simplex_mma::BasisGemmT<MAP>(QND, ndof, NB, A, Uacc, Yacc, e0, NE);
-#else
-   // Device-compiled fallback (e.g. single precision): serial dense per batch.
-   auto Y = DeviceMatrix(y_, ndof, NE);
-   if (tid == 0)
+   if constexpr (simplex_mma::TensorMmaEnabled())
    {
-      for (int b = 0; b < NB; ++b)
-      {
-         const int e = e0 + b;
-         if (e >= NE) { continue; }
-         for (int i = 0; i < X_LD; ++i)
-         {
-            sm.XY[i + X_LD * b] = (i < ndof) ? x(i, e) : real_t(0);
-         }
-         for (int q = 0; q < QND; ++q)
-         {
-            real_t u = 0.0;
-            for (int i = 0; i < ndof; ++i)
-            {
-               u += p_[q + QND * i] * sm.XY[i + X_LD * b];
-            }
-            sm.Us[q + U_LD * b] = u * D(q, e);
-         }
-         for (int i = 0; i < ndof; ++i)
-         {
-            real_t yi = 0.0;
-            for (int q = 0; q < QND; ++q)
-            {
-               yi += p_[q + QND * i] * sm.Us[q + U_LD * b];
-            }
-            Y(i, e) += yi;
-         }
-      }
+      simplex_mma::MassBatchApplyMma<MAP, QND, ndof, X_LD, U_LD, NB>(
+         e0, NE, p_, d_, x_, y_, sm.XY, sm.Us, tid, nthreads);
    }
-   MFEM_SYNC_THREAD;
-#endif
+   else
+   {
+      simplex_mma::MassBatchApplyDense<QND, ndof, X_LD, U_LD, NB>(
+         e0, NE, p_, d_, x_, y_, sm.XY, sm.Us, tid);
+      MFEM_SYNC_THREAD;
+   }
 }
 
 template<int DIM, int D1D, int QND>
@@ -170,20 +166,12 @@ inline void SmemPAMassApplySimplexMma(const int NE,
 
    const int nthreads = simplex_mma::LaunchNthreads<QND>(QND, ndof);
    const int nbatches = (NE + NB - 1) / NB;
-#if defined(MFEM_USE_CUDA)
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
                         [=] MFEM_HOST_DEVICE (int batch)
    {
       SmemPAMassApplySimplexMma_Batch<DIM, D1D, QND>(
          batch * NB, NE, P, D, X, Y);
    });
-#else
-   mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
-   {
-      SmemPAMassApplySimplexMma_Batch<DIM, D1D, QND>(
-         batch * NB, NE, P, D, X, Y);
-   });
-#endif
 }
 
 } // namespace internal
@@ -212,8 +200,11 @@ MassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim == 2 || dim == 3,
                "Simplex MMA mass PA is only implemented for triangles/tets");
-   MFEM_ABORT("No fallback for Simplex MMA mass PA");
-   return nullptr;
+   if (dim == 2)
+   {
+      return internal::PAMassApplySimplexDenseRuntime<2>;
+   }
+   return internal::PAMassApplySimplexDenseRuntime<3>;
 }
 
 /// \endcond DO_NOT_DOCUMENT
