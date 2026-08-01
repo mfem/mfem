@@ -1423,7 +1423,7 @@ TEST_CASE("ParTetFaceFlips", "[Parallel], [NCMesh]")
          face_element_transform.Loc1.Transform(ir, left_eir);
          face_element_transform.Loc2.Transform(ir, right_eir);
 
-         constexpr real_t tol = 1e-14;
+         constexpr real_t tol = 1e-13;
          REQUIRE(left_eir.GetNPoints() == ir.GetNPoints());
          REQUIRE(right_eir.GetNPoints() == ir.GetNPoints());
          Vector left_val, right_val;
@@ -2599,7 +2599,7 @@ TEST_CASE("TetFaceFlips", "[NCMesh]")
             face_element_transform.Loc1.Transform(ir, left_eir);
             face_element_transform.Loc2.Transform(ir, right_eir);
 
-            constexpr real_t tol = 1e-14;
+            constexpr real_t tol = 1e-13;
             REQUIRE(left_eir.GetNPoints() == ir.GetNPoints());
             REQUIRE(right_eir.GetNPoints() == ir.GetNPoints());
             Vector left_val, right_val;

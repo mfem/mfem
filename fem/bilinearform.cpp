@@ -567,7 +567,7 @@ void BilinearForm::Assemble(int skip_zeros)
       // Patch-wise integration
       if (fes->GetNURBSext())
       {
-         for (int p=0; p<mesh->NURBSext->GetNP(); ++p)
+         for (int p=0; p<mesh->NURBSExt()->GetNP(); ++p)
          {
             bool vdofsSet = false;
             for (int k = 0; k < domain_integs.Size(); k++)
