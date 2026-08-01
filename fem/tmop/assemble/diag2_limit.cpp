@@ -119,15 +119,14 @@ void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
                   const real_t *Jtr = &J(0, 0, qx, qy, e);
                   const real_t detJtr = kernels::Det<2>(Jtr);
                   const real_t weight = W(qx, qy) * detJtr;
-                  const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
+                  const real_t coeff = const_coeff ? ALC(0,0,0) : ALC(qx, qy, e);
                   const real_t factor = weight * coeff * normal_inv_delta_sq;
 
                   const real_t diff = alf_quad(qy, qx);
                   const real_t grad_v = ALF_grad(v, qx, qy, e);
                   const real_t hess_vv = ALF_hess(v, v, qx, qy, e);
-                  const real_t hdiag = factor * (grad_v * grad_v + diff * hess_vv);
 
-                  QD(qx, dy) += bb * hdiag;
+                  QD(qx, dy) += bb * factor * (grad_v*grad_v + diff * hess_vv);
                }
             }
          }
@@ -176,27 +175,45 @@ MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagAdaptLim2D);
 void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, NE);
-
    const auto J = Reshape(PA.Jtr.Read(), 2, 2, q, q, NE);
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q);
    const auto *B = PA.maps->B.Read();
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, NE);
-   const auto ALF_grad = Reshape(PA.ALFG.Read(), 2, q, q, NE);
-   const auto ALF_hess = Reshape(PA.ALFH.Read(), 2, 2, q, q, NE);
    auto D = Reshape(diagonal.ReadWrite(), d, d, 2, NE);
 
-   TMOPAssembleDiagAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
-                                   J, W, B, ALF_grad, ALF_hess, ALFmF0, D, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+   const real_t *ALD = PA.ALD.HostRead();
+
+   const int ndof_el = d * d;
+   const int nqp_el = q * q;
+   const int ALF_stride = ndof_el * NE;
+   const int ALFG_stride = 2 * nqp_el * NE;
+   const int ALFH_stride = 2 * 2 * nqp_el * NE;
+
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   const real_t *ALFG_all = PA.ALFG.Read();
+   const real_t *ALFH_all = PA.ALFH.Read();
+   for (int c = 0; c < nal; c++)
+   {
+      const real_t delta_max = ALD[c];
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
+      const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 2, q, q, NE);
+      const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 2, 2, q, q, NE);
+
+      TMOPAssembleDiagAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                                      J, W, B, ALF_grad, ALF_hess, ALFmF0, D, d, q);
+   }
 }
 
 } // namespace mfem

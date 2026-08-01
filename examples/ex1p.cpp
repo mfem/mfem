@@ -42,7 +42,11 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/beam-tet.mesh
+//
+// Device simplices sample runs:
+//               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tet.mesh
+//               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tri.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
@@ -165,19 +169,20 @@ int main(int argc, char *argv[])
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
+   //    use continuous Lagrange finite elements of the specified order.
+   //    - If order < 1, we instead use an isoparametric/isogeometric space.
+   //    - If the mesh is simplicial and partial assembly is requested,
+   //      we use the positive basis, which supports device execution.
    FiniteElementCollection *fec;
-   bool delete_fec;
+   auto basis_type = (pa && pmesh.IsSimplexMesh()) ?
+                     BasisType::Positive : BasisType::GaussLobatto;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
+      fec = new H1_FECollection(order, dim, basis_type);
    }
    else if (pmesh.GetNodes())
    {
       fec = pmesh.GetNodes()->OwnFEC();
-      delete_fec = false;
       if (myid == 0)
       {
          cout << "Using isoparametric FEs: " << fec->Name() << endl;
@@ -185,8 +190,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
+      fec = new H1_FECollection(order = 1, dim, basis_type);
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
@@ -333,10 +337,7 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
-   }
+   if (order > 0) { delete fec; }
 
    return 0;
 }
