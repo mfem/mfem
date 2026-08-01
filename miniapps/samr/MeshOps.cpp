@@ -203,16 +203,19 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
       const PatchInfo& patch_info = global_patch_info[patch_ind];
       if (patch_info.rank != rank)
          continue;
-      std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
-         hierarchy->getPatchLevel(patch_info.level_number);
-      for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
-            patch_iter != patch_level->end(); patch_iter++)
+      if (patch_info.level_number < hierarchy->getNumberOfLevels())
       {
-         if (patch_info.lower_index == patch_iter->getBox().lower() &&
-               patch_info.upper_index == patch_iter->getBox().upper())
+         std::shared_ptr<SAMRAI::hier::PatchLevel> patch_level =
+            hierarchy->getPatchLevel(patch_info.level_number);
+         for (SAMRAI::hier::PatchLevel::iterator patch_iter=patch_level->begin();
+               patch_iter != patch_level->end(); patch_iter++)
          {
-            removed = false;
-            break;
+            if (patch_info.lower_index == patch_iter->getBox().lower() &&
+                  patch_info.upper_index == patch_iter->getBox().upper())
+            {
+               removed = false;
+               break;
+            }
          }
       }
       if (removed)
@@ -247,7 +250,7 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
 void MeshOps::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const
 {
    // organize patch bounds by level
-   global_patch_bounds.resize(hierarchy->getFinestLevelNumber()+1);
+   global_patch_bounds.resize(hierarchy->getMaxNumberOfLevels());
    for (int patch_ind=0; patch_ind < global_patch_info.size(); patch_ind++)
    {
       const PatchInfo& current_patch = global_patch_info[patch_ind];
@@ -257,26 +260,51 @@ void MeshOps::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_b
    }
 }
 
+void MeshOps::UpdateFiniteElementSpaces()
+{
+   for (auto& [dim, fespace] : fe_spaces_node)
+   {
+      fespace->Update();
+   }
+   for (auto& [dim, fespace] : fe_spaces_cell)
+   {
+      fespace->Update();
+   }
+   if (mesh_grid_function)
+   {
+      mesh_grid_function->Update();
+   }
+}
+
 void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
 {
    const real_t error_threshold = 1.0;
    Array<real_t> pseudo_error(mesh.GetNE());
 
-   for (int level_num=hierarchy->getFinestLevelNumber(); level_num > 0; level_num--)
+   for (int level_num=hierarchy->getMaxNumberOfLevels()-1; level_num > 0; level_num--)
    {
-      const Vector level0_ratio = toVector(
-         hierarchy->getPatchLevel(level_num)->getRatioToLevelZero());
-      const SAMRAI::hier::IntVector level_ratio =
-         hierarchy->getPatchLevel(level_num)->getRatioToCoarserLevel();
-
+      Vector level0_ratio(mesh.Dimension());
+      if (level_num > hierarchy->getFinestLevelNumber())
+      {
+         level0_ratio = 1.0;
+         for (int level_num_i=1; level_num_i <= level_num; level_num_i++)
+         {
+            level0_ratio *= toVector(hierarchy->getRatioToCoarserLevel(level_num_i));
+         }
+      }
+      else
+      {
+         level0_ratio = toVector(
+            hierarchy->getPatchLevel(level_num)->getRatioToLevelZero());
+      }
       // TODO: support 3D
       MFEM_VERIFY(mesh.Dimension() == 2, "3D derefinement not yet supported")
       const double dx = 1.0/level0_ratio[0];
       const double dy = 1.0/level0_ratio[1];
 
       // determine which elements to derefine at this level
-      Array<int> derefine_element_inds;
       pseudo_error = error_threshold;
+      unsigned derefine_element_count = 0;
       for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
       {
          const Vector h = getElementDimensions(mesh, element_ind);
@@ -293,24 +321,36 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
             bool derefine = true;
             for (const auto& bounds : global_patch_bounds[level_num])
             {
-               if (bounds.first <= index && index <= bounds.second + 1)
+               //if (bounds.first <= index && index <= bounds.second + 1)
+               if (bounds.first <= index && index <= bounds.second)
                {
                   derefine = false;
                   break;
                }
             }
+            //if (element_ind >= 1766 && element_ind <= 1769)
+            //   std::cout << element_ind << ": " << center[0] << " " << center[1] << std::endl;
             if (derefine)
             {
                pseudo_error[element_ind] = 0.0;
-               derefine_element_inds.Append(element_ind);
+               derefine_element_count++;
             }
          }
       }
-      // coarsen/derefine elements
-      mesh.DerefineByError(pseudo_error, error_threshold);
-      // TODO: handle 3:1 derefinement
-      MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),2),
-            "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
+      if (derefine_element_count > 0)
+      {
+         // TODO: support 3D checking
+         MFEM_ASSERT(derefine_element_count % 4 == 0,
+         "Elements marked for derefinement need to be in blocks of 2^D");
+         const unsigned NE = mesh.GetNE(); // DEBUG
+         mesh.DerefineByError(pseudo_error, error_threshold);
+         MFEM_VERIFY(mesh.GetNE() == NE - derefine_element_count/4*3, "RAR!" << mesh.GetNE() << " " << NE - derefine_element_count/4*3); // DEBUG
+         UpdateFiniteElementSpaces();
+         // TODO: throw error for 3:1 derefinement until it is supported
+         //MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),2),
+         //      "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
+
+      }
    }
 }
 
@@ -366,6 +406,7 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
             {{Refinement::X, ratioX}, {Refinement::Y, ratioY}});//, {Refinement::Z, ratioZ}});
       }
       mesh.GeneralRefinement(refinements);
+      UpdateFiniteElementSpaces();
       // refine elements further for 3:1 refinement
       if (level_ratio != SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(hierarchy->getDim()),2))
       {
@@ -405,6 +446,7 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
             }
          }
          mesh.GeneralRefinement(refinements);
+         UpdateFiniteElementSpaces();
       }
    }
 }
@@ -416,8 +458,9 @@ void MeshOps::CreateTransferMaps()
    MPI_Comm_size(mesh.GetComm(), &ranks);
 
    // map local elements to global rank, patch level, and index
-   std::vector<std::vector<ElementInfo>> local_element_info(ranks);
+   local_element_inds.clear();
    local_element_inds.resize(ranks);
+   std::vector<std::vector<ElementInfo>> local_element_info(ranks);
    for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
    {
       // compute element level from element volume
@@ -507,6 +550,7 @@ void MeshOps::CreateTransferMaps()
    };
 
    // receive remote element info that correspond to local cells
+   local_cell_info.clear();
    local_cell_info.resize(ranks);
    int messages_received = 0;
    MPI_Status status;
@@ -962,31 +1006,14 @@ void MeshOps::synchronizeToHierarchy()
    AddNewPatchesToGlobalPatchInfo();
    GetGlobalPatchBounds(global_patch_bounds);
 
-   // derefine and then refine mesh, updating the finite element spaces along
-   // the way
+   // derefine and then refine mesh
    DerefineMesh(global_patch_bounds);
-   for (auto& entry : fe_spaces_node)
-   {
-      entry.second->Update();
-   }
-   for (auto& entry : fe_spaces_cell)
-   {
-      entry.second->Update();
-   }
    RefineMesh(global_patch_bounds);
-   for (auto& entry : fe_spaces_node)
-   {
-      entry.second->Update();
-   }
-   for (auto& entry : fe_spaces_cell)
-   {
-      entry.second->Update();
-   }
 
    // create new transfer maps
    CreateTransferMaps();
 
-   mesh_grid_function->Update();
+   // store index space mesh topology
    mesh_grid_function->GetTrueDofs(mesh_index_space_tdofs);
 }
 

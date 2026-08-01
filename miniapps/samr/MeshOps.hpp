@@ -164,12 +164,13 @@ private:
 
    void RemoveOldPatchesFromGlobalPatchInfo();
 
+   void UpdateFiniteElementSpaces();
+
    void DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds);
 
    void RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds);
 
    void CreateTransferMaps();
-
 
    const int element_info_tag = 0;
    const int samrai_values_tag = 1;

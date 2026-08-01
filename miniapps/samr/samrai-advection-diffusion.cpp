@@ -290,7 +290,8 @@ int main(int argc, char *argv[])
 
       // Transfer SAMRAI values to MFEM mesh (for now, recreate the MFEM mesh
       // and dependent object to account for AMR in SAMRAI grid)
-      mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
+      //mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
+      mesh_ops->synchronizeToHierarchy();
       {
          std::vector<std::unique_ptr<ParGridFunction>> gfs =
             mesh_ops->transferToMFEM(samrai_position_id, {}, {samrai_state_id});
