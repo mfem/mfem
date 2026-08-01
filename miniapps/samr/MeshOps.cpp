@@ -337,20 +337,14 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
             }
          }
       }
-      if (derefine_element_count > 0)
-      {
-         // TODO: support 3D checking
-         MFEM_ASSERT(derefine_element_count % 4 == 0,
+      // TODO: support 3D checking
+      MFEM_ASSERT(derefine_element_count % 4 == 0,
          "Elements marked for derefinement need to be in blocks of 2^D");
-         const unsigned NE = mesh.GetNE(); // DEBUG
-         mesh.DerefineByError(pseudo_error, error_threshold);
-         MFEM_VERIFY(mesh.GetNE() == NE - derefine_element_count/4*3, "RAR!" << mesh.GetNE() << " " << NE - derefine_element_count/4*3); // DEBUG
-         UpdateFiniteElementSpaces();
-         // TODO: throw error for 3:1 derefinement until it is supported
-         //MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),2),
-         //      "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
-
-      }
+      mesh.DerefineByError(pseudo_error, error_threshold);
+      UpdateFiniteElementSpaces();
+      // TODO: throw error for 3:1 derefinement until it is supported
+      //MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),2),
+      //      "Coarsen/Derefinement ratio " << level_ratio << " not yet supported");
    }
 }
 
