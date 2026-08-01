@@ -345,6 +345,27 @@ TEST_CASE("Variable Order FiniteElementSpace",
    }
 }
 
+
+
+TEST_CASE("GetFaceOrder on L2 Spaces",
+    "[FiniteElementSpace]"
+    "[L2_FECollection]"
+    "[NCMesh]")
+{
+    // Path relative to the directory tests/unit
+    const char* mesh_file = "data/star-hilbert.mesh";
+    int order = 1; //TODO: parametrize
+
+
+    mfem::Mesh mesh(mesh_file);
+    auto dim = mesh.Dimension();
+    auto sdim = mesh.SpaceDimension();
+
+    mfem::L2_FECollection flux_fec(order, dim);
+    mfem::FiniteElementSpace fespace(&mesh, &flux_fec);
+    std::cout << fespace.GetFaceOrder(0) << std::endl; // Crashes
+};
+
 #ifdef MFEM_USE_MPI
 TEST_CASE("Parallel Variable Order FiniteElementSpace",
           "[FiniteElementCollection]"
