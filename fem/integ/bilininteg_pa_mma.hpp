@@ -2662,9 +2662,12 @@ inline int DiffThreads3DRuntime(int D1D, int Q1D)
 #endif
 }
 
-/** Smem caps for runtime (T_D1D==0) tensor MMA shells — HIP-sized to fit budgets. */
-constexpr int TensorsMmaMaxD1D = 10;
-constexpr int TensorsMmaMaxQ1D = 10;
+/** Smem caps for runtime (T_D1D==0) tensor MMA shells.
+    Keep D,Q <= 9: diffusion 3D needs 6*Q^3+4*D*Q doubles, and D=Q=10 is 50KB
+    which exceeds CUDA's 48KB static shared limit. Specialized kernels top out
+    at (8,9); do not instantiate fallback shells for D1D/Q1D >= 10. */
+constexpr int TensorsMmaMaxD1D = 9;
+constexpr int TensorsMmaMaxQ1D = 9;
 
 /** Warps available for strip-mined mPass (host: cover all tiles). */
 MFEM_HOST_DEVICE inline int NWarps(int mPass)
