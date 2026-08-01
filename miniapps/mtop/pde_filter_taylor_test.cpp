@@ -514,12 +514,20 @@ int main(int argc, char* argv[])
     auto run = [&](const std::string& label,
                    ParFiniteElementSpace& fes_ctrl,
                    Coefficient* sc, VectorCoefficient* vc, MatrixCoefficient* mc,
-                   auto& obj)
+                   auto& obj,
+                   bool impose_dirichlet = false)
     {
         PDEFilter filter(fes_h1_filt, fes_ctrl, opts);
         if      (sc) filter.SetDiffusionCoeff(*sc);
         else if (vc) filter.SetDiffusionCoeff(*vc);
         else if (mc) filter.SetDiffusionCoeff(*mc);
+        if (impose_dirichlet)
+        {
+            for (int i = 0; i < pmesh.bdr_attributes.Size(); ++i)
+            {
+                filter.AddBoundaryCondition(pmesh.bdr_attributes[i], 0.2);
+            }
+        }
         filter.Assemble();
 
         Vector rho0 = makeRho0(fes_ctrl);
@@ -544,6 +552,8 @@ int main(int argc, char* argv[])
     if (Mpi::Root()) std::cout << "\n==== J1 = 0.5*||rho_tilde||^2_L2 | H1 control ====\n";
     run("J1|H1|default", fes_h1_ctrl, nullptr,  nullptr,  nullptr,  obj1);
     run("J1|H1|scalar",  fes_h1_ctrl, &sc_diff, nullptr,  nullptr,  obj1);
+    run("J1|H1|scalar|Dirichlet", fes_h1_ctrl,
+        &sc_diff, nullptr, nullptr, obj1, true);
     run("J1|H1|vector",  fes_h1_ctrl, nullptr,  &vc_diff, nullptr,  obj1);
     run("J1|H1|matrix",  fes_h1_ctrl, nullptr,  nullptr,  &mc_diff, obj1);
 

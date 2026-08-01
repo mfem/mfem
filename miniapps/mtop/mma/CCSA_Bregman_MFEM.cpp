@@ -102,7 +102,7 @@ static int ComputeNGlobal(MPI_Comm comm, int n_local)
 BoundsGeometry BoundsGeometry::TwoSided(const mfem::Vector& lo, const mfem::Vector& hi)
 {
     BoundsGeometry g;
-    g.n_ = lo.Size(); g.kind_ = BoundsKind::TwoSided;
+    g.n_ = lo.Size(); g.kind_ = BoundsKind::TwoSided; g.set_ = true;
     g.lo_ = lo; g.hi_ = hi;
     g.h_.SetSize(g.n_); g.h_.UseDevice(lo.UseDevice());
     {
@@ -127,7 +127,7 @@ BoundsGeometry BoundsGeometry::TwoSided(int n, mfem::real_t lo, mfem::real_t hi,
 BoundsGeometry BoundsGeometry::LowerOnly(const mfem::Vector& lo, const mfem::Vector& scale)
 {
     BoundsGeometry g;
-    g.n_ = lo.Size(); g.kind_ = BoundsKind::LowerOnly;
+    g.n_ = lo.Size(); g.kind_ = BoundsKind::LowerOnly; g.set_ = true;
     g.lo_ = lo; g.h_ = scale;
     return g;
 }
@@ -143,7 +143,7 @@ BoundsGeometry BoundsGeometry::LowerOnly(int n, mfem::real_t lo, mfem::real_t sc
 BoundsGeometry BoundsGeometry::UpperOnly(const mfem::Vector& hi, const mfem::Vector& scale)
 {
     BoundsGeometry g;
-    g.n_ = hi.Size(); g.kind_ = BoundsKind::UpperOnly;
+    g.n_ = hi.Size(); g.kind_ = BoundsKind::UpperOnly; g.set_ = true;
     g.hi_ = hi; g.h_ = scale;
     return g;
 }
@@ -160,7 +160,7 @@ BoundsGeometry BoundsGeometry::UpperOnly(int n, mfem::real_t hi, mfem::real_t sc
 // one-sided generalisation described in the header (BoundsKind doc comment).
 void BoundsGeometry::ToLatent(const mfem::Vector& x, mfem::Vector& eta) const
 {
-    if (n_ == 0) throw std::runtime_error("CCSA_Bregman: BoundsGeometry is unset");
+    if (!set_) throw std::runtime_error("CCSA_Bregman: BoundsGeometry is unset");
     bool ud = x.UseDevice();
     eta.SetSize(n_); eta.UseDevice(ud);
     const mfem::real_t eps = clip_eps_;
@@ -196,7 +196,7 @@ void BoundsGeometry::ToLatent(const mfem::Vector& x, mfem::Vector& eta) const
 // interior by construction, no clipping needed.
 void BoundsGeometry::ToPhysical(const mfem::Vector& eta, mfem::Vector& x) const
 {
-    if (n_ == 0) throw std::runtime_error("CCSA_Bregman: BoundsGeometry is unset");
+    if (!set_) throw std::runtime_error("CCSA_Bregman: BoundsGeometry is unset");
     bool ud = eta.UseDevice();
     x.SetSize(n_); x.UseDevice(ud);
     const BoundsKind kind = kind_;
@@ -305,6 +305,34 @@ static void BregmanTerm(bool use_dev, int n, BoundsKind kind,
         }
         w[j]=mfem::real_t(val);
     });
+}
+
+// ComputeKappa — the curvature/chain-rule factor kappa_j = (dx_j/deta_j)/h_j
+// at a GIVEN latent point (no dual solve, no trial move -- just evaluated
+// at the current eta). Used by KKTresidual()'s latent-space stationarity
+// check: dx_j/deta_j = h_j*kappa_j exactly reproduces what the old
+// physical-space projected-gradient check achieved by explicit clipping,
+// since kappa_j -> 0 as x_j saturates a bound (see BoundsKind's doc
+// comment in the header for the p(1-p)/p/p formulas by kind).
+static void ComputeKappa(bool use_dev, int n, BoundsKind kind,
+                          const mfem::real_t* eta, mfem::Vector& kappa_out)
+{
+    auto* kw = kappa_out.Write();
+    if (kind == BoundsKind::TwoSided) {
+        mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int j){
+            double e = double(eta[j]);
+            double p = 1.0/(1.0+::exp(-e));
+            kw[j] = mfem::real_t(p*(1.0-p));
+        });
+    } else if (kind == BoundsKind::LowerOnly) {
+        mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int j){
+            kw[j] = mfem::real_t(::exp(double(eta[j])));
+        });
+    } else { // UpperOnly
+        mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int j){
+            kw[j] = mfem::real_t(::exp(-double(eta[j])));
+        });
+    }
 }
 
 // Euclidean-ish projection onto the dual feasible set D ([Note] eq. 42):
@@ -633,7 +661,8 @@ void SolveDualEntropy(
 // CCSAOptimizer  (serial)
 // ============================================================
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry* bounds,
+CCSAOptimizer::CCSAOptimizer(int n, int m,
+                              const BoundsGeometry* bounds,
                               const double* a, const double* c, const double* d)
     : n_(n), m_(m)
     , lam_(m,1.0), mu_(m,1.0), y_(m,0.0), rho_(m+1,1e-5)
@@ -641,101 +670,73 @@ CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGe
     if (a && c && d) { a_.assign(a,a+m); c_.assign(c,c+m); d_.assign(d,d+m); }
     else DefaultPenalty(n,m,a_,c_,d_);
 
-    eta_.SetSize(n_); eta_.UseDevice(x.UseDevice());
-    if (bounds) {
-        bounds_ = *bounds;
-        bounds_.ToLatent(x, eta_);
-    } else {
-        eta_ = mfem::real_t(0.0); // populated once bounds are known (EnsureBounds_)
-    }
+    if (bounds) bounds_ = *bounds;
 }
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x)
-    : CCSAOptimizer(n,m,x,nullptr,nullptr,nullptr,nullptr) {}
+CCSAOptimizer::CCSAOptimizer(int n, int m)
+    : CCSAOptimizer(n,m,nullptr,nullptr,nullptr,nullptr) {}
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x,
+CCSAOptimizer::CCSAOptimizer(int n, int m,
                               const double* a, const double* c, const double* d)
-    : CCSAOptimizer(n,m,x,nullptr,a,c,d) {}
+    : CCSAOptimizer(n,m,nullptr,a,c,d) {}
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x,
+CCSAOptimizer::CCSAOptimizer(int n, int m,
                               const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d)
-    : CCSAOptimizer(n,m,x,nullptr,
+    : CCSAOptimizer(n,m,nullptr,
                     VecToDouble(a).data(), VecToDouble(c).data(), VecToDouble(d).data()) {}
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry& bounds)
-    : CCSAOptimizer(n,m,x,&bounds,nullptr,nullptr,nullptr) {}
+CCSAOptimizer::CCSAOptimizer(int n, int m, const BoundsGeometry& bounds)
+    : CCSAOptimizer(n,m,&bounds,nullptr,nullptr,nullptr) {}
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry& bounds,
+CCSAOptimizer::CCSAOptimizer(int n, int m, const BoundsGeometry& bounds,
                               const double* a, const double* c, const double* d)
-    : CCSAOptimizer(n,m,x,&bounds,a,c,d) {}
+    : CCSAOptimizer(n,m,&bounds,a,c,d) {}
 
-CCSAOptimizer::CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry& bounds,
+CCSAOptimizer::CCSAOptimizer(int n, int m, const BoundsGeometry& bounds,
                               const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d)
-    : CCSAOptimizer(n,m,x,&bounds,
+    : CCSAOptimizer(n,m,&bounds,
                     VecToDouble(a).data(), VecToDouble(c).data(), VecToDouble(d).data()) {}
-
-void CCSAOptimizer::SetBounds(const BoundsGeometry& bounds, const mfem::Vector& x_phys)
-{
-    bounds_ = bounds;
-    bounds_pending_anchor_ = false;
-    bounds_.ToLatent(x_phys, eta_);
-}
 
 void CCSAOptimizer::SetBounds(const BoundsGeometry& bounds)
-{
-    pending_bounds_ = bounds;
-    bounds_pending_anchor_ = true;
-}
-
-void CCSAOptimizer::SetBounds(const mfem::Vector& xmin, const mfem::Vector& xmax,
-                               const mfem::Vector& x_phys)
-{ SetBounds(BoundsGeometry::TwoSided(xmin,xmax), x_phys); }
+{ bounds_ = bounds; }
 
 void CCSAOptimizer::SetBounds(const mfem::Vector& xmin, const mfem::Vector& xmax)
 { SetBounds(BoundsGeometry::TwoSided(xmin,xmax)); }
 
-void CCSAOptimizer::EnsureBounds_(const mfem::Vector& x, const mfem::Vector& xmin, const mfem::Vector& xmax)
+void CCSAOptimizer::RequireBounds_() const
 {
-    if (bounds_pending_anchor_) {
-        bounds_ = pending_bounds_;
-        bounds_.ToLatent(x, eta_);
-        bounds_pending_anchor_ = false;
-        return;
-    }
-    if (!bounds_.IsSet()) {
-        bounds_ = BoundsGeometry::TwoSided(xmin, xmax);
-        bounds_.ToLatent(x, eta_);
-    }
-    // Once set, xmin/xmax are intentionally ignored on every later call —
-    // see the "On xmin/xmax vs BoundsGeometry" note in the header.
+    if (!bounds_.IsSet())
+        throw std::runtime_error(
+            "CCSAOptimizer: no BoundsGeometry set. Call SetBounds() or construct "
+            "with an explicit BoundsGeometry before Update()/UpdateGCMMA()/KKTresidual().");
 }
 
 void CCSAOptimizer::SetRhoParams(double rho_min, double gamma_safe, double gamma_max, double theta_decrease)
 { rho_min_=rho_min; rho_safe_=gamma_safe; rho_max_growth_=gamma_max; theta_rho_=theta_decrease; }
 
-CCSAOptimizer CCSAOptimizer::WithEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x)
+CCSAOptimizer CCSAOptimizer::WithEqualities(int n, int n_ineq, int n_eq)
 {
-    CCSAOptimizer o(n, n_ineq+2*n_eq, x); o.n_eq_ = n_eq;
+    CCSAOptimizer o(n, n_ineq+2*n_eq); o.n_eq_ = n_eq;
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e30; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
-CCSAOptimizer CCSAOptimizer::WithEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x,
+CCSAOptimizer CCSAOptimizer::WithEqualities(int n, int n_ineq, int n_eq,
                                              const BoundsGeometry& bounds)
 {
-    CCSAOptimizer o(n, n_ineq+2*n_eq, x, bounds); o.n_eq_ = n_eq;
+    CCSAOptimizer o(n, n_ineq+2*n_eq, bounds); o.n_eq_ = n_eq;
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e30; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
-CCSAOptimizer CCSAOptimizer::WithRelaxedEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x)
+CCSAOptimizer CCSAOptimizer::WithRelaxedEqualities(int n, int n_ineq, int n_eq)
 {
-    CCSAOptimizer o(n, n_ineq+2*n_eq, x); // n_eq_ stays 0: independent inequality slots
+    CCSAOptimizer o(n, n_ineq+2*n_eq); // n_eq_ stays 0: independent inequality slots
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e4; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
-CCSAOptimizer CCSAOptimizer::WithRelaxedEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x,
+CCSAOptimizer CCSAOptimizer::WithRelaxedEqualities(int n, int n_ineq, int n_eq,
                                                     const BoundsGeometry& bounds)
 {
-    CCSAOptimizer o(n, n_ineq+2*n_eq, x, bounds);
+    CCSAOptimizer o(n, n_ineq+2*n_eq, bounds);
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e4; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
@@ -744,7 +745,6 @@ CCSAOptimizer CCSAOptimizer::WithRelaxedEqualities(int n, int n_ineq, int n_eq, 
 /// MMAOptimizer::UpdateGCMMA() -- see the doc comment on the header
 /// declaration for the planned SiMPL/BB extension point.
 void CCSAOptimizer::ComputeInitialRho_(const mfem::Vector& df0dx, const mfem::Vector* dfidx,
-                                        const mfem::Vector& /*xmin*/, const mfem::Vector& /*xmax*/,
                                         std::vector<double>& rho_out) const
 {
     // Uses the frozen bounds geometry's own width (h_j), not xmax-xmin —
@@ -780,19 +780,19 @@ void CCSAOptimizer::DecayRho_()
 }
 
 void CCSAOptimizer::Update(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
-                            const mfem::Vector& fival, const mfem::Vector* dfidx,
-                            const mfem::Vector& xmin, const mfem::Vector& xmax)
+                            const mfem::Vector& fival, const mfem::Vector* dfidx)
 {
-    EnsureBounds_(x, xmin, xmax);
+    RequireBounds_();
     bool ud = x.UseDevice();
 
     std::vector<double> F(m_+1); F[0]=double(f0val);
     for (int i=0;i<m_;++i) F[i+1]=double(fival(i));
-    // Plain (non-globally-convergent) CCSA: a single solve with a fixed,
-    // scale-aware curvature re-derived from the current gradients every
-    // call (mirrors how MMA's plain Update(), even at external rho=0,
-    // still gets curvature implicitly from its asymptote geometry).
-    ComputeInitialRho_(df0dx, dfidx, xmin, xmax, rho_);
+    // rho_ is seeded ONCE via the gradient-magnitude heuristic and then
+    // PERSISTS across calls (grown by the callback conservatism loop in
+    // UpdateGCMMA, decayed by DecayRho_()) -- it must NOT be re-derived
+    // from scratch every call, or all of that accumulated
+    // conservatism/decay information is discarded and rho_ never adapts.
+    if (!have_rho_) { ComputeInitialRho_(df0dx, dfidx, rho_); have_rho_ = true; }
 
     std::vector<mfem::Vector> bi(m_);
     for (int i=0;i<m_;++i) bi[i] = dfidx[i];
@@ -800,23 +800,22 @@ void CCSAOptimizer::Update(mfem::Vector& x, const mfem::Vector& df0dx, mfem::rea
     mfem::Vector eta_trial(n_), x_trial(n_);
     eta_trial.UseDevice(ud); x_trial.UseDevice(ud);
 
+    // x IS the latent center eta^k on entry -- see @ref latent in the header.
     detail::SolveDualEntropy(dual_solver_, CCSA_SERIAL_COMM, n_, m_, n_eq_, ud,
-        bounds_, eta_.Read(), df0dx, bi, F, rho_, a_, c_, d_,
+        bounds_, x.Read(), df0dx, bi, F, rho_, a_, c_, d_,
         lam_, mu_, y_, z_, dual_tol_, dual_max_iter_,
         eta_trial.Write(), x_trial.Write());
 
-    eta_prev_ = eta_; df0dx_prev_ = df0dx; have_prev_ = true;
-    eta_ = eta_trial;
-    x = x_trial;
+    eta_prev_ = x; df0dx_prev_ = df0dx; have_prev_ = true;
+    x = eta_trial;   // latent out; x_trial (physical) is discarded here
     ++iter_;
 }
 
 void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
-                                 const mfem::Vector& fival, const mfem::Vector* dfidx,
-                                 const mfem::Vector& xmin, const mfem::Vector& xmax, int* innerIter)
+                                 const mfem::Vector& fival, const mfem::Vector* dfidx, int* innerIter)
 {
-    EnsureBounds_(x, xmin, xmax);
-    ComputeInitialRho_(df0dx, dfidx, xmin, xmax, rho_);
+    RequireBounds_();
+    if (!have_rho_) { ComputeInitialRho_(df0dx, dfidx, rho_); have_rho_ = true; }
 
     bool ud = x.UseDevice();
     std::vector<double> F(m_+1); F[0]=double(f0val);
@@ -828,25 +827,23 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
     eta_trial.UseDevice(ud); x_trial.UseDevice(ud);
 
     detail::SolveDualEntropy(dual_solver_, CCSA_SERIAL_COMM, n_, m_, n_eq_, ud,
-        bounds_, eta_.Read(), df0dx, bi, F, rho_, a_, c_, d_,
+        bounds_, x.Read(), df0dx, bi, F, rho_, a_, c_, d_,
         lam_, mu_, y_, z_, dual_tol_, dual_max_iter_,
         eta_trial.Write(), x_trial.Write());
 
     if (innerIter) *innerIter = 1;
-    eta_prev_ = eta_; df0dx_prev_ = df0dx; have_prev_ = true;
-    eta_ = eta_trial;
-    x = x_trial;
+    eta_prev_ = x; df0dx_prev_ = df0dx; have_prev_ = true;
+    x = eta_trial;
     DecayRho_();
     ++iter_;
 }
 
 void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
                                  const mfem::Vector& fival, const mfem::Vector* dfidx,
-                                 const mfem::Vector& xmin, const mfem::Vector& xmax,
                                  EvalCallback eval_fi, int max_inner, int* innerIter)
 {
-    EnsureBounds_(x, xmin, xmax);
-    ComputeInitialRho_(df0dx, dfidx, xmin, xmax, rho_);
+    RequireBounds_();
+    if (!have_rho_) { ComputeInitialRho_(df0dx, dfidx, rho_); have_rho_ = true; }
 
     bool ud = x.UseDevice();
     std::vector<double> F(m_+1); F[0]=double(f0val);
@@ -854,7 +851,7 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
     std::vector<mfem::Vector> bi(m_);
     for (int i=0;i<m_;++i) bi[i] = dfidx[i];
 
-    const mfem::Vector eta_c = eta_; // fixed anchor for the whole rho-inner loop
+    const mfem::Vector eta_c = x; // fixed anchor for the whole rho-inner loop
     int nu=0;
     for (; nu<max_inner; ++nu) {
         mfem::Vector eta_trial(n_), x_trial(n_);
@@ -866,7 +863,7 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
             eta_trial.Write(), x_trial.Write());
 
         mfem::Vector fi_hat(m_); mfem::real_t f0_hat=0;
-        if (eval_fi) eval_fi(x_trial, fi_hat, f0_hat);
+        if (eval_fi) eval_fi(x_trial, fi_hat, f0_hat);   // physical trial point
 
         // Conservatism check ([Note] eq. 32-33): compare true f_i(x_trial)
         // against the model g_i(x_trial;rho_i) = F[i]+<b_i,dx>+rho_i*W.
@@ -886,7 +883,20 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
             }
             mfem::Vector eta_diff(n_); eta_diff.UseDevice(ud);
             detail::BregmanTerm(ud, n_, bounds_.Kind(), eta_trial, eta_c, eta_diff);
-            double W = eta_diff.Sum();
+            // W is a Bregman divergence and is provably >= 0 mathematically
+            // (a convex function's divergence from itself). When the step
+            // is very small (eta_trial ~ eta_c -- which happens precisely
+            // when rho has already grown large), computing it as a
+            // difference of nearly-equal quantities can round to a tiny
+            // NEGATIVE value purely from floating-point cancellation, even
+            // though the true value is ~0. Left unclamped, that negative W
+            // multiplied by an already-large rho produces a wildly wrong
+            // (hugely negative) model prediction, which falsely triggers
+            // "not conservative" and, since a negative W also fails the
+            // W>1e-300 guard below, an unconditional rho*=10 -- compounding
+            // every time this artifact recurs and driving rho toward
+            // astronomical values for no real reason. Clamp it.
+            double W = std::max(0.0, eta_diff.Sum());
             for (int i=0;i<m_ && conservative;++i) {
                 double model = F[i+1] + mfem::InnerProduct(bi[i],dx) + rho_[i+1]*W;
                 if (double(fi_hat(i)) > model) conservative = false;
@@ -895,26 +905,40 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
             if (double(f0_hat) > model0) conservative = false;
 
             if (!conservative) {
+                // rho_min_ already floors rho from below; cap it from
+                // above too. Without this, repeated retries with a
+                // near-zero Bregman term W (W<=1e-300, or even W just
+                // small enough that e/W is astronomically large) can
+                // drive rho toward double overflow (+Inf) over enough
+                // iterations. Once rho is Inf, rho*W with a genuinely
+                // zero W gives Inf*0 = NaN, and NaN comparisons are always
+                // false in IEEE754 -- so the very next conservatism check
+                // would silently report "conservative" for a corrupted
+                // value instead of catching it. 1e100 is astronomically
+                // larger than any rho this algorithm should legitimately
+                // need, while leaving 200+ orders of magnitude of safety
+                // margin below the actual overflow point.
+                static constexpr double kRhoCeiling = 1e100;
                 for (int i=0;i<m_;++i) {
                     double e = double(fi_hat(i)) - (F[i+1] + mfem::InnerProduct(bi[i],dx) + rho_[i+1]*W);
                     if (e > 0.0 && W > 1e-300)
-                        rho_[i+1] = std::min(rho_max_growth_*rho_[i+1], rho_safe_*(rho_[i+1]+e/W));
+                        rho_[i+1] = std::min(kRhoCeiling, std::min(rho_max_growth_*rho_[i+1], rho_safe_*(rho_[i+1]+e/W)));
                     else if (e > 0.0)
-                        rho_[i+1] *= rho_max_growth_;
+                        rho_[i+1] = std::min(kRhoCeiling, rho_max_growth_*rho_[i+1]);
                 }
                 double e0 = double(f0_hat) - model0;
                 if (e0 > 0.0 && W > 1e-300)
-                    rho_[0] = std::min(rho_max_growth_*rho_[0], rho_safe_*(rho_[0]+e0/W));
+                    rho_[0] = std::min(kRhoCeiling, std::min(rho_max_growth_*rho_[0], rho_safe_*(rho_[0]+e0/W)));
                 else if (e0 > 0.0)
-                    rho_[0] *= rho_max_growth_;
+                    rho_[0] = std::min(kRhoCeiling, rho_max_growth_*rho_[0]);
                 continue;
             }
         }
-        eta_prev_ = eta_; df0dx_prev_ = df0dx; have_prev_ = true;
-        eta_ = eta_trial; x = x_trial;
+        eta_prev_ = x; df0dx_prev_ = df0dx; have_prev_ = true;
+        x = eta_trial;
         break;
     }
-    if (innerIter) *innerIter = nu+1;
+    if (innerIter) *innerIter = std::min(nu+1,max_inner);
     DecayRho_();
     ++iter_;
 }
@@ -922,15 +946,19 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
 mfem::real_t CCSAOptimizer::KKTresidual(const mfem::Vector& x, const mfem::Vector& df0dx,
                                           mfem::real_t, const mfem::Vector& fival,
                                           const mfem::Vector* dfidx,
-                                          const mfem::Vector& xmin, const mfem::Vector& xmax,
                                           double* lambda_out) const
 {
+    RequireBounds_();
     if (lambda_out) std::copy(lam_.begin(),lam_.end(),lambda_out);
     bool ud = x.UseDevice();
+
+    // Curvature factor at the CURRENT latent point (no dual solve needed).
+    mfem::Vector kappa(n_); kappa.UseDevice(ud);
+    detail::ComputeKappa(ud, n_, bounds_.Kind(), x.Read(), kappa);
+
     mfem::Vector d_tmp(n_); d_tmp.UseDevice(ud);
     {
-        const auto* xr=x.Read(); const auto* df0r=df0dx.Read();
-        const auto* xmnr=xmin.Read(); const auto* xmxr=xmax.Read();
+        const auto* df0r=df0dx.Read();
         auto* dt=d_tmp.Write();
         mfem::forall_switch(ud,n_,[=] MFEM_HOST_DEVICE (int j){ dt[j]=df0r[j]; });
         for (int i=0;i<m_-2*n_eq_;++i) {
@@ -945,13 +973,17 @@ mfem::real_t CCSAOptimizer::KKTresidual(const mfem::Vector& x, const mfem::Vecto
             auto* dtr=d_tmp.ReadWrite();
             mfem::forall_switch(ud,n_,[=] MFEM_HOST_DEVICE (int j){ dtr[j]+=lnet*double(dfir[j]); });
         }
-        const double tol=1e-3;
+        // Latent-space stationarity: dL/deta_j = (dL/dx_j) * h_j * kappa_j.
+        // No projection needed -- eta ranges over all of R^n by
+        // construction, so there is no boundary to project against; the
+        // h_j*kappa_j factor naturally -> 0 as x_j saturates a bound,
+        // exactly reproducing what the old physical-space projection did
+        // by explicit clipping (see @ref latent in the header).
+        const auto* hr = bounds_.Scale().Read();
+        const auto* kr = kappa.Read();
         mfem::forall_switch(ud,n_,[=] MFEM_HOST_DEVICE (int j){
-            double rng=double(xmxr[j])-double(xmnr[j]);
-            double t=tol*rng; double g=double(dt[j]); double pg=g;
-            if (double(xr[j])<=double(xmnr[j])+t) pg = g<0?g:0.0;
-            if (double(xr[j])>=double(xmxr[j])-t) pg = g>0?g:0.0;
-            dt[j]=pg*pg;
+            double g_eta = double(dt[j]) * double(hr[j]) * double(kr[j]);
+            dt[j] = mfem::real_t(g_eta*g_eta);
         });
     }
     double primal = d_tmp.Sum();
@@ -971,7 +1003,7 @@ mfem::real_t CCSAOptimizer::KKTresidual(const mfem::Vector& x, const mfem::Vecto
 // CCSAOptimizerParallel
 // ============================================================
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                                               const BoundsGeometry* bounds_local,
                                               const double* a, const double* c, const double* d)
     : comm_(comm), n_local_(n_local), m_(m)
@@ -981,100 +1013,85 @@ CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, 
     if (a && c && d) { a_.assign(a,a+m); c_.assign(c,c+m); d_.assign(d,d+m); }
     else DefaultPenalty((int)n_global_, m, a_, c_, d_);
 
-    eta_.SetSize(n_local_); eta_.UseDevice(x_local.UseDevice());
-    if (bounds_local) { bounds_ = *bounds_local; bounds_.ToLatent(x_local, eta_); }
-    else eta_ = mfem::real_t(0.0);
+    if (bounds_local) bounds_ = *bounds_local;
 }
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local)
-    : CCSAOptimizerParallel(comm,n_local,m,x_local,nullptr,nullptr,nullptr,nullptr) {}
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m)
+    : CCSAOptimizerParallel(comm,n_local,m,nullptr,nullptr,nullptr,nullptr) {}
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                                               const double* a, const double* c, const double* d)
-    : CCSAOptimizerParallel(comm,n_local,m,x_local,nullptr,a,c,d) {}
+    : CCSAOptimizerParallel(comm,n_local,m,nullptr,a,c,d) {}
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                                               const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d)
-    : CCSAOptimizerParallel(comm,n_local,m,x_local,nullptr,
+    : CCSAOptimizerParallel(comm,n_local,m,nullptr,
                             VecToDouble(a).data(),VecToDouble(c).data(),VecToDouble(d).data()) {}
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                                               const BoundsGeometry& bounds_local)
-    : CCSAOptimizerParallel(comm,n_local,m,x_local,&bounds_local,nullptr,nullptr,nullptr) {}
+    : CCSAOptimizerParallel(comm,n_local,m,&bounds_local,nullptr,nullptr,nullptr) {}
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                                               const BoundsGeometry& bounds_local,
                                               const double* a, const double* c, const double* d)
-    : CCSAOptimizerParallel(comm,n_local,m,x_local,&bounds_local,a,c,d) {}
+    : CCSAOptimizerParallel(comm,n_local,m,&bounds_local,a,c,d) {}
 
-CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+CCSAOptimizerParallel::CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                                               const BoundsGeometry& bounds_local,
                                               const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d)
-    : CCSAOptimizerParallel(comm,n_local,m,x_local,&bounds_local,
+    : CCSAOptimizerParallel(comm,n_local,m,&bounds_local,
                             VecToDouble(a).data(),VecToDouble(c).data(),VecToDouble(d).data()) {}
-
-void CCSAOptimizerParallel::SetBounds(const BoundsGeometry& bounds_local, const mfem::Vector& x_local_phys)
-{ bounds_ = bounds_local; bounds_pending_anchor_=false; bounds_.ToLatent(x_local_phys, eta_); }
 
 void CCSAOptimizerParallel::SetBounds(const BoundsGeometry& bounds_local)
-{ pending_bounds_ = bounds_local; bounds_pending_anchor_ = true; }
-
-void CCSAOptimizerParallel::SetBounds(const mfem::Vector& xmin_local, const mfem::Vector& xmax_local,
-                                      const mfem::Vector& x_local_phys)
-{ SetBounds(BoundsGeometry::TwoSided(xmin_local,xmax_local), x_local_phys); }
+{ bounds_ = bounds_local; }
 
 void CCSAOptimizerParallel::SetBounds(const mfem::Vector& xmin_local, const mfem::Vector& xmax_local)
 { SetBounds(BoundsGeometry::TwoSided(xmin_local,xmax_local)); }
 
-void CCSAOptimizerParallel::EnsureBounds_(const mfem::Vector& x_local,
-                                           const mfem::Vector& xmin_local, const mfem::Vector& xmax_local)
+void CCSAOptimizerParallel::RequireBounds_() const
 {
-    if (bounds_pending_anchor_) {
-        bounds_ = pending_bounds_; bounds_.ToLatent(x_local, eta_);
-        bounds_pending_anchor_ = false; return;
-    }
-    if (!bounds_.IsSet()) {
-        bounds_ = BoundsGeometry::TwoSided(xmin_local, xmax_local);
-        bounds_.ToLatent(x_local, eta_);
-    }
+    if (!bounds_.IsSet())
+        throw std::runtime_error(
+            "CCSAOptimizerParallel: no BoundsGeometry set. Call SetBounds() or construct "
+            "with an explicit BoundsGeometry before Update()/UpdateGCMMA()/KKTresidual().");
 }
 
 void CCSAOptimizerParallel::SetRhoParams(double rho_min, double gamma_safe, double gamma_max, double theta_decrease)
 { rho_min_=rho_min; rho_safe_=gamma_safe; rho_max_growth_=gamma_max; theta_rho_=theta_decrease; }
 
 CCSAOptimizerParallel CCSAOptimizerParallel::WithEqualities(MPI_Comm comm, int n_local,
-                                                             int n_ineq, int n_eq, const mfem::Vector& x_local)
+                                                             int n_ineq, int n_eq)
 {
-    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local); o.n_eq_=n_eq;
+    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq); o.n_eq_=n_eq;
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e30; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
 CCSAOptimizerParallel CCSAOptimizerParallel::WithEqualities(MPI_Comm comm, int n_local,
-                                                             int n_ineq, int n_eq, const mfem::Vector& x_local,
+                                                             int n_ineq, int n_eq,
                                                              const BoundsGeometry& bounds_local)
 {
-    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local,bounds_local); o.n_eq_=n_eq;
+    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,bounds_local); o.n_eq_=n_eq;
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e30; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
 CCSAOptimizerParallel CCSAOptimizerParallel::WithRelaxedEqualities(MPI_Comm comm, int n_local,
-                                                                    int n_ineq, int n_eq, const mfem::Vector& x_local)
+                                                                    int n_ineq, int n_eq)
 {
-    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local);
+    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq);
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e4; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
 CCSAOptimizerParallel CCSAOptimizerParallel::WithRelaxedEqualities(MPI_Comm comm, int n_local,
-                                                                    int n_ineq, int n_eq, const mfem::Vector& x_local,
+                                                                    int n_ineq, int n_eq,
                                                                     const BoundsGeometry& bounds_local)
 {
-    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local,bounds_local);
+    CCSAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,bounds_local);
     for (int i=n_ineq;i<n_ineq+2*n_eq;++i) { o.c_[i]=1e4; o.lam_[i]=1e-3; o.mu_[i]=1e-3; }
     return o;
 }
 
 void CCSAOptimizerParallel::ComputeInitialRho_(const mfem::Vector& df0dx_local, const mfem::Vector* dfidx_local,
-                                                const mfem::Vector& /*xmin_local*/, const mfem::Vector& /*xmax_local*/,
                                                 std::vector<double>& rho_out) const
 {
     // Uses the frozen (local-chunk) bounds geometry's own width (h_j), not
@@ -1110,16 +1127,15 @@ void CCSAOptimizerParallel::DecayRho_()
 { for (int k=0;k<=m_;++k) rho_[k] = std::max(rho_min_, theta_rho_*rho_[k]); }
 
 void CCSAOptimizerParallel::Update(mfem::Vector& x_local, const mfem::Vector& df0dx_local, mfem::real_t f0val,
-                                    const mfem::Vector& fival, const mfem::Vector* dfidx_local,
-                                    const mfem::Vector& xmin_local, const mfem::Vector& xmax_local)
+                                    const mfem::Vector& fival, const mfem::Vector* dfidx_local)
 {
-    EnsureBounds_(x_local, xmin_local, xmax_local);
+    RequireBounds_();
     bool ud = x_local.UseDevice();
     std::vector<double> F(m_+1); F[0]=double(f0val);
     for (int i=0;i<m_;++i) F[i+1]=double(fival(i));
-    // Plain (non-globally-convergent) CCSA: see the serial Update()'s
-    // comment on why rho is re-derived (scale-aware) every call.
-    ComputeInitialRho_(df0dx_local, dfidx_local, xmin_local, xmax_local, rho_);
+    // See the serial Update()'s comment: rho_ is seeded ONCE and persists
+    // across calls, it must NOT be re-derived from scratch every call.
+    if (!have_rho_) { ComputeInitialRho_(df0dx_local, dfidx_local, rho_); have_rho_ = true; }
 
     std::vector<mfem::Vector> bi(m_);
     for (int i=0;i<m_;++i) bi[i] = dfidx_local[i];
@@ -1128,22 +1144,21 @@ void CCSAOptimizerParallel::Update(mfem::Vector& x_local, const mfem::Vector& df
     eta_trial.UseDevice(ud); x_trial.UseDevice(ud);
 
     detail::SolveDualEntropy(dual_solver_, comm_, n_local_, m_, n_eq_, ud,
-        bounds_, eta_.Read(), df0dx_local, bi, F, rho_, a_, c_, d_,
+        bounds_, x_local.Read(), df0dx_local, bi, F, rho_, a_, c_, d_,
         lam_, mu_, y_, z_, dual_tol_, dual_max_iter_,
         eta_trial.Write(), x_trial.Write());
 
-    eta_prev_=eta_; df0dx_prev_=df0dx_local; have_prev_=true;
-    eta_ = eta_trial; x_local = x_trial;
+    eta_prev_=x_local; df0dx_prev_=df0dx_local; have_prev_=true;
+    x_local = eta_trial;
     ++iter_;
 }
 
 void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vector& df0dx_local, mfem::real_t f0val,
                                          const mfem::Vector& fival, const mfem::Vector* dfidx_local,
-                                         const mfem::Vector& xmin_local, const mfem::Vector& xmax_local,
                                          int* innerIter)
 {
-    EnsureBounds_(x_local, xmin_local, xmax_local);
-    ComputeInitialRho_(df0dx_local, dfidx_local, xmin_local, xmax_local, rho_);
+    RequireBounds_();
+    if (!have_rho_) { ComputeInitialRho_(df0dx_local, dfidx_local, rho_); have_rho_ = true; }
 
     bool ud = x_local.UseDevice();
     std::vector<double> F(m_+1); F[0]=double(f0val);
@@ -1155,24 +1170,23 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
     eta_trial.UseDevice(ud); x_trial.UseDevice(ud);
 
     detail::SolveDualEntropy(dual_solver_, comm_, n_local_, m_, n_eq_, ud,
-        bounds_, eta_.Read(), df0dx_local, bi, F, rho_, a_, c_, d_,
+        bounds_, x_local.Read(), df0dx_local, bi, F, rho_, a_, c_, d_,
         lam_, mu_, y_, z_, dual_tol_, dual_max_iter_,
         eta_trial.Write(), x_trial.Write());
 
     if (innerIter) *innerIter=1;
-    eta_prev_=eta_; df0dx_prev_=df0dx_local; have_prev_=true;
-    eta_ = eta_trial; x_local = x_trial;
+    eta_prev_=x_local; df0dx_prev_=df0dx_local; have_prev_=true;
+    x_local = eta_trial;
     DecayRho_();
     ++iter_;
 }
 
 void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vector& df0dx_local, mfem::real_t f0val,
                                          const mfem::Vector& fival, const mfem::Vector* dfidx_local,
-                                         const mfem::Vector& xmin_local, const mfem::Vector& xmax_local,
                                          EvalCallback eval_fi, int max_inner, int* innerIter)
 {
-    EnsureBounds_(x_local, xmin_local, xmax_local);
-    ComputeInitialRho_(df0dx_local, dfidx_local, xmin_local, xmax_local, rho_);
+    RequireBounds_();
+    if (!have_rho_) { ComputeInitialRho_(df0dx_local, dfidx_local, rho_); have_rho_ = true; }
 
     bool ud = x_local.UseDevice();
     std::vector<double> F(m_+1); F[0]=double(f0val);
@@ -1180,7 +1194,7 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
     std::vector<mfem::Vector> bi(m_);
     for (int i=0;i<m_;++i) bi[i] = dfidx_local[i];
 
-    const mfem::Vector eta_c = eta_;
+    const mfem::Vector eta_c = x_local;
     int nu=0;
     for (; nu<max_inner; ++nu) {
         mfem::Vector eta_trial(n_local_), x_trial(n_local_);
@@ -1191,10 +1205,11 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
             lam_, mu_, y_, z_, dual_tol_, dual_max_iter_,
             eta_trial.Write(), x_trial.Write());
 
-        // eval_fi is called with the LOCAL trial chunk; the caller (as with
-        // MMAOptimizerParallel) is responsible for producing globally
-        // consistent fi_hat/f0_hat (e.g. via its own MPI_Allreduce) exactly
-        // as documented for MMAOptimizerParallel::UpdateGCMMA().
+        // eval_fi is called with the LOCAL trial chunk (physical); the
+        // caller (as with MMAOptimizerParallel) is responsible for
+        // producing globally consistent fi_hat/f0_hat (e.g. via its own
+        // MPI_Allreduce) exactly as documented for
+        // MMAOptimizerParallel::UpdateGCMMA().
         mfem::Vector fi_hat(m_); mfem::real_t f0_hat=0;
         if (eval_fi) eval_fi(x_trial, fi_hat, f0_hat);
 
@@ -1209,10 +1224,24 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
             }
             mfem::Vector eta_diff(n_local_); eta_diff.UseDevice(ud);
             detail::BregmanTerm(ud, n_local_, bounds_.Kind(), eta_trial, eta_c, eta_diff);
-            double Wloc = eta_diff.Sum(); double W=0.0; ccsa_Allreduce(&Wloc,&W,1,comm_);
+            // See the identical comment in the serial class's UpdateGCMMA():
+            // W is a Bregman divergence, provably >= 0; a small/very-small
+            // step can make its per-rank partial sum round to a tiny
+            // negative value from pure floating-point cancellation. Clamp
+            // both the per-rank contribution and the reduced total.
+            double Wloc = std::max(0.0, eta_diff.Sum()); double W=0.0; ccsa_Allreduce(&Wloc,&W,1,comm_);
+            W = std::max(0.0, W);
             std::vector<double> dxi_loc(m_), dxi(m_);
             for (int i=0;i<m_;++i) dxi_loc[i]=mfem::InnerProduct(bi[i],dx);
-            ccsa_Allreduce(dxi_loc.data(),dxi.data(),m_,comm_);
+            // Zero-count MPI_Allreduce (m_==0, the unconstrained case) is
+            // a no-op mathematically, but some MPI implementations handle
+            // zero-count collectives across >1 real ranks poorly (this
+            // exact call has been observed to hang a >1-rank run when
+            // m_==0, while never being an issue for m_==0 in a 1-rank run,
+            // where MPI_Allreduce degenerates to a trivial single-process
+            // case regardless of count). Skip it entirely when there is
+            // nothing to reduce.
+            if (m_ > 0) ccsa_Allreduce(dxi_loc.data(),dxi.data(),m_,comm_);
             double dx0_loc = mfem::InnerProduct(df0dx_local,dx), dx0;
             ccsa_Allreduce(&dx0_loc,&dx0,1,comm_);
 
@@ -1224,22 +1253,27 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
             if (double(f0_hat) > model0) conservative=false;
 
             if (!conservative) {
+                // See the identical comment in the serial class's
+                // UpdateGCMMA(): cap rho from above to prevent runaway
+                // growth toward double overflow (and the resulting
+                // Inf*0=NaN poisoning of the conservatism check).
+                static constexpr double kRhoCeiling = 1e100;
                 for (int i=0;i<m_;++i) {
                     double e = double(fi_hat(i)) - (F[i+1]+dxi[i]+rho_[i+1]*W);
-                    if (e>0.0 && W>1e-300) rho_[i+1]=std::min(rho_max_growth_*rho_[i+1], rho_safe_*(rho_[i+1]+e/W));
-                    else if (e>0.0) rho_[i+1]*=rho_max_growth_;
+                    if (e>0.0 && W>1e-300) rho_[i+1]=std::min(kRhoCeiling, std::min(rho_max_growth_*rho_[i+1], rho_safe_*(rho_[i+1]+e/W)));
+                    else if (e>0.0) rho_[i+1]=std::min(kRhoCeiling, rho_max_growth_*rho_[i+1]);
                 }
                 double e0 = double(f0_hat)-model0;
-                if (e0>0.0 && W>1e-300) rho_[0]=std::min(rho_max_growth_*rho_[0], rho_safe_*(rho_[0]+e0/W));
-                else if (e0>0.0) rho_[0]*=rho_max_growth_;
+                if (e0>0.0 && W>1e-300) rho_[0]=std::min(kRhoCeiling, std::min(rho_max_growth_*rho_[0], rho_safe_*(rho_[0]+e0/W)));
+                else if (e0>0.0) rho_[0]=std::min(kRhoCeiling, rho_max_growth_*rho_[0]);
                 continue;
             }
         }
-        eta_prev_=eta_; df0dx_prev_=df0dx_local; have_prev_=true;
-        eta_ = eta_trial; x_local = x_trial;
+        eta_prev_=x_local; df0dx_prev_=df0dx_local; have_prev_=true;
+        x_local = eta_trial;
         break;
     }
-    if (innerIter) *innerIter=nu+1;
+    if (innerIter) *innerIter=std::min(nu+1,max_inner);
     DecayRho_();
     ++iter_;
 }
@@ -1247,15 +1281,18 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
 mfem::real_t CCSAOptimizerParallel::KKTresidual(const mfem::Vector& x_local, const mfem::Vector& df0dx_local,
                                                   mfem::real_t, const mfem::Vector& fival,
                                                   const mfem::Vector* dfidx_local,
-                                                  const mfem::Vector& xmin_local, const mfem::Vector& xmax_local,
                                                   double* lambda_out) const
 {
+    RequireBounds_();
     if (lambda_out) std::copy(lam_.begin(),lam_.end(),lambda_out);
     bool ud = x_local.UseDevice();
+
+    mfem::Vector kappa(n_local_); kappa.UseDevice(ud);
+    detail::ComputeKappa(ud, n_local_, bounds_.Kind(), x_local.Read(), kappa);
+
     mfem::Vector d_tmp(n_local_); d_tmp.UseDevice(ud);
     {
-        const auto* xr=x_local.Read(); const auto* df0r=df0dx_local.Read();
-        const auto* xmnr=xmin_local.Read(); const auto* xmxr=xmax_local.Read();
+        const auto* df0r=df0dx_local.Read();
         auto* dt=d_tmp.Write();
         mfem::forall_switch(ud,n_local_,[=] MFEM_HOST_DEVICE (int j){ dt[j]=df0r[j]; });
         for (int i=0;i<m_-2*n_eq_;++i) {
@@ -1270,13 +1307,12 @@ mfem::real_t CCSAOptimizerParallel::KKTresidual(const mfem::Vector& x_local, con
             auto* dtr=d_tmp.ReadWrite();
             mfem::forall_switch(ud,n_local_,[=] MFEM_HOST_DEVICE (int j){ dtr[j]+=lnet*double(dfir[j]); });
         }
-        const double tol=1e-3;
+        // Latent-space stationarity, see the serial KKTresidual()'s comment.
+        const auto* hr = bounds_.Scale().Read();
+        const auto* kr = kappa.Read();
         mfem::forall_switch(ud,n_local_,[=] MFEM_HOST_DEVICE (int j){
-            double rng=double(xmxr[j])-double(xmnr[j]);
-            double t=tol*rng; double g=double(dt[j]); double pg=g;
-            if (double(xr[j])<=double(xmnr[j])+t) pg=g<0?g:0.0;
-            if (double(xr[j])>=double(xmxr[j])-t) pg=g>0?g:0.0;
-            dt[j]=pg*pg;
+            double g_eta = double(dt[j]) * double(hr[j]) * double(kr[j]);
+            dt[j] = mfem::real_t(g_eta*g_eta);
         });
     }
     double primal_loc = d_tmp.Sum(); double primal=0.0;

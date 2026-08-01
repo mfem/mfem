@@ -1,7 +1,5 @@
 /**
- * test_sq_zero_ranks.cpp  —  SQOptimizer with zero-DOF ranks
- *
- * Same zero-rank edge cases as test_mma_zero_ranks.cpp using SQOptimizerParallel.
+ * test_mma_zero_ranks.cpp  —  MMA and GCMMA with zero-DOF ranks
  *
  * Exercises the edge case where some MPI ranks own zero local design
  * variables (n_local = 0).  This tests that all MPI collectives inside
@@ -34,10 +32,10 @@
  * to within 1e-6 — verifying that empty ranks do not corrupt the solution.
  *
  * Build:  cmake --build build
- * Run:    mpirun -np 2 ./build/test_sq_zero_ranks   (1 zero rank)
- *         mpirun -np 4 ./build/test_sq_zero_ranks   (3 zero ranks)
- *         mpirun -np 8 ./build/test_sq_zero_ranks   (7 zero ranks)
- *         ./build/test_sq_zero_ranks                (1 rank, degenerate but safe)
+ * Run:    mpirun -np 2 ./build/test_mma_zero_ranks   (1 zero rank)
+ *         mpirun -np 4 ./build/test_mma_zero_ranks   (3 zero ranks)
+ *         mpirun -np 8 ./build/test_mma_zero_ranks   (7 zero ranks)
+ *         ./build/test_mma_zero_ranks                (1 rank, degenerate but safe)
  */
 
 #include "MMA_MFEM.hpp"
@@ -153,7 +151,7 @@ static RefResult SerialRef(int n, int m, const std::vector<double>& Vtgt,
                              m?dg.data():nullptr, xmin,xmax);
     }
     double xmean=0; for(int j=0;j<n;++j) xmean+=double(x(j)); xmean/=n;
-    return {double(kkt), xmean, opt.NumIterations()};
+    return {double(kkt), xmean, opt.GetIteration()};
 }
 
 // ============================================================
@@ -256,7 +254,7 @@ static void RunTest(
         printf("    %-50s  par_kkt=%.2e  ser_kkt=%.2e"
                "  |xmean_diff|=%.2e  iters=%d\n",
                label, double(kkt), ref.kkt,
-               std::abs(xmean-ref.xmean), opt.NumIterations());
+               std::abs(xmean-ref.xmean), opt.GetIteration());
 
     std::string t = std::string(label);
     Check(double(kkt) < 1e-4,

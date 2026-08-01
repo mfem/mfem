@@ -1,5 +1,5 @@
 /**
- * test_relaxed_equalities_parallel.cpp  —  Parallel relaxed equality test suite
+ * test_mma_relaxed_equalities_parallel.cpp  —  Parallel relaxed equality test suite
  *
  * Tests PackFivalRelaxed() and WithRelaxedEqualities() on MMAOptimizerParallel
  * and SQOptimizerParallel (MPI, distributed mfem::Vector).
@@ -9,8 +9,8 @@
  * Running with 1 rank exercises the serial fallback of all parallel classes.
  *
  * Build:  cmake --build build
- * Run (serial):   ./build/test_relaxed_equalities_parallel
- * Run (parallel): mpirun -np 4 ./build/test_relaxed_equalities_parallel
+ * Run (serial):   ./build/test_mma_relaxed_equalities_parallel
+ * Run (parallel): mpirun -np 4 ./build/test_mma_relaxed_equalities_parallel
  *
  * Test catalogue
  * ──────────────

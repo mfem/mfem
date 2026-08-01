@@ -189,6 +189,7 @@ int main(int argc, char *argv[])
 
    // ---- Test both constructors in sequence ----
    if (myid == 0) cout << "\n--- Test 2: both constructors back-to-back ---\n";
+   
    {
       // Const coeff constructor
       MassMatrixSolver s1(&pfes, 3.14, rel_tol, max_iter, 0);

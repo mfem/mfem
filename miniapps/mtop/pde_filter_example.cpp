@@ -196,6 +196,41 @@ int main(int argc, char* argv[])
                 [&](PDEFilter& f) { f.SetDiffusionCoeff(sc); });
     }
 
+    // ------------------------------------------------------------------
+    // Demo 6: coefficient-valued Dirichlet data on every boundary attribute
+    // ------------------------------------------------------------------
+    {
+        ConstantCoefficient boundary_value(0.25);
+        RunDemo("DirichletCoeff_L2control",
+                fes_h1_filter, fes_l2_control, opts,
+                [&](PDEFilter& f)
+                {
+                    for (int i = 0; i < pmesh.bdr_attributes.Size(); ++i)
+                    {
+                        f.AddBoundaryCondition(pmesh.bdr_attributes[i],
+                                               boundary_value);
+                    }
+                });
+    }
+
+    // ------------------------------------------------------------------
+    // Demo 7: clear recorded data, then impose constant zero Dirichlet data
+    // ------------------------------------------------------------------
+    RunDemo("DirichletConstant_L2control",
+            fes_h1_filter, fes_l2_control, opts,
+            [&](PDEFilter& f)
+            {
+                if (pmesh.bdr_attributes.Size())
+                {
+                    f.AddBoundaryCondition(pmesh.bdr_attributes[0], 1.0);
+                }
+                f.ClearBoundaryConditions();
+                for (int i = 0; i < pmesh.bdr_attributes.Size(); ++i)
+                {
+                    f.AddBoundaryCondition(pmesh.bdr_attributes[i], 0.0);
+                }
+            });
+
     if (Mpi::Root())
         std::cout << "\nAll demos complete. ParaView output in ./output/\n";
 

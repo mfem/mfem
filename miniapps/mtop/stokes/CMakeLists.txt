@@ -39,5 +39,22 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
                                        ${PAR_MTOP_COMMON_FILES}
                                        LIBRARIES mfem)
 
+	add_mfem_miniapp(par_mass_solver
+					 MAIN test_par_mass_matrix_solver.cpp
+					 EXTRA_SOURCES ParMassMatrixSolver.cpp
+					 EXTRA_HEADERS ParMassMatrixSolver.hpp
+					 LIBRARIES mfem)
+
+	add_mfem_miniapp(pa_diff_solver
+					 MAIN test_par_diffusion_solver_pa.cpp
+					 EXTRA_SOURCES par_diffusion_solver_pa.cpp
+					 EXTRA_HEADERS par_diffusion_solver_pa.hpp
+					 LIBRARIES mfem)
+
+	add_mfem_miniapp(diff_solver_benchmark
+					 MAIN benchmark_par_diffusion_solvers.cpp
+					 EXTRA_SOURCES par_diffusion_solver_pa.cpp
+					 EXTRA_HEADERS par_diffusion_solver_pa.hpp
+					 LIBRARIES mfem)
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)

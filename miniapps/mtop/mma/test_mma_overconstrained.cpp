@@ -1,5 +1,5 @@
 /**
- * test_overconstrained.cpp
+ * test_mma_overconstrained.cpp
  *
  * Tests MMA and GCMMA when the number of constraints m exceeds (or equals)
  * the number of design variables n.  This regime stresses:
@@ -30,8 +30,8 @@
  * implied by the individual bounds — making the system redundant.
  *
  * Build:  cmake --build build
- * Run:    ./build/test_overconstrained
- *         mpirun -np 4 ./build/test_overconstrained
+ * Run:    ./build/test_mma_overconstrained
+ *         mpirun -np 4 ./build/test_mma_overconstrained
  */
 
 #include "MMA_MFEM.hpp"

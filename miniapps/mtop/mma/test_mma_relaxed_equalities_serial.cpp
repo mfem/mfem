@@ -1,5 +1,5 @@
 /**
- * test_relaxed_equalities_serial.cpp  —  Serial relaxed equality test suite
+ * test_mma_relaxed_equalities_serial.cpp  —  Serial relaxed equality test suite
  *
  * Tests PackFivalRelaxed() and WithRelaxedEqualities() on MMAOptimizer and
  * SQOptimizer (single-process, plain mfem::Vector, no MPI).
@@ -42,7 +42,7 @@
  * 12. MMA — infeasible start (x₀ far below band)
  *
  * Build:  cmake --build build
- * Run:    ./build/test_relaxed_equalities_serial
+ * Run:    ./build/test_mma_relaxed_equalities_serial
  */
 
 #include "MMA_MFEM.hpp"

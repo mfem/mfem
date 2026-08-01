@@ -1,16 +1,13 @@
 /**
- * test_sq_gcmma_callback.cpp  —  SQOptimizer GCMMA callback test suite
+ * test_mma_gcmma_callback.cpp  —  MMA GCMMA callback test suite
  *
- * Same conservatism tests using SQOptimizer (the SQ approximation has
- * different conservatism properties from MMA).
- *
- * Tests SQOptimizer's constraint-callback UpdateGCMMA overload and its
- * rho-increase inner conservatism loop.
+ * Tests the callback-based UpdateGCMMA overload which implements the full
+ * Svanberg (2007) §4 inner conservatism loop.
  *
  * Test catalogue
  * ──────────────
- * 1. Conservatism enforcement  — use a non-conservative constraint
- *    callback, verify constraint rho increases and inner > 1.
+ * 1. Conservatism enforcement  — use a non-conservative callback that
+ *    always reports f(x̂) > f̃(x̂), verify ρ increases and inner > 1.
  *
  * 2. Conservative first step  — convex separable problem where the MMA
  *    approximation is exact; verify inner == 1 on every outer iteration.
@@ -18,24 +15,25 @@
  * 3. Convergence equivalence  — on a convex problem the callback overload
  *    must converge to the same KKT point as the no-callback overload.
  *
- * 4. Non-convex objective  — verify that a constraint callback does not
- *    perturb convergence when only the objective is non-convex.
+ * 4. Non-convex Rosenbrock  — callback genuinely helps: compare iteration
+ *    count and final KKT between callback and no-callback on a problem
+ *    where the MMA approximation is non-conservative.
  *
  * 5. Constraint conservatism  — problem where the constraint approximation
  *    is non-conservative (not just objective); verify constraint ρ increases.
  *
- * 6. fixed inner limit respected — callback always returns
- *    non-conservative constraints; verify the loop terminates at 10.
+ * 6. max_inner respected  — callback always returns non-conservative;
+ *    verify inner count == max_inner and no infinite loop.
  *
  * 7. Serial vs parallel equivalence  — same problem on 1 rank produces
  *    identical results from serial and parallel callback overloads.
  *
- * 8. Parallel callback with zero-DOF ranks — callback performs collective
- *    evaluation while ranks with empty local vectors participate.
+ * 8. Parallel callback  — distributed problem; callback performs
+ *    MPI_Allreduce internally; verify convergence.
  *
  * Build:  cmake --build build
- * Run:    ./build/test_sq_gcmma_callback
- *         mpirun -np 4 ./build/test_sq_gcmma_callback
+ * Run:    ./build/test_mma_gcmma_callback
+ *         mpirun -np 4 ./build/test_mma_gcmma_callback
  */
 
 #include "MMA_MFEM.hpp"
@@ -47,7 +45,6 @@
 #include <vector>
 #include <string>
 #include <functional>
-#include <tuple>
 
 using namespace mfem;
 using namespace mfem_mma;
@@ -76,7 +73,7 @@ static std::pair<int,int> Distribute(int n)
 // f0 = (1/n) sum(1/xj),  g0 = mean(x) - Vfrac <= 0
 // Optimum: xj* = Vfrac (all equal),  f* = 1/Vfrac
 // Gradient: df0/dxj = -1/(n*xj^2),  dg0/dxj = 1/n
-// Convex and separable; the linear constraint model is exact -> inner==1.
+// Convex and separable -> MMA approximation is always conservative -> inner==1
 static void eval_convex(const Vector& x, int n, Vector& fi, real_t& f0,
                          double Vfrac)
 {
@@ -86,6 +83,21 @@ static void eval_convex(const Vector& x, int n, Vector& fi, real_t& f0,
     }
     f0=real_t(f/n);
     fi(0)=real_t(g/n-Vfrac);
+}
+
+// ── Non-convex coupling: f = (mean(x))^(-3)  (global, non-separable) ─────
+// At any x, the MMA approximation treats mean(x) as fixed — non-conservative.
+// Gradient: df/dxj = -3*(mean(x))^(-4) / n
+// The TRUE value at x̂ differs from the MMA approximation because mean(x̂)
+// differs from mean(x_k), and the approximation doesn't capture that shift.
+static real_t eval_nonconvex_f0(const Vector& x, Vector& df0, int n_global)
+{
+    double m=0; for(int j=0;j<x.Size();++j) m+=double(x(j));
+    double mn=m/n_global;   // local sum; need Allreduce for parallel
+    double f=std::pow(mn,-3.0);
+    real_t df_val=real_t(-3.0*std::pow(mn,-4.0)/n_global);
+    for(int j=0;j<x.Size();++j) df0(j)=df_val;
+    return real_t(f);
 }
 
 // ============================================================
@@ -106,7 +118,7 @@ static void Test_ConservatismEnforcement()
 
     double cv=std::max(1000.0,10.0*n);
     double a[1]={0},c[1]={cv},d[1]={1};
-    SQOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,x,a,c,d);
 
     // Callback: always return f(x̂) = f̃(x̂) + 1000 (guaranteed non-conservative)
     int total_inner=0;
@@ -123,9 +135,16 @@ static void Test_ConservatismEnforcement()
         int inner=0;
         double f0_val_=0; for(int j=0;j<x.Size();++j) f0_val_+=1.0/double(x(j)); f0_val_/=x.Size();
         opt.UpdateGCMMA(x,df0,real_t(f0_val_),fi,dg_arr,xmin,xmax,
-            [&](const Vector&,Vector& fi_out,Vector*){
-                fi_out(0)=real_t(1e6); // force non-conservative constraint
-            },&inner);
+            [&](const Vector& xc, Vector& fi_out, real_t& f0_out){
+                // Return f(x̂) inflated by 1000 → always non-conservative
+                double f=0,g=0;
+                for(int j=0;j<xc.Size();++j){
+                    f+=1.0/double(xc(j)); g+=double(xc(j));
+                }
+                f0_out = real_t(f/n + 1000.0);   // inflated
+                fi_out(0)=real_t(g/n-Vfrac);
+            },
+            /*max_inner=*/8, &inner);
 
         total_inner+=inner;
         ++outer_iters;
@@ -140,17 +159,17 @@ static void Test_ConservatismEnforcement()
 
     double avg_inner=outer_iters>0?double(total_inner)/outer_iters:0;
     if(g_rank==0)
-        printf("  iters=%d  avg_inner=%.1f  kkt=%.2e\n",
+        printf("  outer=%d  avg_inner=%.1f  kkt=%.2e\n",
                outer_iters,avg_inner,double(kkt));
 
-    // One initial candidate plus ten failed retries is reported as 11.
-    Check(avg_inner>=10.5,"inner loop reaches fixed limit (rho forced up)");
+    // With always-non-conservative callback, inner should always hit max_inner
+    Check(avg_inner>=7.5,  "avg inner iterations >= 7.5 (rho forced up)");
     Check(kkt<1e10,        "optimiser does not diverge despite inflation");
 }
 
 // ============================================================
 // Test 2: Conservative first step
-// Convex separable problem with an exact linear constraint model.
+// Convex separable problem: MMA approximation is always conservative.
 // Verify inner == 1 on every outer iteration.
 // ============================================================
 static void Test_ConservativeFirstStep()
@@ -165,7 +184,7 @@ static void Test_ConservativeFirstStep()
 
     double cv=std::max(1000.0,10.0*n);
     double a[1]={0},c[1]={cv},d[1]={1};
-    SQOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,x,a,c,d);
 
     std::vector<int> inner_counts;
     real_t kkt=1.0;
@@ -180,9 +199,11 @@ static void Test_ConservativeFirstStep()
         int inner=0;
         double f0_val_=0; for(int j=0;j<x.Size();++j) f0_val_+=1.0/double(x(j)); f0_val_/=x.Size();
         opt.UpdateGCMMA(x,df0,real_t(f0_val_),fi,dg_arr,xmin,xmax,
-            [&](const Vector& xc,Vector& fi_out,Vector*){
-                real_t ignored; eval_convex(xc,n,fi_out,ignored,Vfrac);
-            },&inner);
+            [&](const Vector& xc, Vector& fi_out, real_t& f0_out){
+                // True values (no inflation)
+                eval_convex(xc,n,fi_out,f0_out,Vfrac);
+            },
+            /*max_inner=*/10, &inner);
 
         inner_counts.push_back(inner);
 
@@ -230,7 +251,7 @@ static void Test_ConvergenceEquivalence()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        SQOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,x,a,c,d);
         for(int it=0;it<100&&kkt_nocb>1e-5;++it,++iters_nocb){
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             double g0=0; for(int j=0;j<n;++j) g0+=double(x(j));
@@ -240,7 +261,6 @@ static void Test_ConvergenceEquivalence()
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             g0=0; for(int j=0;j<n;++j) g0+=double(x(j));
             fi(0)=real_t(g0/n-Vfrac);
-            f0_val_=0;for(int j=0;j<x.Size();++j)f0_val_+=1.0/double(x(j));f0_val_/=x.Size();
             kkt_nocb=opt.KKTresidual(x,df0,real_t(f0_val_),fi,dg_arr,xmin,xmax);
         }
         for(int j=0;j<n;++j) xmean_nocb+=double(x(j));
@@ -254,7 +274,7 @@ static void Test_ConvergenceEquivalence()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        SQOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,x,a,c,d);
         for(int it=0;it<100&&kkt_cb>1e-5;++it,++iters_cb){
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             double g0=0; for(int j=0;j<n;++j) g0+=double(x(j));
@@ -262,9 +282,9 @@ static void Test_ConvergenceEquivalence()
             int inner=0;
             double f0_val_=0; for(int j=0;j<x.Size();++j) f0_val_+=1.0/double(x(j)); f0_val_/=x.Size();
             opt.UpdateGCMMA(x,df0,real_t(f0_val_),fi,dg_arr,xmin,xmax,
-                [&](const Vector& xc,Vector& fo,Vector*){
-                    real_t ignored; eval_convex(xc,n,fo,ignored,Vfrac);
-                },&inner);
+                [&](const Vector& xc, Vector& fo, real_t& f0o){
+                    eval_convex(xc,n,fo,f0o,Vfrac);
+                },10,&inner);
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             g0=0; for(int j=0;j<n;++j) g0+=double(x(j));
             fi(0)=real_t(g0/n-Vfrac);
@@ -290,14 +310,13 @@ static void Test_ConvergenceEquivalence()
 }
 
 // ============================================================
-// Test 4: Non-convex objective — constraint callback is neutral
+// Test 4: Non-convex problem — callback reduces iterations
 // f = (mean(x))^{-3}: globally coupled, non-conservative approximation.
-// SQ callbacks verify constraints only, so an exact linear-constraint
-// callback must not perturb convergence for this non-convex objective.
+// With honest callback: ρ adapts, fewer oscillations, same or better KKT.
 // ============================================================
 static void Test_NonConvexCallback()
 {
-    if(g_rank==0) printf("\n── Test 4: Non-convex objective, callback neutrality ─\n");
+    if(g_rank==0) printf("\n── Test 4: Non-convex — callback reduces oscillation ─\n");
 
     const int n=200, m=1;
     const double Vfrac=0.5;
@@ -314,7 +333,7 @@ static void Test_NonConvexCallback()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        SQOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,x,a,c,d);
         for(int it=0;it<max_it;++it){
             double mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
             real_t f0=real_t(std::pow(mn,-3.0));
@@ -339,7 +358,7 @@ static void Test_NonConvexCallback()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        SQOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,x,a,c,d);
         for(int it=0;it<max_it;++it){
             double mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
             real_t f0=real_t(std::pow(mn,-3.0));
@@ -349,10 +368,13 @@ static void Test_NonConvexCallback()
             mfem::Vector fi(1); fi(0)=real_t(g0/n-Vfrac);
             int inner=0;
             opt.UpdateGCMMA(x,df0,f0,fi,dg_arr,xmin,xmax,
-                [&](const Vector& xc,Vector& fo,Vector*){
-                    double gc=0;for(int j=0;j<xc.Size();++j)gc+=double(xc(j));
+                [&](const Vector& xc, Vector& fo, real_t& f0o){
+                    // True function at x̂
+                    double mc=0; for(int j=0;j<xc.Size();++j) mc+=double(xc(j)); mc/=n;
+                    f0o=real_t(std::pow(mc,-3.0));
+                    double gc=0; for(int j=0;j<xc.Size();++j) gc+=double(xc(j));
                     fo[0]=real_t(gc/n-Vfrac);
-                },&inner);
+                },10,&inner);
             mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
             f0=real_t(std::pow(mn,-3.0));
             df_val=real_t(-3.0*std::pow(mn,-4.0)/n);
@@ -375,7 +397,7 @@ static void Test_NonConvexCallback()
                (int)kkt_cb_traj.size(),   kkt_cb_final);
 
     Check(kkt_cb_final <1e-4,      "callback variant converges");
-    // An exact constraint callback should not materially slow convergence.
+    // Callback should converge in <= iterations vs no-callback
     Check((int)kkt_cb_traj.size() <= (int)kkt_nocb_traj.size()+5,
           "callback not slower than no-callback");
 }
@@ -383,89 +405,86 @@ static void Test_NonConvexCallback()
 // ============================================================
 // Test 5: Constraint conservatism
 // Construct a problem where the CONSTRAINT approximation is non-conservative.
-// g(x) = exp(10*(mean(x)-Vfrac)) - 1  (strongly convex in mean)
-// The SQ model can underestimate g at the trial point -> inner > 1.
+// g(x) = (mean(x))^2 - Vfrac  (convex in mean, non-separable)
+// The MMA linearisation underestimates g at x̂ -> inner > 1.
 // ============================================================
 static void Test_ConstraintConservatism()
 {
     if(g_rank==0) printf("\n── Test 5: Constraint conservatism ───────────────────\n");
 
     const int n=100, m=1;
-    const double Vfrac=0.4;
+    const double Vfrac=0.16;   // target: mean(x)^2 <= 0.16 => mean(x) <= 0.4
     Vector x(n),xmin(n),xmax(n),df0(n),dg0(n);
-    // Constraint: g = exp(10*(mean(x)-Vfrac)) - 1
-    // Gradient:   dg/dxj = 10*exp(10*(mean(x)-Vfrac))/n
+    // Constraint: g = (mean(x))^2 - Vfrac
+    // Gradient:   dg/dxj = 2*mean(x)/n  (non-constant -> MMA linearises)
     // Non-conservative because the quadratic constraint curves away from
-    // the local SQ constraint approximation.
-    // Start feasible and maximize mean(x) through minimization of -mean(x),
-    // so the nonlinear upper constraint becomes active at mean(x)=0.4.
-    x=0.2; xmin=0.01; xmax=1.0;
+    // the MMA linear approximation.
+    x=0.6; xmin=0.01; xmax=1.0;
 
     double cv=std::max(1000.0,10.0*n);
     double a[1]={0},c[1]={cv},d[1]={1};
-    SQOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,x,a,c,d);
 
     std::vector<int> inner_hist;
     real_t kkt=1.0;
-    double constraint_value=1.0;
 
-    for(int it=0;it<100&&(kkt>1e-5||constraint_value>1e-6);++it){
+    for(int it=0;it<100&&kkt>1e-5;++it){
         double mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
-        // Objective: f0 = -mean(x), which pushes toward the constraint.
-        real_t f0=real_t(-mn);
-        for(int j=0;j<n;++j) df0(j)=real_t(-1.0/n);
-        double eg=std::exp(10.0*(mn-Vfrac));
-        mfem::Vector fi(1);fi(0)=real_t(eg-1.0);
-        for(int j=0;j<n;++j)dg0(j)=real_t(10.0*eg/n);
+        // Objective: f0 = mean(x) (linear, want to minimise)
+        real_t f0=real_t(mn);
+        for(int j=0;j<n;++j) df0(j)=real_t(1.0/n);
+        // Constraint: g = mn^2 - Vfrac, grad = 2*mn/n
+        mfem::Vector fi(1); fi(0)=real_t(mn*mn - Vfrac);
+        for(int j=0;j<n;++j) dg0(j)=real_t(2.0*mn/n);
         Vector dg_arr[1]={dg0};
 
         int inner=0;
         opt.UpdateGCMMA(x,df0,f0,fi,dg_arr,xmin,xmax,
-            [&](const Vector& xc,Vector& fo,Vector*){
+            [&](const Vector& xc, Vector& fo, real_t& f0o){
                 double mc=0; for(int j=0;j<xc.Size();++j) mc+=double(xc(j)); mc/=n;
-                fo[0]=real_t(std::exp(10.0*(mc-Vfrac))-1.0);
-            },&inner);
+                f0o=real_t(mc);
+                fo[0]=real_t(mc*mc - Vfrac);   // true quadratic constraint
+            },10,&inner);
 
         inner_hist.push_back(inner);
 
         mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
-        f0=real_t(-mn);
-        for(int j=0;j<n;++j) df0(j)=real_t(-1.0/n);
-        eg=std::exp(10.0*(mn-Vfrac));
-        constraint_value=eg-1.0;
-        fi(0)=real_t(constraint_value);
-        for(int j=0;j<n;++j)dg0(j)=real_t(10.0*eg/n);
+        f0=real_t(mn);
+        for(int j=0;j<n;++j) df0(j)=real_t(1.0/n);
+        fi(0)=real_t(mn*mn-Vfrac);
+        for(int j=0;j<n;++j) dg0(j)=real_t(2.0*mn/n);
         kkt=opt.KKTresidual(x,df0,f0,fi,dg_arr,xmin,xmax);
     }
 
     int n_multi=0;
     for(int v:inner_hist) if(v>1) ++n_multi;
+    double mn_final=0; for(int j=0;j<n;++j) mn_final+=double(x(j)); mn_final/=n;
 
     if(g_rank==0)
         printf("  iters=%d  kkt=%.2e  g_final=%.4f  n_multi_inner=%d/%d\n",
                (int)inner_hist.size(),double(kkt),
-               constraint_value,n_multi,(int)inner_hist.size());
+               mn_final*mn_final-Vfrac,n_multi,(int)inner_hist.size());
 
     Check(kkt<1e-4,   "converges despite non-conservative constraint");
     Check(n_multi>0,  "constraint non-conservatism triggered inner > 1");
-    Check(constraint_value<=1e-4,"constraint satisfied at optimum");
+    Check(mn_final*mn_final <= Vfrac+0.01, "constraint satisfied at optimum");
 }
 
 // ============================================================
-// Test 6: fixed inner limit respected
+// Test 6: max_inner respected
 // Callback always returns non-conservative values.
-// Verify the reported count is one initial solve plus ten retries.
+// Verify inner_count == max_inner (loop exits, no hang).
 // ============================================================
 static void Test_MaxInnerRespected()
 {
-    if(g_rank==0) printf("\n── Test 6: fixed inner limit respected ───────────────\n");
+    if(g_rank==0) printf("\n── Test 6: max_inner limit respected ─────────────────\n");
 
-    const int n=50,m=1,REPORTED_INNER_LIMIT=11;
+    const int n=50, m=1, MAX_INNER=5;
     Vector x(n),xmin(n),xmax(n),df0(n),dg(n);
     x=0.5; xmin=0.01; xmax=1.0;
     for(int j=0;j<n;++j) dg(j)=real_t(1.0/n);
     double cv=1000.0, a[1]={0},c[1]={cv},d[1]={1};
-    SQOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,x,a,c,d);
 
     bool all_max=true;
     for(int it=0;it<5;++it){
@@ -477,14 +496,16 @@ static void Test_MaxInnerRespected()
         int inner=0;
         double f0_val_=0; for(int j=0;j<x.Size();++j) f0_val_+=1.0/double(x(j)); f0_val_/=x.Size();
         opt.UpdateGCMMA(x,df0,real_t(f0_val_),fi,dg_arr,xmin,xmax,
-            [&](const Vector&,Vector& fo,Vector*){fo[0]=real_t(1e30);},
-            &inner);
+            [&](const Vector&, Vector& fo, real_t& f0o){
+                // Always return huge f -> never conservative
+                f0o=1e30f; fo[0]=1e30f;
+            },
+            MAX_INNER, &inner);
 
-        if(inner!=REPORTED_INNER_LIMIT) all_max=false;
+        if(inner!=MAX_INNER) all_max=false;
         if(g_rank==0) printf("  iter %d: inner=%d\n",it,inner);
     }
-    if(g_rank==0)printf("  Final: iters=%d\n",opt.NumIterations());
-    Check(all_max,"inner always equals fixed limit when never conservative");
+    Check(all_max, "inner always equals max_inner when never conservative");
 }
 
 // ============================================================
@@ -500,7 +521,6 @@ static void Test_SerialParallelEquivalence()
     MPI_Comm comm=MPI_COMM_WORLD;
 
     auto [nl,off]=Distribute(n);
-    (void)off;
     double cv=std::max(1000.0,10.0*n);
     double a[2]={0,0},c[2]={cv,cv},d[2]={1,1};
 
@@ -528,9 +548,8 @@ static void Test_SerialParallelEquivalence()
 
     double xmean_s=0, xmean_p=0;
     real_t kkt_s=1, kkt_p=1;
-    int iters_s=0,iters_p=0;
 
-    // ── Serial — run on all ranks independently (no inter-rank collectives)
+    // ── Serial — run on ALL ranks independently (MMAOptimizer uses MPI_COMM_SELF)
     // No inter-rank MPI allowed here — use local EvalF without Allreduce.
     {
         auto EvalFLocal=[&](const Vector& xv)->std::tuple<real_t,mfem::Vector>{
@@ -546,22 +565,21 @@ static void Test_SerialParallelEquivalence()
         };
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        SQOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,x,a,c,d);
         for(int it=0;it<100&&kkt_s>1e-5;++it){
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             auto [f0,fi]=EvalFLocal(x);
             int inner=0;
             opt.UpdateGCMMA(x,df0,f0,fi,dg_ser.data(),xmin,xmax,
-                [&](const Vector& xc,Vector& fo,Vector*){
-                    auto [f,fii]=EvalFLocal(xc);(void)f;
-                    fo[0]=fii(0);fo[1]=fii(1);
-                },&inner);
+                [&](const Vector& xc, Vector& fo, real_t& f0o){
+                    auto [f,fii]=EvalFLocal(xc);
+                    f0o=f; fo[0]=fii(0); fo[1]=fii(1);
+                },10,&inner);
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             auto [f0b,fib]=EvalFLocal(x);
             kkt_s=opt.KKTresidual(x,df0,f0b,fib,dg_ser.data(),xmin,xmax);
         }
         for(int j=0;j<n;++j) xmean_s+=double(x(j)); xmean_s/=n;
-        iters_s=opt.NumIterations();
         // Result is identical on all ranks — no broadcast needed
     }
 
@@ -569,30 +587,29 @@ static void Test_SerialParallelEquivalence()
     {
         Vector x(nl),xmin(nl),xmax(nl),df0(nl);
         x=0.5; xmin=0.01; xmax=1.0;
-        SQOptimizerParallel opt(comm,nl,m,x,a,c,d);
+        MMAOptimizerParallel opt(comm,nl,m,x,a,c,d);
         for(int it=0;it<100&&kkt_p>1e-5;++it){
             for(int j=0;j<nl;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             auto [f0,fi]=EvalF(x,nl);
             int inner=0;
             opt.UpdateGCMMA(x,df0,f0,fi,dg_par.data(),xmin,xmax,
-                [&](const Vector& xc,Vector& fo,Vector*){
-                    auto [f,fii]=EvalF(xc,nl);(void)f;
-                    fo[0]=fii(0);fo[1]=fii(1);
-                },&inner);
+                [&](const Vector& xc, Vector& fo, real_t& f0o){
+                    auto [f,fii]=EvalF(xc,nl);
+                    f0o=f; fo[0]=fii(0); fo[1]=fii(1);
+                },10,&inner);
             for(int j=0;j<nl;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             auto [f0b,fib]=EvalF(x,nl);
             kkt_p=opt.KKTresidual(x,df0,f0b,fib,dg_par.data(),xmin,xmax);
         }
         double xl=0; for(int j=0;j<nl;++j) xl+=double(x(j));
         xmean_p=GSum(xl)/n;
-        iters_p=opt.NumIterations();
     }
 
     if(g_rank==0)
-        printf("  serial:   iters=%d  kkt=%.2e  xmean=%.6f\n"
-               "  parallel: iters=%d  kkt=%.2e  xmean=%.6f\n"
+        printf("  serial:   kkt=%.2e  xmean=%.6f\n"
+               "  parallel: kkt=%.2e  xmean=%.6f\n"
                "  |diff|=%.2e\n",
-               iters_s,double(kkt_s),xmean_s,iters_p,double(kkt_p),xmean_p,
+               double(kkt_s),xmean_s,double(kkt_p),xmean_p,
                std::abs(xmean_s-xmean_p));
 
     Check(kkt_s<1e-4,                           "serial converges");
@@ -606,15 +623,12 @@ static void Test_SerialParallelEquivalence()
 // ============================================================
 static void Test_ParallelCallback()
 {
-    if(g_rank==0) printf("\n── Test 8: Parallel callback with zero-DOF ranks ─────\n");
+    if(g_rank==0) printf("\n── Test 8: Parallel callback (multi-rank) ────────────\n");
 
-    int nranks;MPI_Comm_size(MPI_COMM_WORLD,&nranks);
-    const int n=std::max(1,nranks/2),m=2;
+    const int n=1000, m=2;
     const double Vfrac=0.4;
     MPI_Comm comm=MPI_COMM_WORLD;
     auto [nl,off]=Distribute(n);
-    (void)off;
-    int n_zero=int(GSum(nl==0?1.0:0.0));
 
     std::vector<Vector> dg(2);
     for(int k=0;k<2;++k){ dg[k].SetSize(nl); dg[k]=real_t(k==0?1.0/n:-1.0/n); }
@@ -623,7 +637,7 @@ static void Test_ParallelCallback()
     double a[2]={0,0},c[2]={cv,cv},d[2]={1,1};
     Vector x(nl),xmin(nl),xmax(nl),df0(nl);
     x=0.5; xmin=0.01; xmax=1.0;
-    SQOptimizerParallel opt(comm,nl,m,x,a,c,d);
+    MMAOptimizerParallel opt(comm,nl,m,x,a,c,d);
 
     std::vector<int> inner_hist;
     real_t kkt=1.0;
@@ -637,13 +651,14 @@ static void Test_ParallelCallback()
 
         int inner=0;
         opt.UpdateGCMMA(x,df0,f0,fi,dg.data(),xmin,xmax,
-            [&](const Vector& xc,Vector& fo,Vector*){
+            [&](const Vector& xc, Vector& fo, real_t& f0o){
                 // All ranks participate in the allreduce
-                double gl=0;
-                for(int j=0;j<xc.Size();++j)gl+=double(xc(j));
+                double fl=0,gl=0;
+                for(int j=0;j<xc.Size();++j){fl+=1.0/double(xc(j));gl+=double(xc(j));}
+                f0o=real_t(GSum(fl)/n);
                 fo[0]=real_t(GSum(gl)/n-Vfrac);
                 fo[1]=real_t((Vfrac-0.05)-GSum(gl)/n);
-            },&inner);
+            },10,&inner);
 
         inner_hist.push_back(inner);
 
@@ -662,10 +677,9 @@ static void Test_ParallelCallback()
         *std::max_element(inner_hist.begin(),inner_hist.end());
 
     if(g_rank==0)
-        printf("  iters=%d  kkt=%.2e  xmean=%.4f(%.2f)  max_inner=%d zero_ranks=%d\n",
-               (int)inner_hist.size(),double(kkt),xmean,Vfrac,max_inner_seen,n_zero);
+        printf("  iters=%d  kkt=%.2e  xmean=%.4f(%.2f)  max_inner=%d\n",
+               (int)inner_hist.size(),double(kkt),xmean,Vfrac,max_inner_seen);
 
-    Check(n_zero==nranks-n,"expected number of zero-DOF ranks participated");
     Check(kkt<1e-4,         "parallel callback converges");
     Check(xmean>Vfrac-0.06, "lower volume bound satisfied");
     Check(xmean<Vfrac+0.01, "upper volume bound satisfied");
@@ -682,9 +696,9 @@ int main(int argc, char** argv)
 
     if(g_rank==0)
         printf("╔══════════════════════════════════════════════════════════╗\n"
-               "║  SQ GCMMA callback test suite (%2d rank(s))              ║\n"
+               "║  GCMMA callback test suite  (%2d rank(s))                ║\n"
                "╠══════════════════════════════════════════════════════════╣\n"
-               "║  Tests the SQ constraint conservatism loop               ║\n"
+               "║  Tests the full Svanberg §4 inner conservatism loop      ║\n"
                "╚══════════════════════════════════════════════════════════╝\n",
                nranks);
 
@@ -700,9 +714,9 @@ int main(int argc, char** argv)
     if(g_rank==0){
         printf("\n╔══════════════════════════════════════════════════════════╗\n");
         if(g_nfail==0)
-            printf("║  All SQ GCMMA callback tests PASSED.                     ║\n");
+            printf("║  All GCMMA callback tests PASSED.                        ║\n");
         else
-            printf("║  %d SQ GCMMA callback test(s) FAILED.%-18s║\n",g_nfail,"");
+            printf("║  %d GCMMA callback test(s) FAILED.%-21s║\n",g_nfail,"");
         printf("╚══════════════════════════════════════════════════════════╝\n");
     }
     MPI_Finalize();

@@ -2,8 +2,8 @@
  * test_sq.cpp  —  SQOptimizer / SQOptimizerParallel test suite
  *
  * Tests the separable quadratic (SQ) approximation optimiser on the same
- * canonical problems used for MMA, verifying that the interface is identical
- * and that convergence matches or exceeds MMA on convex problems.
+ * canonical problems used for MMA, verifying the shared core interface and
+ * comparing convergence on convex problems.
  *
  * Test catalogue
  * ──────────────
@@ -16,8 +16,8 @@
  *  3. SQOptimizer with equality  (WithEqualities factory)
  *     min (1/n) Σ (xj - aj)²   s.t. mean(x) = Vfrac
  *
- *  4. GCMMA variant (UpdateGCMMA)
- *     Same as Test 1 with UpdateGCMMA.
+ *  4. UpdateGCMMA API smoke test
+ *     Unconstrained quadratic using the GCMMA convenience overload.
  *
  *  5. Parallel (SQOptimizerParallel)
  *     Same as Test 2 distributed across MPI ranks.
@@ -48,6 +48,9 @@ static void Check(bool cond, const char* msg)
 static double GSum(double v)
 { double g; MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD); return g; }
 
+static double GMax(double v)
+{ double g; MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD); return g; }
+
 static std::pair<int,int> Distribute(int n)
 {
     int nr; MPI_Comm_size(MPI_COMM_WORLD,&nr);
@@ -71,7 +74,11 @@ static void Test_Unconstrained()
         for (int j=0;j<n;++j) df0(j) = real_t(2.0*(double(x(j))-double(a(j)))/n);
         double f0 = 0; for (int j=0;j<n;++j) f0 += std::pow(double(x(j))-double(a(j)),2)/n;
         opt.Update(x, df0, real_t(f0), xmin, xmax);
-        for (int j=0;j<n;++j) df0(j) = real_t(2.0*(double(x(j))-double(a(j)))/n);
+        f0=0;
+        for (int j=0;j<n;++j) {
+            double r=double(x(j))-double(a(j));
+            df0(j)=real_t(2.0*r/n); f0+=r*r/n;
+        }
         kkt = opt.KKTresidual(x, df0, real_t(f0), xmin, xmax);
     }
 
@@ -96,14 +103,17 @@ static void Test_Constrained()
     SQOptimizer opt(n, 1, x);
 
     real_t kkt = 1.0;
-    for (int it=0; it<500 && kkt>1e-6 && !std::isnan(double(kkt)); ++it) {
+    for (int it=0; it<500 && kkt>1e-8 && !std::isnan(double(kkt)); ++it) {
         for (int j=0;j<n;++j) df0(j) = real_t(-1.0/(n*double(x(j))*double(x(j))));
         double f0 = 0; for (int j=0;j<n;++j) f0 += 1.0/(n*double(x(j)));
         double xm = 0; for (int j=0;j<n;++j) xm += double(x(j)); xm /= n;
         Vector fi(1); fi(0) = real_t(xm - Vfrac);
         Vector dg_arr[1] = {dg};
         opt.Update(x, df0, real_t(f0), fi, dg_arr, xmin, xmax);
-        for (int j=0;j<n;++j) df0(j) = real_t(-1.0/(n*double(x(j))*double(x(j))));
+        f0=0;
+        for (int j=0;j<n;++j) {
+            double xj=double(x(j));df0(j)=real_t(-1.0/(n*xj*xj));f0+=1.0/(n*xj);
+        }
         xm = 0; for (int j=0;j<n;++j) xm += double(x(j)); xm /= n;
         fi(0) = real_t(xm - Vfrac);
         kkt = opt.KKTresidual(x, df0, real_t(f0), fi, dg_arr, xmin, xmax);
@@ -141,7 +151,11 @@ static void Test_Equality()
         Vector dh_arr[1] = {dh};
         PackedDfidx dfidx(nullptr, 0, dh_arr, 1);
         opt.Update(x, df0, real_t(f0), fival, dfidx.data(), xmin, xmax);
-        for (int j=0;j<n;++j) df0(j) = real_t(2.0*(double(x(j))-double(a(j)))/n);
+        f0=0;
+        for (int j=0;j<n;++j) {
+            double r=double(x(j))-double(a(j));
+            df0(j)=real_t(2.0*r/n);f0+=r*r/n;
+        }
         xm = 0; for (int j=0;j<n;++j) xm += double(x(j)); xm /= n;
         h_eq(0) = real_t(xm - Vfrac);
         fival = PackFival(Vector(0), h_eq);
@@ -155,17 +169,17 @@ static void Test_Equality()
         xm += double(x(j));
     }
     xm /= n;
-    if (g_rank==0) printf("  kkt=%.2e  xmean=%.6f(%.2f)  err=%.2e\n",
-                          double(kkt), xm, Vfrac, err);
+    if (g_rank==0) printf("  kkt=%.2e  xmean=%.6f(%.2f)  err=%.2e  iters=%d\n",
+                          double(kkt),xm,Vfrac,err,opt.NumIterations());
     Check(kkt < 1e-8,                "SQ equality: converges");
     Check(std::abs(xm-Vfrac)<1e-5,   "SQ equality: constraint satisfied");
     Check(err < 1e-2,                "SQ equality: matches analytic optimum");
 }
 
-// ── Test 4: GCMMA variant ─────────────────────────────────────────────────
+// ── Test 4: UpdateGCMMA convenience-API smoke test ────────────────────────
 static void Test_GCMMA()
 {
-    if (g_rank==0) printf("\n── Test 4: GCMMA (SQOptimizer::UpdateGCMMA) ─────────\n");
+    if (g_rank==0) printf("\n── Test 4: UpdateGCMMA API (unconstrained SQ) ────────\n");
     const int n = 100;
     Vector a(n), x(n), xmin(n), xmax(n), df0(n);
     for (int j=0;j<n;++j) a(j) = real_t(0.2 + 0.6*j/(n-1));
@@ -177,12 +191,17 @@ static void Test_GCMMA()
         for (int j=0;j<n;++j) df0(j) = real_t(2.0*(double(x(j))-double(a(j)))/n);
         double f0 = 0; for (int j=0;j<n;++j) f0 += std::pow(double(x(j))-double(a(j)),2)/n;
         opt.UpdateGCMMA(x, df0, real_t(f0), xmin, xmax);
-        for (int j=0;j<n;++j) df0(j) = real_t(2.0*(double(x(j))-double(a(j)))/n);
+        f0=0;
+        for (int j=0;j<n;++j) {
+            double r=double(x(j))-double(a(j));
+            df0(j)=real_t(2.0*r/n);f0+=r*r/n;
+        }
         kkt = opt.KKTresidual(x, df0, real_t(f0), xmin, xmax);
     }
     double err = 0;
     for (int j=0;j<n;++j) err = std::max(err, std::abs(double(x(j))-double(a(j))));
-    if (g_rank==0) printf("  kkt=%.2e  err=%.2e\n", double(kkt), err);
+    if (g_rank==0) printf("  kkt=%.2e  err=%.2e  iters=%d\n",
+                          double(kkt),err,opt.NumIterations());
     Check(kkt < 1e-8, "SQ GCMMA converges");
     Check(err < 1e-3, "SQ GCMMA matches analytic");
 }
@@ -211,10 +230,15 @@ static void Test_Parallel()
     }
     for (int j=0;j<nl;++j) dg(j) = real_t(1.0/n);
 
+    double am_loc=0;for(int j=0;j<nl;++j)am_loc+=double(a_vec(j));
+    double mean_a=GSum(am_loc)/n;
+
     SQOptimizerParallel opt(comm, nl, 1, x);
 
     real_t kkt = 1.0;
-    for (int it=0; it<200 && kkt>1e-7 && !std::isnan(double(kkt)); ++it) {
+    double maxerr=1.0;
+    for(int it=0;it<200&&(kkt>1e-7||maxerr>1e-3)&&
+        !std::isnan(double(kkt));++it) {
         double f0_loc=0;
         for (int j=0;j<nl;++j) {
             double r=double(x(j))-double(a_vec(j));
@@ -237,13 +261,23 @@ static void Test_Parallel()
         xm=GSum(xm_loc)/n;
         fi(0)=real_t(xm-Vfrac);
         kkt=opt.KKTresidual(x,df0,real_t(f0),fi,dg_arr,xmin,xmax);
+        double err_loc=0;
+        for(int j=0;j<nl;++j){
+            double expected=std::max(double(xmin(j)),std::min(double(xmax(j)),
+                                          double(a_vec(j))-mean_a+Vfrac));
+            err_loc=std::max(err_loc,std::abs(double(x(j))-expected));
+        }
+        maxerr=GMax(err_loc);
     }
 
     double xm_loc=0; for (int j=0;j<nl;++j) xm_loc+=double(x(j));
     double xm=GSum(xm_loc)/n;
-    if (g_rank==0) printf("  kkt=%.2e  xmean=%.6f(<=%.2f)\n", double(kkt), xm, Vfrac);
+    if (g_rank==0)
+        printf("  kkt=%.2e  xmean=%.6f(%.2f)  max_err=%.2e  iters=%d\n",
+               double(kkt),xm,Vfrac,maxerr,opt.NumIterations());
     Check(kkt < 1e-5,       "SQ parallel converges");
-    Check(xm <= Vfrac+1e-4, "SQ parallel constraint satisfied");
+    Check(std::abs(xm-Vfrac)<1e-4,"SQ parallel active constraint satisfied");
+    Check(maxerr<1e-3,      "SQ parallel matches analytic optimum");
 }
 
 // ── Test 6: SQ vs MMA comparison ─────────────────────────────────────────
@@ -251,13 +285,13 @@ static void Test_Comparison()
 {
     if (g_rank==0) printf("\n── Test 6: SQ vs MMA convergence comparison ─────────\n");
     const int n = 200;
-    Vector a(n), xmin(n), xmax(n), df0(n), dg(n);
-    for (int j=0;j<n;++j) a(j) = real_t(0.1+0.8*j/(n-1));
+    Vector xmin(n), xmax(n), df0(n), dg(n);
     xmin = real_t(0.01); xmax = real_t(0.99);
     for (int j=0;j<n;++j) dg(j) = real_t(1.0/n);
     const double Vfrac = 0.4;
 
-    auto runOpt = [&](auto& opt, const char* name) -> int {
+    struct RunResult { int iters; double kkt; double xmean; };
+    auto runOpt = [&](auto& opt, const char* name) -> RunResult {
         Vector x(n); x = real_t(0.5);
         real_t kkt = 1.0;
         int it = 0;
@@ -267,25 +301,33 @@ static void Test_Comparison()
             double xm=0; for(int j=0;j<n;++j) xm+=double(x(j)); xm/=n;
             Vector fi(1); fi(0)=real_t(xm-Vfrac); Vector dg_arr[1]={dg};
             opt.Update(x, df0, real_t(f0), fi, dg_arr, xmin, xmax);
-            for (int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
+            f0=0;
+            for(int j=0;j<n;++j){
+                double xj=double(x(j));df0(j)=real_t(-1.0/(n*xj*xj));f0+=1.0/(n*xj);
+            }
             xm=0; for(int j=0;j<n;++j) xm+=double(x(j)); xm/=n;
             fi(0)=real_t(xm-Vfrac);
             kkt=opt.KKTresidual(x,df0,real_t(f0),fi,dg_arr,xmin,xmax);
         }
-        if (g_rank==0) printf("  %-8s  iters=%3d  kkt=%.2e\n", name, it, double(kkt));
-        return it;
+        double xm=0;for(int j=0;j<n;++j)xm+=double(x(j));xm/=n;
+        if (g_rank==0) printf("  %-8s  iters=%3d  kkt=%.2e  xmean=%.6f\n",
+                              name,it,double(kkt),xm);
+        return {it,double(kkt),xm};
     };
 
     Vector x0(n); x0 = real_t(0.5);
     MMAOptimizer mma(n, 1, x0);
     SQOptimizer  sq (n, 1, x0);
-    int it_mma = runOpt(mma, "MMA");
-    int it_sq  = runOpt(sq,  "SQ");
+    RunResult mma_result=runOpt(mma,"MMA");
+    RunResult sq_result =runOpt(sq,"SQ");
 
-    Check(it_mma < 500, "MMA converges within 500 iters");
-    Check(it_sq  < 500, "SQ converges within 500 iters");
+    Check(mma_result.iters<500&&mma_result.kkt<1e-7,"MMA converges within 500 iters");
+    Check(sq_result.iters <500&&sq_result.kkt <1e-7,"SQ converges within 500 iters");
+    Check(std::abs(mma_result.xmean-Vfrac)<1e-4,"MMA comparison solution feasible");
+    Check(std::abs(sq_result.xmean-Vfrac)<1e-4,"SQ comparison solution feasible");
     // Both should converge; no strict ordering required (problem dependent)
-    if (g_rank==0) printf("  SQ/MMA iter ratio: %.2f\n", (double)it_sq/it_mma);
+    if(g_rank==0)printf("  SQ/MMA iter ratio: %.2f\n",
+                        double(sq_result.iters)/mma_result.iters);
 }
 
 // ── main ──────────────────────────────────────────────────────────────────
@@ -301,7 +343,7 @@ int main(int argc, char** argv)
                "║  (%2d rank(s))  —  Svanberg 2007 §5.1 approximation      ║\n"
                "╠══════════════════════════════════════════════════════════╣\n"
                "║  σ_j = 0.5*(xmax_j-xmin_j)  (default scaling)           ║\n"
-               "║  Same interface as MMAOptimizer / MMAOptimizerParallel   ║\n"
+               "║  Core API aligned with MMA serial and parallel classes   ║\n"
                "╚══════════════════════════════════════════════════════════╝\n",
                nranks);
 

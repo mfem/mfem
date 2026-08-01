@@ -182,11 +182,11 @@ if [[ "$MODE" == "serial" || "$MODE" == "all" ]]; then
 section "Core: serial"
 run_serial  mma_serial              test_mma_serial
 run_serial  mma_unconstrained       test_mma_unconstrained
-run_serial  gcmma_serial            test_gcmma
-run_serial  gcmma_callback_serial   test_gcmma_callback
-run_serial  zero_ranks_1            test_zero_ranks
-run_serial  overconstrained_serial  test_overconstrained
-run_serial  equalities_serial       test_equalities
+run_serial  mma_gcmma_serial            test_mma_gcmma
+run_serial  mma_gcmma_callback_serial   test_mma_gcmma_callback
+run_serial  mma_zero_ranks_1            test_mma_zero_ranks
+run_serial  mma_overconstrained_serial  test_mma_overconstrained
+run_serial  mma_equalities_serial       test_mma_equalities
 
 # ── Device (CPU) ─────────────────────────────────────────────────────────────
 
@@ -208,10 +208,10 @@ run_serial  sq_nonconvex_serial     test_sq_nonconvex
 
 # ── Relaxed equalities: serial ───────────────────────────────────────────────
 # Tests for PackFivalRelaxed() and WithRelaxedEqualities() — serial classes only.
-# Binary: test_relaxed_equalities_serial (no MPI_Init required).
+# Binary: test_mma_relaxed_equalities_serial (no MPI_Init required).
 
 section "Relaxed equalities: serial"
-run_serial  relaxed_eq_serial       test_relaxed_equalities_serial
+run_serial  mma_relaxed_eq_serial       test_mma_relaxed_equalities_serial
 
 fi  # MODE serial | all
 
@@ -223,7 +223,7 @@ if [[ "$MODE" == "parallel" || "$MODE" == "all" ]]; then
 section "Core: parallel ($NRANKS ranks)"
 run_parallel  mma_parallel          test_mma_parallel
 run_parallel  mma_unconstrained_par test_mma_unconstrained
-run_parallel  equalities_par        test_equalities
+run_parallel  mma_equalities_par        test_mma_equalities
 
 # ── SQ approximation: parallel ───────────────────────────────────────────────
 
@@ -234,7 +234,7 @@ run_parallel  sq_unconstrained_par  test_sq_unconstrained
 
 # ── Relaxed equalities: parallel ─────────────────────────────────────────────
 # Tests for MMAOptimizerParallel and SQOptimizerParallel with relaxed bands.
-# Binary: test_relaxed_equalities_parallel (requires MPI).
+# Binary: test_mma_relaxed_equalities_parallel (requires MPI).
 #   Serial entry  — runs the parallel binary with 1 rank (tests the serial fallback).
 #   Parallel entry — runs with NRANKS ranks.
 
@@ -242,7 +242,7 @@ section "Relaxed equalities: parallel ($NRANKS ranks)"
 run_serial_and_parallel \
     relaxed_eq_par_serial  \
     relaxed_eq_par_${NRANKS}r \
-    test_relaxed_equalities_parallel
+    test_mma_relaxed_equalities_parallel
 
 fi  # MODE parallel | all
 

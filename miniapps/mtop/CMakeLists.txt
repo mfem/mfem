@@ -27,4 +27,10 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 					 ${PAR_MTOP_COMMON_FILES}
 					 LIBRARIES mfem)
 
+	add_mfem_miniapp(pde_filter_example
+					 MAIN pde_filter_example.cpp
+					 EXTRA_SOURCES pde_filter.cpp
+					 EXTRA_HEADERS pde_filter.hpp
+					 LIBRARIES mfem)
+
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)

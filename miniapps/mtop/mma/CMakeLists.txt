@@ -325,23 +325,23 @@ enable_testing()
 mma_add_test(NAME test_mma_serial        PARALLEL)
 mma_add_test(NAME test_mma_parallel      PARALLEL)
 mma_add_test(NAME test_mma_unconstrained PARALLEL)
-mma_add_test(NAME test_gcmma             PARALLEL)
-mma_add_test(NAME test_gcmma_callback    PARALLEL)
-mma_add_test(NAME test_zero_ranks        PARALLEL)
-mma_add_test(NAME test_overconstrained   PARALLEL)
-mma_add_test(NAME test_nonconvex         PARALLEL)
-mma_add_test(NAME test_equalities                    PARALLEL)
-mma_add_test(NAME test_relaxed_equalities_serial)
-mma_add_test(NAME test_relaxed_equalities_parallel   PARALLEL)
+mma_add_test(NAME test_mma_gcmma                      PARALLEL)
+mma_add_test(NAME test_mma_gcmma_callback             PARALLEL)
+mma_add_test(NAME test_mma_zero_ranks                 PARALLEL)
+mma_add_test(NAME test_mma_overconstrained            PARALLEL)
+mma_add_test(NAME test_mma_nonconvex                  PARALLEL)
+mma_add_test(NAME test_mma_equalities                 PARALLEL)
+mma_add_test(NAME test_mma_relaxed_equalities_serial)
+mma_add_test(NAME test_mma_relaxed_equalities_parallel PARALLEL)
 
 # Large nonconvex run: opt-in via ctest -L large  (slow, 100k-1M DOF)
 if(MPIEXEC_EXECUTABLE)
   add_test(
-    NAME test_nonconvex_large_4
+    NAME test_mma_nonconvex_large_4
     COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
-            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:test_nonconvex>
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:test_mma_nonconvex>
             --large ${MPIEXEC_POSTFLAGS})
-  set_tests_properties(test_nonconvex_large_4 PROPERTIES
+  set_tests_properties(test_mma_nonconvex_large_4 PROPERTIES
     TIMEOUT 600 LABELS "large")
 endif()
 
@@ -376,6 +376,18 @@ if(NVIDIA_SMI OR ROCM_INFO OR DEFINED ENV{CUDA_VISIBLE_DEVICES})
               --device ${_gpu} ${MPIEXEC_POSTFLAGS})
   endif()
 endif()
+
+#CCSA Bregman approximation
+mma_add_test(NAME test_ccsa_parallel PARALLEL)
+mma_add_test(NAME test_ccsa_nonconvex PARALLEL)
+mma_add_test(NAME test_ccsa_serial PARALLEL)
+mma_add_test(NAME test_ccsa_gcmma PARALLEL)
+mma_add_test(NAME test_ccsa_gcmma_callback  PARALLEL)
+mma_add_test(NAME test_ccsa_equalities  PARALLEL)
+mma_add_test(NAME test_ccsa_device  PARALLEL)
+mma_add_test(NAME test_ccsa_overconstrained PARALLEL)
+mma_add_test(NAME test_ccsa_unconstrained PARALLEL)
+mma_add_test(NAME test_ccsa_zero_ranks PARALLEL)
 
 # ---- SQ approximation -------------------------------------------------------
 
@@ -433,6 +445,16 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_mma_mfem.cpp")
   add_test(NAME test_mma_mfem_legacy COMMAND test_mma_mfem)
   set_tests_properties(test_mma_mfem_legacy PROPERTIES LABELS "legacy")
 endif()
+
+# ---- Legacy combined test (kept for backward compatibility) -----------------
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_ccsa_mfem.cpp")
+  add_executable(test_ccsa_mfem test_ccsa_mfem.cpp)
+  target_link_libraries(test_ccsa_mfem PRIVATE mma_mfem_lib)
+  add_test(NAME test_ccsa_mfem_legacy COMMAND test_ccsa_mfem)
+  set_tests_properties(test_ccsa_mfem_legacy PROPERTIES LABELS "legacy")
+endif()
+
 
 # ---- Legacy MMA.cpp (original non-MFEM implementation) ---------------------
 # Built only to verify it compiles; not linked into any test.

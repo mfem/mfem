@@ -2,6 +2,7 @@
 
 #include "mfem.hpp"
 #include <memory>
+#include <vector>
 
 namespace toopt
 {
@@ -38,10 +39,21 @@ struct PDEFilterOptions
 /// where K is the H1 diffusion matrix, M the H1 mass matrix, and M_fc
 /// the mixed mass matrix (control trial, filter test).
 ///
+/// Optional essential Dirichlet conditions use the same configuration pattern
+/// as the diffusion solvers in the stokes directory:
+///
+///   AddBoundaryCondition(attribute, coefficient_or_value);
+///   Assemble();
+///
+/// With nonzero Dirichlet data, Mult() is an affine filter map. In that case
+/// MultTranspose() applies the transpose of its linearization: essential output
+/// rows, which do not depend on the control vector, contribute zero sensitivity.
+///
 /// Typical usage:
 /// @code
 ///   PDEFilter filter(fes_filter, fes_control, opts);
 ///   filter.SetDiffusionCoeff(my_coeff);  // optional
+///   filter.AddBoundaryCondition(1, 0.0); // optional
 ///   filter.Assemble();
 ///
 ///   // True-dof interface (Operator)
@@ -85,6 +97,18 @@ public:
 
     /// @brief Full-tensor diffusion: r^2 * M(x).
     void SetDiffusionCoeff(MatrixCoefficient& coeff);
+
+    /// @brief Add or replace coefficient-valued Dirichlet data.
+    ///
+    /// The boundary attribute is a one-based MFEM boundary attribute id.
+    /// The coefficient is borrowed and must remain alive through Assemble().
+    void AddBoundaryCondition(int boundary_attribute, Coefficient& coefficient);
+
+    /// @brief Add or replace an internally owned constant Dirichlet value.
+    void AddBoundaryCondition(int boundary_attribute, real_t value);
+
+    /// @brief Remove all recorded Dirichlet boundary conditions.
+    void ClearBoundaryConditions();
 
     /// @brief Assemble the system matrix and set up the AMG+PCG solver.
     ///
@@ -133,12 +157,50 @@ public:
     /// Assembled system matrix.  Null before Assemble().
     HypreParMatrix* GetSystemMatrix() const { return filter_mat_.get(); }
 
+    /// Uneliminated filter matrix. Null before Assemble().
+    HypreParMatrix* GetFullMatrix() const { return filter_full_mat_.get(); }
+
+    /// Return the number of recorded boundary-attribute conditions.
+    int GetNumBoundaryConditions() const
+    { return static_cast<int>(boundary_conditions_.size()); }
+
+    /// Return true if the assembled filter has essential boundary conditions.
+    bool HasEssentialBoundaryConditions() const
+    { return assembled_ && !boundary_conditions_.empty(); }
+
+    /// Return true until Assemble() has completed.
+    bool NeedsAssembly() const { return !assembled_; }
+
+    /// Return the assembled essential true-DOF list.
+    const Array<int>& GetEssentialTrueDofs() const { return ess_tdof_list_; }
+
+    /// Return the assembled boundary-attribute marker.
+    const Array<int>& GetBoundaryAttributeMarker() const
+    { return bdr_attr_marker_; }
+
+    /// Return prescribed boundary values in filter true-DOF layout.
+    const Vector& GetEssentialTrueDofValues() const { return x_bc_; }
+
     MPI_Comm GetComm() const { return fes_filter_->GetComm(); }
 
 private:
+    struct BoundaryConditionEntry
+    {
+        int boundary_attribute = 0;
+        Coefficient* coefficient = nullptr;
+        std::unique_ptr<Coefficient> owned_coefficient;
+    };
+
     void AssembleBilinearForm_();
     void AssembleMixedMass_();
+    void BuildBoundaryValuesAndMarkers_();
     void SetupSolver_();
+    void FormSystemRHS_(const Vector& rhs, Vector& system_rhs) const;
+    void ZeroEssentialValues_(Vector& x) const;
+    void CopyEssentialValues_(Vector& x) const;
+    int MaxBoundaryAttribute_() const;
+    void ValidateBoundaryAttribute_(int boundary_attribute) const;
+    void RemoveBoundaryCondition_(int boundary_attribute);
     void CheckConvergence_(const Vector& b,
                            const Vector& x,
                            const char*   context) const;
@@ -151,9 +213,16 @@ private:
     std::unique_ptr<ParBilinearForm>      filter_bf_;
     std::unique_ptr<ParMixedBilinearForm> mixed_mass_;
     std::unique_ptr<HypreParMatrix>       mixed_mass_mat_;
+    std::unique_ptr<HypreParMatrix>       filter_full_mat_;
     std::unique_ptr<HypreParMatrix>       filter_mat_;
+    std::unique_ptr<HypreParMatrix>       filter_eliminated_mat_;
     std::unique_ptr<HypreBoomerAMG>       amg_prec_;
     std::unique_ptr<HyprePCG>             solver_;
+
+    std::vector<BoundaryConditionEntry> boundary_conditions_;
+    Array<int> bdr_attr_marker_;
+    Array<int> ess_tdof_list_;
+    Vector x_bc_;
 
     struct DiffCoeff {
         Coefficient*       scalar = nullptr;

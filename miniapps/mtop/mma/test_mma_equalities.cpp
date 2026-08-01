@@ -1,5 +1,5 @@
 /**
- * test_equalities.cpp  —  Equality-constraint MMA/GCMMA test suite
+ * test_mma_equalities.cpp  —  Equality-constraint MMA/GCMMA test suite
  *
  * Tests the WithEqualities() factory and the dual solver's handling of
  * free-sign (unconstrained) Lagrange multipliers for equality constraints.
@@ -44,8 +44,8 @@
  *     verify the optimiser recovers feasibility and converges.
  *
  * Build:  cmake --build build
- * Run:    ./build/test_equalities
- *         mpirun -np 4 ./build/test_equalities
+ * Run:    ./build/test_mma_equalities
+ *         mpirun -np 4 ./build/test_mma_equalities
  */
 
 #include "MMA_MFEM.hpp"

@@ -1,42 +1,50 @@
 /**
- * test_sq_overconstrained.cpp  —  SQOptimizer over-constrained test suite
+ * test_ccsa_overconstrained.cpp  —  CCSAOptimizer over-constrained test suite
  *
- * Same m>n problems as test_mma_overconstrained.cpp using SQOptimizer.
+ * Same m>n problems as test_sq_overconstrained.cpp (which, despite its
+ * name, actually exercises MMAOptimizer/MMAOptimizerParallel throughout —
+ * this port follows the actual code, using CCSAOptimizer/
+ * CCSAOptimizerParallel instead).
  *
- * Tests MMA and GCMMA when the number of constraints m exceeds (or equals)
- * the number of design variables n.  This regime stresses:
+ * Tests CCSA and GCMMA when the number of constraints m exceeds (or equals)
+ * the number of design variables n. This regime stresses:
  *
  *   - The m×m dual Newton system  (m > n means a larger dense solve than
  *     the usual m << n case used in topology optimisation)
  *   - The redundancy / near-rank-deficiency of the dual Hessian when many
  *     constraints become simultaneously active
- *   - The SVD fallback in SolveDense() for exactly linearly-dependent rows
+ *   - The SVD fallback in detail::SolveDense() for exactly linearly-
+ *     dependent rows (shared with MMA_MFEM.cpp, not duplicated here)
  *
  * Problems
  * ────────
  *  1. m = n      (square: equal number of constraints and variables)
  *  2. m = 2*n    (overdetermined: twice as many constraints)
  *  3. m = 5*n    (highly overdetermined)
- *  4. m = n with redundant constraint pairs  (rank-deficient dual Hessian)
- *  5. Parallel versions of the above
+ *  4. Parallel versions of the above
  *
  * Problem structure (compliance proxy with many regional volume constraints)
  * ──────────────────────────────────────────────────────────────────────────
  *   min  sum(1/xj)
  *   s.t. x_j <= V_k   for each variable j  (individual upper bound)
- *        or: mean(x_region_k) <= V_k  with regions of size 1
  *
  * When each constraint controls exactly one variable (region size = 1),
  * n constraints fully determine the solution: x_j* = V_j.
  * With m > n we add extra constraints (e.g. global mean) that are
  * implied by the individual bounds — making the system redundant.
  *
- * Build:  cmake --build build
- * Run:    ./build/test_sq_overconstrained
- *         mpirun -np 4 ./build/test_sq_overconstrained
+ * CCSAOptimizer/CCSAOptimizerParallel work directly on the LATENT variable
+ * eta: Update()/UpdateGCMMA()/KKTresidual() take/return eta, not the
+ * physical design, and take no xmin/xmax. RunOverconstrained() builds a
+ * BoundsGeometry up front, seeds eta = opt.ToLatent(x0), and converts back
+ * via opt.ToPhysical(eta) whenever the physical point is needed.
+ *
+ * Build:  cmake --build build   (links MMA_MFEM.cpp + CCSA_Bregman_MFEM.cpp)
+ * Run:    ./build/test_ccsa_overconstrained
+ *         mpirun -np 4 ./build/test_ccsa_overconstrained
  */
 
-#include "MMA_MFEM.hpp"
+#include "CCSA_Bregman_MFEM.hpp"
 #include <mfem.hpp>
 #include <mpi.h>
 #include <cmath>
@@ -61,6 +69,9 @@ static void Check(bool cond, const char* msg)
 
 static double GSum(double v)
 { double g; MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD); return g; }
+
+static double GMax(double v)
+{ double g; MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD); return g; }
 
 static std::pair<int,int> Distribute(int n)
 {
@@ -123,22 +134,26 @@ static mfem::Vector ComputeConstraintValues(
         if (g < n_global && g < m)
             fi_loc[g]= double(x_local(j)) - Vtgt[g];
     }
-    // Global mean constraint for k >= n_global
+    // Global mean constraint for k >= n_global.  xmean is already global,
+    // so do not place its value in every rank's reduction buffer: summing
+    // identical copies would multiply the constraint by the rank count
+    // while its gradient remains 1/n_global.
     double xloc = 0.0;
     for (int j = 0; j < n_local; ++j) xloc += double(x_local(j));
     double xmean = GSum(xloc) / n_global;
-    for (int k = n_global; k < m; ++k)
-        fi_loc[k]= xmean - Vglobal;   // same value for all extra constraints
 
-    // Allreduce: for k < n_global, only one rank has a non-zero contribution
+    // For k < n_global, only one rank has a non-zero contribution.
     std::vector<double> fi_glb(m);
     MPI_Allreduce(fi_loc.data(), fi_glb.data(), m, MPI_DOUBLE, MPI_SUM, comm);
+    // Assign each already-global mean constraint once, after the reduction.
+    for (int k = n_global; k < m; ++k)
+        fi_glb[k] = xmean - Vglobal;
     for (int k = 0; k < m; ++k) fi(k)= real_t(fi_glb[k]);
     return fi;
 }
 
 // ============================================================
-// Core test: run MMA/GCMMA with m constraints and n variables
+// Core test: run CCSA/GCMMA with m constraints and n variables
 // (possibly m >= n), check convergence and solution quality.
 // ============================================================
 static void RunOverconstrained(
@@ -149,7 +164,7 @@ static void RunOverconstrained(
 {
     if (g_rank == 0)
         printf("\n  %-60s [%s, %s]\n", label,
-               gcmma?"GCMMA":"MMA", parallel?"parallel":"serial");
+               gcmma?"GCMMA":"CCSA", parallel?"parallel":"serial");
 
     // Per-variable targets V_k in (0.3, 0.7) with deterministic pattern
     std::vector<double> Vtgt(n_global);
@@ -163,20 +178,30 @@ static void RunOverconstrained(
     if (!parallel) {
         if (g_rank != 0) return;
 
-        Vector x(n_global), xmin(n_global), xmax(n_global), df0(n_global);
-        x = 0.5; xmin = 0.001; xmax = 1.0;
+        Vector xmin(n_global), xmax(n_global), df0(n_global);
+        xmin = 0.001; xmax = 1.0;
 
         std::vector<Vector> dg_s;
         std::vector<double> cv_s;
         BuildConstraints(n_global, m, n_global, 0, Vtgt, Vglobal, dg_s, cv_s);
 
         std::vector<double> av(m, 0.0), dv(m, 1.0);
-        MMAOptimizer opt(n_global, m, x, av.data(), cv_s.data(), dv.data());
+        BoundsGeometry bounds = BoundsGeometry::TwoSided(xmin, xmax);
+        CCSAOptimizer opt(n_global, m, bounds, av.data(), cv_s.data(), dv.data());
+        Vector x0(n_global); x0 = 0.5;
+        Vector eta = opt.ToLatent(x0);
+        Vector x(n_global);
 
         real_t kkt = 1.0;
         for (int it = 0; it < 500 && kkt > 1e-5; ++it) {
+            x = opt.ToPhysical(eta);
+            double f0 = 0.0;
             for (int j = 0; j < n_global; ++j)
-                df0(j) = real_t(-1.0/(double(x(j))*double(x(j))));
+            {
+                const double xj = double(x(j));
+                df0(j) = real_t(-1.0/(xj*xj));
+                f0 += 1.0/xj;
+            }
 
             // fi(k)= x[k] - Vtgt[k] for k < n_global; global mean for k >= n_global
             mfem::Vector fi(m);
@@ -186,35 +211,57 @@ static void RunOverconstrained(
             for (int k = n_global; k < m; ++k)
                 fi(k)= real_t(xmean - Vglobal);
 
-            if (gcmma)
-                opt.UpdateGCMMA(x,df0,0.0f,fi,dg_s.data(),xmin,xmax);
+            if (gcmma) {
+                opt.UpdateGCMMA(eta,df0,real_t(f0),fi,dg_s.data(),
+                    [&](const Vector& xc, Vector& fi_hat, real_t& f0_hat){
+                        double fc=0.0, xmean_c=0.0;
+                        for (int j=0;j<n_global;++j){
+                            const double xj=double(xc(j));
+                            fc+=1.0/xj;
+                            xmean_c+=xj/n_global;
+                        }
+                        for (int k=0;k<n_global && k<m;++k)
+                            fi_hat(k)=real_t(double(xc(k))-Vtgt[k]);
+                        for (int k=n_global;k<m;++k)
+                            fi_hat(k)=real_t(xmean_c-Vglobal);
+                        f0_hat=real_t(fc);
+                    }, /*max_inner=*/15);
+            }
             else
-                opt.Update(x,df0,0.0f,fi,dg_s.data(),xmin,xmax);
+                opt.Update(eta,df0,real_t(f0),fi,dg_s.data());
 
+            x = opt.ToPhysical(eta);
+            f0 = 0.0;
             for (int j = 0; j < n_global; ++j)
-                df0(j) = real_t(-1.0/(double(x(j))*double(x(j))));
+            {
+                const double xj = double(x(j));
+                df0(j) = real_t(-1.0/(xj*xj));
+                f0 += 1.0/xj;
+            }
             for (int k = 0; k < n_global && k < m; ++k)
                 fi(k)= real_t(double(x(k)) - Vtgt[k]);
             xmean=0; for(int j=0;j<n_global;++j) xmean+=double(x(j)); xmean/=n_global;
             for (int k = n_global; k < m; ++k)
                 fi(k)= real_t(xmean - Vglobal);
 
-            kkt = opt.KKTresidual(x,df0,0.0f,fi,dg_s.data(),xmin,xmax);
+            kkt = opt.KKTresidual(eta,df0,real_t(f0),fi,dg_s.data());
             if (it % 50 == 0)
                 printf("    iter %4d: kkt=%.3e\n", it, double(kkt));
         }
 
         // Check solution: x_k should be at or below Vtgt[k]
+        x = opt.ToPhysical(eta);
         double maxviol = 0.0, maxerr = 0.0;
         for (int k = 0; k < n_global && k < m; ++k) {
             double viol = double(x(k)) - Vtgt[k];
             if (viol > 0) maxviol = std::max(maxviol, viol);
             maxerr = std::max(maxerr, std::abs(double(x(k)) - Vtgt[k]));
         }
-        printf("    Final: kkt=%.2e  max_viol=%.2e  iters=%d\n",
-               double(kkt), maxviol, opt.NumIterations());
+        printf("    Final: kkt=%.2e  max_viol=%.2e  max_err=%.2e  iters=%d\n",
+               double(kkt), maxviol, maxerr, opt.NumIterations());
         Check(kkt < 1e-4, (std::string(label)+" KKT<1e-4").c_str());
         Check(maxviol < 0.01, (std::string(label)+" no constraint violation").c_str());
+        Check(maxerr < 0.03, (std::string(label)+" matches active-bound solution").c_str());
         return;
     }
 
@@ -222,33 +269,58 @@ static void RunOverconstrained(
     auto [nl, off] = Distribute(n_global);
     MPI_Comm comm  = MPI_COMM_WORLD;
 
-    Vector x(nl), xmin(nl), xmax(nl), df0(nl);
-    x = 0.5; xmin = 0.001; xmax = 1.0;
+    Vector xmin(nl), xmax(nl), df0(nl);
+    xmin = 0.001; xmax = 1.0;
 
     std::vector<Vector> dg;
     std::vector<double> cv_v;
     BuildConstraints(n_global, m, nl, off, Vtgt, Vglobal, dg, cv_v);
 
     std::vector<double> av(m, 0.0), dv(m, 1.0);
-    MMAOptimizerParallel opt(comm, nl, m, x, av.data(), cv_v.data(), dv.data());
+    BoundsGeometry bounds = BoundsGeometry::TwoSided(xmin, xmax);
+    CCSAOptimizerParallel opt(comm, nl, m, bounds, av.data(), cv_v.data(), dv.data());
+    Vector x0(nl); x0 = 0.5;
+    Vector eta = opt.ToLatent(x0);
+    Vector x(nl);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 500 && kkt > 1e-5; ++it) {
+        x = opt.ToPhysical(eta);
+        double f0_loc = 0.0;
         for (int j = 0; j < nl; ++j)
-            df0(j) = real_t(-1.0/(double(x(j))*double(x(j))));
+        {
+            const double xj = double(x(j));
+            df0(j) = real_t(-1.0/(xj*xj));
+            f0_loc += 1.0/xj;
+        }
+        const double f0 = GSum(f0_loc);
 
         auto fi = ComputeConstraintValues(n_global, m, nl, off, x, Vtgt, Vglobal, comm);
 
-        if (gcmma)
-            opt.UpdateGCMMA(x,df0,0.0f,fi,dg.data(),xmin,xmax);
+        if (gcmma) {
+            opt.UpdateGCMMA(eta,df0,real_t(f0),fi,dg.data(),
+                [&](const Vector& xc, Vector& fi_hat, real_t& f0_hat){
+                    double fc_loc=0.0;
+                    for (int j=0;j<xc.Size();++j) fc_loc+=1.0/double(xc(j));
+                    f0_hat=real_t(GSum(fc_loc));
+                    fi_hat=ComputeConstraintValues(
+                        n_global,m,nl,off,xc,Vtgt,Vglobal,comm);
+                }, /*max_inner=*/15);
+        }
         else
-            opt.Update(x,df0,0.0f,fi,dg.data(),xmin,xmax);
+            opt.Update(eta,df0,real_t(f0),fi,dg.data());
 
+        x = opt.ToPhysical(eta);
+        f0_loc = 0.0;
         for (int j = 0; j < nl; ++j)
-            df0(j) = real_t(-1.0/(double(x(j))*double(x(j))));
+        {
+            const double xj = double(x(j));
+            df0(j) = real_t(-1.0/(xj*xj));
+            f0_loc += 1.0/xj;
+        }
 
         fi = ComputeConstraintValues(n_global, m, nl, off, x, Vtgt, Vglobal, comm);
-        kkt = opt.KKTresidual(x,df0,0.0f,fi,dg.data(),xmin,xmax);
+        kkt = opt.KKTresidual(eta,df0,real_t(GSum(f0_loc)),fi,dg.data());
 
         if (g_rank==0 && it%50==0)
             printf("    iter %4d: kkt=%.3e\n", it, double(kkt));
@@ -256,23 +328,27 @@ static void RunOverconstrained(
 
     // Gather all x values to rank 0 for checking
     // (Each rank allreduces its local per-variable values)
+    x = opt.ToPhysical(eta);
     std::vector<double> x_loc_vals(n_global, 0.0);
     for (int j = 0; j < nl; ++j)
         x_loc_vals[off + j] = double(x(j));
     std::vector<double> x_all(n_global, 0.0);
     MPI_Allreduce(x_loc_vals.data(), x_all.data(), n_global, MPI_DOUBLE, MPI_SUM, comm);
 
-    double maxviol = 0.0;
+    double maxviol = 0.0, maxerr = 0.0;
     for (int k = 0; k < n_global && k < m; ++k) {
         double viol = x_all[k] - Vtgt[k];
         if (viol > 0) maxviol = std::max(maxviol, viol);
+        maxerr = std::max(maxerr, std::abs(x_all[k]-Vtgt[k]));
     }
+    maxerr = GMax(maxerr);
 
     if (g_rank==0)
-        printf("    Final: kkt=%.2e  max_viol=%.2e  iters=%d\n",
-               double(kkt), maxviol, opt.NumIterations());
+        printf("    Final: kkt=%.2e  max_viol=%.2e  max_err=%.2e  iters=%d\n",
+               double(kkt), maxviol, maxerr, opt.NumIterations());
     Check(kkt < 1e-4, (std::string(label)+" KKT<1e-4").c_str());
     Check(maxviol < 0.01, (std::string(label)+" no constraint violation").c_str());
+    Check(maxerr < 0.03, (std::string(label)+" matches active-bound solution").c_str());
 }
 
 // ============================================================
@@ -286,7 +362,7 @@ int main(int argc, char** argv)
 
     if (g_rank==0) {
         printf("╔══════════════════════════════════════════════════════════╗\n"
-               "║  Over-constrained MMA/GCMMA test  (%2d rank(s))          ║\n"
+               "║  Over-constrained CCSA/GCMMA test  (%2d rank(s))         ║\n"
                "╠══════════════════════════════════════════════════════════╣\n"
                "║  Tests m >= n: more constraints than design variables    ║\n"
                "║  Exercises the m×m dual Newton system at m>>n scale and  ║\n"

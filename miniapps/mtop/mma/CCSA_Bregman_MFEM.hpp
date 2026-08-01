@@ -42,12 +42,12 @@
  *     BoundsGeometry object, see below) and stay fixed for the rest of the
  *     optimisation, until the user explicitly resets them.
  *
- *   - @b Latent primal state.  The optimiser's canonical state is not the
- *     physical design x but a latent (logit-type) vector eta ([Note]
- *     Sec. 8).  x is recovered from eta by a fixed, bound-specific sigmoid
- *     map; this guarantees x stays strictly inside the bounds at every
- *     iteration, by construction, with no clipping.  ToLatent()/ToPhysical()
- *     expose this map to the user directly.
+ *   - @b Latent primal state.  The optimiser works directly on a latent
+ *     (logit-type) vector eta ([Note] Sec. 8) rather than the physical
+ *     design x -- see @ref latent below for the full contract. The
+ *     physical x is recovered from eta by a fixed, bound-specific sigmoid
+ *     map that guarantees x stays strictly inside the bounds at every
+ *     iteration, by construction, with no clipping.
  *
  *   - @b Bounds geometry is a separate, exchangeable object (BoundsGeometry
  *     and its factories TwoSided/LowerOnly/UpperOnly).  Two-sided bounds use
@@ -81,40 +81,77 @@
  *     (Kim, Lazarov, Surowiec & Keith 2025) -- see the comment on that
  *     method below.
  *
- * @section dropin Drop-in replacement
+ * @section dropin Relationship to the MMA/SQ "drop-in" surface
  *
- * CCSAOptimizer / CCSAOptimizerParallel are designed to be substitutable
- * for MMAOptimizer / MMAOptimizerParallel / SQOptimizer / SQOptimizerParallel
- * at call sites that only use the "core" API shared by all four classes:
- * constructors, WithEqualities()/WithRelaxedEqualities(), Update(),
- * UpdateGCMMA() (all three overloads), KKTresidual(), GetLambda(),
- * GetIteration()/NumIterations(), NumEqualities()/NumInequalities()/
- * NumConstraints(), and the unconstrained (m=0) convenience overloads.
- * PackFival(), PackFivalRelaxed() and PackedDfidx -- declared in
- * MMA_MFEM.hpp and included transitively here -- work unchanged at
- * CCSAOptimizer call sites.
+ * CCSAOptimizer / CCSAOptimizerParallel share constructors' penalty-argument
+ * shape, WithEqualities()/WithRelaxedEqualities(), KKTresidual()'s general
+ * contract, GetLambda(), GetIteration()/NumIterations(),
+ * NumEqualities()/NumInequalities()/NumConstraints() with
+ * MMAOptimizer/SQOptimizer -- but Update()/UpdateGCMMA()/KKTresidual()
+ * themselves are deliberately NOT drop-in: they operate on the LATENT
+ * variable eta, not the physical design x (see @ref latent below), and take
+ * no xmin/xmax at all. PackFival(), PackFivalRelaxed() and PackedDfidx --
+ * declared in MMA_MFEM.hpp and included transitively here -- still work
+ * unchanged for the fival/dfidx arguments.
  *
- * Two methods are deliberately NOT drop-in, because they encode concepts
- * that do not exist here: MMAOptimizer::SetAsymptotes() (no asymptotes) and
- * SQOptimizer::SetSigmaScale() (no per-iteration sigma; use the bounds'
- * fixed width/scale instead, see BoundsGeometry).  Update()/UpdateGCMMA()
- * still *accept* xmin/xmax for signature compatibility (see note below).
+ * Two MMAOptimizer/SQOptimizer methods are not reproduced, because they
+ * encode concepts that do not exist here: SetAsymptotes() (no asymptotes)
+ * and SetSigmaScale() (no per-iteration sigma; use the bounds' fixed
+ * Scale() instead, see BoundsGeometry).
  *
- * @section boundsnote On xmin/xmax vs BoundsGeometry
+ * @section latent Working on the latent variable eta
  *
- * Update()/UpdateGCMMA() keep the xmin/xmax parameters in their signature
- * purely so that existing call sites compile unchanged.  Behaviour:
- *   - If no BoundsGeometry has been set yet (HasBounds() == false), the
- *     first call auto-constructs a TwoSided BoundsGeometry from xmin/xmax
- *     and anchors the latent state at the incoming x.  This is the "just
- *     works as a drop-in" path.
- *   - Once bounds are set (explicitly via SetBounds(), or implicitly as
- *     above), xmin/xmax are IGNORED on every subsequent call: per the
- *     project requirements, once bounds are set they remain fixed until the
- *     user explicitly calls SetBounds() again.  This is a deliberate,
- *     documented deviation from strict MMA semantics (where xmin/xmax may
- *     legitimately change every call) and is the one behavioural difference
- *     a caller relying on per-call-changing bounds needs to be aware of.
+ * Unlike MMAOptimizer (which takes and returns the physical design x),
+ * CCSAOptimizer's Update()/UpdateGCMMA()/KKTresidual() take and return the
+ * LATENT variable eta directly: the @p x parameter of these methods IS
+ * eta, in/out. There is no internal "current state" stored by the
+ * optimiser itself -- exactly as MMAOptimizer does not store its own copy
+ * of the physical x, CCSAOptimizer does not store its own copy of eta;
+ * whichever mfem::Vector the caller passes to Update() is the state.
+ *
+ * Consequences:
+ *   - A BoundsGeometry MUST be established before the first Update() call,
+ *     either via a constructor that takes one or via SetBounds(). There is
+ *     no more auto-detection from xmin/xmax (contrast with the drop-in
+ *     design this superseded): Update()/UpdateGCMMA()/KKTresidual() throw
+ *     if HasBounds() is false.
+ *   - Converting between the physical design and eta is the caller's
+ *     responsibility, using ToLatent() (physical -> latent, e.g. to seed
+ *     the initial eta from an initial physical guess x0) and ToPhysical()
+ *     (latent -> physical, e.g. before evaluating the objective/constraint
+ *     functions and their gradients, which are naturally physical-space
+ *     quantities such as FEM sensitivities).
+ *   - df0dx/dfidx passed to Update()/UpdateGCMMA()/KKTresidual() are still
+ *     physical-space gradients (df0/dx_j, dfi/dx_j) evaluated at
+ *     ToPhysical(eta); nothing changes there. The EvalCallback passed to
+ *     the full UpdateGCMMA() overload is likewise still called with a
+ *     PHYSICAL trial point, since that is what the user's evaluator needs.
+ *
+ * Typical usage:
+ * @code
+ *   auto bounds = mfem_mma::BoundsGeometry::TwoSided(xmin, xmax);
+ *   CCSAOptimizer opt(n, m, bounds);
+ *   mfem::Vector eta = opt.ToLatent(x0);        // seed from an initial guess
+ *   for (int k = 0; k < max_iter; ++k) {
+ *       mfem::Vector x = opt.ToPhysical(eta);   // physical view for evaluation
+ *       ComputeObjectiveAndGradients(x, f0, df0, fi, dfi);
+ *       opt.Update(eta, df0, f0, fi, dfi.data());       // eta updated in place
+ *       x = opt.ToPhysical(eta);
+ *       ComputeObjectiveAndGradients(x, f0, df0, fi, dfi);
+ *       if (opt.KKTresidual(eta, df0, f0, fi, dfi.data()) < tol) break;
+ *   }
+ *   mfem::Vector x_final = opt.ToPhysical(eta);
+ * @endcode
+ *
+ * KKTresidual()'s formula also changes as a consequence: since eta ranges
+ * freely over all of R^n by construction (the box constraint is absorbed
+ * entirely into the ToPhysical() map), there is no boundary left to project
+ * the Lagrangian gradient against. The old physical-space "projected
+ * gradient" check is replaced by a plain chain-rule stationarity check in
+ * eta-space, dL/deta_j = (dL/dx_j) * (dx_j/deta_j); the factor dx_j/deta_j
+ * (= h_j * kappa_j, the same curvature factor used by the BarrierNewton
+ * dual solver) naturally -> 0 as x_j saturates a bound, which is exactly
+ * what the old explicit projection achieved by hand.
  *
  * @section device Device execution
  *
@@ -250,10 +287,13 @@ public:
     mfem::Vector ToPhysical(const mfem::Vector& eta) const
     { mfem::Vector x(eta.Size()); x.UseDevice(eta.UseDevice()); ToPhysical(eta,x); return x; }
 
-    bool IsSet() const { return n_ > 0; }
+    bool IsSet() const { return set_; }
 
 private:
     int n_ = 0;
+    bool set_ = false;   ///< true once a factory method has run; n_==0 alone
+                          ///< is NOT "unconfigured" -- it's the legitimate
+                          ///< zero-DOF-rank case in MPI-parallel use.
     BoundsKind kind_ = BoundsKind::TwoSided;
     mfem::Vector lo_, hi_, h_;
     mfem::real_t clip_eps_ = mfem::real_t(1e-10);
@@ -344,7 +384,7 @@ void SolveDualEntropy(
 /**
  * @class CCSAOptimizer
  * @brief Serial CCSA optimiser using the Fermi-Dirac Bregman separable
- * approximation, working internally on a latent (logit-type) variable.
+ * approximation, working directly on a latent (logit-type) variable.
  *
  * Solves the same class of problems as MMAOptimizer:
  * @code
@@ -352,36 +392,32 @@ void SolveDualEntropy(
  *   s.t.  fi(x) <= 0,  i = 1..m
  *         x in the region described by a BoundsGeometry
  * @endcode
+ * but Update()/UpdateGCMMA()/KKTresidual() take and return the LATENT
+ * variable eta, not the physical x -- see @ref latent in the file header
+ * for the full contract and a worked example.
  *
- * Typical usage (drop-in style, bounds auto-detected from the first call):
  * @code
- *   CCSAOptimizer opt(n, m, x);
+ *   auto bounds = mfem_mma::BoundsGeometry::TwoSided(xmin, xmax);
+ *   CCSAOptimizer opt(n, m, bounds);
+ *   mfem::Vector eta = opt.ToLatent(x0);
  *   for (int k = 0; k < max_iter; ++k) {
+ *       mfem::Vector x = opt.ToPhysical(eta);
  *       ComputeObjectiveAndGradients(x, f0, df0, fi, dfi);
- *       opt.Update(x, df0, f0, fi, dfi.data(), xmin, xmax);
- *       if (opt.KKTresidual(x, df0, f0, fi, dfi.data(), xmin, xmax) < tol) break;
+ *       opt.Update(eta, df0, f0, fi, dfi.data());
+ *       x = opt.ToPhysical(eta);
+ *       ComputeObjectiveAndGradients(x, f0, df0, fi, dfi);
+ *       if (opt.KKTresidual(eta, df0, f0, fi, dfi.data()) < tol) break;
  *   }
  * @endcode
  *
- * Typical usage (explicit bounds geometry, e.g. one-sided):
- * @code
- *   auto bounds = mfem_mma::BoundsGeometry::LowerOnly(xmin, scale);
- *   CCSAOptimizer opt(n, m, x, bounds);
- *   opt.SetDualSolver(mfem_mma::DualSolverKind::BarrierNewton);
- *   for (...) opt.Update(x, df0, f0, fi, dfi.data(), xmin, xmax); // xmin/xmax ignored after bounds are set
- * @endcode
+ * A BoundsGeometry MUST be established (constructor or SetBounds()) before
+ * the first Update()/UpdateGCMMA()/KKTresidual() call; these throw
+ * std::runtime_error if HasBounds() is false. See @ref dropin in the file
+ * header for exactly which parts of the MMAOptimizer/SQOptimizer surface
+ * this class does and does not share.
  *
- * Drop-in notes: PackFival(), PackFivalRelaxed() and PackedDfidx (declared
- * above, shared with MMAOptimizer/SQOptimizer) work unchanged at
- * CCSAOptimizer call sites. Two MMAOptimizer/SQOptimizer methods are
- * deliberately NOT reproduced, because they encode concepts that do not
- * exist here: SetAsymptotes() (no asymptotes) and SetSigmaScale() (no
- * per-iteration sigma; use the bounds' fixed Scale() instead). Update()/
- * UpdateGCMMA() still *accept* xmin/xmax for signature compatibility --
- * see the note on EnsureBounds_() below for the exact behaviour.
- *
- * @note Not thread-safe (mutable dual/latent state + iteration counter),
- * exactly like MMAOptimizer/SQOptimizer.
+ * @note Not thread-safe (mutable dual state + iteration counter), exactly
+ * like MMAOptimizer/SQOptimizer.
  */
 // ============================================================
 class CCSAOptimizer {
@@ -390,30 +426,26 @@ public:
 
     /**
      * @brief Construct with default penalties, bounds deferred.
-     * Bounds must be supplied later, either explicitly via SetBounds(), or
-     * implicitly on the first Update()/UpdateGCMMA() call (which builds a
-     * TwoSided BoundsGeometry from that call's xmin/xmax and anchors the
-     * latent state at x).
+     * Bounds must be supplied later via SetBounds() before the first
+     * Update()/UpdateGCMMA()/KKTresidual() call.
      */
-    CCSAOptimizer(int n, int m, const mfem::Vector& x);
+    CCSAOptimizer(int n, int m);
 
     /** @brief As above, with custom penalty parameters (raw arrays). */
-    CCSAOptimizer(int n, int m, const mfem::Vector& x,
-                  const double* a, const double* c, const double* d);
+    CCSAOptimizer(int n, int m, const double* a, const double* c, const double* d);
 
     /** @brief As above, with custom penalty parameters (mfem::Vector). */
-    CCSAOptimizer(int n, int m, const mfem::Vector& x,
-                  const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d);
+    CCSAOptimizer(int n, int m, const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d);
 
     /** @brief Construct with default penalties and an explicit bounds geometry. */
-    CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry& bounds);
+    CCSAOptimizer(int n, int m, const BoundsGeometry& bounds);
 
     /** @brief As above, with custom penalty parameters (raw arrays). */
-    CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry& bounds,
+    CCSAOptimizer(int n, int m, const BoundsGeometry& bounds,
                   const double* a, const double* c, const double* d);
 
     /** @brief As above, with custom penalty parameters (mfem::Vector). */
-    CCSAOptimizer(int n, int m, const mfem::Vector& x, const BoundsGeometry& bounds,
+    CCSAOptimizer(int n, int m, const BoundsGeometry& bounds,
                   const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d);
 
     ~CCSAOptimizer() = default;
@@ -421,33 +453,26 @@ public:
     // ── Bounds management ────────────────────────────────────────────────
 
     /**
-     * @brief (Re-)set the bounds geometry, keeping the physical design fixed.
+     * @brief (Re-)set the bounds geometry.
      *
-     * Recomputes the latent state so that ToPhysical(GetLatent()) still
-     * equals @p x_phys under the *new* geometry ([Note] Sec. 11 item 2:
-     * "changing the bounds changes the latent coordinates").  This is the
-     * only sanctioned way to change bounds mid-optimisation; per the design
-     * requirement, bounds are otherwise frozen for the life of the optimiser.
-     */
-    void SetBounds(const BoundsGeometry& bounds, const mfem::Vector& x_phys);
-
-    /**
-     * @brief (Re-)set the bounds geometry; the physical anchor is taken from
-     * the next Update()/UpdateGCMMA() call's @p x argument.
-     * Convenient when you don't have the current physical x on hand right
-     * now (e.g. configuring the optimiser before the first Update() call).
+     * Note that changing bounds changes what a given eta value means
+     * physically ([Note] Sec. 11 item 2): if you need to preserve a
+     * physical point x_phys across a bounds change, convert it yourself,
+     * e.g. @code opt.SetBounds(new_bounds); eta = opt.ToLatent(x_phys);
+     * @endcode -- the optimiser does not hold an eta of its own to
+     * recompute (see @ref latent in the file header).
      */
     void SetBounds(const BoundsGeometry& bounds);
 
     /// @brief Convenience: TwoSided bounds built directly from xmin/xmax.
-    void SetBounds(const mfem::Vector& xmin, const mfem::Vector& xmax,
-                   const mfem::Vector& x_phys);
     void SetBounds(const mfem::Vector& xmin, const mfem::Vector& xmax);
 
     bool HasBounds() const { return bounds_.IsSet(); }
     const BoundsGeometry& GetBounds() const { return bounds_; }
 
     // ── Latent <-> physical conversion (public utility) ──────────────────
+    // The primary way to move between the physical design and the latent
+    // variable eta that Update()/UpdateGCMMA()/KKTresidual() operate on.
 
     /// @brief Physical -> latent, using this optimiser's current bounds geometry.
     mfem::Vector ToLatent(const mfem::Vector& x) const { return bounds_.ToLatent(x); }
@@ -456,20 +481,6 @@ public:
     /// @brief Latent -> physical, using this optimiser's current bounds geometry.
     mfem::Vector ToPhysical(const mfem::Vector& eta) const { return bounds_.ToPhysical(eta); }
     void ToPhysical(const mfem::Vector& eta, mfem::Vector& x) const { bounds_.ToPhysical(eta,x); }
-
-    /// @brief Read-only access to the optimiser's own latent state eta^k.
-    const mfem::Vector& GetLatent() const { return eta_; }
-
-    /**
-     * @brief Overwrite the optimiser's latent state directly.
-     * Advanced use (e.g. restarts, custom warm starts). The physical view
-     * is GetBounds().ToPhysical(eta); the caller is responsible for keeping
-     * any externally-held x Vector consistent with it.
-     */
-    void SetLatent(const mfem::Vector& eta) { eta_ = eta; }
-
-    /// @brief Convenience: physical view of the current latent state.
-    mfem::Vector GetPhysical() const { return bounds_.ToPhysical(eta_); }
 
     // ── Dual solver selection ────────────────────────────────────────────
 
@@ -502,11 +513,11 @@ public:
 
     // ── Equality-constraint factories (use PackFival()/PackedDfidx from MMA_MFEM.hpp) ─
 
-    static CCSAOptimizer WithEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x);
-    static CCSAOptimizer WithEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x,
+    static CCSAOptimizer WithEqualities(int n, int n_ineq, int n_eq);
+    static CCSAOptimizer WithEqualities(int n, int n_ineq, int n_eq,
                                         const BoundsGeometry& bounds);
-    static CCSAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x);
-    static CCSAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq, const mfem::Vector& x,
+    static CCSAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq);
+    static CCSAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq,
                                                const BoundsGeometry& bounds);
 
     // ── Outer iteration ───────────────────────────────────────────────────
@@ -514,71 +525,66 @@ public:
     /**
      * @brief Perform one plain (non-globally-convergent) CCSA outer step.
      *
-     * Mirrors MMAOptimizer::Update()'s signature and in/out contract
-     * exactly, so it is source-compatible at typical call sites. Internally:
-     * builds C_j(lambda)/R(lambda) on the device from the latent center
-     * eta^k, solves the dual sub-problem via the selected DualSolverKind,
-     * accepts the resulting eta_trial unconditionally (no conservatism
-     * check -- see UpdateGCMMA() for that), and writes the physical view
-     * into @p x.
+     * Internally: builds C_j(lambda)/R(lambda) on the device from the
+     * latent center @p x, solves the dual sub-problem via the selected
+     * DualSolverKind, and accepts the resulting eta_trial unconditionally
+     * (no conservatism check -- see UpdateGCMMA() for that).
      *
-     * @param[in,out] x     Design variables. Overwritten with
-     *                      GetBounds().ToPhysical(new eta) on exit.
-     * @param[in]  df0dx    Objective gradient at the CURRENT physical point
-     *                      (i.e. at GetPhysical(), which should equal @p x
-     *                      on entry).
-     * @param[in]  f0val    Objective value f0(x). Accepted but only used as
-     *                      F[0] for GCMMA-style bookkeeping / conservatism
-     *                      checks elsewhere; plain Update() does not need it
-     *                      for the sub-problem itself.
+     * @param[in,out] x     Latent variable eta, NOT the physical design --
+     *                      see @ref latent in the file header. Overwritten
+     *                      with the new eta on exit.
+     * @param[in]  df0dx    Objective gradient in PHYSICAL space, df0/dx,
+     *                      evaluated at ToPhysical(x) (i.e. at the physical
+     *                      point corresponding to @p x on entry).
+     * @param[in]  f0val    Objective value f0(ToPhysical(x)). Accepted but
+     *                      only used as F[0] for GCMMA-style bookkeeping
+     *                      elsewhere; plain Update() does not need it for
+     *                      the sub-problem itself.
      * @param[in]  fival    Constraint values, length m (see PackFival() for
      *                      the equality-constraint layout).
-     * @param[in]  dfidx    Constraint gradients (array of m Vectors);
-     *                      nullptr when m == 0.
-     * @param[in]  xmin,xmax  Only consulted on the very first call, iff no
-     *                      bounds geometry has been set yet (see the
-     *                      EnsureBounds_() note below).
+     * @param[in]  dfidx    Constraint gradients in PHYSICAL space (array of
+     *                      m Vectors); nullptr when m == 0.
+     *
+     * @throws std::runtime_error if HasBounds() is false.
      */
     void Update(mfem::Vector& x,
                 const mfem::Vector& df0dx,
                 mfem::real_t f0val,
                 const mfem::Vector& fival,
-                const mfem::Vector* dfidx,
-                const mfem::Vector& xmin,
-                const mfem::Vector& xmax);
+                const mfem::Vector* dfidx);
 
     /**
      * @brief Perform one globally-convergent CCSA ("GCMMA-style") outer step.
      *
-     * Single-inner-iteration variant, mirroring
-     * MMAOptimizer::UpdateGCMMA()'s simple overload: rho is (re-)estimated
-     * from the current gradient magnitudes and one sub-problem is solved.
+     * Single-inner-iteration variant: rho is (re-)estimated from the
+     * current gradient magnitudes and one sub-problem is solved.
      * Re-computing rho from fresh gradients every call provides the same
      * implicit conservatism adaptation MMAOptimizer relies on.
      *
      * The rho estimate is computed by the protected virtual
      * ComputeInitialRho_() -- see that method's doc comment for the planned
-     * SiMPL/Barzilai-Borwein extension point.
+     * SiMPL/Barzilai-Borwein extension point. Same @p x / df0dx / dfidx
+     * contract as Update() above (latent in/out, physical-space gradients).
      */
     void UpdateGCMMA(mfem::Vector& x,
                      const mfem::Vector& df0dx,
                      mfem::real_t f0val,
                      const mfem::Vector& fival,
                      const mfem::Vector* dfidx,
-                     const mfem::Vector& xmin,
-                     const mfem::Vector& xmax,
                      int* innerIter = nullptr);
 
     /**
      * @brief GCMMA with full inner conservatism loop and user-supplied
      * function evaluator, mirroring MMAOptimizer's corresponding overload
-     * exactly (same EvalCallback contract).
+     * (same EvalCallback contract: called with a PHYSICAL trial point,
+     * since that is what the user's evaluator needs).
      *
      * After solving the sub-problem for a candidate latent update, @p
-     * eval_fi is called at the resulting physical point to get the true
-     * function values.  If the entropy model under-estimates any of them
-     * ([Note] eq. 32-33), rho is increased (eq. 36) and the sub-problem is
-     * re-solved, up to @p max_inner times.
+     * eval_fi is called at ToPhysical(eta_trial) to get the true function
+     * values. If the entropy model under-estimates any of them ([Note]
+     * eq. 32-33), rho is increased (eq. 36) and the sub-problem is
+     * re-solved, up to @p max_inner times. Same @p x / df0dx / dfidx
+     * contract as Update() above (latent in/out, physical-space gradients).
      */
     using EvalCallback = std::function<void(const mfem::Vector&,
                                              mfem::Vector&,
@@ -589,8 +595,6 @@ public:
                      mfem::real_t f0val,
                      const mfem::Vector& fival,
                      const mfem::Vector* dfidx,
-                     const mfem::Vector& xmin,
-                     const mfem::Vector& xmax,
                      EvalCallback eval_fi,
                      int max_inner = 15,
                      int* innerIter = nullptr);
@@ -598,17 +602,26 @@ public:
     // ── Convergence ───────────────────────────────────────────────────────
 
     /**
-     * @brief Projected-gradient KKT residual. Same formula/contract as
-     * MMAOptimizer::KKTresidual() (projected Lagrangian gradient norm plus
-     * complementary-slackness terms, normalised by n).
+     * @brief Latent-space KKT/stationarity residual.
+     *
+     * Unlike MMAOptimizer::KKTresidual() (a physical-space PROJECTED
+     * gradient norm), this is a plain chain-rule stationarity check in
+     * eta-space: dL/deta_j = (dL/dx_j) * (dx_j/deta_j), with no projection
+     * needed since eta is unconstrained -- see @ref latent in the file
+     * header for why. Same normalisation convention as MMAOptimizer
+     * otherwise (mean-square Lagrangian-gradient term plus
+     * complementary-slackness terms for the constraints).
+     *
+     * @param x       Latent variable eta (same point Update() was just
+     *                called with/returned).
+     * @param df0dx,fival,dfidx  Physical-space gradients/values at
+     *                ToPhysical(x), same as Update().
      */
     mfem::real_t KKTresidual(const mfem::Vector& x,
                              const mfem::Vector& df0dx,
                              mfem::real_t f0val,
                              const mfem::Vector& fival,
                              const mfem::Vector* dfidx,
-                             const mfem::Vector& xmin,
-                             const mfem::Vector& xmax,
                              double* lambda_out = nullptr) const;
 
     // ── Accessors ─────────────────────────────────────────────────────────
@@ -623,19 +636,16 @@ public:
 
     // ── Unconstrained convenience overloads (m=0) ────────────────────────
 
-    void Update(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
-                const mfem::Vector& xmin, const mfem::Vector& xmax)
-    { static const mfem::Vector e; Update(x,df0dx,f0val,e,nullptr,xmin,xmax); }
+    void Update(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val)
+    { static const mfem::Vector e; Update(x,df0dx,f0val,e,nullptr); }
 
     void UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
-                     const mfem::Vector& xmin, const mfem::Vector& xmax,
                      int* innerIter = nullptr)
-    { static const mfem::Vector e; UpdateGCMMA(x,df0dx,f0val,e,nullptr,xmin,xmax,innerIter); }
+    { static const mfem::Vector e; UpdateGCMMA(x,df0dx,f0val,e,nullptr,innerIter); }
 
     mfem::real_t KKTresidual(const mfem::Vector& x, const mfem::Vector& df0dx,
-                              mfem::real_t f0val, const mfem::Vector& xmin,
-                              const mfem::Vector& xmax) const
-    { static const mfem::Vector e; return KKTresidual(x,df0dx,f0val,e,nullptr,xmin,xmax); }
+                              mfem::real_t f0val) const
+    { static const mfem::Vector e; return KKTresidual(x,df0dx,f0val,e,nullptr); }
 
 protected:
     /**
@@ -648,12 +658,7 @@ protected:
      * |dfi/dxj| * scale_j)), which is what the project currently asks for
      * ("use the same approach as the globally convergent MMA for now").
      * Unlike MMA, @p scale_j here is GetBounds().Scale() (h_j: u-ell for
-     * TwoSided, the user scale for one-sided) rather than (xmax-xmin):
-     * xmin/xmax are only reliable on the call that first establishes the
-     * bounds (see EnsureBounds_() below), so the default rho estimator
-     * deliberately reads its length scale from the frozen bounds geometry
-     * instead. xmin/xmax are still passed through to this method (and
-     * available to overrides) for parity with MMAOptimizer.
+     * TwoSided, the user scale for one-sided).
      *
      * @par Future extension (SiMPL-style BB step control)
      * The Barzilai-Borwein step size of Kim, Lazarov, Surowiec & Keith
@@ -673,36 +678,29 @@ protected:
      * to change. This override point is provided now so that experiment can
      * be dropped in later without touching Update()/UpdateGCMMA().
      *
-     * @param df0dx,dfidx,xmin,xmax  Same arguments UpdateGCMMA() received.
+     * @param df0dx,dfidx  Same arguments UpdateGCMMA() received.
      * @param[out] rho_out  Length m+1; rho_out[0] is for the objective,
      *                      rho_out[i+1] for constraint i.
      */
     virtual void ComputeInitialRho_(const mfem::Vector& df0dx,
                                      const mfem::Vector* dfidx,
-                                     const mfem::Vector& xmin,
-                                     const mfem::Vector& xmax,
                                      std::vector<double>& rho_out) const;
 
 private:
-    CCSAOptimizer(int n, int m, const mfem::Vector& x,
+    CCSAOptimizer(int n, int m,
                   const BoundsGeometry* bounds,
                   const double* a, const double* c, const double* d);
 
-    /**
-     * @brief Auto-establish bounds on the first call, per the "On xmin/xmax
-     * vs BoundsGeometry" design note: if HasBounds() is already true, xmin
-     * and xmax are ignored entirely; otherwise a TwoSided BoundsGeometry is
-     * built from them and the latent state is anchored at @p x.
-     */
-    void EnsureBounds_(const mfem::Vector& x, const mfem::Vector& xmin, const mfem::Vector& xmax);
+    /// @brief Throws std::runtime_error if HasBounds() is false. Called at
+    /// the top of Update()/UpdateGCMMA()/KKTresidual(): a BoundsGeometry
+    /// must be established via a constructor or SetBounds() beforehand --
+    /// there is no more auto-detection from xmin/xmax (see @ref latent).
+    void RequireBounds_() const;
     void DecayRho_();
 
     int n_, m_, iter_ = 0, n_eq_ = 0;
     BoundsGeometry bounds_;
-    bool bounds_pending_anchor_ = false;   ///< SetBounds(bounds) called w/o x; anchor on next Update
-    BoundsGeometry pending_bounds_;
 
-    mfem::Vector eta_;             ///< canonical latent primal state, length n_
     mfem::Vector eta_prev_;        ///< previous latent state (future BB hook)
     mfem::Vector df0dx_prev_;      ///< previous objective gradient (future BB hook)
     bool have_prev_ = false;
@@ -711,6 +709,12 @@ private:
     std::vector<double> lam_, mu_, y_;               ///< dual state, length m_
     double z_ = 0.0;
     std::vector<double> rho_;                        ///< length m_+1
+    bool have_rho_ = false;   ///< true once rho_ has been seeded by
+                              ///< ComputeInitialRho_(); after that, rho_
+                              ///< persists across calls (grown by the
+                              ///< callback conservatism loop, decayed by
+                              ///< DecayRho_()) rather than being
+                              ///< re-derived from scratch every call.
 
     double rho_min_ = 1e-6, rho_safe_ = 1.1, rho_max_growth_ = 10.0, theta_rho_ = 1.0;
     DualSolverKind dual_solver_ = DualSolverKind::ProjectedAscent;
@@ -737,43 +741,39 @@ private:
 // ============================================================
 class CCSAOptimizerParallel {
 public:
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local);
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m);
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                           const double* a, const double* c, const double* d);
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                           const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d);
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                           const BoundsGeometry& bounds_local);
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                           const BoundsGeometry& bounds_local,
                           const double* a, const double* c, const double* d);
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                           const BoundsGeometry& bounds_local,
                           const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d);
 
     ~CCSAOptimizerParallel() = default;
 
     // ── Bounds management (bounds_local describes THIS rank's chunk) ────
-    void SetBounds(const BoundsGeometry& bounds_local, const mfem::Vector& x_local_phys);
+    // See CCSAOptimizer::SetBounds(); identical semantics.
     void SetBounds(const BoundsGeometry& bounds_local);
-    void SetBounds(const mfem::Vector& xmin_local, const mfem::Vector& xmax_local,
-                   const mfem::Vector& x_local_phys);
     void SetBounds(const mfem::Vector& xmin_local, const mfem::Vector& xmax_local);
 
     bool HasBounds() const { return bounds_.IsSet(); }
     const BoundsGeometry& GetBounds() const { return bounds_; }
 
     // ── Latent <-> physical (local chunk) ────────────────────────────────
+    // The primary way to move between the physical design and the latent
+    // variable eta that Update()/UpdateGCMMA()/KKTresidual() operate on.
     mfem::Vector ToLatent(const mfem::Vector& x_local) const { return bounds_.ToLatent(x_local); }
     void ToLatent(const mfem::Vector& x_local, mfem::Vector& eta_local) const
     { bounds_.ToLatent(x_local, eta_local); }
     mfem::Vector ToPhysical(const mfem::Vector& eta_local) const { return bounds_.ToPhysical(eta_local); }
     void ToPhysical(const mfem::Vector& eta_local, mfem::Vector& x_local) const
     { bounds_.ToPhysical(eta_local, x_local); }
-
-    const mfem::Vector& GetLatent() const { return eta_; }
-    void SetLatent(const mfem::Vector& eta_local) { eta_ = eta_local; }
-    mfem::Vector GetPhysical() const { return bounds_.ToPhysical(eta_); }
 
     // ── Dual solver / rho controls (identical semantics to serial class) ─
     void SetDualSolver(DualSolverKind kind) { dual_solver_ = kind; }
@@ -785,36 +785,30 @@ public:
 
     // ── Equality-constraint factories ────────────────────────────────────
     static CCSAOptimizerParallel WithEqualities(MPI_Comm comm, int n_local,
-                                                int n_ineq, int n_eq,
-                                                const mfem::Vector& x_local);
+                                                int n_ineq, int n_eq);
     static CCSAOptimizerParallel WithEqualities(MPI_Comm comm, int n_local,
                                                 int n_ineq, int n_eq,
-                                                const mfem::Vector& x_local,
                                                 const BoundsGeometry& bounds_local);
     static CCSAOptimizerParallel WithRelaxedEqualities(MPI_Comm comm, int n_local,
-                                                       int n_ineq, int n_eq,
-                                                       const mfem::Vector& x_local);
+                                                       int n_ineq, int n_eq);
     static CCSAOptimizerParallel WithRelaxedEqualities(MPI_Comm comm, int n_local,
                                                        int n_ineq, int n_eq,
-                                                       const mfem::Vector& x_local,
                                                        const BoundsGeometry& bounds_local);
 
     // ── Outer iteration (collective; all ranks call together) ───────────
+    // See CCSAOptimizer::Update()/UpdateGCMMA(); identical contract, with
+    // x_local/df0dx_local/dfidx_local holding this rank's chunk only.
     void Update(mfem::Vector& x_local,
                 const mfem::Vector& df0dx_local,
                 mfem::real_t f0val,
                 const mfem::Vector& fival,
-                const mfem::Vector* dfidx_local,
-                const mfem::Vector& xmin_local,
-                const mfem::Vector& xmax_local);
+                const mfem::Vector* dfidx_local);
 
     void UpdateGCMMA(mfem::Vector& x_local,
                      const mfem::Vector& df0dx_local,
                      mfem::real_t f0val,
                      const mfem::Vector& fival,
                      const mfem::Vector* dfidx_local,
-                     const mfem::Vector& xmin_local,
-                     const mfem::Vector& xmax_local,
                      int* innerIter = nullptr);
 
     using EvalCallback = std::function<void(const mfem::Vector&, mfem::Vector&, mfem::real_t&)>;
@@ -823,19 +817,18 @@ public:
                      mfem::real_t f0val,
                      const mfem::Vector& fival,
                      const mfem::Vector* dfidx_local,
-                     const mfem::Vector& xmin_local,
-                     const mfem::Vector& xmax_local,
                      EvalCallback eval_fi,
                      int max_inner = 15,
                      int* innerIter = nullptr);
 
+    /// @brief See CCSAOptimizer::KKTresidual(); identical latent-space
+    /// stationarity formula, with the primal term globally reduced across
+    /// ranks and normalised by n_global_.
     mfem::real_t KKTresidual(const mfem::Vector& x_local,
                               const mfem::Vector& df0dx_local,
                               mfem::real_t f0val,
                               const mfem::Vector& fival,
                               const mfem::Vector* dfidx_local,
-                              const mfem::Vector& xmin_local,
-                              const mfem::Vector& xmax_local,
                               double* lambda_out = nullptr) const;
 
     int GetIteration()  const { return iter_; }
@@ -845,52 +838,46 @@ public:
     int NumInequalities() const { return m_ - 2*n_eq_; }
     int NumConstraints()  const { return m_ - n_eq_; }
 
-    void Update(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
-                const mfem::Vector& xmin, const mfem::Vector& xmax)
-    { static const mfem::Vector e; Update(x,df0dx,f0val,e,nullptr,xmin,xmax); }
+    void Update(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val)
+    { static const mfem::Vector e; Update(x,df0dx,f0val,e,nullptr); }
 
     void UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
-                     const mfem::Vector& xmin, const mfem::Vector& xmax,
                      int* innerIter = nullptr)
-    { static const mfem::Vector e; UpdateGCMMA(x,df0dx,f0val,e,nullptr,xmin,xmax,innerIter); }
+    { static const mfem::Vector e; UpdateGCMMA(x,df0dx,f0val,e,nullptr,innerIter); }
 
     mfem::real_t KKTresidual(const mfem::Vector& x, const mfem::Vector& df0dx,
-                              mfem::real_t f0val, const mfem::Vector& xmin,
-                              const mfem::Vector& xmax) const
-    { static const mfem::Vector e; return KKTresidual(x,df0dx,f0val,e,nullptr,xmin,xmax); }
+                              mfem::real_t f0val) const
+    { static const mfem::Vector e; return KKTresidual(x,df0dx,f0val,e,nullptr); }
 
 protected:
     /// @brief See CCSAOptimizer::ComputeInitialRho_(); identical role/contract,
     /// evaluated with globally-reduced gradient sums.
     virtual void ComputeInitialRho_(const mfem::Vector& df0dx_local,
                                      const mfem::Vector* dfidx_local,
-                                     const mfem::Vector& xmin_local,
-                                     const mfem::Vector& xmax_local,
                                      std::vector<double>& rho_out) const;
 
 private:
-    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    CCSAOptimizerParallel(MPI_Comm comm, int n_local, int m,
                           const BoundsGeometry* bounds_local,
                           const double* a, const double* c, const double* d);
 
-    void EnsureBounds_(const mfem::Vector& x_local,
-                        const mfem::Vector& xmin_local, const mfem::Vector& xmax_local);
+    /// @brief See CCSAOptimizer::RequireBounds_(); identical role.
+    void RequireBounds_() const;
     void DecayRho_();
 
     MPI_Comm comm_;
     int n_local_, m_, iter_ = 0, n_eq_ = 0;
     long long n_global_ = 0;
     BoundsGeometry bounds_;
-    bool bounds_pending_anchor_ = false;
-    BoundsGeometry pending_bounds_;
 
-    mfem::Vector eta_, eta_prev_, df0dx_prev_;
+    mfem::Vector eta_prev_, df0dx_prev_;
     bool have_prev_ = false;
 
     std::vector<double> a_, c_, d_;
     std::vector<double> lam_, mu_, y_;
     double z_ = 0.0;
     std::vector<double> rho_;
+    bool have_rho_ = false;   ///< see CCSAOptimizer::have_rho_
 
     double rho_min_ = 1e-6, rho_safe_ = 1.1, rho_max_growth_ = 10.0, theta_rho_ = 1.0;
     DualSolverKind dual_solver_ = DualSolverKind::ProjectedAscent;

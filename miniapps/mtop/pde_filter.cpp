@@ -81,16 +81,82 @@ void PDEFilter::SetDiffusionCoeff(MatrixCoefficient& c)
     diff_ = { nullptr, nullptr, &c };
 }
 
+void PDEFilter::AddBoundaryCondition(int boundary_attribute,
+                                     Coefficient& coefficient)
+{
+    MFEM_VERIFY(!assembled_,
+                "PDEFilter: cannot change boundary conditions after Assemble()");
+    ValidateBoundaryAttribute_(boundary_attribute);
+    RemoveBoundaryCondition_(boundary_attribute);
+
+    BoundaryConditionEntry entry;
+    entry.boundary_attribute = boundary_attribute;
+    entry.coefficient = &coefficient;
+    boundary_conditions_.push_back(std::move(entry));
+}
+
+void PDEFilter::AddBoundaryCondition(int boundary_attribute, real_t value)
+{
+    MFEM_VERIFY(!assembled_,
+                "PDEFilter: cannot change boundary conditions after Assemble()");
+    ValidateBoundaryAttribute_(boundary_attribute);
+    RemoveBoundaryCondition_(boundary_attribute);
+
+    BoundaryConditionEntry entry;
+    entry.boundary_attribute = boundary_attribute;
+    entry.owned_coefficient =
+        std::make_unique<ConstantCoefficient>(value);
+    entry.coefficient = entry.owned_coefficient.get();
+    boundary_conditions_.push_back(std::move(entry));
+}
+
+void PDEFilter::ClearBoundaryConditions()
+{
+    MFEM_VERIFY(!assembled_,
+                "PDEFilter: cannot change boundary conditions after Assemble()");
+    boundary_conditions_.clear();
+}
+
 // =============================================================================
 //  Assemble
 // =============================================================================
 void PDEFilter::Assemble()
 {
     MFEM_VERIFY(!assembled_, "PDEFilter: Assemble() called more than once");
+
+    const int local_count = static_cast<int>(boundary_conditions_.size());
+    int minimum_count = 0, maximum_count = 0;
+    MPI_Allreduce(&local_count, &minimum_count, 1, MPI_INT, MPI_MIN,
+                  fes_filter_->GetComm());
+    MPI_Allreduce(&local_count, &maximum_count, 1, MPI_INT, MPI_MAX,
+                  fes_filter_->GetComm());
+    MFEM_VERIFY(minimum_count == maximum_count,
+                "PDEFilter: boundary-condition count must agree on all ranks");
+
+    int local_attribute_sum = 0;
+    for (const BoundaryConditionEntry& entry : boundary_conditions_)
+    {
+        local_attribute_sum += entry.boundary_attribute;
+    }
+    int minimum_attribute_sum = 0, maximum_attribute_sum = 0;
+    MPI_Allreduce(&local_attribute_sum, &minimum_attribute_sum, 1, MPI_INT,
+                  MPI_MIN, fes_filter_->GetComm());
+    MPI_Allreduce(&local_attribute_sum, &maximum_attribute_sum, 1, MPI_INT,
+                  MPI_MAX, fes_filter_->GetComm());
+    MFEM_VERIFY(minimum_attribute_sum == maximum_attribute_sum,
+                "PDEFilter: boundary attributes must agree on all ranks");
+
     AssembleBilinearForm_();
     AssembleMixedMass_();
+    BuildBoundaryValuesAndMarkers_();
     filter_bf_->Finalize();
-    filter_mat_.reset(filter_bf_->ParallelAssemble());
+    filter_full_mat_.reset(filter_bf_->ParallelAssemble());
+    filter_mat_ = std::make_unique<HypreParMatrix>(*filter_full_mat_);
+    if (!boundary_conditions_.empty())
+    {
+        filter_eliminated_mat_.reset(
+            filter_mat_->EliminateRowsCols(ess_tdof_list_));
+    }
     SetupSolver_();
     assembled_ = true;
 }
@@ -148,6 +214,32 @@ void PDEFilter::AssembleMixedMass_()
     mixed_mass_mat_.reset(mixed_mass_->ParallelAssemble());
 }
 
+void PDEFilter::BuildBoundaryValuesAndMarkers_()
+{
+    const int max_attr = MaxBoundaryAttribute_();
+    bdr_attr_marker_.SetSize(max_attr);
+    bdr_attr_marker_ = 0;
+    ess_tdof_list_.DeleteAll();
+    x_bc_.SetSize(fes_filter_->GetTrueVSize());
+    x_bc_ = 0.0;
+
+    if (boundary_conditions_.empty()) { return; }
+
+    ParGridFunction boundary_values(fes_filter_);
+    boundary_values = 0.0;
+    Array<int> one_attribute(max_attr);
+    for (const BoundaryConditionEntry& entry : boundary_conditions_)
+    {
+        one_attribute = 0;
+        one_attribute[entry.boundary_attribute - 1] = 1;
+        boundary_values.ProjectBdrCoefficient(*entry.coefficient,
+                                               one_attribute);
+        bdr_attr_marker_[entry.boundary_attribute - 1] = 1;
+    }
+    fes_filter_->GetEssentialTrueDofs(bdr_attr_marker_, ess_tdof_list_);
+    boundary_values.ParallelProject(x_bc_);
+}
+
 // =============================================================================
 //  SetupSolver_
 // =============================================================================
@@ -162,6 +254,72 @@ void PDEFilter::SetupSolver_()
     solver_->SetMaxIter(opts_.solver_maxiter);
     solver_->SetPrintLevel(opts_.print_level);
     solver_->SetPreconditioner(*amg_prec_);
+}
+
+void PDEFilter::FormSystemRHS_(const Vector& rhs, Vector& system_rhs) const
+{
+    system_rhs = rhs;
+    if (!boundary_conditions_.empty())
+    {
+        filter_mat_->EliminateBC(*filter_eliminated_mat_,
+                                 ess_tdof_list_, x_bc_, system_rhs);
+    }
+}
+
+void PDEFilter::ZeroEssentialValues_(Vector& x) const
+{
+    for (int i = 0; i < ess_tdof_list_.Size(); ++i)
+    {
+        x[ess_tdof_list_[i]] = 0.0;
+    }
+}
+
+void PDEFilter::CopyEssentialValues_(Vector& x) const
+{
+    for (int i = 0; i < ess_tdof_list_.Size(); ++i)
+    {
+        const int tdof = ess_tdof_list_[i];
+        x[tdof] = x_bc_[tdof];
+    }
+}
+
+int PDEFilter::MaxBoundaryAttribute_() const
+{
+    const ParMesh* mesh = fes_filter_->GetParMesh();
+    return mesh->bdr_attributes.Size() ? mesh->bdr_attributes.Max() : 0;
+}
+
+void PDEFilter::ValidateBoundaryAttribute_(int boundary_attribute) const
+{
+    const ParMesh* mesh = fes_filter_->GetParMesh();
+    const int max_attr = MaxBoundaryAttribute_();
+    MFEM_VERIFY(max_attr > 0,
+                "PDEFilter: mesh has no boundary attributes");
+    MFEM_VERIFY(boundary_attribute >= 1 && boundary_attribute <= max_attr,
+                "PDEFilter: boundary attribute is outside the valid range");
+
+    bool found = false;
+    for (int i = 0; i < mesh->bdr_attributes.Size(); ++i)
+    {
+        found = found || mesh->bdr_attributes[i] == boundary_attribute;
+    }
+    MFEM_VERIFY(found,
+                "PDEFilter: boundary attribute is not present on the mesh");
+}
+
+void PDEFilter::RemoveBoundaryCondition_(int boundary_attribute)
+{
+    for (std::size_t i = 0; i < boundary_conditions_.size();)
+    {
+        if (boundary_conditions_[i].boundary_attribute == boundary_attribute)
+        {
+            boundary_conditions_.erase(boundary_conditions_.begin() + i);
+        }
+        else
+        {
+            ++i;
+        }
+    }
 }
 
 // =============================================================================
@@ -210,11 +368,14 @@ void PDEFilter::Mult(const Vector& x, Vector& y) const
     y.SetSize(Height());
 
     // rhs = M_fc * x_ctrl
-    Vector rhs(Height());
-    mixed_mass_mat_->Mult(x, rhs);
+    Vector raw_rhs(Height());
+    mixed_mass_mat_->Mult(x, raw_rhs);
+    Vector rhs;
+    FormSystemRHS_(raw_rhs, rhs);
 
     y = 0.0;
     solver_->Mult(rhs, y);
+    CopyEssentialValues_(y);
     CheckConvergence_(rhs, y, "PDEFilter::Mult");
 }
 
@@ -229,11 +390,16 @@ void PDEFilter::MultTranspose(const Vector& x, Vector& y) const
     MFEM_VERIFY(x.Size() == Height(),
                 "PDEFilter::MultTranspose: x.Size() != Height() (filter TrueVSize)");
 
-    // psi = (r^2 K + M)^{-1} x_filt
+    // With Dirichlet conditions the forward filter is affine. Its derivative
+    // has zero rows on essential DOFs, so the adjoint load is zeroed there.
+    Vector adjoint_rhs(x);
+    ZeroEssentialValues_(adjoint_rhs);
+
+    // psi = (r^2 K + M)^{-1} P_interior x_filt
     Vector psi(Height());
     psi = 0.0;
-    solver_->Mult(x, psi);
-    CheckConvergence_(x, psi, "PDEFilter::MultTranspose");
+    solver_->Mult(adjoint_rhs, psi);
+    CheckConvergence_(adjoint_rhs, psi, "PDEFilter::MultTranspose");
 
     // y = M_fc^T * psi
     y.SetSize(Width());

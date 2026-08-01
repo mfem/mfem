@@ -1,44 +1,60 @@
 /**
- * test_zero_ranks.cpp  —  MMA and GCMMA with zero-DOF ranks
+ * test_ccsa_zero_ranks.cpp  —  CCSAOptimizerParallel with zero-DOF ranks
+ *
+ * Same zero-rank edge cases as test_sq_zero_ranks.cpp (which, despite its
+ * name, actually exercises MMAOptimizer/MMAOptimizerParallel throughout —
+ * this port follows the actual code, using CCSAOptimizer/
+ * CCSAOptimizerParallel instead).
  *
  * Exercises the edge case where some MPI ranks own zero local design
- * variables (n_local = 0).  This tests that all MPI collectives inside
- * MMAOptimizerParallel are symmetric — every rank participates in every
- * MPI_Allreduce regardless of its local chunk size.
+ * variables (n_local = 0). This tests that all MPI collectives inside
+ * CCSAOptimizerParallel are symmetric — every rank participates in every
+ * MPI_Allreduce regardless of its local chunk size (both the ones inside
+ * detail::SolveDualEntropy and the ones inside KKTresidual()).
  *
  * Construction
  * ────────────
  * n_global DOFs are deliberately distributed so that exactly one rank per
  * test carries ALL the variables while the remaining nranks-1 ranks hold
- * empty chunks (n_local = 0).  This is the worst-case scenario for the
+ * empty chunks (n_local = 0). This is the worst-case scenario for the
  * zero-rank path.
  *
  * A second variant assigns variables only to even-numbered ranks, leaving
  * odd-numbered ranks empty.
  *
+ * CCSAOptimizer/CCSAOptimizerParallel work directly on the LATENT variable
+ * eta: Update()/UpdateGCMMA()/KKTresidual() take/return eta, not the
+ * physical design, and take no xmin/xmax. Both SerialRef() and RunTest()
+ * build a BoundsGeometry up front, seed eta = opt.ToLatent(x0), and
+ * convert back via opt.ToPhysical(eta) whenever the physical point is
+ * needed. Note: for a zero-DOF rank (nl=0), ToLatent()/ToPhysical() run a
+ * forall_switch over zero elements — a no-op, but every rank must still
+ * call them (and every MPI_Allreduce inside Update()/KKTresidual()) for
+ * the collective to stay symmetric.
+ *
  * Problems tested
  * ───────────────
- *  1. Single constraint (m=1)          — MMA and GCMMA
- *  2. Two constraints   (m=2)          — MMA and GCMMA
- *  3. 10 constraints    (m=10)         — MMA and GCMMA
- *  4. Unconstrained     (m=0)          — MMA and GCMMA
- *  5. Large n (n=5000), all vars on    — MMA and GCMMA
+ *  1. Single constraint (m=1)          — CCSA and GCMMA
+ *  2. Two constraints   (m=2)          — CCSA and GCMMA
+ *  3. 10 constraints    (m=10)         — CCSA and GCMMA
+ *  4. Unconstrained     (m=0)          — CCSA and GCMMA
+ *  5. Large n (n=5000), all vars on    — CCSA and GCMMA
  *     rank 0 only
- *  6. Even-rank distribution           — MMA and GCMMA
+ *  6. Even-rank distribution           — CCSA and GCMMA
  *
  * Correctness criterion
  * ─────────────────────
  * Results (KKT, final mean) must match a reference serial run on rank 0
  * to within 1e-6 — verifying that empty ranks do not corrupt the solution.
  *
- * Build:  cmake --build build
- * Run:    mpirun -np 2 ./build/test_zero_ranks   (1 zero rank)
- *         mpirun -np 4 ./build/test_zero_ranks   (3 zero ranks)
- *         mpirun -np 8 ./build/test_zero_ranks   (7 zero ranks)
- *         ./build/test_zero_ranks                (1 rank, degenerate but safe)
+ * Build:  cmake --build build   (links MMA_MFEM.cpp + CCSA_Bregman_MFEM.cpp)
+ * Run:    mpirun -np 2 ./build/test_ccsa_zero_ranks   (1 zero rank)
+ *         mpirun -np 4 ./build/test_ccsa_zero_ranks   (3 zero ranks)
+ *         mpirun -np 8 ./build/test_ccsa_zero_ranks   (7 zero ranks)
+ *         ./build/test_ccsa_zero_ranks                (1 rank, degenerate but safe)
  */
 
-#include "MMA_MFEM.hpp"
+#include "CCSA_Bregman_MFEM.hpp"
 #include <mfem.hpp>
 #include <mpi.h>
 #include <cmath>
@@ -101,7 +117,7 @@ static double GSum(double v)
 { double g; MPI_Allreduce(&v,&g,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD); return g; }
 
 // ── Reference serial run (rank 0 only) ───────────────────────────────────
-// Returns {kkt, xmean} from a serial MMAOptimizer run on the same problem.
+// Returns {kkt, xmean} from a serial CCSAOptimizer run on the same problem.
 
 struct RefResult { double kkt; double xmean; int iters; };
 
@@ -110,11 +126,15 @@ static RefResult SerialRef(int n, int m, const std::vector<double>& Vtgt,
 {
     // Compliance proxy: min sum(1/xj) s.t. mean(x_block_k) <= Vtgt[k]
     // For m=0: min sum(1/xj) unconstrained (optimum at xmax=1)
-    Vector x(n), xmin(n), xmax(n), df0(n);
-    x=0.5; xmin=0.001; xmax=1.0;
+    Vector xmin(n), xmax(n), df0(n);
+    xmin=0.001; xmax=1.0;
 
     std::vector<double> av(m,0), cv(m, std::max(1000.0,10.0*n)), dv(m,1);
-    MMAOptimizer opt(n, m, x, av.data(), cv.data(), dv.data());
+    BoundsGeometry bounds = BoundsGeometry::TwoSided(xmin, xmax);
+    CCSAOptimizer opt(n, m, bounds, av.data(), cv.data(), dv.data());
+    Vector x0(n); x0=0.5;
+    Vector eta = opt.ToLatent(x0);
+    Vector x(n);
 
     // Block constraint gradients (uniform blocks)
     std::vector<Vector> dg(m);
@@ -128,6 +148,7 @@ static RefResult SerialRef(int n, int m, const std::vector<double>& Vtgt,
 
     real_t kkt=1.0;
     for(int it=0;it<300&&kkt>1e-5;++it){
+        x = opt.ToPhysical(eta);
         for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));
         mfem::Vector fi(m);
         for(int k=0;k<m;++k){
@@ -136,27 +157,29 @@ static RefResult SerialRef(int n, int m, const std::vector<double>& Vtgt,
             fi(k)=real_t(s/bsz[k]-Vtgt[k]);
         }
         if(gcmma)
-            opt.UpdateGCMMA(x,df0,0.0f, m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_,
-                             m?dg.data():nullptr, xmin,xmax);
+            opt.UpdateGCMMA(eta,df0,0.0f, m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_,
+                             m?dg.data():nullptr);
         else
-            opt.Update(x,df0,0.0f, m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_,
-                       m?dg.data():nullptr, xmin,xmax);
+            opt.Update(eta,df0,0.0f, m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_,
+                       m?dg.data():nullptr);
+        x = opt.ToPhysical(eta);
         for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));
         for(int k=0;k<m;++k){
             int start=k*(n/m), end=(k==m-1)?n:(k+1)*(n/m);
             double s=0; for(int j=start;j<end;++j) s+=double(x(j));
             fi(k)=real_t(s/bsz[k]-Vtgt[k]);
         }
-        kkt=opt.KKTresidual(x,df0,0.0f, m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_,
-                             m?dg.data():nullptr, xmin,xmax);
+        kkt=opt.KKTresidual(eta,df0,0.0f, m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_,
+                             m?dg.data():nullptr);
     }
+    x = opt.ToPhysical(eta);
     double xmean=0; for(int j=0;j<n;++j) xmean+=double(x(j)); xmean/=n;
-    return {double(kkt), xmean, opt.GetIteration()};
+    return {double(kkt), xmean, opt.NumIterations()};
 }
 
 // ============================================================
 // Core test kernel
-// Distributes n_global DOFs using dist_fn, runs parallel MMA/GCMMA,
+// Distributes n_global DOFs using dist_fn, runs parallel CCSA/GCMMA,
 // compares result to a serial reference (computed on rank 0).
 // ============================================================
 static void RunTest(
@@ -189,15 +212,20 @@ static void RunTest(
         }
     }
 
-    Vector x(nl), xmin(nl), xmax(nl), df0(nl);
-    x=0.5; xmin=0.001; xmax=1.0;
+    Vector xmin(nl), xmax(nl), df0(nl);
+    xmin=0.001; xmax=1.0;
 
     std::vector<double> av(m,0), cv_v(m, std::max(1000.0,10.0*n_global)), dv(m,1);
-    MMAOptimizerParallel opt(comm, nl, m, x,
+    BoundsGeometry bounds = BoundsGeometry::TwoSided(xmin, xmax);
+    CCSAOptimizerParallel opt(comm, nl, m, bounds,
                               av.data(), cv_v.data(), dv.data());
+    Vector x0(nl); x0=0.5;
+    Vector eta = opt.ToLatent(x0);
+    Vector x(nl);
 
     real_t kkt=1.0;
     for(int it=0;it<300&&kkt>1e-5;++it){
+        x = opt.ToPhysical(eta);
         // Gradient
         for(int j=0;j<nl;++j)
             df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));
@@ -218,15 +246,14 @@ static void RunTest(
 
         // Update
         if(gcmma)
-            opt.UpdateGCMMA(x, df0, 0.0f,
-                             m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_, m?dg.data():nullptr,
-                             xmin, xmax);
+            opt.UpdateGCMMA(eta, df0, 0.0f,
+                             m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_, m?dg.data():nullptr);
         else
-            opt.Update(x, df0, 0.0f,
-                       m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_, m?dg.data():nullptr,
-                       xmin, xmax);
+            opt.Update(eta, df0, 0.0f,
+                       m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_, m?dg.data():nullptr);
 
         // KKT (recompute gradient and fi at new x)
+        x = opt.ToPhysical(eta);
         for(int j=0;j<nl;++j)
             df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));
         std::fill(sll.begin(),sll.end(),0);
@@ -241,12 +268,12 @@ static void RunTest(
         if(m>0) MPI_Allreduce(sll.data(),sgl.data(),m,MPI_DOUBLE,MPI_SUM,comm);
         for(int k=0;k<m;++k) fi(k)=real_t(sgl[k]/bsz[k]-Vtgt[k]);
 
-        kkt=opt.KKTresidual(x, df0, 0.0f,
-                             m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_, m?dg.data():nullptr,
-                             xmin, xmax);
+        kkt=opt.KKTresidual(eta, df0, 0.0f,
+                             m?static_cast<const mfem::Vector&>(fi):_local_empty_fival_, m?dg.data():nullptr);
     }
 
     // Global mean of x
+    x = opt.ToPhysical(eta);
     double xloc=0; for(int j=0;j<nl;++j) xloc+=double(x(j));
     double xmean = GSum(xloc) / n_global;
 
@@ -254,7 +281,7 @@ static void RunTest(
         printf("    %-50s  par_kkt=%.2e  ser_kkt=%.2e"
                "  |xmean_diff|=%.2e  iters=%d\n",
                label, double(kkt), ref.kkt,
-               std::abs(xmean-ref.xmean), opt.GetIteration());
+               std::abs(xmean-ref.xmean), opt.NumIterations());
 
     std::string t = std::string(label);
     Check(double(kkt) < 1e-4,
@@ -270,13 +297,14 @@ static void RunTest(
 // ============================================================
 static void Group_OneConstraint(bool gcmma)
 {
-    const char* alg = gcmma ? "GCMMA" : "MMA";
+    const char* alg = gcmma ? "GCMMA" : "CCSA";
     if(g_rank==0)
         printf("\n── %s, m=1: one constraint ─────────────────────────────\n", alg);
 
     std::vector<double> V1 = {0.4};
 
-    // Compute serial reference on every rank (MMAOptimizer uses MPI_COMM_SELF).
+    // Compute serial reference on every rank (CCSAOptimizer uses a serial
+    // sentinel comm internally).
     auto ref100 = SerialRef(100, 1, V1, 0.4, gcmma);
     auto ref500 = SerialRef(500, 1, V1, 0.4, gcmma);
 
@@ -295,7 +323,7 @@ static void Group_OneConstraint(bool gcmma)
 // ============================================================
 static void Group_TwoConstraints(bool gcmma)
 {
-    const char* alg = gcmma ? "GCMMA" : "MMA";
+    const char* alg = gcmma ? "GCMMA" : "CCSA";
     if(g_rank==0)
         printf("\n── %s, m=2: two constraints ────────────────────────────\n", alg);
 
@@ -318,7 +346,7 @@ static void Group_TwoConstraints(bool gcmma)
 // ============================================================
 static void Group_TenConstraints(bool gcmma)
 {
-    const char* alg = gcmma ? "GCMMA" : "MMA";
+    const char* alg = gcmma ? "GCMMA" : "CCSA";
     if(g_rank==0)
         printf("\n── %s, m=10: ten constraints ───────────────────────────\n", alg);
 
@@ -339,18 +367,15 @@ static void Group_TenConstraints(bool gcmma)
 // ============================================================
 static void Group_Unconstrained(bool gcmma)
 {
-    const char* alg = gcmma ? "GCMMA" : "MMA";
+    const char* alg = gcmma ? "GCMMA" : "CCSA";
     if(g_rank==0)
         printf("\n── %s, m=0: unconstrained ──────────────────────────────\n", alg);
 
     std::vector<double> noV;
 
     // For m=0 the "reference" serial is also unconstrained.
-    // We can't use SerialRef's block-volume checks, so run a custom check.
     // Strategy: all DOFs go to rank 0; check the parallel result matches
     // the serial result (both should converge to xmax=1 since f=sum(1/x)).
-    //
-    // Use RunTest with empty Vtgt; SerialRef handles m=0 correctly.
     auto ref200 = SerialRef(200, 0, noV, 0.0, gcmma);
 
     RunTest((std::string(alg)+", m=0, n=200,  all DOFs on rank 0").c_str(),
@@ -366,7 +391,7 @@ static void Group_Unconstrained(bool gcmma)
 // ============================================================
 static void Group_LargeN(bool gcmma)
 {
-    const char* alg = gcmma ? "GCMMA" : "MMA";
+    const char* alg = gcmma ? "GCMMA" : "CCSA";
     if(g_rank==0)
         printf("\n── %s, large n: all DOFs on one rank ───────────────────\n", alg);
 
@@ -394,7 +419,7 @@ int main(int argc, char** argv)
 
     if(g_rank==0) {
         printf("╔══════════════════════════════════════════════════════════╗\n"
-               "║  Zero-rank MMA/GCMMA parallel test  (%2d rank(s))        ║\n"
+               "║  Zero-rank CCSA/GCMMA parallel test  (%2d rank(s))       ║\n"
                "╠══════════════════════════════════════════════════════════╣\n"
                "║  Distribution strategies:                                ║\n"
                "║    OnlyRank0   — all n DOFs on rank 0, rest empty        ║\n"
@@ -407,8 +432,8 @@ int main(int argc, char** argv)
                    "exercised.\n        Run with -np >= 2 for full coverage.\n");
     }
 
-    // ── MMA ───────────────────────────────────────────────────────────────
-    if(g_rank==0) printf("\n═══ MMA ══════════════════════════════════════════════════\n");
+    // ── CCSA ──────────────────────────────────────────────────────────────
+    if(g_rank==0) printf("\n═══ CCSA ═════════════════════════════════════════════════\n");
     Group_OneConstraint(false);
     Group_TwoConstraints(false);
     Group_TenConstraints(false);
