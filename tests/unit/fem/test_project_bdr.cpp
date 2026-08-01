@@ -305,4 +305,95 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
    }
 }
 
+TEST_CASE("2D ProjectBdrCoefficientTangent with IntegratedGLL",
+          "[GridFunction]"
+          "[VectorGridFunctionCoefficient]")
+{
+   const int dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
+                                     true, 2.0, 3.0);
+   Vector constant({1.234, -2.357});
+   VectorConstantCoefficient constant_coef(constant);
+   Array<int> all_bdr(mesh.bdr_attributes.Max());
+   all_bdr = 1;
+
+   for (int order = 1; order <= 4; order++)
+   {
+      CAPTURE(order);
+      ND_FECollection nd_fec(order, dim, BasisType::GaussLobatto,
+                             BasisType::IntegratedGLL);
+      FiniteElementSpace nd_fespace(&mesh, &nd_fec);
+      GridFunction boundary_projection(&nd_fespace);
+      VectorGridFunctionCoefficient projected_coef(&boundary_projection);
+
+      boundary_projection = 0.0;
+      boundary_projection.ProjectBdrCoefficientTangent(constant_coef, all_bdr);
+
+      Vector tangent(dim);
+      Vector projected(dim);
+      for (int be = 0; be < mesh.GetNBE(); be++)
+      {
+         ElementTransformation *T = mesh.GetBdrElementTransformation(be);
+         const FiniteElement *fe = nd_fespace.GetBE(be);
+         const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
+                                                  2*order + 2);
+
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(j);
+            T->SetIntPoint(&ip);
+            T->Jacobian().GetColumn(0, tangent);
+            tangent /= tangent.Norml2();
+            projected_coef.Eval(projected, *T, ip);
+
+            CAPTURE(be, j);
+            REQUIRE(projected * tangent ==
+                    MFEM_Approx(constant * tangent));
+         }
+      }
+   }
+}
+
+TEST_CASE("3D ProjectBdrCoefficientTangent with IntegratedGLL",
+          "[GridFunction]"
+          "[VectorGridFunctionCoefficient]")
+{
+   const int dim = 3;
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 2, Element::HEXAHEDRON,
+                                     2.0, 3.0, 5.0);
+   mesh.EnsureNodes();
+   mesh.EnsureNCMesh(false);
+   VectorFunctionCoefficient func_coef(dim, Func_3D_lin);
+   Array<int> all_bdr(mesh.bdr_attributes.Max());
+   all_bdr = 1;
+
+   for (int order = 1; order <= 4; order++)
+   {
+      CAPTURE(order);
+      ND_FECollection nd_fec(order, dim, BasisType::GaussLobatto,
+                             BasisType::IntegratedGLL);
+      FiniteElementSpace nd_fespace(&mesh, &nd_fec);
+      GridFunction volume_projection(&nd_fespace);
+      GridFunction boundary_projection(&nd_fespace);
+
+      volume_projection.ProjectCoefficient(func_coef);
+      boundary_projection = 0.0;
+      boundary_projection.ProjectBdrCoefficientTangent(func_coef, all_bdr);
+
+      Array<int> ess_vdofs;
+      nd_fespace.GetEssentialVDofs(all_bdr, ess_vdofs);
+      real_t max_error = 0.0;
+      for (int i = 0; i < ess_vdofs.Size(); i++)
+      {
+         if (ess_vdofs[i])
+         {
+            max_error = std::max(max_error, std::abs(
+                                    boundary_projection[i] -
+                                    volume_projection[i]));
+         }
+      }
+      REQUIRE(max_error == MFEM_Approx(0.0));
+   }
+}
+
 } // namespace project_bdr
