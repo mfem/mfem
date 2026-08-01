@@ -2556,7 +2556,8 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          for (int i = 0; i < rank_neighbors.Size(); i++)
          {
             int elem = rank_neighbors[i];
-            msg.AddElementRank(elem, new_ranks[elements[elem].index]);
+            const Element &el = elements[elem];
+            msg.AddElement(elem, new_ranks[el.index], el.attribute);
          }
 
          msg.Isend(rank, MyComm);
@@ -2579,7 +2580,9 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
       {
          int ghost_index = elements[msg.elements[i]].index;
          MFEM_ASSERT(element_type[ghost_index] == 2, "");
-         new_ranks[ghost_index] = msg.values[i];
+         const ElementRankAndAttribute &value = msg.values[i];
+         new_ranks[ghost_index] = value.rank;
+         elements[msg.elements[i]].attribute = value.attribute;
       }
    }
 
@@ -2650,7 +2653,7 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
                if ((element_type[el.index] & 1) || el.rank != rank)
                {
-                  msg.AddElementRank(elem, el.rank);
+                  msg.AddElement(elem, el.rank, el.attribute);
                }
                // NOTE: we skip 'ghosts' that are of the receiver's rank because
                // they are not really ghosts and would get sent multiple times,
@@ -2702,10 +2705,12 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
          for (int i = 0; i < msg.Size(); i++)
          {
-            int elem_rank = msg.values[i];
-            elements[msg.elements[i]].rank = elem_rank;
+            const ElementRankAndAttribute &value = msg.values[i];
+            Element &el = elements[msg.elements[i]];
+            el.rank = value.rank;
+            el.attribute = value.attribute;
 
-            if (elem_rank == MyRank) { received_elements++; }
+            if (value.rank == MyRank) { received_elements++; }
          }
 
          // save the ranks we received from, for later use in RecvRebalanceDofs
@@ -2741,7 +2746,10 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
             for (int i = 0; i < msg.Size(); i++)
             {
-               elements[msg.elements[i]].rank = msg.values[i];
+               const ElementRankAndAttribute &value = msg.values[i];
+               Element &el = elements[msg.elements[i]];
+               el.rank = value.rank;
+               el.attribute = value.attribute;
             }
 
             // save the ranks we received from, for later use in RecvRebalanceDofs
