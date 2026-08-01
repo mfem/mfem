@@ -30,4 +30,13 @@ void MassIntegrator::RegisterTensorsMmaKernels()
    AddTensorsMmaSpecialization<3,8,9>();
 }
 
+MassIntegrator::ApplyTensorsMmaKernelType
+MassIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+{
+   if (dim == 2) { return internal::MmaMassApplyTensors2D; }
+   if (dim == 3) { return internal::MmaMassApplyTensors3D; }
+   MFEM_ABORT("Tensors MMA mass PA is only implemented for dim 2 or 3");
+   return nullptr;
+}
+
 } // namespace mfem

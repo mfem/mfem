@@ -452,14 +452,6 @@ template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
    MMAForce mma(T::mma);
-   if constexpr (!T::simplex && T::mma)
-   {
-      if (!Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         state.SkipWithError("Tensors MMA benchmarks require CUDA or HIP");
-         return;
-      }
-   }
 
    T run(state.range(0), state.range(1));
    while (state.KeepRunning()) { run.benchmark(); }

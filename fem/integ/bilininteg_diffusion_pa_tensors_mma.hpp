@@ -21,19 +21,32 @@ namespace mfem
 namespace internal
 {
 
-template <int T_D1D, int T_Q1D, bool SYM>
-inline void MmaPADiffusionApplyTensors3D(const int NE,
-                                         const Array<real_t> &b_,
-                                         const Array<real_t> &g_,
-                                         const Vector &d_,
-                                         const Vector &x_,
-                                         Vector &y_)
+template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
+inline void MmaDiffusionApplyTensors3D(const int NE,
+                                       const Array<real_t> &b_,
+                                       const Array<real_t> &g_,
+                                       const Vector &d_,
+                                       const Vector &x_,
+                                       Vector &y_,
+                                       const int d1d = 0,
+                                       const int q1d = 0)
 {
-   constexpr int D1D = T_D1D, Q1D = T_Q1D;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MD1 = T_D1D ? T_D1D : tensors_mma::TensorsMmaMaxD1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : tensors_mma::TensorsMmaMaxQ1D;
    constexpr int PA_SIZE = SYM ? 6 : 9;
-   constexpr int NB = tensors_mma::DiffNB3D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
+   MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
+               "Tensors MMA diffusion 3D D1D/Q1D exceeds shell cap");
    MFEM_VERIFY(d_.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
+
+   const int NB = T_D1D ? tensors_mma::DiffNB3D<T_D1D, T_Q1D>()
+                        : tensors_mma::DiffNB3DRuntime(D1D);
+   const int nthreads = Device::Allows(Backend::DEVICE_MASK)
+                        ? (T_D1D ? tensors_mma::DiffThreads3D<T_D1D, T_Q1D>()
+                                 : tensors_mma::DiffThreads3DRuntime(D1D, Q1D))
+                        : 1;
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
    const auto G = Reshape(g_.Read(), Q1D, D1D);
@@ -41,17 +54,14 @@ inline void MmaPADiffusionApplyTensors3D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
 
-   const int nthreads = tensors_mma::DiffThreads3D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
-      constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
       MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
       MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
       MFEM_SHARED real_t BG[2][MD1 * MQ1];
       MFEM_SHARED real_t BGt[2][MD1 * MQ1];
 
-      // One global B/G load for all NB elements in this block.
       tensors_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
       MFEM_SYNC_THREAD;
 
@@ -70,22 +80,16 @@ inline void MmaPADiffusionApplyTensors3D(const int NE,
          tensors_mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
 
-         // Q-fn: grid-stride so thread count can be < Q^3.
          {
             const int tid = tensors_mma::getThreadIdx();
             const int nq = Q1D * Q1D * Q1D;
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-            const int stride = blockDim.x;
-#else
-            const int stride = nq;
-#endif
+            const int stride = tensors_mma::getBlockNthreads();
             for (int thread = tid; thread < nq; thread += stride)
             {
                const int qx = thread % Q1D;
                const int div = thread / Q1D;
                const int qy = div % Q1D;
                const int qz = div / Q1D;
-               // GradZ DeviceMatrix(Q*Q,Q) layout: (qx+Q*qy) + Q*Q*qz
                const int idx = qx + Q1D * qy + Q1D * Q1D * qz;
                const int q = qx + Q1D * (qy + Q1D * qz);
                const real_t gX = sm1[0][idx], gY = sm1[1][idx], gZ = sm1[2][idx];
@@ -108,7 +112,6 @@ inline void MmaPADiffusionApplyTensors3D(const int NE,
                sm0[2][idx] = O31 * gX + O32 * gY + O33 * gZ;
             }
          }
-         // No mid-kernel global BtGt reload; use BGt from LoadBGBoth.
          MFEM_SYNC_THREAD;
 
          tensors_mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
@@ -122,35 +125,53 @@ inline void MmaPADiffusionApplyTensors3D(const int NE,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-inline void MmaPADiffusionApplyTensors3D_Dispatch(
+inline void MmaDiffusionApplyTensors3D_Dispatch(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
+   const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y,
-   const int, const int)
+   const int d1d, const int q1d)
 {
+   MFEM_CONTRACT_VAR(bt);
+   MFEM_CONTRACT_VAR(gt);
    if (symmetric)
    {
-      MmaPADiffusionApplyTensors3D<T_D1D, T_Q1D, true>(NE, b, g, d, x, y);
+      MmaDiffusionApplyTensors3D<T_D1D, T_Q1D, true>(
+         NE, b, g, d, x, y, d1d, q1d);
    }
    else
    {
-      MmaPADiffusionApplyTensors3D<T_D1D, T_Q1D, false>(NE, b, g, d, x, y);
+      MmaDiffusionApplyTensors3D<T_D1D, T_Q1D, false>(
+         NE, b, g, d, x, y, d1d, q1d);
    }
 }
 
-template <int T_D1D, int T_Q1D, bool SYM>
-inline void MmaPADiffusionApplyTensors2D(const int NE,
-                                         const Array<real_t> &b_,
-                                         const Array<real_t> &g_,
-                                         const Vector &d_,
-                                         const Vector &x_,
-                                         Vector &y_)
+template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
+inline void MmaDiffusionApplyTensors2D(const int NE,
+                                       const Array<real_t> &b_,
+                                       const Array<real_t> &g_,
+                                       const Vector &d_,
+                                       const Vector &x_,
+                                       Vector &y_,
+                                       const int d1d = 0,
+                                       const int q1d = 0)
 {
-   constexpr int D1D = T_D1D, Q1D = T_Q1D;
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   constexpr int MD1 = T_D1D ? T_D1D : tensors_mma::TensorsMmaMaxD1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : tensors_mma::TensorsMmaMaxQ1D;
+   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    constexpr int PA_SIZE = SYM ? 3 : 4;
-   constexpr int MDQ = (Q1D > D1D ? Q1D : D1D);
-   constexpr int NB = tensors_mma::DiffNB2D<D1D, Q1D>();
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
+   MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
+               "Tensors MMA diffusion 2D D1D/Q1D exceeds shell cap");
+
+   const int NB = T_D1D ? tensors_mma::DiffNB2D<T_D1D, T_Q1D>()
+                        : tensors_mma::NB2DRuntime(D1D);
+   const int nthreads = Device::Allows(Backend::DEVICE_MASK)
+                        ? (T_D1D ? tensors_mma::DiffThreads2D<T_D1D, T_Q1D>()
+                                 : tensors_mma::Threads2DRuntime(D1D, Q1D))
+                        : 1;
 
    const auto B = Reshape(b_.Read(), Q1D, D1D);
    const auto G = Reshape(g_.Read(), Q1D, D1D);
@@ -158,11 +179,9 @@ inline void MmaPADiffusionApplyTensors2D(const int NE,
    const auto X = Reshape(x_.Read(), D1D, D1D, NE);
    auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
 
-   const int nthreads = tensors_mma::DiffThreads2D<D1D, Q1D>();
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
-      constexpr int MQ1 = T_Q1D, MD1 = T_D1D;
       MFEM_SHARED real_t sm0[2][MDQ * MDQ];
       MFEM_SHARED real_t sm1[2][MDQ * MDQ];
       MFEM_SHARED real_t BG[2][MD1 * MQ1];
@@ -187,11 +206,7 @@ inline void MmaPADiffusionApplyTensors2D(const int NE,
          {
             const int tid = tensors_mma::getThreadIdx();
             const int nq = Q1D * Q1D;
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-            const int stride = blockDim.x;
-#else
-            const int stride = nq;
-#endif
+            const int stride = tensors_mma::getBlockNthreads();
             for (int t = tid; t < nq; t += stride)
             {
                const int qx = t % Q1D;
@@ -218,39 +233,67 @@ inline void MmaPADiffusionApplyTensors2D(const int NE,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-inline void MmaPADiffusionApplyTensors2D_Dispatch(
+inline void MmaDiffusionApplyTensors2D_Dispatch(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
+   const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y,
-   const int, const int)
+   const int d1d, const int q1d)
 {
+   MFEM_CONTRACT_VAR(bt);
+   MFEM_CONTRACT_VAR(gt);
    if (symmetric)
    {
-      MmaPADiffusionApplyTensors2D<T_D1D, T_Q1D, true>(NE, b, g, d, x, y);
+      MmaDiffusionApplyTensors2D<T_D1D, T_Q1D, true>(
+         NE, b, g, d, x, y, d1d, q1d);
    }
    else
    {
-      MmaPADiffusionApplyTensors2D<T_D1D, T_Q1D, false>(NE, b, g, d, x, y);
+      MmaDiffusionApplyTensors2D<T_D1D, T_Q1D, false>(
+         NE, b, g, d, x, y, d1d, q1d);
    }
 }
 
-template <int DIM, int T_D1D, int T_Q1D>
-inline void MmaPADiffusionApplyTensors(
+/** Runtime overload for Fallback / unregistered (D1D,Q1D). */
+inline void MmaDiffusionApplyTensors2D(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
-   const Array<real_t> &, const Array<real_t> &,
+   const Array<real_t> &bt, const Array<real_t> &gt,
+   const Vector &d, const Vector &x, Vector &y,
+   const int d1d, const int q1d)
+{
+   MmaDiffusionApplyTensors2D_Dispatch<0, 0>(
+      NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
+}
+
+inline void MmaDiffusionApplyTensors3D(
+   const int NE, const bool symmetric,
+   const Array<real_t> &b, const Array<real_t> &g,
+   const Array<real_t> &bt, const Array<real_t> &gt,
+   const Vector &d, const Vector &x, Vector &y,
+   const int d1d, const int q1d)
+{
+   MmaDiffusionApplyTensors3D_Dispatch<0, 0>(
+      NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
+}
+
+template <int DIM, int T_D1D, int T_Q1D>
+inline void MmaDiffusionApplyTensors(
+   const int NE, const bool symmetric,
+   const Array<real_t> &b, const Array<real_t> &g,
+   const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
    if constexpr (DIM == 3)
    {
-      MmaPADiffusionApplyTensors3D_Dispatch<T_D1D, T_Q1D>(
-         NE, symmetric, b, g, d, x, y, d1d, q1d);
+      MmaDiffusionApplyTensors3D_Dispatch<T_D1D, T_Q1D>(
+         NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
    }
    else
    {
-      MmaPADiffusionApplyTensors2D_Dispatch<T_D1D, T_Q1D>(
-         NE, symmetric, b, g, d, x, y, d1d, q1d);
+      MmaDiffusionApplyTensors2D_Dispatch<T_D1D, T_Q1D>(
+         NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
    }
 }
 
@@ -260,16 +303,10 @@ template <int DIM, int T_D1D, int T_Q1D>
 DiffusionIntegrator::ApplyTensorsMmaKernelType
 DiffusionIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
-   return internal::MmaPADiffusionApplyTensors<DIM, T_D1D, T_Q1D>;
+   return internal::MmaDiffusionApplyTensors<DIM, T_D1D, T_Q1D>;
 }
 
-inline DiffusionIntegrator::ApplyTensorsMmaKernelType
-DiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
-{
-   MFEM_ABORT("Tensors MMA diffusion requires a specialized (D1D,Q1D) kernel"
-              " (dim=" << dim << ")");
-   return nullptr;
-}
+// Fallback defined in bilininteg_diffusion_pa_tensors_mma.cpp.
 
 /// \endcond DO_NOT_DOCUMENT
 

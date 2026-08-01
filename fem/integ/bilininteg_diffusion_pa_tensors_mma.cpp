@@ -30,4 +30,13 @@ void DiffusionIntegrator::RegisterTensorsMmaKernels()
    AddTensorsMmaSpecialization<3,8,9>();
 }
 
+DiffusionIntegrator::ApplyTensorsMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+{
+   if (dim == 2) { return internal::MmaDiffusionApplyTensors2D; }
+   if (dim == 3) { return internal::MmaDiffusionApplyTensors3D; }
+   MFEM_ABORT("Tensors MMA diffusion PA is only implemented for dim 2 or 3");
+   return nullptr;
+}
+
 } // namespace mfem
