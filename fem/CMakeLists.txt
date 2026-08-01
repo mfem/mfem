@@ -210,6 +210,7 @@ set(HDRS
   ceed/interface/util.hpp
   ceed/solvers/algebraic.hpp
   ceed/solvers/full-assembly.hpp
+  integ/bilininteg_vecdiv_pa.hpp
   ceed/solvers/solvers-atpmg.hpp
   coefficient.hpp
   complex_fem.hpp
@@ -330,27 +331,27 @@ set(HDRS
   transfer.hpp
 )
 
-if (MFEM_USE_SIDRE)
+if(MFEM_USE_SIDRE)
   list(APPEND SRCS sidredatacollection.cpp)
   list(APPEND HDRS sidredatacollection.hpp)
 endif()
 
-if (MFEM_USE_CONDUIT)
+if(MFEM_USE_CONDUIT)
   list(APPEND SRCS conduitdatacollection.cpp)
   list(APPEND HDRS conduitdatacollection.hpp)
 endif()
 
-if (MFEM_USE_ADIOS2)
+if(MFEM_USE_ADIOS2)
   list(APPEND SRCS adios2datacollection.cpp)
   list(APPEND HDRS adios2datacollection.hpp)
 endif()
 
-if (MFEM_USE_FMS)
+if(MFEM_USE_FMS)
   list(APPEND SRCS fmsdatacollection.cpp fmsconvert.cpp)
   list(APPEND HDRS fmsdatacollection.hpp fmsconvert.hpp)
 endif()
 
-if (MFEM_USE_MPI)
+if(MFEM_USE_MPI)
   list(APPEND SRCS
     pbilinearform.cpp
     pfespace.cpp
