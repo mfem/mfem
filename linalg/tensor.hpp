@@ -1150,6 +1150,14 @@ decltype(S {} * T{} * U{})
    return uAv;
 }
 
+/// compute the (right handed) cross product of two 3-vectors
+template <typename S, typename T> MFEM_HOST_DEVICE
+auto cross(const tensor<S, 3>& u, const tensor<T, 3>& v)
+{
+  return tensor<decltype(S{} * T{}), 3>{u(1) * v(2) - u(2) * v(1), u(2) * v(0) - u(0) * v(2),
+                                        u(0) * v(1) - u(1) * v(0)};
+}
+
 /**
  * @brief real_t dot product, contracting over the two "middle" indices
  * @tparam S the underlying type of the tensor (lefthand) argument
@@ -1455,17 +1463,54 @@ T det(const tensor<T, 3, 3>& A)
           A[2][0];
 }
 
+/**
+ * @brief Find indices that would sort a 3-vector
+ *
+ * @param v 3-vector to sort.
+ * @return 3-vector of indices that would sort \p v in ascending order.
+ */
 template <typename T> MFEM_HOST_DEVICE
-std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig(tensor<T, 1, 1> &A)
+tensor<int, 3> argsort(const tensor<T, 3>& v)
+{
+  auto swap = [](int& first, int& second) {
+    int tmp = first;
+    first = second;
+    second = tmp;
+  };
+  tensor<int, 3> order{0, 1, 2};
+  if (v[0] > v[1]) swap(order[0], order[1]);
+  if (v[order[1]] > v[order[2]]) swap(order[1], order[2]);
+  if (v[order[0]] > v[order[1]]) swap(order[0], order[1]);
+  return order;
+}
+
+/** Eigendecomposition for a 1x1 matrix
+ *
+ * Specialization for the degenerate case of a singleton.
+ *
+ * @param Matrix for which the eigendecomposition will be computed.
+ * @return tuple with the eigenvalue in the first element, and the 
+ * eigenvector in the second element.
+ */
+template <typename T> MFEM_HOST_DEVICE
+std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
 {
    return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
 }
 
-template <typename T> MFEM_HOST_DEVICE
-std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
+/** Eigendecomposition for a symmetric 2x2 matrix
+ *
+ * @param Matrix for which the eigendecomposition will be computed. Must be
+ * symmetric, this is not checked.
+ * @return tuple with the eigenvalues in the first element, and the matrix of
+ * eigenvectors (columnwise) in the second element.
+ *
+ */
+MFEM_HOST_DEVICE
+inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(const tensor<real_t, 2, 2> &A)
 {
-   tensor<T, 2> e;
-   tensor<T, 2, 2> v;
+   tensor<real_t, 2> e;
+   tensor<real_t, 2, 2> v;
 
    real_t d0 = A(0, 0);
    real_t d2 = A(0, 1);
@@ -1482,7 +1527,7 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
       real_t t;
       const real_t zeta = (d3 - d0) / (2.0 * d2);
       const real_t azeta = fabs(zeta);
-      if (azeta < std::sqrt(1.0/std::numeric_limits<T>::epsilon()))
+      if (azeta < std::sqrt(1.0/std::numeric_limits<real_t>::epsilon()))
       {
          t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
       }
@@ -1517,6 +1562,128 @@ std::tuple<tensor<T, 2>, tensor<T, 2, 2>> eig(tensor<T, 2, 2> &A)
    }
 
    return {e, v};
+}
+
+/** Eigendecomposition for a symmetric 3x3 matrix
+ *
+ * @param A Matrix for which the eigendecomposition will be computed. Must be
+ * symmetric, this is not checked.
+ * @return tuple with the eigenvalues in the first element, and the matrix of
+ * normalized eigenvectors (columnwise) in the second element.
+ * The eigenvalues are sorted in ascending order, each repeated according to
+ * its multiplicity.
+ *
+ * @note based on "A robust algorithm for finding the eigenvalues and
+ * eigenvectors of 3x3 symmetric matrices", by Scherzinger & Dohrmann
+ */
+MFEM_HOST_DEVICE
+inline std::tuple<tensor<double, 3>, tensor<double, 3, 3>> eig_symm(const tensor<double, 3, 3>& A)
+{
+  tensor<double, 3> eta{};
+  tensor<double, 3, 3> Q = IdentityMatrix<3>();
+
+  auto A_dev = dev(A);
+  double J2 = 0.5 * inner(A_dev, A_dev);
+  double J3 = det(A_dev);
+
+  if (J2 > 0.0) {
+    // angle used to find eigenvalues
+    double tmp = (0.5 * J3) * std::pow(3.0 / J2, 1.5);
+    double alpha = std::acos(fmin(fmax(tmp, -1.0), 1.0)) / 3.0;
+
+    // consider the most distinct eigenvalue first
+    if (6.0 * alpha < M_PI) {
+      eta[0] = 2 * std::sqrt(J2 / 3.0) * std::cos(alpha);
+    } else {
+      eta[0] = 2 * std::sqrt(J2 / 3.0) * std::cos(alpha + 2.0 * M_PI / 3.0);
+    }
+
+    // find the eigenvector for that eigenvalue
+    tensor<real_t, 3, 3> r;
+
+    int imax = -1;
+    double norm_max = -1.0;
+
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        r[i][j] = A_dev(j, i) - (i == j) * eta(0);
+      }
+
+      double norm_r = norm(r[i]);
+      if (norm_max < norm_r) {
+        imax = i;
+        norm_max = norm_r;
+      }
+    }
+
+    tensor<real_t, 3> s0, s1, t1, t2, v0, v1, v2, w;
+
+    s0 = normalize(r[imax]);
+    t1 = r[(imax + 1) % 3] - dot(r[(imax + 1) % 3], s0) * s0;
+    t2 = r[(imax + 2) % 3] - dot(r[(imax + 2) % 3], s0) * s0;
+    s1 = normalize((norm(t1) > norm(t2)) ? t1 : t2);
+
+    // record the first eigenvector
+    v0 = cross(s0, s1);
+    for (int i = 0; i < 3; i++) {
+      Q[i][0] = v0[i];
+    }
+
+    // get the other two eigenvalues by solving the
+    // remaining quadratic characteristic polynomial
+    auto A_dev_s0 = dot(A_dev, s0);
+    auto A_dev_s1 = dot(A_dev, s1);
+
+    double A11 = dot(s0, A_dev_s0);
+    double A12 = dot(s0, A_dev_s1);
+    double A21 = A12;
+    double A22 = dot(s1, A_dev_s1);
+
+    double delta = 0.5 * std::sqrt((A11 - A22) * (A11 - A22) + 4 * A12 * A21);
+
+    eta(1) = 0.5 * (A11 + A22) - delta;
+    eta(2) = 0.5 * (A11 + A22) + delta;
+
+    // if the remaining eigenvalues are exactly the same
+    // then just use the basis for the orthogonal complement
+    // found earlier
+    if (fabs(delta) <= 1.0e-15) {
+      for (int i = 0; i < 3; i++) {
+        Q[i][1] = s0(i);
+        Q[i][2] = s1(i);
+      }
+
+      // otherwise compute the remaining eigenvectors
+    } else {
+      t1 = A_dev_s0 - eta(1) * s0;
+      t2 = A_dev_s1 - eta(1) * s1;
+
+      w = normalize((norm(t1) > norm(t2)) ? t1 : t2);
+
+      v1 = normalize(cross(w, v0));
+      for (int i = 0; i < 3; i++) Q[i][1] = v1(i);
+
+      // define the last eigenvector as
+      // the direction perpendicular to the
+      // first two directions
+      v2 = normalize(cross(v0, v1));
+      for (int i = 0; i < 3; i++) Q[i][2] = v2(i);
+    }
+  }
+  // eta are actually eigenvalues of A_dev, so
+  // shift them to get eigenvalues of A
+  for (int i = 0; i < 3; i++) eta[i] += tr(A) / 3.0;
+
+  // sort eigenvalues into ascending order
+  auto order = argsort(eta);
+  tensor<real_t, 3> eigvals{{eta[order[0]], eta[order[1]], eta[order[2]]}};
+  // clang-format off
+  tensor<real_t, 3, 3> eigvecs{{{Q[0][order[0]], Q[0][order[1]], Q[0][order[2]]},
+                {Q[1][order[0]], Q[1][order[1]], Q[1][order[2]]},
+                {Q[2][order[0]], Q[2][order[1]], Q[2][order[2]]}}};
+  // clang-format on
+
+  return {eigvals, eigvecs};
 }
 
 template <typename T> MFEM_HOST_DEVICE

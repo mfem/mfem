@@ -26,13 +26,6 @@ using dreal_t = dual<real_t, real_t>;
 
 static auto I = IdentityMatrix<3>();
 
-tensor<real_t, 3, 3> Orthogonal3x3Matrix()
-{
-   // Orthogonal tensor that was generated externally and written out to 15 decimal places
-   return {{{-0.330377035403558,  0.108498660511463, -0.93759215821442 },
-            {-0.454957905891801, -0.888656142836434,  0.057476635823764},
-            {-0.826960892874931,  0.445553925430232,  0.342953905341823}}};
-}
 
 TEST_CASE("Basic tensor operations", "[Tensor]")
 {
@@ -97,4 +90,58 @@ TEST_CASE("Determinant", "[Tensor]")
                            {-7,  1,  5}}};
    real_t detA = -164;   
    CHECK_THAT(det(A), Catch::WithinULP(detA, 1));
+}
+
+tensor<real_t, 2, 2> Orthogonal2x2Matrix()
+{
+   // Orthogonal tensor that was generated externally and written out to 17 decimal places
+   return {{{-0.364568375099243,   0.9311766212043223},
+            {-0.9311766212043223, -0.3645683750992428 }}};
+}
+
+tensor<real_t, 3, 3> Orthogonal3x3Matrix()
+{
+   // Orthogonal tensor that was generated externally and written out to 17 decimal places
+   return {{{-0.33037703540355823,  0.1084986605114631,  -0.9375921582144203},
+            {-0.4549579058918012,  -0.8886561428364343,   0.05747663582376441},
+            {-0.8269608928749312,   0.4455539254302321,   0.34295390534182263}}};
+}
+
+TEST_CASE("Eigenvalues2x2", "[Tensor]")
+{
+   tensor<real_t, 2> lambda{{8.0, 8.0 + 1e-12}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   INFO("A = " << A);
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   INFO("eigenvecs = " << eigenvecs);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
+   // In terms of ULP, the algorithm is not as sharp as it could be on eigenvectors.
+   for (int i = 0; i < 2; i++) {
+      for (int j = 0; j < 2; j++) {
+         CHECK_THAT(should_be_A[i][j], Catch::WithinAbs(A[i][j], 1e-14));
+      }
+   }
+}
+
+TEST_CASE("Eigenvalues3x3", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   INFO("eigenvecs = " << eigenvecs);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
+   CHECK_THAT(eigenvals[2], Catch::WithinULP(lambda[2], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
+   for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+         CHECK_THAT(should_be_A[i][j], Catch::WithinULP(A[i][j], 100));
+      }
+   }
 }
