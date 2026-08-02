@@ -32,7 +32,7 @@
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
 
-// CG verification for BP setups; enabled via --benchmark_context=cg_verify=true
+// CG verification for BP setups; enabled via --benchmark_context=cg=true
 static bool cg_verify = false;
 
 static int SnapMmaElementsPerDir(int n) noexcept
@@ -465,7 +465,6 @@ static void Benchmark(bm::State& state) noexcept
               CounterColor::Default, true);
    AddCounter(state, "QND", bm::Counter(run.qnd),
               CounterColor::Default, true);
-   // AddCounter(state, "Simplex", bm::Counter(run.simplex));
    if (run.cg_final_iter >= 0)
    {
       AddCounter(state, "CG_Iter", bm::Counter(run.cg_final_iter),
@@ -585,7 +584,7 @@ REGISTER(BK, 6, QuadSum);
  * @brief CEED Bake-off Problems main entry point
  * Command line options:
  *    --benchmark_context=device=gpu
- *    --benchmark_context=cg_verify=true|false  (default false)
+ *    --benchmark_context=cg=true|false  (default false)
  *    --benchmark_filter=BP1hex_sum
  *    --benchmark_filter=BP3hex_mma
  *    --benchmark_filter=BP1tet_gll_mma
@@ -621,7 +620,7 @@ int main(int argc, char *argv[])
          mfem::out << device->first << " : " << device->second << std::endl;
          device_config = device->second;
       }
-      const auto ctx_cg = global_context->find("cg_verify");
+      const auto ctx_cg = global_context->find("cg");
       if (ctx_cg != global_context->end())
       {
          mfem::out << ctx_cg->first << " : " << ctx_cg->second << std::endl;
