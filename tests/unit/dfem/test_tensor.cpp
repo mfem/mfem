@@ -14,6 +14,7 @@
 #include "mfem.hpp"
 
 #include "../../../linalg/tensor.hpp"
+#include <limits>
 
 using namespace mfem;
 using namespace mfem::future;
@@ -114,17 +115,29 @@ TEST_CASE("Eigenvalues2x2", "[Tensor]")
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    INFO("A = " << A);
    auto [eigenvals, eigenvecs] = eig_symm(A);
+   INFO("eigenvals = " << eigenvals);
    INFO("eigenvecs = " << eigenvecs);
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
 
    auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
-   // In terms of ULP, the algorithm is not as sharp as it could be on eigenvectors.
-   for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < 2; j++) {
-         CHECK_THAT(should_be_A[i][j], Catch::WithinAbs(A[i][j], 1e-14));
-      }
-   }
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
+TEST_CASE("Eigenvalues2x2Distinct", "[Tensor]")
+{
+   tensor<real_t, 2> lambda{{-4.3, 8.0}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   INFO("A = " << A);
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   INFO("eigenvecs = " << eigenvecs);
+   INFO("eigenvecs = " << eigenvecs);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
 
 TEST_CASE("Eigenvalues3x3", "[Tensor]")
@@ -139,9 +152,5 @@ TEST_CASE("Eigenvalues3x3", "[Tensor]")
    CHECK_THAT(eigenvals[2], Catch::WithinULP(lambda[2], 2));
 
    auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
-   for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 3; j++) {
-         CHECK_THAT(should_be_A[i][j], Catch::WithinULP(A[i][j], 100));
-      }
-   }
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
