@@ -33,19 +33,19 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : tensors_mma::TensorsMmaMaxD1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : tensors_mma::TensorsMmaMaxQ1D;
+   constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
    constexpr int PA_SIZE = SYM ? 6 : 9;
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
                "Tensors MMA diffusion 3D D1D/Q1D exceeds shell cap");
    MFEM_VERIFY(d.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
-   const int NB = T_D1D ? tensors_mma::DiffNB3D<T_D1D, T_Q1D>()
-                        : tensors_mma::DiffNB3DRuntime(D1D);
+   const int NB = T_D1D ? mma::DiffNB3D<T_D1D, T_Q1D>()
+                        : mma::DiffNB3DRuntime(D1D);
    const int nthreads = Device::Allows(Backend::DEVICE_MASK)
-                        ? (T_D1D ? tensors_mma::DiffThreads3D<T_D1D, T_Q1D>()
-                                 : tensors_mma::DiffThreads3DRuntime(D1D, Q1D))
+                        ? (T_D1D ? mma::DiffThreads3D<T_D1D, T_Q1D>()
+                                 : mma::DiffThreads3DRuntime(D1D, Q1D))
                         : 1;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
@@ -62,7 +62,7 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
       MFEM_SHARED real_t BG[2][MD1 * MQ1];
       MFEM_SHARED real_t BGt[2][MD1 * MQ1];
 
-      tensors_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
       MFEM_SYNC_THREAD;
 
       for (int i = 0; i < NB; i++)
@@ -70,20 +70,20 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         tensors_mma::LoadX<MQ1>(e, D1D, X, sm0);
+         mma::LoadX<MQ1>(e, D1D, X, sm0);
          MFEM_SYNC_THREAD;
 
-         tensors_mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensors_mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+         mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensors_mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+         mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
 
          {
-            const int tid = tensors_mma::getThreadIdx();
+            const int tid = mma::getThreadIdxX();
             const int nq = Q1D * Q1D * Q1D;
-            const int stride = tensors_mma::getBlockNthreads();
+            const int stride = mma::getBlockNthreadsX();
             for (int thread = tid; thread < nq; thread += stride)
             {
                const int qx = thread % Q1D;
@@ -114,11 +114,11 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
          }
          MFEM_SYNC_THREAD;
 
-         tensors_mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
+         mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensors_mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
+         mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensors_mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y, e);
+         mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y, e);
          MFEM_SYNC_THREAD;
       }
    });
@@ -152,19 +152,19 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : tensors_mma::TensorsMmaMaxD1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : tensors_mma::TensorsMmaMaxQ1D;
+   constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    constexpr int PA_SIZE = SYM ? 3 : 4;
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
                "Tensors MMA diffusion 2D D1D/Q1D exceeds shell cap");
 
-   const int NB = T_D1D ? tensors_mma::DiffNB2D<T_D1D, T_Q1D>()
-                        : tensors_mma::NB2DRuntime(D1D);
+   const int NB = T_D1D ? mma::DiffNB2D<T_D1D, T_Q1D>()
+                        : mma::NB2DRuntime(D1D);
    const int nthreads = Device::Allows(Backend::DEVICE_MASK)
-                        ? (T_D1D ? tensors_mma::DiffThreads2D<T_D1D, T_Q1D>()
-                                 : tensors_mma::Threads2DRuntime(D1D, Q1D))
+                        ? (T_D1D ? mma::DiffThreads2D<T_D1D, T_Q1D>()
+                                 : mma::Threads2DRuntime(D1D, Q1D))
                         : 1;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
@@ -181,7 +181,7 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
       MFEM_SHARED real_t BG[2][MD1 * MQ1];
       MFEM_SHARED real_t BGt[2][MD1 * MQ1];
 
-      tensors_mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
       MFEM_SYNC_THREAD;
 
       for (int i = 0; i < NB; i++)
@@ -189,18 +189,18 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         tensors_mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
+         mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
          MFEM_SYNC_THREAD;
 
-         tensors_mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
+         mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensors_mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
+         mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
          MFEM_SYNC_THREAD;
 
          {
-            const int tid = tensors_mma::getThreadIdx();
+            const int tid = mma::getThreadIdxX();
             const int nq = Q1D * Q1D;
-            const int stride = tensors_mma::getBlockNthreads();
+            const int stride = mma::getBlockNthreadsX();
             for (int t = tid; t < nq; t += stride)
             {
                const int qx = t % Q1D;
@@ -218,9 +218,9 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
          }
          MFEM_SYNC_THREAD;
 
-         tensors_mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
+         mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensors_mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y, e);
+         mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y, e);
          MFEM_SYNC_THREAD;
       }
    });

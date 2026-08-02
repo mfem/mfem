@@ -109,8 +109,8 @@ inline void MassApplyBlasSpecialized(int NE, const real_t *P, const real_t *D,
       alignas(64) real_t xloc[NDOF * NB];
       alignas(64) real_t uloc[NQ * NB];
       PackXBlas<NDOF, NB>(X, e0, NE, xloc);
-      BlasGemmForward<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
-      BlasGemmBackward<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
+      blas_Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
+      blas_GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
    }
 }
 

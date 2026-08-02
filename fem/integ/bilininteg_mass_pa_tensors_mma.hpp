@@ -287,18 +287,18 @@ inline void MmaMassApplyTensors3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : tensors_mma::TensorsMmaMaxD1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : tensors_mma::TensorsMmaMaxQ1D;
+   constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1, "Tensors MMA mass 3D D1D/Q1D exceeds shell cap");
 
-   const int NB = T_D1D ? tensors_mma::MassNB3D<T_D1D, T_Q1D>()
-                        : tensors_mma::MassNB3DRuntime(D1D);
-   // Host forall_3D workers all see getThreadIdx()==0; keep one thread to avoid
+   const int NB = T_D1D ? mma::MassNB3D<T_D1D, T_Q1D>()
+                        : mma::MassNB3DRuntime(D1D);
+   // Host forall_3D workers all see getThreadIdxX()==0; keep one thread to avoid
    // races on MFEM_SHARED (device uses full thread count + Emulate/MMA).
    const int nthreads = Device::Allows(Backend::DEVICE_MASK)
-                        ? (T_D1D ? tensors_mma::MassThreads3D<T_D1D, T_Q1D>()
-                                 : tensors_mma::MassThreads3DRuntime(D1D, Q1D))
+                        ? (T_D1D ? mma::MassThreads3D<T_D1D, T_Q1D>()
+                                 : mma::MassThreads3DRuntime(D1D, Q1D))
                         : 1;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
@@ -315,7 +315,7 @@ inline void MmaMassApplyTensors3D(const int NE,
       MFEM_SHARED real_t sB[MD1 * MQ1];
       MFEM_SHARED real_t sBt[MD1 * MQ1];
 
-      tensors_mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
       MFEM_SYNC_THREAD;
 
       for (int i = 0; i < NB; i++)
@@ -323,20 +323,20 @@ inline void MmaMassApplyTensors3D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         tensors_mma::LoadX<MQ1>(e, D1D, X, sm0);
+         mma::LoadX<MQ1>(e, D1D, X, sm0);
          MFEM_SYNC_THREAD;
 
-         tensors_mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
+         mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
+         mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpZMass<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1, D, e);
+         mma::InterpZMass<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1, D, e);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
+         mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
+         mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sm1, Y, e);
+         mma::InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sm1, Y, e);
          MFEM_SYNC_THREAD;
       }
    });
@@ -353,17 +353,17 @@ inline void MmaMassApplyTensors2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : tensors_mma::TensorsMmaMaxD1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : tensors_mma::TensorsMmaMaxQ1D;
+   constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
+   constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1, "Tensors MMA mass 2D D1D/Q1D exceeds shell cap");
 
-   const int NB = T_D1D ? tensors_mma::NB2D<T_D1D, T_Q1D>()
-                        : tensors_mma::NB2DRuntime(D1D);
+   const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
+                        : mma::NB2DRuntime(D1D);
    const int nthreads = Device::Allows(Backend::DEVICE_MASK)
-                        ? (T_D1D ? tensors_mma::Threads2D<T_D1D, T_Q1D>()
-                                 : tensors_mma::Threads2DRuntime(D1D, Q1D))
+                        ? (T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
+                                 : mma::Threads2DRuntime(D1D, Q1D))
                         : 1;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
@@ -379,7 +379,7 @@ inline void MmaMassApplyTensors2D(const int NE,
       MFEM_SHARED real_t sB[MD1 * MQ1];
       MFEM_SHARED real_t sBt[MD1 * MQ1];
 
-      tensors_mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
       MFEM_SYNC_THREAD;
 
       for (int i = 0; i < NB; i++)
@@ -387,18 +387,18 @@ inline void MmaMassApplyTensors2D(const int NE,
          const int e = b * NB + i;
          if (e >= NE) { break; }
 
-         tensors_mma::LoadX2D<MQ1>(e, D1D, X, sm0);
+         mma::LoadX2D<MQ1>(e, D1D, X, sm0);
          MFEM_SYNC_THREAD;
 
-         tensors_mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
+         mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
+         mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
          MFEM_SYNC_THREAD;
 
          {
-            const int tid = tensors_mma::getThreadIdx();
+            const int tid = mma::getThreadIdxX();
             const int nq = Q1D * Q1D;
-            const int stride = tensors_mma::getBlockNthreads();
+            const int stride = mma::getBlockNthreadsX();
             for (int t = tid; t < nq; t += stride)
             {
                const int qx = t % Q1D;
@@ -409,9 +409,9 @@ inline void MmaMassApplyTensors2D(const int NE,
          }
          MFEM_SYNC_THREAD;
 
-         tensors_mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
+         mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
          MFEM_SYNC_THREAD;
-         tensors_mma::InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm0, Y, e);
+         mma::InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm0, Y, e);
          MFEM_SYNC_THREAD;
       }
    });

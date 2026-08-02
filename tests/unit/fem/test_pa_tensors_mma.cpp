@@ -59,7 +59,7 @@ void test_pa_tensors_mma(Mesh &mesh, int p, int ir_order = -1)
    const DofToQuad &maps = fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
    CAPTURE(maps.ndof, maps.nqpt);
    REQUIRE(maps.ndof == p + 1);
-   REQUIRE(maps.nqpt <= internal::tensors_mma::TensorsMmaMaxQ1D);
+   REQUIRE(maps.nqpt <= internal::mma::TensorsMmaMaxQ1D);
    if (order == 2 * p + 5)
    {
       REQUIRE(maps.nqpt == p + 3);
@@ -114,7 +114,7 @@ TEST_CASE("Tensors MMA PA vs SUM-PA", "[MMA][GPU]")
    SECTION("Fallback")
    {
       // Registered table is only (p+1,p+2); order 2p+5 → Q1D=p+3 <= MaxQ1D.
-      if (p + 3 > internal::tensors_mma::TensorsMmaMaxQ1D) { return; }
+      if (p + 3 > internal::mma::TensorsMmaMaxQ1D) { return; }
       test_pa_tensors_mma_cartesian(dim, p, 2 * p + 5);
    }
 }

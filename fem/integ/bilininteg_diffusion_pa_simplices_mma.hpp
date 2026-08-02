@@ -365,8 +365,8 @@ inline void BlasDiffusionForward(const real_t *G, const real_t *xloc,
    for (int d = 0; d < DIM; ++d)
    {
       const real_t *Gd = G + static_cast<size_t>(d) * NQ * NDOF;
-      BlasGemmForward<NDOF, NQ, NB, false>(Gd, xloc, uloc + d * NQ * NB,
-                                           nullptr, 0, 0);
+      blas_Gemm<NDOF, NQ, NB, false>(Gd, xloc, uloc + d * NQ * NB,
+                                     nullptr, 0, 0);
    }
 }
 
@@ -707,13 +707,13 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             mma::GAccQTile A1{g, QND, ndof, 1, q0};
             mma::GAccQTile A2{g, QND, ndof, 2, q0};
             mma::Gemm3<MAP>(nq_tile, ndof, NB, A0, A1, A2, Xacc,
-                                        U0, U1, U2, e0, NE);
+                            U0, U1, U2, e0, NE);
             MFEM_SYNC_THREAD;
             ApplyDiffusionMetricQTile<DIM, U_LD, NB, SYM, QND>(
                sm.UV, D, e0, NE, q0, nq_tile, tid, nthreads);
             MFEM_SYNC_THREAD;
             mma::GemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2,
-                                  Yacc, e0, NE);
+                             Yacc, e0, NE);
             MFEM_SYNC_THREAD;
          }
       }
@@ -800,7 +800,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
                mma::GAcc A{g, QND, ndof, c};
                mma::SmemMatAcc<U_LD> Uacc{sm.UV + c * U_LD * NB};
                mma::Gemm<MAP>(QND, ndof, NB, A, Xacc,
-                                                 Uacc, nullD, e0, NE);
+                              Uacc, nullD, e0, NE);
             }
             MFEM_SYNC_THREAD;
             ApplyDiffusionMetric<2, U_LD, NB, SYM, QND>(sm.UV, D, e0, NE, tid,
@@ -821,7 +821,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
                mma::GAcc A{g, QND, ndof, c};
                mma::SmemMatAcc<U_LD> Uacc{sm.UV + c * U_LD * NB};
                mma::Gemm<MAP>(QND, ndof, NB, A, Xacc,
-                                                 Uacc, nullD, e0, NE);
+                              Uacc, nullD, e0, NE);
             }
             MFEM_SYNC_THREAD;
             ApplyDiffusionMetric<3, U_LD, NB, SYM, QND>(sm.UV, D, e0, NE, tid,
@@ -1211,7 +1211,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
          mma::GAcc A{g, nq, ndof, c};
          mma::SmemMatAccRt Uacc{UV + c * u_ld * nb, u_ld};
          mma::Gemm<MAP>(nq, ndof, nb, A, Xacc,
-                                           Uacc, nullD, e0, NE);
+                        Uacc, nullD, e0, NE);
       }
       MFEM_SYNC_THREAD;
       ApplyDiffusionMetricRuntime<DIM, SYM>(UV, D, e0, NE, nq, u_ld, nb,
