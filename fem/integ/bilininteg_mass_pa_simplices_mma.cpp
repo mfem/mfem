@@ -89,7 +89,7 @@ void MassIntegrator::RegisterSimplexMmaKernels()
 {
    // Usage-based (DIM,D1D,QND): GetRule/bench q=2p, Stroud unit tests,
    // and AssembleSimplexMmaPA default / H1-smoke (2p+OrderW+4) over all
-   // [SimplexMMA] meshes.
+   // [MMA] meshes.
 
    // 2D
    AddSimplexMmaSpecialization<2,2,3>(); // GetRule, bench

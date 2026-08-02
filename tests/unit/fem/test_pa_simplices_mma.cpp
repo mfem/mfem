@@ -168,7 +168,7 @@ void test_pa_simplices_mma_h1(const char *filename, int p,
 
 } // namespace
 
-TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][SimplexMMA][GPU]")
+TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
@@ -206,7 +206,7 @@ TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][SimplexMMA][GPU]")
    }
 }
 
-TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][SimplexMMA][GPU]")
+TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
@@ -244,8 +244,7 @@ TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][SimplexMMA][GPU]")
    }
 }
 
-TEST_CASE("PA Simplices Positive force MMA",
-          "[PartialAssembly][SimplexMMA][GPU]")
+TEST_CASE("PA Simplices Positive force MMA", "[PartialAssembly][MMA][GPU]")
 {
    Mesh mesh("../../data/ref-triangle.mesh");
    H1_FECollection fec(3, mesh.Dimension(), BasisType::Positive);

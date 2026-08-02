@@ -254,7 +254,7 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 void DiffusionIntegrator::RegisterSimplexMmaKernels()
 {
    // Usage-based (DIM,D1D,QND): GetRule, Stroud unit tests, default/H1-smoke
-   // over all [SimplexMMA] meshes. Bench MMA diffusion uses GetRule nq (q=2p-2).
+   // over all [MMA] meshes. Bench MMA diffusion uses GetRule nq (q=2p-2).
 
    // 2D
    AddSimplexMmaSpecialization<2,2,1>(); // GetRule

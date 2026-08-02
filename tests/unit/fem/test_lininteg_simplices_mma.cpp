@@ -23,9 +23,11 @@ using namespace mfem;
 namespace lininteg_simplex_mma
 {
 
-void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir)
+/** ir_order < 0 → default (use_2p_ir ? 2p : 2p+OrderW+4). */
+void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir,
+                                int ir_order = -1)
 {
-   CAPTURE(filename, p, use_2p_ir);
+   CAPTURE(filename, p, use_2p_ir, ir_order);
 
    Mesh mesh(filename);
    MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
@@ -41,9 +43,11 @@ void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir)
 
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
-   const int order = use_2p_ir ? (2 * p)
-                     : (2 * fe.GetOrder() + Tr.OrderW() + 4);
+   const int order = (ir_order >= 0) ? ir_order
+                     : (use_2p_ir ? (2 * p)
+                        : (2 * fe.GetOrder() + Tr.OrderW() + 4));
    const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
 
    const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
    const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
@@ -81,7 +85,7 @@ void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir)
    compare(funct_coeff);
 }
 
-TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][SimplexMMA][GPU]")
+TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
@@ -103,6 +107,20 @@ TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][SimplexMMA][GPU]")
                      "../../data/ref-tetrahedron.mesh"
                    };
       test_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p, use_2p_ir);
+   }
+
+   // Unregistered (D1D,nq) → AssembleSimplexMmaKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      // Tables register (2,3/12/...), not (2,7).
+      test_domain_lf_simplex_mma("../../data/ref-triangle.mesh", 1, false, 5);
+      test_domain_lf_simplex_mma("../../data/inline-tri.mesh", 1, false, 5);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      // Tables register (2,4/8/14/24), not (2,35).
+      test_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh", 1, false, 7);
+      test_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1, false, 7);
    }
 }
 

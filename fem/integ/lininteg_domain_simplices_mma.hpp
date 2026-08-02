@@ -13,6 +13,10 @@
 #include "bilininteg_pa_mma.hpp"
 #include "../lininteg.hpp"
 
+#ifdef MFEM_USE_LAPACK
+#include <vector>
+#endif
+
 namespace mfem
 {
 
@@ -128,6 +132,186 @@ inline void MmaDLFAssembleSimplex(const int NE,
    });
 }
 
+// ---- Runtime Fallback: host dense + device batched MMA/Dense -------------
+
+/** Host: Y_vc += P^T D. Uses multi-RHS GEMM when LAPACK is on and sizes
+    pass PreferHostBlas; otherwise a dense per-element loop.
+    PreferHostBlas is already false without MFEM_USE_LAPACK; the ifdef only
+    gates HostGemm / std::vector. */
+inline void DLFAssembleHost(int NE, int nq, int ndof, const real_t *P,
+                            const real_t *D, real_t *Y, int vdim, int vc)
+{
+#ifdef MFEM_USE_LAPACK
+   if (simplex_mma::PreferHostBlas(nq, ndof))
+   {
+      const int NB = simplex_mma::HostBlasNB(nq, ndof);
+      const int ntiles = (NE + NB - 1) / NB;
+      std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
+      std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
+      for (int tile = 0; tile < ntiles; ++tile)
+      {
+         const int e0 = tile * NB;
+         std::fill(uloc.begin(), uloc.end(), real_t(0));
+         for (int b = 0; b < NB; ++b)
+         {
+            const int e = e0 + b;
+            if (e >= NE) { break; }
+            for (int q = 0; q < nq; ++q)
+            {
+               uloc[static_cast<size_t>(q) + static_cast<size_t>(nq) * b] =
+                  D[q + nq * e];
+            }
+         }
+         simplex_mma::HostGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
+                               uloc.data(), nq, real_t(0), ytmp.data(), ndof);
+         for (int b = 0; b < NB; ++b)
+         {
+            const int e = e0 + b;
+            if (e >= NE) { break; }
+            for (int i = 0; i < ndof; ++i)
+            {
+               Y[i + ndof * (vc + vdim * e)] +=
+                  ytmp[static_cast<size_t>(i) +
+                       static_cast<size_t>(ndof) * b];
+            }
+         }
+      }
+      return;
+   }
+#endif
+   for (int e = 0; e < NE; ++e)
+   {
+      for (int i = 0; i < ndof; ++i)
+      {
+         real_t yi = 0.0;
+         for (int q = 0; q < nq; ++q)
+         {
+            yi += P[q + nq * i] * D[q + nq * e];
+         }
+         Y[i + ndof * (vc + vdim * e)] += yi;
+      }
+   }
+}
+
+/** Runtime-sized batch body for Fallback (MmaMapDefault, Us-only smem). */
+template<int DIM>
+MFEM_HOST_DEVICE inline
+void MmaDLFAssembleSimplex_Batch(const int e0,
+                                 const int NE,
+                                 const int nq,
+                                 const int ndof,
+                                 const int u_ld,
+                                 const int nb,
+                                 const real_t *p_,
+                                 const real_t *d_,
+                                 real_t *y_,
+                                 const int vdim,
+                                 const int vc)
+{
+   constexpr int max_nq = simplex_mma::SimplexMaxNq<DIM, 0>();
+   constexpr int max_u_ld = simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(
+                               max_nq);
+   constexpr int max_nb = simplex_mma::NBATCH;
+
+#if defined(__CUDA_ARCH__)
+   real_t *Us = reinterpret_cast<real_t *>(simplex_mma::SimplexMmaDynSmem());
+   MFEM_CONTRACT_VAR(max_u_ld);
+   MFEM_CONTRACT_VAR(max_nb);
+#else
+   MFEM_SHARED real_t Us[max_u_ld * max_nb];
+#endif
+
+   const int tid = simplex_mma::getThreadIdx();
+   [[maybe_unused]] const int nthreads = simplex_mma::getBlockNthreads();
+   const auto D = ConstDeviceMatrix(d_, nq, NE);
+
+   if constexpr (simplex_mma::TensorMmaEnabled())
+   {
+      constexpr int MAP = simplex_mma::MmaMapDefault;
+      simplex_mma::SmemMatAccRt Uacc{Us, u_ld};
+      simplex_mma::YVdimAcc Yacc{y_, ndof, vdim, vc, e0};
+
+      simplex_mma::LoadDToSmem(Us, D, e0, NE, nq, u_ld, nb, tid, nthreads);
+      MFEM_SYNC_THREAD;
+
+      simplex_mma::PAcc A{p_, nq, ndof};
+      simplex_mma::BasisGemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
+   }
+   else
+   {
+      if (tid == 0)
+      {
+         for (int b = 0; b < nb; ++b)
+         {
+            const int e = e0 + b;
+            if (e >= NE) { continue; }
+            for (int q = 0; q < nq; ++q)
+            {
+               Us[q + u_ld * b] = D(q, e);
+            }
+            for (int i = 0; i < ndof; ++i)
+            {
+               real_t yi = 0.0;
+               for (int q = 0; q < nq; ++q)
+               {
+                  yi += p_[q + nq * i] * Us[q + u_ld * b];
+               }
+               y_[i + ndof * (vc + vdim * e)] += yi;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+}
+
+/** Runtime Fallback shell: host dense BLAS/hand; device batched MMA/Dense. */
+template<int DIM>
+inline void MmaDLFAssembleSimplex(const int NE,
+                                  const Array<real_t> &p_,
+                                  const Vector &d_,
+                                  real_t *y_,
+                                  const int vdim,
+                                  const int vc)
+{
+   MFEM_VERIFY(NE > 0, "");
+   MFEM_VERIFY(d_.Size() % NE == 0, "");
+   const int nq = d_.Size() / NE;
+   MFEM_VERIFY(nq > 0 && p_.Size() % nq == 0, "");
+   const int ndof = p_.Size() / nq;
+   MFEM_VERIFY(vdim >= 1 && vc >= 0 && vc < vdim, "");
+
+   constexpr int max_nq = simplex_mma::SimplexMaxNq<DIM, 0>();
+   constexpr int max_ndof = simplex_mma::SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
+               "Simplex MMA DomainLF runtime Fallback exceeds size caps");
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      DLFAssembleHost(NE, nq, ndof, p_.Read(), d_.Read(), y_, vdim, vc);
+      return;
+   }
+
+   const int u_ld = simplex_mma::PadLdBankRuntime(nq);
+   const int nb = simplex_mma::MassLikeNBRuntime(DIM, ndof, nq);
+   MFEM_VERIFY(u_ld <= simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(max_nq) &&
+               nb <= simplex_mma::NBATCH,
+               "Simplex MMA DomainLF runtime Fallback smem layout exceeds caps");
+   const int smem_bytes = int(sizeof(real_t)) * u_ld * nb;
+   simplex_mma::VerifySharedMemBytes(smem_bytes);
+
+   const auto P = p_.Read();
+   const auto D = d_.Read();
+
+   const int nthreads = simplex_mma::LaunchNthreads(nq, ndof);
+   const int nbatches = (NE + nb - 1) / nb;
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
+                        [=] MFEM_HOST_DEVICE (int batch)
+   {
+      MmaDLFAssembleSimplex_Batch<DIM>(
+         batch * nb, NE, nq, ndof, u_ld, nb, P, D, y_, vdim, vc);
+   });
+}
+
 } // namespace internal
 
 template<int DIM, int D1D, int QND>
@@ -154,8 +338,11 @@ DomainLFIntegrator::AssembleSimplexMmaKernels::Fallback(int dim, int, int)
 {
    MFEM_VERIFY(dim == 2 || dim == 3,
                "Simplex MMA DomainLF is only implemented for triangles/tets");
-   MFEM_ABORT("No fallback for Simplex MMA DomainLF");
-   return nullptr;
+   if (dim == 2)
+   {
+      return internal::MmaDLFAssembleSimplex<2>;
+   }
+   return internal::MmaDLFAssembleSimplex<3>;
 }
 
 /// \endcond DO_NOT_DOCUMENT
