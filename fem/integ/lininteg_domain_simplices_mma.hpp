@@ -37,9 +37,9 @@ template<int DIM, int D1D, int QND>
 MFEM_HOST_DEVICE inline
 void MmaDLFAssembleSimplex_Batch(const int e0,
                                  const int NE,
-                                 const real_t *p_,
-                                 const real_t *d_,
-                                 real_t *y_,
+                                 const real_t *p,
+                                 const real_t *d,
+                                 real_t *y,
                                  const int vdim,
                                  const int vc)
 {
@@ -51,7 +51,7 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
    constexpr int NB = mma::MassLikeNB<DIM, D1D, QND>();
    constexpr int ndof = mma::SimplexNdof<DIM, D1D>();
 
-   const auto D = ConstDeviceMatrix(d_, QND, NE);
+   const auto D = ConstDeviceMatrix(d, QND, NE);
 
    struct alignas(16) Smem
    {
@@ -60,17 +60,17 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
    MFEM_SHARED Smem sm;
 
    const int tid = mma::getThreadIdx();
-   [[maybe_unused]]const int nthreads = mma::getBlockNthreads();
+   const int nthreads = mma::getBlockNthreads();
 
    if constexpr (mma::DeviceGemmEnabled())
    {
       mma::SmemMatAcc<U_LD> Uacc {sm.Us};
-      mma::YVdimAcc Yacc{y_, ndof, vdim, vc, e0};
+      mma::YVdimAcc Yacc{y, ndof, vdim, vc, e0};
 
       mma::LoadDToSmem(sm.Us, D, e0, NE, QND, U_LD, NB, tid, nthreads);
       MFEM_SYNC_THREAD;
 
-      mma::PAcc A{p_, QND, ndof};
+      mma::PAcc A{p, QND, ndof};
       mma::BasisGemmT<MAP>(QND, ndof, NB, A, Uacc, Yacc, e0, NE);
    }
    else
@@ -90,9 +90,9 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
                real_t yi = 0.0;
                for (int q = 0; q < QND; ++q)
                {
-                  yi += p_[q + QND * i] * sm.Us[q + U_LD * b];
+                  yi += p[q + QND * i] * sm.Us[q + U_LD * b];
                }
-               y_[i + ndof * (vc + vdim * e)] += yi;
+               y[i + ndof * (vc + vdim * e)] += yi;
             }
          }
       }
@@ -102,9 +102,9 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
 
 template<int DIM, int D1D, int QND>
 inline void MmaDLFAssembleSimplex(const int NE,
-                                  const Array<real_t> &p_,
-                                  const Vector &d_,
-                                  real_t *y_,
+                                  const Array<real_t> &p,
+                                  const Vector &d,
+                                  real_t *y,
                                   const int vdim,
                                   const int vc)
 {
@@ -112,8 +112,8 @@ inline void MmaDLFAssembleSimplex(const int NE,
                  QND > 0, "Simplex MMA DomainLF requires specialized D1D/QND");
    constexpr int NB = mma::MassLikeNB<DIM, D1D, QND>();
    constexpr int ndof = mma::SimplexNdof<DIM, D1D>();
-   MFEM_VERIFY(NE > 0 && d_.Size() == QND * NE, "");
-   MFEM_VERIFY(p_.Size() == QND * ndof, "");
+   MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
+   MFEM_VERIFY(p.Size() == QND * ndof, "");
    MFEM_VERIFY(vdim >= 1 && vc >= 0 && vc < vdim, "");
 
    {
@@ -124,15 +124,15 @@ inline void MmaDLFAssembleSimplex(const int NE,
       mma::VerifySharedMemBytes(int(sizeof(real_t)) * U_LD * NB);
    }
 
-   const auto P = p_.Read();
-   const auto D = d_.Read();
+   const auto P = p.Read();
+   const auto D = d.Read();
 
    const int nthreads = mma::LaunchNthreads<QND>(QND, ndof);
    const int nbatches = (NE + NB - 1) / NB;
    mfem::forall_3D(nbatches, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int batch)
    {
       MmaDLFAssembleSimplex_Batch<DIM, D1D, QND>(
-         batch * NB, NE, P, D, y_, vdim, vc);
+         batch * NB, NE, P, D, y, vdim, vc);
    });
 }
 
@@ -167,7 +167,7 @@ inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
             }
          }
          mma::LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
-                                 uloc.data(), nq, real_t(0), ytmp.data(), ndof);
+                         uloc.data(), nq, real_t(0), ytmp.data(), ndof);
          for (int b = 0; b < NB; ++b)
          {
             const int e = e0 + b;
@@ -206,9 +206,9 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
                                  const int ndof,
                                  const int u_ld,
                                  const int nb,
-                                 const real_t *p_,
-                                 const real_t *d_,
-                                 real_t *y_,
+                                 const real_t *p,
+                                 const real_t *d,
+                                 real_t *y,
                                  const int vdim,
                                  const int vc)
 {
@@ -227,18 +227,18 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
 
    const int tid = mma::getThreadIdx();
    const int nthreads = mma::getBlockNthreads();
-   const auto D = ConstDeviceMatrix(d_, nq, NE);
+   const auto D = ConstDeviceMatrix(d, nq, NE);
 
    if constexpr (mma::DeviceGemmEnabled())
    {
       constexpr int MAP = mma::MmaMapDefault;
       mma::SmemMatAccRt Uacc{Us, u_ld};
-      mma::YVdimAcc Yacc{y_, ndof, vdim, vc, e0};
+      mma::YVdimAcc Yacc{y, ndof, vdim, vc, e0};
 
       mma::LoadDToSmem(Us, D, e0, NE, nq, u_ld, nb, tid, nthreads);
       MFEM_SYNC_THREAD;
 
-      mma::PAcc A{p_, nq, ndof};
+      mma::PAcc A{p, nq, ndof};
       mma::BasisGemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
    }
    else
@@ -258,9 +258,9 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
                real_t yi = 0.0;
                for (int q = 0; q < nq; ++q)
                {
-                  yi += p_[q + nq * i] * Us[q + u_ld * b];
+                  yi += p[q + nq * i] * Us[q + u_ld * b];
                }
-               y_[i + ndof * (vc + vdim * e)] += yi;
+               y[i + ndof * (vc + vdim * e)] += yi;
             }
          }
       }
@@ -271,17 +271,17 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
 /** Runtime Fallback shell: host dense BLAS/hand; device batched MMA/Dense. */
 template<int DIM>
 inline void MmaDLFAssembleSimplex(const int NE,
-                                  const Array<real_t> &p_,
-                                  const Vector &d_,
-                                  real_t *y_,
+                                  const Array<real_t> &p,
+                                  const Vector &d,
+                                  real_t *y,
                                   const int vdim,
                                   const int vc)
 {
    MFEM_VERIFY(NE > 0, "");
-   MFEM_VERIFY(d_.Size() % NE == 0, "");
-   const int nq = d_.Size() / NE;
-   MFEM_VERIFY(nq > 0 && p_.Size() % nq == 0, "");
-   const int ndof = p_.Size() / nq;
+   MFEM_VERIFY(d.Size() % NE == 0, "");
+   const int nq = d.Size() / NE;
+   MFEM_VERIFY(nq > 0 && p.Size() % nq == 0, "");
+   const int ndof = p.Size() / nq;
    MFEM_VERIFY(vdim >= 1 && vc >= 0 && vc < vdim, "");
 
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
@@ -291,7 +291,7 @@ inline void MmaDLFAssembleSimplex(const int NE,
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      DLFAssembleBlas(NE, nq, ndof, p_.Read(), d_.Read(), y_, vdim, vc);
+      DLFAssembleBlas(NE, nq, ndof, p.Read(), d.Read(), y, vdim, vc);
       return;
    }
 
@@ -304,8 +304,8 @@ inline void MmaDLFAssembleSimplex(const int NE,
    const int smem_bytes = int(sizeof(real_t)) * u_ld * nb;
    mma::VerifySharedMemBytes(smem_bytes);
 
-   const auto P = p_.Read();
-   const auto D = d_.Read();
+   const auto P = p.Read();
+   const auto D = d.Read();
 
    const int nthreads = mma::LaunchNthreads(nq, ndof);
    const int nbatches = (NE + nb - 1) / nb;
@@ -313,7 +313,7 @@ inline void MmaDLFAssembleSimplex(const int NE,
                         [=] MFEM_HOST_DEVICE (int batch)
    {
       MmaDLFAssembleSimplex_Batch<DIM>(
-         batch * nb, NE, nq, ndof, u_ld, nb, P, D, y_, vdim, vc);
+         batch * nb, NE, nq, ndof, u_ld, nb, P, D, y, vdim, vc);
    });
 }
 

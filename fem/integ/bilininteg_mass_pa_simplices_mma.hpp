@@ -162,26 +162,26 @@ inline void MassApplyBlasRuntime(int NE, int nq, int ndof, const real_t *P,
     Only tid == 0 performs work; callers must MFEM_SYNC_THREAD afterward. */
 template <int QND, int NDOF, int X_LD, int U_LD, int NB>
 MFEM_HOST_DEVICE inline void MassBatchApplyDense(const int e0, const int NE,
-                                                 const real_t *p_,
-                                                 const real_t *d_,
-                                                 const real_t *x_,
-                                                 real_t *y_,
+                                                 const real_t *p,
+                                                 const real_t *d,
+                                                 const real_t *x,
+                                                 real_t *y,
                                                  real_t *XY, real_t *Us,
                                                  const int tid)
 {
    if (tid != 0) { return; }
-   const auto D = ConstDeviceMatrix(d_, QND, NE);
-   const auto x = ConstDeviceMatrix(x_, NDOF, NE);
-   auto Y = DeviceMatrix(y_, NDOF, NE);
+   const auto D = ConstDeviceMatrix(d, QND, NE);
+   const auto X = ConstDeviceMatrix(x, NDOF, NE);
+   auto Y = DeviceMatrix(y, NDOF, NE);
    for (int b = 0; b < NB; ++b)
    {
       const int e = e0 + b;
       if (e >= NE) { continue; }
       for (int i = 0; i < X_LD; ++i)
       {
-         XY[i + X_LD * b] = (i < NDOF) ? x(i, e) : real_t(0);
+         XY[i + X_LD * b] = (i < NDOF) ? X(i, e) : real_t(0);
       }
-      MassApplyDenseElement(QND, NDOF, p_, &D(0, e), &XY[X_LD * b],
+      MassApplyDenseElement(QND, NDOF, p, &D(0, e), &XY[X_LD * b],
                             &Y(0, e), &Us[U_LD * b]);
    }
 }
@@ -189,24 +189,24 @@ MFEM_HOST_DEVICE inline void MassBatchApplyDense(const int e0, const int NE,
 /** Tensor MMA / MFMA batch mass: LoadX + BasisGemmForward + BasisGemmT. */
 template <int MAP, int QND, int NDOF, int X_LD, int U_LD, int NB>
 MFEM_HOST_DEVICE inline void MmaMassBatchApply(const int e0, const int NE,
-                                               const real_t *p_,
-                                               const real_t *d_,
-                                               const real_t *x_,
-                                               real_t *y_,
+                                               const real_t *p,
+                                               const real_t *d,
+                                               const real_t *x,
+                                               real_t *y,
                                                real_t *XY, real_t *Us,
                                                const int tid,
                                                const int nthreads)
 {
-   const auto D = ConstDeviceMatrix(d_, QND, NE);
-   const auto x = ConstDeviceMatrix(x_, NDOF, NE);
+   const auto D = ConstDeviceMatrix(d, QND, NE);
+   const auto X = ConstDeviceMatrix(x, NDOF, NE);
    SmemMatAcc<X_LD> Xacc{XY};
    SmemMatAcc<U_LD> Uacc{Us};
-   YBatchAcc Yacc{y_, NDOF, e0};
+   YBatchAcc Yacc{y, NDOF, e0};
 
-   LoadXToSmem(XY, x, e0, NE, NDOF, X_LD, NB, tid, nthreads);
+   LoadXToSmem(XY, X, e0, NE, NDOF, X_LD, NB, tid, nthreads);
    MFEM_SYNC_THREAD;
 
-   PAcc A{p_, QND, NDOF};
+   PAcc A{p, QND, NDOF};
    BasisGemmForward<MAP, true>(QND, NDOF, NB, A, Xacc, Uacc, D, e0, NE);
    MFEM_SYNC_THREAD;
    BasisGemmT<MAP>(QND, NDOF, NB, A, Uacc, Yacc, e0, NE);
@@ -216,22 +216,22 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApply(const int e0, const int NE,
 MFEM_HOST_DEVICE inline void BlasMassBatchApplyRuntime(
    const int e0, const int NE, const int nq, const int ndof,
    const int x_ld, const int u_ld, const int nb,
-   const real_t *p_, const real_t *d_, const real_t *x_, real_t *y_,
+   const real_t *p, const real_t *d, const real_t *x, real_t *y,
    real_t *XY, real_t *Us, const int tid)
 {
    if (tid != 0) { return; }
-   const auto D = ConstDeviceMatrix(d_, nq, NE);
-   const auto x = ConstDeviceMatrix(x_, ndof, NE);
-   auto Y = DeviceMatrix(y_, ndof, NE);
+   const auto D = ConstDeviceMatrix(d, nq, NE);
+   const auto X = ConstDeviceMatrix(x, ndof, NE);
+   auto Y = DeviceMatrix(y, ndof, NE);
    for (int b = 0; b < nb; ++b)
    {
       const int e = e0 + b;
       if (e >= NE) { continue; }
       for (int i = 0; i < x_ld; ++i)
       {
-         XY[i + x_ld * b] = (i < ndof) ? x(i, e) : real_t(0);
+         XY[i + x_ld * b] = (i < ndof) ? X(i, e) : real_t(0);
       }
-      MassApplyDenseElement(nq, ndof, p_, &D(0, e), &XY[x_ld * b],
+      MassApplyDenseElement(nq, ndof, p, &D(0, e), &XY[x_ld * b],
                             &Y(0, e), &Us[u_ld * b]);
    }
 }
@@ -240,20 +240,20 @@ MFEM_HOST_DEVICE inline void BlasMassBatchApplyRuntime(
 MFEM_HOST_DEVICE inline void MmaMassBatchApplyRuntime(
    const int e0, const int NE, const int nq, const int ndof,
    const int x_ld, const int u_ld, const int nb,
-   const real_t *p_, const real_t *d_, const real_t *x_, real_t *y_,
+   const real_t *p, const real_t *d, const real_t *x, real_t *y,
    real_t *XY, real_t *Us, const int tid, const int nthreads)
 {
    constexpr int MAP = MmaMapDefault;
-   const auto D = ConstDeviceMatrix(d_, nq, NE);
-   const auto x = ConstDeviceMatrix(x_, ndof, NE);
+   const auto D = ConstDeviceMatrix(d, nq, NE);
+   const auto X = ConstDeviceMatrix(x, ndof, NE);
    SmemMatAccRt Xacc{XY, x_ld};
    SmemMatAccRt Uacc{Us, u_ld};
-   YBatchAcc Yacc{y_, ndof, e0};
+   YBatchAcc Yacc{y, ndof, e0};
 
-   LoadXToSmem(XY, x, e0, NE, ndof, x_ld, nb, tid, nthreads);
+   LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
    MFEM_SYNC_THREAD;
 
-   PAcc A{p_, nq, ndof};
+   PAcc A{p, nq, ndof};
    BasisGemmForward<MAP, true>(nq, ndof, nb, A, Xacc, Uacc, D, e0, NE);
    MFEM_SYNC_THREAD;
    BasisGemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
@@ -265,18 +265,18 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApplyRuntime(
     Large (QND,ndof): BLAS multi-RHS when profitable; else hand tiles. */
 template<int DIM, int D1D, int QND>
 inline void BlasMassApplySimplex(const int NE,
-                                 const Array<real_t> &p_,
-                                 const Vector &d_,
-                                 const Vector &x_,
-                                 Vector &y_)
+                                 const Array<real_t> &p,
+                                 const Vector &d,
+                                 const Vector &x,
+                                 Vector &y)
 {
    static_assert(D1D > 0 && QND > 0,
                  "Simplex MMA mass requires specialized D1D/QND");
    constexpr int ndof = mma::SimplexNdof<DIM, D1D>();
-   const real_t *P = p_.Read();
-   const real_t *D = d_.Read();
-   const real_t *X = x_.Read();
-   real_t *Y = y_.ReadWrite();
+   const real_t *P = p.Read();
+   const real_t *D = d.Read();
+   const real_t *X = x.Read();
+   real_t *Y = y.ReadWrite();
 
    if (mma::TryMassApplyLapack(NE, QND, ndof, P, D, X, Y)) { return; }
    mma::MassApplyBlasSpecialized<DIM, ndof, QND>(NE, P, D, X, Y);
@@ -286,17 +286,17 @@ inline void BlasMassApplySimplex(const int NE,
     GPU; sizes inferred from P/D; bounded by SimplexMaxNq/SimplexNdof caps. */
 template<int DIM>
 inline void BlasMassApplySimplexRuntime(const int NE,
-                                        const Array<real_t> &p_,
-                                        const Vector &d_,
-                                        const Vector &x_,
-                                        Vector &y_)
+                                        const Array<real_t> &p,
+                                        const Vector &d,
+                                        const Vector &x,
+                                        Vector &y)
 {
    MFEM_VERIFY(NE > 0, "");
-   MFEM_VERIFY(d_.Size() % NE == 0, "");
-   const int nq = d_.Size() / NE;
-   MFEM_VERIFY(nq > 0 && p_.Size() % nq == 0, "");
-   const int ndof = p_.Size() / nq;
-   MFEM_VERIFY(x_.Size() >= ndof * NE && y_.Size() >= ndof * NE, "");
+   MFEM_VERIFY(d.Size() % NE == 0, "");
+   const int nq = d.Size() / NE;
+   MFEM_VERIFY(nq > 0 && p.Size() % nq == 0, "");
+   const int ndof = p.Size() / nq;
+   MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
 
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
    constexpr int max_ndof = mma::SimplexNdof<DIM, 0>();
@@ -305,19 +305,19 @@ inline void BlasMassApplySimplexRuntime(const int NE,
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      const real_t *P = p_.Read();
-      const real_t *D = d_.Read();
-      const real_t *X = x_.Read();
-      real_t *Y = y_.ReadWrite();
+      const real_t *P = p.Read();
+      const real_t *D = d.Read();
+      const real_t *X = x.Read();
+      real_t *Y = y.ReadWrite();
       if (mma::TryMassApplyLapack(NE, nq, ndof, P, D, X, Y)) { return; }
       mma::MassApplyBlasRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 
-   const auto P = p_.Read();
-   const auto D = d_.Read();
-   const auto X = x_.Read();
-   auto Y = y_.ReadWrite();
+   const auto P = p.Read();
+   const auto D = d.Read();
+   const auto X = x.Read();
+   auto Y = y.ReadWrite();
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       real_t u[max_nq];
@@ -330,10 +330,10 @@ template<int DIM, int D1D, int QND>
 MFEM_HOST_DEVICE inline
 void MmaMassApplySimplex_Batch(const int e0,
                                const int NE,
-                               const real_t *p_,
-                               const real_t *d_,
-                               const real_t *x_,
-                               real_t *y_)
+                               const real_t *p,
+                               const real_t *d,
+                               const real_t *x,
+                               real_t *y)
 {
    static_assert(D1D > 0 && QND > 0,
                  "Simplex MMA mass requires specialized D1D/QND");
@@ -358,12 +358,12 @@ void MmaMassApplySimplex_Batch(const int e0,
    if constexpr (mma::TensorMmaEnabled())
    {
       mma::MmaMassBatchApply<MAP, QND, ndof, X_LD, U_LD, NB>(
-         e0, NE, p_, d_, x_, y_, sm.XY, sm.Us, tid, nthreads);
+         e0, NE, p, d, x, y, sm.XY, sm.Us, tid, nthreads);
    }
    else
    {
       mma::MassBatchApplyDense<QND, ndof, X_LD, U_LD, NB>(
-         e0, NE, p_, d_, x_, y_, sm.XY, sm.Us, tid);
+         e0, NE, p, d, x, y, sm.XY, sm.Us, tid);
       MFEM_SYNC_THREAD;
    }
 }
@@ -377,10 +377,10 @@ void MmaMassApplySimplex_Batch(const int e0,
                                const int x_ld,
                                const int u_ld,
                                const int nb,
-                               const real_t *p_,
-                               const real_t *d_,
-                               const real_t *x_,
-                               real_t *y_)
+                               const real_t *p,
+                               const real_t *d,
+                               const real_t *x,
+                               real_t *y)
 {
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
    constexpr int max_ndof = mma::SimplexNdof<DIM, 0>();
@@ -408,13 +408,13 @@ void MmaMassApplySimplex_Batch(const int e0,
    if constexpr (mma::TensorMmaEnabled())
    {
       mma::MmaMassBatchApplyRuntime(
-         e0, NE, nq, ndof, x_ld, u_ld, nb, p_, d_, x_, y_,
+         e0, NE, nq, ndof, x_ld, u_ld, nb, p, d, x, y,
          XY, Us, tid, nthreads);
    }
    else
    {
       mma::BlasMassBatchApplyRuntime(
-         e0, NE, nq, ndof, x_ld, u_ld, nb, p_, d_, x_, y_, XY, Us, tid);
+         e0, NE, nq, ndof, x_ld, u_ld, nb, p, d, x, y, XY, Us, tid);
       MFEM_SYNC_THREAD;
    }
 }
@@ -465,17 +465,17 @@ inline void MmaMassApplySimplex(const int NE,
 /** Runtime Fallback shell: host dense BLAS/hand; device batched MMA/Dense. */
 template<int DIM>
 inline void MmaMassApplySimplex(const int NE,
-                                const Array<real_t> &p_,
-                                const Vector &d_,
-                                const Vector &x_,
-                                Vector &y_)
+                                const Array<real_t> &p,
+                                const Vector &d,
+                                const Vector &x,
+                                Vector &y)
 {
    MFEM_VERIFY(NE > 0, "");
-   MFEM_VERIFY(d_.Size() % NE == 0, "");
-   const int nq = d_.Size() / NE;
-   MFEM_VERIFY(nq > 0 && p_.Size() % nq == 0, "");
-   const int ndof = p_.Size() / nq;
-   MFEM_VERIFY(x_.Size() >= ndof * NE && y_.Size() >= ndof * NE, "");
+   MFEM_VERIFY(d.Size() % NE == 0, "");
+   const int nq = d.Size() / NE;
+   MFEM_VERIFY(nq > 0 && p.Size() % nq == 0, "");
+   const int ndof = p.Size() / nq;
+   MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
 
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
    constexpr int max_ndof = mma::SimplexNdof<DIM, 0>();
@@ -484,10 +484,10 @@ inline void MmaMassApplySimplex(const int NE,
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      const real_t *P = p_.Read();
-      const real_t *D = d_.Read();
-      const real_t *X = x_.Read();
-      real_t *Y = y_.ReadWrite();
+      const real_t *P = p.Read();
+      const real_t *D = d.Read();
+      const real_t *X = x.Read();
+      real_t *Y = y.ReadWrite();
       if (mma::TryMassApplyLapack(NE, nq, ndof, P, D, X, Y)) { return; }
       mma::MassApplyBlasRuntime(NE, nq, ndof, P, D, X, Y);
       return;
@@ -504,10 +504,10 @@ inline void MmaMassApplySimplex(const int NE,
    const int smem_bytes = int(sizeof(real_t)) * (x_ld + u_ld) * nb;
    mma::VerifySharedMemBytes(smem_bytes);
 
-   const auto P = p_.Read();
-   const auto D = d_.Read();
-   const auto X = x_.Read();
-   auto Y = y_.ReadWrite();
+   const auto P = p.Read();
+   const auto D = d.Read();
+   const auto X = x.Read();
+   auto Y = y.ReadWrite();
 
    const int nthreads = mma::LaunchNthreads(nq, ndof);
    const int nbatches = (NE + nb - 1) / nb;

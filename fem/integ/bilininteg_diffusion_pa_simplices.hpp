@@ -50,9 +50,9 @@ inline void PADiffusionApplyTriangle(const int NE,
                                      const Array<real_t> &ga1t_,
                                      const Array<real_t> &ga2t_,
                                      const Array<real_t> &/*ga3t_*/,
-                                     const Vector &d_,
-                                     const Vector &x_,
-                                     Vector &y_,
+                                     const Vector &d,
+                                     const Vector &x,
+                                     Vector &y,
                                      const int d1d = 0,
                                      const int q1d = 0)
 {
@@ -69,9 +69,9 @@ inline void PADiffusionApplyTriangle(const int NE,
    const auto Ga2 = ConstDeviceCube(ga2_.Read(), D1D-1, D1D-1, Q1D);
    const auto Ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
    const auto Ga2t = ConstDeviceCube(ga2t_.Read(), Q1D, D1D-1, D1D-1);
-   const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
-   const auto X = Reshape(x_.Read(), BASIS_DIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
+   const auto X = Reshape(x.Read(), BASIS_DIM, NE);
+   auto Y = Reshape(y.ReadWrite(), BASIS_DIM, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -290,9 +290,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
                                          const Array<real_t> &ga1t_,
                                          const Array<real_t> &ga2t_,
                                          const Array<real_t> &/*ga3t_*/,
-                                         const Vector &d_,
-                                         const Vector &x_,
-                                         Vector &y_,
+                                         const Vector &d,
+                                         const Vector &x,
+                                         Vector &y,
                                          const int d1d = 0,
                                          const int q1d = 0)
 {
@@ -309,9 +309,9 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
    const auto ga2 = ConstDeviceCube(ga2_.Read(), D1D-1, D1D-1, Q1D);
    const auto ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
    const auto ga2t = ConstDeviceCube(ga2t_.Read(), Q1D, D1D-1, D1D-1);
-   const auto D = Reshape(d_.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
-   const auto x = Reshape(x_.Read(), BASIS_DIM, NE);
-   auto Y = Reshape(y_.ReadWrite(), BASIS_DIM, NE);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, symmetric ? 3 : 4, NE);
+   const auto Xin = Reshape(x.Read(), BASIS_DIM, NE);
+   auto Y = Reshape(y.ReadWrite(), BASIS_DIM, NE);
 
    const int T1D = (Q1D > D1D) ? Q1D : D1D;
    constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
@@ -352,7 +352,7 @@ inline void SmemPADiffusionApplyTriangle(const int NE,
          {
             const int idx = map(a2,a1);
             lex_map[a1][a2] = idx;
-            X[idx] = x(idx,e);
+            X[idx] = Xin(idx,e);
          }
       }
       MFEM_SYNC_THREAD;
@@ -541,9 +541,9 @@ inline void PADiffusionApplyTetrahedron(const int NE,
                                         const Array<real_t> &ga1t_,
                                         const Array<real_t> &ga2t_,
                                         const Array<real_t> &ga3t_,
-                                        const Vector &d_,
-                                        const Vector &x_,
-                                        Vector &y_,
+                                        const Vector &d,
+                                        const Vector &x,
+                                        Vector &y,
                                         const int d1d = 0,
                                         const int q1d = 0)
 {
@@ -566,9 +566,9 @@ inline void PADiffusionApplyTetrahedron(const int NE,
    const auto Ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
    const auto Ga2t = ConstDeviceMatrix(ga2t_.Read(), Q1D, BASIS_DIM2D_DIFF);
    const auto Ga3t = ConstDeviceMatrix(ga3t_.Read(), Q1D, BASIS_DIM3D_DIFF);
-   const auto D = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   const auto X = Reshape(x_.Read(), BASIS_DIM3D, NE);
-   auto Y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto X = Reshape(x.Read(), BASIS_DIM3D, NE);
+   auto Y = Reshape(y.ReadWrite(), BASIS_DIM3D, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -820,9 +820,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                                             const Array<real_t> &ga1t_,
                                             const Array<real_t> &ga2t_,
                                             const Array<real_t> &ga3t_,
-                                            const Vector &d_,
-                                            const Vector &x_,
-                                            Vector &y_,
+                                            const Vector &d,
+                                            const Vector &x,
+                                            Vector &y,
                                             const int d1d = 0,
                                             const int q1d = 0)
 {
@@ -853,9 +853,9 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
    const auto ga1t = ConstDeviceMatrix(ga1t_.Read(), Q1D, D1D-1);
    const auto ga2t = ConstDeviceMatrix(ga2t_.Read(), Q1D, BASIS_DIM2D_DIFF);
    const auto ga3t = ConstDeviceMatrix(ga3t_.Read(), Q1D, BASIS_DIM3D_DIFF);
-   const auto d = Reshape(d_.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
-   const auto x = Reshape(x_.Read(), BASIS_DIM3D, NE);
-   auto y = Reshape(y_.ReadWrite(), BASIS_DIM3D, NE);
+   const auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, symmetric ? 6 : 9, NE);
+   const auto Xin = Reshape(x.Read(), BASIS_DIM3D, NE);
+   auto Y = Reshape(y.ReadWrite(), BASIS_DIM3D, NE);
 
    const int T1D = (Q1D > D1D) ? Q1D : D1D;
    constexpr int T_T1D = (T_Q1D > T_D1D) ? T_Q1D : T_D1D;
@@ -937,7 +937,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                }
                const int idx = lex_map__(a3, a2, a1);
                lex_map[a1][a2][a3] = idx;
-               X[idx] = x(idx,e);
+               X[idx] = Xin(idx,e);
             }
          }
       }
@@ -1015,15 +1015,15 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
                v += DQQ1[a1][i2][i3] * Ga1[i1][a1];
                w += DQQ2[a1][i2][i3] * Ga1[i1][a1];
             }
-            const real_t O11 = d(i1,i2,i3,0,e);
-            const real_t O12 = d(i1,i2,i3,1,e);
-            const real_t O13 = d(i1,i2,i3,2,e);
-            const real_t O21 = symmetric ? O12 : d(i1,i2,i3,3,e);
-            const real_t O22 = symmetric ? d(i1,i2,i3,3,e) : d(i1,i2,i3,4,e);
-            const real_t O23 = symmetric ? d(i1,i2,i3,4,e) : d(i1,i2,i3,5,e);
-            const real_t O31 = symmetric ? O13 : d(i1,i2,i3,6,e);
-            const real_t O32 = symmetric ? O23 : d(i1,i2,i3,7,e);
-            const real_t O33 = symmetric ? d(i1,i2,i3,5,e) : d(i1,i2,i3,8,e);
+            const real_t O11 = D(i1,i2,i3,0,e);
+            const real_t O12 = D(i1,i2,i3,1,e);
+            const real_t O13 = D(i1,i2,i3,2,e);
+            const real_t O21 = symmetric ? O12 : D(i1,i2,i3,3,e);
+            const real_t O22 = symmetric ? D(i1,i2,i3,3,e) : D(i1,i2,i3,4,e);
+            const real_t O23 = symmetric ? D(i1,i2,i3,4,e) : D(i1,i2,i3,5,e);
+            const real_t O31 = symmetric ? O13 : D(i1,i2,i3,6,e);
+            const real_t O32 = symmetric ? O23 : D(i1,i2,i3,7,e);
+            const real_t O33 = symmetric ? D(i1,i2,i3,5,e) : D(i1,i2,i3,8,e);
             const real_t gX = u;
             const real_t gY = v;
             const real_t gZ = w;
@@ -1125,7 +1125,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
             const real_t v = uvw[1][a_2d][a3];
             const real_t w = uvw[2][a_2d][a3];
             const int idx = lex_map[a1][a2][a3];
-            y(idx,e) -= p2 * (u + v + w);
+            Y(idx,e) -= p2 * (u + v + w);
          }
       }
       MFEM_SYNC_THREAD;
@@ -1138,7 +1138,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             const real_t u = uvw[0][a_2d][a3];
             const int idx = lex_map[a1+1][a2][a3];
-            y(idx,e) += p2 * u;
+            Y(idx,e) += p2 * u;
          }
       }
       MFEM_SYNC_THREAD;
@@ -1151,7 +1151,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             const real_t v = uvw[1][a_2d][a3];
             const int idx = lex_map[a1][a2+1][a3];
-            y(idx,e) += p2 * v;
+            Y(idx,e) += p2 * v;
          }
       }
       MFEM_SYNC_THREAD;
@@ -1164,7 +1164,7 @@ inline void SmemPADiffusionApplyTetrahedron(const int NE,
          {
             const real_t w = uvw[2][a_2d][a3];
             const int idx = lex_map[a1][a2][a3+1];
-            y(idx,e) += p2 * w;
+            Y(idx,e) += p2 * w;
          }
       }
    });

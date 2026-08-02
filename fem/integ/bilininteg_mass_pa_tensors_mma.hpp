@@ -278,10 +278,10 @@ inline bool TryMassApplyTensorsSumLapack3D(const int NE,
 
 template <int T_D1D = 0, int T_Q1D = 0>
 inline void MmaMassApplyTensors3D(const int NE,
-                                  const Array<real_t> &b_,
-                                  const Vector &d_,
-                                  const Vector &x_,
-                                  Vector &y_,
+                                  const Array<real_t> &b,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
@@ -301,10 +301,10 @@ inline void MmaMassApplyTensors3D(const int NE,
                                  : tensors_mma::MassThreads3DRuntime(D1D, Q1D))
                         : 1;
 
-   const auto B = Reshape(b_.Read(), Q1D, D1D);
-   const auto D = Reshape(d_.Read(), Q1D * Q1D * Q1D, NE);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
    const int nblocks = (NE + NB - 1) / NB;
    // Serial multi-element batch: shared B once; one element smem at a time.
@@ -344,10 +344,10 @@ inline void MmaMassApplyTensors3D(const int NE,
 
 template <int T_D1D = 0, int T_Q1D = 0>
 inline void MmaMassApplyTensors2D(const int NE,
-                                  const Array<real_t> &b_,
-                                  const Vector &d_,
-                                  const Vector &x_,
-                                  Vector &y_,
+                                  const Array<real_t> &b,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
@@ -366,10 +366,10 @@ inline void MmaMassApplyTensors2D(const int NE,
                                  : tensors_mma::Threads2DRuntime(D1D, Q1D))
                         : 1;
 
-   const auto B = Reshape(b_.Read(), Q1D, D1D);
-   const auto D = Reshape(d_.Read(), Q1D * Q1D, NE);
-   const auto X = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto D = Reshape(d.Read(), Q1D * Q1D, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)

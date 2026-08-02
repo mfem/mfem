@@ -23,11 +23,11 @@ namespace internal
 
 template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
 inline void MmaDiffusionApplyTensors3D(const int NE,
-                                       const Array<real_t> &b_,
-                                       const Array<real_t> &g_,
-                                       const Vector &d_,
-                                       const Vector &x_,
-                                       Vector &y_,
+                                       const Array<real_t> &b,
+                                       const Array<real_t> &g,
+                                       const Vector &d,
+                                       const Vector &x,
+                                       Vector &y,
                                        const int d1d = 0,
                                        const int q1d = 0)
 {
@@ -39,7 +39,7 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
    MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
                "Tensors MMA diffusion 3D D1D/Q1D exceeds shell cap");
-   MFEM_VERIFY(d_.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
+   MFEM_VERIFY(d.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
    const int NB = T_D1D ? tensors_mma::DiffNB3D<T_D1D, T_Q1D>()
                         : tensors_mma::DiffNB3DRuntime(D1D);
@@ -48,11 +48,11 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
                                  : tensors_mma::DiffThreads3DRuntime(D1D, Q1D))
                         : 1;
 
-   const auto B = Reshape(b_.Read(), Q1D, D1D);
-   const auto G = Reshape(g_.Read(), Q1D, D1D);
-   const auto D = Reshape(d_.Read(), Q1D * Q1D * Q1D, PA_SIZE, NE);
-   const auto X = Reshape(x_.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto G = Reshape(g.Read(), Q1D, D1D);
+   const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, PA_SIZE, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
@@ -142,11 +142,11 @@ inline void MmaDiffusionApplyTensors3D_Dispatch(
 
 template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
 inline void MmaDiffusionApplyTensors2D(const int NE,
-                                       const Array<real_t> &b_,
-                                       const Array<real_t> &g_,
-                                       const Vector &d_,
-                                       const Vector &x_,
-                                       Vector &y_,
+                                       const Array<real_t> &b,
+                                       const Array<real_t> &g,
+                                       const Vector &d,
+                                       const Vector &x,
+                                       Vector &y,
                                        const int d1d = 0,
                                        const int q1d = 0)
 {
@@ -167,11 +167,11 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
                                  : tensors_mma::Threads2DRuntime(D1D, Q1D))
                         : 1;
 
-   const auto B = Reshape(b_.Read(), Q1D, D1D);
-   const auto G = Reshape(g_.Read(), Q1D, D1D);
-   const auto D = Reshape(d_.Read(), Q1D * Q1D, PA_SIZE, NE);
-   const auto X = Reshape(x_.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
+   const auto B = Reshape(b.Read(), Q1D, D1D);
+   const auto G = Reshape(g.Read(), Q1D, D1D);
+   const auto D = Reshape(d.Read(), Q1D * Q1D, PA_SIZE, NE);
+   const auto X = Reshape(x.Read(), D1D, D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
 
    const int nblocks = (NE + NB - 1) / NB;
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
