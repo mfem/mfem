@@ -102,10 +102,12 @@ void test_pa_simplices_mma_positive(const char *filename, int p)
    REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
-/** H1 simplex MMA is default-on; smoke Assemble/Mult without an FA oracle. */
-void test_pa_simplices_mma_h1_smoke(const char *filename, int p)
+/** ir_order < 0 → default smoke order 2p+OrderW+4.
+    compare_stock → MMA Mult vs stock PA (used for Fallback sizes). */
+void test_pa_simplices_mma_h1(const char *filename, int p,
+                              int ir_order = -1, bool compare_stock = false)
 {
-   CAPTURE(filename, p);
+   CAPTURE(filename, p, ir_order, compare_stock);
 
    Mesh mesh(filename);
    MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
@@ -121,8 +123,11 @@ void test_pa_simplices_mma_h1_smoke(const char *filename, int p)
 
    const auto &fe = *fes.GetTypicalFE();
    const auto &Tr = *mesh.GetTypicalElementTransformation();
-   const auto order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
+   const int order = (ir_order < 0)
+                     ? (2 * fe.GetOrder() + Tr.OrderW() + 4)
+                     : ir_order;
    const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
 
    const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
    const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
@@ -132,16 +137,33 @@ void test_pa_simplices_mma_h1_smoke(const char *filename, int p)
    FunctionCoefficient funct_coeff([](const Vector &pt)
    { return M_1_PI + pt[0] * pt[0]; });
 
-   GridFunction x(&fes), y(&fes);
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
    x.Randomize(0x100001b3);
-   y.Randomize(0x9e3779b9);
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
 
-   BilinearForm pa(&fes);
-   AddMassDiffIntegrators(pa, ir, const_coeff, funct_coeff);
-   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   pa.Assemble();
-   pa.Mult(x, y);
-   REQUIRE(y.Norml2() >= 0.0);
+   BilinearForm pa_mma(&fes);
+   AddMassDiffIntegrators(pa_mma, ir, const_coeff, funct_coeff);
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_mma.Assemble();
+   pa_mma.Mult(x, y_mma);
+
+   if (!compare_stock)
+   {
+      REQUIRE(y_mma.Norml2() >= 0.0);
+      return;
+   }
+
+   BilinearForm pa_sum(&fes);
+   AddMassDiffIntegrators(pa_sum, ir, const_coeff, funct_coeff);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   {
+      MMAForce off(false);
+      pa_sum.Assemble();
+   }
+   pa_sum.Mult(x, y_sum);
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
 } // namespace
@@ -184,27 +206,41 @@ TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][SimplexMMA][GPU]")
    }
 }
 
-TEST_CASE("PA Simplices MMA GLL smoke", "[PartialAssembly][SimplexMMA][GPU]")
+TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][SimplexMMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
 
-   SECTION("2D")
+   SECTION("smoke 2D")
    {
       auto meshs = { "../../data/ref-triangle.mesh",
                      "../../data/inline-tri.mesh",
                      "../../data/beam-tri.mesh"
                    };
-      test_pa_simplices_mma_h1_smoke(GENERATE_REF(from_range(meshs)), p);
+      test_pa_simplices_mma_h1(GENERATE_REF(from_range(meshs)), p);
    }
 
-   SECTION("3D")
+   SECTION("smoke 3D")
    {
       auto meshs = { "../../data/ref-tetrahedron.mesh",
                      "../../data/inline-tet.mesh",
                      "../../data/beam-tet.mesh"
                    };
-      test_pa_simplices_mma_h1_smoke(GENERATE_REF(from_range(meshs)), p);
+      test_pa_simplices_mma_h1(GENERATE_REF(from_range(meshs)), p);
+   }
+
+   // Unregistered (D1D,nq) → ApplySimplexMmaPAKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      // Tables register (2,3/4/9/...), not (2,7).
+      test_pa_simplices_mma_h1("../../data/ref-triangle.mesh", 1, 5, true);
+      test_pa_simplices_mma_h1("../../data/inline-tri.mesh", 1, 5, true);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      // Tables register (2,4/8/14/24), not (2,35).
+      test_pa_simplices_mma_h1("../../data/ref-tetrahedron.mesh", 1, 7, true);
+      test_pa_simplices_mma_h1("../../data/inline-tet.mesh", 1, 7, true);
    }
 }
 

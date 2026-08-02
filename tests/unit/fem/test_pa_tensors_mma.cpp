@@ -33,11 +33,13 @@ void AddMassDiffIntegrators(BilinearForm &a, const IntegrationRule *ir,
    a.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
 }
 
-/** SUM-PA vs MMA-PA on a tensor H1 mesh (FA vs PA covered elsewhere). */
-void test_pa_tensors_mma(Mesh &mesh, int p)
+/** ir_order < 0 → specialized 2p+2 ((D1D,Q1D)=(p+1,p+2)).
+    ir_order = 2p+5 → Fallback Q1D=p+3 (unregistered). */
+void test_pa_tensors_mma(Mesh &mesh, int p, int ir_order = -1)
 {
    const int dim = mesh.Dimension();
-   CAPTURE(dim, p, mesh.GetNE());
+   const int order = (ir_order < 0) ? (2 * p + 2) : ir_order;
+   CAPTURE(dim, p, order, mesh.GetNE());
 
    H1_FECollection fec(p, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
@@ -53,8 +55,15 @@ void test_pa_tensors_mma(Mesh &mesh, int p)
    y_sum = y_mma;
 
    const auto &fe = *fes.GetTypicalFE();
-   // Match specialized (D1D,Q1D)=(p+1,p+2) pairs used by Tensors MMA kernels
-   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), 2 * p + 2);
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   const DofToQuad &maps = fe.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   CAPTURE(maps.ndof, maps.nqpt);
+   REQUIRE(maps.ndof == p + 1);
+   REQUIRE(maps.nqpt <= internal::tensors_mma::TensorsMmaMaxQ1D);
+   if (order == 2 * p + 5)
+   {
+      REQUIRE(maps.nqpt == p + 3);
+   }
 
    ConstantCoefficient const_coeff(M_2_SQRTPI);
    FunctionCoefficient funct_coeff([](const Vector &pt)
@@ -82,12 +91,12 @@ void test_pa_tensors_mma(Mesh &mesh, int p)
    REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
-void test_pa_tensors_mma_cartesian(int dim, int p)
+void test_pa_tensors_mma_cartesian(int dim, int p, int ir_order = -1)
 {
    Mesh mesh = (dim == 2)
                ? Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL)
                : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
-   test_pa_tensors_mma(mesh, p);
+   test_pa_tensors_mma(mesh, p, ir_order);
 }
 
 } // namespace
@@ -97,7 +106,17 @@ TEST_CASE("Tensors MMA PA vs SUM-PA", "[MMA][GPU]")
    const int dim = GENERATE(2, 3);
    // p=2 uses SUM (m8n8k4 pad); MMA path starts at p>=3.
    const int p = GENERATE(3, 4, 5, 6, 7);
-   test_pa_tensors_mma_cartesian(dim, p);
+
+   SECTION("Specialized")
+   {
+      test_pa_tensors_mma_cartesian(dim, p);
+   }
+   SECTION("Fallback")
+   {
+      // Registered table is only (p+1,p+2); order 2p+5 → Q1D=p+3 <= MaxQ1D.
+      if (p + 3 > internal::tensors_mma::TensorsMmaMaxQ1D) { return; }
+      test_pa_tensors_mma_cartesian(dim, p, 2 * p + 5);
+   }
 }
 
 TEST_CASE("Tensors MMA PA vs SUM-PA uneven NE", "[MMA][GPU]")
