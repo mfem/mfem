@@ -706,13 +706,13 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             mma::GAccQTile A0{g, QND, ndof, 0, q0};
             mma::GAccQTile A1{g, QND, ndof, 1, q0};
             mma::GAccQTile A2{g, QND, ndof, 2, q0};
-            mma::BasisGemmForward3<MAP>(nq_tile, ndof, NB, A0, A1, A2, Xacc,
+            mma::Gemm3<MAP>(nq_tile, ndof, NB, A0, A1, A2, Xacc,
                                         U0, U1, U2, e0, NE);
             MFEM_SYNC_THREAD;
             ApplyDiffusionMetricQTile<DIM, U_LD, NB, SYM, QND>(
                sm.UV, D, e0, NE, q0, nq_tile, tid, nthreads);
             MFEM_SYNC_THREAD;
-            mma::BasisGemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2,
+            mma::GemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2,
                                   Yacc, e0, NE);
             MFEM_SYNC_THREAD;
          }
@@ -799,7 +799,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             {
                mma::GAcc A{g, QND, ndof, c};
                mma::SmemMatAcc<U_LD> Uacc{sm.UV + c * U_LD * NB};
-               mma::BasisGemmForward<MAP, false>(QND, ndof, NB, A, Xacc,
+               mma::Gemm<MAP>(QND, ndof, NB, A, Xacc,
                                                  Uacc, nullD, e0, NE);
             }
             MFEM_SYNC_THREAD;
@@ -811,7 +811,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             {
                mma::GAcc A{g, QND, ndof, c};
                mma::SmemMatAcc<U_LD> Vacc{sm.UV + c * U_LD * NB};
-               mma::BasisGemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
+               mma::GemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
             }
          }
          else if constexpr (DIM == 3)
@@ -820,7 +820,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             {
                mma::GAcc A{g, QND, ndof, c};
                mma::SmemMatAcc<U_LD> Uacc{sm.UV + c * U_LD * NB};
-               mma::BasisGemmForward<MAP, false>(QND, ndof, NB, A, Xacc,
+               mma::Gemm<MAP>(QND, ndof, NB, A, Xacc,
                                                  Uacc, nullD, e0, NE);
             }
             MFEM_SYNC_THREAD;
@@ -831,7 +831,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             {
                mma::GAcc A{g, QND, ndof, c};
                mma::SmemMatAcc<U_LD> Vacc{sm.UV + c * U_LD * NB};
-               mma::BasisGemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
+               mma::GemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
             }
          }
       }
@@ -1210,7 +1210,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
       {
          mma::GAcc A{g, nq, ndof, c};
          mma::SmemMatAccRt Uacc{UV + c * u_ld * nb, u_ld};
-         mma::BasisGemmForward<MAP, false>(nq, ndof, nb, A, Xacc,
+         mma::Gemm<MAP>(nq, ndof, nb, A, Xacc,
                                            Uacc, nullD, e0, NE);
       }
       MFEM_SYNC_THREAD;
@@ -1221,7 +1221,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
       {
          mma::GAcc A{g, nq, ndof, c};
          mma::SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
-         mma::BasisGemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
+         mma::GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
       }
    }
    else

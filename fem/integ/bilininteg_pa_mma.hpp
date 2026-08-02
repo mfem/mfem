@@ -253,8 +253,7 @@ void PADetJSetupSimplexFromNodes(const int dim,
                                  const Vector &c,
                                  Vector &d);
 
-/** Simplex MMA helpers: Common, CUDA(dmma), HIP(mfma), HOST(blas),
-    then BasisGemm dispatch. */
+/** MMA helpers: Common, CUDA(dmma), HIP(mfma), HOST(blas) & dispatch. */
 namespace mma
 {
 
@@ -738,7 +737,7 @@ MFEM_HOST_DEVICE constexpr bool TensorMmaEnabled()
 }
 
 /** True on CUDA/HIP device compilation in double precision.
-    Selects parallel smem + BasisGemm (dmma/mfma if TensorMmaEnabled, else blas).
+    Selects parallel smem + Gemm (dmma/mfma if TensorMmaEnabled, else blas).
     Host / single use the serial fallback. */
 MFEM_HOST_DEVICE constexpr bool DeviceGemmEnabled()
 {
@@ -1667,17 +1666,17 @@ inline void BlasGemmBackward(const real_t *B, const real_t *uloc, real_t *Y,
 
 
 // ======================================================================
-// Dispatch — BasisGemm selects dmma / mfma / blas
+// Dispatch — Gemm / GemmT / Gemm3 / GemmT3 (dmma / mfma / blas)
 // ======================================================================
 
 /** One-component forward: U = B * X [, * D if SCALE].
     M is the GEMM row count (full QND or nq_tile). */
-template <int MAP, bool SCALE, typename BasisAcc, typename XAcc,
+template <int MAP = 0, bool SCALE = false, typename BasisAcc, typename XAcc,
           typename UAcc, typename DAcc>
-MFEM_HOST_DEVICE inline void BasisGemmForward(const int M, const int ndof,
-                                              const int NB, BasisAcc B,
-                                              XAcc X, UAcc U, DAcc D,
-                                              const int e0, const int NE)
+MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
+                                  const int NB, BasisAcc B,
+                                  XAcc X, UAcc U, DAcc D,
+                                  const int e0, const int NE)
 {
    using Fn = decltype(&blas_Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>);
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
@@ -1695,11 +1694,11 @@ MFEM_HOST_DEVICE inline void BasisGemmForward(const int M, const int ndof,
 }
 
 /** One-component transpose accumulate: Y += B^T * U. */
-template <int MAP, typename BasisAcc, typename UAcc, typename YAcc>
-MFEM_HOST_DEVICE inline void BasisGemmT(const int M, const int ndof,
-                                        const int NB, BasisAcc B,
-                                        UAcc U, YAcc Y,
-                                        const int e0, const int NE)
+template <int MAP = 0, typename BasisAcc, typename UAcc, typename YAcc>
+MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
+                                   const int NB, BasisAcc B,
+                                   UAcc U, YAcc Y,
+                                   const int e0, const int NE)
 {
    using Fn = decltype(&blas_GemmT<BasisAcc, UAcc, YAcc>);
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
@@ -1717,13 +1716,13 @@ MFEM_HOST_DEVICE inline void BasisGemmT(const int M, const int ndof,
 }
 
 /** Fused 3D GradP forward: U0,U1,U2 = G0,G1,G2 * X. */
-template <int MAP, typename Basis0, typename Basis1, typename Basis2,
+template <int MAP = 0, typename Basis0, typename Basis1, typename Basis2,
           typename XAcc, typename U0, typename U1, typename U2>
-MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
-                                               const int NB,
-                                               Basis0 B0, Basis1 B1, Basis2 B2,
-                                               XAcc X, U0 U0a, U1 U1a, U2 U2a,
-                                               const int e0, const int NE)
+MFEM_HOST_DEVICE inline void Gemm3(const int M, const int ndof,
+                                   const int NB,
+                                   Basis0 B0, Basis1 B1, Basis2 B2,
+                                   XAcc X, U0 U0a, U1 U1a, U2 U2a,
+                                   const int e0, const int NE)
 {
    if (TensorMmaEnabled())
    {
@@ -1734,9 +1733,9 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
       if (PreferMfma4(M, ndof))
       {
          NullDAcc nullD;
-         BasisGemmForward<0, false>(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
-         BasisGemmForward<0, false>(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
-         BasisGemmForward<0, false>(M, ndof, NB, B2, X, U2a, nullD, e0, NE);
+         Gemm(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
+         Gemm(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
+         Gemm(M, ndof, NB, B2, X, U2a, nullD, e0, NE);
       }
       else
       {
@@ -1745,40 +1744,29 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
       }
 #else
       NullDAcc nullD;
-      BasisGemmForward<0, false>(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
-      BasisGemmForward<0, false>(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
-      BasisGemmForward<0, false>(M, ndof, NB, B2, X, U2a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B2, X, U2a, nullD, e0, NE);
 #endif
    }
    else
    {
       NullDAcc nullD;
-      BasisGemmForward<0, false>(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
-      BasisGemmForward<0, false>(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
-      BasisGemmForward<0, false>(M, ndof, NB, B2, X, U2a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
+      Gemm(M, ndof, NB, B2, X, U2a, nullD, e0, NE);
    }
 }
 
-/** Convenience overload (MAP = 0). */
-template <typename Basis0, typename Basis1, typename Basis2,
-          typename XAcc, typename U0, typename U1, typename U2>
-MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
-                                               const int NB,
-                                               Basis0 B0, Basis1 B1, Basis2 B2,
-                                               XAcc X, U0 U0a, U1 U1a, U2 U2a,
-                                               const int e0, const int NE)
-{
-   BasisGemmForward3<0>(M, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a, e0, NE);
-}
 
 /** Fused 3D GradP^T accumulate into Y. */
-template <int MAP, typename Basis0, typename Basis1, typename Basis2,
+template <int MAP = 0, typename Basis0, typename Basis1, typename Basis2,
           typename U0, typename U1, typename U2, typename YAcc>
-MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
-                                         const int NB,
-                                         Basis0 B0, Basis1 B1, Basis2 B2,
-                                         U0 U0a, U1 U1a, U2 U2a, YAcc Y,
-                                         const int e0, const int NE)
+MFEM_HOST_DEVICE inline void GemmT3(const int M, const int ndof,
+                                    const int NB,
+                                    Basis0 B0, Basis1 B1, Basis2 B2,
+                                    U0 U0a, U1 U1a, U2 U2a, YAcc Y,
+                                    const int e0, const int NE)
 {
    if (TensorMmaEnabled())
    {
@@ -1787,48 +1775,38 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
 #elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
       if (PreferMfma4(M, ndof))
       {
-         BasisGemmT<0>(M, ndof, NB, B0, U0a, Y, e0, NE);
-         BasisGemmT<0>(M, ndof, NB, B1, U1a, Y, e0, NE);
-         BasisGemmT<0>(M, ndof, NB, B2, U2a, Y, e0, NE);
+         GemmT(M, ndof, NB, B0, U0a, Y, e0, NE);
+         GemmT(M, ndof, NB, B1, U1a, Y, e0, NE);
+         GemmT(M, ndof, NB, B2, U2a, Y, e0, NE);
       }
       else
       {
          mfma_GemmT16_3(M, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
       }
 #else
-      BasisGemmT<0>(M, ndof, NB, B0, U0a, Y, e0, NE);
-      BasisGemmT<0>(M, ndof, NB, B1, U1a, Y, e0, NE);
-      BasisGemmT<0>(M, ndof, NB, B2, U2a, Y, e0, NE);
+      GemmT(M, ndof, NB, B0, U0a, Y, e0, NE);
+      GemmT(M, ndof, NB, B1, U1a, Y, e0, NE);
+      GemmT(M, ndof, NB, B2, U2a, Y, e0, NE);
 #endif
    }
    else
    {
-      BasisGemmT<0>(M, ndof, NB, B0, U0a, Y, e0, NE);
-      BasisGemmT<0>(M, ndof, NB, B1, U1a, Y, e0, NE);
-      BasisGemmT<0>(M, ndof, NB, B2, U2a, Y, e0, NE);
+      GemmT(M, ndof, NB, B0, U0a, Y, e0, NE);
+      GemmT(M, ndof, NB, B1, U1a, Y, e0, NE);
+      GemmT(M, ndof, NB, B2, U2a, Y, e0, NE);
    }
 }
 
-template <typename Basis0, typename Basis1, typename Basis2,
-          typename U0, typename U1, typename U2, typename YAcc>
-MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
-                                         const int NB,
-                                         Basis0 B0, Basis1 B1, Basis2 B2,
-                                         U0 U0a, U1 U1a, U2 U2a, YAcc Y,
-                                         const int e0, const int NE)
-{
-   BasisGemmT3<0>(M, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
-}
 
 
 } // namespace mma
 
-/** Tensor (quad/hex) MMA helpers: Common, HOST(blas), HIP(mfma), SF kernels. */
+/** Tensor (quad/hex) MMA helpers: Common, HOST(blas), HIP(mfma), CUDA(dmma), Public SF. */
 namespace tensors_mma
 {
 
 // ======================================================================
-// Common — shared imports, x-only tid, magic maps, launch knobs
+// Common — shared imports, x-only tid, bank maps, launch knobs
 // ======================================================================
 
 
@@ -1896,14 +1874,14 @@ MFEM_HOST_DEVICE inline void LoadBGBoth(const int D1D, const int Q1D,
    }
 }
 
-/** Default magic remap [0,5,1,6,2,7,3,4] (dfem / bank-conflict avoidance). */
-MFEM_HOST_DEVICE constexpr int MagicMapDefault()
+/** Default bank remap [0,5,1,6,2,7,3,4] (dfem / bank-conflict avoidance). */
+MFEM_HOST_DEVICE constexpr int BankMapDefault()
 {
    return 0b100011111010110001101000;
 }
 
 /** Identity column map (best when N≈8 or N=6 pad with low conflict). */
-MFEM_HOST_DEVICE constexpr int MagicMapIdentity()
+MFEM_HOST_DEVICE constexpr int BankMapIdentity()
 {
    // packed 3-bit: 0,1,2,3,4,5,6,7
    return (0) | (1 << 3) | (2 << 6) | (3 << 9) | (4 << 12) |
@@ -1911,23 +1889,23 @@ MFEM_HOST_DEVICE constexpr int MagicMapIdentity()
 }
 
 /** Diffusion / Grad: Default map won BP3 A/B (N5 hurt light pad cases less than mass). */
-MFEM_HOST_DEVICE constexpr int MagicMapForN(int n)
+MFEM_HOST_DEVICE constexpr int BankMapForN(int n)
 {
    (void)n;
-   return MagicMapDefault();
+   return BankMapDefault();
 }
 
 /** Mass Interp only: N=6 → identity (avoid permute on padded n); else Default. */
-MFEM_HOST_DEVICE constexpr int MagicMapForMassN(int n)
+MFEM_HOST_DEVICE constexpr int BankMapForMassN(int n)
 {
-   if (n == 6) { return MagicMapIdentity(); }
-   return MagicMapDefault();
+   if (n == 6) { return BankMapIdentity(); }
+   return BankMapDefault();
 }
 
 /** Physical N index: mmaN-tile origin + 3-bit column remap (handles N>8, e.g. Q1D=9). */
-MFEM_HOST_DEVICE inline int MappedNCol(int magicNumber, int slot, int n0)
+MFEM_HOST_DEVICE inline int MappedNCol(int bankMap, int slot, int n0)
 {
-   return n0 + ((magicNumber >> (3 * slot)) & 0b111);
+   return n0 + ((bankMap >> (3 * slot)) & 0b111);
 }
 
 /// Load 3D input into a flat shared buffer (mass).
@@ -2175,7 +2153,7 @@ MFEM_HOST_DEVICE inline int NWarps(int mPass)
 
 
 // ======================================================================
-// HOST (blas) — dense SF contract / GemmMbyK / GradXt
+// HOST (blas) — dense SF contract / GemmMbyK / GradXt + SF backends
 // ======================================================================
 
 /** Dense SF GEMM: C(m,n) =[/+=] sum_k A_storage(k,m)*B(k,n) [, *D].
@@ -2278,6 +2256,193 @@ MFEM_HOST_DEVICE inline void blas_GradXt3D(const int D1D, const int Q1D,
    }
 }
 
+
+
+// SF backend helpers (blas)
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void blas_GradX(const int m, const int n, const int k,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
+{
+   blas_SfContract<false, false>(m, n, k, A[0], BG[1], C[0]);
+   blas_SfContract<false, false>(m, n, k, A[0], BG[0], C[1]);
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void blas_GradY(const int m, const int n,
+                                        const int k,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
+{
+   blas_SfContract<false, false>(m, n, k, A[0], BG[0], C[0]);
+   blas_SfContract<false, false>(m, n, k, A[1], BG[1], C[1]);
+   blas_SfContract<false, false>(m, n, k, A[1], BG[0], C[2]);
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void blas_GradZ(const int m, const int n,
+                                        const int k,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF],
+                                        int gIdx)
+{
+   for (int d = 0; d < 3; d++)
+   {
+      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
+      blas_SfContract<false, false>(m, n, k, A[d], B1d, C[d]);
+   }
+}
+
+/// Transposed Grad strip-mine shared by GradZt (gIdx=0) and GradYt (gIdx=1).
+/// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void blas_GradZtLike(const int m, const int n,
+                                             const int k, const int gIdx,
+                                             const real_t (&BG)[2][MQ1*MD1],
+                                             const real_t (*A)[BUF],
+                                             real_t (*C)[BUF])
+{
+   // Forward Grad* stores C as DeviceMatrix(m,n)=(M,K); transpose reads (M,K).
+   for (int d = 0; d < 3; d++)
+   {
+      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
+      blas_GemmMbyK<false>(m, k, n, A[d], B1d, C[d]);
+   }
+}
+
+/** Mass interp core: strip-mined 1-comp B·A → C.
+ *  ScaleAtStore: C *= D(q,e) (fused mass Q-fn). */
+template<int MD1, int MQ1, bool ScaleAtStore = false>
+MFEM_HOST_DEVICE inline void blas_InterpAx(const int m, const int n,
+                                           const int k,
+                                           const real_t *B1d,
+                                           const real_t *A, real_t *C,
+                                           const DeviceTensor<2, const real_t> *D = nullptr,
+                                           const int e = 0)
+{
+   blas_SfContract<ScaleAtStore, false>(m, n, k, A, B1d, C, D, e);
+}
+
+/// 3D Transposed Gradient, 3/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void blas_GradXt(const int D1D, const int Q1D,
+                                         const real_t (&sBG)[2][MQ1*MD1],
+                                         const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
+                                         const DeviceTensor<4> &Y, // output
+                                         const int e)
+{
+   blas_GradXt3D(D1D, Q1D, sBG[0], sBG[1], sDDQ[0], sDDQ[1], sDDQ[2], Y, e);
+}
+
+/** InterpAx store to global Y (3D mass): Y(dx,dy,dz,e) += C. */
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void blas_InterpXt(const int D1D, const int Q1D,
+                                           const real_t *sBt,
+                                           const real_t *sDDQ,
+                                           const DeviceTensor<4> &Y, const int e)
+{
+   // sDDQ from InterpYt Emulate: qx + Q*(dy + D*dz)
+   const int tid = getThreadIdx();
+   const int nthreads = getBlockNthreads();
+   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
+   const int nout = D1D * D1D * D1D;
+   for (int idx = tid; idx < nout; idx += nthreads)
+   {
+      const int dx = idx % D1D;
+      const int t = idx / D1D;
+      const int dy = t % D1D;
+      const int dz = t / D1D;
+      real_t s = 0.0;
+      for (int qx = 0; qx < Q1D; ++qx)
+      {
+         s += sDDQ[qx + Q1D * (dy + D1D * dz)] * Bt(qx, dx);
+      }
+      Y(dx, dy, dz, e) += s;
+   }
+}
+
+/// 2D GradY: M=Q1D (qx), N=Q1D (qy), K=D1D → gX=A0*B, gY=A1*G
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void blas_GradY2D(const int D1D, const int Q1D,
+                                          const real_t (&sBG)[2][MQ1*MD1],
+                                          const real_t (*sDQ)[MDQ*MDQ],
+                                          real_t (*sQQ)[MDQ*MDQ])
+{
+   blas_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0]);
+   blas_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1]);
+}
+
+/// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void blas_GradYt2D(const int D1D, const int Q1D,
+                                           const real_t (&sBG)[2][MQ1*MD1],
+                                           const real_t (*sQQ)[MDQ*MDQ],
+                                           real_t (*sQD)[MDQ*MDQ])
+{
+   blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ[0], sBG[0], sQD[0]);
+   blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ[1], sBG[1], sQD[1]);
+}
+
+/// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void blas_GradXt2D(const int D1D, const int Q1D,
+                                           const real_t (&sBG)[2][MQ1*MD1],
+                                           const real_t (*sQD)[MDQ*MDQ],
+                                           const DeviceTensor<3> &Y, const int e)
+{
+   const int tid = getThreadIdx();
+   const int nthreads = getBlockNthreads();
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   ConstDeviceMatrix A0(sQD[0], Q1D, D1D);
+   ConstDeviceMatrix A1(sQD[1], Q1D, D1D);
+   for (int idx = tid; idx < D1D * D1D; idx += nthreads)
+   {
+      const int dy = idx / D1D; // row
+      const int dx = idx - dy * D1D; // col
+      real_t s = 0.0;
+      for (int q = 0; q < Q1D; ++q)
+      {
+         s += A0(q, dy) * Gt(q, dx);
+         s += A1(q, dy) * Bt(q, dx);
+      }
+      Y(dx, dy, e) += s;
+   }
+}
+
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void blas_InterpYt2D(const int D1D, const int Q1D,
+                                             const real_t *sBt,
+                                             const real_t *sQQ, real_t *sQD)
+{
+   blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ, sBt, sQD);
+}
+
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void blas_InterpXt2D(const int D1D, const int Q1D,
+                                             const real_t *sBt,
+                                             const real_t *sQD,
+                                             const DeviceTensor<3> &Y, const int e)
+{
+   const int tid = getThreadIdx();
+   const int nthreads = getBlockNthreads();
+   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
+   ConstDeviceMatrix A(sQD, Q1D, D1D);
+   for (int idx = tid; idx < D1D * D1D; idx += nthreads)
+   {
+      const int dy = idx / D1D;
+      const int dx = idx - dy * D1D;
+      real_t s = 0.0;
+      for (int q = 0; q < Q1D; ++q)
+      {
+         s += A(q, dy) * Bt(q, dx);
+      }
+      Y(dx, dy, e) += s;
+   }
+}
 
 // ======================================================================
 // HIP (mfma) — SF Gemm adapters (device compile only)
@@ -2474,32 +2639,238 @@ MFEM_HOST_DEVICE inline void mfma_SfContract(const int m, const int n,
    mfma_SfGemm<SCALE, ACCUM>(m, k, n, SfAFromKbyM{A, k, m},
                              SfBFromKbyN{B1d, k, n}, SfCToMbyN{C, m, n}, D);
 }
+
+// SF backend helpers (mfma)
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void mfma_GradX(const int m, const int n, const int k,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
+{
+   SfNullD nd;
+   // C[0] from G, C[1] from B (matches CUDA dmma_GradX store order).
+   mfma_SfContract<false, false>(m, n, k, A[0], BG[1], C[0], nd);
+   mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[1], nd);
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void mfma_GradY(const int m, const int n,
+                                        const int k,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
+{
+   SfNullD nd;
+   mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[0], nd); // A0*B
+   mfma_SfContract<false, false>(m, n, k, A[1], BG[1], C[1], nd); // A1*G
+   mfma_SfContract<false, false>(m, n, k, A[1], BG[0], C[2], nd); // A1*B
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void mfma_GradZ(const int m, const int n,
+                                        const int k,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF],
+                                        int gIdx)
+{
+   SfNullD nd;
+   for (int d = 0; d < 3; d++)
+   {
+      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
+      mfma_SfContract<false, false>(m, n, k, A[d], B1d, C[d], nd);
+   }
+}
+
+/// Transposed Grad strip-mine shared by GradZt (gIdx=0) and GradYt (gIdx=1).
+/// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void mfma_GradZtLike(const int m, const int n,
+                                             const int k, const int gIdx,
+                                             const real_t (&BG)[2][MQ1*MD1],
+                                             const real_t (*A)[BUF],
+                                             real_t (*C)[BUF])
+{
+   SfNullD nd;
+   for (int d = 0; d < 3; d++)
+   {
+      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
+      mfma_SfContract<false, false>(m, n, k, A[d], B1d, C[d], nd);
+   }
+}
+
+/** Mass interp core: strip-mined 1-comp B·A → C.
+ *  ScaleAtStore: C *= D(q,e) (fused mass Q-fn). */
+template<int MD1, int MQ1, bool ScaleAtStore = false>
+MFEM_HOST_DEVICE inline void mfma_InterpAx(const int m, const int n,
+                                           const int k,
+                                           const real_t *B1d,
+                                           const real_t *A, real_t *C,
+                                           const DeviceTensor<2, const real_t> *D = nullptr,
+                                           const int e = 0)
+{
+   if constexpr (ScaleAtStore)
+   {
+      SfMassD Dd{D, m, e};
+      mfma_SfContract<true, false>(m, n, k, A, B1d, C, Dd);
+   }
+   else
+   {
+      SfNullD nd;
+      mfma_SfContract<false, false>(m, n, k, A, B1d, C, nd);
+   }
+}
+
+/// 3D Transposed Gradient, 3/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void mfma_GradXt(const int D1D, const int Q1D,
+                                         const real_t (&sBG)[2][MQ1*MD1],
+                                         const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
+                                         const DeviceTensor<4> &Y, // output
+                                         const int e)
+{
+   const int m = D1D * D1D, n = D1D, k = Q1D;
+   struct Y3Acc
+   {
+      const DeviceTensor<4> *Y;
+      int D1D, e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(row % D1D, row / D1D, col, e);
+      }
+   };
+   SfNullD nd;
+   Y3Acc Yacc{&Y, D1D, e};
+   // Y += A0*Bt + A1*Bt + A2*Gt
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[0], k, m},
+                            SfBFromKbyN{sBG[0], k, n}, Yacc, nd);
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[1], k, m},
+                            SfBFromKbyN{sBG[0], k, n}, Yacc, nd);
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[2], k, m},
+                            SfBFromKbyN{sBG[1], k, n}, Yacc, nd);
+}
+
+/** InterpAx store to global Y (3D mass): Y(dx,dy,dz,e) += C. */
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void mfma_InterpXt(const int D1D, const int Q1D,
+                                           const real_t *sBt,
+                                           const real_t *sDDQ,
+                                           const DeviceTensor<4> &Y, const int e)
+{
+   const int m = D1D * D1D, n = D1D, k = Q1D;
+   struct Y3Acc
+   {
+      const DeviceTensor<4> *Y;
+      int D1D, e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(row % D1D, row / D1D, col, e);
+      }
+   };
+   SfNullD nd;
+   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ, k, m},
+                            SfBFromKbyN{sBt, k, n}, Y3Acc{&Y, D1D, e}, nd);
+}
+
+/// 2D GradY: M=Q1D (qx), N=Q1D (qy), K=D1D → gX=A0*B, gY=A1*G
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void mfma_GradY2D(const int D1D, const int Q1D,
+                                          const real_t (&sBG)[2][MQ1*MD1],
+                                          const real_t (*sDQ)[MDQ*MDQ],
+                                          real_t (*sQQ)[MDQ*MDQ])
+{
+   SfNullD nd;
+   mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0], nd);
+   mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1], nd);
+}
+
+/// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void mfma_GradYt2D(const int D1D, const int Q1D,
+                                           const real_t (&sBG)[2][MQ1*MD1],
+                                           const real_t (*sQQ)[MDQ*MDQ],
+                                           real_t (*sQD)[MDQ*MDQ])
+{
+   SfNullD nd;
+   // A is (qx,qy)=(M,K); B is Bt/Gt (K,N)=(Q,D)
+   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[0], Q1D, Q1D},
+                             SfBFromKbyN{sBG[0], Q1D, D1D},
+                             SfCToMbyN{sQD[0], Q1D, D1D}, nd);
+   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[1], Q1D, Q1D},
+                             SfBFromKbyN{sBG[1], Q1D, D1D},
+                             SfCToMbyN{sQD[1], Q1D, D1D}, nd);
+}
+
+/// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void mfma_GradXt2D(const int D1D, const int Q1D,
+                                           const real_t (&sBG)[2][MQ1*MD1],
+                                           const real_t (*sQD)[MDQ*MDQ],
+                                           const DeviceTensor<3> &Y, const int e)
+{
+   // A storage (qx,dy)=(K,M); C row=dy, col=dx → Y(dx,dy) = Y(col,row)
+   struct Y2Acc
+   {
+      const DeviceTensor<3> *Y;
+      int e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(col, row, e);
+      }
+   };
+   SfNullD nd;
+   Y2Acc Yacc{&Y, e};
+   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD[0], Q1D, D1D},
+                            SfBFromKbyN{sBG[1], Q1D, D1D}, Yacc, nd); // Gt
+   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD[1], Q1D, D1D},
+                            SfBFromKbyN{sBG[0], Q1D, D1D}, Yacc, nd); // Bt
+}
+
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void mfma_InterpYt2D(const int D1D, const int Q1D,
+                                             const real_t *sBt,
+                                             const real_t *sQQ, real_t *sQD)
+{
+   // K=qy fastest in A(qx,qy); N=dy — (M,K) layout, not InterpAx's (K,M).
+   SfNullD nd;
+   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ, Q1D, Q1D},
+                             SfBFromKbyN{sBt, Q1D, D1D},
+                             SfCToMbyN{sQD, Q1D, D1D}, nd);
+}
+
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void mfma_InterpXt2D(const int D1D, const int Q1D,
+                                             const real_t *sBt,
+                                             const real_t *sQD,
+                                             const DeviceTensor<3> &Y, const int e)
+{
+   struct Y2Acc
+   {
+      const DeviceTensor<3> *Y;
+      int e;
+      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
+      {
+         return (*Y)(col, row, e);
+      }
+   };
+   SfNullD nd;
+   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD, Q1D, D1D},
+                            SfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
+}
+
 #endif // __HIP_DEVICE_COMPILE__ && !MFEM_USE_SINGLE
 
-// ======================================================================
-// SF kernels — Grad/Interp 2D/3D (dispatch blas / mfma / dmma inside)
-// ======================================================================
 
+// ======================================================================
+// CUDA (dmma) — SF contract bodies
+// ======================================================================
+#if defined(MFEM_USE_CUDA) && !defined(MFEM_USE_SINGLE)
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
                                         const real_t (&BG)[2][MQ1*MD1],
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
-   if (!mma::TensorMmaEnabled())
-   {
-      blas_SfContract<false, false>(m, n, k, A[0], BG[1], C[0]);
-      blas_SfContract<false, false>(m, n, k, A[0], BG[0], C[1]);
-      return;
-   }
-#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   SfNullD nd;
-   // C[0] from G, C[1] from B (matches CUDA dmma_GradX store order).
-   mfma_SfContract<false, false>(m, n, k, A[0], BG[1], C[0], nd);
-   mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[1], nd);
-   return;
-#endif
-#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2515,7 +2886,7 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int magicNumber = MagicMapForN(n);
+   const int bankMap = BankMapForN(n);
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -2527,7 +2898,7 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
             double bReg[1];
             double gReg[1];
             int bRow = bRowInWarp + mK * mmaK;
-            int bColumn = MappedNCol(magicNumber, bColumnInWarp, n0);
+            int bColumn = MappedNCol(bankMap, bColumnInWarp, n0);
             if (bColumn < n && bRow < k)
             {
                bReg[0] = B(bRow, bColumn);
@@ -2559,7 +2930,7 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
             for (int i = 0; i < 2; i++)
             {
                int cRow = MapM(groupId, mM, mPass);
-               int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
                   DeviceMatrix cC(C[d], m, n);
@@ -2569,17 +2940,6 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
          }
       }
    }
-#endif // MFEM_USE_CUDA
-}
-
-/// 3D Gradient, 1/3
-template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
-MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
-                                   const real_t (&sBG)[2][MQ1*MD1],
-                                   const real_t (*sDDD)[MDQ*MDQ*MDQ],
-                                   real_t (*sDDQ)[MDQ*MDQ*MDQ])
-{
-   dmma_GradX<MD1, MQ1, MDQ*MDQ*MDQ>(D1D * D1D, Q1D, D1D, sBG, sDDD, sDDQ);
 }
 
 template<int MD1, int MQ1, int BUF>
@@ -2589,21 +2949,6 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
-   if (!mma::TensorMmaEnabled())
-   {
-      blas_SfContract<false, false>(m, n, k, A[0], BG[0], C[0]);
-      blas_SfContract<false, false>(m, n, k, A[1], BG[1], C[1]);
-      blas_SfContract<false, false>(m, n, k, A[1], BG[0], C[2]);
-      return;
-   }
-#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   SfNullD nd;
-   mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[0], nd); // A0*B
-   mfma_SfContract<false, false>(m, n, k, A[1], BG[1], C[1], nd); // A1*G
-   mfma_SfContract<false, false>(m, n, k, A[1], BG[0], C[2], nd); // A1*B
-   return;
-#endif
-#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2619,7 +2964,7 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int magicNumber = MagicMapForN(n);
+   const int bankMap = BankMapForN(n);
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -2631,7 +2976,7 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
             double bReg[1];
             double gReg[1];
             int bRow = bRowInWarp + mK * mmaK;
-            int bColumn = MappedNCol(magicNumber, bColumnInWarp, n0);
+            int bColumn = MappedNCol(bankMap, bColumnInWarp, n0);
             if (bColumn < n && bRow < k)
             {
                bReg[0] = B(bRow, bColumn);
@@ -2668,7 +3013,7 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
             for (int i = 0; i < 2; i++)
             {
                int cRow = MapM(groupId, mM, mPass);
-               int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
                   DeviceMatrix cC(C[d], m, n);
@@ -2678,17 +3023,6 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
          }
       }
    }
-#endif // MFEM_USE_CUDA
-}
-
-/// 3D Gradient, 2/3
-template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
-MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
-                                   const real_t (&sBG)[2][MQ1*MD1],
-                                   const real_t (*sDDQ)[MDQ*MDQ*MDQ],
-                                   real_t (*sDQQ)[MDQ*MDQ*MDQ])
-{
-   dmma_GradY<MD1, MQ1, MDQ*MDQ*MDQ>(D1D * Q1D, Q1D, D1D, sBG, sDDQ, sDQQ);
 }
 
 template<int MD1, int MQ1, int BUF>
@@ -2699,25 +3033,6 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
                                         real_t (*C)[BUF],
                                         int gIdx)
 {
-   if (!mma::TensorMmaEnabled())
-   {
-      for (int d = 0; d < 3; d++)
-      {
-         const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
-         blas_SfContract<false, false>(m, n, k, A[d], B1d, C[d]);
-      }
-      return;
-   }
-#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   SfNullD nd;
-   for (int d = 0; d < 3; d++)
-   {
-      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
-      mfma_SfContract<false, false>(m, n, k, A[d], B1d, C[d], nd);
-   }
-   return;
-#endif
-#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2733,7 +3048,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int magicNumber = MagicMapForN(n);
+   const int bankMap = BankMapForN(n);
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -2745,7 +3060,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
             double bReg[1];
             double gReg[1];
             int bRow = bRowInWarp + mK * mmaK;
-            int bColumn = MappedNCol(magicNumber, bColumnInWarp, n0);
+            int bColumn = MappedNCol(bankMap, bColumnInWarp, n0);
             if (bColumn < n && bRow < k)
             {
                bReg[0] = B(bRow, bColumn);
@@ -2779,7 +3094,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
             for (int i = 0; i < 2; i++)
             {
                int cRow = MapM(groupId, mM, mPass);
-               int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
                   DeviceMatrix cC(C[d], m, n);
@@ -2789,17 +3104,6 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
          }
       }
    }
-#endif // MFEM_USE_CUDA
-}
-
-/// 3D Gradient, 3/3
-template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
-MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
-                                   const real_t (&sBG)[2][MQ1*MD1],
-                                   const real_t (*sDQQ)[MDQ*MDQ*MDQ],
-                                   real_t (*sQQQ)[MDQ*MDQ*MDQ])
-{
-   dmma_GradZ<MD1, MQ1, MDQ*MDQ*MDQ>(Q1D * Q1D, Q1D, D1D, sBG, sDQQ, sQQQ, 2);
 }
 
 /// Transposed Grad strip-mine shared by GradZt (gIdx=0) and GradYt (gIdx=1).
@@ -2811,26 +3115,6 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
                                              const real_t (*A)[BUF],
                                              real_t (*C)[BUF])
 {
-   if (!mma::TensorMmaEnabled())
-   {
-      // Forward Grad* stores C as DeviceMatrix(m,n)=(M,K); transpose reads (M,K).
-      for (int d = 0; d < 3; d++)
-      {
-         const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
-         blas_GemmMbyK<false>(m, k, n, A[d], B1d, C[d]);
-      }
-      return;
-   }
-#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   SfNullD nd;
-   for (int d = 0; d < 3; d++)
-   {
-      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
-      mfma_SfContract<false, false>(m, n, k, A[d], B1d, C[d], nd);
-   }
-   return;
-#endif
-#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(BG[0], k, n);
    ConstDeviceMatrix Gt(BG[1], k, n);
    const int thread = getThreadIdx();
@@ -2840,7 +3124,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (m + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
-   const int magicNumber = MagicMapForN(n);
+   const int bankMap = BankMapForN(n);
    const int aRowInWarp = groupId;
    const int aColumnInWarp = threadIdInGroup;
    const int bRowInWarp = threadIdInGroup;
@@ -2856,7 +3140,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
             double BtReg[1];
             double GtReg[1];
             const int bRow = bRowInWarp + mK * mmaK;
-            const int bColumn = MappedNCol(magicNumber, bColumnInWarp, n0);
+            const int bColumn = MappedNCol(bankMap, bColumnInWarp, n0);
             if (bColumn < n && bRow < k)
             {
                BtReg[0] = Bt(bRow, bColumn);
@@ -2890,7 +3174,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
             for (int i = 0; i < 2; i++)
             {
                const int cRow = MapM(groupId, mM, mPass);
-               const int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
+               const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
                   DeviceMatrix cC(C[d], m, n);
@@ -2900,7 +3184,613 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
          }
       }
    }
-#endif // MFEM_USE_CUDA
+}
+
+/** Mass interp core: strip-mined 1-comp B·A → C.
+ *  ScaleAtStore: C *= D(q,e) (fused mass Q-fn). */
+template<int MD1, int MQ1, bool ScaleAtStore = false>
+MFEM_HOST_DEVICE inline void dmma_InterpAx(const int m, const int n,
+                                           const int k,
+                                           const real_t *B1d,
+                                           const real_t *A, real_t *C,
+                                           const DeviceTensor<2, const real_t> *D = nullptr,
+                                           const int e = 0)
+{
+   ConstDeviceMatrix B(B1d, k, n);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForMassN(n);
+   const int mPass = (m + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < n; n0 += mmaN)
+      {
+         double cReg[2] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+         {
+            double bReg[1];
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            bReg[0] = (bColumn < n && bRow < k) ? B(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = threadIdInGroup + mK * mmaK;
+            if (aRow < m && aColumn < k)
+            {
+               ConstDeviceMatrix aA(A, k, m);
+               aReg[0] = aA(aColumn, aRow);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
+            if (cRow < m && cColumn < n)
+            {
+               DeviceMatrix cC(C, m, n);
+               if constexpr (ScaleAtStore)
+               {
+                  cC(cRow, cColumn) = cReg[i] * (*D)(cRow + m * cColumn, e);
+               }
+               else
+               {
+                  cC(cRow, cColumn) = cReg[i];
+               }
+            }
+         }
+      }
+   }
+}
+
+/// 3D Transposed Gradient, 3/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void dmma_GradXt(const int D1D, const int Q1D,
+                                         const real_t (&sBG)[2][MQ1*MD1],
+                                         const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
+                                         const DeviceTensor<4> &Y, // output
+                                         const int e)
+{
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   int thread = getThreadIdx();
+   int warpId = getWarpId(thread);
+   int laneId = getLaneId(thread);
+   int groupId = getGroupId(laneId);
+   int threadIdInGroup = getThreadIdInGroup(laneId);
+
+   // dx (D1D), dy (D1D) === M, dz (D1D) === N, qz (Q1D) === K
+   int mPass = (D1D * D1D + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   int aRowInWarp = groupId;
+   int aColumnInWarp = threadIdInGroup;
+   int bRowInWarp = threadIdInGroup;
+   int bColumnInWarp = groupId;
+   const int bankMap = BankMapForN(D1D);
+
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
+      {
+         double BtReg[1];
+         double GtReg[1];
+         double cReg[2] = {};
+
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+         {
+            int bRow = bRowInWarp + mK * mmaK;
+            int bColumn = MappedNCol(bankMap, bColumnInWarp, n0);
+            if (bColumn < D1D && bRow < Q1D)
+            {
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
+            }
+            else
+            {
+               BtReg[0] = 0;
+               GtReg[0] = 0;
+            }
+            for (int d = 0; d < 3; d++)
+            {
+               double aReg[1];
+               int aRow = MapM(aRowInWarp, mM, mPass);
+               int aColumn = aColumnInWarp + mK * mmaK;
+               if (aRow < D1D * D1D && aColumn < Q1D)
+               {
+                  ConstDeviceMatrix Xx(sDDQ[d], Q1D, D1D * D1D); // qz, dx, dy
+                  aReg[0] = Xx(aColumn, aRow);
+               }
+               else
+               {
+                  aReg[0] = 0;
+               }
+
+               dmmaSync(aReg, d == 2 ? GtReg : BtReg, cReg);
+            }
+         }
+#pragma unroll
+         for (int i = 0; i < 2; i++)
+         {
+            int cRow = MapM(groupId, mM, mPass);
+            int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
+            if (cRow < D1D * D1D && cColumn < D1D)
+            {
+               int dx = cRow % D1D;
+               int dy = cRow / D1D;
+               int dz = cColumn;
+               Y(dx,dy,dz,e) += cReg[i];
+            }
+         }
+      }
+   }
+}
+
+/** InterpAx store to global Y (3D mass): Y(dx,dy,dz,e) += C. */
+template<int MD1, int MQ1>
+MFEM_HOST_DEVICE inline void dmma_InterpXt(const int D1D, const int Q1D,
+                                           const real_t *sBt,
+                                           const real_t *sDDQ,
+                                           const DeviceTensor<4> &Y, const int e)
+{
+   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int threadIdInGroup = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForMassN(D1D);
+   const int m = D1D * D1D, n = D1D, k = Q1D;
+   const int mPass = (m + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < n; n0 += mmaN)
+      {
+         double cReg[2] = {};
+         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
+         {
+            double bReg[1];
+            const int bRow = threadIdInGroup + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            bReg[0] = (bColumn < n && bRow < k) ? Bt(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = threadIdInGroup + mK * mmaK;
+            if (aRow < m && aColumn < k)
+            {
+               ConstDeviceMatrix Xx(sDDQ, k, m);
+               aReg[0] = Xx(aColumn, aRow);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
+            if (cRow < m && cColumn < n)
+            {
+               Y(cRow % D1D, cRow / D1D, cColumn, e) += cReg[i];
+            }
+         }
+      }
+   }
+}
+
+/// 2D GradY: M=Q1D (qx), N=Q1D (qy), K=D1D → gX=A0*B, gY=A1*G
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void dmma_GradY2D(const int D1D, const int Q1D,
+                                          const real_t (&sBG)[2][MQ1*MD1],
+                                          const real_t (*sDQ)[MDQ*MDQ],
+                                          real_t (*sQQ)[MDQ*MDQ])
+{
+   ConstDeviceMatrix B(sBG[0], D1D, Q1D);
+   ConstDeviceMatrix G(sBG[1], D1D, Q1D);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int tinG = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForN(Q1D);
+   const int mPass = (Q1D + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < Q1D; n0 += mmaN)
+      {
+         double cReg[4] = {};
+         for (int mK = 0; mK < (D1D + mmaK - 1) / mmaK; mK++)
+         {
+            double bReg[1], gReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            if (bColumn < Q1D && bRow < D1D)
+            {
+               bReg[0] = B(bRow, bColumn);
+               gReg[0] = G(bRow, bColumn);
+            }
+            else { bReg[0] = gReg[0] = 0; }
+            double a0[1], a1[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = tinG + mK * mmaK;
+            if (aRow < Q1D && aColumn < D1D)
+            {
+               ConstDeviceMatrix A0(sDQ[0], D1D, Q1D);
+               ConstDeviceMatrix A1(sDQ[1], D1D, Q1D);
+               a0[0] = A0(aColumn, aRow);
+               a1[0] = A1(aColumn, aRow);
+            }
+            else { a0[0] = a1[0] = 0; }
+            dmmaSync(a0, bReg, &cReg[0]);
+            dmmaSync(a1, gReg, &cReg[2]);
+         }
+         for (int d = 0; d < 2; d++)
+         {
+            for (int i = 0; i < 2; i++)
+            {
+               const int cRow = MapM(groupId, mM, mPass);
+               const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
+               if (cRow < Q1D && cColumn < Q1D)
+               {
+                  DeviceMatrix C(sQQ[d], Q1D, Q1D);
+                  C(cRow, cColumn) = cReg[d * 2 + i];
+               }
+            }
+         }
+      }
+   }
+}
+
+/// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void dmma_GradYt2D(const int D1D, const int Q1D,
+                                           const real_t (&sBG)[2][MQ1*MD1],
+                                           const real_t (*sQQ)[MDQ*MDQ],
+                                           real_t (*sQD)[MDQ*MDQ])
+{
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int tinG = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForN(D1D);
+   const int mPass = (Q1D + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
+      {
+         double cReg[4] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+         {
+            double BtReg[1], GtReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            if (bColumn < D1D && bRow < Q1D)
+            {
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
+            }
+            else { BtReg[0] = GtReg[0] = 0; }
+            for (int d = 0; d < 2; d++)
+            {
+               double aReg[1];
+               const int aRow = MapM(groupId, mM, mPass);
+               const int aColumn = tinG + mK * mmaK;
+               if (aRow < Q1D && aColumn < Q1D)
+               {
+                  ConstDeviceMatrix A(sQQ[d], Q1D, Q1D);
+                  aReg[0] = A(aRow, aColumn);
+               }
+               else { aReg[0] = 0; }
+               dmmaSync(aReg, d == 1 ? GtReg : BtReg, &cReg[d * 2]);
+            }
+         }
+         for (int d = 0; d < 2; d++)
+         {
+            for (int i = 0; i < 2; i++)
+            {
+               const int cRow = MapM(groupId, mM, mPass);
+               const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
+               if (cRow < Q1D && cColumn < D1D)
+               {
+                  DeviceMatrix C(sQD[d], Q1D, D1D); // (qx, dy)
+                  C(cRow, cColumn) = cReg[d * 2 + i];
+               }
+            }
+         }
+      }
+   }
+}
+
+/// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void dmma_GradXt2D(const int D1D, const int Q1D,
+                                           const real_t (&sBG)[2][MQ1*MD1],
+                                           const real_t (*sQD)[MDQ*MDQ],
+                                           const DeviceTensor<3> &Y, const int e)
+{
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int tinG = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForN(D1D);
+   const int mPass = (D1D + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
+      {
+         double cReg[2] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+         {
+            double BtReg[1], GtReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            if (bColumn < D1D && bRow < Q1D)
+            {
+               BtReg[0] = Bt(bRow, bColumn);
+               GtReg[0] = Gt(bRow, bColumn);
+            }
+            else { BtReg[0] = GtReg[0] = 0; }
+            for (int d = 0; d < 2; d++)
+            {
+               double aReg[1];
+               const int aRow = MapM(groupId, mM, mPass);
+               const int aColumn = tinG + mK * mmaK;
+               if (aRow < D1D && aColumn < Q1D)
+               {
+                  ConstDeviceMatrix A(sQD[d], Q1D, D1D); // (qx, dy)
+                  aReg[0] = A(aColumn, aRow);
+               }
+               else { aReg[0] = 0; }
+               dmmaSync(aReg, d == 0 ? GtReg : BtReg, cReg);
+            }
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM, mPass); // dy
+            const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0); // dx
+            if (cRow < D1D && cColumn < D1D)
+            {
+               Y(cColumn, cRow, e) += cReg[i];
+            }
+         }
+      }
+   }
+}
+
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void dmma_InterpYt2D(const int D1D, const int Q1D,
+                                             const real_t *sBt,
+                                             const real_t *sQQ, real_t *sQD)
+{
+   // K=qy fastest in A(qx,qy); N=dy — not the same A layout as InterpAx.
+   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int tinG = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForMassN(D1D);
+   const int mPass = (Q1D + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
+      {
+         double cReg[2] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+         {
+            double bReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = tinG + mK * mmaK;
+            if (aRow < Q1D && aColumn < Q1D)
+            {
+               ConstDeviceMatrix A(sQQ, Q1D, Q1D);
+               aReg[0] = A(aRow, aColumn);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
+            if (cRow < Q1D && cColumn < D1D)
+            {
+               DeviceMatrix C(sQD, Q1D, D1D);
+               C(cRow, cColumn) = cReg[i];
+            }
+         }
+      }
+   }
+}
+
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void dmma_InterpXt2D(const int D1D, const int Q1D,
+                                             const real_t *sBt,
+                                             const real_t *sQD,
+                                             const DeviceTensor<3> &Y, const int e)
+{
+   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
+   const int thread = getThreadIdx();
+   const int warpId = getWarpId(thread);
+   const int laneId = getLaneId(thread);
+   const int groupId = getGroupId(laneId);
+   const int tinG = getThreadIdInGroup(laneId);
+   const int bankMap = BankMapForMassN(D1D);
+   const int mPass = (D1D + mmaM - 1) / mmaM;
+   const int nWarps = NWarps(mPass);
+   for (int mM = warpId; mM < mPass; mM += nWarps)
+   {
+      for (int n0 = 0; n0 < D1D; n0 += mmaN)
+      {
+         double cReg[2] = {};
+         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
+         {
+            double bReg[1];
+            const int bRow = tinG + mK * mmaK;
+            const int bColumn = MappedNCol(bankMap, groupId, n0);
+            bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
+            double aReg[1];
+            const int aRow = MapM(groupId, mM, mPass);
+            const int aColumn = tinG + mK * mmaK;
+            if (aRow < D1D && aColumn < Q1D)
+            {
+               ConstDeviceMatrix A(sQD, Q1D, D1D);
+               aReg[0] = A(aColumn, aRow);
+            }
+            else { aReg[0] = 0; }
+            dmmaSync(aReg, bReg, cReg);
+         }
+         for (int i = 0; i < 2; i++)
+         {
+            const int cRow = MapM(groupId, mM, mPass);
+            const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
+            if (cRow < D1D && cColumn < D1D)
+            {
+               Y(cColumn, cRow, e) += cReg[i];
+            }
+         }
+      }
+   }
+}
+
+#endif // MFEM_USE_CUDA && !MFEM_USE_SINGLE
+
+// ======================================================================
+// Public SF API — thin dispatchers + dimension adapters
+// ======================================================================
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF])
+{
+   if (!mma::TensorMmaEnabled())
+   {
+      blas_GradX<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+      return;
+   }
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   mfma_GradX<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradX<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+#else
+   blas_GradX<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+#endif
+}
+
+/// 3D Gradient, 1/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void GradX(const int D1D, const int Q1D,
+                                   const real_t (&sBG)[2][MQ1*MD1],
+                                   const real_t (*sDDD)[MDQ*MDQ*MDQ],
+                                   real_t (*sDDQ)[MDQ*MDQ*MDQ])
+{
+   GradX<MD1, MQ1, MDQ*MDQ*MDQ>(D1D * D1D, Q1D, D1D, sBG, sDDD, sDDQ);
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF])
+{
+   if (!mma::TensorMmaEnabled())
+   {
+      blas_GradY<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+      return;
+   }
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   mfma_GradY<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradY<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+#else
+   blas_GradY<MD1, MQ1, BUF>(m, n, k, BG, A, C);
+#endif
+}
+
+/// 3D Gradient, 2/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void GradY(const int D1D, const int Q1D,
+                                   const real_t (&sBG)[2][MQ1*MD1],
+                                   const real_t (*sDDQ)[MDQ*MDQ*MDQ],
+                                   real_t (*sDQQ)[MDQ*MDQ*MDQ])
+{
+   GradY<MD1, MQ1, MDQ*MDQ*MDQ>(D1D * Q1D, Q1D, D1D, sBG, sDDQ, sDQQ);
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF],
+                                   int gIdx)
+{
+   if (!mma::TensorMmaEnabled())
+   {
+      blas_GradZ<MD1, MQ1, BUF>(m, n, k, BG, A, C, gIdx);
+      return;
+   }
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   mfma_GradZ<MD1, MQ1, BUF>(m, n, k, BG, A, C, gIdx);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradZ<MD1, MQ1, BUF>(m, n, k, BG, A, C, gIdx);
+#else
+   blas_GradZ<MD1, MQ1, BUF>(m, n, k, BG, A, C, gIdx);
+#endif
+}
+
+/// 3D Gradient, 3/3
+template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
+MFEM_HOST_DEVICE inline void GradZ(const int D1D, const int Q1D,
+                                   const real_t (&sBG)[2][MQ1*MD1],
+                                   const real_t (*sDQQ)[MDQ*MDQ*MDQ],
+                                   real_t (*sQQQ)[MDQ*MDQ*MDQ])
+{
+   GradZ<MD1, MQ1, MDQ*MDQ*MDQ>(Q1D * Q1D, Q1D, D1D, sBG, sDQQ, sQQQ, 2);
+}
+
+/// Transposed Grad strip-mine shared by GradZt (gIdx=0) and GradYt (gIdx=1).
+/// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
+                                        const int k, const int gIdx,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
+{
+   if (!mma::TensorMmaEnabled())
+   {
+      blas_GradZtLike<MD1, MQ1, BUF>(m, n, k, gIdx, BG, A, C);
+      return;
+   }
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   mfma_GradZtLike<MD1, MQ1, BUF>(m, n, k, gIdx, BG, A, C);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradZtLike<MD1, MQ1, BUF>(m, n, k, gIdx, BG, A, C);
+#else
+   blas_GradZtLike<MD1, MQ1, BUF>(m, n, k, gIdx, BG, A, C);
+#endif
 }
 
 /// 3D Transposed Gradient, 1/3
@@ -2910,22 +3800,23 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
                                     const real_t (*sQQQ)[MDQ*MDQ*MDQ],
                                     real_t (*sDQQ)[MDQ*MDQ*MDQ])
 {
+   // Blas uses physical gZ (d==2); MMA fragment convention uses gIdx=0.
    if (!mma::TensorMmaEnabled())
    {
-      // Forward GradZ stored (M,K)=(Q*Q,Q); GemmMbyK. Gt on gZ (d==2).
-      ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
-      ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
-      for (int d = 0; d < 3; ++d)
-      {
-         const real_t *B1d = (d == 2) ? static_cast<const real_t *>(Gt)
-                             : static_cast<const real_t *>(Bt);
-         blas_GemmMbyK<false>(Q1D * Q1D, Q1D, D1D, sQQQ[d], B1d, sDQQ[d]);
-      }
+      blas_GradZtLike<MD1, MQ1, MDQ*MDQ*MDQ>(
+         Q1D * Q1D, D1D, Q1D, 2, sBG, sQQQ, sDQQ);
       return;
    }
-   // M=Q*Q, N=D, K=Q; Gt on d==0 (MMA fragment convention)
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   mfma_GradZtLike<MD1, MQ1, MDQ*MDQ*MDQ>(
+      Q1D * Q1D, D1D, Q1D, 0, sBG, sQQQ, sDQQ);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    dmma_GradZtLike<MD1, MQ1, MDQ*MDQ*MDQ>(
       Q1D * Q1D, D1D, Q1D, 0, sBG, sQQQ, sDQQ);
+#else
+   blas_GradZtLike<MD1, MQ1, MDQ*MDQ*MDQ>(
+      Q1D * Q1D, D1D, Q1D, 2, sBG, sQQQ, sDQQ);
+#endif
 }
 
 /// 3D Transposed Gradient, 2/3
@@ -2964,9 +3855,38 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
       }
       return;
    }
-   // M=D*Q, N=D, K=Q; Gt on d==1
+#if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+   mfma_GradZtLike<MD1, MQ1, MDQ*MDQ*MDQ>(
+      D1D * Q1D, D1D, Q1D, 1, sBG, sDQQ, sDDQ);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
    dmma_GradZtLike<MD1, MQ1, MDQ*MDQ*MDQ>(
       D1D * Q1D, D1D, Q1D, 1, sBG, sDQQ, sDDQ);
+#else
+   // Host fallback (TensorMmaEnabled is false on host; kept for symmetry).
+   const int tid = getThreadIdx();
+   const int nthreads = getBlockNthreads();
+   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
+   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
+   const int nout = Q1D * D1D * D1D;
+   for (int idx = tid; idx < nout; idx += nthreads)
+   {
+      const int qx = idx % Q1D;
+      const int t = idx / Q1D;
+      const int dy = t % D1D;
+      const int dz = t / D1D;
+      for (int d = 0; d < 3; ++d)
+      {
+         real_t s = 0.0;
+         const real_t *B1d = (d == 1) ? Gt : Bt;
+         ConstDeviceMatrix Bq(B1d, Q1D, D1D);
+         for (int qy = 0; qy < Q1D; ++qy)
+         {
+            s += sDQQ[d][(qx + Q1D * qy) + Q1D * Q1D * dz] * Bq(qy, dy);
+         }
+         sDDQ[d][qx + Q1D * (dy + D1D * dz)] = s;
+      }
+   }
+#endif
 }
 
 /// 3D Transposed Gradient, 3/3
@@ -2979,105 +3899,16 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      blas_GradXt3D(D1D, Q1D, sBG[0], sBG[1], sDDQ[0], sDDQ[1], sDDQ[2], Y, e);
+      blas_GradXt<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDDQ, Y, e);
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const int m = D1D * D1D, n = D1D, k = Q1D;
-   struct Y3Acc
-   {
-      const DeviceTensor<4> *Y;
-      int D1D, e;
-      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
-      {
-         return (*Y)(row % D1D, row / D1D, col, e);
-      }
-   };
-   SfNullD nd;
-   Y3Acc Yacc{&Y, D1D, e};
-   // Y += A0*Bt + A1*Bt + A2*Gt
-   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[0], k, m},
-                            SfBFromKbyN{sBG[0], k, n}, Yacc, nd);
-   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[1], k, m},
-                            SfBFromKbyN{sBG[0], k, n}, Yacc, nd);
-   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ[2], k, m},
-                            SfBFromKbyN{sBG[1], k, n}, Yacc, nd);
-   return;
+   mfma_GradXt<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDDQ, Y, e);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradXt<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDDQ, Y, e);
+#else
+   blas_GradXt<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDDQ, Y, e);
 #endif
-#if defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
-   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
-   int thread = getThreadIdx();
-   int warpId = getWarpId(thread);
-   int laneId = getLaneId(thread);
-   int groupId = getGroupId(laneId);
-   int threadIdInGroup = getThreadIdInGroup(laneId);
-
-   // dx (D1D), dy (D1D) === M, dz (D1D) === N, qz (Q1D) === K
-   int mPass = (D1D * D1D + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   int aRowInWarp = groupId;
-   int aColumnInWarp = threadIdInGroup;
-   int bRowInWarp = threadIdInGroup;
-   int bColumnInWarp = groupId;
-   const int magicNumber = MagicMapForN(D1D);
-
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < D1D; n0 += mmaN)
-      {
-         double BtReg[1];
-         double GtReg[1];
-         double cReg[2] = {};
-
-         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
-         {
-            int bRow = bRowInWarp + mK * mmaK;
-            int bColumn = MappedNCol(magicNumber, bColumnInWarp, n0);
-            if (bColumn < D1D && bRow < Q1D)
-            {
-               BtReg[0] = Bt(bRow, bColumn);
-               GtReg[0] = Gt(bRow, bColumn);
-            }
-            else
-            {
-               BtReg[0] = 0;
-               GtReg[0] = 0;
-            }
-            for (int d = 0; d < 3; d++)
-            {
-               double aReg[1];
-               int aRow = MapM(aRowInWarp, mM, mPass);
-               int aColumn = aColumnInWarp + mK * mmaK;
-               if (aRow < D1D * D1D && aColumn < Q1D)
-               {
-                  ConstDeviceMatrix Xx(sDDQ[d], Q1D, D1D * D1D); // qz, dx, dy
-                  aReg[0] = Xx(aColumn, aRow);
-               }
-               else
-               {
-                  aReg[0] = 0;
-               }
-
-               dmmaSync(aReg, d == 2 ? GtReg : BtReg, cReg);
-            }
-         }
-#pragma unroll
-         for (int i = 0; i < 2; i++)
-         {
-            int cRow = MapM(groupId, mM, mPass);
-            int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
-            if (cRow < D1D * D1D && cColumn < D1D)
-            {
-               int dx = cRow % D1D;
-               int dy = cRow / D1D;
-               int dz = cColumn;
-               Y(dx,dy,dz,e) += cReg[i];
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
 
 /// Load forward (D,Q) and transpose (Q,D) B with one global read.
@@ -3113,74 +3944,16 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
 {
    if (!mma::TensorMmaEnabled())
    {
-      blas_SfContract<ScaleAtStore, false>(m, n, k, A, B1d, C, D, e);
+      blas_InterpAx<MD1, MQ1, ScaleAtStore>(m, n, k, B1d, A, C, D, e);
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   if constexpr (ScaleAtStore)
-   {
-      SfMassD Dd{D, m, e};
-      mfma_SfContract<true, false>(m, n, k, A, B1d, C, Dd);
-   }
-   else
-   {
-      SfNullD nd;
-      mfma_SfContract<false, false>(m, n, k, A, B1d, C, nd);
-   }
-   return;
+   mfma_InterpAx<MD1, MQ1, ScaleAtStore>(m, n, k, B1d, A, C, D, e);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_InterpAx<MD1, MQ1, ScaleAtStore>(m, n, k, B1d, A, C, D, e);
+#else
+   blas_InterpAx<MD1, MQ1, ScaleAtStore>(m, n, k, B1d, A, C, D, e);
 #endif
-#if defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix B(B1d, k, n);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int threadIdInGroup = getThreadIdInGroup(laneId);
-   const int magicNumber = MagicMapForMassN(n);
-   const int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < n; n0 += mmaN)
-      {
-         double cReg[2] = {};
-         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
-         {
-            double bReg[1];
-            const int bRow = threadIdInGroup + mK * mmaK;
-            const int bColumn = MappedNCol(magicNumber, groupId, n0);
-            bReg[0] = (bColumn < n && bRow < k) ? B(bRow, bColumn) : 0.0;
-            double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = threadIdInGroup + mK * mmaK;
-            if (aRow < m && aColumn < k)
-            {
-               ConstDeviceMatrix aA(A, k, m);
-               aReg[0] = aA(aColumn, aRow);
-            }
-            else { aReg[0] = 0; }
-            dmmaSync(aReg, bReg, cReg);
-         }
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
-            if (cRow < m && cColumn < n)
-            {
-               DeviceMatrix cC(C, m, n);
-               if constexpr (ScaleAtStore)
-               {
-                  cC(cRow, cColumn) = cReg[i] * (*D)(cRow + m * cColumn, e);
-               }
-               else
-               {
-                  cC(cRow, cColumn) = cReg[i];
-               }
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -3263,87 +4036,18 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      // sDDQ from InterpYt Emulate: qx + Q*(dy + D*dz)
-      const int tid = getThreadIdx();
-      const int nthreads = getBlockNthreads();
-      ConstDeviceMatrix Bt(sBt, Q1D, D1D);
-      const int nout = D1D * D1D * D1D;
-      for (int idx = tid; idx < nout; idx += nthreads)
-      {
-         const int dx = idx % D1D;
-         const int t = idx / D1D;
-         const int dy = t % D1D;
-         const int dz = t / D1D;
-         real_t s = 0.0;
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            s += sDDQ[qx + Q1D * (dy + D1D * dz)] * Bt(qx, dx);
-         }
-         Y(dx, dy, dz, e) += s;
-      }
+      blas_InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sDDQ, Y, e);
       return;
    }
-
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const int m = D1D * D1D, n = D1D, k = Q1D;
-   struct Y3Acc
-   {
-      const DeviceTensor<4> *Y;
-      int D1D, e;
-      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
-      {
-         return (*Y)(row % D1D, row / D1D, col, e);
-      }
-   };
-   SfNullD nd;
-   mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ, k, m},
-                            SfBFromKbyN{sBt, k, n}, Y3Acc{&Y, D1D, e}, nd);
-#elif defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int threadIdInGroup = getThreadIdInGroup(laneId);
-   const int magicNumber = MagicMapForMassN(D1D);
-   const int m = D1D * D1D, n = D1D, k = Q1D;
-   const int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < n; n0 += mmaN)
-      {
-         double cReg[2] = {};
-         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
-         {
-            double bReg[1];
-            const int bRow = threadIdInGroup + mK * mmaK;
-            const int bColumn = MappedNCol(magicNumber, groupId, n0);
-            bReg[0] = (bColumn < n && bRow < k) ? Bt(bRow, bColumn) : 0.0;
-            double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = threadIdInGroup + mK * mmaK;
-            if (aRow < m && aColumn < k)
-            {
-               ConstDeviceMatrix Xx(sDDQ, k, m);
-               aReg[0] = Xx(aColumn, aRow);
-            }
-            else { aReg[0] = 0; }
-            dmmaSync(aReg, bReg, cReg);
-         }
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = MappedNCol(magicNumber, threadIdInGroup * 2 + i, n0);
-            if (cRow < m && cColumn < n)
-            {
-               Y(cRow % D1D, cRow / D1D, cColumn, e) += cReg[i];
-            }
-         }
-      }
-   }
+   mfma_InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sDDQ, Y, e);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sDDQ, Y, e);
+#else
+   blas_InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sDDQ, Y, e);
 #endif
 }
+
 
 // ---- 2D (quad) helpers ----
 
@@ -3371,7 +4075,7 @@ MFEM_HOST_DEVICE inline void GradX2D(const int D1D, const int Q1D,
                                      const real_t (*sDD)[MDQ*MDQ],
                                      real_t (*sDQ)[MDQ*MDQ])
 {
-   dmma_GradX<MD1, MQ1, MDQ*MDQ>(D1D, Q1D, D1D, sBG, sDD, sDQ);
+   GradX<MD1, MQ1, MDQ*MDQ>(D1D, Q1D, D1D, sBG, sDD, sDQ);
 }
 
 /// 2D GradY: M=Q1D (qx), N=Q1D (qy), K=D1D → gX=A0*B, gY=A1*G
@@ -3383,74 +4087,16 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      blas_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0]);
-      blas_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1]);
+      blas_GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDQ, sQQ);
       return;
    }
-
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   SfNullD nd;
-   mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0], nd);
-   mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1], nd);
-   return;
+   mfma_GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDQ, sQQ);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDQ, sQQ);
+#else
+   blas_GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sDQ, sQQ);
 #endif
-#if defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix B(sBG[0], D1D, Q1D);
-   ConstDeviceMatrix G(sBG[1], D1D, Q1D);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int tinG = getThreadIdInGroup(laneId);
-   const int magic = MagicMapForN(Q1D);
-   const int mPass = (Q1D + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < Q1D; n0 += mmaN)
-      {
-         double cReg[4] = {};
-         for (int mK = 0; mK < (D1D + mmaK - 1) / mmaK; mK++)
-         {
-            double bReg[1], gReg[1];
-            const int bRow = tinG + mK * mmaK;
-            const int bColumn = MappedNCol(magic, groupId, n0);
-            if (bColumn < Q1D && bRow < D1D)
-            {
-               bReg[0] = B(bRow, bColumn);
-               gReg[0] = G(bRow, bColumn);
-            }
-            else { bReg[0] = gReg[0] = 0; }
-            double a0[1], a1[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = tinG + mK * mmaK;
-            if (aRow < Q1D && aColumn < D1D)
-            {
-               ConstDeviceMatrix A0(sDQ[0], D1D, Q1D);
-               ConstDeviceMatrix A1(sDQ[1], D1D, Q1D);
-               a0[0] = A0(aColumn, aRow);
-               a1[0] = A1(aColumn, aRow);
-            }
-            else { a0[0] = a1[0] = 0; }
-            dmmaSync(a0, bReg, &cReg[0]);
-            dmmaSync(a1, gReg, &cReg[2]);
-         }
-         for (int d = 0; d < 2; d++)
-         {
-            for (int i = 0; i < 2; i++)
-            {
-               const int cRow = MapM(groupId, mM, mPass);
-               const int cColumn = MappedNCol(magic, tinG * 2 + i, n0);
-               if (cRow < Q1D && cColumn < Q1D)
-               {
-                  DeviceMatrix C(sQQ[d], Q1D, Q1D);
-                  C(cRow, cColumn) = cReg[d * 2 + i];
-               }
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
 
 /// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
@@ -3462,79 +4108,16 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ[0], sBG[0], sQD[0]);
-      blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ[1], sBG[1], sQD[1]);
+      blas_GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQQ, sQD);
       return;
    }
-
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   SfNullD nd;
-   // A is (qx,qy)=(M,K); B is Bt/Gt (K,N)=(Q,D)
-   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[0], Q1D, Q1D},
-                             SfBFromKbyN{sBG[0], Q1D, D1D},
-                             SfCToMbyN{sQD[0], Q1D, D1D}, nd);
-   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[1], Q1D, Q1D},
-                             SfBFromKbyN{sBG[1], Q1D, D1D},
-                             SfCToMbyN{sQD[1], Q1D, D1D}, nd);
-   return;
+   mfma_GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQQ, sQD);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQQ, sQD);
+#else
+   blas_GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQQ, sQD);
 #endif
-#if defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
-   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int tinG = getThreadIdInGroup(laneId);
-   const int magic = MagicMapForN(D1D);
-   const int mPass = (Q1D + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < D1D; n0 += mmaN)
-      {
-         double cReg[4] = {};
-         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
-         {
-            double BtReg[1], GtReg[1];
-            const int bRow = tinG + mK * mmaK;
-            const int bColumn = MappedNCol(magic, groupId, n0);
-            if (bColumn < D1D && bRow < Q1D)
-            {
-               BtReg[0] = Bt(bRow, bColumn);
-               GtReg[0] = Gt(bRow, bColumn);
-            }
-            else { BtReg[0] = GtReg[0] = 0; }
-            for (int d = 0; d < 2; d++)
-            {
-               double aReg[1];
-               const int aRow = MapM(groupId, mM, mPass);
-               const int aColumn = tinG + mK * mmaK;
-               if (aRow < Q1D && aColumn < Q1D)
-               {
-                  ConstDeviceMatrix A(sQQ[d], Q1D, Q1D);
-                  aReg[0] = A(aRow, aColumn);
-               }
-               else { aReg[0] = 0; }
-               dmmaSync(aReg, d == 1 ? GtReg : BtReg, &cReg[d * 2]);
-            }
-         }
-         for (int d = 0; d < 2; d++)
-         {
-            for (int i = 0; i < 2; i++)
-            {
-               const int cRow = MapM(groupId, mM, mPass);
-               const int cColumn = MappedNCol(magic, tinG * 2 + i, n0);
-               if (cRow < Q1D && cColumn < D1D)
-               {
-                  DeviceMatrix C(sQD[d], Q1D, D1D); // (qx, dy)
-                  C(cRow, cColumn) = cReg[d * 2 + i];
-               }
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
 
 /// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
@@ -3546,99 +4129,16 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      const int tid = getThreadIdx();
-      const int nthreads = getBlockNthreads();
-      ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
-      ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
-      ConstDeviceMatrix A0(sQD[0], Q1D, D1D);
-      ConstDeviceMatrix A1(sQD[1], Q1D, D1D);
-      for (int idx = tid; idx < D1D * D1D; idx += nthreads)
-      {
-         const int dy = idx / D1D; // row
-         const int dx = idx - dy * D1D; // col
-         real_t s = 0.0;
-         for (int q = 0; q < Q1D; ++q)
-         {
-            s += A0(q, dy) * Gt(q, dx);
-            s += A1(q, dy) * Bt(q, dx);
-         }
-         Y(dx, dy, e) += s;
-      }
+      blas_GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQD, Y, e);
       return;
    }
-
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   // A storage (qx,dy)=(K,M); C row=dy, col=dx → Y(dx,dy) = Y(col,row)
-   struct Y2Acc
-   {
-      const DeviceTensor<3> *Y;
-      int e;
-      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
-      {
-         return (*Y)(col, row, e);
-      }
-   };
-   SfNullD nd;
-   Y2Acc Yacc{&Y, e};
-   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD[0], Q1D, D1D},
-                            SfBFromKbyN{sBG[1], Q1D, D1D}, Yacc, nd); // Gt
-   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD[1], Q1D, D1D},
-                            SfBFromKbyN{sBG[0], Q1D, D1D}, Yacc, nd); // Bt
-   return;
+   mfma_GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQD, Y, e);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQD, Y, e);
+#else
+   blas_GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBG, sQD, Y, e);
 #endif
-#if defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
-   ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int tinG = getThreadIdInGroup(laneId);
-   const int magic = MagicMapForN(D1D);
-   const int mPass = (D1D + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < D1D; n0 += mmaN)
-      {
-         double cReg[2] = {};
-         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
-         {
-            double BtReg[1], GtReg[1];
-            const int bRow = tinG + mK * mmaK;
-            const int bColumn = MappedNCol(magic, groupId, n0);
-            if (bColumn < D1D && bRow < Q1D)
-            {
-               BtReg[0] = Bt(bRow, bColumn);
-               GtReg[0] = Gt(bRow, bColumn);
-            }
-            else { BtReg[0] = GtReg[0] = 0; }
-            for (int d = 0; d < 2; d++)
-            {
-               double aReg[1];
-               const int aRow = MapM(groupId, mM, mPass);
-               const int aColumn = tinG + mK * mmaK;
-               if (aRow < D1D && aColumn < Q1D)
-               {
-                  ConstDeviceMatrix A(sQD[d], Q1D, D1D); // (qx, dy)
-                  aReg[0] = A(aColumn, aRow);
-               }
-               else { aReg[0] = 0; }
-               dmmaSync(aReg, d == 0 ? GtReg : BtReg, cReg);
-            }
-         }
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass); // dy
-            const int cColumn = MappedNCol(magic, tinG * 2 + i, n0); // dx
-            if (cRow < D1D && cColumn < D1D)
-            {
-               Y(cColumn, cRow, e) += cReg[i];
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -3664,64 +4164,16 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ, sBt, sQD);
+      blas_InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQQ, sQD);
       return;
    }
-
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   // K=qy fastest in A(qx,qy); N=dy — (M,K) layout, not InterpAx's (K,M).
-   SfNullD nd;
-   mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ, Q1D, Q1D},
-                             SfBFromKbyN{sBt, Q1D, D1D},
-                             SfCToMbyN{sQD, Q1D, D1D}, nd);
-   return;
+   mfma_InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQQ, sQD);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQQ, sQD);
+#else
+   blas_InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQQ, sQD);
 #endif
-#if defined(MFEM_USE_CUDA)
-   // K=qy fastest in A(qx,qy); N=dy — not the same A layout as InterpAx.
-   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int tinG = getThreadIdInGroup(laneId);
-   const int magic = MagicMapForMassN(D1D);
-   const int mPass = (Q1D + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < D1D; n0 += mmaN)
-      {
-         double cReg[2] = {};
-         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
-         {
-            double bReg[1];
-            const int bRow = tinG + mK * mmaK;
-            const int bColumn = MappedNCol(magic, groupId, n0);
-            bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
-            double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = tinG + mK * mmaK;
-            if (aRow < Q1D && aColumn < Q1D)
-            {
-               ConstDeviceMatrix A(sQQ, Q1D, Q1D);
-               aReg[0] = A(aRow, aColumn);
-            }
-            else { aReg[0] = 0; }
-            dmmaSync(aReg, bReg, cReg);
-         }
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = MappedNCol(magic, tinG * 2 + i, n0);
-            if (cRow < Q1D && cColumn < D1D)
-            {
-               DeviceMatrix C(sQD, Q1D, D1D);
-               C(cRow, cColumn) = cReg[i];
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -3732,84 +4184,18 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
 {
    if (!mma::TensorMmaEnabled())
    {
-      const int tid = getThreadIdx();
-      const int nthreads = getBlockNthreads();
-      ConstDeviceMatrix Bt(sBt, Q1D, D1D);
-      ConstDeviceMatrix A(sQD, Q1D, D1D);
-      for (int idx = tid; idx < D1D * D1D; idx += nthreads)
-      {
-         const int dy = idx / D1D;
-         const int dx = idx - dy * D1D;
-         real_t s = 0.0;
-         for (int q = 0; q < Q1D; ++q)
-         {
-            s += A(q, dy) * Bt(q, dx);
-         }
-         Y(dx, dy, e) += s;
-      }
+      blas_InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQD, Y, e);
       return;
    }
-
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   struct Y2Acc
-   {
-      const DeviceTensor<3> *Y;
-      int e;
-      MFEM_HOST_DEVICE inline real_t &operator()(int row, int col) const
-      {
-         return (*Y)(col, row, e);
-      }
-   };
-   SfNullD nd;
-   mfma_SfGemm<false, true>(D1D, Q1D, D1D, SfAFromKbyM{sQD, Q1D, D1D},
-                            SfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
-   return;
+   mfma_InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQD, Y, e);
+#elif defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+   dmma_InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQD, Y, e);
+#else
+   blas_InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sQD, Y, e);
 #endif
-#if defined(MFEM_USE_CUDA)
-   ConstDeviceMatrix Bt(sBt, Q1D, D1D);
-   const int thread = getThreadIdx();
-   const int warpId = getWarpId(thread);
-   const int laneId = getLaneId(thread);
-   const int groupId = getGroupId(laneId);
-   const int tinG = getThreadIdInGroup(laneId);
-   const int magic = MagicMapForMassN(D1D);
-   const int mPass = (D1D + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < D1D; n0 += mmaN)
-      {
-         double cReg[2] = {};
-         for (int mK = 0; mK < (Q1D + mmaK - 1) / mmaK; mK++)
-         {
-            double bReg[1];
-            const int bRow = tinG + mK * mmaK;
-            const int bColumn = MappedNCol(magic, groupId, n0);
-            bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
-            double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
-            const int aColumn = tinG + mK * mmaK;
-            if (aRow < D1D && aColumn < Q1D)
-            {
-               ConstDeviceMatrix A(sQD, Q1D, D1D);
-               aReg[0] = A(aColumn, aRow);
-            }
-            else { aReg[0] = 0; }
-            dmmaSync(aReg, bReg, cReg);
-         }
-         for (int i = 0; i < 2; i++)
-         {
-            const int cRow = MapM(groupId, mM, mPass);
-            const int cColumn = MappedNCol(magic, tinG * 2 + i, n0);
-            if (cRow < D1D && cColumn < D1D)
-            {
-               Y(cColumn, cRow, e) += cReg[i];
-            }
-         }
-      }
-   }
-#endif // MFEM_USE_CUDA
 }
+
 
 } // namespace tensors_mma
 

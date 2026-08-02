@@ -71,7 +71,7 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
       MFEM_SYNC_THREAD;
 
       mma::PAcc A{p, QND, ndof};
-      mma::BasisGemmT<MAP>(QND, ndof, NB, A, Uacc, Yacc, e0, NE);
+      mma::GemmT<MAP>(QND, ndof, NB, A, Uacc, Yacc, e0, NE);
    }
    else
    {
@@ -239,7 +239,7 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
       MFEM_SYNC_THREAD;
 
       mma::PAcc A{p, nq, ndof};
-      mma::BasisGemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
+      mma::GemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
    }
    else
    {

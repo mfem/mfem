@@ -186,7 +186,7 @@ MFEM_HOST_DEVICE inline void MassBatchApplyDense(const int e0, const int NE,
    }
 }
 
-/** Tensor MMA / MFMA batch mass: LoadX + BasisGemmForward + BasisGemmT. */
+/** Tensor MMA / MFMA batch mass: LoadX + Gemm + GemmT. */
 template <int MAP, int QND, int NDOF, int X_LD, int U_LD, int NB>
 MFEM_HOST_DEVICE inline void MmaMassBatchApply(const int e0, const int NE,
                                                const real_t *p,
@@ -207,9 +207,9 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApply(const int e0, const int NE,
    MFEM_SYNC_THREAD;
 
    PAcc A{p, QND, NDOF};
-   BasisGemmForward<MAP, true>(QND, NDOF, NB, A, Xacc, Uacc, D, e0, NE);
+   Gemm<MAP, true>(QND, NDOF, NB, A, Xacc, Uacc, D, e0, NE);
    MFEM_SYNC_THREAD;
-   BasisGemmT<MAP>(QND, NDOF, NB, A, Uacc, Yacc, e0, NE);
+   GemmT<MAP>(QND, NDOF, NB, A, Uacc, Yacc, e0, NE);
 }
 
 /** Runtime-sized dense batch mass (tid==0); sync afterward. */
@@ -254,9 +254,9 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApplyRuntime(
    MFEM_SYNC_THREAD;
 
    PAcc A{p, nq, ndof};
-   BasisGemmForward<MAP, true>(nq, ndof, nb, A, Xacc, Uacc, D, e0, NE);
+   Gemm<MAP, true>(nq, ndof, nb, A, Xacc, Uacc, D, e0, NE);
    MFEM_SYNC_THREAD;
-   BasisGemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
+   GemmT<MAP>(nq, ndof, nb, A, Uacc, Yacc, e0, NE);
 }
 
 } // namespace mma
