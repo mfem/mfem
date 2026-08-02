@@ -171,7 +171,8 @@ void test_pa_simplices_mma_h1(const char *filename, int p,
 TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6, 7) :
+                  GENERATE(1, 2, 3, 4, 5, 6, 7);
 
    const auto GenMesh = [&](const auto &meshs, const auto &extra)
    {
@@ -209,7 +210,8 @@ TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][MMA][GPU]")
 TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][MMA][GPU]")
 {
    const auto all_tests = launch_all_non_regression_tests;
-   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) : GENERATE(1, 2, 3, 4, 5, 6);
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6, 7) :
+                  GENERATE(1, 2, 3, 4, 5, 6, 7);
 
    SECTION("smoke 2D")
    {

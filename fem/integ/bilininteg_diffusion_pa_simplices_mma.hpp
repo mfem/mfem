@@ -59,12 +59,18 @@ constexpr int DiffusionMmaNBFullNqAt(int bytes_cap)
 }
 
 /** Diffusion full-NQ NB.
-    CUDA: plan under 48KB only. Larger full-NQ (dynamic) loses to Q-tile on H100
-          due to occupancy (tet p=7 measured). Q-tile path uses Prefer budget. */
+    CUDA: default shapes plan under Prefer (48KB). Exception: BP3 tet p=7
+          (D1D==8, QND==123) uses PerBlock dynamic smem for full-NQ NBATCH=16
+          (measured win on H100). Q-tile path uses Prefer budget. */
 template <int DIM, int D1D, int QND>
 constexpr int DiffusionMmaNBFullNq()
 {
 #if defined(MFEM_USE_CUDA)
+   // BP3 tet p=7 (q=2p-2): allow dynamic smem to restore NBATCH=16.
+   if (DIM == 3 && D1D == 8 && QND == 123)
+   {
+      return DiffusionMmaNBFullNqAt<DIM, D1D, QND>(SharedMemBytesPerBlock);
+   }
    return DiffusionMmaNBFullNqAt<DIM, D1D, QND>(SharedMemBytesPrefer);
 #else
    return DiffusionMmaNBFullNqAt<DIM, D1D, QND>(SharedMemBytesPerBlock);

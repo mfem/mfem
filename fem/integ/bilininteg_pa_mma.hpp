@@ -276,6 +276,7 @@ constexpr int MmaMapForDims(int ndof, int qnd)
    if (ndof == 56 && qnd == 145) { return 0xfa54c8; }
    if (ndof == 84 && qnd == 209) { return 0xcd7328; }
    if (ndof == 120 && qnd == 284) { return 0xde5688; }
+   if (ndof == 120 && qnd == 123) { return 0xcfa868; }
    return MmaMapDefault;
 }
 
