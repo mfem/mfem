@@ -11,7 +11,6 @@
 #pragma once
 
 #include "bilininteg_pa_mma.hpp"
-// #include "bilininteg_pa_simplices_mma_host.hpp"
 #include "../bilininteg.hpp"
 
 #ifdef MFEM_USE_LAPACK
