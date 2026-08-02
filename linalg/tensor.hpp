@@ -2071,6 +2071,31 @@ constexpr tensor<T, n> diag(const tensor<T, n, n>& D)
 }
 
 /**
+ * @brief Differentiable approximation of maximum eigenvale of a symmetric tensor
+ *
+ * Estimates the maximum eigenvalue using
+ * \f[
+ *     smooth_max_eigenvalue(A) = \log\Big( \mathrm{tr}\big(\exp(\beta A) \big) \Big)
+ * \f]
+ * which is equivalent to using the log-sum-exp function on the eigenvalues of A.
+ *
+ * @param A The input tensor
+ * @param beta Sharpness parameter. Must be > 0. Larger values makes the approximation sharper.
+ * @return Approximate maximum eigenvalue of A
+ */
+template <int n> MFEM_HOST_DEVICE
+auto smooth_max_eigenvalue_symm(const tensor<double, n, n>& A, double beta)
+{
+  auto [lambda, V] = eig_symm(get_value(A));
+  double lambda_max = lambda[n - 1];
+  double sum = 0;
+  for (int i = 0; i < n - 1; i++) {
+    sum += std::exp(beta*(lambda[i] - lambda_max));
+  }
+  return lambda_max + std::log1p(sum)/beta;
+}
+
+/**
  * @brief recursively serialize the entries in a tensor to an output stream.
  * Output format uses braces and comma separators to mimic C syntax for multidimensional array
  * initialization.

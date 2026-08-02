@@ -154,3 +154,12 @@ TEST_CASE("Eigenvalues3x3", "[Tensor]")
    auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
+
+TEST_CASE("SmoothMaxEigenvalue", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto M = smooth_max_eigenvalue_symm(A, 10.0);
+   CHECK_THAT(M, Catch::WithinAbs(lambda[2], std::log(real_t(3))));
+}
