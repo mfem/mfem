@@ -94,7 +94,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
       const DofToQuad &nmaps = nfe.GetDofToQuad(*ir, DofToQuad::FULL);
       MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
-      internal::PAMassSetupSimplexFromNodes(
+      internal::PADetJSetupSimplexFromNodes(
          dim, ne, nq, nd_n, by_val, ir->GetWeights(), nmaps.G, nodes_e, coeff,
          pa_data);
       return;

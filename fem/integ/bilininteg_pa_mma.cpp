@@ -47,7 +47,7 @@ bool GetForceMMA()
 namespace internal
 {
 
-void PAMassSetupSimplexFromNodes(const int dim,
+void PADetJSetupSimplexFromNodes(const int dim,
                                  const int NE,
                                  const int NQ,
                                  const int ND,
@@ -82,7 +82,7 @@ void PAMassSetupSimplexFromNodes(const int dim,
       return;
    }
 
-   MFEM_VERIFY(dim == 3, "PAMassSetupSimplexFromNodes only supports dim 2/3");
+   MFEM_VERIFY(dim == 3, "PADetJSetupSimplexFromNodes only supports dim 2/3");
    mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
    {
       const int e = idx / NQ;

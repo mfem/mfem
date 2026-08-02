@@ -80,7 +80,7 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
 
    const bool by_val = map_type == FiniteElement::VALUE;
-   internal::PAMassSetupSimplexFromNodes(
+   internal::PADetJSetupSimplexFromNodes(
       dim, ne, nq, nd_n,
       by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff, pa_data);
 }

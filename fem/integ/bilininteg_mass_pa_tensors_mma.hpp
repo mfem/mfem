@@ -49,7 +49,7 @@ inline void MassApplyTensorsSumLapack2D(const int NE,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
-   const int NB = simplex_mma::LapackNB(Q1D, D1D);
+   const int NB = mma::LapackNB(Q1D, D1D);
    const int n_xy = D1D * NB;
    std::vector<real_t> xloc(static_cast<size_t>(D1D) * n_xy);
    std::vector<real_t> qq(static_cast<size_t>(Q1D) * n_xy);
@@ -77,13 +77,13 @@ inline void MassApplyTensorsSumLapack2D(const int NE,
       }
 
       // Fat multi-RHS: qq[qx + Q*(dy + D*b)]
-      simplex_mma::LapackGemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
+      mma::LapackGemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
                             xloc.data(), D1D, real_t(0), qq.data(), Q1D);
 
       // U_b = B * qq_b^T  (absorbs qx↔dy pack)
       for (int b = 0; b < nbe; ++b)
       {
-         simplex_mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
+         mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
                                qq.data() + Q1D * D1D * b, Q1D,
                                real_t(0), U.data() + Q1D * Q1D * b, Q1D);
       }
@@ -103,7 +103,7 @@ inline void MassApplyTensorsSumLapack2D(const int NE,
       // T_b = Bt * U_b^T
       for (int b = 0; b < nbe; ++b)
       {
-         simplex_mma::LapackGemm('N', 'T', D1D, Q1D, Q1D, real_t(1), Bt, D1D,
+         mma::LapackGemm('N', 'T', D1D, Q1D, Q1D, real_t(1), Bt, D1D,
                                U.data() + Q1D * Q1D * b, Q1D,
                                real_t(0), T.data() + D1D * Q1D * b, D1D);
       }
@@ -111,7 +111,7 @@ inline void MassApplyTensorsSumLapack2D(const int NE,
       // ytmp_b = Bt * T_b^T
       for (int b = 0; b < nbe; ++b)
       {
-         simplex_mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
+         mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
                                T.data() + D1D * Q1D * b, D1D,
                                real_t(0), ytmp.data() + D1D * D1D * b, D1D);
       }
@@ -163,13 +163,13 @@ inline void MassApplyTensorsSumLapack3D(const int NE,
          }
       }
 
-      simplex_mma::LapackGemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
+      mma::LapackGemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
                             xloc.data(), D1D, real_t(0), t0.data(), Q1D);
 
       // t1_dz = B * t0_dz^T  (absorbs qx↔dy pack; dz as batch)
       for (int dz = 0; dz < D1D; ++dz)
       {
-         simplex_mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
+         mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
                                t0.data() + Q1D * D1D * dz, Q1D,
                                real_t(0), t1.data() + Q1D * Q1D * dz, Q1D);
       }
@@ -184,7 +184,7 @@ inline void MassApplyTensorsSumLapack3D(const int NE,
             }
          }
       }
-      simplex_mma::LapackGemm('N', 'N', Q1D, nq2, D1D, real_t(1), B, Q1D,
+      mma::LapackGemm('N', 'N', Q1D, nq2, D1D, real_t(1), B, Q1D,
                             Az.data(), D1D, real_t(0), U.data(), Q1D);
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -199,7 +199,7 @@ inline void MassApplyTensorsSumLapack3D(const int NE,
          }
       }
 
-      simplex_mma::LapackGemm('N', 'N', D1D, nq2, Q1D, real_t(1), Bt, D1D,
+      mma::LapackGemm('N', 'N', D1D, nq2, Q1D, real_t(1), Bt, D1D,
                             U.data(), Q1D, real_t(0), Tz.data(), D1D);
 
       for (int dz = 0; dz < D1D; ++dz)
@@ -212,13 +212,13 @@ inline void MassApplyTensorsSumLapack3D(const int NE,
             }
          }
       }
-      simplex_mma::LapackGemm('N', 'N', D1D, Q1D * D1D, Q1D, real_t(1), Bt, D1D,
+      mma::LapackGemm('N', 'N', D1D, Q1D * D1D, Q1D, real_t(1), Bt, D1D,
                             Ay.data(), Q1D, real_t(0), Ty.data(), D1D);
 
       // ytmp_dz = Bt * Ty_dz^T  (absorbs dy↔qx pack)
       for (int dz = 0; dz < D1D; ++dz)
       {
-         simplex_mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
+         mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
                                Ty.data() + D1D * Q1D * dz, D1D,
                                real_t(0), ytmp.data() + D1D * D1D * dz, D1D);
       }

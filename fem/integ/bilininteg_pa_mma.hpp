@@ -240,7 +240,7 @@ MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
    A33 = (J11 * J22) - (J12 * J21);
 }
 
-void PAMassSetupSimplexFromNodes(const int dim,
+void PADetJSetupSimplexFromNodes(const int dim,
                                  const int NE,
                                  const int NQ,
                                  const int ND,
@@ -253,7 +253,7 @@ void PAMassSetupSimplexFromNodes(const int dim,
 
 /** Simplex MMA helpers: Common, CUDA(dmma), HIP(mfma), HOST(blas),
     then BasisGemm dispatch. */
-namespace simplex_mma
+namespace mma
 {
 
 // ======================================================================
@@ -436,7 +436,6 @@ template <int MAP>
 constexpr int PadLdBank(int n)
 {
 #if defined(MFEM_USE_HIP)
-   (void)MAP;
    return PadLdBankHip(n);
 #else
    for (int ld = n; ld < n + 48; ++ld)
@@ -499,7 +498,7 @@ MFEM_DEVICE inline char *SimplexMmaDynSmem()
 #if defined(__CUDA_ARCH__)
 #define MFEM_SIMPLEX_MMA_SMEM(SmemT, name) \
    SmemT &name = *reinterpret_cast<SmemT *>( \
-      ::mfem::internal::simplex_mma::SimplexMmaDynSmem())
+      ::mfem::internal::mma::SimplexMmaDynSmem())
 #else
 #define MFEM_SIMPLEX_MMA_SMEM(SmemT, name) MFEM_SHARED SmemT name
 #endif
@@ -730,6 +729,20 @@ MFEM_HOST_DEVICE constexpr bool TensorMmaEnabled()
 #elif defined(__CUDA_ARCH__)
    return __CUDA_ARCH__ >= 800;
 #elif defined(__HIP_DEVICE_COMPILE__)
+   return true;
+#else
+   return false;
+#endif
+}
+
+/** True on CUDA/HIP device compilation in double precision.
+    Selects parallel smem + BasisGemm (dmma/mfma if TensorMmaEnabled, else blas).
+    Host / single use the serial fallback. */
+MFEM_HOST_DEVICE constexpr bool DeviceGemmEnabled()
+{
+#if defined(MFEM_USE_SINGLE)
+   return false;
+#elif defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
    return true;
 #else
    return false;
@@ -1505,17 +1518,17 @@ inline bool PreferLapack(int nq, int ndof)
 inline int LapackNB(int nq, int ndof)
 {
    const long long work = static_cast<long long>(nq) * ndof;
-   if (work >= 8000) { return 32; }
-   if (work >= 2000) { return 16; }
+   if (work >= 8192) { return 32; }
+   if (work >= 2048) { return 16; }
    return 8;
 }
 
 #ifdef MFEM_USE_LAPACK
 /** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
 inline void LapackGemm(char ta, char tb, int m, int n, int k,
-                     real_t alpha, const real_t *A, int lda,
-                     const real_t *B, int ldb,
-                     real_t beta, real_t *C, int ldc)
+                       real_t alpha, const real_t *A, int lda,
+                       const real_t *B, int ldb,
+                       real_t beta, real_t *C, int ldc)
 {
    // Match densemat.cpp: Fortran dgemm_/sgemm_ via MFEM_LAPACK_PREFIX.
    MFEM_LAPACK_PREFIX(gemm_)(
@@ -1716,7 +1729,6 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
       (void)e0; (void)NE;
       dmma_Gemm8_Fwd3<MAP>(M, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a);
 #elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-      (void)MAP;
       if (PreferMfma4(M, ndof))
       {
          NullDAcc nullD;
@@ -1730,7 +1742,6 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
          mfma_Gemm16_Fwd3(M, ndof, NB, B0, B1, B2, X, U0a, U1a, U2a);
       }
 #else
-      (void)MAP;
       NullDAcc nullD;
       BasisGemmForward<0, false>(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
       BasisGemmForward<0, false>(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
@@ -1739,7 +1750,6 @@ MFEM_HOST_DEVICE inline void BasisGemmForward3(const int M, const int ndof,
    }
    else
    {
-      (void)MAP;
       NullDAcc nullD;
       BasisGemmForward<0, false>(M, ndof, NB, B0, X, U0a, nullD, e0, NE);
       BasisGemmForward<0, false>(M, ndof, NB, B1, X, U1a, nullD, e0, NE);
@@ -1773,7 +1783,6 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
 #if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
       dmma_GemmT8_3<MAP>(M, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
 #elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-      (void)MAP;
       if (PreferMfma4(M, ndof))
       {
          BasisGemmT<0>(M, ndof, NB, B0, U0a, Y, e0, NE);
@@ -1785,7 +1794,6 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
          mfma_GemmT16_3(M, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
       }
 #else
-      (void)MAP;
       BasisGemmT<0>(M, ndof, NB, B0, U0a, Y, e0, NE);
       BasisGemmT<0>(M, ndof, NB, B1, U1a, Y, e0, NE);
       BasisGemmT<0>(M, ndof, NB, B2, U2a, Y, e0, NE);
@@ -1793,7 +1801,6 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
    }
    else
    {
-      (void)MAP;
       BasisGemmT<0>(M, ndof, NB, B0, U0a, Y, e0, NE);
       BasisGemmT<0>(M, ndof, NB, B1, U1a, Y, e0, NE);
       BasisGemmT<0>(M, ndof, NB, B2, U2a, Y, e0, NE);
@@ -1812,7 +1819,7 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
 }
 
 
-} // namespace simplex_mma
+} // namespace mma
 
 /** Tensor (quad/hex) MMA helpers: Common, HOST(blas), HIP(mfma), SF kernels. */
 namespace tensors_mma
@@ -1823,19 +1830,19 @@ namespace tensors_mma
 // ======================================================================
 
 
-// Shared with simplex_mma (same warp/lane/DMMA helpers). Keep tensors-local
+// Shared with mma (same warp/lane/DMMA helpers). Keep tensors-local
 // getThreadIdx / getBlockNthreads: x-only vs simplex 3D linear tid.
-using simplex_mma::WarpSize;
-using simplex_mma::getWarpId;
-using simplex_mma::getLaneId;
-using simplex_mma::getGroupId;
-using simplex_mma::getThreadIdInGroup;
+using mma::WarpSize;
+using mma::getWarpId;
+using mma::getLaneId;
+using mma::getGroupId;
+using mma::getThreadIdInGroup;
 #if defined(MFEM_USE_CUDA)
-using simplex_mma::dmmaSync;
+using mma::dmmaSync;
 #endif
 #if defined(__HIP_DEVICE_COMPILE__)
-using simplex_mma::mfmaSync16;
-using simplex_mma::mfmaSync4;
+using mma::mfmaSync16;
+using mma::mfmaSync4;
 #endif
 
 MFEM_HOST_DEVICE inline int getThreadIdx()
@@ -2357,7 +2364,7 @@ MFEM_HOST_DEVICE inline void mfma_SfGemm16(const int M, const int K,
       {
          const int n0 = nt * TN;
          const int nTile = (N - n0 < TN) ? (N - n0) : TN;
-         simplex_mma::mfma_double4 cReg = {0, 0, 0, 0};
+         mma::mfma_double4 cReg = {0, 0, 0, 0};
 
          for (int mK = 0; mK < (K + TK - 1) / TK; ++mK)
          {
@@ -2445,7 +2452,7 @@ template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
 MFEM_HOST_DEVICE inline void mfma_SfGemm(const int M, const int K, const int N,
                                          TA A, TB B, TC C, TD D)
 {
-   if (simplex_mma::PreferMfma4(M, N))
+   if (mma::PreferMfma4(M, N))
    {
       mfma_SfGemm4<SCALE, ACCUM>(M, K, N, A, B, C, D);
    }
@@ -2477,15 +2484,13 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1;
       blas_SfContract<false, false>(m, n, k, A[0], BG[1], C[0]);
       blas_SfContract<false, false>(m, n, k, A[0], BG[0], C[1]);
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1;
    SfNullD nd;
    // C[0] from G, C[1] from B (matches CUDA dmma_GradX store order).
    mfma_SfContract<false, false>(m, n, k, A[0], BG[1], C[0], nd);
@@ -2582,16 +2587,14 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1;
       blas_SfContract<false, false>(m, n, k, A[0], BG[0], C[0]);
       blas_SfContract<false, false>(m, n, k, A[1], BG[1], C[1]);
       blas_SfContract<false, false>(m, n, k, A[1], BG[0], C[2]);
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1;
    SfNullD nd;
    mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[0], nd); // A0*B
    mfma_SfContract<false, false>(m, n, k, A[1], BG[1], C[1], nd); // A1*G
@@ -2694,9 +2697,8 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
                                         real_t (*C)[BUF],
                                         int gIdx)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1;
       for (int d = 0; d < 3; d++)
       {
          const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
@@ -2705,7 +2707,6 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1;
    SfNullD nd;
    for (int d = 0; d < 3; d++)
    {
@@ -2808,9 +2809,8 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
                                              const real_t (*A)[BUF],
                                              real_t (*C)[BUF])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1;
       // Forward Grad* stores C as DeviceMatrix(m,n)=(M,K); transpose reads (M,K).
       for (int d = 0; d < 3; d++)
       {
@@ -2820,7 +2820,6 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1;
    SfNullD nd;
    for (int d = 0; d < 3; d++)
    {
@@ -2909,9 +2908,8 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
                                     const real_t (*sQQQ)[MDQ*MDQ*MDQ],
                                     real_t (*sDQQ)[MDQ*MDQ*MDQ])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       // Forward GradZ stored (M,K)=(Q*Q,Q); GemmMbyK. Gt on gZ (d==2).
       ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
       ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
@@ -2935,9 +2933,8 @@ MFEM_HOST_DEVICE inline void GradYt(const int D1D, const int Q1D,
                                     const real_t (*sDQQ)[MDQ*MDQ*MDQ],
                                     real_t (*sDDQ)[MDQ*MDQ*MDQ])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       // sDQQ from GradZt GemmMbyK: (qx+Q*qy)+Q*Q*dz. Contract qy; store
       // qx + Q*(dy + D*dz) for blas_GradXt3D. Gt on component 1.
       const int tid = getThreadIdx();
@@ -2978,14 +2975,12 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const DeviceTensor<4> &Y, // output
                                     const int e)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       blas_GradXt3D(D1D, Q1D, sBG[0], sBG[1], sDDQ[0], sDDQ[1], sDDQ[2], Y, e);
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1; (void)MDQ;
    const int m = D1D * D1D, n = D1D, k = Q1D;
    struct Y3Acc
    {
@@ -3114,14 +3109,12 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
                                       const DeviceTensor<2, const real_t> *D = nullptr,
                                       const int e = 0)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1;
       blas_SfContract<ScaleAtStore, false>(m, n, k, A, B1d, C, D, e);
       return;
    }
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1;
    if constexpr (ScaleAtStore)
    {
       SfMassD Dd{D, m, e};
@@ -3219,9 +3212,8 @@ MFEM_HOST_DEVICE inline void InterpZt(const int D1D, const int Q1D,
                                       const real_t *sBt,
                                       const real_t *sQQQ, real_t *sDQQ)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       // Forward InterpZ stored (M,K)=(Q*Q,Q); transpose is GemmMbyK.
       blas_GemmMbyK<false>(Q1D * Q1D, Q1D, D1D, sQQQ, sBt, sDQQ);
       return;
@@ -3234,9 +3226,8 @@ MFEM_HOST_DEVICE inline void InterpYt(const int D1D, const int Q1D,
                                       const real_t *sBt,
                                       const real_t *sDQQ, real_t *sDDQ)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       // sDQQ from InterpZt: (qx+Q*qy)+Q*Q*dz. Contract qy -> dy; store
       // sDDQ as qx + Q*(dy + D*dz) for InterpXt Emulate.
       const int tid = getThreadIdx();
@@ -3268,9 +3259,8 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
                                       const real_t *sDDQ,
                                       const DeviceTensor<4> &Y, const int e)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1;
       // sDDQ from InterpYt Emulate: qx + Q*(dy + D*dz)
       const int tid = getThreadIdx();
       const int nthreads = getBlockNthreads();
@@ -3293,7 +3283,6 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
    }
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1;
    const int m = D1D * D1D, n = D1D, k = Q1D;
    struct Y3Acc
    {
@@ -3390,16 +3379,14 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
                                      const real_t (*sDQ)[MDQ*MDQ],
                                      real_t (*sQQ)[MDQ*MDQ])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       blas_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0]);
       blas_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1]);
       return;
    }
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1; (void)MDQ;
    SfNullD nd;
    mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0], nd);
    mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1], nd);
@@ -3471,16 +3458,14 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
                                       const real_t (*sQQ)[MDQ*MDQ],
                                       real_t (*sQD)[MDQ*MDQ])
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ[0], sBG[0], sQD[0]);
       blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ[1], sBG[1], sQD[1]);
       return;
    }
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1; (void)MDQ;
    SfNullD nd;
    // A is (qx,qy)=(M,K); B is Bt/Gt (K,N)=(Q,D)
    mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ[0], Q1D, Q1D},
@@ -3557,9 +3542,8 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
                                       const real_t (*sQD)[MDQ*MDQ],
                                       const DeviceTensor<3> &Y, const int e)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       const int tid = getThreadIdx();
       const int nthreads = getBlockNthreads();
       ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
@@ -3582,7 +3566,6 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    }
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1; (void)MDQ;
    // A storage (qx,dy)=(K,M); C row=dy, col=dx → Y(dx,dy) = Y(col,row)
    struct Y2Acc
    {
@@ -3677,15 +3660,13 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
                                         const real_t *sBt,
                                         const real_t *sQQ, real_t *sQD)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       blas_GemmMbyK<false>(Q1D, Q1D, D1D, sQQ, sBt, sQD);
       return;
    }
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1; (void)MDQ;
    // K=qy fastest in A(qx,qy); N=dy — (M,K) layout, not InterpAx's (K,M).
    SfNullD nd;
    mfma_SfGemm<false, false>(Q1D, Q1D, D1D, SfAFromMbyK{sQQ, Q1D, Q1D},
@@ -3747,9 +3728,8 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
                                         const real_t *sQD,
                                         const DeviceTensor<3> &Y, const int e)
 {
-   if (!simplex_mma::TensorMmaEnabled())
+   if (!mma::TensorMmaEnabled())
    {
-      (void)MD1; (void)MQ1; (void)MDQ;
       const int tid = getThreadIdx();
       const int nthreads = getBlockNthreads();
       ConstDeviceMatrix Bt(sBt, Q1D, D1D);
@@ -3769,7 +3749,6 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
    }
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   (void)MD1; (void)MQ1; (void)MDQ;
    struct Y2Acc
    {
       const DeviceTensor<3> *Y;
