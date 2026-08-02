@@ -251,9 +251,14 @@ void PAMassSetupSimplexFromNodes(const int dim,
                                  const Vector &c,
                                  Vector &d);
 
-/** CUDA DMMA (m8n8k4) / HIP MFMA (16x16x4 or 4x4x4_4b) helpers for simplex PA. */
+/** Simplex MMA helpers: Common, CUDA(dmma), HIP(mfma), HOST(blas),
+    then BasisGemm dispatch. */
 namespace simplex_mma
 {
+
+// ======================================================================
+// Common — warp/lane, maps, smem, accessors, launch, TensorMmaEnabled
+// ======================================================================
 
 #if defined(MFEM_USE_HIP)
 constexpr int WarpSize = 64;
@@ -442,32 +447,6 @@ constexpr int PadLdBank(int n)
 #endif
 }
 
-MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
-                                      [[maybe_unused]] double bReg[1],
-                                      [[maybe_unused]] double cReg[2])
-{
-#ifdef __CUDA_ARCH__
-   asm volatile(
-      "mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
-      : "+d"(cReg[0]), "+d"(cReg[1]) : "d"(aReg[0]), "d"(bReg[0]));
-#endif
-}
-
-#if defined(__HIP_DEVICE_COMPILE__)
-using mfma_double4 =
-   __attribute__((__vector_size__(4 * sizeof(double)))) double;
-
-MFEM_HOST_DEVICE inline void mfmaSync16(double a, double b, mfma_double4 &c)
-{
-   c = __builtin_amdgcn_mfma_f64_16x16x4f64(a, b, c, 0, 0, 0);
-}
-
-MFEM_HOST_DEVICE inline void mfmaSync4(double a, double b, double &c)
-{
-   c = __builtin_amdgcn_mfma_f64_4x4x4f64(a, b, c, 0, 0, 0);
-}
-#endif
-
 template<int LD>
 struct SmemMatAcc
 {
@@ -541,6 +520,236 @@ MFEM_HOST_DEVICE inline int getNumWarps()
    return (blockDim.x * blockDim.y * blockDim.z) / WarpSize;
 #else
    return 1;
+#endif
+}
+
+struct YBatchAcc
+{
+   real_t *y;
+   int ndof, e0;
+   MFEM_HOST_DEVICE inline real_t &operator()(int r, int b) const
+   {
+      return y[r + ndof * (e0 + b)];
+   }
+};
+
+/** Basis B (QND x ndof): row-major B(q,i) = p[q + QND*i]. */
+struct PAcc
+{
+   const real_t *p;
+   int qnd_, ndof_;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return p[row + qnd_ * col];
+   }
+};
+
+/** Dense GradP slice for component d: G(q,i,d) layout (QND x ndof x dim). */
+struct GAcc
+{
+   const real_t *g;
+   int qnd_, ndof_, d_;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return g[row + qnd_ * (col + ndof_ * d_)];
+   }
+};
+
+/** GradP rows [q0, q0+M): used by diffusion Q-tiling. */
+struct GAccQTile
+{
+   const real_t *g;
+   int qnd_, ndof_, d_, q0_;
+   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
+   {
+      return g[(q0_ + row) + qnd_ * (col + ndof_ * d_)];
+   }
+};
+
+/** DomainLF E-vector write: layout (ndof x vdim x NE), one component vc. */
+struct YVdimAcc
+{
+   real_t *y;
+   int ndof_, vdim_, vc_, e0_;
+   MFEM_HOST_DEVICE inline real_t &operator()(int r, int b) const
+   {
+      return y[r + ndof_ * (vc_ + vdim_ * (e0_ + b))];
+   }
+};
+
+MFEM_HOST_DEVICE inline int SimplexNdofFromD1D(const int dim, const int d1d)
+{
+   return (dim == 2) ? (d1d * (d1d + 1) / 2)
+          : (d1d * (d1d + 1) * (d1d + 2) / 6);
+}
+
+/** Max NB for mass-like X+U buffers under a byte cap. */
+template <int DIM, int D1D, int QND>
+constexpr int MassLikeNBAt(int bytes_cap)
+{
+   if (!(D1D && QND)) { return mmaN; }
+   constexpr int MQ = SimplexMaxNq<DIM, QND>();
+   constexpr int BASIS = SimplexNdof<DIM, D1D>();
+   constexpr int MAP = MmaMapFor<DIM, D1D, QND>();
+   constexpr int X_LD = PadLdBank<MAP>(BASIS);
+   constexpr int U_LD = PadLdBank<MAP>(MQ);
+   const int max_nb = bytes_cap / (int(sizeof(real_t)) * (X_LD + U_LD));
+   if (NBATCH <= max_nb) { return NBATCH; }
+   const int nb = (max_nb / mmaN) * mmaN;
+   return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+}
+
+/** Mass / DomainLF batch width.
+    CUDA: use dynamic smem to restore NBATCH=16 when 48KB would shrink NB. */
+template <int DIM, int D1D, int QND>
+constexpr int MassLikeNB()
+{
+#if defined(MFEM_USE_CUDA)
+   constexpr int nb_pref = MassLikeNBAt<DIM, D1D, QND>(SharedMemBytesPrefer);
+   constexpr int nb_dyn = MassLikeNBAt<DIM, D1D, QND>(SharedMemBytesPerBlock);
+   // Prefer full NBATCH via dynamic smem when it fits (tet p=7 mass ~52KB).
+   if (nb_dyn >= NBATCH) { return NBATCH; }
+   if (nb_pref >= mmaN) { return nb_pref; }
+   if (nb_dyn >= mmaN) { return mmaN; }
+   return nb_dyn > 0 ? nb_dyn : 1;
+#else
+   return MassLikeNBAt<DIM, D1D, QND>(SharedMemBytesPerBlock);
+#endif
+}
+
+/** Runtime bank-padded LD (MmaMapDefault / HIP pad). */
+inline int PadLdBankRuntime(int n)
+{
+#if defined(MFEM_USE_HIP)
+   return PadLdBankHip(n);
+#else
+   return PadLdBank<MmaMapDefault>(n);
+#endif
+}
+
+/** Runtime mass / DomainLF NB under a byte cap. */
+inline int MassLikeNBAtRuntime(int ndof, int nq, int bytes_cap)
+{
+   const int x_ld = PadLdBankRuntime(ndof);
+   const int u_ld = PadLdBankRuntime(nq);
+   const int denom = int(sizeof(real_t)) * (x_ld + u_ld);
+   const int max_nb = (denom > 0) ? (bytes_cap / denom) : 0;
+   if (NBATCH <= max_nb) { return NBATCH; }
+   const int nb = (max_nb / mmaN) * mmaN;
+   return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
+}
+
+inline int MassLikeNBRuntime(int ndof, int nq)
+{
+#if defined(MFEM_USE_CUDA)
+   const int nb_pref = MassLikeNBAtRuntime(ndof, nq, SharedMemBytesPrefer);
+   const int nb_dyn = MassLikeNBAtRuntime(ndof, nq, SharedMemBytesPerBlock);
+   if (nb_dyn >= NBATCH) { return NBATCH; }
+   if (nb_pref >= mmaN) { return nb_pref; }
+   if (nb_dyn >= mmaN) { return mmaN; }
+   return nb_dyn > 0 ? nb_dyn : 1;
+#else
+   return MassLikeNBAtRuntime(ndof, nq, SharedMemBytesPerBlock);
+#endif
+}
+
+/** Thread count for forall_3D: enough warps/waves for M-tiles. */
+template <int T_QND = 0>
+inline int LaunchNthreads(const int qnd, const int ndof)
+{
+   const int QND = T_QND ? T_QND : qnd;
+#if defined(MFEM_USE_HIP)
+   const int tileM = PreferMfma4(QND, ndof) ? 4 : 16;
+   const int mPassQ = (QND + tileM - 1) / tileM;
+   const int mPassD = (ndof + tileM - 1) / tileM;
+   // Oversubscribe: max of tile counts, ×2 for latency hiding (cap 16 waves).
+   int nWarps = (mPassQ > mPassD) ? mPassQ : mPassD;
+   if (nWarps < 1) { nWarps = 1; }
+   nWarps *= 2;
+   if (nWarps > 16) { nWarps = 16; }
+   return nWarps * WarpSize;
+#else
+   const int tileM = mmaM;
+   const int mPassQ = (QND + tileM - 1) / tileM;
+   const int mPassD = (ndof + tileM - 1) / tileM;
+   const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
+                      : (mPassD > 1 ? mPassD : 1);
+   return nWarps * WarpSize;
+#endif
+}
+
+MFEM_HOST_DEVICE inline int getBlockNthreads()
+{
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   return blockDim.x * blockDim.y * blockDim.z;
+#else
+   return 1;
+#endif
+}
+
+/** Cooperative load of X E-vector tiles into smem XY[X_LD * NB]. */
+template <typename TX>
+MFEM_HOST_DEVICE inline void LoadXToSmem(real_t *XY, TX x,
+                                         const int e0, const int NE,
+                                         const int ndof, const int X_LD,
+                                         const int NB, const int tid,
+                                         const int nthreads)
+{
+   for (int i = tid; i < X_LD * NB; i += nthreads)
+   {
+      const int b = i / X_LD;
+      const int r = i - b * X_LD;
+      const int e = e0 + b;
+      XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
+   }
+}
+
+/** Cooperative load of PA quad data D into smem U[U_LD * NB] (DomainLF). */
+template <typename TD>
+MFEM_HOST_DEVICE inline void LoadDToSmem(real_t *U, TD D,
+                                         const int e0, const int NE,
+                                         const int QND, const int U_LD,
+                                         const int NB, const int tid,
+                                         const int nthreads)
+{
+   for (int i = tid; i < U_LD * NB; i += nthreads)
+   {
+      const int b = i / U_LD;
+      const int r = i - b * U_LD;
+      const int e = e0 + b;
+      U[i] = (e < NE && r < QND) ? D(r, e) : real_t(0);
+   }
+}
+
+/** True when device double path can use real tensor MMA / MFMA opcodes.
+    CUDA FP64 mma.sync m8n8k4 requires sm_80+; HIP keeps CDNA double MFMA. */
+MFEM_HOST_DEVICE constexpr bool TensorMmaEnabled()
+{
+#if defined(MFEM_USE_SINGLE)
+   return false;
+#elif defined(__CUDA_ARCH__)
+   return __CUDA_ARCH__ >= 800;
+#elif defined(__HIP_DEVICE_COMPILE__)
+   return true;
+#else
+   return false;
+#endif
+}
+
+
+// ======================================================================
+// CUDA (dmma) — m8n8k4 sync + Gemm kernels
+// ======================================================================
+#if defined(MFEM_USE_CUDA)
+
+MFEM_HOST_DEVICE inline void dmmaSync([[maybe_unused]] double aReg[1],
+                                      [[maybe_unused]] double bReg[1],
+                                      [[maybe_unused]] double cReg[2])
+{
+#ifdef __CUDA_ARCH__
+   asm volatile(
+      "mma.sync.aligned.m8n8k4.row.col.f64.f64.f64.f64 {%0,%1}, {%2}, {%3}, {%0,%1};"
+      : "+d"(cReg[0]), "+d"(cReg[1]) : "d"(aReg[0]), "d"(bReg[0]));
 #endif
 }
 
@@ -812,7 +1021,26 @@ MFEM_HOST_DEVICE inline void dmma_GemmT(const int M, const int K, const int N,
    dmma_GemmT8<MAP>(M, K, N, A, B, C, e0, NE);
 }
 
+#endif // MFEM_USE_CUDA
+
+// ======================================================================
+// HIP (mfma) — sync + Gemm kernels (device compile only)
+// ======================================================================
 #if defined(__HIP_DEVICE_COMPILE__)
+
+using mfma_double4 =
+   __attribute__((__vector_size__(4 * sizeof(double)))) double;
+
+MFEM_HOST_DEVICE inline void mfmaSync16(double a, double b, mfma_double4 &c)
+{
+   c = __builtin_amdgcn_mfma_f64_16x16x4f64(a, b, c, 0, 0, 0);
+}
+
+MFEM_HOST_DEVICE inline void mfmaSync4(double a, double b, double &c)
+{
+   c = __builtin_amdgcn_mfma_f64_4x4x4f64(a, b, c, 0, 0, 0);
+}
+
 /** C = A * B via MFMA 16x16x4 (CDNA3). Lane L: A[L%16][L/16], B[L/16][L%16],
     C[(L/16)+4*i][L%16] = cReg[i]. */
 template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
@@ -1201,218 +1429,9 @@ MFEM_HOST_DEVICE inline void mfma_GemmT(const int M, const int K, const int N,
 }
 #endif // __HIP_DEVICE_COMPILE__
 
-struct YBatchAcc
-{
-   real_t *y;
-   int ndof, e0;
-   MFEM_HOST_DEVICE inline real_t &operator()(int r, int b) const
-   {
-      return y[r + ndof * (e0 + b)];
-   }
-};
-
-/** Basis B (QND x ndof): row-major B(q,i) = p[q + QND*i]. */
-struct PAcc
-{
-   const real_t *p;
-   int qnd_, ndof_;
-   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
-   {
-      return p[row + qnd_ * col];
-   }
-};
-
-/** Dense GradP slice for component d: G(q,i,d) layout (QND x ndof x dim). */
-struct GAcc
-{
-   const real_t *g;
-   int qnd_, ndof_, d_;
-   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
-   {
-      return g[row + qnd_ * (col + ndof_ * d_)];
-   }
-};
-
-/** GradP rows [q0, q0+M): used by diffusion Q-tiling. */
-struct GAccQTile
-{
-   const real_t *g;
-   int qnd_, ndof_, d_, q0_;
-   MFEM_HOST_DEVICE inline real_t operator()(int row, int col) const
-   {
-      return g[(q0_ + row) + qnd_ * (col + ndof_ * d_)];
-   }
-};
-
-/** DomainLF E-vector write: layout (ndof x vdim x NE), one component vc. */
-struct YVdimAcc
-{
-   real_t *y;
-   int ndof_, vdim_, vc_, e0_;
-   MFEM_HOST_DEVICE inline real_t &operator()(int r, int b) const
-   {
-      return y[r + ndof_ * (vc_ + vdim_ * (e0_ + b))];
-   }
-};
-
-MFEM_HOST_DEVICE inline int SimplexNdofFromD1D(const int dim, const int d1d)
-{
-   return (dim == 2) ? (d1d * (d1d + 1) / 2)
-          : (d1d * (d1d + 1) * (d1d + 2) / 6);
-}
-
-/** Max NB for mass-like X+U buffers under a byte cap. */
-template <int DIM, int D1D, int QND>
-constexpr int MassLikeNBAt(int bytes_cap)
-{
-   if (!(D1D && QND)) { return mmaN; }
-   constexpr int MQ = SimplexMaxNq<DIM, QND>();
-   constexpr int BASIS = SimplexNdof<DIM, D1D>();
-   constexpr int MAP = MmaMapFor<DIM, D1D, QND>();
-   constexpr int X_LD = PadLdBank<MAP>(BASIS);
-   constexpr int U_LD = PadLdBank<MAP>(MQ);
-   const int max_nb = bytes_cap / (int(sizeof(real_t)) * (X_LD + U_LD));
-   if (NBATCH <= max_nb) { return NBATCH; }
-   const int nb = (max_nb / mmaN) * mmaN;
-   return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
-}
-
-/** Mass / DomainLF batch width.
-    CUDA: use dynamic smem to restore NBATCH=16 when 48KB would shrink NB. */
-template <int DIM, int D1D, int QND>
-constexpr int MassLikeNB()
-{
-#if defined(MFEM_USE_CUDA)
-   constexpr int nb_pref = MassLikeNBAt<DIM, D1D, QND>(SharedMemBytesPrefer);
-   constexpr int nb_dyn = MassLikeNBAt<DIM, D1D, QND>(SharedMemBytesPerBlock);
-   // Prefer full NBATCH via dynamic smem when it fits (tet p=7 mass ~52KB).
-   if (nb_dyn >= NBATCH) { return NBATCH; }
-   if (nb_pref >= mmaN) { return nb_pref; }
-   if (nb_dyn >= mmaN) { return mmaN; }
-   return nb_dyn > 0 ? nb_dyn : 1;
-#else
-   return MassLikeNBAt<DIM, D1D, QND>(SharedMemBytesPerBlock);
-#endif
-}
-
-/** Runtime bank-padded LD (MmaMapDefault / HIP pad). */
-inline int PadLdBankRuntime(int n)
-{
-#if defined(MFEM_USE_HIP)
-   return PadLdBankHip(n);
-#else
-   return PadLdBank<MmaMapDefault>(n);
-#endif
-}
-
-/** Runtime mass / DomainLF NB under a byte cap. */
-inline int MassLikeNBAtRuntime(int ndof, int nq, int bytes_cap)
-{
-   const int x_ld = PadLdBankRuntime(ndof);
-   const int u_ld = PadLdBankRuntime(nq);
-   const int denom = int(sizeof(real_t)) * (x_ld + u_ld);
-   const int max_nb = (denom > 0) ? (bytes_cap / denom) : 0;
-   if (NBATCH <= max_nb) { return NBATCH; }
-   const int nb = (max_nb / mmaN) * mmaN;
-   return nb > 0 ? nb : (max_nb > 0 ? max_nb : 1);
-}
-
-inline int MassLikeNBRuntime(int ndof, int nq)
-{
-#if defined(MFEM_USE_CUDA)
-   const int nb_pref = MassLikeNBAtRuntime(ndof, nq, SharedMemBytesPrefer);
-   const int nb_dyn = MassLikeNBAtRuntime(ndof, nq, SharedMemBytesPerBlock);
-   if (nb_dyn >= NBATCH) { return NBATCH; }
-   if (nb_pref >= mmaN) { return nb_pref; }
-   if (nb_dyn >= mmaN) { return mmaN; }
-   return nb_dyn > 0 ? nb_dyn : 1;
-#else
-   return MassLikeNBAtRuntime(ndof, nq, SharedMemBytesPerBlock);
-#endif
-}
-
-/** Thread count for forall_3D: enough warps/waves for M-tiles. */
-template <int T_QND = 0>
-inline int LaunchNthreads(const int qnd, const int ndof)
-{
-   const int QND = T_QND ? T_QND : qnd;
-#if defined(MFEM_USE_HIP)
-   const int tileM = PreferMfma4(QND, ndof) ? 4 : 16;
-   const int mPassQ = (QND + tileM - 1) / tileM;
-   const int mPassD = (ndof + tileM - 1) / tileM;
-   // Oversubscribe: max of tile counts, ×2 for latency hiding (cap 16 waves).
-   int nWarps = (mPassQ > mPassD) ? mPassQ : mPassD;
-   if (nWarps < 1) { nWarps = 1; }
-   nWarps *= 2;
-   if (nWarps > 16) { nWarps = 16; }
-   return nWarps * WarpSize;
-#else
-   const int tileM = mmaM;
-   const int mPassQ = (QND + tileM - 1) / tileM;
-   const int mPassD = (ndof + tileM - 1) / tileM;
-   const int nWarps = (mPassQ < mPassD) ? (mPassQ > 1 ? mPassQ : 1)
-                      : (mPassD > 1 ? mPassD : 1);
-   return nWarps * WarpSize;
-#endif
-}
-
-MFEM_HOST_DEVICE inline int getBlockNthreads()
-{
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-   return blockDim.x * blockDim.y * blockDim.z;
-#else
-   return 1;
-#endif
-}
-
-/** Cooperative load of X E-vector tiles into smem XY[X_LD * NB]. */
-template <typename TX>
-MFEM_HOST_DEVICE inline void LoadXToSmem(real_t *XY, TX x,
-                                         const int e0, const int NE,
-                                         const int ndof, const int X_LD,
-                                         const int NB, const int tid,
-                                         const int nthreads)
-{
-   for (int i = tid; i < X_LD * NB; i += nthreads)
-   {
-      const int b = i / X_LD;
-      const int r = i - b * X_LD;
-      const int e = e0 + b;
-      XY[i] = (e < NE && r < ndof) ? x(r, e) : real_t(0);
-   }
-}
-
-/** Cooperative load of PA quad data D into smem U[U_LD * NB] (DomainLF). */
-template <typename TD>
-MFEM_HOST_DEVICE inline void LoadDToSmem(real_t *U, TD D,
-                                         const int e0, const int NE,
-                                         const int QND, const int U_LD,
-                                         const int NB, const int tid,
-                                         const int nthreads)
-{
-   for (int i = tid; i < U_LD * NB; i += nthreads)
-   {
-      const int b = i / U_LD;
-      const int r = i - b * U_LD;
-      const int e = e0 + b;
-      U[i] = (e < NE && r < QND) ? D(r, e) : real_t(0);
-   }
-}
-
-/** True when device double path can use real tensor MMA / MFMA opcodes.
-    CUDA FP64 mma.sync m8n8k4 requires sm_80+; HIP keeps CDNA double MFMA. */
-MFEM_HOST_DEVICE constexpr bool TensorMmaEnabled()
-{
-#if defined(MFEM_USE_SINGLE)
-   return false;
-#elif defined(__CUDA_ARCH__)
-   return __CUDA_ARCH__ >= 800;
-#elif defined(__HIP_DEVICE_COMPILE__)
-   return true;
-#else
-   return false;
-#endif
-}
+// ======================================================================
+// HOST (blas) — dense cooperative Gemm + optional LAPACK / hand
+// ======================================================================
 
 /** Dense cooperative GEMM (no MMA): U(q,b) = sum_i B(q,i)*X(i,b) [, *D].
     Sibling of dmma_Gemm / mfma_Gemm for CPU, single, and pre-sm_80 paths. */
@@ -1466,6 +1485,175 @@ MFEM_HOST_DEVICE inline void blas_GemmT(const int M, const int ndof,
       Y(i, b) += s;
    }
 }
+
+/** Prefer vendor GEMM when matrices are large enough that call overhead is
+    amortized. Tuned for OpenBLAS/MKL-class libraries on host; small tris stay
+    on hand multi-RHS loops. */
+inline bool PreferHostBlas(int nq, int ndof)
+{
+#ifdef MFEM_USE_LAPACK
+   const int mx = (nq > ndof) ? nq : ndof;
+   // ~ tet p>=4 (nq*ndof ≳ 1600) and larger; skip tiny tri low-p
+   return mx >= 24 && (nq * ndof) >= 1600;
+#else
+   (void)nq; (void)ndof;
+   return false;
+#endif
+}
+
+/** Multi-RHS tile width for the BLAS path (independent of hand NB=4..8). */
+inline int HostBlasNB(int nq, int ndof)
+{
+   const long long work = static_cast<long long>(nq) * ndof;
+   if (work >= 8000) { return 32; }
+   if (work >= 2000) { return 16; }
+   return 8;
+}
+
+#ifdef MFEM_USE_LAPACK
+/** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
+inline void HostGemm(char ta, char tb, int m, int n, int k,
+                     real_t alpha, const real_t *A, int lda,
+                     const real_t *B, int ldb,
+                     real_t beta, real_t *C, int ldc)
+{
+   // Match densemat.cpp: Fortran dgemm_/sgemm_ via MFEM_LAPACK_PREFIX.
+   MFEM_LAPACK_PREFIX(gemm_)(
+      &ta, &tb, &m, &n, &k, &alpha,
+      const_cast<real_t *>(A), &lda,
+      const_cast<real_t *>(B), &ldb,
+      &beta, C, &ldc);
+}
+#endif
+
+// Shared host multi-RHS packing / hand GEMM (integrator-agnostic).
+// Hand path: xloc[i*NB+b]; BLAS path: column-major.
+
+/** Pack X(:, e0:e0+NB) into column-major xloc[ndof * NB]; pad zeros. */
+inline void PackXColMajor(const real_t *X, int ndof, int e0, int NE, int NB,
+                          real_t *xloc)
+{
+   std::fill(xloc, xloc + static_cast<size_t>(ndof) * NB, real_t(0));
+   for (int b = 0; b < NB; ++b)
+   {
+      const int e = e0 + b;
+      if (e >= NE) { break; }
+      for (int i = 0; i < ndof; ++i)
+      {
+         xloc[static_cast<size_t>(i) + static_cast<size_t>(ndof) * b] =
+            X[i + ndof * e];
+      }
+   }
+}
+
+/** Y(:, e0:e0+NB) += column-major ytmp[ndof * NB]. */
+inline void ScatterAddYColMajor(const real_t *ytmp, int ndof, int e0, int NE,
+                                int NB, real_t *Y)
+{
+   for (int b = 0; b < NB; ++b)
+   {
+      const int e = e0 + b;
+      if (e >= NE) { break; }
+      for (int i = 0; i < ndof; ++i)
+      {
+         Y[i + ndof * e] +=
+            ytmp[static_cast<size_t>(i) + static_cast<size_t>(ndof) * b];
+      }
+   }
+}
+
+
+// ---- Hand multi-RHS GEMM (b-innermost) -------------------------------------
+
+/** Load X tile: xloc[i*NB+b], pad zeros. */
+template <int NDOF, int NB>
+inline void PackXHand(const real_t *X, int e0, int NE, real_t *xloc)
+{
+   for (int i = 0; i < NDOF; ++i)
+   {
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b)
+      {
+         const int e = e0 + b;
+         xloc[i * NB + b] = (e < NE) ? X[i + NDOF * e] : real_t(0);
+      }
+   }
+}
+
+/** U = B * X with optional mass scale: U_qb = (sum_i B_qi X_ib) * [D_qe].
+    B is column-major nq×ndof: B[q + NQ*i].
+    If scale_mass is false, D may be null and scale is 1. */
+template <int NDOF, int NQ, int NB, bool SCALE_MASS>
+inline void HandGemmForward(const real_t *B, const real_t *xloc, real_t *uloc,
+                            const real_t *D, int e0, int NE)
+{
+   for (int q = 0; q < NQ; ++q)
+   {
+      real_t ub[NB];
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b) { ub[b] = real_t(0); }
+      for (int i = 0; i < NDOF; ++i)
+      {
+         const real_t bqi = B[q + NQ * i];
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            ub[b] += bqi * xloc[i * NB + b];
+         }
+      }
+      if constexpr (SCALE_MASS)
+      {
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            const int e = e0 + b;
+            const real_t dq = (e < NE) ? D[q + NQ * e] : real_t(0);
+            uloc[q * NB + b] = ub[b] * dq;
+         }
+      }
+      else
+      {
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            uloc[q * NB + b] = ub[b];
+         }
+      }
+   }
+}
+
+/** Y(e0+b) += B^T * U. B column-major nq×ndof. */
+template <int NDOF, int NQ, int NB>
+inline void HandGemmBackward(const real_t *B, const real_t *uloc, real_t *Y,
+                             int e0, int NE)
+{
+   for (int i = 0; i < NDOF; ++i)
+   {
+      real_t yb[NB];
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b) { yb[b] = real_t(0); }
+      for (int q = 0; q < NQ; ++q)
+      {
+         const real_t bqi = B[q + NQ * i];
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            yb[b] += bqi * uloc[q * NB + b];
+         }
+      }
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b)
+      {
+         const int e = e0 + b;
+         if (e < NE) { Y[i + NDOF * e] += yb[b]; }
+      }
+   }
+}
+
+
+// ======================================================================
+// Dispatch — BasisGemm selects dmma / mfma / blas
+// ======================================================================
 
 /** One-component forward: U = B * X [, * D if SCALE].
     M is the GEMM row count (full QND or nq_tile). */
@@ -1623,185 +1811,17 @@ MFEM_HOST_DEVICE inline void BasisGemmT3(const int M, const int ndof,
    BasisGemmT3<0>(M, ndof, NB, B0, B1, B2, U0a, U1a, U2a, Y, e0, NE);
 }
 
-// ---------------------------------------------------------------------------
-// Host dense apply: optional BLAS GEMM (MFEM_USE_LAPACK) for large nq*ndof
-// ---------------------------------------------------------------------------
-
-/** Prefer vendor GEMM when matrices are large enough that call overhead is
-    amortized. Tuned for OpenBLAS/MKL-class libraries on host; small tris stay
-    on hand multi-RHS loops. */
-inline bool PreferHostBlas(int nq, int ndof)
-{
-#ifdef MFEM_USE_LAPACK
-   const int mx = (nq > ndof) ? nq : ndof;
-   // ~ tet p>=4 (nq*ndof ≳ 1600) and larger; skip tiny tri low-p
-   return mx >= 24 && (nq * ndof) >= 1600;
-#else
-   (void)nq; (void)ndof;
-   return false;
-#endif
-}
-
-/** Multi-RHS tile width for the BLAS path (independent of hand NB=4..8). */
-inline int HostBlasNB(int nq, int ndof)
-{
-   const long long work = static_cast<long long>(nq) * ndof;
-   if (work >= 8000) { return 32; }
-   if (work >= 2000) { return 16; }
-   return 8;
-}
-
-#ifdef MFEM_USE_LAPACK
-/** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
-inline void HostGemm(char ta, char tb, int m, int n, int k,
-                     real_t alpha, const real_t *A, int lda,
-                     const real_t *B, int ldb,
-                     real_t beta, real_t *C, int ldc)
-{
-   // Match densemat.cpp: Fortran dgemm_/sgemm_ via MFEM_LAPACK_PREFIX.
-   MFEM_LAPACK_PREFIX(gemm_)(
-      &ta, &tb, &m, &n, &k, &alpha,
-      const_cast<real_t *>(A), &lda,
-      const_cast<real_t *>(B), &ldb,
-      &beta, C, &ldc);
-}
-#endif
-
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Shared host multi-RHS packing / hand GEMM (integrator-agnostic)
-//
-// Hand path layout (b-innermost, good for SIMD across elements):
-//   xloc[i * NB + b], uloc[q * NB + b]
-// BLAS path layout (column-major Fortran / dgemm):
-//   xloc[i + ndof * b], uloc[q + nq * b]
-// ---------------------------------------------------------------------------
-
-/** Pack X(:, e0:e0+NB) into column-major xloc[ndof * NB]; pad zeros. */
-inline void PackXColMajor(const real_t *X, int ndof, int e0, int NE, int NB,
-                          real_t *xloc)
-{
-   std::fill(xloc, xloc + static_cast<size_t>(ndof) * NB, real_t(0));
-   for (int b = 0; b < NB; ++b)
-   {
-      const int e = e0 + b;
-      if (e >= NE) { break; }
-      for (int i = 0; i < ndof; ++i)
-      {
-         xloc[static_cast<size_t>(i) + static_cast<size_t>(ndof) * b] =
-            X[i + ndof * e];
-      }
-   }
-}
-
-/** Y(:, e0:e0+NB) += column-major ytmp[ndof * NB]. */
-inline void ScatterAddYColMajor(const real_t *ytmp, int ndof, int e0, int NE,
-                                int NB, real_t *Y)
-{
-   for (int b = 0; b < NB; ++b)
-   {
-      const int e = e0 + b;
-      if (e >= NE) { break; }
-      for (int i = 0; i < ndof; ++i)
-      {
-         Y[i + ndof * e] +=
-            ytmp[static_cast<size_t>(i) + static_cast<size_t>(ndof) * b];
-      }
-   }
-}
-
-
-// ---- Hand multi-RHS GEMM (b-innermost) -------------------------------------
-
-/** Load X tile: xloc[i*NB+b], pad zeros. */
-template <int NDOF, int NB>
-inline void PackXHand(const real_t *X, int e0, int NE, real_t *xloc)
-{
-   for (int i = 0; i < NDOF; ++i)
-   {
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b)
-      {
-         const int e = e0 + b;
-         xloc[i * NB + b] = (e < NE) ? X[i + NDOF * e] : real_t(0);
-      }
-   }
-}
-
-/** U = B * X with optional mass scale: U_qb = (sum_i B_qi X_ib) * [D_qe].
-    B is column-major nq×ndof: B[q + NQ*i].
-    If scale_mass is false, D may be null and scale is 1. */
-template <int NDOF, int NQ, int NB, bool SCALE_MASS>
-inline void HandGemmForward(const real_t *B, const real_t *xloc, real_t *uloc,
-                            const real_t *D, int e0, int NE)
-{
-   for (int q = 0; q < NQ; ++q)
-   {
-      real_t ub[NB];
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b) { ub[b] = real_t(0); }
-      for (int i = 0; i < NDOF; ++i)
-      {
-         const real_t bqi = B[q + NQ * i];
-         MFEM_UNROLL(NB)
-         for (int b = 0; b < NB; ++b)
-         {
-            ub[b] += bqi * xloc[i * NB + b];
-         }
-      }
-      if constexpr (SCALE_MASS)
-      {
-         MFEM_UNROLL(NB)
-         for (int b = 0; b < NB; ++b)
-         {
-            const int e = e0 + b;
-            const real_t dq = (e < NE) ? D[q + NQ * e] : real_t(0);
-            uloc[q * NB + b] = ub[b] * dq;
-         }
-      }
-      else
-      {
-         MFEM_UNROLL(NB)
-         for (int b = 0; b < NB; ++b)
-         {
-            uloc[q * NB + b] = ub[b];
-         }
-      }
-   }
-}
-
-/** Y(e0+b) += B^T * U. B column-major nq×ndof. */
-template <int NDOF, int NQ, int NB>
-inline void HandGemmBackward(const real_t *B, const real_t *uloc, real_t *Y,
-                             int e0, int NE)
-{
-   for (int i = 0; i < NDOF; ++i)
-   {
-      real_t yb[NB];
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b) { yb[b] = real_t(0); }
-      for (int q = 0; q < NQ; ++q)
-      {
-         const real_t bqi = B[q + NQ * i];
-         MFEM_UNROLL(NB)
-         for (int b = 0; b < NB; ++b)
-         {
-            yb[b] += bqi * uloc[q * NB + b];
-         }
-      }
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b)
-      {
-         const int e = e0 + b;
-         if (e < NE) { Y[i + NDOF * e] += yb[b]; }
-      }
-   }
-}
 
 } // namespace simplex_mma
 
+/** Tensor (quad/hex) MMA helpers: Common, HOST(blas), HIP(mfma), SF kernels. */
 namespace tensors_mma
 {
+
+// ======================================================================
+// Common — shared imports, x-only tid, magic maps, launch knobs
+// ======================================================================
+
 
 // Shared with simplex_mma (same warp/lane/DMMA helpers). Keep tensors-local
 // getThreadIdx / getBlockNthreads: x-only vs simplex 3D linear tid.
@@ -1810,7 +1830,9 @@ using simplex_mma::getWarpId;
 using simplex_mma::getLaneId;
 using simplex_mma::getGroupId;
 using simplex_mma::getThreadIdInGroup;
+#if defined(MFEM_USE_CUDA)
 using simplex_mma::dmmaSync;
+#endif
 #if defined(__HIP_DEVICE_COMPILE__)
 using simplex_mma::mfmaSync16;
 using simplex_mma::mfmaSync4;
@@ -2142,6 +2164,11 @@ MFEM_HOST_DEVICE inline int NWarps(int mPass)
 #endif
 }
 
+
+// ======================================================================
+// HOST (blas) — dense SF contract / GemmMbyK / GradXt
+// ======================================================================
+
 /** Dense SF GEMM: C(m,n) =[/+=] sum_k A_storage(k,m)*B(k,n) [, *D].
     A is stored as DeviceMatrix(k,m); B as DeviceMatrix(k,n). */
 template <bool SCALE, bool ACCUM>
@@ -2214,9 +2241,9 @@ MFEM_HOST_DEVICE inline void blas_GemmMbyK(const int M, const int K,
 /** Dense GradXt: A* from GradYt as qx + Q*(dy + D*dz). */
 MFEM_HOST_DEVICE inline void blas_GradXt3D(const int D1D, const int Q1D,
                                            const real_t *Bt, const real_t *Gt,
-                                             const real_t *A0, const real_t *A1,
-                                             const real_t *A2,
-                                             const DeviceTensor<4> &Y, const int e)
+                                           const real_t *A0, const real_t *A1,
+                                           const real_t *A2,
+                                           const DeviceTensor<4> &Y, const int e)
 {
    const int tid = getThreadIdx();
    const int nthreads = getBlockNthreads();
@@ -2241,6 +2268,11 @@ MFEM_HOST_DEVICE inline void blas_GradXt3D(const int D1D, const int Q1D,
       Y(dx, dy, dz, e) += s;
    }
 }
+
+
+// ======================================================================
+// HIP (mfma) — SF Gemm adapters (device compile only)
+// ======================================================================
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
 /** SF layout: storage is DeviceMatrix(p, k, m); A_fwd(m_idx,k_idx)=storage(k_idx,m_idx). */
@@ -2435,6 +2467,10 @@ MFEM_HOST_DEVICE inline void mfma_SfContract(const int m, const int n,
 }
 #endif // __HIP_DEVICE_COMPILE__ && !MFEM_USE_SINGLE
 
+// ======================================================================
+// SF kernels — Grad/Interp 2D/3D (dispatch blas / mfma / dmma inside)
+// ======================================================================
+
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
                                         const real_t (&BG)[2][MQ1*MD1],
@@ -2456,6 +2492,7 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
    mfma_SfContract<false, false>(m, n, k, A[0], BG[0], C[1], nd);
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2525,6 +2562,7 @@ MFEM_HOST_DEVICE inline void dmma_GradX(const int m, const int n, const int k,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// 3D Gradient, 1/3
@@ -2560,6 +2598,7 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
    mfma_SfContract<false, false>(m, n, k, A[1], BG[0], C[2], nd); // A1*B
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2634,6 +2673,7 @@ MFEM_HOST_DEVICE inline void dmma_GradY(const int m, const int n,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// 3D Gradient, 2/3
@@ -2674,6 +2714,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
    }
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
 
@@ -2745,6 +2786,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZ(const int m, const int n,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// 3D Gradient, 3/3
@@ -2787,6 +2829,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
    }
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(BG[0], k, n);
    ConstDeviceMatrix Gt(BG[1], k, n);
    const int thread = getThreadIdx();
@@ -2856,6 +2899,7 @@ MFEM_HOST_DEVICE inline void dmma_GradZtLike(const int m, const int n,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// 3D Transposed Gradient, 1/3
@@ -2963,6 +3007,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                             SfBFromKbyN{sBG[1], k, n}, Yacc, nd);
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
    int thread = getThreadIdx();
@@ -3035,6 +3080,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// Load forward (D,Q) and transpose (Q,D) B with one global read.
@@ -3088,6 +3134,7 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
    }
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(B1d, k, n);
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -3138,6 +3185,7 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -3259,7 +3307,7 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
    SfNullD nd;
    mfma_SfGemm<false, true>(m, k, n, SfAFromKbyM{sDDQ, k, m},
                             SfBFromKbyN{sBt, k, n}, Y3Acc{&Y, D1D, e}, nd);
-#else
+#elif defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -3357,6 +3405,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
    mfma_SfContract<false, false>(Q1D, Q1D, D1D, sDQ[1], sBG[1], sQQ[1], nd);
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix B(sBG[0], D1D, Q1D);
    ConstDeviceMatrix G(sBG[1], D1D, Q1D);
    const int thread = getThreadIdx();
@@ -3412,6 +3461,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
@@ -3441,6 +3491,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
                              SfCToMbyN{sQD[1], Q1D, D1D}, nd);
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
    const int thread = getThreadIdx();
@@ -3496,6 +3547,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 /// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
@@ -3549,6 +3601,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
                             SfBFromKbyN{sBG[0], Q1D, D1D}, Yacc, nd); // Bt
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
    const int thread = getThreadIdx();
@@ -3600,6 +3653,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -3639,6 +3693,7 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
                              SfCToMbyN{sQD, Q1D, D1D}, nd);
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    // K=qy fastest in A(qx,qy); N=dy — not the same A layout as InterpAx.
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdx();
@@ -3683,6 +3738,7 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
@@ -3728,6 +3784,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
                             SfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
    return;
 #endif
+#if defined(MFEM_USE_CUDA)
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -3770,6 +3827,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
          }
       }
    }
+#endif // MFEM_USE_CUDA
 }
 
 } // namespace tensors_mma
