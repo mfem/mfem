@@ -5214,7 +5214,10 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       Nodes = new GridFunction(this, input);
 
       own_nodes = 1;
-      spaceDim = Nodes->VectorDim();
+      // The nodal space stores one component per spatial coordinate. Avoid
+      // VectorDim(), which requires element geometry that can be unavailable
+      // on empty parallel partitions until ParMesh::Load() reduces meshgen.
+      spaceDim = Nodes->FESpace()->GetVDim();
       if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
       // Set vertex coordinates from the 'Nodes'

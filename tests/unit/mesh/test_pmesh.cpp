@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <sstream>
+
 namespace mfem
 {
 #ifdef MFEM_USE_MPI
@@ -221,6 +223,42 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 
    x -= x_tet;
    REQUIRE(x.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("ParMeshPrintLoadEmptyCurvedPartitions", "[Parallel], [ParMesh]")
+{
+   const int num_procs = Mpi::WorldSize();
+   if (num_procs == 1) { return; }
+
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   mesh.SetCurvature(2);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   const int local_empty = pmesh.GetNE() == 0;
+   int empty_partitions = 0;
+   MPI_Allreduce(&local_empty, &empty_partitions, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(empty_partitions == num_procs - 1);
+
+   std::ostringstream output;
+   pmesh.ParPrint(output);
+   std::istringstream input(output.str());
+   ParMesh recovered(MPI_COMM_WORLD, input);
+
+   REQUIRE(recovered.GetNE() == pmesh.GetNE());
+   REQUIRE(recovered.GetGlobalNE() == 1);
+   REQUIRE(recovered.GetNodes() != nullptr);
+   REQUIRE(recovered.SpaceDimension() == 3);
+   REQUIRE(recovered.GetTypicalElementGeometry() == Geometry::CUBE);
+   REQUIRE(recovered.GetNodes()->Size() == pmesh.GetNodes()->Size());
+
+   if (recovered.GetNodes()->Size() > 0)
+   {
+      Vector node_difference(recovered.GetNodes()->Size());
+      node_difference = *recovered.GetNodes();
+      node_difference -= *pmesh.GetNodes();
+      REQUIRE(node_difference.Normlinf() == MFEM_Approx(0.0));
+   }
 }
 
 #endif // MFEM_USE_MPI
