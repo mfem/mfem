@@ -57,6 +57,29 @@ constexpr bool mfem_use_gpu = true;
 namespace mfem
 {
 
+/// X-only thread index (tensor-product / 1D launches). Host returns 0.
+#ifndef MFEM_HAS_DEVICE_THREAD_IDX_X
+#define MFEM_HAS_DEVICE_THREAD_IDX_X
+MFEM_HOST_DEVICE inline int DeviceThreadIdxX()
+{
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   return static_cast<int>(threadIdx.x);
+#else
+   return 0;
+#endif
+}
+
+/// X-only block size. Host returns 1.
+MFEM_HOST_DEVICE inline int DeviceBlockNthreadsX()
+{
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   return static_cast<int>(blockDim.x);
+#else
+   return 1;
+#endif
+}
+#endif // MFEM_HAS_DEVICE_THREAD_IDX_X
+
 #ifdef MFEM_USE_HIP
 // Function used by the macro MFEM_GPU_CHECK.
 void mfem_hip_error(hipError_t err, const char *expr, const char *func,

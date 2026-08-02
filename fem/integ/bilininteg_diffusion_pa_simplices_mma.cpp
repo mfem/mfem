@@ -19,6 +19,32 @@ namespace mfem
 namespace internal
 {
 
+namespace
+{
+
+/** Cofactor matrix of J (transpose of adjugate / used by diffusion PA). */
+MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
+                                         const real_t J31, const real_t J12,
+                                         const real_t J22, const real_t J32,
+                                         const real_t J13, const real_t J23,
+                                         const real_t J33,
+                                         real_t &A11, real_t &A12, real_t &A13,
+                                         real_t &A21, real_t &A22, real_t &A23,
+                                         real_t &A31, real_t &A32, real_t &A33)
+{
+   A11 = (J22 * J33) - (J23 * J32);
+   A12 = (J32 * J13) - (J12 * J33);
+   A13 = (J12 * J23) - (J22 * J13);
+   A21 = (J31 * J23) - (J21 * J33);
+   A22 = (J11 * J33) - (J13 * J31);
+   A23 = (J21 * J13) - (J11 * J23);
+   A31 = (J21 * J32) - (J31 * J22);
+   A32 = (J31 * J12) - (J11 * J32);
+   A33 = (J11 * J22) - (J12 * J21);
+}
+
+} // namespace
+
 void PADiffusionSetupSimplexFromNodes(const int dim,
                                       const int coeffDim,
                                       const int NE,
@@ -55,7 +81,7 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
          const int e = idx / NQ, q = idx - NQ * e;
          real_t J11, J21, J12, J22;
          EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
-         const real_t w_detJ = W(q) / DetJ2(J11, J21, J12, J22);
+         const real_t w_detJ = W(q) / (J11 * J22 - J21 * J12);
          if (coeffDim == 3 || coeffDim == 4)
          {
             const real_t M11 = get_coeff(C, 0, q, e);
@@ -108,8 +134,9 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
       EvalSimplexJ3(E, G, q, e, ND,
                     J11, J21, J31, J12, J22, J32, J13, J23, J33);
-      const real_t w_detJ =
-         W(q) / DetJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t w_detJ = W(q) / (J11 * (J22 * J33 - J32 * J23) -
+                                    J21 * (J12 * J33 - J32 * J13) +
+                                    J31 * (J12 * J23 - J22 * J13));
       real_t A11, A12, A13, A21, A22, A23, A31, A32, A33;
       CofactorsJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33,
                   A11, A12, A13, A21, A22, A23, A31, A32, A33);

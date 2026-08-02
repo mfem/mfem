@@ -75,7 +75,7 @@ void PADetJSetupSimplexFromNodes(const int dim,
          const int q = idx - NQ * e;
          real_t J11, J21, J12, J22;
          EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
-         const real_t detJ = DetJ2(J11, J21, J12, J22);
+         const real_t detJ = J11 * J22 - J21 * J12;
          const real_t coeff = const_c ? C(0, 0) : C(q, e);
          D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
       });
@@ -89,7 +89,9 @@ void PADetJSetupSimplexFromNodes(const int dim,
       const int q = idx - NQ * e;
       real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
       EvalSimplexJ3(E, G, q, e, ND, J11, J21, J31, J12, J22, J32, J13, J23, J33);
-      const real_t detJ = DetJ3(J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
+                          J21 * (J12 * J33 - J32 * J13) +
+                          J31 * (J12 * J23 - J22 * J13);
       const real_t coeff = const_c ? C(0, 0) : C(q, e);
       D(q, e) = W(q) * coeff * (by_val ? detJ : real_t(1) / detJ);
    });
