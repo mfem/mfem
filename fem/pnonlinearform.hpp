@@ -29,6 +29,8 @@ protected:
    mutable ParGridFunction X, Y;
    mutable OperatorHandle pGrad;
 
+   void GradientSharedFaces(const Vector &x, int skip_zeros = 1) const;
+
 public:
    ParNonlinearForm(ParFiniteElementSpace *pf);
 
@@ -80,6 +82,8 @@ protected:
    mutable BlockVector xs_true, ys_true;
    mutable Array2D<OperatorHandle *> phBlockGrad;
    mutable BlockOperator *pBlockGrad;
+
+   void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
 
 public:
    /// Computes the energy of the system

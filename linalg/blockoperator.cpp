@@ -14,6 +14,7 @@
 #include "blockvector.hpp"
 #include "blockoperator.hpp"
 
+
 namespace mfem
 {
 
@@ -128,6 +129,33 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
       yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 }
+
+#ifdef MFEM_USE_MPI
+
+HypreParMatrix * BlockOperator::GetMonolithicHypreParMatrix() const
+{
+   Array2D<const HypreParMatrix*> blocks(nRowBlocks, nColBlocks);
+   for (int i = 0; i < nRowBlocks; ++i)
+   {
+      for (int j = 0; j < nColBlocks; ++j)
+      {
+         if (IsZeroBlock(i, j))
+         {
+            blocks(i, j) = nullptr;
+         }
+         else
+         {
+            auto mat = dynamic_cast<const HypreParMatrix*>(&GetBlock(i, j));
+            MFEM_VERIFY(mat,"BlockOperator block (" << i << "," << j
+                        << ") is not a HypreParMatrix.");
+            blocks(i, j) = mat;
+         }
+      }
+   }
+   Array2D<real_t> coef_mut = coef;   // make a non-const copy
+   return HypreParMatrixFromBlocks(blocks, &coef_mut);
+}
+#endif
 
 BlockOperator::~BlockOperator()
 {

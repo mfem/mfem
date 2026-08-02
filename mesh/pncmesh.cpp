@@ -400,7 +400,7 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
          }
          else // special case: prism edge-face constraint
          {
-            if (entity_owner[1][-1-si] != MyRank)
+            if (entity_owner[1][FlipIndexSign(si)] != MyRank)
             {
                master_flag |= 0x2;
             }
@@ -571,9 +571,10 @@ void ParNCMesh::CalculatePMatrixGroups()
       ranks.SetSize(0);
       for (int j = master_face.slaves_begin; j < master_face.slaves_end; j++)
       {
-         int si = face_list.slaves[j].index;
-         int owner = (si >= 0) ? entity_owner[2][si] // standard face dependency
-                     /*     */ : entity_owner[1][-1 - si]; // prism edge-face dep
+         const int si = face_list.slaves[j].index;
+         const int owner =
+            (si >= 0) ? entity_owner[2][si] : // standard face dependency
+            entity_owner[1][FlipIndexSign(si)]; // prism edge-face dep
          ranks.Append(groups[owner][0]);
       }
       ranks.Sort();
@@ -1181,7 +1182,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       if (e[0]->rank == MyRank) { std::swap(e[0], e[1]); }
 
       Mesh::FaceInfo &fi = pmesh.faces_info[cf.index];
-      fi.Elem2No = -1 - fnbr_index[e[0]->index - NElements];
+      fi.Elem2No = FlipIndexSign(fnbr_index[e[0]->index - NElements]);
 
       if (Dim == 3)
       {
@@ -1195,14 +1196,22 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       }
    }
 
-   // If there are shared slaves, they will also need to be updated.
+   // If there are shared slaves, they will also need to be updated. First,
+   // check whether the update has already been done.
+   bool sharedUpdated = false;
    if (shared.slaves.Size())
+   {
+      int nfaces = NFaces, nghosts = NGhostFaces;
+      if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
+      sharedUpdated = (pmesh.faces_info.Size() == nfaces + nghosts);
+   }
+
+   if (shared.slaves.Size() && !sharedUpdated)
    {
       int nfaces = NFaces, nghosts = NGhostFaces;
       if (Dim <= 2) { nfaces = NEdges, nghosts = NGhostEdges; }
 
       // enlarge Mesh::faces_info for ghost slaves
-      MFEM_ASSERT(pmesh.faces_info.Size() == nfaces, "");
       MFEM_ASSERT(pmesh.GetNumFaces() == nfaces, "");
       pmesh.faces_info.SetSize(nfaces + nghosts);
       for (int i = nfaces; i < pmesh.faces_info.Size(); i++)
@@ -1262,7 +1271,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // In other words, side 1 IS the side that generated the face.
             }
             MFEM_ASSERT(fi.Elem2No >= NElements, "");
-            fi.Elem2No = -1 - fnbr_index[fi.Elem2No - NElements];
+            fi.Elem2No = FlipIndexSign(fnbr_index[fi.Elem2No - NElements]);
 
             const DenseMatrix* pm = full_list.point_matrices[sf.geom][sf.matrix];
             if (!sloc && Dim == 3)
@@ -1303,13 +1312,11 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
                // Mesh::ApplyLocalSlaveTransformation.
             }
 
-            MFEM_ASSERT(fi.NCFace < 0, "fi.NCFace = " << fi.NCFace);
             fi.NCFace = pmesh.nc_faces_info.Size();
             pmesh.nc_faces_info.Append(Mesh::NCFaceInfo(true, sf.master, pm));
          }
       }
    }
-
 
    // In 3D some extra orientation data structures can be needed.
    if (Dim == 3)
@@ -1381,7 +1388,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
             const int send_tag = (rank < kv.first)
                                  ? std::min(rank, kv.first)
                                  : std::max(rank, kv.first);
-            MPI_Isend(&kv.second[0][0], int(kv.second.size() * 6),
+            MPI_Isend(const_cast<int*>(&kv.second[0][0]), int(kv.second.size() * 6),
                       MPI_INT, kv.first, send_tag, pmesh.MyComm, &send_requests.back());
          }
 
@@ -2280,7 +2287,7 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
       if (element_type[index] == 0)
       {
          // this coarse element will get pruned, encode who owns it now
-         index = -1 - elements[coarse[i]].rank;
+         index = FlipIndexSign(elements[coarse[i]].rank);
       }
       transforms.embeddings[i].parent = index;
    }

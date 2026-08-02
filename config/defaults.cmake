@@ -38,6 +38,7 @@ option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
 option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
+option(MFEM_USE_CUDSS "Enable cuDSS usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
 option(MFEM_USE_AMGX "Enable AmgX usage" OFF)
 option(MFEM_USE_MAGMA "Enable MAGMA usage" OFF)
@@ -91,9 +92,10 @@ option(MFEM_ENABLE_BENCHMARKS "Build all of the benchmarks" OFF)
 
 # Allow a user to specify fetching of certain third-party libraries instead of
 # searching for existing installations.
-option(FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
-option(HYPRE_FETCH "Enable fetching of hypre" OFF)
-option(METIS_FETCH "Enable fetching of METIS" OFF)
+option(MFEM_FETCH_TPLS "Enable fetching of all supported third-party libraries" OFF)
+option(MFEM_FETCH_GSLIB "Enable fetching of GSLIB" OFF)
+option(MFEM_FETCH_HYPRE "Enable fetching of hypre" OFF)
+option(MFEM_FETCH_METIS "Enable fetching of METIS" OFF)
 
 # Setting CXX/MPICXX on the command line or in user.cmake will overwrite the
 # autodetected C++ compiler.

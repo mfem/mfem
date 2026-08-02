@@ -373,6 +373,7 @@ TEST_CASE("Batched Linear Algebra",
    const int n_rhs = 2;
 
    DenseTensor A_batch(n, n, n_mat);
+   DenseTensor A_inv_batch(n, n, n_mat);
    Vector x_batch(n * n_rhs * n_mat), y_batch(n * n_rhs * n_mat);
    std::vector<DenseMatrix> As;
    std::vector<DenseMatrix> xs, ys;
@@ -404,6 +405,7 @@ TEST_CASE("Batched Linear Algebra",
       ys.back() = 0.0;
       AddMult_a(1.5, As.back(), xs.back(), ys.back());
       A_batch(i) = As.back();
+      A_inv_batch(i) = As.back();
    }
 
    // Test batched matrix-vector products
@@ -460,6 +462,33 @@ TEST_CASE("Batched Linear Algebra",
          for (int k = 0; k < n; ++k)
          {
             REQUIRE(x_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(xs[i](k, j), 1e-10));
+         }
+      }
+   }
+
+   // Test batched matrix inverse
+   BatchedLinAlg::Get(backend).Invert(A_inv_batch);
+   A_inv_batch.HostReadWrite();
+   Vector output_col(n);
+   Vector col;
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix Ai_inv(A_inv_batch(i));
+      for (int j = 0; j < n; ++j)
+      {
+         output_col = 0.0;
+         As[i].GetColumnReference(j, col);
+         Ai_inv.Mult(col, output_col);
+         for (int k = 0; k < n; ++k)
+         {
+            if (j == k)
+            {
+               REQUIRE(output_col(k) == MFEM_Approx(1.0));
+            }
+            else
+            {
+               REQUIRE(output_col(k) == MFEM_Approx(0.0));
+            }
          }
       }
    }
@@ -932,3 +961,38 @@ TEST_CASE("NNLS", "[DenseMatrix]")
 }
 
 #endif // if MFEM_USE_LAPACK
+
+TEST_CASE("DenseTensor slice copy and move assign equivalency",
+          "[DenseMatrix][DenseTensor]")
+{
+   auto fill_matrix = [](int n)
+   {
+      DenseMatrix M(n, n);
+      M = 0.0;
+      for (int i = 0; i < n; i++)
+         for (int j = 0; j < n; j++)
+         {
+            M(i, j) = i+j*n+1;
+         }
+      return M;
+   };
+
+   constexpr int n = 3;
+   constexpr int k = 2;
+
+   DenseTensor tensor1(n, n, k), tensor2(n, n, k);
+   tensor1 = 0.0; tensor2 = 0.0;
+
+   DenseMatrix temp = fill_matrix(n);
+   tensor1(0) = temp; // copy assign
+   tensor2(0) = std::move(temp); // move assign
+
+   // Check that the tensor was actually updated
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < n; j++)
+      {
+         CHECK(tensor1(i, j, 0) == tensor2(i, j, 0));
+      }
+   }
+}

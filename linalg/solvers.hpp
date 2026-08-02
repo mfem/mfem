@@ -145,6 +145,7 @@ protected:
    const Operator *oper;
    Solver *prec;
    IterativeSolverController *controller = nullptr;
+   InnerProductOperator *dot_oper = nullptr;
 
    /// @name Reporting (protected attributes and member functions)
    ///@{
@@ -327,12 +328,89 @@ public:
    /// An alias of SetController() for backward compatibility
    void SetMonitor(IterativeSolverMonitor &m) { SetController(m); }
 
+   /// Set a user-defined inner product operator (not owned)
+   void SetInnerProduct(InnerProductOperator *ipo) { dot_oper = ipo; }
+
 #ifdef MFEM_USE_MPI
    /** @brief Return the associated MPI communicator, or MPI_COMM_NULL if no
        communicator is set. */
    MPI_Comm GetComm() const
    { return dot_prod_type == 0 ? MPI_COMM_NULL : comm; }
 #endif
+};
+
+
+/** @brief Inner product operator constrained to a list of indices/dofs.
+    The method Eval() computes the inner product of two vectors
+    only on the constrained entries specified in the constraint list. */
+class ConstrainedInnerProduct : public InnerProductOperator
+{
+protected:
+   Array<int> constraint_list; /// List of constrained indices
+   mutable Vector xr, yr; /// Restricted vectors
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator and a list of constraint indices.
+   ConstrainedInnerProduct(MPI_Comm comm_, const Array<int> &list)
+      : InnerProductOperator(comm_) { SetIndices(list); }
+   /// @brief Constructor from MPI communicator.
+   ConstrainedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+
+   /** @brief Constructor from a list of constraint indices/dofs.
+       Specify a @a list of indices to constrain, i.e. each entry
+       @a list[i] represents an element of the inner product. */
+   ConstrainedInnerProduct(const Array<int> &list) : InnerProductOperator()
+   { SetIndices(list); }
+
+   /// @brief Set/update the list of constraint indices.
+   void SetIndices(const Array<int> &list);
+
+   /** @brief Compute the inner product (x,y) of vectors x and y,
+              only on the constrained entries. */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+
+   /// @brief Apply the constraint to vector @a x and return in @a y.
+   virtual void Mult(const Vector &x, Vector &y) const override;
+};
+
+/** @brief Inner product weighted by operators, @a X and @a Y.
+    The method Eval() computes the inner product of two vectors,
+    @a x and @a y, weighted by the operators, @a X and @a Y,
+    as (Y(y),X(x)). */
+class WeightedInnerProduct : public InnerProductOperator
+{
+protected:
+   Operator *operX = nullptr; /// Weighting operator for x
+   Operator *operY = nullptr; /// Weighting operator for y
+   mutable Vector wx, wy; /// Weighted vectors
+   MemoryClass mem_class;
+
+public:
+#ifdef MFEM_USE_MPI
+   /// @brief Constructor from MPI communicator.
+   WeightedInnerProduct(MPI_Comm comm_) : InnerProductOperator(comm_) {}
+#endif
+   /// @brief Constructor from weighting operators.
+   WeightedInnerProduct(Operator *X, Operator *Y)
+      : InnerProductOperator() { SetOperator(X, Y); }
+
+   /** @brief Set/update the weighting operators (not owned) for each term. */
+   void SetOperator(Operator *X, Operator *Y);
+
+   /// @brief Set/update the same weighting operator (not owned) for both terms.
+   void SetOperator(Operator *XY) { SetOperator(XY, XY); }
+
+   /** @brief Compute the inner product (Y(y),X(x)) of vectors x and y,
+              weighted by the operators @a X and @a Y.
+       @note Either (but not both) operator, @a X or @a Y, can be set as null, in
+             which case the corresponding vector is unmodified (i.e. the operator
+             acts as an identity operator). */
+   virtual real_t Eval(const Vector &x, const Vector &y) override;
+
+   /// @brief Apply the weighting operator to vector @a x and return in @a y=Y(X(x)).
+   virtual void Mult(const Vector &x, Vector &y) const override;
 };
 
 

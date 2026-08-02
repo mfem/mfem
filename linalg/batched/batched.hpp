@@ -87,7 +87,7 @@ public:
    /// pivots are stored in @a P.
    ///
    /// $A$ is represented by the DenseTensor @a A with shape (n, n, n_mat). On
-   /// output, $P$ has shape (n, n_mat).
+   /// output, $P$ has shape (n, n_mat). Pivots always use 1-based indexing.
    static void LUFactor(DenseTensor &A, Array<int> &P);
    /// @brief Replaces $x$ with $A^{-1} x$, given the LU factors @a A and pivots
    /// @a P of the block-diagonal matrix $A$.
@@ -96,9 +96,8 @@ public:
    /// LUFactor(). $A$ has shape (n, n, n_mat) and $x$ has shape (n, n_rhs,
    /// n_mat).
    ///
-   /// @warning LUSolve() and LUFactor() should be called using the same backend
-   /// because of potential incompatibilities (e.g. 0-based or 1-based
-   /// indexing).
+   /// @warning P should use 1-based indexing. This is what LUFactor() generates
+   /// for all available backends.
    static void LUSolve(const DenseTensor &A, const Array<int> &P, Vector &x);
    /// @brief Returns true if the requested backend is available.
    ///

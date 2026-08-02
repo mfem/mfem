@@ -1,0 +1,130 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# The template job to test whether a machine is up.
+# Expects CI_MACHINE defined to machine name.
+.machine-check:
+  stage: prerequisites
+  tags: [shell, oslic]
+  variables:
+    GIT_STRATEGY: none
+  script:
+    - |
+      if [[ $(jq '.[env.CI_MACHINE].total_nodes_up' /usr/global/tools/lorenz/data/loginnodeStatus) == 0 ]]
+      then
+        echo -e "\e[31mNo node available on ${CI_MACHINE}\e[0m"
+        false && \
+        curl --url "https://api.github.com/repos/${GITHUB_PROJECT_ORG}/${GITHUB_PROJECT_NAME}/statuses/${CI_COMMIT_SHA}" \
+             --header 'Content-Type: application/json' \
+             --header "authorization: Bearer ${GITHUB_TOKEN}" \
+             --data "{ \"state\": \"failure\", \"target_url\": \"${CI_PIPELINE_URL}\", \"description\": \"GitLab ${CI_MACHINE} down\", \"context\": \"ci/gitlab/${CI_MACHINE}\" }"
+        exit 1
+      fi
+
+###
+# Trigger a build-and-test pipeline for a machine.
+# Comment the jobs for machines you don’t need.
+###
+
+# One job to generate the job list for all the subpipelines
+generate-job-lists:
+  stage: prerequisites
+  tags: [shell, oslic]
+  variables:
+    LOCAL_JOBS_PATH: ".gitlab/jobs"
+  script:
+    - |
+      echo "AUTOTEST=$AUTOTEST"
+      echo "AUTOTEST_COMMIT=$AUTOTEST_COMMIT"
+      echo "AUTOTEST_ROOT=$AUTOTEST_ROOT"
+    - |
+      cat ${LOCAL_JOBS_PATH}/dane.yml > dane-jobs.yml
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/dane-reports.yml >> dane-jobs.yml
+      fi
+    - |
+      cat ${LOCAL_JOBS_PATH}/matrix.yml > matrix-jobs.yml
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/matrix-reports.yml >> matrix-jobs.yml
+      fi
+    - |
+      cat ${LOCAL_JOBS_PATH}/tioga.yml > tioga-jobs.yml
+      if [[ ${AUTOTEST} == "ON" || ${AUTOTEST} == "YES" ]]
+      then
+          cat ${LOCAL_JOBS_PATH}/tioga-reports.yml >> tioga-jobs.yml
+      fi
+  artifacts:
+    paths:
+      - dane-jobs.yml
+      - matrix-jobs.yml
+      - tioga-jobs.yml
+
+
+# DANE
+dane-up-check:
+  variables:
+    CI_MACHINE: "dane"
+  extends: [.machine-check]
+
+dane-build-and-test:
+  variables:
+    CI_MACHINE: "dane"
+  needs: [dane-up-check, generate-job-lists]
+  extends: [.build-and-test]
+
+# DANE, MFEM Specific
+dane-baseline:
+  stage: test-pipelines
+  variables:
+    # Explicitly pass down values that are not always propagated to child
+    # pipelines, e.g. when a variable is set in the "Settings -> CI" web
+    # interface (project variables).
+    # Note: in some cases, this does not work as expected, e.g. when the
+    # variable is not re-defined in the web interface; in such cases, the child
+    # pipeline gets a definition like '${AUTOTEST}', i.e. it behaves as if
+    # AUTOTEST is undefined, even though there is a default value in
+    # .gitlab-ci.yml.
+    AUTOTEST: "${AUTOTEST}"
+    AUTOTEST_COMMIT: "${AUTOTEST_COMMIT}"
+  trigger:
+    include: .gitlab/dane-baseline.yml
+    strategy: depend
+    forward:
+      pipeline_variables: true
+  needs: [dane-up-check]
+
+
+# TIOGA
+tioga-up-check:
+  variables:
+    CI_MACHINE: "tioga"
+  extends: [.machine-check]
+
+tioga-build-and-test:
+  variables:
+    CI_MACHINE: "tioga"
+  needs: [tioga-up-check, generate-job-lists]
+  extends: [.build-and-test]
+
+
+# Matrix
+matrix-up-check:
+  variables:
+    CI_MACHINE: "matrix"
+  extends: [.machine-check]
+
+matrix-build-and-test:
+  variables:
+    CI_MACHINE: "matrix"
+  needs: [matrix-up-check, generate-job-lists]
+  extends: [.build-and-test]

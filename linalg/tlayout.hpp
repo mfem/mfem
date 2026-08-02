@@ -14,7 +14,6 @@
 
 #include "../config/tconfig.hpp"
 #include "../fem/fespace.hpp"
-#include "../general/backends.hpp"
 
 namespace mfem
 {

@@ -9,6 +9,7 @@
 //               ex4 -m ../data/beam-hex.mesh -o 2 -pa
 //               ex4 -m ../data/escher.mesh
 //               ex4 -m ../data/fichera.mesh -o 2 -hb
+//               ex4 -m ../data/fichera.mesh -o 2 -hb -ea
 //               ex4 -m ../data/fichera-q2.vtk
 //               ex4 -m ../data/fichera-q3.mesh -o 2 -sc
 //               ex4 -m ../data/square-disc-nurbs.mesh
@@ -18,6 +19,7 @@
 //               ex4 -m ../data/amr-quad.mesh
 //               ex4 -m ../data/amr-hex.mesh
 //               ex4 -m ../data/amr-hex.mesh -o 2 -hb
+//               ex4 -m ../data/amr-hex.mesh -o 2 -hb -ea
 //               ex4 -m ../data/fichera-amr.mesh -o 2 -sc
 //               ex4 -m ../data/ref-prism.mesh -o 1
 //               ex4 -m ../data/octahedron.mesh -o 1
@@ -25,6 +27,8 @@
 //
 // Device sample runs:
 //               ex4 -m ../data/star.mesh -pa -d cuda
+//               ex4 -m ../data/star.mesh -hb -ea -d cuda
+//               ex4 -m ../data/amr-quad.mesh -hb -ea -d cuda
 //               ex4 -m ../data/star.mesh -pa -d raja-cuda
 //               ex4 -m ../data/star.mesh -pa -d raja-omp
 //               ex4 -m ../data/beam-hex.mesh -pa -d cuda
@@ -193,7 +197,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (!pa)
+   if (!pa && (!ea || hybridization))
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.
