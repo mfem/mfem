@@ -14,6 +14,7 @@
 #include "mfem.hpp"
 
 #include "../../../linalg/tensor.hpp"
+#include "../../../fem/dfem/tensor_functions.hpp"
 #include <limits>
 
 using namespace mfem;
@@ -163,3 +164,29 @@ TEST_CASE("SmoothMaxEigenvalue", "[Tensor]")
    auto M = smooth_max_eigenvalue_symm(A, 10.0);
    CHECK_THAT(M, Catch::WithinAbs(lambda[2], std::log(real_t(3))));
 }
+
+// TEST_CASE("SmoothMaxEigenvalueDualDerivative", "[Tensor]")
+// {
+//    tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
+//    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+//    auto A = dot(V, dot(diag(lambda), transpose(V)));
+//    real_t beta = 2.0;
+//    auto M = smooth_max_eigenvalue_symm(make_dual(A), beta);
+//    CHECK_THAT(get_value(M), Catch::WithinAbs(lambda[2], std::log(real_t(3))/beta));
+
+//    tensor<double, 3, 3> A_p;
+//    tensor<double, 3, 3> da_dA_h{};
+//    double h = 1e-2*std::sqrt(std::numeric_limits<real_t>::epsilon());
+//    // Perturb matrix symmetrically
+//    for (int i = 0; i < 3; i++) {
+//        for (int j = 0; j < 3; j++) {
+//          A_p = A;
+//          A_p[i][j] += 0.5*h;
+//          A_p[j][i] += 0.5*h;
+//          double a_p = smooth_max_eigenvalue_symm(A_p, beta);
+//       da_dA_h[i][j] = (a_p - a.value)/h;
+//     }
+//   }
+//   auto error = a.gradient - da_dA_h;
+//   CHECK(norm(error) < 10*h);
+// }
