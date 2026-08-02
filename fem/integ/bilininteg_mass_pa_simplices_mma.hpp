@@ -495,7 +495,7 @@ inline void MmaMassApplySimplex(const int NE,
 
    const int x_ld = simplex_mma::PadLdBankRuntime(ndof);
    const int u_ld = simplex_mma::PadLdBankRuntime(nq);
-   const int nb = simplex_mma::MassLikeNBRuntime(DIM, ndof, nq);
+   const int nb = simplex_mma::MassLikeNBRuntime(ndof, nq);
    MFEM_VERIFY(x_ld <= simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(max_ndof) &&
                u_ld <= simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(max_nq) &&
                nb <= simplex_mma::NBATCH,

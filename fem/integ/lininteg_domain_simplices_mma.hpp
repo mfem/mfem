@@ -292,7 +292,7 @@ inline void MmaDLFAssembleSimplex(const int NE,
    }
 
    const int u_ld = simplex_mma::PadLdBankRuntime(nq);
-   const int nb = simplex_mma::MassLikeNBRuntime(DIM, ndof, nq);
+   const int nb = simplex_mma::MassLikeNBRuntime(ndof, nq);
    MFEM_VERIFY(u_ld <= simplex_mma::PadLdBank<simplex_mma::MmaMapDefault>(max_nq) &&
                nb <= simplex_mma::NBATCH,
                "Simplex MMA DomainLF runtime Fallback smem layout exceeds caps");
