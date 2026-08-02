@@ -32,9 +32,9 @@ namespace simplex_mma
 // Simplex mass PA helpers (host dense / device batch)
 // ---------------------------------------------------------------------------
 
-/** Hand multi-RHS NB for specialized mass (keep U in L1 on large 3D). */
+/** Blas multi-RHS NB for specialized mass (keep U in L1 on large 3D). */
 template <int DIM, int NQ>
-constexpr int HandMassNB()
+constexpr int BlasMassNB()
 {
    return (DIM == 3 && NQ > 80) ? 4 : 8;
 }
@@ -57,10 +57,10 @@ inline void ScaleUByMassD(real_t *uloc, const real_t *D, int nq, int e0, int NE,
 
 #ifdef MFEM_USE_LAPACK
 /** Mass: serial tiles, reused buffers. U = P X, scale D, Y += P^T U. */
-inline void MassApplyBlas(int NE, int nq, int ndof, const real_t *P,
+inline void MassApplyLapack(int NE, int nq, int ndof, const real_t *P,
                           const real_t *D, const real_t *X, real_t *Y)
 {
-   const int NB = HostBlasNB(nq, ndof);
+   const int NB = LapackNB(nq, ndof);
    const int ntiles = (NE + NB - 1) / NB;
    std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
    std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
@@ -70,10 +70,10 @@ inline void MassApplyBlas(int NE, int nq, int ndof, const real_t *P,
    {
       const int e0 = tile * NB;
       PackXColMajor(X, ndof, e0, NE, NB, xloc.data());
-      HostGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, xloc.data(), ndof,
+      LapackGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, xloc.data(), ndof,
                real_t(0), uloc.data(), nq);
       ScaleUByMassD(uloc.data(), D, nq, e0, NE, NB);
-      HostGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
+      LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
                real_t(0), ytmp.data(), ndof);
       ScatterAddYColMajor(ytmp.data(), ndof, e0, NE, NB, Y);
    }
@@ -81,14 +81,14 @@ inline void MassApplyBlas(int NE, int nq, int ndof, const real_t *P,
 
 #endif // MFEM_USE_LAPACK
 
-/** Always-available host BLAS entry: runs MassApplyBlas when LAPACK is on and
-    PreferHostBlas is true. Returns whether the BLAS path ran. */
-inline bool TryMassApplyBlas(int NE, int nq, int ndof, const real_t *P,
+/** Always-available host Lapack entry: runs MassApplyLapack when LAPACK is on
+    and PreferLapack is true. Returns whether the Lapack path ran. */
+inline bool TryMassApplyLapack(int NE, int nq, int ndof, const real_t *P,
                              const real_t *D, const real_t *X, real_t *Y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!PreferHostBlas(nq, ndof)) { return false; }
-   MassApplyBlas(NE, nq, ndof, P, D, X, Y);
+   if (!PreferLapack(nq, ndof)) { return false; }
+   MassApplyLapack(NE, nq, ndof, P, D, X, Y);
    return true;
 #else
    (void)NE; (void)nq; (void)ndof; (void)P; (void)D; (void)X; (void)Y;
@@ -98,19 +98,19 @@ inline bool TryMassApplyBlas(int NE, int nq, int ndof, const real_t *P,
 
 
 template <int DIM, int NDOF, int NQ>
-inline void MassApplyHandSpecialized(int NE, const real_t *P, const real_t *D,
+inline void MassApplyBlasSpecialized(int NE, const real_t *P, const real_t *D,
                                      const real_t *X, real_t *Y)
 {
-   constexpr int NB = HandMassNB<DIM, NQ>();
+   constexpr int NB = BlasMassNB<DIM, NQ>();
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
       const int e0 = tile * NB;
       alignas(64) real_t xloc[NDOF * NB];
       alignas(64) real_t uloc[NQ * NB];
-      PackXHand<NDOF, NB>(X, e0, NE, xloc);
-      HandGemmForward<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
-      HandGemmBackward<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
+      PackXBlas<NDOF, NB>(X, e0, NE, xloc);
+      BlasGemmForward<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
+      BlasGemmBackward<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
    }
 }
 
@@ -146,7 +146,7 @@ MFEM_HOST_DEVICE inline void MassApplyDenseElement(const int nq, const int ndof,
 }
 
 /** Host multi-element driver over MassApplyDenseElement. */
-inline void MassApplyHandRuntime(int NE, int nq, int ndof, const real_t *P,
+inline void MassApplyBlasRuntime(int NE, int nq, int ndof, const real_t *P,
                                  const real_t *D, const real_t *X, real_t *Y)
 {
    for (int e = 0; e < NE; ++e)
@@ -262,10 +262,10 @@ MFEM_HOST_DEVICE inline void MassBatchApplyMmaRuntime(
 
 } // namespace simplex_mma
 
-/** Host-optimized dense mass: y += P^T ( D ⊙ (P x) ) per element.
+/** Host dense mass (Lapack or Blas): y += P^T ( D ⊙ (P x) ) per element.
     Large (QND,ndof): BLAS multi-RHS when profitable; else hand tiles. */
 template<int DIM, int D1D, int QND>
-inline void PAMassApplySimplexDenseHost(const int NE,
+inline void PAMassApplySimplexDenseBlas(const int NE,
                                         const Array<real_t> &p_,
                                         const Vector &d_,
                                         const Vector &x_,
@@ -278,8 +278,8 @@ inline void PAMassApplySimplexDenseHost(const int NE,
    const real_t *X = x_.Read();
    real_t *Y = y_.ReadWrite();
 
-   if (simplex_mma::TryMassApplyBlas(NE, QND, ndof, P, D, X, Y)) { return; }
-   simplex_mma::MassApplyHandSpecialized<DIM, ndof, QND>(NE, P, D, X, Y);
+   if (simplex_mma::TryMassApplyLapack(NE, QND, ndof, P, D, X, Y)) { return; }
+   simplex_mma::MassApplyBlasSpecialized<DIM, ndof, QND>(NE, P, D, X, Y);
 }
 
 /** Portable runtime dense mass for unspecialized (D1D,QND). Works on CPU and
@@ -309,8 +309,8 @@ inline void PAMassApplySimplexDenseRuntime(const int NE,
       const real_t *D = d_.Read();
       const real_t *X = x_.Read();
       real_t *Y = y_.ReadWrite();
-      if (simplex_mma::TryMassApplyBlas(NE, nq, ndof, P, D, X, Y)) { return; }
-      simplex_mma::MassApplyHandRuntime(NE, nq, ndof, P, D, X, Y);
+      if (simplex_mma::TryMassApplyLapack(NE, nq, ndof, P, D, X, Y)) { return; }
+      simplex_mma::MassApplyBlasRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 
@@ -435,7 +435,7 @@ inline void MmaMassApplySimplex(const int NE,
    // Dedicated host path: multi-RHS dense GEMM without GPU batch/smem layout.
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      PAMassApplySimplexDenseHost<DIM, D1D, QND>(NE, p_, d_, x_, y_);
+      PAMassApplySimplexDenseBlas<DIM, D1D, QND>(NE, p_, d_, x_, y_);
       return;
    }
 
@@ -488,8 +488,8 @@ inline void MmaMassApplySimplex(const int NE,
       const real_t *D = d_.Read();
       const real_t *X = x_.Read();
       real_t *Y = y_.ReadWrite();
-      if (simplex_mma::TryMassApplyBlas(NE, nq, ndof, P, D, X, Y)) { return; }
-      simplex_mma::MassApplyHandRuntime(NE, nq, ndof, P, D, X, Y);
+      if (simplex_mma::TryMassApplyLapack(NE, nq, ndof, P, D, X, Y)) { return; }
+      simplex_mma::MassApplyBlasRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 

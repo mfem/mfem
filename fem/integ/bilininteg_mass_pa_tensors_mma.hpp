@@ -26,7 +26,7 @@ namespace internal
 {
 
 /** Prefer 1D multi-RHS GEMM for tensor SUM host apply. */
-inline bool PreferTensorSumBlas(int D1D, int Q1D, int NE)
+inline bool PreferTensorSumLapack(int D1D, int Q1D, int NE)
 {
 #ifdef MFEM_USE_LAPACK
    // Prefer when element tiling gives a wide enough 1D multi-RHS.
@@ -42,14 +42,14 @@ inline bool PreferTensorSumBlas(int D1D, int Q1D, int NE)
 // ---- Mass SUM BLAS (1D multi-RHS GEMM) -------------------------------------
 
 #ifdef MFEM_USE_LAPACK
-/** 2D mass SUM via 1D HostGemm. Column-major; panel stages use tb='T'. */
+/** 2D mass SUM via 1D LapackGemm. Column-major; panel stages use tb='T'. */
 template <int D1D, int Q1D>
-inline void MassApplyTensorsSumBlas2D(const int NE,
+inline void MassApplyTensorsSumLapack2D(const int NE,
                                       const real_t *B, const real_t *Bt,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
-   const int NB = simplex_mma::HostBlasNB(Q1D, D1D);
+   const int NB = simplex_mma::LapackNB(Q1D, D1D);
    const int n_xy = D1D * NB;
    std::vector<real_t> xloc(static_cast<size_t>(D1D) * n_xy);
    std::vector<real_t> qq(static_cast<size_t>(Q1D) * n_xy);
@@ -77,13 +77,13 @@ inline void MassApplyTensorsSumBlas2D(const int NE,
       }
 
       // Fat multi-RHS: qq[qx + Q*(dy + D*b)]
-      simplex_mma::HostGemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
+      simplex_mma::LapackGemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
                             xloc.data(), D1D, real_t(0), qq.data(), Q1D);
 
       // U_b = B * qq_b^T  (absorbs qx↔dy pack)
       for (int b = 0; b < nbe; ++b)
       {
-         simplex_mma::HostGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
+         simplex_mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
                                qq.data() + Q1D * D1D * b, Q1D,
                                real_t(0), U.data() + Q1D * Q1D * b, Q1D);
       }
@@ -103,7 +103,7 @@ inline void MassApplyTensorsSumBlas2D(const int NE,
       // T_b = Bt * U_b^T
       for (int b = 0; b < nbe; ++b)
       {
-         simplex_mma::HostGemm('N', 'T', D1D, Q1D, Q1D, real_t(1), Bt, D1D,
+         simplex_mma::LapackGemm('N', 'T', D1D, Q1D, Q1D, real_t(1), Bt, D1D,
                                U.data() + Q1D * Q1D * b, Q1D,
                                real_t(0), T.data() + D1D * Q1D * b, D1D);
       }
@@ -111,7 +111,7 @@ inline void MassApplyTensorsSumBlas2D(const int NE,
       // ytmp_b = Bt * T_b^T
       for (int b = 0; b < nbe; ++b)
       {
-         simplex_mma::HostGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
+         simplex_mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
                                T.data() + D1D * Q1D * b, D1D,
                                real_t(0), ytmp.data() + D1D * D1D * b, D1D);
       }
@@ -130,9 +130,9 @@ inline void MassApplyTensorsSumBlas2D(const int NE,
    }
 }
 
-/** 3D mass SUM via 1D HostGemm, one element at a time (RHS = D1D*D1D). */
+/** 3D mass SUM via 1D LapackGemm, one element at a time (RHS = D1D*D1D). */
 template <int D1D, int Q1D>
-inline void MassApplyTensorsSumBlas3D(const int NE,
+inline void MassApplyTensorsSumLapack3D(const int NE,
                                       const real_t *B, const real_t *Bt,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
@@ -163,13 +163,13 @@ inline void MassApplyTensorsSumBlas3D(const int NE,
          }
       }
 
-      simplex_mma::HostGemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
+      simplex_mma::LapackGemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
                             xloc.data(), D1D, real_t(0), t0.data(), Q1D);
 
       // t1_dz = B * t0_dz^T  (absorbs qx↔dy pack; dz as batch)
       for (int dz = 0; dz < D1D; ++dz)
       {
-         simplex_mma::HostGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
+         simplex_mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
                                t0.data() + Q1D * D1D * dz, Q1D,
                                real_t(0), t1.data() + Q1D * Q1D * dz, Q1D);
       }
@@ -184,7 +184,7 @@ inline void MassApplyTensorsSumBlas3D(const int NE,
             }
          }
       }
-      simplex_mma::HostGemm('N', 'N', Q1D, nq2, D1D, real_t(1), B, Q1D,
+      simplex_mma::LapackGemm('N', 'N', Q1D, nq2, D1D, real_t(1), B, Q1D,
                             Az.data(), D1D, real_t(0), U.data(), Q1D);
 
       for (int qy = 0; qy < Q1D; ++qy)
@@ -199,7 +199,7 @@ inline void MassApplyTensorsSumBlas3D(const int NE,
          }
       }
 
-      simplex_mma::HostGemm('N', 'N', D1D, nq2, Q1D, real_t(1), Bt, D1D,
+      simplex_mma::LapackGemm('N', 'N', D1D, nq2, Q1D, real_t(1), Bt, D1D,
                             U.data(), Q1D, real_t(0), Tz.data(), D1D);
 
       for (int dz = 0; dz < D1D; ++dz)
@@ -212,13 +212,13 @@ inline void MassApplyTensorsSumBlas3D(const int NE,
             }
          }
       }
-      simplex_mma::HostGemm('N', 'N', D1D, Q1D * D1D, Q1D, real_t(1), Bt, D1D,
+      simplex_mma::LapackGemm('N', 'N', D1D, Q1D * D1D, Q1D, real_t(1), Bt, D1D,
                             Ay.data(), Q1D, real_t(0), Ty.data(), D1D);
 
       // ytmp_dz = Bt * Ty_dz^T  (absorbs dy↔qx pack)
       for (int dz = 0; dz < D1D; ++dz)
       {
-         simplex_mma::HostGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
+         simplex_mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
                                Ty.data() + D1D * Q1D * dz, D1D,
                                real_t(0), ytmp.data() + D1D * D1D * dz, D1D);
       }
@@ -239,7 +239,7 @@ inline void MassApplyTensorsSumBlas3D(const int NE,
 #endif // MFEM_USE_LAPACK
 
 template <int D1D, int Q1D>
-inline bool TryMassApplyTensorsSumBlas2D(const int NE,
+inline bool TryMassApplyTensorsSumLapack2D(const int NE,
                                          const Array<real_t> &b,
                                          const Array<real_t> &bt,
                                          const Vector &d,
@@ -247,8 +247,8 @@ inline bool TryMassApplyTensorsSumBlas2D(const int NE,
                                          Vector &y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!PreferTensorSumBlas(D1D, Q1D, NE)) { return false; }
-   MassApplyTensorsSumBlas2D<D1D, Q1D>(NE, b.Read(), bt.Read(), d.Read(),
+   if (!PreferTensorSumLapack(D1D, Q1D, NE)) { return false; }
+   MassApplyTensorsSumLapack2D<D1D, Q1D>(NE, b.Read(), bt.Read(), d.Read(),
                                        x.Read(), y.ReadWrite());
    return true;
 #else
@@ -258,7 +258,7 @@ inline bool TryMassApplyTensorsSumBlas2D(const int NE,
 }
 
 template <int D1D, int Q1D>
-inline bool TryMassApplyTensorsSumBlas3D(const int NE,
+inline bool TryMassApplyTensorsSumLapack3D(const int NE,
                                          const Array<real_t> &b,
                                          const Array<real_t> &bt,
                                          const Vector &d,
@@ -266,8 +266,8 @@ inline bool TryMassApplyTensorsSumBlas3D(const int NE,
                                          Vector &y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!PreferTensorSumBlas(D1D, Q1D, NE)) { return false; }
-   MassApplyTensorsSumBlas3D<D1D, Q1D>(NE, b.Read(), bt.Read(), d.Read(),
+   if (!PreferTensorSumLapack(D1D, Q1D, NE)) { return false; }
+   MassApplyTensorsSumLapack3D<D1D, Q1D>(NE, b.Read(), bt.Read(), d.Read(),
                                        x.Read(), y.ReadWrite());
    return true;
 #else
@@ -453,12 +453,12 @@ inline void MmaMassApplyTensors(
    {
       if constexpr (DIM == 3)
       {
-         if (TryMassApplyTensorsSumBlas3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (TryMassApplyTensorsSumLapack3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
          { return; }
       }
       else
       {
-         if (TryMassApplyTensorsSumBlas2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (TryMassApplyTensorsSumLapack2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
          { return; }
       }
    }

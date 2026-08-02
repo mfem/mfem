@@ -135,16 +135,16 @@ inline void MmaDLFAssembleSimplex(const int NE,
 // ---- Runtime Fallback: host dense + device batched MMA/Dense -------------
 
 /** Host: Y_vc += P^T D. Uses multi-RHS GEMM when LAPACK is on and sizes
-    pass PreferHostBlas; otherwise a dense per-element loop.
-    PreferHostBlas is already false without MFEM_USE_LAPACK; the ifdef only
-    gates HostGemm / std::vector. */
-inline void DLFAssembleHost(int NE, int nq, int ndof, const real_t *P,
+    pass PreferLapack; otherwise a dense per-element loop.
+    PreferLapack is already false without MFEM_USE_LAPACK; the ifdef only
+    gates LapackGemm / std::vector. */
+inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
                             const real_t *D, real_t *Y, int vdim, int vc)
 {
 #ifdef MFEM_USE_LAPACK
-   if (simplex_mma::PreferHostBlas(nq, ndof))
+   if (simplex_mma::PreferLapack(nq, ndof))
    {
-      const int NB = simplex_mma::HostBlasNB(nq, ndof);
+      const int NB = simplex_mma::LapackNB(nq, ndof);
       const int ntiles = (NE + NB - 1) / NB;
       std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
       std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
@@ -162,7 +162,7 @@ inline void DLFAssembleHost(int NE, int nq, int ndof, const real_t *P,
                   D[q + nq * e];
             }
          }
-         simplex_mma::HostGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
+         simplex_mma::LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
                                uloc.data(), nq, real_t(0), ytmp.data(), ndof);
          for (int b = 0; b < NB; ++b)
          {
@@ -287,7 +287,7 @@ inline void MmaDLFAssembleSimplex(const int NE,
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      DLFAssembleHost(NE, nq, ndof, p_.Read(), d_.Read(), y_, vdim, vc);
+      DLFAssembleBlas(NE, nq, ndof, p_.Read(), d_.Read(), y_, vdim, vc);
       return;
    }
 

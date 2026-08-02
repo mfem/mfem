@@ -1488,8 +1488,8 @@ MFEM_HOST_DEVICE inline void blas_GemmT(const int M, const int ndof,
 
 /** Prefer vendor GEMM when matrices are large enough that call overhead is
     amortized. Tuned for OpenBLAS/MKL-class libraries on host; small tris stay
-    on hand multi-RHS loops. */
-inline bool PreferHostBlas(int nq, int ndof)
+    on Blas multi-RHS loops. */
+inline bool PreferLapack(int nq, int ndof)
 {
 #ifdef MFEM_USE_LAPACK
    const int mx = (nq > ndof) ? nq : ndof;
@@ -1501,8 +1501,8 @@ inline bool PreferHostBlas(int nq, int ndof)
 #endif
 }
 
-/** Multi-RHS tile width for the BLAS path (independent of hand NB=4..8). */
-inline int HostBlasNB(int nq, int ndof)
+/** Multi-RHS tile width for the Lapack path (independent of Blas NB=4..8). */
+inline int LapackNB(int nq, int ndof)
 {
    const long long work = static_cast<long long>(nq) * ndof;
    if (work >= 8000) { return 32; }
@@ -1512,7 +1512,7 @@ inline int HostBlasNB(int nq, int ndof)
 
 #ifdef MFEM_USE_LAPACK
 /** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
-inline void HostGemm(char ta, char tb, int m, int n, int k,
+inline void LapackGemm(char ta, char tb, int m, int n, int k,
                      real_t alpha, const real_t *A, int lda,
                      const real_t *B, int ldb,
                      real_t beta, real_t *C, int ldc)
@@ -1526,8 +1526,8 @@ inline void HostGemm(char ta, char tb, int m, int n, int k,
 }
 #endif
 
-// Shared host multi-RHS packing / hand GEMM (integrator-agnostic).
-// Hand path: xloc[i*NB+b]; BLAS path: column-major.
+// Shared host multi-RHS packing / Blas GEMM (integrator-agnostic).
+// Blas path: xloc[i*NB+b]; Lapack path: column-major.
 
 /** Pack X(:, e0:e0+NB) into column-major xloc[ndof * NB]; pad zeros. */
 inline void PackXColMajor(const real_t *X, int ndof, int e0, int NE, int NB,
@@ -1563,11 +1563,11 @@ inline void ScatterAddYColMajor(const real_t *ytmp, int ndof, int e0, int NE,
 }
 
 
-// ---- Hand multi-RHS GEMM (b-innermost) -------------------------------------
+// ---- Blas multi-RHS GEMM (b-innermost) -------------------------------------
 
 /** Load X tile: xloc[i*NB+b], pad zeros. */
 template <int NDOF, int NB>
-inline void PackXHand(const real_t *X, int e0, int NE, real_t *xloc)
+inline void PackXBlas(const real_t *X, int e0, int NE, real_t *xloc)
 {
    for (int i = 0; i < NDOF; ++i)
    {
@@ -1584,7 +1584,7 @@ inline void PackXHand(const real_t *X, int e0, int NE, real_t *xloc)
     B is column-major nq×ndof: B[q + NQ*i].
     If scale_mass is false, D may be null and scale is 1. */
 template <int NDOF, int NQ, int NB, bool SCALE_MASS>
-inline void HandGemmForward(const real_t *B, const real_t *xloc, real_t *uloc,
+inline void BlasGemmForward(const real_t *B, const real_t *xloc, real_t *uloc,
                             const real_t *D, int e0, int NE)
 {
    for (int q = 0; q < NQ; ++q)
@@ -1624,7 +1624,7 @@ inline void HandGemmForward(const real_t *B, const real_t *xloc, real_t *uloc,
 
 /** Y(e0+b) += B^T * U. B column-major nq×ndof. */
 template <int NDOF, int NQ, int NB>
-inline void HandGemmBackward(const real_t *B, const real_t *uloc, real_t *Y,
+inline void BlasGemmBackward(const real_t *B, const real_t *uloc, real_t *Y,
                              int e0, int NE)
 {
    for (int i = 0; i < NDOF; ++i)
