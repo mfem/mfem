@@ -120,8 +120,8 @@ protected:
 class FieldCollection
 {
 public:
-    using FieldMap = GenericMap<std::string, Field*>;
-    using IndexMap = GenericMap<std::string, int>;
+    using FieldMap = GenericFieldMap<std::string, Field*>;
+    using IndexMap = GenericFieldMap<std::string, int>;
 
 private:
     std::string name; /// Name of the collection
@@ -615,6 +615,10 @@ public:
 class DAGraph : public GraphNode
 {
 public:
+
+    using IdToIndexMap = GenericFieldMap<int, int>;
+    using IdToFieldMap = GenericFieldMap<int, Field*>;
+
     enum GradMode
     {
         FINITE_DIFF, ///< Finite difference Jacobian
@@ -624,7 +628,7 @@ public:
 
     enum InputType
     {
-        VECTOR,      ///< Asemble the input vector from individual fields
+        VECTOR,      ///< Asemble the input blockvector from individual fields
         MULTIVECTOR, ///< Asemble the multivector from individual fields
         NONE         ///< No input
     };
@@ -634,6 +638,8 @@ protected:
     Array<bool> node_owned; ///< Whether the operators are owned
     Array<int> node_depth; ///< Depth of each operator in the graph
 
+    int total_width  = 0; ///< Total width including intermediate inputs
+    int total_height = 0; ///< Total height including intermediate inputs
     int max_width  = 0;     ///< Largest operator width
     int max_height = 0;     ///< Largest operator height
     int nnodes     = 0;     ///< The number of nodes
@@ -643,13 +649,11 @@ protected:
     mutable Operator *grad = nullptr; ///< Jacobain operator
     GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
 
-    mutable Vector fx; ///< Temporary vector for function evaluation
-
     InputType input_type = InputType::VECTOR; ///< Input type for the graph
     mutable Vector x_node, y_node; ///< Temporary vectors for node evaluation
-    // mutable Vector dx, dy; ///< Temporary vectors for Jacobian computations
 
-    mutable Vector xlin; ///< Point of linearization for gradient computations
+    IdToIndexMap id_to_index; ///< Map from field ID to index in a vector of fields
+    IdToFieldMap id_to_field; ///< Map from field ID to field pointer
 
     friend class GraphGradient;
 
@@ -719,6 +723,9 @@ public:
     int MaxWidth() const {return max_width;}
     int MaxHeight() const {return max_height;}
 
+    IdToIndexMap &GetIdToIndexMap() { return id_to_index; }
+    IdToFieldMap &GetIdToFieldMap() { return id_to_field; }
+
     /// @brief Get the operator at index @a i
     GraphNode* GetNode(const int i)
     {
@@ -726,6 +733,8 @@ public:
                "index [" << i << "] is out of range [0," << nnodes << ")");
         return nodes[i];
     }
+
+    Array<GraphNode*>& Nodes() { return nodes; }
 
     /// @brief Specify whether the operator at index @a i is owned.
     void OwnNode(const int i, bool own = true)
@@ -736,12 +745,16 @@ public:
     }
 
     void Assemble();
+    bool IsAssembled() const { return assembled; }
 
     void TopologicalSort();
+    bool IsSorted() const { return sorted; }
 
     void ComputeDepth();
 
     void ValidateOffsets();
+
+    void ValidateNode(GraphNode &node);
 
     void CollectFields();
 
@@ -777,10 +790,8 @@ public:
         }
     }
 
-    void SetInputType(InputType type)
-    {
-        input_type = type;
-    }
+    void SetInputType(InputType type) { input_type = type; }
+    InputType GetInputType() const { return input_type; }
 
     /**
        @brief Apply the operator to the vector @a x 
@@ -818,13 +829,19 @@ public:
 
 class GraphGradient : public Operator
 {
+public:
+    using InputType = DAGraph::InputType;
+
 protected:
     mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
+    mutable Vector fx; ///< Point of linearization for gradient computations
+    mutable Vector x0, dx, dy;
+    Array<Vector*> x_fields; ///< Intermediate fields
 
 public:
-    GraphGradient(DAGraph *dag) :
-                  Operator(dag->Height(), dag->Width()),
-                  graph(dag) {}
+    GraphGradient(DAGraph &dag);
+
+    void Update(const Vector &x);
 
     void Mult(const Vector &x, Vector &y) const override;
 
@@ -836,9 +853,18 @@ public:
 
     void Backward(const Vector &x, Vector &y) const;
 
-    ~GraphGradient() = default;
+    ~GraphGradient()
+    {
+        for (auto &v : x_fields)
+        {
+            if(v) { delete v; v = nullptr; }
+        }
+    }
 };
 
+
+void FieldBlockVectorTransfer(const Array<int> &offsets, Array<Field*> &fields, Vector &v,
+                              std::function<void(Field&, Vector&)> assemble = nullptr);
 
 } //mfem namespace
 
