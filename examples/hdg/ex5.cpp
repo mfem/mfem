@@ -37,7 +37,7 @@
 //               to understand the extension for the Local / Hybridizable
 //               Discontinuous Galerkin methods. The benefits of lower
 //               iterations count, number of DOFs, and essential pressure trace
-//               boundary condition can be assesed.
+//               boundary condition can be assessed.
 
 #include "mfem.hpp"
 #include <fstream>

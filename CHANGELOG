@@ -73,13 +73,14 @@ Meshing improvements
 New and updated examples and miniapps
 -------------------------------------
 - Modified example 5(p) to demonstrate usage of (Par)DarcyForm.
-- Added directory 'examples/hdg' with modified verisons examples 5, 6, 14, 17,
+
+- Added directory 'examples/hdg' with modified versions examples 5, 6, 14, 17,
   21 and 41 to demonstrate algebraically reduced or hybridized methods for
   (convection-)diffusion, Darcy problem and linear elasticity.
 - Added directory 'miniapps/hdg' with miniapps demonstrating capabilities of the
   framework for mixed/reduced/hybridized systems:
   * (p)anisodiff - Demonstrates the asymptotic or steady-state heat diffusion
-                   with an anisotrotropic heat conductivity tensor solved with
+                   with an anisotropic heat conductivity tensor solved with
                    adaptive mesh refinement.
   * (p)convdiff - Shows examples of steady/time-evolving convection-diffusion
                   problems.

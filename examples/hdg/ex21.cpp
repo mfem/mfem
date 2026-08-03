@@ -30,7 +30,7 @@
 //               to understand the construction with the Hybridizable
 //               Discontinuous Galerkin method. The benefits of the native error
 //               estimate, lower number of DOFs, and faster execution can be
-//               assesed.
+//               assessed.
 
 #include "mfem.hpp"
 #include <fstream>
