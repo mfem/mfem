@@ -168,6 +168,7 @@ struct CoefficientWithOrder
 {
    Coefficient *coeff;
    int order;
+   CoefficientWithOrder() : coeff(nullptr), order(0) {}
    CoefficientWithOrder(std::nullptr_t) : coeff(nullptr), order(0) {}
    CoefficientWithOrder(Coefficient &coeff_) : coeff(&coeff_), order(1) {}
    CoefficientWithOrder(Coefficient &coeff_, int order_)
