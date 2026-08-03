@@ -3320,7 +3320,9 @@ private:
    std::unique_ptr<QuadratureSpace> q_space;
    /// Coefficients projected onto q_space
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
-   /// Workspace vector
+   /// Compact PA data: inv(J), lambda*det(J)*w, mu*det(J)*w.
+   Vector pa_data;
+   /// Workspace vector used only by the generic fallback.
    std::unique_ptr<QuadratureFunction> q_vec;
 
    /// Set up the quadrature space and project lambda and mu coefficients

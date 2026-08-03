@@ -44,8 +44,6 @@ void VerifyElasticityPASpace(const FiniteElementSpace &fes,
                typical_fe.GetMapType() == FiniteElement::VALUE,
                "Elasticity PA requires scalar, VALUE-mapped finite elements.");
 
-   // The kernels use one DofToQuad map and one integration rule for every
-   // element, so mixed geometries or element families are not supported.
    const int typical_dofs = typical_fe.GetDof();
    const Geometry::Type typical_geometry =
       mesh.GetTypicalElementTransformation()->GetGeometryType();
@@ -70,9 +68,8 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
 {
    if (IntRule == nullptr)
    {
-      // This is where it is assumed that all elements are the same.
       const auto &T = *fes.GetMesh()->GetTypicalElementTransformation();
-      int quad_order = 2 * T.OrderGrad(fes.GetTypicalFE());
+      const int quad_order = 2 * T.OrderGrad(fes.GetTypicalFE());
       IntRule = &IntRules.Get(T.GetGeometryType(), quad_order);
    }
 
@@ -89,9 +86,6 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    }
    else
    {
-      // This constructor represents lambda = q_lambda*m and mu = q_mu*m.
-      // Project wrappers rather than scaling a CoefficientVector in place,
-      // because a CoefficientVector may alias user-owned quadrature data.
       ProductCoefficient lambda_coefficient(q_lambda, *mu);
       ProductCoefficient mu_coefficient(q_mu, *mu);
       lambda_quad.reset(new CoefficientVector(lambda_coefficient, *q_space,
@@ -101,6 +95,7 @@ void ElasticityIntegrator::SetUpQuadratureSpaceAndCoefficients(
    }
 
    q_vec.reset(new QuadratureFunction(*q_space, vdim*vdim));
+   pa_data.SetSize(0);
 }
 
 void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
@@ -113,23 +108,49 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ndofs = fespace->GetTypicalFE()->GetDof();
 
    SetUpQuadratureSpaceAndCoefficients(fes);
-   auto ordering = GetEVectorOrdering(*fespace);
-   auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
-               DofToQuad::LEXICOGRAPHIC_FULL;
+   const auto ordering = GetEVectorOrdering(*fespace);
+   const auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
+                     DofToQuad::LEXICOGRAPHIC_FULL;
    maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
-   geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
+   geom = mesh.GetGeometricFactors(
+             *IntRule,
+             GeometricFactors::JACOBIANS |
+             GeometricFactors::DETERMINANTS);
+   internal::ElasticitySetupPAData(vdim, *IntRule, *lambda_quad, *mu_quad,
+                                   *geom, pa_data);
 }
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
-                                          *geom, *maps, *IntRule, diag);
+   internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *maps, *IntRule,
+                                           pa_data, diag);
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
-                                 *geom, *maps, x, *q_vec, y);
+   const FiniteElement &fe = *fespace->GetTypicalFE();
+   const auto ordering = GetEVectorOrdering(*fespace);
+
+   // Tensor kernels require lexicographic element vectors. Unsupported
+   // D1D/Q1D pairs return false and use the generic fallback below. Define
+   // MFEM_ELASTICITY_PA_DISABLE_TENSOR while building MFEM to benchmark or
+   // debug the optimized generic fallback independently.
+#ifndef MFEM_ELASTICITY_PA_DISABLE_TENSOR
+   if (ordering == ElementDofOrdering::LEXICOGRAPHIC &&
+       dynamic_cast<const TensorBasisElement *>(&fe) != nullptr)
+   {
+      const DofToQuad &tensor_maps =
+         fe.GetDofToQuad(*IntRule, DofToQuad::TENSOR);
+      if (internal::ElasticityAddMultPATensor(vdim, fespace->GetNE(),
+                                              tensor_maps, pa_data, x, y))
+      {
+         return;
+      }
+   }
+#endif
+
+   internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *maps, pa_data,
+                                  x, *q_vec, y);
 }
 
 void ElasticityIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
@@ -147,8 +168,6 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
                "Elasticity component block index is out of range.");
 
    fespace = &fes;
-   // Avoid projecting the coefficients more than once. If the coefficients
-   // change, the parent ElasticityIntegrator must be reassembled.
    if (!parent.q_space)
    {
       if (parent.IntRule == nullptr)
@@ -180,28 +199,38 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
    MFEM_VERIFY(IntRule != nullptr,
                "Elasticity component integration rule was not initialized.");
 
-   auto ordering = GetEVectorOrdering(*fespace);
-   auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
-               DofToQuad::LEXICOGRAPHIC_FULL;
-   geom = mesh.GetGeometricFactors(*IntRule, GeometricFactors::JACOBIANS);
+   const auto ordering = GetEVectorOrdering(*fespace);
+   const auto mode = ordering == ElementDofOrdering::NATIVE ? DofToQuad::FULL :
+                     DofToQuad::LEXICOGRAPHIC_FULL;
+   geom = mesh.GetGeometricFactors(
+             *IntRule,
+             GeometricFactors::JACOBIANS |
+             GeometricFactors::DETERMINANTS);
    maps = &fespace->GetTypicalFE()->GetDofToQuad(*IntRule, mode);
+
+   const int expected_size =
+      (dim*dim + 2) * parent.lambda_quad->Size();
+   if (parent.pa_data.Size() != expected_size)
+   {
+      internal::ElasticitySetupPAData(dim, *IntRule, *parent.lambda_quad,
+                                      *parent.mu_quad, *geom, parent.pa_data);
+   }
 }
 
-void ElasticityComponentIntegrator::AddMultPA(const Vector &x, Vector &y) const
+void ElasticityComponentIntegrator::AddMultPA(const Vector &x,
+                                                   Vector &y) const
 {
    internal::ElasticityComponentAddMultPA(
-      parent.vdim, parent.ndofs, *fespace, *parent.lambda_quad, *parent.mu_quad,
-      *geom, *maps, x, *parent.q_vec, y, i_block, j_block);
+      parent.vdim, parent.ndofs, *fespace, *maps, parent.pa_data,
+      x, *parent.q_vec, y, i_block, j_block);
 }
 
-void ElasticityComponentIntegrator::AddMultTransposePA(const Vector &x,
-                                                       Vector &y) const
+void ElasticityComponentIntegrator::AddMultTransposePA(
+   const Vector &x, Vector &y) const
 {
-   // Each block in the operator is symmetric, so we can just switch the roles
-   // of i_block and j_block
    internal::ElasticityComponentAddMultPA(
-      parent.vdim, parent.ndofs, *fespace, *parent.lambda_quad, *parent.mu_quad,
-      *geom, *maps, x, *parent.q_vec, y, j_block, i_block);
+      parent.vdim, parent.ndofs, *fespace, *maps, parent.pa_data,
+      x, *parent.q_vec, y, j_block, i_block);
 }
 
 } // namespace mfem
