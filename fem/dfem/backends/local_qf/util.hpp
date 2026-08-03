@@ -108,40 +108,44 @@ struct qf_param_slot
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Builds a register-bank tuple covering the q-function parameter slots
+/// `[K0, N)`. `K` is the recursion cursor and starts at `K0`; the resulting
+/// tuple is indexed from 0, so a bank starting at `K0 > 0` has its slot indices
+/// rebased by `-K0` relative to the q-function parameter list.
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
-   std::size_t K, std::size_t N, typename... Acc>
+   std::size_t K0, std::size_t K, std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl;
 
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
-   std::size_t N, typename... Acc>
-struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, N, N, Acc...>
+   std::size_t K0, std::size_t N, typename... Acc>
+struct build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t, outputs_t, MQ1, K0, N, N, Acc...>
 {
    using type = tuple<Acc...>;
-   static_assert(sizeof...(Acc) == N);
+   static_assert(sizeof...(Acc) == N - K0);
    static_assert(sizeof...(Acc) <= 9);
 };
 
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
-   std::size_t K, std::size_t N, typename... Acc>
+   std::size_t K0, std::size_t K, std::size_t N, typename... Acc>
 struct build_args_reg_tuple_impl
 {
    using qf_reg_param_t = typename qf_param_slot<qfunc_t, K>::qf_reg_param_t;
    using R = typename backend_t::template QReg<qf_reg_param_t>;
    using type = typename build_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
-         outputs_t, MQ1, K + 1, N, Acc..., R>::type;
+         outputs_t, MQ1, K0, K + 1, N, Acc..., R>::type;
 };
 
 template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
 using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
-      inputs_t, outputs_t, MQ1, 0,
+      inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
 /// Register bank covering q-function inputs only (same types as first
@@ -151,65 +155,21 @@ template <
    typename backend_t,
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
 using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
-      inputs_t, outputs_t, MQ1, 0,
+      inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value>::type;
 
-///////////////////////////////////////////////////////////////////////////////
-/// Flat component access for a q-function argument (scalar / dual / tensor).
-///
-/// Components are addressed column-major as `c = i_vdim + extents[0]*i_opdim`,
-/// matching the byVDIM layout used by `process_qf_arg` / `process_qf_result`.
-/// These let the cached derivative setup/apply seed trial directions and gather
-/// Jacobian rows directly through the register driver, without an intermediate
-/// per-quadrature-point buffer or `map_scratch`.
-template <typename ARG>
-MFEM_HOST_DEVICE inline real_t qf_flat_value(const ARG &a, int c)
-{
-   if constexpr (std::is_same_v<ARG, real_t> || is_dual_number<ARG>::value)
-   {
-      MFEM_CONTRACT_VAR(c);
-      return qf_store_value(a);
-   }
-   else
-   {
-      constexpr int RNK = qf_param_shape<ARG>::rank;
-      if constexpr (RNK == 0) { return qf_store_value(a(0)); }
-      else if constexpr (RNK == 1) { return qf_store_value(a(c)); }
-      else
-      {
-         constexpr int e0 = qf_param_shape<ARG>::extents[0];
-         return qf_store_value(a(c % e0, c / e0));
-      }
-   }
-}
-
-template <typename ARG>
-MFEM_HOST_DEVICE inline real_t qf_flat_gradient(const ARG &a, int c)
-{
-   if constexpr (is_dual_number<ARG>::value)
-   {
-      MFEM_CONTRACT_VAR(c);
-      return a.gradient;
-   }
-   else if constexpr (qf_param_uses_dual_v<ARG>)
-   {
-      constexpr int RNK = qf_param_shape<ARG>::rank;
-      if constexpr (RNK == 0) { return a(0).gradient; }
-      else if constexpr (RNK == 1) { return a(c).gradient; }
-      else
-      {
-         constexpr int e0 = qf_param_shape<ARG>::extents[0];
-         return a(c % e0, c / e0).gradient;
-      }
-   }
-   else
-   {
-      // Non-dual argument carries no tangent: its derivative contribution is 0.
-      MFEM_CONTRACT_VAR(a);
-      MFEM_CONTRACT_VAR(c);
-      return real_t(0);
-   }
-}
+/// Register bank covering q-function outputs only (same types as the slots
+/// from `n_inputs` onward in args_reg_t). Used where the primal / trial inputs
+/// live in a separate bank and only the test registers are integrated.
+/// Slot `o` of this bank is q-function parameter `n_inputs + o`.
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
+using output_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
+      inputs_t, outputs_t, MQ1,
+      tuple_size<inputs_t>::value,
+      tuple_size<inputs_t>::value,
+      tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
 template <typename ARG>
 MFEM_HOST_DEVICE inline void qf_set_flat_value(ARG &a, int c, real_t v)
@@ -267,6 +227,143 @@ MFEM_HOST_DEVICE inline void qf_set_flat_gradient(ARG &a, int c, real_t v)
       // Non-dual argument (e.g. Weight): never an active trial direction.
       MFEM_CONTRACT_VAR(a);
       MFEM_CONTRACT_VAR(c);
+      MFEM_CONTRACT_VAR(v);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// Two-index component access for a q-function argument.
+///
+/// `i` indexes vdim, `k` indexes the operator dimension, matching the
+/// column-major packing `c = i + extents[0]*k` of the flat accessors above.
+/// Prefer these wherever the caller already has both indices: the flat form
+/// would have to undo the packing with an integer division, which is expensive
+/// on device and pointless when `(i, k)` are right there.
+///
+/// The runtime extents of the callers agree with the static extents of `ARG`:
+/// for rank 2, `vdim == extents[0]` and `op_dim == extents[1]`; for rank 1 one
+/// of the two is 1 and the corresponding index is always 0, so `a(i + k)`
+/// selects the right component; for rank 0 both are 1.
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_value_at(const ARG &a, int i, int k)
+{
+   if constexpr (std::is_same_v<ARG, real_t> || is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      return qf_store_value(a);
+   }
+   else
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0)
+      {
+         MFEM_CONTRACT_VAR(i);
+         MFEM_CONTRACT_VAR(k);
+         return qf_store_value(a(0));
+      }
+      else if constexpr (RNK == 1) { return qf_store_value(a(i + k)); }
+      else { return qf_store_value(a(i, k)); }
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline real_t qf_gradient_at(const ARG &a, int i, int k)
+{
+   if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      return a.gradient;
+   }
+   else if constexpr (qf_param_uses_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0)
+      {
+         MFEM_CONTRACT_VAR(i);
+         MFEM_CONTRACT_VAR(k);
+         return a(0).gradient;
+      }
+      else if constexpr (RNK == 1) { return a(i + k).gradient; }
+      else { return a(i, k).gradient; }
+   }
+   else
+   {
+      // Non-dual argument carries no tangent: its derivative contribution is 0.
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      return real_t(0);
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline void qf_set_value_at(ARG &a, int i, int k, real_t v)
+{
+   if constexpr (std::is_same_v<ARG, real_t>)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      a = v;
+   }
+   else if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      a.value = v;
+   }
+   else
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      constexpr bool D = qf_param_uses_dual_v<ARG>;
+      if constexpr (RNK == 0)
+      {
+         MFEM_CONTRACT_VAR(i);
+         MFEM_CONTRACT_VAR(k);
+         if constexpr (D) { a(0).value = v; }
+         else { a(0) = v; }
+      }
+      else if constexpr (RNK == 1)
+      {
+         if constexpr (D) { a(i + k).value = v; }
+         else { a(i + k) = v; }
+      }
+      else
+      {
+         if constexpr (D) { a(i, k).value = v; }
+         else { a(i, k) = v; }
+      }
+   }
+}
+
+template <typename ARG>
+MFEM_HOST_DEVICE inline void qf_set_gradient_at(ARG &a, int i, int k, real_t v)
+{
+   if constexpr (is_dual_number<ARG>::value)
+   {
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
+      a.gradient = v;
+   }
+   else if constexpr (qf_param_uses_dual_v<ARG>)
+   {
+      constexpr int RNK = qf_param_shape<ARG>::rank;
+      if constexpr (RNK == 0)
+      {
+         MFEM_CONTRACT_VAR(i);
+         MFEM_CONTRACT_VAR(k);
+         a(0).gradient = v;
+      }
+      else if constexpr (RNK == 1) { a(i + k).gradient = v; }
+      else { a(i, k).gradient = v; }
+   }
+   else
+   {
+      // Non-dual argument (e.g. Weight): never an active trial direction.
+      MFEM_CONTRACT_VAR(a);
+      MFEM_CONTRACT_VAR(i);
+      MFEM_CONTRACT_VAR(k);
       MFEM_CONTRACT_VAR(v);
    }
 }
