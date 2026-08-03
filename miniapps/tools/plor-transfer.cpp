@@ -59,11 +59,12 @@ string direction;
 
 // Exact functions to project
 real_t RHO_exact(const Vector &x);
+real_t weight(const Vector &x);
 
 // Helper functions
 void visualize(VisItDataCollection &, string, int, int, int /* visport */);
 real_t compute_mass(ParFiniteElementSpace *, real_t, VisItDataCollection &,
-                    string);
+                    string, CoefficientWithOrder);
 
 int main(int argc, char *argv[])
 {
@@ -80,6 +81,7 @@ int main(int argc, char *argv[])
    bool useH1 = false;
    int visport = 19916;
    bool use_pointwise_transfer = false;
+   bool use_weighted_transfer = false;
    const char *device_config = "cpu";
    bool use_ea       = false;
 
@@ -102,6 +104,9 @@ int main(int argc, char *argv[])
    args.AddOption(&use_pointwise_transfer, "-t", "--use-pointwise-transfer",
                   "-no-t", "--dont-use-pointwise-transfer",
                   "Use pointwise transfer operators instead of L2 projection.");
+   args.AddOption(&use_weighted_transfer, "-w", "--use-weighted-transfer",
+                  "-no-w", "--dont-use-weighted-transfer",
+                  "Use coefficient-weighted L2 projection.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&use_ea, "-ea", "--ea-version", "-no-ea",
@@ -154,6 +159,14 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fespace(&mesh, fec);
    ParFiniteElementSpace fespace_lor(&mesh_lor, fec_lor);
 
+   FunctionCoefficient weight_fn_coeff(weight);
+   CoefficientWithOrder weight_coeff;
+   if (use_weighted_transfer)
+   {
+      weight_coeff.coeff = &weight_fn_coeff;
+      weight_coeff.order = 2;
+   }
+
    ParGridFunction rho(&fespace);
    ParGridFunction rho_lor(&fespace_lor);
 
@@ -183,7 +196,8 @@ int main(int argc, char *argv[])
    rho.SetTrueVector();
    rho.SetFromTrueVector();
 
-   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ");
+   real_t ho_mass = compute_mass(&fespace, -1.0, HO_dc, "HO       ",
+                                 weight_coeff);
    if (vis) { visualize(HO_dc, "HO", Wx, Wy, visport); Wx += offx; }
 
    GridTransfer *gt;
@@ -193,7 +207,8 @@ int main(int argc, char *argv[])
    }
    else
    {
-      gt = new L2ProjectionGridTransfer(fespace, fespace_lor);
+      gt = new L2ProjectionGridTransfer(fespace, fespace_lor, weight_coeff,
+                                        weight_coeff);
    }
 
    // Configure element assembly for device acceleration
@@ -204,7 +219,7 @@ int main(int argc, char *argv[])
    // HO->LOR restriction
    direction = "HO -> LOR @ LOR";
    R.Mult(rho, rho_lor);
-   compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ");
+   compute_mass(&fespace_lor, ho_mass, LOR_dc, "R(HO)    ", weight_coeff);
    if (vis) { visualize(LOR_dc, "R(HO)", Wx, Wy, visport); Wx += offx; }
    auto global_max = [](const Vector& v)
    {
@@ -221,7 +236,7 @@ int main(int argc, char *argv[])
       direction = "HO -> LOR @ HO";
       ParGridFunction rho_prev = rho;
       P.Mult(rho_lor, rho);
-      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ");
+      compute_mass(&fespace, ho_mass, HO_dc, "P(R(HO)) ", weight_coeff);
       if (vis) { visualize(HO_dc, "P(R(HO))", Wx, Wy, visport); Wx = 0; Wy += offy; }
 
       rho_prev -= rho;
@@ -263,7 +278,8 @@ int main(int argc, char *argv[])
    direction = "LOR -> HO @ LOR";
    rho_lor.ProjectCoefficient(RHO);
    ParGridFunction rho_lor_prev = rho_lor;
-   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ");
+   real_t lor_mass = compute_mass(&fespace_lor, -1.0, LOR_dc, "LOR      ",
+                                  weight_coeff);
    if (vis) { visualize(LOR_dc, "LOR", Wx, Wy, visport); Wx += offx; }
 
    if (gt->SupportsBackwardsOperator())
@@ -272,14 +288,14 @@ int main(int argc, char *argv[])
       // Prolongate to HO space
       direction = "LOR -> HO @ HO";
       P.Mult(rho_lor, rho);
-      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ");
+      compute_mass(&fespace, lor_mass, HO_dc, "P(LOR)   ", weight_coeff);
       if (vis) { visualize(HO_dc, "P(LOR)", Wx, Wy, visport); Wx += offx; }
 
       // Restrict back to LOR space. This won't give the original function because
       // the rho_lor doesn't necessarily live in the range of R.
       direction = "LOR -> HO @ LOR";
       R.Mult(rho, rho_lor);
-      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))");
+      compute_mass(&fespace_lor, lor_mass, LOR_dc, "R(P(LOR))", weight_coeff);
       if (vis) { visualize(LOR_dc, "R(P(LOR))", Wx, Wy, visport); }
 
       rho_lor_prev -= rho_lor;
@@ -340,6 +356,12 @@ real_t RHO_exact(const Vector &x)
 }
 
 
+real_t weight(const Vector &x)
+{
+   return x(0)*x(0) + x(1)*x(1) + 1.0;
+}
+
+
 void visualize(VisItDataCollection &dc, string prefix, int x, int y,
                int visport)
 {
@@ -359,11 +381,23 @@ void visualize(VisItDataCollection &dc, string prefix, int x, int y,
 
 
 real_t compute_mass(ParFiniteElementSpace *L2, real_t massL2,
-                    VisItDataCollection &dc, string prefix)
+                    VisItDataCollection &dc, string prefix,
+                    CoefficientWithOrder mass_coeff)
 {
+   Mesh &mesh = *L2->GetMesh();
+   const int order = 2*L2->GetMaxElementOrder()
+                     + mesh.GetTypicalElementTransformation()->OrderW()
+                     + mass_coeff.order;
+
    ConstantCoefficient one(1.0);
+   DomainLFIntegrator *integ = mass_coeff
+                               ? new DomainLFIntegrator(*mass_coeff.coeff)
+                               : new DomainLFIntegrator(one);
+   integ->SetIntegrationRule(
+      IntRules.Get(mesh.GetTypicalElementGeometry(), order));
+
    ParLinearForm lf(L2);
-   lf.AddDomainIntegrator(new DomainLFIntegrator(one));
+   lf.AddDomainIntegrator(integ);
    lf.Assemble();
 
    real_t newmass = lf(*dc.GetParField("density"));
