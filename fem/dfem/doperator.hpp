@@ -1346,7 +1346,7 @@ void DifferentiableOperator::AddIntegrator(
          //mfem::out << get_type_name<output_t>() << "\n";
          //mfem::out << get_type_name<input_t>() << "\n";
 
-         dqfunc_t dqfunc;
+         dqfunc_t dqfunc(qfunc);
 
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
