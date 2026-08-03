@@ -2985,6 +2985,29 @@ inline int LapackNBDiffusion(int nq, int ndof)
    return LapackNB(nq, ndof);
 }
 
+/** Tensor (quad/hex) host Lapack/hand tile width over elements.
+    Balance fat Accelerate N vs pack traffic and GCD tile count on M2. */
+inline int TensorLapackNB(int D1D, int Q1D)
+{
+   const long long work = static_cast<long long>(D1D) * Q1D;
+   // Quads: enough elements per GCD task to amortize, enough tiles for cores.
+   if (work <= 24) { return 48; }  // p=3 (4×5)
+   if (work <= 30) { return 32; }  // p=4 (5×6)
+   if (work <= 42) { return 64; }  // p=5 (6×7)
+   if (work <= 56) { return 96; }  // p=6
+   return 64;                      // p≥7
+}
+
+/** 3D tensor element batch: RHS per elem = D1D²; keep total columns large. */
+inline int TensorLapackNB3D(int D1D, int Q1D)
+{
+   (void)Q1D;
+   if (D1D <= 4) { return 48; } // p=3, cols = 16*48 = 768
+   if (D1D <= 5) { return 32; } // p=4
+   if (D1D <= 7) { return 24; }
+   return 16;
+}
+
 #ifdef MFEM_USE_LAPACK
 /** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
 inline void LapackGemm(char ta, char tb, int m, int n, int k,
