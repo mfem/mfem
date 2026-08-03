@@ -18,9 +18,9 @@
 #define MFEM_CONFIG_HPP
 
 #ifdef MFEM_CONFIG_FILE
-#include MFEM_CONFIG_FILE
+#include MFEM_CONFIG_FILE // IWYU pragma: export
 #else
-#include "_config.hpp"
+#include "_config.hpp" // IWYU pragma: export
 #endif
 
 #include <cstdint>

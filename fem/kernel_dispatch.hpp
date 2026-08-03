@@ -48,7 +48,11 @@ namespace mfem
 
 #define MFEM_REGISTER_KERNELS(KernelName, KernelType, ...)                     \
    MFEM_EXPAND(MFEM_EXPAND(MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1,))          \
-      (KernelName,KernelType,__VA_ARGS__))
+      (MFEM_EXPORT, KernelName, KernelType, __VA_ARGS__))
+
+#define MFEM_REGISTER_KERNELS_HEADER_ONLY(KernelName, KernelType, ...)         \
+   MFEM_EXPAND(MFEM_EXPAND(MFEM_REGISTER_KERNELS_N(__VA_ARGS__,2,1,))          \
+      (, KernelName, KernelType, __VA_ARGS__))
 
 #define MFEM_REGISTER_KERNELS_N(_1, _2, N, ...) MFEM_REGISTER_KERNELS_##N
 
@@ -58,19 +62,19 @@ namespace mfem
 
 // Version of MFEM_REGISTER_KERNELS without any "optional" (non-dispatch)
 // parameters.
-#define MFEM_REGISTER_KERNELS_1(KernelName, KernelType, Params)                \
-   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, (), Params)
+#define MFEM_REGISTER_KERNELS_1(ExportMacro, KernelName, KernelType, Params)   \
+   MFEM_REGISTER_KERNELS_(ExportMacro, KernelName, KernelType, Params, (), Params)
 
 // Version of MFEM_REGISTER_KERNELS without any optional (non-dispatch)
 // parameters (e.g. NBZ).
-#define MFEM_REGISTER_KERNELS_2(KernelName, KernelType, Params, OptParams)     \
-   MFEM_REGISTER_KERNELS_(KernelName, KernelType, Params, OptParams,           \
+#define MFEM_REGISTER_KERNELS_2(ExportMacro, KernelName, KernelType, Params, OptParams) \
+   MFEM_REGISTER_KERNELS_(ExportMacro, KernelName, KernelType, Params, OptParams,       \
                           (MFEM_PARAM_LIST Params, MFEM_PARAM_LIST OptParams))
 
 // P1 are the parameters, P2 are the optional (non-dispatch parameters), and P3
 // is the concatenation of P1 and P2. We need to pass it as a separate argument
 // to avoid a trailing comma in the case that P2 is empty.
-#define MFEM_REGISTER_KERNELS_(KernelName, KernelType, P1, P2, P3)             \
+#define MFEM_REGISTER_KERNELS_(ExportMacro, KernelName, KernelType, P1, P2, P3) \
   class KernelName                                                             \
       : public ::mfem::KernelDispatchTable<                                    \
             KernelName, KernelType,                                            \
@@ -80,8 +84,8 @@ namespace mfem
     const char *kernel_name = MFEM_KERNEL_NAME(KernelName);                    \
     using KernelSignature = KernelType;                                        \
     template <MFEM_PARAM_LIST P3> static KernelSignature Kernel();             \
-    static MFEM_EXPORT KernelSignature Fallback(MFEM_PARAM_LIST P1);           \
-    static MFEM_EXPORT KernelName &Get() {                                     \
+    static ExportMacro KernelSignature Fallback(MFEM_PARAM_LIST P1);           \
+    static ExportMacro KernelName &Get() {                                     \
       static KernelName table;                                                 \
       return table;                                                            \
     }                                                                          \

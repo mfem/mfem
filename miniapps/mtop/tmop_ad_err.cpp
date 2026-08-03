@@ -158,10 +158,10 @@ void NodeAwareTMOPQuality::UpdateMesh(mfem::Vector const &U)
 
 double NodeAwareTMOPQuality::EvalQoI()
 {
-  this->UpdateMesh(designVar);
+  //this->UpdateMesh(designVar);
 
   ::mfem::Vector Xi(X0_.Size()); Xi = X0_;
-  Xi += designVar;
+  //Xi += designVar;
 
   mfem::TMOP_Integrator *TMOPInteg = new mfem::TMOP_Integrator(metric_in, target_in);
   // std::cout << metric_in << " " << target_in << " k10info\n";
@@ -181,10 +181,10 @@ double NodeAwareTMOPQuality::EvalQoI()
 
 void NodeAwareTMOPQuality::EvalQoIGrad()
 {
-  this->UpdateMesh(designVar);
+  //this->UpdateMesh(designVar);
 
   ::mfem::ParGridFunction Xi(coord_fes_); Xi = X0_;
-  Xi += designVar;
+  //Xi += designVar;
 
   int targetId = 1;
   int metricId = 2;
@@ -1109,7 +1109,7 @@ void PhysicsSolverBase::UpdateMesh(Vector const &U)
 
 double QuantityOfInterest::EvalQoI()
 {
-  this->UpdateMesh(designVar);
+  //this->UpdateMesh(designVar);
 
   ParGridFunction oneGridFunction = ParGridFunction(temp_fes_);
   oneGridFunction = 1.0;
@@ -1155,7 +1155,7 @@ double QuantityOfInterest::EvalQoI()
 
 void QuantityOfInterest::EvalQoIGrad()
 {
-  this->UpdateMesh(designVar);
+  //this->UpdateMesh(designVar);
 
   ConstantCoefficient one(1.0);
   BilinearFormIntegrator *integ = nullptr;

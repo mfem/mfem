@@ -32,7 +32,7 @@ function(add_benchmark name)
     endif(MFEM_USE_CUDA)
 
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
-    target_link_libraries(bench_${name} mfem pthread)
+    target_link_libraries(bench_${name} PRIVATE mfem pthread)
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
     add_test(NAME bench_${name}_cpu
@@ -51,6 +51,7 @@ endfunction(add_benchmark)
 #-------------------------------------------------------------------------------
 add_benchmark(assembly_levels)
 add_benchmark(ceed)
+add_benchmark(dfem)
 add_benchmark(dg_amr)
 add_benchmark(elasticity)
 add_benchmark(tmop)

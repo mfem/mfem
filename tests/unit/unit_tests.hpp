@@ -36,4 +36,27 @@ inline Approx MFEM_Approx(double val,
    return Approx(val).margin(abs_tol).epsilon(rel_tol);
 }
 
+/** @brief Generate values with extra if '--all' option is provided,
+    otherwise just generate from base. */
+struct GenAllFn
+{
+   template <typename Base, typename Extra>
+   auto operator()(const Base &base, const Extra &extra) const
+   {
+      return !launch_all_non_regression_tests
+             ? GENERATE_COPY(from_range(base))
+             : GENERATE_COPY(from_range(base), from_range(extra));
+   }
+
+   auto operator()(const std::initializer_list<int> &base,
+                   const std::initializer_list<int> &extra) const
+   {
+      return !launch_all_non_regression_tests
+             ? GENERATE_REF(from_range(base))
+             : GENERATE_REF(from_range(base), from_range(extra));
+   }
+};
+
+inline constexpr GenAllFn GenAll {};
+
 #endif

@@ -14,6 +14,9 @@
 
 #include "mfem.hpp"
 
+#include "../../fem/dfem/doperator.hpp"
+#include "../../fem/dfem/parameterspace.hpp"
+
 using real_t = mfem::real_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -213,6 +216,10 @@ public:
       {
          dtq.nqpt = ir.GetNPoints();
       }
+
+      const Operator* GetB() const override { return nullptr; }
+
+      const Operator* GetBt() const override { return nullptr; }
    };
 
    // creates a list with essential dofs
@@ -251,6 +258,7 @@ private:
    int linear_iter;
 
    mfem::HypreBoomerAMG *prec; // preconditioner
+   mfem::HypreILU *precILU; // preconditioner
    mfem::CGSolver *ls;         // linear solver
 
    // PA LOR preconditioner
@@ -309,7 +317,7 @@ private:
    mfem::Array<int> domain_attributes;
    const mfem::IntegrationRule &ir;
    mfem::QuadratureSpace qs;
-   NqptUniformParameterSpace Lambda_ps, Mu_ps;
+   mfem::VectorQuadratureSpace Lambda_qs, Mu_qs;
    std::unique_ptr<mfem::CoefficientVector> Lambda_cv, Mu_cv;
    std::unique_ptr<mfem::future::DifferentiableOperator> dop;
    // end of dFEM definitions

@@ -44,8 +44,6 @@ Discretization improvements
 - Added methods to estimate function extremum using piecewise linear bounds plus
   recursive subdivision.
 
-- Extend FindPointsGSLIB to support surface meshes.
-
 Meshing improvements
 --------------------
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
