@@ -146,7 +146,7 @@ inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
                             const real_t *D, real_t *Y, int vdim, int vc)
 {
 #ifdef MFEM_USE_LAPACK
-   if (mma::PreferLapack(nq, ndof))
+   if (mma::PreferLapack(nq, ndof, NE))
    {
       const int NB = mma::LapackNB(nq, ndof);
       const int ntiles = (NE + NB - 1) / NB;

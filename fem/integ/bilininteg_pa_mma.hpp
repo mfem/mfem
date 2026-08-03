@@ -28,6 +28,9 @@
 
 #include <algorithm>
 #include <cstdlib> // alloca
+#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
+#include <arm_neon.h>
+#endif
 
 namespace mfem
 {
@@ -2928,27 +2931,58 @@ MFEM_HOST_DEVICE inline void blas_GemmT(const int M, const int ndof,
 }
 
 /** Prefer vendor GEMM when matrices are large enough that call overhead is
-    amortized. Tuned for OpenBLAS/MKL-class libraries on host; small tris stay
-    on Blas multi-RHS loops. */
-inline bool PreferLapack(int nq, int ndof)
+    amortized, or when many elements provide a fat multi-RHS (large N) for
+    mid-size locals (tris). Tuned for OpenBLAS/MKL/Accelerate on host. */
+inline bool PreferLapack(int nq, int ndof, int NE)
 {
 #ifdef MFEM_USE_LAPACK
    const int mx = (nq > ndof) ? nq : ndof;
-   // ~ tet p>=4 (nq*ndof ≳ 1600) and larger; skip tiny tri low-p
-   return mx >= 24 && (nq * ndof) >= 1600;
+   const long long work = static_cast<long long>(nq) * ndof;
+   // Large locals: ~ tet p>=4 (nq*ndof ≳ 1600) and larger.
+   if (mx >= 24 && work >= 1600) { return true; }
+   // Mid-size locals (TRI mass p≳4): fat-N Accelerate. Tiny TRI p=1..3 stay
+   // on hand Blas — even zero-copy Accelerate loses to a tight multi-RHS loop.
+   if (NE >= 64 && work >= 180 && mx >= 8) { return true; }
+   return false;
 #else
-   (void)nq; (void)ndof;
+   (void)nq; (void)ndof; (void)NE;
    return false;
 #endif
 }
 
-/** Multi-RHS tile width for the Lapack path (independent of Blas NB=4..8). */
+/** Diffusion does 2*DIM GEMMs + metric per tile; higher bar than mass so TRI
+    BP3 p<=4 stays on the hand path (Accelerate loses there even with zero-copy). */
+inline bool PreferLapackDiffusion(int nq, int ndof, int NE)
+{
+#ifdef MFEM_USE_LAPACK
+   const int mx = (nq > ndof) ? nq : ndof;
+   const long long work = static_cast<long long>(nq) * ndof;
+   if (mx >= 24 && work >= 1600) { return true; }
+   // ~ TRI BP3 p>=5 (nq*ndof ≳ 420).
+   if (NE >= 64 && work >= 400 && mx >= 16) { return true; }
+   return false;
+#else
+   (void)nq; (void)ndof; (void)NE;
+   return false;
+#endif
+}
+
+/** Multi-RHS tile width for the Lapack path (mass / generic). */
 inline int LapackNB(int nq, int ndof)
 {
    const long long work = static_cast<long long>(nq) * ndof;
+   // Mid-size locals (tri mass p≳4): fat multi-RHS.
+   if (work < 800) { return 256; }
+   if (work < 1600) { return 128; }
    if (work >= 8192) { return 32; }
    if (work >= 2048) { return 16; }
    return 8;
+}
+
+/** Diffusion Lapack tile width (same schedule as mass). */
+inline int LapackNBDiffusion(int nq, int ndof)
+{
+   return LapackNB(nq, ndof);
 }
 
 #ifdef MFEM_USE_LAPACK
@@ -3028,6 +3062,48 @@ template <int NDOF, int NQ, int NB, bool SCALE_MASS>
 inline void blas_Gemm(const real_t *B, const real_t *xloc, real_t *uloc,
                       const real_t *D, int e0, int NE)
 {
+#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
+   if constexpr (NB % 2 == 0)
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         float64x2_t ubv[NB / 2];
+         for (int b2 = 0; b2 < NB / 2; ++b2) { ubv[b2] = vdupq_n_f64(0.0); }
+         for (int i = 0; i < NDOF; ++i)
+         {
+            const float64x2_t bqi = vdupq_n_f64(B[q + NQ * i]);
+            for (int b2 = 0; b2 < NB / 2; ++b2)
+            {
+               ubv[b2] = vfmaq_f64(ubv[b2], bqi,
+                                   vld1q_f64(xloc + i * NB + 2 * b2));
+            }
+         }
+         if constexpr (SCALE_MASS)
+         {
+            for (int b2 = 0; b2 < NB / 2; ++b2)
+            {
+               const int b = 2 * b2;
+               real_t ub[2];
+               vst1q_f64(ub, ubv[b2]);
+               for (int k = 0; k < 2; ++k)
+               {
+                  const int e = e0 + b + k;
+                  const real_t dq = (e < NE) ? D[q + NQ * e] : real_t(0);
+                  uloc[q * NB + b + k] = ub[k] * dq;
+               }
+            }
+         }
+         else
+         {
+            for (int b2 = 0; b2 < NB / 2; ++b2)
+            {
+               vst1q_f64(uloc + q * NB + 2 * b2, ubv[b2]);
+            }
+         }
+      }
+      return;
+   }
+#endif
    for (int q = 0; q < NQ; ++q)
    {
       real_t ub[NB];
@@ -3063,11 +3139,80 @@ inline void blas_Gemm(const real_t *B, const real_t *xloc, real_t *uloc,
    }
 }
 
+/** Like blas_Gemm but reads X as column-major X[i + NDOF*(e0+b)] (no pack).
+    Requires a full tile: e0+NB <= NE. */
+template <int NDOF, int NQ, int NB, bool SCALE_MASS>
+inline void blas_GemmFromColMajor(const real_t *B, const real_t *X, int e0,
+                                  real_t *uloc, const real_t *D)
+{
+   for (int q = 0; q < NQ; ++q)
+   {
+      real_t ub[NB];
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b) { ub[b] = real_t(0); }
+      for (int i = 0; i < NDOF; ++i)
+      {
+         const real_t bqi = B[q + NQ * i];
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            ub[b] += bqi * X[i + NDOF * (e0 + b)];
+         }
+      }
+      if constexpr (SCALE_MASS)
+      {
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            uloc[q * NB + b] = ub[b] * D[q + NQ * (e0 + b)];
+         }
+      }
+      else
+      {
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            uloc[q * NB + b] = ub[b];
+         }
+      }
+   }
+}
+
 /** Y(e0+b) += B^T * U. B column-major nq×ndof. */
 template <int NDOF, int NQ, int NB>
 inline void blas_GemmT(const real_t *B, const real_t *uloc, real_t *Y,
                        int e0, int NE)
 {
+#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
+   if constexpr (NB % 2 == 0)
+   {
+      for (int i = 0; i < NDOF; ++i)
+      {
+         float64x2_t ybv[NB / 2];
+         for (int b2 = 0; b2 < NB / 2; ++b2) { ybv[b2] = vdupq_n_f64(0.0); }
+         for (int q = 0; q < NQ; ++q)
+         {
+            const float64x2_t bqi = vdupq_n_f64(B[q + NQ * i]);
+            for (int b2 = 0; b2 < NB / 2; ++b2)
+            {
+               ybv[b2] = vfmaq_f64(ybv[b2], bqi,
+                                   vld1q_f64(uloc + q * NB + 2 * b2));
+            }
+         }
+         for (int b2 = 0; b2 < NB / 2; ++b2)
+         {
+            real_t yb[2];
+            vst1q_f64(yb, ybv[b2]);
+            for (int k = 0; k < 2; ++k)
+            {
+               const int e = e0 + 2 * b2 + k;
+               if (e < NE) { Y[i + NDOF * e] += yb[k]; }
+            }
+         }
+      }
+      return;
+   }
+#endif
    for (int i = 0; i < NDOF; ++i)
    {
       real_t yb[NB];
@@ -3087,6 +3232,60 @@ inline void blas_GemmT(const real_t *B, const real_t *uloc, real_t *Y,
       {
          const int e = e0 + b;
          if (e < NE) { Y[i + NDOF * e] += yb[b]; }
+      }
+   }
+}
+
+/** Like blas_GemmT for a full tile (e0+NB <= NE): no bounds checks. */
+template <int NDOF, int NQ, int NB>
+inline void blas_GemmTFull(const real_t *B, const real_t *uloc, real_t *Y,
+                           int e0)
+{
+#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
+   if constexpr (NB % 2 == 0)
+   {
+      for (int i = 0; i < NDOF; ++i)
+      {
+         float64x2_t ybv[NB / 2];
+         for (int b2 = 0; b2 < NB / 2; ++b2) { ybv[b2] = vdupq_n_f64(0.0); }
+         for (int q = 0; q < NQ; ++q)
+         {
+            const float64x2_t bqi = vdupq_n_f64(B[q + NQ * i]);
+            for (int b2 = 0; b2 < NB / 2; ++b2)
+            {
+               ybv[b2] = vfmaq_f64(ybv[b2], bqi,
+                                   vld1q_f64(uloc + q * NB + 2 * b2));
+            }
+         }
+         for (int b2 = 0; b2 < NB / 2; ++b2)
+         {
+            real_t yb[2];
+            vst1q_f64(yb, ybv[b2]);
+            Y[i + NDOF * (e0 + 2 * b2)] += yb[0];
+            Y[i + NDOF * (e0 + 2 * b2 + 1)] += yb[1];
+         }
+      }
+      return;
+   }
+#endif
+   for (int i = 0; i < NDOF; ++i)
+   {
+      real_t yb[NB];
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b) { yb[b] = real_t(0); }
+      for (int q = 0; q < NQ; ++q)
+      {
+         const real_t bqi = B[q + NQ * i];
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            yb[b] += bqi * uloc[q * NB + b];
+         }
+      }
+      MFEM_UNROLL(NB)
+      for (int b = 0; b < NB; ++b)
+      {
+         Y[i + NDOF * (e0 + b)] += yb[b];
       }
    }
 }

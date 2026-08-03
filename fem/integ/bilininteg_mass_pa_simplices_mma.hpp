@@ -32,11 +32,14 @@ namespace mma
 // Simplex mass PA helpers (host dense / device batch)
 // ---------------------------------------------------------------------------
 
-/** Blas multi-RHS NB for specialized mass (keep U in L1 on large 3D). */
+/** Blas multi-RHS NB for specialized mass (keep U in L1 on large 3D).
+    2D uses a wider tile: low-order tris stay on hand Blas and need fat N.
+    TRI mass p=3 (NQ=12) prefers NB=16 (measured on M2 Pro). */
 template <int DIM, int NQ>
 constexpr int BlasMassNB()
 {
-   return (DIM == 3 && NQ > 80) ? 4 : 8;
+   if constexpr (DIM == 2) { return (NQ == 12) ? 16 : 32; }
+   return (NQ > 80) ? 4 : 8;
 }
 
 /** Scale U columns by mass PA weights D(q,e): U ⊙= D. Column-major U. */
@@ -56,7 +59,9 @@ inline void ScaleUByMassD(real_t *uloc, const real_t *D, int nq, int e0, int NE,
 }
 
 #ifdef MFEM_USE_LAPACK
-/** Mass: serial tiles, reused buffers. U = P X, scale D, Y += P^T U. */
+/** Mass: serial tiles, reused buffers. U = P X, scale D, Y += P^T U.
+    Full tiles GEMM directly against X/Y (same column-major layout); only the
+    partial trailing tile packs/scatters. */
 inline void MassApplyLapack(int NE, int nq, int ndof, const real_t *P,
                             const real_t *D, const real_t *X, real_t *Y)
 {
@@ -69,13 +74,27 @@ inline void MassApplyLapack(int NE, int nq, int ndof, const real_t *P,
    for (int tile = 0; tile < ntiles; ++tile)
    {
       const int e0 = tile * NB;
-      PackXColMajor(X, ndof, e0, NE, NB, xloc.data());
-      LapackGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, xloc.data(), ndof,
-                 real_t(0), uloc.data(), nq);
-      ScaleUByMassD(uloc.data(), D, nq, e0, NE, NB);
-      LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
-                 real_t(0), ytmp.data(), ndof);
-      ScatterAddYColMajor(ytmp.data(), ndof, e0, NE, NB, Y);
+      const int nbe = std::min(NB, NE - e0);
+      const real_t *Xtile = X + static_cast<size_t>(ndof) * e0;
+      real_t *Ytile = Y + static_cast<size_t>(ndof) * e0;
+      if (nbe == NB)
+      {
+         LapackGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, Xtile, ndof,
+                    real_t(0), uloc.data(), nq);
+         ScaleUByMassD(uloc.data(), D, nq, e0, NE, NB);
+         LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
+                    real_t(1), Ytile, ndof);
+      }
+      else
+      {
+         PackXColMajor(X, ndof, e0, NE, NB, xloc.data());
+         LapackGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, xloc.data(), ndof,
+                    real_t(0), uloc.data(), nq);
+         ScaleUByMassD(uloc.data(), D, nq, e0, NE, NB);
+         LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
+                    real_t(0), ytmp.data(), ndof);
+         ScatterAddYColMajor(ytmp.data(), ndof, e0, NE, NB, Y);
+      }
    }
 }
 
@@ -87,7 +106,7 @@ inline bool TryMassApplyLapack(int NE, int nq, int ndof, const real_t *P,
                                const real_t *D, const real_t *X, real_t *Y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!PreferLapack(nq, ndof)) { return false; }
+   if (!PreferLapack(nq, ndof, NE)) { return false; }
    MassApplyLapack(NE, nq, ndof, P, D, X, Y);
    return true;
 #else
@@ -106,11 +125,20 @@ inline void MassApplyBlasSpecialized(int NE, const real_t *P, const real_t *D,
    for (int tile = 0; tile < ntiles; ++tile)
    {
       const int e0 = tile * NB;
-      alignas(64) real_t xloc[NDOF * NB];
       alignas(64) real_t uloc[NQ * NB];
-      PackXBlas<NDOF, NB>(X, e0, NE, xloc);
-      blas_Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
-      blas_GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
+      if (e0 + NB <= NE)
+      {
+         // Full tile: stream X/Y column-major directly (no pack/scatter).
+         blas_GemmFromColMajor<NDOF, NQ, NB, true>(P, X, e0, uloc, D);
+         blas_GemmTFull<NDOF, NQ, NB>(P, uloc, Y, e0);
+      }
+      else
+      {
+         alignas(64) real_t xloc[NDOF * NB];
+         PackXBlas<NDOF, NB>(X, e0, NE, xloc);
+         blas_Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
+         blas_GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
+      }
    }
 }
 
