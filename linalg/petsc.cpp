@@ -897,7 +897,10 @@ void PetscParVector::PlaceMemory(const Memory<mfem::real_t>& mem)
 void PetscParVector::ResetMemory()
 {
    MFEM_VERIFY(pdata.IsAliasForSync(),"Vector data is not an alias");
-   MFEM_VERIFY(!pdata.Empty(),"Vector data is empty");
+   PetscInt n;
+   ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
+   MFEM_VERIFY(!pdata.Empty() || !n,"Vector data is empty, local size is not");
+
    bool read = pdata.ReadRequested();
    bool usedev = pdata.DeviceRequested();
    bool write = pdata.WriteRequested();
