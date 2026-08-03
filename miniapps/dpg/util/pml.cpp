@@ -9,6 +9,9 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifndef MFEM_DPG_PML
+#define MFEM_DPG_PML
+
 #include "pml.hpp"
 
 namespace mfem
@@ -292,3 +295,5 @@ void abs_detJ_Jt_J_inv_2_function(const Vector &x, CartesianPML * pml,
 }
 
 } // namespace mfem
+
+#endif // MFEM_DPG_PML

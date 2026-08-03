@@ -839,7 +839,7 @@ public:
        Note: For vector-valued elements, the results pads up the range dimension
        to the spatial dimension. E.g., consider a stack of 5 vector-valued
        elements each representing 2D vectors, living in a 3 dimensional space.
-       Then this fucntion would give 15, not 10.
+       Then this function would give 15, not 10.
        */
    int GetVectorDim() const;
 
@@ -1323,11 +1323,23 @@ public:
         associated with i'th boundary face in the mesh object. */
    const FiniteElement *GetBE(int i) const;
 
+   /// @brief Return a "typical" boundary element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalBE() const;
+
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th face in the mesh object.  Faces in this case refer
         to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are
         points.*/
    const FiniteElement *GetFaceElement(int i) const;
+
+   /// @brief Return a "typical" face element.
+   ///
+   /// This can be used in situations where the local mesh partition may be
+   /// empty.
+   const FiniteElement *GetTypicalFaceElement() const;
 
    /** @brief Returns pointer to the FiniteElement in the FiniteElementCollection
         associated with i'th edge in the mesh object. */
@@ -1500,6 +1512,18 @@ public:
    bool IsDGSpace() const
    {
       return dynamic_cast<const L2_FECollection*>(fec) != NULL;
+   }
+
+   /// @brief Return true if the mesh contains only one topology, the elements are
+   /// all triangles or tetrahedrons, and the elements are ragged tensor elements
+   /// i.e. Bernstein/positive basis.
+   bool UsesRaggedTensorBasis() const
+   {
+      bool simplex = this->GetMesh()->IsSimplexMesh();
+      bool positive =
+         dynamic_cast<const mfem::H1Pos_TriangleElement *>(this->GetTypicalFE()) ||
+         dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(this->GetTypicalFE());
+      return simplex && positive;
    }
 
    /** In variable-order spaces on nonconforming (NC) meshes, this function
