@@ -122,7 +122,7 @@ void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
                           const int nDofs, const IntegrationRule &ir,
                           const CoefficientVector &lambda,
                           const CoefficientVector &mu, const GeometricFactors &geom,
-                          const DofToQuad &maps, Vector &emat);
+                          const DofToQuad &maps, Vector &emat, const bool add);
 
 /// @brief Elasticity kernel for AssembleDiagonalPA.
 ///
@@ -300,7 +300,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    const real_t *ipWeights = ir.GetWeights().Read();
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
-   auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
+   auto diagDev = Reshape(diag.ReadWrite(), nDofs, d, numEls);
 
    mfem::forall_2D(numEls, d, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -343,7 +343,7 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
                   }
                }
             }
-            diagDev(i, q, e) = sum;
+            diagDev(i, q, e) += sum;
          }
       }
    });
@@ -359,7 +359,8 @@ void ElasticityAssembleEA_(const int i_block,
                            const CoefficientVector &mu,
                            const GeometricFactors &geom,
                            const DofToQuad &maps,
-                           Vector &emat)
+                           Vector &emat,
+                            const bool add)
 {
    using future::tensor;
    using future::make_tensor;
@@ -374,7 +375,8 @@ void ElasticityAssembleEA_(const int i_block,
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
-   auto ematDev = Reshape(emat.Write(), nDofs, nDofs, numEls);
+   auto ematDev = Reshape(add ? emat.ReadWrite() : emat.Write(),
+                          nDofs, nDofs, numEls);
    const real_t *ipWeights = ir.GetWeights().Read();
    mfem::forall_2D(numEls, nDofs, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -410,7 +412,15 @@ void ElasticityAssembleEA_(const int i_block,
                   }
                }
             }
-            ematDev(IDof, JDof, e) = sum;
+            // EA data is stored as (trial dof, test dof, element).
+            if (add)
+            {
+               ematDev(JDof, IDof, e) += sum;
+            }
+            else
+            {
+               ematDev(JDof, IDof, e) = sum;
+            }
          }
       }
    });

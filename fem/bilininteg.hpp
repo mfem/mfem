@@ -3300,8 +3300,8 @@ class ElasticityIntegrator : public BilinearFormIntegrator
    friend class ElasticityComponentIntegrator;
 
 protected:
-   real_t q_lambda, q_mu;
-   Coefficient *lambda, *mu;
+   real_t q_lambda = 0.0, q_mu = 0.0;
+   Coefficient *lambda = nullptr, *mu = nullptr;
 
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -3312,10 +3312,10 @@ private:
 
    // PA extension
 
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int vdim, ndofs;
-   const FiniteElementSpace *fespace;   ///< Not owned.
+   const DofToQuad *maps = nullptr;         ///< Not owned
+   const GeometricFactors *geom = nullptr;  ///< Not owned
+   int vdim = 0, ndofs = 0;
+   const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
 
    std::unique_ptr<QuadratureSpace> q_space;
    /// Coefficients projected onto q_space
@@ -3332,7 +3332,7 @@ public:
    /** With this constructor $\lambda = q_l m$ and $\mu = q_m m$
        if $dim q_l + 2 q_m = 0$ then $tr(\sigma) = 0$. */
    ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
-   { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
+   { lambda = nullptr; mu = &m; q_lambda = q_l; q_mu = q_m; }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Tr,
@@ -3386,9 +3386,9 @@ class ElasticityComponentIntegrator : public BilinearFormIntegrator
    const int i_block;
    const int j_block;
 
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   const FiniteElementSpace *fespace;   ///< Not owned.
+   const DofToQuad *maps = nullptr;         ///< Not owned
+   const GeometricFactors *geom = nullptr;  ///< Not owned
+   const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
 
 public:
    /// @brief Given an ElasticityIntegrator, create an integrator that
