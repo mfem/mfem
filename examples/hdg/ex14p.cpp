@@ -108,6 +108,16 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+   if (pa && (hybridization || reduction))
+   {
+      if (Mpi::Root())
+      {
+         cerr << "Partial assembly is not supported for hybridization or reduction."
+              << endl;
+      }
+      return 1;
+   }
+
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
 

@@ -113,6 +113,17 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+
+   if (pa && hybridization)
+   {
+      if (verbose)
+      {
+         cerr << "Partial assembly is not supported for hybridization."
+              << endl;
+      }
+      return 1;
+   }
+
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
