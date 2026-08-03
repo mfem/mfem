@@ -105,6 +105,14 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
+
+   if (pa && (hybridization || reduction))
+   {
+      cerr << "Partial assembly is not supported for hybridization or reduction."
+           << endl;
+      return 1;
+   }
+
    if (trace_ess_bc && !dg && !brt)
    {
       cerr << "Essential trace BC does not work with continuous elements" << endl;

@@ -131,6 +131,17 @@ int main(int argc, char *argv[])
       args.PrintOptions(cout);
    }
 
+
+   if (pa && (hybridization || reduction))
+   {
+      if (verbose)
+      {
+         cerr << "Partial assembly is not supported for hybridization or reduction."
+              << endl;
+      }
+      return 1;
+   }
+
    if (trace_ess_bc && !dg && !brt)
    {
       if (verbose)
