@@ -37,7 +37,7 @@
 //               to understand the extension for the Local / Hybridizable
 //               Discontinuous Galerkin methods. The benefits of using a fully
 //               iterative solution with lower iterations count and number of
-//               DOFs can be assesed.
+//               DOFs can be assessed.
 
 #include "mfem.hpp"
 #include <fstream>

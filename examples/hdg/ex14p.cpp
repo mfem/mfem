@@ -35,7 +35,7 @@
 //               We recommend viewing the standard version of this example
 //               to understand the extension for the Local / Hybridizable
 //               Discontinuous Galerkin methods. The benefits of lower
-//               iterations count and number of DOFs can be assesed.
+//               iterations count and number of DOFs can be assessed.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
    // 4. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ser_ref_levels' of uniform refinement. By default,
    //    or if ser_ref_levels < 0, we choose it to be the largest number that
-   //    gives a final mesh with no more than 50,000 elements.
+   //    gives a final mesh with no more than 10,000 elements.
    {
       if (ser_ref_levels < 0)
       {

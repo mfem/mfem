@@ -30,7 +30,7 @@
 //               We recommend viewing the standard version of this example
 //               to understand the construction with the Local / Hybridizable
 //               Discontinuous Galerkin methods. The benefits of lower
-//               iterations count and number of DOFs can be assesed.
+//               iterations count and number of DOFs can be assessed.
 
 #include "mfem.hpp"
 
