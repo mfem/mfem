@@ -83,6 +83,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
   mesh/test_geometric_factors.cpp
+  mesh/test_ho_rw.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_nurbs.cpp
