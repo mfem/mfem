@@ -47,7 +47,7 @@ static int SnapMmaElementsPerDir(int n) noexcept
 
 static void CustomArguments(bm::Benchmark *benchmark) noexcept
 {
-   constexpr int MAX_NDOFS = 12 * 1024 * (mfem_use_gpu ? 1024 : 8);
+   constexpr int MAX_NDOFS = 12 * 1024 * (mfem_use_gpu ? 1024 : 32);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
@@ -521,10 +521,10 @@ REGISTER(BP, 1, HexSum);
 REGISTER(BP, 1, HexMma);
 REGISTER(BP, 1, QuadSum);
 REGISTER(BP, 1, QuadMma);
-REGISTER(BP, 1, TetGllMma);
+// REGISTER(BP, 1, TetGllMma);
 REGISTER(BP, 1, TetPosSum);
 REGISTER(BP, 1, TetPosMma);
-REGISTER(BP, 1, TriGllMma);
+// REGISTER(BP, 1, TriGllMma);
 REGISTER(BP, 1, TriPosSum);
 REGISTER(BP, 1, TriPosMma);
 
@@ -537,10 +537,10 @@ REGISTER(BP, 3, HexSum);
 REGISTER(BP, 3, HexMma);
 REGISTER(BP, 3, QuadSum);
 REGISTER(BP, 3, QuadMma);
-REGISTER(BP, 3, TetGllMma);
+// REGISTER(BP, 3, TetGllMma);
 REGISTER(BP, 3, TetPosSum);
 REGISTER(BP, 3, TetPosMma);
-REGISTER(BP, 3, TriGllMma);
+// REGISTER(BP, 3, TriGllMma);
 REGISTER(BP, 3, TriPosSum);
 REGISTER(BP, 3, TriPosMma);
 
