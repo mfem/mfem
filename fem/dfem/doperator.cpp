@@ -98,7 +98,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &default_outfds,
    const DerivativeCallbackSet &callbacks,
-   bool use_cached_setup)
+   bool use_cached_setup,
+   bool lvector_mode)
 {
    const auto it_action = callbacks.actions.find(derivative_id);
    MFEM_ASSERT(it_action != callbacks.actions.end(),
@@ -123,7 +124,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              FindOrEmpty(callbacks.assemble_sparse, derivative_id),
              FindOrEmpty(callbacks.assemble_hypre, derivative_id),
              FindOrEmpty(callbacks.assemble_diagonal, derivative_id),
-             FindOrEmpty(callbacks.setup, derivative_id));
+             FindOrEmpty(callbacks.setup, derivative_id),
+             lvector_mode);
 }
 }
 
@@ -195,7 +197,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       derivative_setup_callbacks,
       "no derivative action has been found for ID "
    },
-   true);
+   true,
+   mult_level == MultLevel::LVECTOR);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -214,7 +217,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       derivative_setup_callbacks,
       "no derivative action has been found for ID "
    },
-   use_cached_setup);
+   use_cached_setup,
+   mult_level == MultLevel::LVECTOR);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -258,7 +262,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
       second_derivative_setup_callbacks,
       "no second derivative action has been found for ID "
    },
-   false);
+   false,
+   mult_level == MultLevel::LVECTOR);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
@@ -280,7 +285,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
       second_derivative_setup_callbacks,
       "no second derivative action has been found for ID "
    },
-   use_cached_setup);
+   use_cached_setup,
+   mult_level == MultLevel::LVECTOR);
 }
 
 #endif // MFEM_USE_MPI

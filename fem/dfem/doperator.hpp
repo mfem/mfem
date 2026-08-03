@@ -236,7 +236,8 @@ public:
       &assemble_hypreparmatrix_callbacks = {},
       const std::vector<assemble_diagonal_callback_t>
       &assemble_diagonal_callbacks = {},
-      const std::vector<derivative_setup_t> &derivative_setup_callbacks = {}) :
+      const std::vector<derivative_setup_t> &derivative_setup_callbacks = {},
+      const bool lvector_mode = false) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
@@ -246,7 +247,8 @@ public:
       assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
       assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
       assemble_diagonal_callbacks(assemble_diagonal_callbacks),
-      derivative_setup_callbacks(derivative_setup_callbacks)
+      derivative_setup_callbacks(derivative_setup_callbacks),
+      lvector_mode(lvector_mode)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -278,11 +280,11 @@ public:
          MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
                      "x needs to be a BlockVector");
          const auto &bx = static_cast<const BlockVector &>(x);
-         prolongation(infds, bx, infields_l);
+         prolongation(infds, bx, infields_l, lvector_mode);
       }
       else if constexpr (std::is_same_v<vector_t, MultiVector>)
       {
-         prolongation(infds, x, infields_l);
+         prolongation(infds, x, infields_l, lvector_mode);
       }
    }
 
@@ -341,7 +343,7 @@ public:
    void Mult(const Vector &x, vector_t &y) const
    {
       EnsureQpCache();
-      prolongation(direction, x, direction_l);
+      prolongation(direction, x, direction_l, lvector_mode);
       restriction<Entity::Element>(infds, infields_l, infields_e);
       prepare_residual<Entity::Element>(outfds, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
@@ -350,7 +352,7 @@ public:
          f(infields_e, &direction_l, daction_e);
       }
       restriction_transpose<Entity::Element>(outfds, daction_e, daction_l);
-      prolongation_transpose(outfds, daction_l, y);
+      prolongation_transpose(outfds, daction_l, y, lvector_mode);
    }
 
    /// @brief Apply the derivative operator to a full input state.
@@ -560,6 +562,7 @@ private:
 
    /// Callbacks per-integrator qp caches
    std::vector<derivative_setup_t> derivative_setup_callbacks;
+   bool lvector_mode = false;
    mutable bool qp_cache_filled = false;
 
    /// @brief Ensure the qp cache is filled.
