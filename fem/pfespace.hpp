@@ -340,12 +340,14 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
-   /** @brief Compute shared triangle face DOF orientations for ND spaces.
+   /** @brief Compute shared triangle face DOF orientations for fixed-order ND
+       spaces with vdim = 1.
        For each L-DOF that is a face DOF on a shared triangular face (non-master
        side), sets ldsize[dof] = 2 and ltori[dof] = face orientation relative to
-       the master rank. Used for orientation correction around Reduce/Bcast. */
-   void GetSharedTriFaceDofOrientations(Array<int> &ltori,
-                                        Array<int> &ldsize) const;
+       the master rank. Used for orientation correction around Reduce/Bcast.
+       @return The number of off-diagonal entries reserved for these DOFs. */
+   int GetSharedTriFaceDofOrientations(Array<int> &ltori,
+                                       Array<int> &ldsize) const;
 
    int GetDofSign(int i)
    { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }

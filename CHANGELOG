@@ -20,11 +20,9 @@ Discretization improvements
 - Added methods to estimate function extremum using piecewise linear bounds +
   recursive subdivision.
 
-- Fixed face DOF orientation handling in
-  ParGridFunction::ProjectBdrCoefficientTangent for Nedelec (H(curl)) elements
-  at order >= 2 in parallel. Shared triangular face DOFs at partition boundaries
-  were communicated without the required 2x2 orientation transform, producing
-  incorrect boundary projections.
+- Fixed triangular face DOF orientation handling in
+  ParGridFunction::ProjectBdrCoefficientTangent for high-order Nedelec
+  (H(curl)) elements in parallel.
 
 Meshing improvements
 --------------------

@@ -835,17 +835,23 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
    nd_strias = glb_nd_strias > 0;
 }
 
-void ParFiniteElementSpace::GetSharedTriFaceDofOrientations(
+int ParFiniteElementSpace::GetSharedTriFaceDofOrientations(
    Array<int> &ltori, Array<int> &ldsize) const
 {
-   const int n = GetNDofs();
+   const int n = GetVSize();
    ltori.SetSize(n);  ltori = 0;
    ldsize.SetSize(n); ldsize = 0;
-   if (fec->GetOrder() <= 1 || pmesh->Dimension() != 3) { return; }
+   if (!nd_strias) { return 0; }
+   MFEM_VERIFY(GetVDim() == 1,
+               "shared triangular ND face transformations require vdim = 1");
+   MFEM_VERIFY(!IsVariableOrder(),
+               "shared triangular ND face transformations are not supported "
+               "for variable-order spaces");
 
    // Ensure face orientations have been communicated.
    pmesh->ExchangeFaceNbrData();
 
+   int nnz_offd = 0;
    const int ngrps = pmesh->GetNGroups();
    const int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
    Array<int> sdofs;
@@ -862,9 +868,11 @@ void ParFiniteElementSpace::GetSharedTriFaceDofOrientations(
          {
             ldsize[sdofs[j]] = 2;
             ltori[sdofs[j]]  = info2 % 64;
+            nnz_offd += 2;
          }
       }
    }
+   return nnz_offd;
 }
 
 void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
@@ -937,19 +945,10 @@ void ParFiniteElementSpace::Build_Dof_TrueDof_Matrix() const // matrix P
       MPI_Allreduce(&ldof, &gdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
       MPI_Allreduce(&ltdof, &gtdof, 1, HYPRE_MPI_BIG_INT, MPI_SUM, MyComm);
 
-      // Ensure face orientations have been communicated
-      pmesh->ExchangeFaceNbrData();
-
       // Locate and count non-zeros in off-diagonal portion of P
-      Array<int> ldsize(ldof); ldsize = 0;
+      Array<int> ldsize;
       Array<int> ltori; // Local triangle orientations
-      GetSharedTriFaceDofOrientations(ltori, ldsize);
-      // Count nnz_offd from triangle face DOFs already marked by the above call.
-      int nnz_offd = 0;
-      for (int ii = 0; ii < ldof; ii++)
-      {
-         if (ldsize[ii] == 2) { nnz_offd += 2; }
-      }
+      int nnz_offd = GetSharedTriFaceDofOrientations(ltori, ldsize);
       {
          int ngrps = pmesh->GetNGroups();
          int nedofs = fec->DofForGeometry(Geometry::SEGMENT);
