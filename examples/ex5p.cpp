@@ -267,7 +267,7 @@ int main(int argc, char *argv[])
    }
 
 
-   constexpr int maxIter(500);
+   const int maxIter(pa ? 1000 : 500);
    constexpr real_t rtol(1.e-6);
    constexpr real_t atol(1.e-10);
 
