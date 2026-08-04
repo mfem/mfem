@@ -183,7 +183,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
     const std::vector<FieldDescriptor> &infds,
     const std::vector<FieldDescriptor> &default_outfds,
     const SecondDerivativeCallbackSet &callbacks,
-    bool use_cached_setup)
+    bool use_cached_setup,
+    bool lvector_mode)
 {
    const second_derivative_key_t derivative_key{gradient_id, direction_id};
    const auto it_action = callbacks.actions.find(derivative_key);
@@ -211,7 +212,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
        FindOrEmpty(callbacks.assemble_sparse, derivative_key),
        FindOrEmpty(callbacks.assemble_hypre, derivative_key),
        FindOrEmpty(callbacks.assemble_diagonal, derivative_key),
-       FindOrEmpty(callbacks.setup, derivative_key));
+       FindOrEmpty(callbacks.setup, derivative_key),
+       lvector_mode);
 }
 }
 
