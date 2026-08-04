@@ -572,9 +572,6 @@ MemoryManager::MemoryManager()
 
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE)] = nullptr;
-
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] = nullptr;
-   allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE_2)] = nullptr;
    // TODO: managed/host-pinned umpire pools?
 }
 
@@ -713,8 +710,6 @@ void MemoryManager::Destroy()
    allocs[static_cast<int>(MemoryType::TEMP_HOST_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE)] = nullptr;
-   allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] = nullptr;
-   allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE_2)] = nullptr;
 #endif
 #endif
 }
@@ -745,6 +740,7 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
    switch (mt)
    {
       case MemoryType::HOST_DEBUG:
+      case MemoryType::TEMP_HOST_DEBUG:
          if (!allocs[static_cast<int>(MemoryType::HOST_DEBUG)])
          {
             MmuInit();
@@ -764,6 +760,7 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
          }
          break;
       case MemoryType::DEVICE_DEBUG:
+      case MemoryType::TEMP_DEVICE_DEBUG:
          if (!allocs[static_cast<int>(MemoryType::HOST_DEBUG)])
          {
             MmuInit();
@@ -784,6 +781,7 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
          break;
 #ifdef MFEM_USE_UMPIRE
       case MemoryType::HOST_UMPIRE:
+      case MemoryType::TEMP_HOST_UMPIRE:
       {
          if (!allocs_storage[10])
          {

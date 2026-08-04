@@ -112,9 +112,9 @@ enum class MemoryType
    DEVICE_UMPIRE,  /**< Device memory; using an Umpire allocator which can be
                         set with MemoryManager::SetUmpireDeviceAllocatorName */
    TEMP_DEVICE_UMPIRE, /** Currently maps to DEVICE_UMPIRE_2 */
-   DEVICE_UMPIRE_2, /**< Device memory; using a second Umpire allocator
+   DEVICE_UMPIRE_2 = TEMP_DEVICE_UMPIRE, /**< Device memory; using a second Umpire allocator
             settable with MemoryManager::SetUmpireDevice2AllocatorName */
-   TEMP_DEVICE_UMPIRE_2, /** Currently maps to DEVICE_UMPIRE_2 */
+   TEMP_DEVICE_UMPIRE_2 = TEMP_DEVICE_UMPIRE, /** Currently maps to DEVICE_UMPIRE_2 */
    SIZE,           ///< Number of host and device memory types
 
    PRESERVE,       /**< Pseudo-MemoryType used as default value for MemoryType

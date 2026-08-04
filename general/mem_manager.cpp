@@ -1838,14 +1838,12 @@ const char *MemoryTypeName[MemoryTypeSize] =
 #endif
    "device-debug", "temp-device-debug",
 #if defined(MFEM_USE_CUDA)
-   "cuda-umpire",  "temp-cuda-umpire",  "cuda-umpire-2", "temp-cuda-umpire-2",
+   "cuda-umpire",  "temp-cuda-umpire"
 #elif defined(MFEM_USE_HIP)
-   "hip-umpire",   "temp-hip-umpire",   "hip-umpire-2", "temp-hip-umpire-2",
+   "hip-umpire",   "temp-hip-umpire"
 #else
    "device-umpire",
    "temp-device-umpire",
-   "device-umpire-2",
-   "temp-device-umpire-2"
 #endif
 #else
    "host-std",     "host-32",       "host-64",
