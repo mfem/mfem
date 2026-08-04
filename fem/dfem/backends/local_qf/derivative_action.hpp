@@ -67,6 +67,20 @@ class DerivativeAction
    using shadow_bank_t = decltype(shadow_bank_type<backend_t, MQ1>(
                                      std::make_index_sequence<n_inputs> {}));
 
+   /// Per-quadrature-point shadow argument tuple. Only the active inputs and
+   /// the outputs are materialized; the rest are `enzyme_const` and their
+   /// shadow slots are never addressed. This is the innermost live state of the
+   /// kernel, and on device it shares a per-thread register budget capped by
+   /// the launch bounds, so the dead slots are worth removing explicitly rather
+   /// than hoping the optimizer splits the tuple.
+   template <std::size_t... Is>
+   static auto shadow_tuple_type(std::index_sequence<Is...>)
+   -> masked_args_tuple_t < args_tuple_t,
+   (Is<n_inputs ? input_activity[Is] : true)... >;
+
+   using shadow_args_t = decltype(shadow_tuple_type(
+                                     std::make_index_sequence<n_inputs + n_outputs> {}));
+
 #ifdef MFEM_USE_ENZYME
    /// Forward-mode call with the activity of every q-function parameter fixed
    /// at compile time. Outputs are always active; inputs follow
@@ -81,7 +95,7 @@ class DerivativeAction
    __attribute__((always_inline))
    MFEM_HOST_DEVICE static void call_fwddiff(qf_t &qfunc,
                                              args_tuple_t &primal_args,
-                                             args_tuple_t &shadow_args,
+                                             shadow_args_t &shadow_args,
                                              std::index_sequence<Is...>)
    {
       mfem::future::call_enzyme_fwddiff_active <
@@ -488,7 +502,8 @@ public:
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
 #ifdef MFEM_USE_ENZYME
-                  args_tuple_t primal_args {}, shadow_args {};
+                  args_tuple_t primal_args {};
+                  shadow_args_t shadow_args {};
 
                   // --------------------------------------
                   // Pulling arguments from registers to primal and shadow
