@@ -137,6 +137,14 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-fitting copy_miniapps_meshing_data)
 
+  if (MFEM_USE_ENZYME AND MFEM_USE_GSLIB)
+    add_mfem_miniapp(pmesh-fitting-enzyme
+      MAIN pmesh-fitting-enzyme.cpp
+      ${MFEM_MINIAPPS_COMMON_HEADERS}
+      LIBRARIES mfem-common)
+    add_dependencies(pmesh-fitting-enzyme copy_miniapps_meshing_data)
+  endif()
+
   add_mfem_miniapp(pmesh-digital-twin
     MAIN pmesh-digital-twin.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
