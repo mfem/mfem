@@ -76,11 +76,12 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    auto geom = GENERATE(Element::SEGMENT, Element::TRIANGLE,
                         Element::QUADRILATERAL, Element::TETRAHEDRON,
                         Element::HEXAHEDRON, Element::WEDGE, Element::PYRAMID);
-   auto mesh = CreateMesh(geom);
-   int *partition = new int[mesh.GetNE()];
    int rank = Mpi::WorldRank();
    int nprocs = Mpi::WorldSize();
    CAPTURE(geom, rank);
+
+   auto mesh = CreateMesh(geom);
+   int *partition = new int[mesh.GetNE()];
    // evenly divide all elements
    for (int i = 0, j = 0; j < mesh.GetNE(); ++j)
    {
@@ -102,6 +103,7 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    }
    SECTION("Low order")
    {
+      REQUIRE(mesh.GetNE() > 0);
       ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
       mesh.Clear();
       ParMesh pmesh2 =
@@ -112,8 +114,12 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    }
    SECTION("High order")
    {
+      REQUIRE(mesh.GetNE() > 0);
       mesh.SetCurvature(2);
-      smesh.SetCurvature(2);
+      if (rank == 0)
+      {
+         smesh.SetCurvature(2);
+      }
       ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
       mesh.Clear();
       ParMesh pmesh2 =
@@ -135,7 +141,9 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    auto geom =
       GENERATE(Element::SEGMENT, Element::TRIANGLE, Element::QUADRILATERAL,
                Element::TETRAHEDRON, Element::HEXAHEDRON, Element::WEDGE);
-   CAPTURE(geom);
+   int rank = Mpi::WorldRank();
+   int nprocs = Mpi::WorldSize();
+   CAPTURE(geom, rank);
    auto mesh = CreateMesh(geom);
    auto ndims = mesh.Dimension();
    auto ref_type =
@@ -157,8 +165,6 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    }
 
    int *partition = new int[mesh.GetNE()];
-   int rank = Mpi::WorldRank();
-   int nprocs = Mpi::WorldSize();
    // evenly divide all elements
    for (int i = 0, j = 0; j < mesh.GetNE(); ++j)
    {
@@ -185,7 +191,7 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
          }
          smesh.GeneralRefinement(refinements, 1);
       }
-      spartition.resize(mesh.GetNE());
+      spartition.resize(smesh.GetNE());
       for (int i = 0, j = 0; j < smesh.GetNE(); ++j)
       {
          spartition[j] = i;
@@ -206,7 +212,10 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    SECTION("High order")
    {
       mesh.SetCurvature(2);
-      smesh.SetCurvature(2);
+      if (rank == 0)
+      {
+         smesh.SetCurvature(2);
+      }
       ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
       mesh.Clear();
       ParMesh pmesh2 =

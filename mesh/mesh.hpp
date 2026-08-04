@@ -3032,6 +3032,8 @@ protected:
    Table edge_to_element;
    Table vertex_to_element;
 
+   int num_parts;
+
 public:
    /** @brief Construct a MeshPartitioner.
 

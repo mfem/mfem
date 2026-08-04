@@ -14834,7 +14834,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
                                  const int *partitioning_,
                                  int part_method)
-   : mesh(mesh_)
+   : mesh(mesh_), num_parts(num_parts_)
 {
    if (partitioning_)
    {
@@ -14849,6 +14849,10 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
       constexpr MemoryType mt = MemoryType::HOST;
       partitioning.MakeRef(mesh.GeneratePartitioning(num_parts_, part_method),
                            mesh.GetNE(), mt, true);
+   }
+   if (mesh.Nonconforming())
+   {
+      return;
    }
 
    Transpose(partitioning, part_to_element, num_parts_);
@@ -14899,12 +14903,15 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
 
    Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
    vertex_to_element.Swap(*vert_element);
+   MFEM_ASSERT(num_parts == part_to_element.Size(), "");
+
    delete vert_element;
 }
 
 void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
 {
-   const int num_parts = part_to_element.Size();
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractPart not supported for non-conforming meshes");
 
    MFEM_VERIFY(0 <= part_id && part_id < num_parts,
                "invalid part_id = " << part_id
@@ -15373,8 +15380,6 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
 
 void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
 {
-   const int num_parts = part_to_element.Size();
-
    MFEM_VERIFY(0 <= part_id && part_id < num_parts,
                "invalid part_id = " << part_id
                << ", num_parts = " << num_parts);
@@ -15421,6 +15426,8 @@ std::unique_ptr<FiniteElementSpace>
 MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
                                 const FiniteElementSpace &global_fespace) const
 {
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractFESpace not supported for non-conforming meshes");
    mesh_part.GetMesh(); // initialize 'mesh_part.mesh'
    // Note: the nodes of 'mesh_part.mesh' are not set by GetMesh() unless they
    // were already constructed, e.g. by ExtractPart().
@@ -15437,6 +15444,8 @@ MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
                                      const GridFunction &global_gf,
                                      FiniteElementSpace &local_fespace) const
 {
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractGridFunction not supported for non-conforming meshes");
    std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
 
    // Transfer data from 'global_gf' to 'local_gf'.
