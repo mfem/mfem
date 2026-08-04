@@ -39,3 +39,8 @@ when a picture was added for documentation.
 If that is the case, make sure the failure is indeed justified, and rerun the
 push command with the `--no-verify` option. This will skip the hooks, allowing
 you to push those changes.
+
+The `branch-history` check is run automatically through GitHub Actions. If a
+branch is known to have a large number of changes that are legitimate, the
+check can be overridden by setting  the label 'branch-history-override' on the
+pull request.

@@ -239,6 +239,13 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
+# Shadow warnings for clang only; GCC's -Wshadow flags more.
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall -Wshadow")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall")
+endif()
+
 # Shared build on Windows
 if (WIN32 AND BUILD_SHARED_LIBS)
   # CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS works only with MSVC?

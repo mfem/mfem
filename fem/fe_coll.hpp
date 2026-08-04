@@ -286,7 +286,7 @@ protected:
 class H1_FECollection : public FiniteElementCollection
 {
 protected:
-   int dim, b_type;
+   int dim, b_type, p_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
@@ -295,7 +295,7 @@ protected:
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto,
-                            const int pyrtype = 1);
+                            const int pyr_type = ScalarPyramid::DefaultType);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -320,7 +320,7 @@ public:
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
    FiniteElementCollection *Clone(int p) const override
-   { return new H1_FECollection(p, dim, b_type); }
+   { return new H1_FECollection(p, dim, b_type, p_type); }
 
    int GetConstructorOrder() const override
    { return base_p; }
@@ -367,6 +367,7 @@ private:
    int dim;
    int b_type; // BasisType
    int m_type; // map type
+   int p_type; // Pyramid type (0 -> Bergot, 1 -> Fuentes)
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -379,7 +380,7 @@ public:
    L2_FECollection(const int p, const int dim,
                    const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE,
-                   const int pyrtype = 1);
+                   const int pyr_type = ScalarPyramid::DefaultType);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -409,7 +410,7 @@ public:
    int GetBasisType() const { return b_type; }
 
    FiniteElementCollection *Clone(int p) const override
-   { return new L2_FECollection(p, dim, b_type, m_type); }
+   { return new L2_FECollection(p, dim, b_type, m_type, p_type); }
 
    int GetConstructorOrder() const override
    { return base_p; }
