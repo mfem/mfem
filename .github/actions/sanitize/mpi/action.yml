@@ -12,6 +12,11 @@
 name: 'Install MPI'
 description: 'Installs MPI and set up its environment variables'
 
+inputs:
+  NO_FLAGS:
+    description: If true, do not set any CXXFLAGS or LDFLAGS.
+    default: false
+
 runs:
   using: 'composite'
   steps:
@@ -27,6 +32,7 @@ runs:
       shell: bash
 
     - name: Env (bis)
+      if: ${{ inputs.NO_FLAGS != 'true' }}
       run: |
         echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MPI_INC}} >> $GITHUB_ENV
         echo LDFLAGS=${{env.LDFLAGS}} ${{env.MPI_LIB}} >> $GITHUB_ENV

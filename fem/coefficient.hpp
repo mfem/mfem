@@ -52,6 +52,9 @@ public:
    /// Get the time for time dependent coefficients
    real_t GetTime() { return time; }
 
+   /// Returns dimension of the vector.
+   int GetVDim() { return 1; }
+
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip. */
    /** @note When this method is called, the caller must make sure that the
