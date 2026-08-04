@@ -2,13 +2,13 @@
 //
 // Compile with: make ex6
 //
-// Sample runs:  ex6 -m ../../data/square-disc.mesh -o 1 -dg
+// Sample runs:  ex6 -m ../../data/square-disc.mesh -o 1 -dg -trh1
 //               ex6 -m ../../data/square-disc.mesh -o 2 -brt
 //               ex6 -m ../../data/square-disc-nurbs.mesh -o 2 -dg -trh1
 //               ex6 -m ../../data/star.mesh -o 3
 //               ex6 -m ../../data/escher.mesh -o 2 -dg
 //               ex6 -m ../../data/fichera.mesh -o 2 -dg -trh1
-//               ex6 -m ../../data/disc-nurbs.mesh -o 2 -brt
+//               ex6 -m ../../data/disc-nurbs.mesh -o 2 -brt -trh1
 //               ex6 -m ../../data/ball-nurbs.mesh -dg
 //               ex6 -m ../../data/pipe-nurbs.mesh -brt
 //               ex6 -m ../../data/amr-quad.mesh -brt -trh1
