@@ -245,6 +245,8 @@ namespace mfem {
  * - <a class="el" href="pdiffusion_8cpp_source.html">DPG Diffusion example</a>: DPG formulation for the diffusion problem
  * - <a class="el" href="pmaxwell_8cpp_source.html">DPG Maxwell example</a>: DPG formulation for the indefinite Maxwell problem
  * - <a class="el" href="lor__elast_8cpp_source.html">LOR Elasticity</a>: solve linear elasticity with LOR preconditioning on GPUs
+ * - <a class="el" href="umansky_cg_8cpp_source.html">Umansky CG</a>: Continuous Galerkin anisotropic diffusion demonstration code  
+ * - <a class="el" href="umansky_dg_8cpp_source.html">Umansky DG</a>: Discontinuous Galerkin anisotropic diffusion demonstration code  
  *
  * See also the <a class="el" href="https://mfem.org/examples/">examples documentation</a> online.
  */
