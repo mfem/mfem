@@ -21,9 +21,9 @@ TEST_CASE("3D ProjectBdrCoefficient",
           "[GridFunction]"
           "[NCMesh]")
 {
-   const char *mesh_file = "data/hex-nc-cross.mesh";
-   const int order = 3;
-   const real_t freq = 5.0;
+   constexpr const char *mesh_file = "data/hex-nc-cross.mesh";
+   constexpr int order = 3;
+   constexpr real_t freq = 5.0;
 
    // Attributes
    Array<int> bdr_attr(2);
