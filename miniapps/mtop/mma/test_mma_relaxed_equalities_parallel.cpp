@@ -135,7 +135,7 @@ static void Test1_ParMMA_SymAbove()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.7, dh, xmin, xmax, n, Vmid, eps, eps, 1000, 1e-7);
     double xm = LocalMean(x, n);
     if (g_rank==0) printf("  kkt=%.2e  mean=%.5f(%.3f)\n", double(kkt), xm, Vmid+eps);
@@ -155,7 +155,7 @@ static void Test2_ParMMA_SymBelow()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.1, dh, xmin, xmax, n, Vmid, eps, eps, 3000, 1e-9);
     double xm = LocalMean(x, n);
     if (g_rank==0) printf("  kkt=%.2e  mean=%.5f(%.3f)\n", double(kkt), xm, Vmid-eps);
@@ -174,7 +174,7 @@ static void Test3_ParMMA_Asymmetric()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.7, dh, xmin, xmax, n, Vmid, leps, ueps, 1000, 1e-7);
     double xm = LocalMean(x, n), h = xm-Vmid;
     if (g_rank==0) printf("  kkt=%.2e  mean=%.5f  h=%.4f  band=(%.3f,%.3f)\n",
@@ -205,7 +205,7 @@ static void Test4_ParMMA_Multiple()
         dh2(j) = real_t(gj < half_global ? 0.0 : 1.0/half_global);
     }
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
-    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 2, x);
+    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 2);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 1500 && double(kkt) > 1e-7 && !std::isnan(double(kkt)); ++it) {
@@ -267,7 +267,7 @@ static void Test5_ParMMA_Mixed()
     Vector x(nl), xmin(nl), xmax(nl), df0(nl), dg(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) { dg(j)=real_t(1.0/n); dh(j)=real_t(1.0/n); }
-    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 1, 1, x);
+    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 1, 1);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 1000 && double(kkt) > 1e-7 && !std::isnan(double(kkt)); ++it) {
@@ -304,7 +304,7 @@ static void Test6_ParSQ_SymAbove()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.7, dh, xmin, xmax, n, Vmid, eps, eps, 20, 1e-9);
     double xm = LocalMean(x, n);
     if (g_rank==0) printf("  kkt=%.2e  mean=%.5f(%.3f)  iters=%d\n",
@@ -321,7 +321,7 @@ static void Test7_ParSQ_SymBelow()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.1, dh, xmin, xmax, n, Vmid, eps, eps, 20, 1e-9);
     double xm = LocalMean(x, n);
     if (g_rank==0) printf("  kkt=%.2e  mean=%.5f(%.3f)  iters=%d\n",
@@ -341,7 +341,7 @@ static void Test8_ParSQ_Asymmetric()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.7, dh, xmin, xmax, n, Vmid, leps, ueps, 20, 1e-9);
     double xm = LocalMean(x, n), h = xm-Vmid;
     if (g_rank==0) printf("  kkt=%.2e  mean=%.5f  h=%.4f  band=(%.3f,%.3f)\n",
@@ -369,7 +369,7 @@ static void Test9_ParSQ_Multiple()
         dh2(j) = real_t(gj < half_global ? 0.0 : 1.0/half_global);
     }
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
-    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 2, x);
+    auto opt = SQOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 2);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 20 && double(kkt) > 1e-9 && !std::isnan(double(kkt)); ++it) {
@@ -434,7 +434,7 @@ static void Test10_SerialParallelAgreement()
         Vector a(n), x(n), xmin(n), xmax(n), df0(n), dh(n);
         a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
         for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-        auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+        auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
         real_t kkt = 1.0;
         for (int it=0; it<1000 && double(kkt)>1e-7 && !std::isnan(double(kkt)); ++it) {
             double f0=0;
@@ -460,7 +460,7 @@ static void Test10_SerialParallelAgreement()
     Vector x(nl), xmin(nl), xmax(nl), dh(nl);
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1, x);
+    auto opt = MMAOptimizerParallel::WithRelaxedEqualities(MPI_COMM_WORLD, nl, 0, 1);
     real_t kkt = SolveParallel(opt, x, 0.7, dh, xmin, xmax, n, Vmid, eps, eps, 1000, 1e-7);
     double xm_par = LocalMean(x, n);
 

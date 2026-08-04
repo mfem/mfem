@@ -76,17 +76,6 @@ static void Banner(const char* title)
 //   f0 / df0 / fi / dfi are supplied by function pointers
 // ============================================================
 
-// ── Objective + gradient (compliance proxy) ───────────────────────────────
-static void compliance_grad(const Vector& x, double& f0, Vector& df0)
-{
-    f0 = 0.0;
-    for (int j=0;j<x.Size();++j) {
-        double xj = double(x(j));
-        f0    += 1.0/xj;
-        df0(j) = real_t(-1.0/(xj*xj));
-    }
-}
-
 // ── Deterministic LCG for reproducible targets ────────────────────────────
 static double lcg(uint64_t& s)
 {
@@ -114,7 +103,7 @@ static void Test_MinMax()
         x(0)=1.5; xmin(0)=-3.0; xmax(0)=3.0; df0(0)=0.0;
 
         double ai[2]={1,1}, ci[2]={1e4,1e4}, di[2]={1,1};
-        MMAOptimizer opt(1,2,x,ai,ci,di);
+        MMAOptimizer opt(1,2,ai,ci,di);
         real_t kkt=1.0; std::vector<double> lam(2);
         int inner_total=0, iters=0;
 
@@ -207,7 +196,7 @@ static void Test_BlockVolumes(int n, const std::vector<double>& Vtgt)
             int blk=0; while(blk<m-1 && j>=bstart[blk+1]) ++blk;
             dgs[blk](j)=real_t(1.0/bsz[blk]);
         }
-        MMAOptimizer opt(n,m,xs,av.data(),cv_v.data(),dv.data());
+        MMAOptimizer opt(n,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         for(int it=0;it<300&&kkt>1e-5;++it){
             for(int j=0;j<n;++j) df0s(j)=real_t(-1.0/(double(xs(j))*double(xs(j))));
@@ -232,13 +221,11 @@ static void Test_BlockVolumes(int n, const std::vector<double>& Vtgt)
             }
         }
         printf("  Final:");
-        bool all_ok=true;
         for(int k=0;k<m;++k){
             double s=0;
             for(int j=bstart[k];j<bstart[k+1];++j) s+=double(xs(j));
             double mean=s/bsz[k];
             printf(" m%d=%.4f(%.2f)",k,mean,Vtgt[k]);
-            if(std::abs(mean-Vtgt[k])>=0.01) all_ok=false;
         }
         printf("  kkt=%.2e  iters=%d\n", double(kkt), opt.GetIteration());
         Check(kkt<1e-4, "[serial] KKT < 1e-4");
@@ -254,7 +241,7 @@ static void Test_BlockVolumes(int n, const std::vector<double>& Vtgt)
     MPI_Barrier(MPI_COMM_WORLD);
     if(g_rank==0) printf("  [parallel]\n");
     {
-        MMAOptimizerParallel opt(comm,nl,m,x,av.data(),cv_v.data(),dv.data());
+        MMAOptimizerParallel opt(comm,nl,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         for(int it=0;it<300&&kkt>1e-5;++it){
             for(int j=0;j<nl;++j) df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));
@@ -337,7 +324,7 @@ static void Test_HundredConstraints()
         std::vector<Vector> dgs(m);
         for(int k=0;k<m;++k){dgs[k].SetSize(n);dgs[k]=0.0;}
         for(int j=0;j<n;++j){int k=j/region;dgs[k](j)=real_t(1.0/region);}
-        MMAOptimizer opt(n,m,xs,av.data(),cv_v.data(),dv.data());
+        MMAOptimizer opt(n,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<300&&kkt>1e-5;++it){
@@ -380,7 +367,7 @@ static void Test_HundredConstraints()
     if(g_rank==0) printf("  [parallel]\n");
     {
         x=0.5;
-        MMAOptimizerParallel opt(comm,nl,m,x,av.data(),cv_v.data(),dv.data());
+        MMAOptimizerParallel opt(comm,nl,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<300&&kkt>1e-5;++it){
@@ -441,7 +428,7 @@ static void Test_ConstraintSwitching()
         for(int j=n1;j<n;++j) dg1(j)=real_t(1.0/n2);
         double cv=std::max(1000.0,10.0*n);
         double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-        MMAOptimizer opt(n,2,xs,a2,c2,d2);
+        MMAOptimizer opt(n,2,a2,c2,d2);
         Vector dgs[2]={dg0,dg1};
         real_t kkt=1.0; std::vector<double> lam(2);
         for(int it=0;it<400&&kkt>1e-5;++it){
@@ -485,7 +472,7 @@ static void Test_ConstraintSwitching()
         }
         double cv=std::max(1000.0,10.0*n);
         double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-        MMAOptimizerParallel opt(comm,nl,2,x,a2,c2,d2);
+        MMAOptimizerParallel opt(comm,nl,2,a2,c2,d2);
         Vector dg[2]={dg0,dg1};
         real_t kkt=1.0;
         for(int it=0;it<400&&kkt>1e-5;++it){
@@ -540,7 +527,7 @@ static void Test_LargeN(int n)
         xs=0.5;xmins=0.001;xmaxs=1.0;dgs=real_t(1.0/n);
         double cv=std::max(1000.0,10.0*n);
         double a1[1]={0},c1[1]={cv},d1[1]={1};
-        MMAOptimizer opt(n,1,xs,a1,c1,d1);
+        MMAOptimizer opt(n,1,a1,c1,d1);
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<200&&kkt>1e-5;++it){
@@ -569,7 +556,7 @@ static void Test_LargeN(int n)
         x=0.5;xmin=0.001;xmax=1.0;dg=real_t(1.0/n);
         double cv=std::max(1000.0,10.0*n);
         double a1[1]={0},c1[1]={cv},d1[1]={1};
-        MMAOptimizerParallel opt(comm,nl,1,x,a1,c1,d1);
+        MMAOptimizerParallel opt(comm,nl,1,a1,c1,d1);
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<200&&kkt>1e-5;++it){
@@ -627,7 +614,7 @@ static void Test_Unconstrained(int n)
         Vector xs(n),xmins(n),xmaxs(n),df0s(n),tgts(n);
         xs=0.5;xmins=0.001;xmaxs=1.0;
         for(int j=0;j<n;++j) tgts(j)=real_t(0.2+0.6*lcg(ss));
-        MMAOptimizer opt(n,0,xs);
+        MMAOptimizer opt(n,0);
         real_t kkt=1.0;
         for(int it=0;it<200&&kkt>1e-5;++it){
             double pg2=0;
@@ -658,7 +645,7 @@ static void Test_Unconstrained(int n)
     {
         Vector x(nl),xmin(nl),xmax(nl),df0(nl);
         x=0.5;xmin=0.001;xmax=1.0;
-        MMAOptimizerParallel opt(comm,nl,0,x);
+        MMAOptimizerParallel opt(comm,nl,0);
         real_t kkt=1.0;
         for(int it=0;it<200&&kkt>1e-5;++it){
             double pg2_loc=0;
@@ -692,7 +679,7 @@ static void Test_Unconstrained(int n)
     {
         Vector x(nl),xmin(nl),xmax(nl),df0(nl);
         x=0.5;xmin=0.001;xmax=1.0;
-        MMAOptimizerParallel opt(comm,nl,0,x);
+        MMAOptimizerParallel opt(comm,nl,0);
         real_t kkt=1.0;
         for(int it=0;it<200&&kkt>1e-5;++it){
             double pg2_loc=0,f0_loc=0;

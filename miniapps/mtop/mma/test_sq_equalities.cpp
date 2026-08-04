@@ -7,7 +7,7 @@
  *
  * Equality convention
  * ───────────────────
- *   SQOptimizer::WithEqualities(n, n_ineq, n_eq, x) creates an optimiser
+ *   SQOptimizer::WithEqualities(n, n_ineq, n_eq) creates an optimiser
  *   with n_ineq logical inequalities and n_eq logical equalities. Internally,
  *   each equality is represented by a +h/-h pair of inequality slots.
  *
@@ -103,7 +103,7 @@ static void Test_PureEquality()
     x=real_t(Vfrac);  xmin=real_t(0.01);  xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j) = real_t(1.0/n);
 
-    auto opt = SQOptimizer::WithEqualities(n, /*n_ineq=*/0, /*n_eq=*/1, x);
+    auto opt = SQOptimizer::WithEqualities(n, /*n_ineq=*/0, /*n_eq=*/1);
     Check(opt.NumEqualities()  == 1, "NumEqualities()==1");
     Check(opt.NumInequalities()== 0, "NumInequalities()==0");
     Check(opt.NumConstraints() == 1, "NumConstraints()==1");
@@ -175,7 +175,7 @@ static void Test_MultipleEqualities()
     for (int j=0;j<half;++j)   dh1(j)=real_t(1.0/half);
     for (int j=half;j<n;++j)   dh2(j)=real_t(1.0/half);
 
-    auto opt = SQOptimizer::WithEqualities(n, 0, 2, x);
+    auto opt = SQOptimizer::WithEqualities(n, 0, 2);
 
     real_t kkt=1.0;
     for (int it=0;it<1000&&kkt>1e-9 && !std::isnan(double(kkt));++it){
@@ -251,7 +251,7 @@ static void Test_MixedConstraints()
     for (int j=0;j<n;++j) dg(j) = (j>=nhalf) ? real_t(1.0/nright) : real_t(0.0);
     for (int j=0;j<n;++j) dh(j) = real_t(1.0/n);
 
-    auto opt = SQOptimizer::WithEqualities(n, 1, 1, x);
+    auto opt = SQOptimizer::WithEqualities(n, 1, 1);
     Check(opt.NumEqualities()  ==1, "mixed: NumEqualities==1");
     Check(opt.NumInequalities()==1, "mixed: NumInequalities==1");
     Check(opt.NumConstraints() ==2, "mixed: NumConstraints==2");
@@ -308,7 +308,7 @@ static void Test_GCMMAEquality()
     x=real_t(Vfrac); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
 
-    auto opt = SQOptimizer::WithEqualities(n,0,1,x);
+    auto opt = SQOptimizer::WithEqualities(n,0,1);
 
     real_t kkt=1.0;
     for (int it=0;it<1000&&kkt>1e-9 && !std::isnan(double(kkt));++it){
@@ -364,7 +364,7 @@ static void Test_ParallelEquality()
     x=real_t(Vfrac); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<nl;++j) dh(j)=real_t(1.0/n);
 
-    auto opt=SQOptimizerParallel::WithEqualities(comm,nl,0,1,x);
+    auto opt=SQOptimizerParallel::WithEqualities(comm,nl,0,1);
     Check(opt.NumEqualities()==1,  "par: NumEqualities==1");
     Check(opt.NumConstraints()==1, "par: NumConstraints==1");
 
@@ -426,7 +426,7 @@ static void Test_FeasibilityRecovery()
     xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
 
-    auto opt=SQOptimizer::WithEqualities(n,0,1,x);
+    auto opt=SQOptimizer::WithEqualities(n,0,1);
 
     real_t kkt=1.0;
     for (int it=0;it<1000&&kkt>1e-9 && !std::isnan(double(kkt));++it){

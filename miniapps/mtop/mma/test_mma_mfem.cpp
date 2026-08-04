@@ -76,7 +76,7 @@ static void Test_ComplianceProxy(int n, double Vfrac)
     if (g_rank == 0) {
         Vector x(n), xmin(n), xmax(n), df0(n), dg(n);
         x=0.5; xmin=0.001; xmax=1.0; dg=1.0/(real_t)n;
-        MMAOptimizer opt(n, 1, x);
+        MMAOptimizer opt(n, 1);
         double kkt=1.0;
         for (int it=0; it<300&&kkt>1e-5; ++it) {
             double g=0;
@@ -84,7 +84,9 @@ static void Test_ComplianceProxy(int n, double Vfrac)
             g=g/(double)n-Vfrac; mfem::Vector fival(1); fival(0)=g;
             opt.Update(x,df0,0.0,fival,&dg,xmin,xmax);
             for (int j=0;j<n;++j){df0(j)=-1.0/(x(j)*x(j));} g=0;
-            for (int j=0;j<n;++j) g+=x(j); g=g/(double)n-Vfrac; fival(0)=g;
+            for (int j=0;j<n;++j) { g+=x(j); }
+            g=g/(double)n-Vfrac;
+            fival(0)=g;
             kkt=opt.KKTresidual(x,df0,0.0,fival,&dg,xmin,xmax);
             if(it%20==0) printf("  [serial] iter %3d: g=%.3e kkt=%.3e\n",it,g,kkt);
         }
@@ -99,7 +101,7 @@ static void Test_ComplianceProxy(int n, double Vfrac)
     Vector df0_loc(n_local), dg_loc(n_local);
     x_loc=0.5; xmin_loc=0.001; xmax_loc=1.0; dg_loc=1.0/(real_t)n;
 
-    MMAOptimizerParallel opt(comm, n_local, 1, x_loc);
+    MMAOptimizerParallel opt(comm, n_local, 1);
     double kkt=1.0;
     for (int it=0; it<300&&kkt>1e-5; ++it) {
         double gl=0;
@@ -148,7 +150,7 @@ static void Test_TwoConstraints(int n, double V1, double V2)
 
     double cv=std::max(1000.0,10.0*n);
     double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-    MMAOptimizerParallel opt(comm,n_local,2,x,a2,c2,d2);
+    MMAOptimizerParallel opt(comm,n_local,2,a2,c2,d2);
     double kkt=1.0;
 
     for(int it=0;it<200&&kkt>1e-5;++it){
@@ -193,7 +195,7 @@ static void Test_ParallelScale(int n)
     x=0.5;xmin=0.001;xmax=1.0;dg=1.0/(real_t)n;
     double cv=std::max(1000.0,10.0*n);
     double a1[1]={0},c1[1]={cv},d1[1]={1};
-    MMAOptimizerParallel opt(comm,n_local,1,x,a1,c1,d1);
+    MMAOptimizerParallel opt(comm,n_local,1,a1,c1,d1);
     double kkt=1.0;
 
     for(int it=0;it<100&&kkt>1e-5;++it){
@@ -241,7 +243,7 @@ static void Test_HundredConstraints()
     x=0.5;xmin=0.001;xmax=1.0;
     double cv=std::max(1000.0,10.0*n);
     std::vector<double> av(m,0),cv_v(m,cv),dv(m,1);
-    MMAOptimizerParallel opt(comm,n_local,m,x,av.data(),cv_v.data(),dv.data());
+    MMAOptimizerParallel opt(comm,n_local,m,av.data(),cv_v.data(),dv.data());
     double kkt=1.0;
 
     for(int it=0;it<200&&kkt>1e-5;++it){
@@ -304,7 +306,7 @@ static void Test_ConstraintSwitching()
     Vector dg[2]={dg0,dg1};
     double cv=std::max(1000.0,10.0*n);
     double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-    MMAOptimizerParallel opt(comm,n_local,2,x,a2,c2,d2);
+    MMAOptimizerParallel opt(comm,n_local,2,a2,c2,d2);
     double kkt=1.0;
 
     for(int it=0;it<300&&kkt>1e-5;++it){
@@ -351,7 +353,7 @@ static void Test_SetAsymptotes()
     const int n=100;
     Vector x(n),xmin(n),xmax(n),df0(n),dg(n);
     x=0.5;xmin=0.001;xmax=1.0;dg=1.0/(real_t)n;
-    MMAOptimizer opt(n,1,x);
+    MMAOptimizer opt(n,1);
     opt.SetAsymptotes(0.3,0.65,1.08);
     double kkt=1.0;
     for(int it=0;it<300&&kkt>1e-5;++it){

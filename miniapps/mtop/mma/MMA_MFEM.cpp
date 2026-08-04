@@ -72,12 +72,6 @@ namespace mfem_mma {
 
 // ─── Small internal helpers ───────────────────────────────────────────────────
 
-#ifdef MFEM_USE_MPI
-// Pick the right MPI type for mfem::real_t (double or float build).
-static MPI_Datatype MpiTypeReal()
-{ return (sizeof(mfem::real_t)==sizeof(double)) ? MPI_DOUBLE : MPI_FLOAT; }
-#endif // MFEM_USE_MPI
-
 // MMA_SERIAL_COMM: sentinel communicator passed by serial optimizer classes
 // (MMAOptimizer, SQOptimizer) to SolveDualIP / SolveDualSQ.
 // Value is 0 — not a valid MPI communicator in any implementation — so
@@ -142,15 +136,6 @@ static int ComputeNGlobal(MPI_Comm comm, int n_local)
     return ng;
 }
 #endif // MFEM_USE_MPI
-
-// ── Allocate a device Vector matching another's memory type ──────────────
-static mfem::Vector DeviceVector(int n, const mfem::Vector& ref)
-{
-    mfem::Vector v(n);
-    v.UseDevice(ref.UseDevice());
-    v = 0.0;
-    return v;
-}
 
 namespace detail {
 
@@ -495,7 +480,6 @@ void SolveDualIP(
             const auto* qij_r = qij_loc[i].Read();
             auto* pq_w = d_PQ[i].Write();
             const auto* df2_r = d_df2.Read();
-            double li = lam[i];
             mfem::forall_switch(use_dev, n_loc, [=] MFEM_HOST_DEVICE (int j){
                 double dUx = double(d_U[j])-double(d_x[j]);
                 double dxL = double(d_x[j])-double(d_L[j]);
@@ -1213,37 +1197,42 @@ static void InitDeviceVectors(
     for (int i=0;i<m;++i){ Init(pij[i],n); Init(qij[i],n); }
 }
 
-MMAOptimizer::MMAOptimizer(int n, int m, const mfem::Vector& x)
+MMAOptimizer::MMAOptimizer(int n, int m)
     : n_(n), m_(m), iter_(0)
     , asyminit_(0.5), asymdec_(0.7), asyminc_(1.2)
+    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
     , z_(1.0)
     , b_(m,0.0), rho_(m+1,1e-5)
-    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
 {
     DefaultPenalty(n,m,a_,c_,d_);
-    InitDeviceVectors(n,m,x,p0_,q0_,pij_,qij_,L_,U_,alpha_,beta_,xo1_,xo2_);
 }
 
-MMAOptimizer::MMAOptimizer(int n, int m, const mfem::Vector& x,
+MMAOptimizer::MMAOptimizer(int n, int m,
                             const double* a, const double* c, const double* d)
     : n_(n), m_(m), iter_(0)
     , asyminit_(0.5), asymdec_(0.7), asyminc_(1.2)
+    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
     , z_(1.0)
     , b_(m,0.0), rho_(m+1,1e-5)
-    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
 {
     a_.assign(a,a+m); c_.assign(c,c+m); d_.assign(d,d+m);
-    InitDeviceVectors(n,m,x,p0_,q0_,pij_,qij_,L_,U_,alpha_,beta_,xo1_,xo2_);
 }
 
-MMAOptimizer::MMAOptimizer(int n, int m, const mfem::Vector& x,
+MMAOptimizer::MMAOptimizer(int n, int m,
                             const mfem::Vector& a, const mfem::Vector& c,
                             const mfem::Vector& d)
-    : MMAOptimizer(n, m, x,
+    : MMAOptimizer(n, m,
                    VecToDouble(a).data(),
                    VecToDouble(c).data(),
                    VecToDouble(d).data())
 {}
+
+void MMAOptimizer::EnsureInitialized_(const mfem::Vector& x)
+{
+    MFEM_VERIFY(x.Size() == n_, "MMA design vector has the wrong size");
+    if (p0_.Size() == n_ && (n_ > 0 || pij_.size() == size_t(m_))) { return; }
+    InitDeviceVectors(n_,m_,x,p0_,q0_,pij_,qij_,L_,U_,alpha_,beta_,xo1_,xo2_);
+}
 
 /// @brief (Serial) Store asymptote adaptation speeds.
 void MMAOptimizer::SetAsymptotes(mfem::real_t i, mfem::real_t d, mfem::real_t inc)
@@ -1255,6 +1244,7 @@ void MMAOptimizer::BuildSubproblem_(
     const mfem::Vector& fival, const mfem::Vector* dfidx,
     const mfem::Vector& xmin, const mfem::Vector& xmax)
 {
+    EnsureInitialized_(x);
     bool ud = x.UseDevice();
     UpdateAsymptotes(n_,iter_,asyminit_,asymdec_,asyminc_,
         x.Read(),xo1_.Read(),xo2_.Read(),xmin.Read(),xmax.Read(),
@@ -1263,8 +1253,6 @@ void MMAOptimizer::BuildSubproblem_(
     std::vector<const mfem::real_t*> dfi(m_);
     for (int i=0;i<m_;++i) dfi[i]=dfidx[i].Read();
 
-    // null ptr sentinel for rho (plain MMA uses rho=0)
-    static const double zero_rho[1]={0.0};
     std::vector<double> rho_zero(m_+1,0.0);
     BuildCoeffs(n_,m_,ud,
         x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
@@ -1340,6 +1328,7 @@ void MMAOptimizer::UpdateGCMMA(
     const mfem::Vector& fival, const mfem::Vector* dfidx,
     const mfem::Vector& xmin, const mfem::Vector& xmax, int* innerIter)
 {
+    EnsureInitialized_(x);
     bool ud = x.UseDevice();
     UpdateAsymptotes(n_,iter_,asyminit_,asymdec_,asyminc_,
         x.Read(),xo1_.Read(),xo2_.Read(),xmin.Read(),xmax.Read(),
@@ -1495,6 +1484,7 @@ void MMAOptimizer::UpdateGCMMA(
     int  max_inner,
     int* innerIter)
 {
+    EnsureInitialized_(x);
     bool ud = x.UseDevice();
 
     UpdateAsymptotes(n_,iter_,asyminit_,asymdec_,asyminc_,
@@ -1617,41 +1607,46 @@ void MMAOptimizer::UpdateGCMMA(
 
 
 MMAOptimizerParallel::MMAOptimizerParallel(
-    MPI_Comm comm, int n_local, int m,
-    const mfem::Vector& x_local)
+    MPI_Comm comm, int n_local, int m)
     : comm_(comm), n_global_(ComputeNGlobal(comm,n_local)), n_local_(n_local), m_(m), iter_(0)
     , asyminit_(0.5), asymdec_(0.7), asyminc_(1.2)
+    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
     , z_(1.0)
     , b_(m,0.0), rho_(m+1,1e-5)
-    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
 {
     DefaultPenalty(n_global_,m,a_,c_,d_);
-    InitDeviceVectors(n_local,m,x_local,p0_,q0_,pij_,qij_,L_,U_,alpha_,beta_,xo1_,xo2_);
 }
 
 MMAOptimizerParallel::MMAOptimizerParallel(
     MPI_Comm comm, int n_local, int m,
-    const mfem::Vector& x_local,
     const double* a, const double* c, const double* d)
     : comm_(comm), n_global_(ComputeNGlobal(comm,n_local)), n_local_(n_local), m_(m), iter_(0)
     , asyminit_(0.5), asymdec_(0.7), asyminc_(1.2)
+    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
     , z_(1.0)
     , b_(m,0.0), rho_(m+1,1e-5)
-    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
 {
     a_.assign(a,a+m); c_.assign(c,c+m); d_.assign(d,d+m);
-    InitDeviceVectors(n_local,m,x_local,p0_,q0_,pij_,qij_,L_,U_,alpha_,beta_,xo1_,xo2_);
 }
 
 MMAOptimizerParallel::MMAOptimizerParallel(
     MPI_Comm comm, int n_local, int m,
-    const mfem::Vector& x_local,
     const mfem::Vector& a, const mfem::Vector& c, const mfem::Vector& d)
-    : MMAOptimizerParallel(comm, n_local, m, x_local,
+    : MMAOptimizerParallel(comm, n_local, m,
                            VecToDouble(a).data(),
                            VecToDouble(c).data(),
                            VecToDouble(d).data())
 {}
+
+void MMAOptimizerParallel::EnsureInitialized_(const mfem::Vector& x_local)
+{
+    MFEM_VERIFY(x_local.Size() == n_local_,
+                "local MMA design vector has the wrong size");
+    if (p0_.Size() == n_local_ &&
+        (n_local_ > 0 || pij_.size() == size_t(m_))) { return; }
+    InitDeviceVectors(n_local_,m_,x_local,p0_,q0_,pij_,qij_,L_,U_,alpha_,beta_,
+                      xo1_,xo2_);
+}
 
 /// @brief (Parallel) Store asymptote adaptation speeds.
 void MMAOptimizerParallel::SetAsymptotes(mfem::real_t i, mfem::real_t d, mfem::real_t inc)
@@ -1663,6 +1658,7 @@ void MMAOptimizerParallel::BuildSubproblem_(
     const mfem::Vector& fival, const mfem::Vector* dfidx,
     const mfem::Vector& xmin, const mfem::Vector& xmax)
 {
+    EnsureInitialized_(x);
     bool ud = x.UseDevice();
     UpdateAsymptotes(n_local_,iter_,asyminit_,asymdec_,asyminc_,
         x.Read(),xo1_.Read(),xo2_.Read(),xmin.Read(),xmax.Read(),
@@ -1746,6 +1742,7 @@ void MMAOptimizerParallel::UpdateGCMMA(
     const mfem::Vector& fival, const mfem::Vector* dfidx,
     const mfem::Vector& xmin, const mfem::Vector& xmax, int* innerIter)
 {
+    EnsureInitialized_(x);
     bool ud = x.UseDevice();
     UpdateAsymptotes(n_local_,iter_,asyminit_,asymdec_,asyminc_,
         x.Read(),xo1_.Read(),xo2_.Read(),xmin.Read(),xmax.Read(),
@@ -1885,6 +1882,7 @@ void MMAOptimizerParallel::UpdateGCMMA(
     int  max_inner,
     int* innerIter)
 {
+    EnsureInitialized_(x_local);
     bool ud=x_local.UseDevice();
 
     UpdateAsymptotes(n_local_,iter_,asyminit_,asymdec_,asyminc_,
@@ -2054,24 +2052,29 @@ static void BuildSQAsymptotes(
 // SQOptimizer  —  constructors
 // ─────────────────────────────────────────────────────────────────────────────
 
-SQOptimizer::SQOptimizer(int n, int m, const mfem::Vector& x)
-    : n_(n), m_(m), z_(1.0)
-    , b_(m,0.0), rho_(m+1,1e-5)
-    , lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
+SQOptimizer::SQOptimizer(int n, int m)
+    : n_(n), m_(m)
+    , b_(m,0.0), lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
+    , z_(1.0), rho_(m+1,1e-5)
 {
     DefaultPenalty(n, m, a_, c_, d_);
-    bool ud=x.UseDevice();
-    auto init=[&](mfem::Vector& v, int sz){ v.SetSize(sz); v.UseDevice(ud); };
-    init(p0_,n); init(q0_,n); init(L_,n); init(U_,n);
-    init(alpha_,n); init(beta_,n);
-    pij_.resize(m); qij_.resize(m);
-    for(int i=0;i<m;++i){ init(pij_[i],n); init(qij_[i],n); }
 }
 
-SQOptimizer::SQOptimizer(int n, int m, const mfem::Vector& x,
+SQOptimizer::SQOptimizer(int n, int m,
                           const double* a, const double* c, const double* d)
-    : SQOptimizer(n, m, x)
+    : SQOptimizer(n, m)
 { a_.assign(a,a+m); c_.assign(c,c+m); d_.assign(d,d+m); }
+
+void SQOptimizer::EnsureInitialized_(const mfem::Vector& x)
+{
+    MFEM_VERIFY(x.Size() == n_, "SQ design vector has the wrong size");
+    if (p0_.Size() == n_ && (n_ > 0 || pij_.size() == size_t(m_))) { return; }
+    const bool ud=x.UseDevice();
+    auto init=[&](mfem::Vector& v){ v.SetSize(n_); v.UseDevice(ud); v=0.0; };
+    init(p0_); init(q0_); init(L_); init(U_); init(alpha_); init(beta_);
+    pij_.resize(m_); qij_.resize(m_);
+    for(int i=0;i<m_;++i){ init(pij_[i]); init(qij_[i]); }
+}
 
 // SQOptimizer::BuildSubproblem_
 //
@@ -2088,6 +2091,7 @@ void SQOptimizer::BuildSubproblem_(
     const mfem::Vector& xmin, const mfem::Vector& xmax,
     const double* rho_override)
 {
+    EnsureInitialized_(x);
     bool ud=x.UseDevice();
     BuildSQAsymptotes(n_, sigma_scale_, ud,
         x.Read(), xmin.Read(), xmax.Read(),
@@ -2330,25 +2334,34 @@ mfem::real_t SQOptimizer::KKTresidual(
 //
 
 SQOptimizerParallel::SQOptimizerParallel(
-    MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local)
-    : comm_(comm), n_local_(n_local), m_(m), z_(1.0)
-    , b_(m,0.0), rho_(m+1,1e-5), lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
+    MPI_Comm comm, int n_local, int m)
+    : comm_(comm), n_local_(n_local), m_(m)
+    , b_(m,0.0), lam_(m,1.0), mu_(m,1.0), y_(m,0.0)
+    , z_(1.0), rho_(m+1,1e-5)
 {
     long long nl=n_local;
     MPI_Allreduce(&nl,&n_global_,1,MPI_LONG_LONG,MPI_SUM,comm);
     DefaultPenalty((int)n_global_,m,a_,c_,d_);
-    bool ud=x_local.UseDevice();
-    auto init=[&](mfem::Vector& v){ v.SetSize(n_local); v.UseDevice(ud); };
-    init(p0_); init(q0_); init(L_); init(U_); init(alpha_); init(beta_);
-    pij_.resize(m); qij_.resize(m);
-    for(int i=0;i<m;++i){ init(pij_[i]); init(qij_[i]); }
 }
 
 SQOptimizerParallel::SQOptimizerParallel(
-    MPI_Comm comm, int n_local, int m, const mfem::Vector& x_local,
+    MPI_Comm comm, int n_local, int m,
     const double* a, const double* c, const double* d)
-    : SQOptimizerParallel(comm,n_local,m,x_local)
+    : SQOptimizerParallel(comm,n_local,m)
 { a_.assign(a,a+m); c_.assign(c,c+m); d_.assign(d,d+m); }
+
+void SQOptimizerParallel::EnsureInitialized_(const mfem::Vector& x_local)
+{
+    MFEM_VERIFY(x_local.Size() == n_local_,
+                "local SQ design vector has the wrong size");
+    if (p0_.Size() == n_local_ &&
+        (n_local_ > 0 || pij_.size() == size_t(m_))) { return; }
+    const bool ud=x_local.UseDevice();
+    auto init=[&](mfem::Vector& v){ v.SetSize(n_local_); v.UseDevice(ud); v=0.0; };
+    init(p0_); init(q0_); init(L_); init(U_); init(alpha_); init(beta_);
+    pij_.resize(m_); qij_.resize(m_);
+    for(int i=0;i<m_;++i){ init(pij_[i]); init(qij_[i]); }
+}
 
 void SQOptimizerParallel::BuildSubproblem_(
     const mfem::Vector& x, const mfem::Vector& df0dx,
@@ -2356,6 +2369,7 @@ void SQOptimizerParallel::BuildSubproblem_(
     const mfem::Vector& xmin, const mfem::Vector& xmax,
     const double* rho_override)
 {
+    EnsureInitialized_(x);
     bool ud=x.UseDevice();
     BuildSQAsymptotes(n_local_,sigma_scale_,ud,
         x.Read(),xmin.Read(),xmax.Read(),

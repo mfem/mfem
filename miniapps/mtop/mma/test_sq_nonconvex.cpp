@@ -214,7 +214,7 @@ static Result RunFilteredSIMP_SQ(
 
     const double cv = std::max(1000.0, 10.0*n_global);
     std::vector<double> av(m,0), cv_v(m,cv), dv_v(m,1);
-    SQOptimizerParallel opt(comm, nl, m, x, av.data(), cv_v.data(), dv_v.data());
+    SQOptimizerParallel opt(comm, nl, m, av.data(), cv_v.data(), dv_v.data());
     // Strong SIMP penalization has much larger and more rapidly changing
     // curvature.  Restrict its SQ move region to avoid the persistent
     // two-cycle produced by the default half-range step.

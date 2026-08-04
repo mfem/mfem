@@ -98,7 +98,7 @@ static RunResult RunComplianceProxy(int n, double Vfrac, bool on_device,
         real_t* h = dg.HostWrite();   for(int j=0;j<nl;++j) h[j]=real_t(1.0/n);
     }
 
-    MMAOptimizerParallel opt(comm,nl,1,x);
+    MMAOptimizerParallel opt(comm,nl,1);
     double kkt=1.0; int it=0;
     auto t0 = Clock::now();
 
@@ -267,7 +267,7 @@ static void Test_LargeScaleThroughput(int n)
         }
         double cv=std::max(1000.0,10.0*n);
         double a1[1]={0},c1[1]={cv},d1[1]={1};
-        MMAOptimizerParallel opt(comm,nl,1,x,a1,c1,d1);
+        MMAOptimizerParallel opt(comm,nl,1,a1,c1,d1);
         double kkt=1.0; int it=0;
         auto t0=Clock::now();
         for(;it<50&&kkt>1e-5;++it){

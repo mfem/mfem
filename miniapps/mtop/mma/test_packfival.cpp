@@ -259,25 +259,25 @@ static void Test9()
     mfem::Vector x = ConstVec(n, 0.5);
 
     { // MMA pure equality
-        auto opt = MMAOptimizer::WithEqualities(n, 0, 1, x);
+        auto opt = MMAOptimizer::WithEqualities(n, 0, 1);
         Check(opt.NumEqualities()   == 1, "MMA(0,1): NumEqualities==1");
         Check(opt.NumInequalities() == 0, "MMA(0,1): NumInequalities==0");
         Check(opt.NumConstraints()  == 1, "MMA(0,1): NumConstraints==1");
     }
     { // MMA mixed
-        auto opt = MMAOptimizer::WithEqualities(n, 2, 3, x);
+        auto opt = MMAOptimizer::WithEqualities(n, 2, 3);
         Check(opt.NumEqualities()   == 3, "MMA(2,3): NumEqualities==3");
         Check(opt.NumInequalities() == 2, "MMA(2,3): NumInequalities==2");
         Check(opt.NumConstraints()  == 5, "MMA(2,3): NumConstraints==5");
     }
     { // SQ pure equality
-        auto opt = SQOptimizer::WithEqualities(n, 0, 2, x);
+        auto opt = SQOptimizer::WithEqualities(n, 0, 2);
         Check(opt.NumEqualities()   == 2, "SQ(0,2): NumEqualities==2");
         Check(opt.NumInequalities() == 0, "SQ(0,2): NumInequalities==0");
         Check(opt.NumConstraints()  == 2, "SQ(0,2): NumConstraints==2");
     }
     { // SQ mixed
-        auto opt = SQOptimizer::WithEqualities(n, 1, 2, x);
+        auto opt = SQOptimizer::WithEqualities(n, 1, 2);
         Check(opt.NumEqualities()   == 2, "SQ(1,2): NumEqualities==2");
         Check(opt.NumInequalities() == 1, "SQ(1,2): NumInequalities==1");
         Check(opt.NumConstraints()  == 3, "SQ(1,2): NumConstraints==3");
@@ -311,7 +311,7 @@ static void Test10()
 
     Check(dfidx.size() == n_ineq + 2*n_eq, "dfidx.size() == n_ineq + 2*n_eq");
 
-    auto opt = MMAOptimizer::WithEqualities(n, n_ineq, n_eq, x);
+    auto opt = MMAOptimizer::WithEqualities(n, n_ineq, n_eq);
     bool threw = false;
     try {
         opt.Update(x, df0, 0.0, fival, dfidx.data(), xmin, xmax);
@@ -343,7 +343,7 @@ static void Test11()
 
     mfem::Vector fi_ineq(0);
 
-    auto opt = MMAOptimizer::WithEqualities(n, 0, 1, x);
+    auto opt = MMAOptimizer::WithEqualities(n, 0, 1);
 
     double kkt = 1.0;
     for (int it = 0; it < 100 && kkt > 1e-6; ++it) {

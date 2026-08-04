@@ -147,7 +147,7 @@ static void Test1_MMA_SymAbove()
     Vector a(n), x(n), xmin(n), xmax(n), dh(n);
     a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 1000, 1e-7);
     double xm = Mean(x), err = AnalyticError(x, a, Vmid+eps);
     printf("  kkt=%.2e  mean=%.5f(%.3f)  err=%.2e\n", double(kkt), xm, Vmid+eps, err);
@@ -164,7 +164,7 @@ static void Test2_MMA_SymBelow()
     Vector a(n), x(n), xmin(n), xmax(n), dh(n);
     a=real_t(0.1); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 1000, 1e-7);
     double xm = Mean(x), err = AnalyticError(x, a, Vmid-eps);
     printf("  kkt=%.2e  mean=%.5f(%.3f)  err=%.2e\n", double(kkt), xm, Vmid-eps, err);
@@ -184,7 +184,7 @@ static void Test3_MMA_Asymmetric()
     Vector a(n), x(n), xmin(n), xmax(n), dh(n);
     a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, leps, ueps, 1000, 1e-7);
     double xm = Mean(x), h = xm - Vmid, err = AnalyticError(x, a, Vmid+ueps);
     printf("  kkt=%.2e  mean=%.5f  h=%.4f  band=(%.3f,%.3f)  err=%.2e\n",
@@ -209,7 +209,7 @@ static void Test4_MMA_Multiple()
     for (int j=0;j<half;++j) { a(j)=real_t(0.7); dh1(j)=real_t(1.0/half); dh2(j)=0; }
     for (int j=half;j<n;++j) { a(j)=real_t(0.1); dh1(j)=0; dh2(j)=real_t(1.0/half); }
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 2, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 2);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 1500 && double(kkt) > 1e-7 && !std::isnan(double(kkt)); ++it) {
@@ -251,7 +251,7 @@ static void Test5_MMA_Mixed()
     Vector a(n), x(n), xmin(n), xmax(n), df0(n), dg(n), dh(n);
     a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) { dg(j)=real_t(1.0/n); dh(j)=real_t(1.0/n); }
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 1, 1, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 1, 1);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 1000 && double(kkt) > 1e-7 && !std::isnan(double(kkt)); ++it) {
@@ -292,7 +292,7 @@ static void Test6_MMA_ToleranceSweep()
         Vector x(n), xmin(n), xmax(n), dh(n);
         x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
         for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-        auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+        auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
         real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 1000, 1e-7);
         double xm = Mean(x);
         printf("  eps=%.3f  mean=%.5f  |h|=%.3e  kkt=%.2e\n",
@@ -317,7 +317,7 @@ static void Test7_SQ_SymAbove()
     Vector a(n), x(n), xmin(n), xmax(n), dh(n);
     a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 20, 1e-9);
     double xm = Mean(x), err = AnalyticError(x, a, Vmid+eps);
     printf("  kkt=%.2e  mean=%.5f(%.3f)  err=%.2e  iters=%d\n",
@@ -334,7 +334,7 @@ static void Test8_SQ_SymBelow()
     Vector a(n), x(n), xmin(n), xmax(n), dh(n);
     a=real_t(0.1); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 20, 1e-9);
     double xm = Mean(x), err = AnalyticError(x, a, Vmid-eps);
     printf("  kkt=%.2e  mean=%.5f(%.3f)  err=%.2e  iters=%d\n",
@@ -354,7 +354,7 @@ static void Test9_SQ_Asymmetric()
     Vector a(n), x(n), xmin(n), xmax(n), dh(n);
     a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, leps, ueps, 20, 1e-9);
     double xm = Mean(x), h = xm-Vmid, err = AnalyticError(x, a, Vmid+ueps);
     printf("  kkt=%.2e  mean=%.5f  h=%.4f  band=(%.3f,%.3f)  err=%.2e\n",
@@ -377,7 +377,7 @@ static void Test10_SQ_Multiple()
     for (int j=0;j<half;++j) { a(j)=real_t(0.7); dh1(j)=real_t(1.0/half); dh2(j)=0; }
     for (int j=half;j<n;++j) { a(j)=real_t(0.1); dh1(j)=0; dh2(j)=real_t(1.0/half); }
     x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
-    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 2, x);
+    auto opt = SQOptimizer::WithRelaxedEqualities(n, 0, 2);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 20 && double(kkt) > 1e-9 && !std::isnan(double(kkt)); ++it) {
@@ -417,7 +417,7 @@ static void Test11_GCMMA()
     Vector a(n), x(n), xmin(n), xmax(n), df0(n), dh(n);
     a=real_t(0.7); x=real_t(0.5); xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
 
     real_t kkt = 1.0;
     for (int it = 0; it < 1000 && double(kkt) > 1e-7 && !std::isnan(double(kkt)); ++it) {
@@ -452,7 +452,7 @@ static void Test12_InfeasibleStart()
     x=real_t(0.01);   // mean=0.01 << Vmid-eps=0.35  (infeasible)
     xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
-    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1, x);
+    auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 1500, 1e-7);
     double xm = Mean(x), h = xm-Vmid;
     printf("  kkt=%.2e  mean=%.5f  h=%.4e  band=(%.3f,%.3f)\n",

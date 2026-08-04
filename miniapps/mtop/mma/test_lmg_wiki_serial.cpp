@@ -69,14 +69,6 @@ static void TestHimmelblau(bool use_dev)
     hi.UseDevice(use_dev);
     BoundPartition part(lo, hi, lo);
 
-    // Known minima to verify we reach one of them.
-    const double known[4][2] = {
-        { 3.0,      2.0     },
-        {-2.805118, 3.131312},
-        {-3.779310,-3.283186},
-        { 3.584428,-1.848126}
-    };
-
     for (int b = 0; b < 4; ++b) {
         Vector lam_init(n); lam_init.UseDevice(use_dev);
         fn.x0(lam_init, b);

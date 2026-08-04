@@ -108,7 +108,9 @@ static void Test_ComplianceProxy(int n, double Vfrac)
             opt.Update(eta,df0,0.0,fival,&dg);
             x = opt.ToPhysical(eta);
             for (int j=0;j<n;++j){df0(j)=-1.0/(x(j)*x(j));} g=0;
-            for (int j=0;j<n;++j) g+=x(j); g=g/(double)n-Vfrac; fival(0)=g;
+            for (int j=0;j<n;++j) { g+=x(j); }
+            g=g/(double)n-Vfrac;
+            fival(0)=g;
             kkt=opt.KKTresidual(eta,df0,0.0,fival,&dg);
             if(it%20==0) printf("  [serial] iter %3d: g=%.3e kkt=%.3e\n",it,g,kkt);
         }

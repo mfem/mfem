@@ -466,7 +466,6 @@ static void Test_JacobianDiag()
     const real_t h = real_t(1e-5);
     Vector zp(4); zp=z; zp(3)+=h;
     Vector lamp(4); LatentToPrimal(zp, part, lamp);
-    const real_t* zph = z.HostRead();
     const real_t* lp  = lam.HostRead();
     const real_t* lpp = lamp.HostRead();
     const real_t fd  = (lpp[3]-lp[3])/h;

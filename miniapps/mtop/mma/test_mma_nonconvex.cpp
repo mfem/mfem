@@ -228,7 +228,7 @@ static Result RunFilteredSIMP(
 
     const double cv=std::max(1000.0,10.0*n_global);
     std::vector<double> av(m,0),cv_v(m,cv),dv(m,1);
-    MMAOptimizerParallel opt(comm,nl,m,x,av.data(),cv_v.data(),dv.data());
+    MMAOptimizerParallel opt(comm,nl,m,av.data(),cv_v.data(),dv.data());
 
     auto EvalFi=[&]()->mfem::Vector{
         double xloc=0; for(int j=0;j<nl;++j) xloc+=double(x(j));
@@ -330,7 +330,7 @@ static Result RunFilteredSIMP(
 
     // GSum must be called on ALL ranks before the g_rank==0 guard
     double xl=0; for(int j=0;j<nl;++j) xl+=double(x(j));
-    double xmean_f=GSum(xl)/n_global;
+    (void)GSum(xl);
     if(g_rank==0){
         double obj_drop = res.f0_final < res.f0_init ?
             100.0*(res.f0_init-res.f0_final)/std::max(res.f0_init,1e-30) : 0.0;

@@ -171,7 +171,7 @@ static void RunOverconstrained(
         BuildConstraints(n_global, m, n_global, 0, Vtgt, Vglobal, dg_s, cv_s);
 
         std::vector<double> av(m, 0.0), dv(m, 1.0);
-        MMAOptimizer opt(n_global, m, x, av.data(), cv_s.data(), dv.data());
+        MMAOptimizer opt(n_global, m, av.data(), cv_s.data(), dv.data());
 
         real_t kkt = 1.0;
         for (int it = 0; it < 500 && kkt > 1e-5; ++it) {
@@ -230,7 +230,7 @@ static void RunOverconstrained(
     BuildConstraints(n_global, m, nl, off, Vtgt, Vglobal, dg, cv_v);
 
     std::vector<double> av(m, 0.0), dv(m, 1.0);
-    MMAOptimizerParallel opt(comm, nl, m, x, av.data(), cv_v.data(), dv.data());
+    MMAOptimizerParallel opt(comm, nl, m, av.data(), cv_v.data(), dv.data());
 
     real_t kkt = 1.0;
     for (int it = 0; it < 500 && kkt > 1e-5; ++it) {

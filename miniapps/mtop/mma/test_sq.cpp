@@ -67,7 +67,7 @@ static void Test_Unconstrained()
     for (int j=0;j<n;++j) a(j) = real_t(0.1 + 0.8*j/(n-1));
     x = real_t(0.5); xmin = real_t(0.05); xmax = real_t(0.95);
 
-    SQOptimizer opt(n, 0, x);
+    SQOptimizer opt(n, 0);
 
     real_t kkt = 1.0;
     for (int it=0; it<200 && kkt>1e-9 && !std::isnan(double(kkt)); ++it) {
@@ -100,7 +100,7 @@ static void Test_Constrained()
     x = real_t(0.5); xmin = real_t(0.01); xmax = real_t(1.0);
     for (int j=0;j<n;++j) dg(j) = real_t(1.0/n);
 
-    SQOptimizer opt(n, 1, x);
+    SQOptimizer opt(n, 1);
 
     real_t kkt = 1.0;
     for (int it=0; it<500 && kkt>1e-8 && !std::isnan(double(kkt)); ++it) {
@@ -137,7 +137,7 @@ static void Test_Equality()
     x = real_t(Vfrac); xmin = real_t(0.01); xmax = real_t(1.0);
     for (int j=0;j<n;++j) dh(j) = real_t(1.0/n);
 
-    auto opt = SQOptimizer::WithEqualities(n, 0, 1, x);
+    auto opt = SQOptimizer::WithEqualities(n, 0, 1);
     Check(opt.NumEqualities()  == 1, "SQ NumEqualities==1");
     Check(opt.NumConstraints() == 1, "SQ NumConstraints==1");
 
@@ -185,7 +185,7 @@ static void Test_GCMMA()
     for (int j=0;j<n;++j) a(j) = real_t(0.2 + 0.6*j/(n-1));
     x = real_t(0.5); xmin = real_t(0.05); xmax = real_t(0.95);
 
-    SQOptimizer opt(n, 0, x);
+    SQOptimizer opt(n, 0);
     real_t kkt = 1.0;
     for (int it=0; it<200 && kkt>1e-9 && !std::isnan(double(kkt)); ++it) {
         for (int j=0;j<n;++j) df0(j) = real_t(2.0*(double(x(j))-double(a(j)))/n);
@@ -233,7 +233,7 @@ static void Test_Parallel()
     double am_loc=0;for(int j=0;j<nl;++j)am_loc+=double(a_vec(j));
     double mean_a=GSum(am_loc)/n;
 
-    SQOptimizerParallel opt(comm, nl, 1, x);
+    SQOptimizerParallel opt(comm, nl, 1);
 
     real_t kkt = 1.0;
     double maxerr=1.0;
@@ -316,8 +316,8 @@ static void Test_Comparison()
     };
 
     Vector x0(n); x0 = real_t(0.5);
-    MMAOptimizer mma(n, 1, x0);
-    SQOptimizer  sq (n, 1, x0);
+    MMAOptimizer mma(n, 1);
+    SQOptimizer  sq (n, 1);
     RunResult mma_result=runOpt(mma,"MMA");
     RunResult sq_result =runOpt(sq,"SQ");
 

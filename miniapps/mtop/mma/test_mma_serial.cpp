@@ -51,7 +51,7 @@ static void Test_ComplianceProxy(int n, double Vfrac, bool gcmma)
     x = 0.5; xmin = 0.001; xmax = 1.0;
     dg = real_t(1.0 / n);
 
-    MMAOptimizer opt(n, 1, x);
+    MMAOptimizer opt(n, 1);
     double kkt = 1.0;
 
     for (int it = 0; it < 300 && kkt > 1e-5; ++it) {
@@ -103,7 +103,7 @@ static void Test_MinMax()
     x(0) = 1.5; xmin(0) = -3.0; xmax(0) = 3.0; df0(0) = 0.0;
 
     double ai[2]={1,1}, ci[2]={1e4,1e4}, di[2]={1,1};
-    MMAOptimizer opt(1, 2, x, ai, ci, di);
+    MMAOptimizer opt(1, 2, ai, ci, di);
     double kkt = 1.0;
     std::vector<double> lam(2);
 
@@ -152,7 +152,7 @@ static void Test_TwoConstraints(int n, double V1, double V2)
 
     double cv = std::max(1000.0, 10.0*n);
     double a2[2]={0,0}, c2[2]={cv,cv}, d2[2]={1,1};
-    MMAOptimizer opt(n, 2, x, a2, c2, d2);
+    MMAOptimizer opt(n, 2, a2, c2, d2);
     Vector dg[2] = {dg0, dg1};
     double kkt = 1.0;
 
@@ -201,7 +201,7 @@ static void Test_ThreeConstraints(int n, double V1, double V2, double V3)
     for(int j=0;j<n;++j){int blk=(j<b1)?0:(j<b2)?1:2;dg[blk](j)=real_t(1.0/sz[blk]);}
     double cv=std::max(1000.0,10.0*n);
     double a3[3]={0,0,0},c3[3]={cv,cv,cv},d3[3]={1,1,1};
-    MMAOptimizer opt(n,3,x,a3,c3,d3);
+    MMAOptimizer opt(n,3,a3,c3,d3);
     double kkt=1.0;
 
     for(int it=0;it<200&&kkt>1e-5;++it){
@@ -239,7 +239,7 @@ static void Test_ConstraintSwitching()
     for(int j=n1;j<n;++j) dg1(j)=real_t(1.0/n2);
     double cv=std::max(1000.0,10.0*n);
     double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-    MMAOptimizer opt(n,2,x,a2,c2,d2);
+    MMAOptimizer opt(n,2,a2,c2,d2);
     Vector dg[2]={dg0,dg1};
     double kkt=1.0; std::vector<double> lam(2);
 
@@ -285,7 +285,7 @@ static void Test_HundredConstraints()
     for(int j=0;j<n;++j){int k=j/region;dg[k](j)=real_t(1.0/region);}
     double cv=std::max(1000.0,10.0*n);
     std::vector<double> av(m,0),cv_v(m,cv),dv(m,1);
-    MMAOptimizer opt(n,m,x,av.data(),cv_v.data(),dv.data());
+    MMAOptimizer opt(n,m,av.data(),cv_v.data(),dv.data());
     double kkt=1.0;
 
     for(int it=0;it<200&&kkt>1e-5;++it){
@@ -323,7 +323,7 @@ static void Test_SetAsymptotes()
     const int n=100;
     Vector x(n),xmin(n),xmax(n),df0(n),dg(n);
     x=0.5;xmin=0.001;xmax=1.0;dg=real_t(1.0/n);
-    MMAOptimizer opt(n,1,x);
+    MMAOptimizer opt(n,1);
     opt.SetAsymptotes(0.3, 0.65, 1.08);
     double kkt=1.0;
     for(int it=0;it<300&&kkt>1e-5;++it){
@@ -373,7 +373,7 @@ static void Test_RedundantConstraints()
 
     double cv = std::max(1000.0, 10.0*n);
     double a3[3]={0,0,0}, c3[3]={cv,cv,cv}, d3[3]={1,1,1};
-    MMAOptimizer opt(n, 3, x, a3, c3, d3);
+    MMAOptimizer opt(n, 3, a3, c3, d3);
     double kkt = 1.0;
 
     for (int it = 0; it < 300 && kkt > 1e-5; ++it) {

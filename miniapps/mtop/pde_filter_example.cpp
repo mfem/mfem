@@ -2,10 +2,9 @@
 /// @brief Demonstrates PDEFilter with externally constructed FE spaces.
 ///
 /// Build (adapt to your MFEM install):
-///   mpicxx -O2 -std=c++17                        \
-///     -I${MFEM_DIR}/include                       \
-///     -L${MFEM_DIR}/lib -lmfem -lHYPRE -lmetis   \
-///     pde_filter.cpp pde_filter_example.cpp -o pde_filter_ex
+///   mpicxx -O2 -std=c++17 -I${MFEM_DIR}/include -L${MFEM_DIR}/lib
+///     pde_filter.cpp pde_filter_example.cpp
+///     -lmfem -lHYPRE -lmetis -o pde_filter_ex
 ///
 /// Run:
 ///   mpirun -np 4 ./pde_filter_ex -r 3 -o 1

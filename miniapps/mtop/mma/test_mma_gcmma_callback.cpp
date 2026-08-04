@@ -90,16 +90,6 @@ static void eval_convex(const Vector& x, int n, Vector& fi, real_t& f0,
 // Gradient: df/dxj = -3*(mean(x))^(-4) / n
 // The TRUE value at x̂ differs from the MMA approximation because mean(x̂)
 // differs from mean(x_k), and the approximation doesn't capture that shift.
-static real_t eval_nonconvex_f0(const Vector& x, Vector& df0, int n_global)
-{
-    double m=0; for(int j=0;j<x.Size();++j) m+=double(x(j));
-    double mn=m/n_global;   // local sum; need Allreduce for parallel
-    double f=std::pow(mn,-3.0);
-    real_t df_val=real_t(-3.0*std::pow(mn,-4.0)/n_global);
-    for(int j=0;j<x.Size();++j) df0(j)=df_val;
-    return real_t(f);
-}
-
 // ============================================================
 // Test 1: Conservatism enforcement
 // Use a callback that always inflates f(x̂) above f̃(x̂),
@@ -118,7 +108,7 @@ static void Test_ConservatismEnforcement()
 
     double cv=std::max(1000.0,10.0*n);
     double a[1]={0},c[1]={cv},d[1]={1};
-    MMAOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,a,c,d);
 
     // Callback: always return f(x̂) = f̃(x̂) + 1000 (guaranteed non-conservative)
     int total_inner=0;
@@ -184,7 +174,7 @@ static void Test_ConservativeFirstStep()
 
     double cv=std::max(1000.0,10.0*n);
     double a[1]={0},c[1]={cv},d[1]={1};
-    MMAOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,a,c,d);
 
     std::vector<int> inner_counts;
     real_t kkt=1.0;
@@ -251,7 +241,7 @@ static void Test_ConvergenceEquivalence()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        MMAOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,a,c,d);
         for(int it=0;it<100&&kkt_nocb>1e-5;++it,++iters_nocb){
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             double g0=0; for(int j=0;j<n;++j) g0+=double(x(j));
@@ -274,7 +264,7 @@ static void Test_ConvergenceEquivalence()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        MMAOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,a,c,d);
         for(int it=0;it<100&&kkt_cb>1e-5;++it,++iters_cb){
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             double g0=0; for(int j=0;j<n;++j) g0+=double(x(j));
@@ -333,7 +323,7 @@ static void Test_NonConvexCallback()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        MMAOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,a,c,d);
         for(int it=0;it<max_it;++it){
             double mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
             real_t f0=real_t(std::pow(mn,-3.0));
@@ -358,7 +348,7 @@ static void Test_NonConvexCallback()
     {
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        MMAOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,a,c,d);
         for(int it=0;it<max_it;++it){
             double mn=0; for(int j=0;j<n;++j) mn+=double(x(j)); mn/=n;
             real_t f0=real_t(std::pow(mn,-3.0));
@@ -423,7 +413,7 @@ static void Test_ConstraintConservatism()
 
     double cv=std::max(1000.0,10.0*n);
     double a[1]={0},c[1]={cv},d[1]={1};
-    MMAOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,a,c,d);
 
     std::vector<int> inner_hist;
     real_t kkt=1.0;
@@ -484,7 +474,7 @@ static void Test_MaxInnerRespected()
     x=0.5; xmin=0.01; xmax=1.0;
     for(int j=0;j<n;++j) dg(j)=real_t(1.0/n);
     double cv=1000.0, a[1]={0},c[1]={cv},d[1]={1};
-    MMAOptimizer opt(n,m,x,a,c,d);
+    MMAOptimizer opt(n,m,a,c,d);
 
     bool all_max=true;
     for(int it=0;it<5;++it){
@@ -565,7 +555,7 @@ static void Test_SerialParallelEquivalence()
         };
         Vector x(n),xmin(n),xmax(n),df0(n);
         x=0.5; xmin=0.01; xmax=1.0;
-        MMAOptimizer opt(n,m,x,a,c,d);
+        MMAOptimizer opt(n,m,a,c,d);
         for(int it=0;it<100&&kkt_s>1e-5;++it){
             for(int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             auto [f0,fi]=EvalFLocal(x);
@@ -579,7 +569,8 @@ static void Test_SerialParallelEquivalence()
             auto [f0b,fib]=EvalFLocal(x);
             kkt_s=opt.KKTresidual(x,df0,f0b,fib,dg_ser.data(),xmin,xmax);
         }
-        for(int j=0;j<n;++j) xmean_s+=double(x(j)); xmean_s/=n;
+        for(int j=0;j<n;++j) { xmean_s+=double(x(j)); }
+        xmean_s/=n;
         // Result is identical on all ranks — no broadcast needed
     }
 
@@ -587,7 +578,7 @@ static void Test_SerialParallelEquivalence()
     {
         Vector x(nl),xmin(nl),xmax(nl),df0(nl);
         x=0.5; xmin=0.01; xmax=1.0;
-        MMAOptimizerParallel opt(comm,nl,m,x,a,c,d);
+        MMAOptimizerParallel opt(comm,nl,m,a,c,d);
         for(int it=0;it<100&&kkt_p>1e-5;++it){
             for(int j=0;j<nl;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
             auto [f0,fi]=EvalF(x,nl);
@@ -637,7 +628,7 @@ static void Test_ParallelCallback()
     double a[2]={0,0},c[2]={cv,cv},d[2]={1,1};
     Vector x(nl),xmin(nl),xmax(nl),df0(nl);
     x=0.5; xmin=0.01; xmax=1.0;
-    MMAOptimizerParallel opt(comm,nl,m,x,a,c,d);
+    MMAOptimizerParallel opt(comm,nl,m,a,c,d);
 
     std::vector<int> inner_hist;
     real_t kkt=1.0;

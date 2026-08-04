@@ -106,7 +106,7 @@ static void Test_QuadraticBowl(int n, bool use_gcmma = false)
     for (int j = 0; j < nl; ++j)
         target(j) = real_t(0.2 + 0.6 * lcg(s));
 
-    MMAOptimizerParallel opt(comm, nl, 0, x);      // m = 0
+    MMAOptimizerParallel opt(comm, nl, 0);      // m = 0
     double kkt = 1.0;
     int    it  = 0;
 
@@ -177,7 +177,7 @@ static void Test_InverseSum(int n)
     Vector x(nl), xmin(nl), xmax(nl), df0(nl);
     xmin = 0.001; xmax = 1.0; x = 0.5;
 
-    MMAOptimizerParallel opt(comm, nl, 0, x);
+    MMAOptimizerParallel opt(comm, nl, 0);
     double kkt = 1.0; int it = 0;
 
     auto t0 = Clock::now();
@@ -256,7 +256,7 @@ static void Test_MixedSeparable(int n)
         xstar(j) = real_t(std::max(0.001, std::min(1.0, xs)));
     }
 
-    MMAOptimizerParallel opt(comm, nl, 0, x);
+    MMAOptimizerParallel opt(comm, nl, 0);
     double kkt = 1.0; int it = 0;
 
     auto t0 = Clock::now();
@@ -315,7 +315,7 @@ static void Test_Serial_QuadraticBowl(int n)
     for (int j = 0; j < n; ++j)
         target(j) = real_t(0.2 + 0.6 * lcg(s));
 
-    MMAOptimizer opt(n, 0, x);
+    MMAOptimizer opt(n, 0);
     double kkt = 1.0; int it = 0;
 
     auto t0 = Clock::now();

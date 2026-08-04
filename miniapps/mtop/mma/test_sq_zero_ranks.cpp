@@ -116,7 +116,7 @@ static RefResult SerialRef(int n, int m, const std::vector<double>& Vtgt,
     x=0.5; xmin=0.001; xmax=1.0;
 
     std::vector<double> av(m,0), cv(m, std::max(1000.0,10.0*n)), dv(m,1);
-    MMAOptimizer opt(n, m, x, av.data(), cv.data(), dv.data());
+    MMAOptimizer opt(n, m, av.data(), cv.data(), dv.data());
 
     // Block constraint gradients (uniform blocks)
     std::vector<Vector> dg(m);
@@ -195,7 +195,7 @@ static void RunTest(
     x=0.5; xmin=0.001; xmax=1.0;
 
     std::vector<double> av(m,0), cv_v(m, std::max(1000.0,10.0*n_global)), dv(m,1);
-    MMAOptimizerParallel opt(comm, nl, m, x,
+    MMAOptimizerParallel opt(comm, nl, m,
                               av.data(), cv_v.data(), dv.data());
 
     real_t kkt=1.0;

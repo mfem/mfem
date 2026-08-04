@@ -336,8 +336,11 @@ int main(int argc,char** argv)
 
 #endif // MFEM_USE_MPI
 
-    if(g_rank==0){printf("\n========================================\n");
-    if(g_nfail==0)printf("All CCSA unconstrained tests PASSED.\n");
-    else printf("%d CCSA unconstrained test(s) FAILED.\n",g_nfail);printf("========================================\n");}
+    if(g_rank==0) {
+        printf("\n========================================\n");
+        if(g_nfail==0) printf("All CCSA unconstrained tests PASSED.\n");
+        else printf("%d CCSA unconstrained test(s) FAILED.\n",g_nfail);
+        printf("========================================\n");
+    }
     MPI_Finalize(); return g_nfail>0?1:0;
 }

@@ -622,7 +622,8 @@ static void Test_SerialParallelEquivalence()
             kkt_s=opt.KKTresidual(eta,df0,f0b,fib,dg_ser);
         }
         x = opt.ToPhysical(eta);
-        for(int j=0;j<n;++j) xmean_s+=double(x(j)); xmean_s/=n;
+        for(int j=0;j<n;++j) { xmean_s+=double(x(j)); }
+        xmean_s/=n;
         // Result is identical on all ranks — no broadcast needed
     }
 

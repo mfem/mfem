@@ -119,7 +119,7 @@ static void Test_MinMax()
         x(0)=1.5; xmin(0)=-3.0; xmax(0)=3.0; df0(0)=0.0;
 
         double ai[2]={1,1}, ci[2]={1e4,1e4}, di[2]={1,1};
-        SQOptimizer opt(1,2,x,ai,ci,di);
+        SQOptimizer opt(1,2,ai,ci,di);
         real_t kkt=1.0;
         int iters=0;
 
@@ -158,7 +158,7 @@ static void Test_MinMax()
         Vector x(nl),xmin(nl),xmax(nl),df0(nl),dh1(nl),dh2(nl);
         if(nl){x(0)=1.5;xmin(0)=-3.0;xmax(0)=3.0;df0(0)=0.0;}
         double ai[2]={1,1},ci[2]={1e4,1e4},di[2]={1,1};
-        SQOptimizerParallel opt(MPI_COMM_WORLD,nl,2,x,ai,ci,di);
+        SQOptimizerParallel opt(MPI_COMM_WORLD,nl,2,ai,ci,di);
         real_t kkt=1.0;
         for(int it=0;it<200&&kkt>1e-5;++it){
             double xv=GSum(nl?double(x(0)):0.0);
@@ -234,7 +234,7 @@ static void Test_BlockVolumes(int n, const std::vector<double>& Vtgt)
             int blk=0; while(blk<m-1 && j>=bstart[blk+1]) ++blk;
             dgs[blk](j)=real_t(1.0/bsz[blk]);
         }
-        SQOptimizer opt(n,m,xs,av.data(),cv_v.data(),dv.data());
+        SQOptimizer opt(n,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         for(int it=0;it<300&&kkt>1e-5;++it){
             double f0; compliance_grad(xs,f0,df0s);
@@ -279,7 +279,7 @@ static void Test_BlockVolumes(int n, const std::vector<double>& Vtgt)
     MPI_Barrier(MPI_COMM_WORLD);
     if(g_rank==0) printf("  [parallel]\n");
     {
-        SQOptimizerParallel opt(comm,nl,m,x,av.data(),cv_v.data(),dv.data());
+        SQOptimizerParallel opt(comm,nl,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         for(int it=0;it<300&&kkt>1e-5;++it){
             double f0_loc, f0; compliance_grad(x,f0_loc,df0); f0=GSum(f0_loc);
@@ -362,7 +362,7 @@ static void Test_HundredConstraints()
         std::vector<Vector> dgs(m);
         for(int k=0;k<m;++k){dgs[k].SetSize(n);dgs[k]=0.0;}
         for(int j=0;j<n;++j){int k=j/region;dgs[k](j)=real_t(1.0/region);}
-        SQOptimizer opt(n,m,xs,av.data(),cv_v.data(),dv.data());
+        SQOptimizer opt(n,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<300&&kkt>1e-5;++it){
@@ -405,7 +405,7 @@ static void Test_HundredConstraints()
     if(g_rank==0) printf("  [parallel]\n");
     {
         x=0.5;
-        SQOptimizerParallel opt(comm,nl,m,x,av.data(),cv_v.data(),dv.data());
+        SQOptimizerParallel opt(comm,nl,m,av.data(),cv_v.data(),dv.data());
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<300&&kkt>1e-5;++it){
@@ -468,7 +468,7 @@ static void Test_ConstraintSwitching()
         for(int j=n1;j<n;++j) dg1(j)=real_t(1.0/n2);
         double cv=std::max(1000.0,10.0*n);
         double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-        SQOptimizer opt(n,2,xs,a2,c2,d2);
+        SQOptimizer opt(n,2,a2,c2,d2);
         Vector dgs[2]={dg0,dg1};
         real_t kkt=1.0;
         for(int it=0;it<400&&kkt>1e-5;++it){
@@ -512,7 +512,7 @@ static void Test_ConstraintSwitching()
         }
         double cv=std::max(1000.0,10.0*n);
         double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-        SQOptimizerParallel opt(comm,nl,2,x,a2,c2,d2);
+        SQOptimizerParallel opt(comm,nl,2,a2,c2,d2);
         Vector dg[2]={dg0,dg1};
         real_t kkt=1.0;
         for(int it=0;it<400&&kkt>1e-5;++it){
@@ -568,7 +568,7 @@ static void Test_LargeN(int n)
         xs=0.5;xmins=0.001;xmaxs=1.0;dgs=real_t(1.0/n);
         double cv=std::max(1000.0,10.0*n);
         double a1[1]={0},c1[1]={cv},d1[1]={1};
-        SQOptimizer opt(n,1,xs,a1,c1,d1);
+        SQOptimizer opt(n,1,a1,c1,d1);
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<200&&kkt>1e-5;++it){
@@ -598,7 +598,7 @@ static void Test_LargeN(int n)
         x=0.5;xmin=0.001;xmax=1.0;dg=real_t(1.0/n);
         double cv=std::max(1000.0,10.0*n);
         double a1[1]={0},c1[1]={cv},d1[1]={1};
-        SQOptimizerParallel opt(comm,nl,1,x,a1,c1,d1);
+        SQOptimizerParallel opt(comm,nl,1,a1,c1,d1);
         real_t kkt=1.0;
         auto t0=Clock::now();
         for(int it=0;it<200&&kkt>1e-5;++it){
@@ -656,7 +656,7 @@ static void Test_Unconstrained(int n)
         Vector xs(n),xmins(n),xmaxs(n),df0s(n),tgts(n);
         xs=0.5;xmins=0.001;xmaxs=1.0;
         for(int j=0;j<n;++j){tgts(j)=real_t(0.2+0.6*lcg(ss));lcg(ss);lcg(ss);}
-        SQOptimizer opt(n,0,xs);
+        SQOptimizer opt(n,0);
         real_t kkt=1.0; double maxerr=1.0;
         for(int it=0;it<200&&maxerr>0.005;++it){
             double f0=0;
@@ -688,7 +688,7 @@ static void Test_Unconstrained(int n)
     {
         Vector x(nl),xmin(nl),xmax(nl),df0(nl);
         x=0.5;xmin=0.001;xmax=1.0;
-        SQOptimizerParallel opt(comm,nl,0,x);
+        SQOptimizerParallel opt(comm,nl,0);
         real_t kkt=1.0; double maxerr=1.0;
         for(int it=0;it<200&&maxerr>0.005;++it){
             double f0_loc=0;
@@ -724,7 +724,7 @@ static void Test_Unconstrained(int n)
     {
         Vector x(nl),xmin(nl),xmax(nl),df0(nl);
         x=0.5;xmin=0.001;xmax=1.0;
-        SQOptimizerParallel opt(comm,nl,0,x);
+        SQOptimizerParallel opt(comm,nl,0);
         // The default half-range SQ model overshoots on a/x near its
         // minimizer.  A tighter documented move width gives the local
         // quadratic model enough resolution for pointwise convergence.

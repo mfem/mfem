@@ -992,7 +992,8 @@ mfem::real_t CCSAOptimizer::KKTresidual(const mfem::Vector& x, const mfem::Vecto
     for (int k=0;k<n_eq_;++k) {
         const int ni=m_-2*n_eq_;
         double vp=double(fival(ni+k)), vn=double(fival(ni+n_eq_+k));
-        if (vp>0) dual+=vp*vp; if (vn>0) dual+=vn*vn;
+        if (vp>0) dual+=vp*vp;
+        if (vn>0) dual+=vn*vn;
     }
     return (primal+dual)/(double)n_;
 }
@@ -1322,7 +1323,8 @@ mfem::real_t CCSAOptimizerParallel::KKTresidual(const mfem::Vector& x_local, con
     for (int k=0;k<n_eq_;++k) {
         const int ni=m_-2*n_eq_;
         double vp=double(fival(ni+k)), vn=double(fival(ni+n_eq_+k));
-        if (vp>0) dual+=vp*vp; if (vn>0) dual+=vn*vn;
+        if (vp>0) dual+=vp*vp;
+        if (vn>0) dual+=vn*vn;
     }
     return mfem::real_t((primal+dual)/(double)n_global_);
 }

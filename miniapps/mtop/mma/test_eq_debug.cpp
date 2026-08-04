@@ -15,7 +15,7 @@ int main(int argc, char** argv){
     x=real_t(Vfrac); xmin=real_t(0.01); xmax=real_t(1.0);
     for(int j=0;j<n;++j) dh(j)=real_t(1.0/n);
 
-    auto opt=MMAOptimizer::WithEqualities(n,0,1,x);
+    auto opt=MMAOptimizer::WithEqualities(n,0,1);
 
     for(int it=0;it<200&&!std::isnan(double(x(0)));++it){
         for(int j=0;j<n;++j) df0(j)=real_t(2.0*(double(x(j))-double(a(j)))/n);

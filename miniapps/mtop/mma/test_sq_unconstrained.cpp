@@ -39,7 +39,7 @@ static void Test_QuadraticBowl(int n, bool gcmma=false)
     xmin=0.001;xmax=1.0;x=0.5;
     uint64_t s=12345ULL; for(int g=0;g<off;++g) lcgd(s);
     for(int j=0;j<nl;++j) target(j)=real_t(0.2+0.6*lcgd(s));
-    SQOptimizerParallel opt(comm,nl,0,x); double kkt=1.0; int it=0;
+    SQOptimizerParallel opt(comm,nl,0); double kkt=1.0; int it=0;
     auto t0=Clock::now();
     for(;it<200&&kkt>1e-5;++it){
         double f0_loc=0;
@@ -66,7 +66,7 @@ static void Test_InverseSum(int n)
     auto[nl,off]=Dist(n); MPI_Comm comm=MPI_COMM_WORLD;
     Vector x(nl),xmin(nl),xmax(nl),df0(nl);
     xmin=0.001;xmax=1.0;x=0.5;
-    SQOptimizerParallel opt(comm,nl,0,x); double kkt=1.0; int it=0;
+    SQOptimizerParallel opt(comm,nl,0); double kkt=1.0; int it=0;
     for(;it<200&&kkt>1e-5;++it){
         double f0l=0; for(int j=0;j<nl;++j){double xj=double(x(j));df0(j)=real_t(-1.0/(xj*xj));f0l+=1.0/xj;}
         double f0=GSum(f0l); opt.Update(x,df0,f0,xmin,xmax);
@@ -93,7 +93,7 @@ static void Test_MixedSeparable(int n)
     xmin=0.001;xmax=1.0;x=0.5;
     uint64_t s=98765ULL; for(int g=0;g<off;++g){lcgd(s);lcgd(s);}
     for(int j=0;j<nl;++j){double a=0.5+1.5*lcgd(s),b=0.5+1.5*lcgd(s);alpha(j)=a;beta_v(j)=b;xstar(j)=real_t(std::max(0.001,std::min(1.0,std::sqrt(a/b))));}
-    SQOptimizerParallel opt(comm,nl,0,x); double kkt=1.0; int it=0;
+    SQOptimizerParallel opt(comm,nl,0); double kkt=1.0; int it=0;
     for(;it<200&&kkt>1e-5;++it){
         double f0l=0; for(int j=0;j<nl;++j){double xj=double(x(j)),a=double(alpha(j)),b=double(beta_v(j));df0(j)=real_t((-a/(xj*xj)+b)/nl);f0l+=(a/xj+b*xj)/nl;}
         double f0=GSum(f0l); opt.Update(x,df0,f0,xmin,xmax);
@@ -120,7 +120,7 @@ static void Test_Serial_QuadraticBowl(int n)
     Vector x(n),xmin(n),xmax(n),df0(n),target(n);
     xmin=0.001;xmax=1.0;x=0.5;
     uint64_t s=12345ULL; for(int j=0;j<n;++j) target(j)=real_t(0.2+0.6*lcgd(s));
-    SQOptimizer opt(n,0,x); double kkt=1.0; int it=0;
+    SQOptimizer opt(n,0); double kkt=1.0; int it=0;
     auto t0=Clock::now();
     for(;it<200&&kkt>1e-5;++it){
         double f0=0; for(int j=0;j<n;++j){double r=double(x(j))-double(target(j));df0(j)=real_t(2.0*r/n);f0+=r*r/n;}
@@ -163,8 +163,11 @@ int main(int argc,char** argv)
 
 #endif // MFEM_USE_MPI
 
-    if(g_rank==0){printf("\n========================================\n");
-    if(g_nfail==0)printf("All SQ unconstrained tests PASSED.\n");
-    else printf("%d SQ unconstrained test(s) FAILED.\n",g_nfail);printf("========================================\n");}
+    if(g_rank==0) {
+        printf("\n========================================\n");
+        if(g_nfail==0) printf("All SQ unconstrained tests PASSED.\n");
+        else printf("%d SQ unconstrained test(s) FAILED.\n",g_nfail);
+        printf("========================================\n");
+    }
     MPI_Finalize(); return g_nfail>0?1:0;
 }

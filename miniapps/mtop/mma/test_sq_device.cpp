@@ -68,9 +68,6 @@ static std::pair<int,int> Distribute(int n)
     return {b+(g_rank<r?1:0), g_rank*b+std::min(g_rank,r)};
 }
 
-static uint64_t lcg(uint64_t& s)
-{ s=s*6364136223846793005ULL+1442695040888963407ULL; return s>>33; }
-
 // ============================================================
 // Helper: run compliance proxy on one device setting, return result
 // ============================================================
@@ -107,7 +104,7 @@ static RunResult RunComplianceProxy(int n, double Vfrac, bool on_device,
         real_t* h = dg.HostWrite();   for(int j=0;j<nl;++j) h[j]=real_t(1.0/n);
     }
 
-    SQOptimizerParallel opt(comm,nl,1,x);
+    SQOptimizerParallel opt(comm,nl,1);
     double kkt=1.0; int it=0;
     auto t0 = Clock::now();
 
@@ -282,7 +279,7 @@ static void Test_LargeScaleThroughput(int n)
         }
         double cv=std::max(1000.0,10.0*n);
         double a1[1]={0},c1[1]={cv},d1[1]={1};
-        SQOptimizerParallel opt(comm,nl,1,x,a1,c1,d1);
+        SQOptimizerParallel opt(comm,nl,1,a1,c1,d1);
         double kkt=1.0; int it=0;
         auto t0=Clock::now();
         for(;it<50&&kkt>1e-5;++it){

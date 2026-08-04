@@ -52,7 +52,7 @@ static void Test_ComplianceProxy(int n, double Vfrac, bool gcmma)
            n, Vfrac, gcmma ? "GCMMA" : "SQ");
     Vector x(n), xmin(n), xmax(n), df0(n), dg(n);
     x=0.5; xmin=0.001; xmax=1.0; dg=real_t(1.0/n);
-    SQOptimizer opt(n, 1, x);
+    SQOptimizer opt(n, 1);
     double kkt=1.0;
     for (int it=0; it<300 && kkt>1e-5; ++it) {
         double f0, g; ComplianceGrad(x, f0, df0);
@@ -81,7 +81,7 @@ static void Test_MinMax()
     Vector x(1),xmin(1),xmax(1),df0(1),dh1(1),dh2(1);
     x(0)=1.5; xmin(0)=-3.0; xmax(0)=3.0; df0(0)=0.0;
     double ai[2]={1,1}, ci[2]={1e4,1e4}, di[2]={1,1};
-    SQOptimizer opt(1,2,x,ai,ci,di);
+    SQOptimizer opt(1,2,ai,ci,di);
     double kkt=1.0;
     for (int it=0; it<200 && kkt>1e-5; ++it) {
         double xv=double(x(0));
@@ -116,7 +116,7 @@ static void Test_TwoConstraints(int n, double V1, double V2)
     for(int j=n1;j<n;++j) dg1(j)=real_t(1.0/n2);
     double cv=std::max(1000.0,10.0*n);
     double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-    SQOptimizer opt(n,2,x,a2,c2,d2);
+    SQOptimizer opt(n,2,a2,c2,d2);
     Vector dg[2]={dg0,dg1}; double kkt=1.0;
     for(int it=0;it<200&&kkt>1e-5;++it){
         double s1=0,s2=0;
@@ -147,7 +147,7 @@ static void Test_ThreeConstraints(int n, double V1, double V2, double V3)
     for(int j=0;j<n;++j){int blk=(j<b1)?0:(j<b2)?1:2;dg[blk](j)=real_t(1.0/sz[blk]);}
     double cv=std::max(1000.0,10.0*n);
     double a3[3]={0,0,0},c3[3]={cv,cv,cv},d3[3]={1,1,1};
-    SQOptimizer opt(n,3,x,a3,c3,d3); double kkt=1.0;
+    SQOptimizer opt(n,3,a3,c3,d3); double kkt=1.0;
     for(int it=0;it<200&&kkt>1e-5;++it){
         double sl[3]={0,0,0};
         for(int j=0;j<n;++j){int blk=(j<b1)?0:(j<b2)?1:2;df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));sl[blk]+=double(x(j));}
@@ -176,7 +176,7 @@ static void Test_ConstraintSwitching()
     for(int j=n1;j<n;++j) dg1(j)=real_t(1.0/n2);
     double cv=std::max(1000.0,10.0*n);
     double a2[2]={0,0},c2[2]={cv,cv},d2[2]={1,1};
-    SQOptimizer opt(n,2,x,a2,c2,d2); Vector dg[2]={dg0,dg1}; double kkt=1.0;
+    SQOptimizer opt(n,2,a2,c2,d2); Vector dg[2]={dg0,dg1}; double kkt=1.0;
     for(int it=0;it<300&&kkt>1e-5;++it){
         double s1=0,s2=0;
         for(int j=0;j<n;++j){if(j<n1){df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));s1+=double(x(j));}else{df0(j)=1.0;s2+=double(x(j));}}
@@ -207,7 +207,7 @@ static void Test_HundredConstraints()
     for(int j=0;j<n;++j){int k=j/region;dg[k](j)=real_t(1.0/region);}
     double cv=std::max(1000.0,10.0*n);
     std::vector<double> av(m,0),cv_v(m,cv),dv(m,1);
-    SQOptimizer opt(n,m,x,av.data(),cv_v.data(),dv.data()); double kkt=1.0;
+    SQOptimizer opt(n,m,av.data(),cv_v.data(),dv.data()); double kkt=1.0;
     for(int it=0;it<200&&kkt>1e-5;++it){
         std::vector<double> sl(m,0);
         for(int j=0;j<n;++j){int k=j/region;df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));sl[k]+=double(x(j));}
@@ -236,7 +236,7 @@ static void Test_SetSigmaScale()
         const int n=100;
         Vector x(n),xmin(n),xmax(n),df0(n),dg(n);
         x=0.5; xmin=0.001; xmax=1.0; dg=real_t(1.0/n);
-        SQOptimizer opt(n,1,x);
+        SQOptimizer opt(n,1);
         opt.SetSigmaScale(real_t(sig));
         double kkt=1.0;
         for(int it=0;it<300&&kkt>1e-5;++it){
@@ -268,7 +268,7 @@ static void Test_RedundantConstraints()
     for(int j=0;j<n;++j) dg[2](j)=dg[0](j)+dg[1](j);
     double cv=std::max(1000.0,10.0*n);
     double a3[3]={0,0,0},c3[3]={cv,cv,cv},d3[3]={1,1,1};
-    SQOptimizer opt(n,3,x,a3,c3,d3); double kkt=1.0;
+    SQOptimizer opt(n,3,a3,c3,d3); double kkt=1.0;
     for(int it=0;it<300&&kkt>1e-5;++it){
         double s0=0,s1=0;
         for(int j=0;j<n;++j){df0(j)=real_t(-1.0/(double(x(j))*double(x(j))));if(j<n1)s0+=double(x(j));else s1+=double(x(j));}

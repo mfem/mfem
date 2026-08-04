@@ -218,7 +218,7 @@ void SolveDualSQ(
  *
  * Typical usage:
  * @code
- *   MMAOptimizer opt(n, m, x);
+ *   MMAOptimizer opt(n, m);
  *   for (int k = 0; k < max_iter; ++k) {
  *       ComputeObjectiveAndGradients(x, f0, df0, fi, dfi);
  *       opt.Update(x, df0, f0, fi, dfi.data(), xmin, xmax);
@@ -359,10 +359,10 @@ public:
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints (≥ 0).  Pass 0 for unconstrained.
-     * @param x  Initial design vector (n × 1).  The device flag
-     *           (@c x.UseDevice()) is inherited by all internal Vectors.
+     * Internal device storage and MMA history are initialized from the design
+     * vector supplied to the first Update() call.
      */
-    MMAOptimizer(int n, int m, const mfem::Vector& x);
+    MMAOptimizer(int n, int m);
 
     /**
      * @brief Construct with custom penalty parameters (raw arrays).
@@ -377,12 +377,11 @@ public:
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints.
-     * @param x  Initial design vector (n × 1).
      * @param a  Constraint weight on z (length m, usually all zeros).
      * @param c  Elastic penalty weight (length m, must satisfy c > λ*).
      * @param d  Quadratic elastic weight (length m, usually all ones).
      */
-    MMAOptimizer(int n, int m, const mfem::Vector& x,
+    MMAOptimizer(int n, int m,
                  const double* a, const double* c, const double* d);
 
     /**
@@ -394,12 +393,11 @@ public:
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints.
-     * @param x  Initial design vector (n × 1).
      * @param a  Constraint weight on z (length m).
      * @param c  Elastic penalty weight (length m).
      * @param d  Quadratic elastic weight (length m).
      */
-    MMAOptimizer(int n, int m, const mfem::Vector& x,
+    MMAOptimizer(int n, int m,
                  const mfem::Vector& a, const mfem::Vector& c,
                  const mfem::Vector& d);
 
@@ -610,18 +608,16 @@ public:
     /** Build optimiser with n_ineq inequality + n_eq equality constraints.
      *  m = n_ineq + 2*n_eq internally (each equality encoded as ±h pair).
      *  Use PackFival/PackedDfidx at call sites. */
-    static MMAOptimizer WithEqualities(int n, int n_ineq, int n_eq,
-                                       const mfem::Vector& x)
-    { MMAOptimizer o(n, n_ineq+2*n_eq, x); o.n_eq_=n_eq;
+    static MMAOptimizer WithEqualities(int n, int n_ineq, int n_eq)
+    { MMAOptimizer o(n, n_ineq+2*n_eq); o.n_eq_=n_eq;
       // Equality slots: set c very large so elastic variable stays zero
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) o.c_[i]=1e30;
       return o; }
 
     static MMAOptimizer WithEqualities(int n, int n_ineq, int n_eq,
-                                       const mfem::Vector& x,
                                        const double* a, const double* c,
                                        const double* d)
-    { MMAOptimizer o(n, n_ineq+2*n_eq, x, a, c, d); o.n_eq_=n_eq;
+    { MMAOptimizer o(n, n_ineq+2*n_eq, a, c, d); o.n_eq_=n_eq;
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) o.c_[i]=1e30;
       return o; }
 
@@ -638,10 +634,9 @@ public:
      * Call-site API is identical to WithEqualities(): use PackFivalRelaxed()
      * to pack fival and PackedDfidx (unchanged) for dfidx at every call.
      */
-    static MMAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq,
-                                              const mfem::Vector& x)
+    static MMAOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq)
     {
-        MMAOptimizer o(n, n_ineq + 2*n_eq, x); // n_eq_ stays 0
+        MMAOptimizer o(n, n_ineq + 2*n_eq); // n_eq_ stays 0
         for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) o.c_[i] = 1e4;
         return o;
     }
@@ -687,6 +682,7 @@ public:
     }
 
 private:
+    void EnsureInitialized_(const mfem::Vector& x);
     // ── Problem dimensions ───────────────────────────────────────────────
 
     int n_;     ///< Total number of design variables.
@@ -798,7 +794,7 @@ private:
  *   auto [n_local, offset] = Distribute(n_global);
  *   Vector x_loc(n_local);
  *   x_loc.UseDevice(true);            // GPU if available
- *   MMAOptimizerParallel opt(MPI_COMM_WORLD, n_global, n_local, m, x_loc);
+ *   MMAOptimizerParallel opt(MPI_COMM_WORLD, n_local, m);
  *
  *   for (int k = 0; k < max_iter; ++k) {
  *       // Compute f0, fi on host (global sum); compute gradients on device
@@ -823,13 +819,12 @@ public:
      * @param comm      MPI communicator (e.g. @c MPI_COMM_WORLD).
      * @param n_local   Number of design variables owned by this rank.
      * @param m         Number of constraints (may be 0).
-     * @param x_local   Local initial design chunk (n_local × 1).
-     *                  The device flag is inherited by internal Vectors.
+     * Internal device storage and MMA history are initialized from the local
+     * design vector supplied to the first Update() call.
      */
     /// @note n_global is computed automatically as MPI_Allreduce(SUM) of n_local.
     MMAOptimizerParallel(MPI_Comm comm,
-                         int n_local, int m,
-                         const mfem::Vector& x_local);
+                         int n_local, int m);
 
     /**
      * @brief Construct with custom penalty parameters (raw double arrays).
@@ -837,14 +832,12 @@ public:
      * @param comm      MPI communicator.
      * @param n_local   Local number of design variables on this rank.
      * @param m         Number of constraints.
-     * @param x_local   Local initial design chunk (n_local × 1).
      * @param a         Constraint weight on z (length m).
      * @param c         Elastic penalty weight  (length m).
      * @param d         Quadratic elastic weight (length m).
      */
     MMAOptimizerParallel(MPI_Comm comm,
                          int n_local, int m,
-                         const mfem::Vector& x_local,
                          const double* a, const double* c, const double* d);
 
     /**
@@ -856,14 +849,12 @@ public:
      * @param comm      MPI communicator.
      * @param n_local   Local number of design variables on this rank.
      * @param m         Number of constraints.
-     * @param x_local   Local initial design chunk (n_local × 1).
      * @param a         Constraint weight on z (length m).
      * @param c         Elastic penalty weight  (length m).
      * @param d         Quadratic elastic weight (length m).
      */
     MMAOptimizerParallel(MPI_Comm comm,
                          int n_local, int m,
-                         const mfem::Vector& x_local,
                          const mfem::Vector& a, const mfem::Vector& c,
                          const mfem::Vector& d);
 
@@ -1024,19 +1015,17 @@ public:
     
     // ── Equality-constraint factory ───────────────────────────────────────
     static MMAOptimizerParallel WithEqualities(MPI_Comm comm, int n_local,
-                                               int n_ineq, int n_eq,
-                                               const mfem::Vector& x_local)
-    { MMAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local);
+                                               int n_ineq, int n_eq)
+    { MMAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq);
       o.n_eq_=n_eq;
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) o.c_[i]=1e30;
       return o; }
 
     static MMAOptimizerParallel WithEqualities(MPI_Comm comm, int n_local,
                                                int n_ineq, int n_eq,
-                                               const mfem::Vector& x_local,
                                                const double* a, const double* c,
                                                const double* d)
-    { MMAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local,a,c,d);
+    { MMAOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,a,c,d);
       o.n_eq_=n_eq;
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) o.c_[i]=1e30;
       return o; }
@@ -1045,10 +1034,9 @@ public:
      *  Encoded as 2*n_eq standard inequality slots; n_eq_ stays 0.
      *  Use PackFivalRelaxed() at call sites; PackedDfidx unchanged. */
     static MMAOptimizerParallel WithRelaxedEqualities(MPI_Comm comm, int n_local,
-                                                       int n_ineq, int n_eq,
-                                                       const mfem::Vector& x_local)
+                                                       int n_ineq, int n_eq)
     {
-        MMAOptimizerParallel o(comm, n_local, n_ineq + 2*n_eq, x_local);
+        MMAOptimizerParallel o(comm, n_local, n_ineq + 2*n_eq);
         for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) o.c_[i] = 1e4;
         return o;
     }
@@ -1094,6 +1082,7 @@ public:
     }
 
 private:
+    void EnsureInitialized_(const mfem::Vector& x_local);
     // ── Communicator and dimensions ───────────────────────────────────────
 
     MPI_Comm comm_;    ///< MPI communicator.
@@ -1217,7 +1206,7 @@ private:
  *
  * ### Typical usage (inequality constraints)
  * @code
- *   SQOptimizer opt(n, m, x);
+ *   SQOptimizer opt(n, m);
  *   for (int k = 0; k < max_iter; ++k) {
  *       ComputeObjectiveAndConstraints(x, f0, df0, fi, dfi);
  *       opt.Update(x, df0, f0, fi, dfi.data(), xmin, xmax);
@@ -1228,7 +1217,7 @@ private:
  *
  * ### Typical usage (equality constraints)
  * @code
- *   auto opt = SQOptimizer::WithEqualities(n, n_ineq, n_eq, x);
+ *   auto opt = SQOptimizer::WithEqualities(n, n_ineq, n_eq);
  *   for (int k = 0; k < max_iter; ++k) {
  *       Compute(x, f0, df0, fi, dfi, h, dh);
  *       mfem::Vector fival   = PackFival(fi, h);
@@ -1252,29 +1241,28 @@ public:
     // ── Constructors ────────────────────────────────────────────────────
 
     /**
-     * @brief Construct with n design variables, m constraints, and initial x.
+     * @brief Construct with n design variables and m constraints.
      *
      * Penalty parameters are set to defaults: @f$a_i = 0@f$,
      * @f$c_i = \max(1000,\, 10n)@f$, @f$d_i = 1@f$ for all @f$i@f$.
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints (≥ 0). Pass 0 for unconstrained.
-     * @param x  Initial design vector (@f$n \times 1@f$).  The device flag
-     *           (@c x.UseDevice()) is inherited by all internal Vectors.
+     * Internal vectors are allocated on the first Update() call and inherit
+     * the device flag of that call's design vector.
      */
-    SQOptimizer(int n, int m, const mfem::Vector& x);
+    SQOptimizer(int n, int m);
 
     /**
      * @brief Construct with custom penalty parameters (raw arrays).
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints (≥ 0).
-     * @param x  Initial design vector.
      * @param a  Length-m array of @f$a_i@f$ coefficients (linear objective term).
      * @param c  Length-m array of @f$c_i@f$ penalty parameters.
      * @param d  Length-m array of @f$d_i@f$ penalty parameters.
      */
-    SQOptimizer(int n, int m, const mfem::Vector& x,
+    SQOptimizer(int n, int m,
                 const double* a, const double* c, const double* d);
 
     ~SQOptimizer() = default;
@@ -1310,12 +1298,11 @@ public:
      * @param n       Number of design variables.
      * @param n_ineq  Number of inequality constraints (fi(x) ≤ 0).
      * @param n_eq    Number of equality constraints (hi(x) = 0).
-     * @param x       Initial design vector.
-     * @return        A fully initialised SQOptimizer.
+     * @return        An SQOptimizer whose design storage is initialized by
+     *                its first Update() call.
      */
-    static SQOptimizer WithEqualities(int n, int n_ineq, int n_eq,
-                                      const mfem::Vector& x)
-    { SQOptimizer o(n, n_ineq+2*n_eq, x); o.n_eq_=n_eq;
+    static SQOptimizer WithEqualities(int n, int n_ineq, int n_eq)
+    { SQOptimizer o(n, n_ineq+2*n_eq); o.n_eq_=n_eq;
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) {
           o.c_[i]   = 1e30;  // equality: c=∞ so lam is unconstrained
           o.lam_[i] = 1e-3;  // small init so epsi=1e-3; IP grows lam to lam_opt
@@ -1330,10 +1317,9 @@ public:
      * silently cancels the ueps/leps shift for non-antisymmetric fival pairs.
      * Use PackFivalRelaxed() to pack fival; PackedDfidx unchanged.
      */
-    static SQOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq,
-                                             const mfem::Vector& x)
+    static SQOptimizer WithRelaxedEqualities(int n, int n_ineq, int n_eq)
     {
-        SQOptimizer o(n, n_ineq + 2*n_eq, x); // n_eq_ stays 0
+        SQOptimizer o(n, n_ineq + 2*n_eq); // n_eq_ stays 0
         for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) {
             o.c_[i]   = 1e4;
             o.lam_[i] = 1e-3;
@@ -1471,6 +1457,7 @@ public:
     { static const mfem::Vector e; return KKTresidual(x,df0dx,f0val,e,nullptr,xmin,xmax); }
 
 private:
+    void EnsureInitialized_(const mfem::Vector& x);
     int n_, m_, iter_ = 0, n_eq_ = 0;
     double sigma_scale_ = 0.5;
 
@@ -1512,7 +1499,7 @@ private:
  *
  * ### Typical usage
  * @code
- *   SQOptimizerParallel opt(comm, n_local, m, x_local);
+ *   SQOptimizerParallel opt(comm, n_local, m);
  *   for (int k = 0; k < max_iter; ++k) {
  *       ComputeLocal(x_local, f0, df0_local, fi, dfi_local);
  *       opt.Update(x_local, df0_local, f0, fi, dfi_local, xmin, xmax);
@@ -1542,10 +1529,10 @@ public:
      *                 design-variable partition.
      * @param n_local  Number of design variables on this rank.
      * @param m        Number of constraints (≥ 0).
-     * @param x_local  Initial local design vector.
+     * Internal vectors are allocated on the first Update() call and inherit
+     * the device flag of that call's local design vector.
      */
-    SQOptimizerParallel(MPI_Comm comm, int n_local, int m,
-                        const mfem::Vector& x_local);
+    SQOptimizerParallel(MPI_Comm comm, int n_local, int m);
 
     /**
      * @brief Construct with custom penalty parameters.
@@ -1553,13 +1540,11 @@ public:
      * @param comm     MPI communicator.
      * @param n_local  Local design-variable count.
      * @param m        Number of constraints.
-     * @param x_local  Initial local design vector.
      * @param a        Length-m array of @f$a_i@f$ coefficients.
      * @param c        Length-m array of @f$c_i@f$ penalty parameters.
      * @param d        Length-m array of @f$d_i@f$ penalty parameters.
      */
     SQOptimizerParallel(MPI_Comm comm, int n_local, int m,
-                        const mfem::Vector& x_local,
                         const double* a, const double* c, const double* d);
 
     ~SQOptimizerParallel() = default;
@@ -1582,13 +1567,12 @@ public:
      * @param n_local  Local design-variable count.
      * @param n_ineq   Number of inequality constraints.
      * @param n_eq     Number of equality constraints.
-     * @param x_local  Initial local design vector.
-     * @return         A fully initialised SQOptimizerParallel.
+     * @return         An SQOptimizerParallel whose local design storage is
+     *                 initialized by its first Update() call.
      */
     static SQOptimizerParallel WithEqualities(MPI_Comm comm, int n_local,
-                                               int n_ineq, int n_eq,
-                                               const mfem::Vector& x_local)
-    { SQOptimizerParallel o(comm,n_local,n_ineq+2*n_eq,x_local);
+                                               int n_ineq, int n_eq)
+    { SQOptimizerParallel o(comm,n_local,n_ineq+2*n_eq);
       o.n_eq_=n_eq;
       for (int i=n_ineq; i<n_ineq+2*n_eq; ++i) {
           o.c_[i]   = 1e30;
@@ -1601,10 +1585,9 @@ public:
      *  Encoded as 2*n_eq standard inequality slots; n_eq_ stays 0.
      *  Use PackFivalRelaxed() at call sites; PackedDfidx unchanged. */
     static SQOptimizerParallel WithRelaxedEqualities(MPI_Comm comm, int n_local,
-                                                      int n_ineq, int n_eq,
-                                                      const mfem::Vector& x_local)
+                                                      int n_ineq, int n_eq)
     {
-        SQOptimizerParallel o(comm, n_local, n_ineq + 2*n_eq, x_local);
+        SQOptimizerParallel o(comm, n_local, n_ineq + 2*n_eq);
         for (int i = n_ineq; i < n_ineq + 2*n_eq; ++i) {
             o.c_[i]   = 1e4;
             o.lam_[i] = 1e-3;
@@ -1731,6 +1714,7 @@ public:
     { static const mfem::Vector e; return KKTresidual(x,df0,f0,e,nullptr,xmin,xmax); }
 
 private:
+    void EnsureInitialized_(const mfem::Vector& x_local);
     MPI_Comm comm_;
     int n_local_, m_, iter_ = 0, n_eq_ = 0;
     long long n_global_ = 0;
