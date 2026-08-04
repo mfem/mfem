@@ -78,6 +78,9 @@ GPU computing
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
 
+- Changed VectorFEMassIntegrator to use kernel specialization dispatch for
+  partial assembly.
+
 New and updated examples and miniapps
 -------------------------------------
 - The Lorentz miniapp (in miniapps/electromagnetics) has been updated to
