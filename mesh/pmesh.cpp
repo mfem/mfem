@@ -7122,6 +7122,40 @@ ParMesh::~ParMesh()
    // The Mesh destructor is called automatically
 }
 
+static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning)
+{
+   int nprocs;
+   MPI_Comm_size(comm, &nprocs);
+   if (nprocs == 1)
+   {
+      auto res = ParMesh(comm, m);
+      m.Clear();
+      return res;
+   }
+   std::stringstream local_ser;
+
+   {
+      MeshPartitioner partitioner(m, nprocs, partitioning);
+      for (int i = 1; i < nprocs; i++)
+      {
+         // TODO: serialize mesh_part into some better format
+         std::stringstream ser;
+         ser << std::setprecision(std::numeric_limits<real_t>::max_digits10);
+         partitioner.PrintPart(i, ser);
+         std::string data = ser.str();
+         uint64_t nbytes = data.size();
+         MPI_Send(&nbytes, 1, MPI_UINT64_T, i, 0, comm);
+         MPI_Send(data.data(), nbytes, MPI_CHAR, i, 0, comm);
+      }
+      local_ser << std::setprecision(std::numeric_limits<real_t>::max_digits10);
+      partitioner.PrintPart(0, local_ser);
+      m.Clear();
+   }
+   // signal to other ranks it's ok to start constructing the mesh
+   MPI_Barrier(comm);
+   return ParMesh(comm, local_ser);
+}
+
 static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, int part_method,
                               int *nxyz)
 {
@@ -7133,42 +7167,19 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, int part_method,
    }
    std::stringstream local_ser;
 
+   int *partitioning;
+   if (nxyz)
    {
-      int *partitioning;
-      if (nxyz)
-      {
-         // cartesian partitioning
-         partitioning = m.CartesianPartitioning(nxyz);
-      }
-      else
-      {
-         partitioning = m.GeneratePartitioning(nprocs, part_method);
-      }
-      MeshPartitioner partitioner(m, nprocs, partitioning);
-      MeshPart mesh_part;
-      for (int i = 1; i < nprocs; i++)
-      {
-         partitioner.ExtractPart(i, mesh_part);
-         // std::ofstream omesh(mfem::MakeParFilename("my-mesh.", i));
-         // mesh_part.Print(omesh);
-         // TODO: serialize mesh_part into some better format
-         std::stringstream ser;
-         ser << std::setprecision(std::numeric_limits<real_t>::max_digits10);
-         mesh_part.Print(ser);
-         std::string data = ser.str();
-         uint64_t nbytes = data.size();
-         MPI_Send(&nbytes, 1, MPI_UINT64_T, i, 0, comm);
-         MPI_Send(data.data(), nbytes, MPI_CHAR, i, 0, comm);
-      }
-      local_ser << std::setprecision(std::numeric_limits<real_t>::max_digits10);
-      partitioner.ExtractPart(0, mesh_part);
-      mesh_part.Print(local_ser);
-      m.Clear();
-      delete[] partitioning;
+      // cartesian partitioning
+      partitioning = m.CartesianPartitioning(nxyz);
    }
-   // signal to other ranks it's ok to start constructing the mesh
-   MPI_Barrier(comm);
-   return ParMesh(comm, local_ser);
+   else
+   {
+      partitioning = m.GeneratePartitioning(nprocs, part_method);
+   }
+   auto res = DistributeMesh(comm, m, partitioning);
+   delete[] partitioning;
+   return res;
 }
 
 static ParMesh ReceiveMesh(MPI_Comm comm)
@@ -7248,6 +7259,20 @@ ParMesh ParMesh::MakeFromSerial(MPI_Comm comm, std::istream &input,
    {
       Mesh m(input, generate_edges, refine, fix_orientation);
       return DistributeMesh(comm, m, part_method, nxyz);
+   }
+   else
+   {
+      return ReceiveMesh(comm);
+   }
+}
+
+ParMesh ParMesh::MakeFromSerial(MPI_Comm comm, Mesh &m, const int *partitioning)
+{
+   int rank;
+   MPI_Comm_rank(comm, &rank);
+   if (rank == 0)
+   {
+      return DistributeMesh(comm, m, partitioning);
    }
    else
    {

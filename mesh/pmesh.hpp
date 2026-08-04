@@ -910,6 +910,13 @@ public:
                                  int generate_edges = 0, int refine = 1,
                                  bool fix_orientation = true,
                                  int part_method = 1, int *nxyz = nullptr);
+
+   /// Given a serial mesh @a m, distribute its contents according to @a
+   /// partitioning to all other ranks in @a comm. @a m and @a partitioning
+   /// should only exist on rank 0. Caller is responsible for managing deleting
+   /// @a partitioning. This function will clear @a m on rank 0.
+   static ParMesh MakeFromSerial(MPI_Comm comm, Mesh &m,
+                                 const int *partitioning);
 };
 
 }
