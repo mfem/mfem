@@ -8168,6 +8168,11 @@ Table *Mesh::GetEdgeFaceTable() const
       return edge_face;
    }
 
+   if (Dim != 3)
+   {
+      return NULL;
+   }
+
    edge_face = Transpose(*GetFaceEdgeTable());
    return edge_face;
 }
