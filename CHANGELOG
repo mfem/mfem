@@ -55,6 +55,11 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added tangential relaxation for TMOP mesh optimization, allowing boundary nodes
+  to slide along extracted curves (2D) or surfaces/edges (3D) during high-order
+  mesh optimization while preserving geometric features. Includes new miniapp
+  'tangential-relaxation' demonstrating the technique.
+
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
   bounds on the determinant of the mesh transformation Jacobian.
 

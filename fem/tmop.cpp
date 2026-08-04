@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "tmop.hpp"
-#include "linearform.hpp"
+#include "plinearform.hpp"
 #include "pgridfunc.hpp"
 #include "tmop_tools.hpp"
 #include "../general/forall.hpp"
