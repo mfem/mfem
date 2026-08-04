@@ -556,12 +556,12 @@ public:
    /// inner product is weighted by @a coeff_ho.
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
                             FiniteElementSpace &fine_fes_,
-                            CoefficientWithOrder coeff_ho,
-                            CoefficientWithOrder coeff_lor,
+                            CoefficientWithOrder coeff_ho_,
+                            CoefficientWithOrder coeff_lor_,
                             bool force_l2_space_ = false,
                             MemoryType d_mt_ = Device::GetHostMemoryType()) // move to method
       : GridTransfer(coarse_fes_, fine_fes_),
-        coeff_ho(coeff_ho), coeff_lor(coeff_lor), F(nullptr), B(nullptr),
+        coeff_ho(coeff_ho_), coeff_lor(coeff_lor_), F(nullptr), B(nullptr),
         force_l2_space(force_l2_space_) { }
 
    virtual ~L2ProjectionGridTransfer();
