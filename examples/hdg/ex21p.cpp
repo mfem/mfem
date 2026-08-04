@@ -130,21 +130,15 @@ int main(int argc, char *argv[])
    ParDarcyForm darcy(&R_space, &W_space);
    const Array<int> &block_offsets = darcy.GetOffsets();
 
-   // 5. In this example, the Dirichlet boundary conditions are defined by
-   //    marking boundary attributes 1 and 2 in the marker Array 'dir_bdr'.
-   //    These b.c. are imposed weakly, by adding the appropriate boundary
-   //    integrators over the marked 'dir_bdr' to the bilinear and linear forms.
+   // 5. In this example, the Dirichlet boundary condition is defined by
+   //    unmarking boundary attribute 1 in the marker Array 'neu_bdr'.
+   //    This b.c. is imposed weakly, by not applying the corresponding boundary
+   //    integrator over the unmarked 'neu_bdr' in the bilinear form.
    //    With this DG formulation, there are no essential boundary conditions.
    Array<int> ess_stress_tdofs_list; // no essential b.c. (empty list)
-   Array<int> dir_bdr(pmesh.bdr_attributes.Max());
-   dir_bdr = 0;
-   dir_bdr[0] = 1; // boundary attribute 1 is Dirichlet
-
-   Array<int> neu_bdr(dir_bdr.Size());
-   for (int i = 0; i < neu_bdr.Size(); i++)
-   {
-      neu_bdr[i] = dir_bdr[i] ? 0 : 1;
-   }
+   Array<int> neu_bdr(mesh.bdr_attributes.Max());
+   neu_bdr = 1;
+   neu_bdr[0] = 0; // boundary attribute 1 is Dirichlet
 
    // 6. As in Example 2, we set up the linear form b(.) which corresponds to
    //    the right-hand side of the FEM linear system. In this case, b_i equals
