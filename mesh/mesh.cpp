@@ -670,36 +670,22 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
       else // L2 Nodes (e.g., periodic mesh), go through the face containing the edge
       {
          // Search for a face that contains this edge
-         int face_no = -1;
-         int local_idx = -1;
+         GetEdgeFaceTable();
 
-         const Table *face_edge_table = GetFaceEdgeTable();
+         Array<int> faces_e;
+         edge_face->GetRow(EdgeNo, faces_e);
 
-         for (int f = 0; f < NumOfFaces; f++)
-         {
-            const int *face_edges = face_edge_table->GetRow(f);
-            const int nfe = face_edge_table->RowSize(f);
-            for (int i = 0; i < nfe; i++)
-            {
-               if (face_edges[i] == EdgeNo)
-               {
-                  face_no = f;
-                  local_idx = i;
-                  break;
-               }
-            }
-            if (face_no >= 0) { break; }
-         }
+         MFEM_VERIFY(faces_e.Size() > 0, "Edge not found in any face!");
+         const int face_no = faces_e[0];
 
-         MFEM_VERIFY(face_no >= 0, "Edge not found in any face!");
+         // Get edge local index and orientation
+         Array<int> edges_f, oris_f;
+         GetFaceEdges(face_no, edges_f, oris_f);
+         const int local_idx = edges_f.Find(EdgeNo);
+         const int edge_ori = oris_f[local_idx] > 0 ? 0 : 1;
 
-         // Get face information and element
+         // Get face information
          const FaceInfo &face_info = faces_info[face_no];
-
-         // Determine edge orientation within the face
-         const int *v = faces[face_no]->GetVertices();
-         const int *e = faces[face_no]->GetEdgeVertices(local_idx);
-         int edge_ori = (v[e[0]] < v[e[1]]) ? (0) : (1);
 
          // Get transformation from face to edge
          IntegrationPointTransformation LocEdge;
@@ -1916,8 +1902,8 @@ void Mesh::Init()
 
 void Mesh::InitTables()
 {
-   el_to_edge =
-      el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
+   el_to_edge = el_to_face = el_to_el = bel_to_edge = NULL;
+   face_edge = edge_face = edge_vertex = NULL;
    face_to_elem = NULL;
 }
 
@@ -1940,6 +1926,7 @@ void Mesh::DestroyTables()
    }
 
    delete face_edge;
+   delete edge_face;
    delete edge_vertex;
 
    delete face_to_elem;
@@ -2013,6 +2000,7 @@ void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
+   delete edge_face;    edge_face = NULL;
    delete face_to_elem;    face_to_elem = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
@@ -2937,6 +2925,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    //                 boundary element ordering
    // - el_to_el    - no need to rebuild
    // - face_edge   - no need to rebuild
+   // - edge_face   - no need to rebuild
    // - edge_vertex - no need to rebuild
    // - geom_factors - no need to rebuild
 
@@ -4677,8 +4666,9 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
 
-   // Do NOT copy the face-to-edge Table, face_edge
+   // Do NOT copy the face-to-edge Table, face_edge and edge_face
    face_edge = NULL;
+   edge_face = NULL;
    face_to_elem = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
@@ -8171,6 +8161,17 @@ Table *Mesh::GetFaceEdgeTable() const
    return (face_edge);
 }
 
+Table *Mesh::GetEdgeFaceTable() const
+{
+   if (edge_face)
+   {
+      return edge_face;
+   }
+
+   edge_face = Transpose(*GetFaceEdgeTable());
+   return edge_face;
+}
+
 Table *Mesh::GetEdgeVertexTable() const
 {
    if (edge_vertex)
@@ -11529,6 +11530,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(bel_to_edge, other.bel_to_edge);
    mfem::Swap(be_to_face, other.be_to_face);
    mfem::Swap(face_edge, other.face_edge);
+   mfem::Swap(edge_face, other.edge_face);
    mfem::Swap(face_to_elem, other.face_to_elem);
    mfem::Swap(edge_vertex, other.edge_vertex);
 

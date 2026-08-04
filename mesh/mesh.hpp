@@ -250,10 +250,11 @@ protected:
    Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these three tables, only face_edge and
+   // deleted by the caller. Of these four tables, only face_edge, edge_face and
    // edge_vertex are returned by access functions.
    mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
    mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table *edge_face;     // Returned by GetEdgeFaceTable().
    mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
@@ -1731,6 +1732,11 @@ public:
    ///
    /// @note The returned object should NOT be deleted by the caller.
    Table *GetFaceEdgeTable() const;
+
+   /// Returns the edge-to-face Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
+   Table *GetEdgeFaceTable() const;
 
    /// Returns the edge-to-vertex Table (3D)
    ///
