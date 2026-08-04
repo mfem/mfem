@@ -128,7 +128,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
    const std::vector<FieldDescriptor> &default_outfds,
    const DerivativeCallbackSet &callbacks,
    bool use_cached_setup,
-   bool lvector_mode)
+   bool lvector_mode,
+   bool functional_gradient = false)
 {
    const auto it_action = callbacks.actions.find(derivative_id);
    MFEM_ASSERT(it_action != callbacks.actions.end(),
@@ -154,7 +155,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              FindOrEmpty(callbacks.assemble_hypre, derivative_id),
              FindOrEmpty(callbacks.assemble_diagonal, derivative_id),
              FindOrEmpty(callbacks.setup, derivative_id),
-             lvector_mode);
+             lvector_mode,
+             functional_gradient);
 }
 
 const std::vector<derivative_action_t> &SelectSecondDerivativeActionCallbacks(
@@ -183,7 +185,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
     const std::vector<FieldDescriptor> &infds,
     const std::vector<FieldDescriptor> &default_outfds,
     const SecondDerivativeCallbackSet &callbacks,
-    bool use_cached_setup)
+    bool use_cached_setup,
+    bool lvector_mode)
 {
    const second_derivative_key_t derivative_key{gradient_id, direction_id};
    const auto it_action = callbacks.actions.find(derivative_key);
@@ -211,7 +214,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulSecondDerivativeOperator(
        FindOrEmpty(callbacks.assemble_sparse, derivative_key),
        FindOrEmpty(callbacks.assemble_hypre, derivative_key),
        FindOrEmpty(callbacks.assemble_diagonal, derivative_key),
-       FindOrEmpty(callbacks.setup, derivative_key));
+       FindOrEmpty(callbacks.setup, derivative_key),
+       lvector_mode);
 }
 }
 
@@ -284,7 +288,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       "no derivative action has been found for ID "
    },
    true,
-   mult_level == MultLevel::LVECTOR);
+   mult_level == MultLevel::LVECTOR,
+   IsFunctionalDerivative(derivative_id));
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
@@ -304,7 +309,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       "no derivative action has been found for ID "
    },
    use_cached_setup,
-   mult_level == MultLevel::LVECTOR);
+   mult_level == MultLevel::LVECTOR,
+   IsFunctionalDerivative(derivative_id));
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
