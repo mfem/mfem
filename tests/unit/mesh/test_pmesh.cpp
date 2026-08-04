@@ -227,18 +227,13 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 
 TEST_CASE("ParMeshPrintLoadEmptyCurvedPartitions", "[Parallel], [ParMesh]")
 {
-   const int num_procs = Mpi::WorldSize();
-   if (num_procs == 1) { return; }
-
    Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    mesh.SetCurvature(2);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
    const int local_empty = pmesh.GetNE() == 0;
-   int empty_partitions = 0;
-   MPI_Allreduce(&local_empty, &empty_partitions, 1, MPI_INT, MPI_SUM,
-                 MPI_COMM_WORLD);
-   REQUIRE(empty_partitions == num_procs - 1);
+   const auto empty_partitions = pmesh.ReduceInt(local_empty);
+   REQUIRE(empty_partitions == Mpi::WorldSize() - 1);
 
    std::ostringstream output;
    pmesh.ParPrint(output);
