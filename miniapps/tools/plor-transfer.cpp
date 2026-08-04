@@ -242,36 +242,39 @@ int main(int argc, char *argv[])
       // Transfer velocity while conserving rho-weighted momentum.
       GridFunctionCoefficient rho_coeff(&rho);
       GridFunctionCoefficient rho_lor_coeff(&rho_lor);
-      ProductCoefficient momentum_coeff(weight_fn_coeff, rho_coeff);
-      ProductCoefficient momentum_lor_coeff(weight_fn_coeff, rho_lor_coeff);
-      CoefficientWithOrder momentum_weight(momentum_coeff, order + 2);
-      CoefficientWithOrder momentum_lor_weight(momentum_lor_coeff, lorder + 2);
+      ProductCoefficient prod_coeff(weight_fn_coeff, rho_coeff);
+      ProductCoefficient prod_lor_coeff(weight_fn_coeff, rho_lor_coeff);
+      CoefficientWithOrder prod_weight(prod_coeff, order + 2);
+      CoefficientWithOrder prod_lor_weight(prod_lor_coeff, lorder + 2);
 
       ParGridFunction w(&fespace), w_lor(&fespace_lor);
       FunctionCoefficient W(W_exact);
       w.ProjectCoefficient(W);
 
       if (Mpi::Root()) { cout << '\n'; }
-      const real_t ho_momentum = compute_mass(w, -1.0, "rho w HO ", momentum_weight);
+      const real_t ho_momentum = compute_mass(w, -1.0, "rho w HO ", prod_weight);
 
-      L2ProjectionGridTransfer momentum_gt(fespace, fespace_lor, momentum_weight,
-                                           momentum_lor_weight);
-      momentum_gt.UseEA(use_ea);
-      momentum_gt.ForwardOperator().Mult(w, w_lor);
-      compute_mass(w_lor, ho_momentum, "rho w LOR", momentum_lor_weight);
+      L2ProjectionGridTransfer vel_gt(fespace, fespace_lor, prod_weight,
+                                      prod_lor_weight);
+      vel_gt.UseEA(use_ea);
+      vel_gt.ForwardOperator().Mult(w, w_lor);
+      compute_mass(w_lor, ho_momentum, "rho w LOR", prod_lor_weight);
 
       ParGridFunction w_prev = w;
-      momentum_gt.BackwardOperator().Mult(w_lor, w);
-      compute_mass(w, ho_momentum, "P(rho w) ", momentum_weight);
+      vel_gt.BackwardOperator().Mult(w_lor, w);
+      compute_mass(w, ho_momentum, "P(rho w) ", prod_weight);
 
-      w_prev -= w;
-      Vector w_prev_true(fespace.GetTrueVSize());
-      w_prev.GetTrueDofs(w_prev_true);
-      const real_t l_inf = global_max(w_prev_true);
-      if (Mpi::Root())
+      if (vel_gt.SupportsBackwardsOperator())
       {
-         cout.precision(12);
-         cout << "|w - P(R(w))|_∞     = " << l_inf << "\n\n";
+         w_prev -= w;
+         Vector w_prev_true(fespace.GetTrueVSize());
+         w_prev.GetTrueDofs(w_prev_true);
+         const real_t l_inf = global_max(w_prev_true);
+         if (Mpi::Root())
+         {
+            cout.precision(12);
+            cout << "|w - P(R(w))|_∞     = " << l_inf << "\n\n";
+         }
       }
    }
 
