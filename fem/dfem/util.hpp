@@ -219,15 +219,34 @@ auto make_dependency_map(tuple<input_ts...> inputs)
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
 
-// @brief Compile-time dependency tuple for derivative input index DerIdx.
+// @brief True if any input in InputsTuple is attached to field ID FieldId.
+template <int FieldId, typename InputsTuple, size_t... Js>
+constexpr bool any_input_has_field_id_impl(std::index_sequence<Js...>)
+{
+   return ((std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() ==
+            FieldId) || ...);
+}
+
+template <int FieldId, typename InputsTuple>
+constexpr bool any_input_has_field_id()
+{
+   return any_input_has_field_id_impl<FieldId, InputsTuple>(
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
+// @brief Compile-time dependency tuple for the derivative w.r.t. field ID
+// DerFieldId.
 //
-// Returns std::tuple<..., N> where entry j is Active iff input j shares
-// the same field ID as input DerIdx, otherwise Const.
-template <size_t DerIdx, typename InputsTuple, size_t... Js>
+// Returns tuple<..., N> where entry j is Active iff input j is attached to
+// field ID DerFieldId, otherwise Const.
+//
+// @note DerFieldId is a field ID, not a position in InputsTuple. The same
+// field can appear in several inputs (e.g. Value<U> and Gradient<U>), and its
+// ID is unrelated to where those inputs sit in the tuple.
+template <size_t DerFieldId, typename InputsTuple, size_t... Js>
 constexpr auto make_dependency_tuple_ct_impl(std::index_sequence<Js...>)
 {
-   constexpr int field_id =
-      std::decay_t<std::tuple_element_t<DerIdx, InputsTuple>>::GetFieldId();
+   constexpr int field_id = static_cast<int>(DerFieldId);
 
    return tuple<
           std::conditional_t<
@@ -238,10 +257,15 @@ constexpr auto make_dependency_tuple_ct_impl(std::index_sequence<Js...>)
           > {};
 }
 
-template <size_t DerIdx, typename InputsTuple>
+template <size_t DerFieldId, typename InputsTuple>
 constexpr auto make_dependency_tuple_ct()
 {
-   return make_dependency_tuple_ct_impl<DerIdx, InputsTuple>(
+   static_assert(
+      any_input_has_field_id<static_cast<int>(DerFieldId), InputsTuple>(),
+      "no quadrature function input is attached to the requested derivative "
+      "field ID; the derivative would be identically zero");
+
+   return make_dependency_tuple_ct_impl<DerFieldId, InputsTuple>(
              std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
 }
 
@@ -269,11 +293,19 @@ struct tuple_cat_type<tuple<Ts...>, tuple<Us...>, Rest...>
 template <typename... Tuples>
 using tuple_cat_type_t = typename tuple_cat_type<Tuples...>::type;
 
-template <size_t DerIdx, typename InputsTuple, size_t... Js>
+// @brief Outputs of the first derivative of a functional w.r.t. field ID
+// DerFieldId.
+//
+// Every input attached to DerFieldId contributes one output, which is
+// integrated against the basis functions of that FieldOperator. For example,
+// differentiating w.r.t. a field entering as both Value<U> and Gradient<U>
+// yields tuple<Value<U>, Gradient<U>>.
+//
+// @note DerFieldId is a field ID, not a position in InputsTuple.
+template <size_t DerFieldId, typename InputsTuple, size_t... Js>
 constexpr auto make_first_derivative_outputs_impl(std::index_sequence<Js...>)
 {
-   constexpr int field_id =
-      std::decay_t<std::tuple_element_t<DerIdx, InputsTuple>>::GetFieldId();
+   constexpr int field_id = static_cast<int>(DerFieldId);
 
    using outputs_t = tuple_cat_type_t<
                      std::conditional_t<
@@ -286,10 +318,15 @@ constexpr auto make_first_derivative_outputs_impl(std::index_sequence<Js...>)
    return outputs_t {};
 }
 
-template <size_t DerIdx, typename InputsTuple>
+template <size_t DerFieldId, typename InputsTuple>
 constexpr auto make_first_derivative_outputs()
 {
-   return make_first_derivative_outputs_impl<DerIdx, InputsTuple>(
+   static_assert(
+      any_input_has_field_id<static_cast<int>(DerFieldId), InputsTuple>(),
+      "no quadrature function input is attached to the requested derivative "
+      "field ID; the derivative would be identically zero");
+
+   return make_first_derivative_outputs_impl<DerFieldId, InputsTuple>(
              std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
 }
 
