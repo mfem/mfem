@@ -975,6 +975,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/contact \
                          @MFEM_SOURCE_DIR@/miniapps/dfem \
+                         @MFEM_SOURCE_DIR@/miniapps/diag-smoothers \
                          @MFEM_SOURCE_DIR@/miniapps/dpg \
                          @MFEM_SOURCE_DIR@/miniapps/dpg/util \
                          @MFEM_SOURCE_DIR@/miniapps/electromagnetics \
@@ -993,6 +994,8 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/miniapps/nurbs \
                          @MFEM_SOURCE_DIR@/miniapps/parelag \
                          @MFEM_SOURCE_DIR@/miniapps/performance \
+                         @MFEM_SOURCE_DIR@/miniapps/plasma \
+                         @MFEM_SOURCE_DIR@/miniapps/plasma/pic \
                          @MFEM_SOURCE_DIR@/miniapps/shifted \
                          @MFEM_SOURCE_DIR@/miniapps/solvers \
                          @MFEM_SOURCE_DIR@/miniapps/spde \
