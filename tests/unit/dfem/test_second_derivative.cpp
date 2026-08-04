@@ -317,6 +317,14 @@ public:
       functional_dop->GetDerivative(U)->Mult(X, Y);
    }
 
+   // Gradient assembled into a Vector from the state captured by
+   // GetDerivative, the functional counterpart of Assemble(SparseMatrix *&).
+   void gradient_assembled(const Vector &u, Vector &g) const
+   {
+      MultiVector X{u, coords};
+      functional_dop->GetDerivative(U, X)->Assemble(g);
+   }
+
    // Hessian-vector product H(u) v with the hand-coded second derivative.
    void hvp_exact(const Vector &u, const Vector &v, Vector &Hv) const
    {
@@ -402,6 +410,15 @@ void second_derivative(const char *filename, int p)
    functional.gradient(u, g);
 
    Vector diff(g);
+   diff -= exact_g;
+   REQUIRE(diff.Norml2() < 1e-12);
+
+   // The functional derivative assembled into a Vector.
+   Vector assembled_g;
+   functional.gradient_assembled(u, assembled_g);
+   REQUIRE(assembled_g.Size() == fes.GetTrueVSize());
+
+   diff = assembled_g;
    diff -= exact_g;
    REQUIRE(diff.Norml2() < 1e-12);
 

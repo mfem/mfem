@@ -14,6 +14,7 @@
 
 #ifdef MFEM_USE_MPI
 #include <memory>
+#include <set>
 #include <utility>
 
 #include "../../linalg/multivector.hpp"
@@ -240,7 +241,8 @@ public:
       const std::vector<assemble_diagonal_callback_t>
       &assemble_diagonal_callbacks = {},
       const std::vector<derivative_setup_t> &derivative_setup_callbacks = {},
-      const bool lvector_mode = false) :
+      const bool lvector_mode = false,
+      const bool functional_gradient = false) :
       Operator(height, width),
       derivative_actions(derivative_actions),
       infds(infds),
@@ -251,7 +253,8 @@ public:
       assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
       assemble_diagonal_callbacks(assemble_diagonal_callbacks),
       derivative_setup_callbacks(derivative_setup_callbacks),
-      lvector_mode(lvector_mode)
+      lvector_mode(lvector_mode),
+      functional_gradient(functional_gradient)
    {
       daction_l.resize(outfds.size());
       daction_e.resize(outfds.size());
@@ -489,6 +492,46 @@ public:
       }
    }
 
+   /// @brief Assemble the derivative of a functional into a Vector.
+   ///
+   /// The derivative of a functional (an integrator whose outputs are all
+   /// FunctionalValue FieldOperators) with respect to one of its input fields
+   /// is a linear form, so it assembles into a vector instead of a matrix. The
+   /// state at which the derivative is evaluated is the one captured by
+   /// DifferentiableOperator::GetDerivative(). This is the counterpart of
+   /// Assemble(SparseMatrix *&) for functionals.
+   ///
+   /// @param g The vector to receive the gradient. It is resized to the T-dof
+   /// size of the derivative output field.
+   void Assemble(Vector &g) const
+   {
+      MFEM_VERIFY(functional_gradient,
+                  "derivative can't be assembled into a Vector, only "
+                  "derivatives of functionals (FunctionalValue outputs) can");
+      MFEM_VERIFY(outfds.size() == 1,
+                  "assembling a functional derivative into a Vector requires a "
+                  "single derivative output field");
+      EnsureQpCache();
+
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
+      for (const auto &f : derivative_actions)
+      {
+         // The first-derivative (gradient) action ignores the direction.
+         f(infields_e, nullptr, daction_e);
+      }
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      if (lvector_mode)
+      {
+         g = *daction_l[0];
+      }
+      else
+      {
+         prolongation_transpose(outfds[0], *daction_l[0], g);
+      }
+   }
+
    /// @brief Assemble the diagonal of the derivative operator into a T-vector.
    ///
    /// @param diag The vector to receive the diagonal (must be T-dof sized).
@@ -570,6 +613,11 @@ private:
    /// Callbacks per-integrator qp caches
    std::vector<derivative_setup_t> derivative_setup_callbacks;
    bool lvector_mode = false;
+
+   /// Whether this operator is the first derivative (gradient) of a functional.
+   /// Only then the derivative can be assembled into a Vector.
+   bool functional_gradient = false;
+
    mutable bool qp_cache_filled = false;
 
    /// @brief Ensure the qp cache is filled.
@@ -829,6 +877,16 @@ public:
    /// @return A shared pointer to the configured DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(size_t derivative_id);
 
+   /// @brief Whether @a derivative_id belongs to a functional integrator.
+   ///
+   /// Derivatives of functionals are linear forms and are therefore assembled
+   /// into a Vector with DerivativeOperator::Assemble(Vector &) instead of a
+   /// matrix.
+   bool IsFunctionalDerivative(size_t derivative_id) const
+   {
+      return functional_derivative_ids.count(derivative_id) > 0;
+   }
+
    /// @brief Create a second derivative operator for a functional.
    ///
    /// Returns the derivative of grad_{gradient_id} f in the direction of
@@ -990,6 +1048,10 @@ private:
    std::map<second_derivative_key_t,
             std::vector<assemble_diagonal_callback_t>>
        assemble_second_derivative_diagonal_callbacks;
+
+   /// Derivative IDs whose integrator has FunctionalValue outputs. Their first
+   /// derivative is a linear form which assembles into a Vector.
+   std::set<size_t> functional_derivative_ids;
 
    std::vector<FieldDescriptor> infds;
    std::vector<FieldDescriptor> outfds;
@@ -1327,6 +1389,7 @@ void DifferentiableOperator::AddIntegrator(
       {
 #ifdef MFEM_USE_ENZYME
          has_functional_integrator = true;
+         functional_derivative_ids.insert(idx);
 
          // Check dependencies of the quadrature function inputs for the derivative
          constexpr auto darr =
