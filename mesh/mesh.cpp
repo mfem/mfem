@@ -14481,118 +14481,6 @@ MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
 
 void MeshPart::Print(std::ostream &os) const
 {
-   if (is_nonconforming)
-   {
-      os << (nc_using_scaling ? "MFEM NC mesh v1.1\n\n"
-                              : "MFEM NC mesh v1.0\n\n");
-
-      os <<
-         "# NCMesh supported geometry types:\n"
-         "# SEGMENT     = 1\n"
-         "# TRIANGLE    = 2\n"
-         "# SQUARE      = 3\n"
-         "# TETRAHEDRON = 4\n"
-         "# CUBE        = 5\n"
-         "# PRISM       = 6\n"
-         "# PYRAMID     = 7\n";
-
-      const int dim = dimension;
-      os << "\ndimension\n" << dim << '\n';
-
-      os << "\n# rank attr geom ref_type nodes/children";
-      os << "\nelements\n" << num_elements << '\n';
-      {
-         const bool have_element_map = (element_map.Size() == num_elements);
-         MFEM_ASSERT(have_element_map || element_map.Size() == 0,
-                     "invalid MeshPart state");
-         EntityHelper elem_helper(dim, entity_to_vertex);
-         MFEM_ASSERT(elem_helper.num_entities == num_elements,
-                     "invalid MeshPart state");
-         for (int nat_elem_id = 0; nat_elem_id < num_elements; nat_elem_id++)
-         {
-            const int bytype_elem_id = have_element_map ?
-                                       element_map[nat_elem_id] : nat_elem_id;
-            const Entity ent = elem_helper.FindEntity(bytype_elem_id);
-            os << 0 << ' ' << attributes[nat_elem_id] << ' '
-               << ent.geom << ' ' << 0;
-            for (int i = 0; i < ent.num_verts; i++)
-            {
-               os << ' ' << ent.verts[i];
-            }
-            os << '\n';
-         }
-      }
-
-      if (num_bdr_elements > 0)
-      {
-         os << "\n# attr geom nodes";
-         os << "\nboundary\n" << num_bdr_elements << '\n';
-         const bool have_boundary_map = (boundary_map.Size() == num_bdr_elements);
-         MFEM_ASSERT(have_boundary_map || boundary_map.Size() == 0,
-                     "invalid MeshPart state");
-         EntityHelper bdr_helper(dim-1, entity_to_vertex);
-         MFEM_ASSERT(bdr_helper.num_entities == num_bdr_elements,
-                     "invalid MeshPart state");
-         for (int nat_bdr_id = 0; nat_bdr_id < num_bdr_elements; nat_bdr_id++)
-         {
-            const int bytype_bdr_id = have_boundary_map ?
-                                      boundary_map[nat_bdr_id] : nat_bdr_id;
-            const Entity ent = bdr_helper.FindEntity(bytype_bdr_id);
-            os << bdr_attributes[nat_bdr_id] << ' ' << ent.geom;
-            for (int i = 0; i < ent.num_verts; i++)
-            {
-               os << ' ' << ent.verts[i];
-            }
-            os << '\n';
-         }
-      }
-
-      if (vertex_parents.Size() > 0)
-      {
-         const bool have_parent_scale =
-            (vertex_parent_scale.Size() == vertex_parents.Size());
-         MFEM_ASSERT(have_parent_scale || vertex_parent_scale.Size() == 0,
-                     "invalid MeshPart state");
-         os << "\n# vert_id p1 p2";
-         os << "\nvertex_parents\n" << vertex_parents.Size() << '\n';
-         for (int i = 0; i < vertex_parents.Size(); i++)
-         {
-            const auto &parent = vertex_parents[i];
-            os << parent.one << ' ' << parent.two << ' ' << parent.three;
-            if (have_parent_scale) { os << ' ' << vertex_parent_scale[i]; }
-            os << '\n';
-         }
-      }
-
-      if (vertex_coordinates.Size() == space_dimension*num_vertices)
-      {
-         MFEM_ASSERT(!nodes, "invalid MeshPart state");
-         os << "\n# top-level node coordinates";
-         os << "\ncoordinates\n";
-         os << num_vertices << '\n';
-         os << space_dimension << '\n';
-         for (int i = 0; i < num_vertices; i++)
-         {
-            os << vertex_coordinates[i*space_dimension];
-            for (int d = 1; d < space_dimension; d++)
-            {
-               os << ' ' << vertex_coordinates[i*space_dimension + d];
-            }
-            os << '\n';
-         }
-      }
-      else
-      {
-         MFEM_ASSERT(vertex_coordinates.Size() == 0, "invalid MeshPart state");
-         MFEM_ASSERT(nodes, "invalid MeshPart state");
-         os << "\nnodes\n";
-         nodes->Save(os);
-      }
-
-      os << "\nmfem_mesh_end" << endl;
-      return;
-   }
-
    os << "MFEM mesh v1.2\n";
 
    // optional
@@ -14848,40 +14736,7 @@ Mesh &MeshPart::GetMesh()
       // 'mesh.Nodes' cannot be set here -- they can be set later, if needed
    }
 
-   if (is_nonconforming)
-   {
-      const bool have_parent_scale =
-         (vertex_parent_scale.Size() == vertex_parents.Size());
-      MFEM_ASSERT(have_parent_scale || vertex_parent_scale.Size() == 0,
-                  "invalid MeshPart state");
-      for (const auto &parent : vertex_parents)
-      {
-         mesh->AddVertexParents(parent.one, parent.two, parent.three);
-      }
-   }
-
    mesh->FinalizeTopology(/* generate_bdr: */ false);
-
-   if (is_nonconforming)
-   {
-      if (!mesh->ncmesh)
-      {
-         mesh->EnsureNCMesh(true);
-      }
-      MFEM_VERIFY(mesh->ncmesh, "invalid MeshPart state");
-      if (nc_using_scaling)
-      {
-         mesh->SetScaledNCMesh();
-      }
-      if (vertex_parent_scale.Size() == vertex_parents.Size())
-      {
-         for (int i = 0; i < vertex_parents.Size(); i++)
-         {
-            mesh->ncmesh->SetVertexParentScale(vertex_parents[i].one,
-                                               vertex_parent_scale[i]);
-         }
-      }
-   }
 
    return *mesh;
 }
@@ -14977,8 +14832,6 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    // Initialize 'mesh_part'
    mesh_part.dimension = dim;
    mesh_part.space_dimension = sdim;
-   mesh_part.is_nonconforming = mesh.Nonconforming();
-   mesh_part.nc_using_scaling = false;
    mesh_part.num_vertices = 0;
    mesh_part.num_elements = num_elems;
    mesh_part.num_bdr_elements = num_bdr_elems;
@@ -14992,8 +14845,6 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    mesh_part.attributes.SetSize(num_elems);
    mesh_part.bdr_attributes.SetSize(num_bdr_elems);
    mesh_part.vertex_coordinates.SetSize(0);
-   mesh_part.vertex_parents.SetSize(0);
-   mesh_part.vertex_parent_scale.SetSize(0);
 
    mesh_part.num_parts = num_parts;
    mesh_part.my_part_id = part_id;
@@ -15148,34 +14999,6 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
          const int loc_id = vertex_loc_to_glob.FindSorted(glob_id);
          MFEM_ASSERT(loc_id >= 0, "internal error: global vertex id not found");
          vert_array[i] = loc_id;
-      }
-   }
-
-   if (mesh_part.is_nonconforming)
-   {
-      MFEM_VERIFY(mesh.ncmesh, "nonconforming mesh is missing its NCMesh");
-      const NCMesh &ncmesh = *mesh.ncmesh;
-      mesh_part.nc_using_scaling = ncmesh.UsingScaling();
-      for (int loc_vertex_id = 0; loc_vertex_id < vertex_loc_to_glob.Size();
-           loc_vertex_id++)
-      {
-         const int glob_vertex_id = vertex_loc_to_glob[loc_vertex_id];
-         const int node_id = ncmesh.GetVertexNodeId(glob_vertex_id);
-         const auto &node = ncmesh.GetNode(node_id);
-         if (node.p1 == node.p2) { continue; }
-
-         const int glob_parent_1 = ncmesh.GetNodeVertex(node.p1);
-         const int glob_parent_2 = ncmesh.GetNodeVertex(node.p2);
-         const int loc_parent_1 = vertex_loc_to_glob.FindSorted(glob_parent_1);
-         const int loc_parent_2 = vertex_loc_to_glob.FindSorted(glob_parent_2);
-         MFEM_VERIFY(loc_parent_1 >= 0 && loc_parent_2 >= 0,
-                     "vertex parent not found in local MeshPart");
-         mesh_part.vertex_parents.Append(
-            Triple<int, int, int>(loc_vertex_id, loc_parent_1, loc_parent_2));
-         if (mesh_part.nc_using_scaling)
-         {
-            mesh_part.vertex_parent_scale.Append(node.GetScale());
-         }
       }
    }
 
