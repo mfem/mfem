@@ -297,10 +297,8 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedMass(
 }
 
 void L2ProjectionGridTransfer::L2Projection::ElemMixedEvaluation(
-   Geometry::Type geom, const FiniteElement& fe_ho,
-   const FiniteElement& fe_lor, ElementTransformation& el_tr,
-   IntegrationPointTransformation& ip_tr,
-   const IntegrationRule& ir,
+   Geometry::Type geom, const FiniteElement& fe_ho, const FiniteElement& fe_lor,
+   IntegrationPointTransformation& ip_tr, const IntegrationRule& ir,
    DenseMatrix& B_L, DenseMatrix& B_H) const
 {
    for (int i = 0; i < ir.GetNPoints(); i++)
@@ -531,7 +529,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          DenseMatrix &b_lo = B_L(ilor);
          DenseMatrix &b_ho = B_H(ilor);
 
-         ElemMixedEvaluation(geom, fe_ho, fe_lor, el_tr, ip_tr, ir_ea, b_lo, b_ho);
+         ElemMixedEvaluation(geom, fe_ho, fe_lor, ip_tr, ir_ea, b_lo, b_ho);
       } // loop over subcells of ho element
       // end of quadrature point setup
    } // completed setup of basis function and quadrature point

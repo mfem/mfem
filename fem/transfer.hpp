@@ -245,7 +245,6 @@ public:
 
       void ElemMixedEvaluation(Geometry::Type geom, const FiniteElement& fe_ho,
                                const FiniteElement& fe_lor,
-                               ElementTransformation& el_tr,
                                IntegrationPointTransformation& ip_tr,
                                const IntegrationRule& ir,
                                DenseMatrix& B_L, DenseMatrix& B_H) const;
