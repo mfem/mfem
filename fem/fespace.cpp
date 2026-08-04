@@ -1464,12 +1464,12 @@ int FiniteElementSpace::GetVectorDim() const
 
 int FiniteElementSpace::GetCurlDim() const
 {
-   const FiniteElement *fe = GetTypicalFE();
-   if (fe->GetRangeType() == FiniteElement::SCALAR)
+   const int dim = GetMesh()->Dimension();
+   if (fec->GetRangeType(dim) == FiniteElement::SCALAR)
    {
       return 2 * GetMesh()->SpaceDimension() - 3;
    }
-   return GetVDim()*fe->GetCurlDim();
+   return GetVDim()*fec->GetCurlDim(dim);
 }
 
 const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
