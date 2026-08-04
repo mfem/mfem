@@ -418,7 +418,7 @@ public:
     of the surface integration rule by means of moment-fitting.
 
     @param [in] q coefficient representing the inegrand
-    @param [in] levelset level-set defining the implicit interfac
+    @param [in] levelset level-set defining the implicit interface
     @param [in] ir surface integrtion rule to be used
     */
    SurfaceLFIntegrator(Coefficient &q, Coefficient &levelset,
@@ -488,7 +488,7 @@ public:
     of the volumetric subdomain integration rule by means of moment-fitting.
 
     @param [in] q coefficient representing the inegrand
-    @param [in] levelset level-set defining the implicit interfac
+    @param [in] levelset level-set defining the implicit interface
     @param [in] ir subdomain integrtion rule to be used
     */
    SubdomainLFIntegrator(Coefficient &q, Coefficient &levelset,

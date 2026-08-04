@@ -373,7 +373,7 @@ namespace detail
 ///
 /// The qpdc consists of compatible data to be used for integration with a test
 /// operator, e.g. Jacobians of a linearization from a FE operation with a trial
-/// function including integration weights and necessesary transformations.
+/// function including integration weights and necessary transformations.
 ///
 /// @param fhat the qpdc applied to a vector in shadow_memory.
 /// @param shadow_shmem the shadow shared memory.
@@ -433,7 +433,7 @@ void apply_qpdc(
 ///
 /// The qpdc consists of compatible data to be used for integration with a test
 /// operator, e.g. Jacobians of a linearization from a FE operation with a trial
-/// function including integration weights and necessesary transformations.
+/// function including integration weights and necessary transformations.
 ///
 /// @param fhat the qpdc applied to a vector in shadow_memory.
 /// @param shadow_shmem the shadow shared memory.

@@ -4553,7 +4553,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
    // key: other rank
-   // value: send or recieve buffer
+   // value: send or receive buffer
    std::map<int, std::vector<HYPRE_BigInt>> to_send;
    std::map<int, std::vector<HYPRE_BigInt>> to_recv;
    // key: index into dtrans.embeddings

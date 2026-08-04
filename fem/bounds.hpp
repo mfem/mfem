@@ -61,7 +61,7 @@ private:
    real_t tol = 0.0; // offset bounds to avoid round-off errors
    Vector nodes, weights, control_points;
    DenseMatrix lbound, ubound; // ncp x nb matrices with bounds of all bases
-   // Some auxillary storage for computing the bounds with Bernstein
+   // Some auxiliary storage for computing the bounds with Bernstein
    DenseMatrix basisMatNodes; // Bernstein bases at equispaced nodes
    DenseMatrix basisMatInt;   // Bernstein bases at GLL nodes
    Vector nodes_int, weights_int; // Integration nodes and weights

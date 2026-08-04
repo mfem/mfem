@@ -406,7 +406,7 @@ public:
        @param[in] ir     Quadrature points at which the gradients are to be
                          evaluated.
        @param[out] grad  Output vector of size `SDIM*VDIM*NQ*NE` where `SDIM` is
-                         the spatial dimention of the mesh, `VDIM` is the vector
+                         the spatial dimension of the mesh, `VDIM` is the vector
                          dimension of the GridFunction, `NQ` is the number of
                          quadrature points in @a ir, and `NE` is the number of
                          elements in the mesh. The layout of @a grad is

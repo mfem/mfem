@@ -745,7 +745,7 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
             int v0 = parent_to_submesh_vertex_ids_[vert[(1-o)/2]];
             int v1 = parent_to_submesh_vertex_ids_[vert[(1+o)/2]];
 
-            // The orienation of the shared edge relative to the local edge will
+            // The orientation of the shared edge relative to the local edge will
             // be determined by whether v0 < v1 or v1 < v0
             shared_edges.Append(new Segment(v0, v1, 1));
             sedge_ledge.Append(submesh_edge_id);
@@ -785,7 +785,7 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             int v1 = vert[1];
             int v2 = vert[2];
 
-            // See Mesh::GetTriOrientation for info on interpretting "o"
+            // See Mesh::GetTriOrientation for info on interpreting "o"
             switch (o)
             {
                case 1:

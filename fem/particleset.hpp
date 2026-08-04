@@ -34,7 +34,7 @@ namespace mfem
  *  \ref tags can hold integer data such as particle type, color, etc.
  *
  *  Each particle also has a unique global ID, but that is managed by the
- *  ParticleSet class and not stored in this Particle class. Simiarly, the names
+ *  ParticleSet class and not stored in this Particle class. Similarly, the names
  *  of the fields and tags, typically useful for output purposes, are managed by
  *  the ParticleSet class.
  *

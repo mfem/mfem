@@ -888,7 +888,7 @@ public:
     * Constructor.
     * Takes an @p GinkgoExecType argument and creates an Executor.
     * In Ginkgo, GPU Executors must have an associated host Executor.
-    * This routine allows for explicite setting of the CPU Executor
+    * This routine allows for explicit setting of the CPU Executor
     * for GPU backends.
     */
    GinkgoExecutor(ExecType exec_type, ExecType host_exec_type);

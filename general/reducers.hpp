@@ -251,7 +251,7 @@ template <> struct MinMaxReducer<double>
 /// @brief i = argmin(a[i], a[j])
 ///
 /// Note: for ties the returned index can correspond to any min entry, not
-/// necesarily the first one
+/// necessarily the first one
 template <class T, class I> struct ArgMinReducer
 {
    using value_type = DevicePair<T, I>;
@@ -308,7 +308,7 @@ template <class I> struct ArgMinReducer<double, I>
 /// @brief i = argmax(a[i], a[j])
 ///
 /// Note: for ties the returned index can correspond to any min entry, not
-/// necesarily the first one.
+/// necessarily the first one.
 template <class T, class I> struct ArgMaxReducer
 {
    using value_type = DevicePair<T, I>;

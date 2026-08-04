@@ -261,7 +261,7 @@ private:
 
    // surface loads
    using VectorCoefficientPtrMap = std::map<int, mfem::VectorCoefficient *>;
-   VectorCoefficientPtrMap load_coeff; // internaly generated load
+   VectorCoefficientPtrMap load_coeff; // internally generated load
    VectorCoefficientPtrMap surf_loads; // external vector coeeficients
 
    class SurfaceLoad;
@@ -276,7 +276,7 @@ private:
    using CoefficientPtrMap = std::map<int, mfem::Coefficient*>;
    CoefficientPtrMap bccx, bccy, bccz;
 
-   // holds the displacement contrained DOFs
+   // holds the displacement constrained DOFs
    mfem::Array<int> ess_tdofv;
 
    mfem::Coefficient *E, *nu;
@@ -287,7 +287,7 @@ private:
    std::unique_ptr<mfem::OperatorHandle> Kh;
    std::unique_ptr<mfem::HypreParMatrix> K, Ke;
 
-   // begining of dFEM defintions
+   // beginning of dFEM definitions
    // U - displacements, Coords - nodal coordinates
    // E modulud sampled on integration points
    // Nu Poisson's ratio sampled on integration points

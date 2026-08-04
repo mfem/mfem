@@ -52,7 +52,7 @@ public:
    /// Specify the reordering strategy for the MUMPS solver
    enum ReorderingStrategy
    {
-      /// Let MUMPS automatically decide the reording strategy
+      /// Let MUMPS automatically decide the reordering strategy
       AUTOMATIC = 0,
       /// Approximate Minimum Degree with auto quasi-dense row detection is used
       AMD,
@@ -239,7 +239,7 @@ private:
    void InitRhsSol(int nrhs) const;
 
 #if MFEM_MUMPS_VERSION >= 530
-   // Row offests array on all procs
+   // Row offsets array on all procs
    Array<int> row_starts;
 
    // Row maps and storage for distributed RHS and solution

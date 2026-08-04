@@ -104,7 +104,7 @@ class KernelDispatchTable<Kernels,
       std::unordered_map<std::tuple<Params...>, Signature, TupleHasher>;
    TableType table;
 
-   /// @brief Call function @a f with arguments @a args (perfect forwaring).
+   /// @brief Call function @a f with arguments @a args (perfect forwarding).
    ///
    /// Only valid when the function @a f is not a member function.
    template <typename F, typename... Args,

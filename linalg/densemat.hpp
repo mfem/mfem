@@ -998,7 +998,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the parameters for
+    and right singular vectors can be chosen according to the parameters for
     the LAPACK DGESVD.
 
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
@@ -1016,7 +1016,7 @@ public:
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
     and right singular
-    vectors can be choosen according to the parameters for the LAPACK DGESVD.
+    vectors can be chosen according to the parameters for the LAPACK DGESVD.
 
     @param [in] h height of the matrix
     @param [in] w width of the matrix
@@ -1033,7 +1033,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the parameters for
+    and right singular vectors can be chosen according to the parameters for
     the LAPACK DGESVD.
 
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
@@ -1058,7 +1058,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the
+    and right singular vectors can be chosen according to the
     parameters for the LAPACK DGESVD.
 
     @param [in] h height of the matrix

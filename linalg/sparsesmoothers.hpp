@@ -137,12 +137,12 @@ public:
    DSmoother(const SparseMatrix &a, JacobiType t = JACOBI, real_t s = 1.,
              int it = 1) : DSmoother(t, s, it) { SetOperator(a); }
 
-   /// @brief Same as DSmoother(JacobiType,real_t,int), for backwards compatbility.
+   /// @brief Same as DSmoother(JacobiType,real_t,int), for backwards compatibility.
    DSmoother(int t, real_t s = 1., int it = 1)
       : DSmoother(JacobiType(t), s, it) { }
 
    /// @brief Same as DSmoother(const SparseMatrix&,JacobiType,real_t,int), for
-   /// backwards compatbility.
+   /// backwards compatibility.
    DSmoother(const SparseMatrix &a, int t, real_t s = 1., int it = 1)
       : DSmoother(a, JacobiType(t), s, it) { }
 

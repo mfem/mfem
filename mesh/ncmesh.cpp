@@ -2060,7 +2060,7 @@ void NCMesh::DerefineElement(int elem)
    // retrieve original corner nodes and face attributes from the children
    if (el.Geom() == Geometry::CUBE)
    {
-      // Sets corner nodes from childs
+      // Sets corner nodes from children
       constexpr int nb_cube_childs = 8;
       for (int i = 0; i < nb_cube_childs; i++)
       {

@@ -195,7 +195,7 @@ public:
 
    ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariableType, @a var, and returns @a false otherwise.
-   ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
+   ///@note Should be overridden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
    { return false; };
 
@@ -1039,7 +1039,7 @@ public:
 
 /// Second order, two-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
 /** L-stable IMEX RK2 method adopted from "On the Stability of IMEX Upwind gSBP
-    Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. Same
+    Schemes for 1D Linear Advection‑Diffusion Equations" by Sigrun Ortleb. Same
     as (2,2,2) from "Implicit-explicit Runge-Kutta methods for time-dependent
     partial differential equations" by Ascher, Ruuth and Spiteri, Applied
     Numerical Mathematics (1997). */

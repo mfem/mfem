@@ -32,7 +32,7 @@ namespace mfem
    MFEM wrapper for Nvidia's multigrid library, AmgX (github.com/NVIDIA/AMGX)
 
    AmgX requires building MFEM with CUDA, and AMGX enabled. For distributed
-   memory parallism, MPI and Hypre (version 16.0+) are also required. Although
+   memory parallelism, MPI and Hypre (version 16.0+) are also required. Although
    CUDA is required for building, the AmgX solver is compatible with a MFEM CPU
    device configuration.
 
@@ -179,14 +179,14 @@ public:
    int GetNumIterations();
 
    /** @brief Read in the AmgX parameters either through a file or directly
-       through a properly formated string.  If @a source is set to
+       through a properly formatted string.  If @a source is set to
        AmgXSolver::EXTERNAL the parameters are loaded from a filename set by
        @a config.  If @a source is set to AmgXSolver::INTERNAL the parameters
        are set directly by the string defined by @a config.
    */
    void ReadParameters(const std::string config, CONFIG_SRC source);
 
-   /** @brief  Set up the AmgX library with the default paramaters.
+   /** @brief  Set up the AmgX library with the default parameters.
       @param [in] amgxMode_ AmgXSolver::PRECONDITIONER,
                             AmgXSolver::SOLVER.
 

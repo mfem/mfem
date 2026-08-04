@@ -825,7 +825,7 @@ void ExodusIIWriter::ExtractVertexCoordinates(std::vector<real_t> & coordx,
 
 void ExodusIIWriter::WriteFileSize()
 {
-   // Store Exodus file size (normal==0; large==1). NB: coordinates specifed
+   // Store Exodus file size (normal==0; large==1). NB: coordinates specified
    // separately as components for large file.
    const int file_size = 1;
 
@@ -850,7 +850,7 @@ void ExodusIIWriter::WriteNodeSets()
 
 void ExodusIIWriter::WriteTimesteps()
 {
-   // Set number of timesteps (ASSUME single timestep for initial verision).
+   // Set number of timesteps (ASSUME single timestep for initial version).
    int timesteps_dim;
    DefineDimension(ExodusIILabels::EXODUS_TIME_STEP_LABEL, 1, &timesteps_dim);
 }
