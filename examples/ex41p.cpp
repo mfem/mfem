@@ -617,6 +617,12 @@ int main(int argc, char *argv[])
             sout << "parallel " << num_procs << " " << myid << "\n";
             sout << "solution\n" << *pmesh << *u << flush;
          }
+         if (visit)
+         {
+            dc->SetCycle(ti);
+            dc->SetTime(t);
+            dc->Save();
+         }
          if (paraview)
          {
             pd->SetCycle(ti);
