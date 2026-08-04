@@ -392,8 +392,6 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       const GeometricFactors *geo_facts =
          mesh_lor.GetGeometricFactors(ir_ea, GeometricFactors::DETERMINANTS);
 
-      // TODO: this is evaluating the high-order coefficient on the LOR mesh.
-      // Doing this properly will require some care.
       Vector coeff_vec(qPts*nel_lor);
       coeff_vec.UseDevice(true);
 
