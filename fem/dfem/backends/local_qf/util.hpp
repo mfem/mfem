@@ -158,6 +158,36 @@ using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value>::type;
 
+/// Empty stand-in for a register bank slot that is never loaded or read.
+struct UnusedQReg {};
+
+/// Register bank covering q-function inputs, with every slot whose activity
+/// flag is false collapsed to an empty type. Used for the shadow / tangent bank
+/// of a directional derivative, where only the inputs attached to the
+/// derivative direction ever hold data: a full bank would reserve MQ1^DIM
+/// registers per component of every inactive input (nine per mesh Jacobian in
+/// 3D), which costs occupancy on device.
+template <
+   typename backend_t, typename qfunc_t, int MQ1, bool... Active>
+struct build_masked_input_args_reg
+{
+   template <std::size_t... Is>
+   static auto make(std::index_sequence<Is...>)
+   -> tuple<std::conditional_t<
+   std::array<bool, sizeof...(Active)> {Active...} [Is],
+   typename backend_t::template QReg<
+   typename qf_param_slot<qfunc_t, Is>::qf_reg_param_t>,
+   UnusedQReg>...>;
+
+   using type = decltype(make(std::make_index_sequence<sizeof...(Active)> {}));
+};
+
+template <
+   typename backend_t, typename qfunc_t, int MQ1, bool... Active>
+using masked_input_args_reg_t =
+   typename build_masked_input_args_reg<backend_t, qfunc_t, MQ1,
+   Active...>::type;
+
 /// Register bank covering q-function outputs only (same types as the slots
 /// from `n_inputs` onward in args_reg_t). Used where the primal / trial inputs
 /// live in a separate bank and only the test registers are integrated.
