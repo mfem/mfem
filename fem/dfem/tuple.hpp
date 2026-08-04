@@ -23,10 +23,31 @@ namespace mfem::future
 template <typename... T>
 struct tuple;
 
-// Implementation detail: storage using multiple inheritance from tuple_leaf
-// to support structured bindings
+// Implementation detail: storage using multiple inheritance from tuple_leaf,
+// which lets the tuple be defined for an arbitrary number of elements.
+// Structured bindings come from the std::tuple_size / std::tuple_element / get
+// specializations at the bottom of this file, not from the layout.
 namespace detail
 {
+/**
+ * @brief Trait that is true when @a U is a single argument that is (a reference
+ * to) @a Self
+ *
+ * A variadic constructor taking @c "U&&..." is a better match than the copy
+ * constructor for a non-const lvalue of its own type; this is used to constrain
+ * it out of those overload sets.
+ */
+template <typename Self, typename... U>
+struct is_self_arg : std::false_type {};
+
+/// @overload
+template <typename Self, typename U>
+struct is_self_arg<Self, U> : std::is_same<Self, std::decay_t<U>> {};
+
+/// SFINAE guard enabling a constructor for every @a U except @a Self itself
+template <typename Self, typename... U>
+using disable_if_self_t = std::enable_if_t<!is_self_arg<Self, U...>::value>;
+
 /**
  * @brief A single tuple element storage
  * @tparam I The index of this element in the tuple
@@ -41,7 +62,7 @@ struct tuple_leaf
    MFEM_HOST_DEVICE constexpr tuple_leaf() = default;
 
    /// Construct from value
-   template <typename U>
+   template <typename U, typename = disable_if_self_t<tuple_leaf, U>>
    MFEM_HOST_DEVICE constexpr explicit tuple_leaf(U&& v) :
       value(std::forward<U>(v)) {}
 };
@@ -51,8 +72,9 @@ struct tuple_leaf
  * @tparam Indices Index sequence for tuple elements
  * @tparam T The types stored in the tuple
  *
- * This uses multiple inheritance from tuple_leaf base classes to enable
- * structured bindings while maintaining efficient storage.
+ * This uses multiple inheritance from tuple_leaf base classes so that a single
+ * definition covers any number of elements, while keeping the storage layout
+ * (and the trivial copyability that device kernels rely on) of a plain struct.
  */
 template <typename Indices, typename... T>
 struct tuple_impl;
@@ -67,11 +89,51 @@ struct tuple_impl<std::index_sequence<I...>, T...> : tuple_leaf<I, T>...
    /**
     * @brief Construct from values
     * @param args The values to store in the tuple
+    *
+    * @note the arguments are perfectly forwarded, so that constructing a tuple
+    * from lvalues costs exactly one copy per element (taking them by value
+    * would add a copy plus a move).
     */
+   template <typename... U, typename = disable_if_self_t<tuple_impl, U...>>
    MFEM_HOST_DEVICE
-   constexpr explicit tuple_impl(T... args)
-      : tuple_leaf<I, T>(std::forward<T>(args))... {}
+   constexpr explicit tuple_impl(U&&... args)
+      : tuple_leaf<I, T>(std::forward<U>(args))... {}
    };
+
+/**
+ * @brief Element-wise constructibility check, only instantiated once the
+ * argument list is known to have the right length
+ * @tparam Viable whether the arity and self-argument checks have passed
+ * @tparam Tuple the @p tuple being constructed
+ * @tparam U the constructor argument types
+ */
+template <bool Viable, typename Tuple, typename... U>
+struct is_constructible_from : std::false_type {};
+
+/// @overload
+template <typename... T, typename... U>
+struct is_constructible_from<true, tuple<T...>, U...>
+: std::bool_constant<(std::is_constructible_v<T, U&&> && ...)> {};
+
+/**
+ * @brief Trait that is true when @a Tuple can be constructed element-wise from
+ * the argument list @a U
+ * @tparam Tuple the @p tuple being constructed
+ * @tparam U the constructor argument types
+ */
+template <typename Tuple, typename... U>
+struct is_elementwise_constructible : std::false_type {};
+
+/// @overload
+template <typename... T, typename... U>
+struct is_elementwise_constructible<tuple<T...>, U...>
+   : is_constructible_from<sizeof...(U) == sizeof...(T) && sizeof...(U) != 0 &&
+  !is_self_arg<tuple<T...>, U...>::value, tuple<T...>, U...> {};
+
+/// SFINAE guard for the element-wise constructor of @p tuple
+template <typename Tuple, typename... U>
+using enable_elementwise_t =
+   std::enable_if_t<is_elementwise_constructible<Tuple, U...>::value>;
 }
 
 /**
@@ -93,9 +155,15 @@ struct tuple : detail::tuple_impl<std::index_sequence_for<T...>, T...>
    /**
     * @brief Construct tuple from values
     * @param args The values to store
+    *
+    * @note this constructor is deliberately *not* explicit, so that the
+    * copy-list-initialization forms that worked when @p tuple was an aggregate
+    * (@c "tuple<A,B> t = {a,b};", @c "return {a,b};", passing @c "{a,b}" to a
+    * function) keep working.
     */
+   template <typename... U, typename = detail::enable_elementwise_t<tuple, U...>>
    MFEM_HOST_DEVICE
-   constexpr explicit tuple(T... args) : base_type(std::forward<T>(args)...) {}
+   constexpr tuple(U&&... args) : base_type(std::forward<U>(args)...) {}
 
    /// Copy constructor
    MFEM_HOST_DEVICE
@@ -183,15 +251,20 @@ struct tuple_element<0, tuple<Head, Tail...>>
    using type = Head;  ///< the type at the specified index
 };
 
+namespace detail
+{
 /**
  * @brief Get implementation for tuple_leaf - non-const lvalue reference
  * @tparam I the index of the tuple element
  * @tparam T the type of the tuple element
  * @param leaf the tuple_leaf containing the value
  * @return reference to the value
+ *
+ * @note @a T is deduced from the (unique) @p tuple_leaf base class of the
+ * argument, so callers only have to supply the index @a I.
  */
 template <size_t I, typename T>
-MFEM_HOST_DEVICE constexpr T& get_impl(detail::tuple_leaf<I, T>& leaf)
+MFEM_HOST_DEVICE constexpr T& get_impl(tuple_leaf<I, T>& leaf)
 {
    return leaf.value;
 }
@@ -204,8 +277,7 @@ MFEM_HOST_DEVICE constexpr T& get_impl(detail::tuple_leaf<I, T>& leaf)
  * @return const reference to the value
  */
 template <size_t I, typename T>
-MFEM_HOST_DEVICE constexpr const T& get_impl(const detail::tuple_leaf<I, T>&
-                                             leaf)
+MFEM_HOST_DEVICE constexpr const T& get_impl(const tuple_leaf<I, T>& leaf)
 {
    return leaf.value;
 }
@@ -218,7 +290,7 @@ MFEM_HOST_DEVICE constexpr const T& get_impl(const detail::tuple_leaf<I, T>&
  * @return rvalue reference to the value
  */
 template <size_t I, typename T>
-MFEM_HOST_DEVICE constexpr T&& get_impl(detail::tuple_leaf<I, T>&& leaf)
+MFEM_HOST_DEVICE constexpr T&& get_impl(tuple_leaf<I, T>&& leaf)
 {
    return static_cast<T&&>(leaf.value);
 }
@@ -231,11 +303,11 @@ MFEM_HOST_DEVICE constexpr T&& get_impl(detail::tuple_leaf<I, T>&& leaf)
  * @return const rvalue reference to the value
  */
 template <size_t I, typename T>
-MFEM_HOST_DEVICE constexpr const T&& get_impl(const detail::tuple_leaf<I, T>&&
-                                              leaf)
+MFEM_HOST_DEVICE constexpr const T&& get_impl(const tuple_leaf<I, T>&& leaf)
 {
    return static_cast<const T&&>(leaf.value);
 }
+}  // namespace detail
 
 /**
  * @tparam I the tuple index to access
@@ -247,9 +319,7 @@ template <size_t I, typename... T>
 MFEM_HOST_DEVICE constexpr auto& get(tuple<T...>& t)
 {
    static_assert(I < sizeof...(T), "Tuple index out of bounds");
-   using elem_type = typename tuple_element<I, tuple<T...>>::type;
-   using leaf_type = detail::tuple_leaf<I, elem_type>;
-   return get_impl<I>(static_cast<leaf_type&>(t));
+   return detail::get_impl<I>(t);
 }
 
 /**
@@ -262,9 +332,7 @@ template <size_t I, typename... T>
 MFEM_HOST_DEVICE constexpr const auto& get(const tuple<T...>& t)
 {
    static_assert(I < sizeof...(T), "Tuple index out of bounds");
-   using elem_type = typename tuple_element<I, tuple<T...>>::type;
-   using leaf_type = detail::tuple_leaf<I, elem_type>;
-   return get_impl<I>(static_cast<const leaf_type&>(t));
+   return detail::get_impl<I>(t);
 }
 
 /**
@@ -277,9 +345,7 @@ template <size_t I, typename... T>
 MFEM_HOST_DEVICE constexpr auto&& get(tuple<T...>&& t)
 {
    static_assert(I < sizeof...(T), "Tuple index out of bounds");
-   using elem_type = typename tuple_element<I, tuple<T...>>::type;
-   using leaf_type = detail::tuple_leaf<I, elem_type>;
-   return get_impl<I>(static_cast<leaf_type&&>(t));
+   return detail::get_impl<I>(std::move(t));
 }
 
 /**
@@ -292,9 +358,7 @@ template <size_t I, typename... T>
 MFEM_HOST_DEVICE constexpr const auto&& get(const tuple<T...>&& t)
 {
    static_assert(I < sizeof...(T), "Tuple index out of bounds");
-   using elem_type = typename tuple_element<I, tuple<T...>>::type;
-   using leaf_type = detail::tuple_leaf<I, elem_type>;
-   return get_impl<I>(static_cast<const leaf_type&&>(t));
+   return detail::get_impl<I>(std::move(t));
 }
 
 /**
@@ -348,7 +412,7 @@ MFEM_HOST_DEVICE constexpr auto operator+(const tuple<S...>& x,
                                           const tuple<T...>& y)
 {
    static_assert(sizeof...(S) == sizeof...(T), "tuples must have same size");
-   return apply_op_helper(x, y, [](auto a, auto b) { return a + b; },
+   return apply_op_helper(x, y, [](const auto& a, const auto& b) { return a + b; },
    std::make_index_sequence<sizeof...(S)> {});
 }
 
@@ -364,7 +428,7 @@ MFEM_HOST_DEVICE constexpr auto operator-(const tuple<S...>& x,
                                           const tuple<T...>& y)
 {
    static_assert(sizeof...(S) == sizeof...(T), "tuples must have same size");
-   return apply_op_helper(x, y, [](auto a, auto b) { return a - b; },
+   return apply_op_helper(x, y, [](const auto& a, const auto& b) { return a - b; },
    std::make_index_sequence<sizeof...(S)> {});
 }
 
@@ -380,7 +444,7 @@ MFEM_HOST_DEVICE constexpr auto operator*(const tuple<S...>& x,
                                           const tuple<T...>& y)
 {
    static_assert(sizeof...(S) == sizeof...(T), "tuples must have same size");
-   return apply_op_helper(x, y, [](auto a, auto b) { return a * b; },
+   return apply_op_helper(x, y, [](const auto& a, const auto& b) { return a * b; },
    std::make_index_sequence<sizeof...(S)> {});
 }
 
@@ -396,7 +460,7 @@ MFEM_HOST_DEVICE constexpr auto operator/(const tuple<S...>& x,
                                           const tuple<T...>& y)
 {
    static_assert(sizeof...(S) == sizeof...(T), "tuples must have same size");
-   return apply_op_helper(x, y, [](auto a, auto b) { return a / b; },
+   return apply_op_helper(x, y, [](const auto& a, const auto& b) { return a / b; },
    std::make_index_sequence<sizeof...(S)> {});
 }
 
@@ -424,7 +488,8 @@ MFEM_HOST_DEVICE constexpr void inplace_add_helper(
  * @brief add values contained in y, to the tuple x
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator+=(tuple<T...>& x, const tuple<T...>& y)
+MFEM_HOST_DEVICE constexpr tuple<T...>& operator+=(tuple<T...>& x,
+                                                   const tuple<T...>& y)
 {
    inplace_add_helper(x, y, std::make_index_sequence<sizeof...(T)> {});
    return x;
@@ -454,7 +519,8 @@ MFEM_HOST_DEVICE constexpr void inplace_sub_helper(
  * @brief subtract values contained in y from the tuple x
  */
 template <typename... T>
-MFEM_HOST_DEVICE constexpr auto operator-=(tuple<T...>& x, const tuple<T...>& y)
+MFEM_HOST_DEVICE constexpr tuple<T...>& operator-=(tuple<T...>& x,
+                                                   const tuple<T...>& y)
 {
    inplace_sub_helper(x, y, std::make_index_sequence<sizeof...(T)> {});
    return x;
