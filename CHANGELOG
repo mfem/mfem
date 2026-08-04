@@ -70,6 +70,15 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Improved partial assembly for VectorDivergenceIntegrator with shared-memory
+  kernels, kernel registration, and transpose support.
+
+- Improved partial-assembly diagonal kernels for VectorMassIntegrator (shared-
+  memory specializations) and ElasticityIntegrator (no scratch Q-vector).
+
+- Added PA gradient and diagonal support for VectorConvectionNLFIntegrator
+ (AssembleGradPA, AddMultGradPA, AssembleGradDiagonalPA).
+
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
 - Added support for device "partial assembly" CurlInterpolator.
@@ -79,6 +88,12 @@ GPU computing
   details. Supported versions >= 0.6.0.
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
+- Changed VectorFEMassIntegrator to use kernel specialization dispatch for
+  partial assembly.
+
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  QuadratureInterpolator.
 
 New and updated examples and miniapps
 -------------------------------------
