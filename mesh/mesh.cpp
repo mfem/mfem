@@ -14741,6 +14741,94 @@ Mesh &MeshPart::GetMesh()
    return *mesh;
 }
 
+namespace
+{
+
+std::unique_ptr<GridFunction>
+ExtractElementwiseGridFunction(const Array<int> &global_elem_ids,
+                               const GridFunction &global_gf,
+                               FiniteElementSpace &local_fespace)
+{
+   std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
+
+   Array<int> gvdofs, lvdofs;
+   Vector loc_vals;
+   for (int loc_elem_id = 0; loc_elem_id < global_elem_ids.Size(); loc_elem_id++)
+   {
+      const int glob_elem_id = global_elem_ids[loc_elem_id];
+      DofTransformation glob_dt, local_dt;
+      global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs, glob_dt);
+      global_gf.GetSubVector(gvdofs, loc_vals);
+      glob_dt.InvTransformPrimal(loc_vals);
+      local_fespace.GetElementVDofs(loc_elem_id, lvdofs, local_dt);
+      local_dt.TransformPrimal(loc_vals);
+      local_gf->SetSubVector(lvdofs, loc_vals);
+   }
+
+   return local_gf;
+}
+
+class NCMeshPartWriter : public NCMesh
+{
+public:
+   explicit NCMeshPartWriter(const NCMesh &ncmesh)
+      : NCMesh(ncmesh)
+   { }
+
+   void SelectPart(int part_id, const Array<int> &partitioning,
+                   Array<int> &owned_global_elem_ids)
+   {
+      MFEM_ASSERT(leaf_elements.Size() == partitioning.Size(),
+                  "invalid partitioning size");
+
+      Array<int> elem_to_global(elements.Size());
+      elem_to_global = -1;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int elem = leaf_elements[i];
+         elem_to_global[elem] = i;
+         elements[elem].rank = partitioning[i];
+      }
+
+      MyRank = part_id;
+
+      Array<char> owned_set(leaf_elements.Size());
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         owned_set[i] = (partitioning[i] == part_id);
+      }
+
+      Array<char> ghost_set;
+      FindSetNeighbors(owned_set, nullptr, &ghost_set);
+
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         if (!owned_set[i] && !ghost_set[i])
+         {
+            elements[leaf_elements[i]].rank = -1;
+         }
+      }
+
+      Update();
+
+      owned_global_elem_ids.SetSize(NElements);
+      for (int i = 0; i < NElements; i++)
+      {
+         const int global_id = elem_to_global[leaf_elements[i]];
+         MFEM_ASSERT(global_id >= 0,
+                     "internal error: missing global element mapping");
+         owned_global_elem_ids[i] = global_id;
+      }
+   }
+
+   void DropCoordinates()
+   {
+      coordinates.DeleteAll();
+   }
+};
+
+} // namespace
+
 
 MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
@@ -15281,6 +15369,52 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
       group__shared_tria_to_vertex.ShiftUpI();
       group__shared_quad_to_vertex.ShiftUpI();
    }
+}
+
+void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
+{
+   const int num_parts = part_to_element.Size();
+
+   MFEM_VERIFY(0 <= part_id && part_id < num_parts,
+               "invalid part_id = " << part_id
+               << ", num_parts = " << num_parts);
+
+   if (mesh.Nonconforming())
+   {
+      MFEM_VERIFY(mesh.ncmesh, "missing NCMesh.");
+
+      NCMeshPartWriter part_ncmesh(*mesh.ncmesh);
+      Array<int> owned_global_elem_ids;
+      part_ncmesh.SelectPart(part_id, partitioning, owned_global_elem_ids);
+      if (mesh.GetNodes())
+      {
+         part_ncmesh.DropCoordinates();
+      }
+
+      part_ncmesh.Print(os);
+
+      if (mesh.GetNodes())
+      {
+         Mesh part_mesh(part_ncmesh);
+         FiniteElementSpace nodal_fes(&part_mesh,
+                                      mesh.GetNodes()->FESpace()->FEColl(),
+                                      mesh.GetNodes()->VectorDim(),
+                                      mesh.GetNodes()->FESpace()->GetOrdering());
+         std::unique_ptr<GridFunction> local_nodes =
+            ExtractElementwiseGridFunction(owned_global_elem_ids,
+                                           *mesh.GetNodes(),
+                                           nodal_fes);
+         os << "\n# mesh curvature GridFunction";
+         os << "\nnodes\n";
+         local_nodes->Save(os);
+      }
+
+      os << "\nmfem_mesh_end" << endl;
+      return;
+   }
+   MeshPart mesh_part;
+   ExtractPart(part_id, mesh_part);
+   mesh_part.Print(os);
 }
 
 std::unique_ptr<FiniteElementSpace>
