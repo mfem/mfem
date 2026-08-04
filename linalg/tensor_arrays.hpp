@@ -36,6 +36,9 @@ constexpr inline void for_unrolled_simple(std::index_sequence<Is...>, Fn &&fn)
 
 
 template <int... loop_sizes>
+#ifdef MFEM_USE_ENZYME
+__attribute__((annotate("enzyme_inactive")))
+#endif
 constexpr inline auto to_multiindex(std::size_t i)
 {
    constexpr auto dims = sizeof...(loop_sizes);
@@ -75,13 +78,28 @@ constexpr inline void for_multiindex(lambda_t f)
 }
 
 
-/// Extend std::apply to work with 0-size arrays.
+namespace detail
+{
+
+template <typename Fn, typename Tuple, std::size_t... Is>
+inline constexpr decltype(auto) apply_impl(Fn&& f, Tuple&& t,
+                                           std::index_sequence<Is...>)
+{
+   using std::get;
+   return std::forward<Fn>(f)(get<Is>(std::forward<Tuple>(t))...);
+}
+
+}  // namespace detail
+
+/// Extend std::apply to work with 0-size arrays and mfem::future::tuple.
 template <typename Fn, typename Tuple>
 inline constexpr decltype(auto) apply(Fn&& f, Tuple&& t)
 {
-   if constexpr (std::tuple_size_v<std::remove_reference_t<Tuple>> == 0)
-   { return f(); }
-   return std::apply(std::forward<Fn>(f), std::forward<Tuple>(t));
+   constexpr auto size = std::tuple_size_v<std::remove_reference_t<Tuple>>;
+   if constexpr (size == 0)
+   { return std::forward<Fn>(f)(); }
+   return detail::apply_impl(std::forward<Fn>(f), std::forward<Tuple>(t),
+                             std::make_index_sequence<size> {});
 }
 
 
@@ -96,18 +114,21 @@ template <typename scalar_t, int ndims, int... tensor_sizes>
 class tensor_ndarray
 {
 public:
-   typedef scalar_t scalar_type;
-   typedef tensor<std::remove_cv_t<scalar_t>,tensor_sizes...> tensor_type;
+   using scalar_type = scalar_t;
+   using tensor_type = tensor<std::remove_cv_t<scalar_t>,tensor_sizes...>;
 
    static constexpr auto tensor_dims = sizeof...(tensor_sizes);
    static constexpr auto total_dims = ndims + tensor_dims;
-   static constexpr std::array<std::size_t,tensor_dims>
-   tensor_sizes_array{tensor_sizes...};
+   static constexpr auto tensor_sizes_array() noexcept
+   {
+      return std::array<std::size_t, tensor_dims> {tensor_sizes...};
+   }
 
 private:
    scalar_t *data;  /// Not owned
+public:
    std::array<std::size_t,ndims> dyn_sizes;
-   std::array<std::size_t,total_dims> strides;
+   mutable std::array<std::size_t,total_dims> strides;
 
 public:
    /** @brief Constructor with the default, column-major or left, layout where
@@ -125,10 +146,10 @@ public:
    static constexpr std::size_t rank() { return ndims; }
 
    /// Array size in the @a k-th dynamic dimension.
-   std::size_t size(int k = 0) const { return dyn_sizes[k]; }
+   MFEM_HOST_DEVICE std::size_t size(int k = 0) const { return dyn_sizes[k]; }
 
    /// Returns the product of all sizes of the dynamic dimensions.
-   std::size_t total_size() const
+   MFEM_HOST_DEVICE std::size_t total_size() const
    {
       std::size_t t = 1;
       for (int d = 0; d < ndims; d++)
@@ -144,7 +165,9 @@ public:
 
    /// Tensor size in the @a k-th tensor (static) dimension.
    static constexpr std::size_t tensor_size(int k = 0)
-   { return tensor_sizes_array[k]; }
+   {
+      return tensor_sizes_array()[k];
+   }
 
    /// Returns the product of all sizes of the static (tensor) dimensions.
    static constexpr std::size_t total_tensor_size()
@@ -164,7 +187,11 @@ public:
        { 0, 1, ..., rank()+tensor_rank()-1 }.
 
        @note This method does not permute the global 1D data array. */
-   void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm)
+   MFEM_HOST_DEVICE
+#ifdef MFEM_USE_ENZYME
+   __attribute__((annotate("enzyme_inactive")))
+#endif
+   void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
    {
       std::size_t stride = 1;
       for (std::size_t d_g = 0; d_g < total_dims; d_g++)
@@ -172,13 +199,14 @@ public:
          const auto d_l = perm[d_g];
          strides[d_l] = stride;
          stride *= (d_l < ndims) ? dyn_sizes[d_l] :
-                   tensor_sizes_array[d_l-ndims];
+                   tensor_sizes_array()[d_l-ndims];
       }
    }
 
    /** @brief Comute the dynamic offset for a given dynamic multi-index @a is.
        The total offset in the global data array is the sum of the dynamic and
        static (tensor) offsets. */
+   MFEM_HOST_DEVICE
    std::size_t get_dynamic_offset(
       const std::array<std::size_t,rank()> &is) const
    {
@@ -193,13 +221,17 @@ public:
    /** @brief Comute the static (tensor) offset for a given tensor multi-index
        @a js. The total offset in the global data array is the sum of the
        dynamic and static (tensor) offsets. */
+   MFEM_HOST_DEVICE
    std::size_t get_static_offset(
       const std::array<std::size_t,tensor_rank()> &js) const
    {
       std::size_t static_offset = 0;
-      for (std::size_t d = 0; d < tensor_dims; d++)
+      if constexpr (tensor_dims > 0)
       {
-         static_offset += js[d]*strides[ndims+d];
+         for (std::size_t d = 0; d < tensor_dims; d++)
+         {
+            static_offset += js[d]*strides[ndims+d];
+         }
       }
       return static_offset;
    }
@@ -208,6 +240,7 @@ public:
        corresponding to the given dynamic multi-index @a is. */
    /** @note Return a const tensor to prevent attempts to assign to the
        temporary object which is considered a mistake. */
+   MFEM_HOST_DEVICE
    const tensor_type get_tensor(std::array<std::size_t,rank()> is) const
    {
       tensor_type result;
@@ -226,7 +259,7 @@ public:
        corresponding to the given dynamic indices @a is. */
    /** @note Return a const tensor to prevent attempts to assign to the
        temporary object which is considered a mistake. */
-   template <typename... index_types>
+   template <typename... index_types> MFEM_HOST_DEVICE
    const tensor_type get_tensor(index_types... is) const
    {
       static_assert(sizeof...(is) == rank(), "invalid number of indices!");
@@ -237,6 +270,7 @@ public:
        - get_tensor(std::array<std::size_t,rank()>) iff scalar_t is const,
        - get_accessor(std::array<std::size_t,rank()>) iff scalar_t is not
          const. */
+   MFEM_HOST_DEVICE
    decltype(auto) operator()(std::array<std::size_t,rank()> is) const
    {
       if constexpr (std::is_const_v<scalar_t>) { return get_tensor(is); }
@@ -246,7 +280,7 @@ public:
    /** @brief Returns one of the following depending on the type scalar_t:
        - get_tensor(index_types...) iff scalar_t is const,
        - get_accessor(index_types...) iff scalar_t is not const. */
-   template <typename... index_types>
+   template <typename... index_types> MFEM_HOST_DEVICE
    decltype(auto) operator()(index_types... is) const
    {
       if constexpr (std::is_const_v<scalar_t>) { return get_tensor(is...); }
@@ -267,6 +301,7 @@ public:
 
           During its life time, this object assumes that the @a base object
           remains unmodified. */
+      MFEM_HOST_DEVICE
       tensor_accessor(const tensor_ndarray &base,
                       const std::array<std::size_t,rank()> &is)
          : base_array(base)
@@ -277,6 +312,7 @@ public:
       /// Read-write access to a particular entry of the referenced tensor.
       /** The returned reference points to the corresponding entry in the global
           data array of the base tensor_ndarray. */
+      MFEM_HOST_DEVICE
       scalar_t &operator()(const std::array<std::size_t,tensor_rank()> &js)
       {
          return offset_data[base_array.get_static_offset(js)];
@@ -284,6 +320,7 @@ public:
 
       /** @brief Write a tensor to the referenced tensor in the global data
           array of the base tensor_ndarray. */
+      MFEM_HOST_DEVICE
       tensor_accessor &operator=(const tensor_type &rhs)
       {
          for_multiindex<tensor_sizes...>(
@@ -293,11 +330,23 @@ public:
          });
          return *this;
       }
+
+      /** @brief For 0D (scalar) tensor arrays, allow direct binding as a
+          scalar reference so that @c array(i) can be passed to functions
+          expecting a @c scalar_t& in/out parameter. */
+      template <bool Enable = (sizeof...(tensor_sizes) == 0),
+                std::enable_if_t<Enable, int> = 0>
+      MFEM_HOST_DEVICE
+      operator scalar_t &()
+      {
+         return *offset_data;
+      }
    };
 
    /** @brief Get a tensor_accessor object referencing the tensor stored at the
        dynamic multi-index @a is. This object can be used to write tensor
        objects into the global data array of the tensor_ndarray. */
+   MFEM_HOST_DEVICE
    tensor_accessor get_accessor(std::array<std::size_t,rank()> is) const
    {
       return tensor_accessor(*this, is);
@@ -306,7 +355,7 @@ public:
    /** @brief Get a tensor_accessor object referencing the tensor stored at the
        dynamic indices @a is. This object can be used to write tensor objects
        into the global data array of the tensor_ndarray. */
-   template <typename... index_types>
+   template <typename... index_types> MFEM_HOST_DEVICE
    tensor_accessor get_accessor(index_types... is) const
    {
       static_assert(sizeof...(is) == rank(), "invalid number of indices!");
