@@ -220,7 +220,7 @@ public:
        @a u.
        The main purpose of this function is its use in FindInterpolant.
        Use GetBotella instead for each shape function separately, perhaps in
-       conjuction with GetSpan and GetRefPoint.*/
+       conjunction with GetSpan and GetRefPoint.*/
    MFEM_DEPRECATED void FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const;
 
    /** @brief Global curve interpolation through the points @a x (overwritten).
@@ -1398,8 +1398,7 @@ inline const real_t &NURBSPatch::operator()(int i, int j, int k, int l) const
 
 inline int NURBSExtension::KnotInd(int edge) const
 {
-   const int kv = edge_to_ukv[edge];
-   return kv >= 0 ? kv : -1 - kv;
+   return UnsignIndex(edge_to_ukv[edge]);
 }
 
 inline int NURBSExtension::KnotSign(int edge) const
@@ -1429,7 +1428,7 @@ const
    else
    {
       *okv = -oedge;
-      return knotVectors[-1-kv];
+      return knotVectors[FlipIndexSign(kv)];
    }
 }
 

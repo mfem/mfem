@@ -82,6 +82,25 @@ public:
    /// underlying #fes
    int VectorDim() const;
 
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
+       have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   ComplexGridFunction &operator=(const ComplexGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to double of the size of the associated
+       FiniteElementSpace #fes. */
+   ComplexGridFunction &operator=(const Vector &v)
+   {
+      MFEM_ASSERT(fes && v.Size() == 2*fes->GetVSize(), "");
+      Vector::operator=(v);
+      return *this;
+   }
+
    /// Assign constant values to the ComplexGridFunction data.
    ComplexGridFunction &operator=(const std::complex<real_t> & value)
    { *gfr = value.real(); *gfi = value.imag(); return *this; }
@@ -146,6 +165,75 @@ public:
       real_t err_i = gfi->ComputeL2Error(exsoli, irs, elems);
       return sqrt(err_r * err_r + err_i * err_i);
    }
+
+   /// @brief Returns Max|u_ex - u_h| error for complex-valued H1 or L2 elements
+   ///
+   /// Compute the $L_\infty$ error across the entire domain.
+   ///
+   /// @param[in] exsolr  Coefficient object reproducing the real part of the
+   ///                    anticipated values of the scalar field, Re(u_ex).
+   /// @param[in] exsoli  Coefficient object reproducing the imaginary part of
+   ///                    the anticipated values of the scalar field, Im(u_ex).
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   virtual real_t ComputeMaxError(Coefficient &exsolr,
+                                  Coefficient &exsoli,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return ComputeLpError(infinity(), exsolr, exsoli, NULL, irs);
+   }
+
+   /// @brief Returns ||u_ex - u_h||_Lp for complex-valued H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$(\sum_{elems} \int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
+   /// Where:
+   ///    $$|u_{ex} - u_h| = \sqrt{Re(u_{ex} - u_h)^2 + Im(u_{ex} - u_h)^2}$$
+   ///
+   /// @param[in] p       Real value indicating the exponent of the $L^p$ norm.
+   ///                    To avoid domain errors p should have a positive value,
+   ///                    either finite or infinite.
+   /// @param[in] exsolr  Coefficient object reproducing the real part of the
+   ///                    anticipated values of the scalar field, Re(u_ex).
+   /// @param[in] exsoli  Coefficient object reproducing the imaginary part of
+   ///                    the anticipated values of the scalar field, Im(u_ex).
+   /// @param[in] weight  Optional pointer to a Coefficient object reproducing
+   ///                    a weighting function, w.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   /// @param[in] elems   Optional pointer to a marker array, with a length
+   ///                    equal to the number of local elements, indicating
+   ///                    which elements to integrate over. Only those elements
+   ///                    corresponding to non-zero entries in @a elems will
+   ///                    contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeLpError(const real_t p,
+                                 Coefficient &exsolr,
+                                 Coefficient &exsoli,
+                                 Coefficient *weight = NULL,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
 
    /// Save the ComplexGridFunction to an output stream.
    virtual void Save(std::ostream &out) const;

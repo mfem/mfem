@@ -1354,22 +1354,27 @@ NURBSPatch::NURBSPatch(std::istream &input)
    int pdim, dim, size = 1;
    string ident;
 
+   skip_comment_lines(input, '#');
    input >> ws >> ident >> pdim; // knotvectors
    kv.SetSize(pdim);
    for (int i = 0; i < pdim; i++)
    {
+      skip_comment_lines(input, '#');
       kv[i] = new KnotVector(input);
       size *= kv[i]->GetNCP();
    }
 
+   skip_comment_lines(input, '#');
    input >> ws >> ident >> dim; // dimension
    init(dim + 1);
 
+   skip_comment_lines(input, '#');
    input >> ws >> ident; // controlpoints (homogeneous coordinates)
    if (ident == "controlpoints" || ident == "controlpoints_homogeneous")
    {
       for (int j = 0, i = 0; i < size; i++)
       {
+         skip_comment_lines(input, '#');
          for (int d = 0; d <= dim; d++, j++)
          {
             input >> data[j];
@@ -1380,6 +1385,7 @@ NURBSPatch::NURBSPatch(std::istream &input)
    {
       for (int j = 0, i = 0; i < size; i++)
       {
+         skip_comment_lines(input, '#');
          for (int d = 0; d <= dim; d++)
          {
             input >> data[j+d];
@@ -3723,10 +3729,7 @@ bool NURBSExtension::CheckPatches()
       for (int i = 0; i < edges.Size(); i++)
       {
          edges[i] = edge_to_ukv[edges[i]];
-         if (oedge[i] < 0)
-         {
-            edges[i] = -1 - edges[i];
-         }
+         if (oedge[i] < 0) { edges[i] = FlipIndexSign(edges[i]); }
       }
 
       // In 2d - opposite edges must be same knotvector with opposite sign.
@@ -3740,7 +3743,7 @@ bool NURBSExtension::CheckPatches()
       // {7, 6}, {4, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7} for Geometry::CUBE in 3D
       // See fem/geom.cpp for these definitions.
       if ((dim == 2 &&
-           (edges[0] != -1 - edges[2] || edges[1] != -1 - edges[3])) ||
+           (edges[0] != FlipIndexSign(edges[2]) || edges[1] != FlipIndexSign(edges[3]))) ||
 
           (dim == 3 &&
            (edges[0] != edges[2] || edges[0] != edges[4] ||
@@ -3769,7 +3772,7 @@ void NURBSExtension::CheckBdrPatches()
          edges[i] = edge_to_ukv[edges[i]];
          if (oedge[i] < 0)
          {
-            edges[i] = -1 - edges[i];
+            edges[i] = FlipIndexSign(edges[i]);
          }
       }
 
@@ -4766,14 +4769,13 @@ void NURBSExtension::GenerateBdrElementDofTable()
    SetPatchToBdrElements();
 
    int *dof = bel_dof->GetJ();
-   int ndof = bel_dof->Size_of_connections();
+   const int ndof = bel_dof->Size_of_connections();
    for (int i = 0; i < ndof; i++)
    {
-      int idx = dof[i];
+      const int idx = dof[i];
       if (idx < 0)
       {
-         dof[i] = -1 - (activeDof[-1-idx] - 1);
-         dof[i] = -activeDof[-1-idx];
+         dof[i] = -activeDof[FlipIndexSign(idx)];
       }
       else
       {
@@ -4858,12 +4860,12 @@ void NURBSExtension::Generate2DBdrElementDofTable()
                   for (int ii = 0; ii <= ord0; ii++)
                   {
                      conn.to = DofMap(p2g[(okv[0] >= 0) ? (i+ii) : (nx-i-ii)]);
-                     if (s == -1) { conn.to = -1 -conn.to; }
+                     if (s == -1) { conn.to = FlipIndexSign(conn.to); }
                      bel_dof_list.Append(conn);
                   }
                }
                bel_to_patch[lbe] = b;
-               bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
+               bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : FlipIndexSign(i);
                lbe++;
             }
             gbe++;
@@ -4936,14 +4938,14 @@ void NURBSExtension::Generate3DBdrElementDofTable()
                            {
                               const int ii_ = (okv[0] >= 0) ? (i+ii) : (nx-i-ii);
                               conn.to = DofMap(p2g(ii_, jj_));
-                              if (s == -1) { conn.to = -1 -conn.to; }
+                              if (s == -1) { conn.to = FlipIndexSign(conn.to); }
                               bel_dof_list.Append(conn);
                            }
                         }
                      }
                      bel_to_patch[lbe] = b;
-                     bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : (-1-i);
-                     bel_to_IJK(lbe,1) = (okv[1] >= 0) ? j : (-1-j);
+                     bel_to_IJK(lbe,0) = (okv[0] >= 0) ? i : FlipIndexSign(i);
+                     bel_to_IJK(lbe,1) = (okv[1] >= 0) ? j : FlipIndexSign(j);
                      lbe++;
                   }
                   gbe++;

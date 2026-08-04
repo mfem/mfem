@@ -663,58 +663,59 @@ const
    #pragma omp critical (DofToQuad)
 #endif
    {
-      // If the new Dof2Quad is already present, e.g. added in a previous call
-      // or added by another omp thread, return.
+      // Do not run if the new Dof2Quad is already present, e.g. added in a
+      // previous call or added by another omp thread.
       if (DofToQuad::SearchArray(dof2quad_array, ir,
-                                 DofToQuad::LEXICOGRAPHIC_FULL))
-      { return; }
-
-      // Undo the native ordering which is what FiniteElement::GetDofToQuad
-      // returns.
-      auto *d2q_new = new DofToQuad(d2q);
-      d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
-      const int nqpt = ir.GetNPoints();
-
-      const int b_dim = (range_type == VECTOR) ? dim : 1;
-
-      for (int i = 0; i < nqpt; i++)
+                                 DofToQuad::LEXICOGRAPHIC_FULL) == nullptr)
       {
-         for (int d = 0; d < b_dim; d++)
+         // Undo the native ordering which is what FiniteElement::GetDofToQuad
+         // returns.
+         auto *d2q_new = new DofToQuad(d2q);
+         d2q_new->mode = DofToQuad::LEXICOGRAPHIC_FULL;
+         const int nqpt = ir.GetNPoints();
+
+         const int b_dim = (range_type == VECTOR) ? dim : 1;
+
+         for (int i = 0; i < nqpt; i++)
          {
-            for (int j = 0; j < dof; j++)
+            for (int d = 0; d < b_dim; d++)
             {
-               const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
-               d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
-               d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
+               for (int j = 0; j < dof; j++)
+               {
+                  const double val = d2q.B[i + nqpt*(d+b_dim*lex_ordering[j])];
+                  d2q_new->B[i+nqpt*(d+b_dim*j)] = val;
+                  d2q_new->Bt[j+dof*(i+nqpt*d)] = val;
+               }
             }
          }
-      }
 
-      const int g_dim = [this]()
-      {
-         switch (deriv_type)
+         const int g_dim = [this]()
          {
-            case GRAD: return dim;
-            case DIV: return 1;
-            case CURL: return cdim;
-            default: return 0;
-         }
-      }();
-
-      for (int i = 0; i < nqpt; i++)
-      {
-         for (int d = 0; d < g_dim; d++)
-         {
-            for (int j = 0; j < dof; j++)
+            switch (deriv_type)
             {
-               const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
-               d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
-               d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+               case GRAD: return dim;
+               case DIV: return 1;
+               case CURL: return cdim;
+               default: return 0;
+            }
+         }();
+
+         for (int i = 0; i < nqpt; i++)
+         {
+            for (int d = 0; d < g_dim; d++)
+            {
+               for (int j = 0; j < dof; j++)
+               {
+                  const double val = d2q.G[i + nqpt*(d+g_dim*lex_ordering[j])];
+                  d2q_new->G[i+nqpt*(d+g_dim*j)] = val;
+                  d2q_new->Gt[j+dof*(i+nqpt*d)] = val;
+               }
             }
          }
+
+         dof2quad_array.Append(d2q_new);
       }
 
-      dof2quad_array.Append(d2q_new);
    }
 }
 
@@ -1043,9 +1044,50 @@ void VectorFiniteElement::SetDerivMembers()
    switch (map_type)
    {
       case H_DIV:
-         deriv_type = DIV;
-         deriv_range_type = SCALAR;
-         deriv_map_type = INTEGRAL;
+         switch (dim)
+         {
+            case 3: // div: 3D H_DIV -> 3D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            case 2: // div: 2D H_DIV -> 2D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_DIV_R2D:
+         switch (dim)
+         {
+            case 2: // div: 2D H_DIV_R2D -> 2D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            case 1: // div: 1D H_DIV_R2D -> 1D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_DIV_R1D:
+         switch (dim)
+         {
+            case 1: // div: 1D H_DIV_R1D -> 1D INTEGRAL
+               deriv_type = DIV;
+               deriv_range_type = SCALAR;
+               deriv_map_type = INTEGRAL;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
          break;
       case H_CURL:
          switch (dim)
@@ -1063,9 +1105,45 @@ void VectorFiniteElement::SetDerivMembers()
                break;
             case 1:
                deriv_type = NONE;
-               deriv_range_type = SCALAR;
-               deriv_map_type = INTEGRAL;
+               deriv_range_type = UNKNOWN_RANGE_TYPE;
+               deriv_map_type = UNKNOWN_MAP_TYPE;
                break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_CURL_R2D:
+         switch (dim)
+         {
+            case 2:
+               // curl: 2D H_CURL_R2D -> H_DIV_R2D
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV_R2D;
+               break;
+            case 1:
+               // curl: 1D H_CURL_R2D -> H_DIV_R2D
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV_R2D;
+               break;
+            default:
+               MFEM_ABORT("Invalid dimension, Dim = " << dim);
+         }
+         break;
+      case H_CURL_R1D:
+         switch (dim)
+         {
+            case 1:
+               // curl: 1D H_CURL_R1D -> H_DIV_R1D
+               deriv_type = CURL;
+               deriv_range_type = VECTOR;
+               deriv_map_type = H_DIV_R1D;
+               break;
+            case 0:
+               deriv_type = NONE;
+               deriv_range_type = UNKNOWN_RANGE_TYPE;
+               deriv_map_type = UNKNOWN_MAP_TYPE;
             default:
                MFEM_ABORT("Invalid dimension, Dim = " << dim);
          }
