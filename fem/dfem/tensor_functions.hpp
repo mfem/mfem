@@ -64,7 +64,7 @@ auto make_dual(const tensor<real_t, n...>& A)
  * @return Approximate maximum eigenvalue of A
  */
 template <int n> MFEM_HOST_DEVICE
-auto smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
+double smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
 {
   auto [lambda, V] = eig_symm(get_value(A));
   double lambda_max = lambda[n - 1];
@@ -73,6 +73,30 @@ auto smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
     sum += std::exp(beta*(lambda[i] - lambda_max));
   }
   return lambda_max + std::log1p(sum)/beta;
+}
+
+template<int n> MFEM_HOST_DEVICE
+double smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
+{
+  auto [lambda, V] = eig_symm(A);
+  double lambda_max = lambda[n - 1];
+  double sum = 0;
+  tensor<double, n> eg;
+  for (int i = 0; i < n; i++) {
+    eg[i] = std::exp(beta*(lambda[i] - lambda_max));
+    if (i != n - 1) sum += eg[i];
+  }
+  double value = lambda_max + std::log1p(sum)/beta;
+
+  double derivative{};
+  for (int mu = 0; mu < 3; mu++) {
+    for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+        derivative += V[i][mu]*eg[mu]*V[j][mu]*A_dot[i][j]/(sum + 1.0);
+      }
+    }
+  }
+  return derivative;
 }
 
 // NOTE: I can't implmement this yet, the get_value() function for tensors is not implemented in MFEM.
