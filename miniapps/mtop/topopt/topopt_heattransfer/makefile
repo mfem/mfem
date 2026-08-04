@@ -26,13 +26,13 @@ MFEM_LIB_FILE = mfem_is_not_built
 COMMON_OBJ = $(MTOP_OBJ)
 
 # Shared source compiled into local objects
-MTOP_OBJ = mtop_solvers.o pde_filter.o
+MTOP_OBJ = mtop_solvers.o pde_filter.o MMA_MFEM.o
 # MMA_OBJ = MMA_MFEM.o
 # MMA_LIBS ?= -llapack -lblas
-TRANSIENT_HEADERS = ObjectiveFunctional.hpp 
+# TRANSIENT_HEADERS = ObjectiveFunctional.hpp 
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck
+PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck 2D_NatConv test_imex_heattransfer
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -57,8 +57,8 @@ endif
 all: $(MINIAPPS)
 
 ## Shared object compiled from the parent topopt/ dir.
-# MMA_MFEM.o: $(SRC)../../mma/MMA_MFEM.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-# 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+MMA_MFEM.o: $(SRC)../../mma/MMA_MFEM.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 mtop_solvers.o: $(SRC)../../mtop_solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@

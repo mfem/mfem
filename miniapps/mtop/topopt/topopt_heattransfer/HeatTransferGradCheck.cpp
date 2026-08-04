@@ -1,5 +1,8 @@
 #include "mfem.hpp"
 #include "HeatTransferTopOpt.hpp"
+#include "ObjFunc.hpp"
+#include "HeatTransferSolvers.hpp"
+#include "HeatTransferLinForms.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../pde_filter.hpp"
 #include "../../mtop_solvers.hpp"
@@ -14,7 +17,7 @@ void velocity_function(const Vector &x, Vector &v)
 {
    int dim = x.Size();
    v(0) = 0.0;
-   v(1) = 0.0; 
+   v(1) = 1.0; 
 }
 
 real_t q0_function(const Vector &x)
@@ -69,10 +72,11 @@ int main(int argc, char *argv[])
    int par_ref_levels = 1;    
    int order = 2; 
    bool pv_vis = false; 
-   int ode_solver_type = 2; // 1 - Forward Backward Euler  
+   int ode_solver_type = 1; // 1 - Forward Backward Euler  
    real_t t_final = 0.1;         
    real_t dt = 0.01; 
    real_t diffusion_term = 0.1;   
+   int problem_type = 1; 
    int vis_steps = 10;  
    const char *device_config = "cpu";  
  
@@ -91,7 +95,7 @@ int main(int argc, char *argv[])
                     "Enable or disable Paraview Visualization");
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                     ODESolver::IMEXTypes.c_str()); 
-   args.AddOption(&t_final, "-tf", "--t-final", 
+   args.AddOption(&t_final, "-tf", "--t-final",   
                     "Final time; start time is 0.");   
    args.AddOption(&dt, "-dt", "--time-step",
                     "Time step.");
@@ -99,6 +103,8 @@ int main(int argc, char *argv[])
                     "Diffusion coefficient in the PDE.");  
    args.AddOption(&vis_steps, "-vs", "--visualization-steps", 
                   "Visualize every n-th timestep.");   
+   args.AddOption(&problem_type, "-pt", "--problem_type", 
+                  "Select which problem solve.");
    args.AddOption(&device_config, "-d", "--device",
                    "Device configuration string, see Device::Configure().");     
    args.Parse(); 
@@ -166,40 +172,44 @@ int main(int argc, char *argv[])
  
    // 8. Boundary Conditions    
    Array<int> ess_tdof_list;  
-   Array<int> ess_bdr(pmesh->bdr_attributes.Max());  
+   Array<int> ess_bdr(pmesh->bdr_attributes.Max());   
    ess_bdr = 0;   
    pmesh->MarkExternalBoundaries(ess_bdr);  
    fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
    Array<int> inflow_bdr(pmesh->bdr_attributes.Max()); 
    inflow_bdr = 0;
-   inflow_bdr[1] = 1;   
+   inflow_bdr[1] = 1;    
     
    // 9. PDE Filter
    toopt::PDEFilterOptions filter_opts;
-   filter_opts.print_level = 0;
+   filter_opts.print_level = 0; 
    // filter_opts.solver_rtol = 1e-12;
    filter_opts.filter_radius = 0.05; 
-   toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);   
+   toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);     
    filter.Assemble();   
-   filter.Mult(rho, rho_tilde);   
+   filter.Mult(rho, rho_tilde);    
    rho_tilde.ExchangeFaceNbrData();
-
+ 
   
    // 10. Define the Coefficients  
-   SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0); 
+   SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0);  
    VectorFunctionCoefficient raw_velocity(dim, velocity_function); 
    ScalarVectorProductCoefficient velocity(simp_stiff, raw_velocity);  
    ConstantCoefficient cons_diff_coeff(diffusion_term);  
-   ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);
+   ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);    
    ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
    ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
-   FunctionCoefficient inflow(inflow_function);  
+   FunctionCoefficient inflow(inflow_function);   
    FunctionCoefficient q0(q0_function); 
+   real_t dt_diffusion_term = dt*diffusion_term; 
  
    // 11. Construct the Objective Function
    RectangularIndicator indicator(0, 1, 0, 1); 
-   TerminalL2Objective obj_func(fes, indicator, comm);           
-   int n_steps = (int)ceil(t_final / dt);  
+   ParGridFunction one_gf(fes);
+   ConstantCoefficient one_cf(1.0);
+   one_gf.ProjectCoefficient(one_cf);
+   TimeIntegratedL2TargetObjective obj_func(fes, indicator, one_gf, comm);           
+   int n_steps = (int)ceil(t_final / dt);   
   
    const int n = control_fes.GetTrueVSize();
    Vector rho_tv(n);
@@ -223,17 +233,34 @@ int main(int argc, char *argv[])
       h /= h_norm; 
       ParGridFunction q0_gf(fes); 
       q0_gf.SetFromTrueDofs(q0_vec); 
-      GridFunctionCoefficient q0_cf;
+      GridFunctionCoefficient q0_cf; 
       q0_cf.SetGridFunction(&q0_gf);
-      DesignSolver design_solver(*fes, filter_fes, control_fes, filter, ess_bdr, inflow_bdr, obj_func, velocity, raw_velocity, diffusion_term,
-      diff_coeff, dt_diff_coeff, inflow, q0_cf, n_steps, dt, t_final, rho, rho_tilde, ode_solver_type, comm);    
+      DesignSolver design_solver(*fes, 
+         filter_fes,  
+         control_fes, 
+         filter, 
+         ess_bdr, 
+         inflow_bdr, 
+         obj_func,
+         raw_velocity, 
+         diffusion_term, 
+         dt_diffusion_term,
+         inflow, 
+         q0_cf, 
+         n_steps, 
+         dt, 
+         t_final, 
+         rho, rho_tilde, 
+         simp_stiff, ode_solver_type, 
+         vis_steps, problem_type, comm); 
+
       design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
       const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
       design_solver.PhysicsASolve();                      // adjoint physics: -> dJ/drho_tilde 
       design_solver.FilterASolve(dJ_drho);
       
-      const real_t projected_grad = InnerProduct(comm, h, dJ_drho);   
-      real_t gradnorm = sqrt(InnerProduct(comm,dJ_drho, dJ_drho)); 
+      const real_t projected_grad = InnerProduct(comm, h, dJ_drho);     
+      real_t gradnorm = sqrt(InnerProduct(comm,dJ_drho, dJ_drho));  
 
       if (Mpi::Root())
       {
@@ -269,14 +296,14 @@ int main(int argc, char *argv[])
          const double derivative_scale = max(max(fabs(static_cast<double>(fd)), fabs(static_cast<double>(projected_grad))), 1e-30);
          const double fd_rel = fabs(static_cast<double>(fd - projected_grad))
                                / derivative_scale;  
-         const double fd_abs = fabs(static_cast<double>(fd - projected_grad));    
-         trial_best_fd_rel = min(trial_best_fd_rel, fd_rel);
+         const double fd_abs = fabs(static_cast<double>(fd - projected_grad));     
+         trial_best_fd_rel = min(trial_best_fd_rel, fd_rel); 
 
          const real_t first_order_remainder = 
             fabs(Jp - J0 - scale * projected_grad); 
          const double remainder_ratio = 
             (previous_remainder > 0.0) ?   
-            previous_remainder / first_order_remainder : 0.0;      
+            previous_remainder / first_order_remainder : 0.0;       
 
          if (Mpi::Root())
          {
@@ -297,14 +324,17 @@ int main(int argc, char *argv[])
          {
             trial_has_quadratic_drop = true;
          }
-         previous_remainder = first_order_remainder;  
+         previous_remainder = first_order_remainder;   
          scale *= 0.1; 
       }
       worst_best_fd_rel = max(worst_best_fd_rel, trial_best_fd_rel);  
-      // MFEM_VERIFY(trial_best_fd_rel < tolerance,
-      //             "Raw design Taylor check did not find an accurate scale.");
-      // MFEM_VERIFY(trial_has_quadratic_drop,
-      //             "Raw design Taylor check did not show quadratic remainder decay.");  
+      if(Mpi::Root())
+      {
+         MFEM_VERIFY(trial_best_fd_rel < tolerance,
+                  "Raw design Taylor check did not find an accurate scale.");
+         MFEM_VERIFY(trial_has_quadratic_drop,
+                  "Raw design Taylor check did not show quadratic remainder decay.");  
+      }
    }
  
 
