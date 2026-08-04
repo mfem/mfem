@@ -10,8 +10,6 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "../gridfunc.hpp"
-#include "../qfunction.hpp"
 #include "bilininteg_vectorfemass_kernels.hpp"
 
 namespace mfem
@@ -90,15 +88,15 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::CURL, 3, 4, 4, 6>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 5, 5, 7>();
-   // Q = P + 3 (3D)
+   // Q = P + 4 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 2, 2, 5>();
+                          FiniteElement::CURL, 3, 2, 2, 6>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 3, 3, 6>();
+                          FiniteElement::CURL, 3, 3, 3, 7>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 4, 4, 7>();
+                          FiniteElement::CURL, 3, 4, 4, 8>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 5, 5, 8>();
+                          FiniteElement::CURL, 3, 5, 5, 9>();
    // h(div), h(div)
    // Q = P (2D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
@@ -341,8 +339,6 @@ void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 
    Array<real_t> absBo(mapsO->B);
    Array<real_t> absBc(mapsC->B);
-   // Array<real_t> absBto(mapsO->Bt);
-   // Array<real_t> absBtc(mapsC->Bt);
    Array<real_t> absBto_t(mapsOtest->Bt);
    Array<real_t> absBtc_t(mapsCtest->Bt);
 

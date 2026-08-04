@@ -13,10 +13,6 @@
 #define MFEM_BILININTEG_VECTORFEMASS_KERNELS_HPP
 
 #include "../../config/config.hpp"
-#include "../../general/array.hpp"
-#include "../../general/forall.hpp"
-#include "../../linalg/dtensor.hpp"
-#include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
 #include "bilininteg_diffusion_kernels.hpp"
@@ -64,28 +60,14 @@ VectorFEMassIntegrator::ApplyPAKernels::Kernel()
    {
       if constexpr (trial_curl && test_curl)
       {
-         if (Device::Allows(Backend::DEVICE_MASK))
-         {
-            // assume TrialD1D == TestD1D
-            return internal::SmemPAHcurlMassApply3D<
-                   TrialD1D, Q1D, internal::hcurlmass::NBZ3D(TrialD1D, Q1D)>;
-         }
-         else
-         {
-            return internal::PAHcurlMassApply3D;
-         }
+        // assume TrialD1D == TestD1D
+        return internal::SmemPAHcurlMassApply3D<
+            TrialD1D, Q1D, internal::hcurlmass::NBZ3D(TrialD1D, Q1D)>;
       }
       else if constexpr (trial_div && test_div)
       {
-         if (Device::Allows(Backend::DEVICE_MASK))
-         {
-            // assumes TrialD1D == TestD1D
-            return internal::SmemPAHdivMassApply3D<TrialD1D, Q1D>;
-         }
-         else
-         {
-            return internal::PAHdivMassApply3D;
-         }
+         // assumes TrialD1D == TestD1D
+         return internal::SmemPAHdivMassApply3D<TrialD1D, Q1D>;
       }
       else if constexpr (trial_curl && test_div)
       {

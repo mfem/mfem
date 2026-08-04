@@ -50,11 +50,18 @@ constexpr bool mfem_use_gpu = true;
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=threadIdx.k; i<N; i+=blockDim.k)
 #define MFEM_FOREACH_THREAD_DIRECT(i,k,N) if(const int i=threadIdx.k; i<N)
 // Assigns a thread block shaped (SX,SY,SZ) contiguous in x.
+// Example (3,2,1) block:
+// 0 (0,0), 1 (1,0), 2 (2,0)
+// 3 (1,0), 4 (1,1), 5 (2,1)
 #define MFEM_FOREACH_THREAD_DIRECT_3D(ix, iy, iz, k, SX, SY, SZ)               \
    if (int ix = threadIdx.k % (SX), iy = threadIdx.k / (SX), iz = iy / (SY);   \
        (iy %= (SY)), (threadIdx.k < (SX) * (SY) * (SZ)))
 // Assigns a thread block shaped (OX,OY,OZ) to work on items (SX,SY,SZ),
-// contiguous in x. This intentionally offsets threads
+// contiguous in x. This intentionally offsets threads within the block to avoid
+// shared memory bank conflicts.
+// Example (3,2,1) block assigned to work on (2,2,1) items:
+// 0 (0,0), 1 (1,0), 2 (N/A)
+// 3 (1,0), 4 (1,1), 5 (N/A)
 #define MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(ix, iy, iz, k, SX, SY, SZ, OX,    \
                                              OY, OZ)                           \
    if (int ix = threadIdx.k % (OX), iy = threadIdx.k / (OX), iz = iy / (OY);   \

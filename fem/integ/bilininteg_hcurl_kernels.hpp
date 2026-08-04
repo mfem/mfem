@@ -190,19 +190,22 @@ void PAHcurlMassApply2D(const int NE, const bool symmetric,
 
 // PA H(curl) Mass Apply 3D kernel
 void PAHcurlMassApply3D(const int NE, const bool symmetric,
-                        const bool scalar_coeff, const Array<real_t> &bo,
-                        const Array<real_t> &bc, const Array<real_t> &bot,
-                        const Array<real_t> &bct, const Vector &pa_data,
-                        const Vector &x, Vector &y, const int TrialD1D,
-                        const int TestD1D, const int Q1D);
+                        [[maybe_unused]] const bool scalar_coeff,
+                        const Array<real_t> &bo, const Array<real_t> &bc,
+                        const Array<real_t> &bot, const Array<real_t> &bct,
+                        const Vector &pa_data, const Vector &x, Vector &y,
+                        const int TrialD1D, [[maybe_unused]] const int TestD1D,
+                        const int Q1D);
 
 // Shared memory PA H(curl) Mass Apply 3D kernel
 template <int T_D1D = 0, int T_Q1D = 0, int TBATCH = 0, bool ACCUMULATE = true>
 inline void SmemPAHcurlMassApply3D(
-   const int NE, const bool symmetric, const bool scalar_coeff,
-   const Array<real_t> &bo, const Array<real_t> &bc, const Array<real_t> &bot,
-   const Array<real_t> &bct, const Vector &pa_data, const Vector &x, Vector &y,
-   const int d1d = 0, const int = 0, const int q1d = 0)
+   const int NE, const bool symmetric, [[maybe_unused]] const bool scalar_coeff,
+   const Array<real_t> &bo, const Array<real_t> &bc,
+   [[maybe_unused]] const Array<real_t> &bot,
+   [[maybe_unused]] const Array<real_t> &bct, const Vector &pa_data,
+   const Vector &x, Vector &y, const int d1d = 0,
+   [[maybe_unused]] const int test_d1d = 0, const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

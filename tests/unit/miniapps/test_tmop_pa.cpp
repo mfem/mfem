@@ -941,14 +941,14 @@ static void tmop_tests(int id = 0, bool all = false)
       QuadratureInterpolator::AddDetSpecializations<3, 3, 3, 4>();
       QuadratureInterpolator::AddDetSpecializations<3, 3, 4, 6>();
 
-      QuadratureInterpolator::AddGradSpecializations<2, QVectorLayout::byNODES,
-                             false, 2, 3, 5>();
-      QuadratureInterpolator::AddGradSpecializations<2, QVectorLayout::byNODES,
-                             false, 2, 5, 5>();
-      QuadratureInterpolator::AddGradSpecializations<2, QVectorLayout::byNODES,
-                             false, 2, 6, 6>();
-      QuadratureInterpolator::AddGradSpecializations<3, QVectorLayout::byNODES,
-                             false, 3, 4, 5>();
+      QuadratureInterpolator::AddGradSpecializations<
+      2, QVectorLayout::byNODES, false, 2, 3, 5>();
+      QuadratureInterpolator::AddGradSpecializations<
+      2, QVectorLayout::byNODES, false, 2, 5, 5>();
+      QuadratureInterpolator::AddGradSpecializations<
+      2, QVectorLayout::byNODES, false, 2, 6, 6>();
+      QuadratureInterpolator::AddGradSpecializations<
+      3, QVectorLayout::byNODES, false, 3, 4, 5>();
 
       QuadratureInterpolator::AddTensorEvalSpecializations<
       2, QVectorLayout::byVDIM, 2, 2, 2, 4>();
