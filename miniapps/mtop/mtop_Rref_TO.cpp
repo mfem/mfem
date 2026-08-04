@@ -1100,15 +1100,15 @@ int main(int argc, char *argv[])
                           MPITypeMap<real_t>::mpi_type, MPI_SUM,
                           pmesh.GetComm());
 
-            compliance_q = 1.0;
-            mfem::MultiVector compliance_seed { compliance_q };
+            // compliance_q = 1.0;
+            // mfem::MultiVector compliance_seed { compliance_q };
 
+          std::cout<<dfem_dQdu.Size()<<" abefore: "<<dfem_dQdx.Size()<<std::endl;
 
-            compliance_dop.GetDerivative(uDFEM, compliance_x)
-               ->MultTranspose(compliance_seed, dfem_dQdu);
-            compliance_dop.GetDerivative(coordsDFEM, compliance_x)
-               ->MultTranspose(compliance_seed, dfem_dQdx);
+            compliance_dop.GetDerivative(uDFEM, compliance_x)->Assemble(dfem_dQdu);
+            compliance_dop.GetDerivative(coordsDFEM, compliance_x)->Assemble(dfem_dQdx);
 
+          std::cout<<dfem_dQdu.Size()<<"after: "<<dfem_dQdx.Size()<<std::endl;
             const real_t old_ObjVal = ObjVal;
             ObjVal = dfem_ObjVal;
 
@@ -1179,10 +1179,10 @@ int main(int argc, char *argv[])
 
          dQdx_filtered_1.Add(weight_1, *dQdxExpl);
          dQdx_filtered_1.Add(weight_1, dQdxImpl);
-
+std::cout<<"adj_sol111111331: "<<dQdx_filtered_1.Size()<<" | "<<dQdx_filtered_2.Size()<<" | "<<dfem_dQdx.Size()<<" aa "<<coord_fes.GetTrueVSize()<<" | "<<dQdxImpl_dfem.Size()<<" | " <<std::endl;
          dQdx_filtered_2.Add(weight_1, dfem_dQdx);
          dQdx_filtered_2.Add(weight_1, dQdxImpl_dfem);
-
+std::cout<<"adj_sol1111113www31: "<<std::endl;
          //for (int k = 0; k < dQdx_filtered_2.Size(); k++)
          for (int k = 0; k < 15; k++)
          {
