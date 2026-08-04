@@ -106,7 +106,6 @@ int main(int argc, char *argv[])
 
    // Read the mesh file
    Mesh mesh(mesh_file);
-   mesh.SetCurvature(order); // ensure CalcPhys_ are of high-order
    int dim = mesh.Dimension();
    MFEM_ASSERT(dim == 2, "This example only supports 2D meshes.");
 
