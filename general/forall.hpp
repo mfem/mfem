@@ -1160,9 +1160,9 @@ inline void ForallWrap(const bool use_dev, const int N,
       if constexpr (use_enzyme)
       {
 #ifdef MFEM_USE_ENZYME
-         MFEM_ASSERT(N == 1,
-                     "Enzyme CUDA Wrappers are only implemented "
-                     "for one dimensional thread blocks");
+         static_assert(DIM == 1,
+                       "Enzyme CUDA Wrappers are only implemented "
+                       "for one dimensional thread blocks");
 
          constexpr int BLCK = MAX_THREADS_PER_BLOCK == 0 ? MFEM_CUDA_BLOCKS :
                               MAX_THREADS_PER_BLOCK;
@@ -1376,9 +1376,9 @@ template<typename lambda>
 inline void hypre_forall_gpu(int N, lambda &&body)
 {
 #if defined(HYPRE_USING_CUDA)
-   CuWrap1D(N, body);
+   CuWrap1D<MFEM_CUDA_BLOCKS>(N, body);
 #elif defined(HYPRE_USING_HIP)
-   HipWrap1D(N, body);
+   HipWrap1D<MFEM_HIP_BLOCKS>(N, body);
 #else
 #error Unknown HYPRE GPU backend!
 #endif

@@ -174,17 +174,11 @@ struct RevDiff
    }
    static constexpr auto fn = fn_ptr(std::make_index_sequence<arity> {});
 
-   // Recursively flatten the enzyme argument list for a single reverse-mode
-   // call that differentiates ALL active inputs at once:
-   //   active input:  enzyme_dup, &primal, &grad      — grad accumulates
-   //   const input:   enzyme_const, &primal
-   //   active output: enzyme_dupnoneed, &scratch, &adjoint_seed
-   // ptrs holds all primal pointers in [0, num_inputs) and all gradient output
-   // pointers in [num_inputs, num_inputs+num_active_inputs).
+   // Recursive builder of the per-argument reverse-mode enzyme call.
    template <size_t I = 0, typename AllPtrs, typename... Built>
    MFEM_HOST_DEVICE static __attribute__((always_inline)) void
-   call_enzyme_rev(AllPtrs &ptrs, output_view &out_scratch,
-                   output_view &out_adjoint, Built... built)
+   call_enzyme_rev(AllPtrs &ptrs, output_view &scratch, output_view &adjoint,
+                   Built... built)
    {
       if constexpr (I == arity)
       {
@@ -192,26 +186,30 @@ struct RevDiff
       }
       else if constexpr (I == active_output)
       {
-         call_enzyme_rev<I + 1>(ptrs, out_scratch, out_adjoint, built...,
-                                enzyme_dupnoneed, &out_scratch, &out_adjoint);
+         // Output: primal written to scratch (unused), adjoint seeded to 1.
+         call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
+                                enzyme_dupnoneed, &scratch, &adjoint);
       }
       else if constexpr (is_active<I>)
       {
+         // Active input: gradient accumulates into its grad-output slot.
          call_enzyme_rev<I + 1>(
-            ptrs, out_scratch, out_adjoint, built..., enzyme_dup,
+            ptrs, scratch, adjoint, built..., enzyme_dup,
             mfem::future::get<int(I)>(ptrs),
             mfem::future::get<int(num_inputs + slot_of<I>)>(ptrs));
       }
       else
       {
-         call_enzyme_rev<I + 1>(ptrs, out_scratch, out_adjoint, built...,
+         // Const input: primal only, no shadow.
+         call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
                                 enzyme_const, mfem::future::get<int(I)>(ptrs));
       }
    }
 
    // Zero all gradient outputs before the enzyme call (Enzyme accumulates).
    template <typename AllPtrs, size_t... Ss>
-   MFEM_HOST_DEVICE static __attribute__((always_inline)) void zero_grads(
+   MFEM_HOST_DEVICE static
+   __attribute__((always_inline)) void zero_grads(
       AllPtrs &ptrs,
       std::index_sequence<Ss...>)
    {

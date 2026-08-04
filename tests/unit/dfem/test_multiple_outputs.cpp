@@ -39,10 +39,13 @@ public:
    {
       void Mult(const Vector &x, Vector &y) const override
       {
-         for (int i = 0; i < y.Size(); i++)
+         const bool use_dev = x.UseDevice() || y.UseDevice();
+         const auto xr = x.Read(use_dev);
+         auto yw = y.Write(use_dev);
+         mfem::forall_switch(use_dev, y.Size(), [=] MFEM_HOST_DEVICE (int i)
          {
-            y(i) = x(0);
-         }
+            yw[i] = xr[0];
+         });
       }
    };
 
@@ -50,7 +53,13 @@ public:
    {
       void Mult(const Vector &x, Vector &y) const override
       {
-         y(0) = x(0);
+         const bool use_dev = x.UseDevice() || y.UseDevice();
+         const auto xr = x.Read(use_dev);
+         auto yw = y.Write(use_dev);
+         mfem::forall_switch(use_dev, 1, [=] MFEM_HOST_DEVICE (int)
+         {
+            yw[0] = xr[0];
+         });
       }
    };
 
@@ -121,7 +130,8 @@ struct mass_diffusion_global_qf
       {
          const auto invJq = inv(J(q));
          const auto detJq = det(J(q));
-         out1(q) = u(q) * detJq * w(q);
+         const real_t weight = detJq * w(q);
+         out1(q) = u(q) * weight;
          out2(q) = (dudxi(q) * invJq) * transpose(invJq) * (detJq * w(q));
          out3(q) = J(q);
       });

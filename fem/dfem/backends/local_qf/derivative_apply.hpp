@@ -36,6 +36,7 @@ class DerivativeApply
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
 
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
@@ -70,6 +71,7 @@ class DerivativeApply
    const int dim, ne, nq, q1d;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
+   mutable RestrictionCache<Entity::Element> direction_rcache;
 
 public:
    DerivativeApply() = delete;
@@ -185,10 +187,11 @@ public:
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeApply: direction vector is null");
 
-      restriction<Entity::Element>(direction_fd,
-                                   *direction_l,
-                                   direction_e,
-                                   ElementDofOrdering::LEXICOGRAPHIC);
+      restriction(direction_fd,
+                  direction_rcache,
+                  *direction_l,
+                  direction_e,
+                  ElementDofOrdering::LEXICOGRAPHIC);
       if (q1d <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeApplyLO>(ye);
@@ -302,7 +305,7 @@ public:
       });
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+                             qp_cache.Read(), nq, residual_size_on_qp, ne);
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
@@ -315,9 +318,11 @@ public:
 
          // -----------------------------------------------
          // Output integration registers, trial direction (shadow) registers
-         // and shared memory.
+         // and shared memory. `rargs` only ever holds test-function data, so
+         // it is an output-only bank: slot `o` is q-function parameter
+         // `n_inputs + o`.
          // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         output_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
          input_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> sargs;
          MFEM_SHARED typename backend_t::Shared smem;
 
@@ -371,6 +376,21 @@ public:
                {
                   const int q = qx + q1d * (qy + q1d * qz);
 
+                  // The trial direction at this quadrature point is the same
+                  // for every test row (i, k), so pull each dependent input
+                  // slot out of the register bank once, here, instead of once
+                  // per row inside the contraction below.
+                  args_tuple_t dvecs {};
+                  for_constexpr<n_inputs>([&](auto sc)
+                  {
+                     constexpr size_t s = sc.value;
+                     if (!input_dep[s]) { return; }
+                     using SARG =
+                        typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                     get<s>(dvecs) = backend_t::template qp_pull<SARG>(
+                                        get<s>(sargs), qx, qy, qz);
+                  });
+
                   for_constexpr<n_outputs>([&](auto oc)
                   {
                      constexpr size_t o = oc.value, ao = n_inputs + o;
@@ -393,14 +413,9 @@ public:
                            {
                               constexpr size_t s = sc.value;
                               if (!input_dep[s]) { return; }
-                              using SARG =
-                                 typename qf_param_slot<qfunc_t,
-                                 s>::qf_reg_param_t;
                               const int vdim_s = in_vdim[s];
                               const int op_dim_s = in_size_on_qp[s] / vdim_s;
-                              const auto dvec =
-                                 backend_t::template qp_pull<SARG>(
-                                    get<s>(sargs), qx, qy, qz);
+                              const auto &dvec = get<s>(dvecs);
                               for (int j = 0; j < trial_vdim; j++)
                               {
                                  for (int m = 0; m < op_dim_s; m++)
@@ -408,13 +423,13 @@ public:
                                     const int cache_idx =
                                        cache_row + j * total_trial_op_dim +
                                        (m + m_offset);
-                                    sum += cache_tensor(cache_idx, q, e) *
-                                           qf_flat_value(dvec, j + vdim_s * m);
+                                    sum += cache_tensor(q, cache_idx, e) *
+                                           qf_value_at(dvec, j, m);
                                  }
                               }
                               m_offset += op_dim_s;
                            });
-                           qf_set_flat_value(fhat, i + tv * k, sum);
+                           qf_set_value_at(fhat, i, k, sum);
                         }
                      }
 
@@ -426,14 +441,14 @@ public:
                            for (int k = 0; k < to; k++)
                            {
                               YE(i + tv * k, qx, qy, qz, e) =
-                                 qf_flat_value(fhat, i + tv * k);
+                                 qf_value_at(fhat, i, k);
                            }
                         }
                      }
                      else
                      {
                         backend_t::template qp_push<ARG>(
-                           get<ao>(rargs), qx, qy, qz, fhat);
+                           get<o>(rargs), qx, qy, qz, fhat);
                      }
                   });
                }
@@ -450,7 +465,7 @@ public:
             const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
             const auto B = out_B[i], G = out_G[i];
             auto &YE = out_YE[i];
-            auto &rarg = get<o>(rargs);
+            auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
             if constexpr (is_value_fop_v<FOP>)
             {

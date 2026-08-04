@@ -237,7 +237,7 @@ void mass_action(const char *filename, int p)
       Vector dfem_D(tvsize), mfem_D(tvsize);
       dRdU->AssembleDiagonal(dfem_D);
       blf.AssembleDiagonal(mfem_D);
-      pfes.GetProlongationMatrix()->MultTranspose(mfem_D, Y);
+      Y = mfem_D;
 
       Y -= dfem_D;
       y.SetFromTrueDofs(Y);

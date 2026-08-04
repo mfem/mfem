@@ -44,6 +44,13 @@ Discretization improvements
 - Added methods to estimate function extremum using piecewise linear bounds plus
   recursive subdivision.
 
+<<<<<<<<< Temporary merge branch 1
+- Added class VectorQuadratureSpace that represents a vector (multi-component)
+  version of the scalar (single-component) class QuadratureSpaceBase.
+=========
+- Extend FindPointsGSLIB to support surface meshes.
+>>>>>>>>> Temporary merge branch 2
+
 Meshing improvements
 --------------------
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using

@@ -294,11 +294,12 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
 
-   const int test_vdim = qpdc.GetShape()[3];
-   const int test_op_dim = qpdc.GetShape()[2];
-   const int trial_vdim = qpdc.GetShape()[1];
+   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, ne)
+   const int test_vdim = qpdc.GetShape()[4];
+   const int test_op_dim = qpdc.GetShape()[3];
+   const int trial_vdim = qpdc.GetShape()[2];
    const int num_test_dof = Ae.GetShape()[0];
-   const int nq = qpdc.GetShape()[4];
+   const int nq = qpdc.GetShape()[0];
    const int size_on_qp = output.size_on_qp;
 
 #if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
@@ -370,7 +371,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(m + m_offset, j, k, tv, q, e);
+                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -395,7 +396,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(m + m_offset, j, k, tv, q, e);
+                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -474,7 +475,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(m + m_offset, j, k, i, q, e);
+                                       qpdc(q, m + m_offset, j, k, i, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -495,7 +496,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(m + m_offset, j, k, i, q, e);
+                                       qpdc(q, m + m_offset, j, k, i, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -754,63 +755,18 @@ public:
                                 q1d,
                                 dim);
 
-      A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
+      A = new SparseMatrix;
+      A->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
 
-      auto Ae_host = Reshape(Ae_mem.HostReadWrite(),
-                             num_test_dof * test_vdim,
-                             num_trial_dof * trial_vdim,
-                             ne);
+      const auto *test_restr = dynamic_cast<const ElementRestriction *>(
+                                  test_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+      const auto *trial_restr = dynamic_cast<const ElementRestriction *>(
+                                   trial_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+      MFEM_VERIFY(test_restr != nullptr && trial_restr != nullptr,
+                  "DerivativeAssemble SparseMatrix assembly requires "
+                  "H1/conforming ElementRestriction spaces");
 
-      for (int e = 0; e < ne; e++)
-      {
-         DenseMatrix Aee(&Ae_host(0, 0, e),
-                         num_test_dof * test_vdim,
-                         num_trial_dof * trial_vdim);
-
-         Array<int> test_vdofs, trial_vdofs;
-         test_fes->GetElementVDofs(e, test_vdofs);
-         trial_fes->GetElementVDofs(e, trial_vdofs);
-
-         Array<int> test_vdofs_mapped(test_vdofs.Size());
-         const Array<int> &test_dofmap =
-            dynamic_cast<const TensorBasisElement &>(*test_fes->GetFE(0))
-            .GetDofMap();
-
-         if (test_dofmap.Size() == 0) { test_vdofs_mapped = test_vdofs; }
-         else
-         {
-            for (int vd = 0; vd < test_vdim; vd++)
-            {
-               for (int i = 0; i < num_test_dof; i++)
-               {
-                  test_vdofs_mapped[i + vd * num_test_dof] =
-                     test_vdofs[test_dofmap[i] + vd * num_test_dof];
-               }
-            }
-         }
-
-         Array<int> trial_vdofs_mapped(trial_vdofs.Size());
-         const Array<int> &trial_dofmap =
-            dynamic_cast<const TensorBasisElement &>(*trial_fes->GetFE(0))
-            .GetDofMap();
-
-         if (trial_dofmap.Size() == 0) { trial_vdofs_mapped = trial_vdofs; }
-         else
-         {
-            for (int vd = 0; vd < trial_vdim; vd++)
-            {
-               for (int i = 0; i < num_trial_dof; i++)
-               {
-                  trial_vdofs_mapped[i + vd * num_trial_dof] =
-                     trial_vdofs[trial_dofmap[i] + vd * num_trial_dof];
-               }
-            }
-         }
-
-         A->AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, Aee, 1);
-      }
-
-      A->Finalize();
+      test_restr->FillSparseMatrix(Ae_mem, *A, *trial_restr);
    }
 
    template<typename backend_t = LocalQFHOBackend<3>, int T_Q1D = 0>
@@ -854,11 +810,11 @@ public:
       const auto d_elem_attr = ctx.elem_attr->Read();
 
       const auto qpdc = Reshape(qp_cache.Read(),
+                                nq,
                                 total_trial_op_dim,
                                 trial_vdim,
                                 test_op_dim,
                                 test_vdim,
-                                nq,
                                 ne);
       const auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
 

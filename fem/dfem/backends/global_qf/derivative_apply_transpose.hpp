@@ -38,7 +38,7 @@ struct DerivativeApplyTranspose
       outputs_t outputs,
       const Vector &qp_cache):
       ctx(ctx), inputs(std::move(inputs)), outputs(std::move(outputs)),
-      qp_cache(qp_cache)
+      qp_cache(qp_cache), dir_out_l(n_outputs), dir_out_e(n_outputs)
    {
       create_fop_to_fd(this->inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
@@ -53,6 +53,7 @@ struct DerivativeApplyTranspose
 
       const int nqp = ctx.ir.GetNPoints();
       const int ne = ctx.nentities;
+      num_qp = nqp;
       gnqp = nqp * ne;
 
       // Precompute Q-space BlockVector layouts
@@ -115,8 +116,12 @@ struct DerivativeApplyTranspose
       pull_output_cotangents_to_q(direction_l, dir_q_local);
 
       // Contract qp_cache with test directions at quadrature points
-      const real_t *cache_ptr = qp_cache.HostRead();
+      const real_t *cache_ptr = qp_cache.Read();
       const int res_sz = residual_size_on_qp;
+      const int gnqp_local = gnqp;
+      const int num_qp_local = num_qp;
+      const int trial_vdim_local = trial_vdim;
+      const int total_trial_op_dim_local = total_trial_op_dim;
 
       constexpr_for<0, n_outputs>([&](auto o)
       {
@@ -130,41 +135,51 @@ struct DerivativeApplyTranspose
             return off;
          }();
 
-         const real_t *dir_o = dir_q_local.GetBlock(o.value).HostRead();
+         const int size_o = get<o>(outputs).size_on_qp;
+         const real_t *dir_o = dir_q_local.GetBlock(o.value).Read();
 
+         int m_offset = 0;
          constexpr_for<0, n_inputs>([&](auto s)
          {
             if (get<s>(inputs).GetFieldId() != derivative_id) { return; }
 
-            real_t *res_s = result_q_local.GetBlock(s.value).HostReadWrite();
+            const int size_s = get<s>(inputs).size_on_qp;
+            const int to_s = size_s / trial_vdim_local;
+            real_t *res_s = result_q_local.GetBlock(s.value).ReadWrite();
 
-            for (int gq = 0; gq < gnqp; ++gq)
+            mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
             {
+               // Cache is (q, cache_idx, e): adjacent threads (adjacent gq)
+               // read adjacent addresses for a fixed cache_idx.
+               const int cache_base =
+                  (gq % num_qp_local) +
+                  num_qp_local * res_sz * (gq / num_qp_local);
+
                for (int i = 0; i < tv_o; ++i)
                {
                   for (int k = 0; k < to_o; ++k)
                   {
                      const int out_comp = out_base + i * to_o + k;
-                     const int size_o = get<o>(outputs).size_on_qp;
                      const real_t w = dir_o[(i * to_o + k) + size_o * gq];
 
-                     for (int j = 0; j < trial_vdim; ++j)
+                     for (int j = 0; j < trial_vdim_local; ++j)
                      {
-                        for (int m = 0; m < total_trial_op_dim; ++m)
+                        for (int m = 0; m < to_s; ++m)
                         {
+                           const int m_global = m + m_offset;
                            const int cache_idx =
-                              out_comp * trial_vdim * total_trial_op_dim +
-                              j * total_trial_op_dim + m;
+                              out_comp * trial_vdim_local * total_trial_op_dim_local +
+                              j * total_trial_op_dim_local + m_global;
 
-                           const real_t c = cache_ptr[cache_idx + res_sz * gq];
-                           const int size_s = get<s>(inputs).size_on_qp;
-                           res_s[(j * total_trial_op_dim + m) + size_s * gq] +=
-                              c * w;
+                           const real_t c =
+                              cache_ptr[cache_base + num_qp_local * cache_idx];
+                           res_s[(j * to_s + m) + size_s * gq] += c * w;
                         }
                      }
                   }
                }
-            }
+            });
+            m_offset += to_s;
          });
       });
 
@@ -192,6 +207,7 @@ private:
    std::array<FieldBasis, n_outputs> output_bases;
 
    int gnqp = 0;
+   int num_qp = 0;
 
    // Pre-allocated Q-space temporaries
    Array<int> dir_q_offsets;
@@ -202,6 +218,9 @@ private:
    // Pre-allocated owning storage for output cotangent temporaries
    mutable std::array<Vector, n_outputs> dir_out_l_owned;
    mutable std::array<Vector, n_outputs> dir_out_e_owned;
+   mutable std::vector<Vector *> dir_out_l;
+   mutable std::vector<Vector *> dir_out_e;
+   mutable RestrictionCache<Entity::Element> out_rcache;
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;
@@ -211,9 +230,6 @@ private:
    void pull_output_cotangents_to_q(const Vector *direction_l,
                                     BlockVector &dir_q) const
    {
-      std::vector<Vector *> dir_out_l(n_outputs);
-      std::vector<Vector *> dir_out_e(n_outputs);
-
       int l_offset = 0;
       constexpr_for<0, n_outputs>([&](auto i)
       {
@@ -231,7 +247,7 @@ private:
          l_offset += l_size;
       });
 
-      restriction<Entity::Element>(ctx.outfds, dir_out_l, dir_out_e);
+      restriction(ctx.outfds, out_rcache, dir_out_l, dir_out_e);
 
       constexpr_for<0, n_outputs>([&](auto i)
       {

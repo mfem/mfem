@@ -35,6 +35,7 @@ class DerivativeApplyTranspose
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
 
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
@@ -85,6 +86,9 @@ class DerivativeApplyTranspose
    // output cotangent restriction workspace (blocked by element)
    std::array<int, n_outputs> out_elem_dof_size;
    mutable Vector dir_out_e;
+   /// One restriction cache per output field, resolved on first use.
+   mutable std::array<RestrictionCache<Entity::Element>, n_outputs>
+   out_rcaches;
 
 public:
    //////////////////////////////////////////////////////////////////
@@ -217,8 +221,8 @@ public:
          const int elem_sz = out_elem_dof_size[o];
          Vector dir_o_e(dir_out_e, e_offset, elem_sz * ne);
          dir_o_e.UseDevice(true);
-         restriction<Entity::Element>(
-            fd, dir_o_l, dir_o_e, ElementDofOrdering::LEXICOGRAPHIC);
+         restriction(fd, out_rcaches[o], dir_o_l, dir_o_e,
+                     ElementDofOrdering::LEXICOGRAPHIC);
          l_offset += l_size;
          e_offset += elem_sz * ne;
       });
@@ -319,7 +323,7 @@ public:
                       ye[deriv_infd_idx]->ReadWrite(), d_in, d_in, B2D ? 1 : d_in, v_in, ne);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
-                             qp_cache.Read(), residual_size_on_qp, nq, ne);
+                             qp_cache.Read(), nq, residual_size_on_qp, ne);
 
       const auto d_attr = ctx.attr.Read();
       const bool has_attr = ctx.attr.Size() > 0;
@@ -387,6 +391,27 @@ public:
                {
                   const int q = qx + q1d * (qy + q1d * qz);
 
+                  // The test cotangent at this quadrature point is the same
+                  // for every trial column (j, m), so pull each interpolated
+                  // output slot out of the register bank once, here, instead
+                  // of once per column inside the contraction below. Identity
+                  // outputs have no register bank and are read from
+                  // out_XE_dir at the point of use.
+                  args_tuple_t wvecs {};
+                  for_constexpr<n_outputs>([&](auto oc)
+                  {
+                     constexpr size_t o = oc.value, ao = n_inputs + o;
+                     using OFOP = tuple_element_t<o, outputs_t>;
+                     if constexpr (is_value_fop_v<OFOP> ||
+                                   is_gradient_fop_v<OFOP>)
+                     {
+                        using OARG =
+                           typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
+                        get<ao>(wvecs) = backend_t::template qp_pull<OARG>(
+                                            get<ao>(rargs), qx, qy, qz);
+                     }
+                  });
+
                   int m_offset = 0;
                   for_constexpr<n_inputs>([&](auto sc)
                   {
@@ -409,18 +434,13 @@ public:
                            {
                               constexpr size_t o = oc.value, ao = n_inputs + o;
                               using OFOP = tuple_element_t<o, outputs_t>;
-                              using OARG =
-                                 typename qf_param_slot<qfunc_t,
-                                 ao>::qf_reg_param_t;
                               const int tv = out_vdim[o], to = out_op_dim[o];
                               const auto offset_o = out_offsets[o];
                               const auto &cache = cache_tensor;
                               if constexpr (is_value_fop_v<OFOP> ||
                                             is_gradient_fop_v<OFOP>)
                               {
-                                 const auto wvec =
-                                    backend_t::template qp_pull<OARG>(
-                                       get<ao>(rargs), qx, qy, qz);
+                                 const auto &wvec = get<ao>(wvecs);
                                  for (int i = 0; i < tv; i++)
                                  {
                                     for (int k = 0; k < to; k++)
@@ -430,8 +450,8 @@ public:
                                           row * trial_vdim *
                                           total_trial_op_dim +
                                           col;
-                                       sum += cache(cache_idx, q, e) *
-                                              qf_flat_value(wvec, i + tv * k);
+                                       sum += cache(q, cache_idx, e) *
+                                              qf_value_at(wvec, i, k);
                                     }
                                  }
                               }
@@ -447,13 +467,13 @@ public:
                                           row * trial_vdim *
                                           total_trial_op_dim +
                                           col;
-                                       sum += cache(cache_idx, q, e) *
+                                       sum += cache(q, cache_idx, e) *
                                               XEo(i + tv * k, qx, qy, qz, e);
                                     }
                                  }
                               }
                            });
-                           qf_set_flat_value(fhat, j + vdim_s * m, sum);
+                           qf_set_value_at(fhat, j, m, sum);
                         }
                      }
                      backend_t::template qp_push<SARG>(

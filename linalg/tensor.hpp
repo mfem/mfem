@@ -22,6 +22,11 @@
 #include <utility>
 #include <type_traits> // for std::false_type
 
+// Force-inline every tensor operation under clang
+#if defined(__clang__)
+#pragma clang attribute push (__attribute__((always_inline)), apply_to = function)
+#endif
+
 namespace mfem
 {
 namespace future
@@ -2315,3 +2320,7 @@ auto ddot(const isotropic_tensor<S, m, m, m, m>& I,
 
 } // namespace future
 } // namespace mfem
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
