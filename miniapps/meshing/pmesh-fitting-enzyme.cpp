@@ -71,7 +71,8 @@ static constexpr int X = 0;
 static constexpr int Q = 1;
 static constexpr int TARGET_W = 2;
 static constexpr int SURFACE_FIT_DATA = 3;
-static constexpr int SURFACE_FIT_DATA_SIZE = 17;
+// coefficient, Taylor center[2], value, gradient[2], Hessian[2][2]
+static constexpr int SURFACE_FIT_DATA_SIZE = 1 + 2 + 1 + 2 + 4;
 
 /// Compute the MPI-global Euclidean norm of a distributed vector.
 real_t GlobalVectorNorm(MPI_Comm comm, const Vector &x)
@@ -311,8 +312,12 @@ public:
       *mesh_nodes = nodes;
       mesh.NodesUpdated();
       mesh.ExchangeFaceNbrData();
-      current_fes.GetNodePositions(*mesh_nodes, current_node_pos,
-                                   Ordering::byNODES);
+      MFEM_VERIFY(nodes.Size() == mesh.Dimension() * current_fes.GetVSize(),
+                  "Mesh and level-set nodal spaces must have the same order.");
+      current_node_pos = nodes;
+      Ordering::Reorder(current_node_pos, mesh.Dimension(),
+                        nodes.ParFESpace()->GetOrdering(),
+                        Ordering::byNODES);
    }
 
    /// Compute global average and maximum errors on marked fitting nodes.
