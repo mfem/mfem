@@ -250,6 +250,14 @@ public:
        its GetOrder() method. */
    virtual FiniteElementCollection *Clone(int p) const;
 
+   /** @brief Return the order parameter used to construct this collection.
+    *  This differs from GetOrder() depending on the collection type. */
+   virtual int GetConstructorOrder() const
+   {
+      MFEM_ABORT("Collection " << Name() << " does not support GetConstructorOrder");
+      return -1;
+   }
+
 protected:
    const int base_p; ///< Order as returned by GetOrder().
 
@@ -278,7 +286,7 @@ protected:
 class H1_FECollection : public FiniteElementCollection
 {
 protected:
-   int dim, b_type;
+   int dim, b_type, p_type;
    char h1_name[32];
    FiniteElement *H1_Elements[Geometry::NumGeom];
    int H1_dof[Geometry::NumGeom];
@@ -287,7 +295,7 @@ protected:
 public:
    explicit H1_FECollection(const int p, const int dim = 3,
                             const int btype = BasisType::GaussLobatto,
-                            const int pyrtype = 1);
+                            const int pyr_type = ScalarPyramid::DefaultType);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -312,7 +320,10 @@ public:
    const int *GetDofMap(Geometry::Type GeomType, int p) const;
 
    FiniteElementCollection *Clone(int p) const override
-   { return new H1_FECollection(p, dim, b_type); }
+   { return new H1_FECollection(p, dim, b_type, p_type); }
+
+   int GetConstructorOrder() const override
+   { return base_p; }
 
    virtual ~H1_FECollection();
 };
@@ -343,6 +354,10 @@ class H1_Trace_FECollection : public H1_FECollection
 public:
    H1_Trace_FECollection(const int p, const int dim,
                          const int btype = BasisType::GaussLobatto);
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new H1_Trace_FECollection(p, dim+1, b_type); }
+
 };
 
 /// Arbitrary order "L2-conforming" discontinuous finite elements.
@@ -352,6 +367,7 @@ private:
    int dim;
    int b_type; // BasisType
    int m_type; // map type
+   int p_type; // Pyramid type (0 -> Bergot, 1 -> Fuentes)
    char d_name[32];
    ScalarFiniteElement *L2_Elements[Geometry::NumGeom];
    ScalarFiniteElement *Tr_Elements[Geometry::NumGeom];
@@ -364,7 +380,7 @@ public:
    L2_FECollection(const int p, const int dim,
                    const int btype = BasisType::GaussLegendre,
                    const int map_type = FiniteElement::VALUE,
-                   const int pyrtype = 1);
+                   const int pyr_type = ScalarPyramid::DefaultType);
 
    const FiniteElement *
    FiniteElementForGeometry(Geometry::Type GeomType) const override;
@@ -394,7 +410,10 @@ public:
    int GetBasisType() const { return b_type; }
 
    FiniteElementCollection *Clone(int p) const override
-   { return new L2_FECollection(p, dim, b_type, m_type); }
+   { return new L2_FECollection(p, dim, b_type, m_type, p_type); }
+
+   int GetConstructorOrder() const override
+   { return base_p; }
 
    virtual ~L2_FECollection();
 };
@@ -455,6 +474,9 @@ public:
 
    FiniteElementCollection *Clone(int p) const override
    { return new RT_FECollection(p, dim, cb_type, ob_type); }
+
+   int GetConstructorOrder() const override
+   { return base_p-1; }
 
    virtual ~RT_FECollection();
 };
@@ -536,6 +558,9 @@ public:
    FiniteElementCollection *Clone(int p) const override
    { return new ND_FECollection(p, dim, cb_type, ob_type); }
 
+   int GetConstructorOrder() const override
+   { return dim>1 ? base_p : base_p+1; }
+
    virtual ~ND_FECollection();
 };
 
@@ -548,6 +573,9 @@ public:
    ND_Trace_FECollection(const int p, const int dim,
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new ND_Trace_FECollection(p, dim+1, cb_type, ob_type); }
 };
 
 /// Arbitrary order 3D H(curl)-conforming Nedelec finite elements in 1D.
