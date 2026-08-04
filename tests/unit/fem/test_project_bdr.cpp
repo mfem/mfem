@@ -23,7 +23,7 @@ TEST_CASE("3D ProjectBdrCoefficient",
 {
    const char *mesh_file = "data/hex-nc-cross.mesh";
    const int order = 3;
-   const real_t freq = 4.0;
+   const real_t freq = 5.0;
 
    // Attributes
    Array<int> bdr_attr(2);
@@ -33,9 +33,9 @@ TEST_CASE("3D ProjectBdrCoefficient",
    // Coefficient
    FunctionCoefficient coeff([&](const Vector &x)
    {
-      return sin(freq * M_PI * x[0])
+      return cos(freq * M_PI * x[0])
              * cos(freq * M_PI * x[1])
-             * sin(freq * M_PI * x[2]);
+             * cos(freq * M_PI * x[2]);
    });
 
    // Vertex-based mesh
