@@ -2,11 +2,11 @@
 //
 // Compile with: make regularp
 //
-// Sample runs:  mpirun -np 4 regularp -r 1 -a 1 -ns 20 -vis
+// Sample runs:  mpirun -np 4 regularp -r 1 -i 1 -ns 1 -vis
 //               mpirun -np 4 regularp -f 1 -p 0 -i 12 -n 10 -ns 20 -m ../../data/wheel.msh -vis
 //               mpirun -np 8 regularp -r 1 -f 1 -p 0 -i 15 -n 10 -ns 20 -m ../../data/wheel.msh -pv
-//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -vis
-//               mpirun -np 8 regularp -r 1 -f 5 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -pv
+//               mpirun -np 8 regularp -r 2 -f 2 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -vis
+//               mpirun -np 8 regularp -r 3 -f 2 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -pv
 //               mpirun -np 8 regularp -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -vis
 //               mpirun -np 8 regularp -r 2 -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -pv
 //
