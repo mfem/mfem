@@ -33,6 +33,7 @@
 //
 // Sample runs:  lor-transfer
 //               lor-transfer -h1
+//               lor-transfer -ea -w
 //               lor-transfer -t
 //               lor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
 //               lor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2

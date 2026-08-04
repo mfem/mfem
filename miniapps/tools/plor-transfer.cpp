@@ -33,6 +33,7 @@
 //
 // Sample runs:  plor-transfer
 //               plor-transfer -h1
+//               plor-transfer -ea -w
 //               plor-transfer -t
 //               plor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
 //               plor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
