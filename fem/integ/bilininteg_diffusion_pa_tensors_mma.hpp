@@ -78,16 +78,16 @@ inline void DiffusionApplyTensors2DTile(
    const real_t *Xsrc = mma::lapack::PackX2D<D1D>(e0, nbe, NB, X, ws.xloc);
 
    mma::lapack::Gemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
-                    Xsrc, D1D, real_t(0), ws.BX, Q1D);
+                     Xsrc, D1D, real_t(0), ws.BX, Q1D);
    mma::lapack::Gemm('N', 'N', Q1D, n_xy, D1D, real_t(1), G, Q1D,
-                    Xsrc, D1D, real_t(0), ws.GX, Q1D);
+                     Xsrc, D1D, real_t(0), ws.GX, Q1D);
 
    mma::lapack::TransposeAB<Q1D, D1D>(ws.BX, ws.BXt, NB);
    mma::lapack::TransposeAB<Q1D, D1D>(ws.GX, ws.GXt, NB);
    mma::lapack::Gemm('N', 'N', Q1D, n_qy, D1D, real_t(1), B, Q1D,
-                    ws.GXt, D1D, real_t(0), ws.gX, Q1D);
+                     ws.GXt, D1D, real_t(0), ws.gX, Q1D);
    mma::lapack::Gemm('N', 'N', Q1D, n_qy, D1D, real_t(1), G, Q1D,
-                    ws.BXt, D1D, real_t(0), ws.gY, Q1D);
+                     ws.BXt, D1D, real_t(0), ws.gY, Q1D);
 
    for (int b = 0; b < nbe; ++b)
    {
@@ -122,16 +122,16 @@ inline void DiffusionApplyTensors2DTile(
    mma::lapack::TransposeAB<Q1D, Q1D>(ws.gX, ws.gXp, NB);
    mma::lapack::TransposeAB<Q1D, Q1D>(ws.gY, ws.gYp, NB);
    mma::lapack::Gemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Gt, D1D,
-                    ws.gXp, Q1D, real_t(0), ws.A0, D1D);
+                     ws.gXp, Q1D, real_t(0), ws.A0, D1D);
    mma::lapack::Gemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Bt, D1D,
-                    ws.gYp, Q1D, real_t(0), ws.A1, D1D);
+                     ws.gYp, Q1D, real_t(0), ws.A1, D1D);
 
    mma::lapack::TransposeAB<D1D, Q1D>(ws.A0, ws.A0t, NB);
    mma::lapack::TransposeAB<D1D, Q1D>(ws.A1, ws.A1t, NB);
    mma::lapack::Gemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Bt, D1D,
-                    ws.A0t, Q1D, real_t(0), ws.Y0, D1D);
+                     ws.A0t, Q1D, real_t(0), ws.Y0, D1D);
    mma::lapack::Gemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Gt, D1D,
-                    ws.A1t, Q1D, real_t(0), ws.Y1, D1D);
+                     ws.A1t, Q1D, real_t(0), ws.Y1, D1D);
 
    for (int b = 0; b < nbe; ++b)
    {

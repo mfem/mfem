@@ -55,19 +55,19 @@ namespace lapack
 /** Mass: serial tiles, reused buffers. U = P X, scale D, Y += P^T U.
     Full tiles GEMM against X/Y; partial trailing tile packs/scatters. */
 inline void MassApply(int NE, int nq, int ndof, const real_t *P,
-                             const real_t *D, const real_t *X, real_t *Y)
+                      const real_t *D, const real_t *X, real_t *Y)
 {
    const int NB = lapack::NB(nq, ndof);
    std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
    lapack::ElementTiles(NE, ndof, NB, X, Y,
-                       [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
-                           real_t *Yout)
+                        [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
+                            real_t *Yout)
    {
       lapack::Gemm('N', 'N', nq, nb, ndof, real_t(1), P, nq, Xsrc, ndof,
-                  real_t(0), uloc.data(), nq);
+                   real_t(0), uloc.data(), nq);
       ScaleUByMassD(uloc.data(), D, nq, e0, NE, nb);
       lapack::Gemm('T', 'N', ndof, nb, nq, real_t(1), P, nq, uloc.data(), nq,
-                  real_t(1), Yout, ndof);
+                   real_t(1), Yout, ndof);
    });
 }
 
@@ -160,7 +160,7 @@ MFEM_HOST_DEVICE inline void MassApplyDenseElement(const int nq, const int ndof,
 
 /** Host multi-element driver over MassApplyDenseElement. */
 inline void MassApplyRuntime(int NE, int nq, int ndof, const real_t *P,
-                                  const real_t *D, const real_t *X, real_t *Y)
+                             const real_t *D, const real_t *X, real_t *Y)
 {
    for (int e = 0; e < NE; ++e)
    {
@@ -278,10 +278,10 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApplyRuntime(
     Large (QND,ndof): BLAS multi-RHS when profitable; else hand tiles. */
 template<int DIM, int D1D, int QND>
 inline void MassApplySimplex(const int NE,
-                                  const Array<real_t> &p,
-                                  const Vector &d,
-                                  const Vector &x,
-                                  Vector &y)
+                             const Array<real_t> &p,
+                             const Vector &d,
+                             const Vector &x,
+                             Vector &y)
 {
    static_assert(D1D > 0 && QND > 0,
                  "Simplex MMA mass requires specialized D1D/QND");
@@ -299,10 +299,10 @@ inline void MassApplySimplex(const int NE,
     GPU; sizes inferred from P/D; bounded by SimplexMaxNq/SimplexNdof caps. */
 template<int DIM>
 inline void MassApplySimplexRuntime(const int NE,
-                                         const Array<real_t> &p,
-                                         const Vector &d,
-                                         const Vector &x,
-                                         Vector &y)
+                                    const Array<real_t> &p,
+                                    const Vector &d,
+                                    const Vector &x,
+                                    Vector &y)
 {
    MFEM_VERIFY(NE > 0, "");
    MFEM_VERIFY(d.Size() % NE == 0, "");
