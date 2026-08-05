@@ -71,6 +71,11 @@ void info()
    // dFEM local QF versions
    mfem::out << "version  5: 🟠 MF local default" << std::endl;
    mfem::out << "version  6: 🟢 PA local default" << std::endl;
+   // dFEM GetDerivative versions
+   mfem::out << "version  7: 🟠 MF global GetDerivative" << std::endl;
+   mfem::out << "version  8: 🟠 MF local GetDerivative" << std::endl;
+   mfem::out << "version  9: 🟠 MF global GetDerivative cached" << std::endl;
+   mfem::out << "version 10: 🟠 MF local GetDerivative cached" << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -87,6 +92,11 @@ enum class Version
    // dFEM local QF versions
    MF_dfem_local,
    PA_dfem_local,
+   // dFEM GetDerivative versions
+   MF_dfem_global_get_derivative,
+   MF_dfem_local_get_derivative,
+   MF_dfem_global_get_derivative_cached,
+   MF_dfem_local_get_derivative_cached,
 };
 
 constexpr int version_int(Version v) noexcept
@@ -184,7 +194,7 @@ struct MF_Mass_global_qf
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t> &v) const
    {
-      mfem::forall(v.size(), [=] MFEM_HOST_DEVICE (int q)
+      mfem::forall<UseEnzyme>(v.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          v(q) = weight(q) * det(J(q)) * u(q);
       });
@@ -286,6 +296,21 @@ void AddLocalQFActionSpecializations()
    }
 }
 
+template<typename backend_t, int DIM, int DID, typename QT, typename IT,
+         typename OT>
+void AddLocalQFDerivativeSpecializations()
+{
+   if constexpr (std::is_same_v<backend_t, local_backend>)
+   {
+      mfem::future::AddDerivativeAction<DIM, 6, DID, QT, IT, OT>();
+      mfem::future::AddDerivativeSetup<DIM, 6, DID, QT, IT, OT>();
+      mfem::future::AddDerivativeApply<DIM, 6, DID, QT, IT, OT>();
+      mfem::future::AddDerivativeAction<DIM, 8, DID, QT, IT, OT>();
+      mfem::future::AddDerivativeSetup<DIM, 8, DID, QT, IT, OT>();
+      mfem::future::AddDerivativeApply<DIM, 8, DID, QT, IT, OT>();
+   }
+}
+
 /// GLOBAL Diffusion Q-Functions //////////////////////////////////////////////
 template<int DIM>
 struct MF_Diffusion_global_qf
@@ -295,7 +320,7 @@ struct MF_Diffusion_global_qf
                    tensor_array<const real_t> &weight,
                    tensor_array<real_t, DIM> &Gv) const
    {
-      mfem::forall(J.size(), [=] MFEM_HOST_DEVICE (int q)
+      mfem::forall<UseEnzyme>(J.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          const auto invJ = inv(J(q));
          const real_t detJ = det(J(q));
@@ -894,6 +919,7 @@ struct BakeOff
    static constexpr int U = 0, Ξ = 1, Q = 2;
    std::unique_ptr<DifferentiableOperator> dop;
    std::unique_ptr<DifferentiableOperator> qdata_setup_dop;
+   std::shared_ptr<future::DerivativeOperator> ddop;
    QuadratureSpace qspace;
    VectorQuadratureSpace vqspace;
    QuadratureFunction qfct;
@@ -914,6 +940,22 @@ struct BakeOff
       }
    };
    std::unique_ptr<WrapOpArg1> wop;
+
+   struct WrapDerivativeOp: public Operator
+   {
+      const std::shared_ptr<future::DerivativeOperator> &ddop;
+
+      WrapDerivativeOp(const std::shared_ptr<future::DerivativeOperator> &ddop,
+                       const int height, const int width):
+         Operator(height, width), ddop(ddop) { }
+
+      void Mult(const Vector &xv, Vector &yv) const override
+      {
+         MultiVector MY{yv};
+         ddop->Mult(xv, MY);
+      }
+   };
+   std::unique_ptr<WrapDerivativeOp> dwop;
 
    double mdofs{};
 
@@ -971,6 +1013,13 @@ struct BakeOff
          wop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
+      const auto formLinearSystemDerivative = [&]
+      {
+         Operator *A_ptr = nullptr;
+         dwop = std::make_unique<WrapDerivativeOp>(ddop, height, width);
+         dwop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
+         A.Reset(A_ptr);
+      };
       // PA MFEM Setup ////////////////////////////////////
       const auto mPASetup = [&] (auto integrator)
       {
@@ -998,6 +1047,30 @@ struct BakeOff
          using OT = decltype(tuple{GradValU});
          AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>();
          formLinearSystem(nodes);
+      };
+      // MF ∂FEM GetDerivative setup //////////////////////////
+      const auto dMFGetDerivativeSetup = [&] (auto backend, auto qfunction,
+                                              bool use_cached_setup)
+      {
+         using backend_t = decltype(backend);
+         using qfunction_t = decltype(qfunction);
+         const auto ifd = std::vector<FieldDescriptor> {{U, &pfes}, {Ξ, &mfes}};
+         const auto ofd = std::vector<FieldDescriptor> {{U, &pfes}};
+         dop = std::make_unique<DifferentiableOperator>(ifd, ofd, pmesh);
+         dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
+         constexpr auto GradValU = GradOrValue<qfunction_t, DIM, U>();
+         dop->template AddDomainIntegrator<backend_t>(
+            qfunction,
+            tuple{GradValU, Gradient<Ξ>{}, Weight{}},
+            tuple{GradValU},
+            *ir, ess_bdr, future::Derivatives<U> {});
+         using QT = decltype(qfunction);
+         using IT = decltype(tuple{GradValU, Gradient<Ξ>{}, Weight{}});
+         using OT = decltype(tuple{GradValU});
+         AddLocalQFDerivativeSpecializations<backend_t, DIM, U, QT, IT, OT>();
+         MultiVector state{x, nodes};
+         ddop = dop->GetDerivative(U, state, use_cached_setup);
+         formLinearSystemDerivative();
       };
       // PA ∂FEM setup ////////////////////////////////////
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
@@ -1050,6 +1123,14 @@ struct BakeOff
          {
             dMFSetup(global_backend{}, MF_Mass_global_qf<DIM> {});
          }
+         else if constexpr (VER == Version::MF_dfem_global_get_derivative)
+         {
+            dMFGetDerivativeSetup(global_backend{}, MF_Mass_global_qf<DIM> {}, false);
+         }
+         else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
+         {
+            dMFGetDerivativeSetup(global_backend{}, MF_Mass_global_qf<DIM> {}, true);
+         }
          else if constexpr (VER == Version::PA_dfem_global)
          {
             dPASetup(global_backend{},
@@ -1060,6 +1141,14 @@ struct BakeOff
          else if constexpr (VER == Version::MF_dfem_local)
          {
             dMFSetup(local_backend{}, MF_Mass_local_qf<DIM> {});
+         }
+         else if constexpr (VER == Version::MF_dfem_local_get_derivative)
+         {
+            dMFGetDerivativeSetup(local_backend{}, MF_Mass_local_qf<DIM> {}, false);
+         }
+         else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
+         {
+            dMFGetDerivativeSetup(local_backend{}, MF_Mass_local_qf<DIM> {}, true);
          }
          else if constexpr (VER == Version::PA_dfem_local)
          {
@@ -1093,6 +1182,14 @@ struct BakeOff
          {
             dMFSetup(global_backend{}, MF_Diffusion_global_qf<DIM> {});
          }
+         else if constexpr (VER == Version::MF_dfem_global_get_derivative)
+         {
+            dMFGetDerivativeSetup(global_backend{}, MF_Diffusion_global_qf<DIM> {}, false);
+         }
+         else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
+         {
+            dMFGetDerivativeSetup(global_backend{}, MF_Diffusion_global_qf<DIM> {}, true);
+         }
          else if constexpr (VER == Version::PA_dfem_global)
          {
             dPASetup(global_backend{},
@@ -1103,6 +1200,14 @@ struct BakeOff
          else if constexpr (VER == Version::MF_dfem_local)
          {
             dMFSetup(local_backend{}, MF_Diffusion_local_qf<DIM> {});
+         }
+         else if constexpr (VER == Version::MF_dfem_local_get_derivative)
+         {
+            dMFGetDerivativeSetup(local_backend{}, MF_Diffusion_local_qf<DIM> {}, false);
+         }
+         else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
+         {
+            dMFGetDerivativeSetup(local_backend{}, MF_Diffusion_local_qf<DIM> {}, true);
          }
          else if constexpr (VER == Version::PA_dfem_local)
          {
@@ -1197,9 +1302,13 @@ static void Benchmark(bm::State& state) noexcept
 REGISTER(BP, 1, PA_mfem_std);
 
 REGISTER(BP, 1, MF_dfem_global);
+REGISTER(BP, 1, MF_dfem_global_get_derivative);
+REGISTER(BP, 1, MF_dfem_global_get_derivative_cached);
 REGISTER(BP, 1, PA_dfem_global);
 
 REGISTER(BP, 1, MF_dfem_local);
+REGISTER(BP, 1, MF_dfem_local_get_derivative);
+REGISTER(BP, 1, MF_dfem_local_get_derivative_cached);
 REGISTER(BP, 1, PA_dfem_local);
 
 /// BP3 /////////////////////////////////////////////////////////////////////
@@ -1208,9 +1317,13 @@ REGISTER(BP, 3, MF_mfem_ker);
 REGISTER(BP, 3, PA_mfem_ker);
 
 REGISTER(BP, 3, MF_dfem_global);
+REGISTER(BP, 3, MF_dfem_global_get_derivative);
+REGISTER(BP, 3, MF_dfem_global_get_derivative_cached);
 REGISTER(BP, 3, PA_dfem_global);
 
 REGISTER(BP, 3, MF_dfem_local);
+REGISTER(BP, 3, MF_dfem_local_get_derivative);
+REGISTER(BP, 3, MF_dfem_local_get_derivative_cached);
 REGISTER(BP, 3, PA_dfem_local);
 
 /// main //////////////////////////////////////////////////////////////////////

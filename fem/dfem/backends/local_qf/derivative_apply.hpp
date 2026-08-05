@@ -73,6 +73,134 @@ class DerivativeApply
    mutable Vector direction_e;
    mutable RestrictionCache<Entity::Element> direction_rcache;
 
+   template <std::size_t slot>
+   static constexpr int ParamRank()
+   {
+      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
+      return qf_param_shape<param_t>::rank;
+   }
+
+   template <std::size_t slot, int dim_idx>
+   static constexpr int ParamExtent()
+   {
+      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
+      return qf_param_shape<param_t>::extents[dim_idx];
+   }
+
+   template <typename fop_t, std::size_t slot>
+   static constexpr int StaticVDim()
+   {
+      constexpr int rank = ParamRank<slot>();
+      if constexpr (is_gradient_fop_v<fop_t>)
+      {
+         if constexpr (rank <= 1) { return 1; }
+         else { return ParamExtent<slot, 0>(); }
+      }
+      else
+      {
+         if constexpr (rank == 0) { return 1; }
+         else { return ParamExtent<slot, 0>(); }
+      }
+   }
+
+   template <typename fop_t, std::size_t slot>
+   static constexpr int StaticOpDim()
+   {
+      constexpr int rank = ParamRank<slot>();
+      if constexpr (is_gradient_fop_v<fop_t>)
+      {
+         if constexpr (rank == 0) { return 1; }
+         else if constexpr (rank == 1) { return ParamExtent<slot, 0>(); }
+         else { return ParamExtent<slot, 1>(); }
+      }
+      else
+      {
+         if constexpr (rank <= 1) { return 1; }
+         else { return ParamExtent<slot, 1>(); }
+      }
+   }
+
+   template <std::size_t input_slot>
+   static constexpr bool StaticInputDep()
+   {
+      using fop_t = tuple_element_t<input_slot, inputs_t>;
+      return fop_t::GetFieldId() == derivative_id;
+   }
+
+   template <std::size_t input_slot>
+   static constexpr int StaticInputVDim()
+   {
+      using fop_t = tuple_element_t<input_slot, inputs_t>;
+      return StaticVDim<fop_t, input_slot>();
+   }
+
+   template <std::size_t input_slot>
+   static constexpr int StaticInputOpDim()
+   {
+      using fop_t = tuple_element_t<input_slot, inputs_t>;
+      return StaticOpDim<fop_t, input_slot>();
+   }
+
+   template <std::size_t output_slot>
+   static constexpr int StaticOutputVDim()
+   {
+      using fop_t = tuple_element_t<output_slot, outputs_t>;
+      return StaticVDim<fop_t, n_inputs + output_slot>();
+   }
+
+   template <std::size_t output_slot>
+   static constexpr int StaticOutputOpDim()
+   {
+      using fop_t = tuple_element_t<output_slot, outputs_t>;
+      return StaticOpDim<fop_t, n_inputs + output_slot>();
+   }
+
+   template <std::size_t output_slot>
+   static constexpr int StaticOutputOffset()
+   {
+      int offset = 0;
+      for_constexpr<output_slot>([&](auto oc)
+      {
+         constexpr size_t o = oc.value;
+         offset += StaticOutputVDim<o>() * StaticOutputOpDim<o>();
+      });
+      return offset;
+   }
+
+   template <std::size_t input_slot>
+   static constexpr int StaticInputOpOffset()
+   {
+      int offset = 0;
+      for_constexpr<input_slot>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>()) { offset += StaticInputOpDim<s>(); }
+      });
+      return offset;
+   }
+
+   static constexpr int StaticTrialVDim()
+   {
+      int vdim = 1;
+      for_constexpr<n_inputs>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>()) { vdim = StaticInputVDim<s>(); }
+      });
+      return vdim;
+   }
+
+   static constexpr int StaticTotalTrialOpDim()
+   {
+      int op_dim = 0;
+      for_constexpr<n_inputs>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (StaticInputDep<s>()) { op_dim += StaticInputOpDim<s>(); }
+      });
+      return op_dim;
+   }
+
 public:
    DerivativeApply() = delete;
 
@@ -239,6 +367,13 @@ public:
                              const int dim,
                              const int q1d)
    {
+      MFEM_CONTRACT_VAR(input_dep);
+      MFEM_CONTRACT_VAR(in_size_on_qp);
+      MFEM_CONTRACT_VAR(out_vdim);
+      MFEM_CONTRACT_VAR(out_op_dim);
+      MFEM_CONTRACT_VAR(out_offsets);
+      MFEM_CONTRACT_VAR(trial_vdim);
+      MFEM_CONTRACT_VAR(total_trial_op_dim);
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
 
@@ -332,7 +467,7 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            if (!input_dep[i]) { return; }
+            if constexpr (!StaticInputDep<i>()) { return; }
             const auto &XE = in_XE_dir[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
             const real_t *B = in_B[i], *G = in_G[i];
@@ -384,11 +519,13 @@ public:
                   for_constexpr<n_inputs>([&](auto sc)
                   {
                      constexpr size_t s = sc.value;
-                     if (!input_dep[s]) { return; }
-                     using SARG =
-                        typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
-                     get<s>(dvecs) = backend_t::template qp_pull<SARG>(
-                                        get<s>(sargs), qx, qy, qz);
+                     if constexpr (StaticInputDep<s>())
+                     {
+                        using SARG =
+                           typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                        get<s>(dvecs) = backend_t::template qp_pull<SARG>(
+                           get<s>(sargs), qx, qy, qz);
+                     }
                   });
 
                   for_constexpr<n_outputs>([&](auto oc)
@@ -397,37 +534,45 @@ public:
                      using FOP = tuple_element_t<o, outputs_t>;
                      using ARG =
                         typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
-                     const int tv = out_vdim[o], to = out_op_dim[o];
+                     constexpr int tv = StaticOutputVDim<o>();
+                     constexpr int to = StaticOutputOpDim<o>();
+                     constexpr int offset_o = StaticOutputOffset<o>();
+                     constexpr int trial_vdim_ct = StaticTrialVDim();
+                     constexpr int total_trial_op_dim_ct = StaticTotalTrialOpDim();
 
                      ARG fhat{};
+                     MFEM_UNROLL(tv)
                      for (int i = 0; i < tv; i++)
                      {
+                        MFEM_UNROLL(to)
                         for (int k = 0; k < to; k++)
                         {
-                           const int row = out_offsets[o] + i * to + k;
+                           const int row = offset_o + i * to + k;
                            const int cache_row =
-                              row * trial_vdim * total_trial_op_dim;
+                              row * trial_vdim_ct * total_trial_op_dim_ct;
                            real_t sum = 0.0;
-                           int m_offset = 0;
                            for_constexpr<n_inputs>([&](auto sc)
                            {
                               constexpr size_t s = sc.value;
-                              if (!input_dep[s]) { return; }
-                              const int vdim_s = in_vdim[s];
-                              const int op_dim_s = in_size_on_qp[s] / vdim_s;
-                              const auto &dvec = get<s>(dvecs);
-                              for (int j = 0; j < trial_vdim; j++)
+                              if constexpr (StaticInputDep<s>())
                               {
-                                 for (int m = 0; m < op_dim_s; m++)
+                                 constexpr int op_dim_s = StaticInputOpDim<s>();
+                                 constexpr int m_offset = StaticInputOpOffset<s>();
+                                 const auto &dvec = get<s>(dvecs);
+                                 MFEM_UNROLL(trial_vdim_ct)
+                                 for (int j = 0; j < trial_vdim_ct; j++)
                                  {
-                                    const int cache_idx =
-                                       cache_row + j * total_trial_op_dim +
-                                       (m + m_offset);
-                                    sum += cache_tensor(q, cache_idx, e) *
-                                           qf_value_at(dvec, j, m);
+                                    MFEM_UNROLL(op_dim_s)
+                                    for (int m = 0; m < op_dim_s; m++)
+                                    {
+                                       const int cache_idx =
+                                          cache_row + j * total_trial_op_dim_ct +
+                                          (m + m_offset);
+                                       sum += cache_tensor(q, cache_idx, e) *
+                                              qf_value_at(dvec, j, m);
+                                    }
                                  }
                               }
-                              m_offset += op_dim_s;
                            });
                            qf_set_value_at(fhat, i, k, sum);
                         }
@@ -436,8 +581,10 @@ public:
                      auto &YE = out_YE[o];
                      if constexpr (is_identity_fop_v<FOP>)
                      {
+                        MFEM_UNROLL(tv)
                         for (int i = 0; i < tv; i++)
                         {
+                           MFEM_UNROLL(to)
                            for (int k = 0; k < to; k++)
                            {
                               YE(i + tv * k, qx, qy, qz, e) =

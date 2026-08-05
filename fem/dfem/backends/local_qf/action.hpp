@@ -416,6 +416,8 @@ public:
             {
                using YE_t = decltype(YE);
                using rarg_t = decltype(rarg);
+               // Both the rank and the extents have to come from the output
+               // parameter slot o, not from the output index i.
                using qf_param_t =
                   typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
                constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();

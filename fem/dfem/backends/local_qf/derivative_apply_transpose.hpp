@@ -408,7 +408,7 @@ public:
                         using OARG =
                            typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
                         get<ao>(wvecs) = backend_t::template qp_pull<OARG>(
-                                            get<ao>(rargs), qx, qy, qz);
+                           get<ao>(rargs), qx, qy, qz);
                      }
                   });
 
