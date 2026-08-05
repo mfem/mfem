@@ -63,8 +63,9 @@ auto make_dual(const tensor<real_t, n...>& A)
  * @param beta Sharpness parameter. Must be > 0. Larger values makes the approximation sharper.
  * @return Approximate maximum eigenvalue of A
  */
-template <int n> MFEM_HOST_DEVICE
-double smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
+ template <int n> MFEM_HOST_DEVICE
+ __attribute__((noinline))
+ double smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
 {
   auto [lambda, V] = eig_symm(get_value(A));
   double lambda_max = lambda[n - 1];
@@ -75,20 +76,27 @@ double smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
   return lambda_max + std::log1p(sum)/beta;
 }
 
+template<typename T>
+struct ValueAndTangent
+{
+  T value;
+  T tangent;
+};
+
 template<int n> MFEM_HOST_DEVICE
-double smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
+ValueAndTangent<real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
 {
   auto [lambda, V] = eig_symm(A);
-  double lambda_max = lambda[n - 1];
-  double sum = 0;
+  real_t lambda_max = lambda[n - 1];
+  real_t sum = 0;
   tensor<double, n> eg;
   for (int i = 0; i < n; i++) {
     eg[i] = std::exp(beta*(lambda[i] - lambda_max));
     if (i != n - 1) sum += eg[i];
   }
-  double value = lambda_max + std::log1p(sum)/beta;
+  real_t value = lambda_max + std::log1p(sum)/beta;
 
-  double derivative{};
+  real_t derivative{};
   for (int mu = 0; mu < 3; mu++) {
     for (int i = 0; i < 3; i++) {
       for (int j = 0; j < 3; j++) {
@@ -96,8 +104,30 @@ double smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, tensor<
       }
     }
   }
-  return derivative;
+  WARN("CALLING CUSTOM DERIVATIVE (REF VER)");
+  return {value, derivative};
 }
+
+// template<int n>
+// struct SmoothMaxEigenvalueSymDerivative
+// {
+//   __attribute__((used))
+//   static inline void* __enzyme_register_derivative_smooth_max_eigenvalue_symm[] = {
+//     reinterpret_cast<void*>(smooth_max_eigenvalue_symm<n>),
+//     reinterpret_cast<void*>(smooth_max_eigenvalue_symm_fwddiff<n>)
+//   };
+// };
+
+// struct SmoothMaxEigenvalueSymDerivative<1> __attribute__((used)) smooth_max_eigenvalue_derivative_1;
+// struct SmoothMaxEigenvalueSymDerivative<2> __attribute__((used)) smooth_max_eigenvalue_derivative_2;
+// struct SmoothMaxEigenvalueSymDerivative<3> __attribute__((used)) smooth_max_eigenvalue_derivative_3;
+
+// compiles
+__attribute__((used))
+void* __enzyme_register_derivative_smooth_max_eigenvalue_symm[] = {
+    reinterpret_cast<void*>(smooth_max_eigenvalue_symm<3>),
+    reinterpret_cast<void*>(smooth_max_eigenvalue_symm_fwddiff<3>)
+  };
 
 // NOTE: I can't implmement this yet, the get_value() function for tensors is not implemented in MFEM.
 // Consider upstreaming it from Smith.

@@ -191,7 +191,7 @@ TEST_CASE("SmoothMaxEigenvalue", "[Tensor]")
 //   CHECK(norm(error) < 10*h);
 // }
 
-TEST_CASE("SmoothMaxEigenvalueEnzyme", "[Tensor]")
+TEST_CASE("SmoothMaxEigenvalueDerivativeFn", "[Tensor]")
 {
    tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
@@ -204,14 +204,55 @@ TEST_CASE("SmoothMaxEigenvalueEnzyme", "[Tensor]")
    tensor<real_t, 3, 3> da_dA;
    tensor<real_t, 3, 3> A_p;
    tensor<real_t, 3, 3> da_dA_h{};
-   double h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
+   real_t h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
    // Take derivatives in symetric directions`
    for (int i = 0; i < 3; i++) {
        for (int j = 0; j < 3; j++) {
          tensor<real_t, 3, 3> A_dot{};
          A_dot[i][j] += 0.5;
          A_dot[j][i] += 0.5;
-         da_dA[i][j] = smooth_max_eigenvalue_symm_fwddiff(A, A_dot, beta, 0);
+         real_t beta_dot = 0;
+         auto val_and_grad = smooth_max_eigenvalue_symm_fwddiff(A, A_dot, beta, beta_dot);
+         da_dA[i][j] = val_and_grad.tangent;
+
+         A_p = A;
+         A_p[i][j] += 0.5*h;
+         A_p[j][i] += 0.5*h;
+         double a_p = smooth_max_eigenvalue_symm(A_p, beta);
+         da_dA_h[i][j] = (a_p - a)/h;
+    }
+  }
+  INFO("da_dA" << da_dA);
+  INFO("da_dA_h" << da_dA_h);
+  auto error = da_dA - da_dA_h;
+  CHECK(norm(error) < 10*h);
+}
+
+TEST_CASE("SmoothMaxEigenvalueEnzyme", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 4.0, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   INFO("A = " << A);
+   real_t beta = 2.0;
+   double a = smooth_max_eigenvalue_symm(A, beta);
+   INFO("a = " << a);
+
+   auto f = [](const tensor<real_t, 3, 3>& A) {
+      return smooth_max_eigenvalue_symm(A, 2.0);
+   };
+
+   tensor<real_t, 3, 3> da_dA;
+   tensor<real_t, 3, 3> A_p;
+   tensor<real_t, 3, 3> da_dA_h{};
+   real_t h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
+   // Take derivatives in symetric directions`
+   for (int i = 0; i < 3; i++) {
+       for (int j = 0; j < 3; j++) {
+         tensor<real_t, 3, 3> A_dot{};
+         A_dot[i][j] += 0.5;
+         A_dot[j][i] += 0.5;
+         da_dA[i][j] = __enzyme_fwddiff<double>(reinterpret_cast<void*>(+f), enzyme_dup, A, A_dot);
 
          A_p = A;
          A_p[i][j] += 0.5*h;
