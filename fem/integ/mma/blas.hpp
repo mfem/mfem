@@ -21,8 +21,8 @@ namespace mfem::internal::mma::blas
 
 /** Dense cooperative GEMM (no MMA): U(q,b) = sum_i B(q,i)*X(i,b) [, *D].
     Sibling of dmma::Gemm / mfma::Gemm for CPU, single, and pre-sm_80 paths. */
-template <bool SCALE, typename BasisAcc, typename XAcc, typename UAcc,
-          typename DAcc>
+template <bool SCALE, typename BasisAcc,
+          typename XAcc, typename UAcc, typename DAcc>
 MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
                                   const int NB, BasisAcc B,
                                   XAcc X, UAcc U, DAcc D,
@@ -90,8 +90,8 @@ inline void PackX(const real_t *X, int e0, int NE, real_t *xloc)
 
 /** U = B * X with optional mass scale: U_qb = (sum_i B_qi X_ib) * [D_qe].
     B is column-major nq×ndof: B[q + NQ*i].
-    If scale_mass is false, D may be null and scale is 1. */
-template <int NDOF, int NQ, int NB, bool SCALE_MASS>
+    If SCALE is false, D may be null and scale is 1. */
+template <int NDOF, int NQ, int NB, bool SCALE>
 inline void Gemm(const real_t *B, const real_t *xloc, real_t *uloc,
                  const real_t *D, int e0, int NE)
 {
@@ -109,7 +109,7 @@ inline void Gemm(const real_t *B, const real_t *xloc, real_t *uloc,
             ub[b] += bqi * xloc[i * NB + b];
          }
       }
-      if constexpr (SCALE_MASS)
+      if constexpr (SCALE)
       {
          MFEM_UNROLL(NB)
          for (int b = 0; b < NB; ++b)
@@ -132,7 +132,7 @@ inline void Gemm(const real_t *B, const real_t *xloc, real_t *uloc,
 
 /** Like Gemm but reads X as column-major X[i + NDOF*(e0+b)] (no pack).
     Requires a full tile: e0+NB <= NE. */
-template <int NDOF, int NQ, int NB, bool SCALE_MASS>
+template <int NDOF, int NQ, int NB, bool SCALE>
 inline void GemmFromColMajor(const real_t *B, const real_t *X, int e0,
                              real_t *uloc, const real_t *D)
 {
@@ -150,7 +150,7 @@ inline void GemmFromColMajor(const real_t *B, const real_t *X, int e0,
             ub[b] += bqi * X[i + NDOF * (e0 + b)];
          }
       }
-      if constexpr (SCALE_MASS)
+      if constexpr (SCALE)
       {
          MFEM_UNROLL(NB)
          for (int b = 0; b < NB; ++b)

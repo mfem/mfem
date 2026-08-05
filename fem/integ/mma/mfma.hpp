@@ -40,8 +40,8 @@ MFEM_HOST_DEVICE inline void Sync4(double a, double b, double &c)
     C[(L/16)+4*i][L%16] = cReg[i]. */
 template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Gemm16(const int M, const int K, const int N,
-                                         TA A, TB B, TC C, TD D,
-                                         const int e0, const int NE)
+                                    TA A, TB B, TC C, TD D,
+                                    const int e0, const int NE)
 {
    constexpr int TM = 16, TN = 16, TK = 4;
    const int thread = getThreadIdx();
@@ -100,9 +100,9 @@ MFEM_HOST_DEVICE inline void Gemm16(const int M, const int K, const int N,
 template <typename TA0, typename TA1, typename TA2, typename TB,
           typename TC0, typename TC1, typename TC2>
 MFEM_HOST_DEVICE inline void Gemm16_Fwd3(const int M, const int K,
-                                              const int N,
-                                              TA0 A0, TA1 A1, TA2 A2, TB B,
-                                              TC0 C0, TC1 C1, TC2 C2)
+                                         const int N,
+                                         TA0 A0, TA1 A1, TA2 A2, TB B,
+                                         TC0 C0, TC1 C1, TC2 C2)
 {
    constexpr int TM = 16, TN = 16, TK = 4;
    const int thread = getThreadIdx();
@@ -165,10 +165,10 @@ MFEM_HOST_DEVICE inline void Gemm16_Fwd3(const int M, const int K,
 template <typename TA0, typename TA1, typename TA2, typename TB0,
           typename TB1, typename TB2, typename TC>
 MFEM_HOST_DEVICE inline void GemmT16_3(const int M, const int K,
-                                            const int N,
-                                            TA0 A0, TA1 A1, TA2 A2,
-                                            TB0 B0, TB1 B1, TB2 B2, TC C,
-                                            const int e0, const int NE)
+                                       const int N,
+                                       TA0 A0, TA1 A1, TA2 A2,
+                                       TB0 B0, TB1 B1, TB2 B2, TC C,
+                                       const int e0, const int NE)
 {
    constexpr int TM = 16, TN = 16, TK = 4;
    const int thread = getThreadIdx();
@@ -234,8 +234,8 @@ MFEM_HOST_DEVICE inline void GemmT16_3(const int M, const int K,
 /** C += A^T * B via MFMA 16x16x4. Loads A as A^T fragments. */
 template <typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void GemmT16(const int M, const int K, const int N,
-                                          TA A, TB B, TC C,
-                                          const int e0, const int NE)
+                                     TA A, TB B, TC C,
+                                     const int e0, const int NE)
 {
    // GemmT: out rows = K (ndof), reduce over M (nq). Tile out-rows with TM.
    constexpr int TM = 16, TN = 16, TK = 4;
@@ -291,8 +291,8 @@ MFEM_HOST_DEVICE inline void GemmT16(const int M, const int K, const int N,
     Lane L: block=(L%16)/4, m=(L%16)%4, k=L/16. */
 template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Gemm4(const int M, const int K, const int N,
-                                        TA A, TB B, TC C, TD D,
-                                        const int e0, const int NE)
+                                   TA A, TB B, TC C, TD D,
+                                   const int e0, const int NE)
 {
    constexpr int TM = 4, TN_BLK = 4, N_EFF = 16, TK = 4;
    const int thread = getThreadIdx();
@@ -345,8 +345,8 @@ MFEM_HOST_DEVICE inline void Gemm4(const int M, const int K, const int N,
 
 template <typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void GemmT4(const int M, const int K, const int N,
-                                         TA A, TB B, TC C,
-                                         const int e0, const int NE)
+                                    TA A, TB B, TC C,
+                                    const int e0, const int NE)
 {
    constexpr int TM = 4, TN_BLK = 4, N_EFF = 16, TK = 4;
    const int thread = getThreadIdx();
@@ -394,8 +394,8 @@ MFEM_HOST_DEVICE inline void GemmT4(const int M, const int K, const int N,
 
 template <bool SCALE, typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Gemm(const int M, const int K, const int N,
-                                       TA A, TB B, TC C, TD D,
-                                       const int e0, const int NE)
+                                  TA A, TB B, TC C, TD D,
+                                  const int e0, const int NE)
 {
    using Fn = decltype(&Gemm16<SCALE, TA, TB, TC, TD>);
    const Fn gemm = PreferMfma4(M, K)
@@ -406,8 +406,8 @@ MFEM_HOST_DEVICE inline void Gemm(const int M, const int K, const int N,
 
 template <typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void GemmT(const int M, const int K, const int N,
-                                        TA A, TB B, TC C,
-                                        const int e0, const int NE)
+                                   TA A, TB B, TC C,
+                                   const int e0, const int NE)
 {
    // PreferMfma4 on (nq=M, ndof=K) — same as forward dims.
    using Fn = decltype(&GemmT16<TA, TB, TC>);
@@ -475,10 +475,10 @@ struct SumfMassD
 };
 
 /** C = A * B via MFMA 16x16x4. A is (M,K), B is (K,N), C is (M,N). */
-template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
-          typename TD>
+template <bool SCALE, bool ACCUM,
+          typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Sumf16(const int M, const int K,
-                                         const int N, TA A, TB B, TC C, TD D)
+                                    const int N, TA A, TB B, TC C, TD D)
 {
    constexpr int TM = 16, TN = 16, TK = 4;
    const int thread = getThreadIdxX();
@@ -531,10 +531,10 @@ MFEM_HOST_DEVICE inline void Sumf16(const int M, const int K,
 }
 
 /** C = A * B via MFMA 4x4x4_4b covering N=16. */
-template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
-          typename TD>
+template <bool SCALE, bool ACCUM,
+          typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Sumf4(const int M, const int K,
-                                        const int N, TA A, TB B, TC C, TD D)
+                                   const int N, TA A, TB B, TC C, TD D)
 {
    constexpr int TM = 4, TN_BLK = 4, N_EFF = 16, TK = 4;
    const int thread = getThreadIdxX();
@@ -582,10 +582,10 @@ MFEM_HOST_DEVICE inline void Sumf4(const int M, const int K,
    }
 }
 
-template <bool SCALE, bool ACCUM, typename TA, typename TB, typename TC,
-          typename TD>
+template <bool SCALE, bool ACCUM,
+          typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Sumf(const int M, const int K, const int N,
-                                       TA A, TB B, TC C, TD D)
+                                  TA A, TB B, TC C, TD D)
 {
    using Fn = decltype(&Sumf16<SCALE, ACCUM, TA, TB, TC, TD>);
    const Fn sumf = mma::PreferMfma4(M, N)
@@ -597,20 +597,20 @@ MFEM_HOST_DEVICE inline void Sumf(const int M, const int K, const int N,
 /** SUMF contraction C(m,n) = sum_k storageA(k,m) * storageB(k,n). */
 template <bool SCALE, bool ACCUM, typename TD>
 MFEM_HOST_DEVICE inline void Sumf(const int m, const int n,
-                                       const int k, const real_t *A,
-                                       const real_t *B1d, real_t *C,
-                                       TD D)
+                                  const int k, const real_t *A,
+                                  const real_t *B1d, real_t *C,
+                                  TD D)
 {
    Sumf<SCALE, ACCUM>(m, k, n, SumfAFromKbyM{A, k, m},
-                           SumfBFromKbyN{B1d, k, n}, SumfCToMbyN{C, m, n}, D);
+                      SumfBFromKbyN{B1d, k, n}, SumfCToMbyN{C, m, n}, D);
 }
 
 // SUMF backend helpers (mfma)
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
-                                        const real_t (&BG)[2][MQ1*MD1],
-                                        const real_t (*A)[BUF],
-                                        real_t (*C)[BUF])
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF])
 {
    SumfNullD nd;
    // C[0] from G, C[1] from B (matches CUDA dmma::GradX store order).
@@ -620,10 +620,10 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
 
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
-                                        const int k,
-                                        const real_t (&BG)[2][MQ1*MD1],
-                                        const real_t (*A)[BUF],
-                                        real_t (*C)[BUF])
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF])
 {
    SumfNullD nd;
    Sumf<false, false>(m, n, k, A[0], BG[0], C[0], nd); // A0*B
@@ -633,11 +633,11 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
 
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
-                                        const int k,
-                                        const real_t (&BG)[2][MQ1*MD1],
-                                        const real_t (*A)[BUF],
-                                        real_t (*C)[BUF],
-                                        int gIdx)
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF],
+                                   int gIdx)
 {
    SumfNullD nd;
    for (int d = 0; d < 3; d++)
@@ -651,10 +651,10 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
 /// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
-                                             const int k, const int gIdx,
-                                             const real_t (&BG)[2][MQ1*MD1],
-                                             const real_t (*A)[BUF],
-                                             real_t (*C)[BUF])
+                                        const int k, const int gIdx,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
 {
    SumfNullD nd;
    for (int d = 0; d < 3; d++)
@@ -668,11 +668,11 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
  *  ScaleAtStore: C *= D(q,e) (fused mass Q-fn). */
 template<int MD1, int MQ1, bool ScaleAtStore = false>
 MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
-                                           const int k,
-                                           const real_t *B1d,
-                                           const real_t *A, real_t *C,
-                                           const DeviceTensor<2, const real_t> *D = nullptr,
-                                           const int e = 0)
+                                      const int k,
+                                      const real_t *B1d,
+                                      const real_t *A, real_t *C,
+                                      const DeviceTensor<2, const real_t> *D = nullptr,
+                                      const int e = 0)
 {
    if constexpr (ScaleAtStore)
    {
@@ -689,10 +689,10 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
 /// 3D Transposed Gradient, 3/3
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
-                                         const real_t (&sBG)[2][MQ1*MD1],
-                                         const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
-                                         const DeviceTensor<4> &Y, // output
-                                         const int e)
+                                    const real_t (&sBG)[2][MQ1*MD1],
+                                    const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
+                                    const DeviceTensor<4> &Y, // output
+                                    const int e)
 {
    const int m = D1D * D1D, n = D1D, k = Q1D;
    struct Y3Acc
@@ -708,19 +708,19 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
    Y3Acc Yacc{&Y, D1D, e};
    // Y += A0*Bt + A1*Bt + A2*Gt
    Sumf<false, true>(m, k, n, SumfAFromKbyM{sDDQ[0], k, m},
-                          SumfBFromKbyN{sBG[0], k, n}, Yacc, nd);
+                     SumfBFromKbyN{sBG[0], k, n}, Yacc, nd);
    Sumf<false, true>(m, k, n, SumfAFromKbyM{sDDQ[1], k, m},
-                          SumfBFromKbyN{sBG[0], k, n}, Yacc, nd);
+                     SumfBFromKbyN{sBG[0], k, n}, Yacc, nd);
    Sumf<false, true>(m, k, n, SumfAFromKbyM{sDDQ[2], k, m},
-                          SumfBFromKbyN{sBG[1], k, n}, Yacc, nd);
+                     SumfBFromKbyN{sBG[1], k, n}, Yacc, nd);
 }
 
 /** InterpAx store to global Y (3D mass): Y(dx,dy,dz,e) += C. */
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
-                                           const real_t *sBt,
-                                           const real_t *sDDQ,
-                                           const DeviceTensor<4> &Y, const int e)
+                                      const real_t *sBt,
+                                      const real_t *sDDQ,
+                                      const DeviceTensor<4> &Y, const int e)
 {
    const int m = D1D * D1D, n = D1D, k = Q1D;
    struct Y3Acc
@@ -734,15 +734,15 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
    };
    SumfNullD nd;
    Sumf<false, true>(m, k, n, SumfAFromKbyM{sDDQ, k, m},
-                          SumfBFromKbyN{sBt, k, n}, Y3Acc{&Y, D1D, e}, nd);
+                     SumfBFromKbyN{sBt, k, n}, Y3Acc{&Y, D1D, e}, nd);
 }
 
 /// 2D GradY: M=Q1D (qx), N=Q1D (qy), K=D1D → gX=A0*B, gY=A1*G
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
-                                          const real_t (&sBG)[2][MQ1*MD1],
-                                          const real_t (*sDQ)[MDQ*MDQ],
-                                          real_t (*sQQ)[MDQ*MDQ])
+                                     const real_t (&sBG)[2][MQ1*MD1],
+                                     const real_t (*sDQ)[MDQ*MDQ],
+                                     real_t (*sQQ)[MDQ*MDQ])
 {
    SumfNullD nd;
    Sumf<false, false>(Q1D, Q1D, D1D, sDQ[0], sBG[0], sQQ[0], nd);
@@ -752,26 +752,26 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
 /// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
-                                           const real_t (&sBG)[2][MQ1*MD1],
-                                           const real_t (*sQQ)[MDQ*MDQ],
-                                           real_t (*sQD)[MDQ*MDQ])
+                                      const real_t (&sBG)[2][MQ1*MD1],
+                                      const real_t (*sQQ)[MDQ*MDQ],
+                                      real_t (*sQD)[MDQ*MDQ])
 {
    SumfNullD nd;
    // A is (qx,qy)=(M,K); B is Bt/Gt (K,N)=(Q,D)
    Sumf<false, false>(Q1D, Q1D, D1D, SumfAFromMbyK{sQQ[0], Q1D, Q1D},
-                           SumfBFromKbyN{sBG[0], Q1D, D1D},
-                           SumfCToMbyN{sQD[0], Q1D, D1D}, nd);
+                      SumfBFromKbyN{sBG[0], Q1D, D1D},
+                      SumfCToMbyN{sQD[0], Q1D, D1D}, nd);
    Sumf<false, false>(Q1D, Q1D, D1D, SumfAFromMbyK{sQQ[1], Q1D, Q1D},
-                           SumfBFromKbyN{sBG[1], Q1D, D1D},
-                           SumfCToMbyN{sQD[1], Q1D, D1D}, nd);
+                      SumfBFromKbyN{sBG[1], Q1D, D1D},
+                      SumfCToMbyN{sQD[1], Q1D, D1D}, nd);
 }
 
 /// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
-                                           const real_t (&sBG)[2][MQ1*MD1],
-                                           const real_t (*sQD)[MDQ*MDQ],
-                                           const DeviceTensor<3> &Y, const int e)
+                                      const real_t (&sBG)[2][MQ1*MD1],
+                                      const real_t (*sQD)[MDQ*MDQ],
+                                      const DeviceTensor<3> &Y, const int e)
 {
    // A storage (qx,dy)=(K,M); C row=dy, col=dx → Y(dx,dy) = Y(col,row)
    struct Y2Acc
@@ -786,28 +786,28 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    SumfNullD nd;
    Y2Acc Yacc{&Y, e};
    Sumf<false, true>(D1D, Q1D, D1D, SumfAFromKbyM{sQD[0], Q1D, D1D},
-                          SumfBFromKbyN{sBG[1], Q1D, D1D}, Yacc, nd); // Gt
+                     SumfBFromKbyN{sBG[1], Q1D, D1D}, Yacc, nd); // Gt
    Sumf<false, true>(D1D, Q1D, D1D, SumfAFromKbyM{sQD[1], Q1D, D1D},
-                          SumfBFromKbyN{sBG[0], Q1D, D1D}, Yacc, nd); // Bt
+                     SumfBFromKbyN{sBG[0], Q1D, D1D}, Yacc, nd); // Bt
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
-                                             const real_t *sBt,
-                                             const real_t *sQQ, real_t *sQD)
+                                        const real_t *sBt,
+                                        const real_t *sQQ, real_t *sQD)
 {
    // K=qy fastest in A(qx,qy); N=dy — (M,K) layout, not InterpAx's (K,M).
    SumfNullD nd;
    Sumf<false, false>(Q1D, Q1D, D1D, SumfAFromMbyK{sQQ, Q1D, Q1D},
-                           SumfBFromKbyN{sBt, Q1D, D1D},
-                           SumfCToMbyN{sQD, Q1D, D1D}, nd);
+                      SumfBFromKbyN{sBt, Q1D, D1D},
+                      SumfCToMbyN{sQD, Q1D, D1D}, nd);
 }
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
-                                             const real_t *sBt,
-                                             const real_t *sQD,
-                                             const DeviceTensor<3> &Y, const int e)
+                                        const real_t *sBt,
+                                        const real_t *sQD,
+                                        const DeviceTensor<3> &Y, const int e)
 {
    struct Y2Acc
    {
@@ -820,7 +820,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
    };
    SumfNullD nd;
    Sumf<false, true>(D1D, Q1D, D1D, SumfAFromKbyM{sQD, Q1D, D1D},
-                          SumfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
+                     SumfBFromKbyN{sBt, Q1D, D1D}, Y2Acc{&Y, e}, nd);
 }
 
 #endif // __HIP_DEVICE_COMPILE__ && !MFEM_USE_SINGLE

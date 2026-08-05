@@ -10,7 +10,6 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-// forall → device (MFEM_HOST_DEVICE, DeviceThreadIdx*), dtensor, MFEM_UNROLL/SHARED
 #include "../../../general/forall.hpp"
 #include <vector>
 
@@ -22,7 +21,6 @@ namespace mfem::internal::mma
 // ======================================================================
 // Common — warp/lane, maps, smem, accessors, launch, tensor helpers
 // ======================================================================
-
 
 #if defined(MFEM_USE_HIP)
 constexpr int WarpSize = 64;
@@ -559,24 +557,27 @@ MFEM_HOST_DEVICE inline void LoadBGBoth(const int D1D, const int Q1D,
    }
 }
 
-/** Default bank remap [0,5,1,6,2,7,3,4] (dfem / bank-conflict avoidance). */
+/** Default bank remap [0,5,1,6,2,7,3,4]. */
 MFEM_HOST_DEVICE constexpr int BankMapDefault()
 {
-   return 0b100011111010110001101000;
+   //   4   3   7   2   6   1   5   0
+   // 100 011 111 010 110 001 101 000
+   // 1000 1111 1010 1100 0110 1000
+   return 0x8fac68;
 }
 
-/** Identity column map (best when N≈8 or N=6 pad with low conflict). */
+/** Identity column map. */
 MFEM_HOST_DEVICE constexpr int BankMapIdentity()
 {
-   // packed 3-bit: 0,1,2,3,4,5,6,7
-   return (0) | (1 << 3) | (2 << 6) | (3 << 9) | (4 << 12) |
-          (5 << 15) | (6 << 18) | (7 << 21);
+   //   7   6   5   4   3   2   1   0
+   // 111 110 101 100 011 010 001 000
+   // 1111 1010 1100 0110 1000 1000
+   return 0xfac688;
 }
 
 /** Diffusion / Grad: Default map won BP3 A/B (N5 hurt light pad cases less than mass). */
-MFEM_HOST_DEVICE constexpr int BankMapForN(int n)
+MFEM_HOST_DEVICE constexpr int BankMapForN()
 {
-   (void)n;
    return BankMapDefault();
 }
 
@@ -625,24 +626,10 @@ MFEM_HOST_DEVICE inline void LoadX(const int e, const int D1D,
 // SUMF CUDA tiles use shared mmaM/mmaN/mmaK (m8n8k4). HIP MFMA tiles are 4/16.
 
 /** Paper §III-C f_m: m_p = m_i + w * mmaM (preferred over m_i*mPass+w). */
-MFEM_HOST_DEVICE inline int MapM(int lane_group, int warp_tile, int mPass)
+MFEM_HOST_DEVICE inline int MapM(int lane_group, int warp_tile)
 {
-   (void)mPass;
    return lane_group + warp_tile * mmaM;
 }
-
-/** Paper §III-D cyclic / contraction-fastest smem (hex BP3):
- *  GradX (M=D*D,N=Q,K=D): read X with K=dx fastest; write (dy,dz,qx).
- *  GradY (M=D*Q,N=Q,K=D): K=dy fastest; write (dz,qx,qy).
- *  GradZ (M=Q*Q,N=Q,K=D): K=dz fastest; write (qx+Q*qy)+Q*Q*qz.
- *  DeviceMatrix height=K on A loads implements the cyclic index order.
- */
-
-
-/** Launch knobs (re-bench BP1/BP3 after changes):
- *  CUDA: Mass 3D threads=64, NB=8 | Diff 3D threads=128, NB=4 | 2D mPass*32
- *  HIP:  threads multiples of WarpSize=64; NB unchanged initially.
- */
 
 /** Cover max(D,Q) M-tiles; at least min_threads. */
 template <int D1D, int Q1D>
@@ -718,7 +705,6 @@ MFEM_HOST_DEVICE constexpr int DiffNB2D()
    return NB2D<D1D, Q1D>();
 }
 
-/** Runtime launch knobs for Fallback / T_D1D==0 MMA shells. */
 inline int NB2DRuntime(int D1D)
 {
    return (D1D <= 4) ? 4 : 8;
@@ -775,10 +761,9 @@ MFEM_HOST_DEVICE inline int NWarps(int mPass)
 // ---- Host policy / scratch + lapack packing (CPU apply) ------------
 
 /** Prefer host tensor apply (blas / lapack) over MMA Emulate shell. */
-inline bool host_PreferTensor(int D1D, int Q1D, int NE)
+inline bool host_PreferTensor(int D1D, int NE)
 {
    // Registered tensor MMA is p>=3 (D1D>=4). Dense host sum-fact beats Emulate.
-   (void)Q1D;
    return NE >= 4 && D1D >= 4;
 }
 
@@ -789,16 +774,15 @@ inline int TensorTileNB(int D1D, int Q1D)
    if (work <= 24) { return 48; }  // p=3 (4×5)
    if (work <= 30) { return 32; }  // p=4 (5×6)
    if (work <= 42) { return 64; }  // p=5 (6×7)
-   if (work <= 56) { return 96; }  // p=6
+   if (work <= 56) { return 96; }  // p=6 (7×8)
    return 64;                      // p≥7
 }
 
 /** 3D host tensor element batch: RHS per elem = D1D². */
-inline int TensorTileNB3D(int D1D, int Q1D)
+inline int TensorTileNB3D(int D1D)
 {
-   (void)Q1D;
-   if (D1D <= 4) { return 48; } // p=3, cols = 16*48 = 768
-   if (D1D <= 5) { return 32; } // p=4
+   if (D1D <= 4) { return 48; }
+   if (D1D <= 5) { return 32; }
    if (D1D <= 7) { return 24; }
    return 16;
 }

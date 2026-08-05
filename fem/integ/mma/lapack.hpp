@@ -10,32 +10,28 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "common.hpp"
+#include "../../../linalg/lapack.hpp" // IWYU pragma: keep
+
 #ifdef MFEM_USE_LAPACK
-#include "../../../linalg/lapack.hpp"
-#endif
-#include <algorithm> // std::fill, std::min
+
+#include <algorithm>
 
 /// \cond DO_NOT_DOCUMENT
 
 namespace mfem::internal::mma::lapack
 {
+
 /** Shared size gate for Prefer*: large locals always; mid-size when NE
     and work clear the given bars. Tuned for OpenBLAS/MKL/Accelerate. */
 inline bool PreferSized(int nq, int ndof, int NE,
-                               long long work_mid, int mx_mid)
+                        long long work_mid, int mx_mid)
 {
-#ifdef MFEM_USE_LAPACK
    const int mx = (nq > ndof) ? nq : ndof;
    const long long work = static_cast<long long>(nq) * ndof;
    // Large locals: ~ tet p>=4 (nq*ndof ≳ 1600) and larger.
    if (mx >= 24 && work >= 1600) { return true; }
    if (NE >= 64 && work >= work_mid && mx >= mx_mid) { return true; }
    return false;
-#else
-   (void)nq; (void)ndof; (void)NE; (void)work_mid; (void)mx_mid;
-   return false;
-#endif
 }
 
 /** Prefer vendor GEMM when matrices are large enough that call overhead is
@@ -71,7 +67,7 @@ inline int NB(int nq, int ndof)
     Layout: X[dx + D1D*(dy + D1D*e)], xloc[dx + D1D*(dy + D1D*b)]. */
 template <int D1D>
 inline const real_t *PackX2D(int e0, int nbe, int NB,
-                                    const real_t *X, real_t *xloc)
+                             const real_t *X, real_t *xloc)
 {
    constexpr int ndof = D1D * D1D;
    if (nbe == NB)
@@ -96,7 +92,7 @@ inline const real_t *PackX2D(int e0, int nbe, int NB,
 /** 3D: X[dx + D1D*(dy + D1D*(dz + D1D*e))]. */
 template <int D1D>
 inline const real_t *PackX3D(int e0, int nbe, int NB,
-                                    const real_t *X, real_t *xloc)
+                             const real_t *X, real_t *xloc)
 {
    constexpr int ndof = D1D * D1D * D1D;
    if (nbe == NB)
@@ -175,12 +171,11 @@ inline void TransposeAB(const real_t *src, real_t *dst, int NB)
    }
 }
 
-#ifdef MFEM_USE_LAPACK
 /** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
 inline void Gemm(char ta, char tb, int m, int n, int k,
-                       real_t alpha, const real_t *A, int lda,
-                       const real_t *B, int ldb,
-                       real_t beta, real_t *C, int ldc)
+                 real_t alpha, const real_t *A, int lda,
+                 const real_t *B, int ldb,
+                 real_t beta, real_t *C, int ldc)
 {
    // Match densemat.cpp: Fortran dgemm_/sgemm_ via MFEM_LAPACK_PREFIX.
    MFEM_LAPACK_PREFIX(gemm_)(
@@ -189,14 +184,13 @@ inline void Gemm(char ta, char tb, int m, int n, int k,
       const_cast<real_t *>(B), &ldb,
       &beta, C, &ldc);
 }
-#endif
 
 // Shared host multi-RHS packing / Blas GEMM (integrator-agnostic).
 // Blas path: xloc[i*NB+b]; Lapack path: column-major.
 
 /** Pack X(:, e0:e0+NB) into column-major xloc[ndof * NB]; pad zeros. */
 inline void PackX(const real_t *X, int ndof, int e0, int NE, int NB,
-                          real_t *xloc)
+                  real_t *xloc)
 {
    std::fill(xloc, xloc + static_cast<size_t>(ndof) * NB, real_t(0));
    for (int b = 0; b < NB; ++b)
@@ -213,7 +207,7 @@ inline void PackX(const real_t *X, int ndof, int e0, int NE, int NB,
 
 /** Y(:, e0:e0+NB) += column-major ytmp[ndof * NB]. */
 inline void ScatterAddY(const real_t *ytmp, int ndof, int e0, int NE,
-                                int NB, real_t *Y)
+                        int NB, real_t *Y)
 {
    for (int b = 0; b < NB; ++b)
    {
@@ -227,13 +221,12 @@ inline void ScatterAddY(const real_t *ytmp, int ndof, int e0, int NE,
    }
 }
 
-#ifdef MFEM_USE_LAPACK
 /** Multi-RHS element tiles: full tiles GEMM against X/Y slices; partial tiles
     pack X, accumulate into ytmp (beta=1 after zero), scatter-add to Y.
     tile_fn(e0, nbe, NB, Xsrc, Yout) must write Yout with beta=1 (or add). */
 template <typename TileFn>
 inline void ElementTiles(int NE, int ndof, int NB,
-                               const real_t *X, real_t *Y, TileFn &&tile_fn)
+                         const real_t *X, real_t *Y, TileFn &&tile_fn)
 {
    const int ntiles = (NE + NB - 1) / NB;
    std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
@@ -257,10 +250,9 @@ inline void ElementTiles(int NE, int ndof, int NB,
       }
    }
 }
-#endif // MFEM_USE_LAPACK
-
 
 } // namespace mfem::internal::mma::lapack
 
 /// \endcond DO_NOT_DOCUMENT
 
+#endif // MFEM_USE_LAPACK

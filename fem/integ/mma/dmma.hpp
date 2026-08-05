@@ -24,8 +24,8 @@ namespace mfem::internal::mma::dmma
 #if defined(MFEM_USE_CUDA) && !defined(MFEM_USE_SINGLE)
 
 MFEM_HOST_DEVICE inline void Sync(double aReg[1],
-                                      double bReg[1],
-                                      double cReg[2])
+                                  double bReg[1],
+                                  double cReg[2])
 {
 #ifdef __CUDA_ARCH__
    asm volatile(
@@ -38,8 +38,8 @@ MFEM_HOST_DEVICE inline void Sync(double aReg[1],
 template<int MAP, bool SCALE,
          typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Gemm8(const int M, const int K, const int N,
-                                        TA A, TB B, TC C, TD D,
-                                        const int e0, const int NE)
+                                   TA A, TB B, TC C, TD D,
+                                   const int e0, const int NE)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -103,8 +103,8 @@ MFEM_HOST_DEVICE inline void Gemm8(const int M, const int K, const int N,
 
 template <int MAP, typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void GemmT8(const int M, const int K, const int N,
-                                         TA A, TB B, TC C,
-                                         const int e0, const int NE)
+                                    TA A, TB B, TC C,
+                                    const int e0, const int NE)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -165,9 +165,9 @@ MFEM_HOST_DEVICE inline void GemmT8(const int M, const int K, const int N,
 template <int MAP, typename TA0, typename TA1, typename TA2,
           typename TB, typename TC0, typename TC1, typename TC2>
 MFEM_HOST_DEVICE inline void Gemm8_Fwd3(const int M, const int K,
-                                             const int N,
-                                             TA0 A0, TA1 A1, TA2 A2, TB B,
-                                             TC0 C0, TC1 C1, TC2 C2)
+                                        const int N,
+                                        TA0 A0, TA1 A1, TA2 A2, TB B,
+                                        TC0 C0, TC1 C1, TC2 C2)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -227,10 +227,10 @@ MFEM_HOST_DEVICE inline void Gemm8_Fwd3(const int M, const int K,
 template <int MAP, typename TA0, typename TA1, typename TA2,
           typename TB0, typename TB1, typename TB2, typename TC>
 MFEM_HOST_DEVICE inline void GemmT8_3(const int M, const int K,
-                                           const int N,
-                                           TA0 A0, TA1 A1, TA2 A2,
-                                           TB0 B0, TB1 B1, TB2 B2, TC C,
-                                           const int e0, const int NE)
+                                      const int N,
+                                      TA0 A0, TA1 A1, TA2 A2,
+                                      TB0 B0, TB1 B1, TB2 B2, TC C,
+                                      const int e0, const int NE)
 {
    const int thread = getThreadIdx();
    const int warpId = getWarpId(thread);
@@ -288,25 +288,25 @@ MFEM_HOST_DEVICE inline void GemmT8_3(const int M, const int K,
 template<int MAP, bool SCALE,
          typename TA, typename TB, typename TC, typename TD>
 MFEM_HOST_DEVICE inline void Gemm(const int M, const int K, const int N,
-                                       TA A, TB B, TC C, TD D,
-                                       const int e0, const int NE)
+                                  TA A, TB B, TC C, TD D,
+                                  const int e0, const int NE)
 {
    Gemm8<MAP, SCALE>(M, K, N, A, B, C, D, e0, NE);
 }
 
 template <int MAP, typename TA, typename TB, typename TC>
 MFEM_HOST_DEVICE inline void GemmT(const int M, const int K, const int N,
-                                        TA A, TB B, TC C,
-                                        const int e0, const int NE)
+                                   TA A, TB B, TC C,
+                                   const int e0, const int NE)
 {
    GemmT8<MAP>(M, K, N, A, B, C, e0, NE);
 }
 
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
-                                        const real_t (&BG)[2][MQ1*MD1],
-                                        const real_t (*A)[BUF],
-                                        real_t (*C)[BUF])
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF])
 {
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
@@ -323,7 +323,7 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN(n);
+   const int bankMap = BankMapForN();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -347,7 +347,7 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
                gReg[0] = 0;
             }
             double aReg[1];
-            int aRow = MapM(aRowInWarp, mM, mPass);
+            int aRow = MapM(aRowInWarp, mM);
             int aColumn = aColumnInWarp + mK * mmaK;
             if (aRow < m && aColumn < k)
             {
@@ -366,7 +366,7 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
 #pragma unroll
             for (int i = 0; i < 2; i++)
             {
-               int cRow = MapM(groupId, mM, mPass);
+               int cRow = MapM(groupId, mM);
                int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
@@ -381,10 +381,10 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
 
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
-                                        const int k,
-                                        const real_t (&BG)[2][MQ1*MD1],
-                                        const real_t (*A)[BUF],
-                                        real_t (*C)[BUF])
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF])
 {
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
@@ -401,7 +401,7 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN(n);
+   const int bankMap = BankMapForN();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -426,7 +426,7 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
             }
             double agReg[1];
             double abReg[1];
-            int aRow = MapM(aRowInWarp, mM, mPass);
+            int aRow = MapM(aRowInWarp, mM);
             int aColumn = aColumnInWarp + mK * mmaK;
             if (aRow < m && aColumn < k)
             {
@@ -449,7 +449,7 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
 #pragma unroll
             for (int i = 0; i < 2; i++)
             {
-               int cRow = MapM(groupId, mM, mPass);
+               int cRow = MapM(groupId, mM);
                int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
@@ -464,11 +464,11 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
 
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
-                                        const int k,
-                                        const real_t (&BG)[2][MQ1*MD1],
-                                        const real_t (*A)[BUF],
-                                        real_t (*C)[BUF],
-                                        int gIdx)
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF],
+                                   int gIdx)
 {
    ConstDeviceMatrix B(BG[0], k, n);
    ConstDeviceMatrix G(BG[1], k, n);
@@ -485,7 +485,7 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN(n);
+   const int bankMap = BankMapForN();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -511,7 +511,7 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
             for (int d = 0; d < 3; d++)
             {
                double aReg[1];
-               int aRow = MapM(aRowInWarp, mM, mPass);
+               int aRow = MapM(aRowInWarp, mM);
                int aColumn = aColumnInWarp + mK * mmaK;
                if (aRow < m && aColumn < k)
                {
@@ -530,7 +530,7 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
 #pragma unroll
             for (int i = 0; i < 2; i++)
             {
-               int cRow = MapM(groupId, mM, mPass);
+               int cRow = MapM(groupId, mM);
                int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
@@ -547,10 +547,10 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
 /// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
-                                             const int k, const int gIdx,
-                                             const real_t (&BG)[2][MQ1*MD1],
-                                             const real_t (*A)[BUF],
-                                             real_t (*C)[BUF])
+                                        const int k, const int gIdx,
+                                        const real_t (&BG)[2][MQ1*MD1],
+                                        const real_t (*A)[BUF],
+                                        real_t (*C)[BUF])
 {
    ConstDeviceMatrix Bt(BG[0], k, n);
    ConstDeviceMatrix Gt(BG[1], k, n);
@@ -561,7 +561,7 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (m + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
-   const int bankMap = BankMapForN(n);
+   const int bankMap = BankMapForN();
    const int aRowInWarp = groupId;
    const int aColumnInWarp = threadIdInGroup;
    const int bRowInWarp = threadIdInGroup;
@@ -591,7 +591,7 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
             for (int d = 0; d < 3; d++)
             {
                double aReg[1];
-               const int aRow = MapM(aRowInWarp, mM, mPass);
+               const int aRow = MapM(aRowInWarp, mM);
                const int aColumn = aColumnInWarp + mK * mmaK;
                if (aRow < m && aColumn < k)
                {
@@ -610,7 +610,7 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
 #pragma unroll
             for (int i = 0; i < 2; i++)
             {
-               const int cRow = MapM(groupId, mM, mPass);
+               const int cRow = MapM(groupId, mM);
                const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
                if (cRow < m && cColumn < n)
                {
@@ -627,11 +627,11 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
  *  ScaleAtStore: C *= D(q,e) (fused mass Q-fn). */
 template<int MD1, int MQ1, bool ScaleAtStore = false>
 MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
-                                           const int k,
-                                           const real_t *B1d,
-                                           const real_t *A, real_t *C,
-                                           const DeviceTensor<2, const real_t> *D = nullptr,
-                                           const int e = 0)
+                                      const int k,
+                                      const real_t *B1d,
+                                      const real_t *A, real_t *C,
+                                      const DeviceTensor<2, const real_t> *D = nullptr,
+                                      const int e = 0)
 {
    ConstDeviceMatrix B(B1d, k, n);
    const int thread = getThreadIdxX();
@@ -654,7 +654,7 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
             const int bColumn = MappedNCol(bankMap, groupId, n0);
             bReg[0] = (bColumn < n && bRow < k) ? B(bRow, bColumn) : 0.0;
             double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
+            const int aRow = MapM(groupId, mM);
             const int aColumn = threadIdInGroup + mK * mmaK;
             if (aRow < m && aColumn < k)
             {
@@ -666,7 +666,7 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
          }
          for (int i = 0; i < 2; i++)
          {
-            const int cRow = MapM(groupId, mM, mPass);
+            const int cRow = MapM(groupId, mM);
             const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
             if (cRow < m && cColumn < n)
             {
@@ -688,10 +688,10 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
 /// 3D Transposed Gradient, 3/3
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
-                                         const real_t (&sBG)[2][MQ1*MD1],
-                                         const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
-                                         const DeviceTensor<4> &Y, // output
-                                         const int e)
+                                    const real_t (&sBG)[2][MQ1*MD1],
+                                    const real_t (&sDDQ)[3][MDQ*MDQ*MDQ],
+                                    const DeviceTensor<4> &Y, // output
+                                    const int e)
 {
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
@@ -708,7 +708,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN(D1D);
+   const int bankMap = BankMapForN();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -735,7 +735,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
             for (int d = 0; d < 3; d++)
             {
                double aReg[1];
-               int aRow = MapM(aRowInWarp, mM, mPass);
+               int aRow = MapM(aRowInWarp, mM);
                int aColumn = aColumnInWarp + mK * mmaK;
                if (aRow < D1D * D1D && aColumn < Q1D)
                {
@@ -753,7 +753,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 #pragma unroll
          for (int i = 0; i < 2; i++)
          {
-            int cRow = MapM(groupId, mM, mPass);
+            int cRow = MapM(groupId, mM);
             int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
             if (cRow < D1D * D1D && cColumn < D1D)
             {
@@ -770,9 +770,9 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
 /** InterpAx store to global Y (3D mass): Y(dx,dy,dz,e) += C. */
 template<int MD1, int MQ1>
 MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
-                                           const real_t *sBt,
-                                           const real_t *sDDQ,
-                                           const DeviceTensor<4> &Y, const int e)
+                                      const real_t *sBt,
+                                      const real_t *sDDQ,
+                                      const DeviceTensor<4> &Y, const int e)
 {
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdxX();
@@ -796,7 +796,7 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
             const int bColumn = MappedNCol(bankMap, groupId, n0);
             bReg[0] = (bColumn < n && bRow < k) ? Bt(bRow, bColumn) : 0.0;
             double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
+            const int aRow = MapM(groupId, mM);
             const int aColumn = threadIdInGroup + mK * mmaK;
             if (aRow < m && aColumn < k)
             {
@@ -808,7 +808,7 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
          }
          for (int i = 0; i < 2; i++)
          {
-            const int cRow = MapM(groupId, mM, mPass);
+            const int cRow = MapM(groupId, mM);
             const int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
             if (cRow < m && cColumn < n)
             {
@@ -822,9 +822,9 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
 /// 2D GradY: M=Q1D (qx), N=Q1D (qy), K=D1D → gX=A0*B, gY=A1*G
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
-                                          const real_t (&sBG)[2][MQ1*MD1],
-                                          const real_t (*sDQ)[MDQ*MDQ],
-                                          real_t (*sQQ)[MDQ*MDQ])
+                                     const real_t (&sBG)[2][MQ1*MD1],
+                                     const real_t (*sDQ)[MDQ*MDQ],
+                                     real_t (*sQQ)[MDQ*MDQ])
 {
    ConstDeviceMatrix B(sBG[0], D1D, Q1D);
    ConstDeviceMatrix G(sBG[1], D1D, Q1D);
@@ -833,7 +833,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForN(Q1D);
+   const int bankMap = BankMapForN();
    const int mPass = (Q1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -853,7 +853,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
             }
             else { bReg[0] = gReg[0] = 0; }
             double a0[1], a1[1];
-            const int aRow = MapM(groupId, mM, mPass);
+            const int aRow = MapM(groupId, mM);
             const int aColumn = tinG + mK * mmaK;
             if (aRow < Q1D && aColumn < D1D)
             {
@@ -870,7 +870,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
          {
             for (int i = 0; i < 2; i++)
             {
-               const int cRow = MapM(groupId, mM, mPass);
+               const int cRow = MapM(groupId, mM);
                const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
                if (cRow < Q1D && cColumn < Q1D)
                {
@@ -886,9 +886,9 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
 /// Undo GradY: K=qy, M=qx, N=dy; Gt on gY (d==1)
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
-                                           const real_t (&sBG)[2][MQ1*MD1],
-                                           const real_t (*sQQ)[MDQ*MDQ],
-                                           real_t (*sQD)[MDQ*MDQ])
+                                      const real_t (&sBG)[2][MQ1*MD1],
+                                      const real_t (*sQQ)[MDQ*MDQ],
+                                      real_t (*sQD)[MDQ*MDQ])
 {
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
@@ -897,7 +897,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForN(D1D);
+   const int bankMap = BankMapForN();
    const int mPass = (Q1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -919,7 +919,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
             for (int d = 0; d < 2; d++)
             {
                double aReg[1];
-               const int aRow = MapM(groupId, mM, mPass);
+               const int aRow = MapM(groupId, mM);
                const int aColumn = tinG + mK * mmaK;
                if (aRow < Q1D && aColumn < Q1D)
                {
@@ -934,7 +934,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
          {
             for (int i = 0; i < 2; i++)
             {
-               const int cRow = MapM(groupId, mM, mPass);
+               const int cRow = MapM(groupId, mM);
                const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
                if (cRow < Q1D && cColumn < D1D)
                {
@@ -950,9 +950,9 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
 /// Undo GradX: K=qx, M=dy, N=dx; Gt on gX (d==0); accumulate both comps
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
-                                           const real_t (&sBG)[2][MQ1*MD1],
-                                           const real_t (*sQD)[MDQ*MDQ],
-                                           const DeviceTensor<3> &Y, const int e)
+                                      const real_t (&sBG)[2][MQ1*MD1],
+                                      const real_t (*sQD)[MDQ*MDQ],
+                                      const DeviceTensor<3> &Y, const int e)
 {
    ConstDeviceMatrix Bt(sBG[0], Q1D, D1D);
    ConstDeviceMatrix Gt(sBG[1], Q1D, D1D);
@@ -961,7 +961,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForN(D1D);
+   const int bankMap = BankMapForN();
    const int mPass = (D1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -983,7 +983,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
             for (int d = 0; d < 2; d++)
             {
                double aReg[1];
-               const int aRow = MapM(groupId, mM, mPass);
+               const int aRow = MapM(groupId, mM);
                const int aColumn = tinG + mK * mmaK;
                if (aRow < D1D && aColumn < Q1D)
                {
@@ -996,7 +996,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
          }
          for (int i = 0; i < 2; i++)
          {
-            const int cRow = MapM(groupId, mM, mPass); // dy
+            const int cRow = MapM(groupId, mM); // dy
             const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0); // dx
             if (cRow < D1D && cColumn < D1D)
             {
@@ -1009,8 +1009,8 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
-                                             const real_t *sBt,
-                                             const real_t *sQQ, real_t *sQD)
+                                        const real_t *sBt,
+                                        const real_t *sQQ, real_t *sQD)
 {
    // K=qy fastest in A(qx,qy); N=dy — not the same A layout as InterpAx.
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
@@ -1034,7 +1034,7 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
             const int bColumn = MappedNCol(bankMap, groupId, n0);
             bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
             double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
+            const int aRow = MapM(groupId, mM);
             const int aColumn = tinG + mK * mmaK;
             if (aRow < Q1D && aColumn < Q1D)
             {
@@ -1046,7 +1046,7 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
          }
          for (int i = 0; i < 2; i++)
          {
-            const int cRow = MapM(groupId, mM, mPass);
+            const int cRow = MapM(groupId, mM);
             const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
             if (cRow < Q1D && cColumn < D1D)
             {
@@ -1060,9 +1060,9 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
 
 template<int MD1, int MQ1, int MDQ = (MQ1 > MD1 ? MQ1 : MD1)>
 MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
-                                             const real_t *sBt,
-                                             const real_t *sQD,
-                                             const DeviceTensor<3> &Y, const int e)
+                                        const real_t *sBt,
+                                        const real_t *sQD,
+                                        const DeviceTensor<3> &Y, const int e)
 {
    ConstDeviceMatrix Bt(sBt, Q1D, D1D);
    const int thread = getThreadIdxX();
@@ -1085,7 +1085,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
             const int bColumn = MappedNCol(bankMap, groupId, n0);
             bReg[0] = (bColumn < D1D && bRow < Q1D) ? Bt(bRow, bColumn) : 0.0;
             double aReg[1];
-            const int aRow = MapM(groupId, mM, mPass);
+            const int aRow = MapM(groupId, mM);
             const int aColumn = tinG + mK * mmaK;
             if (aRow < D1D && aColumn < Q1D)
             {
@@ -1097,7 +1097,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
          }
          for (int i = 0; i < 2; i++)
          {
-            const int cRow = MapM(groupId, mM, mPass);
+            const int cRow = MapM(groupId, mM);
             const int cColumn = MappedNCol(bankMap, tinG * 2 + i, n0);
             if (cRow < D1D && cColumn < D1D)
             {

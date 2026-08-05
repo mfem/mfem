@@ -50,10 +50,11 @@ MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
                                   XAcc X, UAcc U, DAcc D,
                                   const int e0, const int NE)
 {
-   const auto gemm = MMA_BACKEND_PICK(
-                        (&dmma::Gemm<MAP, SCALE, BasisAcc, XAcc, UAcc, DAcc>),
-                        (&mfma::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>),
-                        (&blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>));
+   const auto gemm =
+      MMA_BACKEND_PICK(
+         (&dmma::Gemm<MAP, SCALE, BasisAcc, XAcc, UAcc, DAcc>),
+         (&mfma::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>),
+         (&blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>));
    gemm(M, ndof, NB, B, X, U, D, e0, NE);
 }
 
@@ -64,10 +65,11 @@ MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
                                    UAcc U, YAcc Y,
                                    const int e0, const int NE)
 {
-   const auto gemm = MMA_BACKEND_PICK(
-                        (&dmma::GemmT<MAP, BasisAcc, UAcc, YAcc>),
-                        (&mfma::GemmT<BasisAcc, UAcc, YAcc>),
-                        (&blas::GemmT<BasisAcc, UAcc, YAcc>));
+   const auto gemm =
+      MMA_BACKEND_PICK(
+         (&dmma::GemmT<MAP, BasisAcc, UAcc, YAcc>),
+         (&mfma::GemmT<BasisAcc, UAcc, YAcc>),
+         (&blas::GemmT<BasisAcc, UAcc, YAcc>));
    gemm(M, ndof, NB, B, U, Y, e0, NE);
 }
 
@@ -251,10 +253,11 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
 {
    // Blas uses physical gZ (d==2); MMA fragment convention uses gIdx=0.
    constexpr int BUF = MDQ * MDQ * MDQ;
-   const auto fn = MMA_BACKEND_PICK(
-                      (&dmma::GradZtLike<MD1, MQ1, BUF>),
-                      (&mfma::GradZtLike<MD1, MQ1, BUF>),
-                      (&blas::GradZtLike<MD1, MQ1, BUF>));
+   const auto fn =
+      MMA_BACKEND_PICK(
+         (&dmma::GradZtLike<MD1, MQ1, BUF>),
+         (&mfma::GradZtLike<MD1, MQ1, BUF>),
+         (&blas::GradZtLike<MD1, MQ1, BUF>));
    const int gIdx = TensorMmaEnabled() ? 0 : 2;
    fn(Q1D * Q1D, D1D, Q1D, gIdx, sBG, sQQQ, sDQQ);
 }

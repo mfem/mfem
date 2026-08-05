@@ -174,7 +174,7 @@ inline bool TryDiffusionApplyTensors2D(
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y)
 {
-   if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
+   if (!mma::host_PreferTensor(D1D, NE)) { return false; }
    const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
@@ -358,7 +358,7 @@ inline void DiffusionApplyTensors3D(
          }
       }
    };
-   const int NB = mma::TensorTileNB3D(D1D, Q1D);
+   const int NB = mma::TensorTileNB3D(D1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -376,7 +376,7 @@ inline bool TryDiffusionApplyTensors3D(
    const Array<real_t> & /*bt*/, const Array<real_t> & /*gt*/,
    const Vector &d, const Vector &x, Vector &y)
 {
-   if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
+   if (!mma::host_PreferTensor(D1D, NE)) { return false; }
    const real_t *B = b.Read(), *G = g.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();

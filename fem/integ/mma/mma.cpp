@@ -62,7 +62,6 @@ void PADetJSetupSimplexFromNodes(const int dim,
 {
    const bool const_c = c.Size() == 1;
    const auto W = Reshape(w.Read(), NQ);
-   // DofToQuad::FULL G layout: (nq x dim x ndof), matches QI Eval*.
    const auto G = Reshape(g.Read(), NQ, dim, ND);
    const auto E = Reshape(nodes_e.Read(), ND, dim, NE);
    const auto C = const_c ? Reshape(c.Read(), 1, 1)

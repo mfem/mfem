@@ -43,8 +43,8 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
                                  const int vdim,
                                  const int vc)
 {
-   static_assert(D1D > 0 &&
-                 QND > 0, "Simplex MMA DomainLF requires specialized D1D/QND");
+   static_assert(D1D > 0 && QND > 0,
+                 "Simplex MMA DomainLF requires specialized D1D/QND");
    constexpr int MQ = mma::SimplexMaxNq<DIM, QND>();
    constexpr int MAP = mma::MmaMapFor<DIM, D1D, QND>();
    constexpr int U_LD = mma::PadLdBank<MAP>(MQ);
@@ -120,7 +120,6 @@ inline void MmaDLFAssembleSimplex(const int NE,
       constexpr int MQ = mma::SimplexMaxNq<DIM, QND>();
       constexpr int MAP = mma::MmaMapFor<DIM, D1D, QND>();
       constexpr int U_LD = mma::PadLdBank<MAP>(MQ);
-      // DomainLF only stages Us[U_LD * NB] in shared memory.
       mma::VerifySharedMemBytes(int(sizeof(real_t)) * U_LD * NB);
    }
 
@@ -167,7 +166,7 @@ inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
             }
          }
          mma::lapack::Gemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
-                         uloc.data(), nq, real_t(0), ytmp.data(), ndof);
+                           uloc.data(), nq, real_t(0), ytmp.data(), ndof);
          for (int b = 0; b < NB; ++b)
          {
             const int e = e0 + b;
@@ -198,8 +197,7 @@ inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
 }
 
 /** Runtime-sized batch body for Fallback (MmaMapDefault, Us-only smem). */
-template<int DIM>
-MFEM_HOST_DEVICE inline
+template<int DIM> MFEM_HOST_DEVICE inline
 void MmaDLFAssembleSimplex_Batch(const int e0,
                                  const int NE,
                                  const int nq,
@@ -213,8 +211,8 @@ void MmaDLFAssembleSimplex_Batch(const int e0,
                                  const int vc)
 {
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
-   constexpr int max_u_ld = mma::PadLdBank<mma::MmaMapDefault>(
-                               max_nq);
+   constexpr int max_u_ld =
+      mma::PadLdBank<mma::MmaMapDefault>(max_nq);
    constexpr int max_nb = mma::NBATCH;
 
 #if defined(__CUDA_ARCH__)

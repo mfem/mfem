@@ -31,8 +31,8 @@ namespace blas
 /** Dense sum-fact host mass 2D with serial over element tiles. */
 template <int D1D, int Q1D>
 inline void MassApplyTensors2D(const int NE, const real_t *B,
-                                      const real_t *Dv, const real_t *X,
-                                      real_t *Y)
+                               const real_t *Dv, const real_t *X,
+                               real_t *Y)
 {
    auto apply_e = [&](int e)
    {
@@ -105,8 +105,8 @@ inline void MassApplyTensors2D(const int NE, const real_t *B,
 /** blas_ sum-fact host mass 3D with serial over element tiles. */
 template <int D1D, int Q1D>
 inline void MassApplyTensors3D(const int NE, const real_t *B,
-                                      const real_t *Dv, const real_t *X,
-                                      real_t *Y)
+                               const real_t *Dv, const real_t *X,
+                               real_t *Y)
 {
    auto apply_e = [&](int e)
    {
@@ -114,14 +114,18 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
       for (int qz = 0; qz < Q1D; ++qz)
          for (int qy = 0; qy < Q1D; ++qy)
             for (int qx = 0; qx < Q1D; ++qx)
+            {
                sol_xyz[qz][qy][qx] = real_t(0);
+            }
 
       for (int dz = 0; dz < D1D; ++dz)
       {
          real_t sol_xy[Q1D][Q1D];
          for (int qy = 0; qy < Q1D; ++qy)
             for (int qx = 0; qx < Q1D; ++qx)
+            {
                sol_xy[qy][qx] = real_t(0);
+            }
          for (int dy = 0; dy < D1D; ++dy)
          {
             real_t sol_x[Q1D];
@@ -148,7 +152,9 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
             const real_t wz = B[qz + Q1D * dz];
             for (int qy = 0; qy < Q1D; ++qy)
                for (int qx = 0; qx < Q1D; ++qx)
+               {
                   sol_xyz[qz][qy][qx] += wz * sol_xy[qy][qx];
+               }
          }
       }
       for (int qz = 0; qz < Q1D; ++qz)
@@ -162,7 +168,9 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
          real_t sol_xy[D1D][D1D];
          for (int dy = 0; dy < D1D; ++dy)
             for (int dx = 0; dx < D1D; ++dx)
+            {
                sol_xy[dy][dx] = real_t(0);
+            }
          for (int qy = 0; qy < Q1D; ++qy)
          {
             real_t sol_x[D1D];
@@ -194,7 +202,7 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
          }
       }
    };
-   const int NB = mma::TensorTileNB3D(D1D, Q1D);
+   const int NB = mma::TensorTileNB3D(D1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -208,29 +216,27 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
     registered D1D range (4..TensorsMmaMax) over the MMA Emulate shell. */
 template <int D1D, int Q1D>
 inline bool TryMassApplyTensors2D(const int NE,
-                                       const Array<real_t> &b,
-                                       const Array<real_t> & /*bt*/,
-                                       const Vector &d,
-                                       const Vector &x,
-                                       Vector &y)
+                                  const Array<real_t> &b,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y)
 {
-   if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
+   if (!mma::host_PreferTensor(D1D, NE)) { return false; }
    MassApplyTensors2D<D1D, Q1D>(NE, b.Read(), d.Read(),
-                                     x.Read(), y.ReadWrite());
+                                x.Read(), y.ReadWrite());
    return true;
 }
 
 template <int D1D, int Q1D>
 inline bool TryMassApplyTensors3D(const int NE,
-                                       const Array<real_t> &b,
-                                       const Array<real_t> & /*bt*/,
-                                       const Vector &d,
-                                       const Vector &x,
-                                       Vector &y)
+                                  const Array<real_t> &b,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y)
 {
-   if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
+   if (!mma::host_PreferTensor(D1D, NE)) { return false; }
    MassApplyTensors3D<D1D, Q1D>(NE, b.Read(), d.Read(),
-                                     x.Read(), y.ReadWrite());
+                                x.Read(), y.ReadWrite());
    return true;
 }
 
@@ -251,15 +257,14 @@ inline void MmaMassApplyTensors3D(const int NE,
    constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
    constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
-   MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1, "Tensors MMA mass 3D D1D/Q1D exceeds shell cap");
+   MFEM_VERIFY(D1D <= MD1 &&
+               Q1D <= MQ1, "Tensors MMA mass 3D D1D/Q1D exceeds shell cap");
 
    const int NB = T_D1D ? mma::MassNB3D<T_D1D, T_Q1D>()
-                        : mma::MassNB3DRuntime(D1D);
-   // Host forall_3D workers all see getThreadIdxX()==0; keep one thread to avoid
-   // races on MFEM_SHARED (device uses full thread count + Emulate/MMA).
+                  : mma::MassNB3DRuntime(D1D);
    const int nthreads = Device::Allows(Backend::DEVICE_MASK)
                         ? (T_D1D ? mma::MassThreads3D<T_D1D, T_Q1D>()
-                                 : mma::MassThreads3DRuntime(D1D, Q1D))
+                           : mma::MassThreads3DRuntime(D1D, Q1D))
                         : 1;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
@@ -268,7 +273,6 @@ inline void MmaMassApplyTensors3D(const int NE,
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
    const int nblocks = (NE + NB - 1) / NB;
-   // Serial multi-element batch: shared B once; one element smem at a time.
    mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
    {
       MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
@@ -318,13 +322,14 @@ inline void MmaMassApplyTensors2D(const int NE,
    constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
-   MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1, "Tensors MMA mass 2D D1D/Q1D exceeds shell cap");
+   MFEM_VERIFY(D1D <= MD1 &&
+               Q1D <= MQ1, "Tensors MMA mass 2D D1D/Q1D exceeds shell cap");
 
    const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
-                        : mma::NB2DRuntime(D1D);
+                  : mma::NB2DRuntime(D1D);
    const int nthreads = Device::Allows(Backend::DEVICE_MASK)
                         ? (T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
-                                 : mma::Threads2DRuntime(D1D, Q1D))
+                           : mma::Threads2DRuntime(D1D, Q1D))
                         : 1;
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
@@ -404,22 +409,21 @@ inline void MmaMassApplyTensors3D(const int NE,
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaMassApplyTensors(
    const int NE,
-   const Array<real_t> &b, const Array<real_t> &bt,
+   const Array<real_t> &b,
+   [[maybe_unused]] const Array<real_t> &bt,
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   // Host: blas_ sum-fact when profitable, else MMA shell (Emulate).
-   // Device: MMA shell (real MMA or fine-grained Emulate).
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       if constexpr (DIM == 3)
       {
-         if (mma::blas::TryMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (mma::blas::TryMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, d, x, y))
          { return; }
       }
       else
       {
-         if (mma::blas::TryMassApplyTensors2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (mma::blas::TryMassApplyTensors2D<T_D1D, T_Q1D>(NE, b, d, x, y))
          { return; }
       }
    }
