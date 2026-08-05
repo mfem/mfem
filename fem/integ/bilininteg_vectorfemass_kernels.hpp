@@ -73,15 +73,8 @@ VectorFEMassIntegrator::ApplyPAKernels::Kernel()
       }
       else if constexpr (trial_div && test_div)
       {
-         if (Device::Allows(Backend::DEVICE_MASK))
-         {
-            // assumes TrialD1D == TestD1D
-            return internal::SmemPAHdivMassApply3D<TrialD1D, Q1D>;
-         }
-         else
-         {
-            return internal::PAHdivMassApply3D;
-         }
+         // assumes TrialD1D == TestD1D
+         return internal::SmemPAHdivMassApply3D<TrialD1D, Q1D>;
       }
       else if constexpr (trial_curl && test_div)
       {
