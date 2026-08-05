@@ -116,6 +116,8 @@ set(SRCS
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   integ/nonlininteg_vecconvection_pa.cpp
+  integ/nonlininteg_vecconvection_pa_diag.cpp
+  integ/nonlininteg_vecconvection_pa_grad.cpp
   integrator.cpp
   intrules.cpp
   intrules_cut.cpp
@@ -273,6 +275,9 @@ set(HDRS
   integ/bilininteg_vecmass_pa.hpp
   integ/lininteg_domain_kernels.hpp
   integ/lininteg_domain_simplices_mma.hpp
+  integ/nonlininteg_vecconvection_pa.hpp
+  integ/nonlininteg_vecconvection_pa_diag.hpp
+  integ/nonlininteg_vecconvection_pa_grad.hpp
   integrator.hpp
   intrules.hpp
   intrules_cut.hpp
