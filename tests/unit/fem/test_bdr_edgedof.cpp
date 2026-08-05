@@ -20,37 +20,8 @@ using namespace mfem;
 
 #ifdef MFEM_USE_MPI
 
-namespace boundary_edge_dof_test
-{
-
-// Generate all possible partitionings of n_elements into num_procs
-void GeneratePartitionings(int n_elements, int num_procs,
-                           std::vector<std::vector<int>>& all_partitionings)
-{
-   std::vector<int> partition(n_elements);
-
-   auto generate = [&](auto&& self, int elem) -> void
-   {
-      if (elem == n_elements)
-      {
-         all_partitionings.push_back(partition);
-         return;
-      }
-
-      for (int proc = 0; proc < num_procs; proc++)
-      {
-         partition[elem] = proc;
-         self(self, elem + 1);
-      }
-   };
-
-   generate(generate, 0);
-}
-
-} // namespace boundary_edge_dof_test
-
-TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
-          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+TEST_CASE("BoundaryEdgeDOFsPartitionInvariant",
+          "[Parallel][ParMesh][BoundaryEdgeDOFs]")
 {
    constexpr int orientation = 3;
    constexpr int order = 1;
@@ -70,20 +41,18 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
    if (test_num_procs > 1)
    {
       // 2. Block partition: first half on rank 0, second half on last rank
-      std::vector<int> block(n_elements);
+      std::vector<int> &block = all_partitionings.emplace_back(n_elements);
       for (int i = 0; i < n_elements; i++)
       {
          block[i] = (i < n_elements/2) ? 0 : test_num_procs-1;
       }
-      all_partitionings.push_back(block);
 
       // 3. Round-robin partition: elements assigned cyclically to all ranks
-      std::vector<int> round_robin(n_elements);
+      std::vector<int> &round_robin = all_partitionings.emplace_back(n_elements);
       for (int i = 0; i < n_elements; i++)
       {
          round_robin[i] = i % test_num_procs;
       }
-      all_partitionings.push_back(round_robin);
    }
 
    // Create reusable FEC
@@ -106,7 +75,7 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
       // Create finite element space
       ParFiniteElementSpace fespace(&pmesh, &fec);
 
-      // Extract boundary edge DoFs
+      // Extract boundary edge DOFs
       Array<int> ess_tdof_list;
       std::unordered_set<int> boundary_edge_ldofs;
       Array<int> ldof_marker;
@@ -128,7 +97,7 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
                                       boundary_edge_ldofs, &dof_to_edge, &dof_to_orientation,
                                       &dof_to_boundary_element, &ess_edge_list);
 
-      // Collect total boundary edge DoFs
+      // Collect total boundary edge DOFs
       int local_dofs = boundary_edge_ldofs.size();
       int total_dofs;
       MPI_Allreduce(&local_dofs, &total_dofs, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -136,7 +105,12 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
       all_results.push_back(total_dofs);
    }
 
-   // Verify all results are identical
+   // The set of boundary edge DOFs is a property of the mesh geometry and must
+   // not depend on how the elements are distributed across ranks. Each result
+   // is the global count of selected boundary edge DOFs for one partitioning, so
+   // if the method correctly removes the artificial edges introduced at
+   // processor boundaries, every partitioning yields the same total. A mismatch
+   // means some partition kept or dropped a DOF that another did not.
    REQUIRE(!all_results.empty());
    int expected = all_results[0];
    for (int result : all_results)
@@ -145,8 +119,8 @@ TEST_CASE("BoundaryEdgeDoFsPartitionInvariant",
    }
 }
 
-TEST_CASE("BoundaryEdgeDoFsBasicFunctionality",
-          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+TEST_CASE("BoundaryEdgeDOFsBasicFunctionality",
+          "[Parallel][ParMesh][BoundaryEdgeDOFs]")
 {
    const int orientation = GENERATE(1, 3, 5);
    const int order = GENERATE(1, 2);
@@ -229,8 +203,8 @@ real_t ComputeBoundaryLoopLength(ParMesh* pmesh,
    return local_length;
 }
 
-TEST_CASE("BoundaryEdgeDoFsNestedCubes",
-          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+TEST_CASE("BoundaryEdgeDOFsNestedCubes",
+          "[Parallel][ParMesh][BoundaryEdgeDOFs]")
 {
    const int order = GENERATE(1, 2);
 
@@ -354,10 +328,10 @@ TEST_CASE("BoundaryEdgeDoFsNestedCubes",
    }
 }
 
-TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
-          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+TEST_CASE("BoundaryEdgeDOFs2DSquareInSquare",
+          "[Parallel][ParMesh][BoundaryEdgeDOFs]")
 {
-   // Test 2D boundary edge DoF extraction using square-in-square mesh
+   // Test 2D boundary edge DOF extraction using square-in-square mesh
    constexpr int order = 2;
 
    // Test multiple inner boundary attributes
@@ -471,13 +445,13 @@ TEST_CASE("BoundaryEdgeDoFs2DSquareInSquare",
    } // End of inner_attr loop
 }
 
-TEST_CASE("BoundaryEdgeDoFsSharedDoFsAreOwnedBySomeRank",
-          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+TEST_CASE("BoundaryEdgeDOFsSharedDOFsAreOwnedBySomeRank",
+          "[Parallel][ParMesh][BoundaryEdgeDOFs]")
 {
-   // Every selected shared DoF must appear in exactly one rank's ess_tdof_list.
-   // Only the group master owns the corresponding true DoF and returns a
+   // Every selected shared DOF must appear in exactly one rank's ess_tdof_list.
+   // Only the group master owns the corresponding true DOF and returns a
    // non-negative value from GetLocalTDofNumber(), so if the master holds none
-   // of the selected boundary elements the DoF would be emitted by no rank at
+   // of the selected boundary elements the DOF would be emitted by no rank at
    // all unless the local marker is synchronized across the sharing group.
    const int nranks = Mpi::WorldSize();
    if (nranks < 2) { return; }
@@ -523,8 +497,8 @@ TEST_CASE("BoundaryEdgeDoFsSharedDoFsAreOwnedBySomeRank",
          fes.GetBoundaryLoopEdgeDofs(bdr_elements, ess_tdofs, ldof_marker,
                                      boundary_dofs);
 
-         // Identify DoFs by global true DoF number, which is agreed upon by all
-         // ranks sharing the DoF, then compare the set selected anywhere with
+         // Identify DOFs by global true DOF number, which is agreed upon by all
+         // ranks sharing the DOF, then compare the set selected anywhere with
          // the set actually emitted in ess_tdof_list.
          std::set<HYPRE_BigInt> selected, emitted;
          for (int dof : boundary_dofs)
@@ -557,6 +531,11 @@ TEST_CASE("BoundaryEdgeDoFsSharedDoFsAreOwnedBySomeRank",
             return std::set<HYPRE_BigInt>(all.begin(), all.end());
          };
 
+         // Gather both sets across all ranks. global_selected is every shared
+         // boundary DOF chosen on any rank; global_emitted is every true DOF
+         // actually placed in some rank's ess_tdof_list. A selected DOF missing
+         // from global_emitted is one that no rank owns and outputs, which is
+         // exactly the synchronization bug this test guards against.
          const std::set<HYPRE_BigInt> global_selected = all_gather(selected);
          const std::set<HYPRE_BigInt> global_emitted = all_gather(emitted);
 
@@ -573,11 +552,11 @@ TEST_CASE("BoundaryEdgeDoFsSharedDoFsAreOwnedBySomeRank",
    }
 }
 
-TEST_CASE("BoundaryEdgeDoFs2DLoopVertexDoFsPartitionInvariant",
-          "[Parallel][ParMesh][BoundaryEdgeDoFs]")
+TEST_CASE("BoundaryEdgeDOFs2DLoopVertexDOFsPartitionInvariant",
+          "[Parallel][ParMesh][BoundaryEdgeDOFs]")
 {
    // A closed boundary loop split between ranks must give the same result as
-   // the serial code. With a collection carrying vertex DoFs (ND_R2D), a vertex
+   // the serial code. With a collection carrying vertex DOFs (ND_R2D), a vertex
    // shared by two boundary segments is interior to the loop and must be
    // dropped. When the two segments live on different ranks, each rank sees the
    // vertex only once locally, so the occurrence parity has to be reconciled
@@ -647,7 +626,7 @@ TEST_CASE("BoundaryEdgeDoFs2DLoopVertexDoFsPartitionInvariant",
       pfes.GetBoundaryLoopEdgeDofs(local_bdr_elements, ess_tdofs, ldof_marker,
                                    local_boundary_dofs);
 
-      // The true DoFs are owned by exactly one rank each, so summing the local
+      // The true DOFs are owned by exactly one rank each, so summing the local
       // counts gives a partition-independent global count.
       int local_tdofs = ess_tdofs.Size();
       int global_tdofs = 0;
@@ -663,8 +642,8 @@ TEST_CASE("GroupCommunicatorReduceMarkedByGroupStride",
           "[Parallel][GroupCommunicator]")
 {
    // Regression test for the neighbor-major stride of the byGroup receive
-   // buffer: with more than one DoF in a group, the contributions to DoF i are
-   // at buf[j*nldofs + i], so reducing a single marked DoF must gather the
+   // buffer: with more than one DOF in a group, the contributions to DOF i are
+   // at buf[j*nldofs + i], so reducing a single marked DOF must gather the
    // strided values rather than reading a contiguous run.
    const int rank = Mpi::WorldRank();
    const int nranks = Mpi::WorldSize();
@@ -687,7 +666,7 @@ TEST_CASE("GroupCommunicatorReduceMarkedByGroupStride",
    topology.Create(groups, 4983);
 
    GroupCommunicator comm(topology, GroupCommunicator::byGroup);
-   // Two DoFs in the same shared group, so the buffer stride is 2.
+   // Two DOFs in the same shared group, so the buffer stride is 2.
    Array<int> ldof_group(2);
    ldof_group = 1;
    comm.Create(ldof_group);

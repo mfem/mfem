@@ -1148,10 +1148,10 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker,
                         group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
             opd.nb = gtopo.GetGroupSize(gr)-1;
 
-            // Apply operation only to marked DoFs. The receive buffer is
+            // Apply operation only to marked DOFs. The receive buffer is
             // neighbor-major with stride opd.nldofs, i.e. the contributions to
-            // DoF i are buf[j*opd.nldofs + i] for j = 0 ... opd.nb-1. Setting
-            // nldofs = 1 for a single DoF changes that stride to 1, so the
+            // DOF i are buf[j*opd.nldofs + i] for j = 0 ... opd.nb-1. Setting
+            // nldofs = 1 for a single DOF changes that stride to 1, so the
             // strided values must first be gathered into a contiguous buffer.
             Array<T> single_buf(opd.nb);
             for (int i = 0; i < opd.nldofs; i++)
@@ -1163,7 +1163,7 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker,
                      single_buf[j] = opd.buf[j*opd.nldofs + i];
                   }
 
-                  // Create a temporary OpData with just this one DoF
+                  // Create a temporary OpData with just this one DOF
                   OpData<T> single_opd;
                   single_opd.ldata = ldata;
                   single_opd.buf = single_buf.GetData();
@@ -1203,7 +1203,7 @@ void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker,
                   {
                      if (marker[ldofs[j]])
                      {
-                        // Create a temporary OpData with just this one DoF
+                        // Create a temporary OpData with just this one DOF
                         OpData<T> opd;
                         opd.ldata = ldata;
                         opd.buf = const_cast<T*>(buf) + j;

@@ -1424,7 +1424,7 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
             edge_to_faces[all_data[i]].insert(all_data[i + 1]);
          }
 
-         // Mark DoFs from artificial edges for removal
+         // Mark DOFs from artificial edges for removal
          dofs_to_remove.reserve(local_data.size() / 4);
 
          for (size_t i = 0; i < local_data.size(); i += 2)
@@ -1438,7 +1438,7 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
                Array<int> local_edge_dofs;
                GetEdgeDofs(local_edge, local_edge_dofs);
 
-               // Mark boundary DoFs of this edge for removal
+               // Mark boundary DOFs of this edge for removal
                for (int k = 0; k < local_edge_dofs.Size(); ++k)
                {
                   int dof = local_edge_dofs[k];
@@ -1455,12 +1455,12 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    {
       // In 2D the boundary elements are themselves the edges, so there are no
       // artificial boundary edges to detect. However, for collections with
-      // vertex DoFs (e.g. ND_R2D), a vertex shared by two boundary segments is
+      // vertex DOFs (e.g. ND_R2D), a vertex shared by two boundary segments is
       // interior to the boundary curve and must be dropped. The serial code
-      // does this by erasing a DoF on its second occurrence, which only sees
+      // does this by erasing a DOF on its second occurrence, which only sees
       // the occurrences local to this rank. When the two segments meeting at a
       // vertex live on different ranks, each rank sees a single occurrence and
-      // wrongly keeps the DoF. Reconcile the occurrence parity across each
+      // wrongly keeps the DOF. Reconcile the occurrence parity across each
       // sharing group: membership in boundary_edge_dofs is the local parity,
       // and the parities sum (mod 2) to the global occurrence parity.
       Array<int> boundary_dof_count(GetVSize());
@@ -1483,7 +1483,7 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
       }
    }
 
-   // Remove artificial DoFs
+   // Remove artificial DOFs
    for (int dof : dofs_to_remove)
    {
       boundary_edge_dofs.erase(dof);
@@ -1495,7 +1495,7 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    // Copy boundary edge dofs to output parameter
    boundary_edge_dofs_out = boundary_edge_dofs;
 
-   // Convert to true DoFs and output
+   // Convert to true DOFs and output
    ess_tdof_list.SetSize(0);
    ess_tdof_list.Reserve(boundary_edge_dofs.size());
    if (ess_edge_list)
@@ -1514,20 +1514,20 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
       ldof_marker[dof] = 1; // Mark all boundary edge dofs
    }
 
-   // Make sure that a selected shared DoF is marked on every rank of its
+   // Make sure that a selected shared DOF is marked on every rank of its
    // sharing group, including ranks holding none of the selected boundary
-   // elements. Only the group master owns the corresponding true DoF, so
-   // without this the true DoF would be emitted by no rank at all: the
+   // elements. Only the group master owns the corresponding true DOF, so
+   // without this the true DOF would be emitted by no rank at all: the
    // non-master ranks get -1 from GetLocalTDofNumber(), while the master may
-   // not have selected the DoF locally.
+   // not have selected the DOF locally.
    Synchronize(ldof_marker);
 
-   // A DoF marked only through the synchronization above has no local
+   // A DOF marked only through the synchronization above has no local
    // dof_to_edge_map entry, but the shared edge carrying it is still present in
-   // the local mesh. Build the missing DoF -> edge entries from the shared
+   // the local mesh. Build the missing DOF -> edge entries from the shared
    // edges of the groups, so that ess_edge_list stays in correspondence with
-   // ess_tdof_list. Note that a vertex DoF is not associated with a unique
-   // edge, so it is only resolved when it is an interior DoF of an edge.
+   // ess_tdof_list. Note that a vertex DOF is not associated with a unique
+   // edge, so it is only resolved when it is an interior DOF of an edge.
    std::unordered_map<int, int> shared_dof_to_edge;
    Array<int> shared_edge_dofs;
    for (int group = 1; group < num_groups; group++)
@@ -1600,36 +1600,40 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    }
 }
 
-// Helper functions for GetBoundaryElementsByAttribute
-void GetBoundaryElementsByAttributeImpl(
-   const Mesh* mesh,
-   const Array<int> &bdr_attrs,
-   std::unordered_map<int, Array<int>> &attr_to_elements);
-
-void GetBoundaryElementsByAttributeImpl(
-   const Mesh* mesh,
-   int bdr_attr,
-   Array<int> &boundary_elements);
-
 void ParFiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
                                                            Array<int> &boundary_elements)
 {
-   GetBoundaryElementsByAttributeImpl(pmesh, bdr_attr, boundary_elements);
-}
+   boundary_elements.SetSize(0);
 
-// Helper function for ComputeLoopEdgeOrientations
-void ComputeLoopEdgeOrientationsImpl(
-   const Mesh* mesh,
-   const std::unordered_map<int, int>& dof_to_edge,
-   const std::unordered_map<int, int>& dof_to_boundary_element,
-   const Vector& loop_normal,
-   std::unordered_map<int, int>& edge_loop_orientations);
+   for (int i = 0; i < pmesh->GetNBE(); ++i)
+   {
+      if (pmesh->GetBdrElement(i)->GetAttribute() == bdr_attr)
+      {
+         boundary_elements.Append(i);
+      }
+   }
+}
 
 void ParFiniteElementSpace::GetBoundaryElementsByAttribute(
    const Array<int> &bdr_attrs,
    std::unordered_map<int, Array<int>> &attr_to_elements)
 {
-   GetBoundaryElementsByAttributeImpl(pmesh, bdr_attrs, attr_to_elements);
+   // Initialize arrays for each attribute
+   for (int i = 0; i < bdr_attrs.Size(); ++i)
+   {
+      attr_to_elements[bdr_attrs[i]] = Array<int>();
+   }
+
+   // Find boundary elements for each attribute
+   for (int i = 0; i < pmesh->GetNBE(); ++i)
+   {
+      int attr = pmesh->GetBdrElement(i)->GetAttribute();
+      auto it = attr_to_elements.find(attr);
+      if (it != attr_to_elements.end())
+      {
+         it->second.Append(i);
+      }
+   }
 }
 
 void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
@@ -1638,8 +1642,63 @@ void ParFiniteElementSpace::ComputeLoopEdgeOrientations(
    const Vector& loop_normal,
    std::unordered_map<int, int>& edge_loop_orientations)
 {
-   ComputeLoopEdgeOrientationsImpl(pmesh, dof_to_edge, dof_to_boundary_element,
-                                   loop_normal, edge_loop_orientations);
+   Array<int> edge_verts, bdr_elem_verts;
+   Vector edge_vec(3), to_edge_vec(3), cross_product(3);
+   // Process each edge locally
+   for (const auto& [dof, bdr_elem_idx] : dof_to_boundary_element)
+   {
+      // Check if this DOF has a corresponding edge
+      auto edge_it = dof_to_edge.find(dof);
+      if (edge_it == dof_to_edge.end()) { continue; }
+
+      int edge_id = edge_it->second;
+
+      // Get edge vertices
+      pmesh->GetEdgeVertices(edge_id, edge_verts);
+
+      const real_t *v0 = pmesh->GetVertex(edge_verts[0]);
+      const real_t *v1 = pmesh->GetVertex(edge_verts[1]);
+
+      // Get boundary element vertices
+      pmesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
+
+      // Find the third vertex (not part of the edge)
+      int third_vertex = -1;
+      for (int i = 0; i < bdr_elem_verts.Size(); i++)
+      {
+         int v = bdr_elem_verts[i];
+         if (v != edge_verts[0] && v != edge_verts[1])
+         {
+            third_vertex = v;
+            break;
+         }
+      }
+
+      if (third_vertex == -1)
+      {
+         MFEM_ABORT("Boundary element " << bdr_elem_idx << " has only 2 vertices, "
+                    "but 3D boundary elements must have at least 3 vertices");
+      }
+
+      const real_t *v2 = pmesh->GetVertex(third_vertex);
+
+      // Edge vector
+      for (int i = 0; i < 3; i++) { edge_vec[i] = v1[i] - v0[i]; }
+
+      // Vector from third vertex to edge (use edge midpoint)
+      for (int i = 0; i < 3; i++)
+      {
+         real_t edge_midpoint = (v0[i] + v1[i]) * 0.5;
+         to_edge_vec[i] = edge_midpoint - v2[i];
+      }
+
+      // Cross product: to_edge × edge
+      to_edge_vec.cross3D(edge_vec, cross_product);
+
+      // Check alignment with loop normal
+      real_t dot_product = cross_product * loop_normal;
+      edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
+   }
 }
 
 

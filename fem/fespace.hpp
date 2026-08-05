@@ -1393,27 +1393,34 @@ public:
    /** @brief Extract edge degrees of freedom from specified boundary elements.
        This method identifies all edge-based degrees of freedom that lie on the
        boundary edges of the specified boundary elements.
-       @param[in] boundary_element_indices Array of all boundary element indices on a certain
-       boundary surface (3D) or boundary curve (2D)
-       @param[out] boundary_edge_dofs Set of local DoF indices that lie on boundary edges
-       @param[out] dof_to_edge Map from boundary edge DoF index to local edge index
-       @param[out] dof_to_boundary_element Map from DoF index to a boundary element containing it
-       @param[out] dof_to_edge_orientation Map from DoF index to edge orientation (+1 or -1)
+       @param[in] boundary_element_indices Array of all boundary element indices
+       on a certain boundary surface (3D) or boundary curve (2D)
+       @param[out] boundary_edge_dofs Set of local DOF indices on boundary edges
+       @param[out] dof_to_edge Map from boundary edge DOF index to local edge index
+       @param[out] dof_to_boundary_element Map from DOF index to a boundary element
+       containing it
+       @param[out] dof_to_edge_orientation Map from DOF index to edge orientation
+       (+1 or -1)
 
-       @note In 3D: Extracts edge DoFs from the 1D edges of 2D boundary elements (faces).
-       @note In 2D: Extracts edge DoFs directly from 1D boundary elements (segments).
-       In 2D, dof_to_edge and dof_to_boundary_element contain identical edge indices.
-       @note Uses a toggle approach: DoFs appearing on multiple boundary edges are considered
-       interior to the boundary surface/curve and are excluded from the result.
-       @note This method uses GetEdgeDofs internally, which returns both vertex and edge DoFs.
-       For standard Nédélec elements (ND_FECollection), vertex DoFs are zero, so only actual
-       edge DoFs are included. However, for specialized collections like ND_R2D_FECollection
-       that have vertex DoFs, those will be included for loop endpoints.
+       @note In 3D: Extracts edge DOFs from the 1D edges of 2D boundary elements
+       (faces).
+       @note In 2D: Extracts edge DOFs directly from 1D boundary elements
+       (segments). In 2D, dof_to_edge and dof_to_boundary_element contain
+       identical edge indices.
+       @note A DOF that lies in more than one of the selected boundary elements is
+       interior to the boundary surface/curve and is excluded from the result.
+       @note This method uses GetEdgeDofs internally, which returns both vertex and
+       edge DOFs. For standard Nédélec elements (ND_FECollection) there are no
+       vertex DOFs, so only actual edge DOFs are included. However, for specialized
+       collections like ND_R2D_FECollection that have vertex DOFs, those will be
+       included for loop endpoints.
        @note This is the serial version. For parallel meshes, use the parallel
-       version in ParFiniteElementSpace which handles processor boundaries correctly.
-       @note Requires a 2D or 3D mesh to identify edge objects. The method will assert
-       if called on 1D meshes.
-       @note Only supports conforming meshes; non-conforming meshes are not supported. */
+       version in ParFiniteElementSpace which handles processor boundaries
+       correctly.
+       @note Requires a 2D or 3D mesh to identify edge objects. The method will
+       assert if called on 1D meshes.
+       @note Only supports conforming meshes; non-conforming meshes are not
+       supported. */
    void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
                                 std::unordered_set<int> &boundary_edge_dofs,
                                 std::unordered_map<int, int> &dof_to_edge,

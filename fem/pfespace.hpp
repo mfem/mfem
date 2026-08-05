@@ -462,19 +462,21 @@ public:
    void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
                             int component = -1) const override;
 
-   /** @brief Get a list of edge degrees of freedom on the boundary with the specified
-       attributes. This function handles parallel meshes by removing
+   /** @brief Get a list of edge degrees of freedom on the boundary with the
+       specified attributes. This function handles parallel meshes by removing
        artificial boundary edges that appear at processor boundaries.
        Requirements:
        - Mesh must be conforming (no hanging nodes)
        - Mesh dimension must be >= 2
        @param[in] boundary_element_indices Array of boundary element indices
        @param[out] ess_tdof_list Array of essential true DOF indices
-       @param[out] ldof_marker Array marking which local DOFs are boundary edge DOFs
+       @param[out] ldof_marker Array marking which local DOFs are boundary edge
+       DOFs
        @param[out] boundary_edge_dofs_out set of boundary edge DOFs
        @param[out] dof_to_edge Optional map from DOFs to edge indices
        @param[out] dof_to_orientation Optional map from DOFs to edge orientations
-       @param[out] dof_to_boundary_element_out Optional map from DOFs to boundary elements
+       @param[out] dof_to_boundary_element_out Optional map from DOFs to boundary
+       elements
        @param[out] ess_edge_list Optional array of edge indices, in one-to-one
                                  correspondence with @a ess_tdof_list. An entry
                                  is -1 when the true DOF is owned by this rank
@@ -490,7 +492,8 @@ public:
                                 std::unordered_map<int, int> *dof_to_boundary_element_out = nullptr,
                                 Array<int> *ess_edge_list = nullptr);
 
-   /** @brief Find the boundary elements marked with specified boundary attributes
+   /** @brief Find the boundary elements marked with specified boundary
+        attributes
         @param[in] bdr_attrs list of boundary attributes to search for
         @param[out] attr_to_elements map from boundary attribute to the list of
                                      boundary elements with that attribute */
@@ -501,12 +504,13 @@ public:
    void GetBoundaryElementsByAttribute(int bdr_attr,
                                        Array<int> &boundary_elements) override;
 
-   /** Compute edge orientations relative to a loop direction defined by a normal vector.
-       This is useful for applying circulation boundary conditions.
+   /** Compute edge orientations relative to a loop direction defined by a normal
+       vector. This is useful for applying circulation boundary conditions.
        @param[in] dof_to_edge Map from DOFs to edge indices
        @param[in] dof_to_boundary_element Map from DOFs to boundary elements
        @param[in] loop_normal Normal vector defining the loop direction
-       @param[out] edge_loop_orientations Map from edge indices to orientations (+1 or -1) */
+       @param[out] edge_loop_orientations Map from edge indices to orientations
+       (+1 or -1) */
    void ComputeLoopEdgeOrientations(const std::unordered_map<int, int>&
                                     dof_to_edge,
                                     const std::unordered_map<int, int>& dof_to_boundary_element,

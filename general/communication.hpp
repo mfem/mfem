@@ -421,13 +421,16 @@ public:
    template <class T> static void MaxAbs(OpData<T>);
 
    /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
-       the reduction to DoFs marked in the marker array.
+       the reduction to DOFs marked in the marker array.
+
+       @note The reduction is carried out in the signed type @a T, so the result
+       is signed even for bitwise operations.
    */
    template <class T>
    void ReduceMarked(T *ldata, const Array<int> &marker, int layout,
                      void (*Op)(OpData<T>)) const;
 
-   /** @brief Reduce within each group where the master is the root, but only for marked DoFs. */
+   /** @brief Reduce within each group where the master is the root, but only for marked DOFs. */
    template <class T>
    void Reduce(T *ldata, const Array<int> &marker, void (*Op)(OpData<T>)) const
    {
@@ -436,7 +439,7 @@ public:
    }
 
    // Enum for reduction operations
-   enum ReduceOp { Sum_Op, Min_Op, Max_Op, BitOR_Op, MaxAbs_Op };
+   enum class ReduceOp { Sum_Op, Min_Op, Max_Op, BitOR_Op, MaxAbs_Op };
 
    // Add specialized versions for common operations
    template <class T>
@@ -445,10 +448,10 @@ public:
       void (*Op)(OpData<T>);
       switch (op)
       {
-         case Sum_Op:    Op = GroupCommunicator::Sum; break;
-         case Min_Op:    Op = GroupCommunicator::Min; break;
-         case Max_Op:    Op = GroupCommunicator::Max; break;
-         case BitOR_Op:
+         case ReduceOp::Sum_Op:    Op = GroupCommunicator::Sum; break;
+         case ReduceOp::Min_Op:    Op = GroupCommunicator::Min; break;
+         case ReduceOp::Max_Op:    Op = GroupCommunicator::Max; break;
+         case ReduceOp::BitOR_Op:
             // BitOR is only instantiated for integral types, so the reference
             // to it must be discarded at compile time for other types.
             if constexpr (std::is_integral<T>::value)
@@ -460,8 +463,8 @@ public:
                MFEM_ABORT("BitOR reduction requires an integral type.");
             }
             break;
-         case MaxAbs_Op: Op = GroupCommunicator::MaxAbs; break;
-         default:        Op = GroupCommunicator::Sum; break;
+         case ReduceOp::MaxAbs_Op: Op = GroupCommunicator::MaxAbs; break;
+         default:                  Op = GroupCommunicator::Sum; break;
       }
       Reduce(ldata.GetData(), marker, Op);
    }
