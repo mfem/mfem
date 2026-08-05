@@ -192,8 +192,11 @@ TEST_CASE("SmoothMaxEigenvalue", "[Tensor]")
 // }
 
 #ifdef MFEM_USE_ENZYME
-TEST_CASE("SmoothMaxEigenvalueEnzyme", "[Tensor]")
+TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on degenerate eigenvalues", "[Tensor]")
 {
+   // This test case has two equal eigenvalues. Without the custom derivative rule,
+   // this would trigger NaNs (due to the eigendecomposition being differentiated).
+
    tensor<real_t, 3> lambda{{-2.2, 4.0, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
@@ -214,11 +217,12 @@ TEST_CASE("SmoothMaxEigenvalueEnzyme", "[Tensor]")
    for (int i = 0; i < 3; i++) {
        for (int j = 0; j < 3; j++) {
          tensor<real_t, 3, 3> A_dot{};
-         A_dot[i][j] += 0.5;
-         A_dot[j][i] += 0.5;
+         A_dot[i][j] = 1.0;
          da_dA[i][j] = __enzyme_fwddiff<double>(reinterpret_cast<void*>(+f), enzyme_dup, A, A_dot);
 
          A_p = A;
+         // Finite difference perturbations need to be symmetric, since we actually
+         // modify the argument to the function (which is required to be symmetric)
          A_p[i][j] += 0.5*h;
          A_p[j][i] += 0.5*h;
          double a_p = smooth_max_eigenvalue_symm(A_p, beta);
