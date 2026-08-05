@@ -1340,7 +1340,7 @@ void DarcyPotentialReduction::EliminateTrueDofsInRHS(
       if (!tr_cP)
       {
          xu.SetDataAndSize(xu_t.GetData(), xu_t.Size());
-         bu.SetDataAndSize(bu.GetData(), bu.Size());
+         bu.SetDataAndSize(bu_t.GetData(), bu_t.Size());
       }
       else
       {
