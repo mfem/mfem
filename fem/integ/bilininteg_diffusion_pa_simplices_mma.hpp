@@ -13,7 +13,6 @@
 #include "mma/mma.hpp"
 #include "../bilininteg.hpp"
 
-#include <algorithm>
 #ifdef MFEM_USE_LAPACK
 #include <vector>
 #endif
@@ -320,7 +319,7 @@ namespace blas
 /** Fused 2D diffusion for NQ=1 (BP3 p=1): per-element, no tile buffers. */
 template <int NDOF, bool SYM>
 inline void DiffusionApplyNQ1_2D(int NE, const real_t *G, const real_t *Dv,
-                                    const real_t *X, real_t *Y)
+                                 const real_t *X, real_t *Y)
 {
    constexpr int PA_SIZE = SYM ? 3 : 4;
    const real_t *G0 = G;
@@ -397,7 +396,7 @@ inline void ApplyDiffusionMetricColMajor(real_t *uloc, const real_t *Dv,
 /** Metric on hand b-innermost U: uloc[(d * NQ + q) * NB + b]. */
 template <int DIM, int NQ, int NB, bool SYM>
 inline void DiffusionMetric(real_t *uloc, const real_t *Dv,
-                                     int e0, int NE, int pa_size)
+                            int e0, int NE, int pa_size)
 {
    if constexpr (DIM == 2 && SYM)
    {
@@ -445,20 +444,20 @@ inline void DiffusionMetric(real_t *uloc, const real_t *Dv,
 /** Diffusion hand: forward all GradP components into uloc[(d*NQ+q)*NB+b]. */
 template <int DIM, int NDOF, int NQ, int NB>
 inline void DiffusionForward(const real_t *G, const real_t *xloc,
-                                 real_t *uloc)
+                             real_t *uloc)
 {
    for (int d = 0; d < DIM; ++d)
    {
       const real_t *Gd = G + static_cast<size_t>(d) * NQ * NDOF;
       blas::Gemm<NDOF, NQ, NB, false>(Gd, xloc, uloc + d * NQ * NB,
-                                     nullptr, 0, 0);
+                                      nullptr, 0, 0);
    }
 }
 
 /** blas_: Y += sum_d G_d^T U_d. */
 template <int DIM, int NDOF, int NQ, int NB>
 inline void DiffusionBackward(const real_t *G, const real_t *uloc,
-                                    real_t *Y, int e0, int NE)
+                              real_t *Y, int e0, int NE)
 {
    for (int i = 0; i < NDOF; ++i)
    {
@@ -504,15 +503,15 @@ inline void DiffusionApply(int NE, int nq, int ndof, const real_t *G,
    const int NB = lapack::NB(nq, ndof);
    std::vector<real_t> uloc(static_cast<size_t>(DIM) * nq * NB);
    lapack::ElementTiles(NE, ndof, NB, X, Y,
-                      [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
-                          real_t *Yout)
+                        [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
+                            real_t *Yout)
    {
       for (int d = 0; d < DIM; ++d)
       {
          const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
          real_t *Ud = uloc.data() + static_cast<size_t>(d) * nq * nb;
          lapack::Gemm('N', 'N', nq, nb, ndof, real_t(1), Gd, nq, Xsrc, ndof,
-                    real_t(0), Ud, nq);
+                      real_t(0), Ud, nq);
       }
       ApplyDiffusionMetricColMajor<DIM, SYM>(uloc.data(), Dv, nq, e0, NE, nb,
                                              PA_SIZE);
@@ -521,7 +520,7 @@ inline void DiffusionApply(int NE, int nq, int ndof, const real_t *G,
          const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
          const real_t *Vd = uloc.data() + static_cast<size_t>(d) * nq * nb;
          lapack::Gemm('T', 'N', ndof, nb, nq, real_t(1), Gd, nq, Vd, nq,
-                    real_t(1), Yout, ndof);
+                      real_t(1), Yout, ndof);
       }
    });
 }
@@ -599,8 +598,8 @@ MFEM_HOST_DEVICE inline void DiffusionApplyDenseElement(
 
 template <int DIM, bool SYM>
 inline void DiffusionApplyRuntime(int NE, int nq, int ndof, const real_t *G,
-                                      const real_t *Dv, const real_t *X,
-                                      real_t *Y)
+                                  const real_t *Dv, const real_t *X,
+                                  real_t *Y)
 {
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    for (int e = 0; e < NE; ++e)
@@ -1036,10 +1035,10 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
     Specialized sizes: Blas multi-RHS tiles; else runtime single-element. */
 template<int DIM, int D1D, int QND, bool SYM>
 inline void DiffusionApplySimplex(const int NE,
-                                      const Array<real_t> &g,
-                                      const Vector &d,
-                                      const Vector &x,
-                                      Vector &y)
+                                  const Array<real_t> &g,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y)
 {
    static_assert(D1D > 0 && QND > 0,
                  "Simplex MMA diffusion requires specialized D1D/QND");

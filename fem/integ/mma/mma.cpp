@@ -44,7 +44,9 @@ bool GetForceMMA()
    return env_mma == 1;
 }
 
-namespace internal
+} // namespace mfem
+
+namespace mfem::internal
 {
 
 void PADetJSetupSimplexFromNodes(const int dim,
@@ -97,6 +99,4 @@ void PADetJSetupSimplexFromNodes(const int dim,
    });
 }
 
-} // namespace internal
-
-} // namespace mfem
+} // namespace mfem::internal

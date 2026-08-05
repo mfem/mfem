@@ -14,19 +14,11 @@
 #ifdef MFEM_USE_LAPACK
 #include "../../../linalg/lapack.hpp"
 #endif
+#include <algorithm> // std::fill, std::min
 
 /// \cond DO_NOT_DOCUMENT
 
-namespace mfem
-{
-
-namespace internal
-{
-
-namespace mma
-{
-
-namespace lapack
+namespace mfem::internal::mma::lapack
 {
 /** Shared size gate for Prefer*: large locals always; mid-size when NE
     and work clear the given bars. Tuned for OpenBLAS/MKL/Accelerate. */
@@ -268,14 +260,7 @@ inline void ElementTiles(int NE, int ndof, int NB,
 #endif // MFEM_USE_LAPACK
 
 
-} // namespace lapack
-
-
-} // namespace mma
-
-} // namespace internal
+} // namespace mfem::internal::mma::lapack
 
 /// \endcond DO_NOT_DOCUMENT
-
-} // namespace mfem
 

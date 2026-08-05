@@ -10,32 +10,15 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-/** @file mma.hpp
-    MMA PA shared API and backends (`fem/integ/mma/`).
-
-    File map:
-    - mma.hpp       — ForceMMA / Uses* + simplex helpers (this file)
-    - common.hpp    — warp/maps/smem/accessors/launch + host_*
-    - dmma.hpp      — mma::dmma (CUDA)
-    - mfma.hpp      — mma::mfma (HIP)
-    - blas.hpp      — mma::blas (dense Emulate + host multi-RHS)
-    - lapack.hpp    — mma::lapack (vendor GEMM host)
-    - dispatch.hpp  — Gemm/Grad* backend selection
-*/
-
-#include "common.hpp"
-#include "dmma.hpp"
-#include "mfma.hpp"
-#include "blas.hpp"
-#include "lapack.hpp"
+// Backends + dispatch (common via dmma/mfma/blas)
 #include "dispatch.hpp"
+#include "lapack.hpp"
 
-#include "../../fespace.hpp"
+// Public Uses* / ForceMMA + simplex helpers
+#include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering (pulls mesh)
 #include "../../fe/fe_h1.hpp"
 #include "../../fe/fe_pos.hpp"
-#include "../../gridfunc.hpp"
-#include "../../restriction.hpp"
-#include "../../../mesh/mesh.hpp"
+#include "../../gridfunc.hpp"  // GetSimplexMeshNodesE
 
 namespace mfem
 {
@@ -151,10 +134,11 @@ inline bool UsesTensorMMA(const FiniteElementSpace &fes)
 #endif
 }
 
+} // namespace mfem
 
 /// \cond DO_NOT_DOCUMENT
 
-namespace internal
+namespace mfem::internal
 {
 
 /** Restrict mesh nodes to a NATIVE E-vector: layout (ndof x sdim x NE). */
@@ -222,11 +206,7 @@ void PADetJSetupSimplexFromNodes(const int dim,
                                  const Vector &c,
                                  Vector &d);
 
-
-} // namespace internal
-
+} // namespace mfem::internal
 
 /// \endcond DO_NOT_DOCUMENT
-
-} // namespace mfem
 

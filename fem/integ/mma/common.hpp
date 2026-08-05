@@ -10,27 +10,13 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../../config/config.hpp"
-#include "../../../general/array.hpp"
-#include "../../../general/device.hpp"
+// forall → device (MFEM_HOST_DEVICE, DeviceThreadIdx*), dtensor, MFEM_UNROLL/SHARED
 #include "../../../general/forall.hpp"
-#include "../../../linalg/dtensor.hpp"
-#include "../../../linalg/vector.hpp"
-
-#include <algorithm>
-#include <cstdlib> // alloca
 #include <vector>
-
 
 /// \cond DO_NOT_DOCUMENT
 
-namespace mfem
-{
-
-namespace internal
-{
-
-namespace mma
+namespace mfem::internal::mma
 {
 
 // ======================================================================
@@ -846,11 +832,7 @@ struct host_Arena
 };
 
 
-} // namespace mma
-
-} // namespace internal
+} // namespace mfem::internal::mma
 
 /// \endcond DO_NOT_DOCUMENT
-
-} // namespace mfem
 

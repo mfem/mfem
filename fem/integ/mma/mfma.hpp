@@ -18,16 +18,7 @@
 
 /// \cond DO_NOT_DOCUMENT
 
-namespace mfem
-{
-
-namespace internal
-{
-
-namespace mma
-{
-
-namespace mfma
+namespace mfem::internal::mma::mfma
 {
 
 #if defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
@@ -835,14 +826,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
 #endif // __HIP_DEVICE_COMPILE__ && !MFEM_USE_SINGLE
 
 
-} // namespace mfma
-
-
-} // namespace mma
-
-} // namespace internal
+} // namespace mfem::internal::mma::mfma
 
 /// \endcond DO_NOT_DOCUMENT
-
-} // namespace mfem
 

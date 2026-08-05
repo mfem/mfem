@@ -16,13 +16,7 @@
 
 /// \cond DO_NOT_DOCUMENT
 
-namespace mfem
-{
-
-namespace internal
-{
-
-namespace mma
+namespace mfem::internal::mma
 {
 
 // ======================================================================
@@ -57,9 +51,9 @@ MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
                                   const int e0, const int NE)
 {
    const auto gemm = MMA_BACKEND_PICK(
-      (&dmma::Gemm<MAP, SCALE, BasisAcc, XAcc, UAcc, DAcc>),
-      (&mfma::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>),
-      (&blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>));
+                        (&dmma::Gemm<MAP, SCALE, BasisAcc, XAcc, UAcc, DAcc>),
+                        (&mfma::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>),
+                        (&blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>));
    gemm(M, ndof, NB, B, X, U, D, e0, NE);
 }
 
@@ -71,9 +65,9 @@ MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
                                    const int e0, const int NE)
 {
    const auto gemm = MMA_BACKEND_PICK(
-      (&dmma::GemmT<MAP, BasisAcc, UAcc, YAcc>),
-      (&mfma::GemmT<BasisAcc, UAcc, YAcc>),
-      (&blas::GemmT<BasisAcc, UAcc, YAcc>));
+                        (&dmma::GemmT<MAP, BasisAcc, UAcc, YAcc>),
+                        (&mfma::GemmT<BasisAcc, UAcc, YAcc>),
+                        (&blas::GemmT<BasisAcc, UAcc, YAcc>));
    gemm(M, ndof, NB, B, U, Y, e0, NE);
 }
 
@@ -167,9 +161,9 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
                                    real_t (*C)[BUF])
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradX<MD1, MQ1, BUF>),
-      (&mfma::GradX<MD1, MQ1, BUF>),
-      (&blas::GradX<MD1, MQ1, BUF>));
+                      (&dmma::GradX<MD1, MQ1, BUF>),
+                      (&mfma::GradX<MD1, MQ1, BUF>),
+                      (&blas::GradX<MD1, MQ1, BUF>));
    fn(m, n, k, BG, A, C);
 }
 
@@ -191,9 +185,9 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
                                    real_t (*C)[BUF])
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradY<MD1, MQ1, BUF>),
-      (&mfma::GradY<MD1, MQ1, BUF>),
-      (&blas::GradY<MD1, MQ1, BUF>));
+                      (&dmma::GradY<MD1, MQ1, BUF>),
+                      (&mfma::GradY<MD1, MQ1, BUF>),
+                      (&blas::GradY<MD1, MQ1, BUF>));
    fn(m, n, k, BG, A, C);
 }
 
@@ -216,9 +210,9 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
                                    int gIdx)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradZ<MD1, MQ1, BUF>),
-      (&mfma::GradZ<MD1, MQ1, BUF>),
-      (&blas::GradZ<MD1, MQ1, BUF>));
+                      (&dmma::GradZ<MD1, MQ1, BUF>),
+                      (&mfma::GradZ<MD1, MQ1, BUF>),
+                      (&blas::GradZ<MD1, MQ1, BUF>));
    fn(m, n, k, BG, A, C, gIdx);
 }
 
@@ -242,9 +236,9 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
                                         real_t (*C)[BUF])
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradZtLike<MD1, MQ1, BUF>),
-      (&mfma::GradZtLike<MD1, MQ1, BUF>),
-      (&blas::GradZtLike<MD1, MQ1, BUF>));
+                      (&dmma::GradZtLike<MD1, MQ1, BUF>),
+                      (&mfma::GradZtLike<MD1, MQ1, BUF>),
+                      (&blas::GradZtLike<MD1, MQ1, BUF>));
    fn(m, n, k, gIdx, BG, A, C);
 }
 
@@ -258,9 +252,9 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
    // Blas uses physical gZ (d==2); MMA fragment convention uses gIdx=0.
    constexpr int BUF = MDQ * MDQ * MDQ;
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradZtLike<MD1, MQ1, BUF>),
-      (&mfma::GradZtLike<MD1, MQ1, BUF>),
-      (&blas::GradZtLike<MD1, MQ1, BUF>));
+                      (&dmma::GradZtLike<MD1, MQ1, BUF>),
+                      (&mfma::GradZtLike<MD1, MQ1, BUF>),
+                      (&blas::GradZtLike<MD1, MQ1, BUF>));
    const int gIdx = TensorMmaEnabled() ? 0 : 2;
    fn(Q1D * Q1D, D1D, Q1D, gIdx, sBG, sQQQ, sDQQ);
 }
@@ -297,9 +291,9 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const int e)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradXt<MD1, MQ1, MDQ>),
-      (&mfma::GradXt<MD1, MQ1, MDQ>),
-      (&blas::GradXt<MD1, MQ1, MDQ>));
+                      (&dmma::GradXt<MD1, MQ1, MDQ>),
+                      (&mfma::GradXt<MD1, MQ1, MDQ>),
+                      (&blas::GradXt<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sDDQ, Y, e);
 }
 
@@ -335,9 +329,9 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
                                       const int e = 0)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::InterpAx<MD1, MQ1, ScaleAtStore>),
-      (&mfma::InterpAx<MD1, MQ1, ScaleAtStore>),
-      (&blas::InterpAx<MD1, MQ1, ScaleAtStore>));
+                      (&dmma::InterpAx<MD1, MQ1, ScaleAtStore>),
+                      (&mfma::InterpAx<MD1, MQ1, ScaleAtStore>),
+                      (&blas::InterpAx<MD1, MQ1, ScaleAtStore>));
    fn(m, n, k, B1d, A, C, D, e);
 }
 
@@ -420,9 +414,9 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
                                       const DeviceTensor<4> &Y, const int e)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::InterpXt<MD1, MQ1>),
-      (&mfma::InterpXt<MD1, MQ1>),
-      (&blas::InterpXt<MD1, MQ1>));
+                      (&dmma::InterpXt<MD1, MQ1>),
+                      (&mfma::InterpXt<MD1, MQ1>),
+                      (&blas::InterpXt<MD1, MQ1>));
    fn(D1D, Q1D, sBt, sDDQ, Y, e);
 }
 
@@ -464,9 +458,9 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
                                      real_t (*sQQ)[MDQ*MDQ])
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradY2D<MD1, MQ1, MDQ>),
-      (&mfma::GradY2D<MD1, MQ1, MDQ>),
-      (&blas::GradY2D<MD1, MQ1, MDQ>));
+                      (&dmma::GradY2D<MD1, MQ1, MDQ>),
+                      (&mfma::GradY2D<MD1, MQ1, MDQ>),
+                      (&blas::GradY2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sDQ, sQQ);
 }
 
@@ -478,9 +472,9 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
                                       real_t (*sQD)[MDQ*MDQ])
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradYt2D<MD1, MQ1, MDQ>),
-      (&mfma::GradYt2D<MD1, MQ1, MDQ>),
-      (&blas::GradYt2D<MD1, MQ1, MDQ>));
+                      (&dmma::GradYt2D<MD1, MQ1, MDQ>),
+                      (&mfma::GradYt2D<MD1, MQ1, MDQ>),
+                      (&blas::GradYt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sQQ, sQD);
 }
 
@@ -492,9 +486,9 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
                                       const DeviceTensor<3> &Y, const int e)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::GradXt2D<MD1, MQ1, MDQ>),
-      (&mfma::GradXt2D<MD1, MQ1, MDQ>),
-      (&blas::GradXt2D<MD1, MQ1, MDQ>));
+                      (&dmma::GradXt2D<MD1, MQ1, MDQ>),
+                      (&mfma::GradXt2D<MD1, MQ1, MDQ>),
+                      (&blas::GradXt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sQD, Y, e);
 }
 
@@ -520,9 +514,9 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
                                         const real_t *sQQ, real_t *sQD)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::InterpYt2D<MD1, MQ1, MDQ>),
-      (&mfma::InterpYt2D<MD1, MQ1, MDQ>),
-      (&blas::InterpYt2D<MD1, MQ1, MDQ>));
+                      (&dmma::InterpYt2D<MD1, MQ1, MDQ>),
+                      (&mfma::InterpYt2D<MD1, MQ1, MDQ>),
+                      (&blas::InterpYt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBt, sQQ, sQD);
 }
 
@@ -533,18 +527,14 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
                                         const DeviceTensor<3> &Y, const int e)
 {
    const auto fn = MMA_BACKEND_PICK(
-      (&dmma::InterpXt2D<MD1, MQ1, MDQ>),
-      (&mfma::InterpXt2D<MD1, MQ1, MDQ>),
-      (&blas::InterpXt2D<MD1, MQ1, MDQ>));
+                      (&dmma::InterpXt2D<MD1, MQ1, MDQ>),
+                      (&mfma::InterpXt2D<MD1, MQ1, MDQ>),
+                      (&blas::InterpXt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBt, sQD, Y, e);
 }
 
 
-} // namespace mma
-
-} // namespace internal
+} // namespace mfem::internal::mma
 
 /// \endcond DO_NOT_DOCUMENT
-
-} // namespace mfem
 
