@@ -106,7 +106,7 @@ constexpr int SharedMemBytesPrefer = 64 * 1024;
 constexpr int SharedMemBytesPerBlock = 64 * 1024;
 constexpr int ThreadsTile = 16;
 constexpr int ThreadsPerTile = WarpSize;
-constexpr int DiffThreads3DMin = 128;
+constexpr int TensorHeavyThreadsMin = 128;
 #elif defined(MFEM_USE_CUDA)
 constexpr int FallbackMaxD1D2 = DofQuadLimits_CUDA::MAX_D1D;
 constexpr int FallbackMaxNq2 =
@@ -115,7 +115,7 @@ constexpr int SharedMemBytesPrefer = 48 * 1024;
 constexpr int SharedMemBytesPerBlock = 128 * 1024; // dynamic smem opt-in
 constexpr int ThreadsTile = mmaM;
 constexpr int ThreadsPerTile = 32;
-constexpr int DiffThreads3DMin = 64;
+constexpr int TensorHeavyThreadsMin = 64;
 #else
 constexpr int FallbackMaxD1D2 = DofQuadLimits::MAX_D1D;
 constexpr int FallbackMaxNq2 = DofQuadLimits::MAX_Q1D * DofQuadLimits::MAX_Q1D;
@@ -123,7 +123,7 @@ constexpr int SharedMemBytesPrefer = 48 * 1024;
 constexpr int SharedMemBytesPerBlock = 48 * 1024;
 constexpr int ThreadsTile = mmaM;
 constexpr int ThreadsPerTile = 32;
-constexpr int DiffThreads3DMin = 64;
+constexpr int TensorHeavyThreadsMin = 64;
 #endif
 constexpr int FallbackMaxD1D3 = 8;
 constexpr int FallbackMaxNq3 = 256;
@@ -575,14 +575,9 @@ MFEM_HOST_DEVICE constexpr int BankMapIdentity()
    return 0xfac688;
 }
 
-/** Diffusion / Grad: Default map won BP3 A/B (N5 hurt light pad cases less than mass). */
-MFEM_HOST_DEVICE constexpr int BankMapForN()
-{
-   return BankMapDefault();
-}
-
-/** Mass Interp only: N=6 → identity (avoid permute on padded n); else Default. */
-MFEM_HOST_DEVICE constexpr int BankMapForMassN(int n)
+/** Bank remap for GEMM N: n==6 → identity (pad-friendly); else default.
+    Pass n=-1 (or omit) for always-default (typical Grad). */
+MFEM_HOST_DEVICE constexpr int BankMap(int n = -1)
 {
    if (n == 6) { return BankMapIdentity(); }
    return BankMapDefault();
@@ -653,6 +648,10 @@ inline int ThreadsForMTilesRuntime(int D1D, int Q1D, int tile,
    return t < min_threads ? min_threads : t;
 }
 
+/** Tensor cost: Light = scalar field; heavy = multi-comp smem. */
+constexpr int kTensorCostLight = 1;
+constexpr int kTensorCostHeavy = 2;
+
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int NB2D()
 {
@@ -666,43 +665,29 @@ MFEM_HOST_DEVICE constexpr int Threads2D()
                                      ThreadsPerTile);
 }
 
-template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int MassThreads3D()
+/** 3D tensor element-tile width: light (4/8) vs heavy multi-comp (2/4). */
+template <int D1D, int Q1D, int Cost = kTensorCostLight>
+MFEM_HOST_DEVICE constexpr int TensorNB3D()
 {
-   return (D1D <= 4) ? Threads2D<D1D, Q1D>() : 64;
-}
-
-template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int MassNB3D()
-{
-   return (D1D <= 4) ? 4 : 8;
-}
-
-template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int DiffThreads3D()
-{
-   return (D1D <= 4)
-          ? ThreadsForMTiles<D1D, Q1D>(ThreadsTile, ThreadsPerTile,
-                                       DiffThreads3DMin)
-          : 128;
-}
-
-template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int DiffNB3D()
-{
+   if constexpr (Cost <= kTensorCostLight)
+   {
+      return (D1D <= 4) ? 4 : 8;
+   }
    return (D1D <= 4) ? 2 : 4;
 }
 
-template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int DiffThreads2D()
+/** 3D tensor block threads: light ≤64; heavy up to 128 with min tile cover. */
+template <int D1D, int Q1D, int Cost = kTensorCostLight>
+MFEM_HOST_DEVICE constexpr int TensorThreads3D()
 {
-   return Threads2D<D1D, Q1D>();
-}
-
-template <int D1D, int Q1D>
-MFEM_HOST_DEVICE constexpr int DiffNB2D()
-{
-   return NB2D<D1D, Q1D>();
+   if constexpr (Cost <= kTensorCostLight)
+   {
+      return (D1D <= 4) ? Threads2D<D1D, Q1D>() : 64;
+   }
+   return (D1D <= 4)
+          ? ThreadsForMTiles<D1D, Q1D>(ThreadsTile, ThreadsPerTile,
+                                       TensorHeavyThreadsMin)
+          : 128;
 }
 
 inline int NB2DRuntime(int D1D)
@@ -716,26 +701,21 @@ inline int Threads2DRuntime(int D1D, int Q1D)
                                   ThreadsPerTile);
 }
 
-inline int MassNB3DRuntime(int D1D)
+inline int TensorNB3DRuntime(int D1D, int cost = kTensorCostLight)
 {
-   return (D1D <= 4) ? 4 : 8;
-}
-
-inline int MassThreads3DRuntime(int D1D, int Q1D)
-{
-   return (D1D <= 4) ? Threads2DRuntime(D1D, Q1D) : 64;
-}
-
-inline int DiffNB3DRuntime(int D1D)
-{
+   if (cost <= kTensorCostLight) { return (D1D <= 4) ? 4 : 8; }
    return (D1D <= 4) ? 2 : 4;
 }
 
-inline int DiffThreads3DRuntime(int D1D, int Q1D)
+inline int TensorThreads3DRuntime(int D1D, int Q1D, int cost = kTensorCostLight)
 {
+   if (cost <= kTensorCostLight)
+   {
+      return (D1D <= 4) ? Threads2DRuntime(D1D, Q1D) : 64;
+   }
    return (D1D <= 4)
           ? ThreadsForMTilesRuntime(D1D, Q1D, ThreadsTile, ThreadsPerTile,
-                                    DiffThreads3DMin)
+                                    TensorHeavyThreadsMin)
           : 128;
 }
 

@@ -261,11 +261,14 @@ inline void MmaMassApplyTensors3D(const int NE,
    constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
    dq.Verify(NE, "Tensors MMA mass 3D D1D/Q1D exceeds shell cap");
 
-   const int NB = T_D1D ? mma::MassNB3D<T_D1D, T_Q1D>()
-                  : mma::MassNB3DRuntime(D1D);
+   const int NB = T_D1D
+                  ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostLight>()
+                  : mma::TensorNB3DRuntime(D1D, mma::kTensorCostLight);
    const int nthreads = mma::TensorShellNthreads(
-                           T_D1D ? mma::MassThreads3D<T_D1D, T_Q1D>()
-                           : mma::MassThreads3DRuntime(D1D, Q1D));
+                           T_D1D
+                           ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostLight>()
+                           : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                         mma::kTensorCostLight));
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, NE);

@@ -323,7 +323,7 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -401,7 +401,7 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -485,7 +485,7 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -561,7 +561,7 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
    const int threadIdInGroup = getThreadIdInGroup(laneId);
    const int mPass = (m + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
    const int aRowInWarp = groupId;
    const int aColumnInWarp = threadIdInGroup;
    const int bRowInWarp = threadIdInGroup;
@@ -639,7 +639,7 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int threadIdInGroup = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForMassN(n);
+   const int bankMap = BankMap(n);
    const int mPass = (m + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -708,7 +708,7 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
    int aColumnInWarp = threadIdInGroup;
    int bRowInWarp = threadIdInGroup;
    int bColumnInWarp = groupId;
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
 
    for (int mM = warpId; mM < mPass; mM += nWarps)
    {
@@ -780,7 +780,7 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int threadIdInGroup = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForMassN(D1D);
+   const int bankMap = BankMap(D1D);
    const int m = D1D * D1D, n = D1D, k = Q1D;
    const int mPass = (m + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
@@ -833,7 +833,7 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
    const int mPass = (Q1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -897,7 +897,7 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
    const int mPass = (Q1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -961,7 +961,7 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForN();
+   const int bankMap = BankMap();
    const int mPass = (D1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -1019,7 +1019,7 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForMassN(D1D);
+   const int bankMap = BankMap(D1D);
    const int mPass = (Q1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)
@@ -1070,7 +1070,7 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
    const int laneId = getLaneId(thread);
    const int groupId = getGroupId(laneId);
    const int tinG = getThreadIdInGroup(laneId);
-   const int bankMap = BankMapForMassN(D1D);
+   const int bankMap = BankMap(D1D);
    const int mPass = (D1D + mmaM - 1) / mmaM;
    const int nWarps = NWarps(mPass);
    for (int mM = warpId; mM < mPass; mM += nWarps)

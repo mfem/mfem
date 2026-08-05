@@ -415,11 +415,14 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
    dq.Verify(NE, "Tensors MMA diffusion 3D D1D/Q1D exceeds shell cap");
    MFEM_VERIFY(d.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
-   const int NB = T_D1D ? mma::DiffNB3D<T_D1D, T_Q1D>()
-                  : mma::DiffNB3DRuntime(D1D);
+   const int NB = T_D1D
+                  ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                  : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
    const int nthreads = mma::TensorShellNthreads(
-                           T_D1D ? mma::DiffThreads3D<T_D1D, T_Q1D>()
-                           : mma::DiffThreads3DRuntime(D1D, Q1D));
+                           T_D1D
+                           ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                           : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                         mma::kTensorCostHeavy));
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
@@ -531,10 +534,10 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
    constexpr int PA_SIZE = SYM ? 3 : 4;
    dq.Verify(NE, "Tensors MMA diffusion 2D D1D/Q1D exceeds shell cap");
 
-   const int NB = T_D1D ? mma::DiffNB2D<T_D1D, T_Q1D>()
+   const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
                   : mma::NB2DRuntime(D1D);
    const int nthreads = mma::TensorShellNthreads(
-                           T_D1D ? mma::DiffThreads2D<T_D1D, T_Q1D>()
+                           T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
                            : mma::Threads2DRuntime(D1D, Q1D));
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
