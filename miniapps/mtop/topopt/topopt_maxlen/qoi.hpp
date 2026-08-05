@@ -6,6 +6,65 @@
 using namespace std;
 using namespace mfem;
 
+class VolumeResidual : public QuantityOfInterest
+{
+protected:
+    MPI_Comm comm;
+    ParFiniteElementSpace *fes;
+
+    Coefficient *rho_design;        // density entering the volume, e.g. H_d(rho~)
+    Coefficient *rho_design_grad;   // its derivative w.r.t. the field fes discretizes
+
+    real_t domain_volume = 0.0;
+    real_t Vstar = 0.0;
+
+public:
+    VolumeResidual(MPI_Comm comm_, ParFiniteElementSpace *fes_,
+                   Coefficient *rho_design_, Coefficient *rho_design_grad_,
+                   real_t vol_fraction)
+    : comm(comm_), fes(fes_), rho_design(rho_design_),
+      rho_design_grad(rho_design_grad_)
+    {
+        ConstantCoefficient one_cf(1.0);
+
+        ParLinearForm vol_form(fes);
+        vol_form.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+        vol_form.Assemble();
+        std::unique_ptr<HypreParVector> vol_w(vol_form.ParallelAssemble());
+
+        real_t loc = vol_w->Sum();
+        MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+        Vstar = vol_fraction * domain_volume;
+    }
+    ~VolumeResidual() { }
+
+    // G = ∫_Ω rho_design dΩ / Vstar
+    real_t Eval() override
+    {
+        ParLinearForm lf(fes);
+        lf.AddDomainIntegrator(new DomainLFIntegrator(*rho_design));
+        lf.Assemble();
+        std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());   // ∫_Ω rho_design
+
+        real_t loc, val;
+        loc = v->Sum();
+        MPI_Allreduce(&loc, &val, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+        return val / Vstar;
+    }
+
+    // dG/drho~ = (rho_design'(rho~), phi_i) / Vstar
+    void GetGrad(Vector &grad) override
+    {
+        ParLinearForm lf(fes);
+        lf.AddDomainIntegrator(new DomainLFIntegrator(*rho_design_grad));
+        lf.Assemble();
+        std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());
+
+        grad = *v;
+        grad /= Vstar;
+    }
+};
+
 // Max-length constraint  G = 1/2 ∫_Ω (γ − α)² dx  
 class MaxFilterResidual : public QuantityOfInterest
 {
