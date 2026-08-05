@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
    //    integrator over the unmarked 'neu_bdr' in the bilinear form.
    //    With this DG formulation, there are no essential boundary conditions.
    Array<int> ess_stress_tdofs_list; // no essential b.c. (empty list)
-   Array<int> neu_bdr(mesh.bdr_attributes.Max());
+   Array<int> neu_bdr(pmesh.bdr_attributes.Max());
    neu_bdr = 1;
    neu_bdr[0] = 0; // boundary attribute 1 is Dirichlet
 
