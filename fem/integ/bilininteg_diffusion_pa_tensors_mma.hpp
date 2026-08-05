@@ -174,7 +174,7 @@ inline bool TryDiffusionApplyTensors2D(
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y)
 {
-   if (!mma::host_PreferTensor(D1D, NE)) { return false; }
+   if (!mma::PreferTensorDense(D1D, NE)) { return false; }
    const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
@@ -376,7 +376,7 @@ inline bool TryDiffusionApplyTensors3D(
    const Array<real_t> & /*bt*/, const Array<real_t> & /*gt*/,
    const Vector &d, const Vector &x, Vector &y)
 {
-   if (!mma::host_PreferTensor(D1D, NE)) { return false; }
+   if (!mma::PreferTensorDense(D1D, NE)) { return false; }
    const real_t *B = b.Read(), *G = g.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
@@ -395,6 +395,8 @@ inline bool TryDiffusionApplyTensors3D(
 } // namespace blas
 } // namespace mma
 
+// Device tensor shell: LoadBG + LoadX → Grad* → Apply D·g → Grad*t.
+// Host uses Try* first (see MmaDiffusionApplyTensors).
 template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
 inline void MmaDiffusionApplyTensors3D(const int NE,
                                        const Array<real_t> &b,
@@ -405,22 +407,19 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
                                        const int d1d = 0,
                                        const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
+   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
+   const int D1D = dq.D1D, Q1D = dq.Q1D;
+   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
+   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
    constexpr int PA_SIZE = SYM ? 6 : 9;
-   MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
-   MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
-               "Tensors MMA diffusion 3D D1D/Q1D exceeds shell cap");
+   dq.Verify(NE, "Tensors MMA diffusion 3D D1D/Q1D exceeds shell cap");
    MFEM_VERIFY(d.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
    const int NB = T_D1D ? mma::DiffNB3D<T_D1D, T_Q1D>()
                   : mma::DiffNB3DRuntime(D1D);
-   const int nthreads = Device::Allows(Backend::DEVICE_MASK)
-                        ? (T_D1D ? mma::DiffThreads3D<T_D1D, T_Q1D>()
-                           : mma::DiffThreads3DRuntime(D1D, Q1D))
-                        : 1;
+   const int nthreads = mma::TensorShellNthreads(
+                           T_D1D ? mma::DiffThreads3D<T_D1D, T_Q1D>()
+                           : mma::DiffThreads3DRuntime(D1D, Q1D));
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
@@ -524,22 +523,19 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
                                        const int d1d = 0,
                                        const int q1d = 0)
 {
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   constexpr int MD1 = T_D1D ? T_D1D : mma::TensorsMmaMaxD1D;
-   constexpr int MQ1 = T_Q1D ? T_Q1D : mma::TensorsMmaMaxQ1D;
+   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
+   const int D1D = dq.D1D, Q1D = dq.Q1D;
+   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
+   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
    constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
    constexpr int PA_SIZE = SYM ? 3 : 4;
-   MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
-   MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1,
-               "Tensors MMA diffusion 2D D1D/Q1D exceeds shell cap");
+   dq.Verify(NE, "Tensors MMA diffusion 2D D1D/Q1D exceeds shell cap");
 
    const int NB = T_D1D ? mma::DiffNB2D<T_D1D, T_Q1D>()
                   : mma::NB2DRuntime(D1D);
-   const int nthreads = Device::Allows(Backend::DEVICE_MASK)
-                        ? (T_D1D ? mma::DiffThreads2D<T_D1D, T_Q1D>()
-                           : mma::Threads2DRuntime(D1D, Q1D))
-                        : 1;
+   const int nthreads = mma::TensorShellNthreads(
+                           T_D1D ? mma::DiffThreads2D<T_D1D, T_Q1D>()
+                           : mma::Threads2DRuntime(D1D, Q1D));
 
    const auto B = Reshape(b.Read(), Q1D, D1D);
    const auto G = Reshape(g.Read(), Q1D, D1D);
@@ -639,6 +635,9 @@ inline void MmaDiffusionApplyTensors3D(
       NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
 }
 
+/** Tensor diffusion apply story (same order as mass tensors):
+    host: PreferTensorDense → 3D dense sum-fact (blas) / 2D fat GEMM (lapack if on)
+    device / else: MMA or Emulate smem shell (2D/3D, SYM dispatch). */
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaDiffusionApplyTensors(
    const int NE, const bool symmetric,
@@ -647,11 +646,11 @@ inline void MmaDiffusionApplyTensors(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
+   // ---- host dense / lapack -------------------------------------------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       if constexpr (DIM == 3)
       {
-         // Host dense sum-fact (no LAPACK required).
          if (mma::blas::TryDiffusionApplyTensors3D<T_D1D, T_Q1D>(
                 NE, symmetric, b, g, bt, gt, d, x, y))
          { return; }
@@ -665,6 +664,7 @@ inline void MmaDiffusionApplyTensors(
       }
 #endif
    }
+   // ---- device (or host Emulate) smem shell -------------------------------
    if constexpr (DIM == 3)
    {
       MmaDiffusionApplyTensors3D_Dispatch<T_D1D, T_Q1D>(

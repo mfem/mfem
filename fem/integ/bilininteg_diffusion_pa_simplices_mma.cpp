@@ -280,6 +280,8 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 
 void DiffusionIntegrator::RegisterSimplexMmaKernels()
 {
+   // MMA specializations (separate lists per integrator — see fem/integ/mma/README.md).
+   // Order: DIM, D1D, QND. Unregistered → Fallback runtime shell.
    // 2D
    AddSimplexMmaSpecialization<2,2,1>();
    AddSimplexMmaSpecialization<2,2,4>();

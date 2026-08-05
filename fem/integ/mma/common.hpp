@@ -746,6 +746,31 @@ inline int DiffThreads3DRuntime(int D1D, int Q1D)
 constexpr int TensorsMmaMaxD1D = 9;
 constexpr int TensorsMmaMaxQ1D = 9;
 
+/** Resolve specialized vs runtime D1D/Q1D and shell smem caps (tensor mass/diff). */
+template <int T_D1D, int T_Q1D>
+struct TensorShellDims
+{
+   static constexpr int MD1 = T_D1D ? T_D1D : TensorsMmaMaxD1D;
+   static constexpr int MQ1 = T_Q1D ? T_Q1D : TensorsMmaMaxQ1D;
+   const int D1D;
+   const int Q1D;
+
+   TensorShellDims(int d1d, int q1d)
+      : D1D(T_D1D ? T_D1D : d1d), Q1D(T_Q1D ? T_Q1D : q1d) {}
+
+   void Verify(int NE, const char *what) const
+   {
+      MFEM_VERIFY(D1D > 0 && Q1D > 0 && NE > 0, "");
+      MFEM_VERIFY(D1D <= MD1 && Q1D <= MQ1, what);
+   }
+};
+
+/** Device thread count, or 1 on host (serial forall_3D / no smem races). */
+inline int TensorShellNthreads(int device_nthreads)
+{
+   return Device::Allows(Backend::DEVICE_MASK) ? device_nthreads : 1;
+}
+
 /** Warps available for strip-mined mPass (host: cover all tiles). */
 MFEM_HOST_DEVICE inline int NWarps(int mPass)
 {
@@ -760,8 +785,8 @@ MFEM_HOST_DEVICE inline int NWarps(int mPass)
 
 // ---- Host policy / scratch + lapack packing (CPU apply) ------------
 
-/** Prefer host tensor apply (blas / lapack) over MMA Emulate shell. */
-inline bool host_PreferTensor(int D1D, int NE)
+/** Prefer host dense tensor sum-fact over smem Emulate shell. */
+inline bool PreferTensorDense(int D1D, int NE)
 {
    // Registered tensor MMA is p>=3 (D1D>=4). Dense host sum-fact beats Emulate.
    return NE >= 4 && D1D >= 4;

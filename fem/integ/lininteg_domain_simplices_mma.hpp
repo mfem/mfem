@@ -138,14 +138,14 @@ inline void MmaDLFAssembleSimplex(const int NE,
 // ---- Runtime Fallback: host dense + device batched MMA/Dense -------------
 
 /** Host: Y_vc += P^T D. Uses multi-RHS GEMM when LAPACK is on and sizes
-    pass lapack::Prefer; otherwise a dense per-element loop.
-    lapack::Prefer is already false without MFEM_USE_LAPACK; the ifdef only
-    gates lapack::Gemm / std::vector. */
+    pass PreferMultiRhs (light cost); otherwise a dense per-element loop.
+    PreferMultiRhs is only available with MFEM_USE_LAPACK; the ifdef gates
+    Gemm / std::vector. */
 inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
                             const real_t *D, real_t *Y, int vdim, int vc)
 {
 #ifdef MFEM_USE_LAPACK
-   if (mma::lapack::Prefer(nq, ndof, NE))
+   if (mma::lapack::PreferMultiRhs(nq, ndof, NE, mma::lapack::kMultiRhsCostLight))
    {
       const int NB = mma::lapack::NB(nq, ndof);
       const int ntiles = (NE + NB - 1) / NB;

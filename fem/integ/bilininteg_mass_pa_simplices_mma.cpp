@@ -87,6 +87,8 @@ void MassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 
 void MassIntegrator::RegisterSimplexMmaKernels()
 {
+   // MMA specializations (separate lists per integrator — see fem/integ/mma/README.md).
+   // Order: DIM, D1D, QND. Unregistered → Fallback runtime shell.
    // 2D
    AddSimplexMmaSpecialization<2,2,3>();
    AddSimplexMmaSpecialization<2,2,4>();

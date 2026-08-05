@@ -21,8 +21,13 @@
 namespace mfem::internal::mma::lapack
 {
 
-/** Shared size gate for Prefer*: large locals always; mid-size when NE
-    and work clear the given bars. Tuned for OpenBLAS/MKL/Accelerate. */
+/** Relative cost per element for PreferMultiRhs (not operator names).
+    1 ≈ mass / DomainLF (fwd+T multi-RHS); 2 ≈ diffusion (more GEMMs + Q-fn). */
+constexpr int kMultiRhsCostLight = 1;
+constexpr int kMultiRhsCostHeavy = 2;
+
+/** Shared size gate: large locals always; mid-size when NE clears bars.
+    Tuned for OpenBLAS/MKL/Accelerate. */
 inline bool PreferSized(int nq, int ndof, int NE,
                         long long work_mid, int mx_mid)
 {
@@ -34,21 +39,13 @@ inline bool PreferSized(int nq, int ndof, int NE,
    return false;
 }
 
-/** Prefer vendor GEMM when matrices are large enough that call overhead is
-    amortized, or when many elements provide a fat multi-RHS (large N) for
-    mid-size locals (tris). */
-inline bool Prefer(int nq, int ndof, int NE)
+/** Prefer vendor multi-RHS GEMM over hand dense on host.
+    @param cost  relative apply cost (kMultiRhsCostLight / Heavy). Scales mid
+    bars: cost=1 → (180,8); cost=2 → (360,16) ≈ former diffusion bar (400,16). */
+inline bool PreferMultiRhs(int nq, int ndof, int NE, int cost = kMultiRhsCostLight)
 {
-   // Mid-size TRI mass p≳4: fat-N vendor GEMM. Tiny TRI p=1..3 stay on blas.
-   return PreferSized(nq, ndof, NE, 180, 8);
-}
-
-/** Diffusion does 2*DIM GEMMs + metric per tile; higher bar than mass so TRI
-    BP3 p<=4 stays on the blas path. */
-inline bool PreferDiffusion(int nq, int ndof, int NE)
-{
-   // ~ TRI BP3 p>=5 (nq*ndof ≳ 420).
-   return PreferSized(nq, ndof, NE, 400, 16);
+   const int c = (cost < 1) ? 1 : cost;
+   return PreferSized(nq, ndof, NE, 180LL * c, 8 * c);
 }
 
 /** Multi-RHS tile width for the lapack path (mass / diffusion / linear form). */

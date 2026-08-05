@@ -73,12 +73,12 @@ inline void MassApply(int NE, int nq, int ndof, const real_t *P,
 
 #endif // MFEM_USE_LAPACK
 
-/** Host entry: runs MassApply when LAPACK is on and Prefer is true. */
+/** Host entry: runs MassApply when PreferMultiRhs (light cost). */
 inline bool TryMassApply(int NE, int nq, int ndof, const real_t *P,
                          const real_t *D, const real_t *X, real_t *Y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!Prefer(nq, ndof, NE)) { return false; }
+   if (!PreferMultiRhs(nq, ndof, NE, kMultiRhsCostLight)) { return false; }
    MassApply(NE, nq, ndof, P, D, X, Y);
    return true;
 #else
@@ -429,6 +429,9 @@ void MmaMassApplySimplex_Batch(const int e0,
    }
 }
 
+/** Simplex mass apply story (aligned with diffusion simplex):
+    host: PreferMultiRhs(cost=light) → lapack multi-RHS, else blas dense tiles
+    device: smem Batch (LoadX + Gemm/GemmT + Q-fn scale). */
 template<int DIM, int D1D, int QND>
 inline void MmaMassApplySimplex(const int NE,
                                 const Array<real_t> &p,
@@ -443,11 +446,13 @@ inline void MmaMassApplySimplex(const int NE,
    MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
    MFEM_VERIFY(p.Size() == QND * NDOF, "");
 
+   // ---- host dense (PreferMultiRhs or blas tiles) ---------------------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       MassApplySimplex<DIM, D1D, QND>(NE, p, d, x, y);
       return;
    }
+   // ---- device smem batch -------------------------------------------------
 
    constexpr int BASIS = NDOF;
    constexpr int MQ = mma::SimplexMaxNq<DIM, QND>();
@@ -471,7 +476,7 @@ inline void MmaMassApplySimplex(const int NE,
    });
 }
 
-/** Runtime Fallback shell: host dense BLAS/hand; device batched MMA/Dense. */
+/** Runtime Fallback: same host → device story as specialized (caps runtime). */
 template<int DIM>
 inline void MmaMassApplySimplex(const int NE,
                                 const Array<real_t> &p,
@@ -491,6 +496,7 @@ inline void MmaMassApplySimplex(const int NE,
    MFEM_VERIFY(nq <= MAX_NQ && ndof <= MAX_NDOF,
                "Simplex MMA mass runtime Fallback exceeds size caps");
 
+   // ---- host dense --------------------------------------------------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       const real_t *P = p.Read();
@@ -501,6 +507,7 @@ inline void MmaMassApplySimplex(const int NE,
       mma::MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
+   // ---- device smem batch -------------------------------------------------
 
    const int x_ld = mma::PadLdBankRuntime(ndof);
    const int u_ld = mma::PadLdBankRuntime(nq);

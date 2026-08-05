@@ -1048,7 +1048,7 @@ inline void DiffusionApplySimplex(const int NE,
    real_t *Y = y.ReadWrite();
 
 #ifdef MFEM_USE_LAPACK
-   if (mma::lapack::PreferDiffusion(QND, ndof, NE))
+   if (mma::lapack::PreferMultiRhs(QND, ndof, NE, mma::lapack::kMultiRhsCostHeavy))
    {
       mma::lapack::DiffusionApply<DIM, SYM>(NE, QND, ndof, G, Dv, X, Y);
       return;
@@ -1059,6 +1059,9 @@ inline void DiffusionApplySimplex(const int NE,
       NE, G, Dv, X, Y);
 }
 
+/** Simplex diffusion apply story (aligned with mass simplex):
+    host: PreferMultiRhs(cost=heavy) → lapack multi-RHS, else blas dense
+    device: smem Batch (LoadX + GradP → Apply D·g → GradP^T). */
 template<int DIM, int D1D, int QND, bool SYM>
 inline void MmaDiffusionApplySimplex(const int NE,
                                      const Array<real_t> &g,
@@ -1074,12 +1077,14 @@ inline void MmaDiffusionApplySimplex(const int NE,
    MFEM_VERIFY(NE > 0 && d.Size() == PA_SIZE * QND * NE, "");
    MFEM_VERIFY(g.Size() == QND * ndof * DIM, "");
 
+   // ---- host dense (PreferMultiRhs heavy or blas) -------------------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       DiffusionApplySimplex<DIM, D1D, QND, SYM>(
          NE, g, d, x, y);
       return;
    }
+   // ---- device smem batch -------------------------------------------------
 
    constexpr int BASIS = ndof;
    constexpr int MAP = mma::MmaMapFor<DIM, D1D, QND>();
@@ -1156,7 +1161,7 @@ inline void PADiffusionApplySimplexDenseRuntime(const int NE,
       const real_t *X = x.Read();
       real_t *Y = y.ReadWrite();
 #ifdef MFEM_USE_LAPACK
-      if (mma::lapack::PreferDiffusion(nq, ndof, NE))
+      if (mma::lapack::PreferMultiRhs(nq, ndof, NE, mma::lapack::kMultiRhsCostHeavy))
       {
          mma::lapack::DiffusionApply<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
          return;
@@ -1338,7 +1343,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
    }
 }
 
-/** Runtime Fallback: host dense; device full-NQ batch or dense if Q-tile. */
+/** Runtime Fallback: same host → device story as specialized (caps runtime). */
 template<int DIM, bool SYM>
 inline void MmaDiffusionApplySimplex(const int NE,
                                      const Array<real_t> &g,
@@ -1359,6 +1364,7 @@ inline void MmaDiffusionApplySimplex(const int NE,
    MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
                "Simplex MMA diffusion runtime Fallback exceeds size caps");
 
+   // ---- host dense --------------------------------------------------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       PADiffusionApplySimplexDenseRuntime<DIM, SYM>(NE, g, d, x, y);
@@ -1371,6 +1377,7 @@ inline void MmaDiffusionApplySimplex(const int NE,
       PADiffusionApplySimplexDenseRuntime<DIM, SYM>(NE, g, d, x, y);
       return;
    }
+   // ---- device full-NQ smem batch -----------------------------------------
 
    const int x_ld = mma::PadLdBankRuntime(ndof);
    const int u_ld = mma::PadLdBankRuntime(nq);
