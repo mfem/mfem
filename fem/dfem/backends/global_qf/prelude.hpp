@@ -39,9 +39,9 @@ struct LocalQFShapeArg<tensor_ndarray<scalar_t, ndims, tensor_sizes...>>
 {
    using scalar_type = std::remove_const_t<scalar_t>;
    using type = std::conditional_t<
-                   sizeof...(tensor_sizes) == 0,
-                   scalar_type,
-                   tensor<scalar_type, tensor_sizes...>>&;
+                sizeof...(tensor_sizes) == 0,
+                scalar_type,
+                tensor<scalar_type, tensor_sizes...>>&;
 };
 
 template <typename scalar_t, int... tensor_sizes>
@@ -49,9 +49,9 @@ struct LocalQFShapeArg<tensor<scalar_t, tensor_sizes...>>
 {
    using scalar_type = std::remove_const_t<scalar_t>;
    using type = std::conditional_t<
-                   sizeof...(tensor_sizes) == 0,
-                   scalar_type,
-                   tensor<scalar_type, tensor_sizes...>>&;
+                sizeof...(tensor_sizes) == 0,
+                scalar_type,
+                tensor<scalar_type, tensor_sizes...>>&;
 };
 
 template <typename qf_param_ts>
@@ -66,7 +66,7 @@ struct LocalQFShapeFunction<tuple<qf_param_ts...>>
 
 template <typename qfunc_t>
 using LocalQFShapeFunctionFor = LocalQFShapeFunction<
-   typename get_function_signature<qfunc_t>::type::parameter_ts>;
+                                typename get_function_signature<qfunc_t>::type::parameter_ts>;
 
 } // namespace detail
 

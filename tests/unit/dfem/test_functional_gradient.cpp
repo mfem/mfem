@@ -164,9 +164,9 @@ void functional_gradient(const char *filename, int p)
 
    ParGridFunction u_gf(&fes), du_gf(&fes);
    FunctionCoefficient u_coeff(
-      [](const auto &x) { return 1.0_r + x[0] + 0.25_r * x[1] * x[1]; });
+   [](const auto &x) { return 1.0_r + x[0] + 0.25_r * x[1] * x[1]; });
    FunctionCoefficient du_coeff(
-      [](const auto &x) { return sin(M_PI * x[0]) + 0.5_r * x[0] * x[1]; });
+   [](const auto &x) { return sin(M_PI * x[0]) + 0.5_r * x[0] * x[1]; });
    u_gf.ProjectCoefficient(u_coeff);
    du_gf.ProjectCoefficient(du_coeff);
 

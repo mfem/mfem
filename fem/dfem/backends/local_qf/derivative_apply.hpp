@@ -524,7 +524,7 @@ public:
                         using SARG =
                            typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
                         get<s>(dvecs) = backend_t::template qp_pull<SARG>(
-                                           get<s>(sargs), qx, qy, qz);
+                           get<s>(sargs), qx, qy, qz);
                      }
                   });
 

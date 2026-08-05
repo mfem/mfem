@@ -1011,6 +1011,65 @@ void forall(func_t f,
    }
 }
 
+#if defined(MFEM_USE_CUDA_OR_HIP)
+template <typename data_t, typename body_t>
+__global__ void forall_data_kernel(data_t data, int n)
+{
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   body_t::run(data, i);
+}
+
+template <int MAX_THREADS_PER_BLOCK, typename data_t, typename body_t>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void forall_data_kernel_launch_bounds(data_t data, int n)
+{
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   body_t::run(data, i);
+}
+#endif
+
+template <int MAX_THREADS_PER_BLOCK = 0, typename body_t, typename data_t>
+void forall_data(data_t data,
+                 const int &N,
+                 [[maybe_unused]] const ThreadBlocks &blocks)
+{
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
+   {
+#if defined(MFEM_USE_CUDA_OR_HIP)
+      dim3 block_size(blocks.x, blocks.y, blocks.z);
+      if constexpr (MAX_THREADS_PER_BLOCK > 0)
+      {
+         forall_data_kernel_launch_bounds
+         <MAX_THREADS_PER_BLOCK, data_t, body_t><<<N, block_size>>>(data, N);
+      }
+      else
+      {
+         forall_data_kernel<data_t, body_t><<<N, block_size>>>(data, N);
+      }
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+#endif
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
+   {
+      for (int i = 0; i < N; i++)
+      {
+         body_t::run(data, i);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("no compute backend available");
+   }
+}
+
 } // namespace dfem
 
 /// @todo To be removed.

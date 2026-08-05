@@ -939,7 +939,7 @@ public:
 
    /// @brief Create a mixed second derivative operator for a functional.
    ///
-   /// This overload accepts the state as a MultiVector. 
+   /// This overload accepts the state as a MultiVector.
    ///
    /// @param gradient_id The derivative ID of the gradient to be differentiated.
    /// @param direction_id The derivative ID of the direction in which to differentiate the gradient.
@@ -1014,39 +1014,39 @@ private:
        std::vector<derivative_action_t>> daction_transpose_callbacks;
    std::map<size_t, std::vector<FieldDescriptor>> derivative_outfds;
    std::map<size_t, std::vector<FieldDescriptor>> derivative_unionfds;
-   std::map<size_t, 
+   std::map<size_t,
        std::vector<assemble_derivative_sparsematrix_callback_t>>
        assemble_derivative_sparsematrix_callbacks;
    std::map<size_t,
        std::vector<assemble_derivative_hypreparmatrix_callback_t>>
        assemble_derivative_hypreparmatrix_callbacks;
    std::map<size_t, std::vector<assemble_diagonal_callback_t>>
-       assemble_diagonal_callbacks;
+                                                            assemble_diagonal_callbacks;
    std::map<second_derivative_key_t, std::vector<derivative_setup_t>>
-       second_derivative_setup_callbacks;
+                                                                   second_derivative_setup_callbacks;
    std::map<second_derivative_key_t,
-            std::vector<derivative_action_t>>
+       std::vector<derivative_action_t>>
        second_derivative_action_callbacks;
    std::map<second_derivative_key_t,
-            std::vector<derivative_action_t>>
+       std::vector<derivative_action_t>>
        second_derivative_apply_callbacks;
    std::map<second_derivative_key_t,
-            std::vector<derivative_action_t>>
+       std::vector<derivative_action_t>>
        second_daction_transpose_callbacks;
    std::map<second_derivative_key_t,
-            std::vector<FieldDescriptor>>
+       std::vector<FieldDescriptor>>
        second_derivative_outfds;
    std::map<second_derivative_key_t,
-            std::vector<FieldDescriptor>>
+       std::vector<FieldDescriptor>>
        second_derivative_unionfds;
    std::map<second_derivative_key_t,
-            std::vector<assemble_derivative_sparsematrix_callback_t>>
+       std::vector<assemble_derivative_sparsematrix_callback_t>>
        assemble_second_derivative_sparsematrix_callbacks;
    std::map<second_derivative_key_t,
-            std::vector<assemble_derivative_hypreparmatrix_callback_t>>
+       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
        assemble_second_derivative_hypreparmatrix_callbacks;
    std::map<second_derivative_key_t,
-            std::vector<assemble_diagonal_callback_t>>
+       std::vector<assemble_diagonal_callback_t>>
        assemble_second_derivative_diagonal_callbacks;
 
    /// Derivative IDs whose integrator has FunctionalValue outputs. Their first
@@ -1266,7 +1266,7 @@ void DifferentiableOperator::AddIntegrator(
       auto &stored_out = second_derivative_outfds[derivative_key];
       stored_out = stored_out.empty() ? out : stored_out;
       MFEM_VERIFY(stored_out == out,
-                     "inconsistent second derivative output FieldDescriptors");
+                  "inconsistent second derivative output FieldDescriptors");
       auto &stored_union = second_derivative_unionfds[derivative_key];
       stored_union = stored_union.empty() ? all : stored_union;
       MFEM_VERIFY(stored_union == all,
@@ -1317,10 +1317,10 @@ void DifferentiableOperator::AddIntegrator(
    };
 
    for_constexpr([&](auto i)
-                 {
+   {
       auto create_callbacks = [&](auto derivative_id,
-                      auto callback_key,
-                      auto &setup_callbacks,
+                                  auto callback_key,
+                                  auto &setup_callbacks,
                                   auto &apply_callbacks,
                                   auto &transpose_callbacks,
                                   auto &assemble_sparsematrix_callbacks,
@@ -1474,7 +1474,8 @@ void DifferentiableOperator::AddIntegrator(
                           derivative_action_callbacks,
                           qp_cache,
                           ctx, qfunc, outputs);
-      } }, derivative_ids);
+      }
+   }, derivative_ids);
 }
 
 } // namespace mfem::future

@@ -38,9 +38,9 @@ struct DiffusionLocalMode
    using matd_t = tensor<real_t, DIM, DIM>;
 
    MFEM_HOST_DEVICE inline auto operator()(const dvecd_t &dudxi,
-                                          const matd_t &J,
-                                          const real_t &w,
-                                          dvecd_t &dvdxi) const
+                                           const matd_t &J,
+                                           const real_t &w,
+                                           dvecd_t &dvdxi) const
    {
       const auto invJ = inv(J);
       const auto invJt = transpose(invJ);

@@ -1050,7 +1050,7 @@ struct BakeOff
       };
       // MF ∂FEM GetDerivative setup //////////////////////////
       const auto dMFGetDerivativeSetup = [&] (auto backend, auto qfunction,
-                                             bool use_cached_setup)
+                                              bool use_cached_setup)
       {
          using backend_t = decltype(backend);
          using qfunction_t = decltype(qfunction);

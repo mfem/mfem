@@ -175,8 +175,8 @@ struct build_masked_args_tuple
    static auto make(std::index_sequence<Is...>)
    -> tuple<std::conditional_t<
    std::array<bool, sizeof...(Keep)> {Keep...} [Is],
-   tuple_element_t<Is, args_tuple_t>,
-   UnusedSlot>...>;
+       tuple_element_t<Is, args_tuple_t>,
+       UnusedSlot>...>;
 
    using type = decltype(make(std::make_index_sequence<sizeof...(Keep)> {}));
 };
@@ -199,9 +199,9 @@ struct build_masked_input_args_reg
    static auto make(std::index_sequence<Is...>)
    -> tuple<std::conditional_t<
    std::array<bool, sizeof...(Active)> {Active...} [Is],
-   typename backend_t::template QReg<
-   typename qf_param_slot<qfunc_t, Is>::qf_reg_param_t>,
-   UnusedQReg>...>;
+       typename backend_t::template QReg<
+          typename qf_param_slot<qfunc_t, Is>::qf_reg_param_t>,
+                   UnusedQReg>...>;
 
    using type = decltype(make(std::make_index_sequence<sizeof...(Active)> {}));
 };

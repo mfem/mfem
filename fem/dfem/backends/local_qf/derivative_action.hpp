@@ -50,7 +50,7 @@ class DerivativeAction
    /// the host-side sizing checks.
    static constexpr auto input_activity =
       mfem::future::detail::make_activity_map <
-      static_cast<std::size_t>(derivative_id) > (inputs_t {});
+   static_cast<std::size_t>(derivative_id) > (inputs_t {});
    static_assert(input_activity.size() == n_inputs);
 
    /// Shadow register bank: only the active input slots are materialized.
@@ -65,7 +65,7 @@ class DerivativeAction
 
    template <typename backend_t, int MQ1>
    using shadow_bank_t = decltype(shadow_bank_type<backend_t, MQ1>(
-                                     std::make_index_sequence<n_inputs> {}));
+   std::make_index_sequence<n_inputs> {}));
 
    /// Per-quadrature-point shadow argument tuple. Only the active inputs and
    /// the outputs are materialized; the rest are `enzyme_const` and their
@@ -79,7 +79,7 @@ class DerivativeAction
    (Is<n_inputs ? input_activity[Is] : true)... >;
 
    using shadow_args_t = decltype(shadow_tuple_type(
-                                     std::make_index_sequence<n_inputs + n_outputs> {}));
+   std::make_index_sequence<n_inputs + n_outputs> {}));
 
 #ifdef MFEM_USE_ENZYME
    /// Forward-mode call with the activity of every q-function parameter fixed
@@ -252,6 +252,381 @@ public:
       }
    }
 
+
+   template<typename backend_t, int T_Q1D>
+   struct DerivativeActionKernelData
+   {
+      qfunc_t qfunc;
+      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
+      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE_dir;
+      std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
+      std::array<const real_t *, n_inputs> in_B;
+      std::array<const real_t *, n_inputs> in_G;
+      std::array<int, n_inputs> in_d1d;
+      std::array<int, n_inputs> in_q1d;
+      std::array<const real_t *, n_outputs> out_B;
+      std::array<const real_t *, n_outputs> out_G;
+      std::array<int, n_outputs> out_d1d;
+      std::array<int, n_outputs> out_q1d;
+      std::array<bool, n_inputs> input_dep;
+      const int *d_attr;
+      bool has_attr;
+      const int *d_elem_attr;
+      int q1d;
+   };
+
+   template<typename backend_t, int T_Q1D>
+   __attribute__((always_inline)) MFEM_HOST_DEVICE static void
+   derivative_action_kernel_body(
+      DerivativeActionKernelData<backend_t, T_Q1D> data, const int e)
+   {
+      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
+      auto &qfunc = data.qfunc;
+      const auto &in_XE = data.in_XE;
+      const auto &in_XE_dir = data.in_XE_dir;
+      const auto &out_YE = data.out_YE;
+      const auto &in_B = data.in_B;
+      const auto &in_G = data.in_G;
+      const auto &in_d1d = data.in_d1d;
+      const auto &in_q1d = data.in_q1d;
+      const auto &out_B = data.out_B;
+      const auto &out_G = data.out_G;
+      const auto &out_d1d = data.out_d1d;
+      const auto &out_q1d = data.out_q1d;
+      const auto &input_dep = data.input_dep;
+      const auto d_attr = data.d_attr;
+      const bool has_attr = data.has_attr;
+      const auto d_elem_attr = data.d_elem_attr;
+      const int q1d = data.q1d;
+      if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+
+      // -----------------------------------------------
+      // Inputs and outputs argument registers
+      // -----------------------------------------------
+      args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+      shadow_bank_t<backend_t, MQ1> sargs; // shadow, active inputs only
+
+      // -----------------------------------------------
+      // Shared memory
+      // -----------------------------------------------
+      MFEM_SHARED typename backend_t::Shared smem;
+
+      // -----------------------------------------------
+      // Load primal inputs (rargs)
+      // -----------------------------------------------
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr size_t i = ic.value;
+         const auto &XE = in_XE[i];
+         const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
+         const real_t *B = in_B[i], *G = in_G[i];
+         auto &rarg = get<i>(rargs);
+         using FOP = tuple_element_t<i, inputs_t>;
+         if constexpr (is_value_fop<FOP>::value)
+         {
+            backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
+         }
+         else if constexpr (is_gradient_fop_v<FOP>)
+         {
+            constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+            using FieldParamT =
+               typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+            backend_t::template LoadGradient<RNK,
+                                             decltype(rarg),
+                                             decltype(XE),
+                                             FieldParamT>(
+                                                smem, e, d, q, Q1D, B, G, XE, rarg);
+         }
+         else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
+         {
+            // qp values are read directly from in_XE / IR
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      });
+
+      // -----------------------------------------------
+      // Load tangent directions (sargs)
+      // -----------------------------------------------
+      for_constexpr<n_inputs>([&](auto ic)
+      {
+         constexpr size_t i = ic.value;
+         using FOP = tuple_element_t<i, inputs_t>;
+         if constexpr (input_activity[i] &&
+                       (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>))
+         {
+            const auto &XE = in_XE_dir[i];
+            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
+            const real_t *B = in_B[i], *G = in_G[i];
+            auto &sarg = get<i>(sargs); // shadow argument register
+            if constexpr (is_value_fop_v<FOP>)
+            {
+               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, sarg);
+            }
+            else
+            {
+               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+               using FieldParamT =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               backend_t::template LoadGradient<RNK,
+                                                decltype(sarg),
+                                                decltype(XE),
+                                                FieldParamT>(
+                                                   smem, e, d, q, Q1D, B, G, XE, sarg);
+            }
+         }
+         else
+         {
+            // Inactive input, or an input read straight from quadrature
+            // point data (weight / identity): nothing to interpolate.
+            static_assert(!input_activity[i] || is_weight_fop_v<FOP> ||
+                          is_identity_fop_v<FOP>, "Unsupported");
+         }
+      });
+
+      // -----------------------------------------------
+      // Evaluate the quadrature function
+      // Warning: no 'DIRECT' on the 'Z' direction,
+      // as one backend may need to iterate over it.
+      // -----------------------------------------------
+      MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+            {
+#ifdef MFEM_USE_ENZYME
+               args_tuple_t primal_args {};
+               shadow_args_t shadow_args {};
+
+               // --------------------------------------
+               // Pulling arguments from registers to primal and shadow
+               // tuples
+               // --------------------------------------
+               for_constexpr<n_inputs>([&](auto ic)
+               {
+                  constexpr size_t i = ic.value;
+                  auto &parg = get<i>(primal_args);
+                  auto &targ = get<i>(shadow_args);
+                  const auto &XE = in_XE[i];
+                  const auto &XEd = in_XE_dir[i];
+                  using FOP = tuple_element_t<i, inputs_t>;
+                  using ARG =
+                     typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                  MFEM_CONTRACT_VAR(targ);
+                  MFEM_CONTRACT_VAR(XEd);
+                  if constexpr (is_identity_fop_v<FOP>)
+                  {
+                     parg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                     if constexpr (input_activity[i])
+                     {
+                        targ = as_tensor<ARG>(&XEd(0, qx, qy, qz, e));
+                     }
+                  }
+                  else if constexpr (is_weight_fop_v<FOP>)
+                  {
+                     parg = XE(qx, qy, qz, 0, 0);
+                  }
+                  else if constexpr (is_value_fop_v<FOP> ||
+                                     is_gradient_fop_v<FOP>)
+                  {
+                     parg = backend_t::template qp_pull<ARG>(
+                        get<i>(rargs), qx, qy, qz);
+                     if constexpr (input_activity[i])
+                     {
+                        targ = backend_t::template qp_pull<ARG>(
+                           get<i>(sargs), qx, qy, qz);
+                     }
+                  }
+                  else
+                  {
+                     static_assert(false, "Unsupported");
+                  }
+               });
+
+               // --------------------------------------
+               // Call the quadrature function. Inactive inputs are
+               // enzyme_const, so their shadow slots are never read and are
+               // deliberately left unset above.
+               // --------------------------------------
+               call_fwddiff(qfunc, primal_args, shadow_args,
+                            std::make_index_sequence<n_inputs + n_outputs> {});
+
+               // --------------------------------------
+               // Pushing arguments from enzyme_shadow tuple to registers
+               // --------------------------------------
+               for_constexpr<n_outputs>([&](auto ic)
+               {
+                  constexpr size_t i = ic.value, o = n_inputs + i;
+                  const auto &qout = get<o>(shadow_args);
+                  auto &YE = out_YE[i];
+                  using FOP = tuple_element_t<i, outputs_t>;
+                  using ARG =
+                     typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+                  if constexpr (is_identity_fop_v<FOP>)
+                  {
+                     as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qout;
+                  }
+                  else if constexpr (is_value_fop_v<FOP> ||
+                                     is_gradient_fop_v<FOP>)
+                  {
+                     auto &rarg = get<o>(rargs);
+                     backend_t::template qp_push_tangent<ARG>(
+                        rarg, qx, qy, qz, qout);
+                  }
+                  else
+                  {
+                     static_assert(false, "Unsupported");
+                  }
+               });
+#else  // MFEM_USE_ENZYME
+               args_tuple_t qargs;
+
+               // --------------------------------------
+               // Pulling arguments from registers to qargs tuple
+               // --------------------------------------
+               for_constexpr<n_inputs>([&](auto ic)
+               {
+                  constexpr size_t i = ic.value;
+                  auto &qarg = get<i>(qargs);
+                  const auto &XE = in_XE[i];
+                  const auto &XEd = in_XE_dir[i];
+                  using FOP = tuple_element_t<i, inputs_t>;
+                  using ARG =
+                     typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                  if constexpr (is_identity_fop_v<FOP>)
+                  {
+                     using DT =
+                        typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+                     if constexpr (qf_param_uses_dual_v<DT>)
+                     {
+                        qarg = backend_t::template identity_qp_pull_dual<DT>(
+                           input_dep[i], XE, XEd, qx, qy, qz, e);
+                     }
+                     else
+                     {
+                        qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                     }
+                  }
+                  else if constexpr (is_weight_fop_v<FOP>)
+                  {
+                     qarg = XE(qx, qy, qz, 0, 0);
+                  }
+                  else if constexpr (is_value_fop_v<FOP> ||
+                                     is_gradient_fop_v<FOP>)
+                  {
+                     qarg = backend_t::template qp_pull_directional<ARG>(
+                        get<i>(rargs),
+                        get<i>(sargs),
+                        qx,
+                        qy,
+                        qz,
+                        input_dep[i]);
+                  }
+                  else
+                  {
+                     static_assert(false, "Unsupported");
+                  }
+               });
+
+               // --------------------------------------
+               // Call the quadrature function
+               // --------------------------------------
+               call_qfunc_no_move(qfunc, qargs);
+
+               // --------------------------------------
+               // Pushing arguments from qargs tuple to registers
+               // --------------------------------------
+               for_constexpr<n_outputs>([&](auto ic)
+               {
+                  constexpr size_t i = ic.value, o = n_inputs + i;
+                  const auto &qarg = get<o>(qargs);
+                  const auto &YE = out_YE[i];
+                  using FOP = tuple_element_t<i, outputs_t>;
+                  using ARG =
+                     typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+                  if constexpr (is_identity_fop_v<FOP>)
+                  {
+                     using DT =
+                        typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+                     if constexpr (qf_param_uses_dual_v<DT>)
+                     {
+                        backend_t::identity_qp_write_tangent(
+                           YE, qx, qy, qz, e, qarg);
+                     }
+                     else
+                     {
+                        as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
+                     }
+                  }
+                  else if constexpr (is_value_fop_v<FOP> ||
+                                     is_gradient_fop_v<FOP>)
+                  {
+                     auto &rarg = get<o>(rargs);
+                     backend_t::template qp_push_tangent<ARG>(
+                        rarg, qx, qy, qz, qarg);
+                  }
+                  else
+                  {
+                     static_assert(false, "Unsupported");
+                  }
+               });
+#endif // MFEM_USE_ENZYME
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // -----------------------------------------------
+      // Integrate outputs
+      // -----------------------------------------------
+      for_constexpr<n_outputs>([&](auto ic)
+      {
+         constexpr size_t i = ic.value, o = n_inputs + i;
+         const int d = out_d1d[i], q = out_q1d[i];
+         const auto B = out_B[i], G = out_G[i];
+         auto &YE = out_YE[i];
+         auto &rarg = get<o>(rargs);
+         using FOP = tuple_element_t<i, outputs_t>;
+         if constexpr (is_value_fop_v<FOP>)
+         {
+            backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
+         }
+         else if constexpr (is_gradient_fop_v<FOP>)
+         {
+            using YE_t = decltype(YE);
+            using rarg_t = decltype(rarg);
+            using qf_param_t =
+               typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+            constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+            backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
+               smem, e, d, q, q1d, B, G, YE, rarg);
+         }
+         else if constexpr (is_identity_fop_v<FOP>)
+         {
+            // nothing to do
+         }
+         else
+         {
+            static_assert(false, "Unsupported");
+         }
+      });
+
+   }
+
+   template<typename backend_t, int T_Q1D>
+   struct DerivativeActionKernelBody
+   {
+      __attribute__((always_inline)) MFEM_HOST_DEVICE static void run(
+         DerivativeActionKernelData<backend_t, T_Q1D> data, const int e)
+      {
+         derivative_action_kernel_body<backend_t, T_Q1D>(data, e);
+      }
+   };
+
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
@@ -287,8 +662,6 @@ public:
       if (ctx.attr.Size() == 0) { return; }
 
       static constexpr auto B2D = backend_t::DIM == 2;
-      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
-      static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
       const int ne = ctx.nentities;
 
@@ -399,330 +772,48 @@ public:
       const bool has_attr = ctx.attr.Size() > 0;
       const auto d_elem_attr = ctx.elem_attr->Read();
 
-      dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *)
+      DerivativeActionKernelData<backend_t, T_Q1D> data
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         qfunc,
+         in_XE,
+         in_XE_dir,
+         out_YE,
+         in_B,
+         in_G,
+         in_d1d,
+         in_q1d,
+         out_B,
+         out_G,
+         out_d1d,
+         out_q1d,
+         input_dep,
+         d_attr,
+         has_attr,
+         d_elem_attr,
+         q1d
+      };
 
-         // -----------------------------------------------
-         // Inputs and outputs argument registers
-         // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
-         shadow_bank_t<backend_t, MQ1> sargs; // shadow, active inputs only
+      const auto blocks = backend_t::thread_blocks(
+                             compute_kernel_thread_1d<inputs_t, outputs_t>(q1d, in_d1d, out_d1d));
 
-         // -----------------------------------------------
-         // Shared memory
-         // -----------------------------------------------
-         MFEM_SHARED typename backend_t::Shared smem;
-
-         // -----------------------------------------------
-         // Load primal inputs (rargs)
-         // -----------------------------------------------
-         for_constexpr<n_inputs>([&](auto ic)
+      if (Device::Allows(Backend::CUDA_MASK) ||
+          Device::Allows(Backend::HIP_MASK))
+      {
+         dfem::forall_data<backend_t::MAX_THREADS_PER_BLOCK(),
+              DerivativeActionKernelBody<backend_t, T_Q1D>>(
+                 data, ne, blocks);
+      }
+      else if (Device::Allows(Backend::CPU_MASK))
+      {
+         for (int e = 0; e < ne; e++)
          {
-            constexpr size_t i = ic.value;
-            const auto &XE = in_XE[i];
-            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
-            auto &rarg = get<i>(rargs);
-            using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
-            {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK,
-                                                decltype(rarg),
-                                                decltype(XE),
-                                                FieldParamT>(
-                                                   smem, e, d, q, Q1D, B, G, XE, rarg);
-            }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
-            {
-               // qp values are read directly from in_XE / IR
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
-         });
-
-         // -----------------------------------------------
-         // Load tangent directions (sargs)
-         // -----------------------------------------------
-         for_constexpr<n_inputs>([&](auto ic)
-         {
-            constexpr size_t i = ic.value;
-            using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (input_activity[i] &&
-                          (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>))
-            {
-               const auto &XE = in_XE_dir[i];
-               const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-               const real_t *B = in_B[i], *G = in_G[i];
-               auto &sarg = get<i>(sargs); // shadow argument register
-               if constexpr (is_value_fop_v<FOP>)
-               {
-                  backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, sarg);
-               }
-               else
-               {
-                  constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-                  using FieldParamT =
-                     typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-                  backend_t::template LoadGradient<RNK,
-                                                   decltype(sarg),
-                                                   decltype(XE),
-                                                   FieldParamT>(
-                                                      smem, e, d, q, Q1D, B, G, XE, sarg);
-               }
-            }
-            else
-            {
-               // Inactive input, or an input read straight from quadrature
-               // point data (weight / identity): nothing to interpolate.
-               static_assert(!input_activity[i] || is_weight_fop_v<FOP> ||
-                             is_identity_fop_v<FOP>, "Unsupported");
-            }
-         });
-
-         // -----------------------------------------------
-         // Evaluate the quadrature function
-         // Warning: no 'DIRECT' on the 'Z' direction,
-         // as one backend may need to iterate over it.
-         // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-               {
-#ifdef MFEM_USE_ENZYME
-                  args_tuple_t primal_args {};
-                  shadow_args_t shadow_args {};
-
-                  // --------------------------------------
-                  // Pulling arguments from registers to primal and shadow
-                  // tuples
-                  // --------------------------------------
-                  for_constexpr<n_inputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value;
-                     auto &parg = get<i>(primal_args);
-                     auto &targ = get<i>(shadow_args);
-                     const auto &XE = in_XE[i];
-                     const auto &XEd = in_XE_dir[i];
-                     using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG =
-                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
-                     MFEM_CONTRACT_VAR(targ);
-                     MFEM_CONTRACT_VAR(XEd);
-                     if constexpr (is_identity_fop_v<FOP>)
-                     {
-                        parg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
-                        if constexpr (input_activity[i])
-                        {
-                           targ = as_tensor<ARG>(&XEd(0, qx, qy, qz, e));
-                        }
-                     }
-                     else if constexpr (is_weight_fop_v<FOP>)
-                     {
-                        parg = XE(qx, qy, qz, 0, 0);
-                     }
-                     else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
-                     {
-                        parg = backend_t::template qp_pull<ARG>(
-                           get<i>(rargs), qx, qy, qz);
-                        if constexpr (input_activity[i])
-                        {
-                           targ = backend_t::template qp_pull<ARG>(
-                              get<i>(sargs), qx, qy, qz);
-                        }
-                     }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
-                  });
-
-                  // --------------------------------------
-                  // Call the quadrature function. Inactive inputs are
-                  // enzyme_const, so their shadow slots are never read and are
-                  // deliberately left unset above.
-                  // --------------------------------------
-                  call_fwddiff(qfunc, primal_args, shadow_args,
-                               std::make_index_sequence<n_inputs + n_outputs> {});
-
-                  // --------------------------------------
-                  // Pushing arguments from enzyme_shadow tuple to registers
-                  // --------------------------------------
-                  for_constexpr<n_outputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value, o = n_inputs + i;
-                     const auto &qout = get<o>(shadow_args);
-                     auto &YE = out_YE[i];
-                     using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG =
-                        typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
-                     {
-                        as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qout;
-                     }
-                     else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
-                     {
-                        auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push_tangent<ARG>(
-                           rarg, qx, qy, qz, qout);
-                     }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
-                  });
-#else  // MFEM_USE_ENZYME
-                  args_tuple_t qargs;
-
-                  // --------------------------------------
-                  // Pulling arguments from registers to qargs tuple
-                  // --------------------------------------
-                  for_constexpr<n_inputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value;
-                     auto &qarg = get<i>(qargs);
-                     const auto &XE = in_XE[i];
-                     const auto &XEd = in_XE_dir[i];
-                     using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG =
-                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
-                     {
-                        using DT =
-                           typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-                        if constexpr (qf_param_uses_dual_v<DT>)
-                        {
-                           qarg = backend_t::template identity_qp_pull_dual<DT>(
-                              input_dep[i], XE, XEd, qx, qy, qz, e);
-                        }
-                        else
-                        {
-                           qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
-                        }
-                     }
-                     else if constexpr (is_weight_fop_v<FOP>)
-                     {
-                        qarg = XE(qx, qy, qz, 0, 0);
-                     }
-                     else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
-                     {
-                        qarg = backend_t::template qp_pull_directional<ARG>(
-                           get<i>(rargs),
-                           get<i>(sargs),
-                           qx,
-                           qy,
-                           qz,
-                           input_dep[i]);
-                     }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
-                  });
-
-                  // --------------------------------------
-                  // Call the quadrature function
-                  // --------------------------------------
-                  call_qfunc_no_move(qfunc, qargs);
-
-                  // --------------------------------------
-                  // Pushing arguments from qargs tuple to registers
-                  // --------------------------------------
-                  for_constexpr<n_outputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value, o = n_inputs + i;
-                     const auto &qarg = get<o>(qargs);
-                     const auto &YE = out_YE[i];
-                     using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG =
-                        typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
-                     {
-                        using DT =
-                           typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-                        if constexpr (qf_param_uses_dual_v<DT>)
-                        {
-                           backend_t::identity_qp_write_tangent(
-                              YE, qx, qy, qz, e, qarg);
-                        }
-                        else
-                        {
-                           as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
-                        }
-                     }
-                     else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
-                     {
-                        auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push_tangent<ARG>(
-                           rarg, qx, qy, qz, qarg);
-                     }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
-                  });
-#endif // MFEM_USE_ENZYME
-               }
-            }
+            derivative_action_kernel_body<backend_t, T_Q1D>(data, e);
          }
-         MFEM_SYNC_THREAD;
-
-         // -----------------------------------------------
-         // Integrate outputs
-         // -----------------------------------------------
-         for_constexpr<n_outputs>([&](auto ic)
-         {
-            constexpr size_t i = ic.value, o = n_inputs + i;
-            const int d = out_d1d[i], q = out_q1d[i];
-            const auto B = out_B[i], G = out_G[i];
-            auto &YE = out_YE[i];
-            auto &rarg = get<o>(rargs);
-            using FOP = tuple_element_t<i, outputs_t>;
-            if constexpr (is_value_fop_v<FOP>)
-            {
-               backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               using YE_t = decltype(YE);
-               using rarg_t = decltype(rarg);
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, q1d, B, G, YE, rarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP>)
-            {
-               // nothing to do
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
-         });
-      },
-      ne,
-      backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
-                                  q1d, in_d1d, out_d1d)),
-      0,
-      nullptr);
+      }
+      else
+      {
+         MFEM_ABORT("no compute backend available");
+      }
    }
 
    using DerivativeKernelType =
