@@ -224,12 +224,12 @@ public:
          functional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          MinimalSurfaceEnergyFunctional<real_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         auto second_derivatives = std::integer_sequence<size_t, U> {};
+         auto second_derivatives = SecondDerivatives<DerivativePair<U, U>> {}; // Or equivalently: SecondDerivatives<Pairs::All> {}; 
          functional_dop->AddDomainIntegrator<LocalQFBackend>(
             energy,
             Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Q>> {}, /* Value<U>, Gradient<U> */
-            ir, all_domain_attr, derivatives /* , second_derivatives */);
+            ir, all_domain_attr, derivatives, second_derivatives);
       }
 
       // Manually computed residual
@@ -542,7 +542,8 @@ void mixed_second_derivative(const char *filename, int p)
       Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
       Outputs<FunctionalValue<Q>> {},
       ir, all_domain_attr,
-      Derivatives<U, Rho> {});
+      Derivatives<U, Rho> {},
+      SecondDerivatives<Pairs::All> {});
 
    MultiVector X{u, rho, coords};
 
@@ -656,7 +657,96 @@ void mixed_second_derivative(const char *filename, int p)
                one);
 }
 
+// Registers the mixed functional with the given second derivative request and
+// reports which of the four Hessian blocks became available, in the order
+// (U,U), (U,Rho), (Rho,U), (Rho,Rho).
+template <typename second_derivatives_t>
+std::array<bool, 4> registered_blocks(second_derivatives_t second_derivatives)
+{
+   static constexpr int DIM = 2;
+   static constexpr int U = 0, Rho = 1, Coords = 2, Q = 3;
+
+   Mesh smesh("../../data/inline-quad.mesh");
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   H1_FECollection fec(1, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const IntegrationRule &ir =
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), 2);
+
+   Array<int> all_domain_attr;
+   if (pmesh.attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.attributes.Max());
+      all_domain_attr = 1;
+   }
+
+   QuadratureSpace qspace(pmesh, ir);
+   VectorQuadratureSpace qspace_vec(qspace, 1);
+
+   DifferentiableOperator dop(
+      std::vector{FieldDescriptor{U, &fes},
+                  FieldDescriptor{Rho, &fes},
+                  FieldDescriptor{Coords, mfes}},
+      std::vector{FieldDescriptor{Q, &qspace_vec}}, pmesh);
+
+   MixedFunctional<real_t, DIM> functional;
+   dop.AddDomainIntegrator<LocalQFBackend>(
+      functional,
+      Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
+      Outputs<FunctionalValue<Q>> {},
+      ir, all_domain_attr,
+      Derivatives<U, Rho> {},
+      second_derivatives);
+
+   return
+   {
+      dop.HasSecondDerivative(U, U), dop.HasSecondDerivative(U, Rho),
+      dop.HasSecondDerivative(Rho, U), dop.HasSecondDerivative(Rho, Rho)
+   };
+}
+
 } // namespace second_derivative_test
+
+TEST_CASE("dFEM functional second derivative registration",
+          "[Parallel][dFEM][second-derivative]")
+{
+   using namespace second_derivative_test;
+   static constexpr int U = 0, Rho = 1;
+
+   // (U,U), (U,Rho), (Rho,U), (Rho,Rho)
+   using blocks_t = std::array<bool, 4>;
+
+   SECTION("none")
+   {
+      REQUIRE(registered_blocks(SecondDerivatives<Pairs::None> {}) ==
+              blocks_t{false, false, false, false});
+   }
+
+   SECTION("all")
+   {
+      REQUIRE(registered_blocks(SecondDerivatives<Pairs::All> {}) ==
+              blocks_t{true, true, true, true});
+   }
+
+   SECTION("diagonal")
+   {
+      REQUIRE(registered_blocks(SecondDerivatives<Pairs::Diagonal> {}) ==
+              blocks_t{true, false, false, true});
+   }
+
+   SECTION("custom")
+   {
+      // One Hessian block and one mixed block.
+      REQUIRE(registered_blocks(
+                 SecondDerivatives<DerivativePair<U, U>,
+                 DerivativePair<Rho, U>> {}) ==
+              blocks_t{true, false, true, false});
+   }
+}
 
 TEST_CASE("dFEM functional second derivative action matches mfem",
           "[Parallel][dFEM][second-derivative][GPU]")

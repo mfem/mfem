@@ -353,6 +353,7 @@ public:
       }
 
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
+      auto second_derivatives = SecondDerivatives<Pairs::All> {};
       switch (material)
       {
          case MaterialType::NeoHookean:
@@ -365,7 +366,7 @@ public:
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
-               ir, all_domain_attr, derivatives);
+               ir, all_domain_attr, derivatives, second_derivatives);
             break;
          }
          case MaterialType::LinearElastic:
@@ -377,7 +378,7 @@ public:
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
-               ir, all_domain_attr, derivatives);
+               ir, all_domain_attr, derivatives, second_derivatives);
             break;
          }
          case MaterialType::MooneyRivlin:
@@ -389,7 +390,7 @@ public:
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
-               ir, all_domain_attr, derivatives);
+               ir, all_domain_attr, derivatives, second_derivatives);
             break;
          }
          case MaterialType::Holzapfel:
@@ -402,7 +403,7 @@ public:
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
-               ir, all_domain_attr, derivatives);
+               ir, all_domain_attr, derivatives, second_derivatives);
             break;
          }
       }

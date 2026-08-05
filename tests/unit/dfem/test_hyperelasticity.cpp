@@ -131,6 +131,7 @@ public:
       }
 
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
+      auto second_derivatives = SecondDerivatives<Pairs::All> {};
       if (use_energy)
       {
          NeoHookeanEnergy<dscalar_t> energy;
@@ -138,7 +139,7 @@ public:
             energy,
             Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Energy>> {},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives, second_derivatives);
       }
       else
       {

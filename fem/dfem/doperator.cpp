@@ -353,4 +353,12 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    use_cached_setup);
 }
 
+bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
+                                                 size_t direction_id) const
+{
+   const second_derivative_key_t derivative_key{gradient_id, direction_id};
+   const auto it = second_derivative_action_callbacks.find(derivative_key);
+   return it != second_derivative_action_callbacks.end() && !it->second.empty();
+}
+
 #endif // MFEM_USE_MPI

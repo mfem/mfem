@@ -806,14 +806,16 @@ public:
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t>
+      typename derivative_ids_t,
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &attributes,
-      derivative_ids_t derivative_ids);
+      derivative_ids_t derivative_ids,
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Add a domain integrator to the operator.
    ///
@@ -827,19 +829,28 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
+   /// @param second_derivative_ids Second derivative (Hessian) blocks to be
+   /// made available for this integrator, only supported for functional
+   /// integrators. Either SecondDerivatives<Pairs::None> {} for none of them
+   /// (the default), SecondDerivatives<Pairs::All> {} for every block that can
+   /// be formed from @a derivative_ids, SecondDerivatives<Pairs::Diagonal> {}
+   /// for the diagonal blocks only, or an explicit list such as
+   /// SecondDerivatives<DerivativePair<U, Rho>> {}.
    template <
       typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddDomainIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &domain_attributes,
-      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Add a boundary integrator to the operator.
    ///
@@ -853,19 +864,23 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
+   /// @param second_derivative_ids Second derivative (Hessian) blocks to be
+   /// made available for this integrator, see AddDomainIntegrator().
    template <
       typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddBoundaryIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &boundary_attributes,
-      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Disable the use of tensor product structure.
    ///
@@ -994,6 +1009,11 @@ public:
       size_t gradient_id, size_t direction_id, const MultiVector &x,
       const bool use_cached_setup = false);
 
+   /// @brief Returns true if the second derivative block
+   /// d/d(direction_id) grad_(gradient_id) has been registered, i.e. if it was
+   /// requested through the SecondDerivatives of one of the integrators.
+   bool HasSecondDerivative(size_t gradient_id, size_t direction_id) const;
+
    template <typename qfunc_t>
    qfunc_t *GetDerivativeActionQFunction(size_t derivative_id,
                                          size_t integrator = 0)
@@ -1105,17 +1125,20 @@ template <
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &domain_attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   second_derivative_ids_t second_derivative_ids)
 {
    AddIntegrator<backend_t, Entity::Element>(
-      qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
+      qfunc, inputs, outputs, integration_rule, domain_attributes,
+      derivative_ids, second_derivative_ids);
 }
 
 template <
@@ -1123,21 +1146,24 @@ template <
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddBoundaryIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &boundary_attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   second_derivative_ids_t second_derivative_ids)
 {
    if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
    AddIntegrator<backend_t, Entity::BoundaryElement>(
-      qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
+      qfunc, inputs, outputs, integration_rule, boundary_attributes,
+      derivative_ids, second_derivative_ids);
 }
 
 template <
@@ -1146,14 +1172,16 @@ template <
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   [[maybe_unused]] second_derivative_ids_t second_derivative_ids)
 {
    if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
                    std::is_same_v<entity_t, Entity::BoundaryElement>))
@@ -1193,6 +1221,39 @@ void DifferentiableOperator::AddIntegrator(
                std::to_string(unionfds.size()) + ")");
 
    constexpr bool is_functional = check_if_functional_v<output_t>;
+
+   // The requested second derivative blocks are either selected by one of the
+   // Pairs markers or listed explicitly as DerivativePairs.
+   constexpr bool no_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::None>>;
+   constexpr bool all_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::All>>;
+   constexpr bool diagonal_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
+
+   // Second derivatives checks:
+   // - Second derivatives are only available for functional integrators.
+   // - If they are listed explicitly, every second derivative block has to
+   //   refer to a gradient field id that is also present in the requested
+   //   derivatives. The markers pick their blocks from those ids to begin with
+   //   and carry no ids of their own to check.
+   if constexpr (!no_second_derivatives)
+   {
+      static_assert(is_functional,
+                    "second derivatives are only available for functional "
+                    "integrators");
+
+      if constexpr (!all_second_derivatives && !diagonal_second_derivatives)
+      {
+         // If custom second derivative blocks are requested, check that they refer to
+         // gradient field ids that are also present in the requested derivatives.
+         static_assert(
+            second_derivative_gradients_available(second_derivative_ids_t {},
+                                                  derivative_ids_t {}),
+            "every second derivative block has to refer to a gradient field id "
+            "that is also present in the requested derivatives");
+      }
+   }
 
    [[maybe_unused]] auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(infds, inputs);
@@ -1441,7 +1502,8 @@ void DifferentiableOperator::AddIntegrator(
          const auto first_derivative_ctx =
             set_functional_derivative_fds(idx, derivative_outputs_fds,
                                           derivative_all_fds);
-         for_constexpr([&](auto j)
+         // Register the second derivative d/d(direction) grad_idx J.
+         auto create_second_derivative_callbacks = [&](auto j)
          {
             constexpr size_t direction_idx = decltype(j)::value;
             integrator_qp_caches.emplace_back(std::make_unique<Vector>());
@@ -1461,7 +1523,29 @@ void DifferentiableOperator::AddIntegrator(
                              second_derivative_action_callbacks,
                              second_qp_cache,
                              derivative_ctx, dqfunc, first_derivative_outputs);
-         }, derivative_ids);
+         };
+
+         if constexpr (all_second_derivatives)
+         {
+            // Every block formed from the requested derivatives.
+            for_constexpr(create_second_derivative_callbacks, derivative_ids);
+         }
+         else if constexpr (diagonal_second_derivatives)
+         {
+            // Only d/d(idx) grad_idx J, no mixed derivatives.
+            create_second_derivative_callbacks(i);
+         }
+         else if constexpr (!no_second_derivatives)
+         {
+            for_constexpr_with_arg([&](auto, auto pair)
+                                   {
+               using pair_t = decltype(pair);
+               if constexpr (pair_t::gradient_id == idx)
+               {
+                  create_second_derivative_callbacks(
+                     std::integral_constant<size_t, pair_t::direction_id> {});
+               } }, second_derivative_ids);
+         }
 
          // The first derivative (gradient) of the functional is the plain
          // action of the reverse-mode-differentiated energy dqfunc. Register
