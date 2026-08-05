@@ -1302,7 +1302,7 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
 
             for (int d = 0; d < dim; d++)
             {
-               (*d_energy)(d) += 0.5 * w * wn * (ni_Jt(d) * nor_Ji(d) + ni_Ji(d) * nor_Jt(d));
+               (*d_energy)(d) += 0.5 * w * (ni_Jt(d) * nor_Ji(d) + ni_Ji(d) * nor_Jt(d));
             }
          }
       }
