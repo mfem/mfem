@@ -52,10 +52,10 @@ SHARED = NO
 #
 # If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
-# The CUDA compute capability used during compilation, e.g. sm_60. Multiple
-# architectures can be requested as a comma-separated list, e.g. sm_70,sm_80. A
-# single value may also be one of the nvcc special values "all", "all-major", or
-# "native".
+# CUDA compute capability used during compilation, e.g. sm_60. Multiple
+# architectures can be requested as a comma-separated list, e.g. sm_70,sm_80.
+# A single value may also be one of the nvcc special values "all",
+# "all-major", or "native".
 CUDA_ARCH = sm_60
 # Base CUDA install directory, only needed if building with clang+cuda:
 # The default setting is:
@@ -64,21 +64,18 @@ CUDA_ARCH = sm_60
 # 3. Use /usr/local/cuda
 CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
  $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
-# Derive the architecture flags from CUDA_ARCH. A single value (or one of the
-# special values all/all-major/native) uses the "-arch" shorthand; a
-# comma-separated list is expanded into a per-architecture code-generation
-# sequence.
+# Derive nvcc/clang architecture flags from CUDA_ARCH. A comma-separated list
+# expands into one -gencode / --cuda-gpu-arch flag per architecture; otherwise
+# use the -arch / --cuda-gpu-arch shorthand.
 MFEM_COMMA := ,
 CUDA_ARCH_NUMS = $(patsubst sm_%,%,$(subst $(MFEM_COMMA), ,$(CUDA_ARCH)))
-ifeq ($(findstring $(MFEM_COMMA),$(CUDA_ARCH)),)
-   NVCC_ARCH_FLAGS = -arch=$(CUDA_ARCH)
-   CLANG_ARCH_FLAGS = --cuda-gpu-arch=$(CUDA_ARCH)
-else
-   NVCC_ARCH_FLAGS = $(strip $(foreach arch,$(CUDA_ARCH_NUMS),\
- -gencode arch=compute_$(arch)$(MFEM_COMMA)code=sm_$(arch)))
-   CLANG_ARCH_FLAGS = $(strip $(foreach arch,$(CUDA_ARCH_NUMS),\
- --cuda-gpu-arch=sm_$(arch)))
-endif
+NVCC_ARCH_FLAGS = $(strip $(if $(findstring $(MFEM_COMMA),$(CUDA_ARCH)),\
+ $(foreach arch,$(CUDA_ARCH_NUMS),\
+ -gencode arch=compute_$(arch)$(MFEM_COMMA)code=sm_$(arch)),\
+ -arch=$(CUDA_ARCH)))
+CLANG_ARCH_FLAGS = $(strip $(if $(findstring $(MFEM_COMMA),$(CUDA_ARCH)),\
+ $(foreach arch,$(CUDA_ARCH_NUMS),--cuda-gpu-arch=sm_$(arch)),\
+ --cuda-gpu-arch=$(CUDA_ARCH)))
 # flags for clang+cuda
 CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) $(CLANG_ARCH_FLAGS)
 # flags for nvcc
