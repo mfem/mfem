@@ -2818,18 +2818,6 @@ const int *BrokenRT_FECollection::DofOrderForOrientation(
    Geometry::Type GeomType,
    int Or) const
 {
-   if (GeomType == Geometry::SEGMENT)
-   {
-      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
-   }
-   else if (GeomType == Geometry::TRIANGLE)
-   {
-      return TriDofOrd[Or%6];
-   }
-   else if (GeomType == Geometry::SQUARE)
-   {
-      return QuadDofOrd[Or%8];
-   }
    return NULL;
 }
 
