@@ -840,7 +840,7 @@ void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem
 
 void CCSAOptimizer::UpdateGCMMA(mfem::Vector& x, const mfem::Vector& df0dx, mfem::real_t f0val,
                                  const mfem::Vector& fival, const mfem::Vector* dfidx,
-                                 EvalCallback eval_fi, int max_inner, int* innerIter)
+                                 GCMMAEvalCallback eval_fi, int max_inner, int* innerIter)
 {
     RequireBounds_();
     if (!have_rho_) { ComputeInitialRho_(df0dx, dfidx, rho_); have_rho_ = true; }
@@ -1184,7 +1184,7 @@ void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vecto
 
 void CCSAOptimizerParallel::UpdateGCMMA(mfem::Vector& x_local, const mfem::Vector& df0dx_local, mfem::real_t f0val,
                                          const mfem::Vector& fival, const mfem::Vector* dfidx_local,
-                                         EvalCallback eval_fi, int max_inner, int* innerIter)
+                                         GCMMAEvalCallback eval_fi, int max_inner, int* innerIter)
 {
     RequireBounds_();
     if (!have_rho_) { ComputeInitialRho_(df0dx_local, dfidx_local, rho_); have_rho_ = true; }

@@ -188,6 +188,7 @@ find_package(BLAS   REQUIRED)
 # the include/link flags.
 
 add_library(mma_mfem_lib STATIC MMA_MFEM.cpp)
+target_sources(mma_mfem_lib PRIVATE MMA_Equality_MFEM.cpp)
 target_sources(mma_mfem_lib PRIVATE LatentMirrorOptimizer.cpp)
 target_sources(mma_mfem_lib PRIVATE CCSA_Bregman_MFEM.cpp)
 
@@ -330,7 +331,11 @@ mma_add_test(NAME test_mma_gcmma_callback             PARALLEL)
 mma_add_test(NAME test_mma_zero_ranks                 PARALLEL)
 mma_add_test(NAME test_mma_overconstrained            PARALLEL)
 mma_add_test(NAME test_mma_nonconvex                  PARALLEL)
+mma_add_test(NAME test_mma_nonlinear_constraints      PARALLEL)
 mma_add_test(NAME test_mma_equalities                 PARALLEL)
+mma_add_test(NAME test_mma_equality_serial)
+mma_add_test(NAME test_mma_equality_parallel          PARALLEL)
+mma_add_test(NAME test_mma_equality_nonconvex         PARALLEL LABELS large)
 mma_add_test(NAME test_mma_relaxed_equalities_serial)
 mma_add_test(NAME test_mma_relaxed_equalities_parallel PARALLEL)
 
@@ -473,6 +478,7 @@ install(TARGETS mma_mfem_lib
   LIBRARY DESTINATION lib)
 
 install(FILES MMA_MFEM.hpp MMA_MFEM.cpp
+              MMA_Equality_MFEM.hpp MMA_Equality_MFEM.cpp
   DESTINATION include/mma_mfem)
 
 # ---------------------------------------------------------------------------

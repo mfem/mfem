@@ -196,7 +196,7 @@ Result RunCase(int n,double volume,double final_penalty,bool continuation,
       {
          int inner=0;
          optimizer.UpdateGCMMA(x,gradient,real_t(objective),h,&dh,xmin,xmax,
-            [&](const Vector &candidate,real_t &true_objective,Vector &true_h)
+            [&](const Vector &candidate,Vector &true_h,real_t &true_objective)
             {
                true_objective=real_t(problem.Evaluate(candidate,penalty));
                true_h.SetSize(1);

@@ -1530,7 +1530,7 @@ void MMAOptimizer::UpdateGCMMA(
     const mfem::Vector* dfidx,
     const mfem::Vector& xmin,
     const mfem::Vector& xmax,
-    EvalCallback eval_fi,
+    GCMMAEvalCallback eval_fi,
     int  max_inner,
     int* innerIter)
 {
@@ -1928,7 +1928,7 @@ void MMAOptimizerParallel::UpdateGCMMA(
     const mfem::Vector* dfidx_local,
     const mfem::Vector& xmin_local,
     const mfem::Vector& xmax_local,
-    EvalCallback eval_fi,
+    GCMMAEvalCallback eval_fi,
     int  max_inner,
     int* innerIter)
 {

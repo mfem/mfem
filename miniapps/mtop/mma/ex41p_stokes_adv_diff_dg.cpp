@@ -4,16 +4,13 @@
 // Compile: place in an MFEM build directory alongside the other examples,
 //          add to the CMakeLists/Makefile, then: make ex41p_stokes_adv_diff
 //
-// Sample runs:
-//   # Periodic square, Gaussian blob transported by a sinusoidal body force
-//   mpirun -np 4 ./ex41p_stokes_adv_diff \
-//     -m ../data/periodic-square.mesh -rs 2 -rp 1 -o 2 \
-//     -fa 5 -nu 0.01 -dt 0.005 -tf 2.0 -pv -pvs 20
-//
-//   # Non-periodic (no-slip walls), higher forcing
-//   mpirun -np 4 ./ex41p_stokes_adv_diff \
-//     -m ../data/square-disc.mesh -rs 2 -rp 1 -o 2 \
-//     -fa 10 -nu 0.01 -dt 0.005 -tf 1.0 -pv
+/* Sample runs:
+ *   # Periodic square, Gaussian blob transported by a sinusoidal body force
+ *   mpirun -np 4 ./ex41p_stokes_adv_diff -m ../data/periodic-square.mesh -rs 2 -rp 1 -o 2 -fa 5 -nu 0.01 -dt 0.005 -tf 2.0 -pv -pvs 20
+ *
+ *   # Non-periodic (no-slip walls), higher forcing
+ *   mpirun -np 4 ./ex41p_stokes_adv_diff -m ../data/square-disc.mesh -rs 2 -rp 1 -o 2 -fa 10 -nu 0.01 -dt 0.005 -tf 1.0 -pv
+ */
 //
 // ---------------------------------------------------------------------------
 // Description:

@@ -201,6 +201,21 @@ void SolveDualSQ(
 
 } // namespace detail
 
+/**
+ * @brief True-model evaluator shared by every UpdateGCMMA() in this
+ * namespace: MMAOptimizer, MMAOptimizerParallel, CCSAOptimizer,
+ * CCSAOptimizerParallel, MMAEqualityOptimizer, MMAEqualityOptimizerParallel.
+ *
+ * Called with a candidate design (first argument); must fill the true
+ * constraint/equality values (second argument, resized to the problem's
+ * constraint count and filled) and the true objective value (third
+ * argument) at that candidate. Called on every inner iteration, and on
+ * every MPI rank for the parallel classes (must return globally
+ * replicated values there).
+ */
+using GCMMAEvalCallback = std::function<void(const mfem::Vector&,
+                                              mfem::Vector&,
+                                              mfem::real_t&)>;
 
 // ============================================================
 /**
@@ -523,10 +538,6 @@ public:
      *
      * All other parameters are identical to the basic UpdateGCMMA overload.
      */
-    using EvalCallback = std::function<void(const mfem::Vector&,
-                                             mfem::Vector&,
-                                             mfem::real_t&)>;
-
     void UpdateGCMMA(mfem::Vector& x,
                      const mfem::Vector& df0dx,
                      mfem::real_t f0val,
@@ -534,7 +545,7 @@ public:
                      const mfem::Vector* dfidx,
                      const mfem::Vector& xmin,
                      const mfem::Vector& xmax,
-                     EvalCallback eval_fi,
+                     GCMMAEvalCallback eval_fi,
                      int  max_inner = 15,
                      int* innerIter = nullptr);
 
@@ -951,10 +962,6 @@ public:
      *
      * @param max_inner  Maximum inner iterations.  Default 15.
      */
-    using EvalCallback = std::function<void(const mfem::Vector&,
-                                             mfem::Vector&,
-                                             mfem::real_t&)>;
-
     void UpdateGCMMA(mfem::Vector& x_local,
                      const mfem::Vector& df0dx_local,
                      mfem::real_t f0val,
@@ -962,7 +969,7 @@ public:
                      const mfem::Vector* dfidx_local,
                      const mfem::Vector& xmin_local,
                      const mfem::Vector& xmax_local,
-                     EvalCallback eval_fi,
+                     GCMMAEvalCallback eval_fi,
                      int  max_inner = 15,
                      int* innerIter = nullptr);
 

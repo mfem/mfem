@@ -7,6 +7,7 @@
 namespace mfem_mma {
 namespace {
 
+/// Validate sizes for an Update()/UpdateGCMMA()/KKTresidual() call.
 void CheckInput(int n, int m, const mfem::Vector &x,
                 const mfem::Vector &df0dx, const mfem::Vector &hval,
                 const mfem::Vector *dhdx, const mfem::Vector &xmin,
@@ -26,6 +27,7 @@ void CheckInput(int n, int m, const mfem::Vector &x,
    }
 }
 
+/// Validate sizes for a RestoreFeasibility() call.
 void CheckRestorationInput(int n, int m, const mfem::Vector &x,
                            const mfem::Vector &hval,
                            const mfem::Vector *dhdx,
@@ -44,6 +46,7 @@ void CheckRestorationInput(int n, int m, const mfem::Vector &x,
                   "MMA equality restoration gradient size mismatch");
 }
 
+/// Resize @p v to length @p n, set its device flag, and zero it.
 void InitVector(mfem::Vector &v, int n, bool use_device)
 {
    v.SetSize(n);
@@ -51,6 +54,14 @@ void InitVector(mfem::Vector &v, int n, bool use_device)
    v = 0.0;
 }
 
+/**
+ * Update the MMA asymptotes L/U and move-limit box alpha/beta for one
+ * design variable set, following the classic Svanberg oscillation rule:
+ * asymptotes contract on sign changes between consecutive steps (xo1,xo2)
+ * and expand on monotonic progress, clamped to [1e-4, 100] times the
+ * variable's range. alpha/beta are then set to a fraction of the distance
+ * to L/U, clipped to [xmin, xmax] and a 0.5*range move limit.
+ */
 void UpdateAsymptotes(int n, int iter, double asyminit, double asymdec,
                       double asyminc, const mfem::Vector &x,
                       const mfem::Vector &xo1, const mfem::Vector &xo2,
@@ -94,6 +105,13 @@ void UpdateAsymptotes(int n, int iter, double asyminit, double asymdec,
    });
 }
 
+/**
+ * Build the separable MMA objective coefficients p0/q0 from the current
+ * gradient df0dx and asymptotes L/U, following Svanberg's convex MMA
+ * approximation. @p rho adds a curvature floor shared by both p0 and q0
+ * (see ObjectiveRho()); rho=0 reduces to a small fixed regularization that
+ * only guards against a zero-gradient direction having zero curvature.
+ */
 void BuildObjective(int n, const mfem::Vector &x,
                     const mfem::Vector &df0dx,
                     const mfem::Vector &xmin, const mfem::Vector &xmax,
@@ -118,6 +136,13 @@ void BuildObjective(int n, const mfem::Vector &x,
    });
 }
 
+/**
+ * Baseline GCMMA curvature parameter: half the design-size-averaged,
+ * range-weighted gradient magnitude, floored at 1e-6. Used as the initial
+ * @p rho passed to BuildObjective() and grown on rejected GCMMA attempts
+ * (see MMAEqualityOptimizer::UpdateGCMMA()). When @p parallel is set, the
+ * weighted-gradient sum and design size are reduced across @p comm.
+ */
 double ObjectiveRho(int n,const mfem::Vector &df0dx,
                     const mfem::Vector &xmin,const mfem::Vector &xmax,
                     bool parallel
@@ -149,6 +174,11 @@ double ObjectiveRho(int n,const mfem::Vector &df0dx,
    return std::max(1e-6,0.5*global/double(std::max<long long>(global_n,1)));
 }
 
+/**
+ * Value of the separable MMA objective model P_k(candidate), normalized so
+ * that P_k(xk) == f0val. When @p parallel is set the per-coordinate sum is
+ * reduced across @p comm before adding f0val (added once, not per rank).
+ */
 double ObjectiveModelValue(int n,const mfem::Vector &xk,
                            const mfem::Vector &candidate,
                            const mfem::Vector &L,const mfem::Vector &U,
@@ -181,6 +211,13 @@ double ObjectiveModelValue(int n,const mfem::Vector &xk,
    return f0val+global;
 }
 
+/**
+ * L1 norm of the affine equality model h(xk) + J(xk)*(candidate-xk),
+ * i.e. how well the candidate satisfies the linearized equalities used by
+ * the subproblem. Used as the constraint-violation term of the GCMMA merit
+ * function. Gradient dot products are reduced across @p comm when
+ * @p parallel is set.
+ */
 double AffineResidualNorm(int n,int m,const mfem::Vector &xk,
                           const mfem::Vector &candidate,
                           const mfem::Vector &hval,
@@ -210,6 +247,7 @@ double AffineResidualNorm(int n,int m,const mfem::Vector &xk,
    return norm1;
 }
 
+/// L1 norm of a (small, host-resident) equality-value vector, e.g. hval.
 double Norm1(const mfem::Vector &values)
 {
    double result=0.0;
@@ -217,6 +255,8 @@ double Norm1(const mfem::Vector &values)
    return result;
 }
 
+/// Halve the move-limit box [alpha,beta] around xk in place, used after a
+/// rejected GCMMA attempt to shrink the trust region for the next retry.
 void ContractMoveLimits(int n,const mfem::Vector &xk,
                         mfem::Vector &alpha,mfem::Vector &beta)
 {
@@ -229,6 +269,12 @@ void ContractMoveLimits(int n,const mfem::Vector &xk,
    });
 }
 
+/**
+ * Squared Euclidean norm of (candidate-xk) with each coordinate scaled by
+ * its move-limit range, used as the step-size denominator when growing the
+ * GCMMA curvature parameter after a rejected attempt. Reduced across
+ * @p comm when @p parallel is set.
+ */
 double ScaledStepNorm2(int n,const mfem::Vector &xk,
                        const mfem::Vector &candidate,
                        const mfem::Vector &xmin,const mfem::Vector &xmax,
@@ -258,6 +304,12 @@ double ScaledStepNorm2(int n,const mfem::Vector &xk,
    return global;
 }
 
+/**
+ * Solve the dense n-by-n system a*x = b by partial-pivoted Gaussian
+ * elimination; @p a and @p b are taken by value since they are used as
+ * scratch. Returns false (leaving @p x unspecified) if a pivot is smaller
+ * than 1e-18, i.e. the system is numerically singular.
+ */
 bool SolveDense(std::vector<double> a, std::vector<double> b,
                 int n, std::vector<double> &x)
 {
@@ -289,6 +341,8 @@ bool SolveDense(std::vector<double> a, std::vector<double> b,
    return true;
 }
 
+/// Immutable inputs to the separable MMA subproblem shared by Evaluate()
+/// across the equality-multiplier Newton iteration in SolveSubproblem().
 struct SubproblemData
 {
    int n=0, m=0;
@@ -301,14 +355,42 @@ struct SubproblemData
    bool parallel=false;
 };
 
+/// Scratch design-sized vectors reused by Evaluate() across the Newton and
+/// line-search iterations of one SolveSubproblem() call, to avoid
+/// reallocating device vectors on every candidate multiplier evaluation.
+struct SubproblemWorkspace
+{
+   mfem::Vector linear, delta, inv_curvature, scaled;
+   /// (Re)size all scratch vectors to length @p n with the given device flag.
+   void Init(int n, bool use_device)
+   {
+      linear.SetSize(n); linear.UseDevice(use_device);
+      delta.SetSize(n); delta.UseDevice(use_device);
+      inv_curvature.SetSize(n); inv_curvature.UseDevice(use_device);
+      scaled.SetSize(n); scaled.UseDevice(use_device);
+   }
+};
+
+/**
+ * Given fixed equality multipliers @p lambda, minimize the separable MMA
+ * objective plus the linear term lambda^T*dh over the move-limit box
+ * [alpha,beta] (each coordinate independently, via closed-form bound
+ * checks and bisection on the convex 1-D optimality condition), writing
+ * the result into @p x. Computes the resulting affine equality residual
+ * r(lambda) = h + J*(x-xk) into @p residual, and, if @p matrix is
+ * non-null, the reduced Hessian J*diag(1/curvature)*J^T used for the
+ * multiplier Newton step in SolveSubproblem(). Local per-rank sums are
+ * MPI-reduced across s.comm when s.parallel is set.
+ *
+ * @return Euclidean norm of the (globally reduced) residual.
+ */
 double Evaluate(const SubproblemData &s, const std::vector<double> &lambda,
                 mfem::Vector &x, std::vector<double> &residual,
-                std::vector<double> *matrix)
+                std::vector<double> *matrix, SubproblemWorkspace &ws)
 {
    const bool use_dev=s.xk->UseDevice();
-   mfem::Vector linear(s.n), delta(s.n), inv_curvature(s.n), scaled(s.n);
-   linear.UseDevice(use_dev); delta.UseDevice(use_dev);
-   inv_curvature.UseDevice(use_dev); scaled.UseDevice(use_dev);
+   mfem::Vector &linear=ws.linear, &delta=ws.delta;
+   mfem::Vector &inv_curvature=ws.inv_curvature, &scaled=ws.scaled;
    linear=0.0;
    for(int i=0;i<s.m;++i)
    {
@@ -401,18 +483,29 @@ double Evaluate(const SubproblemData &s, const std::vector<double> &lambda,
    return std::sqrt(norm2);
 }
 
+/**
+ * Solve the MMA subproblem for the current @p lambda in place: a
+ * semismooth Newton iteration on the equality multipliers, each step
+ * backtracked (halving theta) until the residual norm decreases, stopping
+ * on convergence, a singular reduced system, or a failed line search.
+ * When s.m==0 this reduces to a single unconstrained separable
+ * minimization. On return @p x holds the resulting design and @p lambda
+ * the multipliers that produced it.
+ */
 void SolveSubproblem(const SubproblemData &s, std::vector<double> &lambda,
                      mfem::Vector &x)
 {
+   SubproblemWorkspace ws;
+   ws.Init(s.n,s.xk->UseDevice());
    if (s.m==0)
    {
       std::vector<double> residual;
-      Evaluate(s,lambda,x,residual,nullptr);
+      Evaluate(s,lambda,x,residual,nullptr,ws);
       return;
    }
    mfem::Vector trial(x.Size()); trial.UseDevice(x.UseDevice());
    std::vector<double> residual, matrix;
-   double norm=Evaluate(s,lambda,x,residual,&matrix);
+   double norm=Evaluate(s,lambda,x,residual,&matrix,ws);
    const double tolerance=1e-10*(1.0+norm);
    for (int it=0;it<80 && norm>tolerance;++it)
    {
@@ -426,17 +519,19 @@ void SolveSubproblem(const SubproblemData &s, std::vector<double> &lambda,
       for (int ls=0;ls<24;++ls)
       {
          for (int i=0;i<s.m;++i) candidate[i]=lambda[i]+theta*step[i];
-         trial_norm=Evaluate(s,candidate,trial,trial_residual,nullptr);
+         trial_norm=Evaluate(s,candidate,trial,trial_residual,nullptr,ws);
          if (trial_norm < norm) { break; }
          theta*=0.5;
       }
       if (!(trial_norm < norm)) { break; }
       lambda.swap(candidate);
       x=trial;
-      norm=Evaluate(s,lambda,x,residual,&matrix);
+      norm=Evaluate(s,lambda,x,residual,&matrix,ws);
    }
 }
 
+/// Immutable inputs to the affine feasibility-restoration projection
+/// shared by EvaluateRestoration() across RestoreAffine()'s Newton loop.
 struct RestorationData
 {
    int n=0, m=0;
@@ -448,16 +543,43 @@ struct RestorationData
    bool parallel=false;
 };
 
+/// Scratch design-sized vectors reused by EvaluateRestoration() across one
+/// RestoreAffine() call's Newton and line-search iterations.
+struct RestorationWorkspace
+{
+   mfem::Vector jt_nu, delta, free_weight, scaled;
+   /// (Re)size all scratch vectors to length @p n with the given device flag.
+   void Init(int n, bool use_device)
+   {
+      jt_nu.SetSize(n); jt_nu.UseDevice(use_device);
+      delta.SetSize(n); delta.UseDevice(use_device);
+      free_weight.SetSize(n); free_weight.UseDevice(use_device);
+      scaled.SetSize(n); scaled.UseDevice(use_device);
+   }
+};
+
+/**
+ * Given fixed restoration multipliers @p nu, evaluate the stationarity
+ * condition of RestoreFeasibility()'s box-constrained projection
+ * min 1/2 sum((x-xk)/range)^2 s.t. h(xk)+J(xk)*(x-xk)=0: each unconstrained
+ * optimum x = xk - range^2*J^T*nu is clipped to [xmin,xmax] (free_weight
+ * is zeroed for clipped coordinates so they drop out of the reduced
+ * Hessian). Mirrors Evaluate()'s role but for the RestoreAffine() Newton
+ * iteration on @p nu instead of the subproblem's @p lambda. Local per-rank
+ * sums are MPI-reduced across s.comm when s.parallel is set.
+ *
+ * @return Euclidean norm of the (globally reduced) affine residual.
+ */
 double EvaluateRestoration(const RestorationData &s,
                            const std::vector<double> &nu,
                            mfem::Vector &x,
                            std::vector<double> &residual,
-                           std::vector<double> *matrix)
+                           std::vector<double> *matrix,
+                           RestorationWorkspace &ws)
 {
    const bool use_dev=s.xk->UseDevice();
-   mfem::Vector jt_nu(s.n),delta(s.n),free_weight(s.n),scaled(s.n);
-   jt_nu.UseDevice(use_dev); delta.UseDevice(use_dev);
-   free_weight.UseDevice(use_dev); scaled.UseDevice(use_dev);
+   mfem::Vector &jt_nu=ws.jt_nu, &delta=ws.delta;
+   mfem::Vector &free_weight=ws.free_weight, &scaled=ws.scaled;
    jt_nu=0.0;
    for(int i=0;i<s.m;++i)
    {
@@ -525,15 +647,26 @@ double EvaluateRestoration(const RestorationData &s,
    return std::sqrt(norm2);
 }
 
+/**
+ * Newton iteration on the restoration multipliers @p nu (analogous to
+ * SolveSubproblem(), but for EvaluateRestoration()) that drives @p x
+ * towards satisfying the affine equality model while staying in
+ * [xmin,xmax]. Returns 0 immediately, leaving @p x unchanged, when there
+ * are no equalities.
+ *
+ * @return Euclidean norm of the remaining affine residual.
+ */
 double RestoreAffine(const RestorationData &s, mfem::Vector &x,
                      int max_iterations)
 {
    MFEM_VERIFY(max_iterations>=0,
                "negative MMA equality restoration iteration limit");
    if(s.m==0) return 0.0;
+   RestorationWorkspace ws;
+   ws.Init(s.n,s.xk->UseDevice());
    std::vector<double> nu(s.m,0.0), residual, matrix;
    mfem::Vector trial(x.Size()); trial.UseDevice(x.UseDevice());
-   double norm=EvaluateRestoration(s,nu,x,residual,&matrix);
+   double norm=EvaluateRestoration(s,nu,x,residual,&matrix,ws);
    const double tolerance=1e-10*(1.0+norm);
    for(int it=0;it<max_iterations && norm>tolerance;++it)
    {
@@ -547,18 +680,26 @@ double RestoreAffine(const RestorationData &s, mfem::Vector &x,
       for(int ls=0;ls<24;++ls)
       {
          for(int i=0;i<s.m;++i) candidate[i]=nu[i]+theta*step[i];
-         trial_norm=EvaluateRestoration(s,candidate,trial,trial_residual,nullptr);
+         trial_norm=EvaluateRestoration(s,candidate,trial,trial_residual,nullptr,ws);
          if(trial_norm<norm) break;
          theta*=0.5;
       }
       if(!(trial_norm<norm)) break;
       nu.swap(candidate);
       x=trial;
-      norm=EvaluateRestoration(s,nu,x,residual,&matrix);
+      norm=EvaluateRestoration(s,nu,x,residual,&matrix,ws);
    }
    return norm;
 }
 
+/**
+ * Bound-projected KKT stationarity measure backing
+ * MMAEqualityOptimizer[Parallel]::KKTresidual(). Forms the Lagrangian
+ * gradient df0dx + sum_i lambda_i*dh_i, zeroes its component pushing
+ * further into an active bound (within a relative tolerance), and returns
+ * the mean squared projected gradient plus the raw sum of squared equality
+ * values. Reduced across @p comm when @p parallel is set.
+ */
 double ProjectedKKT(int n, int m, const mfem::Vector &x,
                     const mfem::Vector &df0dx, const mfem::Vector &hval,
                     const mfem::Vector *dhdx,
@@ -610,6 +751,8 @@ double ProjectedKKT(int n, int m, const mfem::Vector &x,
 
 } // namespace
 
+// See header for the full contract of every public method below.
+
 MMAEqualityOptimizer::MMAEqualityOptimizer(int n, int m_equalities)
    : n_(n), m_(m_equalities), lambda_(m_equalities,0.0)
 {
@@ -630,6 +773,9 @@ void MMAEqualityOptimizer::EnsureInitialized_(const mfem::Vector &x)
 void MMAEqualityOptimizer::SetAsymptotes(mfem::real_t i,mfem::real_t d,mfem::real_t inc)
 { asyminit_=double(i); asymdec_=double(d); asyminc_=double(inc); }
 
+// Builds the asymptotes and separable objective at xk, solves for the
+// equality multipliers with SolveSubproblem(), and unconditionally
+// accepts the result (no globalization, unlike UpdateGCMMA()).
 void MMAEqualityOptimizer::Update(mfem::Vector &x,const mfem::Vector &df0dx,
    mfem::real_t,const mfem::Vector &hval,const mfem::Vector *dhdx,
    const mfem::Vector &xmin,const mfem::Vector &xmax)
@@ -649,11 +795,15 @@ void MMAEqualityOptimizer::Update(mfem::Vector &x,const mfem::Vector &df0dx,
    xo2_=xo1_; xo1_=xk; ++iter_; last_step_accepted_=true;
 }
 
+// Retries the subproblem with a grown curvature parameter and a
+// contracted move-limit box until the candidate is conservative and
+// passes a merit/feasibility/stationarity test, or max_inner is
+// exhausted; then falls back to one affine restoration attempt.
 void MMAEqualityOptimizer::UpdateGCMMA(mfem::Vector &x,
    const mfem::Vector &df0dx,mfem::real_t f0val,
    const mfem::Vector &hval,const mfem::Vector *dhdx,
    const mfem::Vector &xmin,const mfem::Vector &xmax,
-   MMAEqualityEvalCallback evaluate,int max_inner,int *inner_iterations)
+   GCMMAEvalCallback evaluate,int max_inner,int *inner_iterations)
 {
    CheckInput(n_,m_,x,df0dx,hval,dhdx,xmin,xmax);
    MFEM_VERIFY(bool(evaluate),"MMA equality GCMMA requires an evaluator");
@@ -680,7 +830,7 @@ void MMAEqualityOptimizer::UpdateGCMMA(mfem::Vector &x,
       SolveSubproblem(data,lambda_,x);
       mfem::Vector htrial(m_);
       mfem::real_t ftrial=0.0;
-      evaluate(x,ftrial,htrial);
+      evaluate(x,htrial,ftrial);
       MFEM_VERIFY(htrial.Size()==m_,"GCMMA evaluator returned wrong equality size");
 
       const double model=ObjectiveModelValue(n_,xk,x,L_,U_,p0_,q0_,
@@ -723,7 +873,7 @@ void MMAEqualityOptimizer::UpdateGCMMA(mfem::Vector &x,
       RestoreAffine(restoration,x,80);
       mfem::Vector htrial(m_);
       mfem::real_t ftrial=0.0;
-      evaluate(x,ftrial,htrial);
+      evaluate(x,htrial,ftrial);
       MFEM_VERIFY(htrial.Size()==m_,
                   "GCMMA restoration evaluator returned wrong equality size");
       if(Norm1(htrial)<theta0*(1.0-1e-4))
@@ -744,6 +894,8 @@ void MMAEqualityOptimizer::UpdateGCMMA(mfem::Vector &x,
    if(inner_iterations) *inner_iterations=attempts;
 }
 
+// Delegates the box-constrained affine projection to RestoreAffine();
+// does not touch iter_, xo1_/xo2_, or lambda_.
 mfem::real_t MMAEqualityOptimizer::RestoreFeasibility(
    mfem::Vector &x,const mfem::Vector &hval,const mfem::Vector *dhdx,
    const mfem::Vector &xmin,const mfem::Vector &xmax,int max_iterations)
@@ -756,6 +908,8 @@ mfem::real_t MMAEqualityOptimizer::RestoreFeasibility(
    return mfem::real_t(RestoreAffine(data,x,max_iterations));
 }
 
+// Diagnostic only: evaluates ProjectedKKT() at the last-accepted lambda_
+// rather than resolving the multipliers.
 mfem::real_t MMAEqualityOptimizer::KKTresidual(const mfem::Vector &x,
    const mfem::Vector &df0dx,mfem::real_t,const mfem::Vector &hval,
    const mfem::Vector *dhdx,const mfem::Vector &xmin,
@@ -768,6 +922,8 @@ mfem::real_t MMAEqualityOptimizer::KKTresidual(const mfem::Vector &x,
 }
 
 #ifdef MFEM_USE_MPI
+// MPI counterpart of MMAEqualityOptimizer; see header for the full
+// contract of every public method below. Reduces n_local to n_global_.
 MMAEqualityOptimizerParallel::MMAEqualityOptimizerParallel(
    MPI_Comm comm,int n_local,int m_equalities)
    : comm_(comm),n_local_(n_local),m_(m_equalities),lambda_(m_equalities,0.0)
@@ -791,6 +947,8 @@ void MMAEqualityOptimizerParallel::SetAsymptotes(
    mfem::real_t i,mfem::real_t d,mfem::real_t inc)
 { asyminit_=double(i); asymdec_=double(d); asyminc_=double(inc); }
 
+// Distributed counterpart of MMAEqualityOptimizer::Update(): identical
+// control flow, but ObjectiveRho()/SolveSubproblem() reduce across comm_.
 void MMAEqualityOptimizerParallel::Update(mfem::Vector &x,
    const mfem::Vector &df0dx,mfem::real_t,const mfem::Vector &hval,
    const mfem::Vector *dhdx,const mfem::Vector &xmin,
@@ -811,11 +969,15 @@ void MMAEqualityOptimizerParallel::Update(mfem::Vector &x,
    xo2_=xo1_; xo1_=xk; ++iter_; last_step_accepted_=true;
 }
 
+// Distributed counterpart of MMAEqualityOptimizer::UpdateGCMMA(); see
+// that method's implementation comment. Every reduction-bearing helper is
+// called with parallel=true and comm_ so all ranks reach the same
+// accept/reject decision.
 void MMAEqualityOptimizerParallel::UpdateGCMMA(mfem::Vector &x,
    const mfem::Vector &df0dx,mfem::real_t f0val,
    const mfem::Vector &hval,const mfem::Vector *dhdx,
    const mfem::Vector &xmin,const mfem::Vector &xmax,
-   MMAEqualityEvalCallback evaluate,int max_inner,int *inner_iterations)
+   GCMMAEvalCallback evaluate,int max_inner,int *inner_iterations)
 {
    CheckInput(n_local_,m_,x,df0dx,hval,dhdx,xmin,xmax);
    MFEM_VERIFY(bool(evaluate),"parallel MMA equality GCMMA requires an evaluator");
@@ -842,7 +1004,7 @@ void MMAEqualityOptimizerParallel::UpdateGCMMA(mfem::Vector &x,
       SolveSubproblem(data,lambda_,x);
       mfem::Vector htrial(m_);
       mfem::real_t ftrial=0.0;
-      evaluate(x,ftrial,htrial);
+      evaluate(x,htrial,ftrial);
       MFEM_VERIFY(htrial.Size()==m_,"parallel GCMMA evaluator returned wrong equality size");
 
       const double model=ObjectiveModelValue(n_local_,xk,x,L_,U_,p0_,q0_,
@@ -887,7 +1049,7 @@ void MMAEqualityOptimizerParallel::UpdateGCMMA(mfem::Vector &x,
       RestoreAffine(restoration,x,80);
       mfem::Vector htrial(m_);
       mfem::real_t ftrial=0.0;
-      evaluate(x,ftrial,htrial);
+      evaluate(x,htrial,ftrial);
       MFEM_VERIFY(htrial.Size()==m_,
                   "parallel GCMMA restoration evaluator returned wrong equality size");
       if(Norm1(htrial)<theta0*(1.0-1e-4))
@@ -908,6 +1070,8 @@ void MMAEqualityOptimizerParallel::UpdateGCMMA(mfem::Vector &x,
    if(inner_iterations) *inner_iterations=attempts;
 }
 
+// Distributed counterpart of MMAEqualityOptimizer::RestoreFeasibility();
+// gradient dot products inside RestoreAffine() are reduced across comm_.
 mfem::real_t MMAEqualityOptimizerParallel::RestoreFeasibility(
    mfem::Vector &x,const mfem::Vector &hval,const mfem::Vector *dhdx,
    const mfem::Vector &xmin,const mfem::Vector &xmax,int max_iterations)
@@ -920,6 +1084,8 @@ mfem::real_t MMAEqualityOptimizerParallel::RestoreFeasibility(
    return mfem::real_t(RestoreAffine(data,x,max_iterations));
 }
 
+// Diagnostic only, distributed counterpart of
+// MMAEqualityOptimizer::KKTresidual(); see that method's comment.
 mfem::real_t MMAEqualityOptimizerParallel::KKTresidual(
    const mfem::Vector &x,const mfem::Vector &df0dx,mfem::real_t,
    const mfem::Vector &hval,const mfem::Vector *dhdx,

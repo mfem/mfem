@@ -116,7 +116,7 @@ void TestAffineOptimization()
       h(0)=real_t(GlobalMean(x,n)-volume);
       int inner=0;
       opt.UpdateGCMMA(x,df0,real_t(GlobalSum(local_f0)),h,&dh,xmin,xmax,
-         [&](const Vector &candidate,real_t &true_f0,Vector &true_h)
+         [&](const Vector &candidate,Vector &true_h,real_t &true_f0)
          {
             double local_value=0.0;
             for(int j=0;j<nl;++j)
@@ -216,7 +216,7 @@ void TestGlobalizationRetries()
    MMAEqualityOptimizerParallel opt(MPI_COMM_WORLD,nl,1);
    int inner=0;
    opt.UpdateGCMMA(x,df0,0.0,h,&dh,xmin,xmax,
-      [&](const Vector &candidate,real_t &true_f0,Vector &true_h)
+      [&](const Vector &candidate,Vector &true_h,real_t &true_f0)
       {
          double local_linear=0.0,local_square=0.0;
          for(int j=0;j<nl;++j)
@@ -253,7 +253,7 @@ void TestGlobalizationRollback()
    MMAEqualityOptimizerParallel opt(MPI_COMM_WORLD,nl,1);
    int inner=0;
    opt.UpdateGCMMA(x,df0,0.0,h,&dh,xmin,xmax,
-      [&](const Vector &candidate,real_t &true_f0,Vector &true_h)
+      [&](const Vector &candidate,Vector &true_h,real_t &true_f0)
       {
          true_f0=real_t(1e20);
          true_h.SetSize(1);

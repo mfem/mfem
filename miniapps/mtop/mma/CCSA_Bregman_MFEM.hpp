@@ -586,16 +586,12 @@ public:
      * re-solved, up to @p max_inner times. Same @p x / df0dx / dfidx
      * contract as Update() above (latent in/out, physical-space gradients).
      */
-    using EvalCallback = std::function<void(const mfem::Vector&,
-                                             mfem::Vector&,
-                                             mfem::real_t&)>;
-
     void UpdateGCMMA(mfem::Vector& x,
                      const mfem::Vector& df0dx,
                      mfem::real_t f0val,
                      const mfem::Vector& fival,
                      const mfem::Vector* dfidx,
-                     EvalCallback eval_fi,
+                     GCMMAEvalCallback eval_fi,
                      int max_inner = 15,
                      int* innerIter = nullptr);
 
@@ -811,13 +807,12 @@ public:
                      const mfem::Vector* dfidx_local,
                      int* innerIter = nullptr);
 
-    using EvalCallback = std::function<void(const mfem::Vector&, mfem::Vector&, mfem::real_t&)>;
     void UpdateGCMMA(mfem::Vector& x_local,
                      const mfem::Vector& df0dx_local,
                      mfem::real_t f0val,
                      const mfem::Vector& fival,
                      const mfem::Vector* dfidx_local,
-                     EvalCallback eval_fi,
+                     GCMMAEvalCallback eval_fi,
                      int max_inner = 15,
                      int* innerIter = nullptr);
 
