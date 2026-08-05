@@ -428,7 +428,6 @@ private:
    int ob_type; // open BasisType
    char fec_name[32];
    FiniteElement *RT_Elements[Geometry::NumGeom];
-   int *SegDofOrd[2], *TriDofOrd[6], *QuadDofOrd[8];
 
 public:
    BrokenRT_FECollection(const int p, const int dim,
