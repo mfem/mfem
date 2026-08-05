@@ -104,6 +104,10 @@ enum class MemoryType
    MANAGED,        /**< Managed memory; using CUDA or HIP *MallocManaged
                         and *Free */
    TEMP_MANAGED,
+   MANAGED_UMPIRE, /**< Managed memory; using an Umpire allocator which can be
+                        set with MemoryManager::SetUmpireManagedAllocatorName */
+   TEMP_MANAGED_UMPIRE, /**< Managed memory; using an Umpire allocator which can be set
+                             with MemoryManager::SetUmpireTempManagedAllocatorName */
    DEVICE,         ///< Device memory; using CUDA or HIP *Malloc and *Free
    TEMP_DEVICE,
    DEVICE_DEBUG,   /**< Pseudo-device memory; allocated on host from a
@@ -1018,8 +1022,12 @@ public:
        types. This method will be called when configuring a device.
 
        The host and device MemoryType%s, @a h_mt and @a d_mt, are set to be dual
-       to each other. */
-   void Configure(const MemoryType h_mt, const MemoryType d_mt);
+       to each other.
+       Last two arguments unused, added for compatibility with new memory manager.
+   */
+   void Configure(const MemoryType h_mt, const MemoryType d_mt,
+                  const MemoryType = MemoryType::DEFAULT,
+                  const MemoryType = MemoryType::DEFAULT);
 
 #ifdef MFEM_USE_UMPIRE
    /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE

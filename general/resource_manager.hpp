@@ -178,14 +178,14 @@ private:
       /* TEMP_HOST_PINNED     */ MemoryType::TEMP_HOST_PINNED,
       /* MANAGED              */ MemoryType::MANAGED,
       /* TEMP_MANAGED         */ MemoryType::TEMP_MANAGED,
+      /* UMPIRE MANAGED       */ MemoryType::MANAGED_UMPIRE,
+      /* TEMP_UMPIRE MANAGED  */ MemoryType::TEMP_MANAGED_UMPIRE,
       /* DEVICE               */ MemoryType::HOST,
       /* TEMP_DEVICE          */ MemoryType::TEMP_HOST,
       /* DEVICE_DEBUG         */ MemoryType::HOST_DEBUG,
       /* TEMP_DEVICE_DEBUG    */ MemoryType::TEMP_HOST_DEBUG,
       /* DEVICE_UMPIRE        */ MemoryType::HOST_UMPIRE,
       /* TEMP_DEVICE_UMPIRE   */ MemoryType::TEMP_HOST_UMPIRE,
-      /* DEVICE_UMPIRE_2      */ MemoryType::HOST_UMPIRE,
-      /* TEMP_DEVICE_UMPIRE_2 */ MemoryType::TEMP_HOST_UMPIRE,
    };
 
    // 0 holds host, host-pinned, and managed memory spaces
@@ -295,9 +295,15 @@ private:
    std::string d_umpire_name = "MFEM_DEVICE";
    std::string d_umpire_2_name = "MFEM_DEVICE_2";
 
+   std::string managed_umpire_name = "MFEM_MANAGED";
+   std::string temp_managed_umpire_name = "MFEM_TEMP_MANAGED";
+
    void SetUmpireHostAllocatorName_(const char *h_name);
    void SetUmpireDeviceAllocatorName_(const char *d_name);
    void SetUmpireDevice2AllocatorName_(const char *d_name);
+
+   void SetUmpireManagedAllocatorName_(const char *d_name);
+   void SetUmpireTempManagedAllocatorName_(const char *d_name);
 #endif
    void EnsureAlloc(MemoryType mt);
 
@@ -394,6 +400,30 @@ public:
    static const char *GetUmpireDevice2AllocatorName()
    {
       return Instance().d_umpire_2_name.c_str();
+   }
+
+   /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static void SetUmpireManagedAllocatorName(const char *d_name)
+   {
+      Instance().SetUmpireManagedAllocatorName_(d_name);
+   }
+   /// Set the device Umpire allocator name used with
+   /// MemoryType::DEVICE_UMPIRE_2
+   static void SetUmpireTempManagedAllocatorName(const char *d_name)
+   {
+      Instance().SetUmpireTempManagedAllocatorName_(d_name);
+   }
+
+   /// Get the device Umpire allocator name used with MemoryType::MANAGED_UMPIRE
+   static const char *GetUmpireManagedAllocatorName()
+   {
+      return Instance().managed_umpire_name.c_str();
+   }
+   /// Get the device Umpire allocator name used with
+   /// MemoryType::TEMP_MANAGED_UMPIRE
+   static const char *GetUmpireTempManagedAllocatorName()
+   {
+      return Instance().temp_managed_umpire_name.c_str();
    }
 #endif
 };

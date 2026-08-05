@@ -618,7 +618,11 @@ void MemoryManager::Configure(MemoryType host_loc, MemoryType device_loc,
    {
       if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
       {
+#ifdef MFEM_USE_UMPIRE
+         managed_loc = MemoryType::MANAGED_UMPIRE;
+#else
          managed_loc = MemoryType::MANAGED;
+#endif
       }
       else
       {
@@ -706,6 +710,8 @@ void MemoryManager::Destroy()
    allocs_storage[10].reset();
    allocs_storage[11].reset();
    allocs_storage[12].reset();
+   allocs_storage[14].reset();
+   allocs_storage[15].reset();
    allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::TEMP_HOST_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
@@ -815,7 +821,24 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
                allocs_storage[12].get();
             allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE_2)] =
                allocs_storage[12].get();
-            // TODO: Umpire HostPinned and Managed pools?
+            // TODO: Umpire HostPinned pools?
+         }
+      }
+      break;
+      case MemoryType::MANAGED_UMPIRE:
+      case MemoryType::TEMP_MANAGED_UMPIRE:
+      {
+         if (!allocs_storage[14])
+         {
+            allocs_storage[14].reset(
+               new UmpireAllocator(managed_umpire_name.c_str(), "MANAGED"));
+            allocs_storage[15].reset(
+               new UmpireAllocator(temp_managed_umpire_name.c_str(), "MANAGED"));
+            allocs[static_cast<int>(MemoryType::MANAGED_UMPIRE)] =
+               allocs_storage[14].get();
+            // DEVICE_UMPIRE_2 is the temp pool
+            allocs[static_cast<int>(MemoryType::TEMP_MANAGED_UMPIRE)] =
+               allocs_storage[15].get();
          }
       }
       break;
@@ -2429,6 +2452,21 @@ void MemoryManager::SetUmpireDevice2AllocatorName_(const char *d_name)
    MFEM_ASSERT(!allocs_storage[12], "Umpire Device 2 Allocator has already "
                "been created and cannot be changed");
    d_umpire_2_name = d_name;
+}
+
+void MemoryManager::SetUmpireManagedAllocatorName_(const char *d_name)
+{
+   MFEM_ASSERT(
+      !allocs_storage[14],
+      "Umpire Managed Allocator has already been created and cannot be changed");
+   managed_umpire_name = d_name;
+}
+
+void MemoryManager::SetUmpireTempManagedAllocatorName_(const char *d_name)
+{
+   MFEM_ASSERT(!allocs_storage[15], "Temp Umpire Managed Allocator has already "
+               "been created and cannot be changed");
+   temp_managed_umpire_name = d_name;
 }
 #endif
 

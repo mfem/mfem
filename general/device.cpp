@@ -295,7 +295,8 @@ void Device::Configure(const std::string &device, const int device_id)
 }
 
 // static method
-void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
+void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt, MemoryType hp_mt,
+                            MemoryType m_mt)
 {
    // If the device and/or the MemoryTypes are configured through the
    // environment (variables 'MFEM_DEVICE', 'MFEM_MEMORY'), ignore calls to this
@@ -312,6 +313,8 @@ void Device::SetMemoryTypes(MemoryType h_mt, MemoryType d_mt)
 
    Get().host_mem_type = h_mt;
    Get().device_mem_type = d_mt;
+   Get().host_pinned_mem_type = hp_mt;
+   Get().managed_mem_type = m_mt;
    mem_types_set = true;
 
    // h_mt and d_mt will be set as dual to each other during configuration by
@@ -432,7 +435,8 @@ void Device::UpdateMemoryTypeAndClass(const std::string &device_option)
 
    // Update the memory manager with the new settings
    auto& inst = MemoryManager::Instance();
-   inst.Configure(host_mem_type, device_mem_type);
+   inst.Configure(host_mem_type, device_mem_type, host_pinned_mem_type,
+                  managed_mem_type);
 }
 
 // static method

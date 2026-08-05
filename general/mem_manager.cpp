@@ -1624,7 +1624,8 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
 }
 
 void MemoryManager::Configure(const MemoryType host_mt,
-                              const MemoryType device_mt)
+                              const MemoryType device_mt, const MemoryType,
+                              const MemoryType)
 {
    MemoryManager::UpdateDualMemoryType(host_mt, device_mt);
    MemoryManager::UpdateDualMemoryType(device_mt, host_mt);
@@ -1833,6 +1834,8 @@ const char *MemoryTypeName[MemoryTypeSize] =
 #else
    "managed",
    "temp-managed",
+   "managed-umpire",
+   "temp-managed-umpire",
    "device",
    "temp-device",
 #endif
