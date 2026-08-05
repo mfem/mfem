@@ -229,10 +229,6 @@ public:
        through ParallelAssembleInternal(). */
    void Finalize(int skip_zeros = 1);
 
-   /// Assembles the forms on the true DOFs, i.e. P^t A P.
-   /** This enables to perform Mult() for true DOFs vectors. */
-   void ParallelAssembleInternal();
-
    using DarcyForm::FormLinearSystem;
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
