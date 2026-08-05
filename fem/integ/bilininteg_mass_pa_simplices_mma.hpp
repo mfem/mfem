@@ -32,16 +32,6 @@ namespace mma
 // Simplex mass PA helpers (host dense / device batch)
 // ---------------------------------------------------------------------------
 
-/** Blas multi-RHS NB for specialized mass (keep U in L1 on large 3D).
-    2D uses a wider tile: low-order tris stay on hand Blas and need fat N.
-    TRI mass p=3 (NQ=12) prefers NB=16 (measured on M2 Pro). */
-template <int DIM, int NQ>
-constexpr int blas_MassNB()
-{
-   if constexpr (DIM == 2) { return (NQ == 12) ? 16 : 32; }
-   return (NQ > 80) ? 4 : 8;
-}
-
 /** Scale U columns by mass PA weights D(q,e): U ⊙= D. Column-major U. */
 inline void ScaleUByMassD(real_t *uloc, const real_t *D, int nq, int e0, int NE,
                           int NB)
@@ -58,10 +48,13 @@ inline void ScaleUByMassD(real_t *uloc, const real_t *D, int nq, int e0, int NE,
    }
 }
 
+namespace lapack
+{
+
 #ifdef MFEM_USE_LAPACK
 /** Mass: serial tiles, reused buffers. U = P X, scale D, Y += P^T U.
     Full tiles GEMM against X/Y; partial trailing tile packs/scatters. */
-inline void lapack_MassApply(int NE, int nq, int ndof, const real_t *P,
+inline void MassApply(int NE, int nq, int ndof, const real_t *P,
                              const real_t *D, const real_t *X, real_t *Y)
 {
    const int NB = lapack::NB(nq, ndof);
@@ -80,14 +73,13 @@ inline void lapack_MassApply(int NE, int nq, int ndof, const real_t *P,
 
 #endif // MFEM_USE_LAPACK
 
-/** Always-available host Lapack entry: runs lapack_MassApply when LAPACK is on
-    and lapack::Prefer is true. Returns whether the Lapack path ran. */
-inline bool lapack_TryMassApply(int NE, int nq, int ndof, const real_t *P,
-                                const real_t *D, const real_t *X, real_t *Y)
+/** Host entry: runs MassApply when LAPACK is on and Prefer is true. */
+inline bool TryMassApply(int NE, int nq, int ndof, const real_t *P,
+                         const real_t *D, const real_t *X, real_t *Y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!lapack::Prefer(nq, ndof, NE)) { return false; }
-   lapack_MassApply(NE, nq, ndof, P, D, X, Y);
+   if (!Prefer(nq, ndof, NE)) { return false; }
+   MassApply(NE, nq, ndof, P, D, X, Y);
    return true;
 #else
    (void)NE; (void)nq; (void)ndof; (void)P; (void)D; (void)X; (void)Y;
@@ -96,11 +88,24 @@ inline bool lapack_TryMassApply(int NE, int nq, int ndof, const real_t *P,
 }
 
 
-template <int DIM, int NDOF, int NQ>
-inline void blas_MassApply(int NE, const real_t *P, const real_t *D,
-                           const real_t *X, real_t *Y)
+} // namespace lapack
+
+namespace blas
 {
-   constexpr int NB = blas_MassNB<DIM, NQ>();
+
+/** Multi-RHS NB for specialized mass (keep U in L1 on large 3D). */
+template <int DIM, int NQ>
+constexpr int MassNB()
+{
+   if constexpr (DIM == 2) { return (NQ == 12) ? 16 : 32; }
+   return (NQ > 80) ? 4 : 8;
+}
+
+template <int DIM, int NDOF, int NQ>
+inline void MassApply(int NE, const real_t *P, const real_t *D,
+                      const real_t *X, real_t *Y)
+{
+   constexpr int NB = MassNB<DIM, NQ>();
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -108,20 +113,20 @@ inline void blas_MassApply(int NE, const real_t *P, const real_t *D,
       alignas(64) real_t uloc[NQ * NB];
       if (e0 + NB <= NE)
       {
-         // Full tile: stream X/Y column-major directly (no pack/scatter).
-         blas::GemmFromColMajor<NDOF, NQ, NB, true>(P, X, e0, uloc, D);
-         blas::GemmTFull<NDOF, NQ, NB>(P, uloc, Y, e0);
+         GemmFromColMajor<NDOF, NQ, NB, true>(P, X, e0, uloc, D);
+         GemmTFull<NDOF, NQ, NB>(P, uloc, Y, e0);
       }
       else
       {
          alignas(64) real_t xloc[NDOF * NB];
-         blas::PackX<NDOF, NB>(X, e0, NE, xloc);
-         blas::Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
-         blas::GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
+         PackX<NDOF, NB>(X, e0, NE, xloc);
+         Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
+         GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
       }
    }
 }
 
+} // namespace blas
 
 // ---- Portable dense mass (device stub / single / runtime Fallback) ---------
 
@@ -154,7 +159,7 @@ MFEM_HOST_DEVICE inline void MassApplyDenseElement(const int nq, const int ndof,
 }
 
 /** Host multi-element driver over MassApplyDenseElement. */
-inline void blas_MassApplyRuntime(int NE, int nq, int ndof, const real_t *P,
+inline void MassApplyRuntime(int NE, int nq, int ndof, const real_t *P,
                                   const real_t *D, const real_t *X, real_t *Y)
 {
    for (int e = 0; e < NE; ++e)
@@ -221,7 +226,7 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApply(const int e0, const int NE,
 }
 
 /** Runtime-sized dense batch mass (tid==0); sync afterward. */
-MFEM_HOST_DEVICE inline void blas_MassBatchApplyRuntime(
+MFEM_HOST_DEVICE inline void MassBatchApplyRuntime(
    const int e0, const int NE, const int nq, const int ndof,
    const int x_ld, const int u_ld, const int nb,
    const real_t *p, const real_t *d, const real_t *x, real_t *y,
@@ -272,7 +277,7 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApplyRuntime(
 /** Host dense mass (Lapack or Blas): y += P^T ( D ⊙ (P x) ) per element.
     Large (QND,ndof): BLAS multi-RHS when profitable; else hand tiles. */
 template<int DIM, int D1D, int QND>
-inline void blas_MassApplySimplex(const int NE,
+inline void MassApplySimplex(const int NE,
                                   const Array<real_t> &p,
                                   const Vector &d,
                                   const Vector &x,
@@ -286,14 +291,14 @@ inline void blas_MassApplySimplex(const int NE,
    const real_t *X = x.Read();
    real_t *Y = y.ReadWrite();
 
-   if (mma::lapack_TryMassApply(NE, QND, ndof, P, D, X, Y)) { return; }
-   mma::blas_MassApply<DIM, ndof, QND>(NE, P, D, X, Y);
+   if (mma::lapack::TryMassApply(NE, QND, ndof, P, D, X, Y)) { return; }
+   mma::blas::MassApply<DIM, ndof, QND>(NE, P, D, X, Y);
 }
 
 /** Portable runtime dense mass for unspecialized (D1D,QND). Works on CPU and
     GPU; sizes inferred from P/D; bounded by SimplexMaxNq/SimplexNdof caps. */
 template<int DIM>
-inline void blas_MassApplySimplexRuntime(const int NE,
+inline void MassApplySimplexRuntime(const int NE,
                                          const Array<real_t> &p,
                                          const Vector &d,
                                          const Vector &x,
@@ -317,8 +322,8 @@ inline void blas_MassApplySimplexRuntime(const int NE,
       const real_t *D = d.Read();
       const real_t *X = x.Read();
       real_t *Y = y.ReadWrite();
-      if (mma::lapack_TryMassApply(NE, nq, ndof, P, D, X, Y)) { return; }
-      mma::blas_MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
+      if (mma::lapack::TryMassApply(NE, nq, ndof, P, D, X, Y)) { return; }
+      mma::MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 
@@ -418,7 +423,7 @@ void MmaMassApplySimplex_Batch(const int e0,
    }
    else
    {
-      mma::blas_MassBatchApplyRuntime(
+      mma::MassBatchApplyRuntime(
          e0, NE, nq, ndof, x_ld, u_ld, nb, p, d, x, y, XY, Us, tid);
       MFEM_SYNC_THREAD;
    }
@@ -440,7 +445,7 @@ inline void MmaMassApplySimplex(const int NE,
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      blas_MassApplySimplex<DIM, D1D, QND>(NE, p, d, x, y);
+      MassApplySimplex<DIM, D1D, QND>(NE, p, d, x, y);
       return;
    }
 
@@ -492,8 +497,8 @@ inline void MmaMassApplySimplex(const int NE,
       const real_t *D = d.Read();
       const real_t *X = x.Read();
       real_t *Y = y.ReadWrite();
-      if (mma::lapack_TryMassApply(NE, nq, ndof, P, D, X, Y)) { return; }
-      mma::blas_MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
+      if (mma::lapack::TryMassApply(NE, nq, ndof, P, D, X, Y)) { return; }
+      mma::MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 

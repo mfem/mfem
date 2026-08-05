@@ -13,10 +13,6 @@
 #include "../bilininteg.hpp"
 #include "bilininteg_pa_mma.hpp"
 
-#ifdef MFEM_USE_LAPACK
-#include <vector>
-#endif
-
 namespace mfem
 {
 
@@ -25,10 +21,15 @@ namespace mfem
 namespace internal
 {
 
+
+namespace mma
+{
+namespace lapack
+{
 #ifdef MFEM_USE_LAPACK
 /** Named slices into one host_Arena allocation for 2D diffusion tiles. */
 template <int D1D, int Q1D>
-struct lapack_Diff2DWs
+struct Diff2DWs
 {
    real_t *xloc, *BX, *GX, *BXt, *GXt;
    real_t *gX, *gY, *gXp, *gYp;
@@ -65,11 +66,11 @@ struct lapack_Diff2DWs
 
 /** One 2D diffusion tile: B/G forward, metric, Bt/Gt backward. */
 template <int D1D, int Q1D, bool SYM>
-inline void lapack_DiffusionApplyTensors2DTile(
+inline void DiffusionApplyTensors2DTile(
    const int e0, const int nbe, const int NB,
    const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
    const real_t *Dv, const real_t *X, real_t *Y,
-   const lapack_Diff2DWs<D1D, Q1D> &ws)
+   const Diff2DWs<D1D, Q1D> &ws)
 {
    constexpr int PA_SIZE = SYM ? 3 : 4;
    const int n_xy = D1D * NB;
@@ -147,241 +148,27 @@ inline void lapack_DiffusionApplyTensors2DTile(
 }
 
 template <int D1D, int Q1D, bool SYM>
-inline void lapack_DiffusionApplyTensors2D(
+inline void DiffusionApplyTensors2D(
    const int NE,
    const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
    const real_t *Dv, const real_t *X, real_t *Y)
 {
-   const int NB = mma::lapack::TensorNB(D1D, Q1D);
+   const int NB = mma::TensorTileNB(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    mma::host_Arena arena;
-   lapack_Diff2DWs<D1D, Q1D> ws;
+   Diff2DWs<D1D, Q1D> ws;
    ws.Bind(arena, NB);
    for (int tile = 0; tile < ntiles; ++tile)
    {
       const int e0 = tile * NB;
       const int nbe = std::min(NB, NE - e0);
-      lapack_DiffusionApplyTensors2DTile<D1D, Q1D, SYM>(
+      DiffusionApplyTensors2DTile<D1D, Q1D, SYM>(
          e0, nbe, NB, B, G, Bt, Gt, Dv, X, Y, ws);
    }
 }
 
-/** Named slices into one host_Arena allocation for 3D per-element diffusion. */
 template <int D1D, int Q1D>
-struct lapack_Diff3DWs
-{
-   real_t *BX, *GX, *BXt, *GXt;
-   real_t *XY0, *XY1, *XY2;
-   real_t *g0, *g1, *g2;
-   real_t *QQ0, *QQ1, *QQ2;
-   real_t *gvec0, *gvec1, *gvec2;
-   real_t *A0, *A1, *A2, *Yacc;
-
-   static size_t Words()
-   {
-      constexpr int nd2 = D1D * D1D;
-      constexpr int nq3 = Q1D * Q1D * Q1D;
-      constexpr int ndof = D1D * nd2;
-      // BX,GX: Q1D*nd2; BXt,GXt: D1D*Q1D; XY0..2: Q1D²; g0..2: nq3;
-      // QQ0..2: D1D; gvec0..2: Q1D; A0..2: nd2; Yacc: ndof.
-      return size_t(2) * Q1D * nd2 + size_t(2) * D1D * Q1D
-             + size_t(3) * Q1D * Q1D + size_t(3) * nq3
-             + size_t(3) * D1D + size_t(3) * Q1D + size_t(3) * nd2 + ndof;
-   }
-
-   void Bind(mma::host_Arena &a)
-   {
-      constexpr int nd2 = D1D * D1D;
-      constexpr int nq3 = Q1D * Q1D * Q1D;
-      a.reset(Words());
-      BX = a.take(size_t(Q1D) * nd2);
-      GX = a.take(size_t(Q1D) * nd2);
-      BXt = a.take(size_t(D1D) * Q1D);
-      GXt = a.take(size_t(D1D) * Q1D);
-      XY0 = a.take(size_t(Q1D) * Q1D);
-      XY1 = a.take(size_t(Q1D) * Q1D);
-      XY2 = a.take(size_t(Q1D) * Q1D);
-      g0 = a.take(nq3);
-      g1 = a.take(nq3);
-      g2 = a.take(nq3);
-      QQ0 = a.take(D1D);
-      QQ1 = a.take(D1D);
-      QQ2 = a.take(D1D);
-      gvec0 = a.take(Q1D);
-      gvec1 = a.take(Q1D);
-      gvec2 = a.take(Q1D);
-      A0 = a.take(nd2);
-      A1 = a.take(nd2);
-      A2 = a.take(nd2);
-      Yacc = a.take(size_t(D1D) * nd2);
-   }
-};
-
-/** 3D diffusion one element: fat RHS = D1D² (same contractions as PADiffusion). */
-template <int D1D, int Q1D, bool SYM>
-inline void lapack_DiffusionApplyTensors3DElement(
-   const int e,
-   const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
-   const real_t *Dv, const real_t *X, real_t *Y,
-   const lapack_Diff3DWs<D1D, Q1D> &ws)
-{
-   constexpr int PA_SIZE = SYM ? 6 : 9;
-   const int nd2 = D1D * D1D;
-   const int nq3 = Q1D * Q1D * Q1D;
-   const int ndof = D1D * nd2;
-   const real_t *Xe = X + static_cast<size_t>(ndof) * e;
-   real_t *BX = ws.BX, *GX = ws.GX, *BXt = ws.BXt, *GXt = ws.GXt;
-   real_t *XY0 = ws.XY0, *XY1 = ws.XY1, *XY2 = ws.XY2;
-   real_t *g0 = ws.g0, *g1 = ws.g1, *g2 = ws.g2;
-   real_t *QQ0 = ws.QQ0, *QQ1 = ws.QQ1, *QQ2 = ws.QQ2;
-   real_t *gvec0 = ws.gvec0, *gvec1 = ws.gvec1, *gvec2 = ws.gvec2;
-   real_t *A0 = ws.A0, *A1 = ws.A1, *A2 = ws.A2, *Yacc = ws.Yacc;
-
-   mma::lapack::Gemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
-                    Xe, D1D, real_t(0), BX, Q1D);
-   mma::lapack::Gemm('N', 'N', Q1D, nd2, D1D, real_t(1), G, Q1D,
-                    Xe, D1D, real_t(0), GX, Q1D);
-
-   std::fill(g0, g0 + nq3, real_t(0));
-   std::fill(g1, g1 + nq3, real_t(0));
-   std::fill(g2, g2 + nq3, real_t(0));
-
-   for (int dz = 0; dz < D1D; ++dz)
-   {
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            BXt[dy + D1D * qx] = BX[qx + Q1D * (dy + D1D * dz)];
-            GXt[dy + D1D * qx] = GX[qx + Q1D * (dy + D1D * dz)];
-         }
-      }
-      mma::lapack::Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), B, Q1D,
-                       GXt, D1D, real_t(0), XY0, Q1D);
-      mma::lapack::Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), G, Q1D,
-                       BXt, D1D, real_t(0), XY1, Q1D);
-      mma::lapack::Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), B, Q1D,
-                       BXt, D1D, real_t(0), XY2, Q1D);
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            const real_t v0 = XY0[qy + Q1D * qx];
-            const real_t v1 = XY1[qy + Q1D * qx];
-            const real_t v2 = XY2[qy + Q1D * qx];
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               const int idx = qx + Q1D * (qy + Q1D * qz);
-               g0[idx] += v0 * B[qz + Q1D * dz];
-               g1[idx] += v1 * B[qz + Q1D * dz];
-               g2[idx] += v2 * G[qz + Q1D * dz];
-            }
-         }
-      }
-   }
-
-   for (int q = 0; q < nq3; ++q)
-   {
-      const real_t gx = g0[q], gy = g1[q], gz = g2[q];
-      const real_t O11 = Dv[q + nq3 * (0 + PA_SIZE * e)];
-      const real_t O12 = Dv[q + nq3 * (1 + PA_SIZE * e)];
-      const real_t O13 = Dv[q + nq3 * (2 + PA_SIZE * e)];
-      real_t O21, O22, O23, O31, O32, O33;
-      if constexpr (SYM)
-      {
-         O21 = O12;
-         O22 = Dv[q + nq3 * (3 + PA_SIZE * e)];
-         O23 = Dv[q + nq3 * (4 + PA_SIZE * e)];
-         O31 = O13; O32 = O23;
-         O33 = Dv[q + nq3 * (5 + PA_SIZE * e)];
-      }
-      else
-      {
-         O21 = Dv[q + nq3 * (3 + PA_SIZE * e)];
-         O22 = Dv[q + nq3 * (4 + PA_SIZE * e)];
-         O23 = Dv[q + nq3 * (5 + PA_SIZE * e)];
-         O31 = Dv[q + nq3 * (6 + PA_SIZE * e)];
-         O32 = Dv[q + nq3 * (7 + PA_SIZE * e)];
-         O33 = Dv[q + nq3 * (8 + PA_SIZE * e)];
-      }
-      g0[q] = O11 * gx + O12 * gy + O13 * gz;
-      g1[q] = O21 * gx + O22 * gy + O23 * gz;
-      g2[q] = O31 * gx + O32 * gy + O33 * gz;
-   }
-
-   std::fill(Yacc, Yacc + ndof, real_t(0));
-   for (int qz = 0; qz < Q1D; ++qz)
-   {
-      std::fill(A0, A0 + nd2, real_t(0));
-      std::fill(A1, A1 + nd2, real_t(0));
-      std::fill(A2, A2 + nd2, real_t(0));
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            const int q = qx + Q1D * (qy + Q1D * qz);
-            gvec0[qx] = g0[q];
-            gvec1[qx] = g1[q];
-            gvec2[qx] = g2[q];
-         }
-         mma::lapack::Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Gt, D1D,
-                          gvec0, Q1D, real_t(0), QQ0, D1D);
-         mma::lapack::Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Bt, D1D,
-                          gvec1, Q1D, real_t(0), QQ1, D1D);
-         mma::lapack::Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Bt, D1D,
-                          gvec2, Q1D, real_t(0), QQ2, D1D);
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            const real_t wy = Bt[dy + D1D * qy];
-            const real_t wDy = Gt[dy + D1D * qy];
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               A0[dx + D1D * dy] += QQ0[dx] * wy;
-               A1[dx + D1D * dy] += QQ1[dx] * wDy;
-               A2[dx + D1D * dy] += QQ2[dx] * wy;
-            }
-         }
-      }
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         const real_t wz = Bt[dz + D1D * qz];
-         const real_t wDz = Gt[dz + D1D * qz];
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               const int id = dx + D1D * (dy + D1D * dz);
-               Yacc[id] += A0[dx + D1D * dy] * wz
-                           + A1[dx + D1D * dy] * wz
-                           + A2[dx + D1D * dy] * wDz;
-            }
-         }
-      }
-   }
-
-   real_t *Ye = Y + static_cast<size_t>(ndof) * e;
-   for (int i = 0; i < ndof; ++i) { Ye[i] += Yacc[i]; }
-}
-
-/** 3D diffusion SUM via per-element lapack::Gemm. */
-template <int D1D, int Q1D, bool SYM>
-inline void lapack_DiffusionApplyTensors3D(
-   const int NE,
-   const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
-   const real_t *Dv, const real_t *X, real_t *Y)
-{
-   mma::host_Arena arena;
-   lapack_Diff3DWs<D1D, Q1D> ws;
-   ws.Bind(arena);
-   for (int e = 0; e < NE; ++e)
-   {
-      lapack_DiffusionApplyTensors3DElement<D1D, Q1D, SYM>(
-         e, B, G, Bt, Gt, Dv, X, Y, ws);
-   }
-}
-
-template <int D1D, int Q1D>
-inline bool lapack_TryDiffusionApplyTensors2D(
+inline bool TryDiffusionApplyTensors2D(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
@@ -393,20 +180,27 @@ inline bool lapack_TryDiffusionApplyTensors2D(
    real_t *Y = y.ReadWrite();
    if (symmetric)
    {
-      lapack_DiffusionApplyTensors2D<D1D, Q1D, true>(
+      DiffusionApplyTensors2D<D1D, Q1D, true>(
          NE, B, G, Bt, Gt, Dv, X, Y);
    }
    else
    {
-      lapack_DiffusionApplyTensors2D<D1D, Q1D, false>(
+      DiffusionApplyTensors2D<D1D, Q1D, false>(
          NE, B, G, Bt, Gt, Dv, X, Y);
    }
    return true;
 }
 
-/** blas_ diffusion 3D (PADiffusion contractions). */
+#endif // MFEM_USE_LAPACK
+
+} // namespace lapack
+
+namespace blas
+{
+
+/** Dense sum-fact diffusion 3D (PADiffusion contractions). */
 template <int D1D, int Q1D, bool SYM>
-inline void blas_DiffusionApplyTensors3D(
+inline void DiffusionApplyTensors3D(
    const int NE,
    const real_t *B, const real_t *G,
    const real_t *Dv, const real_t *X, real_t *Y)
@@ -564,7 +358,7 @@ inline void blas_DiffusionApplyTensors3D(
          }
       }
    };
-   const int NB = mma::lapack::TensorNB3D(D1D, Q1D);
+   const int NB = mma::TensorTileNB3D(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -574,42 +368,32 @@ inline void blas_DiffusionApplyTensors3D(
    }
 }
 
+/** Host 3D diffusion: dense sum-fact (same policy as mass tensors). */
 template <int D1D, int Q1D>
-inline bool lapack_TryDiffusionApplyTensors3D(
+inline bool TryDiffusionApplyTensors3D(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
-   const Array<real_t> &bt, const Array<real_t> &gt,
+   const Array<real_t> & /*bt*/, const Array<real_t> & /*gt*/,
    const Vector &d, const Vector &x, Vector &y)
 {
    if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
-   const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
+   const real_t *B = b.Read(), *G = g.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
-   if (D1D <= 5)
-   {
-      if (symmetric)
-      {
-         blas_DiffusionApplyTensors3D<D1D, Q1D, true>(NE, B, G, Dv, X, Y);
-      }
-      else
-      {
-         blas_DiffusionApplyTensors3D<D1D, Q1D, false>(NE, B, G, Dv, X, Y);
-      }
-      return true;
-   }
    if (symmetric)
    {
-      lapack_DiffusionApplyTensors3D<D1D, Q1D, true>(
-         NE, B, G, Bt, Gt, Dv, X, Y);
+      DiffusionApplyTensors3D<D1D, Q1D, true>(NE, B, G, Dv, X, Y);
    }
    else
    {
-      lapack_DiffusionApplyTensors3D<D1D, Q1D, false>(
-         NE, B, G, Bt, Gt, Dv, X, Y);
+      DiffusionApplyTensors3D<D1D, Q1D, false>(NE, B, G, Dv, X, Y);
    }
    return true;
 }
-#endif // MFEM_USE_LAPACK
+
+
+} // namespace blas
+} // namespace mma
 
 template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
 inline void MmaDiffusionApplyTensors3D(const int NE,
@@ -865,16 +649,17 @@ inline void MmaDiffusionApplyTensors(
 {
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-#ifdef MFEM_USE_LAPACK
       if constexpr (DIM == 3)
       {
-         if (lapack_TryDiffusionApplyTensors3D<T_D1D, T_Q1D>(
+         // Host dense sum-fact (no LAPACK required).
+         if (mma::blas::TryDiffusionApplyTensors3D<T_D1D, T_Q1D>(
                 NE, symmetric, b, g, bt, gt, d, x, y))
          { return; }
       }
+#ifdef MFEM_USE_LAPACK
       else
       {
-         if (lapack_TryDiffusionApplyTensors2D<T_D1D, T_Q1D>(
+         if (mma::lapack::TryDiffusionApplyTensors2D<T_D1D, T_Q1D>(
                 NE, symmetric, b, g, bt, gt, d, x, y))
          { return; }
       }

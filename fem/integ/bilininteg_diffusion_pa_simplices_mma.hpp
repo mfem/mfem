@@ -243,13 +243,18 @@ inline int DiffusionMmaNBRuntime(int dim, int ndof, int nq, int pa_comps)
    return DiffusionMmaNBFullNqRuntime(dim, ndof, nq, pa_comps);
 }
 
-/** Blas multi-RHS NB for specialized diffusion. 2D uses NB=32. */
+namespace blas
+{
+
+/** Multi-RHS NB for specialized diffusion. 2D uses NB=32. */
 template <int DIM, int NQ>
-constexpr int blas_DiffusionNB()
+constexpr int DiffusionNB()
 {
    if constexpr (DIM == 2) { return 32; }
    return (NQ > 60) ? 2 : 4;
 }
+
+} // namespace blas
 
 // ---- Diffusion metric at one quadrature point (vector length DIM) ----------
 
@@ -309,9 +314,12 @@ MFEM_HOST_DEVICE inline void ApplyDiffusionMetricVec(real_t *u,
    }
 }
 
+namespace blas
+{
+
 /** Fused 2D diffusion for NQ=1 (BP3 p=1): per-element, no tile buffers. */
 template <int NDOF, bool SYM>
-inline void blas_DiffusionApplyNQ1_2D(int NE, const real_t *G, const real_t *Dv,
+inline void DiffusionApplyNQ1_2D(int NE, const real_t *G, const real_t *Dv,
                                     const real_t *X, real_t *Y)
 {
    constexpr int PA_SIZE = SYM ? 3 : 4;
@@ -388,7 +396,7 @@ inline void ApplyDiffusionMetricColMajor(real_t *uloc, const real_t *Dv,
 
 /** Metric on hand b-innermost U: uloc[(d * NQ + q) * NB + b]. */
 template <int DIM, int NQ, int NB, bool SYM>
-inline void blas_DiffusionMetric(real_t *uloc, const real_t *Dv,
+inline void DiffusionMetric(real_t *uloc, const real_t *Dv,
                                      int e0, int NE, int pa_size)
 {
    if constexpr (DIM == 2 && SYM)
@@ -436,7 +444,7 @@ inline void blas_DiffusionMetric(real_t *uloc, const real_t *Dv,
 
 /** Diffusion hand: forward all GradP components into uloc[(d*NQ+q)*NB+b]. */
 template <int DIM, int NDOF, int NQ, int NB>
-inline void blas_DiffusionForward(const real_t *G, const real_t *xloc,
+inline void DiffusionForward(const real_t *G, const real_t *xloc,
                                  real_t *uloc)
 {
    for (int d = 0; d < DIM; ++d)
@@ -449,7 +457,7 @@ inline void blas_DiffusionForward(const real_t *G, const real_t *xloc,
 
 /** blas_: Y += sum_d G_d^T U_d. */
 template <int DIM, int NDOF, int NQ, int NB>
-inline void blas_DiffusionBackward(const real_t *G, const real_t *uloc,
+inline void DiffusionBackward(const real_t *G, const real_t *uloc,
                                     real_t *Y, int e0, int NE)
 {
    for (int i = 0; i < NDOF; ++i)
@@ -480,12 +488,17 @@ inline void blas_DiffusionBackward(const real_t *G, const real_t *uloc,
    }
 }
 
+} // namespace blas
+
+namespace lapack
+{
+
 #ifdef MFEM_USE_LAPACK
 /** Diffusion: U_d = G_d X, metric, Y += sum G_d^T V_d.
     Full tiles GEMM against X/Y; partial trailing tile packs/scatters. */
 template <int DIM, bool SYM>
-inline void lapack_DiffusionApply(int NE, int nq, int ndof, const real_t *G,
-                                 const real_t *Dv, const real_t *X, real_t *Y)
+inline void DiffusionApply(int NE, int nq, int ndof, const real_t *G,
+                           const real_t *Dv, const real_t *X, real_t *Y)
 {
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    const int NB = lapack::NB(nq, ndof);
@@ -514,17 +527,21 @@ inline void lapack_DiffusionApply(int NE, int nq, int ndof, const real_t *G,
 }
 #endif // MFEM_USE_LAPACK
 
+} // namespace lapack
+
+namespace blas
+{
+
 template <int DIM, int NDOF, int NQ, bool SYM>
-inline void blas_DiffusionApply(int NE, const real_t *G,
-                                          const real_t *Dv, const real_t *X,
-                                          real_t *Y)
+inline void DiffusionApply(int NE, const real_t *G,
+                           const real_t *Dv, const real_t *X, real_t *Y)
 {
    if constexpr (DIM == 2 && NQ == 1)
    {
-      blas_DiffusionApplyNQ1_2D<NDOF, SYM>(NE, G, Dv, X, Y);
+      DiffusionApplyNQ1_2D<NDOF, SYM>(NE, G, Dv, X, Y);
       return;
    }
-   constexpr int NB = blas_DiffusionNB<DIM, NQ>();
+   constexpr int NB = DiffusionNB<DIM, NQ>();
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
@@ -533,9 +550,9 @@ inline void blas_DiffusionApply(int NE, const real_t *G,
       alignas(64) real_t xloc[NDOF * NB];
       alignas(64) real_t uloc[DIM * NQ * NB];
       blas::PackX<NDOF, NB>(X, e0, NE, xloc);
-      blas_DiffusionForward<DIM, NDOF, NQ, NB>(G, xloc, uloc);
-      blas_DiffusionMetric<DIM, NQ, NB, SYM>(uloc, Dv, e0, NE, PA_SIZE);
-      blas_DiffusionBackward<DIM, NDOF, NQ, NB>(G, uloc, Y, e0, NE);
+      DiffusionForward<DIM, NDOF, NQ, NB>(G, xloc, uloc);
+      DiffusionMetric<DIM, NQ, NB, SYM>(uloc, Dv, e0, NE, PA_SIZE);
+      DiffusionBackward<DIM, NDOF, NQ, NB>(G, uloc, Y, e0, NE);
    }
 }
 
@@ -581,7 +598,7 @@ MFEM_HOST_DEVICE inline void DiffusionApplyDenseElement(
 }
 
 template <int DIM, bool SYM>
-inline void blas_DiffusionApplyRuntime(int NE, int nq, int ndof, const real_t *G,
+inline void DiffusionApplyRuntime(int NE, int nq, int ndof, const real_t *G,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
@@ -594,6 +611,8 @@ inline void blas_DiffusionApplyRuntime(int NE, int nq, int ndof, const real_t *G
          nq, ndof, G, Dv + nq * PA_SIZE * e, X + ndof * e, Y + ndof * e, u);
    }
 }
+
+} // namespace blas
 
 } // namespace mma
 
@@ -1016,7 +1035,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
     Large (nq,ndof): BLAS multi-RHS when MFEM_USE_LAPACK is on.
     Specialized sizes: Blas multi-RHS tiles; else runtime single-element. */
 template<int DIM, int D1D, int QND, bool SYM>
-inline void blas_DiffusionApplySimplex(const int NE,
+inline void DiffusionApplySimplex(const int NE,
                                       const Array<real_t> &g,
                                       const Vector &d,
                                       const Vector &x,
@@ -1034,12 +1053,12 @@ inline void blas_DiffusionApplySimplex(const int NE,
 #ifdef MFEM_USE_LAPACK
    if (mma::lapack::PreferDiffusion(QND, ndof, NE))
    {
-      mma::lapack_DiffusionApply<DIM, SYM>(NE, QND, ndof, G, Dv, X, Y);
+      mma::lapack::DiffusionApply<DIM, SYM>(NE, QND, ndof, G, Dv, X, Y);
       return;
    }
 #endif
 
-   mma::blas_DiffusionApply<DIM, ndof, QND, SYM>(
+   mma::blas::DiffusionApply<DIM, ndof, QND, SYM>(
       NE, G, Dv, X, Y);
 }
 
@@ -1060,7 +1079,7 @@ inline void MmaDiffusionApplySimplex(const int NE,
 
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      blas_DiffusionApplySimplex<DIM, D1D, QND, SYM>(
+      DiffusionApplySimplex<DIM, D1D, QND, SYM>(
          NE, g, d, x, y);
       return;
    }
@@ -1142,11 +1161,11 @@ inline void PADiffusionApplySimplexDenseRuntime(const int NE,
 #ifdef MFEM_USE_LAPACK
       if (mma::lapack::PreferDiffusion(nq, ndof, NE))
       {
-         mma::lapack_DiffusionApply<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
+         mma::lapack::DiffusionApply<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
          return;
       }
 #endif
-      mma::blas_DiffusionApplyRuntime<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
+      mma::blas::DiffusionApplyRuntime<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
       return;
    }
 
@@ -1157,7 +1176,7 @@ inline void PADiffusionApplySimplexDenseRuntime(const int NE,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       real_t u[DIM * max_nq];
-      mma::DiffusionApplyDenseElement<DIM, SYM>(
+      mma::blas::DiffusionApplyDenseElement<DIM, SYM>(
          nq, ndof, G, Dv + nq * PA_SIZE * e,
          X + ndof * e, Y + ndof * e, u);
    });
@@ -1312,7 +1331,7 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
             {
                XY[i + x_ld * b] = X(i, e);
             }
-            mma::DiffusionApplyDenseElement<DIM, SYM>(
+            mma::blas::DiffusionApplyDenseElement<DIM, SYM>(
                nq, ndof, g, &D(0, 0, e), &XY[x_ld * b], &Y(0, e), u_scratch);
             MFEM_CONTRACT_VAR(UV);
             MFEM_CONTRACT_VAR(u_ld);

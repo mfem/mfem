@@ -21,11 +21,16 @@ namespace mfem
 namespace internal
 {
 
-// ---- Host mass apply (blas_ sum-fact) -------------------------------------
+namespace mma
+{
+namespace blas
+{
 
-/** blas_ sum-fact host mass 2D with serial over element tiles. */
+// ---- Host mass apply (dense sum-fact) -------------------------------------
+
+/** Dense sum-fact host mass 2D with serial over element tiles. */
 template <int D1D, int Q1D>
-inline void blas_MassApplyTensors2D(const int NE, const real_t *B,
+inline void MassApplyTensors2D(const int NE, const real_t *B,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
@@ -87,7 +92,7 @@ inline void blas_MassApplyTensors2D(const int NE, const real_t *B,
       }
    };
    // Tile over elements for multi-RHS batching.
-   const int NB = mma::lapack::TensorNB(D1D, Q1D);
+   const int NB = mma::TensorTileNB(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -99,7 +104,7 @@ inline void blas_MassApplyTensors2D(const int NE, const real_t *B,
 
 /** blas_ sum-fact host mass 3D with serial over element tiles. */
 template <int D1D, int Q1D>
-inline void blas_MassApplyTensors3D(const int NE, const real_t *B,
+inline void MassApplyTensors3D(const int NE, const real_t *B,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
@@ -189,7 +194,7 @@ inline void blas_MassApplyTensors3D(const int NE, const real_t *B,
          }
       }
    };
-   const int NB = mma::lapack::TensorNB3D(D1D, Q1D);
+   const int NB = mma::TensorTileNB3D(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -202,7 +207,7 @@ inline void blas_MassApplyTensors3D(const int NE, const real_t *B,
 /** Host mass tensor apply: dense sum-fact (blas_). Always preferred for the
     registered D1D range (4..TensorsMmaMax) over the MMA Emulate shell. */
 template <int D1D, int Q1D>
-inline bool blas_TryMassApplyTensors2D(const int NE,
+inline bool TryMassApplyTensors2D(const int NE,
                                        const Array<real_t> &b,
                                        const Array<real_t> & /*bt*/,
                                        const Vector &d,
@@ -210,13 +215,13 @@ inline bool blas_TryMassApplyTensors2D(const int NE,
                                        Vector &y)
 {
    if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
-   blas_MassApplyTensors2D<D1D, Q1D>(NE, b.Read(), d.Read(),
+   MassApplyTensors2D<D1D, Q1D>(NE, b.Read(), d.Read(),
                                      x.Read(), y.ReadWrite());
    return true;
 }
 
 template <int D1D, int Q1D>
-inline bool blas_TryMassApplyTensors3D(const int NE,
+inline bool TryMassApplyTensors3D(const int NE,
                                        const Array<real_t> &b,
                                        const Array<real_t> & /*bt*/,
                                        const Vector &d,
@@ -224,10 +229,13 @@ inline bool blas_TryMassApplyTensors3D(const int NE,
                                        Vector &y)
 {
    if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
-   blas_MassApplyTensors3D<D1D, Q1D>(NE, b.Read(), d.Read(),
+   MassApplyTensors3D<D1D, Q1D>(NE, b.Read(), d.Read(),
                                      x.Read(), y.ReadWrite());
    return true;
 }
+
+} // namespace blas
+} // namespace mma
 
 template <int T_D1D = 0, int T_Q1D = 0>
 inline void MmaMassApplyTensors3D(const int NE,
@@ -406,12 +414,12 @@ inline void MmaMassApplyTensors(
    {
       if constexpr (DIM == 3)
       {
-         if (blas_TryMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (mma::blas::TryMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
          { return; }
       }
       else
       {
-         if (blas_TryMassApplyTensors2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (mma::blas::TryMassApplyTensors2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
          { return; }
       }
    }

@@ -2885,76 +2885,35 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
 
 
 } // namespace mfma
-// ======================================================================
-// HOST (blas) — Gemm + SUMF
-// ======================================================================
-
-namespace blas
-{
-
-/** Dense cooperative GEMM (no MMA): U(q,b) = sum_i B(q,i)*X(i,b) [, *D].
-    Sibling of dmma::Gemm / mfma::Gemm for CPU, single, and pre-sm_80 paths. */
-template <bool SCALE, typename BasisAcc, typename XAcc, typename UAcc,
-          typename DAcc>
-MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
-                                       const int NB, BasisAcc B,
-                                       XAcc X, UAcc U, DAcc D,
-                                       const int e0, const int NE)
-{
-   const int tid = getThreadIdx();
-   const int nthreads = getBlockNthreads();
-   for (int idx = tid; idx < M * NB; idx += nthreads)
-   {
-      const int b = idx / M;
-      const int q = idx - b * M;
-      real_t s = 0.0;
-      for (int i = 0; i < ndof; ++i)
-      {
-         s += B(q, i) * X(i, b);
-      }
-      if constexpr (SCALE)
-      {
-         const int e = e0 + b;
-         s = (e < NE) ? s * D(q, e) : real_t(0);
-      }
-      U(q, b) = s;
-   }
-}
-
-/** Dense cooperative GEMM^T: Y(i,b) += sum_q B(q,i)*U(q,b). */
-template <typename BasisAcc, typename UAcc, typename YAcc>
-MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
-                                        const int NB, BasisAcc B,
-                                        UAcc U, YAcc Y,
-                                        const int e0, const int NE)
-{
-   const int tid = getThreadIdx();
-   const int nthreads = getBlockNthreads();
-   for (int idx = tid; idx < ndof * NB; idx += nthreads)
-   {
-      const int b = idx / ndof;
-      const int i = idx - b * ndof;
-      const int e = e0 + b;
-      if (e >= NE) { continue; }
-      real_t s = 0.0;
-      for (int q = 0; q < M; ++q)
-      {
-         s += B(q, i) * U(q, b);
-      }
-      Y(i, b) += s;
-   }
-}
-
-
-} // namespace blas
 // ---- Host policy / scratch + lapack packing (CPU apply) ------------
 
-/** Prefer host tensor apply (blas_ / lapack_) over MMA Emulate shell. */
+/** Prefer host tensor apply (blas / lapack) over MMA Emulate shell. */
 inline bool host_PreferTensor(int D1D, int Q1D, int NE)
 {
    // Registered tensor MMA is p>=3 (D1D>=4). Dense host sum-fact beats Emulate.
    (void)Q1D;
    return NE >= 4 && D1D >= 4;
+}
+
+/** Host tensor element-tile width (used by blas_ dense sum-fact and lapack paths). */
+inline int TensorTileNB(int D1D, int Q1D)
+{
+   const long long work = static_cast<long long>(D1D) * Q1D;
+   if (work <= 24) { return 48; }  // p=3 (4×5)
+   if (work <= 30) { return 32; }  // p=4 (5×6)
+   if (work <= 42) { return 64; }  // p=5 (6×7)
+   if (work <= 56) { return 96; }  // p=6
+   return 64;                      // p≥7
+}
+
+/** 3D host tensor element batch: RHS per elem = D1D². */
+inline int TensorTileNB3D(int D1D, int Q1D)
+{
+   (void)Q1D;
+   if (D1D <= 4) { return 48; } // p=3, cols = 16*48 = 768
+   if (D1D <= 5) { return 32; } // p=4
+   if (D1D <= 7) { return 24; }
+   return 16;
 }
 
 /** Grow a reusable scratch buffer. */
@@ -2984,7 +2943,6 @@ struct host_Arena
       return p;
    }
 };
-
 
 namespace lapack
 {
@@ -3011,19 +2969,19 @@ inline bool PreferSized(int nq, int ndof, int NE,
     mid-size locals (tris). */
 inline bool Prefer(int nq, int ndof, int NE)
 {
-   // Mid-size TRI mass p≳4: fat-N vendor GEMM. Tiny TRI p=1..3 stay on blas_.
+   // Mid-size TRI mass p≳4: fat-N vendor GEMM. Tiny TRI p=1..3 stay on blas.
    return PreferSized(nq, ndof, NE, 180, 8);
 }
 
 /** Diffusion does 2*DIM GEMMs + metric per tile; higher bar than mass so TRI
-    BP3 p<=4 stays on the blas_ path. */
+    BP3 p<=4 stays on the blas path. */
 inline bool PreferDiffusion(int nq, int ndof, int NE)
 {
    // ~ TRI BP3 p>=5 (nq*ndof ≳ 420).
    return PreferSized(nq, ndof, NE, 400, 16);
 }
 
-/** Multi-RHS tile width for the lapack_ path (mass / diffusion / linear form). */
+/** Multi-RHS tile width for the lapack path (mass / diffusion / linear form). */
 inline int NB(int nq, int ndof)
 {
    const long long work = static_cast<long long>(nq) * ndof;
@@ -3034,63 +2992,6 @@ inline int NB(int nq, int ndof)
    if (work >= 2048) { return 16; }
    return 8;
 }
-
-/** Tensor (quad/hex) host multi-RHS tile width over elements. */
-inline int TensorNB(int D1D, int Q1D)
-{
-   const long long work = static_cast<long long>(D1D) * Q1D;
-   if (work <= 24) { return 48; }  // p=3 (4×5)
-   if (work <= 30) { return 32; }  // p=4 (5×6)
-   if (work <= 42) { return 64; }  // p=5 (6×7)
-   if (work <= 56) { return 96; }  // p=6
-   return 64;                      // p≥7
-}
-
-/** 3D tensor element batch: RHS per elem = D1D²; keep total columns large. */
-inline int TensorNB3D(int D1D, int Q1D)
-{
-   (void)Q1D;
-   if (D1D <= 4) { return 48; } // p=3, cols = 16*48 = 768
-   if (D1D <= 5) { return 32; } // p=4
-   if (D1D <= 7) { return 24; }
-   return 16;
-}
-
-/** Prefer host tensor apply (blas_ / lapack_) over MMA Emulate shell. */
-inline bool host_PreferTensor(int D1D, int Q1D, int NE)
-{
-   // Registered tensor MMA is p>=3 (D1D>=4). Dense host sum-fact beats Emulate.
-   (void)Q1D;
-   return NE >= 4 && D1D >= 4;
-}
-
-/** Grow a reusable scratch buffer. */
-inline real_t *host_Scratch(std::vector<real_t> &buf, size_t n)
-{
-   if (buf.size() < n) { buf.resize(n); }
-   return buf.data();
-}
-
-/** Single-allocation host scratch: reset(capacity), then take(n) slices. */
-struct host_Arena
-{
-   std::vector<real_t> buf;
-   size_t used = 0;
-
-   void reset(size_t capacity)
-   {
-      if (buf.size() < capacity) { buf.resize(capacity); }
-      used = 0;
-   }
-
-   real_t *take(size_t n)
-   {
-      MFEM_ASSERT(used + n <= buf.size(), "host_Arena overflow");
-      real_t *p = buf.data() + used;
-      used += n;
-      return p;
-   }
-};
 
 /** Full tile: return X + ndof*e0. Partial: pack into xloc (zero-padded), return xloc.
     Layout: X[dx + D1D*(dy + D1D*e)], xloc[dx + D1D*(dy + D1D*b)]. */
@@ -3288,10 +3189,68 @@ inline void ElementTiles(int NE, int ndof, int NB,
 
 } // namespace lapack
 
-// ---- Blas multi-RHS GEMM (b-innermost) -------------------------------------
+// ---- blas: cooperative GEMM, host multi-RHS, SUMF / Grad Emulate ------------
 
 namespace blas
 {
+
+// Cooperative dense GEMM (device Emulate / host)
+
+/** Dense cooperative GEMM (no MMA): U(q,b) = sum_i B(q,i)*X(i,b) [, *D].
+    Sibling of dmma::Gemm / mfma::Gemm for CPU, single, and pre-sm_80 paths. */
+template <bool SCALE, typename BasisAcc, typename XAcc, typename UAcc,
+          typename DAcc>
+MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
+                                       const int NB, BasisAcc B,
+                                       XAcc X, UAcc U, DAcc D,
+                                       const int e0, const int NE)
+{
+   const int tid = getThreadIdx();
+   const int nthreads = getBlockNthreads();
+   for (int idx = tid; idx < M * NB; idx += nthreads)
+   {
+      const int b = idx / M;
+      const int q = idx - b * M;
+      real_t s = 0.0;
+      for (int i = 0; i < ndof; ++i)
+      {
+         s += B(q, i) * X(i, b);
+      }
+      if constexpr (SCALE)
+      {
+         const int e = e0 + b;
+         s = (e < NE) ? s * D(q, e) : real_t(0);
+      }
+      U(q, b) = s;
+   }
+}
+
+/** Dense cooperative GEMM^T: Y(i,b) += sum_q B(q,i)*U(q,b). */
+template <typename BasisAcc, typename UAcc, typename YAcc>
+MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
+                                        const int NB, BasisAcc B,
+                                        UAcc U, YAcc Y,
+                                        const int e0, const int NE)
+{
+   const int tid = getThreadIdx();
+   const int nthreads = getBlockNthreads();
+   for (int idx = tid; idx < ndof * NB; idx += nthreads)
+   {
+      const int b = idx / ndof;
+      const int i = idx - b * ndof;
+      const int e = e0 + b;
+      if (e >= NE) { continue; }
+      real_t s = 0.0;
+      for (int q = 0; q < M; ++q)
+      {
+         s += B(q, i) * U(q, b);
+      }
+      Y(i, b) += s;
+   }
+}
+
+
+
 
 /** Load X tile: xloc[i*NB+b], pad zeros. */
 template <int NDOF, int NB>
@@ -3764,9 +3723,28 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
 
 
 } // namespace blas
+
 // ======================================================================
-// Dispatch — Gemm* + public SUMF
+// Dispatch — pick dmma / mfma / blas
 // ======================================================================
+
+/** Select backend function pointer: tensor MMA when enabled, else dense blas.
+    Macro (not a template): host-only builds never form &dmma:: / &mfma::, which
+    exist only under MFEM_USE_CUDA / HIP device compile.
+    Callers must parenthesize each arg (commas in template args):
+      MMA_BACKEND_PICK((&dmma::Foo<A,B>), (&mfma::Foo<A,B>), (&blas::Foo<A,B>)) */
+#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
+#define MMA_BACKEND_PICK(dmma_fn, mfma_fn, blas_fn) \
+   (TensorMmaEnabled() ? static_cast<decltype(blas_fn)>(dmma_fn) : (blas_fn))
+#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
+#define MMA_BACKEND_PICK(dmma_fn, mfma_fn, blas_fn) \
+   (TensorMmaEnabled() ? static_cast<decltype(blas_fn)>(mfma_fn) : (blas_fn))
+#else
+#define MMA_BACKEND_PICK(dmma_fn, mfma_fn, blas_fn) (blas_fn)
+#endif
+
+// ---- Gemm* + public SUMF -----------------------------------------------
+
 
 /** One-component forward: U = B * X [, * D if SCALE].
     M is the GEMM row count (full QND or nq_tile). */
@@ -3777,18 +3755,10 @@ MFEM_HOST_DEVICE inline void Gemm(const int M, const int ndof,
                                   XAcc X, UAcc U, DAcc D,
                                   const int e0, const int NE)
 {
-   using Fn = decltype(&blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn gemm = TensorMmaEnabled()
-                   ? &dmma::Gemm<MAP, SCALE, BasisAcc, XAcc, UAcc, DAcc>
-                   : &blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn gemm = TensorMmaEnabled()
-                   ? &mfma::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>
-                   : &blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>;
-#else
-   const Fn gemm = &blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>;
-#endif
+   const auto gemm = MMA_BACKEND_PICK(
+      (&dmma::Gemm<MAP, SCALE, BasisAcc, XAcc, UAcc, DAcc>),
+      (&mfma::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>),
+      (&blas::Gemm<SCALE, BasisAcc, XAcc, UAcc, DAcc>));
    gemm(M, ndof, NB, B, X, U, D, e0, NE);
 }
 
@@ -3799,18 +3769,10 @@ MFEM_HOST_DEVICE inline void GemmT(const int M, const int ndof,
                                    UAcc U, YAcc Y,
                                    const int e0, const int NE)
 {
-   using Fn = decltype(&blas::GemmT<BasisAcc, UAcc, YAcc>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn gemm = TensorMmaEnabled()
-                   ? &dmma::GemmT<MAP, BasisAcc, UAcc, YAcc>
-                   : &blas::GemmT<BasisAcc, UAcc, YAcc>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn gemm = TensorMmaEnabled()
-                   ? &mfma::GemmT<BasisAcc, UAcc, YAcc>
-                   : &blas::GemmT<BasisAcc, UAcc, YAcc>;
-#else
-   const Fn gemm = &blas::GemmT<BasisAcc, UAcc, YAcc>;
-#endif
+   const auto gemm = MMA_BACKEND_PICK(
+      (&dmma::GemmT<MAP, BasisAcc, UAcc, YAcc>),
+      (&mfma::GemmT<BasisAcc, UAcc, YAcc>),
+      (&blas::GemmT<BasisAcc, UAcc, YAcc>));
    gemm(M, ndof, NB, B, U, Y, e0, NE);
 }
 
@@ -3903,18 +3865,10 @@ MFEM_HOST_DEVICE inline void GradX(const int m, const int n, const int k,
                                    const real_t (*A)[BUF],
                                    real_t (*C)[BUF])
 {
-   using Fn = decltype(&blas::GradX<MD1, MQ1, BUF>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradX<MD1, MQ1, BUF>
-                 : &blas::GradX<MD1, MQ1, BUF>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradX<MD1, MQ1, BUF>
-                 : &blas::GradX<MD1, MQ1, BUF>;
-#else
-   const Fn fn = &blas::GradX<MD1, MQ1, BUF>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradX<MD1, MQ1, BUF>),
+      (&mfma::GradX<MD1, MQ1, BUF>),
+      (&blas::GradX<MD1, MQ1, BUF>));
    fn(m, n, k, BG, A, C);
 }
 
@@ -3935,18 +3889,10 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
                                    const real_t (*A)[BUF],
                                    real_t (*C)[BUF])
 {
-   using Fn = decltype(&blas::GradY<MD1, MQ1, BUF>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradY<MD1, MQ1, BUF>
-                 : &blas::GradY<MD1, MQ1, BUF>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradY<MD1, MQ1, BUF>
-                 : &blas::GradY<MD1, MQ1, BUF>;
-#else
-   const Fn fn = &blas::GradY<MD1, MQ1, BUF>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradY<MD1, MQ1, BUF>),
+      (&mfma::GradY<MD1, MQ1, BUF>),
+      (&blas::GradY<MD1, MQ1, BUF>));
    fn(m, n, k, BG, A, C);
 }
 
@@ -3968,18 +3914,10 @@ MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
                                    real_t (*C)[BUF],
                                    int gIdx)
 {
-   using Fn = decltype(&blas::GradZ<MD1, MQ1, BUF>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradZ<MD1, MQ1, BUF>
-                 : &blas::GradZ<MD1, MQ1, BUF>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradZ<MD1, MQ1, BUF>
-                 : &blas::GradZ<MD1, MQ1, BUF>;
-#else
-   const Fn fn = &blas::GradZ<MD1, MQ1, BUF>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradZ<MD1, MQ1, BUF>),
+      (&mfma::GradZ<MD1, MQ1, BUF>),
+      (&blas::GradZ<MD1, MQ1, BUF>));
    fn(m, n, k, BG, A, C, gIdx);
 }
 
@@ -4002,18 +3940,10 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
                                         const real_t (*A)[BUF],
                                         real_t (*C)[BUF])
 {
-   using Fn = decltype(&blas::GradZtLike<MD1, MQ1, BUF>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradZtLike<MD1, MQ1, BUF>
-                 : &blas::GradZtLike<MD1, MQ1, BUF>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradZtLike<MD1, MQ1, BUF>
-                 : &blas::GradZtLike<MD1, MQ1, BUF>;
-#else
-   const Fn fn = &blas::GradZtLike<MD1, MQ1, BUF>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradZtLike<MD1, MQ1, BUF>),
+      (&mfma::GradZtLike<MD1, MQ1, BUF>),
+      (&blas::GradZtLike<MD1, MQ1, BUF>));
    fn(m, n, k, gIdx, BG, A, C);
 }
 
@@ -4026,21 +3956,11 @@ MFEM_HOST_DEVICE inline void GradZt(const int D1D, const int Q1D,
 {
    // Blas uses physical gZ (d==2); MMA fragment convention uses gIdx=0.
    constexpr int BUF = MDQ * MDQ * MDQ;
-   using Fn = decltype(&blas::GradZtLike<MD1, MQ1, BUF>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradZtLike<MD1, MQ1, BUF>
-                 : &blas::GradZtLike<MD1, MQ1, BUF>;
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradZtLike<MD1, MQ1, BUF>),
+      (&mfma::GradZtLike<MD1, MQ1, BUF>),
+      (&blas::GradZtLike<MD1, MQ1, BUF>));
    const int gIdx = TensorMmaEnabled() ? 0 : 2;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradZtLike<MD1, MQ1, BUF>
-                 : &blas::GradZtLike<MD1, MQ1, BUF>;
-   const int gIdx = TensorMmaEnabled() ? 0 : 2;
-#else
-   const Fn fn = &blas::GradZtLike<MD1, MQ1, BUF>;
-   const int gIdx = 2;
-#endif
    fn(Q1D * Q1D, D1D, Q1D, gIdx, sBG, sQQQ, sDQQ);
 }
 
@@ -4075,18 +3995,10 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
                                     const DeviceTensor<4> &Y, // output
                                     const int e)
 {
-   using Fn = decltype(&blas::GradXt<MD1, MQ1, MDQ>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradXt<MD1, MQ1, MDQ>
-                 : &blas::GradXt<MD1, MQ1, MDQ>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradXt<MD1, MQ1, MDQ>
-                 : &blas::GradXt<MD1, MQ1, MDQ>;
-#else
-   const Fn fn = &blas::GradXt<MD1, MQ1, MDQ>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradXt<MD1, MQ1, MDQ>),
+      (&mfma::GradXt<MD1, MQ1, MDQ>),
+      (&blas::GradXt<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sDDQ, Y, e);
 }
 
@@ -4121,18 +4033,10 @@ MFEM_HOST_DEVICE inline void InterpAx(const int m, const int n, const int k,
                                       const DeviceTensor<2, const real_t> *D = nullptr,
                                       const int e = 0)
 {
-   using Fn = decltype(&blas::InterpAx<MD1, MQ1, ScaleAtStore>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::InterpAx<MD1, MQ1, ScaleAtStore>
-                 : &blas::InterpAx<MD1, MQ1, ScaleAtStore>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::InterpAx<MD1, MQ1, ScaleAtStore>
-                 : &blas::InterpAx<MD1, MQ1, ScaleAtStore>;
-#else
-   const Fn fn = &blas::InterpAx<MD1, MQ1, ScaleAtStore>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::InterpAx<MD1, MQ1, ScaleAtStore>),
+      (&mfma::InterpAx<MD1, MQ1, ScaleAtStore>),
+      (&blas::InterpAx<MD1, MQ1, ScaleAtStore>));
    fn(m, n, k, B1d, A, C, D, e);
 }
 
@@ -4214,18 +4118,10 @@ MFEM_HOST_DEVICE inline void InterpXt(const int D1D, const int Q1D,
                                       const real_t *sDDQ,
                                       const DeviceTensor<4> &Y, const int e)
 {
-   using Fn = decltype(&blas::InterpXt<MD1, MQ1>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::InterpXt<MD1, MQ1>
-                 : &blas::InterpXt<MD1, MQ1>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::InterpXt<MD1, MQ1>
-                 : &blas::InterpXt<MD1, MQ1>;
-#else
-   const Fn fn = &blas::InterpXt<MD1, MQ1>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::InterpXt<MD1, MQ1>),
+      (&mfma::InterpXt<MD1, MQ1>),
+      (&blas::InterpXt<MD1, MQ1>));
    fn(D1D, Q1D, sBt, sDDQ, Y, e);
 }
 
@@ -4266,18 +4162,10 @@ MFEM_HOST_DEVICE inline void GradY2D(const int D1D, const int Q1D,
                                      const real_t (*sDQ)[MDQ*MDQ],
                                      real_t (*sQQ)[MDQ*MDQ])
 {
-   using Fn = decltype(&blas::GradY2D<MD1, MQ1, MDQ>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradY2D<MD1, MQ1, MDQ>
-                 : &blas::GradY2D<MD1, MQ1, MDQ>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradY2D<MD1, MQ1, MDQ>
-                 : &blas::GradY2D<MD1, MQ1, MDQ>;
-#else
-   const Fn fn = &blas::GradY2D<MD1, MQ1, MDQ>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradY2D<MD1, MQ1, MDQ>),
+      (&mfma::GradY2D<MD1, MQ1, MDQ>),
+      (&blas::GradY2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sDQ, sQQ);
 }
 
@@ -4288,18 +4176,10 @@ MFEM_HOST_DEVICE inline void GradYt2D(const int D1D, const int Q1D,
                                       const real_t (*sQQ)[MDQ*MDQ],
                                       real_t (*sQD)[MDQ*MDQ])
 {
-   using Fn = decltype(&blas::GradYt2D<MD1, MQ1, MDQ>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradYt2D<MD1, MQ1, MDQ>
-                 : &blas::GradYt2D<MD1, MQ1, MDQ>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradYt2D<MD1, MQ1, MDQ>
-                 : &blas::GradYt2D<MD1, MQ1, MDQ>;
-#else
-   const Fn fn = &blas::GradYt2D<MD1, MQ1, MDQ>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradYt2D<MD1, MQ1, MDQ>),
+      (&mfma::GradYt2D<MD1, MQ1, MDQ>),
+      (&blas::GradYt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sQQ, sQD);
 }
 
@@ -4310,18 +4190,10 @@ MFEM_HOST_DEVICE inline void GradXt2D(const int D1D, const int Q1D,
                                       const real_t (*sQD)[MDQ*MDQ],
                                       const DeviceTensor<3> &Y, const int e)
 {
-   using Fn = decltype(&blas::GradXt2D<MD1, MQ1, MDQ>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::GradXt2D<MD1, MQ1, MDQ>
-                 : &blas::GradXt2D<MD1, MQ1, MDQ>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::GradXt2D<MD1, MQ1, MDQ>
-                 : &blas::GradXt2D<MD1, MQ1, MDQ>;
-#else
-   const Fn fn = &blas::GradXt2D<MD1, MQ1, MDQ>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::GradXt2D<MD1, MQ1, MDQ>),
+      (&mfma::GradXt2D<MD1, MQ1, MDQ>),
+      (&blas::GradXt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBG, sQD, Y, e);
 }
 
@@ -4346,18 +4218,10 @@ MFEM_HOST_DEVICE inline void InterpYt2D(const int D1D, const int Q1D,
                                         const real_t *sBt,
                                         const real_t *sQQ, real_t *sQD)
 {
-   using Fn = decltype(&blas::InterpYt2D<MD1, MQ1, MDQ>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::InterpYt2D<MD1, MQ1, MDQ>
-                 : &blas::InterpYt2D<MD1, MQ1, MDQ>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::InterpYt2D<MD1, MQ1, MDQ>
-                 : &blas::InterpYt2D<MD1, MQ1, MDQ>;
-#else
-   const Fn fn = &blas::InterpYt2D<MD1, MQ1, MDQ>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::InterpYt2D<MD1, MQ1, MDQ>),
+      (&mfma::InterpYt2D<MD1, MQ1, MDQ>),
+      (&blas::InterpYt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBt, sQQ, sQD);
 }
 
@@ -4367,18 +4231,10 @@ MFEM_HOST_DEVICE inline void InterpXt2D(const int D1D, const int Q1D,
                                         const real_t *sQD,
                                         const DeviceTensor<3> &Y, const int e)
 {
-   using Fn = decltype(&blas::InterpXt2D<MD1, MQ1, MDQ>);
-#if defined(__CUDA_ARCH__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &dmma::InterpXt2D<MD1, MQ1, MDQ>
-                 : &blas::InterpXt2D<MD1, MQ1, MDQ>;
-#elif defined(__HIP_DEVICE_COMPILE__) && !defined(MFEM_USE_SINGLE)
-   const Fn fn = TensorMmaEnabled()
-                 ? &mfma::InterpXt2D<MD1, MQ1, MDQ>
-                 : &blas::InterpXt2D<MD1, MQ1, MDQ>;
-#else
-   const Fn fn = &blas::InterpXt2D<MD1, MQ1, MDQ>;
-#endif
+   const auto fn = MMA_BACKEND_PICK(
+      (&dmma::InterpXt2D<MD1, MQ1, MDQ>),
+      (&mfma::InterpXt2D<MD1, MQ1, MDQ>),
+      (&blas::InterpXt2D<MD1, MQ1, MDQ>));
    fn(D1D, Q1D, sBt, sQD, Y, e);
 }
 
