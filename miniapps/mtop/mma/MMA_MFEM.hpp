@@ -353,7 +353,7 @@ public:
     /**
      * @brief Construct with default penalty parameters.
      *
-     * Sets a=0, c=max(1000, 10n), d=1 for all constraints.
+     * Sets a=0, c=max(1000, 10n), d=0 for all constraints.
      * The default @p c ensures @f$ c > \lambda^* @f$ for topology
      * optimisation problems where @f$ \lambda^* \sim n / V_\text{frac}^2 @f$.
      *
@@ -373,13 +373,13 @@ public:
      *   \text{penalty term} = a_0 z + \sum_i \bigl(c_i y_i +
      *   \tfrac{1}{2} d_i y_i^2\bigr)
      * @f]
-     * Typical values: a=0, c=max(1000,10n), d=1.
+     * Typical values: a=0, c=max(1000,10n), d=0.
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints.
      * @param a  Constraint weight on z (length m, usually all zeros).
      * @param c  Elastic penalty weight (length m, must satisfy c > λ*).
-     * @param d  Quadratic elastic weight (length m, usually all ones).
+     * @param d  Quadratic elastic weight (length m, usually all zeros).
      */
     MMAOptimizer(int n, int m,
                  const double* a, const double* c, const double* d);
@@ -1244,7 +1244,7 @@ public:
      * @brief Construct with n design variables and m constraints.
      *
      * Penalty parameters are set to defaults: @f$a_i = 0@f$,
-     * @f$c_i = \max(1000,\, 10n)@f$, @f$d_i = 1@f$ for all @f$i@f$.
+     * @f$c_i = \max(1000,\, 10n)@f$, @f$d_i = 0@f$ for all @f$i@f$.
      *
      * @param n  Number of design variables.
      * @param m  Number of constraints (≥ 0). Pass 0 for unconstrained.

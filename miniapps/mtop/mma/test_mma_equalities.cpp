@@ -238,7 +238,11 @@ static void Test_MixedConstraints()
     Check(opt.NumConstraints() ==2, "mixed: NumConstraints==2");
 
     real_t kkt=1.0;
-    for (int it=0;it<1000&&kkt>1e-9 && !std::isnan(double(kkt));++it){
+    double equality_residual=1.0;
+    int iterations=0;
+    for (;iterations<1000 &&
+         (kkt>1e-9 || equality_residual>1e-8) &&
+         !std::isnan(double(kkt));++iterations){
         for (int j=0;j<n;++j) df0(j)=real_t(-1.0/(n*double(x(j))*double(x(j))));
         double f0=0; for (int j=0;j<n;++j) f0+=1.0/(n*double(x(j)));
         double xmean=0; for (int j=0;j<n;++j) xmean+=double(x(j)); xmean/=n;
@@ -256,13 +260,15 @@ static void Test_MixedConstraints()
         xmean=0; for (int j=0;j<n;++j) xmean+=double(x(j)); xmean/=n;
         fi_ineq(0)=real_t(xmean-(Vfrac+0.05));
         h_eq(0)=real_t(xmean-Vfrac);
+        equality_residual=std::abs(double(h_eq(0)));
         fival=PackFival(fi_ineq,h_eq);
         kkt=opt.KKTresidual(x,df0,real_t(f0),fival,dfidx.data(),xmin,xmax);
     }
 
     double xmean=0; for (int j=0;j<n;++j) xmean+=double(x(j)); xmean/=n;
-    if (g_rank==0) printf("  kkt=%.2e  xmean=%.6f(%.2f)\n",
-                          double(kkt), xmean, Vfrac);
+    if (g_rank==0) printf("  kkt=%.2e  xmean=%.6f(%.2f)  |h|=%.2e  iters=%d\n",
+                          double(kkt), xmean, Vfrac,
+                          equality_residual,iterations);
     Check(kkt<1e-5,                    "converges: KKT < 1e-5");
     Check(std::abs(xmean-Vfrac)<1e-5,  "equality satisfied: mean(x)==Vfrac");
     Check(xmean<=Vfrac+0.05+1e-6,      "inequality satisfied: mean(x)<=Vfrac+0.05");

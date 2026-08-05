@@ -80,8 +80,8 @@ CXXFLAGS_ALL := $(MFEM_FLAGS) $(CXXFLAGS)
 # Sources and targets
 # ---------------------------------------------------------------------------
 
-LIB_SRC  := MMA_MFEM.cpp
-LIB_OBJ  := $(BUILD_DIR)/MMA_MFEM.o
+LIB_SRC  := MMA_MFEM.cpp MMA_Equality_MFEM.cpp
+LIB_OBJ  := $(BUILD_DIR)/MMA_MFEM.o $(BUILD_DIR)/MMA_Equality_MFEM.o
 LIB_A    := $(BUILD_DIR)/libmma_mfem.a
 
 # All test source files (anything matching test_*.cpp)
@@ -113,7 +113,10 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 # Compile the core library object
-$(LIB_OBJ): $(LIB_SRC) MMA_MFEM.hpp | $(BUILD_DIR)
+$(BUILD_DIR)/MMA_MFEM.o: MMA_MFEM.cpp MMA_MFEM.hpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS_ALL) $(INC) -c $< -o $@
+
+$(BUILD_DIR)/MMA_Equality_MFEM.o: MMA_Equality_MFEM.cpp MMA_Equality_MFEM.hpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS_ALL) $(INC) -c $< -o $@
 
 # Archive into a static library so test link lines stay short

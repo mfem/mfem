@@ -65,9 +65,6 @@ static std::pair<int,int> Distribute(int n)
     return {b+(g_rank<r?1:0), g_rank*b+std::min(g_rank,r)};
 }
 
-static uint64_t lcg(uint64_t& s)
-{ s=s*6364136223846793005ULL+1442695040888963407ULL; return s>>33; }
-
 // ============================================================
 // Helper: run compliance proxy on one device setting, return result
 // ============================================================

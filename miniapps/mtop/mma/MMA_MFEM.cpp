@@ -112,7 +112,7 @@ static std::vector<double> VecToDouble(const mfem::Vector& v)
 //   a = 0   (no linear objective term in the dual)
 //   c = max(1000, 10·n)  (must exceed the expected Lagrange multipliers;
 //                          for topology optimisation λ* ~ n / Vfrac²)
-//   d = 1   (standard scaling)
+//   d = 0   (standard linear elastic penalty; implies 0 <= lambda_i <= c_i)
 static void DefaultPenalty(int n_global, int m,
                             std::vector<double>& a,
                             std::vector<double>& c,
@@ -120,7 +120,7 @@ static void DefaultPenalty(int n_global, int m,
 {
     a.assign(m, 0.0);
     c.assign(m, std::max(1000.0, 10.0*n_global));
-    d.assign(m, 1.0);
+    d.assign(m, 0.0);
 }
 
 
@@ -270,7 +270,13 @@ void SolveDualIP(
 {
     // Inequality multipliers must start >=1 for the IP barrier.
     // Equality slots (last 2*n_eq entries) may start at any value — do not clamp.
-    for (int i=0;i<m-2*n_eq;++i){ lam[i]=std::max(lam[i],1.0); mu[i]=std::max(mu[i],1.0); }
+    for (int i=0;i<m-2*n_eq;++i){
+        lam[i]=std::max(lam[i],1.0); mu[i]=std::max(mu[i],1.0);
+        if (d_pen[i]==0.0) {
+            MFEM_VERIFY(c_pen[i]>0.0,"MMA with d_i=0 requires c_i>0");
+            lam[i]=std::min(lam[i],0.5*c_pen[i]);
+        }
+    }
     for (int i=m-2*n_eq;i<m;++i){ mu[i]=std::max(mu[i],1.0); }  // mu still needs >0
 
     // ── m=0: closed-form primal (no dual system) ──────────────────────────
@@ -311,7 +317,7 @@ void SolveDualIP(
     // PrimalFromDual: given the current dual variables λ, compute x*(λ) on device.
     //
     // Steps:
-    //   1. Project λ ≥ 0 (inequality slots only); update the slack y and z.
+    //   1. Project each internal λ slot nonnegative; update slack y and z.
     //   2. Build the weighted sums p_j(λ) = p0_j + Σᵢ λᵢ·pᵢⱼ (in d_tmp)
     //      and q_j(λ) = q0_j + Σᵢ λᵢ·qᵢⱼ (in d_df2).
     //   3. Evaluate the primal optimum x_j* = (√p·L + √q·U)/(√p+√q),
@@ -320,8 +326,13 @@ void SolveDualIP(
     auto PrimalFromDual = [&]() {
         double lamai=0.0;
         for (int i=0;i<m;++i){
+            // Equality h=0 is represented by the nonnegative pair
+            // lambda_+,+h and lambda_-,-h.  Their difference is the free-sign
+            // equality multiplier, but each internal multiplier must remain
+            // nonnegative so the reciprocal MMA coefficients stay convex.
             lam[i]=std::max(lam[i],0.0);
-            y[i]=std::max(0.0,lam[i]-c_pen[i]);
+            y[i]=(i>=m-2*n_eq || d_pen[i]==0.0) ? 0.0 :
+                 std::max(0.0,(lam[i]-c_pen[i])/d_pen[i]);
             lamai+=a_pen[i]*lam[i];
         }
         z = std::max(0.0, 10.0*(lamai-1.0));
@@ -514,9 +525,15 @@ void SolveDualIP(
         double lamai=0.0;
         for (int i=0;i<m;++i) lamai+=lam[i]*a_pen[i];
         for (int i=0;i<m;++i){
-            if (lam[i]>c_pen[i]) hess[i*m+i]-=1.0;
-            if (i < m-2*n_eq)  // inequality only: IP barrier curvature
+            if (i<m-2*n_eq && d_pen[i]>0.0 && lam[i]>c_pen[i])
+                hess[i*m+i]-=1.0/d_pen[i];
+            if (i < m-2*n_eq) { // inequality-only barrier curvature
                 hess[i*m+i] -= mu[i]/lam[i];
+                if (d_pen[i]==0.0) {
+                    const double upper=c_pen[i]-lam[i];
+                    hess[i*m+i]-=epsi/(upper*upper);
+                }
+            }
         }
         if (lamai>0.0)
             for (int r=0;r<m;++r)
@@ -560,6 +577,8 @@ void SolveDualIP(
             // Equality slots (last 2*n_eq): no barrier, only constraint stationarity
             double r1 = (i < m-2*n_eq) ?
                 res[i]-b[i]-a_pen[i]*z-y[i]+mu[i] : res[i]-b[i];
+            if (i<m-2*n_eq && d_pen[i]==0.0)
+                r1-=epsi/(c_pen[i]-lam[i]);
             nrI=std::max(nrI,std::abs(r1));
             if (i < m-2*n_eq){
                 double r2 = mu[i]*lam[i]-epsi;
@@ -579,6 +598,10 @@ void SolveDualIP(
             // Keep λᵢ > 0 and μᵢ > 0 by shrinking θ if the Newton step overshoots.
             if (theta < -1.01*s[i]   /lam[i]) theta=-1.01*s[i]   /lam[i];
             if (theta < -1.01*s[m+i] /mu[i])  theta=-1.01*s[m+i] /mu[i];
+            if (d_pen[i]==0.0 && s[i]>0.0) {
+                const double upper=c_pen[i]-lam[i];
+                if (theta < 1.01*s[i]/upper) theta=1.01*s[i]/upper;
+            }
         }
         theta=1.0/theta;
         for (int i=0;i<m;++i){ lam[i]+=theta*s[i]; mu[i]+=theta*s[m+i]; }
@@ -599,8 +622,11 @@ void SolveDualIP(
             ++loop;
             PrimalFromDual();
             DualGrad(grad);
-            for (int i=0;i<m;++i)
+            for (int i=0;i<m;++i) {
                 grad[i] = -grad[i] - (i < m-2*n_eq ? epsi/lam[i] : 0.0);
+                if (i<m-2*n_eq && d_pen[i]==0.0)
+                    grad[i]+=epsi/(c_pen[i]-lam[i]);
+            }
             DualHess(hess);
             std::vector<double> K=hess;
             s.assign(2*m,0.0);
@@ -688,6 +714,7 @@ void SolveDualSQ(
     const std::vector<mfem::Vector>& qij_loc,
     const std::vector<double>& a_pen,
     const std::vector<double>& c_pen,
+    const std::vector<double>& d_pen,
     std::vector<double>& lam,
     std::vector<double>& mu,
     std::vector<double>& y,
@@ -715,7 +742,13 @@ void SolveDualSQ(
         return;
     }
 
-    for (int i=0;i<m-2*n_eq;++i){ lam[i]=std::max(lam[i],1.0); mu[i]=std::max(mu[i],1.0); }
+    for (int i=0;i<m-2*n_eq;++i){
+        lam[i]=std::max(lam[i],1.0); mu[i]=std::max(mu[i],1.0);
+        if (d_pen[i]==0.0) {
+            MFEM_VERIFY(c_pen[i]>0.0,"SQ with d_i=0 requires c_i>0");
+            lam[i]=std::min(lam[i],0.5*c_pen[i]);
+        }
+    }
     for (int i=m-2*n_eq;i<m;++i){ mu[i]=std::max(mu[i],1.0); }
 
     double _n_global=0.0;
@@ -754,7 +787,8 @@ void SolveDualSQ(
         double lamai=0.0;
         for (int i=0;i<m;++i){
             if (i<m-2*n_eq) lam[i]=std::max(lam[i],0.0);  // keep inequality λ ≥ 0
-            y[i]=(i>=m-2*n_eq)?0.0:std::max(0.0,lam[i]-c_pen[i]);
+            y[i]=(i>=m-2*n_eq || d_pen[i]==0.0) ? 0.0 :
+                 std::max(0.0,(lam[i]-c_pen[i])/d_pen[i]);
             lamai+=a_pen[i]*lam[i];
         }
         z=std::max(0.0,10.0*(lamai-1.0));
@@ -853,8 +887,15 @@ void SolveDualSQ(
         double lamai=0.0;
         for (int i=0;i<m;++i) lamai+=lam[i]*a_pen[i];
         for (int i=0;i<m;++i){
-            if (lam[i]>c_pen[i]) hess[i*m+i]-=1.0;
-            if (i<m-2*n_eq) hess[i*m+i]-=mu[i]/lam[i];
+            if (i<m-2*n_eq && d_pen[i]>0.0 && lam[i]>c_pen[i])
+                hess[i*m+i]-=1.0/d_pen[i];
+            if (i<m-2*n_eq) {
+                hess[i*m+i]-=mu[i]/lam[i];
+                if (d_pen[i]==0.0) {
+                    const double upper=c_pen[i]-lam[i];
+                    hess[i*m+i]-=epsi/(upper*upper);
+                }
+            }
         }
         if (lamai>0.0)
             for (int r=0;r<m;++r) for (int c=0;c<m;++c)
@@ -910,6 +951,8 @@ void SolveDualSQ(
         double nrI=0.0;
         for (int i=0;i<m;++i){
             double r1=(i<m-2*n_eq)?res[i]-a_pen[i]*z-y[i]+mu[i]:res[i];
+            if (i<m-2*n_eq && d_pen[i]==0.0)
+                r1-=epsi/(c_pen[i]-lam[i]);
             nrI=std::max(nrI,std::abs(r1));
             if(i<m-2*n_eq){ double r2=mu[i]*lam[i]-epsi; nrI=std::max(nrI,std::abs(r2)); }
         }
@@ -924,6 +967,10 @@ void SolveDualSQ(
         for (int i=0;i<m-2*n_eq;++i){
             if (theta < -1.01*s[i]   /lam[i]) theta=-1.01*s[i]   /lam[i];
             if (theta < -1.01*s[m+i] /mu[i])  theta=-1.01*s[m+i] /mu[i];
+            if (d_pen[i]==0.0 && s[i]>0.0) {
+                const double upper=c_pen[i]-lam[i];
+                if (theta < 1.01*s[i]/upper) theta=1.01*s[i]/upper;
+            }
         }
         theta=1.0/theta;
         for (int i=0;i<m;++i) lam[i]+=theta*s[i];
@@ -941,8 +988,11 @@ void SolveDualSQ(
             ++loop;
             PrimalFromDual();
             DualGrad(grad);
-            for (int i=0;i<m;++i)
+            for (int i=0;i<m;++i) {
                 grad[i]=-grad[i]-(i<m-2*n_eq?epsi/lam[i]:0.0);
+                if (i<m-2*n_eq && d_pen[i]==0.0)
+                    grad[i]+=epsi/(c_pen[i]-lam[i]);
+            }
             // Equality pairs: project the gradient onto the range space of the ±h
             // Hessian before solving.  The Hessian block for pair k is [[a,−a],[−a,a]],
             // which is rank-1 with null direction [1,1].  Without projection, the
@@ -2168,7 +2218,7 @@ void SQOptimizer::Update(
     detail::SolveDualSQ(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
-        a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
+        a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite(),
         xk.Read(),rho_.data(),fival_sq.data());
 
     if (n_eq_>0) {
@@ -2222,7 +2272,7 @@ void SQOptimizer::UpdateGCMMA(
     detail::SolveDualSQ(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
-        a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
+        a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite(),
         xk.Read(),rho_.data(),fival_sq.data());
     int nu=1;
     if(eval_fi){
@@ -2238,7 +2288,7 @@ void SQOptimizer::UpdateGCMMA(
             detail::SolveDualSQ(MMA_SERIAL_COMM,n_,m_,n_eq_,ud,
                 L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
                 p0_.HostRead(),q0_.HostRead(),pij_,qij_,
-                a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
+                a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite(),
                 xk.Read(),rho_.data(),fival_sq.data());
             ++nu;
         }
@@ -2431,7 +2481,7 @@ void SQOptimizerParallel::Update(
     detail::SolveDualSQ(comm_,n_local_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
-        a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
+        a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite(),
         xk.Read(),rho_.data(),fival_sq.data());
 
     if (n_eq_>0) {
@@ -2475,7 +2525,7 @@ void SQOptimizerParallel::UpdateGCMMA(
     detail::SolveDualSQ(comm_,n_local_,m_,n_eq_,ud,
         L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
         p0_.HostRead(),q0_.HostRead(),pij_,qij_,
-        a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
+        a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite(),
         xk.Read(),rho_.data(),fival_sq.data());
     int nu=1;
     if(eval_fi){
@@ -2491,7 +2541,7 @@ void SQOptimizerParallel::UpdateGCMMA(
             detail::SolveDualSQ(comm_,n_local_,m_,n_eq_,ud,
                 L_.Read(),U_.Read(),alpha_.Read(),beta_.Read(),
                 p0_.HostRead(),q0_.HostRead(),pij_,qij_,
-                a_,c_,lam_,mu_,y_,z_,x.ReadWrite(),
+                a_,c_,d_,lam_,mu_,y_,z_,x.ReadWrite(),
                 xk.Read(),rho_.data(),fival_sq.data());
             ++nu;
         }

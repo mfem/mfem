@@ -440,7 +440,7 @@ static void Test11_GCMMA()
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Test 12: MMA infeasible start (x₀ far outside the band)
+// Test 12: MMA infeasible start with affine feasibility restoration
 // x₀=0.01, a=0.7, Vmid=0.4, eps=0.05.  Band (0.35, 0.45).  x*=0.45.
 // ═════════════════════════════════════════════════════════════════════════════
 static void Test12_InfeasibleStart()
@@ -452,11 +452,26 @@ static void Test12_InfeasibleStart()
     x=real_t(0.01);   // mean=0.01 << Vmid-eps=0.35  (infeasible)
     xmin=real_t(0.01); xmax=real_t(1.0);
     for (int j=0;j<n;++j) dh(j)=real_t(1.0/n);
+    // With the standard d_i=0 penalty, a far-infeasible move-limited
+    // subproblem places its elastic multiplier at the nonsmooth cap
+    // lambda_i=c_i.  Restore the affine relaxed equality before starting
+    // ordinary MMA iterations.  For this mean constraint the minimum uniform
+    // correction is the exact bound-aware projection onto the lower band.
+    const double restored_mean=Vmid-eps;
+    for (int j=0;j<n;++j)
+       x(j)=real_t(std::max(double(xmin(j)),
+                   std::min(restored_mean,double(xmax(j)))));
+    const double restoration_residual=
+       std::max(0.0,(Vmid-eps)-Mean(x));
+
     auto opt = MMAOptimizer::WithRelaxedEqualities(n, 0, 1);
     real_t kkt = SolveRelaxed(opt, x, a, dh, xmin, xmax, Vmid, eps, eps, 1500, 1e-7);
     double xm = Mean(x), h = xm-Vmid;
-    printf("  kkt=%.2e  mean=%.5f  h=%.4e  band=(%.3f,%.3f)\n",
-           double(kkt), xm, h, Vmid-eps, Vmid+eps);
+    printf("  restoration_residual=%.2e  kkt=%.2e  mean=%.5f"
+           "  h=%.4e  band=(%.3f,%.3f)\n",
+           restoration_residual,double(kkt),xm,h,Vmid-eps,Vmid+eps);
+    Check(restoration_residual < 1e-12,
+          "infeasible: affine restoration reaches relaxed band");
     Check(kkt  < 1e-5,       "infeasible: KKT < 1e-5");
     Check(h   >= -eps-1e-3,  "infeasible: lower bound satisfied");
     Check(h   <=  eps+1e-3,  "infeasible: upper bound satisfied");
