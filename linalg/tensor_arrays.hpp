@@ -13,6 +13,7 @@
 #define MFEM_TENSOR_ARRAYS_HPP
 
 #include "tensor.hpp"
+#include "../general/enzyme.hpp"
 #include <array>       // std::array, std::size_t (indirectly)
 #include <type_traits> /* std::remove_cv_t, std::remove_reference_t,
                           std::is_const_v */
@@ -36,9 +37,7 @@ constexpr inline void for_unrolled_simple(std::index_sequence<Is...>, Fn &&fn)
 
 
 template <int... loop_sizes>
-#ifdef MFEM_USE_ENZYME
-__attribute__((annotate("enzyme_inactive")))
-#endif
+MFEM_ENZYME_INACTIVE
 constexpr inline auto to_multiindex(std::size_t i)
 {
    constexpr auto dims = sizeof...(loop_sizes);
@@ -188,9 +187,7 @@ public:
 
        @note This method does not permute the global 1D data array. */
    MFEM_HOST_DEVICE
-#ifdef MFEM_USE_ENZYME
-   __attribute__((annotate("enzyme_inactive")))
-#endif
+   MFEM_ENZYME_INACTIVE
    void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
    {
       std::size_t stride = 1;
