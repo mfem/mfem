@@ -11,7 +11,7 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "bilininteg_pa_mma.hpp"
+#include "mma/mma.hpp"
 
 #ifdef MFEM_USE_LAPACK
 #include <vector>

@@ -12,7 +12,7 @@
 // Implementation of class LinearForm
 
 #include "linearform.hpp"
-#include "integ/bilininteg_pa_mma.hpp"
+#include "integ/mma/mma.hpp"
 
 namespace mfem
 {

@@ -16,7 +16,7 @@
 #include "bilininteg_diffusion_kernels.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp"
 #include "bilininteg_diffusion_pa_tensors_mma.hpp"
-#include "bilininteg_pa_mma.hpp"
+#include "mma/mma.hpp"
 
 namespace mfem
 {

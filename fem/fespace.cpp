@@ -16,7 +16,7 @@
 #include "../mesh/mesh_headers.hpp"
 #include "fem.hpp"
 #include "ceed/interface/util.hpp"
-#include "integ/bilininteg_pa_mma.hpp"
+#include "integ/mma/mma.hpp"
 
 #include "derefmat_op.hpp"
 

@@ -16,7 +16,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
-#include "fem/integ/bilininteg_pa_mma.hpp"
+#include "fem/integ/mma/mma.hpp"
 
 using namespace mfem;
 

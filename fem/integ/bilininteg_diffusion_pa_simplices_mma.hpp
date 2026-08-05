@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "bilininteg_pa_mma.hpp"
+#include "mma/mma.hpp"
 #include "../bilininteg.hpp"
 
 #include <algorithm>
