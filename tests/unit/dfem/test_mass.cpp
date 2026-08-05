@@ -485,17 +485,18 @@ void mass_mat_mixed(const char* filename, int p)
    {
       SparseMatrix *A;
       ddopdu->Assemble(A);
+      REQUIRE(A->Width() == blf.SpMat().Width());
       TestSameMatrices(*A, blf.SpMat());
       delete A;
    }
 
-   // TODO Hypre parallel matrix
-   if constexpr(false && !mfem_use_gpu)
+   SECTION("MFEM HypreParMatrix")
    {
       HypreParMatrix *Amfem = blf.ParallelAssemble();
 
       HypreParMatrix *Adfem;
       ddopdu->Assemble(Adfem);
+      REQUIRE(Adfem->Width() == Amfem->Width());
       TestSameMatrices(*Adfem, *Amfem);
       delete Amfem;
       delete Adfem;

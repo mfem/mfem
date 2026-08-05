@@ -15,6 +15,8 @@
 
 #ifdef MFEM_USE_ENZYME
 
+#include "../linalg/test_same_matrices.hpp"
+
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../fem/dfem/backends/local_qf/revdiff_transformer.hpp"
@@ -544,6 +546,19 @@ void mixed_second_derivative(const char *filename, int p)
 
    MultiVector X{u, rho, coords};
 
+   // Every Hessian block of f = \int (rho u^2 + 0.5 rho^2) is a mass matrix,
+   // so each one can be assembled with plain MFEM as a reference:
+   //
+   //    d^2f/du^2      -> 2 rho      d^2f/(du drho) -> 2 u
+   //    d^2f/(drho du) -> 2 u        d^2f/drho^2    -> 1
+   //
+   // The coefficients read the projected grid functions, not the analytic
+   // FunctionCoefficients, to match what dFEM evaluates at the quadrature
+   // points.
+   GridFunctionCoefficient u_gf_coeff(&u_gf), rho_gf_coeff(&rho_gf);
+   ProductCoefficient two_u(2.0, u_gf_coeff), two_rho(2.0, rho_gf_coeff);
+   ConstantCoefficient one(1.0);
+
    auto check_block = [&](auto gradient_id,
                           auto direction_id,
                           const Vector &direction,
@@ -552,7 +567,8 @@ void mixed_second_derivative(const char *filename, int p)
                           auto exact_outputs,
                           const std::vector<FieldDescriptor> &exact_in,
                           const std::vector<FieldDescriptor> &exact_out,
-                          MultiVector exact_x)
+                          MultiVector exact_x,
+                          Coefficient &hessian_coeff)
    {
       Vector actual(tvsize);
       MultiVector Actual{actual};
@@ -569,6 +585,31 @@ void mixed_second_derivative(const char *filename, int p)
       Vector diff(actual);
       diff -= expected;
       REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
+
+      HypreParMatrix *actual_mat = nullptr;
+      functional_dop.GetSecondDerivative(gradient_id, direction_id, X)->Assemble(
+         actual_mat);
+      REQUIRE(actual_mat != nullptr);
+
+      // Reference matrix MFEM assembly for the same block
+      ParBilinearForm blf(&fes);
+      blf.AddDomainIntegrator(new MassIntegrator(hessian_coeff, &ir));
+      blf.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf.Assemble();
+      blf.Finalize();
+      HypreParMatrix *expected_mat = blf.ParallelAssemble();
+      REQUIRE(expected_mat != nullptr);
+
+      // TestSameMatrices only walks the first matrix' sparsity pattern and
+      // reads a missing entry of the second as 0, so compare both ways to
+      // cover the union of the two patterns. A structurally deficient
+      // actual_mat is only visible from the reference side.
+      REQUIRE(actual_mat->Width() == expected_mat->Width());
+      TestSameMatrices(*actual_mat, *expected_mat);
+      TestSameMatrices(*expected_mat, *actual_mat);
+
+      delete actual_mat;
+      delete expected_mat;
    };
 
    check_block(U, U, du,
@@ -579,7 +620,8 @@ void mixed_second_derivative(const char *filename, int p)
                            FieldDescriptor{Rho, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{U, &fes}},
-               MultiVector{du, rho, coords});
+               MultiVector{du, rho, coords},
+               two_rho);
 
    check_block(U, Rho, drho,
                MixedFunctionalURhoAction<real_t, DIM> {},
@@ -589,7 +631,8 @@ void mixed_second_derivative(const char *filename, int p)
                            FieldDescriptor{U, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{U, &fes}},
-               MultiVector{drho, u, coords});
+               MultiVector{drho, u, coords},
+               two_u);
 
    check_block(Rho, U, du,
                MixedFunctionalRhoUAction<real_t, DIM> {},
@@ -599,7 +642,8 @@ void mixed_second_derivative(const char *filename, int p)
                            FieldDescriptor{U, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{Rho, &fes}},
-               MultiVector{du, u, coords});
+               MultiVector{du, u, coords},
+               two_u);
 
    check_block(Rho, Rho, drho,
                MixedFunctionalRhoRhoAction<real_t, DIM> {},
@@ -608,13 +652,14 @@ void mixed_second_derivative(const char *filename, int p)
                std::vector{FieldDescriptor{DRho, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{Rho, &fes}},
-               MultiVector{drho, coords});
+               MultiVector{drho, coords},
+               one);
 }
 
 } // namespace second_derivative_test
 
 TEST_CASE("dFEM functional second derivative action matches mfem",
-          "[Parallel][dFEM][second-derivative]")
+          "[Parallel][dFEM][second-derivative][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
@@ -646,7 +691,7 @@ TEST_CASE("dFEM functional second derivative action matches mfem",
 }
 
 TEST_CASE("dFEM functional mixed second derivative action matches exact action",
-          "[Parallel][dFEM][second-derivative]")
+          "[Parallel][dFEM][second-derivative][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

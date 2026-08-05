@@ -201,6 +201,69 @@ derivative_setup_t MakeDerivativeSetupCallback(
    return callback;
 }
 
+inline assemble_derivative_hypreparmatrix_callback_t
+MakeDerivativeHypreParMatrixAssemble(
+   const size_t derivative_idx,
+   std::vector<assemble_derivative_sparsematrix_callback_t> &sparse_callbacks,
+   const IntegratorContext &ctx)
+{
+   return [derivative_idx, &sparse_callbacks, ctx](HypreParMatrix *&A)
+   {
+      MFEM_VERIFY(ctx.outfds.size() == 1,
+                  "HypreParMatrix assembly requires a single output field");
+
+      const size_t trial_field_idx = FindIdx(derivative_idx, ctx.unionfds);
+      MFEM_VERIFY(trial_field_idx != SIZE_MAX,
+                  "derivative field not found for HypreParMatrix assembly");
+
+      const auto *test_fes_ptr =
+         std::get_if<const ParFiniteElementSpace *>(&ctx.outfds[0].data);
+      const auto *trial_fes_ptr =
+         std::get_if<const ParFiniteElementSpace *>(
+            &ctx.unionfds[trial_field_idx].data);
+      MFEM_VERIFY(test_fes_ptr && *test_fes_ptr,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "output field");
+      MFEM_VERIFY(trial_fes_ptr && *trial_fes_ptr,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "derivative field");
+
+      const ParFiniteElementSpace *test_fes = *test_fes_ptr;
+      const ParFiniteElementSpace *trial_fes = *trial_fes_ptr;
+      MFEM_VERIFY(test_fes->GetComm() == trial_fes->GetComm(),
+                  "test and trial spaces must use the same MPI communicator");
+
+      SparseMatrix *spmat = nullptr;
+      for (const auto &f : sparse_callbacks)
+      {
+         f(spmat);
+      }
+
+      MFEM_VERIFY(spmat != nullptr,
+                  "internal error: sparse derivative assembly returned NULL");
+      MFEM_VERIFY(spmat->Finalized(),
+                  "local derivative matrix must be finalized");
+
+      if (test_fes == trial_fes)
+      {
+         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                           test_fes->GetDofOffsets(), spmat);
+         A = RAP(&dA, test_fes->Dof_TrueDof_Matrix());
+      }
+      else
+      {
+         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                           trial_fes->GlobalVSize(),
+                           test_fes->GetDofOffsets(),
+                           trial_fes->GetDofOffsets(), spmat);
+         A = RAP(test_fes->Dof_TrueDof_Matrix(), &dA,
+                 trial_fes->Dof_TrueDof_Matrix());
+      }
+
+      delete spmat;
+   };
+}
+
 /// Class representing the derivative (Jacobian) operator of a
 /// DifferentiableOperator.
 ///
@@ -1259,6 +1322,7 @@ void DifferentiableOperator::AddIntegrator(
                                   auto &apply_callbacks,
                                   auto &transpose_callbacks,
                                   auto &assemble_sparsematrix_callbacks,
+                                  auto &assemble_hypreparmatrix_callbacks,
                                   auto &assemble_diagonal_cbs,
                                   auto &action_cbs,
                                   Vector &callback_qp_cache,
@@ -1302,6 +1366,13 @@ void DifferentiableOperator::AddIntegrator(
             assemble_sparsematrix_callbacks[callback_key].push_back(
                backend_t::template MakeDerivativeAssemble<derivative_idx>(
                   callback_ctx, qf, inputs, outputs, callback_qp_cache));
+
+            // Assemble the derivative into a HypreParMatrix
+            assemble_hypreparmatrix_callbacks[callback_key].push_back(
+               MakeDerivativeHypreParMatrixAssemble(
+               derivative_idx,
+               assemble_sparsematrix_callbacks[callback_key],
+               callback_ctx));
 
             // Assemble the diagonal of the derivative into an L-vector
             assemble_diagonal_cbs[callback_key].push_back(
@@ -1368,6 +1439,7 @@ void DifferentiableOperator::AddIntegrator(
                              second_derivative_apply_callbacks,
                              second_daction_transpose_callbacks,
                              assemble_second_derivative_sparsematrix_callbacks,
+                             assemble_second_derivative_hypreparmatrix_callbacks,
                              assemble_second_derivative_diagonal_callbacks,
                              second_derivative_action_callbacks,
                              second_qp_cache,
@@ -1404,6 +1476,7 @@ void DifferentiableOperator::AddIntegrator(
                           derivative_apply_callbacks,
                           daction_transpose_callbacks,
                           assemble_derivative_sparsematrix_callbacks,
+                          assemble_derivative_hypreparmatrix_callbacks,
                           assemble_diagonal_callbacks,
                           derivative_action_callbacks,
                           qp_cache,
