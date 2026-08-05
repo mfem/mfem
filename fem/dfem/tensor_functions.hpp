@@ -76,18 +76,14 @@ auto make_dual(const tensor<real_t, n...>& A)
   return lambda_max + std::log1p(sum)/beta;
 }
 
-template<typename T>
-struct ValueAndTangent
-{
-  T value;
-  T tangent;
-};
+#ifdef MFEM_USE_ENZYME
+// Custom forward-mode derivative rule for Enzyme
 
 namespace detail
 {
-// Custom forward-mode derivative rule
+
 template<int n> MFEM_HOST_DEVICE
-ValueAndTangent<real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
+dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
 {
   auto [lambda, V] = eig_symm(A);
   real_t lambda_max = lambda[n - 1];
@@ -125,6 +121,8 @@ void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_3d[] = {
     reinterpret_cast<void*>(smooth_max_eigenvalue_symm<3>),
     reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_fwddiff<3>)
   };
+
+#endif // MFEM_USE_ENZYME
 
 // NOTE: I can't implmement this yet, the get_value() function for tensors is not implemented in MFEM.
 // Consider upstreaming it from Smith.
