@@ -83,6 +83,9 @@ struct ValueAndTangent
   T tangent;
 };
 
+namespace detail
+{
+// Custom forward-mode derivative rule
 template<int n> MFEM_HOST_DEVICE
 ValueAndTangent<real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
 {
@@ -108,25 +111,19 @@ ValueAndTangent<real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, 
   return {value, derivative};
 }
 
-// template<int n>
-// struct SmoothMaxEigenvalueSymDerivative
-// {
-//   __attribute__((used))
-//   static inline void* __enzyme_register_derivative_smooth_max_eigenvalue_symm[] = {
-//     reinterpret_cast<void*>(smooth_max_eigenvalue_symm<n>),
-//     reinterpret_cast<void*>(smooth_max_eigenvalue_symm_fwddiff<n>)
-//   };
-// };
+} // namespace detail
 
-// struct SmoothMaxEigenvalueSymDerivative<1> __attribute__((used)) smooth_max_eigenvalue_derivative_1;
-// struct SmoothMaxEigenvalueSymDerivative<2> __attribute__((used)) smooth_max_eigenvalue_derivative_2;
-// struct SmoothMaxEigenvalueSymDerivative<3> __attribute__((used)) smooth_max_eigenvalue_derivative_3;
-
-// compiles
+// Register custom derivatives with Enzyme
 __attribute__((used))
-void* __enzyme_register_derivative_smooth_max_eigenvalue_symm[] = {
+void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_2d[] = {
+    reinterpret_cast<void*>(smooth_max_eigenvalue_symm<2>),
+    reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_fwddiff<2>)
+  };
+
+__attribute__((used))
+void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_3d[] = {
     reinterpret_cast<void*>(smooth_max_eigenvalue_symm<3>),
-    reinterpret_cast<void*>(smooth_max_eigenvalue_symm_fwddiff<3>)
+    reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_fwddiff<3>)
   };
 
 // NOTE: I can't implmement this yet, the get_value() function for tensors is not implemented in MFEM.
