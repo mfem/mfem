@@ -682,6 +682,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
          Array<int> edges_f, oris_f;
          GetFaceEdges(face_no, edges_f, oris_f);
          const int local_idx = edges_f.Find(EdgeNo);
+         MFEM_ASSERT(local_idx >= 0, "Edge not found on the face!");
          const int edge_ori = oris_f[local_idx] > 0 ? 0 : 1;
 
          // Get face information
