@@ -127,7 +127,47 @@ using assemble_diagonal_callback_t = std::function<void(Vector &)>;
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &, std::vector<Vector> &)>;
 
+/// @brief Type alias for key type for second derivatives, which is a pair of field IDs (gradient, direction)
 using second_derivative_key_t = std::pair<size_t, size_t>;
+
+/// @brief Type alias for a map from a derivative key to the entries registered
+/// for it, one per integrator. Used for callbacks or field descriptors.
+///
+/// @a key_t is size_t for first derivatives, holding the ID of the field being
+/// differentiated, and second_derivative_key_t for second derivatives, holding
+/// the (gradient, direction) pair of field IDs.
+template <typename key_t, typename entry_t>
+using DerivativeMap = std::map<key_t, std::vector<entry_t>>;
+
+/// @name Derivative maps keyed by the ID of the field being differentiated.
+///@{
+using DerivativeActionMap = DerivativeMap<size_t, derivative_action_t>;
+using DerivativeSetupMap = DerivativeMap<size_t, derivative_setup_t>;
+using DerivativeFieldMap = DerivativeMap<size_t, FieldDescriptor>;
+using SparseAssemblyMap =
+   DerivativeMap<size_t, assemble_derivative_sparsematrix_callback_t>;
+using HypreAssemblyMap =
+   DerivativeMap<size_t, assemble_derivative_hypreparmatrix_callback_t>;
+using DiagonalAssemblyMap = DerivativeMap<size_t, assemble_diagonal_callback_t>;
+///@}
+
+/// @name Derivative maps keyed by the (gradient, direction) pair of field IDs.
+///@{
+using SecondDerivativeActionMap =
+   DerivativeMap<second_derivative_key_t, derivative_action_t>;
+using SecondDerivativeSetupMap =
+   DerivativeMap<second_derivative_key_t, derivative_setup_t>;
+using SecondDerivativeFieldMap =
+   DerivativeMap<second_derivative_key_t, FieldDescriptor>;
+using SecondSparseAssemblyMap =
+   DerivativeMap<second_derivative_key_t,
+   assemble_derivative_sparsematrix_callback_t>;
+using SecondHypreAssemblyMap =
+   DerivativeMap<second_derivative_key_t,
+   assemble_derivative_hypreparmatrix_callback_t>;
+using SecondDiagonalAssemblyMap =
+   DerivativeMap<second_derivative_key_t, assemble_diagonal_callback_t>;
+///@}
 
 namespace detail
 {
@@ -1007,49 +1047,26 @@ private:
    std::unordered_map<std::type_index, std::vector<int>> out_qlayouts;
 
    std::vector<action_t> action_callbacks;
-   std::map<size_t, std::vector<derivative_setup_t>> derivative_setup_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> derivative_action_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> derivative_apply_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> daction_transpose_callbacks;
-   std::map<size_t, std::vector<FieldDescriptor>> derivative_outfds;
-   std::map<size_t, std::vector<FieldDescriptor>> derivative_unionfds;
-   std::map<size_t, 
-       std::vector<assemble_derivative_sparsematrix_callback_t>>
-       assemble_derivative_sparsematrix_callbacks;
-   std::map<size_t,
-       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-       assemble_derivative_hypreparmatrix_callbacks;
-   std::map<size_t, std::vector<assemble_diagonal_callback_t>>
-       assemble_diagonal_callbacks;
-   std::map<second_derivative_key_t, std::vector<derivative_setup_t>>
-       second_derivative_setup_callbacks;
-   std::map<second_derivative_key_t,
-            std::vector<derivative_action_t>>
-       second_derivative_action_callbacks;
-   std::map<second_derivative_key_t,
-            std::vector<derivative_action_t>>
-       second_derivative_apply_callbacks;
-   std::map<second_derivative_key_t,
-            std::vector<derivative_action_t>>
-       second_daction_transpose_callbacks;
-   std::map<second_derivative_key_t,
-            std::vector<FieldDescriptor>>
-       second_derivative_outfds;
-   std::map<second_derivative_key_t,
-            std::vector<FieldDescriptor>>
-       second_derivative_unionfds;
-   std::map<second_derivative_key_t,
-            std::vector<assemble_derivative_sparsematrix_callback_t>>
-       assemble_second_derivative_sparsematrix_callbacks;
-   std::map<second_derivative_key_t,
-            std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-       assemble_second_derivative_hypreparmatrix_callbacks;
-   std::map<second_derivative_key_t,
-            std::vector<assemble_diagonal_callback_t>>
-       assemble_second_derivative_diagonal_callbacks;
+
+   DerivativeSetupMap derivative_setup_callbacks;
+   DerivativeActionMap derivative_action_callbacks;
+   DerivativeActionMap derivative_apply_callbacks;
+   DerivativeActionMap daction_transpose_callbacks;
+   DerivativeFieldMap derivative_outfds;
+   DerivativeFieldMap derivative_unionfds;
+   SparseAssemblyMap assemble_derivative_sparsematrix_callbacks;
+   HypreAssemblyMap assemble_derivative_hypreparmatrix_callbacks;
+   DiagonalAssemblyMap assemble_diagonal_callbacks;
+
+   SecondDerivativeSetupMap second_derivative_setup_callbacks;
+   SecondDerivativeActionMap second_derivative_action_callbacks;
+   SecondDerivativeActionMap second_derivative_apply_callbacks;
+   SecondDerivativeActionMap second_daction_transpose_callbacks;
+   SecondDerivativeFieldMap second_derivative_outfds;
+   SecondDerivativeFieldMap second_derivative_unionfds;
+   SecondSparseAssemblyMap assemble_second_derivative_sparsematrix_callbacks;
+   SecondHypreAssemblyMap assemble_second_derivative_hypreparmatrix_callbacks;
+   SecondDiagonalAssemblyMap assemble_second_derivative_diagonal_callbacks;
 
    std::vector<FieldDescriptor> infds;
    std::vector<FieldDescriptor> outfds;

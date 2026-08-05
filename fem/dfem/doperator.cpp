@@ -30,35 +30,6 @@ int GetTotalTrueVSize(const std::vector<FieldDescriptor> &fds)
    return size;
 }
 
-using DerivativeActionMap =
-   std::map<size_t, std::vector<derivative_action_t>>;
-using DerivativeSetupMap =
-   std::map<size_t, std::vector<derivative_setup_t>>;
-using DerivativeFieldMap =
-   std::map<size_t, std::vector<FieldDescriptor>>;
-using SparseAssemblyMap =
-   std::map<size_t,
-   std::vector<assemble_derivative_sparsematrix_callback_t>>;
-using HypreAssemblyMap =
-    std::map<size_t,
-             std::vector<assemble_derivative_hypreparmatrix_callback_t>>;
-using DiagonalAssemblyMap =
-    std::map<size_t, std::vector<assemble_diagonal_callback_t>>;
-using SecondDerivativeActionMap =
-    std::map<second_derivative_key_t, std::vector<derivative_action_t>>;
-using SecondDerivativeSetupMap =
-    std::map<second_derivative_key_t, std::vector<derivative_setup_t>>;
-using SecondDerivativeFieldMap =
-    std::map<second_derivative_key_t, std::vector<FieldDescriptor>>;
-using SecondSparseAssemblyMap =
-    std::map<second_derivative_key_t,
-             std::vector<assemble_derivative_sparsematrix_callback_t>>;
-using SecondHypreAssemblyMap =
-    std::map<second_derivative_key_t,
-             std::vector<assemble_derivative_hypreparmatrix_callback_t>>;
-using SecondDiagonalAssemblyMap =
-    std::map<second_derivative_key_t, std::vector<assemble_diagonal_callback_t>>;
-
 template <typename map_t>
 const typename map_t::mapped_type &FindOrDefault(
     const map_t &map, const typename map_t::key_type &id,
