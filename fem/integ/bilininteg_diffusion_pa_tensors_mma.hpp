@@ -74,18 +74,18 @@ inline void lapack_DiffusionApplyTensors2DTile(
    constexpr int PA_SIZE = SYM ? 3 : 4;
    const int n_xy = D1D * NB;
    const int n_qy = Q1D * NB;
-   const real_t *Xsrc = mma::lapack_PackX2D<D1D>(e0, nbe, NB, X, ws.xloc);
+   const real_t *Xsrc = mma::lapack::PackX2D<D1D>(e0, nbe, NB, X, ws.xloc);
 
-   mma::lapack_Gemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
+   mma::lapack::Gemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
                     Xsrc, D1D, real_t(0), ws.BX, Q1D);
-   mma::lapack_Gemm('N', 'N', Q1D, n_xy, D1D, real_t(1), G, Q1D,
+   mma::lapack::Gemm('N', 'N', Q1D, n_xy, D1D, real_t(1), G, Q1D,
                     Xsrc, D1D, real_t(0), ws.GX, Q1D);
 
-   mma::lapack_TransposeAB<Q1D, D1D>(ws.BX, ws.BXt, NB);
-   mma::lapack_TransposeAB<Q1D, D1D>(ws.GX, ws.GXt, NB);
-   mma::lapack_Gemm('N', 'N', Q1D, n_qy, D1D, real_t(1), B, Q1D,
+   mma::lapack::TransposeAB<Q1D, D1D>(ws.BX, ws.BXt, NB);
+   mma::lapack::TransposeAB<Q1D, D1D>(ws.GX, ws.GXt, NB);
+   mma::lapack::Gemm('N', 'N', Q1D, n_qy, D1D, real_t(1), B, Q1D,
                     ws.GXt, D1D, real_t(0), ws.gX, Q1D);
-   mma::lapack_Gemm('N', 'N', Q1D, n_qy, D1D, real_t(1), G, Q1D,
+   mma::lapack::Gemm('N', 'N', Q1D, n_qy, D1D, real_t(1), G, Q1D,
                     ws.BXt, D1D, real_t(0), ws.gY, Q1D);
 
    for (int b = 0; b < nbe; ++b)
@@ -118,18 +118,18 @@ inline void lapack_DiffusionApplyTensors2DTile(
       }
    }
 
-   mma::lapack_TransposeAB<Q1D, Q1D>(ws.gX, ws.gXp, NB);
-   mma::lapack_TransposeAB<Q1D, Q1D>(ws.gY, ws.gYp, NB);
-   mma::lapack_Gemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Gt, D1D,
+   mma::lapack::TransposeAB<Q1D, Q1D>(ws.gX, ws.gXp, NB);
+   mma::lapack::TransposeAB<Q1D, Q1D>(ws.gY, ws.gYp, NB);
+   mma::lapack::Gemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Gt, D1D,
                     ws.gXp, Q1D, real_t(0), ws.A0, D1D);
-   mma::lapack_Gemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Bt, D1D,
+   mma::lapack::Gemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Bt, D1D,
                     ws.gYp, Q1D, real_t(0), ws.A1, D1D);
 
-   mma::lapack_TransposeAB<D1D, Q1D>(ws.A0, ws.A0t, NB);
-   mma::lapack_TransposeAB<D1D, Q1D>(ws.A1, ws.A1t, NB);
-   mma::lapack_Gemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Bt, D1D,
+   mma::lapack::TransposeAB<D1D, Q1D>(ws.A0, ws.A0t, NB);
+   mma::lapack::TransposeAB<D1D, Q1D>(ws.A1, ws.A1t, NB);
+   mma::lapack::Gemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Bt, D1D,
                     ws.A0t, Q1D, real_t(0), ws.Y0, D1D);
-   mma::lapack_Gemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Gt, D1D,
+   mma::lapack::Gemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Gt, D1D,
                     ws.A1t, Q1D, real_t(0), ws.Y1, D1D);
 
    for (int b = 0; b < nbe; ++b)
@@ -152,7 +152,7 @@ inline void lapack_DiffusionApplyTensors2D(
    const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
    const real_t *Dv, const real_t *X, real_t *Y)
 {
-   const int NB = mma::lapack_TensorNB(D1D, Q1D);
+   const int NB = mma::lapack::TensorNB(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    mma::host_Arena arena;
    lapack_Diff2DWs<D1D, Q1D> ws;
@@ -237,9 +237,9 @@ inline void lapack_DiffusionApplyTensors3DElement(
    real_t *gvec0 = ws.gvec0, *gvec1 = ws.gvec1, *gvec2 = ws.gvec2;
    real_t *A0 = ws.A0, *A1 = ws.A1, *A2 = ws.A2, *Yacc = ws.Yacc;
 
-   mma::lapack_Gemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
+   mma::lapack::Gemm('N', 'N', Q1D, nd2, D1D, real_t(1), B, Q1D,
                     Xe, D1D, real_t(0), BX, Q1D);
-   mma::lapack_Gemm('N', 'N', Q1D, nd2, D1D, real_t(1), G, Q1D,
+   mma::lapack::Gemm('N', 'N', Q1D, nd2, D1D, real_t(1), G, Q1D,
                     Xe, D1D, real_t(0), GX, Q1D);
 
    std::fill(g0, g0 + nq3, real_t(0));
@@ -256,11 +256,11 @@ inline void lapack_DiffusionApplyTensors3DElement(
             GXt[dy + D1D * qx] = GX[qx + Q1D * (dy + D1D * dz)];
          }
       }
-      mma::lapack_Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), B, Q1D,
+      mma::lapack::Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), B, Q1D,
                        GXt, D1D, real_t(0), XY0, Q1D);
-      mma::lapack_Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), G, Q1D,
+      mma::lapack::Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), G, Q1D,
                        BXt, D1D, real_t(0), XY1, Q1D);
-      mma::lapack_Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), B, Q1D,
+      mma::lapack::Gemm('N', 'N', Q1D, Q1D, D1D, real_t(1), B, Q1D,
                        BXt, D1D, real_t(0), XY2, Q1D);
       for (int qy = 0; qy < Q1D; ++qy)
       {
@@ -324,11 +324,11 @@ inline void lapack_DiffusionApplyTensors3DElement(
             gvec1[qx] = g1[q];
             gvec2[qx] = g2[q];
          }
-         mma::lapack_Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Gt, D1D,
+         mma::lapack::Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Gt, D1D,
                           gvec0, Q1D, real_t(0), QQ0, D1D);
-         mma::lapack_Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Bt, D1D,
+         mma::lapack::Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Bt, D1D,
                           gvec1, Q1D, real_t(0), QQ1, D1D);
-         mma::lapack_Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Bt, D1D,
+         mma::lapack::Gemm('N', 'N', D1D, 1, Q1D, real_t(1), Bt, D1D,
                           gvec2, Q1D, real_t(0), QQ2, D1D);
          for (int dy = 0; dy < D1D; ++dy)
          {
@@ -363,7 +363,7 @@ inline void lapack_DiffusionApplyTensors3DElement(
    for (int i = 0; i < ndof; ++i) { Ye[i] += Yacc[i]; }
 }
 
-/** 3D diffusion SUM via per-element lapack_Gemm. */
+/** 3D diffusion SUM via per-element lapack::Gemm. */
 template <int D1D, int Q1D, bool SYM>
 inline void lapack_DiffusionApplyTensors3D(
    const int NE,
@@ -564,7 +564,7 @@ inline void blas_DiffusionApplyTensors3D(
          }
       }
    };
-   const int NB = mma::lapack_TensorNB3D(D1D, Q1D);
+   const int NB = mma::lapack::TensorNB3D(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {

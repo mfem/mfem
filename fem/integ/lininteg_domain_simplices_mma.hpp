@@ -139,16 +139,16 @@ inline void MmaDLFAssembleSimplex(const int NE,
 // ---- Runtime Fallback: host dense + device batched MMA/Dense -------------
 
 /** Host: Y_vc += P^T D. Uses multi-RHS GEMM when LAPACK is on and sizes
-    pass lapack_Prefer; otherwise a dense per-element loop.
-    lapack_Prefer is already false without MFEM_USE_LAPACK; the ifdef only
-    gates lapack_Gemm / std::vector. */
+    pass lapack::Prefer; otherwise a dense per-element loop.
+    lapack::Prefer is already false without MFEM_USE_LAPACK; the ifdef only
+    gates lapack::Gemm / std::vector. */
 inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
                             const real_t *D, real_t *Y, int vdim, int vc)
 {
 #ifdef MFEM_USE_LAPACK
-   if (mma::lapack_Prefer(nq, ndof, NE))
+   if (mma::lapack::Prefer(nq, ndof, NE))
    {
-      const int NB = mma::lapack_NB(nq, ndof);
+      const int NB = mma::lapack::NB(nq, ndof);
       const int ntiles = (NE + NB - 1) / NB;
       std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
       std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
@@ -166,7 +166,7 @@ inline void DLFAssembleBlas(int NE, int nq, int ndof, const real_t *P,
                   D[q + nq * e];
             }
          }
-         mma::lapack_Gemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
+         mma::lapack::Gemm('T', 'N', ndof, NB, nq, real_t(1), P, nq,
                          uloc.data(), nq, real_t(0), ytmp.data(), ndof);
          for (int b = 0; b < NB; ++b)
          {

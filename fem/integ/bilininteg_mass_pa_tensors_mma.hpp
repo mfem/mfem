@@ -87,7 +87,7 @@ inline void blas_MassApplyTensors2D(const int NE, const real_t *B,
       }
    };
    // Tile over elements for multi-RHS batching.
-   const int NB = mma::lapack_TensorNB(D1D, Q1D);
+   const int NB = mma::lapack::TensorNB(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -189,7 +189,7 @@ inline void blas_MassApplyTensors3D(const int NE, const real_t *B,
          }
       }
    };
-   const int NB = mma::lapack_TensorNB3D(D1D, Q1D);
+   const int NB = mma::lapack::TensorNB3D(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {

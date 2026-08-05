@@ -442,7 +442,7 @@ inline void blas_DiffusionForward(const real_t *G, const real_t *xloc,
    for (int d = 0; d < DIM; ++d)
    {
       const real_t *Gd = G + static_cast<size_t>(d) * NQ * NDOF;
-      blas_Gemm<NDOF, NQ, NB, false>(Gd, xloc, uloc + d * NQ * NB,
+      blas::Gemm<NDOF, NQ, NB, false>(Gd, xloc, uloc + d * NQ * NB,
                                      nullptr, 0, 0);
    }
 }
@@ -488,9 +488,9 @@ inline void lapack_DiffusionApply(int NE, int nq, int ndof, const real_t *G,
                                  const real_t *Dv, const real_t *X, real_t *Y)
 {
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
-   const int NB = lapack_NB(nq, ndof);
+   const int NB = lapack::NB(nq, ndof);
    std::vector<real_t> uloc(static_cast<size_t>(DIM) * nq * NB);
-   lapack_ElementTiles(NE, ndof, NB, X, Y,
+   lapack::ElementTiles(NE, ndof, NB, X, Y,
                       [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
                           real_t *Yout)
    {
@@ -498,7 +498,7 @@ inline void lapack_DiffusionApply(int NE, int nq, int ndof, const real_t *G,
       {
          const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
          real_t *Ud = uloc.data() + static_cast<size_t>(d) * nq * nb;
-         lapack_Gemm('N', 'N', nq, nb, ndof, real_t(1), Gd, nq, Xsrc, ndof,
+         lapack::Gemm('N', 'N', nq, nb, ndof, real_t(1), Gd, nq, Xsrc, ndof,
                     real_t(0), Ud, nq);
       }
       ApplyDiffusionMetricColMajor<DIM, SYM>(uloc.data(), Dv, nq, e0, NE, nb,
@@ -507,7 +507,7 @@ inline void lapack_DiffusionApply(int NE, int nq, int ndof, const real_t *G,
       {
          const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
          const real_t *Vd = uloc.data() + static_cast<size_t>(d) * nq * nb;
-         lapack_Gemm('T', 'N', ndof, nb, nq, real_t(1), Gd, nq, Vd, nq,
+         lapack::Gemm('T', 'N', ndof, nb, nq, real_t(1), Gd, nq, Vd, nq,
                     real_t(1), Yout, ndof);
       }
    });
@@ -532,7 +532,7 @@ inline void blas_DiffusionApply(int NE, const real_t *G,
       const int e0 = tile * NB;
       alignas(64) real_t xloc[NDOF * NB];
       alignas(64) real_t uloc[DIM * NQ * NB];
-      blas_PackX<NDOF, NB>(X, e0, NE, xloc);
+      blas::PackX<NDOF, NB>(X, e0, NE, xloc);
       blas_DiffusionForward<DIM, NDOF, NQ, NB>(G, xloc, uloc);
       blas_DiffusionMetric<DIM, NQ, NB, SYM>(uloc, Dv, e0, NE, PA_SIZE);
       blas_DiffusionBackward<DIM, NDOF, NQ, NB>(G, uloc, Y, e0, NE);
@@ -1032,7 +1032,7 @@ inline void blas_DiffusionApplySimplex(const int NE,
    real_t *Y = y.ReadWrite();
 
 #ifdef MFEM_USE_LAPACK
-   if (mma::lapack_PreferDiffusion(QND, ndof, NE))
+   if (mma::lapack::PreferDiffusion(QND, ndof, NE))
    {
       mma::lapack_DiffusionApply<DIM, SYM>(NE, QND, ndof, G, Dv, X, Y);
       return;
@@ -1140,7 +1140,7 @@ inline void PADiffusionApplySimplexDenseRuntime(const int NE,
       const real_t *X = x.Read();
       real_t *Y = y.ReadWrite();
 #ifdef MFEM_USE_LAPACK
-      if (mma::lapack_PreferDiffusion(nq, ndof, NE))
+      if (mma::lapack::PreferDiffusion(nq, ndof, NE))
       {
          mma::lapack_DiffusionApply<DIM, SYM>(NE, nq, ndof, G, Dv, X, Y);
          return;

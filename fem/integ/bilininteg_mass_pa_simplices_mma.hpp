@@ -64,16 +64,16 @@ inline void ScaleUByMassD(real_t *uloc, const real_t *D, int nq, int e0, int NE,
 inline void lapack_MassApply(int NE, int nq, int ndof, const real_t *P,
                              const real_t *D, const real_t *X, real_t *Y)
 {
-   const int NB = lapack_NB(nq, ndof);
+   const int NB = lapack::NB(nq, ndof);
    std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
-   lapack_ElementTiles(NE, ndof, NB, X, Y,
+   lapack::ElementTiles(NE, ndof, NB, X, Y,
                        [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
                            real_t *Yout)
    {
-      lapack_Gemm('N', 'N', nq, nb, ndof, real_t(1), P, nq, Xsrc, ndof,
+      lapack::Gemm('N', 'N', nq, nb, ndof, real_t(1), P, nq, Xsrc, ndof,
                   real_t(0), uloc.data(), nq);
       ScaleUByMassD(uloc.data(), D, nq, e0, NE, nb);
-      lapack_Gemm('T', 'N', ndof, nb, nq, real_t(1), P, nq, uloc.data(), nq,
+      lapack::Gemm('T', 'N', ndof, nb, nq, real_t(1), P, nq, uloc.data(), nq,
                   real_t(1), Yout, ndof);
    });
 }
@@ -81,12 +81,12 @@ inline void lapack_MassApply(int NE, int nq, int ndof, const real_t *P,
 #endif // MFEM_USE_LAPACK
 
 /** Always-available host Lapack entry: runs lapack_MassApply when LAPACK is on
-    and lapack_Prefer is true. Returns whether the Lapack path ran. */
+    and lapack::Prefer is true. Returns whether the Lapack path ran. */
 inline bool lapack_TryMassApply(int NE, int nq, int ndof, const real_t *P,
                                 const real_t *D, const real_t *X, real_t *Y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!lapack_Prefer(nq, ndof, NE)) { return false; }
+   if (!lapack::Prefer(nq, ndof, NE)) { return false; }
    lapack_MassApply(NE, nq, ndof, P, D, X, Y);
    return true;
 #else
@@ -109,15 +109,15 @@ inline void blas_MassApply(int NE, const real_t *P, const real_t *D,
       if (e0 + NB <= NE)
       {
          // Full tile: stream X/Y column-major directly (no pack/scatter).
-         blas_GemmFromColMajor<NDOF, NQ, NB, true>(P, X, e0, uloc, D);
-         blas_GemmTFull<NDOF, NQ, NB>(P, uloc, Y, e0);
+         blas::GemmFromColMajor<NDOF, NQ, NB, true>(P, X, e0, uloc, D);
+         blas::GemmTFull<NDOF, NQ, NB>(P, uloc, Y, e0);
       }
       else
       {
          alignas(64) real_t xloc[NDOF * NB];
-         blas_PackX<NDOF, NB>(X, e0, NE, xloc);
-         blas_Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
-         blas_GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
+         blas::PackX<NDOF, NB>(X, e0, NE, xloc);
+         blas::Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
+         blas::GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
       }
    }
 }
