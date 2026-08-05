@@ -513,8 +513,8 @@ inline void DiffusionApply(int NE, int nq, int ndof, const real_t *G,
          lapack::Gemm('N', 'N', nq, nb, ndof, real_t(1), Gd, nq, Xsrc, ndof,
                       real_t(0), Ud, nq);
       }
-      ApplyDiffusionMetricColMajor<DIM, SYM>(uloc.data(), Dv, nq, e0, NE, nb,
-                                             PA_SIZE);
+      blas::ApplyDiffusionMetricColMajor<DIM, SYM>(uloc.data(), Dv, nq, e0, NE,
+                                                   nb, PA_SIZE);
       for (int d = 0; d < DIM; ++d)
       {
          const real_t *Gd = G + static_cast<size_t>(d) * nq * ndof;
