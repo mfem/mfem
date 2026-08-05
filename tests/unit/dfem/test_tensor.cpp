@@ -193,26 +193,28 @@ TEST_CASE("SmoothMaxEigenvalue", "[Tensor]")
 
 #ifdef MFEM_USE_ENZYME
 
-void CheckJacobian(const tensor<real_t, 3, 3>& A, double beta)
+template<int n>
+void CheckJacobian(const tensor<real_t, n, n>& A)
 {
+   constexpr real_t beta = 2.0;
    double a = smooth_max_eigenvalue_symm(A, beta);
 
    // Wrapper function, since Enzyme cannot be directly applied to a function
    // with a custom derivative rule.
-   auto f = [](const tensor<real_t, 3, 3>& A) -> real_t {
-      return smooth_max_eigenvalue_symm(A, 2.0);
+   auto f = [](const tensor<real_t, n, n>& A) -> real_t {
+      return smooth_max_eigenvalue_symm<n>(A, beta);
    };
 
-   tensor<real_t, 3, 3> da_dA;
-   tensor<real_t, 3, 3> A_p;
-   tensor<real_t, 3, 3> da_dA_h{};
+   tensor<real_t, n, n> da_dA;
+   tensor<real_t, n, n> A_p;
+   tensor<real_t, n, n> da_dA_h{};
    real_t h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
    // Take derivatives in symetric directions`
-   for (int i = 0; i < 3; i++) {
-       for (int j = 0; j < 3; j++) {
-         tensor<real_t, 3, 3> A_dot{};
+   for (int i = 0; i < n; i++) {
+       for (int j = 0; j < n; j++) {
+         tensor<real_t, n, n> A_dot{};
          A_dot[i][j] = 1.0;
-         da_dA[i][j] = __enzyme_fwddiff<double>(reinterpret_cast<void*>(+f), enzyme_dup, A, A_dot);
+         da_dA[i][j] = __enzyme_fwddiff<double>(reinterpret_cast<void*>(+f), enzyme_dup, &A[0][0], &A_dot[0][0]);
 
          A_p = A;
          // Finite difference perturbations need to be symmetric, since we actually
@@ -229,15 +231,44 @@ void CheckJacobian(const tensor<real_t, 3, 3>& A, double beta)
   CHECK(norm(error) < 10*h);
 }
 
-TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on degenerate eigenvalues", "[Tensor]")
+TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on distinct eigenvalues 3x3", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 2.0, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   CheckJacobian(A);
+}
+
+TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on repeated eigenvalue 3x3", "[Tensor]")
 {
    // This test case has two equal eigenvalues. Without the custom derivative rule,
    // this would trigger NaNs (due to the eigendecomposition being differentiated).
-
    tensor<real_t, 3> lambda{{-2.2, 4.0, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
-   real_t beta = 2.0;
-   CheckJacobian(A, beta);
+   CheckJacobian(A);
 }
+
+TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on spherical tensor 3x3", "[Tensor]")
+{
+   real_t lambda = 2.2;
+   auto A = lambda*IdentityMatrix<3>();
+   CheckJacobian(A);
+}
+
+TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on distinct eigenvalues 2x2", "[Tensor]")
+{
+   tensor<real_t, 2> lambda{{-2.2, 2.0}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   CheckJacobian(A);
+}
+
+TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on spherical tensor 2x2", "[Tensor]")
+{
+   real_t lambda = 2.2;
+   auto A = lambda*IdentityMatrix<2>();
+   CheckJacobian(A);
+}
+
 #endif // MFEM_USE_ENZYME
