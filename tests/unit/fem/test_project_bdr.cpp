@@ -21,7 +21,9 @@ TEST_CASE("3D ProjectBdrCoefficient",
           "[GridFunction]"
           "[NCMesh]")
 {
-   constexpr const char *mesh_file = "data/hex-nc-cross.mesh";
+   const char *mesh_file = GENERATE("data/hex-nc-cross.mesh",
+                                    "data/tet-nc-cross.mesh");
+   CAPTURE(mesh_file);
    constexpr int order = 3;
    constexpr real_t freq = 5.0;
 
