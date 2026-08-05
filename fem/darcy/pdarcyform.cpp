@@ -228,13 +228,6 @@ void ParDarcyForm::Finalize(int skip_zeros)
    }
 }
 
-void ParDarcyForm::ParallelAssembleInternal()
-{
-   if (pM_u) { pM_u->ParallelAssembleInternalMatrix(); }
-   if (pM_p) { pM_p->ParallelAssembleInternalMatrix(); }
-   if (pB) { pB->ParallelAssembleInternalMatrix(); }
-}
-
 void ParDarcyForm::FormLinearSystem(
    const Array<int> &ess_flux_tdof_list, BlockVector &x, BlockVector &b,
    OperatorHandle &A, Vector &X_, Vector &B_, int copy_interior)
