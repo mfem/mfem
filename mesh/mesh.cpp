@@ -721,11 +721,7 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
          }
          else
          {
-            FiniteElementCollection *trace_fec =
-               Nodes->FESpace()->FEColl()->GetTraceCollection();
-            edge_el = trace_fec->GetTraceFE(Geometry::SEGMENT, order);
-            MFEM_VERIFY(dynamic_cast<const NodalFiniteElement*>(edge_el),
-                        "Mesh requires nodal Finite Element.");
+            MFEM_ABORT("Unsupported finite element collection.");
          }
 
          // Map edge nodes to face reference space
