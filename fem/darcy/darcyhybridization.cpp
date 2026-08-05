@@ -1538,7 +1538,7 @@ void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
 
       for (int vdof : tdofs)
       {
-         H->EliminateRowCol(vdof, *He, diag_policy);
+         H->EliminateRowCol(vdof, *He, dpolicy);
       }
 
       He->Finalize();
