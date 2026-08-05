@@ -36,7 +36,7 @@ namespace mma
     2D uses a wider tile: low-order tris stay on hand Blas and need fat N.
     TRI mass p=3 (NQ=12) prefers NB=16 (measured on M2 Pro). */
 template <int DIM, int NQ>
-constexpr int BlasMassNB()
+constexpr int blas_MassNB()
 {
    if constexpr (DIM == 2) { return (NQ == 12) ? 16 : 32; }
    return (NQ > 80) ? 4 : 8;
@@ -60,54 +60,34 @@ inline void ScaleUByMassD(real_t *uloc, const real_t *D, int nq, int e0, int NE,
 
 #ifdef MFEM_USE_LAPACK
 /** Mass: serial tiles, reused buffers. U = P X, scale D, Y += P^T U.
-    Full tiles GEMM directly against X/Y (same column-major layout); only the
-    partial trailing tile packs/scatters. */
-inline void MassApplyLapack(int NE, int nq, int ndof, const real_t *P,
-                            const real_t *D, const real_t *X, real_t *Y)
+    Full tiles GEMM against X/Y; partial trailing tile packs/scatters. */
+inline void lapack_MassApply(int NE, int nq, int ndof, const real_t *P,
+                             const real_t *D, const real_t *X, real_t *Y)
 {
-   const int NB = LapackNB(nq, ndof);
-   const int ntiles = (NE + NB - 1) / NB;
-   std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
+   const int NB = lapack_NB(nq, ndof);
    std::vector<real_t> uloc(static_cast<size_t>(nq) * NB);
-   std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
-
-   for (int tile = 0; tile < ntiles; ++tile)
+   lapack_ElementTiles(NE, ndof, NB, X, Y,
+                       [&](int e0, int /*nbe*/, int nb, const real_t *Xsrc,
+                           real_t *Yout)
    {
-      const int e0 = tile * NB;
-      const int nbe = std::min(NB, NE - e0);
-      const real_t *Xtile = X + static_cast<size_t>(ndof) * e0;
-      real_t *Ytile = Y + static_cast<size_t>(ndof) * e0;
-      if (nbe == NB)
-      {
-         LapackGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, Xtile, ndof,
-                    real_t(0), uloc.data(), nq);
-         ScaleUByMassD(uloc.data(), D, nq, e0, NE, NB);
-         LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
-                    real_t(1), Ytile, ndof);
-      }
-      else
-      {
-         PackXColMajor(X, ndof, e0, NE, NB, xloc.data());
-         LapackGemm('N', 'N', nq, NB, ndof, real_t(1), P, nq, xloc.data(), ndof,
-                    real_t(0), uloc.data(), nq);
-         ScaleUByMassD(uloc.data(), D, nq, e0, NE, NB);
-         LapackGemm('T', 'N', ndof, NB, nq, real_t(1), P, nq, uloc.data(), nq,
-                    real_t(0), ytmp.data(), ndof);
-         ScatterAddYColMajor(ytmp.data(), ndof, e0, NE, NB, Y);
-      }
-   }
+      lapack_Gemm('N', 'N', nq, nb, ndof, real_t(1), P, nq, Xsrc, ndof,
+                  real_t(0), uloc.data(), nq);
+      ScaleUByMassD(uloc.data(), D, nq, e0, NE, nb);
+      lapack_Gemm('T', 'N', ndof, nb, nq, real_t(1), P, nq, uloc.data(), nq,
+                  real_t(1), Yout, ndof);
+   });
 }
 
 #endif // MFEM_USE_LAPACK
 
-/** Always-available host Lapack entry: runs MassApplyLapack when LAPACK is on
-    and PreferLapack is true. Returns whether the Lapack path ran. */
-inline bool TryMassApplyLapack(int NE, int nq, int ndof, const real_t *P,
-                               const real_t *D, const real_t *X, real_t *Y)
+/** Always-available host Lapack entry: runs lapack_MassApply when LAPACK is on
+    and lapack_Prefer is true. Returns whether the Lapack path ran. */
+inline bool lapack_TryMassApply(int NE, int nq, int ndof, const real_t *P,
+                                const real_t *D, const real_t *X, real_t *Y)
 {
 #ifdef MFEM_USE_LAPACK
-   if (!PreferLapack(nq, ndof, NE)) { return false; }
-   MassApplyLapack(NE, nq, ndof, P, D, X, Y);
+   if (!lapack_Prefer(nq, ndof, NE)) { return false; }
+   lapack_MassApply(NE, nq, ndof, P, D, X, Y);
    return true;
 #else
    (void)NE; (void)nq; (void)ndof; (void)P; (void)D; (void)X; (void)Y;
@@ -117,10 +97,10 @@ inline bool TryMassApplyLapack(int NE, int nq, int ndof, const real_t *P,
 
 
 template <int DIM, int NDOF, int NQ>
-inline void MassApplyBlasSpecialized(int NE, const real_t *P, const real_t *D,
-                                     const real_t *X, real_t *Y)
+inline void blas_MassApply(int NE, const real_t *P, const real_t *D,
+                           const real_t *X, real_t *Y)
 {
-   constexpr int NB = BlasMassNB<DIM, NQ>();
+   constexpr int NB = blas_MassNB<DIM, NQ>();
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
    {
@@ -135,7 +115,7 @@ inline void MassApplyBlasSpecialized(int NE, const real_t *P, const real_t *D,
       else
       {
          alignas(64) real_t xloc[NDOF * NB];
-         PackXBlas<NDOF, NB>(X, e0, NE, xloc);
+         blas_PackX<NDOF, NB>(X, e0, NE, xloc);
          blas_Gemm<NDOF, NQ, NB, true>(P, xloc, uloc, D, e0, NE);
          blas_GemmT<NDOF, NQ, NB>(P, uloc, Y, e0, NE);
       }
@@ -174,8 +154,8 @@ MFEM_HOST_DEVICE inline void MassApplyDenseElement(const int nq, const int ndof,
 }
 
 /** Host multi-element driver over MassApplyDenseElement. */
-inline void MassApplyBlasRuntime(int NE, int nq, int ndof, const real_t *P,
-                                 const real_t *D, const real_t *X, real_t *Y)
+inline void blas_MassApplyRuntime(int NE, int nq, int ndof, const real_t *P,
+                                  const real_t *D, const real_t *X, real_t *Y)
 {
    for (int e = 0; e < NE; ++e)
    {
@@ -241,7 +221,7 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApply(const int e0, const int NE,
 }
 
 /** Runtime-sized dense batch mass (tid==0); sync afterward. */
-MFEM_HOST_DEVICE inline void BlasMassBatchApplyRuntime(
+MFEM_HOST_DEVICE inline void blas_MassBatchApplyRuntime(
    const int e0, const int NE, const int nq, const int ndof,
    const int x_ld, const int u_ld, const int nb,
    const real_t *p, const real_t *d, const real_t *x, real_t *y,
@@ -292,11 +272,11 @@ MFEM_HOST_DEVICE inline void MmaMassBatchApplyRuntime(
 /** Host dense mass (Lapack or Blas): y += P^T ( D ⊙ (P x) ) per element.
     Large (QND,ndof): BLAS multi-RHS when profitable; else hand tiles. */
 template<int DIM, int D1D, int QND>
-inline void BlasMassApplySimplex(const int NE,
-                                 const Array<real_t> &p,
-                                 const Vector &d,
-                                 const Vector &x,
-                                 Vector &y)
+inline void blas_MassApplySimplex(const int NE,
+                                  const Array<real_t> &p,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y)
 {
    static_assert(D1D > 0 && QND > 0,
                  "Simplex MMA mass requires specialized D1D/QND");
@@ -306,18 +286,18 @@ inline void BlasMassApplySimplex(const int NE,
    const real_t *X = x.Read();
    real_t *Y = y.ReadWrite();
 
-   if (mma::TryMassApplyLapack(NE, QND, ndof, P, D, X, Y)) { return; }
-   mma::MassApplyBlasSpecialized<DIM, ndof, QND>(NE, P, D, X, Y);
+   if (mma::lapack_TryMassApply(NE, QND, ndof, P, D, X, Y)) { return; }
+   mma::blas_MassApply<DIM, ndof, QND>(NE, P, D, X, Y);
 }
 
 /** Portable runtime dense mass for unspecialized (D1D,QND). Works on CPU and
     GPU; sizes inferred from P/D; bounded by SimplexMaxNq/SimplexNdof caps. */
 template<int DIM>
-inline void BlasMassApplySimplexRuntime(const int NE,
-                                        const Array<real_t> &p,
-                                        const Vector &d,
-                                        const Vector &x,
-                                        Vector &y)
+inline void blas_MassApplySimplexRuntime(const int NE,
+                                         const Array<real_t> &p,
+                                         const Vector &d,
+                                         const Vector &x,
+                                         Vector &y)
 {
    MFEM_VERIFY(NE > 0, "");
    MFEM_VERIFY(d.Size() % NE == 0, "");
@@ -337,8 +317,8 @@ inline void BlasMassApplySimplexRuntime(const int NE,
       const real_t *D = d.Read();
       const real_t *X = x.Read();
       real_t *Y = y.ReadWrite();
-      if (mma::TryMassApplyLapack(NE, nq, ndof, P, D, X, Y)) { return; }
-      mma::MassApplyBlasRuntime(NE, nq, ndof, P, D, X, Y);
+      if (mma::lapack_TryMassApply(NE, nq, ndof, P, D, X, Y)) { return; }
+      mma::blas_MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 
@@ -412,20 +392,17 @@ void MmaMassApplySimplex_Batch(const int e0,
 {
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
    constexpr int max_ndof = mma::SimplexNdof<DIM, 0>();
-   constexpr int max_x_ld =
-      mma::PadLdBank<mma::MmaMapDefault>(max_ndof);
-   constexpr int max_u_ld =
-      mma::PadLdBank<mma::MmaMapDefault>(max_nq);
-   constexpr int max_nb = mma::NBATCH;
 
    // Dyn layout matches launch smem_bytes=(x_ld+u_ld)*nb; static uses caps.
 #if defined(__CUDA_ARCH__)
    real_t *XY = reinterpret_cast<real_t *>(mma::SimplexMmaDynSmem());
    real_t *Us = XY + x_ld * nb;
-   MFEM_CONTRACT_VAR(max_x_ld);
-   MFEM_CONTRACT_VAR(max_u_ld);
-   MFEM_CONTRACT_VAR(max_nb);
 #else
+   constexpr int max_nb = mma::NBATCH;
+   constexpr int max_x_ld =
+      mma::PadLdBank<mma::MmaMapDefault>(max_ndof);
+   constexpr int max_u_ld =
+      mma::PadLdBank<mma::MmaMapDefault>(max_nq);
    MFEM_SHARED real_t XY[max_x_ld * max_nb];
    MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #endif
@@ -441,7 +418,7 @@ void MmaMassApplySimplex_Batch(const int e0,
    }
    else
    {
-      mma::BlasMassBatchApplyRuntime(
+      mma::blas_MassBatchApplyRuntime(
          e0, NE, nq, ndof, x_ld, u_ld, nb, p, d, x, y, XY, Us, tid);
       MFEM_SYNC_THREAD;
    }
@@ -457,19 +434,18 @@ inline void MmaMassApplySimplex(const int NE,
    static_assert(D1D > 0 && QND > 0,
                  "Simplex MMA mass requires specialized D1D/QND");
    constexpr int NB = mma::MassLikeNB<DIM, D1D, QND>();
-   constexpr int ndof = mma::SimplexNdof<DIM, D1D>();
+   constexpr int NDOF = mma::SimplexNdof<DIM, D1D>();
    MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
-   MFEM_VERIFY(p.Size() == QND * ndof, "");
+   MFEM_VERIFY(p.Size() == QND * NDOF, "");
 
-   // Dedicated host path: multi-RHS dense GEMM without GPU batch/smem layout.
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      BlasMassApplySimplex<DIM, D1D, QND>(NE, p, d, x, y);
+      blas_MassApplySimplex<DIM, D1D, QND>(NE, p, d, x, y);
       return;
    }
 
+   constexpr int BASIS = NDOF;
    constexpr int MQ = mma::SimplexMaxNq<DIM, QND>();
-   constexpr int BASIS = ndof;
    constexpr int MAP = mma::MmaMapFor<DIM, D1D, QND>();
    constexpr int X_LD = mma::PadLdBank<MAP>(BASIS);
    constexpr int U_LD = mma::PadLdBank<MAP>(MQ);
@@ -477,7 +453,7 @@ inline void MmaMassApplySimplex(const int NE,
    mma::VerifySharedMemBytes(smem_bytes);
 
    const int nbatches = (NE + NB - 1) / NB;
-   const int nthreads = mma::LaunchNthreads<QND>(QND, ndof);
+   const int nthreads = mma::LaunchNthreads<QND>(QND, NDOF);
 
    const auto P = p.Read(), D = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
@@ -505,9 +481,9 @@ inline void MmaMassApplySimplex(const int NE,
    const int ndof = p.Size() / nq;
    MFEM_VERIFY(x.Size() >= ndof * NE && y.Size() >= ndof * NE, "");
 
-   constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
-   constexpr int max_ndof = mma::SimplexNdof<DIM, 0>();
-   MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
+   constexpr int MAX_NQ = mma::SimplexMaxNq<DIM, 0>();
+   constexpr int MAX_NDOF = mma::SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= MAX_NQ && ndof <= MAX_NDOF,
                "Simplex MMA mass runtime Fallback exceeds size caps");
 
    if (!Device::Allows(Backend::DEVICE_MASK))
@@ -516,8 +492,8 @@ inline void MmaMassApplySimplex(const int NE,
       const real_t *D = d.Read();
       const real_t *X = x.Read();
       real_t *Y = y.ReadWrite();
-      if (mma::TryMassApplyLapack(NE, nq, ndof, P, D, X, Y)) { return; }
-      mma::MassApplyBlasRuntime(NE, nq, ndof, P, D, X, Y);
+      if (mma::lapack_TryMassApply(NE, nq, ndof, P, D, X, Y)) { return; }
+      mma::blas_MassApplyRuntime(NE, nq, ndof, P, D, X, Y);
       return;
    }
 
@@ -525,8 +501,8 @@ inline void MmaMassApplySimplex(const int NE,
    const int u_ld = mma::PadLdBankRuntime(nq);
    const int nb = mma::MassLikeNBRuntime(ndof, nq);
    MFEM_VERIFY(x_ld <= mma::PadLdBank<mma::MmaMapDefault>
-               (max_ndof) &&
-               u_ld <= mma::PadLdBank<mma::MmaMapDefault>(max_nq) &&
+               (MAX_NDOF) &&
+               u_ld <= mma::PadLdBank<mma::MmaMapDefault>(MAX_NQ) &&
                nb <= mma::NBATCH,
                "Simplex MMA mass runtime Fallback smem layout exceeds caps");
    const int smem_bytes = int(sizeof(real_t)) * (x_ld + u_ld) * nb;

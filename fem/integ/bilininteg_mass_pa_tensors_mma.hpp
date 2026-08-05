@@ -13,13 +13,6 @@
 #include "../bilininteg.hpp"
 #include "bilininteg_pa_mma.hpp"
 
-#ifdef MFEM_USE_LAPACK
-#include <vector>
-#endif
-#if defined(__APPLE__)
-#include <dispatch/dispatch.h>
-#endif
-
 namespace mfem
 {
 
@@ -28,483 +21,11 @@ namespace mfem
 namespace internal
 {
 
-#ifdef MFEM_USE_LAPACK
-/** Grow a thread-local scratch buffer (GCD workers reuse across tiles). */
-inline real_t *TensorScratch(std::vector<real_t> &buf, size_t n)
-{
-   if (buf.size() < n) { buf.resize(n); }
-   return buf.data();
-}
-#endif
+// ---- Host mass apply (blas_ sum-fact) -------------------------------------
 
-/** Prefer 1D multi-RHS GEMM for tensor SUM host apply (quad/hex mass). */
-inline bool PreferTensorSumLapack(int D1D, int Q1D, int NE)
-{
-#ifdef MFEM_USE_LAPACK
-   // Registered tensor MMA is p>=3 (D1D>=4). Always take Lapack on host for
-   // those sizes when the mesh is not tiny — fat-N path beats Emulate shell.
-   (void)Q1D;
-   return NE >= 4 && D1D >= 4;
-#else
-   (void)D1D; (void)Q1D; (void)NE;
-   return false;
-#endif
-}
-
-
-// ---- Mass SUM BLAS (1D multi-RHS GEMM) -------------------------------------
-
-#ifdef MFEM_USE_LAPACK
-/** One 2D mass tile: fat 1D GEMMs; zero-copy X/Y when the tile is full. */
+/** blas_ sum-fact host mass 2D with serial over element tiles. */
 template <int D1D, int Q1D>
-inline void MassApplyTensorsSumLapack2DTile(
-   const int e0, const int nbe, const int NB,
-   const real_t *B, const real_t *Bt, const real_t *Dv,
-   const real_t *X, real_t *Y,
-   real_t *xloc, real_t *qq, real_t *qqt, real_t *U,
-   real_t *T, real_t *Tt, real_t *ytmp)
-{
-   const int ndof = D1D * D1D;
-   const int n_xy = D1D * NB;
-   const int n_qy = Q1D * NB;
-   const real_t *Xsrc;
-   if (nbe == NB)
-   {
-      Xsrc = X + static_cast<size_t>(ndof) * e0;
-   }
-   else
-   {
-      std::fill(xloc, xloc + static_cast<size_t>(D1D) * n_xy, real_t(0));
-      for (int b = 0; b < nbe; ++b)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               xloc[dx + D1D * (dy + D1D * b)] =
-                  X[dx + D1D * (dy + D1D * (e0 + b))];
-            }
-         }
-      }
-      Xsrc = xloc;
-   }
-
-   // InterpX: qq[qx, dy + D1D*b]
-   mma::LapackGemm('N', 'N', Q1D, n_xy, D1D, real_t(1), B, Q1D,
-                   Xsrc, D1D, real_t(0), qq, Q1D);
-
-   // InterpY: small D1D → per-element 'N','T'; larger → pack + fat GEMM
-   if (D1D <= 5)
-   {
-      for (int b = 0; b < nbe; ++b)
-      {
-         mma::LapackGemm('N', 'T', Q1D, Q1D, D1D, real_t(1), B, Q1D,
-                         qq + Q1D * D1D * b, Q1D,
-                         real_t(0), U + Q1D * Q1D * b, Q1D);
-      }
-      for (int b = nbe; b < NB; ++b)
-      {
-         std::fill(U + Q1D * Q1D * b, U + Q1D * Q1D * (b + 1), real_t(0));
-      }
-   }
-   else
-   {
-      for (int b = 0; b < NB; ++b)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               qqt[dy + D1D * (qx + Q1D * b)] = qq[qx + Q1D * (dy + D1D * b)];
-            }
-         }
-      }
-      mma::LapackGemm('N', 'N', Q1D, n_qy, D1D, real_t(1), B, Q1D,
-                      qqt, D1D, real_t(0), U, Q1D);
-   }
-
-   for (int b = 0; b < nbe; ++b)
-   {
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            U[qy + Q1D * (qx + Q1D * b)] *=
-               Dv[qx + Q1D * (qy + Q1D * (e0 + b))];
-         }
-      }
-   }
-   if (D1D > 5)
-   {
-      for (int b = nbe; b < NB; ++b)
-      {
-         for (int i = 0; i < Q1D * Q1D; ++i)
-         {
-            U[i + Q1D * Q1D * b] = real_t(0);
-         }
-      }
-   }
-
-   // InterpYt: T[dy, qx + Q1D*b]
-   mma::LapackGemm('N', 'N', D1D, n_qy, Q1D, real_t(1), Bt, D1D,
-                   U, Q1D, real_t(0), T, D1D);
-
-   // InterpXt
-   if (D1D <= 5)
-   {
-      if (nbe == NB)
-      {
-         real_t *Ydst = Y + static_cast<size_t>(ndof) * e0;
-         for (int b = 0; b < NB; ++b)
-         {
-            mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
-                            T + D1D * Q1D * b, D1D,
-                            real_t(1), Ydst + D1D * D1D * b, D1D);
-         }
-      }
-      else
-      {
-         for (int b = 0; b < nbe; ++b)
-         {
-            mma::LapackGemm('N', 'T', D1D, D1D, Q1D, real_t(1), Bt, D1D,
-                            T + D1D * Q1D * b, D1D,
-                            real_t(0), ytmp + D1D * D1D * b, D1D);
-         }
-         for (int b = 0; b < nbe; ++b)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  Y[dx + D1D * (dy + D1D * (e0 + b))] +=
-                     ytmp[dx + D1D * (dy + D1D * b)];
-               }
-            }
-         }
-      }
-   }
-   else
-   {
-      for (int b = 0; b < NB; ++b)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               Tt[qx + Q1D * (dy + D1D * b)] = T[dy + D1D * (qx + Q1D * b)];
-            }
-         }
-      }
-      if (nbe == NB)
-      {
-         real_t *Ydst = Y + static_cast<size_t>(ndof) * e0;
-         mma::LapackGemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Bt, D1D,
-                         Tt, Q1D, real_t(1), Ydst, D1D);
-      }
-      else
-      {
-         mma::LapackGemm('N', 'N', D1D, n_xy, Q1D, real_t(1), Bt, D1D,
-                         Tt, Q1D, real_t(0), ytmp, D1D);
-         for (int b = 0; b < nbe; ++b)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  Y[dx + D1D * (dy + D1D * (e0 + b))] +=
-                     ytmp[dx + D1D * (dy + D1D * b)];
-               }
-            }
-         }
-      }
-   }
-}
-
-/** 2D mass SUM via fat 1D LapackGemm + Apple GCD over element tiles. */
-template <int D1D, int Q1D>
-inline void MassApplyTensorsSumLapack2D(const int NE,
-                                      const real_t *B, const real_t *Bt,
-                                      const real_t *Dv, const real_t *X,
-                                      real_t *Y)
-{
-   const int NB = mma::TensorLapackNB(D1D, Q1D);
-   const int ntiles = (NE + NB - 1) / NB;
-   const int n_xy = D1D * NB;
-   const int n_qy = Q1D * NB;
-
-#if defined(__APPLE__)
-   dispatch_apply(static_cast<size_t>(ntiles), DISPATCH_APPLY_AUTO,
-                  ^(size_t tile)
-   {
-      const int e0 = static_cast<int>(tile) * NB;
-      const int nbe = std::min(NB, NE - e0);
-      thread_local std::vector<real_t> xloc, qq, qqt, U, T, Tt, ytmp;
-      MassApplyTensorsSumLapack2DTile<D1D, Q1D>(
-         e0, nbe, NB, B, Bt, Dv, X, Y,
-         TensorScratch(xloc, static_cast<size_t>(D1D) * n_xy),
-         TensorScratch(qq, static_cast<size_t>(Q1D) * n_xy),
-         TensorScratch(qqt, static_cast<size_t>(D1D) * n_qy),
-         TensorScratch(U, static_cast<size_t>(Q1D) * n_qy),
-         TensorScratch(T, static_cast<size_t>(D1D) * n_qy),
-         TensorScratch(Tt, static_cast<size_t>(Q1D) * n_xy),
-         TensorScratch(ytmp, static_cast<size_t>(D1D) * n_xy));
-   });
-#else
-   std::vector<real_t> xloc(static_cast<size_t>(D1D) * n_xy);
-   std::vector<real_t> qq(static_cast<size_t>(Q1D) * n_xy);
-   std::vector<real_t> qqt(static_cast<size_t>(D1D) * n_qy);
-   std::vector<real_t> U(static_cast<size_t>(Q1D) * n_qy);
-   std::vector<real_t> T(static_cast<size_t>(D1D) * n_qy);
-   std::vector<real_t> Tt(static_cast<size_t>(Q1D) * n_xy);
-   std::vector<real_t> ytmp(static_cast<size_t>(D1D) * n_xy);
-   for (int tile = 0; tile < ntiles; ++tile)
-   {
-      const int e0 = tile * NB;
-      const int nbe = std::min(NB, NE - e0);
-      MassApplyTensorsSumLapack2DTile<D1D, Q1D>(
-         e0, nbe, NB, B, Bt, Dv, X, Y,
-         xloc.data(), qq.data(), qqt.data(), U.data(),
-         T.data(), Tt.data(), ytmp.data());
-   }
-#endif
-}
-
-/** One 3D mass tile over NB_e elements (RHS = D1D² * NB_e). */
-template <int D1D, int Q1D>
-inline void MassApplyTensorsSumLapack3DTile(
-   const int e0, const int nbe, const int NB,
-   const real_t *B, const real_t *Bt, const real_t *Dv,
-   const real_t *X, real_t *Y,
-   real_t *xloc, real_t *t0, real_t *t0t, real_t *t1,
-   real_t *Az, real_t *U, real_t *Tz, real_t *Ay, real_t *Ty,
-   real_t *Tyt, real_t *ytmp)
-{
-   const int nd2 = D1D * D1D;
-   const int ndof = D1D * nd2;
-   const int nq2 = Q1D * Q1D;
-   const int n_d2 = nd2 * NB;
-   const int n_qd = Q1D * D1D * NB;
-   const int n_q2 = nq2 * NB;
-
-   const real_t *Xsrc;
-   if (nbe == NB)
-   {
-      Xsrc = X + static_cast<size_t>(ndof) * e0;
-   }
-   else
-   {
-      std::fill(xloc, xloc + static_cast<size_t>(D1D) * n_d2, real_t(0));
-      for (int b = 0; b < nbe; ++b)
-      {
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  xloc[dx + D1D * (dy + D1D * (dz + D1D * b))] =
-                     X[dx + D1D * (dy + D1D * (dz + D1D * (e0 + b)))];
-               }
-            }
-         }
-      }
-      Xsrc = xloc;
-   }
-
-   // InterpX: t0[qx, dy + D1D*(dz + D1D*b)]
-   mma::LapackGemm('N', 'N', Q1D, n_d2, D1D, real_t(1), B, Q1D,
-                   Xsrc, D1D, real_t(0), t0, Q1D);
-
-   // Pack + InterpY: t1[qy, qx + Q1D*(dz + D1D*b)]
-   for (int b = 0; b < NB; ++b)
-   {
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               t0t[dy + D1D * (qx + Q1D * (dz + D1D * b))] =
-                  t0[qx + Q1D * (dy + D1D * (dz + D1D * b))];
-            }
-         }
-      }
-   }
-   mma::LapackGemm('N', 'N', Q1D, n_qd, D1D, real_t(1), B, Q1D,
-                   t0t, D1D, real_t(0), t1, Q1D);
-
-   // Pack for InterpZ: Az[dz, qx + Q1D*(qy + Q1D*b)]
-   for (int b = 0; b < NB; ++b)
-   {
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               Az[dz + D1D * (qx + Q1D * (qy + Q1D * b))] =
-                  t1[qy + Q1D * (qx + Q1D * (dz + D1D * b))];
-            }
-         }
-      }
-   }
-   mma::LapackGemm('N', 'N', Q1D, n_q2, D1D, real_t(1), B, Q1D,
-                   Az, D1D, real_t(0), U, Q1D);
-
-   // Metric: U[qz, qx + Q1D*(qy + Q1D*b)] *= Dv[qx,qy,qz,e]
-   for (int b = 0; b < nbe; ++b)
-   {
-      for (int qy = 0; qy < Q1D; ++qy)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            for (int qz = 0; qz < Q1D; ++qz)
-            {
-               U[qz + Q1D * (qx + Q1D * (qy + Q1D * b))] *=
-                  Dv[qx + Q1D * (qy + Q1D * (qz + Q1D * (e0 + b)))];
-            }
-         }
-      }
-   }
-   for (int b = nbe; b < NB; ++b)
-   {
-      for (int i = 0; i < Q1D * nq2; ++i)
-      {
-         U[i + Q1D * nq2 * b] = real_t(0);
-      }
-   }
-
-   // InterpZt: Tz[dz, qx + Q1D*(qy + Q1D*b)]
-   mma::LapackGemm('N', 'N', D1D, n_q2, Q1D, real_t(1), Bt, D1D,
-                   U, Q1D, real_t(0), Tz, D1D);
-
-   // Pack + InterpYt: Ty[dy, qx + Q1D*(dz + D1D*b)]
-   for (int b = 0; b < NB; ++b)
-   {
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         for (int qx = 0; qx < Q1D; ++qx)
-         {
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               Ay[qy + Q1D * (qx + Q1D * (dz + D1D * b))] =
-                  Tz[dz + D1D * (qx + Q1D * (qy + Q1D * b))];
-            }
-         }
-      }
-   }
-   mma::LapackGemm('N', 'N', D1D, n_qd, Q1D, real_t(1), Bt, D1D,
-                   Ay, Q1D, real_t(0), Ty, D1D);
-
-   // Pack + InterpXt: y[dx, dy + D1D*(dz + D1D*b)]
-   for (int b = 0; b < NB; ++b)
-   {
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               Tyt[qx + Q1D * (dy + D1D * (dz + D1D * b))] =
-                  Ty[dy + D1D * (qx + Q1D * (dz + D1D * b))];
-            }
-         }
-      }
-   }
-
-   if (nbe == NB)
-   {
-      real_t *Ydst = Y + static_cast<size_t>(ndof) * e0;
-      mma::LapackGemm('N', 'N', D1D, n_d2, Q1D, real_t(1), Bt, D1D,
-                      Tyt, Q1D, real_t(1), Ydst, D1D);
-   }
-   else
-   {
-      mma::LapackGemm('N', 'N', D1D, n_d2, Q1D, real_t(1), Bt, D1D,
-                      Tyt, Q1D, real_t(0), ytmp, D1D);
-      for (int b = 0; b < nbe; ++b)
-      {
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  Y[dx + D1D * (dy + D1D * (dz + D1D * (e0 + b)))] +=
-                     ytmp[dx + D1D * (dy + D1D * (dz + D1D * b))];
-               }
-            }
-         }
-      }
-   }
-}
-
-/** 3D mass SUM via batched-element fat 1D LapackGemm + Apple GCD. */
-template <int D1D, int Q1D>
-inline void MassApplyTensorsSumLapack3D(const int NE,
-                                      const real_t *B, const real_t *Bt,
-                                      const real_t *Dv, const real_t *X,
-                                      real_t *Y)
-{
-   const int NB = mma::TensorLapackNB3D(D1D, Q1D);
-   const int ntiles = (NE + NB - 1) / NB;
-   const int nd2 = D1D * D1D;
-   const int nq2 = Q1D * Q1D;
-   const int n_d2 = nd2 * NB;
-   const int n_qd = Q1D * D1D * NB;
-   const int n_q2 = nq2 * NB;
-
-#if defined(__APPLE__)
-   dispatch_apply(static_cast<size_t>(ntiles), DISPATCH_APPLY_AUTO,
-                  ^(size_t tile)
-   {
-      const int e0 = static_cast<int>(tile) * NB;
-      const int nbe = std::min(NB, NE - e0);
-      thread_local std::vector<real_t> xloc, t0, t0t, t1, Az, U, Tz, Ay, Ty,
-         Tyt, ytmp;
-      MassApplyTensorsSumLapack3DTile<D1D, Q1D>(
-         e0, nbe, NB, B, Bt, Dv, X, Y,
-         TensorScratch(xloc, static_cast<size_t>(D1D) * n_d2),
-         TensorScratch(t0, static_cast<size_t>(Q1D) * n_d2),
-         TensorScratch(t0t, static_cast<size_t>(D1D) * n_qd),
-         TensorScratch(t1, static_cast<size_t>(Q1D) * n_qd),
-         TensorScratch(Az, static_cast<size_t>(D1D) * n_q2),
-         TensorScratch(U, static_cast<size_t>(Q1D) * n_q2),
-         TensorScratch(Tz, static_cast<size_t>(D1D) * n_q2),
-         TensorScratch(Ay, static_cast<size_t>(Q1D) * n_qd),
-         TensorScratch(Ty, static_cast<size_t>(D1D) * n_qd),
-         TensorScratch(Tyt, static_cast<size_t>(Q1D) * n_d2),
-         TensorScratch(ytmp, static_cast<size_t>(D1D) * n_d2));
-   });
-#else
-   std::vector<real_t> xloc(static_cast<size_t>(D1D) * n_d2);
-   std::vector<real_t> t0(static_cast<size_t>(Q1D) * n_d2);
-   std::vector<real_t> t0t(static_cast<size_t>(D1D) * n_qd);
-   std::vector<real_t> t1(static_cast<size_t>(Q1D) * n_qd);
-   std::vector<real_t> Az(static_cast<size_t>(D1D) * n_q2);
-   std::vector<real_t> U(static_cast<size_t>(Q1D) * n_q2);
-   std::vector<real_t> Tz(static_cast<size_t>(D1D) * n_q2);
-   std::vector<real_t> Ay(static_cast<size_t>(Q1D) * n_qd);
-   std::vector<real_t> Ty(static_cast<size_t>(D1D) * n_qd);
-   std::vector<real_t> Tyt(static_cast<size_t>(Q1D) * n_d2);
-   std::vector<real_t> ytmp(static_cast<size_t>(D1D) * n_d2);
-   for (int tile = 0; tile < ntiles; ++tile)
-   {
-      const int e0 = tile * NB;
-      const int nbe = std::min(NB, NE - e0);
-      MassApplyTensorsSumLapack3DTile<D1D, Q1D>(
-         e0, nbe, NB, B, Bt, Dv, X, Y,
-         xloc.data(), t0.data(), t0t.data(), t1.data(),
-         Az.data(), U.data(), Tz.data(), Ay.data(), Ty.data(),
-         Tyt.data(), ytmp.data());
-   }
-#endif
-}
-#endif // MFEM_USE_LAPACK
-
-/** Host hand sum-fact mass 2D with Apple GCD over element tiles. */
-template <int D1D, int Q1D>
-inline void MassApplyTensorsHandGcd2D(const int NE, const real_t *B,
+inline void blas_MassApplyTensors2D(const int NE, const real_t *B,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
@@ -565,25 +86,20 @@ inline void MassApplyTensorsHandGcd2D(const int NE, const real_t *B,
          }
       }
    };
-   // Tile GCD: quads are too cheap per element for one-task-per-e.
-   const int NB = mma::TensorLapackNB(D1D, Q1D);
+   // Tile over elements for multi-RHS batching.
+   const int NB = mma::lapack_TensorNB(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
-#if defined(__APPLE__)
-   dispatch_apply(static_cast<size_t>(ntiles), DISPATCH_APPLY_AUTO,
-                  ^(size_t tile)
+   for (int tile = 0; tile < ntiles; ++tile)
    {
-      const int e0 = static_cast<int>(tile) * NB;
+      const int e0 = tile * NB;
       const int nbe = std::min(NB, NE - e0);
       for (int b = 0; b < nbe; ++b) { apply_e(e0 + b); }
-   });
-#else
-   for (int e = 0; e < NE; ++e) { apply_e(e); }
-#endif
+   }
 }
 
-/** Host hand sum-fact mass 3D with Apple GCD over element tiles. */
+/** blas_ sum-fact host mass 3D with serial over element tiles. */
 template <int D1D, int Q1D>
-inline void MassApplyTensorsHandGcd3D(const int NE, const real_t *B,
+inline void blas_MassApplyTensors3D(const int NE, const real_t *B,
                                       const real_t *Dv, const real_t *X,
                                       real_t *Y)
 {
@@ -673,74 +189,44 @@ inline void MassApplyTensorsHandGcd3D(const int NE, const real_t *B,
          }
       }
    };
-   const int NB = mma::TensorLapackNB3D(D1D, Q1D);
+   const int NB = mma::lapack_TensorNB3D(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
-#if defined(__APPLE__)
-   dispatch_apply(static_cast<size_t>(ntiles), DISPATCH_APPLY_AUTO,
-                  ^(size_t tile)
+   for (int tile = 0; tile < ntiles; ++tile)
    {
-      const int e0 = static_cast<int>(tile) * NB;
+      const int e0 = tile * NB;
       const int nbe = std::min(NB, NE - e0);
       for (int b = 0; b < nbe; ++b) { apply_e(e0 + b); }
-   });
-#else
-   for (int e = 0; e < NE; ++e) { apply_e(e); }
-#endif
+   }
+}
+
+/** Host mass tensor apply: dense sum-fact (blas_). Always preferred for the
+    registered D1D range (4..TensorsMmaMax) over the MMA Emulate shell. */
+template <int D1D, int Q1D>
+inline bool blas_TryMassApplyTensors2D(const int NE,
+                                       const Array<real_t> &b,
+                                       const Array<real_t> & /*bt*/,
+                                       const Vector &d,
+                                       const Vector &x,
+                                       Vector &y)
+{
+   if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
+   blas_MassApplyTensors2D<D1D, Q1D>(NE, b.Read(), d.Read(),
+                                     x.Read(), y.ReadWrite());
+   return true;
 }
 
 template <int D1D, int Q1D>
-inline bool TryMassApplyTensorsSumLapack2D(const int NE,
-                                         const Array<real_t> &b,
-                                         const Array<real_t> &bt,
-                                         const Vector &d,
-                                         const Vector &x,
-                                         Vector &y)
+inline bool blas_TryMassApplyTensors3D(const int NE,
+                                       const Array<real_t> &b,
+                                       const Array<real_t> & /*bt*/,
+                                       const Vector &d,
+                                       const Vector &x,
+                                       Vector &y)
 {
-   if (!PreferTensorSumLapack(D1D, Q1D, NE)) { return false; }
-   // Tiled hand GCD: parallel SUM-quality kernels (quads need tiles, not 1-e tasks).
-   if (D1D <= 6)
-   {
-      MassApplyTensorsHandGcd2D<D1D, Q1D>(NE, b.Read(), d.Read(),
-                                          x.Read(), y.ReadWrite());
-      return true;
-   }
-#ifdef MFEM_USE_LAPACK
-   MassApplyTensorsSumLapack2D<D1D, Q1D>(NE, b.Read(), bt.Read(), d.Read(),
-                                       x.Read(), y.ReadWrite());
+   if (!mma::host_PreferTensor(D1D, Q1D, NE)) { return false; }
+   blas_MassApplyTensors3D<D1D, Q1D>(NE, b.Read(), d.Read(),
+                                     x.Read(), y.ReadWrite());
    return true;
-#else
-   (void)bt;
-   MassApplyTensorsHandGcd2D<D1D, Q1D>(NE, b.Read(), d.Read(),
-                                       x.Read(), y.ReadWrite());
-   return true;
-#endif
-}
-
-template <int D1D, int Q1D>
-inline bool TryMassApplyTensorsSumLapack3D(const int NE,
-                                         const Array<real_t> &b,
-                                         const Array<real_t> &bt,
-                                         const Vector &d,
-                                         const Vector &x,
-                                         Vector &y)
-{
-   if (!PreferTensorSumLapack(D1D, Q1D, NE)) { return false; }
-   if (D1D <= 6)
-   {
-      MassApplyTensorsHandGcd3D<D1D, Q1D>(NE, b.Read(), d.Read(),
-                                          x.Read(), y.ReadWrite());
-      return true;
-   }
-#ifdef MFEM_USE_LAPACK
-   MassApplyTensorsSumLapack3D<D1D, Q1D>(NE, b.Read(), bt.Read(), d.Read(),
-                                       x.Read(), y.ReadWrite());
-   return true;
-#else
-   (void)bt;
-   MassApplyTensorsHandGcd3D<D1D, Q1D>(NE, b.Read(), d.Read(),
-                                       x.Read(), y.ReadWrite());
-   return true;
-#endif
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
@@ -914,18 +400,18 @@ inline void MmaMassApplyTensors(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   // Host: 1D BLAS when profitable, else MMA shell (Interp/Grad Emulate).
+   // Host: blas_ sum-fact when profitable, else MMA shell (Emulate).
    // Device: MMA shell (real MMA or fine-grained Emulate).
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       if constexpr (DIM == 3)
       {
-         if (TryMassApplyTensorsSumLapack3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (blas_TryMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
          { return; }
       }
       else
       {
-         if (TryMassApplyTensorsSumLapack2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
+         if (blas_TryMassApplyTensors2D<T_D1D, T_Q1D>(NE, b, bt, d, x, y))
          { return; }
       }
    }

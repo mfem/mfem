@@ -28,9 +28,7 @@
 
 #include <algorithm>
 #include <cstdlib> // alloca
-#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
-#include <arm_neon.h>
-#endif
+#include <vector>
 
 namespace mfem
 {
@@ -214,7 +212,12 @@ void PADetJSetupSimplexFromNodes(const int dim,
                                  const Vector &c,
                                  Vector &d);
 
-/** MMA helpers: Common, CUDA(dmma), HIP(mfma), HOST(blas) & dispatch. */
+/** MMA helpers: Common, CUDA(dmma), HIP(mfma), host(blas/lapack) & dispatch.
+    Backend prefixes (kernels and host drivers):
+      blas_   — portable dense multi-RHS (host + device Emulate)
+      lapack_ — host vendor GEMM (MFEM_USE_LAPACK)
+      dmma_   — CUDA double MMA
+      mfma_   — HIP MFMA */
 namespace mma
 {
 
@@ -2930,45 +2933,45 @@ MFEM_HOST_DEVICE inline void blas_GemmT(const int M, const int ndof,
    }
 }
 
-/** Prefer vendor GEMM when matrices are large enough that call overhead is
-    amortized, or when many elements provide a fat multi-RHS (large N) for
-    mid-size locals (tris). Tuned for OpenBLAS/MKL/Accelerate on host. */
-inline bool PreferLapack(int nq, int ndof, int NE)
+// ---- Host lapack_ / blas_ policy and packing (CPU apply paths) ------------
+
+/** Shared size gate for lapack_Prefer*: large locals always; mid-size when NE
+    and work clear the given bars. Tuned for OpenBLAS/MKL/Accelerate. */
+inline bool lapack_PreferSized(int nq, int ndof, int NE,
+                               long long work_mid, int mx_mid)
 {
 #ifdef MFEM_USE_LAPACK
    const int mx = (nq > ndof) ? nq : ndof;
    const long long work = static_cast<long long>(nq) * ndof;
    // Large locals: ~ tet p>=4 (nq*ndof ≳ 1600) and larger.
    if (mx >= 24 && work >= 1600) { return true; }
-   // Mid-size locals (TRI mass p≳4): fat-N Accelerate. Tiny TRI p=1..3 stay
-   // on hand Blas — even zero-copy Accelerate loses to a tight multi-RHS loop.
-   if (NE >= 64 && work >= 180 && mx >= 8) { return true; }
+   if (NE >= 64 && work >= work_mid && mx >= mx_mid) { return true; }
    return false;
 #else
-   (void)nq; (void)ndof; (void)NE;
+   (void)nq; (void)ndof; (void)NE; (void)work_mid; (void)mx_mid;
    return false;
 #endif
+}
+
+/** Prefer vendor GEMM when matrices are large enough that call overhead is
+    amortized, or when many elements provide a fat multi-RHS (large N) for
+    mid-size locals (tris). */
+inline bool lapack_Prefer(int nq, int ndof, int NE)
+{
+   // Mid-size TRI mass p≳4: fat-N vendor GEMM. Tiny TRI p=1..3 stay on blas_.
+   return lapack_PreferSized(nq, ndof, NE, 180, 8);
 }
 
 /** Diffusion does 2*DIM GEMMs + metric per tile; higher bar than mass so TRI
-    BP3 p<=4 stays on the hand path (Accelerate loses there even with zero-copy). */
-inline bool PreferLapackDiffusion(int nq, int ndof, int NE)
+    BP3 p<=4 stays on the blas_ path. */
+inline bool lapack_PreferDiffusion(int nq, int ndof, int NE)
 {
-#ifdef MFEM_USE_LAPACK
-   const int mx = (nq > ndof) ? nq : ndof;
-   const long long work = static_cast<long long>(nq) * ndof;
-   if (mx >= 24 && work >= 1600) { return true; }
    // ~ TRI BP3 p>=5 (nq*ndof ≳ 420).
-   if (NE >= 64 && work >= 400 && mx >= 16) { return true; }
-   return false;
-#else
-   (void)nq; (void)ndof; (void)NE;
-   return false;
-#endif
+   return lapack_PreferSized(nq, ndof, NE, 400, 16);
 }
 
-/** Multi-RHS tile width for the Lapack path (mass / generic). */
-inline int LapackNB(int nq, int ndof)
+/** Multi-RHS tile width for the lapack_ path (mass / diffusion / linear form). */
+inline int lapack_NB(int nq, int ndof)
 {
    const long long work = static_cast<long long>(nq) * ndof;
    // Mid-size locals (tri mass p≳4): fat multi-RHS.
@@ -2979,18 +2982,10 @@ inline int LapackNB(int nq, int ndof)
    return 8;
 }
 
-/** Diffusion Lapack tile width (same schedule as mass). */
-inline int LapackNBDiffusion(int nq, int ndof)
-{
-   return LapackNB(nq, ndof);
-}
-
-/** Tensor (quad/hex) host Lapack/hand tile width over elements.
-    Balance fat Accelerate N vs pack traffic and GCD tile count on M2. */
-inline int TensorLapackNB(int D1D, int Q1D)
+/** Tensor (quad/hex) host multi-RHS tile width over elements. */
+inline int lapack_TensorNB(int D1D, int Q1D)
 {
    const long long work = static_cast<long long>(D1D) * Q1D;
-   // Quads: enough elements per GCD task to amortize, enough tiles for cores.
    if (work <= 24) { return 48; }  // p=3 (4×5)
    if (work <= 30) { return 32; }  // p=4 (5×6)
    if (work <= 42) { return 64; }  // p=5 (6×7)
@@ -2999,7 +2994,7 @@ inline int TensorLapackNB(int D1D, int Q1D)
 }
 
 /** 3D tensor element batch: RHS per elem = D1D²; keep total columns large. */
-inline int TensorLapackNB3D(int D1D, int Q1D)
+inline int lapack_TensorNB3D(int D1D, int Q1D)
 {
    (void)Q1D;
    if (D1D <= 4) { return 48; } // p=3, cols = 16*48 = 768
@@ -3008,9 +3003,153 @@ inline int TensorLapackNB3D(int D1D, int Q1D)
    return 16;
 }
 
+/** Prefer host tensor apply (blas_ / lapack_) over MMA Emulate shell. */
+inline bool host_PreferTensor(int D1D, int Q1D, int NE)
+{
+   // Registered tensor MMA is p>=3 (D1D>=4). Dense host sum-fact beats Emulate.
+   (void)Q1D;
+   return NE >= 4 && D1D >= 4;
+}
+
+/** Grow a reusable scratch buffer. */
+inline real_t *host_Scratch(std::vector<real_t> &buf, size_t n)
+{
+   if (buf.size() < n) { buf.resize(n); }
+   return buf.data();
+}
+
+/** Single-allocation host scratch: reset(capacity), then take(n) slices. */
+struct host_Arena
+{
+   std::vector<real_t> buf;
+   size_t used = 0;
+
+   void reset(size_t capacity)
+   {
+      if (buf.size() < capacity) { buf.resize(capacity); }
+      used = 0;
+   }
+
+   real_t *take(size_t n)
+   {
+      MFEM_ASSERT(used + n <= buf.size(), "host_Arena overflow");
+      real_t *p = buf.data() + used;
+      used += n;
+      return p;
+   }
+};
+
+/** Full tile: return X + ndof*e0. Partial: pack into xloc (zero-padded), return xloc.
+    Layout: X[dx + D1D*(dy + D1D*e)], xloc[dx + D1D*(dy + D1D*b)]. */
+template <int D1D>
+inline const real_t *lapack_PackX2D(int e0, int nbe, int NB,
+                                    const real_t *X, real_t *xloc)
+{
+   constexpr int ndof = D1D * D1D;
+   if (nbe == NB)
+   {
+      return X + static_cast<size_t>(ndof) * e0;
+   }
+   std::fill(xloc, xloc + static_cast<size_t>(ndof) * NB, real_t(0));
+   for (int b = 0; b < nbe; ++b)
+   {
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            xloc[dx + D1D * (dy + D1D * b)] =
+               X[dx + D1D * (dy + D1D * (e0 + b))];
+         }
+      }
+   }
+   return xloc;
+}
+
+/** 3D: X[dx + D1D*(dy + D1D*(dz + D1D*e))]. */
+template <int D1D>
+inline const real_t *lapack_PackX3D(int e0, int nbe, int NB,
+                                    const real_t *X, real_t *xloc)
+{
+   constexpr int ndof = D1D * D1D * D1D;
+   if (nbe == NB)
+   {
+      return X + static_cast<size_t>(ndof) * e0;
+   }
+   std::fill(xloc, xloc + static_cast<size_t>(ndof) * NB, real_t(0));
+   for (int b = 0; b < nbe; ++b)
+   {
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               xloc[dx + D1D * (dy + D1D * (dz + D1D * b))] =
+                  X[dx + D1D * (dy + D1D * (dz + D1D * (e0 + b)))];
+            }
+         }
+      }
+   }
+   return xloc;
+}
+
+/** Y[dx,dy,e0+b] += ytmp[dx,dy,b] for b < nbe. */
+template <int D1D>
+inline void lapack_ScatterAddY2D(int e0, int nbe, const real_t *ytmp, real_t *Y)
+{
+   for (int b = 0; b < nbe; ++b)
+   {
+      for (int dy = 0; dy < D1D; ++dy)
+      {
+         for (int dx = 0; dx < D1D; ++dx)
+         {
+            Y[dx + D1D * (dy + D1D * (e0 + b))] +=
+               ytmp[dx + D1D * (dy + D1D * b)];
+         }
+      }
+   }
+}
+
+/** Y[dx,dy,dz,e0+b] += ytmp[dx,dy,dz,b] for b < nbe. */
+template <int D1D>
+inline void lapack_ScatterAddY3D(int e0, int nbe, const real_t *ytmp, real_t *Y)
+{
+   for (int b = 0; b < nbe; ++b)
+   {
+      for (int dz = 0; dz < D1D; ++dz)
+      {
+         for (int dy = 0; dy < D1D; ++dy)
+         {
+            for (int dx = 0; dx < D1D; ++dx)
+            {
+               Y[dx + D1D * (dy + D1D * (dz + D1D * (e0 + b)))] +=
+                  ytmp[dx + D1D * (dy + D1D * (dz + D1D * b))];
+            }
+         }
+      }
+   }
+}
+
+/** Transpose pack: src[a + A*(b + B*c)] → dst[b + B*(a + A*c)] over NB slabs.
+    Used between 1D tensor GEMMs (e.g. qq[qx,dy,b] → qqt[dy,qx,b]). */
+template <int A, int B>
+inline void lapack_TransposeAB(const real_t *src, real_t *dst, int NB)
+{
+   for (int c = 0; c < NB; ++c)
+   {
+      for (int a = 0; a < A; ++a)
+      {
+         for (int b = 0; b < B; ++b)
+         {
+            dst[b + B * (a + A * c)] = src[a + A * (b + B * c)];
+         }
+      }
+   }
+}
+
 #ifdef MFEM_USE_LAPACK
 /** Column-major GEMM: C = alpha * op(A) * op(B) + beta * C. */
-inline void LapackGemm(char ta, char tb, int m, int n, int k,
+inline void lapack_Gemm(char ta, char tb, int m, int n, int k,
                        real_t alpha, const real_t *A, int lda,
                        const real_t *B, int ldb,
                        real_t beta, real_t *C, int ldc)
@@ -3028,7 +3167,7 @@ inline void LapackGemm(char ta, char tb, int m, int n, int k,
 // Blas path: xloc[i*NB+b]; Lapack path: column-major.
 
 /** Pack X(:, e0:e0+NB) into column-major xloc[ndof * NB]; pad zeros. */
-inline void PackXColMajor(const real_t *X, int ndof, int e0, int NE, int NB,
+inline void lapack_PackX(const real_t *X, int ndof, int e0, int NE, int NB,
                           real_t *xloc)
 {
    std::fill(xloc, xloc + static_cast<size_t>(ndof) * NB, real_t(0));
@@ -3045,7 +3184,7 @@ inline void PackXColMajor(const real_t *X, int ndof, int e0, int NE, int NB,
 }
 
 /** Y(:, e0:e0+NB) += column-major ytmp[ndof * NB]. */
-inline void ScatterAddYColMajor(const real_t *ytmp, int ndof, int e0, int NE,
+inline void lapack_ScatterAddY(const real_t *ytmp, int ndof, int e0, int NE,
                                 int NB, real_t *Y)
 {
    for (int b = 0; b < NB; ++b)
@@ -3060,12 +3199,44 @@ inline void ScatterAddYColMajor(const real_t *ytmp, int ndof, int e0, int NE,
    }
 }
 
+#ifdef MFEM_USE_LAPACK
+/** Multi-RHS element tiles: full tiles GEMM against X/Y slices; partial tiles
+    pack X, accumulate into ytmp (beta=1 after zero), scatter-add to Y.
+    tile_fn(e0, nbe, NB, Xsrc, Yout) must write Yout with beta=1 (or add). */
+template <typename TileFn>
+inline void lapack_ElementTiles(int NE, int ndof, int NB,
+                               const real_t *X, real_t *Y, TileFn &&tile_fn)
+{
+   const int ntiles = (NE + NB - 1) / NB;
+   std::vector<real_t> xloc(static_cast<size_t>(ndof) * NB);
+   std::vector<real_t> ytmp(static_cast<size_t>(ndof) * NB);
+   for (int tile = 0; tile < ntiles; ++tile)
+   {
+      const int e0 = tile * NB;
+      const int nbe = std::min(NB, NE - e0);
+      if (nbe == NB)
+      {
+         const real_t *Xsrc = X + static_cast<size_t>(ndof) * e0;
+         real_t *Yout = Y + static_cast<size_t>(ndof) * e0;
+         tile_fn(e0, nbe, NB, Xsrc, Yout);
+      }
+      else
+      {
+         lapack_PackX(X, ndof, e0, NE, NB, xloc.data());
+         std::fill(ytmp.begin(), ytmp.end(), real_t(0));
+         tile_fn(e0, nbe, NB, xloc.data(), ytmp.data());
+         lapack_ScatterAddY(ytmp.data(), ndof, e0, NE, NB, Y);
+      }
+   }
+}
+#endif // MFEM_USE_LAPACK
+
 
 // ---- Blas multi-RHS GEMM (b-innermost) -------------------------------------
 
 /** Load X tile: xloc[i*NB+b], pad zeros. */
 template <int NDOF, int NB>
-inline void PackXBlas(const real_t *X, int e0, int NE, real_t *xloc)
+inline void blas_PackX(const real_t *X, int e0, int NE, real_t *xloc)
 {
    for (int i = 0; i < NDOF; ++i)
    {
@@ -3085,48 +3256,6 @@ template <int NDOF, int NQ, int NB, bool SCALE_MASS>
 inline void blas_Gemm(const real_t *B, const real_t *xloc, real_t *uloc,
                       const real_t *D, int e0, int NE)
 {
-#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
-   if constexpr (NB % 2 == 0)
-   {
-      for (int q = 0; q < NQ; ++q)
-      {
-         float64x2_t ubv[NB / 2];
-         for (int b2 = 0; b2 < NB / 2; ++b2) { ubv[b2] = vdupq_n_f64(0.0); }
-         for (int i = 0; i < NDOF; ++i)
-         {
-            const float64x2_t bqi = vdupq_n_f64(B[q + NQ * i]);
-            for (int b2 = 0; b2 < NB / 2; ++b2)
-            {
-               ubv[b2] = vfmaq_f64(ubv[b2], bqi,
-                                   vld1q_f64(xloc + i * NB + 2 * b2));
-            }
-         }
-         if constexpr (SCALE_MASS)
-         {
-            for (int b2 = 0; b2 < NB / 2; ++b2)
-            {
-               const int b = 2 * b2;
-               real_t ub[2];
-               vst1q_f64(ub, ubv[b2]);
-               for (int k = 0; k < 2; ++k)
-               {
-                  const int e = e0 + b + k;
-                  const real_t dq = (e < NE) ? D[q + NQ * e] : real_t(0);
-                  uloc[q * NB + b + k] = ub[k] * dq;
-               }
-            }
-         }
-         else
-         {
-            for (int b2 = 0; b2 < NB / 2; ++b2)
-            {
-               vst1q_f64(uloc + q * NB + 2 * b2, ubv[b2]);
-            }
-         }
-      }
-      return;
-   }
-#endif
    for (int q = 0; q < NQ; ++q)
    {
       real_t ub[NB];
@@ -3201,41 +3330,12 @@ inline void blas_GemmFromColMajor(const real_t *B, const real_t *X, int e0,
    }
 }
 
-/** Y(e0+b) += B^T * U. B column-major nq×ndof. */
-template <int NDOF, int NQ, int NB>
+/** Y(e0+b) += B^T * U. B column-major nq×ndof.
+    FULL_TILE: e0+NB <= NE, no bounds checks. */
+template <int NDOF, int NQ, int NB, bool FULL_TILE = false>
 inline void blas_GemmT(const real_t *B, const real_t *uloc, real_t *Y,
-                       int e0, int NE)
+                       int e0, int NE = 0)
 {
-#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
-   if constexpr (NB % 2 == 0)
-   {
-      for (int i = 0; i < NDOF; ++i)
-      {
-         float64x2_t ybv[NB / 2];
-         for (int b2 = 0; b2 < NB / 2; ++b2) { ybv[b2] = vdupq_n_f64(0.0); }
-         for (int q = 0; q < NQ; ++q)
-         {
-            const float64x2_t bqi = vdupq_n_f64(B[q + NQ * i]);
-            for (int b2 = 0; b2 < NB / 2; ++b2)
-            {
-               ybv[b2] = vfmaq_f64(ybv[b2], bqi,
-                                   vld1q_f64(uloc + q * NB + 2 * b2));
-            }
-         }
-         for (int b2 = 0; b2 < NB / 2; ++b2)
-         {
-            real_t yb[2];
-            vst1q_f64(yb, ybv[b2]);
-            for (int k = 0; k < 2; ++k)
-            {
-               const int e = e0 + 2 * b2 + k;
-               if (e < NE) { Y[i + NDOF * e] += yb[k]; }
-            }
-         }
-      }
-      return;
-   }
-#endif
    for (int i = 0; i < NDOF; ++i)
    {
       real_t yb[NB];
@@ -3250,67 +3350,32 @@ inline void blas_GemmT(const real_t *B, const real_t *uloc, real_t *Y,
             yb[b] += bqi * uloc[q * NB + b];
          }
       }
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b)
+      if constexpr (FULL_TILE)
       {
-         const int e = e0 + b;
-         if (e < NE) { Y[i + NDOF * e] += yb[b]; }
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            Y[i + NDOF * (e0 + b)] += yb[b];
+         }
+      }
+      else
+      {
+         MFEM_UNROLL(NB)
+         for (int b = 0; b < NB; ++b)
+         {
+            const int e = e0 + b;
+            if (e < NE) { Y[i + NDOF * e] += yb[b]; }
+         }
       }
    }
 }
 
-/** Like blas_GemmT for a full tile (e0+NB <= NE): no bounds checks. */
+/** Full-tile wrapper: e0+NB <= NE. */
 template <int NDOF, int NQ, int NB>
 inline void blas_GemmTFull(const real_t *B, const real_t *uloc, real_t *Y,
                            int e0)
 {
-#if defined(__aarch64__) && !defined(MFEM_USE_SINGLE)
-   if constexpr (NB % 2 == 0)
-   {
-      for (int i = 0; i < NDOF; ++i)
-      {
-         float64x2_t ybv[NB / 2];
-         for (int b2 = 0; b2 < NB / 2; ++b2) { ybv[b2] = vdupq_n_f64(0.0); }
-         for (int q = 0; q < NQ; ++q)
-         {
-            const float64x2_t bqi = vdupq_n_f64(B[q + NQ * i]);
-            for (int b2 = 0; b2 < NB / 2; ++b2)
-            {
-               ybv[b2] = vfmaq_f64(ybv[b2], bqi,
-                                   vld1q_f64(uloc + q * NB + 2 * b2));
-            }
-         }
-         for (int b2 = 0; b2 < NB / 2; ++b2)
-         {
-            real_t yb[2];
-            vst1q_f64(yb, ybv[b2]);
-            Y[i + NDOF * (e0 + 2 * b2)] += yb[0];
-            Y[i + NDOF * (e0 + 2 * b2 + 1)] += yb[1];
-         }
-      }
-      return;
-   }
-#endif
-   for (int i = 0; i < NDOF; ++i)
-   {
-      real_t yb[NB];
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b) { yb[b] = real_t(0); }
-      for (int q = 0; q < NQ; ++q)
-      {
-         const real_t bqi = B[q + NQ * i];
-         MFEM_UNROLL(NB)
-         for (int b = 0; b < NB; ++b)
-         {
-            yb[b] += bqi * uloc[q * NB + b];
-         }
-      }
-      MFEM_UNROLL(NB)
-      for (int b = 0; b < NB; ++b)
-      {
-         Y[i + NDOF * (e0 + b)] += yb[b];
-      }
-   }
+   blas_GemmT<NDOF, NQ, NB, true>(B, uloc, Y, e0, 0);
 }
 
 
