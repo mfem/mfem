@@ -25,9 +25,9 @@
 #include "util.hpp"
 
 // Force-inline every tensor operation under clang
-#if defined(__clang__)
-#pragma clang attribute push (__attribute__((always_inline)), apply_to = function)
-#endif
+// #if defined(__clang__)
+// #pragma clang attribute push (__attribute__((always_inline)), apply_to = function)
+// #endif
 
 namespace mfem
 {
@@ -135,6 +135,6 @@ double smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, tensor<
 } // namespace future
 } // namespace mfem
 
-#if defined(__clang__)
-#pragma clang attribute pop
-#endif
+// #if defined(__clang__)
+// #pragma clang attribute pop
+// #endif
