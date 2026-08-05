@@ -55,6 +55,10 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Added support for nonuniform anisotropic mesh refinement on parallel quad/hex
+  meshes with arbitrary spacing in each direction. This enables in particular
+  3:1 refinement in parallel, as demonstrated in the new meshing miniapp pref321.
+
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
   bounds on the determinant of the mesh transformation Jacobian.
 
