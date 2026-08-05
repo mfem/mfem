@@ -81,7 +81,7 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    CAPTURE(geom, rank);
 
    auto mesh = CreateMesh(geom);
-   int *partition = new int[mesh.GetNE()];
+   std::vector<int> partition(mesh.GetNE());
    // evenly divide all elements
    for (int i = 0, j = 0; j < mesh.GetNE(); ++j)
    {
@@ -104,7 +104,7 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    SECTION("Low order")
    {
       REQUIRE(mesh.GetNE() > 0);
-      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
+      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition.data());
       mesh.Clear();
       ParMesh pmesh2 =
          ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh, spartition.data());
@@ -120,7 +120,7 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
       {
          smesh.SetCurvature(2);
       }
-      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
+      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition.data());
       mesh.Clear();
       ParMesh pmesh2 =
          ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh, spartition.data());
@@ -164,7 +164,7 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
       mesh.GeneralRefinement(refinements, 1);
    }
 
-   int *partition = new int[mesh.GetNE()];
+   std::vector<int> partition(mesh.GetNE());
    // evenly divide all elements
    for (int i = 0, j = 0; j < mesh.GetNE(); ++j)
    {
@@ -201,7 +201,7 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
 
    SECTION("Low order")
    {
-      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
+      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition.data());
       mesh.Clear();
       ParMesh pmesh2 =
          ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh, spartition.data());
@@ -216,7 +216,7 @@ TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
       {
          smesh.SetCurvature(2);
       }
-      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition);
+      ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition.data());
       mesh.Clear();
       ParMesh pmesh2 =
          ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh, spartition.data());
