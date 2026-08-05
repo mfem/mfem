@@ -4556,13 +4556,20 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
       // selected faces contain each edge DOF and keep only those seen in a
       // single face. This matches the parallel version, which removes any edge
       // appearing in two or more faces rather than toggling on parity.
+      // Note that GetEdgeDofs returns the endpoint vertex DOFs in addition to
+      // the edge-interior DOFs (relevant for collections such as ND_R2D that
+      // carry vertex DOFs), so the count also distinguishes a vertex shared by
+      // several faces from a genuine loop-corner vertex. This is why we count
+      // occurrences of GetEdgeDofs rather than simply collecting
+      // GetEdgeInteriorDofs, which omits the vertex DOFs entirely.
       Array<int> edges, edge_orientations;
       std::unordered_map<int, int> dof_face_count;
       for (int i = 0; i < boundary_element_indices.Size(); ++i)
       {
          const int boundary_element_idx = boundary_element_indices[i];
          int face_index, face_orientation;
-         mesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+         mesh->GetBdrElementFace(boundary_element_idx, &face_index,
+                                 &face_orientation);
          mesh->GetFaceEdges(face_index, edges, edge_orientations);
 
          for (int j = 0; j < edges.Size(); ++j)
@@ -4607,6 +4614,13 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
       // segments meeting there and is interior to the boundary curve. As in the
       // 3D case, count how many selected segments contain each DOF and keep only
       // those seen in a single segment.
+      // The count is over GetEdgeDofs, which returns endpoint vertex DOFs as
+      // well as edge-interior DOFs. Edge-interior DOFs always occur once (a
+      // segment is a single edge), so for those the count is trivially one; the
+      // counting exists to resolve the vertex DOFs, dropping a vertex shared by
+      // two segments while keeping an open-curve endpoint vertex. Collecting
+      // GetEdgeInteriorDofs instead would drop all vertex DOFs, including the
+      // endpoints this method is documented to keep.
       Array<int> edges, edge_orientations;
       std::unordered_map<int, int> dof_segment_count;
       for (int i = 0; i < boundary_element_indices.Size(); ++i)

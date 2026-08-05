@@ -409,15 +409,15 @@ public:
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
    { Reduce<T>((T *)ldata, Op); }
 
-   /// Reduce operation Sum, instantiated for int and double
+   /// Reduce operation Sum, instantiated for int, double and float
    template <class T> static void Sum(OpData<T>);
-   /// Reduce operation Min, instantiated for int and double
+   /// Reduce operation Min, instantiated for int, double and float
    template <class T> static void Min(OpData<T>);
-   /// Reduce operation Max, instantiated for int and double
+   /// Reduce operation Max, instantiated for int, double and float
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
-   /// Reduce operation max absolute value, instantiated for int and double
+   /// Reduce operation max absolute value, instantiated for int, double and float
    template <class T> static void MaxAbs(OpData<T>);
 
    /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
