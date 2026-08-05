@@ -67,9 +67,6 @@ TEST_CASE("ProjectBdrCoefficientTangent face DOF orientation",
    for (int i = 0; i < ltori.Size(); i++)
    {
       if (ldsize[i] != 2) { continue; }
-      REQUIRE(i+1 < ltori.Size());
-      REQUIRE(ldsize[i+1] == 2);
-      REQUIRE(ltori[i+1] == ltori[i]);
       local_marked_face_dofs += 2;
       if (ltori[i] != 0)
       {

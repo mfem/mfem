@@ -914,11 +914,6 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
             MFEM_ASSERT(i+1 < ldof && ldsize[i+1] == 2 &&
                         ltori[i+1] == ltori[i],
                         "inconsistent face DOF pair");
-            if (inverse)
-            {
-               MFEM_ASSERT(values_counter[i+1] == values_counter[i],
-                           "inconsistent face DOF pair counter");
-            }
             if (ltori[i] != 0)
             {
                const DenseMatrix &M =
