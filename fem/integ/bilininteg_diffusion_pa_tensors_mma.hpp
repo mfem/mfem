@@ -248,193 +248,217 @@ inline bool TryDiffusionApplyTensors2D(
    return true;
 }
 
-#endif // MFEM_USE_LAPACK
-
-} // namespace lapack
-
-namespace blas
+/** Named slices for 3D diffusion multi-RHS tiles (same story as Diff2DWs). */
+template <int D1D, int Q1D>
+struct Diff3DWs
 {
+   real_t *xloc;                 // D³·NB (also ytmp after X is consumed)
+   real_t *BX, *GX, *BXt, *GXt;  // after x / transpose
+   real_t *BB, *GB, *BG;         // after y: Q·(Q·D·NB)
+   real_t *BBt, *GBt, *BGt;      // after y→z transpose: D·(Q²·NB)
+   real_t *gX, *gY, *gZ;         // after z: Q·(Q²·NB)
+   real_t *uX, *uY, *uZ;         // z-back
+   real_t *tX, *tY, *tZ;         // z-back transpose → y-back
+   real_t *vX, *vY, *vZ;         // y-back
+   real_t *wX, *wY, *wZ;         // y-back transpose → x-back
 
-/** Dense sum-fact diffusion 3D (PADiffusion contractions). */
+   static size_t Words(int NB)
+   {
+      constexpr size_t D = D1D, Q = Q1D;
+      // xloc + 10·Q·D² + 12·Q²·D + 3·Q³  (see Bind takes)
+      return size_t(NB) * (D * D * D + 10 * Q * D * D + 12 * Q * Q * D +
+                           3 * Q * Q * Q);
+   }
+
+   void Bind(mma::host_Arena &a, int NB)
+   {
+      constexpr size_t D = D1D, Q = Q1D;
+      const size_t n_yz = D * D * NB;
+      const size_t n_q_dz = Q * D * NB;
+      const size_t n_qq = Q * Q * NB;
+      a.reset(Words(NB));
+      xloc = a.take(D * D * D * NB);
+      BX = a.take(Q * n_yz);
+      GX = a.take(Q * n_yz);
+      BXt = a.take(D * n_q_dz); // D × (Q·D·NB)
+      GXt = a.take(D * n_q_dz);
+      BB = a.take(Q * n_q_dz);
+      GB = a.take(Q * n_q_dz);
+      BG = a.take(Q * n_q_dz);
+      BBt = a.take(D * n_qq);
+      GBt = a.take(D * n_qq);
+      BGt = a.take(D * n_qq);
+      gX = a.take(Q * n_qq);
+      gY = a.take(Q * n_qq);
+      gZ = a.take(Q * n_qq);
+      uX = a.take(D * n_qq);
+      uY = a.take(D * n_qq);
+      uZ = a.take(D * n_qq);
+      tX = a.take(Q * n_q_dz);
+      tY = a.take(Q * n_q_dz);
+      tZ = a.take(Q * n_q_dz);
+      vX = a.take(D * n_q_dz);
+      vY = a.take(D * n_q_dz);
+      vZ = a.take(D * n_q_dz);
+      wX = a.take(Q * n_yz);
+      wY = a.take(Q * n_yz);
+      wZ = a.take(Q * n_yz);
+   }
+};
+
+/** One 3D diffusion tile: sum-fact via multi-RHS GEMM (B/G × tile of elements).
+    gX=(B⊗B⊗G)X, gY=(B⊗G⊗B)X, gZ=(G⊗B⊗B)X, then O·g, then adjoints. */
 template <int D1D, int Q1D, bool SYM>
-inline void DiffusionApplyTensors3D(
-   const int NE,
-   const real_t *B, const real_t *G,
-   const real_t *Dv, const real_t *X, real_t *Y)
+inline void DiffusionApplyTensors3DTile(
+   const int e0, const int nbe, const int NB,
+   const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
+   const real_t *Dv, const real_t *X, real_t *Y,
+   const Diff3DWs<D1D, Q1D> &ws)
 {
    constexpr int PA_SIZE = SYM ? 6 : 9;
-   const int nq3 = Q1D * Q1D * Q1D;
-   auto apply_e = [&](int e)
+   constexpr int QQ = Q1D * Q1D;
+   constexpr int QQQ = Q1D * Q1D * Q1D;
+   const int n_yz = D1D * D1D * NB;
+   const int n_q_dz_b = Q1D * D1D * NB;
+   const int n_qq_b = QQ * NB;
+
+   const real_t *Xsrc = mma::lapack::PackX3D<D1D>(e0, nbe, NB, X, ws.xloc);
+
+   // ---- forward x: BX/GX = (B|G) X ---------------------------------------
+   mma::lapack::Gemm('N', 'N', Q1D, n_yz, D1D, real_t(1), B, Q1D,
+                     Xsrc, D1D, real_t(0), ws.BX, Q1D);
+   mma::lapack::Gemm('N', 'N', Q1D, n_yz, D1D, real_t(1), G, Q1D,
+                     Xsrc, D1D, real_t(0), ws.GX, Q1D);
+   mma::lapack::TransposeAB<Q1D, D1D>(ws.BX, ws.BXt, D1D * NB);
+   mma::lapack::TransposeAB<Q1D, D1D>(ws.GX, ws.GXt, D1D * NB);
+
+   // ---- forward y ---------------------------------------------------------
+   mma::lapack::Gemm('N', 'N', Q1D, n_q_dz_b, D1D, real_t(1), B, Q1D,
+                     ws.BXt, D1D, real_t(0), ws.BB, Q1D); // By Bx
+   mma::lapack::Gemm('N', 'N', Q1D, n_q_dz_b, D1D, real_t(1), G, Q1D,
+                     ws.BXt, D1D, real_t(0), ws.GB, Q1D); // Gy Bx
+   mma::lapack::Gemm('N', 'N', Q1D, n_q_dz_b, D1D, real_t(1), B, Q1D,
+                     ws.GXt, D1D, real_t(0), ws.BG, Q1D); // By Gx
+   mma::lapack::TransposeAB<QQ, D1D>(ws.BB, ws.BBt, NB);
+   mma::lapack::TransposeAB<QQ, D1D>(ws.GB, ws.GBt, NB);
+   mma::lapack::TransposeAB<QQ, D1D>(ws.BG, ws.BGt, NB);
+
+   // ---- forward z → gX,gY,gZ ----------------------------------------------
+   mma::lapack::Gemm('N', 'N', Q1D, n_qq_b, D1D, real_t(1), B, Q1D,
+                     ws.BGt, D1D, real_t(0), ws.gX, Q1D); // Bz By Gx
+   mma::lapack::Gemm('N', 'N', Q1D, n_qq_b, D1D, real_t(1), B, Q1D,
+                     ws.GBt, D1D, real_t(0), ws.gY, Q1D); // Bz Gy Bx
+   mma::lapack::Gemm('N', 'N', Q1D, n_qq_b, D1D, real_t(1), G, Q1D,
+                     ws.BBt, D1D, real_t(0), ws.gZ, Q1D); // Gz By Bx
+
+   // g[qz + Q*(qy + Q*(qx + Q*b))]; PA q = qx + Q*(qy + Q*qz)
+   for (int b = 0; b < nbe; ++b)
    {
-      real_t grad[Q1D][Q1D][Q1D][3];
-      for (int qz = 0; qz < Q1D; ++qz)
+      for (int qx = 0; qx < Q1D; ++qx)
          for (int qy = 0; qy < Q1D; ++qy)
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               grad[qz][qy][qx][0] = real_t(0);
-               grad[qz][qy][qx][1] = real_t(0);
-               grad[qz][qy][qx][2] = real_t(0);
-            }
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         real_t gradXY[Q1D][Q1D][3];
-         for (int qy = 0; qy < Q1D; ++qy)
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               gradXY[qy][qx][0] = real_t(0);
-               gradXY[qy][qx][1] = real_t(0);
-               gradXY[qy][qx][2] = real_t(0);
-            }
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            real_t gradX[Q1D][2];
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               gradX[qx][0] = real_t(0);
-               gradX[qx][1] = real_t(0);
-            }
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               const real_t s = X[dx + D1D * (dy + D1D * (dz + D1D * e))];
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  gradX[qx][0] += s * B[qx + Q1D * dx];
-                  gradX[qx][1] += s * G[qx + Q1D * dx];
-               }
-            }
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               const real_t wy = B[qy + Q1D * dy];
-               const real_t wDy = G[qy + Q1D * dy];
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  gradXY[qy][qx][0] += gradX[qx][1] * wy;
-                  gradXY[qy][qx][1] += gradX[qx][0] * wDy;
-                  gradXY[qy][qx][2] += gradX[qx][0] * wy;
-               }
-            }
-         }
-         for (int qz = 0; qz < Q1D; ++qz)
-         {
-            const real_t wz = B[qz + Q1D * dz];
-            const real_t wDz = G[qz + Q1D * dz];
-            for (int qy = 0; qy < Q1D; ++qy)
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  grad[qz][qy][qx][0] += gradXY[qy][qx][0] * wz;
-                  grad[qz][qy][qx][1] += gradXY[qy][qx][1] * wz;
-                  grad[qz][qy][qx][2] += gradXY[qy][qx][2] * wDz;
-               }
-         }
-      }
-      for (int qz = 0; qz < Q1D; ++qz)
-         for (int qy = 0; qy < Q1D; ++qy)
-            for (int qx = 0; qx < Q1D; ++qx)
+            for (int qz = 0; qz < Q1D; ++qz)
             {
                const int q = qx + Q1D * (qy + Q1D * qz);
-               real_t gv[3] = {grad[qz][qy][qx][0], grad[qz][qy][qx][1],
-                               grad[qz][qy][qx][2]};
+               const int idx = qz + Q1D * (qy + Q1D * (qx + Q1D * b));
+               real_t gv[3] = {ws.gX[idx], ws.gY[idx], ws.gZ[idx]};
                real_t O[PA_SIZE];
                for (int c = 0; c < PA_SIZE; ++c)
                {
-                  O[c] = Dv[q + nq3 * (c + PA_SIZE * e)];
+                  O[c] = Dv[q + QQQ * (c + PA_SIZE * (e0 + b))];
                }
                ApplyDiffusionMetricVec<3, SYM>(gv, O);
-               grad[qz][qy][qx][0] = gv[0];
-               grad[qz][qy][qx][1] = gv[1];
-               grad[qz][qy][qx][2] = gv[2];
+               ws.gX[idx] = gv[0];
+               ws.gY[idx] = gv[1];
+               ws.gZ[idx] = gv[2];
             }
-      for (int qz = 0; qz < Q1D; ++qz)
-      {
-         real_t gradXY[D1D][D1D][3];
-         for (int dy = 0; dy < D1D; ++dy)
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               gradXY[dy][dx][0] = real_t(0);
-               gradXY[dy][dx][1] = real_t(0);
-               gradXY[dy][dx][2] = real_t(0);
-            }
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            real_t gradX[D1D][3];
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               gradX[dx][0] = real_t(0);
-               gradX[dx][1] = real_t(0);
-               gradX[dx][2] = real_t(0);
-            }
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               const real_t gX = grad[qz][qy][qx][0];
-               const real_t gY = grad[qz][qy][qx][1];
-               const real_t gZ = grad[qz][qy][qx][2];
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  gradX[dx][0] += gX * G[qx + Q1D * dx]; // Gt
-                  gradX[dx][1] += gY * B[qx + Q1D * dx];
-                  gradX[dx][2] += gZ * B[qx + Q1D * dx];
-               }
-            }
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               const real_t wy = B[qy + Q1D * dy];
-               const real_t wDy = G[qy + Q1D * dy];
-               for (int dx = 0; dx < D1D; ++dx)
-               {
-                  gradXY[dy][dx][0] += gradX[dx][0] * wy;
-                  gradXY[dy][dx][1] += gradX[dx][1] * wDy;
-                  gradXY[dy][dx][2] += gradX[dx][2] * wy;
-               }
-            }
-         }
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            const real_t wz = B[qz + Q1D * dz];
-            const real_t wDz = G[qz + Q1D * dz];
-            for (int dy = 0; dy < D1D; ++dy)
-               for (int dx = 0; dx < D1D; ++dx)
-                  Y[dx + D1D * (dy + D1D * (dz + D1D * e))] +=
-                     gradXY[dy][dx][0] * wz +
-                     gradXY[dy][dx][1] * wz +
-                     gradXY[dy][dx][2] * wDz;
-         }
-      }
-   };
+   }
+   for (int b = nbe; b < NB; ++b)
+   {
+      std::fill(ws.gX + QQQ * b, ws.gX + QQQ * (b + 1), real_t(0));
+      std::fill(ws.gY + QQQ * b, ws.gY + QQQ * (b + 1), real_t(0));
+      std::fill(ws.gZ + QQQ * b, ws.gZ + QQQ * (b + 1), real_t(0));
+   }
+
+   // ---- backward z --------------------------------------------------------
+   mma::lapack::Gemm('N', 'N', D1D, n_qq_b, Q1D, real_t(1), Bt, D1D,
+                     ws.gX, Q1D, real_t(0), ws.uX, D1D);
+   mma::lapack::Gemm('N', 'N', D1D, n_qq_b, Q1D, real_t(1), Bt, D1D,
+                     ws.gY, Q1D, real_t(0), ws.uY, D1D);
+   mma::lapack::Gemm('N', 'N', D1D, n_qq_b, Q1D, real_t(1), Gt, D1D,
+                     ws.gZ, Q1D, real_t(0), ws.uZ, D1D);
+   mma::lapack::TransposeAB<D1D, QQ>(ws.uX, ws.tX, NB);
+   mma::lapack::TransposeAB<D1D, QQ>(ws.uY, ws.tY, NB);
+   mma::lapack::TransposeAB<D1D, QQ>(ws.uZ, ws.tZ, NB);
+
+   // ---- backward y --------------------------------------------------------
+   mma::lapack::Gemm('N', 'N', D1D, n_q_dz_b, Q1D, real_t(1), Bt, D1D,
+                     ws.tX, Q1D, real_t(0), ws.vX, D1D);
+   mma::lapack::Gemm('N', 'N', D1D, n_q_dz_b, Q1D, real_t(1), Gt, D1D,
+                     ws.tY, Q1D, real_t(0), ws.vY, D1D);
+   mma::lapack::Gemm('N', 'N', D1D, n_q_dz_b, Q1D, real_t(1), Bt, D1D,
+                     ws.tZ, Q1D, real_t(0), ws.vZ, D1D);
+   mma::lapack::TransposeAB<D1D, Q1D>(ws.vX, ws.wX, D1D * NB);
+   mma::lapack::TransposeAB<D1D, Q1D>(ws.vY, ws.wY, D1D * NB);
+   mma::lapack::TransposeAB<D1D, Q1D>(ws.vZ, ws.wZ, D1D * NB);
+
+   // ---- backward x → Y (reuse xloc as ytmp) -------------------------------
+   real_t *ytmp = ws.xloc;
+   mma::lapack::Gemm('N', 'N', D1D, n_yz, Q1D, real_t(1), Gt, D1D,
+                     ws.wX, Q1D, real_t(0), ytmp, D1D);
+   mma::lapack::Gemm('N', 'N', D1D, n_yz, Q1D, real_t(1), Bt, D1D,
+                     ws.wY, Q1D, real_t(1), ytmp, D1D);
+   mma::lapack::Gemm('N', 'N', D1D, n_yz, Q1D, real_t(1), Bt, D1D,
+                     ws.wZ, Q1D, real_t(1), ytmp, D1D);
+   mma::lapack::ScatterAddY3D<D1D>(e0, nbe, ytmp, Y);
+}
+
+template <int D1D, int Q1D, bool SYM>
+inline void DiffusionApplyTensors3D(
+   const int NE,
+   const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
+   const real_t *Dv, const real_t *X, real_t *Y)
+{
    const int NB = mma::TensorTileNB3D(D1D);
    const int ntiles = (NE + NB - 1) / NB;
+   mma::host_Arena arena;
+   Diff3DWs<D1D, Q1D> ws;
+   ws.Bind(arena, NB);
    for (int tile = 0; tile < ntiles; ++tile)
    {
       const int e0 = tile * NB;
       const int nbe = std::min(NB, NE - e0);
-      for (int b = 0; b < nbe; ++b) { apply_e(e0 + b); }
+      DiffusionApplyTensors3DTile<D1D, Q1D, SYM>(
+         e0, nbe, NB, B, G, Bt, Gt, Dv, X, Y, ws);
    }
 }
 
-/** Host 3D diffusion: dense sum-fact (same policy as mass tensors). */
 template <int D1D, int Q1D>
 inline bool TryDiffusionApplyTensors3D(
    const int NE, const bool symmetric,
    const Array<real_t> &b, const Array<real_t> &g,
-   const Array<real_t> & /*bt*/, const Array<real_t> & /*gt*/,
+   const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y)
 {
    if (!mma::PreferTensorDense(D1D, NE)) { return false; }
-   const real_t *B = b.Read(), *G = g.Read();
+   const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
    if (symmetric)
    {
-      DiffusionApplyTensors3D<D1D, Q1D, true>(NE, B, G, Dv, X, Y);
+      DiffusionApplyTensors3D<D1D, Q1D, true>(
+         NE, B, G, Bt, Gt, Dv, X, Y);
    }
    else
    {
-      DiffusionApplyTensors3D<D1D, Q1D, false>(NE, B, G, Dv, X, Y);
+      DiffusionApplyTensors3D<D1D, Q1D, false>(
+         NE, B, G, Bt, Gt, Dv, X, Y);
    }
    return true;
 }
 
+#endif // MFEM_USE_LAPACK
 
-} // namespace blas
+} // namespace lapack
 } // namespace mma
 
 // Device tensor shell: LoadBG once → per-element Grad → metric → Gradt.
@@ -666,7 +690,7 @@ inline void MmaDiffusionApplyTensors3D(
 }
 
 /** Tensor diffusion apply story (same order as mass tensors):
-    host: PreferTensorDense → 3D dense sum-fact (blas) / 2D fat GEMM (lapack if on)
+    host: PreferTensorDense → multi-RHS sum-fact GEMM tiles (lapack 2D/3D if on)
     device / else: MMA or Emulate smem shell (2D/3D, SYM dispatch). */
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaDiffusionApplyTensors(
@@ -677,23 +701,23 @@ inline void MmaDiffusionApplyTensors(
    const int d1d, const int q1d)
 {
    // ---- host dense / lapack -------------------------------------------------
+#ifdef MFEM_USE_LAPACK
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       if constexpr (DIM == 3)
       {
-         if (mma::blas::TryDiffusionApplyTensors3D<T_D1D, T_Q1D>(
+         if (mma::lapack::TryDiffusionApplyTensors3D<T_D1D, T_Q1D>(
                 NE, symmetric, b, g, bt, gt, d, x, y))
          { return; }
       }
-#ifdef MFEM_USE_LAPACK
       else
       {
          if (mma::lapack::TryDiffusionApplyTensors2D<T_D1D, T_Q1D>(
                 NE, symmetric, b, g, bt, gt, d, x, y))
          { return; }
       }
-#endif
    }
+#endif
    // ---- device (or host Emulate) smem shell -------------------------------
    if constexpr (DIM == 3)
    {
