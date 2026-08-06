@@ -86,6 +86,8 @@ int main(int argc, char *argv[])
     args.AddOption(&alpha_min, "-amin", "--alpha_min", "lower bound for the thickness variables");
     args.AddOption(&alpha_max, "-amax", "--alpha_max", "upper bound for the thickness variables");
     args.AddOption(&beta, "-b", "--beta", "Heaviside beta");
+    args.AddOption(&beta_steps, "-bs", "--beta-steps", "Heaviside beta continuation steps");
+    args.AddOption(&beta_max, "-bm", "--beta-max", "Heaviside beta max value");
     args.AddOption(&eta, "-eta", "--eta", "Heaviside eta");
     args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
@@ -426,7 +428,10 @@ int main(int argc, char *argv[])
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;
     for (int r = 0; r < n_dir; r++) { tx_local.GetBlock(1 + r) = alpha_tv[r]; }
-    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, toffsets.Last(), num_con, tx_local);
+
+    Vector a(num_con), c(num_con), d(num_con);
+    a = 0.0; c = 1000.0; d = 0.0;
+    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, toffsets.Last(), num_con, tx_local, a, c, d);
 
     // 8b. objective initialization
     BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ; ... ]

@@ -165,7 +165,10 @@ int main(int argc, char *argv[])
 
     Vector rho_tv(n), rho_old(n);
     rho.GetTrueDofs(rho_tv);
-    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n, num_con, rho_tv);
+
+    Vector a(num_con), c(num_con), d(num_con);
+    a = 0.0; c = 1000.0; d = 0.0;
+    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n, num_con, rho_tv, a, c, d);
     
     Vector fival(num_con);
     Vector df0dx(n);                                 // objective gradient  df0/dx

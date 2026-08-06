@@ -68,6 +68,8 @@ int main(int argc, char *argv[])
     args.AddOption(&gamma_v, "-gv", "--gamma_v", "lower bound for max filtered density");
     args.AddOption(&gamma_s, "-gs", "--gamma_s", "upper bound for max filtered density");
     args.AddOption(&beta, "-b", "--beta", "Heaviside beta");
+    args.AddOption(&beta_steps, "-bs", "--beta-steps", "Heaviside beta continuation steps");
+    args.AddOption(&beta_max, "-bm", "--beta-max", "Heaviside beta max value");
     args.AddOption(&eta, "-eta", "--eta", "Heaviside eta");
     args.AddOption(&epsilon, "-e", "--epsilon", "alpha tolerance (initial)");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
@@ -148,7 +150,7 @@ int main(int argc, char *argv[])
     HeavisideCoefficient rho_dila_cf(&rho_filter, beta, eta);
     HeavisideGradCoefficient rho_dila_grad_cf(&rho_filter, beta, eta);
 
-    HeavisideCoefficient rho_inter_cf(&rho_filter, 20, 0.5);
+    HeavisideCoefficient rho_inter_cf(&rho_filter, beta, 0.5);
 
     // SIMP on the eroded projection: r(rho_e) = E_min + rho_e^p (E_max - E_min)
     SIMPCoefficient simp_cf(rho_erod_cf, E_min, E_max, exponent);                // r(rho_e)
@@ -234,7 +236,10 @@ int main(int argc, char *argv[])
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;
     tx_local.GetBlock(1) = alpha_tv;
-    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n+m, num_con, tx_local);
+
+    Vector a(num_con), c(num_con), d(num_con);
+    a = 0.0; c = 1000.0; d = 0.0;
+    mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, n+m, num_con, tx_local, a, c, d);
 
     // 8b. objective initialization
     BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ]
