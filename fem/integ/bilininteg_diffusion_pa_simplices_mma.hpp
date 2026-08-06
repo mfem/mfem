@@ -973,8 +973,9 @@ inline void MmaDiffusionApplySimplex_Dispatch(const int NE,
                                               Vector &y)
 {
    using Fn = decltype(&MmaDiffusionApplySimplex<DIM, D1D, QND, true>);
-   const Fn apply = symmetric ? &MmaDiffusionApplySimplex<DIM, D1D, QND, true>
-                    : &MmaDiffusionApplySimplex<DIM, D1D, QND, false>;
+   const Fn apply =
+      symmetric ? &MmaDiffusionApplySimplex<DIM, D1D, QND, true>
+      : &MmaDiffusionApplySimplex<DIM, D1D, QND, false>;
    apply(NE, g, d, x, y);
 }
 
@@ -1083,7 +1084,6 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
    }
 }
 
-/** Runtime Fallback: same host → device story as specialized (caps runtime). */
 template<int DIM, bool SYM>
 inline void MmaDiffusionApplySimplex(const int NE,
                                      const Array<real_t> &g,
@@ -1111,14 +1111,13 @@ inline void MmaDiffusionApplySimplex(const int NE,
       return;
    }
 
-   // Q-tile budget: keep correctness via dense element path (rare Fallback).
    if (mma::DiffusionUseQTileRuntime(DIM, ndof, nq, DIM))
    {
       DiffusionApplySimplexRuntime<DIM, SYM>(NE, g, d, x, y);
       return;
    }
-   // ---- device full-NQ smem batch -----------------------------------------
 
+   // ---- device full-NQ smem batch -----------------------------------------
    const int x_ld = mma::PadLdBankRuntime(ndof);
    const int u_ld = mma::PadLdBankRuntime(nq);
    const int nb = mma::DiffusionNBRuntime(DIM, ndof, nq, DIM);

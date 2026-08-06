@@ -24,6 +24,63 @@ namespace internal
 
 namespace mma
 {
+
+/** Diffusion metric O·g at one quadrature point (in/out g[DIM]).
+    O is packed PA storage: SYM 2D [O11,O21,O22], 3D [O11,O12,O13,O22,O23,O33];
+    full 2D 4 / 3D 9 components row-major. */
+template <int DIM, bool SYM>
+MFEM_HOST_DEVICE inline void ApplyDiffusionMetricVec(real_t *g, const real_t *O)
+{
+   if constexpr (DIM == 2)
+   {
+      const real_t gX = g[0], gY = g[1];
+      const real_t O11 = O[0], O21 = O[1];
+      const real_t O12 = SYM ? O21 : O[2];
+      const real_t O22 = SYM ? O[2] : O[3];
+      g[0] = O11 * gX + O12 * gY;
+      g[1] = O21 * gX + O22 * gY;
+   }
+   else
+   {
+      const real_t gX = g[0], gY = g[1], gZ = g[2];
+      const real_t O11 = O[0], O12 = O[1], O13 = O[2];
+      real_t O21, O22, O23, O31, O32, O33;
+      if constexpr (SYM)
+      {
+         O21 = O12; O22 = O[3]; O23 = O[4];
+         O31 = O13; O32 = O23; O33 = O[5];
+      }
+      else
+      {
+         O21 = O[3]; O22 = O[4]; O23 = O[5];
+         O31 = O[6]; O32 = O[7]; O33 = O[8];
+      }
+      g[0] = O11 * gX + O12 * gY + O13 * gZ;
+      g[1] = O21 * gX + O22 * gY + O23 * gZ;
+      g[2] = O31 * gX + O32 * gY + O33 * gZ;
+   }
+}
+
+/** Device smem metric: planes g_in/g_out[c * plane_ld + q], D(q,c,e). */
+template <int DIM, bool SYM, typename TD>
+MFEM_HOST_DEVICE inline
+void ApplyDiffusionMetricSmem(real_t *g_in, real_t *g_out, const int plane_ld,
+                              TD D, const int e, const int Q1D,
+                              const int tid, const int stride)
+{
+   constexpr int PA = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   const int nq = (DIM == 2) ? Q1D * Q1D : Q1D * Q1D * Q1D;
+   for (int q = tid; q < nq; q += stride)
+   {
+      real_t g[DIM];
+      for (int c = 0; c < DIM; ++c) { g[c] = g_in[c * plane_ld + q]; }
+      real_t O[PA];
+      for (int c = 0; c < PA; ++c) { O[c] = D(q, c, e); }
+      ApplyDiffusionMetricVec<DIM, SYM>(g, O);
+      for (int c = 0; c < DIM; ++c) { g_out[c * plane_ld + q] = g[c]; }
+   }
+}
+
 namespace lapack
 {
 #ifdef MFEM_USE_LAPACK
@@ -96,17 +153,17 @@ inline void DiffusionApplyTensors2DTile(
          for (int qy = 0; qy < Q1D; ++qy)
          {
             const int idx = qx + Q1D * qy;
-            const real_t gx = ws.gX[qy + Q1D * (qx + Q1D * b)];
-            const real_t gy = ws.gY[qy + Q1D * (qx + Q1D * b)];
-            const real_t O11 = Dv[idx + Q1D * Q1D * (0 + PA_SIZE * (e0 + b))];
-            const real_t O21 = Dv[idx + Q1D * Q1D * (1 + PA_SIZE * (e0 + b))];
-            const real_t O12 = SYM ? O21
-                               : Dv[idx + Q1D * Q1D * (2 + PA_SIZE * (e0 + b))];
-            const real_t O22 = SYM
-                               ? Dv[idx + Q1D * Q1D * (2 + PA_SIZE * (e0 + b))]
-                               : Dv[idx + Q1D * Q1D * (3 + PA_SIZE * (e0 + b))];
-            ws.gX[qy + Q1D * (qx + Q1D * b)] = O11 * gx + O12 * gy;
-            ws.gY[qy + Q1D * (qx + Q1D * b)] = O21 * gx + O22 * gy;
+            const int e = e0 + b;
+            real_t gv[2] = {ws.gX[qy + Q1D * (qx + Q1D * b)],
+                            ws.gY[qy + Q1D * (qx + Q1D * b)]};
+            real_t O[PA_SIZE];
+            for (int c = 0; c < PA_SIZE; ++c)
+            {
+               O[c] = Dv[idx + Q1D * Q1D * (c + PA_SIZE * e)];
+            }
+            ApplyDiffusionMetricVec<2, SYM>(gv, O);
+            ws.gX[qy + Q1D * (qx + Q1D * b)] = gv[0];
+            ws.gY[qy + Q1D * (qx + Q1D * b)] = gv[1];
          }
       }
    }
@@ -275,32 +332,17 @@ inline void DiffusionApplyTensors3D(
             for (int qx = 0; qx < Q1D; ++qx)
             {
                const int q = qx + Q1D * (qy + Q1D * qz);
-               const real_t gX = grad[qz][qy][qx][0];
-               const real_t gY = grad[qz][qy][qx][1];
-               const real_t gZ = grad[qz][qy][qx][2];
-               const real_t O11 = Dv[q + nq3 * (0 + PA_SIZE * e)];
-               const real_t O12 = Dv[q + nq3 * (1 + PA_SIZE * e)];
-               const real_t O13 = Dv[q + nq3 * (2 + PA_SIZE * e)];
-               real_t O21, O22, O23, O31, O32, O33;
-               if constexpr (SYM)
+               real_t gv[3] = {grad[qz][qy][qx][0], grad[qz][qy][qx][1],
+                               grad[qz][qy][qx][2]};
+               real_t O[PA_SIZE];
+               for (int c = 0; c < PA_SIZE; ++c)
                {
-                  O21 = O12; O22 = Dv[q + nq3 * (3 + PA_SIZE * e)];
-                  O23 = Dv[q + nq3 * (4 + PA_SIZE * e)];
-                  O31 = O13; O32 = O23;
-                  O33 = Dv[q + nq3 * (5 + PA_SIZE * e)];
+                  O[c] = Dv[q + nq3 * (c + PA_SIZE * e)];
                }
-               else
-               {
-                  O21 = Dv[q + nq3 * (3 + PA_SIZE * e)];
-                  O22 = Dv[q + nq3 * (4 + PA_SIZE * e)];
-                  O23 = Dv[q + nq3 * (5 + PA_SIZE * e)];
-                  O31 = Dv[q + nq3 * (6 + PA_SIZE * e)];
-                  O32 = Dv[q + nq3 * (7 + PA_SIZE * e)];
-                  O33 = Dv[q + nq3 * (8 + PA_SIZE * e)];
-               }
-               grad[qz][qy][qx][0] = O11*gX + O12*gY + O13*gZ;
-               grad[qz][qy][qx][1] = O21*gX + O22*gY + O23*gZ;
-               grad[qz][qy][qx][2] = O31*gX + O32*gY + O33*gZ;
+               ApplyDiffusionMetricVec<3, SYM>(gv, O);
+               grad[qz][qy][qx][0] = gv[0];
+               grad[qz][qy][qx][1] = gv[1];
+               grad[qz][qy][qx][2] = gv[2];
             }
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -395,8 +437,74 @@ inline bool TryDiffusionApplyTensors3D(
 } // namespace blas
 } // namespace mma
 
-// Device tensor shell: LoadBG + LoadX → Grad* → Apply D·g → Grad*t.
+// Device tensor shell: LoadBG once → per-element Grad → metric → Gradt.
 // Host uses Try* first (see MmaDiffusionApplyTensors).
+
+/** One 3D element: LoadX → GradXYZ → O·g → Gradt → Y. */
+template <int MD1, int MQ1, bool SYM, typename TD, typename TX, typename TY>
+MFEM_HOST_DEVICE inline
+void DiffusionTensorElement3D(const int D1D, const int Q1D, const int e,
+                              real_t (&BG)[2][MQ1 * MD1],
+                              real_t (&BGt)[2][MQ1 * MD1],
+                              real_t (&sm0)[3][MQ1 * MQ1 * MQ1],
+                              real_t (&sm1)[3][MQ1 * MQ1 * MQ1],
+                              TD D, TX X, TY Y)
+{
+   constexpr int plane_ld = MQ1 * MQ1 * MQ1;
+   mma::LoadX<MQ1>(e, D1D, X, sm0);
+   MFEM_SYNC_THREAD;
+
+   mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+   MFEM_SYNC_THREAD;
+   mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+   MFEM_SYNC_THREAD;
+   mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+   MFEM_SYNC_THREAD;
+
+   mma::ApplyDiffusionMetricSmem<3, SYM>(
+      sm1[0], sm0[0], plane_ld, D, e, Q1D,
+      mma::getThreadIdxX(), mma::getBlockNthreadsX());
+   MFEM_SYNC_THREAD;
+
+   mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
+   MFEM_SYNC_THREAD;
+   mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
+   MFEM_SYNC_THREAD;
+   mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y, e);
+   MFEM_SYNC_THREAD;
+}
+
+/** One 2D element: LoadX → GradXY → O·g → Gradt → Y. */
+template <int MD1, int MQ1, int MDQ, bool SYM, typename TD, typename TX,
+          typename TY>
+MFEM_HOST_DEVICE inline
+void DiffusionTensorElement2D(const int D1D, const int Q1D, const int e,
+                              real_t (&BG)[2][MQ1 * MD1],
+                              real_t (&BGt)[2][MQ1 * MD1],
+                              real_t (&sm0)[2][MDQ * MDQ],
+                              real_t (&sm1)[2][MDQ * MDQ],
+                              TD D, TX X, TY Y)
+{
+   constexpr int plane_ld = MDQ * MDQ;
+   mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
+   MFEM_SYNC_THREAD;
+
+   mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
+   MFEM_SYNC_THREAD;
+   mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
+   MFEM_SYNC_THREAD;
+
+   mma::ApplyDiffusionMetricSmem<2, SYM>(
+      sm0[0], sm1[0], plane_ld, D, e, Q1D,
+      mma::getThreadIdxX(), mma::getBlockNthreadsX());
+   MFEM_SYNC_THREAD;
+
+   mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
+   MFEM_SYNC_THREAD;
+   mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y, e);
+   MFEM_SYNC_THREAD;
+}
+
 template <int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
 inline void MmaDiffusionApplyTensors3D(const int NE,
                                        const Array<real_t> &b,
@@ -445,57 +553,8 @@ inline void MmaDiffusionApplyTensors3D(const int NE,
       {
          const int e = b * NB + i;
          if (e >= NE) { break; }
-
-         mma::LoadX<MQ1>(e, D1D, X, sm0);
-         MFEM_SYNC_THREAD;
-
-         mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
-         MFEM_SYNC_THREAD;
-         mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
-         MFEM_SYNC_THREAD;
-         mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
-         MFEM_SYNC_THREAD;
-
-         {
-            const int tid = mma::getThreadIdxX();
-            const int nq = Q1D * Q1D * Q1D;
-            const int stride = mma::getBlockNthreadsX();
-            for (int thread = tid; thread < nq; thread += stride)
-            {
-               const int qx = thread % Q1D;
-               const int div = thread / Q1D;
-               const int qy = div % Q1D;
-               const int qz = div / Q1D;
-               const int idx = qx + Q1D * qy + Q1D * Q1D * qz;
-               const int q = qx + Q1D * (qy + Q1D * qz);
-               const real_t gX = sm1[0][idx], gY = sm1[1][idx], gZ = sm1[2][idx];
-               const real_t O11 = D(q, 0, e);
-               const real_t O12 = D(q, 1, e);
-               const real_t O13 = D(q, 2, e);
-               real_t O21, O22, O23, O31, O32, O33;
-               if constexpr (SYM)
-               {
-                  O21 = O12; O22 = D(q, 3, e); O23 = D(q, 4, e);
-                  O31 = O13; O32 = O23; O33 = D(q, 5, e);
-               }
-               else
-               {
-                  O21 = D(q, 3, e); O22 = D(q, 4, e); O23 = D(q, 5, e);
-                  O31 = D(q, 6, e); O32 = D(q, 7, e); O33 = D(q, 8, e);
-               }
-               sm0[0][idx] = O11 * gX + O12 * gY + O13 * gZ;
-               sm0[1][idx] = O21 * gX + O22 * gY + O23 * gZ;
-               sm0[2][idx] = O31 * gX + O32 * gY + O33 * gZ;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
-         MFEM_SYNC_THREAD;
-         mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
-         MFEM_SYNC_THREAD;
-         mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y, e);
-         MFEM_SYNC_THREAD;
+         DiffusionTensorElement3D<MD1, MQ1, SYM>(
+            D1D, Q1D, e, BG, BGt, sm0, sm1, D, X, Y);
       }
    });
 }
@@ -561,40 +620,8 @@ inline void MmaDiffusionApplyTensors2D(const int NE,
       {
          const int e = b * NB + i;
          if (e >= NE) { break; }
-
-         mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
-         MFEM_SYNC_THREAD;
-
-         mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
-         MFEM_SYNC_THREAD;
-         mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
-         MFEM_SYNC_THREAD;
-
-         {
-            const int tid = mma::getThreadIdxX();
-            const int nq = Q1D * Q1D;
-            const int stride = mma::getBlockNthreadsX();
-            for (int t = tid; t < nq; t += stride)
-            {
-               const int qx = t % Q1D;
-               const int qy = t / Q1D;
-               const int idx = qx + Q1D * qy;
-               const real_t gX = sm0[0][idx];
-               const real_t gY = sm0[1][idx];
-               const real_t O11 = D(idx, 0, e);
-               const real_t O21 = D(idx, 1, e);
-               const real_t O12 = SYM ? O21 : D(idx, 2, e);
-               const real_t O22 = SYM ? D(idx, 2, e) : D(idx, 3, e);
-               sm1[0][idx] = O11 * gX + O12 * gY;
-               sm1[1][idx] = O21 * gX + O22 * gY;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
-         MFEM_SYNC_THREAD;
-         mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y, e);
-         MFEM_SYNC_THREAD;
+         DiffusionTensorElement2D<MD1, MQ1, MDQ, SYM>(
+            D1D, Q1D, e, BG, BGt, sm0, sm1, D, X, Y);
       }
    });
 }
