@@ -9269,10 +9269,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                             options,
                                             &edgecut,
                                             mpartitioning);
-         if (errflag != 1)
+         if (errflag != METIS_OK)
          {
-            mfem_error("Mesh::GeneratePartitioning: "
-                       " error in METIS_PartGraphRecursive!");
+            switch (errflag)
+            {
+               case METIS_ERROR_INPUT:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR_INPUT");
+               case METIS_ERROR_MEMORY:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR_MEMORY");
+               default:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphRecursive! METIS_ERROR");
+            }
          }
 #endif
       }
@@ -9307,10 +9317,20 @@ int *Mesh::GeneratePartitioning(int nparts, int part_method)
                                        options,
                                        &edgecut,
                                        mpartitioning);
-         if (errflag != 1)
+         if (errflag != METIS_OK)
          {
-            mfem_error("Mesh::GeneratePartitioning: "
-                       " error in METIS_PartGraphKway!");
+            switch (errflag)
+            {
+               case METIS_ERROR_INPUT:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR_INPUT");
+               case METIS_ERROR_MEMORY:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR_MEMORY");
+               default:
+                  mfem_error("Mesh::GeneratePartitioning: "
+                             " error in METIS_PartGraphKway! METIS_ERROR");
+            }
          }
 #endif
       }
@@ -14736,12 +14756,100 @@ Mesh &MeshPart::GetMesh()
    return *mesh;
 }
 
+namespace
+{
+
+std::unique_ptr<GridFunction>
+ExtractElementwiseGridFunction(const Array<int> &global_elem_ids,
+                               const GridFunction &global_gf,
+                               FiniteElementSpace &local_fespace)
+{
+   std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
+
+   Array<int> gvdofs, lvdofs;
+   Vector loc_vals;
+   for (int loc_elem_id = 0; loc_elem_id < global_elem_ids.Size(); loc_elem_id++)
+   {
+      const int glob_elem_id = global_elem_ids[loc_elem_id];
+      DofTransformation glob_dt, local_dt;
+      global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs, glob_dt);
+      global_gf.GetSubVector(gvdofs, loc_vals);
+      glob_dt.InvTransformPrimal(loc_vals);
+      local_fespace.GetElementVDofs(loc_elem_id, lvdofs, local_dt);
+      local_dt.TransformPrimal(loc_vals);
+      local_gf->SetSubVector(lvdofs, loc_vals);
+   }
+
+   return local_gf;
+}
+
+class NCMeshPartWriter : public NCMesh
+{
+public:
+   explicit NCMeshPartWriter(const NCMesh &ncmesh)
+      : NCMesh(ncmesh)
+   { }
+
+   void SelectPart(int part_id, const Array<int> &partitioning,
+                   Array<int> &owned_global_elem_ids)
+   {
+      MFEM_ASSERT(leaf_elements.Size() == partitioning.Size(),
+                  "invalid partitioning size");
+
+      Array<int> elem_to_global(elements.Size());
+      elem_to_global = -1;
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         const int elem = leaf_elements[i];
+         elem_to_global[elem] = i;
+         elements[elem].rank = partitioning[i];
+      }
+
+      MyRank = part_id;
+
+      Array<char> owned_set(leaf_elements.Size());
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         owned_set[i] = (partitioning[i] == part_id);
+      }
+
+      Array<char> ghost_set;
+      FindSetNeighbors(owned_set, nullptr, &ghost_set);
+
+      for (int i = 0; i < leaf_elements.Size(); i++)
+      {
+         if (!owned_set[i] && !ghost_set[i])
+         {
+            elements[leaf_elements[i]].rank = -1;
+         }
+      }
+
+      Update();
+
+      owned_global_elem_ids.SetSize(NElements);
+      for (int i = 0; i < NElements; i++)
+      {
+         const int global_id = elem_to_global[leaf_elements[i]];
+         MFEM_ASSERT(global_id >= 0,
+                     "internal error: missing global element mapping");
+         owned_global_elem_ids[i] = global_id;
+      }
+   }
+
+   void DropCoordinates()
+   {
+      coordinates.DeleteAll();
+   }
+};
+
+} // namespace
+
 
 MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int num_parts_,
                                  const int *partitioning_,
                                  int part_method)
-   : mesh(mesh_)
+   : mesh(mesh_), num_parts(num_parts_)
 {
    if (partitioning_)
    {
@@ -14756,6 +14864,10 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
       constexpr MemoryType mt = MemoryType::HOST;
       partitioning.MakeRef(mesh.GeneratePartitioning(num_parts_, part_method),
                            mesh.GetNE(), mt, true);
+   }
+   if (mesh.Nonconforming())
+   {
+      return;
    }
 
    Transpose(partitioning, part_to_element, num_parts_);
@@ -14806,12 +14918,15 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
 
    Table *vert_element = mesh.GetVertexToElementTable(); // we must delete this
    vertex_to_element.Swap(*vert_element);
+   MFEM_ASSERT(num_parts == part_to_element.Size(), "");
+
    delete vert_element;
 }
 
 void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
 {
-   const int num_parts = part_to_element.Size();
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractPart not supported for non-conforming meshes");
 
    MFEM_VERIFY(0 <= part_id && part_id < num_parts,
                "invalid part_id = " << part_id
@@ -15278,10 +15393,56 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
    }
 }
 
+void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
+{
+   MFEM_VERIFY(0 <= part_id && part_id < num_parts,
+               "invalid part_id = " << part_id
+               << ", num_parts = " << num_parts);
+
+   if (mesh.Nonconforming())
+   {
+      MFEM_VERIFY(mesh.ncmesh, "missing NCMesh.");
+
+      NCMeshPartWriter part_ncmesh(*mesh.ncmesh);
+      Array<int> owned_global_elem_ids;
+      part_ncmesh.SelectPart(part_id, partitioning, owned_global_elem_ids);
+      if (mesh.GetNodes())
+      {
+         part_ncmesh.DropCoordinates();
+      }
+
+      part_ncmesh.Print(os);
+
+      if (mesh.GetNodes())
+      {
+         Mesh part_mesh(part_ncmesh);
+         FiniteElementSpace nodal_fes(&part_mesh,
+                                      mesh.GetNodes()->FESpace()->FEColl(),
+                                      mesh.GetNodes()->VectorDim(),
+                                      mesh.GetNodes()->FESpace()->GetOrdering());
+         std::unique_ptr<GridFunction> local_nodes =
+            ExtractElementwiseGridFunction(owned_global_elem_ids,
+                                           *mesh.GetNodes(),
+                                           nodal_fes);
+         os << "\n# mesh curvature GridFunction";
+         os << "\nnodes\n";
+         local_nodes->Save(os);
+      }
+
+      os << "\nmfem_mesh_end" << endl;
+      return;
+   }
+   MeshPart mesh_part;
+   ExtractPart(part_id, mesh_part);
+   mesh_part.Print(os);
+}
+
 std::unique_ptr<FiniteElementSpace>
 MeshPartitioner::ExtractFESpace(MeshPart &mesh_part,
                                 const FiniteElementSpace &global_fespace) const
 {
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractFESpace not supported for non-conforming meshes");
    mesh_part.GetMesh(); // initialize 'mesh_part.mesh'
    // Note: the nodes of 'mesh_part.mesh' are not set by GetMesh() unless they
    // were already constructed, e.g. by ExtractPart().
@@ -15298,6 +15459,8 @@ MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
                                      const GridFunction &global_gf,
                                      FiniteElementSpace &local_fespace) const
 {
+   MFEM_VERIFY(mesh.Conforming(),
+               "ExtractGridFunction not supported for non-conforming meshes");
    std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
 
    // Transfer data from 'global_gf' to 'local_gf'.
