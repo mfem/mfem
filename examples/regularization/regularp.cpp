@@ -2,13 +2,13 @@
 //
 // Compile with: make regularp
 //
-// Sample runs:  mpirun -np 4 regularp -r 1 -i 1 -ns 1 -vis
-//               mpirun -np 4 regularp -f 1 -p 0 -i 12 -n 10 -ns 20 -m ../../data/wheel.msh -vis
-//               mpirun -np 8 regularp -r 1 -f 1 -p 0 -i 15 -n 10 -ns 20 -m ../../data/wheel.msh -pv
-//               mpirun -np 8 regularp -r 2 -f 2 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -vis
-//               mpirun -np 8 regularp -r 3 -f 2 -p 0 -i 15 -n 10 -ns 30 -m ../../data/hemisphere.msh -pv
-//               mpirun -np 8 regularp -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -vis
-//               mpirun -np 8 regularp -r 2 -f 0.5 -p 0 -i 15 -n 10 -ns 20 -m ../../data/pipe.msh -pv
+// Sample runs:  mpirun -np 4 regularp -r 1 -p -0.5 -i 1 -vis
+//               mpirun -np 4 regularp -r 1 -f 1 -i 15 -n 15 -m ../../data/wheel.msh -vis
+//               mpirun -np 8 regularp -r 2 -f 1 -i 15 -n 15 -ns 20 -m ../../data/wheel.msh -pv
+//               mpirun -np 8 regularp -r 2 -f 2 -i 10 -n 20 -m ../../data/hemisphere.msh -vis
+//               mpirun -np 8 regularp -r 3 -f 2 -i 10 -n 20 -ns 20 -m ../../data/hemisphere.msh -pv
+//               mpirun -np 8 regularp -r 2 -f 0.5 -i 5 -n 15 -m ../../data/pipe.msh -vis
+//               mpirun -np 8 regularp -r 3 -f 0.5 -i 5 -n 15 -ns 20 -m ../../data/pipe.msh -pv
 //
 // Description:  This program solves Signorini's problem using MFEM. We aim to
 //               solve the bound-constrained minimization problem
@@ -268,7 +268,7 @@ public:
 
 // We take the plane to be z = plane_g and the force to be a constant downward
 // force of magnitude force_g.
-real_t plane_g = -0.5;
+real_t plane_g = 0.0;
 real_t force_g = 2.0;
 
 // Quasi-static load factor in [0,1]. Multiplies the applied force in
@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
    real_t mu = 1.0;
    int max_outer_iter = 30;
    int max_newton_iter = 15;
-   int nsteps = 20;                  // number of quasi-static load steps
+   int nsteps = 1;
    real_t itol = 1e-8;
    real_t ntol = 1e-8;
    bool reorder_space = false;
