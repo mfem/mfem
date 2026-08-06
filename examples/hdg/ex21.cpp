@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
       // 16. Define a simple symmetric Gauss-Seidel preconditioner and use it to
       //     solve the linear system with GMRES.
       GSSmoother M(A);
-      GMRES(A, M, B, X, 3, 2000, 500, 1e-12, 0.0);
+      GMRES(A, M, B, X, 3, 2000, 800, 1e-12, 0.0);
 #else
       // 16. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the
       //     the linear system.
