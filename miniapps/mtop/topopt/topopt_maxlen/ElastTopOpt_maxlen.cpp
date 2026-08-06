@@ -50,10 +50,13 @@ int main(int argc, char *argv[])
     // --- PLAIN SIMP ---  use p = 3 when SIMP acts directly on rho~
     // const real_t exponent = 3.0;
 
+    int init_it  = 20;
     real_t decay     = 0.8;
     real_t eps_floor = 1e-6;
-    int decay_int    = 5;
-    int decay_start  = 20;
+    int decay_int    = 10;
+
+    int beta_steps   = 50;          // Heaviside beta continuation steps
+    real_t beta_max  = 2.0;         // Heaviside beta max value
 
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
@@ -69,7 +72,7 @@ int main(int argc, char *argv[])
     args.AddOption(&epsilon, "-e", "--epsilon", "alpha tolerance (initial)");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
     args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
-    args.AddOption(&decay_start, "-ds", "--decay_start", "iteration count to start the decay");
+    args.AddOption(&init_it, "-ii", "--init_it", "initial iterations before decay");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
@@ -145,7 +148,7 @@ int main(int argc, char *argv[])
     HeavisideCoefficient rho_dila_cf(&rho_filter, beta, eta);
     HeavisideGradCoefficient rho_dila_grad_cf(&rho_filter, beta, eta);
 
-    HeavisideCoefficient rho_inter_cf(&rho_filter, beta, 0.5);
+    HeavisideCoefficient rho_inter_cf(&rho_filter, 20, 0.5);
 
     // SIMP on the eroded projection: r(rho_e) = E_min + rho_e^p (E_max - E_min)
     SIMPCoefficient simp_cf(rho_erod_cf, E_min, E_max, exponent);                // r(rho_e)
@@ -257,15 +260,27 @@ int main(int argc, char *argv[])
     // 9. Visualizations
     // 9a. GLVis
     char vishost[] = "localhost";  int visport = 19916;
-    socketstream sout;
-    if (visualization) {
-        sout.open(vishost, visport);
-        sout.precision(8);
+    socketstream sout_proj, sout_filter;
 
-        sout << "parallel " << num_procs << " " << myid << "\n"
+    if (visualization) {
+        sout_proj.open(vishost, visport);
+        sout_proj.precision(8);
+
+        sout_proj << "parallel " << num_procs << " " << myid << "\n"
             << "solution\n" << pmesh << rho_filter
             << "window_title 'Design density r(rho~)'\n"
-            << "window_geometry 0 200 800 600\n"
+            << "window_geometry 0 0 800 600\n"
+            << "colorbar_numberformat '%.2f'\n" 
+            << "keys Rjlc*****\n" << flush;
+
+
+        sout_filter.open(vishost, visport);
+        sout_filter.precision(8);
+
+        sout_filter << "parallel " << num_procs << " " << myid << "\n"
+            << "solution\n" << pmesh << rho_filter
+            << "window_title 'Filtered density rho~'\n"
+            << "window_geometry 810 0 800 600\n"
             << "colorbar_numberformat '%.2f'\n" 
             << "keys Rjlc*****\n" << flush;
     }
@@ -297,8 +312,7 @@ int main(int argc, char *argv[])
     int k = 0;
     real_t iterationError = 1.0;
     real_t init_comp = 1.0;
-    real_t init_maxres = 1.0;
-    for (; k < max_it && iterationError > tol; k++)
+    for (; (k < init_it) || (k < max_it && iterationError > tol); k++)
     {
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
         rho.GetTrueDofs(rho_tv);
@@ -355,12 +369,10 @@ int main(int argc, char *argv[])
         maxfilter.MultTranspose(*max_adj_rhs_tv, dgmax.GetBlock(0));
         max_residual.GetGrad(dgmax.GetBlock(1));
 
-        // residual must be evaluated before the gradient is normalized
         real_t maxres = max_residual.Eval();
-        if (k == 0) { init_maxres = maxres; }
 
-        fival(1) = (maxres - epsilon) / init_maxres;    // update constraint value
-        dgmax /= init_maxres;
+        fival(1) = maxres / epsilon - 1.0;              // update constraint value
+        dgmax /= epsilon;
         dfidx[1] = dgmax;                               // update constraint gradient
 
         // (7) box constraints:  rho ∈ [0,1],  ɑ ∈ [γ_v, γ_s]  (move limits)
@@ -395,37 +407,46 @@ int main(int argc, char *argv[])
         rho_old_gf.SetFromTrueDofs(rho_old);
         iterationError = rho_old_gf.ComputeL1Error(rho_cf);
 
-        const int it = k + 1;
-
         if (myid == 0)
         {
             const int w = 14;               // column width
-            mfem::out << "\niteration " << it << '\n' << left
+            mfem::out << "\niteration " << k + 1 << '\n' << left
                     << setw(w) << "c"
                     << setw(w) << "volume"
                     << setw(w) << "res_max"
                     << setw(w) << "eps"
+                    << setw(w) << "fival"
                     << setw(w) << "iterErr" << '\n'
-                    << string(5*w, '=') << '\n'
+                    << string(6*w, '=') << '\n'
                     << fixed      << setprecision(6) << setw(w) << compliance
                     <<               setprecision(4) << setw(w) << vol
-                    << scientific << setprecision(3) << setw(w) << fival(1)
+                    << scientific << setprecision(3) << setw(w) << maxres
                     <<               setprecision(3) << setw(w) << epsilon
+                    <<               setprecision(3) << setw(w) << fival(1)
                     <<               setprecision(4) << setw(w) << iterationError << endl;
 
-            csv << it << ','
+            csv << k + 1 << ','
                 << scientific << setprecision(8) << compliance << ','
                 << vol<< ','
-                << fival(1) << ','
+                << maxres << ','
                 << epsilon << ','
                 << iterationError << '\n';
             csv.flush();
         }
 
         // (10) tighten the max-length tolerance
-        if (it % decay_int == 0 && it > decay_start)
+        int iter_after_init = k + 1 - init_it;
+        if (iter_after_init % decay_int == 0 && k >= init_it)
         {
             epsilon = std::max(epsilon * decay, eps_floor);
+        }
+
+        if (iter_after_init % beta_steps == 0 && beta < beta_max && k >= init_it)
+        {
+            beta *= 2.0;
+
+            rho_erod_cf.SetBeta(beta);  rho_erod_grad_cf.SetBeta(beta);
+            rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
         }
 
         // physical density for both GLVis and the ParaView archive
@@ -435,8 +456,11 @@ int main(int argc, char *argv[])
 
         if (visualization)
         {
-            sout << "parallel " << num_procs << " " << myid << "\n"
+            sout_proj << "parallel " << num_procs << " " << myid << "\n"
                 << "solution\n" << pmesh << phys_density << flush;
+
+            sout_filter << "parallel " << num_procs << " " << myid << "\n"
+                << "solution\n" << pmesh << rho_filter << flush; 
         }
 
         // if (paraview)
@@ -474,8 +498,8 @@ void bodyload(const Vector &x, Vector &f)
 
     f = 0.0;
 
-    // Localized load region (disk in 2D, sphere in 3D); force in the last
-    // component: -y in 2D, -z in 3D.
+    // Localized load region (disk in 2D, sphere in 3D)
+    // force in the last component: -y in 2D, -z in 3D.
     real_t xdiff = x[0] - xcenter;
     real_t ydiff = x[1] - ycenter;
     real_t zdiff = (dim == 3) ? (x[2] - zcenter) : 0.0;

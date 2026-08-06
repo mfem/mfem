@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
         sout << "parallel " << num_procs << " " << myid << "\n"
             << "solution\n" << pmesh << rho_filter
             << "window_title 'Design density r(rho~)'\n"
-            << "window_geometry 0 200 800 600\n"
+            << "window_geometry 0 0 800 600\n"
             << "colorbar_numberformat '%.2f'\n"
             << "keys Rjlc*****\n" << flush;
     }
