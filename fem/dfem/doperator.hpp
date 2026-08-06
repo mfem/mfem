@@ -128,7 +128,47 @@ using assemble_diagonal_callback_t = std::function<void(Vector &)>;
 using restriction_callback_t =
    std::function<void(std::vector<Vector> &, std::vector<Vector> &)>;
 
+/// @brief Type alias for key type for second derivatives, which is a pair of field IDs (gradient, direction)
 using second_derivative_key_t = std::pair<size_t, size_t>;
+
+/// @brief Type alias for a map from a derivative key to the entries registered
+/// for it, one per integrator. Used for callbacks or field descriptors.
+///
+/// @a key_t is size_t for first derivatives, holding the ID of the field being
+/// differentiated, and second_derivative_key_t for second derivatives, holding
+/// the (gradient, direction) pair of field IDs.
+template <typename key_t, typename entry_t>
+using DerivativeMap = std::map<key_t, std::vector<entry_t>>;
+
+/// @name Derivative maps keyed by the ID of the field being differentiated.
+///@{
+using DerivativeActionMap = DerivativeMap<size_t, derivative_action_t>;
+using DerivativeSetupMap = DerivativeMap<size_t, derivative_setup_t>;
+using DerivativeFieldMap = DerivativeMap<size_t, FieldDescriptor>;
+using SparseAssemblyMap =
+   DerivativeMap<size_t, assemble_derivative_sparsematrix_callback_t>;
+using HypreAssemblyMap =
+   DerivativeMap<size_t, assemble_derivative_hypreparmatrix_callback_t>;
+using DiagonalAssemblyMap = DerivativeMap<size_t, assemble_diagonal_callback_t>;
+///@}
+
+/// @name Derivative maps keyed by the (gradient, direction) pair of field IDs.
+///@{
+using SecondDerivativeActionMap =
+   DerivativeMap<second_derivative_key_t, derivative_action_t>;
+using SecondDerivativeSetupMap =
+   DerivativeMap<second_derivative_key_t, derivative_setup_t>;
+using SecondDerivativeFieldMap =
+   DerivativeMap<second_derivative_key_t, FieldDescriptor>;
+using SecondSparseAssemblyMap =
+   DerivativeMap<second_derivative_key_t,
+   assemble_derivative_sparsematrix_callback_t>;
+using SecondHypreAssemblyMap =
+   DerivativeMap<second_derivative_key_t,
+   assemble_derivative_hypreparmatrix_callback_t>;
+using SecondDiagonalAssemblyMap =
+   DerivativeMap<second_derivative_key_t, assemble_diagonal_callback_t>;
+///@}
 
 namespace detail
 {
@@ -200,6 +240,69 @@ derivative_setup_t MakeDerivativeSetupCallback(
       };
    }
    return callback;
+}
+
+inline assemble_derivative_hypreparmatrix_callback_t
+MakeDerivativeHypreParMatrixAssemble(
+   const size_t derivative_idx,
+   std::vector<assemble_derivative_sparsematrix_callback_t> &sparse_callbacks,
+   const IntegratorContext &ctx)
+{
+   return [derivative_idx, &sparse_callbacks, ctx](HypreParMatrix *&A)
+   {
+      MFEM_VERIFY(ctx.outfds.size() == 1,
+                  "HypreParMatrix assembly requires a single output field");
+
+      const size_t trial_field_idx = FindIdx(derivative_idx, ctx.unionfds);
+      MFEM_VERIFY(trial_field_idx != SIZE_MAX,
+                  "derivative field not found for HypreParMatrix assembly");
+
+      const auto *test_fes_ptr =
+         std::get_if<const ParFiniteElementSpace *>(&ctx.outfds[0].data);
+      const auto *trial_fes_ptr =
+         std::get_if<const ParFiniteElementSpace *>(
+            &ctx.unionfds[trial_field_idx].data);
+      MFEM_VERIFY(test_fes_ptr && *test_fes_ptr,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "output field");
+      MFEM_VERIFY(trial_fes_ptr && *trial_fes_ptr,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "derivative field");
+
+      const ParFiniteElementSpace *test_fes = *test_fes_ptr;
+      const ParFiniteElementSpace *trial_fes = *trial_fes_ptr;
+      MFEM_VERIFY(test_fes->GetComm() == trial_fes->GetComm(),
+                  "test and trial spaces must use the same MPI communicator");
+
+      SparseMatrix *spmat = nullptr;
+      for (const auto &f : sparse_callbacks)
+      {
+         f(spmat);
+      }
+
+      MFEM_VERIFY(spmat != nullptr,
+                  "internal error: sparse derivative assembly returned NULL");
+      MFEM_VERIFY(spmat->Finalized(),
+                  "local derivative matrix must be finalized");
+
+      if (test_fes == trial_fes)
+      {
+         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                           test_fes->GetDofOffsets(), spmat);
+         A = RAP(&dA, test_fes->Dof_TrueDof_Matrix());
+      }
+      else
+      {
+         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                           trial_fes->GlobalVSize(),
+                           test_fes->GetDofOffsets(),
+                           trial_fes->GetDofOffsets(), spmat);
+         A = RAP(test_fes->Dof_TrueDof_Matrix(), &dA,
+                 trial_fes->Dof_TrueDof_Matrix());
+      }
+
+      delete spmat;
+   };
 }
 
 /// Class representing the derivative (Jacobian) operator of a
@@ -754,14 +857,16 @@ public:
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t>
+      typename derivative_ids_t,
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &attributes,
-      derivative_ids_t derivative_ids);
+      derivative_ids_t derivative_ids,
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Add a domain integrator to the operator.
    ///
@@ -775,19 +880,28 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
+   /// @param second_derivative_ids Second derivative (Hessian) blocks to be
+   /// made available for this integrator, only supported for functional
+   /// integrators. Either SecondDerivatives<Pairs::None> {} for none of them
+   /// (the default), SecondDerivatives<Pairs::All> {} for every block that can
+   /// be formed from @a derivative_ids, SecondDerivatives<Pairs::Diagonal> {}
+   /// for the diagonal blocks only, or an explicit list such as
+   /// SecondDerivatives<DerivativePair<U, Rho>> {}.
    template <
       typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddDomainIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &domain_attributes,
-      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Add a boundary integrator to the operator.
    ///
@@ -801,19 +915,23 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
+   /// @param second_derivative_ids Second derivative (Hessian) blocks to be
+   /// made available for this integrator, see AddDomainIntegrator().
    template <
       typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddBoundaryIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &boundary_attributes,
-      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Disable the use of tensor product structure.
    ///
@@ -952,6 +1070,11 @@ public:
       size_t gradient_id, size_t direction_id, const MultiVector &x,
       const bool use_cached_setup = false);
 
+   /// @brief Returns true if the second derivative block
+   /// d/d(direction_id) grad_(gradient_id) has been registered, i.e. if it was
+   /// requested through the SecondDerivatives of one of the integrators.
+   bool HasSecondDerivative(size_t gradient_id, size_t direction_id) const;
+
    template <typename qfunc_t>
    qfunc_t *GetDerivativeActionQFunction(size_t derivative_id,
                                          size_t integrator = 0)
@@ -1005,49 +1128,26 @@ private:
    std::unordered_map<std::type_index, std::vector<int>> out_qlayouts;
 
    std::vector<action_t> action_callbacks;
-   std::map<size_t, std::vector<derivative_setup_t>> derivative_setup_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> derivative_action_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> derivative_apply_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> daction_transpose_callbacks;
-   std::map<size_t, std::vector<FieldDescriptor>> derivative_outfds;
-   std::map<size_t, std::vector<FieldDescriptor>> derivative_unionfds;
-   std::map<size_t,
-       std::vector<assemble_derivative_sparsematrix_callback_t>>
-       assemble_derivative_sparsematrix_callbacks;
-   std::map<size_t,
-       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-       assemble_derivative_hypreparmatrix_callbacks;
-   std::map<size_t, std::vector<assemble_diagonal_callback_t>>
-                                                            assemble_diagonal_callbacks;
-   std::map<second_derivative_key_t, std::vector<derivative_setup_t>>
-                                                                   second_derivative_setup_callbacks;
-   std::map<second_derivative_key_t,
-       std::vector<derivative_action_t>>
-       second_derivative_action_callbacks;
-   std::map<second_derivative_key_t,
-       std::vector<derivative_action_t>>
-       second_derivative_apply_callbacks;
-   std::map<second_derivative_key_t,
-       std::vector<derivative_action_t>>
-       second_daction_transpose_callbacks;
-   std::map<second_derivative_key_t,
-       std::vector<FieldDescriptor>>
-       second_derivative_outfds;
-   std::map<second_derivative_key_t,
-       std::vector<FieldDescriptor>>
-       second_derivative_unionfds;
-   std::map<second_derivative_key_t,
-       std::vector<assemble_derivative_sparsematrix_callback_t>>
-       assemble_second_derivative_sparsematrix_callbacks;
-   std::map<second_derivative_key_t,
-       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-       assemble_second_derivative_hypreparmatrix_callbacks;
-   std::map<second_derivative_key_t,
-       std::vector<assemble_diagonal_callback_t>>
-       assemble_second_derivative_diagonal_callbacks;
+
+   DerivativeSetupMap derivative_setup_callbacks;
+   DerivativeActionMap derivative_action_callbacks;
+   DerivativeActionMap derivative_apply_callbacks;
+   DerivativeActionMap daction_transpose_callbacks;
+   DerivativeFieldMap derivative_outfds;
+   DerivativeFieldMap derivative_unionfds;
+   SparseAssemblyMap assemble_derivative_sparsematrix_callbacks;
+   HypreAssemblyMap assemble_derivative_hypreparmatrix_callbacks;
+   DiagonalAssemblyMap assemble_diagonal_callbacks;
+
+   SecondDerivativeSetupMap second_derivative_setup_callbacks;
+   SecondDerivativeActionMap second_derivative_action_callbacks;
+   SecondDerivativeActionMap second_derivative_apply_callbacks;
+   SecondDerivativeActionMap second_daction_transpose_callbacks;
+   SecondDerivativeFieldMap second_derivative_outfds;
+   SecondDerivativeFieldMap second_derivative_unionfds;
+   SecondSparseAssemblyMap assemble_second_derivative_sparsematrix_callbacks;
+   SecondHypreAssemblyMap assemble_second_derivative_hypreparmatrix_callbacks;
+   SecondDiagonalAssemblyMap assemble_second_derivative_diagonal_callbacks;
 
    /// Derivative IDs whose integrator has FunctionalValue outputs. Their first
    /// derivative is a linear form which assembles into a Vector.
@@ -1090,17 +1190,20 @@ template <
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &domain_attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   second_derivative_ids_t second_derivative_ids)
 {
    AddIntegrator<backend_t, Entity::Element>(
-      qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
+      qfunc, inputs, outputs, integration_rule, domain_attributes,
+      derivative_ids, second_derivative_ids);
 }
 
 template <
@@ -1108,21 +1211,24 @@ template <
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddBoundaryIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &boundary_attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   second_derivative_ids_t second_derivative_ids)
 {
    if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
    AddIntegrator<backend_t, Entity::BoundaryElement>(
-      qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
+      qfunc, inputs, outputs, integration_rule, boundary_attributes,
+      derivative_ids, second_derivative_ids);
 }
 
 template <
@@ -1131,14 +1237,16 @@ template <
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   [[maybe_unused]] second_derivative_ids_t second_derivative_ids)
 {
    if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
                    std::is_same_v<entity_t, Entity::BoundaryElement>))
@@ -1178,6 +1286,39 @@ void DifferentiableOperator::AddIntegrator(
                std::to_string(unionfds.size()) + ")");
 
    constexpr bool is_functional = check_if_functional_v<output_t>;
+
+   // The requested second derivative blocks are either selected by one of the
+   // Pairs markers or listed explicitly as DerivativePairs.
+   constexpr bool no_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::None>>;
+   constexpr bool all_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::All>>;
+   constexpr bool diagonal_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
+
+   // Second derivatives checks:
+   // - Second derivatives are only available for functional integrators.
+   // - If they are listed explicitly, every second derivative block has to
+   //   refer to a gradient field id that is also present in the requested
+   //   derivatives. The markers pick their blocks from those ids to begin with
+   //   and carry no ids of their own to check.
+   if constexpr (!no_second_derivatives)
+   {
+      static_assert(is_functional,
+                    "second derivatives are only available for functional "
+                    "integrators");
+
+      if constexpr (!all_second_derivatives && !diagonal_second_derivatives)
+      {
+         // If custom second derivative blocks are requested, check that they refer to
+         // gradient field ids that are also present in the requested derivatives.
+         static_assert(
+            second_derivative_gradients_available(second_derivative_ids_t {},
+                                                  derivative_ids_t {}),
+            "every second derivative block has to refer to a gradient field id "
+            "that is also present in the requested derivatives");
+      }
+   }
 
    [[maybe_unused]] auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(infds, inputs);
@@ -1324,6 +1465,7 @@ void DifferentiableOperator::AddIntegrator(
                                   auto &apply_callbacks,
                                   auto &transpose_callbacks,
                                   auto &assemble_sparsematrix_callbacks,
+                                  auto &assemble_hypreparmatrix_callbacks,
                                   auto &assemble_diagonal_cbs,
                                   auto &action_cbs,
                                   Vector &callback_qp_cache,
@@ -1367,6 +1509,13 @@ void DifferentiableOperator::AddIntegrator(
             assemble_sparsematrix_callbacks[callback_key].push_back(
                backend_t::template MakeDerivativeAssemble<derivative_idx>(
                   callback_ctx, qf, inputs, outputs, callback_qp_cache));
+
+            // Assemble the derivative into a HypreParMatrix
+            assemble_hypreparmatrix_callbacks[callback_key].push_back(
+               MakeDerivativeHypreParMatrixAssemble(
+               derivative_idx,
+               assemble_sparsematrix_callbacks[callback_key],
+               callback_ctx));
 
             // Assemble the diagonal of the derivative into an L-vector
             assemble_diagonal_cbs[callback_key].push_back(
@@ -1412,14 +1561,15 @@ void DifferentiableOperator::AddIntegrator(
          //mfem::out << get_type_name<output_t>() << "\n";
          //mfem::out << get_type_name<input_t>() << "\n";
 
-         dqfunc_t dqfunc;
+         dqfunc_t dqfunc(qfunc);
 
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
          const auto first_derivative_ctx =
             set_functional_derivative_fds(idx, derivative_outputs_fds,
                                           derivative_all_fds);
-         for_constexpr([&](auto j)
+         // Register the second derivative d/d(direction) grad_idx J.
+         auto create_second_derivative_callbacks = [&](auto j)
          {
             constexpr size_t direction_idx = decltype(j)::value;
             integrator_qp_caches.emplace_back(std::make_unique<Vector>());
@@ -1434,11 +1584,34 @@ void DifferentiableOperator::AddIntegrator(
                              second_derivative_apply_callbacks,
                              second_daction_transpose_callbacks,
                              assemble_second_derivative_sparsematrix_callbacks,
+                             assemble_second_derivative_hypreparmatrix_callbacks,
                              assemble_second_derivative_diagonal_callbacks,
                              second_derivative_action_callbacks,
                              second_qp_cache,
                              derivative_ctx, dqfunc, first_derivative_outputs);
-         }, derivative_ids);
+         };
+
+         if constexpr (all_second_derivatives)
+         {
+            // Every block formed from the requested derivatives.
+            for_constexpr(create_second_derivative_callbacks, derivative_ids);
+         }
+         else if constexpr (diagonal_second_derivatives)
+         {
+            // Only d/d(idx) grad_idx J, no mixed derivatives.
+            create_second_derivative_callbacks(i);
+         }
+         else if constexpr (!no_second_derivatives)
+         {
+            for_constexpr_with_arg([&](auto, auto pair)
+                                   {
+               using pair_t = decltype(pair);
+               if constexpr (pair_t::gradient_id == idx)
+               {
+                  create_second_derivative_callbacks(
+                     std::integral_constant<size_t, pair_t::direction_id> {});
+               } }, second_derivative_ids);
+         }
 
          // The first derivative (gradient) of the functional is the plain
          // action of the reverse-mode-differentiated energy dqfunc. Register
@@ -1470,6 +1643,7 @@ void DifferentiableOperator::AddIntegrator(
                           derivative_apply_callbacks,
                           daction_transpose_callbacks,
                           assemble_derivative_sparsematrix_callbacks,
+                          assemble_derivative_hypreparmatrix_callbacks,
                           assemble_diagonal_callbacks,
                           derivative_action_callbacks,
                           qp_cache,

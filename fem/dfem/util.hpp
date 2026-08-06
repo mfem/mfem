@@ -654,6 +654,87 @@ using Outputs = tuple<Ops...>;
 template <size_t... FieldIds>
 using Derivatives = std::integer_sequence<size_t, FieldIds...>;
 
+// A single second derivative (Hessian) block of a functional f, obtained by
+// differentiating the gradient grad_G f in the direction of the field D, i.e.
+// DerivativePair<G, D> denotes d/dD (grad_G f). The two ids play different
+// roles: G has to be one of the requested first derivatives, while D only has
+// to be an input field of the quadrature function.
+template <size_t GradientFieldId, size_t DirectionFieldId>
+struct DerivativePair
+{
+   static constexpr size_t gradient_id = GradientFieldId;
+   static constexpr size_t direction_id = DirectionFieldId;
+};
+
+// The second derivative blocks to be made available for a functional f, given
+// to AddDomainIntegrator() or AddBoundaryIntegrator() right after the first
+// derivatives:
+//
+//    dop->AddDomainIntegrator<LocalQFBackend>(
+//       functional, inputs, outputs, ir, all_domain_attr,
+//       Derivatives<X, Y> {}, second_derivatives);
+//
+// With the first derivatives grad_X f and grad_Y f requested as above,
+// second_derivatives is one of:
+//
+// - SecondDerivatives<Pairs::None> {}
+//      No second derivatives at all, i.e. the default.
+//
+// - SecondDerivatives<Pairs::All> {}
+//      All four blocks d/dX (grad_X f), d/dY (grad_X f), d/dX (grad_Y f) and
+//      d/dY (grad_Y f).
+//
+// - SecondDerivatives<Pairs::Diagonal> {}
+//      Only d/dX (grad_X f) and d/dY (grad_Y f), i.e. no mixed derivatives.
+//
+// - SecondDerivatives<DerivativePair<X, X>, DerivativePair<X, Y>> {}
+//      Only the two listed blocks d/dX (grad_X f) and d/dY (grad_X f). This one
+//      never differentiates grad_Y f, so Derivatives<X> {} would do as well.
+//
+// Blocks that are not requested here are not available from
+// DifferentiableOperator::GetSecondDerivative(). Requesting anything but
+// Pairs::None from an integrator that is not a functional is a compile time
+// error, and so is a DerivativePair whose gradient id is missing from the first
+// derivatives, since such a block could never be registered.
+template <typename... Pairs>
+using SecondDerivatives = tuple<Pairs...>;
+
+// Markers selecting a set of blocks from the requested first derivatives
+// instead of listing them one by one. They never reach a field that is not
+// itself a requested first derivative, e.g. with Derivatives<X, Y> {} none of
+// them expresses d/dZ (grad_X f), which needs a DerivativePair<X, Z>.
+struct Pairs
+{
+   // No second derivatives at all, i.e. the default.
+   struct None {};
+
+   // Every block that can be formed from the requested first derivatives.
+   struct All {};
+
+   // Only the diagonal blocks d/dX (grad_X f), i.e. no mixed derivatives.
+   struct Diagonal {};
+};
+
+template <size_t... FieldIds>
+constexpr bool contains_field_id(size_t field_id,
+                                 std::integer_sequence<size_t, FieldIds...>)
+{
+   return ((field_id == FieldIds) || ...);
+}
+
+// True if the gradient id of every requested block is also a requested first
+// derivative. The direction ids are unconstrained, they only have to be input
+// fields of the quadrature function.
+template <typename... Pairs, size_t... FieldIds>
+constexpr bool second_derivative_gradients_available(
+   SecondDerivatives<Pairs...>,
+   std::integer_sequence<size_t, FieldIds...> derivative_ids)
+{
+   return (contains_field_id(Pairs::gradient_id, derivative_ids) && ...);
+}
+
+
+
 template <typename T>
 constexpr int GetFieldId()
 {
