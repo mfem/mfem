@@ -215,7 +215,7 @@ if (MFEM_ENABLE_TESTING)
     add_test(NAME ex1p_ceed_np=${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
-      $<TARGET_FILE:ex1p> "-no-vis" "-d ceed-cpu" "-pa" "-a"
+      $<TARGET_FILE:ex1p> "-no-vis" "-d" "ceed-cpu" "-pa" "-a"
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

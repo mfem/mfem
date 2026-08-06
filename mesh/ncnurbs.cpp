@@ -93,7 +93,7 @@ void NCNURBSExtension::GetMasterEdgeEntities(
       }
       else
       {
-         const int auxEdge = -1 - edge_i;
+         const int auxEdge = FlipIndexSign(edge_i);
          GetAuxEdgeVertices(auxEdge, sverts);
       }
 
@@ -159,7 +159,7 @@ void NCNURBSExtension::FindAdditionalFacesSA(
             {
                if (edge < 0)
                {
-                  sideAuxEdges[s].Append(-1 - edge);
+                  sideAuxEdges[s].Append(FlipIndexSign(edge));
                }
                else
                {
@@ -456,7 +456,7 @@ void NCNURBSExtension::FindAdditionalFacesSA(
                                        == afverts[j], "");
                         }
 
-                        ori_f2 = -1 - ori_f2;
+                        ori_f2 = FlipIndexSign(ori_f2);
                      }
                      else
                      {
@@ -468,7 +468,7 @@ void NCNURBSExtension::FindAdditionalFacesSA(
                      }
 
                      facePairs.emplace_back(FacePairInfo{fverts[vMinID], f,
-                     SlaveFaceInfo{-1 - afid, ori_f2,
+                     SlaveFaceInfo{FlipIndexSign(afid), ori_f2,
                         {fki(vMinID,0), fki(vMinID,1)},
                         {
                            fki((vMinID + 2) % 4,0) - fki(vMinID,0),
@@ -509,7 +509,7 @@ void NCNURBSExtension::FindAdditionalFacesSA(
                      auxFaces.push_back(auxFace);
 
                      facePairs.emplace_back(FacePairInfo{fverts[vMinID], f,
-                     SlaveFaceInfo{-1 - auxFaceId, ori_f,
+                     SlaveFaceInfo{FlipIndexSign(auxFaceId), ori_f,
                         {fki(vMinID,0), fki(vMinID,1)},
                         {
                            fki((vMinID + 2) % 4,0) - fki(vMinID,0),
@@ -622,7 +622,7 @@ void NCNURBSExtension::GetAuxFaceEdges(int auxFace, Array<int> &edges) const
       }
       else // Auxiliary edge
       {
-         edges[i] = -1 - auxv2e.at(edge_v);
+         edges[i] = FlipIndexSign(auxv2e.at(edge_v));
       }
    }
 }
@@ -633,7 +633,7 @@ int OffsetHelper(int i, int j, const Array<int> &a, const Array<int> &b)
 {
    if (i < 0)
    {
-      return b[-1 - i + j];
+      return b[FlipIndexSign(i) + j];
    }
    else if (i + j < a.Size())
    {
@@ -679,7 +679,7 @@ void NCNURBSExtension::GetMasterEdgeDofs(bool dof, int me,
       }
       else // Auxiliary edge
       {
-         GetAuxEdgeVertices(-1 - slaveId, svert);
+         GetAuxEdgeVertices(FlipIndexSign(slaveId), svert);
       }
 
       bool reverse = false;
@@ -872,7 +872,7 @@ void ReorderArray2D(int i0, int j0, const Array2D<int> &a,
 // Set a quadrilateral vertex index permutation for a given orientation.
 void GetVertexOrdering(int ori, std::array<int, 4> &perm)
 {
-   const int oriAbs = ori < 0 ? -1 - ori : ori;
+   const int oriAbs = UnsignIndex(ori);
 
    for (int i=0; i<4; ++i)
    {
@@ -1094,7 +1094,7 @@ void NCNURBSExtension::GetMasterFaceDofs(bool dof, int mf,
       if (slaveId < 0)
       {
          // Auxiliary face
-         const int auxFace = -1 - slaveId;
+         const int auxFace = FlipIndexSign(slaveId);
 
          // Set slave face entity dimensions.
          if (dof)
@@ -1171,7 +1171,7 @@ void NCNURBSExtension::GetMasterFaceDofs(bool dof, int mf,
             }
             else
             {
-               const int auxEdge = -1 - edge;
+               const int auxEdge = FlipIndexSign(edge);
                GetAuxEdgeVertices(auxEdge, evert);
             }
             MFEM_ASSERT(evert[0] == vstart || evert[1] == vstart, "");
@@ -1184,7 +1184,7 @@ void NCNURBSExtension::GetMasterFaceDofs(bool dof, int mf,
          // dimensions of the master face, by using ori.
          int e1 = -1, e2 = -1;
          {
-            const int aori = ori < 0 ? -1 - ori : ori;
+            const int aori = UnsignIndex(ori);
             if (aori % 2 == 0)
             {
                e1 = 0;
@@ -1416,14 +1416,15 @@ void NCNURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
          {
             // Create a new auxiliary edge
             auxv2e[childPair] = auxEdges.size();
-            auxEdges.emplace_back(AuxiliaryEdge{pv[0] < pv[1] ?
-                                                parentEdge : -1 - parentEdge,
+            auxEdges.emplace_back(AuxiliaryEdge{pv[0] < pv[1] ? parentEdge :
+                                                FlipIndexSign(parentEdge),
             {childPair.first, childPair.second},
             {newParentEdge ? 0 : prevKI, ks}});
          }
       }
 
-      const int childEdge = childPairTopo ? v2e[childPair] : -1 - auxv2e[childPair];
+      const int childEdge = childPairTopo ? v2e[childPair] :
+                            FlipIndexSign(auxv2e[childPair]);
 
       // Check whether this is the final vertex in this parent edge. Note that
       // the logic for comparing (pv[0],pv[1]) to the next parents assumes the
@@ -1460,14 +1461,15 @@ void NCNURBSExtension::ProcessVertexToKnot2D(const VertexToKnotSpan &v2k,
 
                // -1 denotes `ne` at endpoint
                auxEdges.emplace_back(AuxiliaryEdge{pv[0] < pv[1] ?
-                                                   -1 - parentEdge : parentEdge,
+                                                   FlipIndexSign(parentEdge) :
+                                                   parentEdge,
                {finalChildPair.first, finalChildPair.second},
                {ks, -1}});
             }
          }
 
          const int finalChildEdge = finalChildPairTopo ? v2e[finalChildPair] :
-                                    -1 - auxv2e[finalChildPair];
+                                    FlipIndexSign(auxv2e[finalChildPair]);
          edgePairs.emplace_back(-1, -1, finalChildEdge, parentEdge);
       }
 
@@ -1805,7 +1807,7 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
                   auxFaces.push_back(auxFace);
                   facePairs.emplace_back(
                      FacePairInfo{cv[0], parentFace,
-                                  SlaveFaceInfo{-1 - auxv2f[childPair],
+                                  SlaveFaceInfo{FlipIndexSign(auxv2f[childPair]),
                                                 0, {i0, j0}, {d0, d1}}});
                }
             }
@@ -2111,7 +2113,7 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
                      auxv2e[childPair] = auxEdges.size();
                      auxEdges.emplace_back(AuxiliaryEdge{pv0 < pv1 ?
                                                          parentEdge :
-                                                         -1 - parentEdge,
+                                                         FlipIndexSign(parentEdge),
                      {childPair.first, childPair.second},
                      {knotIndex0, knotIndex1}});
                   }
@@ -2131,7 +2133,8 @@ void NCNURBSExtension::ProcessVertexToKnot3D(
 
                   const EdgePairInfo ep_e((e_idx == n_d - de) ? -1 : tv,
                                           (e_idx == n_d - de) ? -1 : tvki,
-                                          -1 - auxv2e[childPair], parentEdge);
+                                          FlipIndexSign(auxv2e[childPair]),
+                                          parentEdge);
 
                   const bool unset = !edgePairs[edgePairOS[parentEdge] + e_idx].isSet;
                   if (unset)
@@ -2226,7 +2229,7 @@ void NCNURBSExtension::GetAuxFaceToPatchTable(Array2D<int> &auxface2patch)
                if (s < 0)
                {
                   // Auxiliary face.
-                  const int aux = -1 - s;
+                  const int aux = FlipIndexSign(s);
                   if (auxface2patch(aux, 0) >= 0)
                   {
                      if (auxface2patch(aux, 1) != -1) { consistent = false; }
@@ -2316,7 +2319,7 @@ void NCNURBSExtension::UpdateAuxiliaryKnotSpans(const Array<int> &rf)
    for (auto auxEdge : auxEdges)
    {
       const int p = auxEdge.parent;
-      const int parent = p < 0 ? -1 - p : p;
+      const int parent = UnsignIndex(p);
       const int kv = KnotInd(parent);
       for (int i=0; i<2; ++i)
       {
@@ -2382,14 +2385,8 @@ int NCNURBSExtension::AuxiliaryEdgeNE(int aux_edge)
    const int signedParentEdge = auxEdges[aux_edge].parent;
    const int ki0 = auxEdges[aux_edge].ksi[0];
    const int ki1raw = auxEdges[aux_edge].ksi[1];
-   int ki1 = ki1raw;
-   if (ki1raw == -1)
-   {
-      const bool rev = signedParentEdge < 0;
-      const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
-      ki1 = KnotVec(parentEdge)->GetNE();
-   }
-
+   const int ki1 = ki1raw == -1 ? KnotVec(UnsignIndex(signedParentEdge))->GetNE()
+                   : ki1raw;
    return ki1 - ki0;
 }
 
@@ -2403,7 +2400,7 @@ void NCNURBSExtension::SlaveEdgeToParent(int se, int parent,
    Array<int> sev(2);
    if (se < 0) // Auxiliary edge
    {
-      for (int i=0; i<2; ++i) { sev[i] = auxEdges[-1 - se].v[i]; }
+      for (int i=0; i<2; ++i) { sev[i] = auxEdges[FlipIndexSign(se)].v[i]; }
    }
    else
    {
@@ -2459,7 +2456,7 @@ void NCNURBSExtension::GetMasterEdgePieceOffsets(int mid, Array<int> &os)
       }
       else
       {
-         nes = AuxiliaryEdgeNE(-1 - s);
+         nes = AuxiliaryEdgeNE(FlipIndexSign(s));
       }
 
       os[i+1] = os[i] + nes;
@@ -2565,7 +2562,7 @@ int NCNURBSExtension::SetPatchFactors(int p)
                }
                else // Aux edge
                {
-                  const int aux_edge = -1 - s;
+                  const int aux_edge = FlipIndexSign(s);
                   if (auxef[aux_edge].Size() == 0)
                   {
                      auxef[aux_edge].SetSize(AuxiliaryEdgeNE(aux_edge));
@@ -2611,7 +2608,7 @@ int NCNURBSExtension::SetPatchFactors(int p)
    }
 
    MFEM_VERIFY(consistent, "");
-   return partialChange ? -1 - dirSet : dirSet;
+   return partialChange ? FlipIndexSign(dirSet) : dirSet;
 }
 
 void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
@@ -2715,7 +2712,7 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
                if (s < 0)
                {
                   // Auxiliary face.
-                  const int aux = -1 - s;
+                  const int aux = FlipIndexSign(s);
                   for (int i=0; i<2; ++i)
                   {
                      const int patch = auxface2patch(aux, i);
@@ -2763,7 +2760,7 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
 
          const int dirSetSigned = SetPatchFactors(p);
          const bool partialChange = dirSetSigned < 0;
-         const int dirSet = partialChange ? -1 - dirSetSigned : dirSetSigned;
+         const int dirSet = UnsignIndex(dirSetSigned);
          const bool changed = (patchState[p] != dirSet) || partialChange;
          patchState[p] = dirSet;
 
@@ -2806,8 +2803,8 @@ void NCNURBSExtension::PropagateFactorsForKV(int rf_default)
             {
                const int dirSetSigned_i = SetPatchFactors(i);
                const bool partialChange_i = dirSetSigned_i < 0;
-               const int dirSet_i = partialChange_i ? -1 - dirSetSigned_i :
-                                    dirSetSigned_i;
+               const int dirSet_i = partialChange_i ?
+                                    FlipIndexSign(dirSetSigned_i) : dirSetSigned_i;
                const bool changed_i = (patchState[i] != dirSet_i) ||
                                       partialChange_i;
                patchState[p] = dirSet_i;
@@ -3027,7 +3024,7 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 
    // Check whether ordering is reversed.
    const bool rev = verts[(s + 1) % 4] != fverts[1];
-   if (rev) { s = -1 - s; } // Reversed order is encoded by the sign.
+   if (rev) { s = FlipIndexSign(s); } // Reversed order is encoded by the sign.
    return s;
 }
 
@@ -3040,7 +3037,7 @@ int GetFaceOrientation(const Mesh *mesh, const int face,
 // see GetFaceOrientation.
 bool Reorder2D(int ori, std::array<int, 2> &s0)
 {
-   const int shift = ori < 0 ? -1 - ori : ori;
+   const int shift = UnsignIndex(ori);
 
    // Shift is an F1 index in the counter-clockwise ordering of 4 quad vertices.
    // Now find the (i,j) indices of this index, with i,j in {0,1}.
@@ -3064,7 +3061,7 @@ void GetInverseShiftedDimensions2D(int signedShift, int sm, int sn, int &m,
                                    int &n)
 {
    const bool rev = (signedShift < 0);
-   const int shift = rev ? -1 - signedShift : signedShift;
+   const int shift = UnsignIndex(signedShift);
    MFEM_ASSERT(0 <= shift && shift < 4, "");
 
    // We consider 8 cases for the possible values of rev and shift.
@@ -3136,7 +3133,7 @@ void GetShiftedGridPoints2D(int m, int n, int i, int j, int signedShift,
                             int& sm, int& sn, int& si, int& sj)
 {
    const bool rev = (signedShift < 0);
-   const int shift = rev ? -1 - signedShift : signedShift;
+   const int shift = UnsignIndex(signedShift);
    MFEM_ASSERT(0 <= shift && shift < 4, "");
 
    // (0,0) <= (i,j) < (m,n) are old indices, and old vertex [shift] maps
@@ -3798,8 +3795,7 @@ void NCNURBSExtension::GenerateOffsets()
       const int signedParentEdge = auxEdges[e].parent;
       const int ki0 = auxEdges[e].ksi[0];
       const int ki1raw = auxEdges[e].ksi[1];
-      const bool rev = signedParentEdge < 0;
-      const int parentEdge = rev ? -1 - signedParentEdge : signedParentEdge;
+      const int parentEdge = UnsignIndex(signedParentEdge);
       const int masterNE = KnotVec(parentEdge)->GetNE();
       const int ki1 = ki1raw == -1 ? masterNE : ki1raw;
       const int perEdgeCP = GetNCPperEdge(KnotVec(e));

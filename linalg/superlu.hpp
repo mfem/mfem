@@ -250,7 +250,8 @@ public:
        work (default false) */
    void SetSymmetricPattern(bool sym);
 
-   /** @brief Specify whether to perform parallel symbolic factorization.
+   /** @brief Specify whether to perform parallel symbolic factorization
+       (default false)
        @note If true SuperLU will use superlu::PARMETIS for the Column
        Permutation regardless of the setting */
    void SetParSymbFact(bool par);
@@ -262,6 +263,10 @@ public:
        superlu::DOFACT, superlu::SamePattern, superlu::SamePattern_SameRowPerm,
        superlu::FACTORED*/
    void SetFact(superlu::Fact fact);
+
+   /** @brief Specify whether to offload numerical factorization onto the device
+       (default true if SuperLU_DIST has been compiled with GPU support) */
+   void SetDeviceOffload(bool offload);
 
    // Processor grid for SuperLU_DIST.
    const int nprow_, npcol_, npdep_;

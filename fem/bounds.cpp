@@ -39,8 +39,8 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
    b_type = b_type_i;
    cp_type = cp_type_i;
    tol = tol_i;
-   lbound.SetSize(nb, ncp);
-   ubound.SetSize(nb, ncp);
+   lbound.SetSize(ncp, nb);
+   ubound.SetSize(ncp, nb);
    nodes.SetSize(nb);
    weights.SetSize(nb);
    control_points.SetSize(ncp);
@@ -125,21 +125,25 @@ void PLBound::Setup(const int nb_i, const int ncp_i,
       {
          if (j == 0)
          {
-            lbound(i, j) = bv(i);
-            ubound(i, j) = bv(i);
+            lbound(j,i) = bv(i);
+            ubound(j,i) = bv(i);
          }
          else if (j == ncp-1)
          {
-            lbound(i, j) = bv(i);
-            ubound(i, j) = bv(i);
+            lbound(j,i) = bv(i);
+            ubound(j,i) = bv(i);
          }
          else
          {
             vals(0)  = bv(i);
             vals(1) =  bmv(i) +  dm*bdmv(i);
             vals(2) =  bpv(i) +  dp*bdpv(i);
-            lbound(i, j) = vals.Min()-tol; // tolerance for good measure
-            ubound(i, j) = vals.Max()+tol; // tolerance for good measure
+            lbound(j,i) = vals.Min()-tol; // tolerance for good measure
+            ubound(j,i) = vals.Max()+tol; // tolerance for good measure
+            if (b_type == 2)
+            {
+               lbound(j,i) = std::max(lbound(j,i),0_r);
+            }
          }
       }
    }
@@ -273,8 +277,7 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
    intmax.SetSize(ncp);
    intmin = 0.0;
    intmax = 0.0;
-   Vector coeffm(nb);
-   coeffm = 0.0;
+   Vector coeffm;
 
    real_t a0 = 0.0;
    real_t a1 = 0.0;
@@ -302,6 +305,8 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
    // compute L2 projection for linear bases: a0 + a1*x
    if (proj)
    {
+      coeffm.SetSize(nb);
+      coeffm = 0.0;
       for (int i = 0; i < nb; i++)
       {
          x = 2.0*nodes_int(i)-1;
@@ -342,8 +347,8 @@ void PLBound::Get1DBounds(const Vector &coeff, Vector &intmin,
       real_t c = coeffm(i);
       for (int j = 0; j < ncp; j++)
       {
-         intmin(j) += min(lbound(i,j)*c, ubound(i,j)*c);
-         intmax(j) += max(lbound(i,j)*c, ubound(i,j)*c);
+         intmin(j) += min(lbound(j,i)*c, ubound(j,i)*c);
+         intmax(j) += max(lbound(j,i)*c, ubound(j,i)*c);
       }
    }
 }
@@ -474,10 +479,10 @@ void PLBound::Get2DBounds(const Vector &coeff, Vector &intmin,
          real_t w1 = intmaxT(id2++);
          for (int k = 0; k < ncp; k++) // kth row
          {
-            vals(0) = w0*lbound(j,k);
-            vals(1) = w0*ubound(j,k);
-            vals(2) = w1*lbound(j,k);
-            vals(3) = w1*ubound(j,k);
+            vals(0) = w0*lbound(k,j);
+            vals(1) = w0*ubound(k,j);
+            vals(2) = w1*lbound(k,j);
+            vals(3) = w1*ubound(k,j);
             intmin(k*ncp+i) += vals.Min();
             intmax(k*ncp+i) += vals.Max();
          }
@@ -553,17 +558,17 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
             for (int i = 0; i < nb; i++)
             {
                x = 2.0*nodes(i)-1; // x-coordinate
-               minBounds(i) -= a0V(j) + a1V(j)*x;
-               maxBounds(i) -= a0V(j) + a1V(j)*x;
+               minNodalVals(i) -= a0V(j) + a1V(j)*x;
+               maxNodalVals(i) -= a0V(j) + a1V(j)*x;
             }
             // Compute Bernstein coefficients
             LUFactors lu(basisMatLU.GetData(), lu_ip.GetData());
-            lu.Solve(nb, 1, minBounds.GetData());
-            lu.Solve(nb, 1, maxBounds.GetData());
+            lu.Solve(nb, 1, minNodalVals.GetData());
+            lu.Solve(nb, 1, maxNodalVals.GetData());
             for (int i = 0; i < nb; i++)
             {
-               intminT(i*ncp2+j) = minBounds(i);
-               intmaxT(i*ncp2+j) = maxBounds(i);
+               intminT(i*ncp2+j) = minNodalVals(i);
+               intmaxT(i*ncp2+j) = maxNodalVals(i);
             }
          }
       }
@@ -617,10 +622,10 @@ void PLBound::Get3DBounds(const Vector &coeff, Vector &intmin,
          real_t w1 = intmaxT(id2++);
          for (int k = 0; k < ncp; k++) // kth slice
          {
-            vals(0) = w0*lbound(j,k);
-            vals(1) = w0*ubound(j,k);
-            vals(2) = w1*lbound(j,k);
-            vals(3) = w1*ubound(j,k);
+            vals(0) = w0*lbound(k,j);
+            vals(1) = w0*ubound(k,j);
+            vals(2) = w1*lbound(k,j);
+            vals(3) = w1*ubound(k,j);
             intmin(k*ncp2+i) += vals.Min();
             intmax(k*ncp2+i) += vals.Max();
          }
@@ -653,7 +658,8 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
                                      Vector &nodesBern) const
 {
    const int nbern = nodesBern.Size();
-   L2_SegmentElement el(nbern-1, 2); // we use L2 to leverage lexicographic order
+   L2_SegmentElement el(nbern-1, 2);
+   // we use L2 to leverage lexicographic order
    Array<int> ordering = el.GetLexicographicOrdering();
    basisMat.SetSize(nbern, nbern);
    Vector shape(nbern);
@@ -664,6 +670,39 @@ void PLBound::SetupBernsteinBasisMat(DenseMatrix &basisMat,
       el.CalcShape(ip, shape);
       basisMat.SetRow(i, shape);
    }
+}
+
+DenseMatrix PLBound::GetBoundingMatrix(int dim, bool is_lower) const
+{
+   if (dim > 1)
+   {
+      const int ncpd = static_cast<int>(std::pow(ncp, dim));
+      const int nbd = static_cast<int>(std::pow(nb, dim));
+      DenseMatrix boundND(ncpd, nbd);
+      Vector phimin, phimax, col;
+      Vector coeffs(nbd);
+      coeffs = 0.0;
+      for (int j = 0; j < nbd; j++)
+      {
+         coeffs(j) = 1.0;
+         boundND.GetColumnReference(j, col);
+         GetNDBounds(dim, coeffs, phimin, phimax);
+         col = is_lower ? phimin : phimax;
+         coeffs(j) = 0.0;
+      }
+      return boundND;
+   }
+   return is_lower ? lbound : ubound;
+}
+
+DenseMatrix PLBound::GetLowerBoundMatrix(int dim) const
+{
+   return GetBoundingMatrix(dim, true);
+}
+
+DenseMatrix PLBound::GetUpperBoundMatrix(int dim) const
+{
+   return GetBoundingMatrix(dim, false);
 }
 
 constexpr int PLBound::min_ncp_gl_x[2][11];

@@ -333,6 +333,12 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    int nel_ho = mesh_ho->GetNE();
    int nel_lor = mesh_lor->GetNE();
 
+   if (nel_ho == 0)
+   {
+      M_LH.SetSize(0);
+      return;
+   }
+
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
    int nref_max = 0;
@@ -831,11 +837,17 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::Mult(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMult(
    const Vector &x, Vector &y) const
 {
+   const int nel_ho = fes_ho.GetMesh()->GetNE();
+
+   if (nel_ho == 0)
+   {
+      return;
+   }
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
 
    DenseTensor R_dt;
    R_dt.NewMemoryAndSize(R.GetMemory(), ndof_lor*nref, ndof_ho, nel_ho, false);
@@ -887,11 +899,17 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::MultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMultTranspose(
    const Vector &x, Vector &y) const
 {
+   const int nel_ho = fes_ho.GetMesh()->GetNE();
+
+   if (nel_ho == 0)
+   {
+      return;
+   }
+
    const int iho = 0;
    const int nref = ho2lor.RowSize(iho);
    const int ndof_ho = fes_ho.GetFE(iho)->GetDof();
    const int ndof_lor = fes_lor.GetFE(ho2lor.GetRow(iho)[0])->GetDof();
-   const int nel_ho = fes_ho.GetMesh()->GetNE();
 
    DenseTensor R_dt;
    R_dt.NewMemoryAndSize(R.GetMemory(), ndof_lor*nref, ndof_ho, nel_ho, false);
@@ -901,7 +919,6 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAMultTranspose(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::Prolongate(
    const Vector &x, Vector &y) const
 {
-
    if (fes_ho.GetNE() == 0) { return; }
 
    if (use_ea)
@@ -960,14 +977,13 @@ void L2ProjectionGridTransfer::L2ProjectionL2Space::EAProlongate(
 void L2ProjectionGridTransfer::L2ProjectionL2Space::ProlongateTranspose(
    const Vector &x, Vector &y) const
 {
+   if (fes_ho.GetNE() == 0) { return; }
 
    if (use_ea)
    {
       return EAProlongateTranspose(x,y);
    }
 
-
-   if (fes_ho.GetNE() == 0) { return; }
    MFEM_VERIFY(P.Size() > 0, "Prolongation not supported for these spaces.")
    int vdim = fes_ho.GetVDim();
    Array<int> vdofs;
@@ -1243,13 +1259,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
    int nel_lor = mesh_lor->GetNE();
    int ndof_ho = pfes_ho.GetNDofs();
    int ndof_lor = pfes_lor.GetNDofs();
-
-
-   // If the local mesh is empty, skip all computations
-   if (nel_ho == 0)
-   {
-      return;
-   }
 
    const CoarseFineTransformations& cf_tr = mesh_lor->GetRefinementTransforms();
 
@@ -1860,6 +1869,11 @@ L2ProjectionGridTransfer::H1SpaceMixedMassOperator::H1SpaceMixedMassOperator(
 void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
                                                               Vector &y) const
 {
+   if (fes_ho->GetNE() == 0)
+   {
+      return;
+   }
+
    const Operator* elem_restrict_ho = fes_ho->GetElementRestriction(
                                          ElementDofOrdering::NATIVE);
    const Operator* elem_restrict_lor = fes_lor->GetElementRestriction(
@@ -1906,6 +1920,11 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
 void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
    const Vector &x, Vector &y) const
 {
+   if (fes_ho->GetNE() == 0)
+   {
+      return;
+   }
+
    const Operator* elem_restrict_ho = fes_ho->GetElementRestriction(
                                          ElementDofOrdering::NATIVE);
    const Operator* elem_restrict_lor = fes_lor->GetElementRestriction(
@@ -2038,6 +2057,10 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())
 {
    bool isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
+   bool is_trace_space =
+      (dynamic_cast<const H1_Trace_FECollection*>(lFESpace_.FEColl()) ||
+       dynamic_cast<const ND_Trace_FECollection*>(lFESpace_.FEColl()) ||
+       dynamic_cast<const RT_Trace_FECollection*>(lFESpace_.FEColl()));
    if (lFESpace_.FEColl() == hFESpace_.FEColl() && !isvar_order)
    {
       OperatorPtr P(Operator::ANY_TYPE);
@@ -2047,6 +2070,7 @@ TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
    }
    else if (lFESpace_.GetVDim() == 1
             && hFESpace_.GetVDim() == 1
+            && !is_trace_space
             && dynamic_cast<const TensorBasisElement*>(lFESpace_.GetTypicalFE())
             && dynamic_cast<const TensorBasisElement*>(hFESpace_.GetTypicalFE())
             && !isvar_order
@@ -2077,15 +2101,245 @@ void TransferOperator::MultTranspose(const Vector& x, Vector& y) const
 
 
 PRefinementTransferOperator::PRefinementTransferOperator(
-   const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_)
+   const FiniteElementSpace& lFESpace_, const FiniteElementSpace& hFESpace_,
+   bool assemble_matrix)
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize()), lFESpace(lFESpace_),
      hFESpace(hFESpace_)
 {
    isvar_order = lFESpace_.IsVariableOrder() || hFESpace_.IsVariableOrder();
+
+   MFEM_VERIFY(lFESpace.FEColl()->GetContType() ==
+               hFESpace.FEColl()->GetContType(),
+               "Incompatible finite element space continuity types.");
+
+   is_trace_space =
+      (dynamic_cast<const H1_Trace_FECollection*>(lFESpace.FEColl()) ||
+       dynamic_cast<const ND_Trace_FECollection*>(lFESpace.FEColl()) ||
+       dynamic_cast<const RT_Trace_FECollection*>(lFESpace.FEColl()));
+
+   if (assemble_matrix) { AssembleMatrix(); }
+
 }
+
+void PRefinementTransferOperator::AssembleMatrix()
+{
+   Mesh* mesh = hFESpace.GetMesh();
+   const int nL = lFESpace.GetVSize();
+   const int nH = hFESpace.GetVSize();
+
+   P.reset(new SparseMatrix(nH, nL));
+   Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
+   DenseMatrix loc_prol;
+
+   Geometry::Type cached_geom = Geometry::INVALID;
+   const FiniteElement* h_fe = nullptr;
+   const FiniteElement* l_fe = nullptr;
+   IsoparametricTransformation T;
+
+   int vdim = lFESpace.GetVDim();
+
+   const int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
+   DofTransformation doftrans_h, doftrans_l;
+   Vector w(nH); w = 0.0;
+
+   for (int i = 0; i < iend; i++)
+   {
+      if (is_trace_space)
+      {
+         hFESpace.GetFaceDofs(i, h_dofs);
+         lFESpace.GetFaceDofs(i, l_dofs);
+      }
+      else
+      {
+         hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+         lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+      }
+
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i)
+                                  : mesh->GetElementBaseGeometry(i);
+
+      if (geom != cached_geom || isvar_order)
+      {
+         h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
+         T.SetIdentityTransformation(h_fe->GetGeomType());
+         h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
+         cached_geom = geom;
+      }
+
+      DenseMatrix Aeff(loc_prol);
+      TransformPrimal(doftrans_h, doftrans_l, Aeff);
+      for (int vd = 0;  vd < vdim; vd++)
+      {
+         DenseMatrix temp_Aeff(Aeff);
+
+         l_dofs.Copy(l_vdofs);
+         lFESpace.DofsToVDofs(vd, l_vdofs);
+
+         h_dofs.Copy(h_vdofs);
+         hFESpace.DofsToVDofs(vd, h_vdofs);
+
+         temp_Aeff.AdjustDofDirection(h_vdofs, l_vdofs);
+
+         P->AddSubMatrix(h_vdofs, l_vdofs, temp_Aeff);
+
+         for (int rr = 0; rr < h_vdofs.Size(); rr++)
+         {
+            w(h_vdofs[rr]) += 1.0;
+         }
+
+      }
+   }
+
+   P->Finalize();
+
+   Vector inv_w(nH);
+   for (int i = 0; i < nH; i++)
+   {
+      inv_w(i) = (w(i) > 0.0) ? (1.0 / w(i)) : 1.0;
+   }
+
+   P->ScaleRows(inv_w);
+
+   assembled = true;
+
+}
+
+std::unique_ptr<SparseMatrix>
+PRefinementTransferOperator::BuildConformingTransferMatrix() const
+{
+   MFEM_VERIFY(assembled && P, "Matrix path requires assembled P.");
+
+   const SparseMatrix *Pl = lFESpace.GetConformingProlongation();
+   const SparseMatrix *Rh = hFESpace.GetRestrictionMatrix();
+
+   if (Pl && Rh)
+   {
+      SparseMatrix *RhP   = mfem::Mult(*Rh, *P);
+      SparseMatrix *RhPPl = mfem::Mult(*RhP, *Pl);
+      delete RhP;
+      return std::unique_ptr<SparseMatrix>(RhPPl);
+   }
+   else if (Pl)
+   {
+      return std::unique_ptr<SparseMatrix>(mfem::Mult(*P, *Pl));
+   }
+   else if (Rh)
+   {
+      return std::unique_ptr<SparseMatrix>(mfem::Mult(*Rh, *P));
+   }
+   else
+   {
+      return std::make_unique<SparseMatrix>(*P);
+   }
+}
+
+std::unique_ptr<Operator>
+PRefinementTransferOperator::BuildConformingTransferOperator() const
+{
+   const Operator *Pl = lFESpace.GetProlongationMatrix();
+   const Operator *Rh = hFESpace.GetRestrictionOperator();
+
+   if (Pl && Rh)
+   {
+      return std::make_unique<TripleProductOperator>(Rh,
+                                                     const_cast<PRefinementTransferOperator*>(this), Pl,
+                                                     false, false, false);
+   }
+   else if (Pl)
+   {
+      return std::make_unique<ProductOperator>
+             (const_cast<PRefinementTransferOperator*>(this), Pl,
+              false, false);
+   }
+   else if (Rh)
+   {
+      return std::make_unique<ProductOperator>(Rh,
+                                               const_cast<PRefinementTransferOperator*>(this),
+                                               false, false);
+   }
+   else
+   {
+      // return nullptr to mean "identity/no-op wrapper", i.e. use `this`
+      return nullptr;
+   }
+}
+
+Operator *
+PRefinementTransferOperator::GetTrueTransferOperator()
+{
+   if (tP) { return tP.get(); }
+#ifdef MFEM_USE_MPI
+   const ParFiniteElementSpace* lpfes = dynamic_cast<const ParFiniteElementSpace*>
+                                        (&lFESpace);
+   const ParFiniteElementSpace* hpfes = dynamic_cast<const ParFiniteElementSpace*>
+                                        (&hFESpace);
+   bool parallel = (lpfes) && (hpfes);
+
+   if (parallel)
+   {
+      if (assembled)
+      {
+         HypreParMatrix * Pl = lpfes->Dof_TrueDof_Matrix();
+         const SparseMatrix * Rh = hpfes->GetRestrictionMatrix();
+         // Rh * P
+         SparseMatrix * RhP = mfem::Mult(*Rh, *P);
+         HypreParMatrix * RhPh = new HypreParMatrix(hpfes->GetComm(),
+                                                    hpfes->GlobalTrueVSize(), lpfes->GlobalVSize(),
+                                                    hpfes->GetTrueDofOffsets(), lpfes->GetDofOffsets(), RhP);
+         HypreStealOwnership(*RhPh, *RhP);
+         delete RhP;
+         HypreParMatrix * tmp = ParMult(RhPh, Pl, true);
+         delete RhPh;
+         tP.reset(tmp);
+         return tP.get();
+      }
+      else
+      {
+         auto Pl = lpfes->GetProlongationMatrix();
+         auto Rh = hpfes->GetRestrictionOperator();
+         tP = std::make_unique<TripleProductOperator>(Rh, this, Pl, false, false, false);
+         return tP.get();
+      }
+   }
+   else
+   {
+      if (assembled)
+      {
+         auto M = BuildConformingTransferMatrix();
+         tP.reset(M.release());
+         return tP.get();
+      }
+      else
+      {
+         tP = BuildConformingTransferOperator();
+         return tP ? tP.get() : this;
+      }
+   }
+#else
+   {
+      if (assembled)
+      {
+         auto M = BuildConformingTransferMatrix();
+         tP.reset(M.release());
+         return tP.get();
+      }
+      else
+      {
+         tP = BuildConformingTransferOperator();
+         return tP ? tP.get() : this;
+      }
+   }
+#endif
+}
+
 
 void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 {
+   y = 0.0;
+
+   if (assembled) { P->Mult(x, y); return; }
+
    Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
    DenseMatrix loc_prol;
@@ -2098,19 +2352,31 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
 
    int vdim = lFESpace.GetVDim();
 
-   y = 0.0;
 
    DofTransformation doftrans_h, doftrans_l;
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
-      lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
 
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+   const int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
+
+   for (int i = 0; i < iend; i++)
+   {
+      if (is_trace_space)
+      {
+         hFESpace.GetFaceDofs(i, h_dofs);
+         lFESpace.GetFaceDofs(i, l_dofs);
+      }
+      else
+      {
+         hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+         lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+      }
+
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i)
+                                  : mesh->GetElementBaseGeometry(i);
+
       if (geom != cached_geom || isvar_order)
       {
-         h_fe = hFESpace.GetFE(i);
-         l_fe = lFESpace.GetFE(i);
+         h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
          h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
          subY.SetSize(loc_prol.Height());
@@ -2125,6 +2391,7 @@ void PRefinementTransferOperator::Mult(const Vector& x, Vector& y) const
          hFESpace.DofsToVDofs(vd, h_vdofs);
          x.GetSubVector(l_vdofs, subX);
          doftrans_l.InvTransformPrimal(subX);
+
          loc_prol.Mult(subX, subY);
          doftrans_h.TransformPrimal(subY);
          y.SetSubVector(h_vdofs, subY);
@@ -2136,6 +2403,12 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
                                                 Vector& y) const
 {
    y = 0.0;
+
+   if (assembled)
+   {
+      P->MultTranspose(x, y);
+      return;
+   }
 
    Mesh* mesh = hFESpace.GetMesh();
    Array<int> l_dofs, h_dofs, l_vdofs, h_vdofs;
@@ -2154,16 +2427,28 @@ void PRefinementTransferOperator::MultTranspose(const Vector& x,
 
    DofTransformation doftrans_h, doftrans_l;
 
-   for (int i = 0; i < mesh->GetNE(); i++)
-   {
-      hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
-      lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+   int iend = (is_trace_space) ? mesh->GetNumFaces() : mesh->GetNE();
 
-      const Geometry::Type geom = mesh->GetElementBaseGeometry(i);
+   for (int i = 0; i < iend; i++)
+   {
+      if (is_trace_space)
+      {
+         hFESpace.GetFaceDofs(i, h_dofs);
+         lFESpace.GetFaceDofs(i, l_dofs);
+      }
+      else
+      {
+         hFESpace.GetElementDofs(i, h_dofs, doftrans_h);
+         lFESpace.GetElementDofs(i, l_dofs, doftrans_l);
+      }
+
+      const Geometry::Type geom = (is_trace_space) ? mesh->GetFaceGeometry(i)
+                                  : mesh->GetElementBaseGeometry(i);
+
       if (geom != cached_geom || isvar_order)
       {
-         h_fe = hFESpace.GetFE(i);
-         l_fe = lFESpace.GetFE(i);
+         h_fe = (is_trace_space) ? hFESpace.GetFaceElement(i) : hFESpace.GetFE(i);
+         l_fe = (is_trace_space) ? lFESpace.GetFaceElement(i) : lFESpace.GetFE(i);
          T.SetIdentityTransformation(h_fe->GetGeomType());
          h_fe->GetTransferMatrix(*l_fe, T, loc_prol);
          loc_prol.Transpose();
