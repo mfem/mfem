@@ -1051,6 +1051,9 @@ void forall(func_t f,
 #if defined(MFEM_USE_CUDA_OR_HIP)
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
+      // A zero grid dim is a valid no-op, but CUDA reports it as
+      // cudaErrorInvalidConfiguration, so screen it out here.
+      if (N <= 0) { return; }
       if constexpr (MAX_THREADS_PER_BLOCK > 0)
       {
          assert(num_bytes == 0);
