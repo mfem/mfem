@@ -1500,10 +1500,13 @@ std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
 
 /** Eigendecomposition for a symmetric 2x2 matrix
  *
- * @param Matrix for which the eigendecomposition will be computed. Must be
+ * @param A Matrix for which the eigendecomposition will be computed. Must be
  * symmetric, this is not checked.
  * @return tuple with the eigenvalues in the first element, and the matrix of
- * eigenvectors (columnwise) in the second element.
+ * corresponding eigenvectors (columnwise) in the second element.
+ * The eigenvalues are sorted in ascending order, each repeated according to
+ * its multiplicity. The eigenvectors are oriented so that they form a
+ * right-handed basis.
  *
  */
 MFEM_HOST_DEVICE
@@ -1569,9 +1572,10 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(const tensor
  * @param A Matrix for which the eigendecomposition will be computed. Must be
  * symmetric, this is not checked.
  * @return tuple with the eigenvalues in the first element, and the matrix of
- * normalized eigenvectors (columnwise) in the second element.
+ * corresponding eigenvectors (columnwise) in the second element.
  * The eigenvalues are sorted in ascending order, each repeated according to
- * its multiplicity.
+ * its multiplicity. The eigenvectors are oriented so that they form a
+ * right-handed basis.
  *
  * @note based on "A robust algorithm for finding the eigenvalues and
  * eigenvectors of 3x3 symmetric matrices", by Scherzinger & Dohrmann
