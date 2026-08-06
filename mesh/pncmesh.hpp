@@ -521,7 +521,7 @@ protected: // implementation
       int attribute;
    };
 
-   /** Used in Step 1 of Rebalance() to synchronize new rank assignments and
+   /** Used in RedistributeElements() to synchronize new rank assignments and
     *  element attributes in the ghost layer.
     */
    class NeighborElementRankMessage :

@@ -311,9 +311,14 @@ TEST_CASE("ParNCMesh Rebalance preserves element attributes",
    const int nranks = Mpi::WorldSize();
    if (nranks < 2) { return; }
 
-   auto CheckRebalance = [rank, nranks](bool refine, bool custom_partition)
+   auto mesh_fname = GENERATE("../../data/star.mesh",
+                              "../../data/fichera.mesh");
+   CAPTURE(mesh_fname);
+
+   auto CheckRebalance = [rank, nranks, mesh_fname](bool refine,
+                                                   bool custom_partition)
    {
-      Mesh mesh("../../data/star.mesh");
+      Mesh mesh(mesh_fname);
       mesh.EnsureNCMesh();
       ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
