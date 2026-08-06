@@ -387,10 +387,15 @@ int main(int argc, char *argv[])
     }
 
     // 10. Optimization loop.
-    int k = 0;
     real_t iterationError = 1.0;
     real_t init_comp = 1.0;
-    for (; (k < init_it) || (k < max_it && iterationError > tol); k++)
+
+    // Track next iteration for epsilon decay and beta doubling
+    int next_epsilon_decay = init_it;
+    int next_beta_double = init_it + beta_steps;
+
+    int it = 1;
+    for (; (it <= init_it) || (it <= max_it && iterationError > tol); it++)
     {
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
         rho.GetTrueDofs(rho_tv);
@@ -479,7 +484,7 @@ int main(int argc, char *argv[])
         rho_old = rho_tv;
 
         // Normalize compliance and gradient by initial value
-        if (k == 0) { init_comp = compliance; }
+        if (it == 1) { init_comp = compliance; }
         compliance /= init_comp;
         df0dx /= init_comp;
 
@@ -495,7 +500,7 @@ int main(int argc, char *argv[])
         if (myid == 0)
         {
             const int w = 14;               // column width
-            mfem::out << "\niteration " << k + 1 << '\n' << left
+            mfem::out << "\niteration " << it << '\n' << left
                     << setw(w) << "c"
                     << setw(w) << "volume"
                     << setw(w) << "res_thick"
@@ -510,7 +515,7 @@ int main(int argc, char *argv[])
                     <<               setprecision(3) << setw(w) << fival(1)
                     <<               setprecision(4) << setw(w) << iterationError << endl;
 
-            csv << k + 1 << ','
+            csv << it << ','
                 << scientific << setprecision(8) << compliance << ','
                 << vol << ','
                 << thickres << ','
@@ -519,19 +524,22 @@ int main(int argc, char *argv[])
             csv.flush();
         }
 
-        // (10) tighten the max-thickness tolerance
-        int iter_after_init = k + 1 - init_it;
-        if (iter_after_init % decay_int == 0 && k >= init_it)
+        // (10) tighten the max-thickness tolerance and update beta
+        // Epsilon decay: starts at init_it, then every decay_int iterations
+        if (it == next_epsilon_decay)
         {
             epsilon = std::max(epsilon * decay, eps_floor);
+            next_epsilon_decay += decay_int;
         }
 
-        if (iter_after_init % beta_steps == 0 && beta < beta_max && k >= init_it)
+        // Beta doubling: starts at init_it + beta_steps, then every beta_steps iterations
+        if (it == next_beta_double && beta < beta_max)
         {
             beta *= 2.0;
-
             rho_erod_cf.SetBeta(beta);  rho_erod_grad_cf.SetBeta(beta);
             rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
+            rho_inter_cf.SetBeta(beta);
+            next_beta_double += beta_steps;
         }
 
         // physical density for both GLVis and the ParaView archive
@@ -550,8 +558,8 @@ int main(int argc, char *argv[])
 
         // if (paraview)
         // {
-        //     paraview_dc.SetCycle(k + 1);
-        //     paraview_dc.SetTime(k + 1);
+        //     paraview_dc.SetCycle(it);
+        //     paraview_dc.SetTime(it);
         //     paraview_dc.Save();
         // }
     }
@@ -559,14 +567,14 @@ int main(int argc, char *argv[])
     if (myid == 0)
     {
         csv.close();
-        mfem::out << "\nfinished after " << k << " iterations\n";
+        mfem::out << "\nfinished after " << (it - 1) << " iterations\n";
     }
 
     // Option: save only the final solution instead of all iterations
     if (paraview)
     {
-        paraview_dc.SetCycle(k);
-        paraview_dc.SetTime(k);
+        paraview_dc.SetCycle(it - 1);
+        paraview_dc.SetTime(it - 1);
         paraview_dc.Save();
     }
 
