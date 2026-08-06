@@ -35,22 +35,6 @@ namespace future
 {
 
 /**
- * @brief Constructs a tensor of dual numbers from a tensor of values
- * @param[in] A The tensor of values
- * @note a d-order tensor's gradient will be initialized to the (2*d)-order identity tensor
- */
-template <int... n> MFEM_HOST_DEVICE constexpr
-auto make_dual(const tensor<real_t, n...>& A)
-{
-  tensor<dual<real_t, tensor<double, n...>>, n...> A_dual{};
-  for_constexpr<n...>([&](auto... i) {
-    A_dual(i...).value = A(i...);
-    A_dual(i...).gradient(i...) = 1.0;
-  });
-  return A_dual;
-}
-
-/**
  * @brief Differentiable approximation of maximum eigenvale of a symmetric tensor
  *
  * Estimates the maximum eigenvalue using
@@ -123,39 +107,6 @@ void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_3d[] = {
   };
 
 #endif // MFEM_USE_ENZYME
-
-// NOTE: I can't implmement this yet, the get_value() function for tensors is not implemented in MFEM.
-// Consider upstreaming it from Smith.
-// /**
-//  * @overload
-//  *
-//  * Custom derivative rule. This variant accepts tensors with dual number entries.
-//  */
-// template <typename gradient_type, int n> MFEM_HOST_DEVICE
-// auto smooth_max_eigenvalue_symm(const tensor<dual<real_t, gradient_type>, n, n>& A, double beta)
-// {
-//   using std::exp, std::log1p;
-//   auto [lambda, V] = eig_symm(get_value(A));
-//   double lambda_max = lambda[n - 1];
-//   double sum = 0;
-//   tensor<double, n - 1> eg;
-//   for (int i = 0; i < n; i++) {
-//     eg[i] = exp(beta*(lambda[i] - lambda_max));
-//     if (i != (n - 1)) sum += eg[i];
-//   }
-//   double value = lambda_max + std::log1p(sum)/beta;
-
-//   gradient_type gradient{};
-//   for (int mu = 0; mu < n; mu++) {
-//     for (int i = 0; i < n; i++) {
-//       for (int j = 0; j < n; j++) {
-//         gradient += V[i][mu]*eg[mu]*V[j][mu]*A[i][j].gradient/(sum + 1.0);
-//       }
-//     }
-//   }
-//   return dual<real_t, gradient_type>{value, gradient};
-// }
-
 
 } // namespace future
 } // namespace mfem
