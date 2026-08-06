@@ -169,10 +169,12 @@ public:
     is the forward transfer matrix, and M_f is the mass matrix on the coarse
     element. For L2 spaces, M_f is the mass matrix on the union of all fine
     elements comprising the coarse element. For H1 spaces, M_f is a diagonal
-    (lumped) mass matrix computed through row-summation. Note that the backward
-    transfer operator, B, is a left inverse of the forward transfer operator, F,
-    i.e. B F = I. Both F and B are defined in physical space and, generally for
-    L2 spaces, vary between different mesh elements.
+    (lumped) mass matrix computed through row-summation, unless
+    UseConsistentMass() is enabled for the forward H1 operator. When the
+    backward transfer operator, B, is supported, it is a left inverse of the
+    forward transfer operator, F, i.e. B F = I. Both F and B are defined in
+    physical space and, generally for L2 spaces, vary between different mesh
+    elements.
 
     This class supports H1 and L2 finite element spaces. Fine meshes are a
     uniform refinement of the coarse mesh, usually created through
@@ -352,16 +354,21 @@ public:
    class L2ProjectionH1Space : public L2Projection
    {
       const bool use_ea;
+      /// Use the consistent low-order mass matrix in non-EA H1 Mult() and
+      /// MultTranspose().
+      const bool use_consistent_mass;
 
    public:
       L2ProjectionH1Space(const FiniteElementSpace &fes_ho_,
                           const FiniteElementSpace &fes_lor_,
                           const bool use_ea_,
+                          const bool use_consistent_mass_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
                           const bool use_ea_,
+                          const bool use_consistent_mass_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 #endif
       /// Same as above but assembles action of R through 4 parts:
@@ -417,13 +424,33 @@ public:
       void SetAbsTol(real_t p_atol_) override;
 
    protected:
+      /// Applies the H1 transfer R = M_L^{-1} M_LH and its transpose, where
+      /// M_L is the consistent low-order mass matrix.
+      class H1ConsistentMassOperator : public Operator
+      {
+      private:
+         const Operator &M_LH;
+         const Solver &M_L_solver;
+
+      public:
+         H1ConsistentMassOperator(const Operator &M_LH_,
+                                  const Solver &M_L_solver_);
+
+         void Mult(const Vector &x, Vector &y) const override;
+
+         void MultTranspose(const Vector &x, Vector &y) const override;
+      };
+
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
 
-      /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
-      /// inverse lumped mass matrix error when compared to device implementation.
+      /** @brief Computes on-rank R and M_LH matrices.
+
+          If build_R is true, the returned pair contains both R and M_LH. If
+          build_R is false, the first pointer is null and only M_LH is built. */
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(
+             bool build_R = true);
 
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
@@ -453,20 +480,30 @@ public:
       /// elements and refined LOR elements.
       std::unique_ptr<SparseMatrix> AllocR();
 
-      CGSolver pcg;
-      std::unique_ptr<Solver> precon;
+      /// Consistent low-order mass matrix used when use_consistent_mass is true.
+      std::unique_ptr<Operator> M_L;
+      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
+      std::unique_ptr<Operator> M_LH;
+      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
+      // to multiply with scalar TDof LOR vectors.
+      std::unique_ptr<Operator> ML_inv_vea;
+      /// Preconditioner for applying the inverse consistent low-order mass
+      /// matrix.
+      std::unique_ptr<Solver> ML_precon;
+      /// Serial PCG solver for applying the inverse consistent low-order mass
+      /// matrix in H1 Mult() and MultTranspose().
+      CGSolver ML_pcg;
+      /// Solver used by H1ConsistentMassOperator to apply M_L^{-1}.
+      std::unique_ptr<Solver> ML_solver;
       // The restriction operator is represented as an Operator R. The
       // prolongation operator is a dense matrix computed as the inverse of (R^T
       // M_L R), and hence, is not stored.
       // If element assembly is enabled
       std::unique_ptr<Operator> R;
-      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
-      std::unique_ptr<Operator> M_LH;
       // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
       std::unique_ptr<Operator> RTxM_LH;
-      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
-      // to multiply with scalar TDof LOR vectors.
-      std::unique_ptr<Operator> ML_inv_vea;
+      std::unique_ptr<Solver> precon;
+      CGSolver pcg;
       // LDof Mixed mass operator built via EA. Wrapped with restriction maps to send
       // scalar LDof HO vectors to LDof LOR vectors.
       Operator *M_LH_local_op;
@@ -478,7 +515,6 @@ public:
       Vector M_LH_ea;
       // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
       Vector ML_inv_ea;
-
 #ifdef MFEM_USE_MPI
       std::unique_ptr<ParFiniteElementSpace> pfes_ho_scalar;
       std::unique_ptr<ParFiniteElementSpace> pfes_lor_scalar;
@@ -511,6 +547,9 @@ public:
    L2Projection   *F; ///< Forward, coarse-to-fine, operator
    L2Prolongation *B; ///< Backward, fine-to-coarse, operator
    bool force_l2_space;
+   /// Use the consistent low-order mass matrix for non-EA H1 Mult() and
+   /// MultTranspose().
+   bool use_consistent_mass;
 
 public:
    L2ProjectionGridTransfer(FiniteElementSpace &coarse_fes_,
@@ -518,9 +557,18 @@ public:
                             bool force_l2_space_ = false,
                             MemoryType d_mt_ = Device::GetHostMemoryType()) // move to method
       : GridTransfer(coarse_fes_, fine_fes_),
-        F(NULL), B(NULL), force_l2_space(force_l2_space_)
+        F(NULL), B(NULL), force_l2_space(force_l2_space_),
+        use_consistent_mass(false)
    { }
    virtual ~L2ProjectionGridTransfer();
+
+   /** @brief Use the consistent low-order mass matrix in H1 non-EA Mult() and
+       MultTranspose().
+
+       This option must be set before constructing the transfer operators. It
+       only affects H1 transfer, is not supported with element assembly, and
+       disables BackwardOperator(). */
+   void UseConsistentMass(bool use_consistent_mass_ = true);
 
    const Operator &ForwardOperator() override;
 
@@ -528,6 +576,7 @@ public:
 
    bool SupportsBackwardsOperator() const override;
 private:
+   bool UsesH1ConsistentMass() const;
    void BuildF();
 };
 
