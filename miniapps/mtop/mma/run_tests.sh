@@ -30,7 +30,10 @@
 # 3. Place the call in the relevant section:
 #    ── Core: serial          → MMA/GCMMA serial tests
 #    ── Core: parallel        → MMA/GCMMA parallel tests
+#    ── Equality-only MMA     → MMAEqualityOptimizer[Parallel] tests
 #    ── Device (CPU)          → device-backend tests
+#    ── CCSA: serial          → CCSAOptimizer serial tests
+#    ── CCSA: parallel        → CCSAOptimizerParallel tests
 #    ── SQ: serial            → SQ optimizer serial tests
 #    ── SQ: parallel          → SQ optimizer parallel tests
 #    ── Relaxed equalities    → PackFivalRelaxed / WithRelaxedEqualities tests
@@ -188,11 +191,34 @@ run_serial  mma_zero_ranks_1            test_mma_zero_ranks
 run_serial  mma_overconstrained_serial  test_mma_overconstrained
 run_serial  mma_equalities_serial       test_mma_equalities
 
+# ── Equality-only MMA: serial ────────────────────────────────────────────────
+# MMAEqualityOptimizer[Parallel] — dedicated equality-only MMA/GCMMA class
+# (distinct from the generalized-inequality "test_mma_equalities" above).
+# test_mma_equality_nonconvex is registered with LABELS large in CMake (mirrors
+# test_mma_nonconvex) and is intentionally not run here; invoke it directly or
+# via `ctest -L large` when you want the slow nonconvex SIMP coverage.
+
+section "Equality-only MMA: serial"
+run_serial  mma_equality_serial     test_mma_equality_serial
+
 # ── Device (CPU) ─────────────────────────────────────────────────────────────
 
 section "Device (CPU)"
 run_serial  mma_device_cpu          test_mma_device  --device cpu
 run_serial  sq_device_cpu           test_sq_device   --device cpu
+run_serial  ccsa_device_cpu         test_ccsa_device  --device cpu
+
+# ── CCSA Bregman approximation: serial ───────────────────────────────────────
+
+section "CCSA Bregman approximation: serial"
+run_serial  ccsa_serial             test_ccsa_serial
+run_serial  ccsa_unconstrained_serial  test_ccsa_unconstrained
+run_serial  ccsa_gcmma_serial       test_ccsa_gcmma
+run_serial  ccsa_gcmma_cb_serial    test_ccsa_gcmma_callback
+run_serial  ccsa_overconstrained_serial  test_ccsa_overconstrained
+run_serial  ccsa_equalities_serial  test_ccsa_equalities
+run_serial  ccsa_nonconvex_serial   test_ccsa_nonconvex
+run_serial  ccsa_zero_ranks_1       test_ccsa_zero_ranks
 
 # ── SQ approximation: serial ─────────────────────────────────────────────────
 
@@ -224,6 +250,31 @@ section "Core: parallel ($NRANKS ranks)"
 run_parallel  mma_parallel          test_mma_parallel
 run_parallel  mma_unconstrained_par test_mma_unconstrained
 run_parallel  mma_equalities_par        test_mma_equalities
+
+# ── Equality-only MMA: parallel ──────────────────────────────────────────────
+# test_mma_equality_parallel is an MPI-focused test (GlobalSum/GlobalMean
+# reductions), so it follows the "Relaxed equalities" pattern below: a
+# 1-rank serial-fallback entry plus the true NRANKS-rank entry, both gated
+# on MODE parallel|all.
+
+section "Equality-only MMA: parallel ($NRANKS ranks)"
+run_serial_and_parallel \
+    mma_equality_par_serial  \
+    mma_equality_par_${NRANKS}r \
+    test_mma_equality_parallel
+
+# ── CCSA Bregman approximation: parallel ─────────────────────────────────────
+
+section "CCSA Bregman approximation: parallel ($NRANKS ranks)"
+run_parallel  ccsa_parallel                 test_ccsa_parallel
+run_parallel  ccsa_serial_par               test_ccsa_serial
+run_parallel  ccsa_unconstrained_par        test_ccsa_unconstrained
+run_parallel  ccsa_gcmma_par                test_ccsa_gcmma
+run_parallel  ccsa_gcmma_cb_par             test_ccsa_gcmma_callback
+run_parallel  ccsa_overconstrained_par      test_ccsa_overconstrained
+run_parallel  ccsa_equalities_par           test_ccsa_equalities
+run_parallel  ccsa_nonconvex_par            test_ccsa_nonconvex
+run_parallel  ccsa_zero_ranks_par           test_ccsa_zero_ranks
 
 # ── SQ approximation: parallel ───────────────────────────────────────────────
 
