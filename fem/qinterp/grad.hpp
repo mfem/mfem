@@ -268,8 +268,9 @@ static void Derivatives3D(const int NE,
       DeviceMatrix B(BG[0], D1D, Q1D);
       DeviceMatrix G(BG[1], D1D, Q1D);
 
-      MFEM_SHARED real_t sm0[3][MQ1*MQ1*MQ1];
-      MFEM_SHARED real_t sm1[3][MQ1*MQ1*MQ1];
+      constexpr int MDQ = MD1 > MQ1 ? MD1 : MQ1;
+      MFEM_SHARED real_t sm0[3][MD1*MD1*MDQ];
+      MFEM_SHARED real_t sm1[3][MD1*MQ1*MQ1];
       DeviceTensor<3> X(sm0[2], D1D, D1D, D1D);
       DeviceTensor<3> DDQ0(sm0[0], D1D, D1D, Q1D);
       DeviceTensor<3> DDQ1(sm0[1], D1D, D1D, Q1D);
