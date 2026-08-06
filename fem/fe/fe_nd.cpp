@@ -1285,18 +1285,8 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
 void ND_SegmentElement::CalcShape(const IntegrationPoint &ip,
                                   Vector &shape) const
 {
-   if (obasis1d.IsIntegratedType())
-   {
-      Vector closed_shape(dof + 1), closed_dshape(dof + 1);
-      poly1d.GetBasis(dof, BasisType::GaussLobatto).Eval(
-         ip.x, closed_shape, closed_dshape);
-      obasis1d.ScaleIntegrated(false);
-      obasis1d.EvalIntegrated(closed_dshape, shape);
-   }
-   else
-   {
-      obasis1d.Eval(ip.x, shape);
-   }
+   if (obasis1d.IsIntegratedType()) { obasis1d.ScaleIntegrated(false); }
+   obasis1d.Eval(ip.x, shape);
 }
 
 void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,

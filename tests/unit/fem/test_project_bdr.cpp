@@ -17,12 +17,18 @@ using namespace mfem;
 namespace project_bdr
 {
 
-void Func_3D_lin(const Vector &x, Vector &v)
+void Func_lin(const Vector &x, Vector &v)
 {
-   v.SetSize(3);
-   v[0] =  1.234 * x[0] - 2.357 * x[1] + 3.572 * x[2];
-   v[1] =  2.537 * x[0] + 4.321 * x[1] - 1.234 * x[2];
-   v[2] = -2.572 * x[0] + 1.321 * x[1] + 3.234 * x[2];
+   const int dim = x.Size();
+   v.SetSize(dim);
+   v[0] = 1.234 * x[0] - 2.357 * x[1];
+   v[1] = 2.537 * x[0] + 4.321 * x[1];
+   if (dim == 3)
+   {
+      v[0] += 3.572 * x[2];
+      v[1] -= 1.234 * x[2];
+      v[2] = -2.572 * x[0] + 1.321 * x[1] + 3.234 * x[2];
+   }
 }
 
 TEST_CASE("3D ProjectBdrCoefficientNormal Vector",
@@ -41,7 +47,7 @@ TEST_CASE("3D ProjectBdrCoefficientNormal Vector",
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
-      VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
+      VectorFunctionCoefficient funcCoef(dim, Func_lin);
 
       SECTION("3D GetVectorValue tests for element type " +
               std::to_string(type))
@@ -133,7 +139,7 @@ TEST_CASE("3D ProjectBdrCoefficientNormal Scalar",
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
-      VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
+      VectorFunctionCoefficient funcCoef(dim, Func_lin);
 
       SECTION("3D GetVectorValue tests for element type " +
               std::to_string(type))
@@ -227,7 +233,7 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
       Mesh mesh = Mesh::MakeCartesian3D(
                      n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
 
-      VectorFunctionCoefficient funcCoef(dim, Func_3D_lin);
+      VectorFunctionCoefficient funcCoef(dim, Func_lin);
 
       SECTION("3D GetVectorValue tests for element type " +
               std::to_string(type))
@@ -305,65 +311,20 @@ TEST_CASE("3D ProjectBdrCoefficientTangent",
    }
 }
 
-TEST_CASE("2D ProjectBdrCoefficientTangent with IntegratedGLL",
+TEST_CASE("ProjectBdrCoefficientTangent with IntegratedGLL",
           "[GridFunction]"
           "[VectorGridFunctionCoefficient]")
 {
-   const int dim = 2;
-   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
-                                     true, 2.0, 3.0);
-   Vector constant({1.234, -2.357});
-   VectorConstantCoefficient constant_coef(constant);
-   Array<int> all_bdr(mesh.bdr_attributes.Max());
-   all_bdr = 1;
-
-   for (int order = 1; order <= 4; order++)
-   {
-      CAPTURE(order);
-      ND_FECollection nd_fec(order, dim, BasisType::GaussLobatto,
-                             BasisType::IntegratedGLL);
-      FiniteElementSpace nd_fespace(&mesh, &nd_fec);
-      GridFunction boundary_projection(&nd_fespace);
-      VectorGridFunctionCoefficient projected_coef(&boundary_projection);
-
-      boundary_projection = 0.0;
-      boundary_projection.ProjectBdrCoefficientTangent(constant_coef, all_bdr);
-
-      Vector tangent(dim);
-      Vector projected(dim);
-      for (int be = 0; be < mesh.GetNBE(); be++)
-      {
-         ElementTransformation *T = mesh.GetBdrElementTransformation(be);
-         const FiniteElement *fe = nd_fespace.GetBE(be);
-         const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(),
-                                                  2*order + 2);
-
-         for (int j = 0; j < ir.GetNPoints(); j++)
-         {
-            const IntegrationPoint &ip = ir.IntPoint(j);
-            T->SetIntPoint(&ip);
-            T->Jacobian().GetColumn(0, tangent);
-            tangent /= tangent.Norml2();
-            projected_coef.Eval(projected, *T, ip);
-
-            CAPTURE(be, j);
-            REQUIRE(projected * tangent ==
-                    MFEM_Approx(constant * tangent));
-         }
-      }
-   }
-}
-
-TEST_CASE("3D ProjectBdrCoefficientTangent with IntegratedGLL",
-          "[GridFunction]"
-          "[VectorGridFunctionCoefficient]")
-{
-   const int dim = 3;
-   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 2, Element::HEXAHEDRON,
+   const int dim = GENERATE(2, 3);
+   CAPTURE(dim);
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(1, 2, Element::QUADRILATERAL,
+                                     true, 2.0, 5.0) :
+               Mesh::MakeCartesian3D(1, 1, 2, Element::HEXAHEDRON,
                                      2.0, 3.0, 5.0);
    mesh.EnsureNodes();
    mesh.EnsureNCMesh(false);
-   VectorFunctionCoefficient func_coef(dim, Func_3D_lin);
+   VectorFunctionCoefficient func_coef(dim, Func_lin);
    Array<int> all_bdr(mesh.bdr_attributes.Max());
    all_bdr = 1;
 
