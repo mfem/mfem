@@ -729,9 +729,9 @@ auto outer(S A, T B) -> decltype(A * B)
 }
 
 template <typename T, int n, int m> MFEM_HOST_DEVICE
-tensor<T, n + m> flatten(tensor<T, n, m> A)
+tensor<T, n * m> flatten(tensor<T, n, m> A)
 {
-   tensor<T, n + m> B{};
+   tensor<T, n * m> B{};
    for (int i = 0; i < n; i++)
    {
       for (int j = 0; j < m; j++)
