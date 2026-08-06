@@ -27,8 +27,10 @@ namespace blas
 {
 
 // ---- Host mass apply (dense sum-fact) -------------------------------------
+// PreferTensorDense: hand nested sum-fact beats multi-RHS LAPACK tiles here
+// (mass is B-only + scalar Q-fn; GEMM/transpose overhead dominates at p~3–7).
 
-/** Dense sum-fact host mass 2D with serial over element tiles. */
+/** Dense sum-fact host mass 2D (serial over elements in outer tiles). */
 template <int D1D, int Q1D>
 inline void MassApplyTensors2D(const int NE, const real_t *B,
                                const real_t *Dv, const real_t *X,
@@ -91,7 +93,6 @@ inline void MassApplyTensors2D(const int NE, const real_t *B,
          }
       }
    };
-   // Tile over elements for multi-RHS batching.
    const int NB = mma::TensorTileNB(D1D, Q1D);
    const int ntiles = (NE + NB - 1) / NB;
    for (int tile = 0; tile < ntiles; ++tile)
@@ -102,7 +103,7 @@ inline void MassApplyTensors2D(const int NE, const real_t *B,
    }
 }
 
-/** blas_ sum-fact host mass 3D with serial over element tiles. */
+/** Dense sum-fact host mass 3D (serial over elements in outer tiles). */
 template <int D1D, int Q1D>
 inline void MassApplyTensors3D(const int NE, const real_t *B,
                                const real_t *Dv, const real_t *X,
@@ -212,8 +213,7 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
    }
 }
 
-/** Host mass tensor apply: dense sum-fact (blas_). Always preferred for the
-    registered D1D range (4..TensorsMmaMax) over the MMA Emulate shell. */
+/** PreferTensorDense → hand sum-fact. */
 template <int D1D, int Q1D>
 inline bool TryMassApplyTensors2D(const int NE,
                                   const Array<real_t> &b,
@@ -407,7 +407,7 @@ inline void MmaMassApplyTensors3D(const int NE,
 }
 
 /** Tensor mass apply story (same order as diffusion tensors):
-    host: PreferTensorDense → dense sum-fact (blas Try*)
+    host: PreferTensorDense → hand dense sum-fact (blas Try*)
     device / else: MMA or Emulate smem shell (2D/3D). */
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaMassApplyTensors(
