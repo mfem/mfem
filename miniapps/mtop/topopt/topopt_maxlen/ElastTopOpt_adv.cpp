@@ -506,14 +506,16 @@ int main(int argc, char *argv[])
                     << setw(w) << "res_thick"
                     << setw(w) << "eps"
                     << setw(w) << "fival"
+                    << setw(w) << "beta"
                     << setw(w) << "iterErr" << '\n'
-                    << string(6*w, '=') << '\n'
+                    << string(7*w, '=') << '\n'
                     << fixed      << setprecision(6) << setw(w) << compliance
                     <<               setprecision(4) << setw(w) << vol
                     << scientific << setprecision(3) << setw(w) << thickres
                     <<               setprecision(3) << setw(w) << epsilon
                     <<               setprecision(3) << setw(w) << fival(1)
-                    <<               setprecision(4) << setw(w) << iterationError << endl;
+                    << fixed      << setprecision(0) << setw(w) << beta
+                    << scientific << setprecision(4) << setw(w) << iterationError << endl;
 
             csv << it << ','
                 << scientific << setprecision(8) << compliance << ','
@@ -535,7 +537,7 @@ int main(int argc, char *argv[])
         // Beta doubling: starts at init_it + beta_steps, then every beta_steps iterations
         if (it == next_beta_double && beta < beta_max)
         {
-            beta *= 2.0;
+            beta *= 2;
             rho_erod_cf.SetBeta(beta);  rho_erod_grad_cf.SetBeta(beta);
             rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
             rho_inter_cf.SetBeta(beta);

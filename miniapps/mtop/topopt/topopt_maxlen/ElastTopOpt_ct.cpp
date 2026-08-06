@@ -695,14 +695,16 @@ int main(int argc, char *argv[])
                     << setw(w) << "res_thick_max"
                     << setw(w) << "eps"
                     << setw(w) << "fival_max"
+                    << setw(w) << "beta"
                     << setw(w) << "iterErr" << '\n'
-                    << string(6*w, '=') << '\n'
+                    << string(7*w, '=') << '\n'
                     << fixed      << setprecision(6) << setw(w) << compliance
                     <<               setprecision(4) << setw(w) << vol
                     << scientific << setprecision(3) << setw(w) << res_thick
                     <<               setprecision(3) << setw(w) << epsilon
                     <<               setprecision(3) << setw(w) << fi_thick
-                    <<               setprecision(4) << setw(w) << iterationError << '\n'
+                    << fixed      << setprecision(0) << setw(w) << beta
+                    << scientific << setprecision(4) << setw(w) << iterationError << '\n'
                     << "iteration runtime: " << fixed << setprecision(2)
                     << iter_runtime << " s,   elapsed time at end: "
                     << iter_end_time << " s" << endl;
@@ -728,7 +730,7 @@ int main(int argc, char *argv[])
         // Beta doubling: starts at init_it + beta_steps, then every beta_steps iterations
         if (it == next_beta_double && beta < beta_max)
         {
-            beta *= 2.0;
+            beta *= 2;
             rho_erod_cf.SetBeta(beta);  rho_erod_grad_cf.SetBeta(beta);
             rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
             rho_inter_cf.SetBeta(beta);
@@ -804,7 +806,7 @@ std::unique_ptr<VectorCoefficient> MakeRayCoeff(RayMode mode, const RaySpec &spe
         return std::make_unique<VectorConstantCoefficient>(axis);
     }
 
-    const real_t R = 1.5 / tan(spec.half_ang);
+    const real_t R = 1.1 / tan(spec.half_ang);
     Vector src(axis); src *= -R;
     auto field = [src, dim](const Vector &x, Vector &d)
     {
