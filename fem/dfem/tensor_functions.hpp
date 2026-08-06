@@ -85,6 +85,7 @@ namespace detail
 template<int n> MFEM_HOST_DEVICE
 dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
 {
+  WARN("CALLING CUSTOM DERIVATIVE (REF VER)");
   auto [lambda, V] = eig_symm(A);
   real_t lambda_max = lambda[n - 1];
   real_t sum = 0;
@@ -103,7 +104,6 @@ dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, 
       }
     }
   }
-  WARN("CALLING CUSTOM DERIVATIVE (REF VER)");
   return {value, derivative};
 }
 

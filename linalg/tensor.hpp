@@ -1557,8 +1557,8 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(const tensor
       e(1) = d0;
       v(0, 0) =  s;
       v(1, 0) =  c;
-      v(0, 1) =  c;
-      v(1, 1) = -s;
+      v(0, 1) = -c;
+      v(1, 1) =  s;
    }
 
    return {e, v};

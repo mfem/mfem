@@ -114,10 +114,8 @@ TEST_CASE("Eigenvalues2x2", "[Tensor]")
    tensor<real_t, 2> lambda{{8.0, 8.0 + 1e-12}};
    tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
-   INFO("A = " << A);
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   INFO("eigenvals = " << eigenvals);
-   INFO("eigenvecs = " << eigenvecs);
+   CHECK_THAT(det(eigenvecs), Catch::WithinULP(1.0, 2));
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
 
@@ -130,10 +128,8 @@ TEST_CASE("Eigenvalues2x2Distinct", "[Tensor]")
    tensor<real_t, 2> lambda{{-4.3, 8.0}};
    tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
-   INFO("A = " << A);
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   INFO("eigenvecs = " << eigenvecs);
-   INFO("eigenvecs = " << eigenvecs);
+   CHECK_THAT(det(eigenvecs), Catch::WithinULP(1.0, 2));
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
 
@@ -147,7 +143,7 @@ TEST_CASE("Eigenvalues3x3", "[Tensor]")
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   INFO("eigenvecs = " << eigenvecs);
+   CHECK_THAT(det(eigenvecs), Catch::WithinULP(1.0, 2));
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
    CHECK_THAT(eigenvals[2], Catch::WithinULP(lambda[2], 2));
@@ -156,13 +152,22 @@ TEST_CASE("Eigenvalues3x3", "[Tensor]")
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
 
-TEST_CASE("SmoothMaxEigenvalue", "[Tensor]")
+TEST_CASE("SmoothMaxEigenvalue of 3x3", "[Tensor]")
 {
    tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    auto M = smooth_max_eigenvalue_symm(A, 10.0);
    CHECK_THAT(M, Catch::WithinAbs(lambda[2], std::log(real_t(3))));
+}
+
+TEST_CASE("SmoothMaxEigenvalue of 2x2", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto M = smooth_max_eigenvalue_symm(A, 4.0);
+   CHECK_THAT(M, Catch::WithinAbs(lambda[1], 1e-5));
 }
 
 // TEST_CASE("SmoothMaxEigenvalueDualDerivative", "[Tensor]")
