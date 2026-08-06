@@ -9,21 +9,25 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../fem/kernels.hpp"
-#include "../../general/forall.hpp"
-#include "../fem.hpp"
-
 #include "lininteg_domain_kernels.hpp"
+#include "lininteg_domain_simplices_mma.hpp"
 
 /// \cond DO_NOT_DOCUMENT
 
 namespace mfem
 {
+
 static void DLFEvalAssemble(const FiniteElementSpace &fes,
                             const IntegrationRule *ir,
                             const Array<int> &markers, const Vector &coeff,
                             Vector &y)
 {
+   if (UsesSimplexMMA(fes))
+   {
+      DLFEvalAssembleSimplexMma(fes, ir, markers, coeff, y);
+      return;
+   }
+
    Mesh *mesh = fes.GetMesh();
    const int dim = mesh->Dimension();
    const FiniteElement &el = *fes.GetTypicalFE();
@@ -77,12 +81,9 @@ DomainLFIntegrator::AssembleKernels::Fallback(int DIM, int, int)
 {
    switch (DIM)
    {
-      case 1:
-         return DLFEvalAssemble1D<0, 0>;
-      case 2:
-         return DLFEvalAssemble2D<0, 0>;
-      case 3:
-         return DLFEvalAssemble3D<0, 0>;
+      case 1: return DLFEvalAssemble1D<0, 0>;
+      case 2: return DLFEvalAssemble2D<0, 0>;
+      case 3: return DLFEvalAssemble3D<0, 0>;
    }
    MFEM_ABORT("");
 }
@@ -113,6 +114,8 @@ DomainLFIntegrator::Kernels::Kernels()
    DomainLFIntegrator::AddSpecialization<3, 3, 4>();
    DomainLFIntegrator::AddSpecialization<3, 4, 5>();
    DomainLFIntegrator::AddSpecialization<3, 5, 6>();
+
+   RegisterSimplexMmaKernels();
 }
 
 /// \endcond DO_NOT_DOCUMENT

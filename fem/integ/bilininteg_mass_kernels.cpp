@@ -18,6 +18,30 @@ namespace mfem
 MassIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q = P, only for simplex
+   MassIntegrator::AddSimplexSpecialization<2,2,1>();
+   MassIntegrator::AddSimplexSpecialization<2,3,2>();
+   MassIntegrator::AddSimplexSpecialization<2,4,3>();
+   MassIntegrator::AddSimplexSpecialization<2,5,4>();
+   MassIntegrator::AddSimplexSpecialization<2,6,5>();
+   MassIntegrator::AddSimplexSpecialization<2,7,6>();
+   MassIntegrator::AddSimplexSpecialization<2,8,7>();
+   MassIntegrator::AddSimplexSpecialization<2,9,8>();
+   // Higher Q (Stroud / Positive PA, Q > P)
+   MassIntegrator::AddSimplexSpecialization<2,2,4>();
+   MassIntegrator::AddSimplexSpecialization<2,3,5>();
+   MassIntegrator::AddSimplexSpecialization<2,4,6>();
+   MassIntegrator::AddSimplexSpecialization<2,4,7>();
+   MassIntegrator::AddSimplexSpecialization<2,5,7>();
+   MassIntegrator::AddSimplexSpecialization<2,5,8>();
+   MassIntegrator::AddSimplexSpecialization<2,6,8>();
+   MassIntegrator::AddSimplexSpecialization<2,6,9>();
+   MassIntegrator::AddSimplexSpecialization<2,7,9>();
+   MassIntegrator::AddSimplexSpecialization<2,7,10>();
+   MassIntegrator::AddSimplexSpecialization<2,8,10>();
+   MassIntegrator::AddSimplexSpecialization<2,8,11>();
+   MassIntegrator::AddSimplexSpecialization<2,9,11>();
+   MassIntegrator::AddSimplexSpecialization<2,9,12>();
    // Q=P+1
    MassIntegrator::AddSpecialization<2,1,1>();
    MassIntegrator::AddSpecialization<2,2,2>();
@@ -45,6 +69,14 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<2,4,6>();
 
    // 3D
+   // Q = P, only for simplex
+   MassIntegrator::AddSimplexSpecialization<3,2,1>();
+   MassIntegrator::AddSimplexSpecialization<3,3,2>();
+   MassIntegrator::AddSimplexSpecialization<3,4,3>();
+   MassIntegrator::AddSimplexSpecialization<3,5,4>();
+   MassIntegrator::AddSimplexSpecialization<3,6,5>();
+   MassIntegrator::AddSimplexSpecialization<3,7,6>();
+   MassIntegrator::AddSimplexSpecialization<3,8,7>();
    // Q=P+1
    MassIntegrator::AddSpecialization<3,1,1>();
    MassIntegrator::AddSpecialization<3,2,2>();
@@ -69,6 +101,9 @@ MassIntegrator::Kernels::Kernels()
    MassIntegrator::AddSpecialization<3,2,4>();
    MassIntegrator::AddSpecialization<3,4,6>();
    MassIntegrator::AddSpecialization<3,5,8>();
+
+   RegisterSimplexMmaKernels();
+   RegisterTensorsMmaKernels();
 }
 
 namespace internal

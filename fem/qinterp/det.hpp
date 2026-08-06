@@ -342,7 +342,12 @@ QuadratureInterpolator::DetKernels::Kernel()
    }
    else if constexpr (DIM == 2 && SDIM == 2) { return internal::quadrature_interpolator::Det2D<D1D, Q1D>; }
    else if constexpr (DIM == 2 && SDIM == 3) { return internal::quadrature_interpolator::Det2DSurface<D1D, Q1D>; }
-   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Det3D<D1D, Q1D>; }
+   else if constexpr (DIM == 3)
+   {
+      constexpr auto MAX_DET_1D = DofQuadLimits::MAX_DET_1D;
+      constexpr bool SMEM = (D1D <= MAX_DET_1D && Q1D <= MAX_DET_1D);
+      return internal::quadrature_interpolator::Det3D<D1D, Q1D, SMEM>;
+   }
    MFEM_ABORT("");
 }
 

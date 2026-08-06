@@ -55,6 +55,29 @@ constexpr bool mfem_use_gpu = true;
 namespace mfem
 {
 
+/// X-only thread index (tensor-product / 1D launches). Host returns 0.
+#ifndef MFEM_HAS_DEVICE_THREAD_IDX_X
+#define MFEM_HAS_DEVICE_THREAD_IDX_X
+MFEM_HOST_DEVICE inline int DeviceThreadIdxX()
+{
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   return static_cast<int>(threadIdx.x);
+#else
+   return 0;
+#endif
+}
+
+/// X-only block size. Host returns 1.
+MFEM_HOST_DEVICE inline int DeviceBlockNthreadsX()
+{
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+   return static_cast<int>(blockDim.x);
+#else
+   return 1;
+#endif
+}
+#endif // MFEM_HAS_DEVICE_THREAD_IDX_X
+
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 // Function used by the macro MFEM_GPU_CHECK.
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
@@ -99,6 +122,12 @@ void CuCheckLastError();
 
 /// Get the number of CUDA devices
 int CuGetDeviceCount();
+
+/// Active CUDA device id (0 if CUDA disabled).
+int CuGetDevice();
+
+/// Max shared memory (bytes) per block on device @a dev (0 if disabled).
+int CuSharedMemoryPerBlock(int dev);
 
 } // namespace mfem
 

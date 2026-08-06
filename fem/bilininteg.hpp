@@ -2193,13 +2193,22 @@ public:
                                           const Vector&, const Vector&,
                                           Vector&, const int, const int);
 
+   using ApplySimplexMmaKernelType = void(*)(const int, const bool,
+                                             const Array<real_t>&,
+                                             const Vector&, const Vector&, Vector&);
+   using ApplyTensorsMmaKernelType = ApplyKernelType;
+
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
-                                                                         int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
+                         (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2220,9 +2229,13 @@ private:
    const FiniteElementSpace *fespace;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, dofs1D, quad1D;
+   int dim, ne, nq, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool use_simplices_mma = false;
+   bool use_tensors_mma = false;
+   /// Dense reference gradients at quads: nq × ndof × dim
+   Array<real_t> simplex_mma_G;
 
    // Data for NURBS patch PA
 
@@ -2330,6 +2343,10 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
 
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
+
+   int GetNq() const { return nq; }
+
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
@@ -2372,6 +2389,27 @@ public:
    {
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,QND>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorsMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplyTensorsMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   static void RegisterSimplexMmaKernels();
+   static void RegisterTensorsMmaKernels();
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
       const FiniteElement& trial_fe,
@@ -2398,6 +2436,10 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+   bool use_simplices_mma = false;
+   bool use_tensors_mma = false;
+   /// Dense basis evaluation at quadrature points (nq × ndof).
+   Array<real_t> simplex_mma_P;
 
    void AssembleEA_(Vector &ea, const bool add);
 
@@ -2416,13 +2458,21 @@ public:
                                           const Vector&, const Vector&, Vector&,
                                           const int, const int);
 
+   using ApplySimplexMmaKernelType = void(*)(const int, const Array<real_t>&,
+                                             const Vector&, const Vector&, Vector&);
+   using ApplyTensorsMmaKernelType = ApplyKernelType;
+
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
                                        const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
-   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
-                                                                         int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
+                         (int, int, int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2446,6 +2496,10 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
+
+   int GetNq() const { return nq; }
 
    void AssemblePABoundary(const FiniteElementSpace &fes) override;
 
@@ -2491,6 +2545,27 @@ public:
    {
       ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplySimplexMmaPAKernels::Specialization<DIM,D1D,QND>::Add();
+      }
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorsMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         ApplyTensorsMmaPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      }
+   }
+
+   static void RegisterSimplexMmaKernels();
+   static void RegisterTensorsMmaKernels();
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
@@ -2646,7 +2721,7 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int ne, dim, dofs1D, quad1D, coeff_vdim;
+   int ne, dim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
 
 public:
@@ -2671,6 +2746,8 @@ public:
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
+
+   int GetNq() const { return nq; }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3205,7 +3282,7 @@ protected:
    // PA extension
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int ne, dim, sdim, dofs1D, quad1D, coeff_vdim;
+   int ne, dim, sdim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
 
 public:
@@ -3253,6 +3330,8 @@ public:
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
    VectorDiffusionIntegrator(MatrixCoefficient& mq);
+
+   int GetNq() const { return nq; }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,

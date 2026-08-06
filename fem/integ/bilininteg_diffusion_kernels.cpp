@@ -27,6 +27,23 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSimplexSpecialization<2,5,4>();
    DiffusionIntegrator::AddSimplexSpecialization<2,6,5>();
    DiffusionIntegrator::AddSimplexSpecialization<2,7,6>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,8,7>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,9,8>();
+   // Higher Q (Stroud / Positive PA, Q > P)
+   DiffusionIntegrator::AddSimplexSpecialization<2,2,4>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,3,5>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,4,6>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,4,7>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,5,7>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,5,8>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,6,8>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,6,9>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,7,9>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,7,10>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,8,10>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,8,11>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,9,11>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,9,12>();
    // Q = P+1
    DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
@@ -81,6 +98,9 @@ DiffusionIntegrator::Kernels::Kernels()
    // others
    DiffusionIntegrator::AddSpecialization<3,4,6>();
    DiffusionIntegrator::AddSpecialization<3,5,8>();
+
+   RegisterSimplexMmaKernels();
+   RegisterTensorsMmaKernels();
 }
 
 namespace internal

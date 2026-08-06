@@ -11,7 +11,8 @@
 
 // Implementation of class LinearForm
 
-#include "fem.hpp"
+#include "linearform.hpp"
+#include "integ/mma/mma.hpp"
 
 namespace mfem
 {
@@ -153,10 +154,16 @@ bool LinearForm::SupportsDevice() const
    const int mesh_dim = mesh.Dimension();
    if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
-   // tensor-product finite element space only
-   if (!UsesTensorBasis(*fes)) { return false; }
+   // Tensor-product FE spaces use the existing device kernels
+   if (UsesTensorBasis(*fes)) { return true; }
 
-   return true;
+   // Simplices with no boundary linear form can use MMA
+   if (UsesSimplexMMA(*fes) && boundary_integs.Size() == 0)
+   {
+      return true;
+   }
+
+   return false;
 }
 
 void LinearForm::UseFastAssembly(bool use_fa)

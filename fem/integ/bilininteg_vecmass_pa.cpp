@@ -24,6 +24,7 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const auto *ir = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, Trans);
+   nq = ir->GetNPoints();
 
    if (DeviceCanUseCeed())
    {
@@ -46,7 +47,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    ne = mesh->GetNE();
    dim = mesh->Dimension();
-   const int nq = ir->GetNPoints();
    const int sdim = mesh->SpaceDimension();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
