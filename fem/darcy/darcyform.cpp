@@ -445,7 +445,7 @@ void DarcyForm::FormLinearSystem(const Array<int> &ess_flux_tdof_list,
 
          if (bsym)
          {
-            //In the case of the symmetrized system, the sign is oppposite!
+            //In the case of the symmetrized system, the sign is opposite!
             B_b.GetBlock(1) -= Bp;
          }
          else
@@ -1204,7 +1204,7 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
    {
       if (bsym)
       {
-         //In the case of the symmetrized system, the sign is oppposite!
+         //In the case of the symmetrized system, the sign is opposite!
          Vector b_(fes_p->GetVSize());
          b_ = 0.;
          B->EliminateTrialVDofsInRHS(vdofs_flux, x.GetBlock(0), b_);

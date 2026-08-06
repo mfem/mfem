@@ -238,7 +238,7 @@ public:
    */
    void RecoverFEMSolution(const Vector &X, BlockVector &x) override;
 
-   /** @brief Use the stored eliminated part of the sytem to modify the r.h.s.
+   /** @brief Use the stored eliminated part of the system to modify the r.h.s.
        @a b; @a tdofs_flux is a list of true DOFs. */
    void ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
                                     const BlockVector &x, BlockVector &b);

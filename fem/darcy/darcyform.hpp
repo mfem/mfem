@@ -50,7 +50,7 @@ namespace mfem
 
     The individual terms of the system are accessed through Get*Form() or
     Get*RHS() methods, where the non-const versions construct the corresponding
-    forms at the first occurance. After setting up the (bi)linear forms, the
+    forms at the first occurence. After setting up the (bi)linear forms, the
     system is assembled through Assemble() and finalized by Finalize(),
     similarly to BilinearForm. Furthermore, the elimination of the essential
     TDOFs and construction of the discrete linear system is done through
@@ -408,7 +408,7 @@ public:
       ReconstructFluxAndPot(sol, ut, u, p, tr);
    }
 
-   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /// Use the stored eliminated part of the system to modify the r.h.s.
    /** @param tdofs_flux   list of flux true DOFs
        @param x            solution vector providing the true DOF values
        @param b            (true) right hand side vector
@@ -416,7 +416,7 @@ public:
    void EliminateTrueDofsInRHS(const Array<int> &tdofs_flux,
                                const BlockVector &x, BlockVector &b);
 
-   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /// Use the stored eliminated part of the system to modify the r.h.s.
    /** @param vdofs_flux   list of flux VDOFs (non-directional, i.e. >= 0)
        @param x            solution vector providing the VDOF values
        @param b            right hand side vector
