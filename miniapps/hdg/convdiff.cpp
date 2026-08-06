@@ -617,7 +617,7 @@ int main(int argc, char *argv[])
       {
          darcy->EnableFluxReduction();
       }
-      else if (!bconv)
+      else if (!bconv && btime)
       {
          darcy->EnablePotentialReduction(ess_flux_tdofs_list);
       }
