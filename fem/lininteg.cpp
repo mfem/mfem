@@ -660,11 +660,10 @@ void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
 
       // scalar term
       const real_t VF_n = w * (vf * nor);
-      for (int d = 0; d < dim; d++)
-         for (int i = 0; i < dof; i++)
-         {
-            elvect(i) += shape(i) * VF_n;
-         }
+      for (int i = 0; i < dof; i++)
+      {
+         elvect(i) += shape(i) * VF_n;
+      }
 
       // symmetric tensor term
       int doff = 1;
