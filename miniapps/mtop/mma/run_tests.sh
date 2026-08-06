@@ -201,6 +201,16 @@ run_serial  mma_equalities_serial       test_mma_equalities
 section "Equality-only MMA: serial"
 run_serial  mma_equality_serial     test_mma_equality_serial
 
+# ── Equality-only SQ: serial ─────────────────────────────────────────────────
+# SQEqualityOptimizer[Parallel] — same affine-equality machinery as
+# MMAEqualityOptimizer above, but a stateless SQ trust region for the
+# objective instead of history-adaptive MMA asymptotes. test_sq_equality_
+# nonconvex is registered with LABELS large in CMake and intentionally not
+# run here; invoke it directly or via `ctest -L large`.
+
+section "Equality-only SQ: serial"
+run_serial  sq_equality_serial      test_sq_equality_serial
+
 # ── Device (CPU) ─────────────────────────────────────────────────────────────
 
 section "Device (CPU)"
@@ -262,6 +272,16 @@ run_serial_and_parallel \
     mma_equality_par_serial  \
     mma_equality_par_${NRANKS}r \
     test_mma_equality_parallel
+
+# ── Equality-only SQ: parallel ───────────────────────────────────────────────
+# test_sq_equality_parallel follows the same MPI-focused pattern as
+# test_mma_equality_parallel above.
+
+section "Equality-only SQ: parallel ($NRANKS ranks)"
+run_serial_and_parallel \
+    sq_equality_par_serial  \
+    sq_equality_par_${NRANKS}r \
+    test_sq_equality_parallel
 
 # ── CCSA Bregman approximation: parallel ─────────────────────────────────────
 

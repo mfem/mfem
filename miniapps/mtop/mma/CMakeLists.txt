@@ -406,6 +406,9 @@ mma_add_test(NAME test_sq_zero_ranks     PARALLEL)
 mma_add_test(NAME test_sq_nonconvex      PARALLEL)
 mma_add_test(NAME test_sq_equalities     PARALLEL)
 mma_add_test(NAME test_sq_parallel       PARALLEL)
+mma_add_test(NAME test_sq_equality_serial)
+mma_add_test(NAME test_sq_equality_parallel          PARALLEL)
+mma_add_test(NAME test_sq_equality_nonconvex         PARALLEL LABELS large)
 
 mma_add_test(NAME test_sq_device ARGS --device cpu)
 

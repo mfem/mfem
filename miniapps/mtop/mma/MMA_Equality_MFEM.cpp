@@ -106,6 +106,39 @@ void UpdateAsymptotes(int n, int iter, double asyminit, double asymdec,
 }
 
 /**
+ * Build the SQ trust region: a stateless, symmetric move-limit box
+ * L = x - sigma, U = x + sigma with sigma = sigma_scale * range, clipped to
+ * [xmin, xmax] for alpha/beta. Unlike UpdateAsymptotes(), there is no
+ * history (no xo1/xo2, no oscillation-based grow/shrink) -- the same scale
+ * is applied fresh from the current iterate on every call.
+ */
+void BuildTrustRegion(int n, const mfem::Vector &x,
+                      const mfem::Vector &xmin, const mfem::Vector &xmax,
+                      double sigma_scale,
+                      mfem::Vector &L, mfem::Vector &U,
+                      mfem::Vector &alpha, mfem::Vector &beta)
+{
+   const bool use_dev=x.UseDevice();
+   const mfem::real_t *xp=x.Read();
+   const mfem::real_t *xmn=xmin.Read(), *xmx=xmax.Read();
+   mfem::real_t *lp=L.Write(), *up=U.Write();
+   mfem::real_t *ap=alpha.Write(), *bp=beta.Write();
+
+   mfem::forall_switch(use_dev,n,[=] MFEM_HOST_DEVICE (int j)
+   {
+      const double xj = double(xp[j]);
+      const double range = fmax(double(xmx[j]) - double(xmn[j]), 1e-12);
+      const double sigma = sigma_scale*range;
+      const double lj = xj - sigma;
+      const double uj = xj + sigma;
+      lp[j] = mfem::real_t(lj);
+      up[j] = mfem::real_t(uj);
+      ap[j] = mfem::real_t(fmax(double(xmn[j]), lj));
+      bp[j] = mfem::real_t(fmin(double(xmx[j]), uj));
+   });
+}
+
+/**
  * Build the separable MMA objective coefficients p0/q0 from the current
  * gradient df0dx and asymptotes L/U, following Svanberg's convex MMA
  * approximation. @p rho adds a curvature floor shared by both p0 and q0
@@ -172,6 +205,60 @@ double ObjectiveRho(int n,const mfem::Vector &df0dx,
    (void)parallel;
 #endif
    return std::max(1e-6,0.5*global/double(std::max<long long>(global_n,1)));
+}
+
+/**
+ * SQ objective curvature: a closed-form estimate designed to already be a
+ * valid global upper bound on the true objective over the trust region
+ * (same formula as SQOptimizer's SQRho in MMA_MFEM.cpp), taken as the max
+ * of three quantities: a range-based stability floor, a sum-of-gradient
+ * estimate, and a pointwise-max estimate scaled so the move limit
+ * satisfies the quadratic model's sufficient-decrease condition. When
+ * @p parallel is set, all three quantities and the design size are
+ * reduced across @p comm before combining.
+ */
+double SQRho(int n,const mfem::Vector &df0dx,
+            const mfem::Vector &xmin,const mfem::Vector &xmax,
+            bool parallel
+#ifdef MFEM_USE_MPI
+            ,MPI_Comm comm=MPI_COMM_NULL
+#endif
+            )
+{
+   mfem::Vector work(n); work.UseDevice(df0dx.UseDevice());
+   const mfem::real_t *gp=df0dx.Read();
+   const mfem::real_t *xmn=xmin.Read(),*xmx=xmax.Read();
+   mfem::real_t *wp=work.Write();
+   mfem::forall_switch(df0dx.UseDevice(),n,[=] MFEM_HOST_DEVICE (int j)
+   { wp[j]=mfem::real_t(fabs(double(gp[j]))*
+                        fmax(double(xmx[j])-double(xmn[j]),1e-12)); });
+   double local_sum=double(work.Sum());
+   double local_max=double(work.Max());
+
+   mfem::Vector stable(n); stable.UseDevice(df0dx.UseDevice());
+   mfem::real_t *sp=stable.Write();
+   mfem::forall_switch(df0dx.UseDevice(),n,[=] MFEM_HOST_DEVICE (int j)
+   { const double r=fmax(double(xmx[j])-double(xmn[j]),1e-12);
+     sp[j]=mfem::real_t(0.5*r*r); });
+   double local_stable=double(stable.Max());
+
+   double global_sum=local_sum, global_max=local_max, global_stable=local_stable;
+   long long global_n=n;
+#ifdef MFEM_USE_MPI
+   if(parallel)
+   {
+      MPI_Allreduce(&local_sum,&global_sum,1,MPI_DOUBLE,MPI_SUM,comm);
+      MPI_Allreduce(&local_max,&global_max,1,MPI_DOUBLE,MPI_MAX,comm);
+      MPI_Allreduce(&local_stable,&global_stable,1,MPI_DOUBLE,MPI_MAX,comm);
+      long long nl=n;
+      MPI_Allreduce(&nl,&global_n,1,MPI_LONG_LONG,MPI_SUM,comm);
+   }
+#else
+   (void)parallel;
+#endif
+   const double n_d=double(std::max<long long>(global_n,1));
+   return std::max({1e-6, 0.5/n_d*global_sum, (0.5/0.9)*global_max,
+                    global_stable/n_d});
 }
 
 /**
@@ -921,6 +1008,175 @@ mfem::real_t MMAEqualityOptimizer::KKTresidual(const mfem::Vector &x,
                                     lambda_,false));
 }
 
+// SQEqualityOptimizer shares its equality-handling machinery byte-for-byte
+// with MMAEqualityOptimizer above (same CheckInput/CheckRestorationInput,
+// SubproblemData/RestorationData, SolveSubproblem/RestoreAffine,
+// ProjectedKKT); only the trust-region/curvature construction differs
+// (BuildTrustRegion+SQRho instead of UpdateAsymptotes+ObjectiveRho), and
+// there is no oscillation history (xo1_/xo2_) to maintain.
+
+SQEqualityOptimizer::SQEqualityOptimizer(int n, int m_equalities)
+   : n_(n), m_(m_equalities), lambda_(m_equalities,0.0)
+{
+   MFEM_VERIFY(n>=0 && m_equalities>=0, "negative SQ equality problem size");
+}
+
+void SQEqualityOptimizer::EnsureInitialized_(const mfem::Vector &x)
+{
+   MFEM_VERIFY(x.Size()==n_, "SQ equality design vector has the wrong size");
+   if(p0_.Size()==n_ && (n_>0 || iter_>0)) return;
+   const bool use_device=x.UseDevice();
+   InitVector(p0_,n_,use_device); InitVector(q0_,n_,use_device);
+   InitVector(L_,n_,use_device); InitVector(U_,n_,use_device);
+   InitVector(alpha_,n_,use_device); InitVector(beta_,n_,use_device);
+}
+
+void SQEqualityOptimizer::SetSigmaScale(mfem::real_t s)
+{ sigma_scale_=double(s); }
+
+// Builds the SQ trust region and separable objective at xk, solves for the
+// equality multipliers with SolveSubproblem(), and unconditionally accepts
+// the result (no globalization, unlike UpdateGCMMA()).
+void SQEqualityOptimizer::Update(mfem::Vector &x,const mfem::Vector &df0dx,
+   mfem::real_t,const mfem::Vector &hval,const mfem::Vector *dhdx,
+   const mfem::Vector &xmin,const mfem::Vector &xmax)
+{
+   CheckInput(n_,m_,x,df0dx,hval,dhdx,xmin,xmax);
+   EnsureInitialized_(x);
+   mfem::Vector xk(x);
+   BuildTrustRegion(n_,x,xmin,xmax,sigma_scale_,L_,U_,alpha_,beta_);
+   const double rho=SQRho(n_,df0dx,xmin,xmax,false);
+   BuildObjective(n_,x,df0dx,xmin,xmax,L_,U_,p0_,q0_,rho);
+   SubproblemData data;
+   data.n=n_; data.m=m_; data.xk=&xk; data.h=&hval; data.dh=dhdx;
+   data.L=&L_; data.U=&U_; data.alpha=&alpha_; data.beta=&beta_;
+   data.p0=&p0_; data.q0=&q0_;
+   SolveSubproblem(data,lambda_,x);
+   ++iter_; last_step_accepted_=true;
+}
+
+// Retries the subproblem with a grown curvature parameter and a
+// contracted move-limit box until the candidate is conservative and
+// passes a merit/feasibility/stationarity test, or max_inner is
+// exhausted; then falls back to one affine restoration attempt.
+void SQEqualityOptimizer::UpdateGCMMA(mfem::Vector &x,
+   const mfem::Vector &df0dx,mfem::real_t f0val,
+   const mfem::Vector &hval,const mfem::Vector *dhdx,
+   const mfem::Vector &xmin,const mfem::Vector &xmax,
+   GCMMAEvalCallback evaluate,int max_inner,int *inner_iterations)
+{
+   CheckInput(n_,m_,x,df0dx,hval,dhdx,xmin,xmax);
+   MFEM_VERIFY(bool(evaluate),"SQ equality GCMMA requires an evaluator");
+   MFEM_VERIFY(max_inner>0,"SQ equality GCMMA requires max_inner > 0");
+   EnsureInitialized_(x);
+   mfem::Vector xk(x);
+   BuildTrustRegion(n_,xk,xmin,xmax,sigma_scale_,L_,U_,alpha_,beta_);
+   double rho=SQRho(n_,df0dx,xmin,xmax,false);
+   const std::vector<double> lambda_k=lambda_;
+   const double theta0=Norm1(hval);
+   bool accepted=false;
+   int attempts=0;
+
+   SubproblemData data;
+   data.n=n_; data.m=m_; data.xk=&xk; data.h=&hval; data.dh=dhdx;
+   data.L=&L_; data.U=&U_; data.alpha=&alpha_; data.beta=&beta_;
+   data.p0=&p0_; data.q0=&q0_;
+
+   for(;attempts<max_inner;++attempts)
+   {
+      BuildObjective(n_,xk,df0dx,xmin,xmax,L_,U_,p0_,q0_,rho);
+      x=xk;
+      SolveSubproblem(data,lambda_,x);
+      mfem::Vector htrial(m_);
+      mfem::real_t ftrial=0.0;
+      evaluate(x,htrial,ftrial);
+      MFEM_VERIFY(htrial.Size()==m_,"GCMMA evaluator returned wrong equality size");
+
+      const double model=ObjectiveModelValue(n_,xk,x,L_,U_,p0_,q0_,
+                                             double(f0val),false);
+      const double affine=AffineResidualNorm(n_,m_,xk,x,hval,dhdx,false);
+      const double theta_trial=Norm1(htrial);
+      double sigma=1.0;
+      for(double value:lambda_) sigma=std::max(sigma,1.1*std::abs(value));
+      const double predicted=double(f0val)+sigma*theta0-
+                             (model+sigma*affine);
+      const double actual=double(f0val)+sigma*theta0-
+                          (double(ftrial)+sigma*theta_trial);
+      const double tolerance=1e-10*(1.0+std::abs(double(ftrial)));
+      const bool conservative=double(ftrial)<=model+tolerance;
+      const bool merit=predicted>1e-14 && actual>=0.1*predicted;
+      const bool feasibility=theta_trial<=0.9*theta0;
+      const bool stationary=std::abs(predicted)<=1e-14 &&
+                            theta_trial<=std::max(theta0,1e-10) &&
+                            double(ftrial)<=double(f0val)+tolerance;
+      if(conservative && (merit || feasibility || stationary))
+      {
+         accepted=true;
+         ++attempts;
+         break;
+      }
+
+      const double gap=std::max(0.0,double(ftrial)-model);
+      const double distance=ScaledStepNorm2(n_,xk,x,xmin,xmax,false);
+      rho=std::max(2.0*rho,1.1*(rho+gap/std::max(distance,1e-12)));
+      ContractMoveLimits(n_,xk,alpha_,beta_);
+   }
+
+   if(!accepted)
+   {
+      x=xk;
+      RestorationData restoration;
+      restoration.n=n_; restoration.m=m_; restoration.xk=&xk;
+      restoration.h=&hval; restoration.dh=dhdx;
+      restoration.xmin=&xmin; restoration.xmax=&xmax;
+      RestoreAffine(restoration,x,80);
+      mfem::Vector htrial(m_);
+      mfem::real_t ftrial=0.0;
+      evaluate(x,htrial,ftrial);
+      MFEM_VERIFY(htrial.Size()==m_,
+                  "GCMMA restoration evaluator returned wrong equality size");
+      if(Norm1(htrial)<theta0*(1.0-1e-4))
+      {
+         accepted=true;
+         std::fill(lambda_.begin(),lambda_.end(),0.0);
+      }
+      else x=xk;
+   }
+
+   if(!accepted) lambda_=lambda_k;
+
+   if(accepted) { ++iter_; }
+   last_step_accepted_=accepted;
+   if(inner_iterations) *inner_iterations=attempts;
+}
+
+// Delegates the box-constrained affine projection to RestoreAffine();
+// does not touch iter_ or lambda_.
+mfem::real_t SQEqualityOptimizer::RestoreFeasibility(
+   mfem::Vector &x,const mfem::Vector &hval,const mfem::Vector *dhdx,
+   const mfem::Vector &xmin,const mfem::Vector &xmax,int max_iterations)
+{
+   CheckRestorationInput(n_,m_,x,hval,dhdx,xmin,xmax);
+   mfem::Vector xk(x);
+   RestorationData data;
+   data.n=n_; data.m=m_; data.xk=&xk; data.h=&hval; data.dh=dhdx;
+   data.xmin=&xmin; data.xmax=&xmax;
+   return mfem::real_t(RestoreAffine(data,x,max_iterations));
+}
+
+// Diagnostic only: evaluates ProjectedKKT() at the last-accepted lambda_
+// rather than resolving the multipliers.
+mfem::real_t SQEqualityOptimizer::KKTresidual(const mfem::Vector &x,
+   const mfem::Vector &df0dx,mfem::real_t,const mfem::Vector &hval,
+   const mfem::Vector *dhdx,const mfem::Vector &xmin,
+   const mfem::Vector &xmax,double *lambda_out) const
+{
+   CheckInput(n_,m_,x,df0dx,hval,dhdx,xmin,xmax);
+   if(lambda_out) std::copy(lambda_.begin(),lambda_.end(),lambda_out);
+   return mfem::real_t(ProjectedKKT(n_,m_,x,df0dx,hval,dhdx,xmin,xmax,
+                                    lambda_,false));
+}
+
 #ifdef MFEM_USE_MPI
 // MPI counterpart of MMAEqualityOptimizer; see header for the full
 // contract of every public method below. Reduces n_local to n_global_.
@@ -1087,6 +1343,177 @@ mfem::real_t MMAEqualityOptimizerParallel::RestoreFeasibility(
 // Diagnostic only, distributed counterpart of
 // MMAEqualityOptimizer::KKTresidual(); see that method's comment.
 mfem::real_t MMAEqualityOptimizerParallel::KKTresidual(
+   const mfem::Vector &x,const mfem::Vector &df0dx,mfem::real_t,
+   const mfem::Vector &hval,const mfem::Vector *dhdx,
+   const mfem::Vector &xmin,const mfem::Vector &xmax,double *lambda_out) const
+{
+   CheckInput(n_local_,m_,x,df0dx,hval,dhdx,xmin,xmax);
+   if(lambda_out) std::copy(lambda_.begin(),lambda_.end(),lambda_out);
+   return mfem::real_t(ProjectedKKT(n_local_,m_,x,df0dx,hval,dhdx,xmin,xmax,
+                                    lambda_,true,comm_));
+}
+
+// MPI counterpart of SQEqualityOptimizer; mirrors
+// MMAEqualityOptimizerParallel's relationship to MMAEqualityOptimizer
+// above (see that block's comment) -- BuildTrustRegion+SQRho instead of
+// UpdateAsymptotes+ObjectiveRho, no xo1_/xo2_ history.
+
+SQEqualityOptimizerParallel::SQEqualityOptimizerParallel(
+   MPI_Comm comm,int n_local,int m_equalities)
+   : comm_(comm),n_local_(n_local),m_(m_equalities),lambda_(m_equalities,0.0)
+{
+   long long nl=n_local;
+   MPI_Allreduce(&nl,&n_global_,1,MPI_LONG_LONG,MPI_SUM,comm_);
+}
+
+void SQEqualityOptimizerParallel::EnsureInitialized_(const mfem::Vector &x)
+{
+   MFEM_VERIFY(x.Size()==n_local_,"local SQ equality design vector has wrong size");
+   if(p0_.Size()==n_local_ && (n_local_>0 || iter_>0)) return;
+   const bool use_device=x.UseDevice();
+   InitVector(p0_,n_local_,use_device); InitVector(q0_,n_local_,use_device);
+   InitVector(L_,n_local_,use_device); InitVector(U_,n_local_,use_device);
+   InitVector(alpha_,n_local_,use_device); InitVector(beta_,n_local_,use_device);
+}
+
+void SQEqualityOptimizerParallel::SetSigmaScale(mfem::real_t s)
+{ sigma_scale_=double(s); }
+
+// Distributed counterpart of SQEqualityOptimizer::Update(): identical
+// control flow, but SQRho()/SolveSubproblem() reduce across comm_.
+void SQEqualityOptimizerParallel::Update(mfem::Vector &x,
+   const mfem::Vector &df0dx,mfem::real_t,const mfem::Vector &hval,
+   const mfem::Vector *dhdx,const mfem::Vector &xmin,
+   const mfem::Vector &xmax)
+{
+   CheckInput(n_local_,m_,x,df0dx,hval,dhdx,xmin,xmax);
+   EnsureInitialized_(x);
+   mfem::Vector xk(x);
+   BuildTrustRegion(n_local_,x,xmin,xmax,sigma_scale_,L_,U_,alpha_,beta_);
+   const double rho=SQRho(n_local_,df0dx,xmin,xmax,true,comm_);
+   BuildObjective(n_local_,x,df0dx,xmin,xmax,L_,U_,p0_,q0_,rho);
+   SubproblemData data;
+   data.n=n_local_; data.m=m_; data.xk=&xk; data.h=&hval; data.dh=dhdx;
+   data.L=&L_; data.U=&U_; data.alpha=&alpha_; data.beta=&beta_;
+   data.p0=&p0_; data.q0=&q0_; data.parallel=true; data.comm=comm_;
+   SolveSubproblem(data,lambda_,x);
+   ++iter_; last_step_accepted_=true;
+}
+
+// Distributed counterpart of SQEqualityOptimizer::UpdateGCMMA(); see that
+// method's implementation comment. Every reduction-bearing helper is
+// called with parallel=true and comm_ so all ranks reach the same
+// accept/reject decision.
+void SQEqualityOptimizerParallel::UpdateGCMMA(mfem::Vector &x,
+   const mfem::Vector &df0dx,mfem::real_t f0val,
+   const mfem::Vector &hval,const mfem::Vector *dhdx,
+   const mfem::Vector &xmin,const mfem::Vector &xmax,
+   GCMMAEvalCallback evaluate,int max_inner,int *inner_iterations)
+{
+   CheckInput(n_local_,m_,x,df0dx,hval,dhdx,xmin,xmax);
+   MFEM_VERIFY(bool(evaluate),"parallel SQ equality GCMMA requires an evaluator");
+   MFEM_VERIFY(max_inner>0,"parallel SQ equality GCMMA requires max_inner > 0");
+   EnsureInitialized_(x);
+   mfem::Vector xk(x);
+   BuildTrustRegion(n_local_,xk,xmin,xmax,sigma_scale_,L_,U_,alpha_,beta_);
+   double rho=SQRho(n_local_,df0dx,xmin,xmax,true,comm_);
+   const std::vector<double> lambda_k=lambda_;
+   const double theta0=Norm1(hval);
+   bool accepted=false;
+   int attempts=0;
+
+   SubproblemData data;
+   data.n=n_local_; data.m=m_; data.xk=&xk; data.h=&hval; data.dh=dhdx;
+   data.L=&L_; data.U=&U_; data.alpha=&alpha_; data.beta=&beta_;
+   data.p0=&p0_; data.q0=&q0_; data.parallel=true; data.comm=comm_;
+
+   for(;attempts<max_inner;++attempts)
+   {
+      BuildObjective(n_local_,xk,df0dx,xmin,xmax,L_,U_,p0_,q0_,rho);
+      x=xk;
+      SolveSubproblem(data,lambda_,x);
+      mfem::Vector htrial(m_);
+      mfem::real_t ftrial=0.0;
+      evaluate(x,htrial,ftrial);
+      MFEM_VERIFY(htrial.Size()==m_,"parallel GCMMA evaluator returned wrong equality size");
+
+      const double model=ObjectiveModelValue(n_local_,xk,x,L_,U_,p0_,q0_,
+                                             double(f0val),true,comm_);
+      const double affine=AffineResidualNorm(n_local_,m_,xk,x,hval,dhdx,
+                                             true,comm_);
+      const double theta_trial=Norm1(htrial);
+      double sigma=1.0;
+      for(double value:lambda_) sigma=std::max(sigma,1.1*std::abs(value));
+      const double predicted=double(f0val)+sigma*theta0-
+                             (model+sigma*affine);
+      const double actual=double(f0val)+sigma*theta0-
+                          (double(ftrial)+sigma*theta_trial);
+      const double tolerance=1e-10*(1.0+std::abs(double(ftrial)));
+      const bool conservative=double(ftrial)<=model+tolerance;
+      const bool merit=predicted>1e-14 && actual>=0.1*predicted;
+      const bool feasibility=theta_trial<=0.9*theta0;
+      const bool stationary=std::abs(predicted)<=1e-14 &&
+                            theta_trial<=std::max(theta0,1e-10) &&
+                            double(ftrial)<=double(f0val)+tolerance;
+      if(conservative && (merit || feasibility || stationary))
+      {
+         accepted=true;
+         ++attempts;
+         break;
+      }
+
+      const double gap=std::max(0.0,double(ftrial)-model);
+      const double distance=ScaledStepNorm2(n_local_,xk,x,xmin,xmax,true,comm_);
+      rho=std::max(2.0*rho,1.1*(rho+gap/std::max(distance,1e-12)));
+      ContractMoveLimits(n_local_,xk,alpha_,beta_);
+   }
+
+   if(!accepted)
+   {
+      x=xk;
+      RestorationData restoration;
+      restoration.n=n_local_; restoration.m=m_; restoration.xk=&xk;
+      restoration.h=&hval; restoration.dh=dhdx;
+      restoration.xmin=&xmin; restoration.xmax=&xmax;
+      restoration.parallel=true; restoration.comm=comm_;
+      RestoreAffine(restoration,x,80);
+      mfem::Vector htrial(m_);
+      mfem::real_t ftrial=0.0;
+      evaluate(x,htrial,ftrial);
+      MFEM_VERIFY(htrial.Size()==m_,
+                  "parallel GCMMA restoration evaluator returned wrong equality size");
+      if(Norm1(htrial)<theta0*(1.0-1e-4))
+      {
+         accepted=true;
+         std::fill(lambda_.begin(),lambda_.end(),0.0);
+      }
+      else x=xk;
+   }
+
+   if(!accepted) lambda_=lambda_k;
+
+   if(accepted) { ++iter_; }
+   last_step_accepted_=accepted;
+   if(inner_iterations) *inner_iterations=attempts;
+}
+
+// Distributed counterpart of SQEqualityOptimizer::RestoreFeasibility();
+// gradient dot products inside RestoreAffine() are reduced across comm_.
+mfem::real_t SQEqualityOptimizerParallel::RestoreFeasibility(
+   mfem::Vector &x,const mfem::Vector &hval,const mfem::Vector *dhdx,
+   const mfem::Vector &xmin,const mfem::Vector &xmax,int max_iterations)
+{
+   CheckRestorationInput(n_local_,m_,x,hval,dhdx,xmin,xmax);
+   mfem::Vector xk(x);
+   RestorationData data;
+   data.n=n_local_; data.m=m_; data.xk=&xk; data.h=&hval; data.dh=dhdx;
+   data.xmin=&xmin; data.xmax=&xmax; data.parallel=true; data.comm=comm_;
+   return mfem::real_t(RestoreAffine(data,x,max_iterations));
+}
+
+// Diagnostic only, distributed counterpart of
+// SQEqualityOptimizer::KKTresidual(); see that method's comment.
+mfem::real_t SQEqualityOptimizerParallel::KKTresidual(
    const mfem::Vector &x,const mfem::Vector &df0dx,mfem::real_t,
    const mfem::Vector &hval,const mfem::Vector *dhdx,
    const mfem::Vector &xmin,const mfem::Vector &xmax,double *lambda_out) const
