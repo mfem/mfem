@@ -1023,7 +1023,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    const int dim = el1.GetDim();
    const int tr_ndof = trace_el.GetDof();
    const int ndof1 = el1.GetDof();
-   const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):(0.);
+   const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):(0);
 
    vu.SetSize(dim);
    nor.SetSize(dim);
