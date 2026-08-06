@@ -417,7 +417,9 @@ public:
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
-   /// Reduce operation max absolute value, instantiated for int, double and float
+   /// Reduce operation selecting the signed value with the largest absolute
+   /// value, instantiated for int, double and float. Note the result keeps its
+   /// sign; it is not the non-negative absolute value.
    template <class T> static void MaxAbs(OpData<T>);
 
    /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
