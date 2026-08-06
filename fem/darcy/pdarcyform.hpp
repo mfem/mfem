@@ -35,9 +35,7 @@ namespace mfem
     \endverbatim
     where @a P is the prolongation operator of the flux FE space. This
     transformatiom to true DOFs is performed in FormSystemMatrix() or
-    FormLinearSystem() automatically. Alternatively, ParallelAssembleInternal()
-    can be called after assembling and finalizing the serial forms to use
-    Mult() method directly.
+    FormLinearSystem() automatically.
  */
 class ParDarcyForm : public DarcyForm
 {
@@ -220,13 +218,11 @@ public:
    /// Assembles the form i.e. sums over all integrators
    /** All bilinear forms are assembled internally, including the right-hand-
        side linear forms (if they are used). However, ParDarcyForm must be
-       finalized (see Finalize()) and assembled on true DOFs (see
-       ParallelAssembleInternal()) before Mult() can be used. */
+       finalized (see Finalize()) before Mult() can be used. */
    void Assemble(int skip_zeros = 1);
 
    /// Finalizes the form
-   /** All bilinear forms are finalized, enabling to assemble them on true DOFs
-       through ParallelAssembleInternal(). */
+   /** All bilinear forms are finalized, enabling to call Mult(). */
    void Finalize(int skip_zeros = 1);
 
    using DarcyForm::FormLinearSystem;
@@ -300,6 +296,7 @@ public:
                                     const BlockVector &x, BlockVector &b);
 
    /// Operator application
+   /** Action of the mixed system is evaluated on the VDOF vector @a x. */
    void Mult (const Vector & x, Vector & y) const override;
 
    /// Return the associated parallel flux FE space.
