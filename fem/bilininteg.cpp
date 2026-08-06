@@ -777,20 +777,16 @@ real_t mfem::VectorBlockDiagonalIntegrator::ComputeHDGFaceEnergy(
    en = integs[0]->ComputeHDGFaceEnergy(side, trace_face_fe, fe, Tr, tr_d, el_d,
                                         d_energy);
 
-   if (numBlocks > (int)integs.size())
-   {
-      if (d_energy) { *d_energy *= numBlocks; }
-      return en * numBlocks;
-   }
-
    Vector d_denergy;
-   for (int i = 1; i < (int)integs.size(); i++)
+   for (int i = 1; i < numBlocks; i++)
    {
       tr_d.MakeRef(const_cast<Vector&>(trfun), i*dof_tr);
       el_d.MakeRef(const_cast<Vector&>(elfun), i*dof_el);
 
-      en += integs[i]->ComputeHDGFaceEnergy(side, trace_face_fe, fe, Tr, tr_d, el_d,
-                                            d_energy ? &d_denergy : NULL);
+      BilinearFormIntegrator *bfi = ((int)integs.size() < numBlocks) ?
+                                    integs[0] : integs[i];
+      en += bfi->ComputeHDGFaceEnergy(side, trace_face_fe, fe, Tr, tr_d, el_d,
+                                      d_energy ? &d_denergy : NULL);
 
       if (d_energy) { *d_energy += d_denergy; }
    }
