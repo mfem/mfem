@@ -82,6 +82,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
   mesh/test_geometric_factors.cpp
+  mesh/test_ho_rw.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_nurbs.cpp
@@ -140,6 +141,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lor_batched.cpp
   fem/test_lor_dg.cpp
   fem/test_lor.cpp
+  fem/test_mixedsesqform.cpp
   fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
@@ -148,6 +150,8 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_nlvc.cpp
+  fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp

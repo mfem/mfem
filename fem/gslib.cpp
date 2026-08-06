@@ -76,6 +76,9 @@ namespace gslib
 #ifndef GSLIB_RELEASE_VERSION //gslib v1.0.7
 #define GSLIB_RELEASE_VERSION 10007
 #endif
+static_assert(std::is_same_v<uint,unsigned int>,
+              "GSLIB's integer-type, 'uint', defined in gslib.h, must be the same as 'unsigned int'!");
+
 extern "C" {
    struct hash_data_3
    {
