@@ -4,7 +4,7 @@ SetFactory("Built-in");
 order = 2;
 
 // Set the element type (4 - hexahedra, 3 - tetrahedra)
-type = 3;
+type = 4;
 
 // Number of elements across each of the six blocks
 nR = 1;
@@ -128,28 +128,26 @@ Volume(1004) = {904};
 Surface Loop(905) = {221, 210, 205, 214, 222, 219};
 Volume(1005) = {905};
 
-Transfinite Curve{100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131} = nR+1;
-Transfinite Surface{200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222};
+Transfinite Curve{100:131} = nR+1;
+Transfinite Surface{200:222};
 
 // Structured hexes need a transfinite volume; tets must NOT have one (its fixed
 // interior pattern doesn't match the surface mesh, which makes MFEM reject the
 // mesh).  So apply it only for type == 4; for type == 3 the volume is filled with
 // tets that conform to the (still transfinite) surface mesh.
 If (type == 4)
-   Recombine Surface {200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222};
-   Transfinite Volume{1000, 1001, 1002, 1003, 1004, 1005};
+   Recombine Surface{200:222};
+   Transfinite Volume{1000:1005};
 EndIf
 
 // Tag surfaces and volumes with positive integers
 // 1 - spherical dome (points down, bottom at z = 0), 2 - flat face (z = R, on top)
 Physical Surface(1) = {206, 213, 217, 220, 222};
 Physical Surface(2) = {200, 211, 215, 218, 221};
-Physical Volume(1) = {1000, 1001, 1002, 1003, 1004, 1005};
+Physical Volume(1) = {1000:1005};
 
 // Optimize the high-order mesh
 // See https://gmsh.info/doc/texinfo/gmsh.html#index-Mesh_002eHighOrderOptimize
-// (leave off: it fails to untangle coarse curved hexes when nR < 4, and the
-//  dome nodes already lie on the sphere without it)
 Mesh.HighOrderOptimize = 1;
 
 // Generate 3D mesh
