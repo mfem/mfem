@@ -97,9 +97,9 @@ dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, 
   real_t value = lambda_max + std::log1p(sum)/beta;
 
   real_t derivative{};
-  for (int mu = 0; mu < 3; mu++) {
-    for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 3; j++) {
+  for (int mu = 0; mu < n; mu++) {
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
         derivative += V[i][mu]*eg[mu]*V[j][mu]*A_dot[i][j]/(sum + 1.0);
       }
     }
