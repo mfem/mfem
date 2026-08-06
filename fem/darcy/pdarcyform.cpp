@@ -367,7 +367,7 @@ void ParDarcyForm::FormLinearSystem(
 
          if (bsym)
          {
-            //In the case of the symmetrized system, the sign is oppposite!
+            //In the case of the symmetrized system, the sign is opposite!
             B_b.GetBlock(1) -= Bp;
          }
          else
@@ -624,7 +624,7 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
    {
       if (bsym)
       {
-         //In the case of the symmetrized system, the sign is oppposite!
+         //In the case of the symmetrized system, the sign is opposite!
          Vector b_(fes_p->GetVSize());
          b_ = 0.;
          pB->ParallelEliminateTrialTDofsInRHS(tdofs_flux, x.GetBlock(0), b_);

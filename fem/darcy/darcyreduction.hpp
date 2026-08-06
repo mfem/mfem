@@ -171,7 +171,7 @@ public:
    virtual void AssemblePotSharedFaceMatrix(int sface, const DenseMatrix &) = 0;
 #endif
 
-   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /// Use the stored eliminated part of the system to modify the r.h.s.
    /** @param vdofs_flux   list of flux VDOFs (non-directional, i.e. >= 0)
        @param x            solution vector providing the VDOF values
        @param b            right hand side vector
@@ -180,7 +180,7 @@ public:
                                     const BlockVector &x, BlockVector &b)
    { MFEM_ABORT("Not implemented"); }
 
-   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /// Use the stored eliminated part of the system to modify the r.h.s.
    /** @param tdofs_flux   list of flux true DOFs
        @param X            solution vector providing the true DOF values
        @param B            (true) right hand side vector

@@ -1308,7 +1308,7 @@ void DarcyPotentialReduction::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
       Be.Mult(u_e, bp_e);
       if (bsym)
       {
-         //In the case of the symmetrized system, the sign is oppposite!
+         //In the case of the symmetrized system, the sign is opposite!
          bp_e.Neg();
       }
 
@@ -1383,7 +1383,7 @@ void DarcyPotentialReduction::EliminateTrueDofsInRHS(
       Be.Mult(u_e, bp_e);
       if (bsym)
       {
-         //In the case of the symmetrized system, the sign is oppposite!
+         //In the case of the symmetrized system, the sign is opposite!
          bp_e.Neg();
       }
 
@@ -1530,7 +1530,7 @@ void DarcyPotentialReduction::ComputeSolution(const BlockVector &b,
       bp.GetSubVector(p_dofs, bp_l);
       if (bsym)
       {
-         //In the case of the symmetrized system, the sign is oppposite!
+         //In the case of the symmetrized system, the sign is opposite!
          bp_l.Neg();
       }
 

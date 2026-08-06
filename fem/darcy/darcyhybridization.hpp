@@ -77,7 +77,7 @@ namespace mfem
     necessarily equivalent to the original mixed formulation.
 
     An important advantage of the hybridized formulation is discontinuity of
-    the spaces for the primiary quantities, which enables to eliminate (often
+    the spaces for the primary quantities, which enables to eliminate (often
     referred to as static condensation) the flux and potential equations
     by means of local inversion (i.e., the inverted matrix is block diagonal):
     \verbatim
@@ -187,7 +187,7 @@ protected:
    FiniteElementSpace &fes_p;       ///< potential FE space
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes;     ///< parallel flux FE space
-   ParFiniteElementSpace *pfes_p;   ///< parallel potetial FE space
+   ParFiniteElementSpace *pfes_p;   ///< parallel potential FE space
    ParFiniteElementSpace *c_pfes;   ///< parallel constraint FE space
 #endif
    std::unique_ptr<BilinearFormIntegrator> c_bfi_p;      ///< constraint integrator
@@ -769,7 +769,7 @@ public:
    /// Finalize the construction of the hybridized matrix.
    void Finalize() override;
 
-   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /// Use the stored eliminated part of the system to modify the r.h.s.
    /** @param vdofs_flux   list of VDOFs of flux @a u
        @param x            solution vector providing the VDOF values
        @param b            right hand side vector
@@ -777,7 +777,7 @@ public:
    void EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                             const BlockVector &x, BlockVector &b);
 
-   /// Use the stored eliminated part of the sytem to modify the r.h.s.
+   /// Use the stored eliminated part of the system to modify the r.h.s.
    /** @param tdofs_flux   list of true DOFs of flux @a u
        @param X            solution vector providing the true DOF values
        @param B            (true) right hand side vector
