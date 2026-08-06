@@ -624,118 +624,171 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
                                       const Vector &c,
                                       Vector &d);
 
-template <int DIM, int U_LD, int NB, bool SYM, int QND, typename TD>
+/** Smem-batch Q-function: UV[c*u_ld*nb + q_loc + u_ld*b] := O(D(q_g,e)) * u.
+    Full-NQ: q0=0, nq_span=nq_total (q_loc == q_g).
+    Q-tile:  nq_span = tile rows, q_g = q0+q_loc, store at q_loc. */
+template <int DIM, bool SYM, typename TD>
 MFEM_HOST_DEVICE inline
-void ApplyDiffusion(real_t *UV, TD D,
-                    const int e0, const int NE,
-                    const int tid,
-                    const int nthreads)
+void ApplyDiffusionSmem(real_t *UV, TD D,
+                        const int e0, const int NE,
+                        const int q0, const int nq_span, const int nq_total,
+                        const int u_ld, const int nb,
+                        const int tid, const int nthreads)
 {
-   for (int i = tid; i < QND * NB; i += nthreads)
+   for (int i = tid; i < nq_span * nb; i += nthreads)
    {
-      const int b = i / QND;
-      const int q = i - b * QND;
+      const int b = i / nq_span;
+      const int q_loc = i - b * nq_span;
       const int e = e0 + b;
-      if (e >= NE || q >= QND) { continue; }
+      const int q_g = q0 + q_loc;
+      if (e >= NE || q_g >= nq_total) { continue; }
       if constexpr (DIM == 2)
       {
-         const real_t u1 = UV[0 * U_LD * NB + q + U_LD * b];
-         const real_t u2 = UV[1 * U_LD * NB + q + U_LD * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O21 = D(q, 1, e);
+         const real_t u1 = UV[0 * u_ld * nb + q_loc + u_ld * b];
+         const real_t u2 = UV[1 * u_ld * nb + q_loc + u_ld * b];
+         const real_t O11 = D(q_g, 0, e);
+         const real_t O21 = D(q_g, 1, e);
          if constexpr (SYM)
          {
-            const real_t O22 = D(q, 2, e);
-            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O21 * u2;
-            UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
+            const real_t O22 = D(q_g, 2, e);
+            UV[0 * u_ld * nb + q_loc + u_ld * b] = O11 * u1 + O21 * u2;
+            UV[1 * u_ld * nb + q_loc + u_ld * b] = O21 * u1 + O22 * u2;
          }
          else
          {
-            const real_t O12 = D(q, 2, e);
-            const real_t O22 = D(q, 3, e);
-            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2;
-            UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
+            const real_t O12 = D(q_g, 2, e);
+            const real_t O22 = D(q_g, 3, e);
+            UV[0 * u_ld * nb + q_loc + u_ld * b] = O11 * u1 + O12 * u2;
+            UV[1 * u_ld * nb + q_loc + u_ld * b] = O21 * u1 + O22 * u2;
          }
       }
       else
       {
-         const real_t u1 = UV[0 * U_LD * NB + q + U_LD * b];
-         const real_t u2 = UV[1 * U_LD * NB + q + U_LD * b];
-         const real_t u3 = UV[2 * U_LD * NB + q + U_LD * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O12 = D(q, 1, e);
-         const real_t O13 = D(q, 2, e);
+         const real_t u1 = UV[0 * u_ld * nb + q_loc + u_ld * b];
+         const real_t u2 = UV[1 * u_ld * nb + q_loc + u_ld * b];
+         const real_t u3 = UV[2 * u_ld * nb + q_loc + u_ld * b];
+         const real_t O11 = D(q_g, 0, e);
+         const real_t O12 = D(q_g, 1, e);
+         const real_t O13 = D(q_g, 2, e);
          if constexpr (SYM)
          {
-            const real_t O22 = D(q, 3, e);
-            const real_t O23 = D(q, 4, e);
-            const real_t O33 = D(q, 5, e);
-            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2 + O13 * u3;
-            UV[1 * U_LD * NB + q + U_LD * b] = O12 * u1 + O22 * u2 + O23 * u3;
-            UV[2 * U_LD * NB + q + U_LD * b] = O13 * u1 + O23 * u2 + O33 * u3;
+            const real_t O22 = D(q_g, 3, e);
+            const real_t O23 = D(q_g, 4, e);
+            const real_t O33 = D(q_g, 5, e);
+            UV[0 * u_ld * nb + q_loc + u_ld * b] = O11 * u1 + O12 * u2 + O13 * u3;
+            UV[1 * u_ld * nb + q_loc + u_ld * b] = O12 * u1 + O22 * u2 + O23 * u3;
+            UV[2 * u_ld * nb + q_loc + u_ld * b] = O13 * u1 + O23 * u2 + O33 * u3;
          }
          else
          {
-            const real_t O21 = D(q, 3, e);
-            const real_t O22 = D(q, 4, e);
-            const real_t O23 = D(q, 5, e);
-            const real_t O31 = D(q, 6, e);
-            const real_t O32 = D(q, 7, e);
-            const real_t O33 = D(q, 8, e);
-            UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2 + O13 * u3;
-            UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2 + O23 * u3;
-            UV[2 * U_LD * NB + q + U_LD * b] = O31 * u1 + O32 * u2 + O33 * u3;
+            const real_t O21 = D(q_g, 3, e);
+            const real_t O22 = D(q_g, 4, e);
+            const real_t O23 = D(q_g, 5, e);
+            const real_t O31 = D(q_g, 6, e);
+            const real_t O32 = D(q_g, 7, e);
+            const real_t O33 = D(q_g, 8, e);
+            UV[0 * u_ld * nb + q_loc + u_ld * b] = O11 * u1 + O12 * u2 + O13 * u3;
+            UV[1 * u_ld * nb + q_loc + u_ld * b] = O21 * u1 + O22 * u2 + O23 * u3;
+            UV[2 * u_ld * nb + q_loc + u_ld * b] = O31 * u1 + O32 * u2 + O33 * u3;
          }
       }
    }
 }
 
-/** Q-tile Q-function: UV holds TQ local rows; D indexed at global q0+q. */
-template <int DIM, int U_LD, int NB, bool SYM, int QND, typename TD>
+/** Full-NQ device GEMM pipeline (specialized or runtime LD). */
+template <int DIM, bool SYM, int MAP, typename TD, typename XMat>
 MFEM_HOST_DEVICE inline
-void ApplyDiffusionQTile(real_t *UV, TD D,
-                         const int e0, const int NE,
-                         const int q0, const int nq_tile,
-                         const int tid,
-                         const int nthreads)
+void DiffusionSimplexFullNqGemm(real_t *XY, real_t *UV, TD D,
+                                const real_t *g, real_t *y, XMat X,
+                                const int e0, const int NE,
+                                const int nq, const int ndof,
+                                const int x_ld, const int u_ld, const int nb,
+                                const int tid, const int nthreads)
 {
-   for (int i = tid; i < nq_tile * NB; i += nthreads)
+   mma::SmemMatAccRt Xacc{XY, x_ld};
+   mma::YBatchAcc Yacc{y, ndof, e0};
+   mma::NullDAcc nullD;
+
+   mma::LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
+   MFEM_SYNC_THREAD;
+
+   for (int c = 0; c < DIM; ++c)
    {
-      const int b = i / nq_tile;
-      const int qloc = i - b * nq_tile;
+      mma::GAcc A{g, nq, ndof, c};
+      mma::SmemMatAccRt Uacc{UV + c * u_ld * nb, u_ld};
+      mma::Gemm<MAP>(nq, ndof, nb, A, Xacc, Uacc, nullD, e0, NE);
+   }
+   MFEM_SYNC_THREAD;
+   ApplyDiffusionSmem<DIM, SYM>(UV, D, e0, NE, 0, nq, nq, u_ld, nb,
+                                tid, nthreads);
+   MFEM_SYNC_THREAD;
+   for (int c = 0; c < DIM; ++c)
+   {
+      mma::GAcc A{g, nq, ndof, c};
+      mma::SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
+      mma::GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
+   }
+}
+
+/** Full-NQ Emulate: serial dense per element in the tile (tid==0). */
+template <int DIM, bool SYM, typename TD, typename XMat>
+MFEM_HOST_DEVICE inline
+void DiffusionSimplexFullNqEmulate(real_t *XY, TD D,
+                                   const real_t *g, real_t *y, XMat X,
+                                   const int e0, const int NE,
+                                   const int nq, const int ndof,
+                                   const int x_ld, const int nb,
+                                   const int tid)
+{
+   auto Y = DeviceMatrix(y, ndof, NE);
+   if (tid != 0) { MFEM_SYNC_THREAD; return; }
+   constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
+   real_t u_scratch[DIM * max_nq];
+   for (int b = 0; b < nb; ++b)
+   {
       const int e = e0 + b;
-      const int q = q0 + qloc;
-      if (e >= NE || q >= QND) { continue; }
-      if constexpr (DIM == 3)
+      if (e >= NE) { continue; }
+      for (int i = 0; i < ndof; ++i)
       {
-         const real_t u1 = UV[0 * U_LD * NB + qloc + U_LD * b];
-         const real_t u2 = UV[1 * U_LD * NB + qloc + U_LD * b];
-         const real_t u3 = UV[2 * U_LD * NB + qloc + U_LD * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O12 = D(q, 1, e);
-         const real_t O13 = D(q, 2, e);
-         if constexpr (SYM)
-         {
-            const real_t O22 = D(q, 3, e);
-            const real_t O23 = D(q, 4, e);
-            const real_t O33 = D(q, 5, e);
-            UV[0 * U_LD * NB + qloc + U_LD * b] = O11 * u1 + O12 * u2 + O13 * u3;
-            UV[1 * U_LD * NB + qloc + U_LD * b] = O12 * u1 + O22 * u2 + O23 * u3;
-            UV[2 * U_LD * NB + qloc + U_LD * b] = O13 * u1 + O23 * u2 + O33 * u3;
-         }
-         else
-         {
-            const real_t O21 = D(q, 3, e);
-            const real_t O22 = D(q, 4, e);
-            const real_t O23 = D(q, 5, e);
-            const real_t O31 = D(q, 6, e);
-            const real_t O32 = D(q, 7, e);
-            const real_t O33 = D(q, 8, e);
-            UV[0 * U_LD * NB + qloc + U_LD * b] = O11 * u1 + O12 * u2 + O13 * u3;
-            UV[1 * U_LD * NB + qloc + U_LD * b] = O21 * u1 + O22 * u2 + O23 * u3;
-            UV[2 * U_LD * NB + qloc + U_LD * b] = O31 * u1 + O32 * u2 + O33 * u3;
-         }
+         XY[i + x_ld * b] = X(i, e);
       }
+      mma::blas::DiffusionApplyDenseElement<DIM, SYM>(
+         nq, ndof, g, &D(0, 0, e), &XY[x_ld * b], &Y(0, e), u_scratch);
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/** Q-tile device GEMM pipeline (DIM==3 specialized). */
+template <int SYM, int MAP, int X_LD, int U_LD, int NB, int QND, int TQ,
+          typename TD, typename XMat>
+MFEM_HOST_DEVICE inline
+void DiffusionSimplexQTileGemm(real_t *XY, real_t *UV, TD D,
+                               const real_t *g, real_t *y, XMat X,
+                               const int e0, const int NE, const int ndof,
+                               const int tid, const int nthreads)
+{
+   mma::SmemMatAcc<X_LD> Xacc{XY};
+   mma::YBatchAcc Yacc{y, ndof, e0};
+   mma::SmemMatAcc<U_LD> U0{UV + 0 * U_LD * NB};
+   mma::SmemMatAcc<U_LD> U1{UV + 1 * U_LD * NB};
+   mma::SmemMatAcc<U_LD> U2{UV + 2 * U_LD * NB};
+
+   mma::LoadXToSmem(XY, X, e0, NE, ndof, X_LD, NB, tid, nthreads);
+   MFEM_SYNC_THREAD;
+
+   for (int q0 = 0; q0 < QND; q0 += TQ)
+   {
+      const int nq_tile = (QND - q0 < TQ) ? (QND - q0) : TQ;
+      mma::GAccQTile A0{g, QND, ndof, 0, q0};
+      mma::GAccQTile A1{g, QND, ndof, 1, q0};
+      mma::GAccQTile A2{g, QND, ndof, 2, q0};
+      mma::Gemm3<MAP>(nq_tile, ndof, NB, A0, A1, A2, Xacc, U0, U1, U2, e0, NE);
+      MFEM_SYNC_THREAD;
+      ApplyDiffusionSmem<3, SYM>(UV, D, e0, NE, q0, nq_tile, QND, U_LD, NB,
+                                 tid, nthreads);
+      MFEM_SYNC_THREAD;
+      mma::GemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2, Yacc, e0, NE);
+      MFEM_SYNC_THREAD;
    }
 }
 
@@ -781,82 +834,14 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
 
       if constexpr (mma::DeviceGemmEnabled())
       {
-         mma::SmemMatAcc<X_LD> Xacc {sm.XY};
-         mma::YBatchAcc Yacc{y, ndof, e0};
-         mma::SmemMatAcc<U_LD> U0{sm.UV + 0 * U_LD * NB};
-         mma::SmemMatAcc<U_LD> U1{sm.UV + 1 * U_LD * NB};
-         mma::SmemMatAcc<U_LD> U2{sm.UV + 2 * U_LD * NB};
-
-         mma::LoadXToSmem(sm.XY, X, e0, NE, ndof, X_LD, NB, tid, nthreads);
-         MFEM_SYNC_THREAD;
-
-         for (int q0 = 0; q0 < QND; q0 += TQ)
-         {
-            const int nq_tile = (QND - q0 < TQ) ? (QND - q0) : TQ;
-            mma::GAccQTile A0{g, QND, ndof, 0, q0};
-            mma::GAccQTile A1{g, QND, ndof, 1, q0};
-            mma::GAccQTile A2{g, QND, ndof, 2, q0};
-            mma::Gemm3<MAP>(nq_tile, ndof, NB, A0, A1, A2, Xacc,
-                            U0, U1, U2, e0, NE);
-            MFEM_SYNC_THREAD;
-            ApplyDiffusionQTile<DIM, U_LD, NB, SYM, QND>(
-               sm.UV, D, e0, NE, q0, nq_tile, tid, nthreads);
-            MFEM_SYNC_THREAD;
-            mma::GemmT3<MAP>(nq_tile, ndof, NB, A0, A1, A2, U0, U1, U2,
-                             Yacc, e0, NE);
-            MFEM_SYNC_THREAD;
-         }
+         DiffusionSimplexQTileGemm<SYM, MAP, X_LD, U_LD, NB, QND, TQ>(
+            sm.XY, sm.UV, D, g, y, X, e0, NE, ndof, tid, nthreads);
       }
       else
       {
-         auto Y = DeviceMatrix(y, ndof, NE);
-         if (tid == 0)
-         {
-            for (int b = 0; b < NB; ++b)
-            {
-               const int e = e0 + b;
-               if (e >= NE) { continue; }
-               for (int i = 0; i < X_LD; ++i)
-               {
-                  sm.XY[i + X_LD * b] = (i < ndof) ? X(i, e) : real_t(0);
-               }
-               for (int q0 = 0; q0 < QND; q0 += TQ)
-               {
-                  const int nq_tile = (QND - q0 < TQ) ? (QND - q0) : TQ;
-                  for (int c = 0; c < DIM; ++c)
-                  {
-                     for (int qloc = 0; qloc < nq_tile; ++qloc)
-                     {
-                        real_t u = 0.0;
-                        const int q = q0 + qloc;
-                        for (int i = 0; i < ndof; ++i)
-                        {
-                           u += g[q + QND * (i + ndof * c)] *
-                                sm.XY[i + X_LD * b];
-                        }
-                        sm.UV[c * U_LD * NB + qloc + U_LD * b] = u;
-                     }
-                  }
-                  ApplyDiffusionQTile<DIM, U_LD, NB, SYM, QND>(
-                     sm.UV, D, e0, NE, q0, nq_tile, 0, 1);
-                  for (int i = 0; i < ndof; ++i)
-                  {
-                     real_t yi = 0.0;
-                     for (int c = 0; c < DIM; ++c)
-                     {
-                        for (int qloc = 0; qloc < nq_tile; ++qloc)
-                        {
-                           const int q = q0 + qloc;
-                           yi += g[q + QND * (i + ndof * c)] *
-                                 sm.UV[c * U_LD * NB + qloc + U_LD * b];
-                        }
-                     }
-                     Y(i, e) += yi;
-                  }
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         // Q-tile Emulate: serial dense per element (no product structure).
+         DiffusionSimplexFullNqEmulate<DIM, SYM>(
+            sm.XY, D, g, y, X, e0, NE, QND, ndof, X_LD, NB, tid);
       }
    }
    else
@@ -875,154 +860,14 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
 
       if constexpr (mma::DeviceGemmEnabled())
       {
-         mma::SmemMatAcc<X_LD> Xacc {sm.XY};
-         mma::YBatchAcc Yacc{y, ndof, e0};
-         mma::NullDAcc nullD;
-
-         mma::LoadXToSmem(sm.XY, X, e0, NE, ndof, X_LD, NB, tid, nthreads);
-         MFEM_SYNC_THREAD;
-
-         if constexpr (DIM == 2)
-         {
-            MFEM_UNROLL(2)
-            for (int c = 0; c < 2; ++c)
-            {
-               mma::GAcc A{g, QND, ndof, c};
-               mma::SmemMatAcc<U_LD> Uacc{sm.UV + c * U_LD * NB};
-               mma::Gemm<MAP>(QND, ndof, NB, A, Xacc,
-                              Uacc, nullD, e0, NE);
-            }
-            MFEM_SYNC_THREAD;
-            ApplyDiffusion<2, U_LD, NB, SYM, QND>(sm.UV, D, e0, NE, tid,
-                                                  nthreads);
-            MFEM_SYNC_THREAD;
-            MFEM_UNROLL(2)
-            for (int c = 0; c < 2; ++c)
-            {
-               mma::GAcc A{g, QND, ndof, c};
-               mma::SmemMatAcc<U_LD> Vacc{sm.UV + c * U_LD * NB};
-               mma::GemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
-            }
-         }
-         else if constexpr (DIM == 3)
-         {
-            for (int c = 0; c < 3; ++c)
-            {
-               mma::GAcc A{g, QND, ndof, c};
-               mma::SmemMatAcc<U_LD> Uacc{sm.UV + c * U_LD * NB};
-               mma::Gemm<MAP>(QND, ndof, NB, A, Xacc,
-                              Uacc, nullD, e0, NE);
-            }
-            MFEM_SYNC_THREAD;
-            ApplyDiffusion<3, U_LD, NB, SYM, QND>(sm.UV, D, e0, NE, tid,
-                                                  nthreads);
-            MFEM_SYNC_THREAD;
-            for (int c = 0; c < 3; ++c)
-            {
-               mma::GAcc A{g, QND, ndof, c};
-               mma::SmemMatAcc<U_LD> Vacc{sm.UV + c * U_LD * NB};
-               mma::GemmT<MAP>(QND, ndof, NB, A, Vacc, Yacc, e0, NE);
-            }
-         }
+         DiffusionSimplexFullNqGemm<DIM, SYM, MAP>(
+            sm.XY, sm.UV, D, g, y, X, e0, NE, QND, ndof, X_LD, U_LD, NB,
+            tid, nthreads);
       }
       else
       {
-         auto Y = DeviceMatrix(y, ndof, NE);
-         if (tid == 0)
-         {
-            for (int b = 0; b < NB; ++b)
-            {
-               const int e = e0 + b;
-               if (e >= NE) { continue; }
-               for (int i = 0; i < X_LD; ++i)
-               {
-                  sm.XY[i + X_LD * b] = (i < ndof) ? X(i, e) : real_t(0);
-               }
-               for (int c = 0; c < DIM; ++c)
-               {
-                  for (int q = 0; q < QND; ++q)
-                  {
-                     real_t u = 0.0;
-                     for (int i = 0; i < ndof; ++i)
-                     {
-                        u += g[q + QND * (i + ndof * c)] * sm.XY[i + X_LD * b];
-                     }
-                     sm.UV[c * U_LD * NB + q + U_LD * b] = u;
-                  }
-               }
-               for (int q = 0; q < QND; ++q)
-               {
-                  if constexpr (DIM == 2)
-                  {
-                     const real_t u1 = sm.UV[0 * U_LD * NB + q + U_LD * b];
-                     const real_t u2 = sm.UV[1 * U_LD * NB + q + U_LD * b];
-                     const real_t O11 = D(q, 0, e);
-                     const real_t O21 = D(q, 1, e);
-                     real_t O12, O22;
-                     if constexpr (SYM)
-                     {
-                        O12 = O21;
-                        O22 = D(q, 2, e);
-                     }
-                     else
-                     {
-                        O12 = D(q, 2, e);
-                        O22 = D(q, 3, e);
-                     }
-                     sm.UV[0 * U_LD * NB + q + U_LD * b] = O11 * u1 + O12 * u2;
-                     sm.UV[1 * U_LD * NB + q + U_LD * b] = O21 * u1 + O22 * u2;
-                  }
-                  else
-                  {
-                     const real_t u1 = sm.UV[0 * U_LD * NB + q + U_LD * b];
-                     const real_t u2 = sm.UV[1 * U_LD * NB + q + U_LD * b];
-                     const real_t u3 = sm.UV[2 * U_LD * NB + q + U_LD * b];
-                     const real_t O11 = D(q, 0, e);
-                     const real_t O12 = D(q, 1, e);
-                     const real_t O13 = D(q, 2, e);
-                     real_t O21, O22, O23, O31, O32, O33;
-                     if constexpr (SYM)
-                     {
-                        O21 = O12;
-                        O22 = D(q, 3, e);
-                        O23 = D(q, 4, e);
-                        O31 = O13;
-                        O32 = O23;
-                        O33 = D(q, 5, e);
-                     }
-                     else
-                     {
-                        O21 = D(q, 3, e);
-                        O22 = D(q, 4, e);
-                        O23 = D(q, 5, e);
-                        O31 = D(q, 6, e);
-                        O32 = D(q, 7, e);
-                        O33 = D(q, 8, e);
-                     }
-                     sm.UV[0 * U_LD * NB + q + U_LD * b] =
-                        O11 * u1 + O12 * u2 + O13 * u3;
-                     sm.UV[1 * U_LD * NB + q + U_LD * b] =
-                        O21 * u1 + O22 * u2 + O23 * u3;
-                     sm.UV[2 * U_LD * NB + q + U_LD * b] =
-                        O31 * u1 + O32 * u2 + O33 * u3;
-                  }
-               }
-               for (int i = 0; i < ndof; ++i)
-               {
-                  real_t yi = 0.0;
-                  for (int c = 0; c < DIM; ++c)
-                  {
-                     for (int q = 0; q < QND; ++q)
-                     {
-                        yi += g[q + QND * (i + ndof * c)] *
-                              sm.UV[c * U_LD * NB + q + U_LD * b];
-                     }
-                  }
-                  Y(i, e) += yi;
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
+         DiffusionSimplexFullNqEmulate<DIM, SYM>(
+            sm.XY, D, g, y, X, e0, NE, QND, ndof, X_LD, NB, tid);
       }
    }
 }
@@ -1133,13 +978,14 @@ inline void MmaDiffusionApplySimplex_Dispatch(const int NE,
    apply(NE, g, d, x, y);
 }
 
-/** Runtime dense diffusion (host BLAS/hand; device per-element). */
+/** Runtime dense diffusion (host Prefer/blas; device per-element forall).
+    Used by Fallback host path and by runtime Q-tile policy (no smem Q-tile). */
 template<int DIM, bool SYM>
-inline void PADiffusionApplySimplexDenseRuntime(const int NE,
-                                                const Array<real_t> &g,
-                                                const Vector &d,
-                                                const Vector &x,
-                                                Vector &y)
+inline void DiffusionApplySimplexRuntime(const int NE,
+                                         const Array<real_t> &g,
+                                         const Vector &d,
+                                         const Vector &x,
+                                         Vector &y)
 {
    MFEM_VERIFY(NE > 0, "");
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
@@ -1184,72 +1030,6 @@ inline void PADiffusionApplySimplexDenseRuntime(const int NE,
    });
 }
 
-template <int DIM, bool SYM, typename TD>
-MFEM_HOST_DEVICE inline
-void ApplyDiffusionRuntime(real_t *UV, TD D,
-                           const int e0, const int NE,
-                           const int nq, const int u_ld, const int nb,
-                           const int tid, const int nthreads)
-{
-   for (int i = tid; i < nq * nb; i += nthreads)
-   {
-      const int b = i / nq;
-      const int q = i - b * nq;
-      const int e = e0 + b;
-      if (e >= NE || q >= nq) { continue; }
-      if constexpr (DIM == 2)
-      {
-         const real_t u1 = UV[0 * u_ld * nb + q + u_ld * b];
-         const real_t u2 = UV[1 * u_ld * nb + q + u_ld * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O21 = D(q, 1, e);
-         if constexpr (SYM)
-         {
-            const real_t O22 = D(q, 2, e);
-            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O21 * u2;
-            UV[1 * u_ld * nb + q + u_ld * b] = O21 * u1 + O22 * u2;
-         }
-         else
-         {
-            const real_t O12 = D(q, 2, e);
-            const real_t O22 = D(q, 3, e);
-            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O12 * u2;
-            UV[1 * u_ld * nb + q + u_ld * b] = O21 * u1 + O22 * u2;
-         }
-      }
-      else
-      {
-         const real_t u1 = UV[0 * u_ld * nb + q + u_ld * b];
-         const real_t u2 = UV[1 * u_ld * nb + q + u_ld * b];
-         const real_t u3 = UV[2 * u_ld * nb + q + u_ld * b];
-         const real_t O11 = D(q, 0, e);
-         const real_t O12 = D(q, 1, e);
-         const real_t O13 = D(q, 2, e);
-         if constexpr (SYM)
-         {
-            const real_t O22 = D(q, 3, e);
-            const real_t O23 = D(q, 4, e);
-            const real_t O33 = D(q, 5, e);
-            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O12 * u2 + O13 * u3;
-            UV[1 * u_ld * nb + q + u_ld * b] = O12 * u1 + O22 * u2 + O23 * u3;
-            UV[2 * u_ld * nb + q + u_ld * b] = O13 * u1 + O23 * u2 + O33 * u3;
-         }
-         else
-         {
-            const real_t O21 = D(q, 3, e);
-            const real_t O22 = D(q, 4, e);
-            const real_t O23 = D(q, 5, e);
-            const real_t O31 = D(q, 6, e);
-            const real_t O32 = D(q, 7, e);
-            const real_t O33 = D(q, 8, e);
-            UV[0 * u_ld * nb + q + u_ld * b] = O11 * u1 + O12 * u2 + O13 * u3;
-            UV[1 * u_ld * nb + q + u_ld * b] = O21 * u1 + O22 * u2 + O23 * u3;
-            UV[2 * u_ld * nb + q + u_ld * b] = O31 * u1 + O32 * u2 + O33 * u3;
-         }
-      }
-   }
-}
-
 /** Full-NQ runtime batch (Fallback). Q-tile sizes use dense element path. */
 template<int DIM, bool SYM>
 MFEM_HOST_DEVICE inline
@@ -1268,18 +1048,15 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    constexpr int max_nq = mma::SimplexMaxNq<DIM, 0>();
    constexpr int max_ndof = mma::SimplexNdof<DIM, 0>();
-   constexpr int max_x_ld = mma::PadLdBank<mma::MmaMapDefault>(
-                               max_ndof);
-   constexpr int max_u_ld = mma::PadLdBank<mma::MmaMapDefault>(
-                               max_nq);
+   constexpr int max_x_ld = mma::PadLdBank<mma::MmaMapDefault>(max_ndof);
+   constexpr int max_u_ld = mma::PadLdBank<mma::MmaMapDefault>(max_nq);
    constexpr int max_nb = mma::NBATCH;
 
    const auto D = Reshape(d, nq, PA_SIZE, NE);
    const auto X = ConstDeviceMatrix(x, ndof, NE);
    const int tid = mma::getThreadIdx();
-   [[maybe_unused]] const int nthreads = mma::getBlockNthreads();
+   const int nthreads = mma::getBlockNthreads();
 
-   // Dyn layout matches launch smem_bytes; static uses caps.
 #if defined(__CUDA_ARCH__)
    real_t *XY = reinterpret_cast<real_t *>(mma::SimplexMmaDynSmem());
    real_t *UV = XY + x_ld * nb;
@@ -1293,53 +1070,16 @@ void MmaDiffusionApplySimplex_Batch(const int e0,
 
    if constexpr (mma::DeviceGemmEnabled())
    {
-      constexpr int MAP = mma::MmaMapDefault;
-      mma::SmemMatAccRt Xacc{XY, x_ld};
-      mma::YBatchAcc Yacc{y, ndof, e0};
-      mma::NullDAcc nullD;
-
-      mma::LoadXToSmem(XY, X, e0, NE, ndof, x_ld, nb, tid, nthreads);
-      MFEM_SYNC_THREAD;
-
-      for (int c = 0; c < DIM; ++c)
-      {
-         mma::GAcc A{g, nq, ndof, c};
-         mma::SmemMatAccRt Uacc{UV + c * u_ld * nb, u_ld};
-         mma::Gemm<MAP>(nq, ndof, nb, A, Xacc,
-                        Uacc, nullD, e0, NE);
-      }
-      MFEM_SYNC_THREAD;
-      ApplyDiffusionRuntime<DIM, SYM>(UV, D, e0, NE, nq, u_ld, nb,
-                                      tid, nthreads);
-      MFEM_SYNC_THREAD;
-      for (int c = 0; c < DIM; ++c)
-      {
-         mma::GAcc A{g, nq, ndof, c};
-         mma::SmemMatAccRt Vacc{UV + c * u_ld * nb, u_ld};
-         mma::GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
-      }
+      DiffusionSimplexFullNqGemm<DIM, SYM, mma::MmaMapDefault>(
+         XY, UV, D, g, y, X, e0, NE, nq, ndof, x_ld, u_ld, nb, tid, nthreads);
    }
    else
    {
-      auto Y = DeviceMatrix(y, ndof, NE);
-      if (tid == 0)
-      {
-         for (int b = 0; b < nb; ++b)
-         {
-            const int e = e0 + b;
-            if (e >= NE) { continue; }
-            real_t u_scratch[DIM * max_nq];
-            for (int i = 0; i < ndof; ++i)
-            {
-               XY[i + x_ld * b] = X(i, e);
-            }
-            mma::blas::DiffusionApplyDenseElement<DIM, SYM>(
-               nq, ndof, g, &D(0, 0, e), &XY[x_ld * b], &Y(0, e), u_scratch);
-            MFEM_CONTRACT_VAR(UV);
-            MFEM_CONTRACT_VAR(u_ld);
-         }
-      }
-      MFEM_SYNC_THREAD;
+      DiffusionSimplexFullNqEmulate<DIM, SYM>(
+         XY, D, g, y, X, e0, NE, nq, ndof, x_ld, nb, tid);
+      MFEM_CONTRACT_VAR(UV);
+      MFEM_CONTRACT_VAR(u_ld);
+      MFEM_CONTRACT_VAR(max_nq);
    }
 }
 
@@ -1364,17 +1104,17 @@ inline void MmaDiffusionApplySimplex(const int NE,
    MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof,
                "Simplex MMA diffusion runtime Fallback exceeds size caps");
 
-   // ---- host dense --------------------------------------------------------
+   // ---- host dense (PreferMultiRhs heavy or blas runtime) -----------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      PADiffusionApplySimplexDenseRuntime<DIM, SYM>(NE, g, d, x, y);
+      DiffusionApplySimplexRuntime<DIM, SYM>(NE, g, d, x, y);
       return;
    }
 
    // Q-tile budget: keep correctness via dense element path (rare Fallback).
    if (mma::DiffusionUseQTileRuntime(DIM, ndof, nq, DIM))
    {
-      PADiffusionApplySimplexDenseRuntime<DIM, SYM>(NE, g, d, x, y);
+      DiffusionApplySimplexRuntime<DIM, SYM>(NE, g, d, x, y);
       return;
    }
    // ---- device full-NQ smem batch -----------------------------------------
