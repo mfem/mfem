@@ -21,17 +21,46 @@
 using namespace std;
 using namespace mfem;
 
-void loadMesh(int myid, const char *mesh_file,
-                Mesh &mesh,
-                Array<int> &domain_attr,
-                Array<int> &outer_bdr_attrs,
-                vector<Array<int>> &clamp_attrs,
-                vector<Array<int>> &load_attrs,
-                vector<Array<real_t>> &load_fx,
-                vector<Array<real_t>> &load_fy,
-                vector<Array<real_t>> &load_fz,
-                int &n_elast_solve,
-                vector<Vector> &ray_dirs);
+// Boundary data for one elasticity solve.
+struct LoadCase
+{
+    Array<int>    clamp_attrs;
+    Array<int>    load_attrs;
+    Array<real_t> fx, fy, fz;
+};
+
+// n_dir directions evenly spaced over [start, start+span).
+struct RaySet
+{
+    int    n_dir = 4;
+    real_t span  = M_PI;
+    real_t start = 0.0;
+};
+
+// Ray directions per mode.
+struct RaySpec
+{
+    RaySet parallel;
+    RaySet cone;
+    real_t half_ang = M_PI / 12;   // cone half-opening angle (15 deg -> 30 deg cone)
+};
+
+// Full problem definition for one mesh
+// one elasticity solve per load case.
+struct MeshProblem
+{
+    Array<int>            domain_attr;
+    Array<int>            outer_bdr_attrs;
+    std::vector<LoadCase> cases;
+    RaySpec               rays;
+};
+
+enum class RayMode { Parallel = 1, Cone = 2 };
+
+std::vector<Vector> BuildRays(RayMode mode, const RaySpec &spec, int dim);
+std::unique_ptr<VectorCoefficient> MakeRayCoeff(RayMode mode, const RaySpec &spec,
+                                                const Vector &axis, int dim);
+MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh);
 
 int main(int argc, char *argv[])
 {
@@ -59,6 +88,7 @@ int main(int argc, char *argv[])
     real_t epsilon      = 1e-2;       // thickness residual tolerance
     bool   pa           = false;
     const int seed      = 0;
+    int    ray_type = 1;              // thickness ray strategy: 1=parallel, 2=cone
 
     bool visualization = true;
     bool paraview      = false;
@@ -79,6 +109,7 @@ int main(int argc, char *argv[])
 
     OptionsParser args(argc, argv);
     args.AddOption(&mesh_file, "-m", "--mesh", "mesh file to use", true);
+    args.AddOption(&ray_type, "-rt", "--ray-type", "ray type: 1 = parallel, 2 = cone");
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
     args.AddOption(&order, "-o", "--order", "finite element order");
     args.AddOption(&vol_fraction, "-vf", "--volume-fraction", "volume fraction");
@@ -114,26 +145,25 @@ int main(int argc, char *argv[])
         return 1;
     }
     if (myid == 0) { args.PrintOptions(cout); }
-
+    
     // initial (uniform) design density -- depends on the parsed options
     const real_t domain_init = alpha_max * vol_fraction;
-
-    // 2. Load the mesh and construct corresponding attributes.
+    const RayMode ray_mode = (ray_type == 2) ? RayMode::Cone : RayMode::Parallel;
+    
+    // 2. Load the mesh and the problem description (domain, loads, ray spec).
     Mesh mesh;
-    Array<int> domain_attr, outer_bdr_attrs;
-    vector<Array<int>> clamp_attrs, load_attrs;
-    vector<Array<real_t>> load_fx, load_fy, load_fz;
-    int n_elast_solve = 0;
-    vector<Vector> ray_dirs;
+    MeshProblem prob = loadMesh(myid, mesh_file, mesh);
 
-    loadMesh(myid, mesh_file, mesh, domain_attr, outer_bdr_attrs,
-            clamp_attrs, load_attrs, load_fx, load_fy, load_fz,
-            n_elast_solve, ray_dirs);
-    const int n_dir = static_cast<int>(ray_dirs.size());
-    // const int n_dir = 0;
+    const int n_elast_solve = static_cast<int>(prob.cases.size());
+    Array<int> &domain_attr     = prob.domain_attr;
+    Array<int> &outer_bdr_attrs = prob.outer_bdr_attrs;
 
     // 3. Refine the mesh and construct pmesh / the design subdomain.
     const int dim = mesh.Dimension();
+
+    vector<Vector> ray_dirs = BuildRays(ray_mode, prob.rays, dim);
+    const int n_dir = static_cast<int>(ray_dirs.size());
+
     for (int l = 0; l < ref_levels; l++)
     {
         mesh.UniformRefinement();
@@ -156,13 +186,12 @@ int main(int argc, char *argv[])
         candidate_attr.Append(el_attr);
     }
 
-    vector<unique_ptr<VectorConstantCoefficient>> ray_cf(n_dir);
+    vector<unique_ptr<VectorCoefficient>> ray_cf(n_dir);
     vector<unique_ptr<ParSubMesh>> outflow(n_dir);
 
     for (int r = 0; r < n_dir; r++)
     {
-        Vector &v = ray_dirs[r];
-        ray_cf[r] = make_unique<VectorConstantCoefficient>(v);
+        ray_cf[r] = MakeRayCoeff(ray_mode, prob.rays, ray_dirs[r], dim);
 
         // mark outflow (v . n > 0) on the candidate boundary elements
         const int outflow_attr = 100 + r;
@@ -279,20 +308,21 @@ int main(int argc, char *argv[])
     for (int i = 0; i < n_elast_solve; i++)
     {
         elast[i] = make_unique<IsoLinElasticSolver>(&design_domain, order, pa);
-        for (int j = 0; j < load_attrs[i].Size(); j++)
+        const LoadCase &lc = prob.cases[i];
+        for (int j = 0; j < lc.load_attrs.Size(); j++)
         {
             if (dim == 2)
             {
-                elast[i]->AddSurfLoad(load_attrs[i][j], load_fx[i][j], load_fy[i][j]);
+                elast[i]->AddSurfLoad(lc.load_attrs[j], lc.fx[j], lc.fy[j]);
             }
             else if (dim == 3)
             {
-                elast[i]->AddSurfLoad(load_attrs[i][j], load_fx[i][j], load_fy[i][j], load_fz[i][j]);
+                elast[i]->AddSurfLoad(lc.load_attrs[j], lc.fx[j], lc.fy[j], lc.fz[j]);
             }
         }
-        for (int j = 0; j < clamp_attrs[i].Size(); j++)
+        for (int j = 0; j < lc.clamp_attrs.Size(); j++)
         {
-            elast[i]->AddDispBC(clamp_attrs[i][j], -1, real_t(0));
+            elast[i]->AddDispBC(lc.clamp_attrs[j], -1, real_t(0));
         }
         elast[i]->SetMaterial(E_simp, nu_cf);
         elast[i]->SetLinearSolver(1e-10, 1e-14, 10000);
@@ -747,178 +777,161 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void loadMesh(int myid, const char *mesh_file,
-                Mesh &mesh,
-                Array<int> &domain_attr,
-                Array<int> &outer_bdr_attrs,
-                vector<Array<int>> &clamp_attrs,
-                vector<Array<int>> &load_attrs,
-                vector<Array<real_t>> &load_fx,
-                vector<Array<real_t>> &load_fy,
-                vector<Array<real_t>> &load_fz,
-                int &n_elast_solve,
-                vector<Vector> &ray_dirs)
+// ray axis directions for the selected mode, evenly spaced over its ray set
+std::vector<Vector> BuildRays(RayMode mode, const RaySpec &spec, int dim)
 {
-    if (strstr(mesh_file, "a_circular_5_holes.msh") != NULL)
-    {
+    const RaySet &s = (mode == RayMode::Cone) ? spec.cone : spec.parallel;
 
+    std::vector<Vector> dirs;
+    for (int i = 0; i < s.n_dir; i++)
+    {
+        const real_t ang = s.start + s.span * i / s.n_dir;
+        Vector v(dim); v = 0.0;
+        v(0) = cos(ang);
+        v(1) = sin(ang);
+        dirs.push_back(v);
     }
-    else if (strstr(mesh_file, "disk_6_holes.msh") != NULL)
+    return dirs;
+}
+
+// advection direction field for one ray: parallel is a constant axis, cone is a
+// unit field diverging from a source 1/tan(half_ang) behind the origin
+std::unique_ptr<VectorCoefficient> MakeRayCoeff(RayMode mode, const RaySpec &spec,
+                                                const Vector &axis, int dim)
+{
+    if (mode == RayMode::Parallel)
     {
-        n_elast_solve = 1;
-        mesh = Mesh(mesh_file);
-
-        domain_attr.Append(1);
-        outer_bdr_attrs = Array<int>({1});
-
-        clamp_attrs.resize(n_elast_solve);
-        load_attrs.resize(n_elast_solve);
-        load_fx.resize(n_elast_solve);
-        load_fy.resize(n_elast_solve);
-        load_fz.resize(n_elast_solve);
-
-        const int dim = mesh.Dimension();
-        const int n_dir = 4;
-        for (int i = 0; i < n_dir; i++)
-        {
-            const real_t ang = i * M_PI / n_dir;
-            Vector v(dim);
-            v(0) = cos(ang);
-            v(1) = sin(ang);
-            ray_dirs.push_back(v);
-        }
-
-        const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
-        vector<real_t> force_dirs[5];
-        for (int k = 0; k < 5; k++)
-        {
-            const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
-            force_dirs[k] = { -sin(ang), cos(ang) };
-        }
-
-        clamp_attrs[0] = Array<int>({ 7 });
-
-        Array<int> loads;
-        Array<real_t> fx, fy, fz;
-        for (int j = 0; j < 5; j++)
-        {
-            const int attr = 2 + j;
-
-            loads.Append(attr);
-            fx.Append(-force_dirs[j][0]);
-            fy.Append(-force_dirs[j][1]);
-            fz.Append(0.0);
-        }
-
-        load_attrs[0] = loads;
-        load_fx[0] = fx;
-        load_fy[0] = fy;
-        load_fz[0] = fz;
+        return std::make_unique<VectorConstantCoefficient>(axis);
     }
-    else if(strstr(mesh_file, "d_square_4_holes.msh") != NULL)
+
+    const real_t R = 1.5 / tan(spec.half_ang);
+    Vector src(axis); src *= -R;
+    auto field = [src, dim](const Vector &x, Vector &d)
     {
-        n_elast_solve = 2;
-        mesh = Mesh(mesh_file);
+        d.SetSize(dim);
+        subtract(x, src, d);
+        const real_t n = d.Norml2();
+        if (n > 0) { d /= n; }
+    };
+    return std::make_unique<VectorFunctionCoefficient>(dim, field);
+}
 
-        domain_attr.Append(1);
-        outer_bdr_attrs = Array<int>({1, 2, 3, 4});
+// disk mesh: one load case, 18 rays swept over the full circle
+static MeshProblem SetupDisk6Holes(Mesh &mesh, const char *mesh_file)
+{
+    mesh = Mesh(mesh_file);
 
-        {
-            const int dim = mesh.Dimension();
-            const real_t angles_deg[] = {0.0, 45.0, 90.0, 135.0};
-            for (real_t ang_deg : angles_deg)
-            {
-                const real_t ang = ang_deg * M_PI / 180.0;
-                Vector v(dim);
-                v(0) = cos(ang);
-                v(1) = sin(ang);
-                ray_dirs.push_back(v);
-            }
-        }
+    MeshProblem p;
+    p.domain_attr.Append(1);
+    p.outer_bdr_attrs = Array<int>({1});
+    p.rays.parallel = { 18, 2 * M_PI, 0.0 };
+    p.rays.cone     = { 18, 2 * M_PI, 0.0 };
 
-        {
-            clamp_attrs.resize(n_elast_solve);
-            load_attrs.resize(n_elast_solve);
-            load_fx.resize(n_elast_solve);
-            load_fy.resize(n_elast_solve);
-            load_fz.resize(n_elast_solve);
+    p.cases.resize(1);
+    LoadCase &lc = p.cases[0];
+    lc.clamp_attrs = Array<int>({ 7 });
 
-            // first elast solve
-            clamp_attrs[0] = Array<int>({ 6, 7});
-            load_attrs[0]  = Array<int>({ 5, 8});
-            load_fx[0]     = Array<real_t>({ 1,-1});
-            load_fy[0]     = Array<real_t>({-1, 1});
-            load_fz[0]     = Array<real_t>({ 0, 0});
-
-            // second elast solve
-            clamp_attrs[1] = Array<int>({ 5, 8});
-            load_attrs[1]  = Array<int>({ 6, 7});
-            load_fx[1]     = Array<real_t>({-1, 1});
-            load_fy[1]     = Array<real_t>({-1, 1});
-            load_fz[1]     = Array<real_t>({ 0, 0});
-        }
+    const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
+    for (int j = 0; j < 5; j++)
+    {
+        const real_t ang = angles_deg_forces[j] * M_PI / 180.0;
+        const real_t fdx = -sin(ang), fdy = cos(ang);
+        lc.load_attrs.Append(2 + j);
+        lc.fx.Append(-fdx);
+        lc.fy.Append(-fdy);
+        lc.fz.Append(0.0);
     }
-    else if (strstr(mesh_file, "circular_5_holes_pentagon.msh"))
+    return p;
+}
+
+// square mesh: two load cases with swapped clamp/load, 4 parallel or 8 cone rays
+static MeshProblem SetupSquare4Holes(Mesh &mesh, const char *mesh_file)
+{
+    mesh = Mesh(mesh_file);
+
+    MeshProblem p;
+    p.domain_attr.Append(1);
+    p.outer_bdr_attrs = Array<int>({1, 2, 3, 4});
+    p.rays.parallel = { 4, M_PI,     0.0 };
+    p.rays.cone     = { 8, 2 * M_PI, 0.0 };
+
+    p.cases.resize(2);
+
+    // first elast solve
+    p.cases[0].clamp_attrs = Array<int>({ 6, 7});
+    p.cases[0].load_attrs  = Array<int>({ 5, 8});
+    p.cases[0].fx          = Array<real_t>({ 1,-1});
+    p.cases[0].fy          = Array<real_t>({-1, 1});
+    p.cases[0].fz          = Array<real_t>({ 0, 0});
+
+    // second elast solve
+    p.cases[1].clamp_attrs = Array<int>({ 5, 8});
+    p.cases[1].load_attrs  = Array<int>({ 6, 7});
+    p.cases[1].fx          = Array<real_t>({-1, 1});
+    p.cases[1].fy          = Array<real_t>({-1, 1});
+    p.cases[1].fz          = Array<real_t>({ 0, 0});
+
+    return p;
+}
+
+// pentagon mesh: five load cases, rays aligned with the edges
+static MeshProblem SetupPentagon(Mesh &mesh, const char *mesh_file)
+{
+    mesh = Mesh(mesh_file);
+
+    MeshProblem p;
+    p.domain_attr.Append(1);
+    p.outer_bdr_attrs = Array<int>({1});
+    p.rays.parallel = { 5, 2 * M_PI, 0.0 };     // aligned with pentagon edges
+    p.rays.cone     = { 5, 2 * M_PI, 0.0 };
+
+    const int n_case = 5;
+    const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
+    real_t fdx[5], fdy[5];
+    for (int k = 0; k < n_case; k++)
     {
-        n_elast_solve = 5;
-        mesh = Mesh(mesh_file);
+        const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
+        fdx[k] = cos(ang);
+        fdy[k] = sin(ang);
+    }
 
-        domain_attr.Append(1);
-        outer_bdr_attrs = Array<int>({1});
+    const int first_attr = 2;
+    p.cases.resize(n_case);
+    for (int i = 0; i < n_case; i++)
+    {
+        const int clamped_attr = first_attr + i;
+        LoadCase &lc = p.cases[i];
+        lc.clamp_attrs = Array<int>({ clamped_attr });
 
-        clamp_attrs.resize(n_elast_solve);
-        load_attrs.resize(n_elast_solve);
-        load_fx.resize(n_elast_solve);
-        load_fy.resize(n_elast_solve);
-        load_fz.resize(n_elast_solve);
-
+        for (int j = 0; j < n_case; j++)
         {
-            const int dim = mesh.Dimension();
-            const real_t angles_deg[] = {0.0, 72.0, 144.0, 216.0, 288.0};
-            for (real_t ang_deg : angles_deg)
-            {
-                const real_t ang = ang_deg * M_PI / 180.0;
-                Vector v(dim);
-                v(0) = cos(ang);
-                v(1) = sin(ang);
-                ray_dirs.push_back(v);
-            }
-        }
-
-        const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
-        vector<real_t> force_dirs[5];
-        for (int k = 0; k < n_elast_solve; k++)
-        {
-            const real_t ang = angles_deg_forces[k] * M_PI / 180.0;
-            force_dirs[k] = { cos(ang), sin(ang) };
-        }
-
-        const int first_attr = 2;
-
-        for (int i = 0; i < n_elast_solve; i++)
-        {
-            const int clamped_attr = first_attr + i;
-            clamp_attrs[i] = Array<int>({ clamped_attr });
-
-            Array<int> loads;
-            Array<real_t> fx, fy, fz;
-            for (int j = 0; j < n_elast_solve; j++)
-            {
-                const int attr = first_attr + j;
-                if (attr == clamped_attr) { continue; }
-
-                loads.Append(attr);
-                fx.Append(-force_dirs[j][0]);
-                fy.Append(-force_dirs[j][1]);
-                fz.Append(0.0);
-            }
-
-            load_attrs[i] = loads;
-            load_fx[i] = fx;
-            load_fy[i] = fy;
-            load_fz[i] = fz;
+            const int attr = first_attr + j;
+            if (attr == clamped_attr) { continue; }
+            lc.load_attrs.Append(attr);
+            lc.fx.Append(-fdx[j]);
+            lc.fy.Append(-fdy[j]);
+            lc.fz.Append(0.0);
         }
     }
-    else
-        if(myid == 0) mfem::out << "invalid mesh files" << endl;
+    return p;
+}
+
+// select the per-mesh setup from the mesh file name
+MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh)
+{
+    if (strstr(mesh_file, "disk_6_holes.msh") != NULL)
+    {
+        return SetupDisk6Holes(mesh, mesh_file);
+    }
+    else if (strstr(mesh_file, "d_square_4_holes.msh") != NULL)
+    {
+        return SetupSquare4Holes(mesh, mesh_file);
+    }
+    else if (strstr(mesh_file, "circular_5_holes_pentagon.msh") != NULL)
+    {
+        return SetupPentagon(mesh, mesh_file);
+    }
+
+    if (myid == 0) { mfem::out << "invalid mesh file" << endl; }
+    return MeshProblem();
 }
