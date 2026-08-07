@@ -44,6 +44,10 @@ Discretization improvements
 - Added methods to estimate function extremum using piecewise linear bounds plus
   recursive subdivision.
 
+- Fixed triangular face DOF orientation handling in
+  ParGridFunction::ProjectBdrCoefficientTangent for high-order Nedelec
+  (H(curl)) elements in parallel.
+
 - Extend FindPointsGSLIB to support surface meshes.
 
 - Added support for complex-valued mixed bilinear forms via the new classes
