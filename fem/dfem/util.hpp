@@ -617,9 +617,7 @@ void forall(func_t f,
             int num_shmem = 0,
             real_t *shmem = nullptr)
 {
-#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   internal::StaticAssertCudaOrHipLanguage<false>();
-#endif
+   internal::RequireCudaOrHipLanguage();
 
 #if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))

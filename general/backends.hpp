@@ -114,8 +114,14 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 namespace mfem::internal
 {
 
-template <bool using_cuda_or_hip_language>
-void StaticAssertCudaOrHipLanguage()
+#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+static constexpr bool using_cuda_or_hip_language = false;
+#else
+static constexpr bool using_cuda_or_hip_language = true;
+#endif
+
+template <bool using_cuda_or_hip_language=using_cuda_or_hip_language>
+void RequireCudaOrHipLanguage()
 {
    static_assert(
       using_cuda_or_hip_language,
