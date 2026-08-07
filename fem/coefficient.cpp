@@ -706,6 +706,11 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
+void MatrixCoefficient::Project(QuadratureFunction &qf)
+{
+   Project(qf, false);
+}
+
 void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
 {
    MFEM_VERIFY(qf.GetVDim() == height*width, "Wrong sizes.");
@@ -2044,23 +2049,7 @@ CoefficientVector::CoefficientVector(Coefficient *coeff,
    }
 }
 
-CoefficientVector::CoefficientVector(Coefficient &coeff,
-                                     QuadratureSpaceBase &qs_,
-                                     CoefficientStorage storage_)
-   : CoefficientVector(qs_, storage_)
-{
-   Project(coeff);
-}
-
-CoefficientVector::CoefficientVector(VectorCoefficient &coeff,
-                                     QuadratureSpaceBase &qs_,
-                                     CoefficientStorage storage_)
-   : CoefficientVector(qs_, storage_)
-{
-   Project(coeff);
-}
-
-CoefficientVector::CoefficientVector(MatrixCoefficient &coeff,
+CoefficientVector::CoefficientVector(CoefficientBase &coeff,
                                      QuadratureSpaceBase &qs_,
                                      CoefficientStorage storage_)
    : CoefficientVector(qs_, storage_)

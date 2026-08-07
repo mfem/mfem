@@ -43,6 +43,15 @@ public:
    static CoefficientBase *Get(class Coefficient *coeff = nullptr,
                                class VectorCoefficient *vec_coeff = nullptr,
                                class MatrixCoefficient *mat_coeff = nullptr);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   virtual void Project(QuadratureFunction &qf) = 0;
+
+   /// @brief Returns the size of the coefficient (1 for scalars, vdim for
+   /// vectors, width times height for matrices).
+   virtual int GetCoefficientSize() const = 0;
+
    virtual ~CoefficientBase() = default;
 };
 
@@ -68,7 +77,9 @@ public:
    real_t GetTime() { return time; }
 
    /// Returns dimension of the vector.
-   int GetVDim() { return 1; }
+   int GetVDim() const { return 1; }
+
+   int GetCoefficientSize() const override { return GetVDim(); }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip. */
@@ -90,9 +101,7 @@ public:
       return Eval(T, ip);
    }
 
-   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
-   /// the quadrature points.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) override;
 
    virtual ~Coefficient() { }
 };
@@ -602,10 +611,12 @@ public:
    virtual void SetTime(real_t t) { time = t; }
 
    /// Get the time for time dependent coefficients
-   real_t GetTime() { return time; }
+   real_t GetTime() const { return time; }
 
    /// Returns dimension of the vector.
-   int GetVDim() { return vdim; }
+   int GetVDim() const { return vdim; }
+
+   int GetCoefficientSize() const override { return GetVDim(); }
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at the point @a ip, storing the result in @a V. */
@@ -635,7 +646,7 @@ public:
    ///
    /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
    /// the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) override;
 
    virtual ~VectorCoefficient() { }
 };
@@ -1102,6 +1113,8 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
+   int GetCoefficientSize() const override { return width * height; }
+
    /** @deprecated Use SymmetricMatrixCoefficient instead */
    bool IsSymmetric() const { return symmetric; }
 
@@ -1114,12 +1127,22 @@ public:
                      const IntegrationPoint &ip) = 0;
 
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// The @a vdim of the QuadratureFunction should be equal to the height times
+   /// the width of the matrix.
+   ///
+   /// @sa Project(QuadratureFunction&, bool) for the option to transpose the
+   /// coefficient.
+   virtual void Project(QuadratureFunction &qf) override;
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
    ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
-   virtual void Project(QuadratureFunction &qf, bool transpose=false);
+   virtual void Project(QuadratureFunction &qf, bool transpose);
 
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
@@ -2563,25 +2586,11 @@ public:
    CoefficientVector(Coefficient *coeff, QuadratureSpaceBase &qs,
                      CoefficientStorage storage_ = CoefficientStorage::FULL);
 
-   /// @brief Create a CoefficientVector from the given Coefficient and
+   /// @brief Create a CoefficientVector from the given CoefficientBase and
    /// QuadratureSpaceBase.
    ///
    /// @sa CoefficientStorage for a description of @a storage_.
-   CoefficientVector(Coefficient &coeff, QuadratureSpaceBase &qs,
-                     CoefficientStorage storage_ = CoefficientStorage::FULL);
-
-   /// @brief Create a CoefficientVector from the given VectorCoefficient and
-   /// QuadratureSpaceBase.
-   ///
-   /// @sa CoefficientStorage for a description of @a storage_.
-   CoefficientVector(VectorCoefficient &coeff, QuadratureSpaceBase &qs,
-                     CoefficientStorage storage_ = CoefficientStorage::FULL);
-
-   /// @brief Create a CoefficientVector from the given MatrixCoefficient and
-   /// QuadratureSpaceBase.
-   ///
-   /// @sa CoefficientStorage for a description of @a storage_.
-   CoefficientVector(MatrixCoefficient &coeff, QuadratureSpaceBase &qs,
+   CoefficientVector(CoefficientBase &coeff, QuadratureSpaceBase &qs,
                      CoefficientStorage storage_ = CoefficientStorage::FULL);
 
    /// @brief Evaluate the given Coefficient at the quadrature points defined by
