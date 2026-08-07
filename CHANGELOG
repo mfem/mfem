@@ -46,8 +46,19 @@ Discretization improvements
 
 - Extend FindPointsGSLIB to support surface meshes.
 
+- Added support for complex-valued mixed bilinear forms via the new classes
+  MixedSesquilinearForm and ParMixedSesquilinearForm, mirroring the existing
+  SesquilinearForm classes. Rectangular complex operators are now also
+  handled correctly by ComplexSparseMatrix::GetSystemMatrix and
+  ComplexHypreParMatrix::GetSystemMatrix, which previously assumed equal
+  trial and test spaces.
+
 Meshing improvements
 --------------------
+- Added support for nonuniform anisotropic mesh refinement on parallel quad/hex
+  meshes with arbitrary spacing in each direction. This enables in particular
+  3:1 refinement in parallel, as demonstrated in the new meshing miniapp pref321.
+
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
   bounds on the determinant of the mesh transformation Jacobian.
 
@@ -70,6 +81,15 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Improved partial assembly for VectorDivergenceIntegrator with shared-memory
+  kernels, kernel registration, and transpose support.
+
+- Improved partial-assembly diagonal kernels for VectorMassIntegrator (shared-
+  memory specializations) and ElasticityIntegrator (no scratch Q-vector).
+
+- Added PA gradient and diagonal support for VectorConvectionNLFIntegrator
+ (AssembleGradPA, AddMultGradPA, AssembleGradDiagonalPA).
+
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
 - Added NVIDIA cuDSS library interface. Implementation examples have been
@@ -77,6 +97,7 @@ GPU computing
   details. Supported versions >= 0.6.0.
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
 - Added support for FiniteElement::MapType::INTEGRAL spaces to
   QuadratureInterpolator.
 
