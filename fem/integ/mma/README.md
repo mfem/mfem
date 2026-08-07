@@ -15,14 +15,12 @@ Shared backends for MFEM partial-assembly MMA (CUDA DMMA / HIP MFMA / host blas+
 ```text
 host tensor:   PreferTensorDense(D1D, NE) → blas sum-fact vs Emulate shell
                diffusion 2D → lapack fat GEMM if MFEM_USE_LAPACK
-host simplex:  PreferMultiRhs(nq, ndof, NE, cost) → lapack multi-RHS
-               cost = kMultiRhsCostLight (mass, DomainLF)
-                     or kMultiRhsCostHeavy (diffusion)
-               else → blas dense
+host simplex:  PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS when large enough
+               else dense / form pipeline host path
 device:        TensorMmaEnabled → dmma / mfma else blas Emulate
 ```
 
-One simplex probe (`PreferMultiRhs`); `cost` is relative apply cost, not an operator name.
+`PreferMultiRhs` is a pure size gate (no per-operator cost weight).
 
 ## Files
 
@@ -35,9 +33,25 @@ One simplex probe (`PreferMultiRhs`); `cost` is relative apply cost, not an oper
 | `lapack.hpp` | `mma::lapack` PreferMultiRhs (ifdef LAPACK) |
 | `dispatch.hpp` | `MMA_BACKEND_PICK`, public Gemm/Grad/Interp |
 | `mma.hpp` / `mma.cpp` | ForceMMA, Uses*, simplex helpers |
+| `form/` | **Generic** Apply machinery (field types, plans, pipelines) |
+| `batch.hpp` | Multi-plane smem batch NB + Q-tile (`BatchNB*`) |
 
-Drivers: `fem/integ/bilininteg_*_mma.hpp`, `lininteg_domain_simplices_mma.hpp`.  
-Kernel entry points stay `internal::Mma*Apply*` (not under `mma::`).
+**Form layer is integrator-agnostic** — see **[`form/README.md`](form/README.md)**.
+
+Physics QFns live next to drivers:
+
+| Driver header | QFn / dispatch |
+|---------------|----------------|
+| `bilininteg_mass_pa_simplices_mma.hpp` | `MassScale` → `Apply<MassScale,…>` |
+| `lininteg_domain_simplices_mma.hpp` | `IdentityLoad` → `ApplyLF<…>` |
+| `bilininteg_diffusion_pa_simplices_mma.hpp` | `DiffusionMetric` + `ApplyDiffusionDispatch` |
+
+Custom forms: QFn + `qfn_traits<MyQ> : EvalEvalQFnTraits` (etc.) under `form/` only.
+
+Design: `docs/design/mma-declarative-kernels.md`.  
+Unit tests: `[MMA][Form]`, `[MMA][Form][Author]`, `[MMA][Form][Dump]`.
+
+**Form dump:** `MFEM_MMA_FORM_DUMP=1` prints kinds + plan on Apply (host).
 
 ## Adding a specialization
 

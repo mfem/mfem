@@ -276,6 +276,11 @@ set(HDRS
   integ/mma/dmma.hpp
   integ/mma/lapack.hpp
   integ/mma/mfma.hpp
+  integ/mma/form/form.hpp
+  integ/mma/form/fields.hpp
+  integ/mma/form/plan.hpp
+  integ/mma/form/pipeline.hpp
+  integ/mma/batch.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecmass_pa.hpp

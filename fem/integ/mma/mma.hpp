@@ -22,9 +22,8 @@
     ## Host apply tree
     - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
       (diffusion 2D may use lapack fat GEMM when LAPACK is on)
-    - Simplex: PreferMultiRhs(nq, ndof, NE, cost) → lapack multi-RHS
-      cost=kMultiRhsCostLight (mass, DomainLF) or kMultiRhsCostHeavy (diffusion)
-      else → blas dense
+    - Simplex host: PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS (size gate)
+      else → dense / form pipeline host path
 
     ## Device apply tree
     - TensorMmaEnabled → dmma (CUDA) / mfma (HIP); else blas Emulate
