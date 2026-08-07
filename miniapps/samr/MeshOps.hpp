@@ -1,8 +1,7 @@
 
-#ifndef included_MFEMMeshOps
-#define included_MFEMMeshOps
+#ifndef MFEM_MESHOPS
+#define MFEM_MESHOPS
 
-#include "boost/shared_ptr.hpp"
 #include "SAMRAI/hier/PatchHierarchy.h"
 #include "SAMRAI/pdat/NodeData.h"
 #include "SAMRAI/pdat/CellData.h"
@@ -20,13 +19,31 @@ public:
 
    MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy);
 
-   const ParMesh& GetMesh() const { return mesh; }
+   // read-only access to current MFEM mesh object (meant for temporary access)
+   const ParMesh& GetMesh() const { return *mesh; }
 
-   void SetMeshGridFunction(std::shared_ptr<GridFunction> grid_function);
-
-   // TODO: determine if this should be deleted
+   // create an "unmanaged" finite element space on the managed MFEM mesh, which
+   // can be used for MFEM-only fields **the space becomes invalid after call to
+   // SynchronizeToHierarchy**.
    std::unique_ptr<ParFiniteElementSpace> CreateFESpace(
-      FiniteElementCollection& fe_collection, int dim=1);
+      FiniteElementCollection& fe_collection, int dim=1)
+   {
+      return std::make_unique<ParFiniteElementSpace>(mesh.get(), &fe_collection, dim);
+   }
+
+   // specify the MFEM mesh topology by an externally provided grid function
+   // defined on a finite element space created by CreateFESpace
+   void SetMeshGridFunction(std::shared_ptr<GridFunction> grid_function)
+   {
+      mesh->SetNodalGridFunction(grid_function.get());
+      mesh_grid_function = grid_function;
+   }
+
+   // synchronizes the MFEM mesh to the SAMRAI grid by either updating the
+   // existing MFEM mesh or creating a new mesh, with all "managed" finite
+   // element spaces updated in either case (**"unmanaged" spaces created by
+   // CreateFESpace become invalid)**
+   void SynchronizeToHierarchy(const bool build_new_mesh=false);
 
    // transfer SAMRAI node positions and specified node and cell values to the
    // MFEM mesh nodes and specified grid function. This method assumes the
@@ -52,29 +69,22 @@ public:
       std::vector<std::pair<int, GridFunction&>> node_fields,
       std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
-   // similar to other transferToSAMRAI method except the MFEM mesh position is
+   // similar to other TransferToSAMRAI method except the MFEM mesh position is
    // also transferred (assumes an external mesh grid function containing the
    // mesh topology, specified by SetMeshGridFunction, has been changed)
    void TransferToSAMRAI(int position_id,
       std::vector<std::pair<int, GridFunction&>> node_fields,
       std::vector<std::pair<int, ParGridFunction&>> cell_fields)
    {
-      mesh.NewNodes(*mesh_grid_function);
+      mesh->NewNodes(*mesh_grid_function);
       node_fields.emplace_back(position_id,
          const_cast<GridFunction&>(*mesh_grid_function));
       TransferToSAMRAI(node_fields, cell_fields);
    }
 
-   // synchronizes the MFEM mesh to the SAMRAI grid and updates all dependent
-   // finite element spaces
-   void SynchronizeToHierarchy();
-
 private:
 
-
    /***** general utility methods *****/
-
-   static Array<SAMRAI::pdat::NodeIndex::Corner> GetCorners(const unsigned dimension);
 
    static inline SAMRAI::hier::Index ToIndex(const Vector& vector);
 
@@ -84,14 +94,6 @@ private:
    static Vector ToVector(const SAMRAI::hier::IntVector& vector);
 
    static Vector GetElementDimensions(Mesh& mesh, const int element_ind);
-
-   // extracts the following information for the gather/scatter buffer:
-   //   1) the number of values per element
-   //   2) the vector dimension of each node field
-   //   3) the offsets with a specified element block of buffer for each node field
-   std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
-      std::vector<std::pair<int, GridFunction&>> node_fields,
-      std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
    /***** utility classes *****/
 
@@ -163,7 +165,15 @@ private:
       std::shared_ptr<SAMRAI::hier::Patch> patch;
    };
 
-   /***** utility MPI collective and methods *****/
+   /***** MPI utility methods *****/
+
+   // extracts the following information for the gather/scatter buffer:
+   //   1) the number of values per element
+   //   2) the vector dimension of each node field
+   //   3) the offsets with a specified element block of buffer for each node field
+   std::tuple<int,Array<int>,Array<int>> ExtractBufferInfo(
+      std::vector<std::pair<int, GridFunction&>> node_fields,
+      std::vector<std::pair<int, ParGridFunction&>> cell_fields) const;
 
    void GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
       std::vector<PatchInfo>& gathered_patch_info) const;
@@ -177,7 +187,9 @@ private:
 
    void RemoveOldPatchesFromGlobalPatchInfo();
 
-   /***** MFEM mesh update methods *****/
+   /***** MFEM mesh creation and update methods *****/
+
+   void CreateMesh();
 
    void UpdateFiniteElementSpaces();
 
@@ -200,7 +212,18 @@ private:
 
    /***** SAMRAI<=>MFEM data transfer variables *****/
 
-   const Array<SAMRAI::pdat::NodeIndex::Corner> corners;
+   const Array<SAMRAI::pdat::NodeIndex::Corner>& corners;
+
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners1D{
+      SAMRAI::pdat::NodeIndex::Left, SAMRAI::pdat::NodeIndex::Right};
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners2D{
+      SAMRAI::pdat::NodeIndex::LowerLeft, SAMRAI::pdat::NodeIndex::LowerRight,
+      SAMRAI::pdat::NodeIndex::UpperRight, SAMRAI::pdat::NodeIndex::UpperLeft};
+   const Array<SAMRAI::pdat::NodeIndex::Corner> corners3D{
+      SAMRAI::pdat::NodeIndex::LLL, SAMRAI::pdat::NodeIndex::ULL,
+      SAMRAI::pdat::NodeIndex::UUL, SAMRAI::pdat::NodeIndex::LUL,
+      SAMRAI::pdat::NodeIndex::LLU, SAMRAI::pdat::NodeIndex::ULU,
+      SAMRAI::pdat::NodeIndex::UUU, SAMRAI::pdat::NodeIndex::LUU};
 
    // (rank) -> {CellInfo for local cell that corresponds to element on rank}
    std::vector<std::vector<CellInfo>> local_cell_info;
@@ -209,7 +232,7 @@ private:
 
    /***** MFEM variables *****/
 
-   ParMesh mesh;
+   std::unique_ptr<ParMesh> mesh;
    std::shared_ptr<GridFunction> mesh_grid_function;
    Vector mesh_index_space_tdofs;
    H1_FECollection fe_collection_node;

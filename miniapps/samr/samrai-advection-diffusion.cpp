@@ -116,6 +116,8 @@ int main(int argc, char *argv[])
    int vis_steps = 5;
    bool solve_implicit_state = false;
 
+   bool use_new_mesh = false;
+
    // Define command line argument defaults for SAMRAI
    const char *samrai_input_file = "linadv_input.2d";
 
@@ -138,6 +140,9 @@ int main(int argc, char *argv[])
                   "Visualize every n-th timestep.");
    args.AddOption(&samrai_input_file, "-i", "--samrai-input",
                   "SAMRAI input file.");
+   args.AddOption(&use_new_mesh, "-recreate", "--use-recreated-mesh",
+                  "-update", "--use-updated-mesh",
+                  "Whether to recreate or update MFEM mesh each timestep");
    args.Parse();
    if (!args.Good())
    {
@@ -298,10 +303,8 @@ int main(int argc, char *argv[])
       // SAMRAI advection step
       const double dt_new = samrai_time_integrator->advanceHierarchy(dt);
 
-      // Transfer SAMRAI values to MFEM mesh (for now, recreate the MFEM mesh
-      // and dependent object to account for AMR in SAMRAI grid)
-      //mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
-      mesh_ops->SynchronizeToHierarchy();
+      // Transfer SAMRAI values to MFEM mesh
+      mesh_ops->SynchronizeToHierarchy(use_new_mesh);
       {
          std::vector<std::unique_ptr<ParGridFunction>> gfs =
             mesh_ops->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});

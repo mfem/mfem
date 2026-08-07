@@ -6,105 +6,69 @@ namespace mfem
 {
 
 MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
-   hierarchy(hierarchy), corners(GetCorners( hierarchy->getDim().getValue())),
+   hierarchy(hierarchy),
+   corners(hierarchy->getDim().getValue() == 3 ? corners3D :
+            hierarchy->getDim().getValue() == 2 ? corners2D : corners1D),
    fe_collection_node(1, hierarchy->getDim().getValue()),
    fe_collection_cell(0, hierarchy->getDim().getValue())
 {
-   int rank, ranks;
-   MPI_Comm_rank(hierarchy->getMPI().getCommunicator(), &rank);
-   MPI_Comm_size(hierarchy->getMPI().getCommunicator(), &ranks);
-   const unsigned short dim = hierarchy->getDim().getValue();
+   SynchronizeToHierarchy(true);
+}
 
-   // build Cartesian MFEM mesh with unit width elements to easier facilitate
-   // indexing
-   SAMRAI::hier::Index domain_lower = SAMRAI::hier::Index::getMaxIndex(hierarchy->getDim());
-   SAMRAI::hier::Index domain_upper = SAMRAI::hier::Index::getMinIndex(hierarchy->getDim());
-   std::shared_ptr<SAMRAI::hier::PatchLevel> level0 = hierarchy->getPatchLevel(0);
-   for (SAMRAI::hier::PatchLevel::iterator patch_iter=level0->begin();
-         patch_iter != level0->end(); patch_iter++)
-   {
-      const SAMRAI::hier::Box& box = patch_iter->getBox();
-      domain_lower.min(box.lower());
-      domain_upper.max(box.upper());
-   }
-
-   // TODO: see if there's a more appropriate way to access the int[] object in
-   //       the hier::Index class
-   int* lowerData = &domain_lower[0];
-   int* upperData = &domain_upper[0];
-   MPI_Allreduce(MPI_IN_PLACE, lowerData, dim, MPI_INT, MPI_MIN,
-      hierarchy->getMPI().getCommunicator());
-   MPI_Allreduce(MPI_IN_PLACE, upperData, dim, MPI_INT, MPI_MAX,
-      hierarchy->getMPI().getCommunicator());
-   const SAMRAI::hier::IntVector num_cells = domain_upper - domain_lower + 1;
-
-   // Create coarse mesh
-   mfem::Mesh serial_mesh;
-   switch(dim)
-   {
-      case 1:
-      {
-         const int num_x = num_cells(0);
-         serial_mesh = mfem::Mesh::MakeCartesian1D(num_x, num_x);
-         // label xlo and xhi as "1"
-         serial_mesh.GetBdrElement(0)->SetAttribute(1);
-         serial_mesh.GetBdrElement(1)->SetAttribute(1);
-         break;
-      }
-      case 2:
-      {
-         const int num_x = num_cells(0);
-         const int num_y = num_cells(1);
-         serial_mesh = mfem::Mesh::MakeCartesian2D(num_x, num_y,
-            mfem::Element::Type::QUADRILATERAL, true, num_x, num_y);
-         break;
-      }
-      case 3:
-      {
-         const int num_x = num_cells(0);
-         const int num_y = num_cells(1);
-         const int num_z = num_cells(2);
-         serial_mesh = mfem::Mesh::MakeCartesian3D(num_x, num_y, num_z,
-            mfem::Element::Type::HEXAHEDRON, num_x, num_y, num_z);
-         break;
-      }
-      default:
-         MFEM_ABORT("dimension not valid");
-   }
-   serial_mesh.EnsureNCMesh();
-   mesh = ParMesh(hierarchy->getMPI().getCommunicator(), serial_mesh);
-   serial_mesh.Clear();
-
-   // create global patch info list by adding all SAMRAI patches to it
-   AddNewPatchesToGlobalPatchInfo();
-
-   // refine the mesh according to the global patch info list
+void MeshOps::SynchronizeToHierarchy(const bool build_new_mesh)
+{
+   // update global patch info and obtain corresponding patch bounds
    std::vector<PatchLevelBounds> global_patch_bounds;
+   RemoveOldPatchesFromGlobalPatchInfo();
+   AddNewPatchesToGlobalPatchInfo();
    GetGlobalPatchBounds(global_patch_bounds);
-   RefineMesh(global_patch_bounds);
 
-   // create transfer maps between SAMRAI grid and refined MFEM mesh
+   if (build_new_mesh)
+   {
+      // clear any existing mesh and related finite element spaces objects
+      if (mesh)
+      {
+         fe_spaces_cell.clear();
+         fe_spaces_node.clear();
+         mesh_grid_function.reset();
+         mesh.reset();
+      }
+      // create new mesh with index space topology and then refine
+      CreateMesh();
+      RefineMesh(global_patch_bounds);
+      // create the finite element space and grid function for the mesh topology
+      fe_spaces_node[mesh->Dimension()] =
+         std::make_unique<ParFiniteElementSpace>(mesh.get(),
+            &fe_collection_node, mesh->Dimension());
+      mesh_grid_function =
+         std::make_shared<ParGridFunction>(fe_spaces_node[mesh->Dimension()].get());
+      mesh->SetNodalGridFunction(mesh_grid_function.get());
+   }
+   else
+   {
+      // restore mesh topology to index space then derefine and refine
+      mesh_grid_function->SetFromTrueDofs(mesh_index_space_tdofs);
+      mesh->NodesUpdated();
+      DerefineMesh(global_patch_bounds);
+      RefineMesh(global_patch_bounds);
+   }
+
    CreateTransferMaps();
 
-   // create the finite element space and grid function for the mesh topology
-   fe_spaces_node[mesh.Dimension()] =
-      std::make_unique<ParFiniteElementSpace>(&mesh, &fe_collection_node, mesh.Dimension());
-   mesh_grid_function =
-      std::make_shared<ParGridFunction>(fe_spaces_node[mesh.Dimension()].get());
-   mesh.SetNodalGridFunction(mesh_grid_function.get());
-
-   // store the current mesh topology values b/c they are in index coordinates
+   // store index space mesh topology
    mesh_grid_function->GetTrueDofs(mesh_index_space_tdofs);
 }
 
 void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
    std::vector<PatchInfo>& gathered_patch_info) const
 {
-   const int rank = mesh.GetMyRank();
-   const int ranks = mesh.GetNRanks();
+   const int dim = hierarchy->getDim().getValue();
+   const int rank = hierarchy->getMPI().getRank();
+   const int ranks = hierarchy->getMPI().getSize();
+   MPI_Comm comm = hierarchy->getMPI().getCommunicator();
 
    // serialize local patch data
-   const unsigned patch_info_size = PatchInfo::Size(mesh.Dimension());
+   const unsigned patch_info_size = PatchInfo::Size(dim);
    const int local_patch_count = local_patch_info.size();
    BlockArray<int> local_patch_info_buffer(patch_info_size, local_patch_count);
    for (unsigned ind=0; ind < local_patch_info.size(); ind++)
@@ -116,7 +80,7 @@ void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_in
    // gather the number of patches from each rank
    Array<int> global_patch_counts(ranks);
    MPI_Allgather(&local_patch_count, 1, MPI_INT, global_patch_counts.GetData(),
-      1, MPI_INT, mesh.GetComm());
+      1, MPI_INT, comm);
 
    // gather the serialized global patch info on each rank
    BlockArray<int> gathered_patch_info_buffer(patch_info_size, global_patch_counts.Sum());
@@ -129,7 +93,7 @@ void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_in
       MPI_Allgatherv(local_patch_info_buffer.GetData(),
          local_patch_info_buffer.Size(), MPI_INT,
          gathered_patch_info_buffer.GetData(), gather_counts.GetData(),
-         gather_offsets.GetData(), MPI_INT, mesh.GetComm());
+         gather_offsets.GetData(), MPI_INT, comm);
    }
 
    // unserialize patch data and note rank that has each patch
@@ -144,7 +108,7 @@ void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_in
 
 void MeshOps::AddNewPatchesToGlobalPatchInfo()
 {
-   const int rank = mesh.GetMyRank();
+   const int rank = hierarchy->getMPI().getRank();
 
    // collect local added patch info, followed by gathering global added patch
    // info
@@ -188,7 +152,7 @@ void MeshOps::AddNewPatchesToGlobalPatchInfo()
 
 void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
 {
-   const int rank = mesh.GetMyRank();
+   const int rank = hierarchy->getMPI().getRank();
 
    // collect local removed patch info, followed by gathering global removed
    // patch info
@@ -256,6 +220,69 @@ void MeshOps::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_b
    }
 }
 
+void MeshOps::CreateMesh()
+{
+   MPI_Comm comm = hierarchy->getMPI().getCommunicator();
+   const unsigned short dim = hierarchy->getDim().getValue();
+
+   // determine the number of SAMRAI cells in each dimension
+   SAMRAI::hier::Index domain_lower = SAMRAI::hier::Index::getMaxIndex(hierarchy->getDim());
+   SAMRAI::hier::Index domain_upper = SAMRAI::hier::Index::getMinIndex(hierarchy->getDim());
+   std::shared_ptr<SAMRAI::hier::PatchLevel> level0 = hierarchy->getPatchLevel(0);
+   for (SAMRAI::hier::PatchLevel::iterator patch_iter=level0->begin();
+         patch_iter != level0->end(); patch_iter++)
+   {
+      const SAMRAI::hier::Box& box = patch_iter->getBox();
+      domain_lower.min(box.lower());
+      domain_upper.max(box.upper());
+   }
+   // TODO: see if there's a more appropriate way to access the int[] object in
+   //       the hier::Index class
+   int* lowerData = &domain_lower[0];
+   int* upperData = &domain_upper[0];
+   MPI_Allreduce(MPI_IN_PLACE, lowerData, dim, MPI_INT, MPI_MIN, comm);
+   MPI_Allreduce(MPI_IN_PLACE, upperData, dim, MPI_INT, MPI_MAX, comm);
+   const SAMRAI::hier::IntVector num_cells = domain_upper - domain_lower + 1;
+
+   // create mesh in SAMRAI index space (unit-size elements)
+   Mesh serial_mesh;
+   switch(dim)
+   {
+      case 1:
+      {
+         const int num_x = num_cells(0);
+         serial_mesh = mfem::Mesh::MakeCartesian1D(num_x, num_x);
+         // label xlo and xhi as "1"
+         serial_mesh.GetBdrElement(0)->SetAttribute(1);
+         serial_mesh.GetBdrElement(1)->SetAttribute(1);
+         break;
+      }
+      case 2:
+      {
+         const int num_x = num_cells(0);
+         const int num_y = num_cells(1);
+         serial_mesh = mfem::Mesh::MakeCartesian2D(num_x, num_y,
+            mfem::Element::Type::QUADRILATERAL, true, num_x, num_y);
+         break;
+      }
+      case 3:
+      {
+         const int num_x = num_cells(0);
+         const int num_y = num_cells(1);
+         const int num_z = num_cells(2);
+         serial_mesh = mfem::Mesh::MakeCartesian3D(num_x, num_y, num_z,
+            mfem::Element::Type::HEXAHEDRON, num_x, num_y, num_z);
+         break;
+      }
+      default:
+         MFEM_ABORT("dimension not valid");
+   }
+   serial_mesh.EnsureNCMesh();
+   // distribute mesh across ranks in SAMRAI communicator
+   mesh = std::make_unique<ParMesh>(comm, serial_mesh);
+   serial_mesh.Clear();
+}
+
 void MeshOps::UpdateFiniteElementSpaces()
 {
    for (auto& [dim, fespace] : fe_spaces_node)
@@ -275,11 +302,11 @@ void MeshOps::UpdateFiniteElementSpaces()
 void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
 {
    const real_t error_threshold = 1.0;
-   Array<real_t> pseudo_error(mesh.GetNE());
+   Array<real_t> pseudo_error(mesh->GetNE());
 
    for (int level_num=hierarchy->getMaxNumberOfLevels()-1; level_num > 0; level_num--)
    {
-      Vector level0_ratio(mesh.Dimension());
+      Vector level0_ratio(mesh->Dimension());
       if (level_num > hierarchy->getFinestLevelNumber())
       {
          level0_ratio = 1.0;
@@ -294,22 +321,22 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
             hierarchy->getPatchLevel(level_num)->getRatioToLevelZero());
       }
       // TODO: support 3D
-      MFEM_VERIFY(mesh.Dimension() == 2, "3D derefinement not yet supported")
+      MFEM_VERIFY(mesh->Dimension() == 2, "3D derefinement not yet supported")
       const double dx = 1.0/level0_ratio[0];
       const double dy = 1.0/level0_ratio[1];
 
       // determine which elements to derefine at this level
       pseudo_error = error_threshold;
       unsigned derefine_element_count = 0;
-      for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
+      for (int element_ind=0; element_ind < mesh->GetNE(); element_ind++)
       {
-         const Vector h = GetElementDimensions(mesh, element_ind);
+         const Vector h = GetElementDimensions(*mesh, element_ind);
          // TODO: adjust for 3D
          if (std::abs(h[0] - dx) < 1e-12 && std::abs(h[1] - dy) < 1e-12)
          {
             // get center in current level coordinates
             Vector center;
-            mesh.GetElementCenter(element_ind, center);
+            mesh->GetElementCenter(element_ind, center);
             center *= level0_ratio;
             SAMRAI::hier::Index index = ToIndex(center);
 
@@ -336,7 +363,7 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
       // TODO: support 3D checking
       MFEM_ASSERT(derefine_element_count % 4 == 0,
          "Elements marked for derefinement need to be in blocks of 2^D");
-      mesh.DerefineByError(pseudo_error, error_threshold);
+      mesh->DerefineByError(pseudo_error, error_threshold);
       UpdateFiniteElementSpaces();
       // TODO: throw error for 3:1 derefinement until it is supported
       //MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),2),
@@ -354,23 +381,23 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
          hierarchy->getPatchLevel(level_num)->getRatioToCoarserLevel();
 
       // TODO: support 3D
-      MFEM_VERIFY(mesh.Dimension() == 2, "3D refinement not yet supported")
+      MFEM_VERIFY(mesh->Dimension() == 2, "3D refinement not yet supported")
       const double dx = 1.0/level0_ratio[0];
       const double dy = 1.0/level0_ratio[1];
 
       // determine which elements to refine at this level
       Array<int> refine_element_inds;
-      for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
+      for (int element_ind=0; element_ind < mesh->GetNE(); element_ind++)
       {
          // skip element if already refined at or more than this level
-         const Vector h = GetElementDimensions(mesh, element_ind);
+         const Vector h = GetElementDimensions(*mesh, element_ind);
          // TODO: adjust for 3D
          if (h[0] < dx + 1e-12 && h[1] < dy + 1e-12)
             continue;
 
          // get center in current level coordinates
          Vector center;
-         mesh.GetElementCenter(element_ind, center);
+         mesh->GetElementCenter(element_ind, center);
          center *= level0_ratio;
          SAMRAI::hier::Index index = ToIndex(center);
 
@@ -388,14 +415,14 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
       Array<Refinement> refinements(refine_element_inds.Size());
       real_t ratioX, ratioY, ratioZ;
       ratioX = 1.0 / level_ratio[0];
-      if (mesh.Dimension() > 1) ratioY = 1.0 / level_ratio[1];
-      if (mesh.Dimension() > 2) ratioZ = 1.0 / level_ratio[2];
+      if (mesh->Dimension() > 1) ratioY = 1.0 / level_ratio[1];
+      if (mesh->Dimension() > 2) ratioZ = 1.0 / level_ratio[2];
       for (int i=0; i < refinements.Size(); i++)
       {
          refinements[i] = Refinement(refine_element_inds[i],
             {{Refinement::X, ratioX}, {Refinement::Y, ratioY}});//, {Refinement::Z, ratioZ}});
       }
-      mesh.GeneralRefinement(refinements);
+      mesh->GeneralRefinement(refinements);
       UpdateFiniteElementSpaces();
       // refine elements further for 3:1 refinement
       if (level_ratio != SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(hierarchy->getDim()),2))
@@ -403,11 +430,11 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
          MFEM_VERIFY(level_ratio == SAMRAI::hier::IntVector(SAMRAI::tbox::Dimension(2),3),
             "Refinement ratio " << level_ratio << " not yet supported");
          // TODO: support 3D
-         MFEM_VERIFY(mesh.Dimension() == 2, "3D refinement not yet supported")
+         MFEM_VERIFY(mesh->Dimension() == 2, "3D refinement not yet supported")
          const double dx = 1.0/level0_ratio[0];
          const double dy = 1.0/level0_ratio[1];
          Table coarse_to_fine;
-         mesh.ncmesh->GetRefinementTransforms().MakeCoarseToFineTable(coarse_to_fine);
+         mesh->ncmesh->GetRefinementTransforms().MakeCoarseToFineTable(coarse_to_fine);
          refinements.DeleteAll();
          for (const int& original_element_ind : refine_element_inds)
          {
@@ -417,7 +444,7 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
             {
                Vector x0, h;
                ElementTransformation* transform =
-                  mesh.GetElementTransformation(new_element_ind);
+                  mesh->GetElementTransformation(new_element_ind);
                // TODO: support 3D
                const IntegrationPoint ip0 = {0.0, 0.0};
                const IntegrationPoint ip1 = {1.0, 1.0};
@@ -435,7 +462,7 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
                      Refinement::Y, dy/h[1]));
             }
          }
-         mesh.GeneralRefinement(refinements);
+         mesh->GeneralRefinement(refinements);
          UpdateFiniteElementSpaces();
       }
    }
@@ -443,17 +470,17 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
 
 void MeshOps::CreateTransferMaps()
 {
-   const int rank = mesh.GetMyRank();
-   const int ranks = mesh.GetNRanks();
+   const int rank = mesh->GetMyRank();
+   const int ranks = mesh->GetNRanks();
 
    // map local elements to global rank, patch level, and index
    local_element_inds.clear();
    local_element_inds.resize(ranks);
    std::vector<std::vector<ElementInfo>> local_element_info(ranks);
-   for (int element_ind=0; element_ind < mesh.GetNE(); element_ind++)
+   for (int element_ind=0; element_ind < mesh->GetNE(); element_ind++)
    {
       // compute element level from element volume
-      const real_t element_volume = mesh.GetElementVolume(element_ind);
+      const real_t element_volume = mesh->GetElementVolume(element_ind);
       int level_number = 0;
       double level_volume = 1.0;
       while (element_volume < level_volume - 1e-12)
@@ -461,12 +488,12 @@ void MeshOps::CreateTransferMaps()
          level_number++;
          const SAMRAI::hier::IntVector& ratio =
             hierarchy->getRatioToCoarserLevel(level_number);
-         for (int i=0; i < mesh.Dimension(); i++)
+         for (int i=0; i < mesh->Dimension(); i++)
             level_volume /= ratio[i];
       }
       // get center in level zero coordinates
       Vector center;
-      mesh.GetElementCenter(element_ind, center);
+      mesh->GetElementCenter(element_ind, center);
       // convert center to patch level coordinates
       center *= ToVector(hierarchy->getPatchLevel(level_number)->getRatioToLevelZero());
       SAMRAI::hier::Index index = ToIndex(center);
@@ -487,7 +514,7 @@ void MeshOps::CreateTransferMaps()
    }
 
    // send local element info to ranks that have corresponding cells
-   const unsigned element_info_size = ElementInfo::Size(mesh.Dimension());
+   const unsigned element_info_size = ElementInfo::Size(mesh->Dimension());
    std::vector<std::unique_ptr<BlockArray<int>>> element_info_buffers(ranks);
    std::vector<MPI_Request> requests(ranks);
    for (int remote_rank=0; remote_rank < ranks; remote_rank++)
@@ -509,7 +536,7 @@ void MeshOps::CreateTransferMaps()
       }
       MPI_Isend(element_info_buffers[remote_rank]->GetData(),
          element_info_buffers[remote_rank]->Size(), MPI_INT, remote_rank,
-         element_info_tag, mesh.GetComm(), &requests[remote_rank]);
+         element_info_tag, mesh->GetComm(), &requests[remote_rank]);
    }
 
    // define utility lambda function for setting local cell info
@@ -546,12 +573,12 @@ void MeshOps::CreateTransferMaps()
    int count;
    while (messages_received < ranks - 1)
    {
-      MPI_Probe(MPI_ANY_SOURCE, element_info_tag, mesh.GetComm(), &status);
+      MPI_Probe(MPI_ANY_SOURCE, element_info_tag, mesh->GetComm(), &status);
       MPI_Get_count(&status, MPI_INT, &count);
       MFEM_ASSERT(count % element_info_size == 0, "Unexpected message size");
       BlockArray<int> remote_element_info(element_info_size, count / element_info_size);
       MPI_Recv(remote_element_info.GetData(), remote_element_info.Size(),
-         MPI_INT, status.MPI_SOURCE, element_info_tag, mesh.GetComm(), &status);
+         MPI_INT, status.MPI_SOURCE, element_info_tag, mesh->GetComm(), &status);
       messages_received++;
 
       // unserialize and store cell info for received remote elements
@@ -569,19 +596,7 @@ void MeshOps::CreateTransferMaps()
    // account for local elements that correspond to local cells
    SetLocalCellInfo(rank, local_element_info[rank]);
 
-   MPI_Barrier(mesh.GetComm());
-}
-
-void MeshOps::SetMeshGridFunction(std::shared_ptr<GridFunction> grid_function)
-{
-   mesh.SetNodalGridFunction(grid_function.get());
-   mesh_grid_function = grid_function;
-}
-
-std::unique_ptr<ParFiniteElementSpace> MeshOps::CreateFESpace(
-   FiniteElementCollection& fe_collection, int dim)
-{
-   return std::make_unique<ParFiniteElementSpace>(&mesh, &fe_collection, dim);
+   MPI_Barrier(mesh->GetComm());
 }
 
 std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
@@ -591,7 +606,7 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
    // check that finite element space under mesh grid function has not been
    // changed (it can later be replaced with a higher-order finite element space
    // and grid function via setMeshGridFunction)
-   MFEM_ASSERT(mesh_grid_function->FESpace() == fe_spaces_node[mesh.Dimension()].get(),
+   MFEM_ASSERT(mesh_grid_function->FESpace() == fe_spaces_node[mesh->Dimension()].get(),
       "An external mesh grid function can only be set after the call to transferToMFEM");
 
    // with mesh node positions, start maps of SAMRAI ids to grid functions
@@ -604,11 +619,11 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
    for (const int& node_id : node_ids)
    {
       // TODO: don't assume node ids have depth NDIM
-      const int field_dimension = mesh.Dimension();
+      const int field_dimension = mesh->Dimension();
       if (fe_spaces_node.find(field_dimension) == fe_spaces_node.end())
          fe_spaces_node[field_dimension] =
             std::make_unique<ParFiniteElementSpace>(
-               &mesh, &fe_collection_node, field_dimension);
+               mesh.get(), &fe_collection_node, field_dimension);
       grid_functions.emplace_back(
          new ParGridFunction(fe_spaces_node[field_dimension].get()));
       node_fields.emplace_back(node_id, *grid_functions.back());
@@ -620,14 +635,14 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
       if (fe_spaces_cell.find(field_dimension) == fe_spaces_cell.end())
          fe_spaces_cell[field_dimension] =
             std::make_unique<ParFiniteElementSpace>(
-               &mesh, &fe_collection_cell, field_dimension);
+               mesh.get(), &fe_collection_cell, field_dimension);
       grid_functions.emplace_back(
          new ParGridFunction(fe_spaces_cell[field_dimension].get()));
       cell_fields.emplace_back(cell_id, *grid_functions.back());
    }
 
-   const int rank = mesh.GetMyRank();
-   const int ranks = mesh.GetNRanks();
+   const int rank = mesh->GetMyRank();
+   const int ranks = mesh->GetNRanks();
 
    // extract buffer size information
    int num_variables;
@@ -690,7 +705,7 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
       }
 
       MPI_Isend(local_samrai_values.data(), local_samrai_values.size(),
-         MPI_DOUBLE, remote_rank, samrai_values_tag, mesh.GetComm(),
+         MPI_DOUBLE, remote_rank, samrai_values_tag, mesh->GetComm(),
          &requests[remote_rank]);
    }
 
@@ -699,11 +714,11 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
    MPI_Status status;
    while (messages_received < ranks - 1)
    {
-      MPI_Probe(MPI_ANY_SOURCE, samrai_values_tag, mesh.GetComm(), &status);
+      MPI_Probe(MPI_ANY_SOURCE, samrai_values_tag, mesh->GetComm(), &status);
       const std::vector<int>& element_inds = local_element_inds[status.MPI_SOURCE];
       std::vector<double> remote_samrai_values(num_variables * element_inds.size());
       MPI_Recv(remote_samrai_values.data(), remote_samrai_values.size(),
-         MPI_DOUBLE, status.MPI_SOURCE, samrai_values_tag, mesh.GetComm(), &status);
+         MPI_DOUBLE, status.MPI_SOURCE, samrai_values_tag, mesh->GetComm(), &status);
       messages_received++;
 
       // set local element values from received cell values
@@ -785,9 +800,9 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
       }
    }
 
-   MPI_Barrier(mesh.GetComm());
+   MPI_Barrier(mesh->GetComm());
 
-   mesh.NodesUpdated();
+   mesh->NodesUpdated();
    for (int i=0; i < cell_fields.size(); i++)
    {
       cell_fields[i].second.ExchangeFaceNbrData();
@@ -807,9 +822,9 @@ void MeshOps::TransferToSAMRAI(
       = ExtractBufferInfo(node_fields, cell_fields);
 
    // get the cell field values averaged over elements
-   L2_FECollection fe_collection(0, mesh.Dimension());
+   L2_FECollection fe_collection(0, mesh->Dimension());
    // use of const_cast here only b/c we know mesh isn't modified by fe_space or field_average
-   FiniteElementSpace fe_space(const_cast<ParMesh*>(&mesh), &fe_collection);
+   FiniteElementSpace fe_space(const_cast<ParMesh*>(mesh.get()), &fe_collection);
    std::vector<GridFunction> cell_field_averages;
    for (const std::pair<int, ParGridFunction&>& field: cell_fields)
    {
@@ -818,8 +833,8 @@ void MeshOps::TransferToSAMRAI(
       cell_field.GetElementAverages(cell_field_averages.back());
    }
 
-   const int rank = mesh.GetMyRank();
-   const int ranks = mesh.GetNRanks();
+   const int rank = mesh->GetMyRank();
+   const int ranks = mesh->GetNRanks();
 
    // send local element values to ranks that have corresponding cells
    std::vector<std::vector<double>> element_value_buffers(ranks);
@@ -871,7 +886,7 @@ void MeshOps::TransferToSAMRAI(
       }
 
       MPI_Isend(local_element_values.data(), local_element_values.size(),
-         MPI_DOUBLE, remote_rank, element_values_tag, mesh.GetComm(),
+         MPI_DOUBLE, remote_rank, element_values_tag, mesh->GetComm(),
          &requests[remote_rank]);
    }
 
@@ -880,11 +895,11 @@ void MeshOps::TransferToSAMRAI(
    MPI_Status status;
    while (messages_received < ranks - 1)
    {
-      MPI_Probe(MPI_ANY_SOURCE, element_values_tag, mesh.GetComm(), &status);
+      MPI_Probe(MPI_ANY_SOURCE, element_values_tag, mesh->GetComm(), &status);
       const std::vector<CellInfo>& cell_info_for_rank = local_cell_info[status.MPI_SOURCE];
       std::vector<double> remote_element_values(num_variables * cell_info_for_rank.size());
       MPI_Recv(remote_element_values.data(), remote_element_values.size(),
-         MPI_DOUBLE, status.MPI_SOURCE, element_values_tag, mesh.GetComm(),
+         MPI_DOUBLE, status.MPI_SOURCE, element_values_tag, mesh->GetComm(),
          &status);
       messages_received++;
 
@@ -977,30 +992,7 @@ void MeshOps::TransferToSAMRAI(
       }
    }
 
-   MPI_Barrier(mesh.GetComm());
-}
-
-void MeshOps::SynchronizeToHierarchy()
-{
-   // restore mesh topology to index space
-   mesh_grid_function->SetFromTrueDofs(mesh_index_space_tdofs);
-   mesh.NodesUpdated();
-
-   // update global patch info and obtain corresponding patch bounds
-   std::vector<PatchLevelBounds> global_patch_bounds;
-   RemoveOldPatchesFromGlobalPatchInfo();
-   AddNewPatchesToGlobalPatchInfo();
-   GetGlobalPatchBounds(global_patch_bounds);
-
-   // derefine and then refine mesh
-   DerefineMesh(global_patch_bounds);
-   RefineMesh(global_patch_bounds);
-
-   // create new transfer maps
-   CreateTransferMaps();
-
-   // store index space mesh topology
-   mesh_grid_function->GetTrueDofs(mesh_index_space_tdofs);
+   MPI_Barrier(mesh->GetComm());
 }
 
 std::tuple<int,Array<int>,Array<int>> MeshOps::ExtractBufferInfo(
@@ -1022,29 +1014,6 @@ std::tuple<int,Array<int>,Array<int>> MeshOps::ExtractBufferInfo(
    const int num_variables = node_field_offsets.Last() + cell_fields.size();
 
    return {num_variables, node_field_vector_dimensions, node_field_offsets};
-}
-
-Array<SAMRAI::pdat::NodeIndex::Corner> MeshOps::GetCorners(const unsigned dimension)
-{
-   constexpr SAMRAI::pdat::NodeIndex::Corner corners1D[] =
-      {SAMRAI::pdat::NodeIndex::Left, SAMRAI::pdat::NodeIndex::Right};
-   constexpr SAMRAI::pdat::NodeIndex::Corner corners2D[] =
-      {SAMRAI::pdat::NodeIndex::LowerLeft, SAMRAI::pdat::NodeIndex::LowerRight,
-         SAMRAI::pdat::NodeIndex::UpperRight, SAMRAI::pdat::NodeIndex::UpperLeft};
-   constexpr SAMRAI::pdat::NodeIndex::Corner corners3D[] =
-      {SAMRAI::pdat::NodeIndex::LLL, SAMRAI::pdat::NodeIndex::ULL,
-         SAMRAI::pdat::NodeIndex::UUL, SAMRAI::pdat::NodeIndex::LUL,
-         SAMRAI::pdat::NodeIndex::LLU, SAMRAI::pdat::NodeIndex::ULU,
-         SAMRAI::pdat::NodeIndex::UUU, SAMRAI::pdat::NodeIndex::LUU};
-
-   switch (dimension)
-   {
-      case 1: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners1D);
-      case 2: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners2D);
-      case 3: return Array<SAMRAI::pdat::NodeIndex::Corner>(corners3D);
-      default:
-         MFEM_ABORT("Invalid dimension value: " << dimension);
-   }
 }
 
 SAMRAI::hier::Index MeshOps::ToIndex(const Vector& vector)
