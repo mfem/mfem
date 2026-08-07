@@ -24,8 +24,9 @@
 // and performs no initial- or background-mesh interpolation.
 //   Initial-mesh interpolation versus direct analytic evaluation:
 //     mpirun -np 4 pmesh-fitting         -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -ae 1
-//     mpirun -np 4 pmesh-fitting-enzyme  -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -dls
+//     mpirun -np 4 pmesh-fitting-enzyme  -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -dls -dder 1
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -als
+// Use -dder 2 instead for element-local discrete derivatives.
 //   Background-mesh interpolation versus direct analytic evaluation:
 //     mpirun -np 4 pmesh-fitting         -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -rtol 1e-6 -ae 1 -sbgmesh
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -rtol 1e-6 -dls -sbgmesh
@@ -71,8 +72,11 @@ static constexpr int X = 0;
 static constexpr int Q = 1;
 static constexpr int TARGET_W = 2;
 static constexpr int SURFACE_FIT_DATA = 3;
-// coefficient, Taylor center[2], value, gradient[2], Hessian[2][2]
-static constexpr int SURFACE_FIT_DATA_SIZE = 1 + 2 + 1 + 2 + 4;
+// coefficient, value, gradient[2], Hessian[2][2]
+static constexpr int SURFACE_FIT_DATA_SIZE = 1 + 1 + 2 + 4;
+static constexpr int SURFACE_FIT_VALUE = 1;
+static constexpr int SURFACE_FIT_GRAD = SURFACE_FIT_VALUE + 1;
+static constexpr int SURFACE_FIT_HESS = SURFACE_FIT_GRAD + 2;
 
 /// Compute the MPI-global Euclidean norm of a distributed vector.
 real_t GlobalVectorNorm(MPI_Comm comm, const Vector &x)
@@ -145,44 +149,99 @@ struct SurfaceFittingOptions
       SQUIRCLE = 3
    };
 
+   enum DiscreteDerivativeMode
+   {
+      INTERPOLATED_SOURCE = 1,
+      ELEMENT_LOCAL = 2
+   };
+
    LevelSetSource source = ANALYTIC;
    AnalyticLevelSet analytic_level_set = CIRCLE;
+   DiscreteDerivativeMode discrete_derivative_mode = INTERPOLATED_SOURCE;
    const ParGridFunction *discrete_level_set = nullptr;
    bool discrete_from_background = false;
    const Array<bool> *marker = nullptr;
    real_t coefficient = 0.0;
 };
 
+/// Return the sampled level-set value while retaining x as an active argument.
+MFEM_HOST_DEVICE __attribute__((noinline))
+void get_sigma(const real_t *x, const real_t *data, real_t *sigma)
+{
+   // The volatile zero keeps Enzyme from classifying x as unused before it
+   // encounters the custom derivative, without changing the sampled value.
+   volatile real_t active_x = x[0];
+   const real_t zero = active_x - active_x;
+   *sigma = data[SURFACE_FIT_VALUE] + zero;
+}
+
+/// Return a primal value while contributing no derivative to Enzyme.
+MFEM_HOST_DEVICE MFEM_ENZYME_INACTIVE
+__attribute__((noinline, optnone))
+real_t StopGradient(real_t value)
+{
+   return value;
+}
+
+/// Evaluate the augmented primal used by the custom reverse rule.
+MFEM_HOST_DEVICE __attribute__((noinline))
+void *get_sigma_aug(const real_t *x, real_t *dx,
+                    const real_t *data, real_t *ddata,
+                    real_t *sigma, real_t *dsigma)
+{
+   // These differences are identically zero in the primal. When this rule is
+   // forward-differentiated for the Hessian, their tangents are dx.
+   const real_t delta0 = x[0] - StopGradient(x[0]);
+   const real_t delta1 = x[1] - StopGradient(x[1]);
+   *sigma = data[SURFACE_FIT_VALUE] +
+            data[SURFACE_FIT_GRAD] * delta0 +
+            data[SURFACE_FIT_GRAD + 1] * delta1;
+   return nullptr;
+}
+
+/// Apply the prescribed level-set VJP and expose its Hessian to nested AD.
+MFEM_HOST_DEVICE __attribute__((noinline))
+void get_sigma_rev(const real_t *x, real_t *dx,
+                   const real_t *data, real_t *ddata,
+                   const real_t *sigma, const real_t *dsigma,
+                   void *tape)
+{
+   // The primal differences vanish, so grad0/grad1 are exactly the sampled
+   // gradient. Their forward derivatives are the sampled Hessian action.
+   const real_t delta0 = x[0] - StopGradient(x[0]);
+   const real_t delta1 = x[1] - StopGradient(x[1]);
+   // Classic TMOP uses the (y,x) entry for the lower triangle and mirrors it.
+   const real_t cross_hess = data[SURFACE_FIT_HESS + 1];
+   const real_t grad0 = data[SURFACE_FIT_GRAD] +
+                        data[SURFACE_FIT_HESS] * delta0 +
+                        cross_hess * delta1;
+   const real_t grad1 = data[SURFACE_FIT_GRAD + 1] +
+                        cross_hess * delta0 +
+                        data[SURFACE_FIT_HESS + 3] * delta1;
+   dx[0] += *dsigma * grad0;
+   dx[1] += *dsigma * grad1;
+}
+
 template <typename scalar_t>
 struct DiscreteSurfaceFittingEnergy
 {
-   /// Evaluate a local Taylor model of the discrete fitting penalty.
+   /// Evaluate the fitting penalty from the sampled level-set value.
    MFEM_HOST_DEVICE inline
    void operator()(const tensor<scalar_t, 2> &x,
                    const tensor<scalar_t, SURFACE_FIT_DATA_SIZE> &data,
                    real_t &f) const
    {
-      constexpr int center_offset = 1;
-      constexpr int value_offset = center_offset + 2;
-      constexpr int grad_offset = value_offset + 1;
-      constexpr int hess_offset = grad_offset + 2;
-
-      scalar_t dx[2];
-      scalar_t sigma = data(value_offset);
-      for (int d = 0; d < 2; d++)
-      {
-         dx[d] = x(d) - data(center_offset + d);
-         sigma += data(grad_offset + d) * dx[d];
-      }
-      for (int i = 0; i < 2; i++)
-      {
-         for (int j = 0; j < 2; j++)
-         {
-            sigma += 0.5_r * data(hess_offset + 2 * i + j) * dx[i] * dx[j];
-         }
-      }
+      scalar_t sigma;
+      get_sigma(&x[0], &data[0], &sigma);
       f = data(0) * sigma * sigma;
    }
+};
+
+void *__enzyme_register_gradient_get_sigma[3] =
+{
+   (void *)&get_sigma,
+   (void *)&get_sigma_aug,
+   (void *)&get_sigma_rev
 };
 
 template <typename scalar_t, int level_set>
@@ -234,15 +293,12 @@ public:
         basis(GetH1BasisType(mesh_fes)),
         current_fec(order, 2, basis),
         current_fes(&pmesh, &current_fec),
-        current_grad_fes(&pmesh, &current_fec, 2, Ordering::byNODES),
-        current_hess_fes(&pmesh, &current_fec, 4, Ordering::byNODES),
         current_sigma(&current_fes),
-        current_grad(&current_grad_fes),
-        current_hess(&current_hess_fes),
         marker(*options.marker),
         coefficient(options.coefficient),
         source(options.source),
         analytic_level_set(options.analytic_level_set),
+        discrete_derivative_mode(options.discrete_derivative_mode),
         discrete_from_background(options.discrete_from_background)
    {
       MFEM_VERIFY(pmesh.Dimension() == 2,
@@ -293,11 +349,37 @@ public:
          const Array<int> *lex_to_native =
             nfe && nfe->GetLexicographicOrdering().Size() > 0 ?
             &nfe->GetLexicographicOrdering() : nullptr;
+
+         DenseMatrix element_grad, element_hess;
+         bool use_element_derivatives =
+            !discrete_from_background &&
+            discrete_derivative_mode == SurfaceFittingOptions::ELEMENT_LOCAL;
+         if (use_element_derivatives)
+         {
+            bool has_marked_dof = false;
+            for (int i = 0; i < dofs.Size(); i++)
+            {
+               has_marked_dof = has_marked_dof || marker[dofs[i]];
+            }
+            use_element_derivatives = has_marked_dof;
+         }
+         if (use_element_derivatives)
+         {
+            ComputeElementDerivatives(e, element_grad, element_hess);
+         }
+
          for (int q = 0; q < ir.GetNPoints(); q++)
          {
-            const int dof = dofs[lex_to_native ? (*lex_to_native)[q] : q];
-            FillNodeData(dof,
-                         qdata_ptr + (offset + q) * SURFACE_FIT_DATA_SIZE);
+            const int local_dof = lex_to_native ? (*lex_to_native)[q] : q;
+            const int dof = dofs[local_dof];
+            real_t *data =
+               qdata_ptr + (offset + q) * SURFACE_FIT_DATA_SIZE;
+            FillNodeData(dof, data);
+            if (use_element_derivatives)
+            {
+               FillElementDerivativeData(local_dof, element_grad,
+                                         element_hess, data);
+            }
          }
       }
    }
@@ -379,7 +461,7 @@ private:
       return fec->GetBasisType();
    }
 
-   /// Freeze the discrete source field and initialize its GSLIB finder.
+   /// Freeze source values and derivatives and initialize their GSLIB finder.
    void SetupDiscreteLevelSet(const ParGridFunction &level_set)
    {
 #ifdef MFEM_USE_GSLIB
@@ -402,7 +484,9 @@ private:
       source_sigma = std::make_unique<ParGridFunction>(source_fes.get());
       *source_sigma = level_set;
 
-      if (discrete_from_background)
+      if (discrete_from_background ||
+          discrete_derivative_mode ==
+          SurfaceFittingOptions::INTERPOLATED_SOURCE)
       {
          source_grad_fes = std::make_unique<ParFiniteElementSpace>(
                               source_mesh.get(), source_fec.get(), 2,
@@ -455,24 +539,51 @@ private:
       }
    }
 
+   /// Compute derivatives using only the level-set data in one element.
+   void ComputeElementDerivatives(int element,
+                                  DenseMatrix &gradient,
+                                  DenseMatrix &hessian) const
+   {
+      const FiniteElement &fe = *current_fes.GetFE(element);
+      ElementTransformation &trans =
+         *current_fes.GetElementTransformation(element);
+      const int dof = fe.GetDof();
+
+      Array<int> dofs;
+      Vector sigma_e;
+      current_fes.GetElementDofs(element, dofs);
+      current_sigma.GetSubVector(dofs, sigma_e);
+
+      DenseMatrix grad_phys;
+      fe.ProjectGrad(fe, trans, grad_phys);
+      gradient.SetSize(dof, 2);
+      Vector gradient_data(gradient.GetData(), dof * 2);
+      grad_phys.Mult(sigma_e, gradient_data);
+
+      // This reshape reproduces TMOP's element-local second application of
+      // ProjectGrad: columns are (xx, xy, yx, yy) after the final reshape.
+      hessian.SetSize(dof * 2, 2);
+      Mult(grad_phys, gradient, hessian);
+      hessian.SetSize(dof, 4);
+   }
+
    /// Sample discrete fitting data at the current physical node positions.
    void UpdateDiscreteSamples() const
    {
 #ifdef MFEM_USE_GSLIB
       finder->FindPoints(current_node_pos, Ordering::byNODES);
       finder->Interpolate(*source_sigma, sigma_samples, Ordering::byNODES);
-      if (discrete_from_background)
+      if (discrete_from_background ||
+          discrete_derivative_mode ==
+          SurfaceFittingOptions::INTERPOLATED_SOURCE)
       {
          finder->Interpolate(*source_grad, grad_samples, Ordering::byNODES);
          finder->Interpolate(*source_hess, hess_samples, Ordering::byNODES);
       }
       else
       {
+         // Element-local derivatives are packed later, one element at a time.
          current_sigma = sigma_samples;
-         ComputeDerivatives(current_sigma, current_grad, current_hess,
-                            current_fes);
-         grad_samples = current_grad;
-         hess_samples = current_hess;
       }
 #else
       MFEM_ABORT("Discrete surface fitting requires GSLIB.");
@@ -503,22 +614,39 @@ private:
       }
    }
 
-   /// Pack one scalar DOF's coefficient and Taylor data into quadrature data.
+   /// Pack one scalar DOF's sampled value and derivatives into quadrature data.
    void FillNodeData(int dof, real_t *data) const
    {
       for (int j = 0; j < SURFACE_FIT_DATA_SIZE; j++) { data[j] = 0.0; }
-      const int ndofs = current_fes.GetVSize();
       data[0] = marker[dof] ? coefficient / dof_count[dof] : 0.0;
       if (source == SurfaceFittingOptions::ANALYTIC) { return; }
 
-      data[1] = current_node_pos(dof);
-      data[2] = current_node_pos(dof + ndofs);
-      data[3] = sigma_samples(dof);
-      data[4] = grad_samples(dof);
-      data[5] = grad_samples(dof + ndofs);
+      const int ndofs = current_fes.GetVSize();
+      data[SURFACE_FIT_VALUE] = sigma_samples(dof);
+      if (discrete_from_background ||
+          discrete_derivative_mode ==
+          SurfaceFittingOptions::INTERPOLATED_SOURCE)
+      {
+         data[SURFACE_FIT_GRAD] = grad_samples(dof);
+         data[SURFACE_FIT_GRAD + 1] = grad_samples(dof + ndofs);
+         for (int j = 0; j < 4; j++)
+         {
+            data[SURFACE_FIT_HESS + j] = hess_samples(dof + j * ndofs);
+         }
+      }
+   }
+
+   /// Pack element-local gradient and Hessian data for one nodal point.
+   static void FillElementDerivativeData(int local_dof,
+                                         const DenseMatrix &gradient,
+                                         const DenseMatrix &hessian,
+                                         real_t *data)
+   {
+      data[SURFACE_FIT_GRAD] = gradient(local_dof, 0);
+      data[SURFACE_FIT_GRAD + 1] = gradient(local_dof, 1);
       for (int j = 0; j < 4; j++)
       {
-         data[6 + j] = hess_samples(dof + j * ndofs);
+         data[SURFACE_FIT_HESS + j] = hessian(local_dof, j);
       }
    }
 
@@ -527,16 +655,13 @@ private:
    int basis;
    H1_FECollection current_fec;
    mutable ParFiniteElementSpace current_fes;
-   mutable ParFiniteElementSpace current_grad_fes;
-   mutable ParFiniteElementSpace current_hess_fes;
    mutable ParGridFunction current_sigma;
-   mutable ParGridFunction current_grad;
-   mutable ParGridFunction current_hess;
    Array<bool> marker;
    Array<int> dof_count;
    real_t coefficient;
    SurfaceFittingOptions::LevelSetSource source;
    SurfaceFittingOptions::AnalyticLevelSet analytic_level_set;
+   SurfaceFittingOptions::DiscreteDerivativeMode discrete_derivative_mode;
    bool discrete_from_background;
    mutable Vector current_node_pos;
    mutable Vector sigma_samples;
@@ -621,7 +746,7 @@ public:
       }
    }
 
-   /// Return the active analytic coefficient or discrete Taylor data.
+   /// Return the active analytic coefficient or sampled discrete data.
    const QuadratureFunction& GetSurfaceQuadratureData() const
    {
       return is_analytic ? surface_coeff_qdata : *surface_qdata;
@@ -965,7 +1090,7 @@ private:
          surface_node_ir, all_domain_attr, derivatives);
    }
 
-   /// Construct a fitting operator driven by sampled discrete Taylor data.
+   /// Construct a fitting operator driven by sampled discrete derivative data.
    void SetupDiscreteSurfaceOperator(const Array<int> &all_domain_attr)
    {
       const std::vector<FieldDescriptor> input
@@ -1526,6 +1651,8 @@ int main(int argc, char *argv[])
    bool visualization = false;
    int verbosity = 0;
    bool analytic_level_set = true;
+   int discrete_derivative_mode =
+      SurfaceFittingOptions::INTERPOLATED_SOURCE;
    const char *devopt = "cpu";
    real_t surface_fit_adapt = 0.0;
    real_t surface_fit_threshold = -10.0;
@@ -1588,6 +1715,11 @@ int main(int argc, char *argv[])
                   "-dls", "--discrete-level-set",
                   "Use an analytic level-set formula or a discrete FE "
                   "level-set field.");
+   args.AddOption(&discrete_derivative_mode,
+                  "-dder", "--discrete-derivative-mode",
+                  "No-background discrete derivative mode: "
+                  "1 interpolate initial-mesh gradient and Hessian, "
+                  "2 element-local ProjectGrad.");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
@@ -1658,6 +1790,12 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(!surf_bg_mesh || !analytic_level_set,
                "A background mesh is used only with a discrete level set "
                "(-dls).");
+   MFEM_VERIFY(discrete_derivative_mode ==
+               SurfaceFittingOptions::INTERPOLATED_SOURCE ||
+               discrete_derivative_mode ==
+               SurfaceFittingOptions::ELEMENT_LOCAL,
+               "Discrete derivative mode must be 1 (interpolated source) or "
+               "2 (element local).");
    MFEM_VERIFY(marking_type >= 0,
                "Surface fitting marking must be nonnegative.");
    MFEM_VERIFY(mesh_node_ordering == Ordering::byNODES ||
@@ -1799,6 +1937,9 @@ int main(int argc, char *argv[])
    surface_options.analytic_level_set =
       surf_ls_type == SurfaceFittingOptions::SQUIRCLE ?
       SurfaceFittingOptions::SQUIRCLE : SurfaceFittingOptions::CIRCLE;
+   surface_options.discrete_derivative_mode =
+      static_cast<SurfaceFittingOptions::DiscreteDerivativeMode>(
+         discrete_derivative_mode);
    surface_options.discrete_level_set =
       analytic_level_set ? nullptr :
       (surf_bg_mesh ? surface_bg_level_set.get() : &surface_gf0);
@@ -1839,6 +1980,14 @@ int main(int argc, char *argv[])
                     (surf_bg_mesh ? "discrete background-mesh GSLIB" :
                      "discrete initial-mesh GSLIB"))
                 << " level-set updates and metric mu" << metric_id << ".\n";
+      if (!analytic_level_set && !surf_bg_mesh)
+      {
+         std::cout << "Using "
+                   << (discrete_derivative_mode ==
+                       SurfaceFittingOptions::INTERPOLATED_SOURCE ?
+                       "initial-mesh interpolated" : "element-local")
+                   << " discrete level-set derivatives.\n";
+      }
    }
 
    const real_t min_detJ = MinimumDetJ(pmesh, pfes, irules, quad_order);
