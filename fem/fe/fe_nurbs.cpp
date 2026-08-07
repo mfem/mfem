@@ -19,6 +19,11 @@ namespace mfem
 
 using namespace std;
 
+static real_t NURBSLocalNode(const int i, const int n)
+{
+   return (n == 1) ? 0.5 : real_t(i)/real_t(n - 1);
+}
+
 void NURBS1DFiniteElement::SetOrder() const
 {
    order = kv[0]->GetOrder();
@@ -1080,10 +1085,32 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
 
    order = max(orders[0]+1, orders[1]+1);
    dof = (orders[0] + 1)*(orders[1] + 2)
-         + (orders[1] + 2)*(orders[1] + 1);
+         + (orders[0] + 2)*(orders[1] + 1);
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+
+   Nodes.SetSize(dof);
+
+   // Use tensor-product reference nodes matching the component spaces:
+   // x-directed dofs use (p_x, p_y+1), y-directed dofs use (p_x+1, p_y).
+   int o = 0;
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      const real_t y = NURBSLocalNode(j, orders[1] + 2);
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         Nodes.IntPoint(o).Set2(NURBSLocalNode(i, orders[0] + 1), y);
+      }
+   }
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      const real_t y = NURBSLocalNode(j, orders[1] + 1);
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         Nodes.IntPoint(o).Set2(NURBSLocalNode(i, orders[0] + 2), y);
+      }
+   }
 }
 
 void NURBS_HCurl2DFiniteElement::CalcVShape(const IntegrationPoint &ip,
@@ -1160,6 +1187,114 @@ void NURBS_HCurl2DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
       {
          curl_shape(o,0) = dshape1_x(i)*sy;
       }
+   }
+}
+
+void NURBS_HCurl2DFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                             ElementTransformation &Trans,
+                                             DenseMatrix &grad) const
+{
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "ProjectGrad requires H1 element");
+   MFEM_ASSERT(fe.GetDim() == 2, "Dimension mismatch in ProjectGrad");
+
+   DenseMatrix dshape(fe.GetDof(), 2);
+
+   grad.SetSize(dof, fe.GetDof());
+
+   // The tensor-product NURBS H(curl) basis is ordered by component. The
+   // first block contains x-directed dofs with orders (p_x, p_y+1); the
+   // second block contains y-directed dofs with orders (p_x+1, p_y). The
+   // entries in Nodes follow the same order.
+   int o = 0;
+   for (int j = 0; j <= orders[1]+1; j++)
+   {
+      for (int i = 0; i <= orders[0]; i++, o++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(o);
+         fe.CalcDShape(ip, dshape);
+         for (int s = 0; s < fe.GetDof(); s++)
+         {
+            grad(o, s) = dshape(s, 0);
+         }
+      }
+   }
+
+   for (int j = 0; j <= orders[1]; j++)
+   {
+      for (int i = 0; i <= orders[0]+1; i++, o++)
+      {
+         const IntegrationPoint &ip = Nodes.IntPoint(o);
+         fe.CalcDShape(ip, dshape);
+         for (int s = 0; s < fe.GetDof(); s++)
+         {
+            grad(o, s) = dshape(s, 1);
+         }
+      }
+   }
+}
+
+void NURBS_HCurl2DFiniteElement::Project(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      int sdim = Trans.GetSpaceDim();
+      real_t vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+      const real_t tx[2] = {1.0, 0.0};
+      const real_t ty[2] = {0.0, 1.0};
+
+      I.SetSize(dof, sdim*fe.GetDof());
+
+      int o = 0;
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(o);
+
+            fe.CalcShape(ip, shape);
+            Trans.SetIntPoint(&ip);
+            Trans.Jacobian().Mult(tx, vk);
+
+            for (int s = 0; s < shape.Size(); s++)
+            {
+               real_t v = shape(s);
+               if (fabs(v) < 1e-12) { v = 0.0; }
+               for (int d = 0; d < sdim; d++)
+               {
+                  I(o, s + d*shape.Size()) = v*vk[d];
+               }
+            }
+         }
+      }
+
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(o);
+
+            fe.CalcShape(ip, shape);
+            Trans.SetIntPoint(&ip);
+            Trans.Jacobian().Mult(ty, vk);
+
+            for (int s = 0; s < shape.Size(); s++)
+            {
+               real_t v = shape(s);
+               if (fabs(v) < 1e-12) { v = 0.0; }
+               for (int d = 0; d < sdim; d++)
+               {
+                  I(o, s + d*shape.Size()) = v*vk[d];
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS_HCurl2DFiniteElement::Project for vector FE not implemented");
    }
 }
 
@@ -1270,6 +1405,49 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
+
+   Nodes.SetSize(dof);
+
+   // Use tensor-product reference nodes matching the component spaces:
+   // x-directed dofs use (p_x, p_y+1, p_z+1), y-directed dofs use
+   // (p_x+1, p_y, p_z+1), and z-directed dofs use (p_x+1, p_y+1, p_z).
+   int o = 0;
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t z = NURBSLocalNode(k, orders[2] + 2);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t y = NURBSLocalNode(j, orders[1] + 2);
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            Nodes.IntPoint(o).Set3(NURBSLocalNode(i, orders[0] + 1), y, z);
+         }
+      }
+   }
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      const real_t z = NURBSLocalNode(k, orders[2] + 2);
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         const real_t y = NURBSLocalNode(j, orders[1] + 1);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            Nodes.IntPoint(o).Set3(NURBSLocalNode(i, orders[0] + 2), y, z);
+         }
+      }
+   }
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      const real_t z = NURBSLocalNode(k, orders[2] + 1);
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         const real_t y = NURBSLocalNode(j, orders[1] + 2);
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            Nodes.IntPoint(o).Set3(NURBSLocalNode(i, orders[0] + 2), y, z);
+         }
+      }
+   }
 }
 
 void NURBS_HCurl3DFiniteElement::CalcVShape(const IntegrationPoint &ip,
@@ -1410,6 +1588,168 @@ void NURBS_HCurl3DFiniteElement::CalcCurlShape(const IntegrationPoint &ip,
    }
 }
 
+void NURBS_HCurl3DFiniteElement::ProjectGrad(const FiniteElement &fe,
+                                             ElementTransformation &Trans,
+                                             DenseMatrix &grad) const
+{
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "ProjectGrad requires H1 element");
+   MFEM_ASSERT(fe.GetDim() == 3, "Dimension mismatch in ProjectGrad");
+
+   DenseMatrix dshape(fe.GetDof(), 3);
+
+   grad.SetSize(dof, fe.GetDof());
+
+   // The tensor-product NURBS H(curl) basis is ordered in three component
+   // blocks: x-directed dofs with orders (p_x, p_y+1, p_z+1), then
+   // y-directed dofs with orders (p_x+1, p_y, p_z+1), then z-directed dofs
+   // with orders (p_x+1, p_y+1, p_z). Nodes follow the same ordering.
+   int o = 0;
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         for (int i = 0; i <= orders[0]; i++, o++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(o);
+            fe.CalcDShape(ip, dshape);
+            for (int s = 0; s < fe.GetDof(); s++)
+            {
+               grad(o, s) = dshape(s, 0);
+            }
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]+1; k++)
+   {
+      for (int j = 0; j <= orders[1]; j++)
+      {
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(o);
+            fe.CalcDShape(ip, dshape);
+            for (int s = 0; s < fe.GetDof(); s++)
+            {
+               grad(o, s) = dshape(s, 1);
+            }
+         }
+      }
+   }
+
+   for (int k = 0; k <= orders[2]; k++)
+   {
+      for (int j = 0; j <= orders[1]+1; j++)
+      {
+         for (int i = 0; i <= orders[0]+1; i++, o++)
+         {
+            const IntegrationPoint &ip = Nodes.IntPoint(o);
+            fe.CalcDShape(ip, dshape);
+            for (int s = 0; s < fe.GetDof(); s++)
+            {
+               grad(o, s) = dshape(s, 2);
+            }
+         }
+      }
+   }
+}
+
+void NURBS_HCurl3DFiniteElement::Project(const FiniteElement &fe,
+                                         ElementTransformation &Trans,
+                                         DenseMatrix &I) const
+{
+   if (fe.GetRangeType() == SCALAR)
+   {
+      int sdim = Trans.GetSpaceDim();
+      real_t vk[Geometry::MaxDim];
+      Vector shape(fe.GetDof());
+      const real_t tx[3] = {1.0, 0.0, 0.0};
+      const real_t ty[3] = {0.0, 1.0, 0.0};
+      const real_t tz[3] = {0.0, 0.0, 1.0};
+
+      I.SetSize(dof, sdim*fe.GetDof());
+
+      int o = 0;
+      for (int k = 0; k <= orders[2]+1; k++)
+      {
+         for (int j = 0; j <= orders[1]+1; j++)
+         {
+            for (int i = 0; i <= orders[0]; i++, o++)
+            {
+               const IntegrationPoint &ip = Nodes.IntPoint(o);
+
+               fe.CalcShape(ip, shape);
+               Trans.SetIntPoint(&ip);
+               Trans.Jacobian().Mult(tx, vk);
+
+               for (int s = 0; s < shape.Size(); s++)
+               {
+                  real_t v = shape(s);
+                  if (fabs(v) < 1e-12) { v = 0.0; }
+                  for (int d = 0; d < sdim; d++)
+                  {
+                     I(o, s + d*shape.Size()) = v*vk[d];
+                  }
+               }
+            }
+         }
+      }
+
+      for (int k = 0; k <= orders[2]+1; k++)
+      {
+         for (int j = 0; j <= orders[1]; j++)
+         {
+            for (int i = 0; i <= orders[0]+1; i++, o++)
+            {
+               const IntegrationPoint &ip = Nodes.IntPoint(o);
+
+               fe.CalcShape(ip, shape);
+               Trans.SetIntPoint(&ip);
+               Trans.Jacobian().Mult(ty, vk);
+
+               for (int s = 0; s < shape.Size(); s++)
+               {
+                  real_t v = shape(s);
+                  if (fabs(v) < 1e-12) { v = 0.0; }
+                  for (int d = 0; d < sdim; d++)
+                  {
+                     I(o, s + d*shape.Size()) = v*vk[d];
+                  }
+               }
+            }
+         }
+      }
+
+      for (int k = 0; k <= orders[2]; k++)
+      {
+         for (int j = 0; j <= orders[1]+1; j++)
+         {
+            for (int i = 0; i <= orders[0]+1; i++, o++)
+            {
+               const IntegrationPoint &ip = Nodes.IntPoint(o);
+
+               fe.CalcShape(ip, shape);
+               Trans.SetIntPoint(&ip);
+               Trans.Jacobian().Mult(tz, vk);
+
+               for (int s = 0; s < shape.Size(); s++)
+               {
+                  real_t v = shape(s);
+                  if (fabs(v) < 1e-12) { v = 0.0; }
+                  for (int d = 0; d < sdim; d++)
+                  {
+                     I(o, s + d*shape.Size()) = v*vk[d];
+                  }
+               }
+            }
+         }
+      }
+   }
+   else
+   {
+      MFEM_ABORT("NURBS_HCurl3DFiniteElement::Project for vector FE not implemented");
+   }
+}
+
 void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
                                          ElementTransformation &Trans,
                                          Vector &dofs) const
@@ -1520,7 +1860,6 @@ void NURBS_HCurl3DFiniteElement::Project(VectorCoefficient &vc,
    }
 
 }
-
 
 NURBS_HCurl3DFiniteElement::~NURBS_HCurl3DFiniteElement()
 {

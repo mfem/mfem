@@ -465,7 +465,17 @@ public:
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
 
+   /** @brief Compute the discrete gradient matrix from the given FiniteElement
+       onto 'this' FiniteElement. The ElementTransformation is included to
+       support cases when the matrix depends on it. */
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
+
    using FiniteElement::Project;
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 
    /** Evaluate the dofs that are defined on this element.
        Dofs that can not be evaluated will remain unmodified. */
@@ -563,7 +573,17 @@ public:
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
 
+   /** @brief Compute the discrete gradient matrix from the given FiniteElement
+       onto 'this' FiniteElement. The ElementTransformation is included to
+       support cases when the matrix depends on it. */
+   void ProjectGrad(const FiniteElement &fe,
+                    ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
+
    using FiniteElement::Project;
+   void Project(const FiniteElement &fe,
+                ElementTransformation &Trans,
+                DenseMatrix &I) const override;
 
    /** Evaluate the dofs that are defined on this element.
        Dofs that can not be evaluated will remain unmodified. */
