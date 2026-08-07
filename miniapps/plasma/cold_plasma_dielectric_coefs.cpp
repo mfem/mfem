@@ -141,7 +141,8 @@ complex<double> L_cold_plasma(double omega,
                               const Vector & mass,
                               const Vector & temp,
                               double iontemp,
-                              int nuprof)
+                              int nuprof,
+                              double res_lim)
 {
    complex<double> val(1.0, 0.0);
    double n = number[0];
@@ -155,7 +156,6 @@ complex<double> L_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.02;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -190,6 +190,7 @@ complex<double> S_cold_plasma(double omega,
                               const Vector & temp,
                               double iontemp,
                               int nuprof,
+                              double res_lim,
                               double Rval,
                               double Lval)
 {
@@ -205,7 +206,6 @@ complex<double> S_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.02;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -242,6 +242,7 @@ complex<double> D_cold_plasma(double omega,
                               const Vector & temp,
                               double iontemp,
                               int nuprof,
+                              double res_lim,
                               double Rval,
                               double Lval)
 {
@@ -257,7 +258,6 @@ complex<double> D_cold_plasma(double omega,
                  nue;
    complex<double> collision_correction(1.0, nuei/omega);
    double nui_res = 0.0;
-   double res_lim = 0.02;
 
    for (int i=0; i<number.Size(); i++)
    {
@@ -1284,7 +1284,7 @@ double StixLCoef::Eval(ElementTransformation &T,
    // Evaluate Stix Coefficient
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    if (thermal_)
    {
@@ -1428,11 +1428,11 @@ double StixSCoef::Eval(ElementTransformation &T,
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    complex<double> exx(1.0,0.0);
    if (thermal_)
    {
@@ -1498,11 +1498,11 @@ double StixDCoef::Eval(ElementTransformation &T,
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
 
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
 
    complex<double> exy(0.0,0.0);
 
@@ -1702,15 +1702,15 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    
    if (thermal_)
    {  
@@ -1907,15 +1907,15 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
 
    if (thermal_)
    {
@@ -2091,15 +2091,15 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
 
  
    if (thermal_)
@@ -2252,15 +2252,15 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
 
    if (thermal_)
    {  
@@ -2409,15 +2409,15 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
                                      temp_vals_, Ti_vals_, nuprof_);
    complex<double> L = L_cold_plasma(omega_, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_);
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_);
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
    complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
-                                     temp_vals_, Ti_vals_, nuprof_, R.real(),L.real());
+                                     temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
 
    epsilon(0,0) = abs(S + (P - S) * BVec_(0) * BVec_(0));
    epsilon(1,1) = abs(S + (P - S) * BVec_(1) * BVec_(1));
@@ -2521,7 +2521,7 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
 
       
       double x0 = 2.2404;
-      double delta_x = 0.15+0.25;
+      double delta_x = 0.15;
 
       if (xyz_[0] <= x0)
       {
@@ -2645,7 +2645,7 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       complex<double> sig_w = constant;
 
       double x0 = 2.2404;
-      double delta_x = 0.15+0.25;
+      double delta_x = 0.15;
 
       if (xyz_[0] <= x0)
       {
@@ -2743,8 +2743,8 @@ PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
                              bool coords3d,
                              G_EQDSK_Data *eqdsk,
                              Interp_Data *interp_field)
-   : cyl_(sys == POLOIDAL), coords3d_(coords3d), eqdsk_(eqdsk), interp_field_(interp_field),
-     dim_(dim), xyz_(3), rz_(2)
+   : cyl_(sys == POLOIDAL), coords3d_(coords3d), eqdsk_(eqdsk), 
+     interp_field_(interp_field), dim_(dim), xyz_(3), rz_(2)
 {
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
@@ -2979,24 +2979,15 @@ double PlasmaProfile::EvalByType(Type type,
          double nu0 = params[0];
          double decay = params[1];
          double shift = params[2];
+         //double nu0_2 = params[3];
+         //double decay_2 = params[4];
          double rho = sqrt(cyl_ ? (rz_ * rz_) :
                            (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
-         //double test = 5e7*exp((rho - 0.97)/0.015);
-         //double test = pow( 1.0 + exp( - (rho - 1.015)/0.01 ),-1.0);
-         //double test = 0.0;
-         double test = exp(-pow(rho-0.936, 2)/1e-5);
 
          double d = cyl_ ? rz_[0] : xyz_[0];
 
-         //return nu0*exp(-(d-shift)/decay) + 5e7*test;
-         
-         double val = 5e9*exp(-((xyz_[0]-2.4)*(xyz_[0]-2.4))/0.0005);// + 1e8*exp((xyz_[1]*xyz_[1])/0.2);
-         //+ (nu0*exp(-(xyz_[0]-shift)/decay));
-         //if (xyz_[0] <= 2.2404){val = 0.0;}
-         //return (nu0*exp(-((xyz_[0]-shift)*(xyz_[0]-shift))/decay)) + (5e8*exp(-(xyz_[0]-2.3)/0.1));
-         //return 1e10*exp(-((xyz_[0]-2.48)*(xyz_[0]-2.48))/0.005); 
-
-         return nu0*exp(-(d-shift)/decay);
+         return nu0*exp(-(d-shift)/decay)+2e9*exp(pow(xyz_[1],2.0)/0.15)+2e9*exp(pow(xyz_[2],2.0)/0.05);
+                //+ nu0_2*exp(-pow((d-2.45),2.0)/decay_2);
       }
       break;
       case NUI:
@@ -3584,10 +3575,10 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case SIMP_SHEATH:
       {
-         double pmax = 2e20;
-         double pmin = 5e17;
-         double lambda_n = 2.34; // Damping length
-         double nu = 34.0; // Strength of decline
+         double pmax = 1.38e20;
+         double pmin = 1e18;
+         double lambda_n = 2.4; // Damping length
+         double nu = 85.0; // Strength of decline
          double den = params[0];
 
          double pmin1 = 1.0;
@@ -3605,11 +3596,8 @@ double PlasmaProfile::EvalByType(Type type,
          {
             
             val = (pmax - pmin) * pow(cosh(pow((xyz_[0] / lambda_n), nu)), -1.0) + pmin;
-            //if (xyz_[0] <= 2.2404){val = 1.94e20;}
-            //if (xyz_[0] >= 2.468){val = 1e12;}
-
-            //val = 2e20 - 1.5e21*((xyz_[0]-2.2404)/1.8);
-            if (xyz_[0] <= 2.2404){val = 2e20;}
+            if (xyz_[0] <= 2.2404){val = 1.38e20;}
+            if (val < 1e18){val = 1e18;}
          }
          else
          {
@@ -3633,6 +3621,46 @@ double PlasmaProfile::EvalByType(Type type,
          double pmax = params[1];
 
          return pmax*pow((pmin/pmax),xyz_[0]);
+      }
+      break;
+      case LDIP:
+      {
+         // For stix2d:
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2]; 
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }           
+         }
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         double psiRZ_center = eqdsk_->GetPsiCenter();
+         double psiRZ_edge = eqdsk_->GetPsiBdry();
+
+         double norm_psi_ = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+         double value = 0.0;
+         value = interp_field_->InterpDataR(norm_psi_);
+
+         double floor_val = params[0];
+         if (value < floor_val){value = 1e8;}
+
+         return value;
       }
       break;
       default:
@@ -4048,13 +4076,13 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          double z = xyz_[2]; 
 
          V[0] = p_[0];
-         V[1] = p_[1]/r; 
+         V[1] = (1.85*p_[1])/r; 
          V[2] = p_[2];
 
          
          if (xyz_[0] <= 2.2404)
          {
-            V[1] = p_[1]/2.2404; 
+            V[1] = (1.85*p_[1])/2.2404; 
          }
 
 

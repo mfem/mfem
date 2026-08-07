@@ -377,7 +377,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
      rhs_(NULL),
      e_t_(NULL),
      e_b_(NULL),
-     //e_perp_(NULL),
+     e_perp_(NULL),
      e_plus_(NULL),
      e_min_(NULL),
      e_v_(NULL),
@@ -487,12 +487,18 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    HDivFESpace_  = new RT_ParFESpace(pmesh_,order,pmesh_->Dimension());
    L2FESpace_    = new L2_ParFESpace(pmesh_,order-1,pmesh_->Dimension());
 
+   if (BCoef_ || kReCoef_ || kImCoef_)
+   {
+      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
+                                      pmesh_->SpaceDimension());
+   }
+
    if (BCoef_)
    {
       e_b_ = new ParComplexGridFunction(L2FESpace_);
       *e_b_ = 0.0;
-      //e_perp_ = new ParComplexGridFunction(L2VFESpace_);
-      //*e_perp_ = 0.0;
+      e_perp_ = new ParComplexGridFunction(L2VFESpace_);
+      *e_perp_ = 0.0;
       e_plus_ = new ParComplexGridFunction(L2FESpace_);
       *e_plus_ = 0.0;
       e_min_ = new ParComplexGridFunction(L2FESpace_);
@@ -523,8 +529,6 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
 
    if (kReCoef_ || kImCoef_)
    {
-      L2VFESpace_ = new L2_ParFESpace(pmesh_,order,pmesh_->Dimension(),
-                                      pmesh_->SpaceDimension());
       e_t_ = new ParGridFunction(L2VFESpace_);
       e_v_ = new ParComplexGridFunction(L2VFESpace_);
       d_v_ = new ParComplexGridFunction(L2VFESpace_);
@@ -1118,7 +1122,7 @@ CPDSolver::~CPDSolver()
    if (j_v_ != j_) { delete j_v_; }
    if (phi_v_ != phi_) {delete phi_v_;}
    delete e_b_;
-   //delete e_perp_;
+   delete e_perp_;
    delete b_hat_;
    // delete e_r_;
    // delete e_i_;
@@ -1513,7 +1517,7 @@ CPDSolver::Update()
    if (S_) { S_->Update(); }
    if (e_t_) { e_t_->Update(); }
    if (e_b_) { e_b_->Update(); }
-   //if (e_perp_) { e_perp_->Update(); }
+   if (e_perp_) { e_perp_->Update(); }
    if (e_plus_) { e_plus_->Update(); }
    if (e_min_) { e_min_->Update(); }
    if (e_v_) { e_v_->Update(); }
@@ -1639,6 +1643,7 @@ CPDSolver::Solve()
                                                *(*dbcs_)[i]->imag,
                                                attr_marker);
          */
+         // this is broken.... but we have fix in the while statement
          e_->ProjectCoefficient(*(*dbcs_)[i]->real,
                                 *(*dbcs_)[i]->imag);
       }
@@ -2583,8 +2588,8 @@ CPDSolver::RegisterVisItFields(VisItDataCollection & visit_dc)
       visit_dc.RegisterField("Im_Emin", &e_min_->imag());
       visit_dc.RegisterField("Re_Eplus", &e_plus_->real());
       visit_dc.RegisterField("Im_Eplus", &e_plus_->imag());
-      //visit_dc.RegisterField("Re_EPerp", &e_perp_->real());
-      //visit_dc.RegisterField("Im_EPerp", &e_perp_->imag());
+      visit_dc.RegisterField("Re_EPerp", &e_perp_->real());
+      visit_dc.RegisterField("Im_EPerp", &e_perp_->imag());
       //visit_dc.RegisterField("Re_EpsPara", &EpsPara_->real());
       //visit_dc.RegisterField("Im_EpsPara", &EpsPara_->imag());
    }
@@ -2711,14 +2716,14 @@ CPDSolver::WriteVisItFields(int it)
          InnerProductCoefficient ebiCoef(e_i, *BCoef_);
 
          e_b_->ProjectCoefficient(ebrCoef, ebiCoef);
-         /*
+         
          IdentityMatrixCoefficient identityM(3);
          OuterProductCoefficient bb(*BCoef_, *BCoef_);
          MatrixSumCoefficient Ibb(identityM, bb, 1.0, -1.0);
          MatrixVectorProductCoefficient eperp_rCoef(Ibb, e_r);
          MatrixVectorProductCoefficient eperp_iCoef(Ibb, e_i);
          e_perp_ ->ProjectCoefficient(eperp_rCoef, eperp_iCoef);
-         */
+         
          /*
          MatrixVectorProductCoefficient ReEpsB(*epsReCoef_, *BCoef_);
          MatrixVectorProductCoefficient ImEpsB(*epsImCoef_, *BCoef_);

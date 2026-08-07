@@ -53,7 +53,8 @@ Interp_Data::Interp_Data(istream &is)
    }
 
    dr_ = RDIM_ / (NW_ - 1);
-   dz_ = ZDIM_ / (NH_ - 1);
+   dz_ = 1.0;
+   if (NH_ != 1){dz_ = ZDIM_ / (NH_ - 1);}
 }
 
 void Interp_Data::PrintInfo(ostream & out) const
@@ -293,6 +294,88 @@ void Interp_Data::ExtendedDenseMatrix::init()
       E_(i,1) = 3.0 * (2.0 * (*this)(i,n_-1) + (*this)(i,n_-3))
                 - 8.0 * (*this)(i,n_-2);
    }
+}
+
+void Interp_Data::initInterpR(const std::vector<double> &v,
+                               std::vector<double> &t)
+{
+   // Initialize the divided differences
+   ShiftedVector m(NW_-1, 2); m = 0.0;
+
+   m(-2) = -2.0 * v[2] + 5.0 * v[1] - 3.0 * v[0];
+   m(-1) = -1.0 * v[2] + 3.0 * v[1] - 2.0 * v[0];
+   for (int i=0; i<NW_-1; i++)
+   {
+      m(i) = v[i+1] - v[i];
+   }
+   m(NW_-1) = 2.0 * v[NW_-1] - 3.0 * v[NW_-2] + v[NW_-3];
+   m(NW_)   = 3.0 * v[NW_-1] - 5.0 * v[NW_-2] + 2.0 * v[NW_-3];
+
+   // Initialize the Slopes
+   t.resize(NW_);
+
+   for (int i=0; i<NW_; i++)
+   {
+      if (m(i+1) == m(i) && m(i-1) == m(i-2))
+      {
+         if (m(i) == m(i-1))
+         {
+            t[i] = m(i) * dr_;
+         }
+         else
+         {
+            t[i] = 0.5 * (m(i-1) + m(i)) * dr_;
+         }
+      }
+      else
+      {
+         t[i] = (fabs(m(i+1) - m(i)) * m(i-1) +
+                 fabs(m(i-1) - m(i-2)) * m(i)) * dr_ /
+                (fabs(m(i+1) - m(i)) + fabs(m(i-1) - m(i-2)));
+      }
+   }
+}
+
+double Interp_Data::interpR(double r, const vector<double> &v,
+                             const vector<double> &t)
+{
+   double rs = (r - RLEFT_) / RDIM_;
+
+   int i = std::max(0, std::min((int)floor(double(NW_-1) * rs), NW_-2));
+
+   // Compute ends of local patch
+   double r0 = RLEFT_ + RDIM_ * i / (NW_ - 1);
+   double r1 = r0 + RDIM_ / (NW_ - 1);
+
+   // Prepare position dependent factors
+   double wra = (r1 - r) / dr_;
+   double wrb = (r - r0) / dr_;
+   double wrc = (1.0 + 2.0 * wra);
+   double wrd = (1.0 + 2.0 * wrb);
+   double wra2 = wra * wra;
+   double wrb2 = wrb * wrb;
+
+   // Extract variable values at ends of local patch
+   const double &p0 = v[i];
+   const double &p1 = v[i+1];
+
+   double var = p0 * wra2 * wrd + p1 * wrb2 * wrc;
+
+   // Extract dvar/dx at ends of local patch
+   const double &px0 = t[i];
+   const double &px1 = t[i+1];
+
+   double varx = px0 * wra2 * wrb - px1 * wrb2 * wra;
+
+   var += varx * dr_;
+
+   return var;
+}
+
+double Interp_Data::InterpDataR(double r)
+{
+   initInterpR(FIELD_, FIELD_t_);
+   return interpR(r, FIELD_, FIELD_t_);
 }
 
 } // namespace plasma

@@ -1201,16 +1201,16 @@ int main(int argc, char *argv[])
 
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             Rval,Lval);
+                                             res_lim, Rval,Lval);
       std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             Rval,Lval);
+                                             res_lim, Rval,Lval);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof);
+                                             charges, masses, temps, Ti, nuprof, res_lim);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -1370,7 +1370,6 @@ int main(int argc, char *argv[])
 
    Interp_Data *interp_DENdata = NULL;
    Interp_Data *interp_TEMPdata = NULL;
-   Interp_Data *interp_placeholder = NULL;
 
    {
       named_ifgzstream idendata(mdpt_data);
@@ -1398,9 +1397,9 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, false, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile nueCoef(nept, nepp, false, coord_sys, coords3d, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile TiCoef(tipt, tipp, false, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile TiCoef(tipt, tipp, false, coord_sys, coords3d, eqdsk);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1442,6 +1441,7 @@ int main(int argc, char *argv[])
    }
    
    PlasmaProfile rhoCoef(dpt_def, dpp_def, false, coord_sys, coords3d, eqdsk, interp_DENdata);
+
    if (dpa_vac.Size() > 0)
    {
       rhoCoef.SetParams(dpa_vac, dpt_vac, dpp_vac);
@@ -1455,7 +1455,7 @@ int main(int argc, char *argv[])
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
 
-   PlasmaProfile nuiCoef(nipt, nipp, false, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile nuiCoef(nipt, nipp, false, coord_sys, coords3d, eqdsk);
    if (nipa_vac.Size() > 0)
    {
       nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
@@ -3222,15 +3222,169 @@ void curve_current_source_v2_i(const Vector &x, Vector &j)
    }
 }
 
+void curve_current_source_tahi_r(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   // bottom strap:
+   double rmin1 = 0.96143 - 2.14493*z;
+   double rmax1 = 1.18232 - 2.14493*z;
+   double zmin1 = 1.427714*r + 0.068772;
+   double zmax1 = 1.427714*r + 0.093012;
+
+   // top bottom:
+   double rmin2 = 1.23037 - 1.56361*z;
+   double rmax2 = 1.40400 - 1.56361*z;
+   double zmin2 = 1.087187*r + 0.184562;
+   double zmax2 = 1.087187*r + 0.205030;
+
+   if (z >= zmin1 && z <= zmax1 &&
+       r >= rmin1 && r <= rmax1)
+   {
+      if (!j_cyl_)
+      {
+         j(0) = -1.0*curve_params_(1)*sin(theta);
+         j(1) = curve_params_(1)*cos(theta);
+         j(2) = curve_params_(2);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = -curve_params_(1)*sin(theta);
+         double j_phi = curve_params_(2);
+         double j_z   = curve_params_(1)*cos(theta);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
+   }
+   else if (z >= zmin2 && z <= zmax2 &&
+       r >= rmin2 && r <= rmax2)
+   {
+      if (!j_cyl_)
+      {
+         j(0) = -1.0*curve_params_(3)*sin(theta);
+         j(1) = curve_params_(3)*cos(theta);
+         j(2) = curve_params_(4);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = -curve_params_(3)*sin(theta);
+         double j_phi = curve_params_(4);
+         double j_z   = curve_params_(3)*cos(theta);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
+   }
+}
+
+void curve_current_source_tahi_i(const Vector &x, Vector &j)
+{
+   MFEM_ASSERT(x.Size() == 3, "current source requires 3D space.");
+
+   j.SetSize(x.Size());
+   j = 0.0;
+
+   double r = (j_cyl_) ? sqrt(x[0] * x[0] + x[1] * x[1]) : x[0];
+   double z = (j_cyl_) ? x[2] : x[1];
+
+   double theta = atan2(z, r);
+
+   // bottom strap:
+   double rmin1 = 0.96143 - 2.14493*z;
+   double rmax1 = 1.18232 - 2.14493*z;
+   double zmin1 = 1.427714*r + 0.068772;
+   double zmax1 = 1.427714*r + 0.093012;
+
+   // top bottom:
+   double rmin2 = 1.23037 - 1.56361*z;
+   double rmax2 = 1.40400 - 1.56361*z;
+   double zmin2 = 1.087187*r + 0.184562;
+   double zmax2 = 1.087187*r + 0.205030;
+
+   if (curve_params_.Size() < 7)
+   {
+      return;
+   }
+
+   if (curve_params_(0) != 1)
+   {
+      MFEM_VERIFY(curve_params_.Size() > 6, "data missing from curve_params_");
+   }
+
+   if (z >= zmin1 && z <= zmax1 &&
+       r >= rmin1 && r <= rmax1)
+   {
+      if (!j_cyl_)
+      {
+         j(0) = -1.0*curve_params_(1)*sin(theta);
+         j(1) = curve_params_(1)*cos(theta);
+         j(2) = curve_params_(2);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = -curve_params_(5)*sin(theta);
+         double j_phi = curve_params_(6);
+         double j_z   = curve_params_(5)*cos(theta);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
+   }
+   else if (z >= zmin2 && z <= zmax2 &&
+       r >= rmin2 && r <= rmax2)
+   {
+      if (!j_cyl_)
+      {
+         j(0) = -1.0*curve_params_(5)*sin(theta);
+         j(1) = curve_params_(5)*cos(theta);
+         j(2) = curve_params_(6);
+      }
+      else
+      {
+         double cosphi = x[0] / r;
+         double sinphi = x[1] / r;
+
+         double j_r   = -curve_params_(5)*sin(theta);
+         double j_phi = curve_params_(6);
+         double j_z   = curve_params_(5)*cos(theta);
+
+         j(0) = j_r * cosphi - j_phi * sinphi;
+         j(1) = j_r * sinphi + j_phi * cosphi;
+         j(2) = j_z;
+      }
+   }
+}
+
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_v0_r(x, j);
+   curve_current_source_v2_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_v0_i(x, j);
+   curve_current_source_v2_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)
@@ -3308,13 +3462,14 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    double k_ = 18;
    double Rval_ = 0.0;
    double Lval_ = 0.0;
+   double res_lim_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 

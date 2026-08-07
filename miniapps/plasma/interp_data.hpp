@@ -43,6 +43,7 @@ public:
    void PrintInfo(std::ostream &out = std::cout) const;
 
    double InterpDataRZ(const Vector &rz);
+   double InterpDataR(double r);
 
 private:
    class ShiftedVector;
@@ -56,11 +57,17 @@ private:
                      ShiftedDenseMatrix &d,
                      ShiftedDenseMatrix &e);
 
+   void initInterpR(const std::vector<double> &v,
+                    std::vector<double> &t);
+
    double interpRZ(const Vector &rz,
                    const std::vector<double> &v,
                    const ShiftedDenseMatrix &c,
                    const ShiftedDenseMatrix &d,
                    const ShiftedDenseMatrix &e);
+
+   double interpR(double r, const std::vector<double> &v,
+                  const std::vector<double> &t);
 
    std::vector<std::string> CASE_; // Identification character string
 
@@ -192,19 +199,20 @@ private:
 
    // Divided differences for Akima's interpolation method
    double dr_, dz_;
+   std::vector<double> FIELD_t_;
    ShiftedDenseMatrix  DATA_c_;
    ShiftedDenseMatrix  DATA_d_;
    ShiftedDenseMatrix  DATA_e_;
 };
 
-class Interp_Data_Coefficient : public Coefficient
+class Interp_Data2D_Coefficient : public Coefficient
 {
 private:
    Interp_Data &interp_data;
 
 public:
 
-   Interp_Data_Coefficient(Interp_Data &i_data) : interp_data(i_data) {}
+   Interp_Data2D_Coefficient(Interp_Data &i_data) : interp_data(i_data) {}
 
    double Eval(ElementTransformation & T,
                const IntegrationPoint & ip)
@@ -215,6 +223,27 @@ public:
       T.Transform(ip, transip);
 
       return interp_data.InterpDataRZ(transip);
+   }
+};
+
+class Interp_Data1D_Coefficient : public Coefficient
+{
+private:
+   Interp_Data &interp_data;
+
+public:
+
+   Interp_Data1D_Coefficient(Interp_Data &i_data) : interp_data(i_data) {}
+
+   double Eval(ElementTransformation & T,
+               const IntegrationPoint & ip)
+   {
+      double x[3];
+      Vector transip(x, 3);
+
+      T.Transform(ip, transip);
+
+      return interp_data.InterpDataR(transip[0]);
    }
 };
 

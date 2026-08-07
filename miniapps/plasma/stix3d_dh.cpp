@@ -1284,17 +1284,17 @@ int main(int argc, char *argv[])
       double Lval = 0.0;
 
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof,
+                                             charges, masses, temps, Ti, nuprof, res_lim,
                                              Rval,Lval);
       std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof,
+                                             charges, masses, temps, Ti, nuprof, res_lim,
                                              Rval,Lval);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof);
+                                             charges, masses, temps, Ti, nuprof, res_lim);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -1409,6 +1409,26 @@ int main(int argc, char *argv[])
    ParGridFunction nui_gf(&H1FESpace);
    ParGridFunction iontemp_gf(&H1FESpace);
 
+   ParGridFunction exx_r_gf(&L2FESpace);
+   ParGridFunction exy_r_gf(&L2FESpace);
+   ParGridFunction exz_r_gf(&L2FESpace);
+   ParGridFunction eyx_r_gf(&L2FESpace);
+   ParGridFunction eyy_r_gf(&L2FESpace);
+   ParGridFunction eyz_r_gf(&L2FESpace);
+   ParGridFunction ezx_r_gf(&L2FESpace);
+   ParGridFunction ezy_r_gf(&L2FESpace);
+   ParGridFunction ezz_r_gf(&L2FESpace);
+
+   ParGridFunction exx_i_gf(&L2FESpace);
+   ParGridFunction exy_i_gf(&L2FESpace);
+   ParGridFunction exz_i_gf(&L2FESpace);
+   ParGridFunction eyx_i_gf(&L2FESpace);
+   ParGridFunction eyy_i_gf(&L2FESpace);
+   ParGridFunction eyz_i_gf(&L2FESpace);
+   ParGridFunction ezx_i_gf(&L2FESpace);
+   ParGridFunction ezy_i_gf(&L2FESpace);
+   ParGridFunction ezz_i_gf(&L2FESpace);
+
    G_EQDSK_Data *eqdsk = NULL;
    {
       named_ifgzstream ieqdsk(eqdsk_file);
@@ -1428,7 +1448,6 @@ int main(int argc, char *argv[])
 
    Interp_Data *interp_DENdata = NULL;
    Interp_Data *interp_TEMPdata = NULL;
-   Interp_Data *interp_placeholder = NULL;
 
    {
       named_ifgzstream idendata(mdpt_data);
@@ -1456,9 +1475,9 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile TiCoef(tipt, tipp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile TiCoef(tipt, tipp, true, coord_sys, coords3d, eqdsk);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1513,7 +1532,7 @@ int main(int argc, char *argv[])
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
 
-   PlasmaProfile nuiCoef(nipt, nipp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile nuiCoef(nipt, nipp, true, coord_sys, coords3d, eqdsk);
    if (nipa_vac.Size() > 0)
    {
       nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
@@ -1884,6 +1903,46 @@ int main(int argc, char *argv[])
       muPML_real = new MatrixSumCoefficient(lamb_mu_invsig_real1,lamb_mu_invsig_real2,1.0,-1.0);
       muPML_imag = new MatrixSumCoefficient(lamb_mu_invsig_imag1,lamb_mu_invsig_imag2);
    }
+
+   MatrixComponentCoefficient exx_r(epsilonInv_real,0,0);
+   MatrixComponentCoefficient exy_r(epsilonInv_real,0,1);
+   MatrixComponentCoefficient exz_r(epsilonInv_real,0,2);
+   MatrixComponentCoefficient eyx_r(epsilonInv_real,1,0);
+   MatrixComponentCoefficient eyy_r(epsilonInv_real,1,1);
+   MatrixComponentCoefficient eyz_r(epsilonInv_real,1,2);
+   MatrixComponentCoefficient ezx_r(epsilonInv_real,2,0);
+   MatrixComponentCoefficient ezy_r(epsilonInv_real,2,1);
+   MatrixComponentCoefficient ezz_r(epsilonInv_real,2,2);
+
+   MatrixComponentCoefficient exx_i(epsilonInv_imag,0,0);
+   MatrixComponentCoefficient exy_i(epsilonInv_imag,0,1);
+   MatrixComponentCoefficient exz_i(epsilonInv_imag,0,2);
+   MatrixComponentCoefficient eyx_i(epsilonInv_imag,1,0);
+   MatrixComponentCoefficient eyy_i(epsilonInv_imag,1,1);
+   MatrixComponentCoefficient eyz_i(epsilonInv_imag,1,2);
+   MatrixComponentCoefficient ezx_i(epsilonInv_imag,2,0);
+   MatrixComponentCoefficient ezy_i(epsilonInv_imag,2,1);
+   MatrixComponentCoefficient ezz_i(epsilonInv_imag,2,2);
+
+   exx_r_gf.ProjectCoefficient(exx_r);
+   exy_r_gf.ProjectCoefficient(exy_r);
+   exz_r_gf.ProjectCoefficient(exz_r);
+   eyx_r_gf.ProjectCoefficient(eyx_r);
+   eyy_r_gf.ProjectCoefficient(eyy_r);
+   eyz_r_gf.ProjectCoefficient(eyz_r);
+   ezx_r_gf.ProjectCoefficient(ezx_r);
+   ezy_r_gf.ProjectCoefficient(ezy_r);
+   ezz_r_gf.ProjectCoefficient(ezz_r);
+
+   exx_i_gf.ProjectCoefficient(exx_i);
+   exy_i_gf.ProjectCoefficient(exy_i);
+   exz_i_gf.ProjectCoefficient(exz_i);
+   eyx_i_gf.ProjectCoefficient(eyx_i);
+   eyy_i_gf.ProjectCoefficient(eyy_i);
+   eyz_i_gf.ProjectCoefficient(eyz_i);
+   ezx_i_gf.ProjectCoefficient(ezx_i);
+   ezy_i_gf.ProjectCoefficient(ezy_i);
+   ezz_i_gf.ProjectCoefficient(ezz_i);
 
    if (check_eps_inv)
    {
@@ -2326,7 +2385,47 @@ int main(int argc, char *argv[])
       density_gf.MakeRef(&L2FESpace, density.GetBlock(0).GetMemory());
       visit_dc.RegisterField("Electron_Density", &density_gf);
 
-      //nue_gf *= 1/omega;
+      exx_r_gf *= 1/epsilon0_;
+      exy_r_gf *= 1/epsilon0_;
+      exz_r_gf *= 1/epsilon0_;
+      eyx_r_gf *= 1/epsilon0_;
+      eyy_r_gf *= 1/epsilon0_;
+      eyz_r_gf *= 1/epsilon0_;
+      ezx_r_gf *= 1/epsilon0_;
+      ezy_r_gf *= 1/epsilon0_;
+      ezz_r_gf *= 1/epsilon0_;
+
+      exx_i_gf *= 1/epsilon0_;
+      exy_i_gf *= 1/epsilon0_;
+      exz_i_gf *= 1/epsilon0_;
+      eyx_i_gf *= 1/epsilon0_;
+      eyy_i_gf *= 1/epsilon0_;
+      eyz_i_gf *= 1/epsilon0_;
+      ezx_i_gf *= 1/epsilon0_;
+      ezy_i_gf *= 1/epsilon0_;
+      ezz_i_gf *= 1/epsilon0_;
+
+      visit_dc.RegisterField("epRe_xx", &exx_r_gf);
+      visit_dc.RegisterField("epRe_xy", &exy_r_gf);
+      visit_dc.RegisterField("epRe_xz", &exz_r_gf);
+      visit_dc.RegisterField("epRe_yx", &eyx_r_gf);
+      visit_dc.RegisterField("epRe_yy", &eyy_r_gf);
+      visit_dc.RegisterField("epRe_yz", &eyz_r_gf);
+      visit_dc.RegisterField("epRe_zx", &ezx_r_gf);
+      visit_dc.RegisterField("epRe_zy", &ezy_r_gf);
+      visit_dc.RegisterField("epRe_zz", &ezz_r_gf);
+
+      visit_dc.RegisterField("epIm_xx", &exx_i_gf);
+      visit_dc.RegisterField("epIm_xy", &exy_i_gf);
+      visit_dc.RegisterField("epIm_xz", &exz_i_gf);
+      visit_dc.RegisterField("epIm_yx", &eyx_i_gf);
+      visit_dc.RegisterField("epIm_yy", &eyy_i_gf);
+      visit_dc.RegisterField("epIm_yz", &eyz_i_gf);
+      visit_dc.RegisterField("epIm_zx", &ezx_i_gf);
+      visit_dc.RegisterField("epIm_zy", &ezy_i_gf);
+      visit_dc.RegisterField("epIm_zz", &ezz_i_gf);
+
+      nue_gf *= 1/omega;
       visit_dc.RegisterField("Electron_Collisional_Profile", &nue_gf);
       visit_dc.RegisterField("Ion_Collisional_Profile", &nui_gf);
 
@@ -4869,13 +4968,14 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    double k_ = 18;
    double Rval_ = 0.0;
    double Lval_ = 0.0;
+   double res_lim_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
@@ -5135,13 +5235,14 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    double k_ = 18;
    double Rval_ = 0.0;
    double Lval_ = 0.0;
+   double res_lim_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 

@@ -122,7 +122,8 @@ std::complex<double> L_cold_plasma(double omega, double Bmag,
                                    const Vector & mass,
                                    const Vector & temp,
                                    double iontemp,
-                                   int nuprof);
+                                   int nuprof,
+                                   double res_lim);
 
 std::complex<double> S_cold_plasma(double omega,
                                    double kparallel, double Bmag,
@@ -133,6 +134,7 @@ std::complex<double> S_cold_plasma(double omega,
                                    const Vector & temp,
                                    double iontemp,
                                    int nuprof,
+                                   double res_lim,
                                    double Rval,
                                    double Lval);
 
@@ -145,6 +147,7 @@ std::complex<double> D_cold_plasma(double omega,
                                    const Vector & temp,
                                    double iontemp,
                                    int nuprof,
+                                   double res_lim,
                                    double Rval,
                                    double Lval);
 
@@ -967,7 +970,8 @@ public:
               RHO_CORE               = 15,
               INTERP_VALUE           = 16,
               SIMP_SHEATH            = 17,
-              CUSTOM                 = 18
+              CUSTOM                 = 18,
+              LDIP                   = 19
              };
 
 private:
@@ -990,7 +994,7 @@ private:
    G_EQDSK_Data *eqdsk_;
    Interp_Data *interp_field_;
 
-   const int np_[19] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1,1,2};
+   const int np_[20] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1,1,2,1};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section

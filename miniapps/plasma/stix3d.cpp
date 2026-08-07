@@ -1250,19 +1250,20 @@ int main(int argc, char *argv[])
       double kvecmag = kVec.Norml2();
       double Rval = 0.0;
       double Lval = 0.0;
+      double res_lim = 0.0;
 
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             Rval,Lval);
+                                             res_lim, Rval,Lval);
       std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
-                                             Rval,Lval);
+                                             res_lim, Rval,Lval);
       std::complex<double> R = R_cold_plasma(omega, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> L = L_cold_plasma(omega, Bmag, nue, nui, numbers,
-                                             charges, masses, temps, Ti, nuprof);
+                                             charges, masses, temps, Ti, nuprof, res_lim);
 
       cout << "\nConvenient Terms:\n";
       cout << "R = " << R << ",\tL = " << L << endl;
@@ -1397,7 +1398,6 @@ int main(int argc, char *argv[])
 
    Interp_Data *interp_DENdata = NULL;
    Interp_Data *interp_TEMPdata = NULL;
-   Interp_Data *interp_placeholder = NULL;
 
    {
       named_ifgzstream idendata(mdpt_data);
@@ -1425,9 +1425,9 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk);
    nue_gf.ProjectCoefficient(nueCoef);
-   PlasmaProfile TiCoef(tipt, tipp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile TiCoef(tipt, tipp, true, coord_sys, coords3d, eqdsk);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
    int size_h1 = H1FESpace.GetVSize();
@@ -1482,7 +1482,7 @@ int main(int argc, char *argv[])
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
 
-   PlasmaProfile nuiCoef(nipt, nipp, true, coord_sys, coords3d, eqdsk, interp_placeholder);
+   PlasmaProfile nuiCoef(nipt, nipp, true, coord_sys, coords3d, eqdsk);
    if (nipa_vac.Size() > 0)
    {
       nuiCoef.SetParams(nipa_vac, nipt_vac, nipp_vac);
@@ -4375,13 +4375,14 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    double k_ = 18;
    double Rval_ = 0.0;
    double Lval_ = 0.0;
+   double res_lim_ = 0.0;
 
    S_ = S_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
-                      nuprof_, Rval_, Lval_);
+                      nuprof_, res_lim_, Rval_, Lval_);
    P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
