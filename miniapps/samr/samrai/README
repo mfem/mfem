@@ -1,0 +1,112 @@
+                    MFEM-SAMRAI Interoperability Examples
+
+This directory contains examples demonstrating interoperability between MFEM
+and SAMRAI (Structured Adaptive Mesh Refinement Application Infrastructure).
+
+===============================================================================
+
+Example 16: MFEM-SAMRAI Coupled Simulation
+-------------------------------------------
+
+Description:
+  This example demonstrates basic interoperability between MFEM and SAMRAI by
+  running both solvers side-by-side in an alternating time loop.
+
+  MFEM Component:
+    - Solves the nonlinear heat equation: du/dt = C(u)
+    - C(u) = ∇·((κ + α*u) ∇u) - nonlinear diffusion operator
+    - Uses unstructured mesh (read from file)
+    - Implicit time integration with SDIRK methods
+
+  SAMRAI Component:
+    - Solves linear advection: du/dt + div(a*u) = 0
+    - Uses structured Cartesian AMR grid
+    - Explicit hyperbolic integration
+    - Adaptive mesh refinement with Berger-Rigoutsos clustering
+
+  Integration:
+    - Both solvers advance in an alternating time loop
+    - No data exchange in this version (loose coupling)
+    - Demonstrates that MFEM and SAMRAI can coexist in the same program
+    - Foundation for future examples with actual data coupling
+
+Build Requirements:
+  - MFEM with SAMRAI support: MFEM_USE_SAMRAI=ON
+  - MFEM with MPI support: MFEM_USE_MPI=ON (required by SAMRAI)
+  - SAMRAI library installed with HDF5 support (for visualization)
+  - Optional: HYPRE (may be auto-fetched with MFEM_FETCH_TPLS=ON)
+
+  Example CMake configuration:
+    cmake .. \
+      -DMFEM_USE_SAMRAI=ON \
+      -DMFEM_USE_MPI=ON \
+      -DSAMRAI_DIR=/path/to/samrai \
+      -DMFEM_FETCH_TPLS=ON
+
+  Then build:
+    make samrai_ex16
+
+Running:
+  The example can run in serial or parallel with MPI.
+
+  2D case (serial):
+    ./ex16 -m ../data/inline-quad.mesh -i samrai_input.2d
+
+  3D case (serial):
+    ./ex16 -m ../data/star.mesh -i samrai_input.3d
+
+  Parallel execution:
+    mpirun -np 4 ./ex16 -m ../data/inline-quad.mesh -i samrai_input.2d
+
+  Command-line options:
+    -m <mesh>     MFEM mesh file (default: ../data/star.mesh)
+    -r <levels>   Number of uniform refinements (default: 2)
+    -o <order>    Finite element order (default: 2)
+    -s <solver>   ODE solver type (default: 23 = SDIRK33)
+    -tf <time>    Final time (default: 0.5)
+    -dt <step>    Time step (default: 0.01)
+    -a <alpha>    Alpha coefficient (default: 0.01)
+    -k <kappa>    Kappa coefficient (default: 0.5)
+    -i <input>    SAMRAI input file (default: samrai_input.3d)
+    -vis/-no-vis  Enable/disable GLVis visualization (default: on)
+    -visit        Enable VisIt data file output (default: off)
+    -vs <steps>   Visualization frequency (default: 5)
+
+Output:
+  MFEM output files:
+    - ex16.mesh         : MFEM mesh file
+    - ex16-init.gf      : Initial temperature field
+    - ex16-final.gf     : Final temperature field
+
+    View with GLVis:
+      glvis -m ex16.mesh -g ex16-final.gf
+
+  SAMRAI output (if HDF5 available):
+    - visit_samrai_2d/  : VisIt data files for 2D case
+    - visit_samrai_3d/  : VisIt data files for 3D case
+
+    View with VisIt:
+      visit -o visit_samrai_3d/dumps.visit
+
+  Both visualizations show the independent evolution of each solver:
+    - MFEM: Heat diffusion with nonlinear conductivity
+    - SAMRAI: Advecting sphere with AMR tracking the feature
+
+Notes:
+  - SAMRAI requires MPI, so MFEM must be built with MPI support
+  - The two solvers operate on independent meshes (no geometric coupling)
+  - Time steps are independent (no synchronization required)
+  - This demonstrates "loose coupling" as a foundation for future work
+  - For actual physics coupling, data transfer between solvers is needed
+
+Future Extensions:
+  - Add data transfer between MFEM and SAMRAI grids
+  - Couple the physics problems (e.g., heat affects advection velocity)
+  - Use SAMRAI's AMR to drive MFEM mesh refinement
+  - Solve on overlapping or coincident domains
+  - Implement tighter time step synchronization
+
+===============================================================================
+
+For general MFEM information and documentation, see https://mfem.org
+For SAMRAI information, see https://computing.llnl.gov/projects/samrai
