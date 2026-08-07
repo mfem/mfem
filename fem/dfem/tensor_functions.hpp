@@ -25,9 +25,9 @@
 #include "util.hpp"
 
 // Force-inline every tensor operation under clang
-// #if defined(__clang__)
-// #pragma clang attribute push (__attribute__((always_inline)), apply_to = function)
-// #endif
+#if defined(__clang__)
+#pragma clang attribute push (__attribute__((always_inline)), apply_to = function)
+#endif
 
 namespace mfem
 {
@@ -48,12 +48,11 @@ namespace future
  * @return Approximate maximum eigenvalue of A
  */
  template <int n> MFEM_HOST_DEVICE
- __attribute__((noinline))
- double smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, double beta)
+ real_t smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, real_t beta)
 {
   auto [lambda, V] = eig_symm(get_value(A));
-  double lambda_max = lambda[n - 1];
-  double sum = 0;
+  real_t lambda_max = lambda[n - 1];
+  real_t sum = 0;
   for (int i = 0; i < n - 1; i++) {
     sum += std::exp(beta*(lambda[i] - lambda_max));
   }
@@ -67,13 +66,13 @@ namespace detail
 {
 
 template<int n> MFEM_HOST_DEVICE
-dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, double beta, double beta_dot)
+dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, real_t beta, real_t beta_dot)
 {
   WARN("CALLING CUSTOM DERIVATIVE (REF VER)");
   auto [lambda, V] = eig_symm(A);
   real_t lambda_max = lambda[n - 1];
   real_t sum = 0;
-  tensor<double, n> eg;
+  tensor<real_t, n> eg;
   for (int i = 0; i < n; i++) {
     eg[i] = std::exp(beta*(lambda[i] - lambda_max));
     if (i != n - 1) sum += eg[i];
@@ -111,6 +110,6 @@ void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_3d[] = {
 } // namespace future
 } // namespace mfem
 
-// #if defined(__clang__)
-// #pragma clang attribute pop
-// #endif
+#if defined(__clang__)
+#pragma clang attribute pop
+#endif
