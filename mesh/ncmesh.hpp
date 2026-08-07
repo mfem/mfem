@@ -568,6 +568,18 @@ public:
     */
    int GetNodeVertex(int node) { return nodes[node].vert_index; }
 
+   /** @brief Return leaf elements adjacent to a local entity.
+
+       @param elem Mesh element index.
+       @param local_entity_vertices Element-local vertices of a vertex, edge,
+       face, or the whole element.
+       @param closure Output array, overwritten with a topological closure
+       neighborhood found by an on-demand scan over leaf-element closure nodes.
+       Callers that need the exact containing set should still apply a
+       geometric containment filter. */
+   void FindClosureElements(int elem, const Array<int> &local_entity_vertices,
+                            Array<int> &closure);
+
 protected: // non-public interface for the Mesh class
 
    friend class Mesh;
@@ -1106,10 +1118,28 @@ protected:
                        const Array<int> *search_set = NULL);
 
 
-   void CollectEdgeVertices(int v0, int v1, Array<int> &indices);
-   void CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices);
+   void CollectEdgeVertices(int v0, int v1, Array<int> &indices) const;
+   void CollectTriFaceVertices(int v0, int v1, int v2,
+                               Array<int> &indices) const;
    void CollectQuadFaceVertices(int v0, int v1, int v2, int v3,
-                                Array<int> &indices);
+                                Array<int> &indices) const;
+   /** @brief Collect all NC nodes in the closure of a leaf element.
+
+       @param elem Mesh element index of a leaf element.
+       @param indices Output array, overwritten with unique node ids in the
+       element closure, including hanging nodes on element edges and faces. */
+   void CollectElementClosureNodes(int elem, Array<int> &indices) const;
+
+   /** @brief Collect all NC nodes in the closure of a local entity.
+
+       @param elem Mesh element index of a leaf element.
+       @param local_entity_vertices Element-local vertices identifying a vertex,
+       edge, face, or whole element of @a elem.
+       @param indices Output array, overwritten with unique node ids in the
+       entity closure, including hanging nodes on its edges and faces. */
+   void CollectEntityClosureNodes(int elem,
+                                  const Array<int> &local_entity_vertices,
+                                  Array<int> &indices) const;
    void BuildElementToVertexTable();
 
    void UpdateElementToVertexTable()

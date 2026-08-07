@@ -94,9 +94,8 @@ public:
    /** @brief Assemble the delta coefficient at the IntegrationPoint set in
        @a Trans which is assumed to map to the delta coefficient center.
 
-       @note This method should be called for one mesh element only, including
-       in parallel, even when the center of the delta coefficient is shared by
-       multiple elements. */
+       @note Called once per element containing the center, each scaled by
+       1/N, so implementations must be stateless across calls. */
    virtual void AssembleDeltaElementVect(const FiniteElement &fe,
                                          ElementTransformation &Trans,
                                          Vector &elvect) = 0;
