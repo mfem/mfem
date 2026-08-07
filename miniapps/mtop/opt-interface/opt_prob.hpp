@@ -18,7 +18,10 @@ public:
       height += op->Height();
       offsets.Append(op->Height());
       ops.emplace_back(op);
-      return offsets.Size()-1;
+      // 0-based block index of the operator just added. Note offsets carries a
+      // leading 0 (for PartialSum in Finalize), so it is ops.size()-1, NOT
+      // offsets.Size()-1 — the latter is off by one and mis-tags obj_blk_idx.
+      return (int)ops.size() - 1;
    }
 
    /// @brief Finalize the stack of operators and create the BlockOperator
@@ -44,11 +47,32 @@ public:
       return *blk_op;
    }
 
-   /// @brief Apply the stacked operator to a vector
+   /// @brief Apply the stacked operator to a vector.
+   /// @note Result is cached on @p x: repeated calls at the same point (e.g.
+   /// the equality and inequality selectors both evaluating at the current
+   /// iterate) reuse one BlockOperator apply. Assumes the stacked operators are
+   /// pure functions of @p x (true for optimisation operators). Call
+   /// ResetCache() if any operator carries hidden state that changed.
    void Mult(const Vector &x, Vector &y) const override
    {
       MFEM_VERIFY(finalized, "Operator not finalized");
+      if (SamePoint_(x, x_mult_cache_, has_mult_cache_))
+      {
+         y.SetSize(height);
+         y = y_mult_cache_;
+         return;
+      }
       blk_op->Mult(x, y);
+      x_mult_cache_.SetSize(width);  x_mult_cache_.UseDevice(true); x_mult_cache_ = x;
+      y_mult_cache_.SetSize(height); y_mult_cache_.UseDevice(true); y_mult_cache_ = y;
+      has_mult_cache_ = true;
+   }
+
+   /// @brief Invalidate cached Mult()/GetGradient() evaluations.
+   void ResetCache() const
+   {
+      has_mult_cache_ = false;
+      if (grad_op) { grad_op->ResetPoint(); }
    }
 
    /// @brief Return derivative
@@ -91,13 +115,20 @@ private:
       }
       void SetPoint(const Vector &x)
       {
+         // Reuse the block gradients if we are re-evaluating at the same point
+         // (the objective/eq/ineq selectors all linearise at the current
+         // iterate). Collapses several GetGradient() passes into one.
+         if (prob.SamePoint_(x, x_, has_point_)) { return; }
          x_ = x;
+         has_point_ = true;
          grad_ops.clear();
          for (size_t i=0; i<prob.ops.size(); i++)
          {
             grad_ops.push_back(&prob.ops[i]->GetGradient(x_));
          }
       }
+      /// Invalidate the cached linearisation point.
+      void ResetPoint() { has_point_ = false; }
       /// @brief Apply Jacobi-vector product (JVP): df = J(x) * dx
       void Mult(const Vector &dx, Vector &df) const override
       {
@@ -130,16 +161,32 @@ private:
    private:
       const StackedOperator &prob; // reference to the parent StackedOperator
       Vector x_; // a copy of the point at which the gradient is evaluated
+      bool has_point_ = false; // whether x_ holds a valid cached point
       std::vector<Operator *> grad_ops; // pointers to gradient operators (not owned)
       mutable Vector dx_;
    };
    mutable std::unique_ptr<StackedDerivative> grad_op;
 
 protected:
+   /// @brief Exact, device-aware point compare used for caching. Returns true
+   /// iff @p has and @p x equals @p cache elementwise. Computes ||x-cache||_inf
+   /// on the device (only the scalar returns to the host — no full transfer).
+   bool SamePoint_(const Vector &x, const Vector &cache, bool has) const
+   {
+      if (!has || x.Size() != cache.Size()) { return false; }
+      cmp_diff_.SetSize(x.Size()); cmp_diff_.UseDevice(true);
+      subtract(x, cache, cmp_diff_);
+      return cmp_diff_.Normlinf() == real_t(0);
+   }
+
    bool finalized = false;
    Array<int> offsets;
    std::vector<std::unique_ptr<Operator>> ops;
    std::unique_ptr<BlockOperator> blk_op;
+
+   // Mult() evaluation cache (keyed on the input point).
+   mutable Vector x_mult_cache_, y_mult_cache_, cmp_diff_;
+   mutable bool has_mult_cache_ = false;
 };
 
 class OptimProblem : public StackedOperator
@@ -397,17 +444,26 @@ private:
 /// EQ and LE are relative to a zero right-hand side, hence c_e = 0, d_hi = 0,
 /// and d_lo = -infinity.
 ///
-/// @note Gradients of C and D are assembled as (n_c x m) DenseMatrices (as
-/// required by HiOp); this is cheap because the number of constraints is small.
-/// Derivatives are returned as raw sensitivities (Euclidean); any inner product
-/// / Riesz map is left to the solver, consistent with OptimProblem.
+/// @note By default the gradients of C and D are assembled as (n_c x m)
+/// DenseMatrices (as required by HiOp); this is cheap because the number of
+/// constraints is small, but a DenseMatrix is host-bound in MFEM core. Pass
+/// @p matrix_free_grad = true to instead return a device-aware matrix-free
+/// gradient (MFGrad) for solvers that only apply Mult/MultTranspose (e.g.
+/// MMAOptimizationSolver); this keeps the constraint-gradient path on-device
+/// when the block operators are device-aware. Derivatives are returned as raw
+/// sensitivities (Euclidean); any inner product / Riesz map is left to the
+/// solver, consistent with OptimProblem.
 /// @note This is meant to be owned by the caller (e.g. a stack object);
 /// OptimizationProblem has no virtual destructor, so do not delete via a base
 /// pointer.
 class StackedOptimizationProblem : public OptimizationProblem
 {
 public:
-   StackedOptimizationProblem(OptimProblem &prob)
+   /// @param prob             Finalized OptimProblem to expose.
+   /// @param matrix_free_grad Return matrix-free device-aware constraint
+   ///                         gradients instead of DenseMatrices (default off,
+   ///                         which keeps HiOp compatibility).
+   StackedOptimizationProblem(OptimProblem &prob, bool matrix_free_grad = false)
       : OptimizationProblem(prob.Width(), nullptr, nullptr), prob(prob)
    {
       MFEM_VERIFY(prob.IsFinalized(),
@@ -431,7 +487,7 @@ public:
       // Equality operator: C(x) = 0.
       if (eq_rows.Size() > 0)
       {
-         eq_op.reset(new SelectedRows(prob, eq_rows));
+         eq_op.reset(new SelectedRows(prob, eq_rows, matrix_free_grad));
          C = eq_op.get();
          c_e_vec.SetSize(eq_rows.Size());
          c_e_vec = 0.0;
@@ -441,7 +497,7 @@ public:
       // Inequality operator: -infinity <= D(x) <= 0.
       if (le_rows.Size() > 0)
       {
-         ineq_op.reset(new SelectedRows(prob, le_rows));
+         ineq_op.reset(new SelectedRows(prob, le_rows, matrix_free_grad));
          D = ineq_op.get();
          d_lo_vec.SetSize(le_rows.Size());
          d_lo_vec = -infinity();
@@ -475,19 +531,54 @@ public:
    }
 
 private:
+   /// Matrix-free, device-aware Jacobian of the selected rows. Mult() gathers
+   /// the JVP; MultTranspose() scatters and applies the VJP — both through the
+   /// underlying StackedDerivative, so they run on whichever device the block
+   /// operators use (no DenseMatrix host round-trip). SetDerivative() must be
+   /// called with the StackedDerivative already linearised at the current point.
+   class MFGrad : public Operator
+   {
+   public:
+      MFGrad(const Array<int> &rows, int full_h, int width)
+         : Operator(rows.Size(), width), rows(rows)
+      { full.SetSize(full_h); full.UseDevice(true); }
+      void SetDerivative(Operator &d) { der = &d; }
+      void Mult(const Vector &dx, Vector &dy) const override
+      {
+         der->Mult(dx, full);            // JVP: full = J dx
+         full.GetSubVector(rows, dy);    // gather selected rows
+      }
+      void MultTranspose(const Vector &dy, Vector &dx) const override
+      {
+         full = 0.0;
+         full.SetSubVector(rows, dy);    // scatter into full row space
+         der->MultTranspose(full, dx);   // VJP: dx = J^T full
+      }
+   private:
+      const Array<int> &rows;
+      Operator *der = nullptr;
+      mutable Vector full;
+   };
+
    /// Operator returning a subset of the stacked outputs, selected by row index.
-   /// Mult() gathers the selected rows; GetGradient() assembles the dense
-   /// (n_rows x m) Jacobian of those rows via the adjoint (VJP).
+   /// Mult() gathers the selected rows. GetGradient() returns either a dense
+   /// (n_rows x m) Jacobian assembled via the adjoint (default; required by
+   /// HiOp), or — when @p matrix_free is set — a device-aware matrix-free
+   /// operator (MFGrad) suitable for solvers that only apply Mult/MultTranspose.
    class SelectedRows : public Operator
    {
    public:
-      SelectedRows(OptimProblem &prob, const Array<int> &rows)
-         : Operator(rows.Size(), prob.Width()), prob(prob), rows(rows)
+      SelectedRows(OptimProblem &prob, const Array<int> &rows_, bool matrix_free)
+         : Operator(rows_.Size(), prob.Width()), prob(prob), rows(rows_),
+           matrix_free_(matrix_free), mf(rows, prob.Height(), prob.Width())
       {
          full.SetSize(prob.Height()); full.UseDevice(true);
-         seed.SetSize(prob.Height()); seed.UseDevice(true);
-         col.SetSize(prob.Width());   col.UseDevice(true);
-         jac.SetSize(rows.Size(), prob.Width());
+         if (!matrix_free_)
+         {
+            seed.SetSize(prob.Height()); seed.UseDevice(true);
+            col.SetSize(prob.Width());   col.UseDevice(true);
+            jac.SetSize(rows.Size(), prob.Width());
+         }
       }
 
       void Mult(const Vector &x, Vector &y) const override
@@ -498,7 +589,8 @@ private:
 
       Operator &GetGradient(const Vector &x) const override
       {
-         Operator &der = prob.GetGradient(x);   // (n x m) derivative operator
+         Operator &der = prob.GetGradient(x);   // StackedDerivative at x
+         if (matrix_free_) { mf.SetDerivative(der); return mf; }
          Array<int> idx(1);
          for (int i = 0; i < rows.Size(); i++)
          {
@@ -515,6 +607,8 @@ private:
    private:
       OptimProblem &prob;
       Array<int> rows;
+      bool matrix_free_;
+      mutable MFGrad mf;
       mutable Vector full, seed, col;
       mutable DenseMatrix jac;
    };
