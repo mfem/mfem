@@ -25,15 +25,6 @@ endif(MFEM_USE_BENCHMARK)
 # Simple timer-based benchmark that intentionally does not use Google Benchmark.
 #-------------------------------------------------------------------------------
 if (MFEM_USE_MPI)
-    set(DFEM_LINEARIZED_SIMPLE_BENCH_SRCS bench_dfem_linearized_simple.cpp)
-    if (MFEM_USE_CUDA)
-       set_property(SOURCE ${DFEM_LINEARIZED_SIMPLE_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
-    endif(MFEM_USE_CUDA)
-
-    mfem_add_executable(bench_dfem_linearized_simple ${DFEM_LINEARIZED_SIMPLE_BENCH_SRCS})
-    target_link_libraries(bench_dfem_linearized_simple PRIVATE mfem)
-    add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_dfem_linearized_simple)
-
     set(DFEM_SCRATCH_BENCH_SRCS bench_dfem_scratch.cpp)
     if (MFEM_USE_CUDA)
        set_property(SOURCE ${DFEM_SCRATCH_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
