@@ -49,6 +49,16 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
+CoefficientBase *CoefficientBase::Get(Coefficient *coeff,
+                                      VectorCoefficient *vec_coeff,
+                                      MatrixCoefficient *mat_coeff)
+{
+   if (coeff) { return coeff; }
+   else if (vec_coeff) { return vec_coeff; }
+   else if (mat_coeff) { return mat_coeff; }
+   else { return nullptr; }
+}
+
 void Coefficient::Project(QuadratureFunction &qf)
 {
    QuadratureSpaceBase &qspace = *qf.GetSpace();
@@ -2224,16 +2234,6 @@ int CoefficientVector::GetVDim() const { return vdim; }
 CoefficientVector::~CoefficientVector()
 {
    delete qf;
-}
-
-CoefficientBase *GetCoefficientBase(Coefficient *coeff,
-                                    VectorCoefficient *vec_coeff,
-                                    MatrixCoefficient *mat_coeff)
-{
-   if (coeff) { return coeff; }
-   else if (vec_coeff) { return vec_coeff; }
-   else if (mat_coeff) { return mat_coeff; }
-   else { return nullptr; }
 }
 
 }

@@ -34,6 +34,15 @@ class ParMesh;
 class CoefficientBase
 {
 public:
+   /// @brief Return the first of @a coeff, @a vec_coeff, @a mat_coeff that is
+   /// not null; return nullptr if they are all null.
+   ///
+   /// Many integrators store pointers to all three types of coefficients, e.g.
+   /// Q, VQ, MQ, where at most one of the three may be non-null. This function
+   /// is used to access the non-null one if it exists.
+   static CoefficientBase *Get(class Coefficient *coeff = nullptr,
+                               class VectorCoefficient *vec_coeff = nullptr,
+                               class MatrixCoefficient *mat_coeff = nullptr);
    virtual ~CoefficientBase() = default;
 };
 
@@ -2524,10 +2533,6 @@ inline int operator&(CoefficientStorage a, CoefficientStorage b)
 {
    return int(a) & int(b);
 }
-
-CoefficientBase *GetCoefficientBase(Coefficient *coeff = nullptr,
-                                    VectorCoefficient *vec_coeff = nullptr,
-                                    MatrixCoefficient *mat_coeff = nullptr);
 
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
