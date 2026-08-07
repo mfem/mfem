@@ -184,6 +184,45 @@ if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
+   if(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+     set(_real_fatbinary "${CMAKE_CUDA_FATBINARY}")
+     set(_fatbinary_wrapper
+       "${CMAKE_BINARY_DIR}/cmake-fatbinary-cuda13")
+
+     file(WRITE "${_fatbinary_wrapper}"
+"#!/usr/bin/env bash
+real_fatbinary=\"${_real_fatbinary}\"
+"
+[=[
+translated=()
+
+for argument in "$@"; do
+  case "$argument" in
+    -im=profile=sm_*,file=*)
+      value=${argument#-im=profile=sm_}
+      architecture=${value%%,*}
+      filename=${value#*,file=}
+      translated+=(
+        "--image3=kind=elf,sm=${architecture},file=${filename}"
+      )
+      ;;
+    *)
+      translated+=("$argument")
+      ;;
+  esac
+done
+
+exec "$real_fatbinary" "${translated[@]}"
+]=])
+
+    file(CHMOD "${_fatbinary_wrapper}"
+    PERMISSIONS
+      OWNER_READ OWNER_WRITE OWNER_EXECUTE
+      GROUP_READ GROUP_EXECUTE
+      WORLD_READ WORLD_EXECUTE)
+
+    set(CMAKE_CUDA_FATBINARY "${_fatbinary_wrapper}")
+endif()
    set(CUSPARSE_FOUND TRUE)
    set(CUBLAS_FOUND TRUE)
    # Initialize CUSPARSE_LIBRARIES and CUBLAS_LIBRARIES:
@@ -1037,6 +1076,7 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 # Install the data directory if present, i.e. if the copy_data target is built
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
   DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
+
 
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and

@@ -839,6 +839,10 @@ public:
       const bool is_lvector = (mult_level == MultLevel::LVECTOR);
       prolongation(infds, x, infields_l, is_lvector);
       restriction(infds, in_rcache, infields_l, infields_e);
+      if (is_lvector)
+      {
+         detail::SyncLVectorAliasMemory(x, infields_l);
+      }
       prepare_residual(outfds, out_rcache, residual_e);
       for (auto *v : residual_e) { *v = 0.0; }
       for (size_t i = 0; i < action_callbacks.size(); i++)

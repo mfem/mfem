@@ -70,6 +70,36 @@ constexpr auto to_array(const std::tuple<Ts...>& tuple)
 namespace detail
 {
 
+inline void SyncLVectorAliasMemory(
+   const MultiVector &x,
+   const std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      if (x_l[i] != nullptr && x_l[i]->Size() == x[i].Size())
+      {
+         x[i].SyncMemory(*x_l[i]);
+      }
+   }
+}
+
+inline void SyncLVectorAliasMemory(
+   const BlockVector &x,
+   const std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      if (x_l[i] != nullptr && x_l[i]->Size() == x.GetBlock(i).Size())
+      {
+         x.GetBlock(i).SyncMemory(*x_l[i]);
+      }
+   }
+}
+
 // Delete each owned Vector pointer at most once, then clear the slots.
 inline void DeleteOwnedVectorPointersImpl(std::vector<Vector *> &deleted,
                                           std::vector<Vector *> &vectors)
@@ -95,17 +125,19 @@ inline void DeleteOwnedVectorPointers(vector_groups_t &... vector_groups)
 }
 
 template <typename lambda, std::size_t... i>
-constexpr void for_constexpr(lambda&& f,
-                             std::integral_constant<std::size_t, i>... Is)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integral_constant<std::size_t, i>... Is)
 {
    f(Is...);
 }
 
 
 template <std::size_t... n, typename lambda, typename... arg_types>
-constexpr void for_constexpr(lambda&& f,
-                             std::integer_sequence<std::size_t, n...>,
-                             arg_types... args)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integer_sequence<std::size_t, n...>,
+              arg_types... args)
 {
    (detail::for_constexpr(f, args...,
                           std::integral_constant<std::size_t,n> {}), ...);
@@ -114,31 +146,34 @@ constexpr void for_constexpr(lambda&& f,
 }  // namespace detail
 
 template <typename lambda, std::size_t... i>
-constexpr void for_constexpr(lambda&& f,
-                             std::integer_sequence<std::size_t, i ... >)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integer_sequence<std::size_t, i ... >)
 {
    (f(std::integral_constant<std::size_t, i> {}), ...);
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
-constexpr void for_constexpr(lambda&& f)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void for_constexpr(lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&&, arg_t&&,
-                                      std::integer_sequence<std::size_t>)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&&, arg_t&&, std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
 }
 
 template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<std::size_t, i, Is...>)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+                       std::integer_sequence<std::size_t, i, Is...>)
 {
    f(std::integral_constant<std::size_t, i> {}, get<i>(arg));
    for_constexpr_with_arg(f, std::forward<arg_t>(arg),
@@ -146,7 +181,8 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
       std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
@@ -877,8 +913,15 @@ struct ThreadBlocks
 };
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+#define MFEM_DFEM_GRID_CONSTANT __grid_constant__
+#else
+#define MFEM_DFEM_GRID_CONSTANT
+#endif
+
 template <typename func_t>
-__global__ void forall_kernel_shmem(func_t f, int n)
+__global__ void forall_kernel_shmem(MFEM_DFEM_GRID_CONSTANT const func_t f,
+                                    int n)
 {
    int i = blockIdx.x;
    extern __shared__ real_t shmem[];
@@ -889,7 +932,8 @@ __global__ void forall_kernel_shmem(func_t f, int n)
 }
 
 template <typename func_t>
-__global__ void forall_kernel_static_smem(func_t f, int n)
+__global__ void forall_kernel_static_smem(
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n)
 {
    int i = blockIdx.x;
    if (i >= n) { return; }
@@ -899,7 +943,8 @@ __global__ void forall_kernel_static_smem(func_t f, int n)
 template <int MAX_THREADS_PER_BLOCK, typename func_t>
 __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
-static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
+static void forall_kernel_static_smem_launch_bounds(
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n)
 {
    // Every launch site uses <<<n, block_size>>>, i.e. one block per item, so
    // this is deliberately not a grid-stride loop.
@@ -1097,7 +1142,8 @@ void forall(func_t f,
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename data_t, typename body_t>
-__global__ void forall_data_kernel(data_t data, int n)
+__global__ void forall_data_kernel(MFEM_DFEM_GRID_CONSTANT const data_t data,
+                                   int n)
 {
    int i = blockIdx.x;
    if (i >= n) { return; }
@@ -1107,12 +1153,15 @@ __global__ void forall_data_kernel(data_t data, int n)
 template <int MAX_THREADS_PER_BLOCK, typename data_t, typename body_t>
 __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
-static void forall_data_kernel_launch_bounds(data_t data, int n)
+static void forall_data_kernel_launch_bounds(
+   MFEM_DFEM_GRID_CONSTANT const data_t data, int n)
 {
    int i = blockIdx.x;
    if (i >= n) { return; }
    body_t::run(data, i);
 }
+
+#undef MFEM_DFEM_GRID_CONSTANT
 #endif
 
 template <int MAX_THREADS_PER_BLOCK = 0, typename body_t, typename data_t>
@@ -1919,16 +1968,23 @@ void prolongation(
    for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
+      const auto alias_lvector_block = [&]
+      {
+         const Vector &xi = x.GetBlock(i);
+         x_l[i]->NewMemoryAndSize(xi.GetMemory(), xi.Size(), false);
+         x_l[i]->UseDevice(xi.UseDevice());
+         x_l[i]->SyncMemory(xi);
+      };
 
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
-         *x_l[i] = x.GetBlock(i);
+         alias_lvector_block();
       }
       // Check if input is already L-vector sized (skip prolongation if so)
       else if (is_lvector && x.GetBlock(i).Size() == P->Height())
       {
-         *x_l[i] = x.GetBlock(i);
+         alias_lvector_block();
       }
       else
       {
@@ -1970,6 +2026,8 @@ void prolongation(
       if (is_lvector)
       {
          x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
+         x_l[i]->UseDevice(x[i].UseDevice());
+         x_l[i]->SyncMemory(x[i]);
          continue;
       }
       const auto P = get_prolongation(fields[i]);
@@ -2065,6 +2123,8 @@ void prolongation_transpose(
       if (is_lvector)
       {
          x[i].NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+         x[i].UseDevice(x_l[i]->UseDevice());
+         x[i].SyncMemory(*x_l[i]);
          continue;
       }
 
@@ -2120,6 +2180,8 @@ void restriction(
       if (cache.IsPassthrough(i))
       {
          x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+         x_e[i]->UseDevice(x_l[i]->UseDevice());
+         x_e[i]->SyncMemory(*x_l[i]);
       }
       else
       {
@@ -2178,7 +2240,7 @@ void restriction_transpose(
       // If there is no restriction, assume Identity and alias the E-vector.
       // This is decided before allocating, so nothing is allocated only to be
       // freed again on the same call.
-      if (R == nullptr)
+      if (R == nullptr || cache.IsPassthrough(i))
       {
          if (x_l[i] != nullptr && x_l[i] != x_e[i]) { delete x_l[i]; }
          x_l[i] = x_e[i];
@@ -2188,6 +2250,10 @@ void restriction_transpose(
       const int s = cache.Width(i);
 
       // TODO
+      if (x_l[i] == x_e[i])
+      {
+         x_l[i] = nullptr;
+      }
       if (x_l[i] == nullptr)
       {
          x_l[i] = new Vector(s);
