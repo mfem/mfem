@@ -53,6 +53,9 @@ CoefficientBase *CoefficientBase::Get(Coefficient *coeff,
                                       VectorCoefficient *vec_coeff,
                                       MatrixCoefficient *mat_coeff)
 {
+   MFEM_ASSERT(
+      (coeff != nullptr) + (vec_coeff != nullptr) + (mat_coeff != nullptr) <= 1,
+      "At most one of the coefficients may be non-null.");
    if (coeff) { return coeff; }
    else if (vec_coeff) { return vec_coeff; }
    else if (mat_coeff) { return mat_coeff; }
