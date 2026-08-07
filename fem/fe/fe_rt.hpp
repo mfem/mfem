@@ -462,6 +462,9 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 0; }
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
 
@@ -491,7 +494,7 @@ public:
 */
 class RT_R2D_SegmentElement : public VectorFiniteElement
 {
-   static const real_t nk[2];
+   static const real_t nk[3];
 #ifndef MFEM_THREAD_SAFE
    mutable Vector shape_ox;
 #endif
@@ -510,7 +513,7 @@ public:
    RT_R2D_SegmentElement(const int p,
                          const int ob_type = BasisType::GaussLegendre);
 
-   int GetPhysRangeDim(int space_dim) const override { return 2; }
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
    int GetPhysCurlDim(int space_dim) const override { return 0; }
 
    void CalcVShape(const IntegrationPoint &ip,
@@ -534,6 +537,11 @@ public:
                           ElementTransformation &Trans,
                           DenseMatrix &I) const override
    { LocalInterpolation(CheckVectorFE(fe), Trans, I); }
+
+   using FiniteElement::Project;
+
+   void Project(VectorCoefficient &vc,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 class RT_R2D_FiniteElement : public VectorFiniteElement
