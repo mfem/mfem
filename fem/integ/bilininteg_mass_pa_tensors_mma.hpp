@@ -10,9 +10,21 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+/** @file bilininteg_mass_pa_tensors_mma.hpp
+    Tensor-product (quad/hex) mass PA MMA.
+
+    Layout:
+      1) mma::           — QFn glue (shared MassScale from simplex header)
+      2) mma::blas::     — host PreferTensorDense sum-fact
+      3) internal::      — device smem shells + MmaMassApplyTensors entry
+      4) mfem::          — ApplyTensorsMmaPAKernels::Kernel registration hook
+
+    Fallback / RegisterTensorsMmaKernels: bilininteg_mass_pa_tensors_mma.cpp
+*/
+
 #include "../bilininteg.hpp"
 #include "mma/mma.hpp"
-#include "bilininteg_mass_pa_simplices_mma.hpp" // MassScale QFn
+#include "bilininteg_mass_pa_simplices_mma.hpp" // MassScale
 
 namespace mfem
 {
@@ -22,14 +34,16 @@ namespace mfem
 namespace internal
 {
 
-namespace mma::blas
+// ---------------------------------------------------------------------------
+// QFn glue (pointwise mass density; same MassScale as simplex form)
+// ---------------------------------------------------------------------------
+namespace mma
 {
 
-// Pointwise mass QFn (shared with simplex form).
 using form::MassScale;
 using form::eval_t;
 
-/** Apply MassScale at one Q-point: u *= d  via y = d * u. */
+/** Apply MassScale at one Q-point: y = d * u. */
 MFEM_HOST_DEVICE inline void ApplyMassScale(real_t &u, real_t d)
 {
    eval_t y;
@@ -37,9 +51,13 @@ MFEM_HOST_DEVICE inline void ApplyMassScale(real_t &u, real_t d)
    u = real_t(y);
 }
 
-// ---- Host mass apply (dense sum-fact) -------------------------------------
-// PreferTensorDense: hand nested sum-fact beats multi-RHS LAPACK tiles here
-// (mass is B-only + scalar Q-fn; GEMM/transpose overhead dominates at p~3–7).
+} // namespace mma
+
+// ---------------------------------------------------------------------------
+// Host: PreferTensorDense hand sum-fact (B-only + scalar QFn)
+// ---------------------------------------------------------------------------
+namespace mma::blas
+{
 
 /** Dense sum-fact host mass 2D (serial over elements in outer tiles). */
 template <int D1D, int Q1D>
@@ -79,8 +97,8 @@ inline void MassApplyTensors2D(const int NE, const real_t *B,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            ApplyMassScale(sol_xy[qy][qx],
-                           Dv[qx + Q1D * (qy + Q1D * e)]);
+            mma::ApplyMassScale(sol_xy[qy][qx],
+                                Dv[qx + Q1D * (qy + Q1D * e)]);
          }
       }
       for (int qy = 0; qy < Q1D; ++qy)
@@ -174,8 +192,9 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
          for (int qy = 0; qy < Q1D; ++qy)
             for (int qx = 0; qx < Q1D; ++qx)
             {
-               ApplyMassScale(sol_xyz[qz][qy][qx],
-                              Dv[qx + Q1D * (qy + Q1D * (qz + Q1D * e))]);
+               mma::ApplyMassScale(
+                  sol_xyz[qz][qy][qx],
+                  Dv[qx + Q1D * (qy + Q1D * (qz + Q1D * e))]);
             }
 
       for (int qz = 0; qz < Q1D; ++qz)
@@ -256,9 +275,11 @@ inline bool TryMassApplyTensors3D(const int NE,
 
 } // namespace mma::blas
 
-// Device tensor shell: load B once per block → per-element LoadX →
-// sum-fact contract → Q-fn → store. Host uses Try* dense sum-fact first
-// (see MmaMassApplyTensors).
+// ---------------------------------------------------------------------------
+// Device (or host Emulate) smem shells — sum-fact Interp* + MassScale
+// Host entry uses Try* first (see MmaMassApplyTensors).
+// ---------------------------------------------------------------------------
+
 template <int T_D1D = 0, int T_Q1D = 0>
 inline void MmaMassApplyTensors3D(const int NE,
                                   const Array<real_t> &b,
@@ -311,7 +332,7 @@ inline void MmaMassApplyTensors3D(const int NE,
          MFEM_SYNC_THREAD;
          mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
          MFEM_SYNC_THREAD;
-         // InterpZ without fused scale, then MassScale QFn (same as host).
+         // InterpZ, then shared MassScale QFn (unfused; matches host algebra).
          mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
          MFEM_SYNC_THREAD;
          {
@@ -320,7 +341,7 @@ inline void MmaMassApplyTensors3D(const int NE,
             const int stride = mma::getBlockNthreadsX();
             for (int t = tid; t < nq; t += stride)
             {
-               mma::blas::ApplyMassScale(sm1[t], D(t, e));
+               mma::ApplyMassScale(sm1[t], D(t, e));
             }
          }
          MFEM_SYNC_THREAD;
@@ -395,7 +416,7 @@ inline void MmaMassApplyTensors2D(const int NE,
                const int qy = t / Q1D;
                const int idx = qx + Q1D * qy;
                real_t u = sm0[idx];
-               mma::blas::ApplyMassScale(u, D(idx, e));
+               mma::ApplyMassScale(u, D(idx, e));
                sm1[idx] = u;
             }
          }
@@ -432,9 +453,7 @@ inline void MmaMassApplyTensors3D(const int NE,
    MmaMassApplyTensors3D<0, 0>(NE, b, d, x, y, d1d, q1d);
 }
 
-/** Tensor mass apply story (same order as diffusion tensors):
-    host: PreferTensorDense → hand dense sum-fact (blas Try*)
-    device / else: MMA or Emulate smem shell (2D/3D). */
+/** Entry: host PreferTensorDense sum-fact, else device/Emulate shell. */
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaMassApplyTensors(
    const int NE,
@@ -443,7 +462,6 @@ inline void MmaMassApplyTensors(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   // ---- host dense sum-fact -----------------------------------------------
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       if constexpr (DIM == 3)
@@ -457,7 +475,6 @@ inline void MmaMassApplyTensors(
          { return; }
       }
    }
-   // ---- device (or host Emulate) smem shell -------------------------------
    if constexpr (DIM == 3)
    {
       MmaMassApplyTensors3D<T_D1D, T_Q1D>(NE, b, d, x, y, d1d, q1d);
@@ -470,14 +487,16 @@ inline void MmaMassApplyTensors(
 
 } // namespace internal
 
+// ---------------------------------------------------------------------------
+// Registration hook (Fallback in .cpp)
+// ---------------------------------------------------------------------------
+
 template <int DIM, int T_D1D, int T_Q1D>
 MassIntegrator::ApplyTensorsMmaKernelType
 MassIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
    return internal::MmaMassApplyTensors<DIM, T_D1D, T_Q1D>;
 }
-
-// Fallback defined in bilininteg_mass_pa_tensors_mma.cpp (MMA shell runtime).
 
 /// \endcond DO_NOT_DOCUMENT
 

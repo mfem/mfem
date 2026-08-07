@@ -10,9 +10,21 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+/** @file bilininteg_diffusion_pa_tensors_mma.hpp
+    Tensor-product (quad/hex) diffusion PA MMA.
+
+    Layout:
+      1) mma::           — QFn glue (DiffusionMetric + PackPaMetric / smem)
+      2) mma::lapack::   — host multi-RHS sum-fact GEMM tiles (if LAPACK)
+      3) internal::      — device Grad shells + MmaDiffusionApplyTensors entry
+      4) mfem::          — ApplyTensorsMmaPAKernels::Kernel
+
+    Fallback / RegisterTensorsMmaKernels: bilininteg_diffusion_pa_tensors_mma.cpp
+*/
+
 #include "../bilininteg.hpp"
 #include "mma/mma.hpp"
-#include "bilininteg_diffusion_pa_simplices_mma.hpp" // DiffusionMetric QFn
+#include "bilininteg_diffusion_pa_simplices_mma.hpp" // DiffusionMetric
 
 namespace mfem
 {
@@ -22,6 +34,9 @@ namespace mfem
 namespace internal
 {
 
+// ---------------------------------------------------------------------------
+// QFn glue (pointwise metric; same DiffusionMetric as simplex form)
+// ---------------------------------------------------------------------------
 namespace mma
 {
 
@@ -108,6 +123,9 @@ void ApplyDiffusionMetricSmem(real_t *g_in, real_t *g_out, const int plane_ld,
 
 } // namespace mma
 
+// ---------------------------------------------------------------------------
+// Host: multi-RHS sum-fact GEMM tiles (lapack)
+// ---------------------------------------------------------------------------
 namespace mma::lapack
 {
 #ifdef MFEM_USE_LAPACK
@@ -488,8 +506,10 @@ inline bool TryDiffusionApplyTensors3D(
 
 } // namespace mma::lapack
 
-// Device tensor shell: LoadBG once → per-element Grad → metric → Gradt.
-// Host uses Try* first (see MmaDiffusionApplyTensors).
+// ---------------------------------------------------------------------------
+// Device (or host Emulate) smem shells — Grad → DiffusionMetric → Gradt
+// Host entry uses Try* first (see MmaDiffusionApplyTensors).
+// ---------------------------------------------------------------------------
 
 /** One 3D element: LoadX → GradXYZ → O·g → Gradt → Y. */
 template <int MD1, int MQ1, bool SYM, typename TD, typename TX, typename TY>
@@ -716,9 +736,7 @@ inline void MmaDiffusionApplyTensors3D(
       NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
 }
 
-/** Tensor diffusion apply story (same order as mass tensors):
-    host: PreferTensorDense → multi-RHS sum-fact GEMM tiles (lapack 2D/3D if on)
-    device / else: MMA or Emulate smem shell (2D/3D, SYM dispatch). */
+/** Entry: host lapack multi-RHS sum-fact when available, else device/Emulate. */
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaDiffusionApplyTensors(
    const int NE, const bool symmetric,
@@ -727,7 +745,6 @@ inline void MmaDiffusionApplyTensors(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   // ---- host dense / lapack -------------------------------------------------
 #ifdef MFEM_USE_LAPACK
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
@@ -745,7 +762,6 @@ inline void MmaDiffusionApplyTensors(
       }
    }
 #endif
-   // ---- device (or host Emulate) smem shell -------------------------------
    if constexpr (DIM == 3)
    {
       MmaDiffusionApplyTensors3D_Dispatch<T_D1D, T_Q1D>(
@@ -760,14 +776,16 @@ inline void MmaDiffusionApplyTensors(
 
 } // namespace internal
 
+// ---------------------------------------------------------------------------
+// Registration hook (Fallback in .cpp)
+// ---------------------------------------------------------------------------
+
 template <int DIM, int T_D1D, int T_Q1D>
 DiffusionIntegrator::ApplyTensorsMmaKernelType
 DiffusionIntegrator::ApplyTensorsMmaPAKernels::Kernel()
 {
    return internal::MmaDiffusionApplyTensors<DIM, T_D1D, T_Q1D>;
 }
-
-// Fallback defined in bilininteg_diffusion_pa_tensors_mma.cpp.
 
 /// \endcond DO_NOT_DOCUMENT
 

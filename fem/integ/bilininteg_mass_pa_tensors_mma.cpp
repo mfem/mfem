@@ -17,8 +17,7 @@ namespace mfem
 
 void MassIntegrator::RegisterTensorsMmaKernels()
 {
-   // Tensor MMA: p=3..7 (D1D=4..8, Q1D=D1D+1). See fem/integ/mma/README.md.
-   // Same set as DiffusionIntegrator::RegisterTensorsMmaKernels.
+   // p = 3..7 (D1D = 4..8, Q1D = D1D+1). Keep in sync with diffusion tensors.
    AddTensorsMmaSpecialization<2,4,5>();
    AddTensorsMmaSpecialization<2,5,6>();
    AddTensorsMmaSpecialization<2,6,7>();
