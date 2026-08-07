@@ -1583,6 +1583,7 @@ inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(const tensor
 {
   tensor<real_t, 3> eta{};
   tensor<real_t, 3, 3> Q = IdentityMatrix<3>();
+  using std::acos, std::cos, std::fabs, std::fmax,  std::fmin, std::pow, std::sqrt;
 
   auto A_dev = dev(A);
   real_t J2 = 0.5 * inner(A_dev, A_dev);
@@ -1590,14 +1591,14 @@ inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(const tensor
 
   if (J2 > 0.0) {
     // angle used to find eigenvalues
-    real_t tmp = (0.5 * J3) * std::pow(3.0 / J2, 1.5);
-    real_t alpha = std::acos(fmin(fmax(tmp, -1.0), 1.0)) / 3.0;
+    real_t tmp = (0.5 * J3) * pow(3.0 / J2, 1.5);
+    real_t alpha = acos(fmin(fmax(tmp, -1.0), 1.0)) / 3.0;
 
     // consider the most distinct eigenvalue first
     if (6.0 * alpha < M_PI) {
-      eta[0] = 2 * std::sqrt(J2 / 3.0) * std::cos(alpha);
+      eta[0] = 2 * sqrt(J2 / 3.0) * cos(alpha);
     } else {
-      eta[0] = 2 * std::sqrt(J2 / 3.0) * std::cos(alpha + 2.0 * M_PI / 3.0);
+      eta[0] = 2 * sqrt(J2 / 3.0) * cos(alpha + 2.0 * M_PI / 3.0);
     }
 
     // find the eigenvector for that eigenvalue
@@ -1641,7 +1642,7 @@ inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(const tensor
     real_t A21 = A12;
     real_t A22 = dot(s1, A_dev_s1);
 
-    real_t delta = 0.5 * std::sqrt((A11 - A22) * (A11 - A22) + 4 * A12 * A21);
+    real_t delta = 0.5 * sqrt((A11 - A22) * (A11 - A22) + 4 * A12 * A21);
 
     eta(1) = 0.5 * (A11 + A22) - delta;
     eta(2) = 0.5 * (A11 + A22) + delta;
@@ -1681,8 +1682,8 @@ inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(const tensor
   tensor<real_t, 3> eigvals{{eta[order[0]], eta[order[1]], eta[order[2]]}};
   // clang-format off
   tensor<real_t, 3, 3> eigvecs{{{Q[0][order[0]], Q[0][order[1]], Q[0][order[2]]},
-                {Q[1][order[0]], Q[1][order[1]], Q[1][order[2]]},
-                {Q[2][order[0]], Q[2][order[1]], Q[2][order[2]]}}};
+                                {Q[1][order[0]], Q[1][order[1]], Q[1][order[2]]},
+                                {Q[2][order[0]], Q[2][order[1]], Q[2][order[2]]}}};
   // clang-format on
 
   return {eigvals, eigvecs};
