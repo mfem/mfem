@@ -307,12 +307,12 @@ public:
 
    /** @brief virtual function which evaluates the values of all
        shape functions at a given point ip and stores
-       them in the vector shape of dimension Dof (4) */
+       them in the vector shape of dimension Dof (6) */
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** @brief virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
-       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       point ip and stores them in the matrix dshape (Dof x Dim) (6 x 3)
        so that each row contains the derivatives of one shape function */
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
@@ -336,12 +336,12 @@ public:
 
    /** @brief virtual function which evaluates the values of all
        shape functions at a given point ip and stores
-       them in the vector shape of dimension Dof (4) */
+       them in the vector shape of dimension Dof (5) */
    void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
 
    /** @brief virtual function which evaluates the values of all
        partial derivatives of all shape functions at a given
-       point ip and stores them in the matrix dshape (Dof x Dim) (4 x 3)
+       point ip and stores them in the matrix dshape (Dof x Dim) (5 x 3)
        so that each row contains the derivatives of one shape function */
    void CalcDShape(const IntegrationPoint &ip,
                    DenseMatrix &dshape) const override;
