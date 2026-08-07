@@ -18,7 +18,7 @@ Namespace: `mfem::internal::mma::form`
 
 ---
 
-## Contract (rev 9)
+## Contract
 
 | Role | C++ | Meaning |
 |------|-----|---------|

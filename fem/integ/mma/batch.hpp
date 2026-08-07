@@ -56,9 +56,8 @@ constexpr int BatchNBFullNqAt(int bytes_cap)
 }
 
 /** Full-NQ batch NB.
-    CUDA: default shapes plan under Prefer (48KB). Exception: BP3 tet p=7
-          (D1D==8, QND==123) uses PerBlock dynamic smem for full-NQ NBATCH=16
-          (measured win on H100). Q-tile path uses Prefer budget. */
+    CUDA: Prefer (48KB) by default; tet D1D=8,QND=123 uses PerBlock so full-NQ
+    can keep larger NB. Q-tile path always uses Prefer. */
 template <int DIM, int D1D, int QND>
 constexpr int BatchNBFullNq()
 {
@@ -152,7 +151,7 @@ constexpr int BatchNB()
 }
 
 /** Runtime full-NQ batch NB under a byte cap.
-    @param n_u_planes  U planes in smem (typically dim); historically named pa_comps. */
+    @param n_u_planes  U planes in smem (typically dim for Grad). */
 inline int BatchNBFullNqAtRuntime(int ndof, int nq, int n_u_planes,
                                  int bytes_cap)
 {

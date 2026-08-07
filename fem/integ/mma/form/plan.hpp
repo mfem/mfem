@@ -22,15 +22,15 @@
 namespace mfem::internal::mma::form
 {
 
-/** Device smem / launch plan for a specialized (DIM,D1D,QND) shape.
+/** Shared smem / launch plan (specialized (DIM,D1D,QND) or runtime Fallback).
     Fields are filled by porting existing device NB helpers (Eval family /
     Grad family) — do not invent alternate formulas here. */
-struct DeviceSmemPlan
+struct SmemPlan
 {
    int nb = 0;
    int x_ld = 0;
    int u_ld = 0;
-   int n_u_planes = 1;   // smem footprint uses this (not PA pa_comps)
+   int n_u_planes = 1;   // U planes in smem (e.g. dim for Grad)
    bool load_x = true;
    bool use_q_tile = false;
    int tq = 0;           // Q-tile length when use_q_tile; else full nq
@@ -38,24 +38,10 @@ struct DeviceSmemPlan
    int nthreads = 0;
 };
 
-/** Runtime plan (Fallback path). */
-struct SmemPlanRt
-{
-   int nb = 0;
-   int x_ld = 0;
-   int u_ld = 0;
-   int n_u_planes = 1;
-   bool load_x = true;
-   bool use_q_tile = false;
-   int tq = 0;
-   int smem_bytes = 0;
-   int nthreads = 0;
-};
-
 /** Family A — Eval / 1-plane forms (Value×Value or None×Value): no Q-tile.
     Uses MassLikeNB device helpers (shared NB budget for 1-plane smem). */
 template <int DIM, int D1D, int QND>
-inline DeviceSmemPlan MakeEvalPlan(bool load_x = true)
+inline SmemPlan MakeEvalPlan(bool load_x = true)
 {
    using mma::MassLikeNB;
    using mma::PadLdBank;
@@ -71,7 +57,7 @@ inline DeviceSmemPlan MakeEvalPlan(bool load_x = true)
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr int U_LD = PadLdBank<MAP>(MQ);
 
-   DeviceSmemPlan p{};
+   SmemPlan p{};
    p.nb = NB;
    p.x_ld = X_LD;
    p.u_ld = U_LD;
@@ -87,13 +73,13 @@ inline DeviceSmemPlan MakeEvalPlan(bool load_x = true)
    return p;
 }
 
-inline SmemPlanRt MakeEvalPlanRuntime(int ndof, int nq, bool load_x = true)
+inline SmemPlan MakeEvalPlanRuntime(int ndof, int nq, bool load_x = true)
 {
    using mma::MassLikeNBRuntime;
    using mma::PadLdBankRuntime;
    using mma::LaunchNthreads;
 
-   SmemPlanRt p{};
+   SmemPlan p{};
    p.nb = MassLikeNBRuntime(ndof, nq);
    p.x_ld = PadLdBankRuntime(ndof);
    p.u_ld = PadLdBankRuntime(nq);
@@ -110,7 +96,7 @@ inline SmemPlanRt MakeEvalPlanRuntime(int ndof, int nq, bool load_x = true)
 /** Family B — Grad×Grad: X + n_u_planes·U, optional Q-tile (DIM==3).
     Uses BatchNB* helpers in mma/batch.hpp (multi-plane smem). */
 template <int DIM, int D1D, int QND>
-inline DeviceSmemPlan MakeGradPlan()
+inline SmemPlan MakeGradPlan()
 {
    using mma::BatchNB;
    using mma::BatchUseQTile;
@@ -128,7 +114,7 @@ inline DeviceSmemPlan MakeGradPlan()
    constexpr int X_LD = PadLdBank<MAP>(BASIS);
    constexpr bool qtile = BatchUseQTile<DIM, D1D, QND>();
 
-   DeviceSmemPlan p{};
+   SmemPlan p{};
    p.nb = NB;
    p.x_ld = X_LD;
    p.n_u_planes = DIM;
@@ -154,9 +140,31 @@ inline DeviceSmemPlan MakeGradPlan()
    return p;
 }
 
+/** Runtime Grad plan (full-NQ or Q-tile via Batch*Runtime helpers). */
+inline SmemPlan MakeGradPlanRuntime(int dim, int ndof, int nq)
+{
+   using mma::BatchNBRuntime;
+   using mma::BatchUseQTileRuntime;
+   using mma::BatchQTileForRuntime;
+   using mma::PadLdBankRuntime;
+   using mma::LaunchNthreads;
+
+   SmemPlan p{};
+   p.nb = BatchNBRuntime(dim, ndof, nq, dim);
+   p.x_ld = PadLdBankRuntime(ndof);
+   p.n_u_planes = dim;
+   p.load_x = true;
+   p.use_q_tile = BatchUseQTileRuntime(dim, ndof, nq, dim);
+   p.tq = p.use_q_tile ? BatchQTileForRuntime(ndof, nq) : nq;
+   p.u_ld = PadLdBankRuntime(p.use_q_tile ? p.tq : nq);
+   p.smem_bytes = int(sizeof(real_t)) * (p.x_ld + dim * p.u_ld) * p.nb;
+   p.nthreads = LaunchNthreads(p.use_q_tile ? p.tq : nq, ndof);
+   return p;
+}
+
 /** Plan from QFn traits: Eval family (1-plane) or Grad family. */
 template <typename QFn, int DIM, int D1D, int QND>
-DeviceSmemPlan MakeDevicePlan()
+SmemPlan MakeDevicePlan()
 {
    using Tr = qfn_traits<QFn>;
    if constexpr (Tr::trial_is_grad || Tr::test_is_grad)
@@ -198,23 +206,9 @@ inline const char *FieldKindName(field_kind k)
    return "?";
 }
 
-inline void DumpPlanFields(const DeviceSmemPlan &p)
+inline void DumpPlanFields(const SmemPlan &p)
 {
    mfem::out << "  plan: NB=" << p.nb
-             << " X_LD=" << p.x_ld
-             << " U_LD=" << p.u_ld
-             << " n_u_planes=" << p.n_u_planes
-             << " load_x=" << (p.load_x ? 1 : 0)
-             << " qtile=" << (p.use_q_tile ? 1 : 0)
-             << " TQ=" << p.tq
-             << " smem=" << p.smem_bytes
-             << " nthreads=" << p.nthreads
-             << '\n';
-}
-
-inline void DumpPlanFields(const SmemPlanRt &p)
-{
-   mfem::out << "  plan(rt): NB=" << p.nb
              << " X_LD=" << p.x_ld
              << " U_LD=" << p.u_ld
              << " n_u_planes=" << p.n_u_planes
@@ -294,21 +288,7 @@ inline void DumpFormApplyRuntime(const char *entry, int NE, int nq, int ndof)
    }
    else
    {
-      SmemPlanRt p{};
-      p.nb = BatchNBRuntime(DIM, ndof, nq, DIM);
-      p.x_ld = PadLdBankRuntime(ndof);
-      p.u_ld = PadLdBankRuntime(nq);
-      p.n_u_planes = DIM;
-      p.load_x = true;
-      p.use_q_tile = BatchUseQTileRuntime(DIM, ndof, nq, DIM);
-      p.tq = p.use_q_tile ? BatchQTileForRuntime(ndof, nq) : nq;
-      if (p.use_q_tile)
-      {
-         p.u_ld = PadLdBankRuntime(p.tq);
-      }
-      p.smem_bytes = int(sizeof(real_t)) * (p.x_ld + DIM * p.u_ld) * p.nb;
-      p.nthreads = LaunchNthreads(p.use_q_tile ? p.tq : nq, ndof);
-      DumpPlanFields(p);
+      DumpPlanFields(MakeGradPlanRuntime(DIM, ndof, nq));
    }
 }
 

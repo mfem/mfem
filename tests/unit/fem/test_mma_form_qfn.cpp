@@ -100,7 +100,7 @@ TEST_CASE("MMA form Eval plan goldens", "[MMA][Form][Plan]")
 
       CAPTURE(DIM, D1D, QND);
 
-      const DeviceSmemPlan p = MakeEvalPlan<DIM, D1D, QND>(true);
+      const SmemPlan p = MakeEvalPlan<DIM, D1D, QND>(true);
 
       constexpr int MAP = MmaMapFor<DIM, D1D, QND>();
       constexpr int BASIS = SimplexNdof<DIM, D1D>();
@@ -120,12 +120,12 @@ TEST_CASE("MMA form Eval plan goldens", "[MMA][Form][Plan]")
       REQUIRE(p.nthreads == LaunchNthreads<QND>(MQ, BASIS));
 
       // From MassScale traits
-      const DeviceSmemPlan p2 = MakeDevicePlan<MassScale, DIM, D1D, QND>();
+      const SmemPlan p2 = MakeDevicePlan<MassScale, DIM, D1D, QND>();
       REQUIRE(p2.nb == p.nb);
       REQUIRE(p2.smem_bytes == p.smem_bytes);
 
       // LF: no X in smem budget of plan field (load_x false)
-      const DeviceSmemPlan plf = MakeEvalPlan<DIM, D1D, QND>(false);
+      const SmemPlan plf = MakeEvalPlan<DIM, D1D, QND>(false);
       REQUIRE(plf.nb == NB);
       REQUIRE(plf.load_x == false);
       REQUIRE(plf.smem_bytes == int(sizeof(real_t)) * U_LD * NB);
@@ -150,7 +150,7 @@ TEST_CASE("MMA form Eval plan runtime", "[MMA][Form][Plan]")
 {
    const int ndof = 10;
    const int nq = 16;
-   const SmemPlanRt p = MakeEvalPlanRuntime(ndof, nq, true);
+   const SmemPlan p = MakeEvalPlanRuntime(ndof, nq, true);
    REQUIRE(p.nb == MassLikeNBRuntime(ndof, nq));
    REQUIRE(p.x_ld == PadLdBankRuntime(ndof));
    REQUIRE(p.u_ld == PadLdBankRuntime(nq));
@@ -306,7 +306,7 @@ TEST_CASE("MMA form Grad plan goldens", "[MMA][Form][Plan]")
    // 2D full-NQ (no Q-tile)
    {
       constexpr int DIM = 2, D1D = 2, QND = 3;
-      const DeviceSmemPlan p = MakeGradPlan<DIM, D1D, QND>();
+      const SmemPlan p = MakeGradPlan<DIM, D1D, QND>();
       constexpr int MAP = MmaMapFor<DIM, D1D, QND>();
       constexpr int BASIS = SimplexNdof<DIM, D1D>();
       constexpr int MQ = SimplexMaxNq<DIM, QND>();
@@ -321,7 +321,7 @@ TEST_CASE("MMA form Grad plan goldens", "[MMA][Form][Plan]")
    // Traits-driven plan for DiffusionMetric
    {
       constexpr int DIM = 2, D1D = 3, QND = 6;
-      const DeviceSmemPlan p =
+      const SmemPlan p =
          MakeDevicePlan<DiffusionMetric<DIM, true>, DIM, D1D, QND>();
       REQUIRE(p.nb == BatchNB<DIM, D1D, QND>());
       REQUIRE(p.n_u_planes == 2);

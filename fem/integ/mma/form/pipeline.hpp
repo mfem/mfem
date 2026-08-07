@@ -306,7 +306,7 @@ Apply(const int NE,
       return;
    }
 
-   const SmemPlanRt plan = MakeEvalPlanRuntime(ndof, nq, true);
+   const SmemPlan plan = MakeEvalPlanRuntime(ndof, nq, true);
    const int x_ld = plan.x_ld;
    const int u_ld = plan.u_ld;
    const int nb = plan.nb;
@@ -535,7 +535,7 @@ inline void ApplyLF(const int NE,
 {
    using Tr = qfn_traits<QFn>;
    static_assert(!Tr::load_x && !Tr::test_is_grad,
-                 "ApplyLF requires none trial + Eval test (PR4)");
+                 "ApplyLF requires none trial + Eval test");
    static_assert(D1D > 0 && QND > 0, "requires specialized D1D/QND");
 
    constexpr int NDOF = SimplexNdof<DIM, D1D>();
@@ -645,12 +645,12 @@ inline void ApplyLF(const int NE,
 
 
 // ===========================================================================
-// Grad×Grad Apply (merged from pipeline_grad.hpp)
+// Grad×Grad Apply
 // ===========================================================================
 
 
 // ---------------------------------------------------------------------------
-// PA metric → full tensor (matches ApplyDiffusionVec / ApplyDiffusionSmem layout)
+// PA metric → full tensor (SYM packed or full DIM×DIM)
 // ---------------------------------------------------------------------------
 
 template <int DIM, bool SYM, typename TD>
@@ -1011,7 +1011,7 @@ Apply(const int NE,
       return;
    }
 
-   const DeviceSmemPlan plan = MakeGradPlan<DIM, D1D, QND>();
+   const SmemPlan plan = MakeGradPlan<DIM, D1D, QND>();
    VerifySharedMemBytes(plan.smem_bytes);
 
    const auto G = basis.Read(), Dv = d.Read(), X = x.Read();
@@ -1061,7 +1061,7 @@ Apply(const int NE,
    if (!Device::Allows(Backend::DEVICE_MASK) ||
        BatchUseQTileRuntime(DIM, ndof, nq, DIM))
    {
-      // Host, or runtime Q-tile: dense element path (matches prior Fallback).
+      // Host or runtime Q-tile: dense per-element path.
       if (!Device::Allows(Backend::DEVICE_MASK))
       {
          HostGradApply<DIM, SYM>(qfn, NE, nq, ndof,
