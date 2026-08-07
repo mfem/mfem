@@ -1505,8 +1505,7 @@ std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
  * @return tuple with the eigenvalues in the first element, and the matrix of
  * corresponding eigenvectors (columnwise) in the second element.
  * The eigenvalues are sorted in ascending order, each repeated according to
- * its multiplicity. The eigenvectors are oriented so that they form a
- * right-handed basis.
+ * its multiplicity.
  *
  */
 MFEM_HOST_DEVICE
@@ -1560,8 +1559,8 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(const tensor
       e(1) = d0;
       v(0, 0) =  s;
       v(1, 0) =  c;
-      v(0, 1) = -c;
-      v(1, 1) =  s;
+      v(0, 1) =  c;
+      v(1, 1) = -s;
    }
 
    return {e, v};
@@ -1574,8 +1573,7 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(const tensor
  * @return tuple with the eigenvalues in the first element, and the matrix of
  * corresponding eigenvectors (columnwise) in the second element.
  * The eigenvalues are sorted in ascending order, each repeated according to
- * its multiplicity. The eigenvectors are oriented so that they form a
- * right-handed basis.
+ * its multiplicity.
  *
  * @note based on "A robust algorithm for finding the eigenvalues and
  * eigenvectors of 3x3 symmetric matrices", by Scherzinger & Dohrmann
