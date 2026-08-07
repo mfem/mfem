@@ -86,6 +86,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
   linalg/test_vector.cpp
+  linalg/test_tensor.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
   mesh/test_mfem_mesh_reader.cpp
@@ -178,7 +179,7 @@ set(UNIT_TESTS_SRCS
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
   enzyme/compatibility.cpp
-  dfem/test_tensor.cpp
+  dfem/test_tensor_functions.cpp
   # The following are tested separately (keep the comment as a reminder).
   # This list can be updated using (in bash):
   #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
