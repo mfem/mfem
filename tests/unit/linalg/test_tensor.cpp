@@ -144,6 +144,19 @@ TEST_CASE("Eigenvalues 2x2 distinct and unsorted", "[Tensor]")
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
 
+TEST_CASE("Eigenvalues 2x2 with small eigenvalue", "[Tensor]")
+{
+   real_t eps = std::numeric_limits<real_t>::epsilon();
+   tensor<real_t, 2, 2> A{{{2.0, 2.0 - eps}, {2.0 - eps, 2.0}}};
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   real_t lambda_exact[2] {eps, 4.0 - eps};
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda_exact[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda_exact[1], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
 TEST_CASE("Eigenvalues3x3", "[Tensor]")
 {
    tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
@@ -157,4 +170,3 @@ TEST_CASE("Eigenvalues3x3", "[Tensor]")
    auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
-
