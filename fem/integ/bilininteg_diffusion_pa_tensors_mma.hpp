@@ -12,6 +12,7 @@
 
 #include "../bilininteg.hpp"
 #include "mma/mma.hpp"
+#include "bilininteg_diffusion_pa_simplices_mma.hpp" // DiffusionMetric QFn
 
 namespace mfem
 {
@@ -24,40 +25,65 @@ namespace internal
 namespace mma
 {
 
-/** Diffusion metric O·g at one quadrature point (in/out g[DIM]).
-    O is packed PA storage: SYM 2D [O11,O21,O22], 3D [O11,O12,O13,O22,O23,O33];
-    full 2D 4 / 3D 9 components row-major. */
+using form::DiffusionMetric;
+using form::grad_t;
+using mfem::future::tensor;
+
+/** Pack packed PA O[] into a full metric tensor (SYM or full storage). */
 template <int DIM, bool SYM>
-MFEM_HOST_DEVICE inline void ApplyDiffusionMetricVec(real_t *g, const real_t *O)
+MFEM_HOST_DEVICE inline void PackPaMetric(tensor<real_t, DIM, DIM> &A,
+                                          const real_t *O)
 {
    if constexpr (DIM == 2)
    {
-      const real_t gX = g[0], gY = g[1];
       const real_t O11 = O[0], O21 = O[1];
-      const real_t O12 = SYM ? O21 : O[2];
-      const real_t O22 = SYM ? O[2] : O[3];
-      g[0] = O11 * gX + O12 * gY;
-      g[1] = O21 * gX + O22 * gY;
-   }
-   else
-   {
-      const real_t gX = g[0], gY = g[1], gZ = g[2];
-      const real_t O11 = O[0], O12 = O[1], O13 = O[2];
-      real_t O21, O22, O23, O31, O32, O33;
       if constexpr (SYM)
       {
-         O21 = O12; O22 = O[3]; O23 = O[4];
-         O31 = O13; O32 = O23; O33 = O[5];
+         const real_t O22 = O[2];
+         A(0, 0) = O11; A(0, 1) = O21;
+         A(1, 0) = O21; A(1, 1) = O22;
       }
       else
       {
-         O21 = O[3]; O22 = O[4]; O23 = O[5];
-         O31 = O[6]; O32 = O[7]; O33 = O[8];
+         const real_t O12 = O[2], O22 = O[3];
+         A(0, 0) = O11; A(0, 1) = O12;
+         A(1, 0) = O21; A(1, 1) = O22;
       }
-      g[0] = O11 * gX + O12 * gY + O13 * gZ;
-      g[1] = O21 * gX + O22 * gY + O23 * gZ;
-      g[2] = O31 * gX + O32 * gY + O33 * gZ;
    }
+   else
+   {
+      const real_t O11 = O[0], O12 = O[1], O13 = O[2];
+      if constexpr (SYM)
+      {
+         const real_t O22 = O[3], O23 = O[4], O33 = O[5];
+         A(0, 0) = O11; A(0, 1) = O12; A(0, 2) = O13;
+         A(1, 0) = O12; A(1, 1) = O22; A(1, 2) = O23;
+         A(2, 0) = O13; A(2, 1) = O23; A(2, 2) = O33;
+      }
+      else
+      {
+         const real_t O21 = O[3], O22 = O[4], O23 = O[5];
+         const real_t O31 = O[6], O32 = O[7], O33 = O[8];
+         A(0, 0) = O11; A(0, 1) = O12; A(0, 2) = O13;
+         A(1, 0) = O21; A(1, 1) = O22; A(1, 2) = O23;
+         A(2, 0) = O31; A(2, 1) = O32; A(2, 2) = O33;
+      }
+   }
+}
+
+/** Diffusion metric O·g at one quadrature point (in/out g[DIM]).
+    O is packed PA storage: SYM 2D [O11,O21,O22], 3D [O11,O12,O13,O22,O23,O33];
+    full 2D 4 / 3D 9 components row-major.
+    Implemented via shared form::DiffusionMetric (y = A * u). */
+template <int DIM, bool SYM>
+MFEM_HOST_DEVICE inline void ApplyDiffusionMetricVec(real_t *g, const real_t *O)
+{
+   grad_t<DIM> u, y;
+   for (int c = 0; c < DIM; ++c) { u[c] = g[c]; }
+   tensor<real_t, DIM, DIM> A{};
+   PackPaMetric<DIM, SYM>(A, O);
+   DiffusionMetric<DIM, SYM>{}(u, y, A);
+   for (int c = 0; c < DIM; ++c) { g[c] = y[c]; }
 }
 
 /** Device smem metric: planes g_in/g_out[c * plane_ld + q], D(q,c,e). */

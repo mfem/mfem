@@ -45,6 +45,8 @@ Physics QFns live next to drivers:
 | `bilininteg_mass_pa_simplices_mma.hpp` | `MassScale` → `Apply<MassScale,…>` |
 | `lininteg_domain_simplices_mma.hpp` | `IdentityLoad` → `ApplyLF<…>` |
 | `bilininteg_diffusion_pa_simplices_mma.hpp` | `DiffusionMetric` + `ApplyDiffusionDispatch` |
+| `bilininteg_mass_pa_tensors_mma.hpp` | same `MassScale` at Q-phase (sum-fact shells) |
+| `bilininteg_diffusion_pa_tensors_mma.hpp` | same `DiffusionMetric` via pack + QFn |
 
 Custom forms: QFn + `qfn_traits<MyQ> : EvalEvalQFnTraits` (etc.) under `form/` only.
 

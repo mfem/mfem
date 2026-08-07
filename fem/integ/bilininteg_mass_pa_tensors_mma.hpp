@@ -12,6 +12,7 @@
 
 #include "../bilininteg.hpp"
 #include "mma/mma.hpp"
+#include "bilininteg_mass_pa_simplices_mma.hpp" // MassScale QFn
 
 namespace mfem
 {
@@ -23,6 +24,18 @@ namespace internal
 
 namespace mma::blas
 {
+
+// Pointwise mass QFn (shared with simplex form).
+using form::MassScale;
+using form::eval_t;
+
+/** Apply MassScale at one Q-point: u *= d  via y = d * u. */
+MFEM_HOST_DEVICE inline void ApplyMassScale(real_t &u, real_t d)
+{
+   eval_t y;
+   MassScale{}(eval_t(u), y, d);
+   u = real_t(y);
+}
 
 // ---- Host mass apply (dense sum-fact) -------------------------------------
 // PreferTensorDense: hand nested sum-fact beats multi-RHS LAPACK tiles here
@@ -66,7 +79,8 @@ inline void MassApplyTensors2D(const int NE, const real_t *B,
       {
          for (int qx = 0; qx < Q1D; ++qx)
          {
-            sol_xy[qy][qx] *= Dv[qx + Q1D * (qy + Q1D * e)];
+            ApplyMassScale(sol_xy[qy][qx],
+                           Dv[qx + Q1D * (qy + Q1D * e)]);
          }
       }
       for (int qy = 0; qy < Q1D; ++qy)
@@ -159,8 +173,10 @@ inline void MassApplyTensors3D(const int NE, const real_t *B,
       for (int qz = 0; qz < Q1D; ++qz)
          for (int qy = 0; qy < Q1D; ++qy)
             for (int qx = 0; qx < Q1D; ++qx)
-               sol_xyz[qz][qy][qx] *=
-                  Dv[qx + Q1D * (qy + Q1D * (qz + Q1D * e))];
+            {
+               ApplyMassScale(sol_xyz[qz][qy][qx],
+                              Dv[qx + Q1D * (qy + Q1D * (qz + Q1D * e))]);
+            }
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -295,7 +311,18 @@ inline void MmaMassApplyTensors3D(const int NE,
          MFEM_SYNC_THREAD;
          mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
          MFEM_SYNC_THREAD;
-         mma::InterpZMass<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1, D, e);
+         // InterpZ without fused scale, then MassScale QFn (same as host).
+         mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
+         MFEM_SYNC_THREAD;
+         {
+            const int tid = mma::getThreadIdxX();
+            const int nq = Q1D * Q1D * Q1D;
+            const int stride = mma::getBlockNthreadsX();
+            for (int t = tid; t < nq; t += stride)
+            {
+               mma::blas::ApplyMassScale(sm1[t], D(t, e));
+            }
+         }
          MFEM_SYNC_THREAD;
          mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
          MFEM_SYNC_THREAD;
@@ -367,7 +394,9 @@ inline void MmaMassApplyTensors2D(const int NE,
                const int qx = t % Q1D;
                const int qy = t / Q1D;
                const int idx = qx + Q1D * qy;
-               sm1[idx] = sm0[idx] * D(idx, e);
+               real_t u = sm0[idx];
+               mma::blas::ApplyMassScale(u, D(idx, e));
+               sm1[idx] = u;
             }
          }
          MFEM_SYNC_THREAD;
