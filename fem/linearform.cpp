@@ -297,7 +297,8 @@ void LinearForm::Assemble()
          tr = mesh->GetBdrFaceTransformations(i);
          if (tr != NULL)
          {
-            fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+            mfem::DofTransformation doftrans;
+            fes -> GetElementVDofs (tr -> Elem1No, vdofs, doftrans);
             for (int k = 0; k < boundary_face_integs.Size(); k++)
             {
                if (boundary_face_integs_marker[k] &&
@@ -307,6 +308,7 @@ void LinearForm::Assemble()
                boundary_face_integs[k]->
                AssembleRHSElementVect(*fes->GetFE(tr->Elem1No),
                                       *tr, elemvect);
+               doftrans.TransformDual(elemvect);
                AddElementVector (vdofs, elemvect);
             }
          }

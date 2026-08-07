@@ -63,6 +63,12 @@ protected:
    void ProjectBdrCoefficient(Coefficient *coeff[], VectorCoefficient *vcoeff,
                               const Array<int> &attr);
 
+   /** @brief Project a discontinuous (vector) coefficient as a grid function on
+       a continuous finite element space. The values in shared dofs are
+       determined from the element with maximal attribute. */
+   virtual void ProjectDiscCoefficient(
+      std::variant<Coefficient*, VectorCoefficient*> coeff) override;
+
 public:
    ParGridFunction() { pfes = NULL; }
 
@@ -94,8 +100,12 @@ public:
    /// Construct a ParGridFunction using a GridFunction as external data.
    /** The parallel space @a *pf and the space used by @a *gf should match. The
        data from @a *gf is used as the local data of the ParGridFunction on each
-       processor. The ParGridFunction does not assume ownership of the data. */
-   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf);
+       processor. The ParGridFunction does not assume ownership of the data.
+       The boolean, @a preserve, indicates that the data stored in @a *gf should
+       remain unchanged. An error will occur if @a preserve is true and
+       construction of a valid ParGridFunction requires the data to change. */
+   ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
+                   bool preserve = true);
 
    /** @brief Creates grid function on (all) dofs from a given vector on the
        true dofs, i.e. P tv. */
@@ -268,11 +278,6 @@ public:
                            ProjectType type = ProjectType::DEFAULT) override;
 
    using GridFunction::ProjectDiscCoefficient;
-   /** @brief Project a discontinuous vector coefficient as a grid function on
-       a continuous finite element space. The values in shared dofs are
-       determined from the element with maximal attribute. */
-   void ProjectDiscCoefficient(VectorCoefficient &coeff) override;
-
    void ProjectDiscCoefficient(Coefficient &coeff, AvgType type) override;
 
    void ProjectDiscCoefficient(VectorCoefficient &vcoeff, AvgType type) override;
@@ -280,8 +285,7 @@ public:
    using GridFunction::ProjectBdrCoefficient;
 
    void ProjectBdrCoefficient(VectorCoefficient &vcoeff,
-                              const Array<int> &attr) override
-   { ProjectBdrCoefficient(NULL, &vcoeff, attr); }
+                              const Array<int> &attr) override;
 
    void ProjectBdrCoefficient(Coefficient *coeff[],
                               const Array<int> &attr) override

@@ -13,6 +13,7 @@
 using namespace mfem;
 
 #include "unit_tests.hpp"
+#include <sstream>
 
 TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
 {
@@ -132,6 +133,77 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    for (auto *p : patches) { delete p; }
 }
 
+TEST_CASE("NURBSPatch skips comments while loading", "[NURBS]")
+{
+   SECTION("Homogeneous control points")
+   {
+      std::stringstream input(R"(
+# before knotvectors
+knotvectors
+1
+# before first knotvector
+1 2 0 0 1 1
+
+# before dimension
+dimension
+2
+
+# before controlpoints
+controlpoints
+# before first control point
+0.0 0.0 1.0
+# before second control point
+1.0 0.0 1.0
+)");
+
+      NURBSPatch patch(input);
+      REQUIRE(patch.GetNKV() == 1);
+      REQUIRE(patch.GetNC() == 3);
+      REQUIRE(patch.GetKV(0)->GetOrder() == 1);
+      REQUIRE(patch.GetKV(0)->GetNCP() == 2);
+      REQUIRE(patch(0, 0) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 1) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 2) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 0) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 1) == MFEM_Approx(0.0));
+      REQUIRE(patch(1, 2) == MFEM_Approx(1.0));
+   }
+
+   SECTION("Cartesian control points")
+   {
+      std::stringstream input(R"(
+# before knotvectors
+knotvectors
+1
+# before first knotvector
+1 2 0 0 1 1
+
+# before dimension
+dimension
+2
+
+# before controlpoints
+controlpoints_cartesian
+# before first control point
+0.0 0.0 1.0
+# before second control point
+2.0 4.0 0.5
+)");
+
+      NURBSPatch patch(input);
+      REQUIRE(patch.GetNKV() == 1);
+      REQUIRE(patch.GetNC() == 3);
+      REQUIRE(patch.GetKV(0)->GetOrder() == 1);
+      REQUIRE(patch.GetKV(0)->GetNCP() == 2);
+      REQUIRE(patch(0, 0) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 1) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 2) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 0) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 1) == MFEM_Approx(2.0));
+      REQUIRE(patch(1, 2) == MFEM_Approx(0.5));
+   }
+}
+
 TEST_CASE("Location conversion check", "[NURBS]")
 {
 
@@ -222,13 +294,13 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
       mfem::out<<"Knotvector : "; kvp.Print(mfem::out);
 
       kvp.GetGreville(xi);
-      mfem::out<<"Greville points : "; xi.Print(std::cout,999);
+      mfem::out<<"Greville points : "; xi.Print(mfem::out,999);
 
       kvp.GetBotella(xi);
-      mfem::out<<"Botella  points : "; xi.Print(std::cout,999);
+      mfem::out<<"Botella  points : "; xi.Print(mfem::out,999);
 
       kvp.GetDemko(xi);
-      mfem::out<<"Demko    points : "; xi.Print(std::cout,999);
+      mfem::out<<"Demko    points : "; xi.Print(mfem::out,999);
    }
 
    KnotVector kv(3, Vector({0.0, 0.3, 0.3, 0.3, 0.6, 1.0}));

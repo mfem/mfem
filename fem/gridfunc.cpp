@@ -345,27 +345,6 @@ void GridFunction::ComputeFlux(BilinearFormIntegrator &blfi,
    }
 }
 
-int GridFunction::VectorDim() const
-{
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return fes->GetVDim();
-   }
-   return fes->GetVDim()*std::max(fes->GetMesh()->SpaceDimension(),
-                                  fe->GetRangeDim());
-}
-
-int GridFunction::CurlDim() const
-{
-   const FiniteElement *fe = fes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return 2 * fes->GetMesh()->SpaceDimension() - 3;
-   }
-   return fes->GetVDim()*fe->GetCurlDim();
-}
-
 void GridFunction::GetTrueDofs(Vector &tv) const
 {
    const SparseMatrix *R = fes->GetRestrictionMatrix();
@@ -2050,6 +2029,18 @@ void GridFunction::AccumulateAndCountBdrValues(
    Coefficient *coeff[], VectorCoefficient *vcoeff, const Array<int> &attr,
    Array<int> &values_counter)
 {
+   if (vcoeff)
+   {
+      MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
+                  "vcoeff vdim != fes VDim");
+      MFEM_VERIFY(fes->GetTypicalBE()->GetMapType() == FiniteElement::VALUE &&
+                  fes->GetTypicalBE()->GetRangeType() ==
+                  FiniteElement::SCALAR,
+                  "Can only call ProjectBdrCoefficient on scalar value-type "
+                  "boundary elements. "
+                  "Did you intended to call ProjectBdrCoefficientNormal or "
+                  "ProjectBdrCoefficientTangent for vector finite elements?");
+   }
    Array<int> vdofs;
    Vector vc;
 
@@ -2202,6 +2193,9 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    VectorCoefficient &vcoeff, const Array<int> &bdr_attr,
    Array<int> &values_counter)
 {
+   MFEM_VERIFY(fes->GetTypicalBE()->GetPhysRangeDim(
+                  fes->GetMesh()->SpaceDimension()) == vcoeff.GetVDim(),
+               "vcoeff vdim != PhysRangeDim");
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
@@ -2259,6 +2253,104 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
          fe->Project(vcoeff, *T, lvec);
          accumulate_dofs(dofs, lvec, *this, values_counter);
       }
+   }
+}
+
+void GridFunction::AccumulateAndCountTraceValues(
+   Coefficient *coeff[], VectorCoefficient *vcoeff,
+   Array<int> &values_counter)
+{
+   if (vcoeff)
+   {
+      MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
+                  "vcoeff vdim != fes VDim");
+      MFEM_VERIFY(fes->GetTypicalTraceElement()->GetMapType() ==
+                  FiniteElement::VALUE &&
+                  fes->GetTypicalTraceElement()->GetRangeType() ==
+                  FiniteElement::SCALAR,
+                  "Can only call ProjectTraceCoefficient on scalar value-type "
+                  "trace elements. "
+                  "Use ProjectTraceCoefficientNormal for RT and "
+                  "ProjectTraceCoefficientTangent for ND finite elements.");
+   }
+
+   Array<int> vdofs;
+   Vector vc;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   const int vdim = fes->GetVDim();
+   HostReadWrite();
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+
+      const FiniteElement *fe = fes->GetFaceElement(i);
+      const int fdof = fe->GetDof();
+      ElementTransformation *transf = fes->GetMesh()->GetFaceTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      fes->GetFaceVDofs(i, vdofs);
+
+      for (int j = 0; j < fdof; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         transf->SetIntPoint(&ip);
+         if (vcoeff) { vcoeff->Eval(vc, *transf, ip); }
+         for (int d = 0; d < vdim; d++)
+         {
+            if (!vcoeff && !coeff[d]) { continue; }
+
+            real_t val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
+            int ind = vdofs[fdof*d+j];
+            if ( ind < 0 )
+            {
+               val = -val, ind = -1-ind;
+            }
+            if (++values_counter[ind] == 1)
+            {
+               (*this)(ind) = val;
+            }
+            else
+            {
+               (*this)(ind) += val;
+            }
+         }
+      }
+   }
+}
+
+void GridFunction::AccumulateAndCountTraceTangentValues(
+   VectorCoefficient &vcoeff, Array<int> &values_counter)
+{
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()
+               ->GetRangeType() == FiniteElement::VECTOR &&
+               fes->GetTypicalTraceElement()
+               ->GetMapType() == FiniteElement::H_CURL,
+               "Not an ND FE space!");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()->GetPhysRangeDim(
+                  fes->GetMesh()->SpaceDimension()) == vcoeff.GetVDim(),
+               "vcoeff vdim != PhysRangeDim");
+
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   Vector lvec;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   HostReadWrite();
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fe = fes->GetFaceElement(i);
+      T = fes->GetMesh()->GetFaceTransformation(i);
+      fes->GetFaceVDofs(i, dofs);
+      lvec.SetSize(fe->GetDof());
+      fe->Project(vcoeff, *T, lvec);
+      accumulate_dofs(dofs, lvec, *this, values_counter);
    }
 }
 
@@ -2355,6 +2447,9 @@ void GridFunction::ProjectDeltaCoefficient(DeltaCoefficient &delta_coeff,
 
 void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project scalar Coefficient onto vector GridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
    DofTransformation doftrans;
    Array<int> vdofs;
@@ -2630,6 +2725,7 @@ void GridFunction::ProjectCoefficient(
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
                                       ProjectType type)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    Array<int> vdofs;
    Vector vals;
    DofTransformation doftrans;
@@ -2698,6 +2794,74 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
             }
       }
    }
+}
+
+void GridFunction::ProjectTraceCoefficient(Coefficient *coeff[])
+{
+   Array<int> values_counter;
+   AccumulateAndCountTraceValues(coeff, NULL, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+}
+
+void GridFunction::ProjectTraceCoefficient(Coefficient &coeff)
+{
+   MFEM_VERIFY(FESpace()->GetVDim() == 1, "ProjectTraceCoefficient(Coefficient&)"
+               "is only valid for scalar GridFunction");
+   Coefficient *coeff_p = &coeff;
+   ProjectTraceCoefficient(&coeff_p);
+}
+
+void GridFunction::ProjectTraceCoefficient(VectorCoefficient &vcoeff)
+{
+   MFEM_VERIFY(FESpace()->GetVDim() == vcoeff.GetVDim(),
+               "Incompatible vcoeff vdim and fes vdim");
+   Array<int> values_counter;
+   AccumulateAndCountTraceValues(NULL, &vcoeff, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+}
+
+void GridFunction::ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff)
+{
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()->GetRangeType() ==
+               FiniteElement::SCALAR &&
+               fes->GetTypicalTraceElement()->GetMapType() ==
+               FiniteElement::INTEGRAL, "Not an RT FE space!");
+   MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
+               "vcoeff vdim (" << vcoeff.GetVDim()
+               << ") != SpaceDimension ("
+               << fes->GetMesh()->SpaceDimension() << ")");
+
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   int dim = vcoeff.GetVDim();
+   Vector vc(dim), nor(dim), lvec;
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fe = fes->GetFaceElement(i);
+      T = fes->GetMesh()->GetFaceTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      lvec.SetSize(fe->GetDof());
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T->SetIntPoint(&ip);
+         vcoeff.Eval(vc, *T, ip);
+         CalcOrtho(T->Jacobian(), nor);
+         lvec(j) = (vc * nor);
+      }
+      fes->GetFaceVDofs(i, dofs);
+      SetSubVector(dofs, lvec);
+   }
+}
+
+void GridFunction::ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff)
+{
+   Array<int> values_counter;
+   AccumulateAndCountTraceTangentValues(vcoeff, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
 }
 
 void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
@@ -2945,6 +3109,7 @@ void GridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
 void GridFunction::ProjectCoefficient(
    VectorCoefficient &vcoeff, Array<int> &dofs)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    int el = -1;
    ElementTransformation *T = NULL;
    const FiniteElement *fe = NULL;
@@ -2974,6 +3139,7 @@ void GridFunction::ProjectCoefficient(
 
 void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff, int attribute)
 {
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
    int i;
    Array<int> vdofs;
    Vector vals;
@@ -3030,9 +3196,14 @@ void GridFunction::ProjectCoefficient(Coefficient *coeff[])
    }
 }
 
-void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
-                                          Array<int> &dof_attr)
+void GridFunction::ProjectDiscCoefficient(
+   std::variant<Coefficient*, VectorCoefficient*> coeff, Array<int> &dof_attr)
 {
+   std::visit([&](auto* c)
+   {
+      MFEM_VERIFY(VectorDim() == c->GetVDim(), "coeff vdim != VectorDim()");
+   }, coeff);
+
    Array<int> vdofs;
    Vector vals;
 
@@ -3046,7 +3217,10 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    {
       fes->GetElementVDofs(i, vdofs);
       vals.SetSize(vdofs.Size());
-      fes->GetFE(i)->Project(coeff, *fes->GetElementTransformation(i), vals);
+      std::visit([&](auto* c)
+      {
+         fes->GetFE(i)->Project(*c, *fes->GetElementTransformation(i), vals);
+      }, coeff);
 
       // the values in shared dofs are determined from the element with maximal
       // attribute
@@ -3062,16 +3236,14 @@ void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
    }
 }
 
-void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
-{
-   Array<int> dof_attr;
-   ProjectDiscCoefficient(coeff, dof_attr);
-}
-
 void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project a scalar coefficient onto a vector GridFunction");
 
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
@@ -3082,6 +3254,7 @@ void GridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 void GridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff,
                                           AvgType type)
 {
+   MFEM_VERIFY(VectorDim() == coeff.GetVDim(), "coeff vdim != VectorDim()");
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
@@ -3137,52 +3310,33 @@ void GridFunction::ProjectBdrCoefficient(Coefficient *coeff[],
 }
 
 void GridFunction::ProjectBdrCoefficientNormal(
-   VectorCoefficient &vcoeff, const Array<int> &bdr_attr)
+   Coefficient *coeff, VectorCoefficient *vcoeff, const Array<int> &bdr_attr)
 {
-#if 0
-   // implementation for the case when the face dofs are integrals of the
-   // normal component.
-   const FiniteElement *fe;
-   ElementTransformation *T;
-   Array<int> dofs;
-   int dim = vcoeff.GetVDim();
-   Vector vc(dim), nor(dim), lvec, shape;
-
-   for (int i = 0; i < fes->GetNBE(); i++)
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalBE()->GetRangeType() == FiniteElement::SCALAR &&
+               fes->GetTypicalBE()->GetMapType() == FiniteElement::INTEGRAL,
+               "Not an RT FE space!");
+   if (vcoeff)
    {
-      if (bdr_attr[fes->GetBdrAttribute(i)-1] == 0)
-      {
-         continue;
-      }
-      fe = fes->GetBE(i);
-      T = fes->GetBdrElementTransformation(i);
-      int intorder = 2*fe->GetOrder(); // !!!
-      const IntegrationRule &ir = IntRules.Get(fe->GetGeomType(), intorder);
-      int nd = fe->GetDof();
-      lvec.SetSize(nd);
-      shape.SetSize(nd);
-      lvec = 0.0;
-      for (int j = 0; j < ir.GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         T->SetIntPoint(&ip);
-         vcoeff.Eval(vc, *T, ip);
-         CalcOrtho(T->Jacobian(), nor);
-         fe->CalcShape(ip, shape);
-         lvec.Add(ip.weight * (vc * nor), shape);
-      }
-      fes->GetBdrElementDofs(i, dofs);
-      SetSubVector(dofs, lvec);
+      MFEM_VERIFY(vcoeff->GetVDim() == fes->GetMesh()->SpaceDimension(),
+                  "vcoeff vdim (" << vcoeff->GetVDim()
+                  << ") != SpaceDimension ("
+                  << fes->GetMesh()->SpaceDimension() << ")");
    }
-#else
+
    // implementation for the case when the face dofs are scaled point
    // values of the normal component.
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
-   int dim = vcoeff.GetVDim();
-   Vector vc(dim), nor(dim), lvec;
+   Vector vc, nor, lvec;
    DofTransformation doftrans;
+   if (vcoeff)
+   {
+      const int dim = vcoeff->GetVDim();
+      vc.SetSize(dim);
+      nor.SetSize(dim);
+   }
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
@@ -3198,15 +3352,22 @@ void GridFunction::ProjectBdrCoefficientNormal(
       {
          const IntegrationPoint &ip = ir.IntPoint(j);
          T->SetIntPoint(&ip);
-         vcoeff.Eval(vc, *T, ip);
-         CalcOrtho(T->Jacobian(), nor);
-         lvec(j) = (vc * nor);
+         if (coeff)
+         {
+            const real_t c = coeff->Eval(*T, ip);
+            lvec(j) = c * T->Weight();
+         }
+         else if (vcoeff)
+         {
+            vcoeff->Eval(vc, *T, ip);
+            CalcOrtho(T->Jacobian(), nor);
+            lvec(j) = (vc * nor);
+         }
       }
       fes->GetBdrElementDofs(i, dofs, doftrans);
       doftrans.TransformPrimal(lvec);
       SetSubVector(dofs, lvec);
    }
-#endif
 }
 
 void GridFunction::ProjectBdrCoefficientTangent(
@@ -5007,6 +5168,14 @@ real_t ExtrudeCoefficient::Eval(ElementTransformation &T,
    return sol_in.Eval(*T_in, ip);
 }
 
+void VectorExtrudeCoefficient::Eval(Vector &v, ElementTransformation &T,
+                                    const IntegrationPoint &ip)
+{
+   ElementTransformation *T_in =
+      mesh_in->GetElementTransformation(T.ElementNo / n);
+   T_in->SetIntPoint(&ip);
+   sol_in.Eval(v, *T_in, ip);
+}
 
 GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
                                     GridFunction *sol, const int ny)
@@ -5057,10 +5226,17 @@ GridFunction *Extrude1DGridFunction(Mesh *mesh, Mesh *mesh2d,
       return NULL;
    }
    FiniteElementSpace *solfes2d;
-   // assuming sol is scalar
-   solfes2d = new FiniteElementSpace(mesh2d, solfec2d);
+   const int vdim = sol->FESpace()->GetVDim();
+   solfes2d = new FiniteElementSpace(mesh2d, solfec2d, vdim);
    sol2d = new GridFunction(solfes2d);
    sol2d->MakeOwner(solfec2d);
+   if (vdim > 1)
+   {
+      VectorGridFunctionCoefficient vcsol(sol);
+      VectorExtrudeCoefficient vc2d(mesh, vcsol, ny);
+      sol2d->ProjectCoefficient(vc2d);
+   }
+   else
    {
       GridFunctionCoefficient csol(sol);
       ExtrudeCoefficient c2d(mesh, csol, ny);
@@ -5276,6 +5452,7 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
+
    Vector lel, uel;
    GetElementBounds(plb, lel, uel, vdim);
 

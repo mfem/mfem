@@ -57,8 +57,6 @@ private:
    /// values (after temporarily changing them for LOR assembly).
    void ResetIntegrationRules(GetIntegratorsFn get_integrators);
 
-   static inline int absdof(int i) { return i < 0 ? -1-i : i; }
-
 protected:
    enum FESpaceType { H1, ND, RT, L2, INVALID };
 

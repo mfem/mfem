@@ -188,7 +188,6 @@ protected:
    long long num_marked_elements;
 
    Array<Refinement> marked_elements;
-   long current_sequence;
 
    int non_conforming;
    int nc_limit;
