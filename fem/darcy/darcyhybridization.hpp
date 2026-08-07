@@ -237,8 +237,6 @@ private:
    void ConstructC();
    void AllocD() const;
    void AllocEG() const;
-   void InvertA();
-   void InvertD();
    void GetElementFaces(int el, Array<int> &faces) const;
    void ComputeH(std::unique_ptr<SparseMatrix> &H) const;
 #ifdef MFEM_USE_MPI

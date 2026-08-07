@@ -1037,51 +1037,6 @@ void DarcyHybridization::AllocEG() const
    G_data.SetSize(G_offsets.Last()); G_data = 0.;
 }
 
-void DarcyHybridization::InvertA()
-{
-   const int NE = fes.GetNE();
-
-   for (int el = 0; el < NE; el++)
-   {
-      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-
-      // Decompose A
-
-      LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
-
-      LU_A.Factor(a_dofs_size);
-   }
-}
-
-void DarcyHybridization::InvertD()
-{
-   const int NE = fes.GetNE();
-
-   for (int el = 0; el < NE; el++)
-   {
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-
-      // Decompose D
-
-#ifdef MFEM_DEBUG
-      DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
-      const real_t norm = D.MaxMaxNorm();
-      if (norm == 0.)
-      {
-         MFEM_ABORT("Inverting an empty matrix!");
-      }
-      if (D.Rank(norm * 1e-12) < d_dofs_size)
-      {
-         MFEM_ABORT("Inverting a singular matrix!");
-      }
-#endif
-
-      LUFactors LU_D(&Df_data[Df_offsets[el]], &Df_ipiv[Df_f_offsets[el]]);
-
-      LU_D.Factor(d_dofs_size);
-   }
-}
-
 void DarcyHybridization::GetElementFaces(int el, Array<int> &faces) const
 {
    const Mesh *mesh = fes.GetMesh();
