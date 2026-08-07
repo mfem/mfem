@@ -13,7 +13,6 @@
 #define MFEM_COEFFICIENT
 
 #include <functional>
-#include <variant>
 
 #include "../config/config.hpp"
 #include "../linalg/linalg.hpp"
