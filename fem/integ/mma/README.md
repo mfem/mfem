@@ -33,8 +33,14 @@ device:        TensorMmaEnabled → dmma / mfma else blas Emulate
 | `lapack.hpp` | `mma::lapack` PreferMultiRhs (ifdef LAPACK) |
 | `dispatch.hpp` | `MMA_BACKEND_PICK`, public Gemm/Grad/Interp |
 | `mma.hpp` / `mma.cpp` | ForceMMA, Uses*, simplex helpers |
-| `form/` | **Generic** Apply machinery (field types, plans, pipelines) |
+| `form/` | **Generic** Apply machinery (simplex + tensor-product) |
 | `batch.hpp` | Multi-plane smem batch NB + Q-tile (`BatchNB*`) |
+| `form/apply_tensor.hpp` | `ApplyTensor<QFn,…>` (Eval or Grad via `qfn_traits`) |
+| `form/tensor_eval.hpp` | Sum-fact Eval engine (`QFn` template) |
+| `form/tensor_grad.hpp` | Sum-fact Grad engine (`QFn` template) |
+| `form/tensor_metric.hpp` | PA metric pack + Grad QFn helpers (no physics) |
+
+**`mma/` is integrator-agnostic** (no Mass/Diffusion QFns or operator-named apply).
 
 **Form layer is integrator-agnostic** — see **[`form/README.md`](form/README.md)**.
 
@@ -45,8 +51,8 @@ Physics QFns live next to drivers:
 | `bilininteg_mass_pa_simplices_mma.hpp` | `MassScale` → `Apply<MassScale,…>` |
 | `lininteg_domain_simplices_mma.hpp` | `IdentityLoad` → `ApplyLF<…>` |
 | `bilininteg_diffusion_pa_simplices_mma.hpp` | `DiffusionMetric` + `ApplyDiffusionDispatch` |
-| `bilininteg_mass_pa_tensors_mma.hpp` | same `MassScale` at Q-phase (sum-fact shells) |
-| `bilininteg_diffusion_pa_tensors_mma.hpp` | same `DiffusionMetric` via pack + QFn |
+| `bilininteg_mass_pa_tensors_mma.hpp` | `MassScale` → `ApplyTensor<MassScale,…>` |
+| `bilininteg_diffusion_pa_tensors_mma.hpp` | `DiffusionMetric` → `ApplyTensor<…>` |
 
 Custom forms: QFn + `qfn_traits<MyQ> : EvalEvalQFnTraits` (etc.) under `form/` only.
 

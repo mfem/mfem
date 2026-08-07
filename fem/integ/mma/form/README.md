@@ -6,10 +6,11 @@ to their drivers under `fem/integ/`.
 
 | Location | Responsibility |
 |----------|----------------|
-| `mma/form/` | Generic: `eval_t`/`grad_t`, `Apply`/`ApplyLF`, plans |
+| `mma/form/` | Generic: `eval_t`/`grad_t`, `Apply`/`ApplyLF`/`ApplyTensor`, plans |
 | `bilininteg_mass_pa_simplices_mma.hpp` | `MassScale` QFn + kernel registration |
 | `bilininteg_diffusion_pa_simplices_mma.hpp` | `DiffusionMetric` + `ApplyDiffusionDispatch` |
 | `lininteg_domain_simplices_mma.hpp` | `IdentityLoad` QFn + kernel registration |
+| `bilininteg_*_tensors_mma.hpp` | Same QFns + `ApplyTensor<…>` |
 
 Design: [`docs/design/mma-declarative-kernels.md`](../../../../../docs/design/mma-declarative-kernels.md)
 
@@ -56,6 +57,12 @@ struct DiffusionMetric {
                   const tensor<real_t, DIM, DIM> &A) const { y = A * u; }
 };
 // Kernel → ApplyDiffusionDispatch<DIM, D1D, QND>(…, symmetric, …)
+
+// Tensor mass — bilininteg_mass_pa_tensors_mma.hpp
+// Kernel → ApplyTensor<MassScale, DIM, D1D, Q1D>(…)
+
+// Tensor diffusion — bilininteg_diffusion_pa_tensors_mma.hpp
+// Kernel → ApplyTensor<DiffusionMetric<DIM,SYM>, …>(…, symmetric, …)
 ```
 
 ---
@@ -75,8 +82,11 @@ struct qfn_traits<DensitySquaredMass> : EvalEvalQFnTraits {};
 
 } // namespace
 
-// Use pipeline only — no mass/diffusion headers required:
+// Simplex dense path — no mass/diffusion headers required:
 form::Apply<DensitySquaredMass, 2>(NE, P, D, x, y);
+
+// Tensor-product path (Eval×Eval QFn):
+form::ApplyTensor<DensitySquaredMass, 2, D1D, Q1D>(NE, B, Bt, D, x, y, d1d, q1d);
 ```
 
 Trait helpers in `fields.hpp`:
@@ -92,10 +102,14 @@ Trait helpers in `fields.hpp`:
 ## What `form/` owns
 
 ```text
-form.hpp       umbrella include
-fields.hpp     eval_t / grad_t / none_t + qfn_traits helpers
-plan.hpp       MakeEvalPlan / MakeGradPlan + MFEM_MMA_FORM_DUMP
-pipeline.hpp   Apply (Eval / Grad), ApplyLF (None×Eval)
+form.hpp            umbrella include
+fields.hpp          eval_t / grad_t / none_t + qfn_traits helpers
+plan.hpp            MakeEvalPlan / MakeGradPlan + MFEM_MMA_FORM_DUMP
+pipeline.hpp        Apply (Eval / Grad), ApplyLF (None×Eval) — simplex dense
+apply_tensor.hpp    ApplyTensor — tensor-product (Eval or Grad via traits)
+tensor_eval.hpp     sum-fact Eval engine (QFn template)
+tensor_grad.hpp     sum-fact Grad engine (QFn template)
+tensor_metric.hpp   PackPaMetric + Grad QFn helpers
 ```
 
 Host multi-RHS preference is `mma::lapack::PreferMultiRhs` in `mma/lapack.hpp`
