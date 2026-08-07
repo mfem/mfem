@@ -182,7 +182,7 @@ void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)
    INTEGRATOR *i = GetIntegrator<INTEGRATOR>(a);
    if (i)
    {
-      CoefficientBase *coeff = i->GetCoefficient();
+      CoefficientBase *coeff = i->GetCoefficientBase();
       if (coeff) { coeff_vector.Project(*coeff); }
       else { coeff_vector.SetConstant(1.0); }
    }
