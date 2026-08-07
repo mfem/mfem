@@ -70,11 +70,10 @@ std::tuple<std::unique_ptr<FiniteElementCollectionType>,
            std::unique_ptr<ParGridFunction>>
    createFiniteElementField(MeshOps& mesh_ops, const int order)
 {
-   const ParMesh& mesh = mesh_ops.getMesh();
-   auto fe_collection =
-      std::make_unique<FiniteElementCollectionType>(order, mesh.Dimension());
+   auto fe_collection = std::make_unique<FiniteElementCollectionType>(
+      order, mesh_ops.GetMesh().Dimension());
    std::unique_ptr<ParFiniteElementSpace> fe_space =
-      mesh_ops.createFESpace(*fe_collection);
+      mesh_ops.CreateFESpace(*fe_collection);
    auto gridfunction = std::make_unique<ParGridFunction>(fe_space.get());
    return std::make_tuple(std::move(fe_collection), std::move(fe_space),
       std::move(gridfunction));
@@ -103,6 +102,9 @@ std::tuple<std::unique_ptr<ConductionOperator>,
 
 int main(int argc, char *argv[])
 {
+   Mpi::Init(argc, argv);
+   Hypre::Init();
+
    const int precision = 8;
    std::cout.precision(precision);
 
@@ -139,13 +141,15 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(std::cout);
+      if (Mpi::Root())
+         args.PrintUsage(std::cout);
       return 1;
    }
-   args.PrintOptions(std::cout);
+   if (Mpi::Root())
+      args.PrintOptions(std::cout);
 
-   // Initialize SAMRAI
-   SAMRAI::tbox::SAMRAI_MPI::init(&argc, &argv);
+   // Initialize SAMRAI with global communicator specified by MFEM
+   SAMRAI::tbox::SAMRAI_MPI::init(mfem::GetGlobalMPI_Comm());
    SAMRAI::tbox::SAMRAIManager::initialize();
    SAMRAI::tbox::SAMRAIManager::startup();
 
@@ -196,7 +200,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParGridFunction> uavg_gf;
    {
       std::vector<std::unique_ptr<ParGridFunction>> gfs =
-         mesh_ops->transferToMFEM(samrai_position_id, {}, {samrai_state_id});
+         mesh_ops->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
       uavg_gf = std::move(gfs[0]);
    }
 
@@ -211,8 +215,11 @@ int main(int argc, char *argv[])
    Vector u;
    std::tie(u_fecollection, u_fespace, u_gf) =
       createFiniteElementField<FECType>(*mesh_ops, order);
-   std::cout << "Number of temperature unknowns: " << u_fespace->GlobalTrueVSize()
-             << std::endl;
+   if (Mpi::Root())
+   {
+      std::cout << "Number of temperature unknowns: "
+                << u_fespace->GlobalTrueVSize() << std::endl;
+   }
    reconstructH1Field(*uavg_gf, *u_gf);
 
    // Create the conduction operator and ODE solver used for time integration
@@ -225,7 +232,7 @@ int main(int argc, char *argv[])
    {
       std::ofstream omesh("ex16.mesh");
       omesh.precision(precision);
-      mesh_ops->getMesh().Print(omesh);
+      mesh_ops->GetMesh().Print(omesh);
       std::ofstream osol("ex16-init.gf");
       osol.precision(precision);
       u_gf->Save(osol);
@@ -251,7 +258,7 @@ int main(int argc, char *argv[])
       sout.open(vishost, visport);
       if (!sout)
       {
-         if (mesh_ops->getMesh().GetMyRank() == 0)
+         if (Mpi::Root())
          {
             std::cout << "Unable to connect to GLVis server at "
                      << vishost << ':' << visport << std::endl;
@@ -262,13 +269,16 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "parallel " << mesh_ops->getMesh().GetNRanks() << " "
-                             << mesh_ops->getMesh().GetMyRank() << "\n";
-         sout << "solution\n" << mesh_ops->getMesh() << *u_gf;
+         sout << "parallel " << mesh_ops->GetMesh().GetNRanks() << " "
+                             << mesh_ops->GetMesh().GetMyRank() << "\n";
+         sout << "solution\n" << mesh_ops->GetMesh() << *u_gf;
          sout << "pause\n";
          sout << std::flush;
-         std::cout << "GLVis visualization paused."
-                   << " Press space (in the GLVis window) to resume it.\n";
+         if (Mpi::Root())
+         {
+            std::cout << "GLVis visualization paused."
+                      << " Press space (in the GLVis window) to resume it.\n";
+         }
       }
    }
 
@@ -291,10 +301,10 @@ int main(int argc, char *argv[])
       // Transfer SAMRAI values to MFEM mesh (for now, recreate the MFEM mesh
       // and dependent object to account for AMR in SAMRAI grid)
       //mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
-      mesh_ops->synchronizeToHierarchy();
+      mesh_ops->SynchronizeToHierarchy();
       {
          std::vector<std::unique_ptr<ParGridFunction>> gfs =
-            mesh_ops->transferToMFEM(samrai_position_id, {}, {samrai_state_id});
+            mesh_ops->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
          uavg_gf = std::move(gfs[0]);
       }
       std::tie(u_fecollection, u_fespace, u_gf) =
@@ -310,18 +320,18 @@ int main(int argc, char *argv[])
 
       // Transfer MFEM values back to SAMRAI grid
       std::pair<int, ParGridFunction&> u_fields = {samrai_state_id, *u_gf};
-      mesh_ops->transferToSAMRAI({}, {u_fields});
+      mesh_ops->TransferToSAMRAI({}, {u_fields});
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         if (mesh_ops->getMesh().GetMyRank() == 0)
+         if (mesh_ops->GetMesh().GetMyRank() == 0)
             std::cout << "step " << ti << ", t = " << time << std::endl;
 
          if (visualization)
          {
-            sout << "parallel " << mesh_ops->getMesh().GetNRanks() << " "
-                                << mesh_ops->getMesh().GetMyRank() << "\n";
-            sout << "solution\n" << mesh_ops->getMesh() << *u_gf << std::flush;
+            sout << "parallel " << mesh_ops->GetMesh().GetNRanks() << " "
+                                << mesh_ops->GetMesh().GetMyRank() << "\n";
+            sout << "solution\n" << mesh_ops->GetMesh() << *u_gf << std::flush;
          }
 
          if (visit)
@@ -348,7 +358,7 @@ int main(int argc, char *argv[])
       u_gf->Save(osol);
    }
 
-   if (mesh_ops->getMesh().GetMyRank() == 0)
+   if (mesh_ops->GetMesh().GetMyRank() == 0)
       std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
 
    SAMRAI::tbox::SAMRAIManager::shutdown();
