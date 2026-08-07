@@ -166,8 +166,8 @@ class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
     mutable ParBilinearForm *Kd;
     std::unique_ptr<HypreParMatrix> M_mat, S_mat, K_mat;
     mutable std::unique_ptr<HypreParMatrix> Kd_mat;
-    ParLinearForm *b;
-    std::unique_ptr<HypreParVector> b_vec;
+    mutable ParLinearForm *b;
+    mutable std::unique_ptr<HypreParVector> b_vec;
     Solver *M_prec;
     CGSolver *M_solver;
     Implicit_Solver *implicit_solver;
@@ -414,6 +414,7 @@ void IMEXAdvectionDiffusionSolver::InitializeInjectionProblem()
     S->Finalize();
     A->Finalize();
 
+    raw_inflow.SetTime(0.0);
     b = new ParLinearForm(fespace);
     ProductCoefficient inflow(rho_til_cf, raw_inflow);
     b->AddDomainIntegrator(new DomainLFIntegrator(inflow));
@@ -481,6 +482,7 @@ void IMEXAdvectionDiffusionSolver::InitializeFlowProblem()
     S->Finalize();
     A->Finalize();
 
+
     b = new ParLinearForm(fespace);
     b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, velocity_cf, alpha), inflow_bdr_attr);
     b->Assemble();
@@ -518,6 +520,15 @@ void IMEXAdvectionDiffusionSolver::Mult1(const Vector &x, Vector &y) const
    K_mat->Mult(x, z);
    z += *b_vec;
    M_solver->Mult(z, y);
+
+   raw_inflow.SetTime(t);
+   GridFunctionCoefficient rho_til_cf(&rho_tilde);
+   ProductCoefficient inflow(rho_til_cf, raw_inflow);
+   //b->Update();
+   b = new ParLinearForm(fespace);
+   b->AddDomainIntegrator(new DomainLFIntegrator(inflow));
+   b->Assemble();
+   b_vec.reset(b->ParallelAssemble());
 }
 
 void IMEXAdvectionDiffusionSolver::ImplicitSolve2(const real_t dt_pass, const Vector &x, Vector &k)
@@ -593,7 +604,6 @@ void IMEXAdvectionDiffusionSolver::JacobianMult1Transpose(const Vector &lam, Vec
 
    // Update the design gradient
    M_solver->Mult(lam, w);
-   ParLinearForm adv_lf(filter_fes);
    // Vector q_vec = trajectory->Get(current_step-1);
    // std::cout<<"current step = "<<current_step << std::endl;
    // Vector wf(filter_fes->GetTrueVSize()), qf(filter_fes->GetTrueVSize());
@@ -610,6 +620,7 @@ void IMEXAdvectionDiffusionSolver::JacobianMult1Transpose(const Vector &lam, Vec
 
    if (problem_type == 1)
    {
+      raw_inflow.SetTime(t);
       ParLinearForm dom_flow_lf(filter_fes);
       dom_flow_lf.AddDomainIntegrator(new DomainDesignLFIntegrator(lam_gf, raw_inflow));
       dom_flow_lf.Assemble();
@@ -618,6 +629,7 @@ void IMEXAdvectionDiffusionSolver::JacobianMult1Transpose(const Vector &lam, Vec
    }
    else if (problem_type == 2)
    {
+      ParLinearForm adv_lf(filter_fes);
       adv_lf.AddDomainIntegrator(new DGAdvectionDesignLFIntegrator(rho_tilde, qq_gf, lam_gf, v_base, SIMP_cf));
       adv_lf.AddBdrFaceIntegrator(new DGAdvectionDesignLFIntegrator(rho_tilde, qq_gf, lam_gf, v_base, SIMP_cf), inflow_bdr_attr);
       adv_lf.AddInteriorFaceIntegrator(new DGAdvectionDesignLFIntegrator(rho_tilde, qq_gf, lam_gf, v_base, SIMP_cf));
@@ -834,7 +846,7 @@ void TopOptIMEXRK2::AdjointStep(Vector &lam, real_t &t, real_t &dt, Vector &x)
 
    //add it all up
    lam.Add(dt*delta, k1_exp);
-   lam.Add(dt*(1-delta), k2_exp);
+   lam.Add(dt*(1.0-delta), k2_exp);
    //x.Add(dt*(1-gamma), k2_imp); it is already added to x above
    lam.Add(dt*gamma, k_imp);
    t += dt;
@@ -1008,6 +1020,7 @@ class DesignSolver
          ti++;
          oper->SetStep(ti);
          oper->StoreTraj(ti, *q_vec);
+         oper->SetTime(t);
          done = (t >= t_final - 1e-8*dt); 
          if (done || ti % vis_steps == 0)
          {
@@ -1075,6 +1088,7 @@ class DesignSolver
          ti++;
          oper->SetStep(nsteps-ti);
          t -= dti;
+         oper->SetTime(t);
          done = (t <= 1e-8*dt); 
          if (done || ti % vis_steps == 0)
          {

@@ -19,8 +19,8 @@ void velocity_func(const Vector &x, Vector &v)
     int dim = x.Size();
     // v(0) = 1.0;
     // v(1) = 0.0;
-    v(0) = -2*sin(M_PI*3*x(0))*cos(M_PI*3*x(1));
-    v(1) = 2*cos(M_PI*3*x(0))*sin(M_PI*3*x(1)); 
+    v(0) = 5.0*sin(M_PI*3.0*x(0))*cos(M_PI*3.0*x(1)) + 1.0;
+    v(1) = -5.0*cos(M_PI*3.0*x(0))*sin(M_PI*3.0*x(1)); 
 }
 
 // Initial condition for advection-diffusion heat transfer. 
@@ -41,15 +41,21 @@ real_t T0_func(const Vector &x)
 } 
 
 // Raw Volume Flux for injection
-real_t inflow_flux_func(const Vector &x)      
+real_t inflow_flux_func(const Vector &x, real_t t)      
 {
     real_t rad = 0.1;
-    if ((fabs(x(0) - 5.0/6.0) < rad || fabs(x(0) - 0.5) < rad || fabs(x(0) - 1.0/6.0) < rad) && (fabs(x(1) - 5.0/6.0) < rad || fabs(x(1) - 0.5) < rad || fabs(x(1) - 1.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 5.0/6.0) < rad))
+    if (t < 5.0)
     {
-        return 10.0;
+        if ((fabs(x(0) - 2.0/6.0) < rad || fabs(x(0) - 4.0 / 6.0) < rad || fabs(x(0) - 6.0/6.0) < rad) && (fabs(x(1) - 5.0/6.0) < rad || fabs(x(1) - 0.5) < rad || fabs(x(1) - 1.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 6.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 4.0/6.0) < rad))
+        {
+            return 100.0;
+        }
+        else
+        {
+            return 0.0;
+        }
     }
-    else
-    {
+    else{
         return 0.0;
     }
 }  
@@ -57,14 +63,14 @@ real_t inflow_flux_func(const Vector &x)
 // Initial design density for the optimizer
 real_t init_design_func(const Vector &x)    
 {    
-    real_t x_center1 = 1.0/6.0;
-    real_t x_center2 = 1.0/6.0;
-    real_t x_center3 = 1.0/6.0;
-    real_t x_center4 = 0.5;
-    real_t x_center5 = 0.5;
-    real_t x_center6 = 0.5;
-    real_t x_center7 = 5.0/6.0;
-    real_t x_center8 = 5.0/6.0;
+    real_t x_center1 = 2.0/6.0;
+    real_t x_center2 = 2.0/6.0;
+    real_t x_center3 = 2.0/6.0;
+    real_t x_center4 = 4.0 / 6.0;
+    real_t x_center5 = 4.0 / 6.0;
+    real_t x_center6 = 4.0 / 6.0;
+    real_t x_center7 = 6.0/6.0;
+    real_t x_center8 = 6.0/6.0;
 
 
     real_t y_center1 = 5.0/6.0;
@@ -127,28 +133,38 @@ real_t init_design_func(const Vector &x)
     real_t dx7 = (x(0) - x_center7) / sigma_x;
     real_t dy7 = (x(1) - y_center7) / sigma_y;
     real_t r_squared7 = dx7 * dx7 + dy7 * dy7;
-    real_t gaussian7 = std::exp(-0.5 * r_squared7);
+    real_t gaussian7 = std::exp(-0.5 * r_squared7); 
 
         // Injection 8
     // Distance from center (normalized by sigma)
     real_t dx8 = (x(0) - x_center8) / sigma_x;
-    real_t dy8 = (x(1) - y_center8) / sigma_y;
+    real_t dy8 = (x(1) - y_center8) / sigma_y;  
     real_t r_squared8 = dx8 * dx8 + dy8 * dy8;
     real_t gaussian8 = std::exp(-0.5 * r_squared8);
-
-    return gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian5 + gaussian6 + gaussian7 + gaussian8;
+ 
+    return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6 + gaussian7 + gaussian8);
 }
 
 real_t target_func(const Vector &x)
 {
-    // if ((x(0) < 1.0 && x(0) > 0.9) && (x(1) < 0.55 && x(1) > 0.45))
+
+    // real_t x_center1 = 5.0/6.0;
+    // real_t y_center1 = 0.5;
+    // if ((x(0) < (5.0 / 6.0) + 0.1 && x(0) > (5.0 / 6.0) - 0.1) && (x(1) < 0.55 && x(1) > 0.45))
     // {
-    //     return 1.0;
+    //     return 10.0;
     // }
     // else
     // {
     //     return 0.0;
     // }
+    // real_t sigma_x = 0.05;
+    // real_t sigma_y = 0.05;
+    // real_t dx1 = (x(0) - x_center1) / sigma_x;
+    // real_t dy1 = (x(1) - y_center1) / sigma_y;
+    // real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
+    // real_t gaussian1 = std::exp(-0.5 * r_squared1);
+    // return 10*gaussian1;
     return 10.0;
 }
 
@@ -301,7 +317,7 @@ int main(int argc, char *argv[])
     FunctionCoefficient target_cf(target_func);
     ParGridFunction target_gf(state_fes);
     target_gf.ProjectCoefficient(target_cf); 
-    RectangularIndicator indicator(0.9, 1.0, 0.45, 0.55); 
+    RectangularIndicator indicator( (5.0 / 6.0) - 0.1,  (5.0 / 6.0) + 0.1, 0.45, 0.55); 
     TimeIntegratedL2TargetObjective obj_func(state_fes, indicator, target_gf, comm);           
     int n_steps = (int)ceil(t_final / dt);  
 
@@ -317,7 +333,7 @@ int main(int argc, char *argv[])
 
     // 11. Define the Coefficients  
     ConstantCoefficient one(1.0); 
-    SIMPCoefficient simp_cf(&rho_tilde, 1e-6, 10.0, SIMP_exp);   
+    SIMPCoefficient simp_cf(&rho_tilde, 1e-6, 3.0, SIMP_exp);   
     //Velocity Field  
     VectorFunctionCoefficient raw_velocity_cf(dim, velocity_func);  
     ScalarVectorProductCoefficient velocity_cf(one, raw_velocity_cf);   
@@ -431,7 +447,7 @@ int main(int argc, char *argv[])
         rho.GetTrueDofs(rho_tv);
         rho_old = rho_tv;
         // box constraints:  rho ∈ [0,1],  α_i ∈ [alpha_min, alpha_max]  (move limits)
-        real_t move = 10.0;
+        real_t move = 20.0;
         for (int i = 0; i < control_fes_size; i++)
         {
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
@@ -440,7 +456,7 @@ int main(int argc, char *argv[])
 
         // volume constraint
         real_t vol = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / domain_volume;
-        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar - 1.0;
+        fival(0) = InnerProduct(MPI_COMM_WORLD, *vol_w, rho_tv) / Vstar -  1.0;
 
 
         mma.Update(rho_tv, dJ_drho, J0, fival, dfidx, tx_min, tx_max);
