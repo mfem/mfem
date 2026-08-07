@@ -40,6 +40,7 @@
 #include "filteredsolver.hpp"
 #include "ordering.hpp"
 #include "particlevector.hpp"
+#include "chpt/chpt.hpp"
 
 #ifdef MFEM_USE_AMGX
 #include "amgxsolver.hpp"

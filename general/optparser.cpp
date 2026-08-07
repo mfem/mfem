@@ -12,7 +12,9 @@
 #include "optparser.hpp"
 #include "../linalg/vector.hpp"
 #include "../general/communication.hpp"
+#include <cerrno>
 #include <cctype>
+#include <cstdlib>
 
 namespace mfem
 {
@@ -46,6 +48,19 @@ int isValidAsInt(char * s)
    }
 
    return 1;
+}
+
+int isValidAsLongLong(char * s)
+{
+   if (s == NULL || *s == '\0')
+   {
+      return 0;
+   }
+
+   char *end = NULL;
+   errno = 0;
+   std::strtoll(s, &end, 10);
+   return errno == 0 && end != s && *end == '\0';
 }
 
 int isValidAsDouble(char * s)
@@ -200,6 +215,10 @@ void OptionsParser::Parse()
                   isValid = isValidAsInt(argv[i]);
                   *(int *)(options[j].var_ptr) = atoi(argv[i++]);
                   break;
+               case LONG:
+                  isValid = isValidAsLongLong(argv[i]);
+                  *(long long *)(options[j].var_ptr) = std::strtoll(argv[i++], NULL, 10);
+                  break;
                case DOUBLE:
                   isValid = isValidAsDouble(argv[i]);
                   *(real_t *)(options[j].var_ptr) = atof(argv[i++]);
@@ -277,6 +296,10 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
    {
       case INT:
          os << *(int *)(opt.var_ptr);
+         break;
+
+      case LONG:
+         os << *(long long *)(opt.var_ptr);
          break;
 
       case DOUBLE:
@@ -410,7 +433,7 @@ void OptionsParser::PrintHelp(ostream &os) const
    static const char *line_sep = "";
    static const char *types[] = { " <int>", " <double>", " <string>",
                                   " <string>", "", "", " '<int>...'",
-                                  " '<double>...'"
+                                  " '<double>...'", " <long long>"
                                 };
 
    os << indent << "-h" << seprtr << "--help" << descr_sep

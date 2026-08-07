@@ -76,6 +76,12 @@ list(APPEND HDRS
   ttensor.hpp
   tensor.hpp
   vector.hpp
+  chpt/chpt.hpp
+  chpt/dynamic_checkpointing.hpp
+  chpt/file_checkpoint_storage.hpp
+  chpt/fixed_slot_checkpoint_storage.hpp
+  chpt/revolve_checkpointing.hpp
+  chpt/revolve_file_storage.hpp
   )
 
 if (MFEM_USE_MPI)
