@@ -939,7 +939,8 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), height);
+         const int iq_p = qspace.GetPermutedIndex(iel, iq);
+         matrix.UseExternalData(&values(0, iq_p), height);
          Eval(matrix, T, ip);
       }
    }
