@@ -1579,19 +1579,19 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(const tensor
  * eigenvectors of 3x3 symmetric matrices", by Scherzinger & Dohrmann
  */
 MFEM_HOST_DEVICE
-inline std::tuple<tensor<double, 3>, tensor<double, 3, 3>> eig_symm(const tensor<double, 3, 3>& A)
+inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(const tensor<real_t, 3, 3>& A)
 {
-  tensor<double, 3> eta{};
-  tensor<double, 3, 3> Q = IdentityMatrix<3>();
+  tensor<real_t, 3> eta{};
+  tensor<real_t, 3, 3> Q = IdentityMatrix<3>();
 
   auto A_dev = dev(A);
-  double J2 = 0.5 * inner(A_dev, A_dev);
-  double J3 = det(A_dev);
+  real_t J2 = 0.5 * inner(A_dev, A_dev);
+  real_t J3 = det(A_dev);
 
   if (J2 > 0.0) {
     // angle used to find eigenvalues
-    double tmp = (0.5 * J3) * std::pow(3.0 / J2, 1.5);
-    double alpha = std::acos(fmin(fmax(tmp, -1.0), 1.0)) / 3.0;
+    real_t tmp = (0.5 * J3) * std::pow(3.0 / J2, 1.5);
+    real_t alpha = std::acos(fmin(fmax(tmp, -1.0), 1.0)) / 3.0;
 
     // consider the most distinct eigenvalue first
     if (6.0 * alpha < M_PI) {
@@ -1604,14 +1604,14 @@ inline std::tuple<tensor<double, 3>, tensor<double, 3, 3>> eig_symm(const tensor
     tensor<real_t, 3, 3> r;
 
     int imax = -1;
-    double norm_max = -1.0;
+    real_t norm_max = -1.0;
 
     for (int i = 0; i < 3; i++) {
       for (int j = 0; j < 3; j++) {
         r[i][j] = A_dev(j, i) - (i == j) * eta(0);
       }
 
-      double norm_r = norm(r[i]);
+      real_t norm_r = norm(r[i]);
       if (norm_max < norm_r) {
         imax = i;
         norm_max = norm_r;
@@ -1636,12 +1636,12 @@ inline std::tuple<tensor<double, 3>, tensor<double, 3, 3>> eig_symm(const tensor
     auto A_dev_s0 = dot(A_dev, s0);
     auto A_dev_s1 = dot(A_dev, s1);
 
-    double A11 = dot(s0, A_dev_s0);
-    double A12 = dot(s0, A_dev_s1);
-    double A21 = A12;
-    double A22 = dot(s1, A_dev_s1);
+    real_t A11 = dot(s0, A_dev_s0);
+    real_t A12 = dot(s0, A_dev_s1);
+    real_t A21 = A12;
+    real_t A22 = dot(s1, A_dev_s1);
 
-    double delta = 0.5 * std::sqrt((A11 - A22) * (A11 - A22) + 4 * A12 * A21);
+    real_t delta = 0.5 * std::sqrt((A11 - A22) * (A11 - A22) + 4 * A12 * A21);
 
     eta(1) = 0.5 * (A11 + A22) - delta;
     eta(2) = 0.5 * (A11 + A22) + delta;
