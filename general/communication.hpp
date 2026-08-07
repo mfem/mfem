@@ -22,6 +22,7 @@
 #include "globals.hpp"
 #include <mpi.h>
 #include <cstdint>
+#include <type_traits>
 
 // can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
 // doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
@@ -408,14 +409,67 @@ public:
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
    { Reduce<T>((T *)ldata, Op); }
 
-   /// Reduce operation Sum, instantiated for int and double
+   /// Reduce operation Sum, instantiated for int, double and float
    template <class T> static void Sum(OpData<T>);
-   /// Reduce operation Min, instantiated for int and double
+   /// Reduce operation Min, instantiated for int, double and float
    template <class T> static void Min(OpData<T>);
-   /// Reduce operation Max, instantiated for int and double
+   /// Reduce operation Max, instantiated for int, double and float
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
+   /// Reduce operation selecting the signed value with the largest absolute
+   /// value, instantiated for int, double and float. Note the result keeps its
+   /// sign; it is not the non-negative absolute value.
+   template <class T> static void MaxAbs(OpData<T>);
+
+   /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
+       the reduction to DOFs marked in the marker array.
+
+       @note The reduction is carried out in the signed type @a T, so the result
+       is signed even for bitwise operations.
+   */
+   template <class T>
+   void ReduceMarked(T *ldata, const Array<int> &marker, int layout,
+                     void (*Op)(OpData<T>)) const;
+
+   /** @brief Reduce within each group where the master is the root, but only for marked DOFs. */
+   template <class T>
+   void Reduce(T *ldata, const Array<int> &marker, void (*Op)(OpData<T>)) const
+   {
+      ReduceBegin(ldata);
+      ReduceMarked(ldata, marker, 0, Op);
+   }
+
+   // Enum for reduction operations
+   enum class ReduceOp { Sum_Op, Min_Op, Max_Op, BitOR_Op, MaxAbs_Op };
+
+   // Add specialized versions for common operations
+   template <class T>
+   void Reduce(Array<T> &ldata, const Array<int> &marker, ReduceOp op)
+   {
+      void (*Op)(OpData<T>);
+      switch (op)
+      {
+         case ReduceOp::Sum_Op:    Op = GroupCommunicator::Sum; break;
+         case ReduceOp::Min_Op:    Op = GroupCommunicator::Min; break;
+         case ReduceOp::Max_Op:    Op = GroupCommunicator::Max; break;
+         case ReduceOp::BitOR_Op:
+            // BitOR is only instantiated for integral types, so the reference
+            // to it must be discarded at compile time for other types.
+            if constexpr (std::is_integral<T>::value)
+            {
+               Op = GroupCommunicator::BitOR;
+            }
+            else
+            {
+               MFEM_ABORT("BitOR reduction requires an integral type.");
+            }
+            break;
+         case ReduceOp::MaxAbs_Op: Op = GroupCommunicator::MaxAbs; break;
+         default:                  Op = GroupCommunicator::Sum; break;
+      }
+      Reduce(ldata.GetData(), marker, Op);
+   }
 
    /// Print information about the GroupCommunicator from all MPI ranks.
    void PrintInfo(std::ostream &out = mfem::out) const;
