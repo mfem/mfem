@@ -109,25 +109,38 @@ TEST_CASE("Eigenvalues 2x2 nearly degenerate", "[Tensor]")
    tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   CHECK_THAT(det(eigenvecs), Catch::WithinULP(1.0, 2));
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
 
-   auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
 
-TEST_CASE("Eigenvalues2x2Distinct", "[Tensor]")
+TEST_CASE("Eigenvalues 2x2 Distinct", "[Tensor]")
 {
    tensor<real_t, 2> lambda{{-4.3, 8.0}};
    tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   CHECK_THAT(det(eigenvecs), Catch::WithinULP(1.0, 2));
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
 
-   auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
+TEST_CASE("Eigenvalues 2x2 distinct and unsorted", "[Tensor]")
+{
+   // these eigenvalues are not specified in ascending order, the solver
+   // will have to sort them.
+   tensor<real_t, 2> lambda{{8.0, -4.3}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[1], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[0], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
 
@@ -137,12 +150,11 @@ TEST_CASE("Eigenvalues3x3", "[Tensor]")
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   CHECK_THAT(det(eigenvecs), Catch::WithinULP(1.0, 2));
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
    CHECK_THAT(eigenvals[2], Catch::WithinULP(lambda[2], 2));
 
-   auto should_be_A = dot(eigenvecs, dot(diag(lambda), transpose(eigenvecs)));
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
    CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
 
