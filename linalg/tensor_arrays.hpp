@@ -118,6 +118,8 @@ public:
 
    static constexpr auto tensor_dims = sizeof...(tensor_sizes);
    static constexpr auto total_dims = ndims + tensor_dims;
+   // Note: this method can be replaced with a static constrexpr data member,
+   // however, nvcc has issues with that implementation.
    static constexpr auto tensor_sizes_array() noexcept
    {
       return std::array<std::size_t, tensor_dims> {tensor_sizes...};
@@ -125,9 +127,8 @@ public:
 
 private:
    scalar_t *data;  /// Not owned
-public:
    std::array<std::size_t,ndims> dyn_sizes;
-   mutable std::array<std::size_t,total_dims> strides;
+   std::array<std::size_t,total_dims> strides;
 
 public:
    /** @brief Constructor with the default, column-major or left, layout where
@@ -188,15 +189,14 @@ public:
        @note This method does not permute the global 1D data array. */
    MFEM_HOST_DEVICE
    MFEM_ENZYME_INACTIVE
-   void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm) const
+   void set_layout(std::array<std::size_t,rank()+tensor_rank()> perm)
    {
       std::size_t stride = 1;
       for (std::size_t d_g = 0; d_g < total_dims; d_g++)
       {
          const auto d_l = perm[d_g];
          strides[d_l] = stride;
-         stride *= (d_l < ndims) ? dyn_sizes[d_l] :
-                   tensor_sizes_array()[d_l-ndims];
+         stride *= (d_l < ndims) ? dyn_sizes[d_l] : tensor_size(d_l-ndims);
       }
    }
 
