@@ -21,7 +21,6 @@ namespace mfem
 namespace internal
 {
 
-
 namespace mma
 {
 
@@ -81,7 +80,9 @@ void ApplyDiffusionMetricSmem(real_t *g_in, real_t *g_out, const int plane_ld,
    }
 }
 
-namespace lapack
+} // namespace mma
+
+namespace mma::lapack
 {
 #ifdef MFEM_USE_LAPACK
 /** Named slices into one host_Arena allocation for 2D diffusion tiles. */
@@ -155,7 +156,8 @@ inline void DiffusionApplyTensors2DTile(
             const int idx = qx + Q1D * qy;
             const int e = e0 + b;
             real_t gv[2] = {ws.gX[qy + Q1D * (qx + Q1D * b)],
-                            ws.gY[qy + Q1D * (qx + Q1D * b)]};
+                            ws.gY[qy + Q1D * (qx + Q1D * b)]
+                           };
             real_t O[PA_SIZE];
             for (int c = 0; c < PA_SIZE; ++c)
             {
@@ -458,8 +460,7 @@ inline bool TryDiffusionApplyTensors3D(
 
 #endif // MFEM_USE_LAPACK
 
-} // namespace lapack
-} // namespace mma
+} // namespace mma::lapack
 
 // Device tensor shell: LoadBG once → per-element Grad → metric → Gradt.
 // Host uses Try* first (see MmaDiffusionApplyTensors).

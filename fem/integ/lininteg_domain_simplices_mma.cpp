@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../../general/forall.hpp"
+#include "mma/mma.hpp"
 #include "lininteg_domain_simplices_mma.hpp"
 
 namespace mfem

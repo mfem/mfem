@@ -11,8 +11,7 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "mma/mma.hpp"
-#include "mma/form/pipeline.hpp"
+#include "mma/form/form.hpp"
 
 namespace mfem
 {
@@ -34,9 +33,9 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
                                       const Vector &c,
                                       Vector &d);
 
-namespace mma
-{
-namespace form
+} // namespace internal
+
+namespace internal::mma::form
 {
 
 /** Diffusion metric matvec at a quadrature point: y = A * u. */
@@ -92,9 +91,7 @@ inline void ApplyDiffusionDispatch(const int NE,
    }
 }
 
-} // namespace form
-} // namespace mma
-} // namespace internal
+} // namespace internal::mma::form
 
 // NB/Q-tile policy: mma/batch.hpp (used by form plans).
 

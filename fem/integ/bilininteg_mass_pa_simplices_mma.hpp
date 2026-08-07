@@ -11,19 +11,14 @@
 #pragma once
 
 #include "../bilininteg.hpp"
-#include "mma/mma.hpp"
-#include "mma/form/pipeline.hpp"
+#include "mma/form/form.hpp"
 
 namespace mfem
 {
 
 /// \cond DO_NOT_DOCUMENT
 
-namespace internal
-{
-namespace mma
-{
-namespace form
+namespace internal::mma::form
 {
 
 /** Mass density scale at a quadrature point: y = d * u. */
@@ -38,9 +33,7 @@ struct MassScale
 template <>
 struct qfn_traits<MassScale> : EvalEvalQFnTraits {};
 
-} // namespace form
-} // namespace mma
-} // namespace internal
+} // namespace internal::mma::form
 
 // AssembleSimplexMmaPA / RegisterSimplexMmaKernels live in the .cpp.
 

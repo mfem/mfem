@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lininteg_domain_kernels.hpp"
+#include "mma/mma.hpp"
 #include "lininteg_domain_simplices_mma.hpp"
 
 /// \cond DO_NOT_DOCUMENT

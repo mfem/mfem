@@ -27,6 +27,6 @@
     Design: docs/design/mma-declarative-kernels.md
 */
 
-#include "fields.hpp"
-#include "plan.hpp"
-#include "pipeline.hpp"
+#include "fields.hpp" // IWYU pragma: export
+#include "plan.hpp" // IWYU pragma: export
+#include "pipeline.hpp" // IWYU pragma: export

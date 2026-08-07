@@ -10,9 +10,9 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../common.hpp"
+// batch.hpp pulls common.hpp (MassLikeNB*, PadLd*, Simplex*, Launch*).
 #include "../batch.hpp"
-#include "../../../../general/device.hpp"
+// Dump path: GetEnv / mfem::out (not available via batch alone).
 #include "../../../../general/globals.hpp"
 #include <cstring>
 #include "fields.hpp"

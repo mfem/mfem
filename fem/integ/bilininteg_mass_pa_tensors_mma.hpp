@@ -21,9 +21,7 @@ namespace mfem
 namespace internal
 {
 
-namespace mma
-{
-namespace blas
+namespace mma::blas
 {
 
 // ---- Host mass apply (dense sum-fact) -------------------------------------
@@ -240,8 +238,7 @@ inline bool TryMassApplyTensors3D(const int NE,
    return true;
 }
 
-} // namespace blas
-} // namespace mma
+} // namespace mma::blas
 
 // Device tensor shell: load B once per block → per-element LoadX →
 // sum-fact contract → Q-fn → store. Host uses Try* dense sum-fact first

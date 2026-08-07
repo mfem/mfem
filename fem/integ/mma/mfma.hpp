@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "common.hpp"
+#include "common.hpp" // IWYU pragma: export
 
 // ======================================================================
 // HIP (mfma) — Gemm + SUMF

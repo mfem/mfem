@@ -10,9 +10,8 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "mma/mma.hpp"
-#include "mma/form/pipeline.hpp"
 #include "../lininteg.hpp"
+#include "mma/form/form.hpp"
 
 namespace mfem
 {
@@ -26,11 +25,7 @@ void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
                                const Vector &coeff,
                                Vector &y);
 
-namespace internal
-{
-namespace mma
-{
-namespace form
+namespace internal::mma::form
 {
 
 /** Linear-form load at a quadrature point: y = d (no trial DOFs). */
@@ -45,9 +40,7 @@ struct IdentityLoad
 template <>
 struct qfn_traits<IdentityLoad> : NoneEvalQFnTraits {};
 
-} // namespace form
-} // namespace mma
-} // namespace internal
+} // namespace internal::mma::form
 
 template<int DIM, int D1D, int QND>
 DomainLFIntegrator::AssembleSimplexMmaKernelType

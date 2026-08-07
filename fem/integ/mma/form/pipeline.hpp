@@ -10,13 +10,14 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+// Gemm / DeviceGemmEnabled / smem accessors (via common → forall → device/dtensor).
 #include "../dispatch.hpp"
+// SmemPlan, Make*Plan, DumpForm*, field types / qfn_traits.
 #include "plan.hpp"
 
+// Public Apply signatures use complete Array / Vector types.
 #include "../../../../general/array.hpp"
-#include "../../../../general/device.hpp"
 #include "../../../../linalg/vector.hpp"
-#include "../../../../linalg/dtensor.hpp"
 
 #include <type_traits>
 #ifdef MFEM_USE_LAPACK
