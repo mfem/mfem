@@ -316,7 +316,7 @@ TEST_CASE("ParNCMesh Rebalance preserves element attributes",
    CAPTURE(mesh_fname);
 
    auto CheckRebalance = [rank, nranks, mesh_fname](bool refine,
-                                                   bool custom_partition)
+                                                    bool custom_partition)
    {
       Mesh mesh(mesh_fname);
       mesh.EnsureNCMesh();
