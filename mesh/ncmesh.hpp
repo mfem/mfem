@@ -852,6 +852,8 @@ protected:
 
    // refinement/derefinement
 
+   /// Allow ParNCMesh to collect forced refinements during synchronized rounds.
+   bool allow_parallel_forced_refinements = false;
    Array<Refinement> ref_stack; ///< stack of scheduled refinements (temporary)
    HashTable<Node> shadow; ///< temporary storage for reparented nodes
    Array<Triple<int, int, int> > reparents; ///< scheduled node reparents (tmp)

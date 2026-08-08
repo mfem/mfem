@@ -13,7 +13,6 @@
 #include "mesh_test_utils.hpp"
 #include "unit_tests.hpp"
 
-#include <array>
 namespace mfem
 {
 
@@ -303,6 +302,269 @@ TEST_CASE("pNCMesh PA diagonal",  "[Parallel], [NCMesh]")
       }
    }
 } // test case
+
+static const char tangential_refinements[3][2] =
+{
+   {Refinement::Y, Refinement::Z},
+   {Refinement::X, Refinement::Z},
+   {Refinement::X, Refinement::Y}
+};
+
+static Mesh MakeHexLine(int normal, int elements)
+{
+   int size[3] = {1, 1, 1};
+   size[normal] = elements;
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  size[0], size[1], size[2], Element::HEXAHEDRON,
+                  1.0, 1.0, 1.0);
+   mesh.EnsureNCMesh();
+   return mesh;
+}
+
+static int ElementSide(Mesh &mesh, int elem, int normal)
+{
+   const IntegrationPoint &center =
+      Geometries.GetCenter(mesh.GetElementBaseGeometry(elem));
+   Vector point(3);
+   mesh.GetElementTransformation(elem)->Transform(center, point);
+   return point[normal] < 0.5 ? 0 : 1;
+}
+
+static void AppendSideRefinements(Mesh &mesh, int normal,
+                                  char lower, char upper,
+                                  Array<Refinement> &refs)
+{
+   const char ref_type[2] = {lower, upper};
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      refs.Append(Refinement(i, ref_type[ElementSide(mesh, i, normal)]));
+   }
+}
+
+static void AppendSideRefinement(Mesh &mesh, int normal, int side,
+                                 char ref_type, Array<Refinement> &refs)
+{
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (ElementSide(mesh, i, normal) == side)
+      {
+         refs.Append(Refinement(i, ref_type));
+      }
+   }
+}
+
+static void AppendOppositeFaceRefinements(Mesh &mesh, int normal,
+                                          Array<Refinement> &refs)
+{
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      const IntegrationPoint &center =
+         Geometries.GetCenter(mesh.GetElementBaseGeometry(i));
+      Vector point(3);
+      mesh.GetElementTransformation(i)->Transform(center, point);
+      const bool middle = point[normal] > 1.0/3.0 &&
+                          point[normal] < 2.0/3.0;
+      refs.Append(Refinement(
+                     i, tangential_refinements[normal][middle ? 0 : 1]));
+   }
+}
+
+static real_t MeshVolume(Mesh &mesh)
+{
+   real_t volume = 0.0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      volume += mesh.GetElementVolume(i);
+   }
+   return volume;
+}
+
+static real_t GlobalMeshVolume(ParMesh &mesh)
+{
+   const real_t local_volume = MeshVolume(mesh);
+   real_t global_volume = 0.0;
+   MPI_Allreduce(&local_volume, &global_volume, 1, MFEM_MPI_REAL_T,
+                 MPI_SUM, mesh.GetComm());
+   return global_volume;
+}
+
+static void CheckParallelMesh(Mesh &serial, ParMesh &parallel,
+                              bool rebalance = true)
+{
+   const int checks = rebalance ? 2 : 1;
+   for (int pass = 0; pass < checks; pass++)
+   {
+      CHECK(parallel.GetGlobalNE() == serial.GetNE());
+      CHECK(GlobalMeshVolume(parallel) == MFEM_Approx(MeshVolume(serial)));
+
+      H1_FECollection fec(1, 3);
+      FiniteElementSpace serial_fes(&serial, &fec);
+      ParFiniteElementSpace parallel_fes(&parallel, &fec);
+      CHECK(parallel_fes.GlobalTrueVSize() == serial_fes.GetTrueVSize());
+
+      if (pass == 0 && rebalance) { parallel.Rebalance(); }
+   }
+}
+
+static bool HasAnisotropicConflict(ParMesh &mesh,
+                                   const Array<Refinement> &refs)
+{
+   std::set<int> conflicts;
+   return mesh.AnisotropicConflict(refs, conflicts);
+}
+
+static void CheckTwoElementRefinement(int normal, char lower, char upper,
+                                      bool expect_conflict,
+                                      bool same_rank = false)
+{
+   Mesh serial = MakeHexLine(normal, 2);
+   int partition[2] = {0, same_rank ? 0 : 1};
+   ParMesh parallel(MPI_COMM_WORLD, serial, partition);
+
+   Array<Refinement> serial_refs, parallel_refs;
+   AppendSideRefinements(serial, normal, lower, upper, serial_refs);
+   AppendSideRefinements(parallel, normal, lower, upper, parallel_refs);
+   serial.GeneralRefinement(serial_refs);
+
+   CHECK(HasAnisotropicConflict(parallel, parallel_refs) == expect_conflict);
+   parallel.GeneralRefinement(parallel_refs);
+   CheckParallelMesh(serial, parallel);
+}
+
+TEST_CASE("ParNCMesh anisotropic refinement conflicts",
+          "[Parallel], [NCMesh]")
+{
+   const int nranks = Mpi::WorldSize();
+   if (nranks < 2) { return; }
+
+   SECTION("Non-conflicting control")
+   {
+      const int normal = GENERATE(0, 1, 2);
+      const char ref_type = tangential_refinements[normal][0];
+      CheckTwoElementRefinement(normal, ref_type, ref_type, false);
+   }
+
+   SECTION("Simultaneous conflict in every face orientation")
+   {
+      const int normal = GENERATE(0, 1, 2);
+      CheckTwoElementRefinement(
+         normal, tangential_refinements[normal][0],
+         tangential_refinements[normal][1], true);
+   }
+
+   SECTION("Isotropic refinement opposite an anisotropic split is compatible")
+   {
+      const int normal = GENERATE(0, 1, 2);
+      CheckTwoElementRefinement(
+         normal, tangential_refinements[normal][0], Refinement::XYZ,
+         false);
+   }
+
+   SECTION("Conflict with an existing anisotropic interface")
+   {
+      const int normal = GENERATE(0, 1, 2);
+      Mesh serial = MakeHexLine(normal, 2);
+      int partition[2] = {0, 1};
+      ParMesh parallel(MPI_COMM_WORLD, serial, partition);
+
+      Array<Refinement> refs;
+      AppendSideRefinement(serial, normal, 0,
+                           tangential_refinements[normal][0], refs);
+      serial.GeneralRefinement(refs);
+
+      refs.SetSize(0);
+      AppendSideRefinement(parallel, normal, 0,
+                           tangential_refinements[normal][0], refs);
+      parallel.GeneralRefinement(refs);
+
+      refs.SetSize(0);
+      AppendSideRefinement(serial, normal, 1,
+                           tangential_refinements[normal][1], refs);
+      REQUIRE(refs.Size() == 1);
+      serial.GeneralRefinement(refs);
+
+      refs.SetSize(0);
+      AppendSideRefinement(parallel, normal, 1,
+                           tangential_refinements[normal][1], refs);
+
+      // Exercise refinement without requiring a conflict preflight.
+      parallel.GeneralRefinement(refs);
+
+      CheckParallelMesh(serial, parallel);
+   }
+
+   SECTION("Conflict between elements owned by one rank")
+   {
+      const int normal = GENERATE(0, 1, 2);
+      CheckTwoElementRefinement(
+         normal, tangential_refinements[normal][0],
+         tangential_refinements[normal][1], true, true);
+   }
+
+   SECTION("Forced refinement from opposite faces")
+   {
+      const int normal = GENERATE(0, 1, 2);
+      Mesh serial = MakeHexLine(normal, 3);
+      int partition[3] = {0, 1, 0};
+      ParMesh parallel(MPI_COMM_WORLD, serial, partition);
+
+      Array<Refinement> serial_refs, parallel_refs;
+      AppendOppositeFaceRefinements(serial, normal, serial_refs);
+      AppendOppositeFaceRefinements(parallel, normal, parallel_refs);
+      serial.GeneralRefinement(serial_refs);
+
+      CHECK(HasAnisotropicConflict(parallel, parallel_refs));
+      parallel.GeneralRefinement(parallel_refs);
+
+      CheckParallelMesh(serial, parallel);
+   }
+
+   SECTION("Conflicts propagated through multiple refinement generations")
+   {
+      Mesh serial = Mesh::MakeCartesian3D(
+                       2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      serial.EnsureNCMesh();
+
+      Array<int> partition_a(serial.GetNE()), partition_b(serial.GetNE());
+      for (int i = 0; i < serial.GetNE(); i++)
+      {
+         partition_a[i] = i % nranks;
+         partition_b[i] = i*nranks/serial.GetNE();
+      }
+      ParMesh parallel_a(MPI_COMM_WORLD, serial, partition_a);
+      ParMesh parallel_b(MPI_COMM_WORLD, serial, partition_b);
+
+      for (int normal = 0; normal < 3; normal++)
+      {
+         Array<Refinement> serial_refs, parallel_a_refs, parallel_b_refs;
+         const char lower = tangential_refinements[normal][0];
+         const char upper = tangential_refinements[normal][1];
+         AppendSideRefinements(serial, normal, lower, upper, serial_refs);
+         AppendSideRefinements(parallel_a, normal, lower, upper,
+                               parallel_a_refs);
+         AppendSideRefinements(parallel_b, normal, lower, upper,
+                               parallel_b_refs);
+
+         serial.GeneralRefinement(serial_refs);
+
+         CHECK(HasAnisotropicConflict(parallel_a, parallel_a_refs));
+         parallel_a.GeneralRefinement(parallel_a_refs);
+         CHECK(HasAnisotropicConflict(parallel_b, parallel_b_refs));
+         parallel_b.GeneralRefinement(parallel_b_refs);
+
+         const real_t serial_volume = MeshVolume(serial);
+         CHECK(parallel_a.GetGlobalNE() == serial.GetNE());
+         CHECK(parallel_b.GetGlobalNE() == parallel_a.GetGlobalNE());
+         CHECK(GlobalMeshVolume(parallel_a) == MFEM_Approx(serial_volume));
+         CHECK(GlobalMeshVolume(parallel_b) == MFEM_Approx(serial_volume));
+
+         H1_FECollection fec(1, 3);
+         ParFiniteElementSpace fes_a(&parallel_a, &fec);
+         ParFiniteElementSpace fes_b(&parallel_b, &fec);
+         CHECK(fes_a.GlobalTrueVSize() == fes_b.GlobalTrueVSize());
+      }
+   }
+}
 
 TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
 {
