@@ -73,20 +73,25 @@ dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, 
   real_t lambda_max = lambda[n - 1];
   real_t sum = 0;
   tensor<real_t, n> eg;
+  tensor<real_t, n> lambda_shifted;
   for (int i = 0; i < n; i++) {
-    eg[i] = std::exp(beta*(lambda[i] - lambda_max));
+    lambda_shifted[i] = lambda[i] - lambda_max;
+    eg[i] = std::exp(beta*lambda_shifted[i]);
     if (i != n - 1) sum += eg[i];
   }
   real_t value = lambda_max + std::log1p(sum)/beta;
 
+  real_t Z = sum + 1.0;
   real_t derivative{};
   for (int mu = 0; mu < n; mu++) {
+    real_t w_mu = eg[mu]/Z;
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < n; j++) {
-        derivative += V[i][mu]*eg[mu]*V[j][mu]*A_dot[i][j]/(sum + 1.0);
+        derivative += w_mu*V[i][mu]*V[j][mu]*A_dot[i][j];
       }
     }
   }
+  derivative += (lambda_max - value + dot(eg, lambda_shifted)/Z)/beta * beta_dot;
   return {value, derivative};
 }
 

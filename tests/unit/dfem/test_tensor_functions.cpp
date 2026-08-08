@@ -62,12 +62,12 @@ template<int n>
 void CheckJacobian(const tensor<real_t, n, n>& A)
 {
    constexpr real_t beta = 2.0;
-   double a = smooth_max_eigenvalue_symm(A, beta);
+   real_t a = smooth_max_eigenvalue_symm(A, beta);
 
    // Wrapper function, since Enzyme cannot be directly applied to a function
    // with a custom derivative rule.
-   auto f = [](const tensor<real_t, n, n>& A) -> real_t {
-      return smooth_max_eigenvalue_symm<n>(A, beta);
+   auto f = [](const tensor<real_t, n, n>& A, real_t b) -> real_t {
+      return smooth_max_eigenvalue_symm<n>(A, b);
    };
 
    tensor<real_t, n, n> da_dA;
@@ -79,14 +79,16 @@ void CheckJacobian(const tensor<real_t, n, n>& A)
        for (int j = 0; j < n; j++) {
          tensor<real_t, n, n> A_dot{};
          A_dot[i][j] = 1.0;
-         da_dA[i][j] = __enzyme_fwddiff<double>(reinterpret_cast<void*>(+f), enzyme_dup, &A[0][0], &A_dot[0][0]);
+         da_dA[i][j] = __enzyme_fwddiff<real_t>(reinterpret_cast<void*>(+f),
+                                                enzyme_dup, &A[0][0], &A_dot[0][0],
+                                                enzyme_dup, beta, 0.0);
 
          A_p = A;
          // Finite difference perturbations need to be symmetric, since we actually
          // modify the argument to the function (which is required to be symmetric)
          A_p[i][j] += 0.5*h;
          A_p[j][i] += 0.5*h;
-         double a_p = smooth_max_eigenvalue_symm(A_p, beta);
+         real_t a_p = smooth_max_eigenvalue_symm(A_p, beta);
          da_dA_h[i][j] = (a_p - a)/h;
     }
   }
@@ -94,6 +96,14 @@ void CheckJacobian(const tensor<real_t, n, n>& A)
   INFO("da_dA_h" << da_dA_h);
   auto error = da_dA - da_dA_h;
   CHECK(norm(error) < 10*h);
+
+  tensor<real_t, n, n> A_dot{};
+  real_t da_dbeta = __enzyme_fwddiff<real_t>(reinterpret_cast<void*>(+f),
+                                             enzyme_dup, &A[0][0], &A_dot[0][0],
+                                             enzyme_dup, beta, 1.0);
+  real_t da_dbeta_h = (smooth_max_eigenvalue_symm(A, beta + h) - a)/h;
+  INFO("da_dbeta = " << da_dbeta);
+  CHECK(fabs(da_dbeta - da_dbeta_h) < 10*h);
 }
 
 TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on distinct eigenvalues 3x3", "[Tensor]")
