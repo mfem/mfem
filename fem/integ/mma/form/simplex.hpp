@@ -58,7 +58,7 @@ MFEM_HOST_DEVICE inline void ApplyEvalQFnSmem(
       if (e >= NE) { continue; }
       eval_t u(Us[q + u_ld * b]);
       eval_t y;
-      qfn(u, y, D(q, e));
+      InvokeQFn(qfn, u, y, D(q, e));
       Us[q + u_ld * b] = real_t(y);
    }
 }
@@ -79,7 +79,7 @@ MFEM_HOST_DEVICE inline void EvalApplyDenseElement(
          s += P[q + nq * i] * X_e[i];
       }
       eval_t u(s), y;
-      qfn(u, y, D_e[q]);
+      InvokeQFn(qfn, u, y, D_e[q]);
       u_scratch[q] = real_t(y);
    }
    for (int i = 0; i < ndof; ++i)
@@ -370,7 +370,7 @@ MFEM_HOST_DEVICE inline void ApplyNoneQFnSmem(
       const int e = e0 + b;
       if (e >= NE) { continue; }
       eval_t y;
-      qfn(y, D(q, e));
+      InvokeQFn(qfn, y, D(q, e));
       Us[q + u_ld * b] = real_t(y);
    }
 }
@@ -400,7 +400,7 @@ inline void HostLFApply(QFn qfn, const int NE, const int nq, const int ndof,
             for (int q = 0; q < nq; ++q)
             {
                eval_t ye;
-               qfn(ye, D[q + nq * e]);
+               InvokeQFn(qfn, ye, D[q + nq * e]);
                uloc[static_cast<size_t>(q) + static_cast<size_t>(nq) * b] =
                   real_t(ye);
             }
@@ -430,7 +430,7 @@ inline void HostLFApply(QFn qfn, const int NE, const int nq, const int ndof,
          for (int q = 0; q < nq; ++q)
          {
             eval_t ye;
-            qfn(ye, D[q + nq * e]);
+            InvokeQFn(qfn, ye, D[q + nq * e]);
             yi += P[q + nq * i] * real_t(ye);
          }
          Y[i + ndof * (vc + vdim * e)] += yi;
@@ -467,7 +467,7 @@ MFEM_HOST_DEVICE inline void LFBatchBody(
          for (int q = 0; q < QND; ++q)
          {
             eval_t ye;
-            qfn(ye, D(q, e));
+            InvokeQFn(qfn, ye, D(q, e));
             Us[q + U_LD * b] = real_t(ye);
          }
          for (int i = 0; i < NDOF; ++i)
@@ -514,7 +514,7 @@ MFEM_HOST_DEVICE inline void LFBatchBodyRuntime(
          for (int q = 0; q < nq; ++q)
          {
             eval_t ye;
-            qfn(ye, D(q, e));
+            InvokeQFn(qfn, ye, D(q, e));
             Us[q + u_ld * b] = real_t(ye);
          }
          for (int i = 0; i < ndof; ++i)
@@ -736,7 +736,7 @@ MFEM_HOST_DEVICE inline void ApplyGradQFnSmem(
       }
       tensor<real_t, DIM, DIM> A{};
       LoadMetricTensor<DIM, SYM>(A, D, q_g, e);
-      qfn(u, y, A);
+      InvokeQFn(qfn, u, y, A);
       for (int c = 0; c < DIM; ++c)
       {
          UV[c * u_ld * nb + q_loc + u_ld * b] = y[c];
@@ -787,7 +787,7 @@ MFEM_HOST_DEVICE inline void GradApplyDenseElement(
       D1 Dacc{Dv_e, nq, PA_SIZE};
       tensor<real_t, DIM, DIM> A{};
       LoadMetricTensor<DIM, SYM>(A, Dacc, q, 0);
-      qfn(u, y, A);
+      InvokeQFn(qfn, u, y, A);
       for (int d = 0; d < DIM; ++d) { u_scratch[d * nq + q] = y[d]; }
    }
    // Y += G^T U

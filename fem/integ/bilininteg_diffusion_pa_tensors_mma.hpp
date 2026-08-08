@@ -39,15 +39,16 @@ inline void MmaDiffusionApplyTensors(
 {
    using mma::form::ApplyTensor;
    using mma::form::DiffusionMetric;
+   // Runtime flag only selects QFn type; SYM is encoded in DiffusionMetric.
    if (symmetric)
    {
       ApplyTensor<DiffusionMetric<DIM, true>, DIM, T_D1D, T_Q1D>(
-         NE, true, b, g, bt, gt, d, x, y, d1d, q1d);
+         NE, b, g, bt, gt, d, x, y, d1d, q1d);
    }
    else
    {
       ApplyTensor<DiffusionMetric<DIM, false>, DIM, T_D1D, T_Q1D>(
-         NE, false, b, g, bt, gt, d, x, y, d1d, q1d);
+         NE, b, g, bt, gt, d, x, y, d1d, q1d);
    }
 }
 

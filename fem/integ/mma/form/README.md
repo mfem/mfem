@@ -56,13 +56,13 @@ struct DiffusionMetric {
   void operator()(const grad_t<DIM> &u, grad_t<DIM> &y,
                   const tensor<real_t, DIM, DIM> &A) const { y = A * u; }
 };
-// Kernel → ApplyDiffusionDispatch<DIM, D1D, QND>(…, symmetric, …)
+// Kernel → ApplyDiffusionDispatch<DIM, D1D, QND>(…)
 
 // Tensor mass — bilininteg_mass_pa_tensors_mma.hpp
 // Kernel → ApplyTensor<MassScale, DIM, D1D, Q1D>(…)
 
 // Tensor diffusion — bilininteg_diffusion_pa_tensors_mma.hpp
-// Kernel → ApplyTensor<DiffusionMetric<DIM,SYM>, …>(…, symmetric, …)
+// Kernel → ApplyTensor<DiffusionMetric<DIM,SYM>, …>(…)
 ```
 
 ---
@@ -96,6 +96,13 @@ Trait helpers in `fields.hpp`:
 | `EvalEvalQFnTraits` | Eval × Eval |
 | `NoneEvalQFnTraits` | None × Eval |
 | `GradGradQFnTraits<DIM,SYM>` | Grad × Grad |
+
+**Invocation:** engines call `InvokeQFn(qfn, …)` so arity follows traits
+(`has_trial` → trial+test+coeff vs test+coeff). Call sites do not hard-code
+`operator()` shape. Grad metric pack and PA layout use `spatial_dim` /
+`symmetric_pa` from traits — `ApplyTensor` Grad has no runtime `symmetric`
+argument. Integrator registration may still branch on a runtime flag only to
+select the QFn type (e.g. `DiffusionMetric<DIM,true>` vs `…false>`).
 
 ---
 

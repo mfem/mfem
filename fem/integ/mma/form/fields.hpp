@@ -202,6 +202,46 @@ struct GradGradQFnTraits
    }
 };
 
+// ---- QFn invoke (arity from traits; no hard-coded operator() shape at call sites) --
+
+/** Bilinear: qfn(const trial&, test&, coeff). */
+template <typename QFn, typename Trial, typename Test, typename Coeff>
+MFEM_HOST_DEVICE inline
+std::enable_if_t<qfn_traits<QFn>::has_trial, void>
+InvokeQFn(QFn qfn, const Trial &u, Test &y, const Coeff &c)
+{
+   qfn(u, y, c);
+}
+
+/** Linear form: qfn(test&, coeff) — no trial. */
+template <typename QFn, typename Test, typename Coeff>
+MFEM_HOST_DEVICE inline
+std::enable_if_t<!qfn_traits<QFn>::has_trial, void>
+InvokeQFn(QFn qfn, Test &y, const Coeff &c)
+{
+   qfn(y, c);
+}
+
+/** Eval field in place on a scalar (trial×test or test-only via traits). */
+template <typename QFn>
+MFEM_HOST_DEVICE inline void ApplyEvalQFn(real_t &u, real_t d)
+{
+   using Tr = qfn_traits<QFn>;
+   static_assert(!Tr::trial_is_grad, "ApplyEvalQFn expects Eval (or None) trial");
+   if constexpr (Tr::has_trial)
+   {
+      eval_t trial(u), test;
+      InvokeQFn(QFn{}, trial, test, d);
+      u = real_t(test);
+   }
+   else
+   {
+      eval_t test;
+      InvokeQFn(QFn{}, test, d);
+      u = real_t(test);
+   }
+}
+
 
 } // namespace mfem::internal::mma::form
 

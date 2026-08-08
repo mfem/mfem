@@ -17,7 +17,7 @@
       - PackPaMetric, ApplyGradQFnVec/Smem
       - Eval×Eval sum-fact host + device (TensorEvalApply)
       - Grad×Grad sum-fact host + device (TensorGradApply)
-      - form::ApplyTensor<QFn, …> entry (SFINAE on qfn_traits)
+      - form::ApplyTensor<QFn, …> entry (SFINAE on qfn_traits; Grad SYM from traits)
 
     Physics QFns live under fem/integ/ only.
 */
@@ -84,25 +84,33 @@ MFEM_HOST_DEVICE inline void PackPaMetric(tensor<real_t, DIM, DIM> &A,
    }
 }
 
-/** Apply Grad×Grad QFn at one qp: g[] in/out, O packed PA. */
-template <int DIM, bool SYM, typename QFn>
+/** Apply Grad×Grad QFn at one qp: g[] in/out, O packed PA.
+    DIM / SYM come from qfn_traits<QFn> (not extra template args). */
+template <typename QFn>
 MFEM_HOST_DEVICE inline void ApplyGradQFnVec(QFn qfn, real_t *g, const real_t *O)
 {
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::trial_is_grad && Tr::has_trial, "ApplyGradQFnVec needs Grad×Grad QFn");
+   constexpr int DIM = Tr::spatial_dim;
+   constexpr bool SYM = Tr::symmetric_pa;
    grad_t<DIM> u, y;
    for (int c = 0; c < DIM; ++c) { u[c] = g[c]; }
    tensor<real_t, DIM, DIM> A{};
    PackPaMetric<DIM, SYM>(A, O);
-   qfn(u, y, A);
+   InvokeQFn(qfn, u, y, A);
    for (int c = 0; c < DIM; ++c) { g[c] = y[c]; }
 }
 
 /** Device smem: planes g_in/g_out[c * plane_ld + q], D(q,c,e). */
-template <int DIM, bool SYM, typename QFn, typename TD>
+template <typename QFn, typename TD>
 MFEM_HOST_DEVICE inline
 void ApplyGradQFnSmem(QFn qfn, real_t *g_in, real_t *g_out, const int plane_ld,
                       TD D, const int e, const int Q1D,
                       const int tid, const int stride)
 {
+   using Tr = qfn_traits<QFn>;
+   constexpr int DIM = Tr::spatial_dim;
+   constexpr bool SYM = Tr::symmetric_pa;
    constexpr int PA = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
    const int nq = (DIM == 2) ? Q1D * Q1D : Q1D * Q1D * Q1D;
    for (int q = tid; q < nq; q += stride)
@@ -111,23 +119,12 @@ void ApplyGradQFnSmem(QFn qfn, real_t *g_in, real_t *g_out, const int plane_ld,
       for (int c = 0; c < DIM; ++c) { g[c] = g_in[c * plane_ld + q]; }
       real_t O[PA];
       for (int c = 0; c < PA; ++c) { O[c] = D(q, c, e); }
-      ApplyGradQFnVec<DIM, SYM>(qfn, g, O);
+      ApplyGradQFnVec(qfn, g, O);
       for (int c = 0; c < DIM; ++c) { g_out[c * plane_ld + q] = g[c]; }
    }
 }
 
-// ---------------------------------------------------------------------------
-// Eval×Eval QFn at one Q-point
-// ---------------------------------------------------------------------------
-
-/** Apply Eval×Eval QFn at one Q-point. */
-template <typename QFn>
-MFEM_HOST_DEVICE inline void ApplyEvalQFn(real_t &u, real_t d)
-{
-   eval_t y;
-   QFn{}(eval_t(u), y, d);
-   u = real_t(y);
-}
+// ApplyEvalQFn is in fields.hpp (trait-driven arity).
 
 } // namespace mfem::internal::mma::form
 
@@ -331,32 +328,28 @@ inline void TensorEvalHost3D(const int NE, const real_t *B,
    }
 }
 
-/** PreferTensorDense → hand sum-fact. */
-template <typename QFn, int D1D, int Q1D>
-inline bool TryTensorEvalHost2D(const int NE,
-                                  const Array<real_t> &b,
-                                  const Vector &d,
-                                  const Vector &x,
-                                  Vector &y)
+/** PreferTensorDense → hand sum-fact (2D/3D). */
+template <typename QFn, int DIM, int D1D, int Q1D>
+inline bool TryTensorEvalHost(const int NE,
+                              const Array<real_t> &b,
+                              const Vector &d,
+                              const Vector &x,
+                              Vector &y)
 {
    if (!mma::PreferTensorDense(D1D, NE)) { return false; }
-   TensorEvalHost2D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
-                                x.Read(), y.ReadWrite());
+   if constexpr (DIM == 3)
+   {
+      TensorEvalHost3D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
+                                       x.Read(), y.ReadWrite());
+   }
+   else
+   {
+      TensorEvalHost2D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
+                                       x.Read(), y.ReadWrite());
+   }
    return true;
 }
 
-template <typename QFn, int D1D, int Q1D>
-inline bool TryTensorEvalHost3D(const int NE,
-                                  const Array<real_t> &b,
-                                  const Vector &d,
-                                  const Vector &x,
-                                  Vector &y)
-{
-   if (!mma::PreferTensorDense(D1D, NE)) { return false; }
-   TensorEvalHost3D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
-                                x.Read(), y.ReadWrite());
-   return true;
-}
 
 } // namespace mma::blas
 
@@ -417,7 +410,7 @@ inline void TensorEvalApply3D(const int NE,
          MFEM_SYNC_THREAD;
          mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
          MFEM_SYNC_THREAD;
-         // InterpZ, then shared QFn QFn (unfused; matches host algebra).
+         // InterpZ, then QFn (unfused; matches host algebra).
          mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
          MFEM_SYNC_THREAD;
          {
@@ -526,16 +519,8 @@ inline void TensorEvalApply(
 {
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      if constexpr (DIM == 3)
-      {
-         if (mma::blas::TryTensorEvalHost3D<QFn, T_D1D, T_Q1D>(NE, b, d, x, y))
-         { return; }
-      }
-      else
-      {
-         if (mma::blas::TryTensorEvalHost2D<QFn, T_D1D, T_Q1D>(NE, b, d, x, y))
-         { return; }
-      }
+      if (mma::blas::TryTensorEvalHost<QFn, DIM, T_D1D, T_Q1D>(NE, b, d, x, y))
+      { return; }
    }
    if constexpr (DIM == 3)
    {
@@ -635,7 +620,7 @@ inline void TensorGradHost2DTile(
             {
                O[c] = Dv[idx + Q1D * Q1D * (c + PA_SIZE * e)];
             }
-            mma::form::ApplyGradQFnVec<2, SYM>(QFn{}, gv, O);
+            mma::form::ApplyGradQFnVec(QFn{}, gv, O);
             ws.gX[qy + Q1D * (qx + Q1D * b)] = gv[0];
             ws.gY[qy + Q1D * (qx + Q1D * b)] = gv[1];
          }
@@ -700,27 +685,21 @@ inline void TensorGradHost2D(
 
 template <typename QFn, int D1D, int Q1D>
 inline bool TryTensorGradHost2D(
-   const int NE, const bool symmetric,
+   const int NE,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y)
 {
+   using Tr = mma::form::qfn_traits<QFn>;
+   constexpr bool SYM = Tr::symmetric_pa;
    if (!mma::PreferTensorDense(D1D, NE)) { return false; }
    const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
-   if (symmetric)
-   {
-      TensorGradHost2D<QFn, D1D, Q1D, true>(
-         NE, B, G, Bt, Gt, Dv, X, Y);
-   }
-   else
-   {
-      TensorGradHost2D<QFn, D1D, Q1D, false>(
-         NE, B, G, Bt, Gt, Dv, X, Y);
-   }
+   TensorGradHost2D<QFn, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
    return true;
 }
+
 
 /** Named slices for 3D multi-RHS tiles (same story as Diff2DWs). */
 template <int D1D, int Q1D>
@@ -840,7 +819,7 @@ inline void TensorGradHost3DTile(
                {
                   O[c] = Dv[q + QQQ * (c + PA_SIZE * (e0 + b))];
                }
-               mma::form::ApplyGradQFnVec<3, SYM>(QFn{}, gv, O);
+               mma::form::ApplyGradQFnVec(QFn{}, gv, O);
                ws.gX[idx] = gv[0];
                ws.gY[idx] = gv[1];
                ws.gZ[idx] = gv[2];
@@ -908,27 +887,21 @@ inline void TensorGradHost3D(
 
 template <typename QFn, int D1D, int Q1D>
 inline bool TryTensorGradHost3D(
-   const int NE, const bool symmetric,
+   const int NE,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y)
 {
+   using Tr = mma::form::qfn_traits<QFn>;
+   constexpr bool SYM = Tr::symmetric_pa;
    if (!mma::PreferTensorDense(D1D, NE)) { return false; }
    const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
-   if (symmetric)
-   {
-      TensorGradHost3D<QFn, D1D, Q1D, true>(
-         NE, B, G, Bt, Gt, Dv, X, Y);
-   }
-   else
-   {
-      TensorGradHost3D<QFn, D1D, Q1D, false>(
-         NE, B, G, Bt, Gt, Dv, X, Y);
-   }
+   TensorGradHost3D<QFn, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
    return true;
 }
+
 
 #endif // MFEM_USE_LAPACK
 
@@ -960,7 +933,7 @@ void TensorGradElement3D(const int D1D, const int Q1D, const int e,
    mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
    MFEM_SYNC_THREAD;
 
-   mma::form::ApplyGradQFnSmem<3, SYM>(QFn{}, 
+   mma::form::ApplyGradQFnSmem(QFn{}, 
       sm1[0], sm0[0], plane_ld, D, e, Q1D,
       mma::getThreadIdxX(), mma::getBlockNthreadsX());
    MFEM_SYNC_THREAD;
@@ -993,7 +966,7 @@ void TensorGradElement2D(const int D1D, const int Q1D, const int e,
    mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
    MFEM_SYNC_THREAD;
 
-   mma::form::ApplyGradQFnSmem<2, SYM>(QFn{}, 
+   mma::form::ApplyGradQFnSmem(QFn{}, 
       sm0[0], sm1[0], plane_ld, D, e, Q1D,
       mma::getThreadIdxX(), mma::getBlockNthreadsX());
    MFEM_SYNC_THREAD;
@@ -1060,7 +1033,7 @@ inline void TensorGradApply3D(const int NE,
 
 template <typename QFn, int T_D1D = 0, int T_Q1D = 0>
 inline void TensorGradApply3D_Dispatch(
-   const int NE, const bool symmetric,
+   const int NE,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y,
@@ -1068,16 +1041,9 @@ inline void TensorGradApply3D_Dispatch(
 {
    MFEM_CONTRACT_VAR(bt);
    MFEM_CONTRACT_VAR(gt);
-   if (symmetric)
-   {
-      TensorGradApply3D<QFn, T_D1D, T_Q1D, true>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
-   else
-   {
-      TensorGradApply3D<QFn, T_D1D, T_Q1D, false>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
+   constexpr bool SYM = mma::form::qfn_traits<QFn>::symmetric_pa;
+   TensorGradApply3D<QFn, T_D1D, T_Q1D, SYM>(
+      NE, b, g, d, x, y, d1d, q1d);
 }
 
 template <typename QFn, int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
@@ -1133,7 +1099,7 @@ inline void TensorGradApply2D(const int NE,
 
 template <typename QFn, int T_D1D = 0, int T_Q1D = 0>
 inline void TensorGradApply2D_Dispatch(
-   const int NE, const bool symmetric,
+   const int NE,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y,
@@ -1141,22 +1107,16 @@ inline void TensorGradApply2D_Dispatch(
 {
    MFEM_CONTRACT_VAR(bt);
    MFEM_CONTRACT_VAR(gt);
-   if (symmetric)
-   {
-      TensorGradApply2D<QFn, T_D1D, T_Q1D, true>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
-   else
-   {
-      TensorGradApply2D<QFn, T_D1D, T_Q1D, false>(
-         NE, b, g, d, x, y, d1d, q1d);
-   }
+   constexpr bool SYM = mma::form::qfn_traits<QFn>::symmetric_pa;
+   TensorGradApply2D<QFn, T_D1D, T_Q1D, SYM>(
+      NE, b, g, d, x, y, d1d, q1d);
 }
 
-/** Entry: host lapack multi-RHS sum-fact when available, else device/Emulate. */
+/** Entry: host lapack multi-RHS sum-fact when available, else device/Emulate.
+    SYM comes from qfn_traits<QFn>::symmetric_pa. */
 template <typename QFn, int DIM, int T_D1D, int T_Q1D>
 inline void TensorGradApply(
-   const int NE, const bool symmetric,
+   const int NE,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y,
@@ -1168,13 +1128,13 @@ inline void TensorGradApply(
       if constexpr (DIM == 3)
       {
          if (mma::lapack::TryTensorGradHost3D<QFn, T_D1D, T_Q1D>(
-                NE, symmetric, b, g, bt, gt, d, x, y))
+                NE, b, g, bt, gt, d, x, y))
          { return; }
       }
       else
       {
          if (mma::lapack::TryTensorGradHost2D<QFn, T_D1D, T_Q1D>(
-                NE, symmetric, b, g, bt, gt, d, x, y))
+                NE, b, g, bt, gt, d, x, y))
          { return; }
       }
    }
@@ -1182,12 +1142,12 @@ inline void TensorGradApply(
    if constexpr (DIM == 3)
    {
       TensorGradApply3D_Dispatch<QFn, T_D1D, T_Q1D>(
-         NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
+         NE, b, g, bt, gt, d, x, y, d1d, q1d);
    }
    else
    {
       TensorGradApply2D_Dispatch<QFn, T_D1D, T_Q1D>(
-         NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
+         NE, b, g, bt, gt, d, x, y, d1d, q1d);
    }
 }
 
@@ -1220,14 +1180,13 @@ ApplyTensor(const int NE,
 }
 
 // ---------------------------------------------------------------------------
-// Grad×Grad — B/G bases + runtime symmetric PA layout (diffusion-like)
+// Grad×Grad — B/G bases; SYM from qfn_traits<QFn>::symmetric_pa
 // ---------------------------------------------------------------------------
 
-/** Tensor Grad apply. `symmetric` selects packed PA layout at runtime. */
+/** Tensor Grad apply. Packed PA layout from QFn traits (no runtime symmetric). */
 template <typename QFn, int DIM, int D1D = 0, int Q1D = 0>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplyTensor(const int NE,
-            const bool symmetric,
             const Array<real_t> &b,
             const Array<real_t> &g,
             const Array<real_t> &bt,
@@ -1239,7 +1198,7 @@ ApplyTensor(const int NE,
             const int q1d = 0)
 {
    TensorGradApply<QFn, DIM, D1D, Q1D>(
-      NE, symmetric, b, g, bt, gt, d, x, y, d1d, q1d);
+      NE, b, g, bt, gt, d, x, y, d1d, q1d);
 }
 
 } // namespace mfem::internal::mma::form
