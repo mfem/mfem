@@ -148,7 +148,7 @@ void VectorDiffusionIntegrator::AssembleSimplexMmaPA(
    const int p = el.GetOrder();
 
    const IntegrationRule &ir = IntRule ? *IntRule
-                             : DiffusionIntegrator::GetRule(el, el);
+                               : DiffusionIntegrator::GetRule(el, el);
    nq = ir.GetNPoints();
    const int dof = el.GetDof();
 

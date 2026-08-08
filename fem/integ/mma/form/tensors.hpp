@@ -88,10 +88,12 @@ MFEM_HOST_DEVICE inline void PackPaMetric(tensor<real_t, DIM, DIM> &A,
 /** Apply Grad×Grad QFn at one qp: g[] in/out, O packed PA.
     DIM / SYM come from qfn_traits<QFn> (not extra template args). */
 template <typename QFn>
-MFEM_HOST_DEVICE inline void ApplyGradQFnVec(QFn qfn, real_t *g, const real_t *O)
+MFEM_HOST_DEVICE inline void ApplyGradQFnVec(QFn qfn, real_t *g,
+                                             const real_t *O)
 {
    using Tr = qfn_traits<QFn>;
-   static_assert(Tr::trial_is_grad && Tr::has_trial, "ApplyGradQFnVec needs Grad×Grad QFn");
+   static_assert(Tr::trial_is_grad &&
+                 Tr::has_trial, "ApplyGradQFnVec needs Grad×Grad QFn");
    constexpr int DIM = Tr::spatial_dim;
    constexpr bool SYM = Tr::symmetric_pa;
    grad_t<DIM> u, y;
@@ -145,8 +147,8 @@ namespace mma::blas
 /** Dense sum-fact host mass 2D (serial over elements in outer tiles). */
 template <typename QFn, int D1D, int Q1D>
 inline void TensorEvalHost2D(const int NE, const real_t *B,
-                               const real_t *Dv, const real_t *X,
-                               real_t *Y)
+                             const real_t *Dv, const real_t *X,
+                             real_t *Y)
 {
    auto apply_e = [&](int e)
    {
@@ -181,7 +183,7 @@ inline void TensorEvalHost2D(const int NE, const real_t *B,
          for (int qx = 0; qx < Q1D; ++qx)
          {
             mma::form::ApplyEvalQFn<QFn>(sol_xy[qy][qx],
-                                Dv[qx + Q1D * (qy + Q1D * e)]);
+                                         Dv[qx + Q1D * (qy + Q1D * e)]);
          }
       }
       for (int qy = 0; qy < Q1D; ++qy)
@@ -219,8 +221,8 @@ inline void TensorEvalHost2D(const int NE, const real_t *B,
 /** Dense sum-fact host mass 3D (serial over elements in outer tiles). */
 template <typename QFn, int D1D, int Q1D>
 inline void TensorEvalHost3D(const int NE, const real_t *B,
-                               const real_t *Dv, const real_t *X,
-                               real_t *Y)
+                             const real_t *Dv, const real_t *X,
+                             real_t *Y)
 {
    auto apply_e = [&](int e)
    {
@@ -348,12 +350,12 @@ inline bool TryTensorEvalHost(const int NE,
       if constexpr (DIM == 3)
       {
          TensorEvalHost3D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
-                                          x.Read(), y.ReadWrite());
+                                         x.Read(), y.ReadWrite());
       }
       else
       {
          TensorEvalHost2D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
-                                          x.Read(), y.ReadWrite());
+                                         x.Read(), y.ReadWrite());
       }
       return true;
    }
@@ -947,7 +949,7 @@ inline void TensorEvalApplyDevice(const int NE,
       const int nthreads = mma::TensorShellNthreads(
                               T_D1D
                               ? mma::TensorThreads3D<T_D1D, T_Q1D,
-                                                    mma::kTensorCostLight>()
+                              mma::kTensorCostLight>()
                               : mma::TensorThreads3DRuntime(D1D, Q1D,
                                                             mma::kTensorCostLight));
 
@@ -1373,7 +1375,7 @@ inline bool TryTensorGradHost(
       constexpr bool SYM = Tr::symmetric_pa;
       if (!mma::PreferTensorDense(D1D, NE)) { return false; }
       const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(),
-                   *Gt = gt.Read();
+                    *Gt = gt.Read();
       const real_t *Dv = d.Read(), *X = x.Read();
       real_t *Y = y.ReadWrite();
       TensorGradHost<QFn, DIM, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
@@ -1395,11 +1397,11 @@ inline bool TryTensorGradHost(
 template <typename QFn, int MD1, int MQ1, bool SYM, typename TD, typename TX, typename TY>
 MFEM_HOST_DEVICE inline
 void TensorGradElement3D(const int D1D, const int Q1D, const int e,
-                              real_t (&BG)[2][MQ1 * MD1],
-                              real_t (&BGt)[2][MQ1 * MD1],
-                              real_t (&sm0)[3][MQ1 * MQ1 * MQ1],
-                              real_t (&sm1)[3][MQ1 * MQ1 * MQ1],
-                              TD D, TX X, TY Y)
+                         real_t (&BG)[2][MQ1 * MD1],
+                         real_t (&BGt)[2][MQ1 * MD1],
+                         real_t (&sm0)[3][MQ1 * MQ1 * MQ1],
+                         real_t (&sm1)[3][MQ1 * MQ1 * MQ1],
+                         TD D, TX X, TY Y)
 {
    constexpr int plane_ld = MQ1 * MQ1 * MQ1;
    mma::LoadX<MQ1>(e, D1D, X, sm0);
@@ -1412,9 +1414,9 @@ void TensorGradElement3D(const int D1D, const int Q1D, const int e,
    mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
    MFEM_SYNC_THREAD;
 
-   mma::form::ApplyGradQFnSmem(QFn{}, 
-      sm1[0], sm0[0], plane_ld, D, e, Q1D,
-      mma::getThreadIdxX(), mma::getBlockNthreadsX());
+   mma::form::ApplyGradQFnSmem(QFn{},
+                               sm1[0], sm0[0], plane_ld, D, e, Q1D,
+                               mma::getThreadIdxX(), mma::getBlockNthreadsX());
    MFEM_SYNC_THREAD;
 
    mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
@@ -1430,11 +1432,11 @@ template <typename QFn, int MD1, int MQ1, int MDQ, bool SYM, typename TD, typena
           typename TY>
 MFEM_HOST_DEVICE inline
 void TensorGradElement2D(const int D1D, const int Q1D, const int e,
-                              real_t (&BG)[2][MQ1 * MD1],
-                              real_t (&BGt)[2][MQ1 * MD1],
-                              real_t (&sm0)[2][MDQ * MDQ],
-                              real_t (&sm1)[2][MDQ * MDQ],
-                              TD D, TX X, TY Y)
+                         real_t (&BG)[2][MQ1 * MD1],
+                         real_t (&BGt)[2][MQ1 * MD1],
+                         real_t (&sm0)[2][MDQ * MDQ],
+                         real_t (&sm1)[2][MDQ * MDQ],
+                         TD D, TX X, TY Y)
 {
    constexpr int plane_ld = MDQ * MDQ;
    mma::LoadX2D<MQ1>(e, D1D, X, sm0[0]);
@@ -1445,9 +1447,9 @@ void TensorGradElement2D(const int D1D, const int Q1D, const int e,
    mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
    MFEM_SYNC_THREAD;
 
-   mma::form::ApplyGradQFnSmem(QFn{}, 
-      sm0[0], sm1[0], plane_ld, D, e, Q1D,
-      mma::getThreadIdxX(), mma::getBlockNthreadsX());
+   mma::form::ApplyGradQFnSmem(QFn{},
+                               sm0[0], sm1[0], plane_ld, D, e, Q1D,
+                               mma::getThreadIdxX(), mma::getBlockNthreadsX());
    MFEM_SYNC_THREAD;
 
    mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
@@ -1561,8 +1563,10 @@ struct TensorGradKernel2DVector
                         const int qx = q % Q1D;
                         const int qy = q / Q1D;
                         real_t gv[2] = {gcomp[0][q + nq * ii],
-                                        gcomp[1][q + nq * ii]};
-                        const real_t Osym[3] = {
+                                        gcomp[1][q + nq * ii]
+                                       };
+                        const real_t Osym[3] =
+                        {
                            D(qx, qy, 0, k, e),
                            D(qx, qy, 2, k, e),
                            D(qx, qy, 3, k, e)
@@ -1625,7 +1629,8 @@ struct TensorGradKernel2DVector
                   const int qx = q % Q1D;
                   const int qy = q / Q1D;
                   real_t gv[2] = {sm0[0][q], sm0[1][q]};
-                  const real_t Osym[3] = {
+                  const real_t Osym[3] =
+                  {
                      D(qx, qy, 0, vc, e),
                      D(qx, qy, 2, vc, e),
                      D(qx, qy, 3, vc, e)
@@ -1840,7 +1845,7 @@ inline void TensorGradApplyDevice(const int NE,
       const int nthreads = mma::TensorShellNthreads(
                               T_D1D
                               ? mma::TensorThreads3D<T_D1D, T_Q1D,
-                                                    mma::kTensorCostHeavy>()
+                              mma::kTensorCostHeavy>()
                               : mma::TensorThreads3DRuntime(D1D, Q1D,
                                                             mma::kTensorCostHeavy));
 

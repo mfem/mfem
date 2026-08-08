@@ -319,8 +319,8 @@ void test_pa_vec_simplices_mma_fa(Mesh &mesh, int p, bool positive,
                      ? (2 * fe.GetOrder() + Tr.OrderW() + (positive ? 0 : 4))
                      : ir_order;
    const IntegrationRule *ir = positive
-      ? &StroudIntRules.Get(fe.GetGeomType(), order)
-      : &IntRules.Get(fe.GetGeomType(), order);
+                               ? &StroudIntRules.Get(fe.GetGeomType(), order)
+                               : &IntRules.Get(fe.GetGeomType(), order);
    CAPTURE(order, ir->GetNPoints());
 
    const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
@@ -452,16 +452,16 @@ void test_pa_vec_coeff_simplices_mma_fa(Mesh &mesh, int p, bool diffusion,
       if (diffusion)
       {
          integ = mq ? static_cast<BilinearFormIntegrator *>(
-                         new VectorDiffusionIntegrator(mq_coeff))
-                    : static_cast<BilinearFormIntegrator *>(
-                         new VectorDiffusionIntegrator(vq));
+                    new VectorDiffusionIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorDiffusionIntegrator(vq));
       }
       else
       {
          integ = mq ? static_cast<BilinearFormIntegrator *>(
-                         new VectorMassIntegrator(mq_coeff))
-                    : static_cast<BilinearFormIntegrator *>(
-                         new VectorMassIntegrator(vq));
+                    new VectorMassIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorMassIntegrator(vq));
       }
       integ->SetIntRule(ir);
       a.AddDomainIntegrator(integ);

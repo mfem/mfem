@@ -368,16 +368,16 @@ void test_pa_vec_coeff_tensors_mma(Mesh &mesh, int p, bool diffusion, bool mq)
       if (diffusion)
       {
          integ = mq ? static_cast<BilinearFormIntegrator *>(
-                         new VectorDiffusionIntegrator(mq_coeff))
-                    : static_cast<BilinearFormIntegrator *>(
-                         new VectorDiffusionIntegrator(vq));
+                    new VectorDiffusionIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorDiffusionIntegrator(vq));
       }
       else
       {
          integ = mq ? static_cast<BilinearFormIntegrator *>(
-                         new VectorMassIntegrator(mq_coeff))
-                    : static_cast<BilinearFormIntegrator *>(
-                         new VectorMassIntegrator(vq));
+                    new VectorMassIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorMassIntegrator(vq));
       }
       integ->SetIntRule(ir);
       a.AddDomainIntegrator(integ);

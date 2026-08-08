@@ -216,9 +216,9 @@ struct EvalApplyRuntimeKernel
       MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                   static_cast<size_t>(x_ld) * nb));
+                                                static_cast<size_t>(x_ld) * nb));
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                   static_cast<size_t>(u_ld) * nb));
+                                                static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -338,10 +338,10 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y)
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::load_x && !Tr::test_is_grad,
@@ -399,11 +399,11 @@ ApplySimplex(const int NE,
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y,
-      const int vdim)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y,
+             const int vdim)
 {
    MFEM_VERIFY(vdim >= 1, "");
    MFEM_VERIFY(NE > 0 && d.Size() % (QND * NE) == 0, "");
@@ -504,10 +504,10 @@ ApplySimplex(const int NE,
 template <typename QFn, int DIM>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y)
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::load_x && !Tr::test_is_grad,
@@ -562,11 +562,11 @@ ApplySimplex(const int NE,
 template <typename QFn, int DIM>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y,
-      const int vdim)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y,
+             const int vdim)
 {
    MFEM_VERIFY(vdim >= 1 && NE > 0, "");
    MFEM_VERIFY(basis.Size() > 0 && d.Size() % NE == 0, "");
@@ -878,7 +878,7 @@ struct LFApplyRuntimeKernel
       MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #else
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                   static_cast<size_t>(u_ld) * nb));
+                                                static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -1421,9 +1421,9 @@ struct GradApplyRuntimeKernel
       MFEM_SHARED real_t UV[DIM * max_u_ld * max_nb];
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                   static_cast<size_t>(x_ld) * nb));
+                                                static_cast<size_t>(x_ld) * nb));
       real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                   static_cast<size_t>(DIM) * u_ld * nb));
+                                                static_cast<size_t>(DIM) * u_ld * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -1588,10 +1588,10 @@ MFEM_HOST_DEVICE inline void GradBatchBody(
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y)
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "Grad Apply requires Grad×Grad QFn");
@@ -1635,11 +1635,11 @@ ApplySimplex(const int NE,
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y,
-      const int vdim)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y,
+             const int vdim)
 {
    MFEM_VERIFY(vdim >= 1 && NE > 0, "");
 
@@ -1780,10 +1780,10 @@ ApplySimplex(const int NE,
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y)
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "Grad Apply runtime requires Grad×Grad QFn");
@@ -1857,11 +1857,11 @@ ApplySimplex(const int NE,
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 ApplySimplex(const int NE,
-      const Array<real_t> &basis,
-      const Vector &d,
-      const Vector &x,
-      Vector &y,
-      const int vdim)
+             const Array<real_t> &basis,
+             const Vector &d,
+             const Vector &x,
+             Vector &y,
+             const int vdim)
 {
    MFEM_VERIFY(vdim >= 1 && NE > 0, "");
 

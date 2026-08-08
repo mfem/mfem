@@ -153,7 +153,7 @@ constexpr int BatchNB()
 /** Runtime full-NQ batch NB under a byte cap.
     @param n_u_planes  U planes in smem (typically dim for Grad). */
 inline int BatchNBFullNqAtRuntime(int ndof, int nq, int n_u_planes,
-                                 int bytes_cap)
+                                  int bytes_cap)
 {
    const int x_ld = PadLdBankRuntime(ndof);
    const int u_ld = PadLdBankRuntime(nq);
@@ -211,9 +211,9 @@ inline int BatchQTileNBRuntime(int ndof, int nq)
    return NBATCH;
 #else
    const int tq16 = BatchQTileForNBAtRuntime(ndof, nq, NBATCH,
-                                            SharedMemBytesPrefer);
+                                             SharedMemBytesPrefer);
    const int tq8 = BatchQTileForNBAtRuntime(ndof, nq, mmaN,
-                                           SharedMemBytesPrefer);
+                                            SharedMemBytesPrefer);
    const int passes16 = (nq + tq16 - 1) / tq16;
    const int passes8 = (nq + tq8 - 1) / tq8;
    return (passes8 < passes16) ? mmaN : NBATCH;
