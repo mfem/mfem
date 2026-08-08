@@ -98,6 +98,9 @@ GPU computing
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
 
+- Changed VectorFEMassIntegrator to use kernel specialization dispatch for
+  partial assembly.
+
 - Added support for FiniteElement::MapType::INTEGRAL spaces to
   QuadratureInterpolator.
 
