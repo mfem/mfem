@@ -339,6 +339,10 @@ protected: // implementation
 
    void Update() override;
 
+   bool NeedsGlobalRefinementSync(const Array<Refinement> &refinements);
+   void RefineWithNeighbors(const Array<Refinement> &refinements);
+   void RefineWithGlobalSync(const Array<Refinement> &refinements);
+
    /// Return the processor number for a global element number.
    int Partition(long index, long total_elements) const
    { return index * NRanks / total_elements; }
