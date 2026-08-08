@@ -160,10 +160,9 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme reverse mode", "[TensorDiff][Tensor]")
    };
 
    tensor<real_t, 3, 3> A_bar{};
-   auto beta_bar = __enzyme_autodiff<double>(reinterpret_cast<void*>(+f),
+   auto beta_bar = __enzyme_autodiff<real_t>(reinterpret_cast<void*>(+f),
                                              enzyme_dup, &A[0][0], &A_bar[0][0],
                                              enzyme_out, beta);
-   (void)beta_bar;
 
    real_t a = smooth_max_eigenvalue_symm(A, beta);
    tensor<real_t, 3, 3> da_dA;
@@ -178,7 +177,7 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme reverse mode", "[TensorDiff][Tensor]")
          A_p = A;
          A_p[i][j] += 0.5*h;
          A_p[j][i] += 0.5*h;
-         double a_p = smooth_max_eigenvalue_symm(A_p, beta);
+         real_t a_p = smooth_max_eigenvalue_symm(A_p, beta);
          da_dA_h[i][j] = (a_p - a)/h;
     }
   }
@@ -186,6 +185,9 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme reverse mode", "[TensorDiff][Tensor]")
   INFO("da_dA_h" << da_dA_h);
   auto error = A_bar - da_dA_h;
   CHECK(norm(error) < 10*h);
+
+  real_t da_dbeta_h = (smooth_max_eigenvalue_symm(A, beta + h) - a)/h;
+  CHECK(fabs(beta_bar - da_dbeta_h) < 10 * h);
 }
 
 #endif // MFEM_USE_ENZYME
