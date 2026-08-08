@@ -191,6 +191,42 @@ MFEM_HOST_DEVICE inline void EvalBatchBodyRuntime(
    MFEM_SYNC_THREAD;
 }
 
+/** Runtime Eval Apply batch body. Functor avoids nvcc extended-lambda stubs
+    that can launch as cudaErrorInvalidDeviceFunction (CUDA 13). */
+template <typename QFn, int DIM>
+struct EvalApplyRuntimeKernel
+{
+   QFn qfn;
+   int NE, nq, ndof, x_ld, u_ld, nb;
+   const real_t *P;
+   const real_t *D;
+   const real_t *X;
+   real_t *Y;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *XY = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
+      real_t *Us = XY + x_ld * nb;
+#elif defined(__HIP_DEVICE_COMPILE__)
+      constexpr int max_nb = NBATCH;
+      constexpr int max_x_ld = PadLdBank<MmaMapDefault>(SimplexNdof<DIM, 0>());
+      constexpr int max_u_ld = PadLdBank<MmaMapDefault>(SimplexMaxNq<DIM, 0>());
+      MFEM_SHARED real_t XY[max_x_ld * max_nb];
+      MFEM_SHARED real_t Us[max_u_ld * max_nb];
+#else
+      real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                   static_cast<size_t>(x_ld) * nb));
+      real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                   static_cast<size_t>(u_ld) * nb));
+#endif
+      const int tid = getThreadIdx();
+      const int nthr = getBlockNthreads();
+      EvalBatchBodyRuntime(qfn, batch * nb, NE, nq, ndof, x_ld, u_ld, nb,
+                           P, D, X, Y, XY, Us, tid, nthr);
+   }
+};
+
 // ---------------------------------------------------------------------------
 // Host apply (dense element with QFn)
 // ---------------------------------------------------------------------------
@@ -405,24 +441,9 @@ Apply(const int NE,
    const int nthreads = plan.nthreads;
    const int nbatches = (NE + nb - 1) / nb;
 
-   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, plan.smem_bytes,
-                        [=] MFEM_HOST_DEVICE (int batch)
-   {
-#if defined(__CUDA_ARCH__)
-      real_t *XY = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
-      real_t *Us = XY + x_ld * nb;
-#else
-      constexpr int max_nb = NBATCH;
-      constexpr int max_x_ld = PadLdBank<MmaMapDefault>(MAX_NDOF);
-      constexpr int max_u_ld = PadLdBank<MmaMapDefault>(MAX_NQ);
-      MFEM_SHARED real_t XY[max_x_ld * max_nb];
-      MFEM_SHARED real_t Us[max_u_ld * max_nb];
-#endif
-      const int tid = getThreadIdx();
-      const int nthr = getBlockNthreads();
-      EvalBatchBodyRuntime(qfn, batch * nb, NE, nq, ndof, x_ld, u_ld, nb,
-                           P, D, X, Y, XY, Us, tid, nthr);
-   });
+   EvalApplyRuntimeKernel<QFn, DIM> body{qfn, NE, nq, ndof, x_ld, u_ld, nb,
+                                         P, D, X, Y};
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, plan.smem_bytes, body);
 }
 
 /** Runtime Eval×Eval with block-diag vdim. */
@@ -659,6 +680,36 @@ MFEM_HOST_DEVICE inline void LFBatchBodyRuntime(
    MFEM_SYNC_THREAD;
 }
 
+/** Runtime ApplyLF batch kernel (functor; see EvalApplyRuntimeKernel). */
+template <typename QFn, int DIM>
+struct LFApplyRuntimeKernel
+{
+   QFn qfn;
+   int NE, nq, ndof, u_ld, nb;
+   const real_t *P;
+   const real_t *D;
+   real_t *y;
+   int vdim, vc;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *Us = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
+#elif defined(__HIP_DEVICE_COMPILE__)
+      constexpr int max_nb = NBATCH;
+      constexpr int max_u_ld = PadLdBank<MmaMapDefault>(SimplexMaxNq<DIM, 0>());
+      MFEM_SHARED real_t Us[max_u_ld * max_nb];
+#else
+      real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                   static_cast<size_t>(u_ld) * nb));
+#endif
+      const int tid = getThreadIdx();
+      const int nthr = getBlockNthreads();
+      LFBatchBodyRuntime(qfn, batch * nb, NE, nq, ndof, u_ld, nb,
+                         P, D, y, Us, vdim, vc, tid, nthr);
+   }
+};
+
 /** Specialized DomainLF-style Apply. Matches AssembleSimplexMmaKernelType.
     Launch: forall_3D + MFEM_SHARED U-only (preserves today's specialized quirk). */
 template <typename QFn, int DIM, int D1D, int QND>
@@ -762,21 +813,9 @@ inline void ApplyLF(const int NE,
    const int nthreads = LaunchNthreads(nq, ndof);
    const int nbatches = (NE + nb - 1) / nb;
 
-   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
-                        [=] MFEM_HOST_DEVICE (int batch)
-   {
-#if defined(__CUDA_ARCH__)
-      real_t *Us = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
-#else
-      constexpr int max_nb = NBATCH;
-      constexpr int max_u_ld = PadLdBank<MmaMapDefault>(MAX_NQ);
-      MFEM_SHARED real_t Us[max_u_ld * max_nb];
-#endif
-      const int tid = getThreadIdx();
-      const int nthr = getBlockNthreads();
-      LFBatchBodyRuntime(qfn, batch * nb, NE, nq, ndof, u_ld, nb,
-                         P, D, y, Us, vdim, vc, tid, nthr);
-   });
+   LFApplyRuntimeKernel<QFn, DIM> body{qfn, NE, nq, ndof, u_ld, nb,
+                                       P, D, y, vdim, vc};
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes, body);
 }
 
 
@@ -1012,6 +1051,70 @@ MFEM_HOST_DEVICE inline void GradFullNqGemm(
       GemmT<MAP>(nq, ndof, nb, A, Vacc, Yacc, e0, NE);
    }
 }
+
+/** Runtime Grad Apply batch kernel (functor; see EvalApplyRuntimeKernel). */
+template <typename QFn, int DIM>
+struct GradApplyRuntimeKernel
+{
+   using Tr = qfn_traits<QFn>;
+   static constexpr bool SYM = Tr::symmetric_pa;
+   static constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   static constexpr int max_nq = SimplexMaxNq<DIM, 0>();
+
+   QFn qfn;
+   int NE, nq, ndof, x_ld, u_ld, nb;
+   const real_t *G;
+   const real_t *Dv;
+   const real_t *X;
+   real_t *Y;
+
+   MFEM_HOST_DEVICE void operator()(int batch) const
+   {
+#if defined(__CUDA_ARCH__)
+      real_t *XY = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
+      real_t *UV = XY + x_ld * nb;
+#elif defined(__HIP_DEVICE_COMPILE__)
+      constexpr int max_nb = NBATCH;
+      constexpr int max_x_ld = PadLdBank<MmaMapDefault>(SimplexNdof<DIM, 0>());
+      constexpr int max_u_ld = PadLdBank<MmaMapDefault>(max_nq);
+      MFEM_SHARED real_t XY[max_x_ld * max_nb];
+      MFEM_SHARED real_t UV[DIM * max_u_ld * max_nb];
+#else
+      real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                   static_cast<size_t>(x_ld) * nb));
+      real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
+                                   static_cast<size_t>(DIM) * u_ld * nb));
+#endif
+      const int tid = getThreadIdx();
+      const int nthr = getBlockNthreads();
+      const auto D = Reshape(Dv, nq, PA_SIZE, NE);
+      const auto Xm = ConstDeviceMatrix(X, ndof, NE);
+      if (DeviceGemmEnabled())
+      {
+         GradFullNqGemm<DIM, SYM, MmaMapDefault>(
+            qfn, XY, UV, D, G, Y, Xm, batch * nb, NE, nq, ndof,
+            x_ld, u_ld, nb, tid, nthr);
+      }
+      else if (tid == 0)
+      {
+         real_t u_scratch[DIM * max_nq];
+         auto Ym = DeviceMatrix(Y, ndof, NE);
+         for (int b = 0; b < nb; ++b)
+         {
+            const int e = batch * nb + b;
+            if (e >= NE) { continue; }
+            for (int i = 0; i < ndof; ++i)
+            {
+               XY[i + x_ld * b] = Xm(i, e);
+            }
+            GradApplyDenseElement<DIM, SYM>(
+               qfn, nq, ndof, G, &D(0, 0, e),
+               &XY[x_ld * b], &Ym(0, e), u_scratch);
+         }
+      }
+      MFEM_SYNC_THREAD;
+   }
+};
 
 template <bool SYM, int MAP, int X_LD, int U_LD, int NB, int QND, int TQ,
           typename QFn, typename TD, typename XMat>
@@ -1316,48 +1419,9 @@ Apply(const int NE,
    const int nthreads = LaunchNthreads(nq, ndof);
    const int nbatches = (NE + nb - 1) / nb;
 
-   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes,
-                        [=] MFEM_HOST_DEVICE (int batch)
-   {
-#if defined(__CUDA_ARCH__)
-      real_t *XY = reinterpret_cast<real_t *>(SimplexMmaDynSmem());
-      real_t *UV = XY + x_ld * nb;
-#else
-      constexpr int max_nb = NBATCH;
-      constexpr int max_x_ld = PadLdBank<MmaMapDefault>(max_ndof);
-      constexpr int max_u_ld = PadLdBank<MmaMapDefault>(max_nq);
-      MFEM_SHARED real_t XY[max_x_ld * max_nb];
-      MFEM_SHARED real_t UV[DIM * max_u_ld * max_nb];
-#endif
-      const int tid = getThreadIdx();
-      const int nthr = getBlockNthreads();
-      const auto D = Reshape(Dv, nq, PA_SIZE, NE);
-      const auto Xm = ConstDeviceMatrix(X, ndof, NE);
-      if (DeviceGemmEnabled())
-      {
-         GradFullNqGemm<DIM, SYM, MmaMapDefault>(
-            qfn, XY, UV, D, G, Y, Xm, batch * nb, NE, nq, ndof,
-            x_ld, u_ld, nb, tid, nthr);
-      }
-      else if (tid == 0)
-      {
-         real_t u_scratch[DIM * max_nq];
-         auto Ym = DeviceMatrix(Y, ndof, NE);
-         for (int b = 0; b < nb; ++b)
-         {
-            const int e = batch * nb + b;
-            if (e >= NE) { continue; }
-            for (int i = 0; i < ndof; ++i)
-            {
-               XY[i + x_ld * b] = Xm(i, e);
-            }
-            GradApplyDenseElement<DIM, SYM>(
-               qfn, nq, ndof, G, &D(0, 0, e),
-               &XY[x_ld * b], &Ym(0, e), u_scratch);
-         }
-      }
-      MFEM_SYNC_THREAD;
-   });
+   GradApplyRuntimeKernel<QFn, DIM> body{qfn, NE, nq, ndof, x_ld, u_ld, nb,
+                                         G, Dv, X, Y};
+   mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes, body);
 }
 
 /** Runtime Grad×Grad with block-diag vdim. */
