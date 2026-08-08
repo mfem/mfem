@@ -14,7 +14,7 @@
     DomainLF PA MMA — IdentityLoad QFn + simplex Kernel decls.
 */
 
-#include "../lininteg.hpp"
+#include "../../lininteg.hpp"
 #include "form/form.hpp"
 
 namespace mfem

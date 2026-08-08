@@ -12,10 +12,10 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 #include "fem/integ/mma/form/form.hpp"
-#include "fem/integ/mma/common.hpp"
-#include "fem/integ/bilininteg_mass_pa_simplices_mma.hpp"
-#include "fem/integ/bilininteg_diffusion_pa_simplices_mma.hpp"
-#include "fem/integ/lininteg_domain_simplices_mma.hpp"
+#include "fem/integ/mma/mode/common.hpp"
+#include "fem/integ/mma/mass.hpp"
+#include "fem/integ/mma/diffusion.hpp"
+#include "fem/integ/mma/domain_lf.hpp"
 
 using namespace mfem;
 using namespace mfem::internal::mma;
@@ -24,9 +24,9 @@ using mfem::future::tensor;
 
 TEST_CASE("MMA form QFn tensor algebra", "[MMA][Form]")
 {
-   SECTION("MassScale y = d * u")
+   SECTION("Mass y = d * u")
    {
-      MassScale q;
+      Mass q;
       eval_t u(2.5);
       eval_t y;
       q(u, y, real_t(3.0));
@@ -61,9 +61,9 @@ TEST_CASE("MMA form QFn tensor algebra", "[MMA][Form]")
 
 TEST_CASE("MMA form qfn_traits presets", "[MMA][Form]")
 {
-   SECTION("MassScale")
+   SECTION("Mass")
    {
-      using Tr = qfn_traits<MassScale>;
+      using Tr = qfn_traits<Mass>;
       static_assert(Tr::load_x);
       static_assert(!Tr::trial_is_grad);
       static_assert(std::is_same_v<Tr::trial_kind, eval_t>);
@@ -119,8 +119,8 @@ TEST_CASE("MMA form Eval plan goldens", "[MMA][Form][Plan]")
       REQUIRE(p.smem_bytes == int(sizeof(real_t)) * (X_LD + U_LD) * NB);
       REQUIRE(p.nthreads == LaunchNthreads<QND>(MQ, BASIS));
 
-      // From MassScale traits
-      const SmemPlan p2 = MakeDevicePlan<MassScale, DIM, D1D, QND>();
+      // From Mass traits
+      const SmemPlan p2 = MakeDevicePlan<Mass, DIM, D1D, QND>();
       REQUIRE(p2.nb == p.nb);
       REQUIRE(p2.smem_bytes == p.smem_bytes);
 
@@ -227,7 +227,7 @@ TEST_CASE("MMA form pipeline Eval Apply runtime vs ref",
    Y_pipe = 0.0;
 
    MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
-   form::Apply<MassScale, 2>(NE, P, D, X, Y_pipe);
+   form::Apply<Mass, 2>(NE, P, D, X, Y_pipe);
 
    for (int i = 0; i < ndof * NE; ++i)
    {
@@ -252,7 +252,7 @@ TEST_CASE("MMA form pipeline Eval Apply specialized vs ref",
    Y_pipe = 0.0;
 
    MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
-   form::Apply<MassScale, DIM, D1D, QND>(NE, P, D, X, Y_pipe);
+   form::Apply<Mass, DIM, D1D, QND>(NE, P, D, X, Y_pipe);
 
    for (int i = 0; i < ndof * NE; ++i)
    {
@@ -402,7 +402,7 @@ TEST_CASE("MMA form dump disabled by default", "[MMA][Form][Dump]")
    D = 1.0;
    X = 1.0;
    Y = 0.0;
-   form::Apply<MassScale, 2>(NE, P, D, X, Y);
+   form::Apply<Mass, 2>(NE, P, D, X, Y);
    // All-ones P,D,X: U_q = ndof, scaled by D → ndof; Y_i = nq*ndof
    REQUIRE(Y(0) == MFEM_Approx(real_t(nq * ndof)));
 }
@@ -410,8 +410,8 @@ TEST_CASE("MMA form dump disabled by default", "[MMA][Form][Dump]")
 TEST_CASE("MMA form DumpFormApply no-op when disabled", "[MMA][Form][Dump]")
 {
    // Explicit no-op path: helpers must not abort when dump is off.
-   DumpFormApply<MassScale, 2, 2, 3>("test", 1, 3, 3);
-   DumpFormApplyRuntime<MassScale, 2>("test", 1, 3, 3);
+   DumpFormApply<Mass, 2, 2, 3>("test", 1, 3, 3);
+   DumpFormApplyRuntime<Mass, 2>("test", 1, 3, 3);
    DumpFormApply<IdentityLoad, 2, 2, 3>("test-lf", 1, 3, 3);
    DumpFormApply<DiffusionMetric<2, true>, 2, 2, 3>("test-grad", 1, 3, 3);
    REQUIRE(true);

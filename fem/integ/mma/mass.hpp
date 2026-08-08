@@ -16,7 +16,7 @@
     form::Mass (y = d * u). VectorMass uses the same QFn with vdim.
 */
 
-#include "../bilininteg.hpp"
+#include "../../bilininteg.hpp"
 #include "form/form.hpp"
 #include "form/simplex.hpp"
 #include "form/tensors.hpp"

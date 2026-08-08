@@ -11,7 +11,7 @@
 
 #include "lininteg_domain_kernels.hpp"
 #include "mma/mma.hpp"
-#include "lininteg_domain_simplices_mma.hpp"
+#include "mma/domain_lf.hpp"
 
 /// \cond DO_NOT_DOCUMENT
 

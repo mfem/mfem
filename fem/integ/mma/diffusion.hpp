@@ -16,7 +16,7 @@
     form::DiffusionMetric (y = A * u). VectorDiffusion uses SYM metric + vdim.
 */
 
-#include "../bilininteg.hpp"
+#include "../../bilininteg.hpp"
 #include "form/form.hpp"
 #include "form/simplex.hpp"
 #include "form/tensors.hpp"

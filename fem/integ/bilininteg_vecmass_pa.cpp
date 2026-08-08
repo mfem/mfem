@@ -15,8 +15,7 @@
 #include "mma/mma.hpp"
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
-#include "bilininteg_vecmass_pa_simplices_mma.hpp" // IWYU pragma: keep
-#include "bilininteg_vecmass_pa_tensors_mma.hpp" // IWYU pragma: keep
+#include "mma/mass.hpp" // IWYU pragma: keep
 
 namespace mfem
 {

@@ -1,16 +1,16 @@
 # MMA form layer — generic Apply machinery
 
 **This directory is integrator-agnostic.** It provides field types, trait helpers,
-smem plans, and apply engines. Physics QFns (mass, diffusion, linear form) live next
-to their drivers under `fem/integ/`.
+smem plans, and apply engines. Physics QFns live in sibling operator headers under
+`fem/integ/mma/` (`mass.hpp`, `diffusion.hpp`, `domain_lf.hpp`).
 
 | Location | Responsibility |
 |----------|----------------|
 | `mma/form/` | Generic: `eval_t`/`grad_t`, `Apply`/`ApplyLF`/`ApplyTensor`, plans |
-| `bilininteg_mass_pa_simplices_mma.hpp` | `MassScale` QFn + kernel registration |
-| `bilininteg_diffusion_pa_simplices_mma.hpp` | `DiffusionMetric` + `ApplyDiffusionDispatch` |
-| `lininteg_domain_simplices_mma.hpp` | `IdentityLoad` QFn + kernel registration |
-| `bilininteg_*_tensors_mma.hpp` | Same QFns + `ApplyTensor<…>` |
+| `mma/mass.hpp` | `form::Mass` QFn + Mass/VectorMass Kernel decls |
+| `mma/diffusion.hpp` | `DiffusionMetric` + Diffusion/VectorDiffusion Kernel decls |
+| `mma/domain_lf.hpp` | `IdentityLoad` QFn + DomainLF Kernel decls |
+| `mma/mode/` | Backends (dmma/mfma/blas/lapack/batch) |
 
 Design: [`docs/design/mma-declarative-kernels.md`](../../../../../docs/design/mma-declarative-kernels.md)
 
@@ -31,53 +31,36 @@ Namespace: `mfem::internal::mma::form`
 - No `q` / `e` in the QFn.
 - `const` marks trial.
 - Prefer tensor algebra: `y = d * u`, `y = A * u`.
-- **Apply only** — PA assemble stays in the integrator `.cpp`.
+- **Apply only** — PA assemble stays in the integrator / driver `.cpp`.
 
 ---
 
 ## Built-in integrators (not under `form/`)
 
 ```cpp
-// Mass — bilininteg_mass_pa_simplices_mma.hpp
-struct MassScale {
+// Mass — mma/mass.hpp
+struct Mass {
   void operator()(const eval_t &u, eval_t &y, real_t d) const { y = d * u; }
 };
-// Kernel → Apply<MassScale, DIM, D1D, QND>
+// Kernel → Apply<Mass, DIM, D1D, QND>
+//          ApplyTensor<Mass, DIM, D1D, Q1D>(…)
+// VectorMass: same QFn with vdim
 
-// DomainLF — lininteg_domain_simplices_mma.hpp
+// DomainLF — mma/domain_lf.hpp
 struct IdentityLoad {
   void operator()(eval_t &y, real_t d) const { y = d; }
 };
 // Kernel → ApplyLF<IdentityLoad, …>
 
-// Diffusion — bilininteg_diffusion_pa_simplices_mma.hpp
+// Diffusion — mma/diffusion.hpp
 template <int DIM, bool SYM>
 struct DiffusionMetric {
   void operator()(const grad_t<DIM> &u, grad_t<DIM> &y,
                   const tensor<real_t, DIM, DIM> &A) const { y = A * u; }
 };
 // Kernel → ApplyDiffusionDispatch<DIM, D1D, QND>(…)
-
-// Tensor mass — bilininteg_mass_pa_tensors_mma.hpp
-// Kernel → ApplyTensor<MassScale, DIM, D1D, Q1D>(…)
-
-// Tensor diffusion — bilininteg_diffusion_pa_tensors_mma.hpp
-// Kernel → ApplyTensor<DiffusionMetric<DIM,SYM>, …>(…)
-
-// Tensor vector mass (block-diag scalar Q) — bilininteg_vecmass_pa_tensors_mma.hpp
-// Kernel → ApplyTensor<MassScale, DIM, D1D, Q1D>(…, vdim)
-
-// Tensor vector diffusion (block-diag) — bilininteg_vecdiffusion_pa_tensors_mma.hpp
-// Kernel → ApplyTensor<DiffusionMetric<DIM,true>, …>(…, vdim)
-// Note: vdim>1 uses the device/Emulate shell (host PreferTensorDense is vdim==1).
-
-// Simplex vector mass — bilininteg_vecmass_pa_simplices_mma.hpp
-// Kernel → Apply<MassScale, …>(…, vdim)
-
-// Simplex vector diffusion — bilininteg_vecdiffusion_pa_simplices_mma.hpp
-// Kernel → Apply<DiffusionMetric<DIM,true>, …>(…, vdim)
-// Apply(..., vdim): X/Y layout (ndof × vdim × NE); shared scalar PA across components.
-// DomainLF still uses ApplyLF(..., vdim, vc) one component at a time.
+//          ApplyTensor<DiffusionMetric<DIM,SYM>, …>(…)
+// VectorDiffusion: DiffusionMetric<DIM,true> + vdim
 ```
 
 ---
@@ -127,19 +110,13 @@ select the QFn type (e.g. `DiffusionMetric<DIM,true>` vs `…false>`).
 form.hpp       umbrella include
 fields.hpp     eval_t / grad_t / none_t + qfn_traits helpers
 plan.hpp       MakeEvalPlan / MakeGradPlan + MFEM_MMA_FORM_DUMP
-simplex.hpp   Apply / ApplyLF — simplex dense
+simplex.hpp    Apply / ApplyLF — simplex dense
 tensors.hpp    ApplyTensor + sum-fact Eval/Grad engines (QFn templates)
 ```
 
-**2D/3D structure in `tensors.hpp`:** outer entries are DIM-templated
-(`TryTensor*Host`, `Tensor*Apply` / `*ApplyDevice`, `TensorGradHost`).
-Dim-specific pieces stay separate: host GEMM tiles (`*2DTile`/`*3DTile`,
-`Diff*Ws`), device element kernels (`TensorGradElement2D/3D`), and Eval host
-sum-fact nests.
-
-Host multi-RHS preference is `mma::lapack::PreferMultiRhs` in `mma/lapack.hpp`
+Host multi-RHS preference is `mma::lapack::PreferMultiRhs` in `mma/mode/lapack.hpp`
 (size-only gate; no form wrapper). Multi-plane smem batch/Q-tile tables live in
-`mma/batch.hpp` (not a QFn).
+`mma/mode/batch.hpp` (not a QFn).
 
 ---
 

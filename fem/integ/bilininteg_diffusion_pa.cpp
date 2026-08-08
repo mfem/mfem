@@ -14,8 +14,7 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
-#include "bilininteg_diffusion_pa_simplices_mma.hpp"
-#include "bilininteg_diffusion_pa_tensors_mma.hpp"
+#include "mma/diffusion.hpp"
 #include "mma/mma.hpp"
 
 namespace mfem

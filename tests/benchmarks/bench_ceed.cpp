@@ -30,7 +30,7 @@
 #include "fem/integ/mma/mma.hpp" // IWYU pragma: keep
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 #include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
-#include "fem/integ/lininteg_domain_simplices_mma.hpp" // IWYU pragma: keep
+#include "fem/integ/mma/domain_lf.hpp" // IWYU pragma: keep
 
 // CG verification for BP setups; enabled via --benchmark_context=cg=true
 static bool cg_verify = false;

@@ -91,7 +91,7 @@ inline SmemPlan MakeEvalPlanRuntime(int ndof, int nq, bool load_x = true)
 }
 
 /** Family B — Grad×Grad: X + n_u_planes·U, optional Q-tile (DIM==3).
-    Uses BatchNB* helpers in mma/batch.hpp (multi-plane smem). */
+    Uses BatchNB* helpers in mma/mode/batch.hpp (multi-plane smem). */
 template <int DIM, int D1D, int QND>
 inline SmemPlan MakeGradPlan()
 {

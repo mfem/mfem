@@ -15,8 +15,7 @@
 #include "mma/mma.hpp"
 
 #include "./bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
-#include "bilininteg_vecdiffusion_pa_simplices_mma.hpp" // IWYU pragma: keep
-#include "bilininteg_vecdiffusion_pa_tensors_mma.hpp" // IWYU pragma: keep
+#include "mma/diffusion.hpp" // IWYU pragma: keep
 
 // #include "bilininteg_vecdiffusion_kernels.hpp"
 // #include "bilininteg_vecdiffusion_pa.hpp"
