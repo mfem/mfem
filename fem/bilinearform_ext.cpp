@@ -2084,7 +2084,7 @@ void PADiscreteLinearOperatorExtension::FormRectangularSystemOperator(
 {
    const Operator *Pi = this->GetProlongation();
    const Operator *RoT = this->GetOutputRestrictionTranspose();
-   Operator *rap = SetupRAP(Pi, RoT);
+   const Operator *rap = SetupRAP(Pi, RoT);
 
    RectangularConstrainedOperator *Arco
       = new RectangularConstrainedOperator(rap, ess1, ess2, rap != this);
