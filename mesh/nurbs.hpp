@@ -265,6 +265,9 @@ public:
        coarse knots. */
    Vector GetFineKnots(const int cf) const;
 
+   /// Return the element index for a given knot span index.
+   int ElementIndex(int knot_span) const;
+
    /** @brief Return a new KnotVector with elevated degree by repeating the
        endpoints of the KnotVector. */
    /// @note The returned object should be deleted by the caller.
@@ -514,6 +517,12 @@ public:
        is a variable index. */
    inline       real_t &operator()(int i, int j, int k, int l);
    inline const real_t &operator()(int i, int j, int k, int l) const;
+
+   /// Copy the control points and weights from another NURBSPatch @a p to this.
+   void SetControlPoints(const NURBSPatch &p);
+
+   /// Divide weights from control points.
+   void DivideOutWeights();
 
    /// Compute the 2D rotation matrix @a T for angle @a angle.
    static void Get2DRotationMatrix(real_t angle, DenseMatrix &T);
@@ -843,10 +852,10 @@ protected:
    NURBSExtension() : el_dof(nullptr), bel_dof(nullptr) { }
 
 private:
-   /// Get the degrees of freedom for the vertex @a vertex in @a dofs.
+   /// Get the degrees of freedom for patch topology vertex @a vertex in @a dofs.
    void GetVertexDofs(int vertex, Array<int> &dofs) const;
 
-   /// Get the degrees of freedom for the edge @a edge in @a dofs.
+   /// Get the degrees of freedom for patch topology edge @a edge in @a dofs.
    void GetEdgeDofs(int edge, Array<int> &dofs) const;
 
    // TODO: does this still need to be virtual?
@@ -872,9 +881,9 @@ public:
    NURBSExtension(NURBSExtension *parent, const Array<int> &newOrders,
                   Mode mode = Mode::H_1);
    /// Construct a NURBSExtension by merging a partitioned NURBS mesh.
-
    NURBSExtension(Mesh *mesh_array[], int num_pieces);
-
+   /** @brief Construct a NURBSExtension with given patch topology and patches,
+       which are deep-copied. */
    NURBSExtension(const Mesh *patch_topology,
                   const Array<const NURBSPatch*> &patches_);
 
@@ -1038,7 +1047,11 @@ public:
 
    // Translation functions between FE coordinates and IJK patch format.
 
-   /// Define patches in IKJ (B-net) format, using FE coordinates in @a Nodes.
+   /** @brief Define patches in IKJ (B-net) format, using FE coordinates in
+       @a Nodes.
+
+       Note that this function deletes the tables mapping elements and boundary
+       elements to DOFs. */
    void ConvertToPatches(const Vector &Nodes);
    /// Set KnotVectors from @a patches and construct mesh and space data.
    void SetKnotsFromPatches();
@@ -1124,18 +1137,64 @@ public:
    /// Return true if the patch topology mesh is nonconforming.
    bool NonconformingPatches() const { return nonconformingPT; }
 
+   /// Set the control points and weights for one patch.
+   void SetPatchControlPoints(int patch, const NURBSPatch &p)
+   {
+      patches[patch]->SetControlPoints(p);
+   }
+
+   /// Set the coarse patch control points.
+   void SetCoarsePatchCP(int p, const Array2D<real_t> &cp);
+
+   /// Get the coarse patch control points.
+   void GetCoarsePatchCP(int p, Array2D<real_t> &cp) const;
+
+   /// Return true if coarse patch control point data is set.
+   bool HaveCoarsePatchData() const
+   {
+      return patchCP.GetSize1() > 0;
+   }
+
+   /// Return the number of patches with coarse control point data.
+   int NumCoarsePatches() const
+   {
+      return patchCP.GetSize1();
+   }
+
    /// Return a pointer to the NCMesh of a nonconforming patch topology mesh.
    NCMesh *GetNCMesh() const { return patchTopo->ncmesh; }
 
    /// Read the control points for coarse patches.
    virtual void ReadCoarsePatchCP(std::istream &input);
 
+   /// Read the weights for coarse patches.
+   virtual void ReadCoarsePatchWeights(std::istream &input);
+
    /** @brief Fully coarsen all structured patches, for non-nested refinement of
        a mesh with a nonconforming patch topology. */
    void FullyCoarsen();
 
-   /// Print control points for coarse patches.
-   virtual void PrintCoarsePatches(std::ostream &os);
+   /// Print control points for coarse patches @a patchCP.
+   void PrintCoarsePatches(std::ostream &os);
+
+   /** @brief Recompute control points so that the relative physical spacing of
+       elements approximately matches the reference spacing of knots.
+
+       If patches are not already set, then they will be set by using control
+       point data from the input @a Nodes. If @a sweep1D is true, an approximate
+       1D sweeping solver is used; otherwise, a more expensive full-dimensional
+       system solver is used on each patch. The 1D sweeping solver is more
+       efficient, usually with a small loss of accuracy. The input tolerance is
+       used for solver convergence. */
+   void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true,
+#ifdef MFEM_USE_SINGLE
+                        real_t tol = 1.0e-6);
+#else
+                        real_t tol = 1.0e-12);
+#endif
+
+   /// Set the number of patches which should have coarse control point data.
+   void SetNumCoarsePatches(int n);
 };
 
 
