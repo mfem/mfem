@@ -650,10 +650,10 @@ ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
    @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
 ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
    ifeq ($(ENZYME_PLUGIN),)
-      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+      $(error Unable to find the Enzyme plugin! Please set ENZYME_DIR)
    endif
    ifneq ($(words $(ENZYME_PLUGIN)),1)
-      $(error Multiple versions of the Enzyme pluging found! \
+      $(error Multiple versions of the Enzyme plugin found! \
               Please set ENZYME_PLUGIN directly)
    endif
 endif

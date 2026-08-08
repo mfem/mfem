@@ -8,8 +8,8 @@
                                https://mfem.org
 
 
-Version 4.9.1 (development)
-===========================
+Version 4.10, released on Aug 10, 2026
+======================================
 
 - Added policy for AI-assisted contribution to CONTRIBUTING.md.
 
@@ -103,6 +103,12 @@ GPU computing
 
 New and updated examples and miniapps
 -------------------------------------
+- Added a new Particle-In-Cell (PIC) miniapp in miniapps/plasma/pic, performing
+  electrostatic PIC simulation of multiple charged particles in 2D or 3D based
+  on the ParticleSet capability. Each time step deposits the particle charges on
+  the grid, solves a Poisson problem for the electric potential, and pushes the
+  particles with a leap-frog scheme in a periodic domain.
+
 - The Lorentz miniapp (in miniapps/electromagnetics) has been updated to
   leverage the ParticleSet capability.
 

@@ -2719,7 +2719,7 @@ ParMesh::AddTriFaces(const Array<int> &elem_vertices,
       // Check amongst the faces of elements local to this rank for this set of vertices
       const int lf = faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]);
 
-      // If the face wasn't found amonst processor local elements, search the
+      // If the face wasn't found amongst processor local elements, search the
       // ghosts for this set of vertices.
       const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1],
                                                   elem_fv.v[2]) : -1;

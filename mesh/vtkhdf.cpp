@@ -96,7 +96,7 @@ hid_t VTKHDF::EnsureDataset(hid_t f, const std::string &name, hid_t type,
       // Dataset does not exist, create it.
       const int ndims = dims.ndims;
       // The dataset is allowed to grow in the first dimension, but is fixed
-      // in size in all other dimesions; the maximum dataset size is same as
+      // in size in all other dimensions; the maximum dataset size is same as
       // dims, but unlimited in first dimension.
       Dims max_dims = dims;
       max_dims[0] = H5S_UNLIMITED;

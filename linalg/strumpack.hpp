@@ -109,7 +109,7 @@ public:
 
    /** @brief Set options that were captured from the command line.
 
-       These were captured in the constructer STRUMPACKSolverBase. Refer
+       These were captured in the constructor STRUMPACKSolverBase. Refer
        to the STRUMPACK documentation for details. */
    void SetFromCommandLine();
 

@@ -74,7 +74,7 @@ private:
     * indicates which and how many processors in total will set a certain degree
     * of freedom.
     *
-    * Convenience method for tidyness. Uses and changes member variables.
+    * Convenience method for tidiness. Uses and changes member variables.
     */
    void CommunicateIndicesSet(Array<int> &map, int dst_sz);
 
@@ -84,7 +84,7 @@ private:
     * Guarantees that all ranks have the appropriate dofs set. See comments in
     * implementation for more details.
     *
-    * Convenience method for tidyness. Uses and changes member variables.
+    * Convenience method for tidiness. Uses and changes member variables.
     */
    void CommunicateSharedVdofs(Vector &f) const;
 

@@ -18,7 +18,7 @@
 //
 //                           dp/dt = q (E + v x B)
 //
-// The method used is the explicit Boris algortihm which conserves phase space
+// The method used is the explicit Boris algorithm which conserves phase space
 // volume for long term accuracy.
 //
 // The electric and magnetic fields are read from VisItDataCollection objects
@@ -731,7 +731,7 @@ void InitializeChargedParticles(ParticleSet &charged_particles,
    // Set up uniform distribution for position
    std::uniform_real_distribution<real_t> real_dist_x(0_r,1_r);
 
-   // Set up guassian distribution for momentum. Centered between p_min and
+   // Set up gaussian distribution for momentum. Centered between p_min and
    // p_max with 3-sigma range covering the box.
    Vector p_center(dim);
    add(0.5, p_min, p_max, p_center);

@@ -5589,7 +5589,7 @@ void Mesh::MakeRefined_(Mesh &orig_mesh, const Array<int> &ref_factors,
    for (int el_coarse = 0; el_coarse < orig_ne; ++el_coarse)
    {
       Geometry::Type geom = orig_mesh.GetElementBaseGeometry(el_coarse);
-      // Have we seen this pair of (goemetry, refinement level) before?
+      // Have we seen this pair of (geometry, refinement level) before?
       GeomRef id(geom, ref_factors[el_coarse]);
       if (point_matrices_offsets.find(id) == point_matrices_offsets.end())
       {
@@ -12388,7 +12388,7 @@ void Mesh::Printer(std::ostream &os, std::string section_delimiter,
    if (Nonconforming())
    {
       // Workaround for inconsistent Mesh state where the Mesh has nodes and
-      // ncmesh->coodrinates is not empty. Such state can be created with the
+      // ncmesh->coordinates is not empty. Such state can be created with the
       // method Mesh::SwapNodes(), see the comment at the beginning of its
       // implementation.
       Array<real_t> coords_save;

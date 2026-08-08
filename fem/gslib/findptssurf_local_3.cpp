@@ -369,7 +369,7 @@ newton_face_constrained:
       if ( (drc-bnd[0])*(bnd[1]-drc)>=0 && // if drc lies within r=-1 and r=1
            (tv=EVAL(drc,bnd[2]))<v )
       {
-         // i = 0100b, relieve constrainsts at r=-1 or 1, and set constraints at s=-1
+         // i = 0100b, relieve constraints at r=-1 or 1, and set constraints at s=-1
          v = tv, i = 1u<<2, dr[0] = drc;
       }
       drc = (y[0] - A[1]*bnd[3])/A[0];
