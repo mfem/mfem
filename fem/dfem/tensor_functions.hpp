@@ -90,6 +90,108 @@ dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, 
   return {value, derivative};
 }
 
+template <int n>
+struct SmoothMaxEigenvalueSymmTape
+{
+  tensor<real_t, n> lambda;
+  tensor<real_t, n, n> V;
+  tensor<real_t, n> eg;
+  real_t beta;
+  real_t lambda_max;
+  real_t sum;
+  real_t logZ;
+};
+
+template <int n>
+struct SmoothMaxEigenvalueSymmAugmentedReturn
+{
+  void* tape;
+  real_t value;
+};
+
+template <int n> MFEM_HOST_DEVICE
+SmoothMaxEigenvalueSymmAugmentedReturn<n>
+smooth_max_eigenvalue_symm_aug(const tensor<real_t, n, n>* A,
+                               tensor<real_t, n, n>* A_bar,
+                               real_t beta)
+{
+  (void)A_bar; // accumulated in reverse pass
+
+  auto [lambda, V] = eig_symm(get_value(*A));
+  const real_t lambda_max = lambda[n - 1];
+
+  tensor<real_t, n> eg;
+  real_t sum = 0;
+  for (int i = 0; i < n; i++)
+  {
+    eg[i] = std::exp(beta*(lambda[i] - lambda_max));
+    if (i != n - 1) { sum += eg[i]; }
+  }
+
+  const real_t logZ = std::log1p(sum);
+  const real_t value = lambda_max + logZ/beta;
+
+  auto* tape = static_cast<SmoothMaxEigenvalueSymmTape<n>*>(
+                 std::malloc(sizeof(SmoothMaxEigenvalueSymmTape<n>)));
+  if (tape)
+  {
+    tape->lambda = lambda;
+    tape->V = V;
+    tape->eg = eg;
+    tape->beta = beta;
+    tape->lambda_max = lambda_max;
+    tape->sum = sum;
+    tape->logZ = logZ;
+  }
+
+  return {static_cast<void*>(tape), value};
+}
+
+template <int n> MFEM_HOST_DEVICE
+real_t smooth_max_eigenvalue_symm_rev(const tensor<real_t, n, n>* A,
+                                      tensor<real_t, n, n>* A_bar,
+                                      real_t beta,
+                                      real_t d_out,
+                                      void* tape_ptr)
+{
+  (void)A; // all needed info is on the tape
+
+  const auto* tape = static_cast<const SmoothMaxEigenvalueSymmTape<n>*>(tape_ptr);
+  if (!tape)
+  {
+    return 0.0;
+  }
+
+  const real_t Z = tape->sum + 1.0;
+
+  // d/dA = Σ_mu w_mu v_mu v_mu^T, where w_mu = eg[mu]/Z
+  for (int mu = 0; mu < n; mu++)
+  {
+    const real_t w_mu = tape->eg[mu] / Z;
+    for (int i = 0; i < n; i++)
+    {
+      for (int j = 0; j < n; j++)
+      {
+        (*A_bar)[i][j] += d_out * w_mu * tape->V[i][mu] * tape->V[j][mu];
+      }
+    }
+  }
+
+  // d/dβ = -(log Z)/β^2 + (1/(β Z)) Σ_{i<n-1} exp(β(λ_i-λ_max)) (λ_i-λ_max)
+  real_t dZ_dBeta = 0.0;
+  for (int i = 0; i < n - 1; i++)
+  {
+    dZ_dBeta += tape->eg[i] * (tape->lambda[i] - tape->lambda_max);
+  }
+
+  const real_t beta2 = beta * beta;
+  const real_t d_value_dBeta = -(tape->logZ)/beta2 + dZ_dBeta/(beta * Z);
+
+  std::free(const_cast<SmoothMaxEigenvalueSymmTape<n>*>(tape));
+
+  return d_out * d_value_dBeta;
+}
+
 } // namespace detail
 
 // Register custom derivatives with Enzyme
@@ -103,6 +205,21 @@ __attribute__((used))
 void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_3d[] = {
     reinterpret_cast<void*>(smooth_max_eigenvalue_symm<3>),
     reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_fwddiff<3>)
+  };
+
+// Register custom gradients (combined reverse mode) with Enzyme
+__attribute__((used))
+void* __enzyme_register_gradient_smooth_max_eigenvalue_symm_2d[] = {
+    reinterpret_cast<void*>(smooth_max_eigenvalue_symm<2>),
+    reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_aug<2>),
+    reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_rev<2>)
+  };
+
+__attribute__((used))
+void* __enzyme_register_gradient_smooth_max_eigenvalue_symm_3d[] = {
+    reinterpret_cast<void*>(smooth_max_eigenvalue_symm<3>),
+    reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_aug<3>),
+    reinterpret_cast<void*>(detail::smooth_max_eigenvalue_symm_rev<3>)
   };
 
 #endif // MFEM_USE_ENZYME

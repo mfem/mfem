@@ -136,4 +136,46 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on spherical tensor 2x2", "[Ten
    CheckJacobian(A);
 }
 
+TEST_CASE("SmoothMaxEigenvalue Enzyme reverse mode", "[TensorDiff][Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 2.0, 2.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   real_t beta = 2.0;
+
+   // Wrapper function, since Enzyme cannot be directly applied to a function
+   // with a custom derivative rule.
+   auto f = [](const tensor<real_t, 3, 3>& A, real_t Beta) -> real_t {
+      return smooth_max_eigenvalue_symm<3>(A, Beta);
+   };
+
+   tensor<real_t, 3, 3> A_bar{};
+   auto beta_bar = __enzyme_autodiff<double>(reinterpret_cast<void*>(+f),
+                                             enzyme_dup, &A[0][0], &A_bar[0][0],
+                                             enzyme_out, beta);
+   (void)beta_bar;
+
+   real_t a = smooth_max_eigenvalue_symm(A, beta);
+   tensor<real_t, 3, 3> da_dA;
+   tensor<real_t, 3, 3> A_p;
+   tensor<real_t, 3, 3> da_dA_h{};
+   real_t h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
+   // Take derivatives in symetric directions
+   for (int i = 0; i < 3; i++) {
+       for (int j = 0; j < 3; j++) {
+         // Finite difference perturbations need to be symmetric, since we actually
+         // modify the argument to the function (which is required to be symmetric)
+         A_p = A;
+         A_p[i][j] += 0.5*h;
+         A_p[j][i] += 0.5*h;
+         double a_p = smooth_max_eigenvalue_symm(A_p, beta);
+         da_dA_h[i][j] = (a_p - a)/h;
+    }
+  }
+  INFO("da_dA" << A_bar);
+  INFO("da_dA_h" << da_dA_h);
+  auto error = A_bar - da_dA_h;
+  CHECK(norm(error) < 10*h);
+}
+
 #endif // MFEM_USE_ENZYME
