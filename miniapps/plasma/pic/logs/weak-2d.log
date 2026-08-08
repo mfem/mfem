@@ -1,0 +1,276 @@
+#############################
+ranks=1  mesh=32^2  npt=409600  q=m=0.0011816406253684498
+#############################
+
+      ██████╗░██╗░█████╗░
+      ██╔══██╗██║██╔══██╗
+      ██████╔╝██║██║░░╚═╝
+      ██╔═══╝░██║██║░░██╗
+      ██║░░░░░██║╚█████╔╝
+      ╚═╝░░░░░╚═╝░╚════╝░
+         
+Options used:
+   --device cpu
+   --full-assembly
+   --no-partial-assembly
+   --dimension 2
+   --order 1
+   --num-x 32
+   --num-y 32
+   --num-z 100
+   --charge 0.00118164
+   --mass 0.00118164
+   --time-step 0.1
+   --num-timesteps 10
+   --num-particles 409600
+   --k 0.285599
+   --alpha 0.05
+   --ordering 1
+   --redist-interval 1
+   --output-csv-interval -1
+   --no-visualization
+   --send-port 19916
+   --reproduce
+Device configuration: cpu
+Memory configuration: host-std
+Total charge: 484, Domain volume: 484, Neutralizing constant: -1
+Further updates will use this precomputed neutralizing constant.
+Step: 1 | Time: 0.1 | Time per step: 0.704219
+Kinetic energy: 484.208	Field energy: 7.2893	Total energy: 491.497
+Step: 2 | Time: 0.2 | Time per step: 0.708807
+Kinetic energy: 484.311	Field energy: 7.18476	Total energy: 491.496
+Step: 3 | Time: 0.3 | Time per step: 0.711702
+Kinetic energy: 484.568	Field energy: 6.92838	Total energy: 491.496
+Step: 4 | Time: 0.4 | Time per step: 0.712573
+Kinetic energy: 484.964	Field energy: 6.53039	Total energy: 491.495
+Step: 5 | Time: 0.5 | Time per step: 0.71302
+Kinetic energy: 485.482	Field energy: 6.01109	Total energy: 491.493
+Step: 6 | Time: 0.6 | Time per step: 0.713366
+Kinetic energy: 486.098	Field energy: 5.39433	Total energy: 491.493
+Step: 7 | Time: 0.7 | Time per step: 0.713481
+Kinetic energy: 486.785	Field energy: 4.70615	Total energy: 491.491
+Step: 8 | Time: 0.8 | Time per step: 0.713655
+Kinetic energy: 487.512	Field energy: 3.97614	Total energy: 491.488
+Step: 9 | Time: 0.9 | Time per step: 0.713807
+Kinetic energy: 488.249	Field energy: 3.2369	Total energy: 491.486
+Step: 10 | Time: 1 | Time per step: 0.713923
+Kinetic energy: 488.965	Field energy: 2.51996	Total energy: 491.485
+
+=========== PIC Timing Summary (max over ranks) ===========
+  1. Calculate forces (E@p)         2.2907 s     32.0 %
+  2. Push particles                 0.2338 s      3.3 %
+  3. Redistribute particles         0.0047 s      0.1 %
+  4. Update fields (Poisson)        0.5954 s      8.3 %
+  5. FindPoints (locate p)          4.0973 s     57.3 %
+  Other (I/O, vis, energies)       -0.0694 s     -1.0 %
+  ---------------------------------------------------
+  Total time                        7.1526 s    100.0 %
+  Avg time per step                 0.7153 s
+============================================================
+#############################
+ranks=4  mesh=64^2  npt=1638400  q=m=0.00029541015634211245
+#############################
+
+      ██████╗░██╗░█████╗░
+      ██╔══██╗██║██╔══██╗
+      ██████╔╝██║██║░░╚═╝
+      ██╔═══╝░██║██║░░██╗
+      ██║░░░░░██║╚█████╔╝
+      ╚═╝░░░░░╚═╝░╚════╝░
+         
+Options used:
+   --device cpu
+   --full-assembly
+   --no-partial-assembly
+   --dimension 2
+   --order 1
+   --num-x 64
+   --num-y 64
+   --num-z 100
+   --charge 0.00029541
+   --mass 0.00029541
+   --time-step 0.1
+   --num-timesteps 10
+   --num-particles 1638400
+   --k 0.285599
+   --alpha 0.05
+   --ordering 1
+   --redist-interval 1
+   --output-csv-interval -1
+   --no-visualization
+   --send-port 19916
+   --reproduce
+Device configuration: cpu
+Memory configuration: host-std
+Total charge: 484, Domain volume: 484, Neutralizing constant: -1
+Further updates will use this precomputed neutralizing constant.
+Step: 1 | Time: 0.1 | Time per step: 0.905431
+Kinetic energy: 483.977	Field energy: 7.82945	Total energy: 491.807
+Step: 2 | Time: 0.2 | Time per step: 0.870283
+Kinetic energy: 484.061	Field energy: 7.74561	Total energy: 491.807
+Step: 3 | Time: 0.3 | Time per step: 0.857828
+Kinetic energy: 484.309	Field energy: 7.49724	Total energy: 491.806
+Step: 4 | Time: 0.4 | Time per step: 0.850545
+Kinetic energy: 484.709	Field energy: 7.09583	Total energy: 491.805
+Step: 5 | Time: 0.5 | Time per step: 0.846357
+Kinetic energy: 485.244	Field energy: 6.55892	Total energy: 491.803
+Step: 6 | Time: 0.6 | Time per step: 0.840311
+Kinetic energy: 485.891	Field energy: 5.91033	Total energy: 491.802
+Step: 7 | Time: 0.7 | Time per step: 0.834989
+Kinetic energy: 486.621	Field energy: 5.1789	Total energy: 491.8
+Step: 8 | Time: 0.8 | Time per step: 0.831411
+Kinetic energy: 487.401	Field energy: 4.39656	Total energy: 491.797
+Step: 9 | Time: 0.9 | Time per step: 0.831248
+Kinetic energy: 488.198	Field energy: 3.59751	Total energy: 491.795
+Step: 10 | Time: 1 | Time per step: 0.827664
+Kinetic energy: 488.978	Field energy: 2.81567	Total energy: 491.794
+
+=========== PIC Timing Summary (max over ranks) ===========
+  1. Calculate forces (E@p)         2.7633 s     33.3 %
+  2. Push particles                 0.2409 s      2.9 %
+  3. Redistribute particles         0.3018 s      3.6 %
+  4. Update fields (Poisson)        0.6681 s      8.1 %
+  5. FindPoints (locate p)          4.7120 s     56.8 %
+  Other (I/O, vis, energies)       -0.3958 s     -4.8 %
+  ---------------------------------------------------
+  Total time                        8.2903 s    100.0 %
+  Avg time per step                 0.8290 s
+============================================================
+#############################
+ranks=16  mesh=128^2  npt=6553600  q=m=7.3852539085528113e-05
+#############################
+
+      ██████╗░██╗░█████╗░
+      ██╔══██╗██║██╔══██╗
+      ██████╔╝██║██║░░╚═╝
+      ██╔═══╝░██║██║░░██╗
+      ██║░░░░░██║╚█████╔╝
+      ╚═╝░░░░░╚═╝░╚════╝░
+         
+Options used:
+   --device cpu
+   --full-assembly
+   --no-partial-assembly
+   --dimension 2
+   --order 1
+   --num-x 128
+   --num-y 128
+   --num-z 100
+   --charge 7.38525e-05
+   --mass 7.38525e-05
+   --time-step 0.1
+   --num-timesteps 10
+   --num-particles 6553600
+   --k 0.285599
+   --alpha 0.05
+   --ordering 1
+   --redist-interval 1
+   --output-csv-interval -1
+   --no-visualization
+   --send-port 19916
+   --reproduce
+Device configuration: cpu
+Memory configuration: host-std
+Total charge: 484, Domain volume: 484, Neutralizing constant: -1
+Further updates will use this precomputed neutralizing constant.
+Step: 1 | Time: 0.1 | Time per step: 1.17015
+Kinetic energy: 484.098	Field energy: 7.45399	Total energy: 491.552
+Step: 2 | Time: 0.2 | Time per step: 1.05184
+Kinetic energy: 484.175	Field energy: 7.37733	Total energy: 491.552
+Step: 3 | Time: 0.3 | Time per step: 1.01096
+Kinetic energy: 484.408	Field energy: 7.1433	Total energy: 491.551
+Step: 4 | Time: 0.4 | Time per step: 0.990213
+Kinetic energy: 484.788	Field energy: 6.76264	Total energy: 491.55
+Step: 5 | Time: 0.5 | Time per step: 0.975491
+Kinetic energy: 485.297	Field energy: 6.25213	Total energy: 491.549
+Step: 6 | Time: 0.6 | Time per step: 0.963004
+Kinetic energy: 485.912	Field energy: 5.63448	Total energy: 491.547
+Step: 7 | Time: 0.7 | Time per step: 0.955492
+Kinetic energy: 486.608	Field energy: 4.93722	Total energy: 491.545
+Step: 8 | Time: 0.8 | Time per step: 0.947635
+Kinetic energy: 487.352	Field energy: 4.19078	Total energy: 491.543
+Step: 9 | Time: 0.9 | Time per step: 0.94217
+Kinetic energy: 488.113	Field energy: 3.42757	Total energy: 491.541
+Step: 10 | Time: 1 | Time per step: 0.937194
+Kinetic energy: 488.859	Field energy: 2.68018	Total energy: 491.539
+
+=========== PIC Timing Summary (max over ranks) ===========
+  1. Calculate forces (E@p)         2.8975 s     30.9 %
+  2. Push particles                 0.2580 s      2.7 %
+  3. Redistribute particles         0.4210 s      4.5 %
+  4. Update fields (Poisson)        0.8276 s      8.8 %
+  5. FindPoints (locate p)          5.6030 s     59.7 %
+  Other (I/O, vis, energies)       -0.6178 s     -6.6 %
+  ---------------------------------------------------
+  Total time                        9.3892 s    100.0 %
+  Avg time per step                 0.9389 s
+============================================================
+#############################
+ranks=64  mesh=256^2  npt=26214400  q=m=1.8463134771382028e-05
+#############################
+
+      ██████╗░██╗░█████╗░
+      ██╔══██╗██║██╔══██╗
+      ██████╔╝██║██║░░╚═╝
+      ██╔═══╝░██║██║░░██╗
+      ██║░░░░░██║╚█████╔╝
+      ╚═╝░░░░░╚═╝░╚════╝░
+         
+Options used:
+   --device cpu
+   --full-assembly
+   --no-partial-assembly
+   --dimension 2
+   --order 1
+   --num-x 256
+   --num-y 256
+   --num-z 100
+   --charge 1.84631e-05
+   --mass 1.84631e-05
+   --time-step 0.1
+   --num-timesteps 10
+   --num-particles 26214400
+   --k 0.285599
+   --alpha 0.05
+   --ordering 1
+   --redist-interval 1
+   --output-csv-interval -1
+   --no-visualization
+   --send-port 19916
+   --reproduce
+Device configuration: cpu
+Memory configuration: host-std
+Total charge: 484, Domain volume: 484, Neutralizing constant: -1
+Further updates will use this precomputed neutralizing constant.
+Step: 1 | Time: 0.1 | Time per step: 1.53165
+Kinetic energy: 484.063	Field energy: 7.39334	Total energy: 491.456
+Step: 2 | Time: 0.2 | Time per step: 1.31346
+Kinetic energy: 484.139	Field energy: 7.31687	Total energy: 491.456
+Step: 3 | Time: 0.3 | Time per step: 1.23876
+Kinetic energy: 484.371	Field energy: 7.08415	Total energy: 491.455
+Step: 4 | Time: 0.4 | Time per step: 1.20432
+Kinetic energy: 484.748	Field energy: 6.70566	Total energy: 491.454
+Step: 5 | Time: 0.5 | Time per step: 1.17897
+Kinetic energy: 485.254	Field energy: 6.19836	Total energy: 491.453
+Step: 6 | Time: 0.6 | Time per step: 1.16336
+Kinetic energy: 485.866	Field energy: 5.58482	Total energy: 491.451
+Step: 7 | Time: 0.7 | Time per step: 1.15155
+Kinetic energy: 486.557	Field energy: 4.89226	Total energy: 491.449
+Step: 8 | Time: 0.8 | Time per step: 1.14081
+Kinetic energy: 487.296	Field energy: 4.15094	Total energy: 491.447
+Step: 9 | Time: 0.9 | Time per step: 1.13135
+Kinetic energy: 488.052	Field energy: 3.39314	Total energy: 491.445
+Step: 10 | Time: 1 | Time per step: 1.12425
+Kinetic energy: 488.791	Field energy: 2.65125	Total energy: 491.443
+
+=========== PIC Timing Summary (max over ranks) ===========
+  1. Calculate forces (E@p)         3.1641 s     28.1 %
+  2. Push particles                 0.2679 s      2.4 %
+  3. Redistribute particles         0.7077 s      6.3 %
+  4. Update fields (Poisson)        0.9426 s      8.4 %
+  5. FindPoints (locate p)          7.0523 s     62.6 %
+  Other (I/O, vis, energies)       -0.8735 s     -7.8 %
+  ---------------------------------------------------
+  Total time                       11.2611 s    100.0 %
+  Avg time per step                 1.1261 s
+============================================================

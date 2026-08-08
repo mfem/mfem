@@ -1,0 +1,14 @@
+srun -p 64 ./electrostatic-pic \
+    -no-vis \
+    -rdi 1 \
+    -dim 3 \
+    -npt 26214400 \
+    -k 0.5 -a 0.01 \
+    -nt 10 \
+    -nx 32 -ny 32 -nz 128  \
+    -O 1 \
+    -q 0.00004844730731 \
+    -m 0.00004844730731 \
+    -oci -1 \
+    -dt 0.02 \
+    -fa -d cuda

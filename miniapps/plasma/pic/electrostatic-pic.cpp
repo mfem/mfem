@@ -93,6 +93,21 @@ struct PICContext
    bool reproduce = true;      ///< Enable reproducible results.
 } ctx;
 
+/** Accumulating timers for the main phases of the PIC loop:
+    (1) Calculate forces  - interpolate E field to particle positions
+    (2) Push particles    - leap-frog momentum/position update
+    (3) Redistribute      - migrate particles across MPI ranks
+    (4) Update fields     - charge deposit, Poisson solve, E = -∇φ
+    (5) FindPoints        - locate particles in the mesh (all call sites) */
+struct PICTimers
+{
+   mfem::StopWatch forces;        ///< E-field interpolation to particles.
+   mfem::StopWatch push;          ///< Particle push (leap-frog update only).
+   mfem::StopWatch redistribute;  ///< Particle redistribution across ranks.
+   mfem::StopWatch fields;        ///< Field update (deposit + Poisson + grad).
+   mfem::StopWatch findpts;       ///< FindPointsGSLIB particle location.
+} timers;
+
 /** This class implements explicit time integration for charged particles
     in an electric field using ParticleSet. */
 class ParticleMover
@@ -361,14 +376,19 @@ int main(int argc, char* argv[])
           (step % ctx.redist_interval == 0 || step == 1) &&
           particle_mover.GetParticles().GetGlobalNParticles() > 0)
       {
-         // Redistribute
+         // (3) Redistribute particles across MPI ranks
+         //     (timed inside Redistribute(); the FindPoints call it makes
+         //      is accumulated into timers.findpts)
          particle_mover.Redistribute();
 
+         // (4) Update fields: deposit charge, solve Poisson, E = -∇φ
+         timers.fields.Start();
          // Update phi_gf from particles
          field_solver.UpdatePhiGridFunction(particle_mover.GetParticles(),
                                             phi_gf);
          // Update E_gf from phi_gf
          field_solver.UpdateEGridFunction(phi_gf, E_gf);
+         timers.fields.Stop();
 
          // Visualize fields if requested
          if (ctx.visualization)
@@ -382,6 +402,8 @@ int main(int argc, char* argv[])
       }
 
       // Step the ParticleMover
+      // (1) Calculate forces and (2) push particles are timed inside
+      //     Step() / StepDevice() via the global 'timers' object.
       if (use_device)
       {
          particle_mover.StepDevice(t, dt, ctx.L, step == 1);
@@ -436,6 +458,52 @@ int main(int argc, char* argv[])
                         << "\n";
          }
       }
+   }
+   sw.Stop();
+
+   // 9. Print timing summary
+   // Reduce with MPI_MAX so the reported times reflect the slowest rank
+   // (the one that determines wall-clock time for each phase).
+   real_t t_local[6] = {timers.forces.RealTime(),
+                        timers.push.RealTime(),
+                        timers.redistribute.RealTime(),
+                        timers.fields.RealTime(),
+                        timers.findpts.RealTime(),
+                        sw.RealTime()
+                       };
+   real_t t_max[6];
+   MPI_Reduce(t_local, t_max, 6, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+   if (Mpi::Root())
+   {
+      const real_t total = t_max[5];
+      const real_t accounted =
+         t_max[0] + t_max[1] + t_max[2] + t_max[3] + t_max[4];
+      const real_t other = total - accounted;
+
+      auto print_row = [&](const char* name, real_t time)
+      {
+         cout << "  " << left << setw(28) << name << right << setw(12)
+              << fixed << setprecision(4) << time << " s"
+              << setw(9) << setprecision(1)
+              << (total > 0.0 ? 100.0 * time / total : 0.0) << " %" << endl;
+      };
+
+      cout << "\n=========== PIC Timing Summary (max over ranks) ==========="
+           << endl;
+      print_row("1. Calculate forces (E@p)", t_max[0]);
+      print_row("2. Push particles", t_max[1]);
+      print_row("3. Redistribute particles", t_max[2]);
+      print_row("4. Update fields (Poisson)", t_max[3]);
+      print_row("5. FindPoints (locate p)", t_max[4]);
+      print_row("Other (I/O, vis, energies)", other);
+      cout << "  " << string(51, '-') << endl;
+      print_row("Total time", total);
+      cout << "  " << left << setw(28) << "Avg time per step" << right
+           << setw(12) << fixed << setprecision(4)
+           << (ctx.nt > 0 ? total / ctx.nt : 0.0) << " s" << endl;
+      cout << "============================================================"
+           << endl;
    }
 }
 
@@ -520,14 +588,27 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
 
 void ParticleMover::FindParticles()
 {
+   timers.findpts.Start();
    E_finder.FindPoints(charged_particles->Coords());
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      MFEM_DEVICE_SYNC;
+   }
+#endif
+   timers.findpts.Stop();
 }
 
 void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
 {
-   // Update E field at particles
+   // ---- (1) Calculate forces: interpolate E field at particles ----
+   timers.forces.Start();
    ParticleVector& E = charged_particles->Field(EFIELD);
    E_finder.Interpolate(*E_gf, E, E.GetOrdering());
+   timers.forces.Stop();
+
+   // ---- (2) Push particles: leap-frog update + relocate in mesh ----
+   timers.push.Start();
 
    // Extract particle data
    ParticleVector& X = charged_particles->Coords();
@@ -559,7 +640,9 @@ void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
       }
    }
 
-   FindParticles();
+   timers.push.Stop();
+
+   FindParticles();  // timed separately by timers.findpts
 
    // Update time
    t += dt;
@@ -568,8 +651,23 @@ void ParticleMover::Step(real_t& t, real_t dt, real_t L, bool first_step)
 
 void ParticleMover::StepDevice(real_t& t, real_t dt, real_t L, bool first_step)
 {
+   // ---- (1) Calculate forces: interpolate E field at particles ----
+   timers.forces.Start();
    ParticleVector& E = charged_particles->Field(EFIELD);
    E_finder.Interpolate(*E_gf, E, E.GetOrdering());
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+   // Only sync if a real GPU backend is active at runtime. The "debug"
+   // backend enables Device::IsEnabled() but runs on the host, and calling
+   // cudaDeviceSynchronize() there triggers a CUDA error.
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      MFEM_DEVICE_SYNC;  // ensure accurate timing of async device kernels
+   }
+#endif
+   timers.forces.Stop();
+
+   // ---- (2) Push particles: leap-frog update + relocate in mesh ----
+   timers.push.Start();
 
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& P = charged_particles->Field(MOM);
@@ -612,15 +710,26 @@ void ParticleMover::StepDevice(real_t& t, real_t dt, real_t L, bool first_step)
       }
    });
 
-   FindParticles();
+#if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   {
+      MFEM_DEVICE_SYNC;  // ensure accurate timing of async device kernels
+   }
+#endif
+   timers.push.Stop();
+
+   FindParticles();  // timed separately by timers.findpts
 
    t += dt;
 }
 
 void ParticleMover::Redistribute()
 {
+   timers.redistribute.Start();
    charged_particles->Redistribute(E_finder.GetProc());
-   FindParticles();
+   timers.redistribute.Stop();
+
+   FindParticles();  // timed separately by timers.findpts
 }
 
 real_t ParticleMover::ComputeKineticEnergy(real_t dt) const
