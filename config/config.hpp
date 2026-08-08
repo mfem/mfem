@@ -140,6 +140,9 @@ constexpr real_t operator""_r(unsigned long long v)
 #ifdef MFEM_USE_MUMPS
 #error Building with MUMPS (MFEM_USE_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
+#ifdef MFEM_USE_COMPLEX_MUMPS
+#error Building with COMPLEX_MUMPS (MFEM_USE_COMPLEX_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
 #ifdef MFEM_USE_STRUMPACK
 #error Building with STRUMPACK (MFEM_USE_STRUMPACK=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
