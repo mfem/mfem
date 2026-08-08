@@ -110,6 +110,10 @@ New and updated examples and miniapps
 
 Miscellaneous
 -------------
+- Added continuous benchmarking of selected tests/benchmarks in GitHub CI
+  using CodSpeed (https://codspeed.io), enabled by the new CMake option
+  MFEM_USE_CODSPEED.
+
 - Fixed signed DOF handling in ParGridFunction reading (read constructor) and
   saving via SaveAsOne(). Simplified the process of applying the DOF signs by
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the

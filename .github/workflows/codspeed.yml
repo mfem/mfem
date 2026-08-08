@@ -1,0 +1,68 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# Continuous benchmarking with CodSpeed (https://codspeed.io). Builds the
+# benchmarks in tests/benchmarks against CodSpeed's instrumented Google
+# Benchmark fork (MFEM_USE_CODSPEED) and runs the selected benchmark(s) under
+# the CodSpeed measurement harness, reporting results to codspeed.io.
+name: CodSpeed Benchmarks
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # OIDC authentication with CodSpeed. GitHub does not grant this permission
+  # to pull_request runs from forks; there the action falls back to tokenless
+  # uploads, which CodSpeed supports for public repositories.
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout MFEM
+        uses: actions/checkout@v5
+
+      - name: Configure and build MFEM benchmark
+        # TODO: bench_ceed doesn't compile with CodSpeed's gbenchmark fork.
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DMFEM_USE_BENCHMARK=YES \
+            -DMFEM_USE_CODSPEED=YES \
+            -DCODSPEED_MODE=simulation
+          cmake --build build \
+            --target bench_vector bench_virtuals bench_tmop \
+                     bench_elasticity bench_assembly_levels bench_dg_amr \
+            -j"$(nproc)"
+
+      - name: Run benchmarks with CodSpeed
+        uses: CodSpeedHQ/action@v4
+        with:
+          mode: simulation
+          # Filter to a few smaller cases to keep runtime and memory bounded.
+          run: |
+            cd build/tests/benchmarks
+            ./bench_vector
+            ./bench_virtuals
+            ./bench_tmop --benchmark_filter='/2]|/4]'
+            ./bench_assembly_levels --benchmark_filter='BK[0-9]PARTIAL\[262144/'
+            ./bench_elasticity --benchmark_filter='/30/'
+            ./bench_dg_amr --benchmark_filter='262144/[0-9]/-1]|262144/[0-9]/30]'
