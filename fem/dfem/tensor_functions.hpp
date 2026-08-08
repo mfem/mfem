@@ -152,7 +152,7 @@ template <int n> MFEM_HOST_DEVICE
 real_t smooth_max_eigenvalue_symm_rev(const tensor<real_t, n, n>* A,
                                       tensor<real_t, n, n>* A_bar,
                                       real_t beta,
-                                      real_t d_out,
+                                      real_t out_bar,
                                       void* tape_ptr)
 {
   (void)A; // all needed info is on the tape
@@ -173,7 +173,7 @@ real_t smooth_max_eigenvalue_symm_rev(const tensor<real_t, n, n>* A,
     {
       for (int j = 0; j < n; j++)
       {
-        (*A_bar)[i][j] += d_out * w_mu * tape->V[i][mu] * tape->V[j][mu];
+        (*A_bar)[i][j] += out_bar * w_mu * tape->V[i][mu] * tape->V[j][mu];
       }
     }
   }
@@ -191,7 +191,7 @@ real_t smooth_max_eigenvalue_symm_rev(const tensor<real_t, n, n>* A,
 
   std::free(const_cast<SmoothMaxEigenvalueSymmTape<n>*>(tape));
 
-  return d_out * d_value_dBeta;
+  return out_bar * d_value_dBeta;
 }
 
 } // namespace detail
