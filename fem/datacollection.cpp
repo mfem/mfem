@@ -41,6 +41,21 @@ int DataCollection::create_directory(const std::string &dir_name,
    int err_flag;
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
+   // In addition to the global root, let the lowest rank on each shared-memory
+   // node create the directory too, so that node-local (non-shared) filesystems
+   // get it on every node rather than only where the global root lives. On a
+   // shared filesystem the extra mkdir() hits EEXIST and is tolerated below.
+   bool node_root = true;
+   if (pmesh)
+   {
+      MPI_Comm node_comm;
+      MPI_Comm_split_type(pmesh->GetComm(), MPI_COMM_TYPE_SHARED, myid,
+                          MPI_INFO_NULL, &node_comm);
+      int node_rank;
+      MPI_Comm_rank(node_comm, &node_rank);
+      node_root = (node_rank == 0);
+      MPI_Comm_free(&node_comm);
+   }
 #endif
 
    do
@@ -52,7 +67,7 @@ int DataCollection::create_directory(const std::string &dir_name,
       err_flag = mkdir(subdir.c_str(), 0777);
       err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
 #else
-      if (myid == 0 || pmesh == NULL)
+      if (myid == 0 || node_root || pmesh == NULL)
       {
          err_flag = mkdir(subdir.c_str(), 0777);
          err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;

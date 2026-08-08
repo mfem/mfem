@@ -115,6 +115,8 @@ Miscellaneous
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
 
+- Added support for saving DataCollection output on the node-local storage,
+  instead of requiring that the filesystem is shared among all the ranks.
 
 Version 4.9, released on Dec 11, 2025
 =====================================
