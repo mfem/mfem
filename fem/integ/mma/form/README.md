@@ -116,6 +116,12 @@ simplex.hpp   Apply / ApplyLF — simplex dense
 tensors.hpp    ApplyTensor + sum-fact Eval/Grad engines (QFn templates)
 ```
 
+**2D/3D structure in `tensors.hpp`:** outer entries are DIM-templated
+(`TryTensor*Host`, `Tensor*Apply` / `*ApplyDevice`, `TensorGradHost`).
+Dim-specific pieces stay separate: host GEMM tiles (`*2DTile`/`*3DTile`,
+`Diff*Ws`), device element kernels (`TensorGradElement2D/3D`), and Eval host
+sum-fact nests.
+
 Host multi-RHS preference is `mma::lapack::PreferMultiRhs` in `mma/lapack.hpp`
 (size-only gate; no form wrapper). Multi-plane smem batch/Q-tile tables live in
 `mma/batch.hpp` (not a QFn).

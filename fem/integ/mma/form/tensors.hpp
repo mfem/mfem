@@ -13,11 +13,12 @@
 /** @file tensors.hpp
     Tensor-product form apply (integrator-agnostic).
 
-    Contents (formerly tensor_metric / tensor_eval / tensor_grad / tensor_apply):
+    Contents:
       - PackPaMetric, ApplyGradQFnVec/Smem
-      - Eval×Eval sum-fact host + device (TensorEvalApply)
-      - Grad×Grad sum-fact host + device (TensorGradApply)
-      - form::ApplyTensor<QFn, …> entry (SFINAE on qfn_traits; Grad SYM from traits)
+      - Eval×Eval: host dense + device shell (TensorEvalApply / *Device; DIM-templated)
+      - Grad×Grad: host multi-RHS tiles + device shell (TensorGradApply / *Device)
+      - form::ApplyTensor<QFn, …> (SFINAE; Grad SYM from qfn_traits)
+      - 2D/3D: outer entries unified; Tile/Element/Ws stay dim-specific
 
     Physics QFns live under fem/integ/ only.
 */
@@ -358,8 +359,9 @@ inline bool TryTensorEvalHost(const int NE,
 // Host entry uses Try* first (see TensorEvalApply).
 // ---------------------------------------------------------------------------
 
-template <typename QFn, int T_D1D = 0, int T_Q1D = 0>
-inline void TensorEvalApply3D(const int NE,
+/** Device/Emulate Eval shell (2D or 3D). Interp chains stay dim-specific. */
+template <typename QFn, int DIM, int T_D1D = 0, int T_Q1D = 0>
+inline void TensorEvalApplyDevice(const int NE,
                                   const Array<real_t> &b,
                                   const Vector &d,
                                   const Vector &x,
@@ -367,145 +369,139 @@ inline void TensorEvalApply3D(const int NE,
                                   const int d1d = 0,
                                   const int q1d = 0)
 {
+   static_assert(DIM == 2 || DIM == 3, "TensorEvalApplyDevice: DIM 2 or 3");
    const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
    const int D1D = dq.D1D, Q1D = dq.Q1D;
    constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
    constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
-   dq.Verify(NE, "Tensor Eval MMA 3D D1D/Q1D exceeds shell cap");
 
-   const int NB = T_D1D
-                  ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostLight>()
-                  : mma::TensorNB3DRuntime(D1D, mma::kTensorCostLight);
-   const int nthreads = mma::TensorShellNthreads(
-                           T_D1D
-                           ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostLight>()
-                           : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                         mma::kTensorCostLight));
-
-   const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, NE);
-   const auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-
-   const int nblocks = (NE + NB - 1) / NB;
-   mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
+   if constexpr (DIM == 2)
    {
-      MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
-      MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
-      MFEM_SHARED real_t sB[MD1 * MQ1];
-      MFEM_SHARED real_t sBt[MD1 * MQ1];
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      dq.Verify(NE, "Tensor Eval MMA 2D D1D/Q1D exceeds shell cap");
 
-      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
-      MFEM_SYNC_THREAD;
+      const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
+                     : mma::NB2DRuntime(D1D);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
+                              : mma::Threads2DRuntime(D1D, Q1D));
 
-      for (int i = 0; i < NB; i++)
+      const auto B = Reshape(b.Read(), Q1D, D1D);
+      const auto D = Reshape(d.Read(), Q1D * Q1D, NE);
+      const auto X = Reshape(x.Read(), D1D, D1D, NE);
+      auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
       {
-         const int e = b * NB + i;
-         if (e >= NE) { break; }
+         MFEM_SHARED real_t sm0[MDQ * MDQ];
+         MFEM_SHARED real_t sm1[MDQ * MDQ];
+         MFEM_SHARED real_t sB[MD1 * MQ1];
+         MFEM_SHARED real_t sBt[MD1 * MQ1];
 
-         mma::LoadX<MQ1>(e, D1D, X, sm0);
+         mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
          MFEM_SYNC_THREAD;
 
-         mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-         MFEM_SYNC_THREAD;
-         mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
-         MFEM_SYNC_THREAD;
-         // InterpZ, then QFn (unfused; matches host algebra).
-         mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
-         MFEM_SYNC_THREAD;
+         for (int i = 0; i < NB; i++)
          {
-            const int tid = mma::getThreadIdxX();
-            const int nq = Q1D * Q1D * Q1D;
-            const int stride = mma::getBlockNthreadsX();
-            for (int t = tid; t < nq; t += stride)
+            const int e = b * NB + i;
+            if (e >= NE) { break; }
+
+            mma::LoadX2D<MQ1>(e, D1D, X, sm0);
+            MFEM_SYNC_THREAD;
+
+            mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
+            MFEM_SYNC_THREAD;
+
             {
-               mma::form::ApplyEvalQFn<QFn>(sm1[t], D(t, e));
+               const int tid = mma::getThreadIdxX();
+               const int nq = Q1D * Q1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < nq; t += stride)
+               {
+                  const int qx = t % Q1D;
+                  const int qy = t / Q1D;
+                  const int idx = qx + Q1D * qy;
+                  real_t u = sm0[idx];
+                  mma::form::ApplyEvalQFn<QFn>(u, D(idx, e));
+                  sm1[idx] = u;
+               }
             }
+            MFEM_SYNC_THREAD;
+
+            mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm0, Y, e);
+            MFEM_SYNC_THREAD;
          }
-         MFEM_SYNC_THREAD;
-         mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
-         MFEM_SYNC_THREAD;
-         mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
-         MFEM_SYNC_THREAD;
-         mma::InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sm1, Y, e);
-         MFEM_SYNC_THREAD;
-      }
-   });
-}
-
-template <typename QFn, int T_D1D = 0, int T_Q1D = 0>
-inline void TensorEvalApply2D(const int NE,
-                                  const Array<real_t> &b,
-                                  const Vector &d,
-                                  const Vector &x,
-                                  Vector &y,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
-{
-   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
-   const int D1D = dq.D1D, Q1D = dq.Q1D;
-   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
-   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
-   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-   dq.Verify(NE, "Tensor Eval MMA 2D D1D/Q1D exceeds shell cap");
-
-   const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
-                  : mma::NB2DRuntime(D1D);
-   const int nthreads = mma::TensorShellNthreads(
-                           T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
-                           : mma::Threads2DRuntime(D1D, Q1D));
-
-   const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto D = Reshape(d.Read(), Q1D * Q1D, NE);
-   const auto X = Reshape(x.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-
-   const int nblocks = (NE + NB - 1) / NB;
-   mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
+      });
+   }
+   else
    {
-      MFEM_SHARED real_t sm0[MDQ * MDQ];
-      MFEM_SHARED real_t sm1[MDQ * MDQ];
-      MFEM_SHARED real_t sB[MD1 * MQ1];
-      MFEM_SHARED real_t sBt[MD1 * MQ1];
+      dq.Verify(NE, "Tensor Eval MMA 3D D1D/Q1D exceeds shell cap");
 
-      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
-      MFEM_SYNC_THREAD;
+      const int NB = T_D1D
+                     ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostLight>()
+                     : mma::TensorNB3DRuntime(D1D, mma::kTensorCostLight);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
+                                                    mma::kTensorCostLight>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                            mma::kTensorCostLight));
 
-      for (int i = 0; i < NB; i++)
+      const auto B = Reshape(b.Read(), Q1D, D1D);
+      const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, NE);
+      const auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+      auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
       {
-         const int e = b * NB + i;
-         if (e >= NE) { break; }
+         MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
+         MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
+         MFEM_SHARED real_t sB[MD1 * MQ1];
+         MFEM_SHARED real_t sBt[MD1 * MQ1];
 
-         mma::LoadX2D<MQ1>(e, D1D, X, sm0);
+         mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
          MFEM_SYNC_THREAD;
 
-         mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
-         MFEM_SYNC_THREAD;
-         mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
-         MFEM_SYNC_THREAD;
-
+         for (int i = 0; i < NB; i++)
          {
-            const int tid = mma::getThreadIdxX();
-            const int nq = Q1D * Q1D;
-            const int stride = mma::getBlockNthreadsX();
-            for (int t = tid; t < nq; t += stride)
-            {
-               const int qx = t % Q1D;
-               const int qy = t / Q1D;
-               const int idx = qx + Q1D * qy;
-               real_t u = sm0[idx];
-               mma::form::ApplyEvalQFn<QFn>(u, D(idx, e));
-               sm1[idx] = u;
-            }
-         }
-         MFEM_SYNC_THREAD;
+            const int e = b * NB + i;
+            if (e >= NE) { break; }
 
-         mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
-         MFEM_SYNC_THREAD;
-         mma::InterpXt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm0, Y, e);
-         MFEM_SYNC_THREAD;
-      }
-   });
+            mma::LoadX<MQ1>(e, D1D, X, sm0);
+            MFEM_SYNC_THREAD;
+
+            mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            // InterpZ, then QFn (unfused; matches host algebra).
+            mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            {
+               const int tid = mma::getThreadIdxX();
+               const int nq = Q1D * Q1D * Q1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < nq; t += stride)
+               {
+                  mma::form::ApplyEvalQFn<QFn>(sm1[t], D(t, e));
+               }
+            }
+            MFEM_SYNC_THREAD;
+            mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sm1, Y, e);
+            MFEM_SYNC_THREAD;
+         }
+      });
+   }
 }
 
 /** Entry: host PreferTensorDense sum-fact, else device/Emulate shell. */
@@ -522,14 +518,7 @@ inline void TensorEvalApply(
       if (mma::blas::TryTensorEvalHost<QFn, DIM, T_D1D, T_Q1D>(NE, b, d, x, y))
       { return; }
    }
-   if constexpr (DIM == 3)
-   {
-      TensorEvalApply3D<QFn, T_D1D, T_Q1D>(NE, b, d, x, y, d1d, q1d);
-   }
-   else
-   {
-      TensorEvalApply2D<QFn, T_D1D, T_Q1D>(NE, b, d, x, y, d1d, q1d);
-   }
+   TensorEvalApplyDevice<QFn, DIM, T_D1D, T_Q1D>(NE, b, d, x, y, d1d, q1d);
 }
 
 // ---------------------------------------------------------------------------
@@ -662,44 +651,6 @@ inline void TensorGradHost2DTile(
       }
    }
 }
-
-template <typename QFn, int D1D, int Q1D, bool SYM>
-inline void TensorGradHost2D(
-   const int NE,
-   const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
-   const real_t *Dv, const real_t *X, real_t *Y)
-{
-   const int NB = mma::TensorTileNB(D1D, Q1D);
-   const int ntiles = (NE + NB - 1) / NB;
-   mma::host_Arena arena;
-   Diff2DWs<D1D, Q1D> ws;
-   ws.Bind(arena, NB);
-   for (int tile = 0; tile < ntiles; ++tile)
-   {
-      const int e0 = tile * NB;
-      const int nbe = std::min(NB, NE - e0);
-      TensorGradHost2DTile<QFn, D1D, Q1D, SYM>(
-         e0, nbe, NB, B, G, Bt, Gt, Dv, X, Y, ws);
-   }
-}
-
-template <typename QFn, int D1D, int Q1D>
-inline bool TryTensorGradHost2D(
-   const int NE,
-   const Array<real_t> &b, const Array<real_t> &g,
-   const Array<real_t> &bt, const Array<real_t> &gt,
-   const Vector &d, const Vector &x, Vector &y)
-{
-   using Tr = mma::form::qfn_traits<QFn>;
-   constexpr bool SYM = Tr::symmetric_pa;
-   if (!mma::PreferTensorDense(D1D, NE)) { return false; }
-   const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
-   const real_t *Dv = d.Read(), *X = x.Read();
-   real_t *Y = y.ReadWrite();
-   TensorGradHost2D<QFn, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
-   return true;
-}
-
 
 /** Named slices for 3D multi-RHS tiles (same story as Diff2DWs). */
 template <int D1D, int Q1D>
@@ -865,28 +816,47 @@ inline void TensorGradHost3DTile(
    mma::lapack::ScatterAddY3D<D1D>(e0, nbe, ytmp, Y);
 }
 
-template <typename QFn, int D1D, int Q1D, bool SYM>
-inline void TensorGradHost3D(
+/** Host multi-RHS Grad: tile over elements; dim-specific Diff*Ws + *Tile. */
+template <typename QFn, int DIM, int D1D, int Q1D, bool SYM>
+inline void TensorGradHost(
    const int NE,
    const real_t *B, const real_t *G, const real_t *Bt, const real_t *Gt,
    const real_t *Dv, const real_t *X, real_t *Y)
 {
-   const int NB = mma::TensorTileNB3D(D1D);
+   static_assert(DIM == 2 || DIM == 3, "TensorGradHost: DIM 2 or 3");
+   const int NB = (DIM == 2) ? mma::TensorTileNB(D1D, Q1D)
+                  : mma::TensorTileNB3D(D1D);
    const int ntiles = (NE + NB - 1) / NB;
    mma::host_Arena arena;
-   Diff3DWs<D1D, Q1D> ws;
-   ws.Bind(arena, NB);
-   for (int tile = 0; tile < ntiles; ++tile)
+   if constexpr (DIM == 2)
    {
-      const int e0 = tile * NB;
-      const int nbe = std::min(NB, NE - e0);
-      TensorGradHost3DTile<QFn, D1D, Q1D, SYM>(
-         e0, nbe, NB, B, G, Bt, Gt, Dv, X, Y, ws);
+      Diff2DWs<D1D, Q1D> ws;
+      ws.Bind(arena, NB);
+      for (int tile = 0; tile < ntiles; ++tile)
+      {
+         const int e0 = tile * NB;
+         const int nbe = std::min(NB, NE - e0);
+         TensorGradHost2DTile<QFn, D1D, Q1D, SYM>(
+            e0, nbe, NB, B, G, Bt, Gt, Dv, X, Y, ws);
+      }
+   }
+   else
+   {
+      Diff3DWs<D1D, Q1D> ws;
+      ws.Bind(arena, NB);
+      for (int tile = 0; tile < ntiles; ++tile)
+      {
+         const int e0 = tile * NB;
+         const int nbe = std::min(NB, NE - e0);
+         TensorGradHost3DTile<QFn, D1D, Q1D, SYM>(
+            e0, nbe, NB, B, G, Bt, Gt, Dv, X, Y, ws);
+      }
    }
 }
 
-template <typename QFn, int D1D, int Q1D>
-inline bool TryTensorGradHost3D(
+/** PreferTensorDense → multi-RHS host Grad (2D/3D). SYM from qfn_traits. */
+template <typename QFn, int DIM, int D1D, int Q1D>
+inline bool TryTensorGradHost(
    const int NE,
    const Array<real_t> &b, const Array<real_t> &g,
    const Array<real_t> &bt, const Array<real_t> &gt,
@@ -898,7 +868,7 @@ inline bool TryTensorGradHost3D(
    const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
    const real_t *Dv = d.Read(), *X = x.Read();
    real_t *Y = y.ReadWrite();
-   TensorGradHost3D<QFn, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
+   TensorGradHost<QFn, DIM, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
    return true;
 }
 
@@ -977,143 +947,107 @@ void TensorGradElement2D(const int D1D, const int Q1D, const int e,
    MFEM_SYNC_THREAD;
 }
 
-template <typename QFn, int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
-inline void TensorGradApply3D(const int NE,
-                                       const Array<real_t> &b,
-                                       const Array<real_t> &g,
-                                       const Vector &d,
-                                       const Vector &x,
-                                       Vector &y,
-                                       const int d1d = 0,
-                                       const int q1d = 0)
+/** Device/Emulate Grad shell (2D or 3D). Element kernels stay dim-specific. */
+template <typename QFn, int DIM, int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
+inline void TensorGradApplyDevice(const int NE,
+                                  const Array<real_t> &b,
+                                  const Array<real_t> &g,
+                                  const Vector &d,
+                                  const Vector &x,
+                                  Vector &y,
+                                  const int d1d = 0,
+                                  const int q1d = 0)
 {
+   static_assert(DIM == 2 || DIM == 3, "TensorGradApplyDevice: DIM 2 or 3");
    const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
    const int D1D = dq.D1D, Q1D = dq.Q1D;
    constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
    constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
-   constexpr int PA_SIZE = SYM ? 6 : 9;
-   dq.Verify(NE, "Tensor Grad MMA 3D D1D/Q1D exceeds shell cap");
-   MFEM_VERIFY(d.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
-   const int NB = T_D1D
-                  ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
-                  : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
-   const int nthreads = mma::TensorShellNthreads(
-                           T_D1D
-                           ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
-                           : mma::TensorThreads3DRuntime(D1D, Q1D,
-                                                         mma::kTensorCostHeavy));
-
-   const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto G = Reshape(g.Read(), Q1D, D1D);
-   const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, PA_SIZE, NE);
-   const auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
-
-   const int nblocks = (NE + NB - 1) / NB;
-   mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
+   if constexpr (DIM == 2)
    {
-      MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
-      MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
-      MFEM_SHARED real_t BG[2][MD1 * MQ1];
-      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+      constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
+      constexpr int PA_SIZE = SYM ? 3 : 4;
+      dq.Verify(NE, "Tensor Grad MMA 2D D1D/Q1D exceeds shell cap");
 
-      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
-      MFEM_SYNC_THREAD;
+      const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
+                     : mma::NB2DRuntime(D1D);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
+                              : mma::Threads2DRuntime(D1D, Q1D));
 
-      for (int i = 0; i < NB; i++)
+      const auto B = Reshape(b.Read(), Q1D, D1D);
+      const auto G = Reshape(g.Read(), Q1D, D1D);
+      const auto D = Reshape(d.Read(), Q1D * Q1D, PA_SIZE, NE);
+      const auto X = Reshape(x.Read(), D1D, D1D, NE);
+      auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
+
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
       {
-         const int e = b * NB + i;
-         if (e >= NE) { break; }
-         TensorGradElement3D<QFn, MD1, MQ1, SYM>(
-            D1D, Q1D, e, BG, BGt, sm0, sm1, D, X, Y);
-      }
-   });
-}
+         MFEM_SHARED real_t sm0[2][MDQ * MDQ];
+         MFEM_SHARED real_t sm1[2][MDQ * MDQ];
+         MFEM_SHARED real_t BG[2][MD1 * MQ1];
+         MFEM_SHARED real_t BGt[2][MD1 * MQ1];
 
-template <typename QFn, int T_D1D = 0, int T_Q1D = 0>
-inline void TensorGradApply3D_Dispatch(
-   const int NE,
-   const Array<real_t> &b, const Array<real_t> &g,
-   const Array<real_t> &bt, const Array<real_t> &gt,
-   const Vector &d, const Vector &x, Vector &y,
-   const int d1d, const int q1d)
-{
-   MFEM_CONTRACT_VAR(bt);
-   MFEM_CONTRACT_VAR(gt);
-   constexpr bool SYM = mma::form::qfn_traits<QFn>::symmetric_pa;
-   TensorGradApply3D<QFn, T_D1D, T_Q1D, SYM>(
-      NE, b, g, d, x, y, d1d, q1d);
-}
+         mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+         MFEM_SYNC_THREAD;
 
-template <typename QFn, int T_D1D = 0, int T_Q1D = 0, bool SYM = true>
-inline void TensorGradApply2D(const int NE,
-                                       const Array<real_t> &b,
-                                       const Array<real_t> &g,
-                                       const Vector &d,
-                                       const Vector &x,
-                                       Vector &y,
-                                       const int d1d = 0,
-                                       const int q1d = 0)
-{
-   const mma::TensorShellDims<T_D1D, T_Q1D> dq(d1d, q1d);
-   const int D1D = dq.D1D, Q1D = dq.Q1D;
-   constexpr int MD1 = mma::TensorShellDims<T_D1D, T_Q1D>::MD1;
-   constexpr int MQ1 = mma::TensorShellDims<T_D1D, T_Q1D>::MQ1;
-   constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
-   constexpr int PA_SIZE = SYM ? 3 : 4;
-   dq.Verify(NE, "Tensor Grad MMA 2D D1D/Q1D exceeds shell cap");
-
-   const int NB = T_D1D ? mma::NB2D<T_D1D, T_Q1D>()
-                  : mma::NB2DRuntime(D1D);
-   const int nthreads = mma::TensorShellNthreads(
-                           T_D1D ? mma::Threads2D<T_D1D, T_Q1D>()
-                           : mma::Threads2DRuntime(D1D, Q1D));
-
-   const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto G = Reshape(g.Read(), Q1D, D1D);
-   const auto D = Reshape(d.Read(), Q1D * Q1D, PA_SIZE, NE);
-   const auto X = Reshape(x.Read(), D1D, D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), D1D, D1D, NE);
-
-   const int nblocks = (NE + NB - 1) / NB;
-   mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
+         for (int i = 0; i < NB; i++)
+         {
+            const int e = b * NB + i;
+            if (e >= NE) { break; }
+            TensorGradElement2D<QFn, MD1, MQ1, MDQ, SYM>(
+               D1D, Q1D, e, BG, BGt, sm0, sm1, D, X, Y);
+         }
+      });
+   }
+   else
    {
-      MFEM_SHARED real_t sm0[2][MDQ * MDQ];
-      MFEM_SHARED real_t sm1[2][MDQ * MDQ];
-      MFEM_SHARED real_t BG[2][MD1 * MQ1];
-      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+      constexpr int PA_SIZE = SYM ? 6 : 9;
+      dq.Verify(NE, "Tensor Grad MMA 3D D1D/Q1D exceeds shell cap");
+      MFEM_VERIFY(d.Size() == PA_SIZE * Q1D * Q1D * Q1D * NE, "");
 
-      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
-      MFEM_SYNC_THREAD;
+      const int NB = T_D1D
+                     ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                     : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
+      const int nthreads = mma::TensorShellNthreads(
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D,
+                                                    mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D,
+                                                            mma::kTensorCostHeavy));
 
-      for (int i = 0; i < NB; i++)
+      const auto B = Reshape(b.Read(), Q1D, D1D);
+      const auto G = Reshape(g.Read(), Q1D, D1D);
+      const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, PA_SIZE, NE);
+      const auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
+      auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
+
+      const int nblocks = (NE + NB - 1) / NB;
+      mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
       {
-         const int e = b * NB + i;
-         if (e >= NE) { break; }
-         TensorGradElement2D<QFn, MD1, MQ1, MDQ, SYM>(
-            D1D, Q1D, e, BG, BGt, sm0, sm1, D, X, Y);
-      }
-   });
+         MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
+         MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
+         MFEM_SHARED real_t BG[2][MD1 * MQ1];
+         MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+
+         mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+         MFEM_SYNC_THREAD;
+
+         for (int i = 0; i < NB; i++)
+         {
+            const int e = b * NB + i;
+            if (e >= NE) { break; }
+            TensorGradElement3D<QFn, MD1, MQ1, SYM>(
+               D1D, Q1D, e, BG, BGt, sm0, sm1, D, X, Y);
+         }
+      });
+   }
 }
 
-template <typename QFn, int T_D1D = 0, int T_Q1D = 0>
-inline void TensorGradApply2D_Dispatch(
-   const int NE,
-   const Array<real_t> &b, const Array<real_t> &g,
-   const Array<real_t> &bt, const Array<real_t> &gt,
-   const Vector &d, const Vector &x, Vector &y,
-   const int d1d, const int q1d)
-{
-   MFEM_CONTRACT_VAR(bt);
-   MFEM_CONTRACT_VAR(gt);
-   constexpr bool SYM = mma::form::qfn_traits<QFn>::symmetric_pa;
-   TensorGradApply2D<QFn, T_D1D, T_Q1D, SYM>(
-      NE, b, g, d, x, y, d1d, q1d);
-}
-
-/** Entry: host lapack multi-RHS sum-fact when available, else device/Emulate.
-    SYM comes from qfn_traits<QFn>::symmetric_pa. */
+/** Entry: host lapack multi-RHS when available, else device/Emulate shell.
+    SYM from qfn_traits<QFn>::symmetric_pa. */
 template <typename QFn, int DIM, int T_D1D, int T_Q1D>
 inline void TensorGradApply(
    const int NE,
@@ -1122,33 +1056,19 @@ inline void TensorGradApply(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
+   MFEM_CONTRACT_VAR(bt);
+   MFEM_CONTRACT_VAR(gt);
 #ifdef MFEM_USE_LAPACK
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      if constexpr (DIM == 3)
-      {
-         if (mma::lapack::TryTensorGradHost3D<QFn, T_D1D, T_Q1D>(
-                NE, b, g, bt, gt, d, x, y))
-         { return; }
-      }
-      else
-      {
-         if (mma::lapack::TryTensorGradHost2D<QFn, T_D1D, T_Q1D>(
-                NE, b, g, bt, gt, d, x, y))
-         { return; }
-      }
+      if (mma::lapack::TryTensorGradHost<QFn, DIM, T_D1D, T_Q1D>(
+             NE, b, g, bt, gt, d, x, y))
+      { return; }
    }
 #endif
-   if constexpr (DIM == 3)
-   {
-      TensorGradApply3D_Dispatch<QFn, T_D1D, T_Q1D>(
-         NE, b, g, bt, gt, d, x, y, d1d, q1d);
-   }
-   else
-   {
-      TensorGradApply2D_Dispatch<QFn, T_D1D, T_Q1D>(
-         NE, b, g, bt, gt, d, x, y, d1d, q1d);
-   }
+   constexpr bool SYM = mma::form::qfn_traits<QFn>::symmetric_pa;
+   TensorGradApplyDevice<QFn, DIM, T_D1D, T_Q1D, SYM>(
+      NE, b, g, d, x, y, d1d, q1d);
 }
 
 } // namespace mfem::internal
