@@ -10,9 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-// batch.hpp pulls common.hpp (MassLikeNB*, PadLd*, Simplex*, Launch*).
 #include "../batch.hpp"
-// Dump path: GetEnv / mfem::out (not available via batch alone).
 #include "../../../../general/globals.hpp"
 #include <cstring>
 #include "fields.hpp"
@@ -23,8 +21,7 @@ namespace mfem::internal::mma::form
 {
 
 /** Shared smem / launch plan (specialized (DIM,D1D,QND) or runtime Fallback).
-    Fields are filled by porting existing device NB helpers (Eval family /
-    Grad family) — do not invent alternate formulas here. */
+    Fields are filled by porting existing device NB helpers. */
 struct SmemPlan
 {
    int nb = 0;
@@ -235,7 +232,8 @@ inline void DumpFormApply(const char *entry, int NE, int nq, int ndof)
              << " DIM=" << DIM << " D1D=" << D1D << " QND=" << QND
              << " nq=" << nq << " ndof=" << ndof
              << '\n';
-   mfem::out << "  trial=" << FieldKindName(field_traits<typename Tr::trial_kind>::kind)
+   mfem::out << "  trial=" << FieldKindName(
+                field_traits<typename Tr::trial_kind>::kind)
              << " test=" << FieldKindName(field_traits<typename Tr::test_kind>::kind)
              << " load_x=" << (Tr::load_x ? 1 : 0)
              << " planes=" << Tr::u_planes(DIM)
@@ -271,7 +269,8 @@ inline void DumpFormApplyRuntime(const char *entry, int NE, int nq, int ndof)
              << " DIM=" << DIM
              << " nq=" << nq << " ndof=" << ndof
              << '\n';
-   mfem::out << "  trial=" << FieldKindName(field_traits<typename Tr::trial_kind>::kind)
+   mfem::out << "  trial=" << FieldKindName(
+                field_traits<typename Tr::trial_kind>::kind)
              << " test=" << FieldKindName(field_traits<typename Tr::test_kind>::kind)
              << " load_x=" << (Tr::load_x ? 1 : 0)
              << " planes=" << Tr::u_planes(DIM)
@@ -291,7 +290,6 @@ inline void DumpFormApplyRuntime(const char *entry, int NE, int nq, int ndof)
       DumpPlanFields(MakeGradPlanRuntime(DIM, ndof, nq));
    }
 }
-
 
 } // namespace mfem::internal::mma::form
 

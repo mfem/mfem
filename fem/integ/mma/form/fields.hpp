@@ -26,7 +26,7 @@ using mfem::future::tensor;
 
 enum class field_kind { Eval, Grad, None };
 
-/** Scalar (1-plane) value at a quadrature point.
+/** Scalar value at a quadrature point.
     Storage is tensor<real_t,1> so scalar*tensor ops apply uniformly. */
 struct eval_t : tensor<real_t, 1>
 {
@@ -61,32 +61,32 @@ struct eval_t : tensor<real_t, 1>
 };
 
 /** Gradient vector of length Dim at a quadrature point. */
-template <int Dim>
-struct grad_t : tensor<real_t, Dim>
+template <int DIM>
+struct grad_t : tensor<real_t, DIM>
 {
    static constexpr field_kind kind = field_kind::Grad;
    static constexpr bool needs_basis = true;
    static constexpr bool is_grad = true;
-   static constexpr int spatial_dim = Dim;
+   static constexpr int spatial_dim = DIM;
 
    static constexpr int planes(int /*dim*/, int vdim = 1)
    {
-      return Dim * vdim;
+      return DIM * vdim;
    }
 
-   using base = tensor<real_t, Dim>;
+   using base = tensor<real_t, DIM>;
    using base::base;
 
    MFEM_HOST_DEVICE grad_t() : base{}
    {
-      for (int i = 0; i < Dim; ++i) { (*this)[i] = real_t(0); }
+      for (int i = 0; i < DIM; ++i) { (*this)[i] = real_t(0); }
    }
 
    MFEM_HOST_DEVICE grad_t(const base &t) : base(t) {}
 
    MFEM_HOST_DEVICE grad_t &operator=(const base &t)
    {
-      for (int i = 0; i < Dim; ++i) { (*this)[i] = t[i]; }
+      for (int i = 0; i < DIM; ++i) { (*this)[i] = t[i]; }
       return *this;
    }
 };
@@ -121,8 +121,8 @@ struct is_none<none_t> : std::true_type {};
 template <typename T>
 struct is_field_kind
    : std::integral_constant<bool, is_eval<T>::value ||
-                            is_grad_field<T>::value ||
-                            is_none<T>::value> {};
+     is_grad_field<T>::value ||
+     is_none<T>::value> {};
 
 template <typename T>
 struct field_traits
@@ -152,8 +152,8 @@ struct EvalEvalQFnTraits
    using test_kind = eval_t;
    using coeff_type = real_t;
 
-   static constexpr bool has_trial = true;
    static constexpr bool load_x = true;
+   static constexpr bool has_trial = true;
    static constexpr bool trial_is_grad = false;
    static constexpr bool test_is_grad = false;
 
@@ -170,8 +170,8 @@ struct NoneEvalQFnTraits
    using test_kind = eval_t;
    using coeff_type = real_t;
 
-   static constexpr bool has_trial = false;
    static constexpr bool load_x = false;
+   static constexpr bool has_trial = false;
    static constexpr bool trial_is_grad = false;
    static constexpr bool test_is_grad = false;
 
@@ -189,8 +189,8 @@ struct GradGradQFnTraits
    using test_kind = grad_t<DIM>;
    using coeff_type = tensor<real_t, DIM, DIM>;
 
-   static constexpr bool has_trial = true;
    static constexpr bool load_x = true;
+   static constexpr bool has_trial = true;
    static constexpr bool trial_is_grad = true;
    static constexpr bool test_is_grad = true;
    static constexpr bool symmetric_pa = SYM;

@@ -17,12 +17,9 @@
     Companion to tensors.hpp (tensor-product sum-fact ApplyTensor).
 */
 
-// Gemm / DeviceGemmEnabled / smem accessors (via common → forall → device/dtensor).
 #include "../dispatch.hpp"
-// SmemPlan, Make*Plan, DumpForm*, field types / qfn_traits.
 #include "plan.hpp"
 
-// Public Apply signatures use complete Array / Vector types.
 #include "../../../../general/array.hpp"
 #include "../../../../linalg/vector.hpp"
 
@@ -415,7 +412,7 @@ inline void HostLFApply(QFn qfn, const int NE, const int nq, const int ndof,
             {
                Y[i + ndof * (vc + vdim * e)] +=
                   ytmp[static_cast<size_t>(i) +
-                       static_cast<size_t>(ndof) * b];
+                                              static_cast<size_t>(ndof) * b];
             }
          }
       }
