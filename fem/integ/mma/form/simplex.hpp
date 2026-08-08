@@ -13,7 +13,7 @@
 /** @file simplex.hpp
     Simplex dense form apply (integrator-agnostic).
 
-    Eval×Eval / Grad×Grad / ApplyLF pipelines on dense P/G basis.
+    Eval×Eval / Grad×Grad ApplySimplex and ApplyLF on dense P/G basis.
     Companion to tensors.hpp (tensor-product sum-fact ApplyTensor).
 */
 
@@ -330,14 +330,14 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
 }
 
 // ---------------------------------------------------------------------------
-// Public Apply entry points
+// Public ApplySimplex entry points
 // ---------------------------------------------------------------------------
 
-/** Specialized simplex Eval×Eval Apply (mass-like).
+/** Specialized simplex Eval×Eval ApplySimplex (mass-like).
     Signature matches MassIntegrator::ApplySimplexMmaKernelType. */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -353,7 +353,7 @@ Apply(const int NE,
    MFEM_VERIFY(basis.Size() == QND * NDOF, "");
    MFEM_VERIFY(x.Size() >= NDOF * NE && y.Size() >= NDOF * NE, "");
 
-   DumpFormApply<QFn, DIM, D1D, QND>("Apply", NE, QND, NDOF);
+   DumpFormApply<QFn, DIM, D1D, QND>("ApplySimplex", NE, QND, NDOF);
 
    QFn qfn{};
 
@@ -398,7 +398,7 @@ Apply(const int NE,
 /** Specialized Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -413,7 +413,7 @@ Apply(const int NE,
 
    if (vdim == 1 && coeff_vdim == 1)
    {
-      Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
+      ApplySimplex<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
       return;
    }
 
@@ -426,7 +426,7 @@ Apply(const int NE,
    MFEM_VERIFY(basis.Size() == QND * NDOF, "");
    MFEM_VERIFY(x.Size() >= NDOF * vdim * NE && y.Size() >= NDOF * vdim * NE, "");
 
-   DumpFormApply<QFn, DIM, D1D, QND>("Apply", NE, QND, NDOF);
+   DumpFormApply<QFn, DIM, D1D, QND>("ApplySimplex", NE, QND, NDOF);
 
    QFn qfn{};
    if (!Device::Allows(Backend::DEVICE_MASK))
@@ -500,10 +500,10 @@ Apply(const int NE,
    });
 }
 
-/** Runtime Fallback Eval×Eval Apply. */
+/** Runtime Fallback Eval×Eval ApplySimplex. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -525,7 +525,7 @@ Apply(const int NE,
    MFEM_VERIFY(nq <= MAX_NQ && ndof <= MAX_NDOF,
                "simplex Eval Apply runtime exceeds size caps");
 
-   DumpFormApplyRuntime<QFn, DIM>("Apply", NE, nq, ndof);
+   DumpFormApplyRuntime<QFn, DIM>("ApplySimplex", NE, nq, ndof);
 
    QFn qfn{};
 
@@ -561,7 +561,7 @@ Apply(const int NE,
 /** Runtime Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -591,7 +591,7 @@ Apply(const int NE,
 
    if (vdim == 1 && coeff_vdim == 1)
    {
-      Apply<QFn, DIM>(NE, basis, d, x, y);
+      ApplySimplex<QFn, DIM>(NE, basis, d, x, y);
       return;
    }
 
@@ -602,7 +602,7 @@ Apply(const int NE,
    constexpr int MAX_NDOF = SimplexNdof<DIM, 0>();
    MFEM_VERIFY(nq <= MAX_NQ && ndof <= MAX_NDOF, "");
 
-   DumpFormApplyRuntime<QFn, DIM>("Apply", NE, nq, ndof);
+   DumpFormApplyRuntime<QFn, DIM>("ApplySimplex", NE, nq, ndof);
 
    QFn qfn{};
    if (!Device::Allows(Backend::DEVICE_MASK))
@@ -1581,13 +1581,13 @@ MFEM_HOST_DEVICE inline void GradBatchBody(
 }
 
 // ---------------------------------------------------------------------------
-// Public Apply for Grad×Grad QFns (generic; integrator supplies QFn + traits)
+// Public ApplySimplex for Grad×Grad QFns (generic; integrator supplies QFn + traits)
 // ---------------------------------------------------------------------------
 
-/** Specialized Grad×Grad Apply. */
+/** Specialized Grad×Grad ApplySimplex. */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -1596,7 +1596,7 @@ Apply(const int NE,
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "Grad Apply requires Grad×Grad QFn");
    static_assert(D1D > 0 && QND > 0, "requires specialized D1D/QND");
-   static_assert(Tr::spatial_dim == DIM, "QFn DIM must match Apply DIM");
+   static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
 
    constexpr bool SYM = Tr::symmetric_pa;
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
@@ -1634,7 +1634,7 @@ Apply(const int NE,
 /** Specialized Grad×Grad with vdim (VectorDiffusion stock PA layouts). */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -1661,7 +1661,7 @@ Apply(const int NE,
    // Scalar Diffusion shared layout (ncomp==1, vdim==1) stays on scalar path.
    if (vdim == 1 && ncomp == 1)
    {
-      Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
+      ApplySimplex<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
       return;
    }
 
@@ -1776,10 +1776,10 @@ Apply(const int NE,
    });
 }
 
-/** Runtime Fallback Grad Apply — full-NQ only; Q-tile falls back to dense. */
+/** Runtime Fallback Grad ApplySimplex — full-NQ only; Q-tile falls back to dense. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -1787,7 +1787,7 @@ Apply(const int NE,
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "Grad Apply runtime requires Grad×Grad QFn");
-   static_assert(Tr::spatial_dim == DIM, "QFn DIM must match Apply DIM");
+   static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
 
    constexpr bool SYM = Tr::symmetric_pa;
    constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
@@ -1856,7 +1856,7 @@ Apply(const int NE,
 /** Runtime Grad×Grad with vdim (VectorDiffusion stock PA layouts). */
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
-Apply(const int NE,
+ApplySimplex(const int NE,
       const Array<real_t> &basis,
       const Vector &d,
       const Vector &x,
@@ -1893,7 +1893,7 @@ Apply(const int NE,
 
    if (vdim == 1 && ncomp == 1)
    {
-      Apply<QFn, DIM>(NE, basis, d, x, y);
+      ApplySimplex<QFn, DIM>(NE, basis, d, x, y);
       return;
    }
 

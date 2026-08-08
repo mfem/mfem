@@ -13,7 +13,7 @@
 /** @file diffusion.hpp
     Diffusion / VectorDiffusion PA MMA — shared QFn + simplex/tensor Kernel decls.
 
-    form::DiffusionMetric (y = A * u). VectorDiffusion uses SYM metric + vdim.
+    form::Diffusion (y = A * u). VectorDiffusion uses SYM metric + vdim.
 */
 
 #include "../../bilininteg.hpp"
@@ -46,9 +46,9 @@ void PADiffusionSetupSimplexFromNodes(const int dim,
 namespace internal::mma::form
 {
 
-/** Diffusion metric matvec at a quadrature point: y = A * u. */
+/** Diffusion matvec at a quadrature point: y = A * u. */
 template <int DIM, bool SYM = true>
-struct DiffusionMetric
+struct Diffusion
 {
    static constexpr bool symmetric_pa = SYM;
 
@@ -60,7 +60,7 @@ struct DiffusionMetric
 };
 
 template <int DIM, bool SYM>
-struct qfn_traits<DiffusionMetric<DIM, SYM>> : GradGradQFnTraits<DIM, SYM> {};
+struct qfn_traits<Diffusion<DIM, SYM>> : GradGradQFnTraits<DIM, SYM> {};
 
 /** Dispatch on runtime `symmetric` for DiffusionIntegrator registration. */
 template <int DIM, int D1D, int QND>
@@ -73,11 +73,11 @@ inline void ApplyDiffusionDispatch(const int NE,
 {
    if (symmetric)
    {
-      Apply<DiffusionMetric<DIM, true>, DIM, D1D, QND>(NE, g, d, x, y);
+      ApplySimplex<Diffusion<DIM, true>, DIM, D1D, QND>(NE, g, d, x, y);
    }
    else
    {
-      Apply<DiffusionMetric<DIM, false>, DIM, D1D, QND>(NE, g, d, x, y);
+      ApplySimplex<Diffusion<DIM, false>, DIM, D1D, QND>(NE, g, d, x, y);
    }
 }
 
@@ -91,11 +91,11 @@ inline void ApplyDiffusionDispatch(const int NE,
 {
    if (symmetric)
    {
-      Apply<DiffusionMetric<DIM, true>, DIM>(NE, g, d, x, y);
+      ApplySimplex<Diffusion<DIM, true>, DIM>(NE, g, d, x, y);
    }
    else
    {
-      Apply<DiffusionMetric<DIM, false>, DIM>(NE, g, d, x, y);
+      ApplySimplex<Diffusion<DIM, false>, DIM>(NE, g, d, x, y);
    }
 }
 
@@ -104,7 +104,7 @@ inline void ApplyDiffusionDispatch(const int NE,
 namespace internal
 {
 
-/** Runtime SYM dispatch: pick DiffusionMetric SYM and call ApplyTensor. */
+/** Runtime SYM dispatch: pick Diffusion SYM and call ApplyTensor. */
 template <int DIM, int T_D1D, int T_Q1D>
 inline void MmaDiffusionApplyTensors(
    const int NE, const bool symmetric,
@@ -114,15 +114,15 @@ inline void MmaDiffusionApplyTensors(
    const int d1d, const int q1d)
 {
    using mma::form::ApplyTensor;
-   using mma::form::DiffusionMetric;
+   using mma::form::Diffusion;
    if (symmetric)
    {
-      ApplyTensor<DiffusionMetric<DIM, true>, DIM, T_D1D, T_Q1D>(
+      ApplyTensor<Diffusion<DIM, true>, DIM, T_D1D, T_Q1D>(
          NE, b, g, bt, gt, d, x, y, d1d, q1d);
    }
    else
    {
-      ApplyTensor<DiffusionMetric<DIM, false>, DIM, T_D1D, T_Q1D>(
+      ApplyTensor<Diffusion<DIM, false>, DIM, T_D1D, T_Q1D>(
          NE, b, g, bt, gt, d, x, y, d1d, q1d);
    }
 }
@@ -155,9 +155,9 @@ inline void MmaVectorDiffusionApplySimplex(
    const Array<real_t> &G,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using mma::form::Apply;
-   using mma::form::DiffusionMetric;
-   Apply<DiffusionMetric<DIM, true>, DIM, D1D, QND>(NE, G, d, x, y, vdim);
+   using mma::form::ApplySimplex;
+   using mma::form::Diffusion;
+   ApplySimplex<Diffusion<DIM, true>, DIM, D1D, QND>(NE, G, d, x, y, vdim);
 }
 
 inline void MmaVectorDiffusionApplySimplex2D(
@@ -165,9 +165,9 @@ inline void MmaVectorDiffusionApplySimplex2D(
    const Array<real_t> &G,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using mma::form::Apply;
-   using mma::form::DiffusionMetric;
-   Apply<DiffusionMetric<2, true>, 2>(NE, G, d, x, y, vdim);
+   using mma::form::ApplySimplex;
+   using mma::form::Diffusion;
+   ApplySimplex<Diffusion<2, true>, 2>(NE, G, d, x, y, vdim);
 }
 
 inline void MmaVectorDiffusionApplySimplex3D(
@@ -175,9 +175,9 @@ inline void MmaVectorDiffusionApplySimplex3D(
    const Array<real_t> &G,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using mma::form::Apply;
-   using mma::form::DiffusionMetric;
-   Apply<DiffusionMetric<3, true>, 3>(NE, G, d, x, y, vdim);
+   using mma::form::ApplySimplex;
+   using mma::form::Diffusion;
+   ApplySimplex<Diffusion<3, true>, 3>(NE, G, d, x, y, vdim);
 }
 
 template <int DIM, int T_D1D, int T_Q1D>
@@ -189,8 +189,8 @@ inline void MmaVectorDiffusionApplyTensors(
    const int d1d, const int q1d)
 {
    using mma::form::ApplyTensor;
-   using mma::form::DiffusionMetric;
-   ApplyTensor<DiffusionMetric<DIM, true>, DIM, T_D1D, T_Q1D>(
+   using mma::form::Diffusion;
+   ApplyTensor<Diffusion<DIM, true>, DIM, T_D1D, T_Q1D>(
       NE, b, g, bt, gt, d, x, y, d1d, q1d, vdim);
 }
 
@@ -202,8 +202,8 @@ inline void MmaVectorDiffusionApplyTensors2D(
    const int d1d, const int q1d)
 {
    using mma::form::ApplyTensor;
-   using mma::form::DiffusionMetric;
-   ApplyTensor<DiffusionMetric<2, true>, 2>(
+   using mma::form::Diffusion;
+   ApplyTensor<Diffusion<2, true>, 2>(
       NE, b, g, bt, gt, d, x, y, d1d, q1d, vdim);
 }
 
@@ -215,8 +215,8 @@ inline void MmaVectorDiffusionApplyTensors3D(
    const int d1d, const int q1d)
 {
    using mma::form::ApplyTensor;
-   using mma::form::DiffusionMetric;
-   ApplyTensor<DiffusionMetric<3, true>, 3>(
+   using mma::form::Diffusion;
+   ApplyTensor<Diffusion<3, true>, 3>(
       NE, b, g, bt, gt, d, x, y, d1d, q1d, vdim);
 }
 

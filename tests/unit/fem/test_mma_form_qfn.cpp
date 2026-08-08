@@ -41,9 +41,9 @@ TEST_CASE("MMA form QFn tensor algebra", "[MMA][Form]")
       REQUIRE(real_t(y) == MFEM_Approx(4.0));
    }
 
-   SECTION("DiffusionMetric y = A * u (2D)")
+   SECTION("Diffusion y = A * u (2D)")
    {
-      DiffusionMetric<2, true> q;
+      Diffusion<2, true> q;
       grad_t<2> u;
       u[0] = 1.0;
       u[1] = 2.0;
@@ -80,9 +80,9 @@ TEST_CASE("MMA form qfn_traits presets", "[MMA][Form]")
       REQUIRE(Tr::u_planes(3) == 1);
    }
 
-   SECTION("DiffusionMetric<3>")
+   SECTION("Diffusion<3>")
    {
-      using Tr = qfn_traits<DiffusionMetric<3, true>>;
+      using Tr = qfn_traits<Diffusion<3, true>>;
       static_assert(Tr::load_x);
       static_assert(Tr::trial_is_grad);
       static_assert(Tr::spatial_dim == 3);
@@ -227,7 +227,7 @@ TEST_CASE("MMA form pipeline Eval Apply runtime vs ref",
    Y_pipe = 0.0;
 
    MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
-   form::Apply<Mass, 2>(NE, P, D, X, Y_pipe);
+   form::ApplySimplex<Mass, 2>(NE, P, D, X, Y_pipe);
 
    for (int i = 0; i < ndof * NE; ++i)
    {
@@ -252,7 +252,7 @@ TEST_CASE("MMA form pipeline Eval Apply specialized vs ref",
    Y_pipe = 0.0;
 
    MassRef(NE, nq, ndof, P.GetData(), D.GetData(), X.GetData(), Y_ref.GetData());
-   form::Apply<Mass, DIM, D1D, QND>(NE, P, D, X, Y_pipe);
+   form::ApplySimplex<Mass, DIM, D1D, QND>(NE, P, D, X, Y_pipe);
 
    for (int i = 0; i < ndof * NE; ++i)
    {
@@ -320,11 +320,11 @@ TEST_CASE("MMA form Grad plan goldens", "[MMA][Form][Plan]")
       REQUIRE(p.smem_bytes ==
               int(sizeof(real_t)) * (p.x_ld + DIM * p.u_ld) * p.nb);
    }
-   // Traits-driven plan for DiffusionMetric
+   // Traits-driven plan for Diffusion
    {
       constexpr int DIM = 2, D1D = 3, QND = 6;
       const SmemPlan p =
-         MakeDevicePlan<DiffusionMetric<DIM, true>, DIM, D1D, QND>();
+         MakeDevicePlan<Diffusion<DIM, true>, DIM, D1D, QND>();
       REQUIRE(p.nb == BatchNB<DIM, D1D, QND>());
       REQUIRE(p.n_u_planes == 2);
    }
@@ -381,7 +381,7 @@ TEST_CASE("MMA form Grad Apply dense vs ref", "[MMA][Form][Pipeline]")
       }
    }
 
-   form::Apply<DiffusionMetric<2, true>, 2>(NE, G, D, X, Y_pipe);
+   form::ApplySimplex<Diffusion<2, true>, 2>(NE, G, D, X, Y_pipe);
 
    for (int i = 0; i < ndof * NE; ++i)
    {
@@ -402,7 +402,7 @@ TEST_CASE("MMA form dump disabled by default", "[MMA][Form][Dump]")
    D = 1.0;
    X = 1.0;
    Y = 0.0;
-   form::Apply<Mass, 2>(NE, P, D, X, Y);
+   form::ApplySimplex<Mass, 2>(NE, P, D, X, Y);
    // All-ones P,D,X: U_q = ndof, scaled by D → ndof; Y_i = nq*ndof
    REQUIRE(Y(0) == MFEM_Approx(real_t(nq * ndof)));
 }
@@ -413,7 +413,7 @@ TEST_CASE("MMA form DumpFormApply no-op when disabled", "[MMA][Form][Dump]")
    DumpFormApply<Mass, 2, 2, 3>("test", 1, 3, 3);
    DumpFormApplyRuntime<Mass, 2>("test", 1, 3, 3);
    DumpFormApply<IdentityLoad, 2, 2, 3>("test-lf", 1, 3, 3);
-   DumpFormApply<DiffusionMetric<2, true>, 2, 2, 3>("test-grad", 1, 3, 3);
+   DumpFormApply<Diffusion<2, true>, 2, 2, 3>("test-grad", 1, 3, 3);
    REQUIRE(true);
 }
 
@@ -444,7 +444,7 @@ struct qfn_traits<DensitySquaredMass> : EvalEvalQFnTraits {};
 
 TEST_CASE("MMA form custom QFn DensitySquaredMass", "[MMA][Form][Author]")
 {
-   using form::Apply;
+   using form::ApplySimplex;
    using form::qfn_traits;
 
    SECTION("traits inherit EvalEval")
@@ -463,7 +463,7 @@ TEST_CASE("MMA form custom QFn DensitySquaredMass", "[MMA][Form][Author]")
       REQUIRE(real_t(y) == MFEM_Approx(18.0));
    }
 
-   SECTION("pipeline Apply vs independent ref")
+   SECTION("pipeline ApplySimplex vs independent ref")
    {
       constexpr int nq = 3;
       constexpr int ndof = 3;
@@ -510,7 +510,7 @@ TEST_CASE("MMA form custom QFn DensitySquaredMass", "[MMA][Form][Author]")
          }
       }
 
-      Apply<DensitySquaredMass, 2>(NE, P, D, X, Y_pipe);
+      ApplySimplex<DensitySquaredMass, 2>(NE, P, D, X, Y_pipe);
 
       for (int i = 0; i < ndof * NE; ++i)
       {

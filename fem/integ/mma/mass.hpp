@@ -53,8 +53,8 @@ inline void MmaMassApplyTensors(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
    using mma::form::Mass;
+   using mma::form::ApplyTensor;
    ApplyTensor<Mass, DIM, T_D1D, T_Q1D>(NE, b, bt, d, x, y, d1d, q1d);
 }
 
@@ -64,8 +64,8 @@ inline void MmaMassApplyTensors2D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
    using mma::form::Mass;
+   using mma::form::ApplyTensor;
    ApplyTensor<Mass, 2>(NE, b, bt, d, x, y, d1d, q1d);
 }
 
@@ -75,8 +75,8 @@ inline void MmaMassApplyTensors3D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
    using mma::form::Mass;
+   using mma::form::ApplyTensor;
    ApplyTensor<Mass, 3>(NE, b, bt, d, x, y, d1d, q1d);
 }
 
@@ -86,9 +86,9 @@ inline void MmaVectorMassApplySimplex(
    const Array<real_t> &P,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using mma::form::Apply;
    using mma::form::Mass;
-   Apply<Mass, DIM, D1D, QND>(NE, P, d, x, y, vdim);
+   using mma::form::ApplySimplex;
+   ApplySimplex<Mass, DIM, D1D, QND>(NE, P, d, x, y, vdim);
 }
 
 inline void MmaVectorMassApplySimplex2D(
@@ -96,9 +96,9 @@ inline void MmaVectorMassApplySimplex2D(
    const Array<real_t> &P,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using mma::form::Apply;
    using mma::form::Mass;
-   Apply<Mass, 2>(NE, P, d, x, y, vdim);
+   using mma::form::ApplySimplex;
+   ApplySimplex<Mass, 2>(NE, P, d, x, y, vdim);
 }
 
 inline void MmaVectorMassApplySimplex3D(
@@ -106,9 +106,9 @@ inline void MmaVectorMassApplySimplex3D(
    const Array<real_t> &P,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using mma::form::Apply;
    using mma::form::Mass;
-   Apply<Mass, 3>(NE, P, d, x, y, vdim);
+   using mma::form::ApplySimplex;
+   ApplySimplex<Mass, 3>(NE, P, d, x, y, vdim);
 }
 
 template <int DIM, int T_D1D, int T_Q1D>
@@ -118,8 +118,8 @@ inline void MmaVectorMassApplyTensors(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
    using mma::form::Mass;
+   using mma::form::ApplyTensor;
    ApplyTensor<Mass, DIM, T_D1D, T_Q1D>(
       NE, b, bt, d, x, y, d1d, q1d, vdim);
 }
@@ -130,8 +130,8 @@ inline void MmaVectorMassApplyTensors2D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
    using mma::form::Mass;
+   using mma::form::ApplyTensor;
    ApplyTensor<Mass, 2>(NE, b, bt, d, x, y, d1d, q1d, vdim);
 }
 
@@ -141,8 +141,8 @@ inline void MmaVectorMassApplyTensors3D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
    using mma::form::Mass;
+   using mma::form::ApplyTensor;
    ApplyTensor<Mass, 3>(NE, b, bt, d, x, y, d1d, q1d, vdim);
 }
 
@@ -152,15 +152,15 @@ template<int DIM, int D1D, int QND>
 MassIntegrator::ApplySimplexMmaKernelType
 MassIntegrator::ApplySimplexMmaPAKernels::Kernel()
 {
-   using internal::mma::form::Apply;
+   using internal::mma::form::ApplySimplex;
    using internal::mma::form::Mass;
    if constexpr (DIM == 2)
    {
-      return Apply<Mass, 2, D1D, QND>;
+      return ApplySimplex<Mass, 2, D1D, QND>;
    }
    else if constexpr (DIM == 3)
    {
-      return Apply<Mass, 3, D1D, QND>;
+      return ApplySimplex<Mass, 3, D1D, QND>;
    }
    else
    {
@@ -172,16 +172,16 @@ MassIntegrator::ApplySimplexMmaPAKernels::Kernel()
 inline MassIntegrator::ApplySimplexMmaKernelType
 MassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 {
-   using internal::mma::form::Apply;
+   using internal::mma::form::ApplySimplex;
    using internal::mma::form::Mass;
    using Fn = ApplySimplexMmaKernelType;
    MFEM_VERIFY(dim == 2 || dim == 3,
                "Simplex MMA mass PA is only implemented for triangles/tets");
    if (dim == 2)
    {
-      return static_cast<Fn>(Apply<Mass, 2>);
+      return static_cast<Fn>(ApplySimplex<Mass, 2>);
    }
-   return static_cast<Fn>(Apply<Mass, 3>);
+   return static_cast<Fn>(ApplySimplex<Mass, 3>);
 }
 
 template <int DIM, int T_D1D, int T_Q1D>

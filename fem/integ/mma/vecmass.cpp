@@ -106,7 +106,8 @@ void VectorMassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    dofs1D = p + 1;
    const int ndof = el.GetDof();
 
-   const auto *ir_ptr = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, Trans);
+   const auto *ir_ptr = IntRule ? IntRule : &MassIntegrator::GetRule(el, el,
+                                                                     Trans);
    const IntegrationRule &ir = *ir_ptr;
    nq = ir.GetNPoints();
    quad1D = 0;
@@ -259,8 +260,6 @@ VectorMassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
    MFEM_ABORT("Simplex MMA VectorMass PA is only implemented for dim 2 or 3");
    return nullptr;
 }
-
-
 
 void VectorMassIntegrator::RegisterTensorsMmaKernels()
 {
