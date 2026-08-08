@@ -7,6 +7,8 @@
 
                                https://mfem.org
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/mfem/mfem?utm_source=badge)
+
 [MFEM](https://mfem.org) is a modular parallel C++ library for finite element
 methods. Its goal is to enable high-performance scalable finite element
 discretization research and application development on a wide variety of
