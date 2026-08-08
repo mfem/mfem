@@ -60,7 +60,7 @@ void VectorDiffusionIntegrator::AssembleSimplexMmaPA(
    simplex_mma_G.SetSize(nq * dof * dim, mt);
    {
       real_t *Gh = simplex_mma_G.HostWrite();
-      DenseMatrix dshape(dof, dim);
+      dshape.SetSize(dof, dim);
       for (int q = 0; q < nq; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);

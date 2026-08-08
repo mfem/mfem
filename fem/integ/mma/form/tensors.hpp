@@ -329,7 +329,8 @@ inline void TensorEvalHost3D(const int NE, const real_t *B,
    }
 }
 
-/** PreferTensorDense → hand sum-fact (2D/3D). */
+/** PreferTensorDense → hand sum-fact (2D/3D).
+    Runtime Fallback (D1D=Q1D=0) skips host path — avoids zero-size VLA. */
 template <typename QFn, int DIM, int D1D, int Q1D>
 inline bool TryTensorEvalHost(const int NE,
                               const Array<real_t> &b,
@@ -337,18 +338,25 @@ inline bool TryTensorEvalHost(const int NE,
                               const Vector &x,
                               Vector &y)
 {
-   if (!mma::PreferTensorDense(D1D, NE)) { return false; }
-   if constexpr (DIM == 3)
+   if constexpr (D1D == 0 || Q1D == 0)
    {
-      TensorEvalHost3D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
-                                       x.Read(), y.ReadWrite());
+      return false;
    }
    else
    {
-      TensorEvalHost2D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
-                                       x.Read(), y.ReadWrite());
+      if (!mma::PreferTensorDense(D1D, NE)) { return false; }
+      if constexpr (DIM == 3)
+      {
+         TensorEvalHost3D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
+                                          x.Read(), y.ReadWrite());
+      }
+      else
+      {
+         TensorEvalHost2D<QFn, D1D, Q1D>(NE, b.Read(), d.Read(),
+                                          x.Read(), y.ReadWrite());
+      }
+      return true;
    }
-   return true;
 }
 
 
@@ -921,7 +929,8 @@ inline void TensorGradHost(
    }
 }
 
-/** PreferTensorDense → multi-RHS host Grad (2D/3D). SYM from qfn_traits. */
+/** PreferTensorDense → multi-RHS host Grad (2D/3D). SYM from qfn_traits.
+    Runtime Fallback (D1D=Q1D=0) skips host path — avoids zero-size VLA. */
 template <typename QFn, int DIM, int D1D, int Q1D>
 inline bool TryTensorGradHost(
    const int NE,
@@ -929,14 +938,22 @@ inline bool TryTensorGradHost(
    const Array<real_t> &bt, const Array<real_t> &gt,
    const Vector &d, const Vector &x, Vector &y)
 {
-   using Tr = mma::form::qfn_traits<QFn>;
-   constexpr bool SYM = Tr::symmetric_pa;
-   if (!mma::PreferTensorDense(D1D, NE)) { return false; }
-   const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(), *Gt = gt.Read();
-   const real_t *Dv = d.Read(), *X = x.Read();
-   real_t *Y = y.ReadWrite();
-   TensorGradHost<QFn, DIM, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
-   return true;
+   if constexpr (D1D == 0 || Q1D == 0)
+   {
+      return false;
+   }
+   else
+   {
+      using Tr = mma::form::qfn_traits<QFn>;
+      constexpr bool SYM = Tr::symmetric_pa;
+      if (!mma::PreferTensorDense(D1D, NE)) { return false; }
+      const real_t *B = b.Read(), *G = g.Read(), *Bt = bt.Read(),
+                   *Gt = gt.Read();
+      const real_t *Dv = d.Read(), *X = x.Read();
+      real_t *Y = y.ReadWrite();
+      TensorGradHost<QFn, DIM, D1D, Q1D, SYM>(NE, B, G, Bt, Gt, Dv, X, Y);
+      return true;
+   }
 }
 
 
