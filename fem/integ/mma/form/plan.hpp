@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../batch.hpp"
+#include "../mode/batch.hpp"
 #include "../../../../general/globals.hpp"
 #include <cstring>
 #include "fields.hpp"

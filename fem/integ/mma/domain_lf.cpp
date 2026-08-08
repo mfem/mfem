@@ -9,12 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/forall.hpp"
-#include "mma/mma.hpp"
-#include "lininteg_domain_simplices_mma.hpp"
+#include "../lininteg.hpp"
+#include "mma.hpp"
+#include "domain_lf.hpp"
 
 namespace mfem
 {
+
 
 void DLFEvalAssembleSimplexMma(const FiniteElementSpace &fes,
                                const IntegrationRule *ir,
@@ -171,5 +172,6 @@ void DomainLFIntegrator::RegisterSimplexMmaKernels()
    AddSimplexMmaSpecialization<3,8,175>();
    AddSimplexMmaSpecialization<3,8,284>();
 }
+
 
 } // namespace mfem

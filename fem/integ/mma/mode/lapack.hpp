@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../../linalg/lapack.hpp" // IWYU pragma: keep
+#include "../../../../linalg/lapack.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_LAPACK
 

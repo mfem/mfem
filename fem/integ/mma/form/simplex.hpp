@@ -17,7 +17,7 @@
     Companion to tensors.hpp (tensor-product sum-fact ApplyTensor).
 */
 
-#include "../dispatch.hpp"
+#include "../mode/dispatch.hpp"
 #include "plan.hpp"
 
 #include "../../../../general/array.hpp"
@@ -26,7 +26,7 @@
 #include <type_traits>
 #ifdef MFEM_USE_LAPACK
 #include <vector>
-#include "../lapack.hpp"
+#include "../mode/lapack.hpp"
 #endif
 
 /// \cond DO_NOT_DOCUMENT

@@ -10,12 +10,12 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "mma/mma.hpp"
-#include "bilininteg_vecdiffusion_pa_simplices_mma.hpp"
-#include "bilininteg_diffusion_pa_simplices_mma.hpp" // PADiffusionSetupSimplexFromNodes
+#include "mma.hpp"
+#include "diffusion.hpp"
 
 namespace mfem
 {
+
 
 void VectorDiffusionIntegrator::AssembleSimplexMmaPA(
    const FiniteElementSpace &fes)
@@ -176,5 +176,33 @@ VectorDiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
    MFEM_ABORT("Simplex MMA VectorDiffusion PA is only implemented for dim 2/3");
    return nullptr;
 }
+
+
+
+void VectorDiffusionIntegrator::RegisterTensorsMmaKernels()
+{
+   // Match scalar mass/diffusion + VectorMass MMA specializations (p = 3..7).
+   AddTensorsMmaSpecialization<2,4,5>();
+   AddTensorsMmaSpecialization<2,5,6>();
+   AddTensorsMmaSpecialization<2,6,7>();
+   AddTensorsMmaSpecialization<2,7,8>();
+   AddTensorsMmaSpecialization<2,8,9>();
+
+   AddTensorsMmaSpecialization<3,4,5>();
+   AddTensorsMmaSpecialization<3,5,6>();
+   AddTensorsMmaSpecialization<3,6,7>();
+   AddTensorsMmaSpecialization<3,7,8>();
+   AddTensorsMmaSpecialization<3,8,9>();
+}
+
+VectorDiffusionIntegrator::ApplyTensorsMmaKernelType
+VectorDiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+{
+   if (dim == 2) { return internal::MmaVectorDiffusionApplyTensors2D; }
+   if (dim == 3) { return internal::MmaVectorDiffusionApplyTensors3D; }
+   MFEM_ABORT("Tensors MMA VectorDiffusion PA is only implemented for dim 2 or 3");
+   return nullptr;
+}
+
 
 } // namespace mfem

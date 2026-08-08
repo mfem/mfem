@@ -10,11 +10,12 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "mma/mma.hpp"
-#include "bilininteg_diffusion_pa_simplices_mma.hpp"
+#include "mma.hpp"
+#include "diffusion.hpp"
 
 namespace mfem
 {
+
 
 namespace internal
 {
@@ -352,5 +353,33 @@ void DiffusionIntegrator::RegisterSimplexMmaKernels()
 
    AddSimplexMmaSpecialization<3,8,123>();
 }
+
+
+
+void DiffusionIntegrator::RegisterTensorsMmaKernels()
+{
+   // p = 3..7 (D1D = 4..8, Q1D = D1D+1). Keep in sync with mass tensors.
+   AddTensorsMmaSpecialization<2,4,5>();
+   AddTensorsMmaSpecialization<2,5,6>();
+   AddTensorsMmaSpecialization<2,6,7>();
+   AddTensorsMmaSpecialization<2,7,8>();
+   AddTensorsMmaSpecialization<2,8,9>();
+
+   AddTensorsMmaSpecialization<3,4,5>();
+   AddTensorsMmaSpecialization<3,5,6>();
+   AddTensorsMmaSpecialization<3,6,7>();
+   AddTensorsMmaSpecialization<3,7,8>();
+   AddTensorsMmaSpecialization<3,8,9>();
+}
+
+DiffusionIntegrator::ApplyTensorsMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+{
+   if (dim == 2) { return internal::MmaDiffusionApplyTensors2D; }
+   if (dim == 3) { return internal::MmaDiffusionApplyTensors3D; }
+   MFEM_ABORT("Tensors MMA diffusion PA is only implemented for dim 2 or 3");
+   return nullptr;
+}
+
 
 } // namespace mfem

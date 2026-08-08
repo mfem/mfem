@@ -10,8 +10,12 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+/** @file domain_lf.hpp
+    DomainLF PA MMA — IdentityLoad QFn + simplex Kernel decls.
+*/
+
 #include "../lininteg.hpp"
-#include "mma/form/form.hpp"
+#include "form/form.hpp"
 
 namespace mfem
 {

@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../../general/forall.hpp"
+#include "../../../../general/forall.hpp"
 #include <vector>
 
 /// \cond DO_NOT_DOCUMENT

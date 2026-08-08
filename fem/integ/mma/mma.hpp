@@ -29,31 +29,23 @@
     - TensorMmaEnabled → dmma (CUDA) / mfma (HIP); else blas Emulate
 
     ## Package map (fem/integ/mma/)
-    - common.hpp     warp/maps/smem/launch + host_* + TensorShell*
-    - dmma.hpp       mma::dmma
-    - mfma.hpp       mma::mfma
-    - blas.hpp       mma::blas
-    - lapack.hpp     mma::lapack (MFEM_USE_LAPACK)
-    - dispatch.hpp   MMA_BACKEND_PICK + public Gemm/Grad/Interp
-    - mma.hpp        this file (ForceMMA / Uses* / simplex helpers)
+    - mma.hpp / mma.cpp   ForceMMA / Uses* / simplex helpers (this file)
+    - mode/               backends: common, dispatch, dmma, mfma, blas, lapack, batch
+    - form/               integrator-agnostic Apply engines
+    - mass.hpp, …         operator drivers (QFn + Kernel registration)
 
-    Drivers stay under fem/integ/ (bilininteg_*_mma, lininteg_*_mma).
     Entry points internal::Mma*Apply* are intentionally outside namespace mma.
 
     ## Adding a specialization:
-    Edit the matching Register*MmaKernels() in:
-    - bilininteg_mass_pa_simplices_mma.cpp
-    - bilininteg_diffusion_pa_simplices_mma.cpp
-    - lininteg_domain_simplices_mma.cpp
-    - bilininteg_*_tensors_mma.cpp
-    Order: DIM, then D1D, then QND/Q1D. Tag rows: GetRule / Stroud / smoke / curved.
-    Unregistered sizes use Fallback (runtime shell). Lists need not match across integrators.
-    See also README.md in this directory.
+    Edit Register*MmaKernels() in mass.cpp / diffusion.cpp / domain_lf.cpp / vec*.cpp
+    Order: DIM, then D1D, then QND/Q1D.
+    Unregistered sizes use Fallback (runtime shell).
+    See mode/README.md and form/README.md.
 */
 
 // Backends + dispatch (common via dmma/mfma/blas)
-#include "dispatch.hpp"
-#include "lapack.hpp"
+#include "mode/dispatch.hpp"
+#include "mode/lapack.hpp"
 
 // Public Uses* / ForceMMA + simplex helpers
 #include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering (pulls mesh)

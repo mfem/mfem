@@ -10,11 +10,12 @@
 // CONTRIBUTING.md for details.
 
 #include "../bilininteg.hpp"
-#include "mma/mma.hpp"
-#include "bilininteg_vecmass_pa_simplices_mma.hpp"
+#include "mma.hpp"
+#include "mass.hpp"
 
 namespace mfem
 {
+
 
 void VectorMassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 {
@@ -173,5 +174,33 @@ VectorMassIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
    MFEM_ABORT("Simplex MMA VectorMass PA is only implemented for dim 2 or 3");
    return nullptr;
 }
+
+
+
+void VectorMassIntegrator::RegisterTensorsMmaKernels()
+{
+   // Match scalar mass / stock VectorMass specializations (p = 3..7).
+   AddTensorsMmaSpecialization<2,4,5>();
+   AddTensorsMmaSpecialization<2,5,6>();
+   AddTensorsMmaSpecialization<2,6,7>();
+   AddTensorsMmaSpecialization<2,7,8>();
+   AddTensorsMmaSpecialization<2,8,9>();
+
+   AddTensorsMmaSpecialization<3,4,5>();
+   AddTensorsMmaSpecialization<3,5,6>();
+   AddTensorsMmaSpecialization<3,6,7>();
+   AddTensorsMmaSpecialization<3,7,8>();
+   AddTensorsMmaSpecialization<3,8,9>();
+}
+
+VectorMassIntegrator::ApplyTensorsMmaKernelType
+VectorMassIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+{
+   if (dim == 2) { return internal::MmaVectorMassApplyTensors2D; }
+   if (dim == 3) { return internal::MmaVectorMassApplyTensors3D; }
+   MFEM_ABORT("Tensors MMA VectorMass PA is only implemented for dim 2 or 3");
+   return nullptr;
+}
+
 
 } // namespace mfem
