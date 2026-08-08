@@ -13,120 +13,241 @@
 
 namespace mfem
 {
-
 namespace internal
 {
 
-void ElasticityComponentAddMultPA(const int dim, const int nDofs,
-                                  const FiniteElementSpace &fespace, const CoefficientVector &lambda,
-                                  const CoefficientVector &mu, const GeometricFactors &geom,
-                                  const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y,
-                                  const int i_block, const int j_block)
+void ElasticitySetupPAData(const int dim, const IntegrationRule &ir,
+                           const CoefficientVector &lambda,
+                           const CoefficientVector &mu,
+                           const GeometricFactors &geom,
+                           Vector &pa_data)
 {
-   const int id = (dim << 8)| (i_block << 4) | j_block;
-   switch (id)
+   const int entries = dim*dim + 2;
+   pa_data.SetSize(entries*lambda.Size());
+   pa_data.UseDevice(true);
+   if (dim == 2)
    {
-      case 0x200:
-         ElasticityAddMultPA_<2,0,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x211:
-         ElasticityAddMultPA_<2,1,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x201:
-         ElasticityAddMultPA_<2,0,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x210:
-         ElasticityAddMultPA_<2,1,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x300:
-         ElasticityAddMultPA_<3,0,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x311:
-         ElasticityAddMultPA_<3,1,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x322:
-         ElasticityAddMultPA_<3,2,2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x301:
-         ElasticityAddMultPA_<3,0,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x302:
-         ElasticityAddMultPA_<3,0,2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x312:
-         ElasticityAddMultPA_<3,1,2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x310:
-         ElasticityAddMultPA_<3,1,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x320:
-         ElasticityAddMultPA_<3,2,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x321:
-         ElasticityAddMultPA_<3,2,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      default:
-         MFEM_ABORT("Invalid configuration.");
+      ElasticitySetupPAData_<2>(ir, lambda, mu, geom, pa_data);
+   }
+   else if (dim == 3)
+   {
+      ElasticitySetupPAData_<3>(ir, lambda, mu, geom, pa_data);
+   }
+   else
+   {
+      MFEM_ABORT("Elasticity PA is implemented only in dimensions 2 and 3.");
    }
 }
 
 void ElasticityAddMultPA(const int dim, const int nDofs,
-                         const FiniteElementSpace &fespace, const CoefficientVector &lambda,
-                         const CoefficientVector &mu, const GeometricFactors &geom,
-                         const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y)
+                         const FiniteElementSpace &fespace,
+                         const DofToQuad &maps,
+                         const Vector &pa_data,
+                         const Vector &x,
+                         QuadratureFunction &QVec,
+                         Vector &y)
 {
-   switch (dim)
+   if (dim == 2)
    {
-      case 2:
-         ElasticityAddMultPA_<2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 3:
-         ElasticityAddMultPA_<3>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      default:
-         MFEM_ABORT("Only dimensions 2 and 3 supported.");
+      ElasticityAddMultPA_<2>(nDofs, fespace, maps, pa_data, x, QVec, y);
+   }
+   else if (dim == 3)
+   {
+      ElasticityAddMultPA_<3>(nDofs, fespace, maps, pa_data, x, QVec, y);
+   }
+   else
+   {
+      MFEM_ABORT("Elasticity PA is implemented only in dimensions 2 and 3.");
    }
 }
+
+void ElasticityComponentAddMultPA(
+   const int dim, const int nDofs, const FiniteElementSpace &fespace,
+   const DofToQuad &maps, const Vector &pa_data, const Vector &x,
+   QuadratureFunction &QVec, Vector &y,
+   const int i_block, const int j_block)
+{
+   const int id = (dim << 8) | (i_block << 4) | j_block;
+   switch (id)
+   {
+      case 0x200:
+         ElasticityAddMultPA_<2,0,0>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x201:
+         ElasticityAddMultPA_<2,0,1>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x210:
+         ElasticityAddMultPA_<2,1,0>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x211:
+         ElasticityAddMultPA_<2,1,1>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x300:
+         ElasticityAddMultPA_<3,0,0>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x301:
+         ElasticityAddMultPA_<3,0,1>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x302:
+         ElasticityAddMultPA_<3,0,2>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x310:
+         ElasticityAddMultPA_<3,1,0>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x311:
+         ElasticityAddMultPA_<3,1,1>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x312:
+         ElasticityAddMultPA_<3,1,2>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x320:
+         ElasticityAddMultPA_<3,2,0>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x321:
+         ElasticityAddMultPA_<3,2,1>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      case 0x322:
+         ElasticityAddMultPA_<3,2,2>(nDofs, fespace, maps, pa_data,
+                                     x, QVec, y);
+         return;
+      default:
+         MFEM_ABORT("Invalid elasticity component block.");
+   }
+}
+
+#define MFEM_ELASTICITY_TENSOR_CASE_2D(D1D, Q1D) \
+   case ((D1D << 8) | Q1D): \
+      ElasticityAddMultPATensor2D_<D1D, Q1D>(numEls, maps, pa_data, x, y); \
+      return true
+
+#define MFEM_ELASTICITY_TENSOR_CASE_3D(D1D, Q1D) \
+   case ((D1D << 8) | Q1D): \
+      ElasticityAddMultPATensor3D_<D1D, Q1D>(numEls, maps, pa_data, x, y); \
+      return true
+
+bool ElasticityAddMultPATensor(const int dim, const int numEls,
+                               const DofToQuad &maps,
+                               const Vector &pa_data,
+                               const Vector &x, Vector &y)
+{
+   if (maps.mode != DofToQuad::TENSOR || maps.ndof > maps.nqpt)
+   {
+      return false;
+   }
+   const int id = (maps.ndof << 8) | maps.nqpt;
+
+   if (dim == 2)
+   {
+      switch (id)
+      {
+         MFEM_ELASTICITY_TENSOR_CASE_2D(2,2);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(2,3);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(2,4);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(3,3);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(3,4);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(3,5);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(4,4);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(4,5);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(4,6);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(5,5);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(5,6);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(5,7);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(6,6);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(6,7);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(6,8);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(7,7);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(7,8);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(7,9);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(8,8);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(8,9);
+         MFEM_ELASTICITY_TENSOR_CASE_2D(8,10);
+         default:
+            return false;
+      }
+   }
+   if (dim == 3)
+   {
+      switch (id)
+      {
+         MFEM_ELASTICITY_TENSOR_CASE_3D(2,2);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(2,3);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(2,4);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(3,3);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(3,4);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(3,5);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(4,4);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(4,5);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(4,6);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(5,5);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(5,6);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(5,7);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(6,6);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(6,7);
+         MFEM_ELASTICITY_TENSOR_CASE_3D(7,7);
+         default:
+            return false;
+      }
+   }
+   return false;
+}
+
+#undef MFEM_ELASTICITY_TENSOR_CASE_2D
+#undef MFEM_ELASTICITY_TENSOR_CASE_3D
 
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
-                                  const CoefficientVector &lambda,
-                                  const CoefficientVector &mu, const GeometricFactors &geom,
-                                  const DofToQuad &maps, const IntegrationRule &ir, Vector &diag)
+                                  const DofToQuad &maps,
+                                  const IntegrationRule &ir,
+                                  const Vector &pa_data,
+                                  Vector &diag)
 {
-   switch (dim)
+   if (dim == 2)
    {
-      case 2:
-         ElasticityAssembleDiagonalPA_<2>(nDofs, lambda, mu, geom, maps, ir, diag);
-         break;
-      case 3:
-         ElasticityAssembleDiagonalPA_<3>(nDofs, lambda, mu, geom, maps, ir, diag);
-         break;
-      default:
-         MFEM_ABORT("Only dimensions 2 and 3 supported.");
+      ElasticityAssembleDiagonalPA_<2>(nDofs, maps, ir, pa_data, diag);
+   }
+   else if (dim == 3)
+   {
+      ElasticityAssembleDiagonalPA_<3>(nDofs, maps, ir, pa_data, diag);
+   }
+   else
+   {
+      MFEM_ABORT("Elasticity PA is implemented only in dimensions 2 and 3.");
    }
 }
 
-void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
-                          const int nDofs, const IntegrationRule &ir,
-                          const CoefficientVector &lambda,
-                          const CoefficientVector &mu, const GeometricFactors &geom,
-                          const DofToQuad &maps, Vector &emat)
+void ElasticityAssembleEA(const int dim, const int i_block,
+                          const int j_block, const int nDofs,
+                          const IntegrationRule &ir,
+                          const DofToQuad &maps,
+                          const Vector &pa_data,
+                          Vector &emat, const bool add)
 {
-   switch (dim)
+   if (dim == 2)
    {
-      case 2:
-         ElasticityAssembleEA_<2>(i_block, j_block, nDofs, ir, lambda, mu, geom, maps,
-                                  emat);
-         break;
-      case 3:
-         ElasticityAssembleEA_<3>(i_block, j_block, nDofs, ir, lambda, mu, geom, maps,
-                                  emat);
-         break;
-      default:
-         MFEM_ABORT("Only dimensions 2 and 3 supported.");
+      ElasticityAssembleEA_<2>(i_block, j_block, nDofs, ir, maps,
+                               pa_data, emat, add);
+   }
+   else if (dim == 3)
+   {
+      ElasticityAssembleEA_<3>(i_block, j_block, nDofs, ir, maps,
+                               pa_data, emat, add);
+   }
+   else
+   {
+      MFEM_ABORT("Elasticity EA is implemented only in dimensions 2 and 3.");
    }
 }
 
 } // namespace internal
-
 } // namespace mfem
