@@ -22,6 +22,8 @@
 #include "../general/globals.hpp"
 #include "densemat.hpp"
 
+#include <vector>
+
 #if defined(MFEM_USE_HIP)
 #if (HIP_VERSION_MAJOR * 100 + HIP_VERSION_MINOR) < 502
 #include <hipsparse.h>
@@ -33,6 +35,9 @@
 
 namespace mfem
 {
+class FiniteElementSpace;
+class ParFiniteElementSpace;
+class OperatorHandle;
 
 class
 #if defined(__alignas_is_defined)
@@ -967,6 +972,18 @@ template<> inline void Swap<SparseMatrix>(SparseMatrix &a, SparseMatrix &b)
    a.Swap(b);
 }
 
+/** @brief Replace each matrix in @a mats with its conforming assembly
+    $P^T A P$, when the space has a conforming prolongation @a P.
+
+    The input matrices are deleted and replaced with newly allocated matrices.
+    On a conforming mesh, the pointers are left unchanged. */
+void ConformingAssemble(const FiniteElementSpace &fes,
+                        std::vector<SparseMatrix *> &mats);
+#ifdef MFEM_USE_MPI
+/// Assemble the local matrix @a loc_A on the true dofs of @a pfespace.
+void ParallelRAP(const ParFiniteElementSpace &pfespace, SparseMatrix &loc_A,
+                 OperatorHandle &A, bool steal_loc_A = false);
+#endif
 } // namespace mfem
 
 #endif
