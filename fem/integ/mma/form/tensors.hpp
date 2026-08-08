@@ -367,6 +367,160 @@ inline bool TryTensorEvalHost(const int NE,
 // Host entry uses Try* first (see TensorEvalApply).
 // ---------------------------------------------------------------------------
 
+/** Named forall bodies — avoid nvcc extended-lambda host stubs that can be
+    null when the same specialization is instantiated in multiple TUs
+    (scalar Mass + VectorMass). */
+template <typename QFn, int MD1, int MQ1, int MDQ>
+struct TensorEvalKernel2D
+{
+   int NE, D1D, Q1D, NB, vdim;
+   DeviceTensor<2, const real_t> B;
+   DeviceTensor<2, const real_t> D;
+   DeviceTensor<4, const real_t> X;
+   DeviceTensor<4, real_t> Y;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[MDQ * MDQ];
+      MFEM_SHARED real_t sm1[MDQ * MDQ];
+      MFEM_SHARED real_t sB[MD1 * MQ1];
+      MFEM_SHARED real_t sBt[MD1 * MQ1];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            {
+               const int tid = mma::getThreadIdxX();
+               const int n = D1D * D1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < n; t += stride)
+               {
+                  const int dx = t % D1D;
+                  const int dy = t / D1D;
+                  sm0[dx + D1D * dy] = X(dx, dy, vc, e);
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
+            MFEM_SYNC_THREAD;
+
+            {
+               const int tid = mma::getThreadIdxX();
+               const int nq = Q1D * Q1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < nq; t += stride)
+               {
+                  const int qx = t % Q1D;
+                  const int qy = t / Q1D;
+                  const int idx = qx + Q1D * qy;
+                  real_t u = sm0[idx];
+                  mma::form::ApplyEvalQFn<QFn>(u, D(idx, e));
+                  sm1[idx] = u;
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            {
+               const int tid = mma::getThreadIdxX();
+               const int nthreads_x = mma::getBlockNthreadsX();
+               for (int idx = tid; idx < D1D * D1D; idx += nthreads_x)
+               {
+                  const int dy = idx / D1D;
+                  const int dx = idx - dy * D1D;
+                  real_t s = 0.0;
+                  for (int q = 0; q < Q1D; ++q)
+                  {
+                     s += sm0[q + Q1D * dy] * sBt[q + Q1D * dx];
+                  }
+                  Y(dx, dy, vc, e) += s;
+               }
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   }
+};
+
+template <typename QFn, int MD1, int MQ1>
+struct TensorEvalKernel3D
+{
+   int NE, D1D, Q1D, NB, vdim;
+   DeviceTensor<2, const real_t> B;
+   DeviceTensor<2, const real_t> D;
+   DeviceTensor<5, const real_t> X;
+   DeviceTensor<4, real_t> Y4;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sB[MD1 * MQ1];
+      MFEM_SHARED real_t sBt[MD1 * MQ1];
+
+      mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            {
+               const int tid = mma::getThreadIdxX();
+               const int DDD = D1D * D1D * D1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < DDD; t += stride)
+               {
+                  const int dx = t % D1D;
+                  const int div = t / D1D;
+                  const int dy = div % D1D;
+                  const int dz = div / D1D;
+                  sm0[t] = X(dx, dy, dz, vc, e);
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            {
+               const int tid = mma::getThreadIdxX();
+               const int nq = Q1D * Q1D * Q1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < nq; t += stride)
+               {
+                  mma::form::ApplyEvalQFn<QFn>(sm1[t], D(t, e));
+               }
+            }
+            MFEM_SYNC_THREAD;
+            mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::InterpXt<MD1, MQ1>(D1D, Q1D, sBt, sm1, Y4, vc + vdim * e);
+            MFEM_SYNC_THREAD;
+         }
+      }
+   }
+};
+
 /** Device/Emulate Eval shell (2D or 3D). Interp chains stay dim-specific.
     vdim==1: scalar layout (D…, NE). vdim>1: vector-field layout (D…, vdim, NE)
     block-diagonal (same scalar QFn / PA D for each component). */
@@ -405,79 +559,9 @@ inline void TensorEvalApplyDevice(const int NE,
       auto Y = Reshape(y.ReadWrite(), D1D, D1D, vdim, NE);
 
       const int nblocks = (NE + NB - 1) / NB;
-      mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
-      {
-         MFEM_SHARED real_t sm0[MDQ * MDQ];
-         MFEM_SHARED real_t sm1[MDQ * MDQ];
-         MFEM_SHARED real_t sB[MD1 * MQ1];
-         MFEM_SHARED real_t sBt[MD1 * MQ1];
-
-         mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
-         MFEM_SYNC_THREAD;
-
-         for (int i = 0; i < NB; i++)
-         {
-            const int e = b * NB + i;
-            if (e >= NE) { break; }
-
-            for (int vc = 0; vc < vdim; ++vc)
-            {
-               {
-                  const int tid = mma::getThreadIdxX();
-                  const int n = D1D * D1D;
-                  const int stride = mma::getBlockNthreadsX();
-                  for (int t = tid; t < n; t += stride)
-                  {
-                     const int dx = t % D1D;
-                     const int dy = t / D1D;
-                     sm0[dx + D1D * dy] = X(dx, dy, vc, e);
-                  }
-               }
-               MFEM_SYNC_THREAD;
-
-               mma::InterpX2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm0, sm1);
-               MFEM_SYNC_THREAD;
-               mma::InterpY2D<MD1, MQ1, MDQ>(D1D, Q1D, sB, sm1, sm0);
-               MFEM_SYNC_THREAD;
-
-               {
-                  const int tid = mma::getThreadIdxX();
-                  const int nq = Q1D * Q1D;
-                  const int stride = mma::getBlockNthreadsX();
-                  for (int t = tid; t < nq; t += stride)
-                  {
-                     const int qx = t % Q1D;
-                     const int qy = t / Q1D;
-                     const int idx = qx + Q1D * qy;
-                     real_t u = sm0[idx];
-                     mma::form::ApplyEvalQFn<QFn>(u, D(idx, e));
-                     sm1[idx] = u;
-                  }
-               }
-               MFEM_SYNC_THREAD;
-
-               mma::InterpYt2D<MD1, MQ1, MDQ>(D1D, Q1D, sBt, sm1, sm0);
-               MFEM_SYNC_THREAD;
-               // InterpXt into component plane (same algebra as Load/InterpXt2D).
-               {
-                  const int tid = mma::getThreadIdxX();
-                  const int nthreads_x = mma::getBlockNthreadsX();
-                  for (int idx = tid; idx < D1D * D1D; idx += nthreads_x)
-                  {
-                     const int dy = idx / D1D;
-                     const int dx = idx - dy * D1D;
-                     real_t s = 0.0;
-                     for (int q = 0; q < Q1D; ++q)
-                     {
-                        s += sm0[q + Q1D * dy] * sBt[q + Q1D * dx];
-                     }
-                     Y(dx, dy, vc, e) += s;
-                  }
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      });
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorEvalKernel2D<QFn, MD1, MQ1, MDQ>
+      {NE, D1D, Q1D, NB, vdim, B, D, X, Y});
    }
    else
    {
@@ -496,84 +580,13 @@ inline void TensorEvalApplyDevice(const int NE,
       const auto B = Reshape(b.Read(), Q1D, D1D);
       const auto D = Reshape(d.Read(), Q1D * Q1D * Q1D, NE);
       const auto X = Reshape(x.Read(), D1D, D1D, D1D, vdim, NE);
-      auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, vdim, NE);
+      // (D,D,D,vdim,NE) and (D,D,D,vdim*NE) share storage; InterpXt wants 4D.
+      auto Y4 = Reshape(y.ReadWrite(), D1D, D1D, D1D, vdim * NE);
 
       const int nblocks = (NE + NB - 1) / NB;
-      mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
-      {
-         MFEM_SHARED real_t sm0[MQ1 * MQ1 * MQ1];
-         MFEM_SHARED real_t sm1[MQ1 * MQ1 * MQ1];
-         MFEM_SHARED real_t sB[MD1 * MQ1];
-         MFEM_SHARED real_t sBt[MD1 * MQ1];
-
-         mma::LoadBBoth<MD1, MQ1>(D1D, Q1D, B, sB, sBt);
-         MFEM_SYNC_THREAD;
-
-         for (int i = 0; i < NB; i++)
-         {
-            const int e = b * NB + i;
-            if (e >= NE) { break; }
-
-            for (int vc = 0; vc < vdim; ++vc)
-            {
-               {
-                  const int tid = mma::getThreadIdxX();
-                  const int DDD = D1D * D1D * D1D;
-                  const int stride = mma::getBlockNthreadsX();
-                  for (int t = tid; t < DDD; t += stride)
-                  {
-                     const int dx = t % D1D;
-                     const int div = t / D1D;
-                     const int dy = div % D1D;
-                     const int dz = div / D1D;
-                     sm0[t] = X(dx, dy, dz, vc, e);
-                  }
-               }
-               MFEM_SYNC_THREAD;
-
-               mma::InterpX<MD1, MQ1>(D1D, Q1D, sB, sm0, sm1);
-               MFEM_SYNC_THREAD;
-               mma::InterpY<MD1, MQ1>(D1D, Q1D, sB, sm1, sm0);
-               MFEM_SYNC_THREAD;
-               mma::InterpAx<MD1, MQ1, false>(Q1D * Q1D, Q1D, D1D, sB, sm0, sm1);
-               MFEM_SYNC_THREAD;
-               {
-                  const int tid = mma::getThreadIdxX();
-                  const int nq = Q1D * Q1D * Q1D;
-                  const int stride = mma::getBlockNthreadsX();
-                  for (int t = tid; t < nq; t += stride)
-                  {
-                     mma::form::ApplyEvalQFn<QFn>(sm1[t], D(t, e));
-                  }
-               }
-               MFEM_SYNC_THREAD;
-               mma::InterpZt<MD1, MQ1>(D1D, Q1D, sBt, sm1, sm0);
-               MFEM_SYNC_THREAD;
-               mma::InterpYt<MD1, MQ1>(D1D, Q1D, sBt, sm0, sm1);
-               MFEM_SYNC_THREAD;
-               // InterpXt into component (matches blas::InterpXt accumulate).
-               {
-                  const int tid = mma::getThreadIdxX();
-                  const int nthreads_x = mma::getBlockNthreadsX();
-                  const int DDD = D1D * D1D * D1D;
-                  for (int t = tid; t < DDD; t += nthreads_x)
-                  {
-                     const int dx = t % D1D;
-                     const int div = t / D1D;
-                     const int dy = div % D1D;
-                     const int dz = div / D1D;
-                     real_t s = 0.0;
-                     for (int q = 0; q < Q1D; ++q)
-                     {
-                        s += sm1[q + Q1D * (dy + D1D * dz)] * sBt[q + Q1D * dx];
-                     }
-                     Y(dx, dy, dz, vc, e) += s;
-                  }
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      });
+      mfem::forall_3D(nblocks, nthreads, 1, 1,
+                      TensorEvalKernel3D<QFn, MD1, MQ1>
+      {NE, D1D, Q1D, NB, vdim, B, D, X, Y4});
    }
 }
 
@@ -1031,6 +1044,223 @@ void TensorGradElement2D(const int D1D, const int Q1D, const int e,
    MFEM_SYNC_THREAD;
 }
 
+/** Named Grad forall bodies — same nvcc multi-TU stub rationale as Eval. */
+template <typename QFn, int MD1, int MQ1, int MDQ, bool SYM>
+struct TensorGradKernel2DScalar
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> B, G;
+   DeviceTensor<3, const real_t> D;
+   DeviceTensor<3, const real_t> Xs;
+   DeviceTensor<3, real_t> Ys;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[2][MDQ * MDQ];
+      MFEM_SHARED real_t sm1[2][MDQ * MDQ];
+      MFEM_SHARED real_t BG[2][MD1 * MQ1];
+      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+         TensorGradElement2D<QFn, MD1, MQ1, MDQ, SYM>(
+            D1D, Q1D, e, BG, BGt, sm0, sm1, D, Xs, Ys);
+      }
+   }
+};
+
+template <typename QFn, int MD1, int MQ1, int MDQ>
+struct TensorGradKernel2DVector
+{
+   int NE, D1D, Q1D, NB, vdim;
+   DeviceTensor<2, const real_t> B, G;
+   DeviceTensor<5, const real_t> D;
+   DeviceTensor<4, const real_t> X;
+   DeviceTensor<3, real_t> Y3;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[2][MDQ * MDQ];
+      MFEM_SHARED real_t sm1[2][MDQ * MDQ];
+      MFEM_SHARED real_t BG[2][MD1 * MQ1];
+      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            {
+               const int tid = mma::getThreadIdxX();
+               const int n = D1D * D1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < n; t += stride)
+               {
+                  const int dx = t % D1D;
+                  const int dy = t / D1D;
+                  sm0[0][dx + D1D * dy] = X(dx, dy, vc, e);
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
+            MFEM_SYNC_THREAD;
+
+            {
+               const int tid = mma::getThreadIdxX();
+               const int nq = Q1D * Q1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int q = tid; q < nq; q += stride)
+               {
+                  const int qx = q % Q1D;
+                  const int qy = q / Q1D;
+                  real_t gv[2] = {sm0[0][q], sm0[1][q]};
+                  const real_t Osym[3] = {
+                     D(qx, qy, 0, vc, e),
+                     D(qx, qy, 2, vc, e),
+                     D(qx, qy, 3, vc, e)
+                  };
+                  mma::form::ApplyGradQFnVec(QFn{}, gv, Osym);
+                  sm1[0][q] = gv[0];
+                  sm1[1][q] = gv[1];
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::GradXt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm0, Y3,
+                                         vc + vdim * e);
+            MFEM_SYNC_THREAD;
+         }
+      }
+   }
+};
+
+template <typename QFn, int MD1, int MQ1, bool SYM>
+struct TensorGradKernel3DScalar
+{
+   int NE, D1D, Q1D, NB;
+   DeviceTensor<2, const real_t> B, G;
+   DeviceTensor<3, const real_t> D;
+   DeviceTensor<4, const real_t> Xs;
+   DeviceTensor<4, real_t> Ys;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t BG[2][MD1 * MQ1];
+      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+         TensorGradElement3D<QFn, MD1, MQ1, SYM>(
+            D1D, Q1D, e, BG, BGt, sm0, sm1, D, Xs, Ys);
+      }
+   }
+};
+
+template <typename QFn, int MD1, int MQ1>
+struct TensorGradKernel3DVector
+{
+   int NE, D1D, Q1D, NB, vdim;
+   DeviceTensor<2, const real_t> B, G;
+   DeviceTensor<6, const real_t> D;
+   DeviceTensor<5, const real_t> X;
+   DeviceTensor<4, real_t> Y4;
+
+   MFEM_HOST_DEVICE void operator()(int b) const
+   {
+      MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
+      MFEM_SHARED real_t BG[2][MD1 * MQ1];
+      MFEM_SHARED real_t BGt[2][MD1 * MQ1];
+
+      mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
+      MFEM_SYNC_THREAD;
+
+      for (int i = 0; i < NB; i++)
+      {
+         const int e = b * NB + i;
+         if (e >= NE) { break; }
+
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            {
+               const int tid = mma::getThreadIdxX();
+               const int DDD = D1D * D1D * D1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int t = tid; t < DDD; t += stride)
+               {
+                  const int dx = t % D1D;
+                  const int div = t / D1D;
+                  const int dy = div % D1D;
+                  const int dz = div / D1D;
+                  sm0[0][t] = X(dx, dy, dz, vc, e);
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
+            MFEM_SYNC_THREAD;
+
+            {
+               const int tid = mma::getThreadIdxX();
+               const int nq = Q1D * Q1D * Q1D;
+               const int stride = mma::getBlockNthreadsX();
+               for (int q = tid; q < nq; q += stride)
+               {
+                  const int qx = q % Q1D;
+                  const int t1 = q / Q1D;
+                  const int qy = t1 % Q1D;
+                  const int qz = t1 / Q1D;
+                  real_t gv[3] = {sm1[0][q], sm1[1][q], sm1[2][q]};
+                  real_t O[6];
+                  for (int c = 0; c < 6; ++c)
+                  {
+                     O[c] = D(qx, qy, qz, c, vc, e);
+                  }
+                  mma::form::ApplyGradQFnVec(QFn{}, gv, O);
+                  sm0[0][q] = gv[0];
+                  sm0[1][q] = gv[1];
+                  sm0[2][q] = gv[2];
+               }
+            }
+            MFEM_SYNC_THREAD;
+
+            mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
+            MFEM_SYNC_THREAD;
+            mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
+            MFEM_SYNC_THREAD;
+            mma::GradXt<MD1, MQ1>(D1D, Q1D, BGt, sm0, Y4, vc + vdim * e);
+            MFEM_SYNC_THREAD;
+         }
+      }
+   }
+};
+
 /** Device/Emulate Grad shell (2D or 3D). Element kernels stay dim-specific.
     vdim==1: scalar PA layout (nq, PA, NE) from DiffusionIntegrator.
     vdim>1: VectorDiffusion-style PA (nq, PA_full, vdim, NE), block-diagonal
@@ -1074,131 +1304,25 @@ inline void TensorGradApplyDevice(const int NE,
       if (vdim == 1)
       {
          const auto D = Reshape(d.Read(), Q1D * Q1D, PA_SCALAR, NE);
-         const auto X = Reshape(x.Read(), D1D, D1D, 1, NE);
-         auto Y = Reshape(y.ReadWrite(), D1D, D1D, 1, NE);
-         // Reuse scalar element path via component 0 of rank-4 views:
-         // Load/Grad helpers still need DeviceTensor ranks — use Element with
-         // collapsed reshape for vdim==1 (legacy path).
          const auto Xs = Reshape(x.Read(), D1D, D1D, NE);
          auto Ys = Reshape(y.ReadWrite(), D1D, D1D, NE);
-         MFEM_CONTRACT_VAR(X);
-         MFEM_CONTRACT_VAR(Y);
 
          const int nblocks = (NE + NB - 1) / NB;
-         mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
-         {
-            MFEM_SHARED real_t sm0[2][MDQ * MDQ];
-            MFEM_SHARED real_t sm1[2][MDQ * MDQ];
-            MFEM_SHARED real_t BG[2][MD1 * MQ1];
-            MFEM_SHARED real_t BGt[2][MD1 * MQ1];
-
-            mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
-            MFEM_SYNC_THREAD;
-
-            for (int i = 0; i < NB; i++)
-            {
-               const int e = b * NB + i;
-               if (e >= NE) { break; }
-               TensorGradElement2D<QFn, MD1, MQ1, MDQ, SYM>(
-                  D1D, Q1D, e, BG, BGt, sm0, sm1, D, Xs, Ys);
-            }
-         });
+         mfem::forall_3D(nblocks, nthreads, 1, 1,
+                         TensorGradKernel2DScalar<QFn, MD1, MQ1, MDQ, SYM>
+         {NE, D1D, Q1D, NB, B, G, D, Xs, Ys});
       }
       else
       {
          // VectorDiffusion PA: (Q,Q, 4, vdim, NE); X/Y: (D,D, vdim, NE)
          const auto D = Reshape(d.Read(), Q1D, Q1D, PA_VEC, vdim, NE);
          const auto X = Reshape(x.Read(), D1D, D1D, vdim, NE);
-         auto Y = Reshape(y.ReadWrite(), D1D, D1D, vdim, NE);
+         auto Y3 = Reshape(y.ReadWrite(), D1D, D1D, vdim * NE);
 
          const int nblocks = (NE + NB - 1) / NB;
-         mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
-         {
-            MFEM_SHARED real_t sm0[2][MDQ * MDQ];
-            MFEM_SHARED real_t sm1[2][MDQ * MDQ];
-            MFEM_SHARED real_t BG[2][MD1 * MQ1];
-            MFEM_SHARED real_t BGt[2][MD1 * MQ1];
-
-            mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
-            MFEM_SYNC_THREAD;
-
-            for (int i = 0; i < NB; i++)
-            {
-               const int e = b * NB + i;
-               if (e >= NE) { break; }
-
-               for (int vc = 0; vc < vdim; ++vc)
-               {
-                  {
-                     const int tid = mma::getThreadIdxX();
-                     const int n = D1D * D1D;
-                     const int stride = mma::getBlockNthreadsX();
-                     for (int t = tid; t < n; t += stride)
-                     {
-                        const int dx = t % D1D;
-                        const int dy = t / D1D;
-                        sm0[0][dx + D1D * dy] = X(dx, dy, vc, e);
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-
-                  mma::GradX2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm0, sm1);
-                  MFEM_SYNC_THREAD;
-                  mma::GradY2D<MD1, MQ1, MDQ>(D1D, Q1D, BG, sm1, sm0);
-                  MFEM_SYNC_THREAD;
-
-                  // Metric: stock full pack → SYM O[0]=O11, O[1]=O21, O[2]=O22
-                  {
-                     constexpr int plane_ld = MDQ * MDQ;
-                     const int tid = mma::getThreadIdxX();
-                     const int nq = Q1D * Q1D;
-                     const int stride = mma::getBlockNthreadsX();
-                     for (int q = tid; q < nq; q += stride)
-                     {
-                        const int qx = q % Q1D;
-                        const int qy = q / Q1D;
-                        real_t gv[2] = {sm0[0][q], sm0[1][q]};
-                        // Vector PA: 0=O11, 1=O12, 2=O21, 3=O22 (O12==O21 for S)
-                        const real_t Osym[3] = {
-                           D(qx, qy, 0, vc, e),
-                           D(qx, qy, 2, vc, e),
-                           D(qx, qy, 3, vc, e)
-                        };
-                        mma::form::ApplyGradQFnVec(QFn{}, gv, Osym);
-                        sm1[0][q] = gv[0];
-                        sm1[1][q] = gv[1];
-                        MFEM_CONTRACT_VAR(plane_ld);
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-
-                  mma::GradYt2D<MD1, MQ1, MDQ>(D1D, Q1D, BGt, sm1, sm0);
-                  MFEM_SYNC_THREAD;
-                  // GradXt accumulate into component plane
-                  {
-                     const int tid = mma::getThreadIdxX();
-                     const int nthreads_x = mma::getBlockNthreadsX();
-                     ConstDeviceMatrix Bt(BGt[0], Q1D, D1D);
-                     ConstDeviceMatrix Gt(BGt[1], Q1D, D1D);
-                     ConstDeviceMatrix A0(sm0[0], Q1D, D1D);
-                     ConstDeviceMatrix A1(sm0[1], Q1D, D1D);
-                     for (int idx = tid; idx < D1D * D1D; idx += nthreads_x)
-                     {
-                        const int dy = idx / D1D;
-                        const int dx = idx - dy * D1D;
-                        real_t s = 0.0;
-                        for (int q = 0; q < Q1D; ++q)
-                        {
-                           s += A0(q, dy) * Gt(q, dx);
-                           s += A1(q, dy) * Bt(q, dx);
-                        }
-                        Y(dx, dy, vc, e) += s;
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-               }
-            }
-         });
+         mfem::forall_3D(nblocks, nthreads, 1, 1,
+                         TensorGradKernel2DVector<QFn, MD1, MQ1, MDQ>
+         {NE, D1D, Q1D, NB, vdim, B, G, D, X, Y3});
       }
    }
    else
@@ -1229,134 +1353,21 @@ inline void TensorGradApplyDevice(const int NE,
          auto Ys = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
          const int nblocks = (NE + NB - 1) / NB;
-         mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
-         {
-            MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
-            MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
-            MFEM_SHARED real_t BG[2][MD1 * MQ1];
-            MFEM_SHARED real_t BGt[2][MD1 * MQ1];
-
-            mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
-            MFEM_SYNC_THREAD;
-
-            for (int i = 0; i < NB; i++)
-            {
-               const int e = b * NB + i;
-               if (e >= NE) { break; }
-               TensorGradElement3D<QFn, MD1, MQ1, SYM>(
-                  D1D, Q1D, e, BG, BGt, sm0, sm1, D, Xs, Ys);
-            }
-         });
+         mfem::forall_3D(nblocks, nthreads, 1, 1,
+                         TensorGradKernel3DScalar<QFn, MD1, MQ1, SYM>
+         {NE, D1D, Q1D, NB, B, G, D, Xs, Ys});
       }
       else
       {
          MFEM_VERIFY(d.Size() == PA_VEC * Q1D * Q1D * Q1D * vdim * NE, "");
          const auto D = Reshape(d.Read(), Q1D, Q1D, Q1D, PA_VEC, vdim, NE);
          const auto X = Reshape(x.Read(), D1D, D1D, D1D, vdim, NE);
-         auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, vdim, NE);
+         auto Y4 = Reshape(y.ReadWrite(), D1D, D1D, D1D, vdim * NE);
 
          const int nblocks = (NE + NB - 1) / NB;
-         mfem::forall_3D(nblocks, nthreads, 1, 1, [=] MFEM_HOST_DEVICE (int b)
-         {
-            MFEM_SHARED real_t sm0[3][MQ1 * MQ1 * MQ1];
-            MFEM_SHARED real_t sm1[3][MQ1 * MQ1 * MQ1];
-            MFEM_SHARED real_t BG[2][MD1 * MQ1];
-            MFEM_SHARED real_t BGt[2][MD1 * MQ1];
-
-            mma::LoadBGBoth<MD1, MQ1>(D1D, Q1D, B, G, BG, BGt);
-            MFEM_SYNC_THREAD;
-
-            for (int i = 0; i < NB; i++)
-            {
-               const int e = b * NB + i;
-               if (e >= NE) { break; }
-
-               for (int vc = 0; vc < vdim; ++vc)
-               {
-                  {
-                     const int tid = mma::getThreadIdxX();
-                     const int DDD = D1D * D1D * D1D;
-                     const int stride = mma::getBlockNthreadsX();
-                     for (int t = tid; t < DDD; t += stride)
-                     {
-                        const int dx = t % D1D;
-                        const int div = t / D1D;
-                        const int dy = div % D1D;
-                        const int dz = div / D1D;
-                        sm0[0][t] = X(dx, dy, dz, vc, e);
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-
-                  mma::GradX<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
-                  MFEM_SYNC_THREAD;
-                  mma::GradY<MD1, MQ1>(D1D, Q1D, BG, sm1, sm0);
-                  MFEM_SYNC_THREAD;
-                  mma::GradZ<MD1, MQ1>(D1D, Q1D, BG, sm0, sm1);
-                  MFEM_SYNC_THREAD;
-
-                  {
-                     constexpr int plane_ld = MQ1 * MQ1 * MQ1;
-                     const int tid = mma::getThreadIdxX();
-                     const int nq = Q1D * Q1D * Q1D;
-                     const int stride = mma::getBlockNthreadsX();
-                     for (int q = tid; q < nq; q += stride)
-                     {
-                        const int qx = q % Q1D;
-                        const int t1 = q / Q1D;
-                        const int qy = t1 % Q1D;
-                        const int qz = t1 / Q1D;
-                        // sm1 holds grad after GradZ; plane layout c*plane_ld+q
-                        real_t gv[3] = {
-                           sm1[0][q], sm1[1][q], sm1[2][q]
-                        };
-                        // Stock 9-pack: SYM PackPaMetric order in slots 0..5
-                        real_t O[6];
-                        for (int c = 0; c < 6; ++c)
-                        {
-                           O[c] = D(qx, qy, qz, c, vc, e);
-                        }
-                        mma::form::ApplyGradQFnVec(QFn{}, gv, O);
-                        sm0[0][q] = gv[0];
-                        sm0[1][q] = gv[1];
-                        sm0[2][q] = gv[2];
-                        MFEM_CONTRACT_VAR(plane_ld);
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-
-                  mma::GradZt<MD1, MQ1>(D1D, Q1D, BGt, sm0, sm1);
-                  MFEM_SYNC_THREAD;
-                  mma::GradYt<MD1, MQ1>(D1D, Q1D, BGt, sm1, sm0);
-                  MFEM_SYNC_THREAD;
-                  // GradXt accumulate into component (matches blas::GradXt3D).
-                  {
-                     const int tid = mma::getThreadIdxX();
-                     const int nthreads_x = mma::getBlockNthreadsX();
-                     ConstDeviceMatrix Bt(BGt[0], Q1D, D1D);
-                     ConstDeviceMatrix Gt(BGt[1], Q1D, D1D);
-                     const int nout = D1D * D1D * D1D;
-                     for (int idx = tid; idx < nout; idx += nthreads_x)
-                     {
-                        const int dx = idx % D1D;
-                        const int t = idx / D1D;
-                        const int dy = t % D1D;
-                        const int dz = t / D1D;
-                        real_t s = 0.0;
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           const int a = qx + Q1D * (dy + D1D * dz);
-                           s += sm0[0][a] * Gt(qx, dx);
-                           s += sm0[1][a] * Bt(qx, dx);
-                           s += sm0[2][a] * Bt(qx, dx);
-                        }
-                        Y(dx, dy, dz, vc, e) += s;
-                     }
-                  }
-                  MFEM_SYNC_THREAD;
-               }
-            }
-         });
+         mfem::forall_3D(nblocks, nthreads, 1, 1,
+                         TensorGradKernel3DVector<QFn, MD1, MQ1>
+         {NE, D1D, Q1D, NB, vdim, B, G, D, X, Y4});
       }
    }
 }
