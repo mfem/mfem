@@ -96,8 +96,6 @@ struct SmoothMaxEigenvalueSymmTape
   tensor<real_t, n> lambda;
   tensor<real_t, n, n> V;
   tensor<real_t, n> eg;
-  real_t beta;
-  real_t lambda_max;
   real_t sum;
   real_t logZ;
 };
@@ -138,8 +136,6 @@ smooth_max_eigenvalue_symm_aug(const tensor<real_t, n, n>* A,
     tape->lambda = lambda;
     tape->V = V;
     tape->eg = eg;
-    tape->beta = beta;
-    tape->lambda_max = lambda_max;
     tape->sum = sum;
     tape->logZ = logZ;
   }
@@ -179,9 +175,10 @@ real_t smooth_max_eigenvalue_symm_rev(const tensor<real_t, n, n>* A,
 
   // d/dβ = -(log Z)/β^2 + (1/(β Z)) Σ_{i<n-1} exp(β(λ_i-λ_max)) (λ_i-λ_max)
   real_t dZ_dBeta = 0.0;
+  const real_t& lambda_max = tape->lambda[n - 1];
   for (int i = 0; i < n - 1; i++)
   {
-    dZ_dBeta += tape->eg[i] * (tape->lambda[i] - tape->lambda_max);
+    dZ_dBeta += tape->eg[i] * (tape->lambda[i] - lambda_max);
   }
 
   const real_t beta2 = beta * beta;
