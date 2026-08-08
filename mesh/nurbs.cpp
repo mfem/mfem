@@ -280,24 +280,23 @@ void KnotVector::GetBotella(Vector &xi) const
 
 real_t KnotVector::GetDemko(int i) const
 {
-   if (demko.Size() != GetNCP())
-   {
-      ComputeDemko();
-   }
+   ComputeDemko();
    return demko[i];
 }
 
 void KnotVector::GetDemko(Vector &xi) const
 {
-   if (demko.Size() != GetNCP())
-   {
-      ComputeDemko();
-   }
+   ComputeDemko();
    xi = demko;
 }
 
-void KnotVector::ComputeDemko() const
+void KnotVector::ComputeDemko(bool force) const
 {
+   if (!force && demko.Size() == GetNCP())
+   {
+      return;
+   }
+
    constexpr int itermax1 = 50;
    constexpr int itermax2 = 50;
 
@@ -328,7 +327,9 @@ void KnotVector::ComputeDemko() const
    real_t u,xi, val, grad, hess;
    int iter1, iter2, ks;
 
-   GetInterpolant(x, demko, anew);
+   BandMatrix A_coll;
+   GetInterpolationMatrix(demko, A_coll);
+   A_coll.Solve(x, anew);
    for (iter1 = 0; iter1 < itermax1; iter1++)
    {
       // Get current demko point and interpolation
@@ -387,7 +388,8 @@ void KnotVector::ComputeDemko() const
       }
 
       // Find new interpolant and compare with old interpolant
-      GetInterpolant(x, demko, anew);
+      GetInterpolationMatrix(demko, A_coll);
+      A_coll.Solve(x, anew);
       a -= anew;
       if (a.Norml2() < tol1) { break; }
    }
@@ -911,6 +913,7 @@ void KnotVector::CalcDnShape(Vector &gradn, int n, int i, real_t xi) const
 
 }
 
+// Deprecated
 void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
 {
    Vector shape(Order+1);
@@ -970,222 +973,104 @@ void KnotVector::FindMaxima(Array<int> &ks, Vector &xi, Vector &u) const
    }
 }
 
-// Routine from "The NURBS Book" - 2nd ed - Piegl and Tiller
-// Algorithm A9.1 p. 369
+// Deprecated -- ignore reuse flag
 void KnotVector::FindInterpolant(Array<Vector*> &x, bool reuse_inverse)
 {
-   int order = GetOrder();
-   int ncp = GetNCP();
+   GetInterpolant(x);
+}
 
-   // Find interpolation points
+// Deprecated -- ignore reuse flag
+void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
+                                Vector &a, bool reuse_inverse) const
+{
+   GetInterpolant(x,u,a);
+}
 
-   Vector xi_args(ncp), u_args(ncp);
-   Array<int> i_args(ncp);
-   for (int i = 0; i < ncp; i++)
-   {
-      u_args[i] = GetDemko(i);
-      i_args[i] = GetSpan(u_args[i]) - Order;
-      xi_args[i] = GetRefPoint(u_args[i],i_args[i]+Order);
-   }
+// Deprecated -- ignore reuse flag
+void KnotVector::GetInterpolant(Array<Vector*> &x, const Vector &u,
+                                bool reuse_inverse) const
+{
+   GetInterpolant(x, u);
+}
 
-   // Assemble collocation matrix
-#ifdef MFEM_USE_LAPACK
-   // If using LAPACK, we use banded matrix storage (order + 1 nonzeros per row).
-   // Find banded structure of matrix.
-   int KL = 0; // Number of subdiagonals
-   int KU = 0; // Number of superdiagonals
-   for (int i = 0; i < ncp; i++)
-   {
-      for (int p = 0; p < order+1; p++)
-      {
-         const int col = i_args[i] + p;
-         if (col < i)
-         {
-            KL = std::max(KL, i - col);
-         }
-         else if (i < col)
-         {
-            KU = std::max(KU, col - i);
-         }
-      }
-   }
+void KnotVector::GetInterpolant(Array<Vector*> &x, const Vector &u) const
+{
+   MatrixInverse *A_coll_inv = GetInverseInterpolationMatrix(u);
 
-   const int LDAB = (2*KL) + KU + 1;
-   const int N = ncp;
-
-   fact_AB.SetSize(LDAB, N);
-#else
-   // Without LAPACK, we store and invert a DenseMatrix (inefficient).
-   if (!reuse_inverse)
-   {
-      A_coll_inv.SetSize(ncp, ncp);
-      A_coll_inv = 0.0;
-   }
-#endif
-
-   Vector shape(order+1);
-
-   if (!reuse_inverse) // Set collocation matrix entries
-   {
-      for (int i = 0; i < ncp; i++)
-      {
-         CalcShape(shape, i_args[i], xi_args[i]);
-         for (int p = 0; p < order+1; p++)
-         {
-            const int j = i_args[i] + p;
-#ifdef MFEM_USE_LAPACK
-            fact_AB(KL+KU+i-j,j) = shape[p];
-#else
-            A_coll_inv(i,j) = shape[p];
-#endif
-         }
-      }
-   }
-
-   // Solve the system
-#ifdef MFEM_USE_LAPACK
-   const int NRHS = x.Size();
-   DenseMatrix B(N, NRHS);
-   for (int j=0; j<NRHS; ++j)
-   {
-      for (int i=0; i<N; ++i) { B(i, j) = (*x[j])[i]; }
-   }
-
-   if (reuse_inverse)
-   {
-      BandedFactorizedSolve(KL, KU, fact_AB, B, false, fact_ipiv);
-   }
-   else
-   {
-      BandedSolve(KL, KU, fact_AB, B, fact_ipiv);
-   }
-
-   for (int j=0; j<NRHS; ++j)
-   {
-      for (int i=0; i<N; ++i) { (*x[j])[i] = B(i, j); }
-   }
-#else
-   if (!reuse_inverse) { A_coll_inv.Invert(); }
+   // Solve problems
    Vector tmp;
    for (int i = 0; i < x.Size(); i++)
    {
       tmp = *x[i];
-      A_coll_inv.Mult(tmp, *x[i]);
+      A_coll_inv->Mult(tmp, *x[i]);
    }
-#endif
+   delete A_coll_inv;
 }
 
-// Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
-// Algorithm A9.1 p. 369
+void KnotVector::GetInterpolant(Array<Vector*> &x) const
+{
+   ComputeDemko();
+   GetInterpolant(x, demko);
+}
+
 void KnotVector::GetInterpolant(const Vector &x, const Vector &u,
-                                Vector &a, bool reuse_inverse) const
-
+                                Vector &a) const
 {
-   a = x;
-   Array<Vector*> tmp(1);
-   tmp[0] = &a;
-   GetInterpolant(tmp,u,reuse_inverse);
+   BandMatrix A_coll;
+   GetInterpolationMatrix(u, A_coll);
+   A_coll.Solve(x,a);
+}
+
+void KnotVector::GetInterpolant(const Vector &x, Vector &a) const
+{
+   ComputeDemko();
+   GetInterpolant(x, demko, a);
 }
 
 // Routine from "The NURBS book" - 2nd ed - Piegl and Tiller
 // Algorithm A9.1 p. 369
-void KnotVector::GetInterpolant(Array<Vector*> &x, const Vector &u,
-                                bool reuse_inverse) const
-
+void KnotVector::GetInterpolationMatrix(const Vector &u,
+                                        BandMatrix &A_coll) const
 {
-   int ncp = GetNCP();
+   // Initialize collocation matrix
+   A_coll.SetSize(NumOfControlPoints, Order);
+   A_coll = 0.0;
 
-   // Initialize matrix
-#ifdef MFEM_USE_LAPACK
-   // If using LAPACK, we use banded matrix storage (order + 1 nonzeros per row).
-   // Find banded structure of matrix.
-   int KL = 0; // Number of subdiagonals
-   int KU = 0; // Number of superdiagonals
-   for (int i = 0; i < ncp; i++)
+   // Assemble collocation matrix
+   Vector shape(Order+1);
+   for (int i = 0; i < NumOfControlPoints; i++)
    {
       const int ks = GetSpan(u[i]);
+      const real_t xi = GetRefPoint(u[i], ks);
+      CalcShape ( shape, ks-Order, xi);
+
       for (int p = 0; p < Order+1; p++)
       {
          const int j = ks - Order + p;
-         if (j < i)
-         {
-            KL = std::max(KL, i - j);
-         }
-         else if (i < j)
-         {
-            KU = std::max(KU, j - i);
-         }
+         A_coll(i,j) = shape[p];
       }
    }
-
-   const int LDAB = (2*KL) + KU + 1;
-   const int N = ncp;
-
-   if (!reuse_inverse) { fact_AB.SetSize(LDAB, N); }
-#else
-   // Without LAPACK, we store and invert a DenseMatrix (inefficient).
-   if (!reuse_inverse)
-   {
-      A_coll_inv.SetSize(ncp, ncp);
-      A_coll_inv = 0.0;
-   }
-#endif
-
-   // Assemble collocation matrix
-   if (!reuse_inverse)
-   {
-      Vector shape(Order+1);
-      for (int i = 0; i < NumOfControlPoints; i++)
-      {
-         const int ks = GetSpan(u[i]);
-         const real_t xi = GetRefPoint(u[i], ks);
-         CalcShape ( shape, ks-Order, xi);
-
-         for (int p = 0; p < Order+1; p++)
-         {
-            const int j = ks - Order + p;
-#ifdef MFEM_USE_LAPACK
-            fact_AB(KL+KU+i-j,j) = shape[p];
-#else
-            A_coll_inv(i,j) = shape[p];
-#endif
-         }
-      }
-   }
-
-   // Solve problem
-#ifdef MFEM_USE_LAPACK
-   const int NRHS = x.Size();
-   DenseMatrix B(N, NRHS);
-   for (int j=0; j<NRHS; ++j)
-   {
-      for (int i=0; i<N; ++i) { B(i, j) = (*x[j])[i]; }
-   }
-
-   if (reuse_inverse)
-   {
-      BandedFactorizedSolve(KL, KU, fact_AB, B, false, fact_ipiv);
-   }
-   else
-   {
-      BandedSolve(KL, KU, fact_AB, B, fact_ipiv);
-   }
-
-   for (int j=0; j<NRHS; ++j)
-   {
-      for (int i=0; i<N; ++i) { (*x[j])[i] = B(i, j); }
-   }
-#else
-   if (!reuse_inverse) { A_coll_inv.Invert(); }
-   Vector tmp;
-   for (int i = 0; i < x.Size(); i++)
-   {
-      tmp = *x[i];
-      A_coll_inv.Mult(tmp, *x[i]);
-   }
-#endif
 }
 
+MatrixInverse *KnotVector::GetInverseInterpolationMatrix(const Vector &u) const
+{
+   BandMatrix A_coll;
+   GetInterpolationMatrix(u, A_coll);
+   return A_coll.Inverse();
+}
+
+void KnotVector::GetInterpolationMatrix(BandMatrix &A_coll) const
+{
+   ComputeDemko();
+   GetInterpolationMatrix(demko, A_coll);
+}
+
+MatrixInverse *KnotVector::GetInverseInterpolationMatrix() const
+{
+   BandMatrix A_coll;
+   GetInterpolationMatrix(A_coll);
+   return A_coll.Inverse();
+}
 
 int KnotVector::findKnotSpan(real_t u) const
 {

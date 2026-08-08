@@ -67,6 +67,13 @@ public:
    /// Creates approximation of the inverse of square matrix
    MatrixInverse(const Matrix &mat)
       : Solver(mat.height, mat.width) { }
+
+   /// Compute the determinant
+   virtual real_t Det() const
+   {
+      mfem_error("MatrixInverse::Det not implemented");
+      return 0.0;
+   }
 };
 
 /// Abstract data type for sparse matrices
