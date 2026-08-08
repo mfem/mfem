@@ -218,7 +218,7 @@ template <int DIM> void mass_mat_mixed(const char* filename, int p)
 
    SECTION("spmat")
    {
-      SparseMatrix *A;
+      SparseMatrix *A = nullptr;
       ddopdu->Assemble(A);
       TestSameMatrices(*A, blf.SpMat());
       delete A;
