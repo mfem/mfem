@@ -2725,6 +2725,9 @@ protected:
    Vector pa_data;
    /// Tensor-product MMA form path (scalar / block-diag PA, ForceMMA).
    bool use_tensors_mma = false;
+   /// Simplex MMA form path (tri/tet, scalar / block-diag PA).
+   bool use_simplices_mma = false;
+   Array<real_t> simplex_mma_P;
 
 public:
    /// Construct an integrator with coefficient 1.0
@@ -2792,6 +2795,22 @@ public:
       ApplyTensorsMmaPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
    static void RegisterTensorsMmaKernels();
+
+   /// Simplex MMA apply: (ne, vdim, P, pa, x, y)
+   using ApplySimplexMmaKernelType =
+      void(*)(const int, const int,
+              const Array<real_t>&, const Vector&,
+              const Vector&, Vector&);
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      ApplySimplexMmaPAKernels::Specialization<DIM, D1D, QND>::Add();
+   }
+   static void RegisterSimplexMmaKernels();
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
 
    // PA DiagonalPA kernels
    using VectorMassAssembleDiagonalPAType =
@@ -3304,6 +3323,9 @@ protected:
    Vector pa_data;
    /// Tensor-product MMA form path (scalar / block-diag PA, ForceMMA).
    bool use_tensors_mma = false;
+   /// Simplex MMA form path (tri/tet, scalar / block-diag PA).
+   bool use_simplices_mma = false;
+   Array<real_t> simplex_mma_G;
 
 public:
    VectorDiffusionIntegrator(const IntegrationRule *ir = nullptr);
@@ -3400,6 +3422,22 @@ public:
       ApplyTensorsMmaPAKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
    static void RegisterTensorsMmaKernels();
+
+   /// Simplex MMA apply: (ne, vdim, G, pa, x, y) — always SYM scalar Q
+   using ApplySimplexMmaKernelType =
+      void(*)(const int, const int,
+              const Array<real_t>&, const Vector&,
+              const Vector&, Vector&);
+   MFEM_REGISTER_KERNELS(ApplySimplexMmaPAKernels, ApplySimplexMmaKernelType,
+                         (int, int, int));
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      ApplySimplexMmaPAKernels::Specialization<DIM, D1D, QND>::Add();
+   }
+   static void RegisterSimplexMmaKernels();
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
 
    // struct Kernels { Kernels(); };
 };

@@ -52,6 +52,8 @@ Physics QFns live next to drivers:
 | `bilininteg_diffusion_pa_tensors_mma.hpp` | `DiffusionMetric` → `ApplyTensor<…>` |
 | `bilininteg_vecmass_pa_tensors_mma.hpp` | `MassScale` + `vdim` → `ApplyTensor<…>` |
 | `bilininteg_vecdiffusion_pa_tensors_mma.hpp` | `DiffusionMetric<DIM,true>` + `vdim` → `ApplyTensor<…>` |
+| `bilininteg_vecmass_pa_simplices_mma.hpp` | `MassScale` + `vdim` → `Apply<…>` |
+| `bilininteg_vecdiffusion_pa_simplices_mma.hpp` | `DiffusionMetric<DIM,true>` + `vdim` → `Apply<…>` |
 
 Custom forms: QFn + `qfn_traits<MyQ> : EvalEvalQFnTraits` (etc.) under `form/` only.
 
@@ -69,6 +71,7 @@ Lists are **separate** (Option B):
 3. Domain LF simplex — `lininteg_domain_simplices_mma.cpp` → `RegisterSimplexMmaKernels`
 4. Tensor mass/diff — `bilininteg_*_tensors_mma.cpp` → `RegisterTensorsMmaKernels`
 5. Tensor vector mass/diff — `bilininteg_vec{mass,diffusion}_pa_tensors_mma.cpp` → `RegisterTensorsMmaKernels`
+6. Simplex vector mass/diff — `bilininteg_vec{mass,diffusion}_pa_simplices_mma.cpp` → `RegisterSimplexMmaKernels`
 
 Add `AddSimplexMmaSpecialization<DIM,D1D,QND>()` or `AddTensorsMmaSpecialization<DIM,D1D,Q1D>()`.  
 Sort by DIM, D1D, QND. Unregistered sizes use **Fallback** (runtime shell).

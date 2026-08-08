@@ -209,6 +209,31 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
    }
 }
 
+/** Block-diag multi-component: X/Y layout (ndof × vdim × NE), shared D. */
+template <typename QFn>
+inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
+                          const real_t *P, const real_t *D,
+                          const real_t *X, real_t *Y, const int vdim)
+{
+   MFEM_VERIFY(vdim >= 1, "");
+   if (vdim == 1)
+   {
+      HostEvalApply(qfn, NE, nq, ndof, P, D, X, Y);
+      return;
+   }
+   for (int e = 0; e < NE; ++e)
+   {
+      auto *u = static_cast<real_t *>(
+                   alloca(sizeof(real_t) * static_cast<size_t>(nq)));
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const int off = ndof * (vc + vdim * e);
+         EvalApplyDenseElement(qfn, nq, ndof, P, D + nq * e,
+                               X + off, Y + off, u);
+      }
+   }
+}
+
 // ---------------------------------------------------------------------------
 // Public Apply entry points
 // ---------------------------------------------------------------------------
@@ -272,6 +297,58 @@ Apply(const int NE,
       const int nthr = getBlockNthreads();
       EvalBatchBody<QFn, MAP, QND, NDOF, X_LD, U_LD, NB>(
          qfn, batch * NB, NE, P, D, X, Y, sm.XY, sm.Us, tid, nthr);
+   });
+}
+
+/** Specialized Eval×Eval with block-diag vdim (X/Y: ndof × vdim × NE). */
+template <typename QFn, int DIM, int D1D, int QND>
+inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+Apply(const int NE,
+      const Array<real_t> &basis,
+      const Vector &d,
+      const Vector &x,
+      Vector &y,
+      const int vdim)
+{
+   MFEM_VERIFY(vdim >= 1, "");
+   if (vdim == 1)
+   {
+      Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
+      return;
+   }
+
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::load_x && !Tr::test_is_grad, "");
+   static_assert(D1D > 0 && QND > 0, "");
+
+   constexpr int NDOF = SimplexNdof<DIM, D1D>();
+   constexpr int MQ = SimplexMaxNq<DIM, QND>();
+   MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
+   MFEM_VERIFY(basis.Size() == QND * NDOF, "");
+   MFEM_VERIFY(x.Size() >= NDOF * vdim * NE && y.Size() >= NDOF * vdim * NE, "");
+
+   DumpFormApply<QFn, DIM, D1D, QND>("Apply", NE, QND, NDOF);
+
+   QFn qfn{};
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      HostEvalApply(qfn, NE, QND, NDOF,
+                    basis.Read(), d.Read(), x.Read(), y.ReadWrite(), vdim);
+      return;
+   }
+
+   // Device: dense per-element × component (shared PA).
+   const auto P = basis.Read(), D = d.Read(), X = x.Read();
+   auto Y = y.ReadWrite();
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t u[MQ];
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const int off = NDOF * (vc + vdim * e);
+         EvalApplyDenseElement(qfn, QND, NDOF, P, D + QND * e,
+                               X + off, Y + off, u);
+      }
    });
 }
 
@@ -345,6 +422,60 @@ Apply(const int NE,
       const int nthr = getBlockNthreads();
       EvalBatchBodyRuntime(qfn, batch * nb, NE, nq, ndof, x_ld, u_ld, nb,
                            P, D, X, Y, XY, Us, tid, nthr);
+   });
+}
+
+/** Runtime Eval×Eval with block-diag vdim. */
+template <typename QFn, int DIM>
+inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
+Apply(const int NE,
+      const Array<real_t> &basis,
+      const Vector &d,
+      const Vector &x,
+      Vector &y,
+      const int vdim)
+{
+   MFEM_VERIFY(vdim >= 1, "");
+   if (vdim == 1)
+   {
+      Apply<QFn, DIM>(NE, basis, d, x, y);
+      return;
+   }
+
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::load_x && !Tr::test_is_grad, "");
+
+   MFEM_VERIFY(NE > 0 && d.Size() % NE == 0, "");
+   const int nq = d.Size() / NE;
+   MFEM_VERIFY(nq > 0 && basis.Size() % nq == 0, "");
+   const int ndof = basis.Size() / nq;
+   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+
+   constexpr int MAX_NQ = SimplexMaxNq<DIM, 0>();
+   constexpr int MAX_NDOF = SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= MAX_NQ && ndof <= MAX_NDOF, "");
+
+   DumpFormApplyRuntime<QFn, DIM>("Apply", NE, nq, ndof);
+
+   QFn qfn{};
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      HostEvalApply(qfn, NE, nq, ndof,
+                    basis.Read(), d.Read(), x.Read(), y.ReadWrite(), vdim);
+      return;
+   }
+
+   const auto P = basis.Read(), D = d.Read(), X = x.Read();
+   auto Y = y.ReadWrite();
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t u[MAX_NQ];
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const int off = ndof * (vc + vdim * e);
+         EvalApplyDenseElement(qfn, nq, ndof, P, D + nq * e,
+                               X + off, Y + off, u);
+      }
    });
 }
 
@@ -818,6 +949,32 @@ inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
    }
 }
 
+template <int DIM, bool SYM, typename QFn>
+inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
+                          const real_t *G, const real_t *Dv,
+                          const real_t *X, real_t *Y, const int vdim)
+{
+   MFEM_VERIFY(vdim >= 1, "");
+   if (vdim == 1)
+   {
+      HostGradApply<DIM, SYM>(qfn, NE, nq, ndof, G, Dv, X, Y);
+      return;
+   }
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   for (int e = 0; e < NE; ++e)
+   {
+      auto *u = static_cast<real_t *>(
+                   alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const int off = ndof * (vc + vdim * e);
+         GradApplyDenseElement<DIM, SYM>(
+            qfn, nq, ndof, G, Dv + nq * PA_SIZE * e,
+            X + off, Y + off, u);
+      }
+   }
+}
+
 // ---------------------------------------------------------------------------
 // Device full-NQ / Q-tile batch bodies
 // ---------------------------------------------------------------------------
@@ -1031,6 +1188,62 @@ Apply(const int NE,
    });
 }
 
+/** Specialized Grad×Grad with block-diag vdim. */
+template <typename QFn, int DIM, int D1D, int QND>
+inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
+Apply(const int NE,
+      const Array<real_t> &basis,
+      const Vector &d,
+      const Vector &x,
+      Vector &y,
+      const int vdim)
+{
+   MFEM_VERIFY(vdim >= 1, "");
+   if (vdim == 1)
+   {
+      Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
+      return;
+   }
+
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::test_is_grad, "");
+   static_assert(D1D > 0 && QND > 0, "");
+   static_assert(Tr::spatial_dim == DIM, "");
+
+   constexpr bool SYM = Tr::symmetric_pa;
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   constexpr int ndof = SimplexNdof<DIM, D1D>();
+   constexpr int MQ = SimplexMaxNq<DIM, QND>();
+   MFEM_VERIFY(NE > 0 && d.Size() == PA_SIZE * QND * NE, "");
+   MFEM_VERIFY(basis.Size() == QND * ndof * DIM, "");
+   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+
+   DumpFormApply<QFn, DIM, D1D, QND>("ApplyGrad", NE, QND, ndof);
+
+   QFn qfn{};
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      HostGradApply<DIM, SYM>(qfn, NE, QND, ndof,
+                              basis.Read(), d.Read(), x.Read(), y.ReadWrite(),
+                              vdim);
+      return;
+   }
+
+   const auto G = basis.Read(), Dv = d.Read(), X = x.Read();
+   auto Y = y.ReadWrite();
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t u[DIM * MQ];
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const int off = ndof * (vc + vdim * e);
+         GradApplyDenseElement<DIM, SYM>(
+            qfn, QND, ndof, G, Dv + QND * PA_SIZE * e,
+            X + off, Y + off, u);
+      }
+   });
+}
+
 /** Runtime Fallback Grad Apply — full-NQ only; Q-tile falls back to dense. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
@@ -1144,6 +1357,66 @@ Apply(const int NE,
          }
       }
       MFEM_SYNC_THREAD;
+   });
+}
+
+/** Runtime Grad×Grad with block-diag vdim. */
+template <typename QFn, int DIM>
+inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
+Apply(const int NE,
+      const Array<real_t> &basis,
+      const Vector &d,
+      const Vector &x,
+      Vector &y,
+      const int vdim)
+{
+   MFEM_VERIFY(vdim >= 1, "");
+   if (vdim == 1)
+   {
+      Apply<QFn, DIM>(NE, basis, d, x, y);
+      return;
+   }
+
+   using Tr = qfn_traits<QFn>;
+   static_assert(Tr::test_is_grad, "");
+   static_assert(Tr::spatial_dim == DIM, "");
+
+   constexpr bool SYM = Tr::symmetric_pa;
+   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+
+   MFEM_VERIFY(NE > 0 && d.Size() % (PA_SIZE * NE) == 0, "");
+   const int nq = d.Size() / (PA_SIZE * NE);
+   MFEM_VERIFY(nq > 0 && basis.Size() % (nq * DIM) == 0, "");
+   const int ndof = basis.Size() / (nq * DIM);
+   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+
+   constexpr int max_nq = SimplexMaxNq<DIM, 0>();
+   constexpr int max_ndof = SimplexNdof<DIM, 0>();
+   MFEM_VERIFY(nq <= max_nq && ndof <= max_ndof, "");
+
+   DumpFormApplyRuntime<QFn, DIM>("ApplyGrad", NE, nq, ndof);
+
+   QFn qfn{};
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      HostGradApply<DIM, SYM>(qfn, NE, nq, ndof,
+                              basis.Read(), d.Read(), x.Read(), y.ReadWrite(),
+                              vdim);
+      return;
+   }
+
+   const auto G = basis.Read(), Dv = d.Read(), X = x.Read();
+   auto Y = y.ReadWrite();
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t u[DIM * max_nq];
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const int off = ndof * (vc + vdim * e);
+         GradApplyDenseElement<DIM, SYM>(
+            qfn, nq, ndof, G, Dv + nq * PA_SIZE * e,
+            X + off, Y + off, u);
+      }
    });
 }
 

@@ -70,6 +70,14 @@ struct DiffusionMetric {
 // Tensor vector diffusion (block-diag) — bilininteg_vecdiffusion_pa_tensors_mma.hpp
 // Kernel → ApplyTensor<DiffusionMetric<DIM,true>, …>(…, vdim)
 // Note: vdim>1 uses the device/Emulate shell (host PreferTensorDense is vdim==1).
+
+// Simplex vector mass — bilininteg_vecmass_pa_simplices_mma.hpp
+// Kernel → Apply<MassScale, …>(…, vdim)
+
+// Simplex vector diffusion — bilininteg_vecdiffusion_pa_simplices_mma.hpp
+// Kernel → Apply<DiffusionMetric<DIM,true>, …>(…, vdim)
+// Apply(..., vdim): X/Y layout (ndof × vdim × NE); shared scalar PA across components.
+// DomainLF still uses ApplyLF(..., vdim, vc) one component at a time.
 ```
 
 ---

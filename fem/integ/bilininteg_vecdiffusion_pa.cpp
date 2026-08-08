@@ -15,6 +15,8 @@
 #include "mma/mma.hpp"
 
 #include "./bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
+#include "bilininteg_vecdiffusion_pa_simplices_mma.hpp" // IWYU pragma: keep
+#include "bilininteg_vecdiffusion_pa_tensors_mma.hpp" // IWYU pragma: keep
 
 // #include "bilininteg_vecdiffusion_kernels.hpp"
 // #include "bilininteg_vecdiffusion_pa.hpp"
@@ -72,6 +74,15 @@ VectorDiffusionIntegrator::VectorDiffusionIntegrator(MatrixCoefficient &mq)
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    use_tensors_mma = false;
+   use_simplices_mma = false;
+   simplex_mma_G.DeleteAll();
+
+   // Simplex MMA before CEED / tensor maps (scalar Q / block-diag only).
+   if (UsesSimplexMMA(fes) && !VQ && !MQ)
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
 
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
@@ -295,6 +306,19 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplices_mma)
+   {
+      static bool registered = false;
+      if (!registered)
+      {
+         RegisterSimplexMmaKernels();
+         registered = true;
+      }
+      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq,
+                                    ne, vdim, simplex_mma_G, pa_data, x, y);
+      return;
+   }
+
    if (use_tensors_mma)
    {
       static bool registered = false;
@@ -549,7 +573,7 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
 
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_tensors_mma)
+   if (use_simplices_mma || use_tensors_mma)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }

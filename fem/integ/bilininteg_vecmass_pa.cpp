@@ -15,6 +15,8 @@
 #include "mma/mma.hpp"
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
+#include "bilininteg_vecmass_pa_simplices_mma.hpp" // IWYU pragma: keep
+#include "bilininteg_vecmass_pa_tensors_mma.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -22,6 +24,15 @@ namespace mfem
 void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    use_tensors_mma = false;
+   use_simplices_mma = false;
+   simplex_mma_P.DeleteAll();
+
+   // Simplex MMA before CEED / tensor maps (scalar Q / block-diag only).
+   if (UsesSimplexMMA(fes) && !VQ && !MQ)
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
 
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
@@ -177,6 +188,19 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplices_mma)
+   {
+      static bool registered = false;
+      if (!registered)
+      {
+         RegisterSimplexMmaKernels();
+         registered = true;
+      }
+      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq,
+                                    ne, vdim, simplex_mma_P, pa_data, x, y);
+      return;
+   }
+
    if (use_tensors_mma)
    {
       static bool registered = false;
@@ -233,7 +257,7 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (use_tensors_mma)
+   if (use_simplices_mma || use_tensors_mma)
    {
       MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
    }
