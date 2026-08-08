@@ -64,28 +64,28 @@ TEST_CASE("MMA form qfn_traits presets", "[MMA][Form]")
    SECTION("MassScale")
    {
       using Tr = qfn_traits<MassScale>;
-      static_assert(Tr::load_x, "");
-      static_assert(!Tr::trial_is_grad, "");
-      static_assert(std::is_same_v<Tr::trial_kind, eval_t>, "");
-      static_assert(std::is_same_v<Tr::test_kind, eval_t>, "");
+      static_assert(Tr::load_x);
+      static_assert(!Tr::trial_is_grad);
+      static_assert(std::is_same_v<Tr::trial_kind, eval_t>);
+      static_assert(std::is_same_v<Tr::test_kind, eval_t>);
       REQUIRE(Tr::u_planes(2) == 1);
    }
 
    SECTION("IdentityLoad")
    {
       using Tr = qfn_traits<IdentityLoad>;
-      static_assert(!Tr::load_x, "");
-      static_assert(std::is_same_v<Tr::trial_kind, none_t>, "");
-      static_assert(std::is_same_v<Tr::test_kind, eval_t>, "");
+      static_assert(!Tr::load_x);
+      static_assert(std::is_same_v<Tr::trial_kind, none_t>);
+      static_assert(std::is_same_v<Tr::test_kind, eval_t>);
       REQUIRE(Tr::u_planes(3) == 1);
    }
 
    SECTION("DiffusionMetric<3>")
    {
       using Tr = qfn_traits<DiffusionMetric<3, true>>;
-      static_assert(Tr::load_x, "");
-      static_assert(Tr::trial_is_grad, "");
-      static_assert(Tr::spatial_dim == 3, "");
+      static_assert(Tr::load_x);
+      static_assert(Tr::trial_is_grad);
+      static_assert(Tr::spatial_dim == 3);
       REQUIRE(Tr::u_planes(3) == 3);
    }
 }
@@ -132,18 +132,18 @@ TEST_CASE("MMA form Eval plan goldens", "[MMA][Form][Plan]")
    };
 
    // Representative registered mass rows (tri + tet)
-   check_mass_plan(std::integral_constant<int, 2>{},
-                   std::integral_constant<int, 2>{},
-                   std::integral_constant<int, 3>{});
-   check_mass_plan(std::integral_constant<int, 2>{},
-                   std::integral_constant<int, 4>{},
-                   std::integral_constant<int, 16>{});
-   check_mass_plan(std::integral_constant<int, 3>{},
-                   std::integral_constant<int, 2>{},
-                   std::integral_constant<int, 4>{});
-   check_mass_plan(std::integral_constant<int, 3>{},
-                   std::integral_constant<int, 4>{},
-                   std::integral_constant<int, 20>{});
+   check_mass_plan(std::integral_constant<int, 2> {},
+                   std::integral_constant<int, 2> {},
+                   std::integral_constant<int, 3> {});
+   check_mass_plan(std::integral_constant<int, 2> {},
+                   std::integral_constant<int, 4> {},
+                   std::integral_constant<int, 16> {});
+   check_mass_plan(std::integral_constant<int, 3> {},
+                   std::integral_constant<int, 2> {},
+                   std::integral_constant<int, 4> {});
+   check_mass_plan(std::integral_constant<int, 3> {},
+                   std::integral_constant<int, 4> {},
+                   std::integral_constant<int, 20> {});
 }
 
 TEST_CASE("MMA form Eval plan runtime", "[MMA][Form][Plan]")
@@ -198,7 +198,8 @@ void MassRef(int NE, int nq, int ndof, const real_t *P, const real_t *D,
 
 } // namespace
 
-TEST_CASE("MMA form pipeline Eval Apply runtime vs ref", "[MMA][Form][Pipeline]")
+TEST_CASE("MMA form pipeline Eval Apply runtime vs ref",
+          "[MMA][Form][Pipeline]")
 {
    constexpr int nq = 3;
    constexpr int ndof = 3;
@@ -234,7 +235,8 @@ TEST_CASE("MMA form pipeline Eval Apply runtime vs ref", "[MMA][Form][Pipeline]"
    }
 }
 
-TEST_CASE("MMA form pipeline Eval Apply specialized vs ref", "[MMA][Form][Pipeline]")
+TEST_CASE("MMA form pipeline Eval Apply specialized vs ref",
+          "[MMA][Form][Pipeline]")
 {
    constexpr int DIM = 2, D1D = 2, QND = 3;
    constexpr int ndof = SimplexNdof<DIM, D1D>();
@@ -448,8 +450,8 @@ TEST_CASE("MMA form custom QFn DensitySquaredMass", "[MMA][Form][Author]")
    SECTION("traits inherit EvalEval")
    {
       using Tr = qfn_traits<DensitySquaredMass>;
-      static_assert(Tr::load_x, "");
-      static_assert(!Tr::trial_is_grad, "");
+      static_assert(Tr::load_x);
+      static_assert(!Tr::trial_is_grad);
       REQUIRE(Tr::u_planes(2) == 1);
    }
 
