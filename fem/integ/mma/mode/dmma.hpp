@@ -462,89 +462,8 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
    }
 }
 
-template<int MD1, int MQ1, int BUF>
-MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
-                                   const int k,
-                                   const real_t (&BG)[2][MQ1*MD1],
-                                   const real_t (*A)[BUF],
-                                   real_t (*C)[BUF],
-                                   int gIdx)
-{
-   ConstDeviceMatrix B(BG[0], k, n);
-   ConstDeviceMatrix G(BG[1], k, n);
-
-   int thread = getThreadIdxX();
-   int warpId = getWarpId(thread);
-   int laneId = getLaneId(thread);
-   int groupId = getGroupId(laneId);
-   int threadIdInGroup = getThreadIdInGroup(laneId);
-
-   int mPass = (m + mmaM - 1) / mmaM;
-   const int nWarps = NWarps(mPass);
-   int aRowInWarp = groupId;
-   int aColumnInWarp = threadIdInGroup;
-   int bRowInWarp = threadIdInGroup;
-   int bColumnInWarp = groupId;
-   const int bankMap = BankMap();
-
-   for (int mM = warpId; mM < mPass; mM += nWarps)
-   {
-      for (int n0 = 0; n0 < n; n0 += mmaN)
-      {
-         double cReg[6] = {};
-         for (int mK = 0; mK < (k + mmaK - 1) / mmaK; mK++)
-         {
-            double bReg[1];
-            double gReg[1];
-            int bRow = bRowInWarp + mK * mmaK;
-            int bColumn = MappedNCol(bankMap, bColumnInWarp, n0);
-            if (bColumn < n && bRow < k)
-            {
-               bReg[0] = B(bRow, bColumn);
-               gReg[0] = G(bRow, bColumn);
-            }
-            else
-            {
-               bReg[0] = 0;
-               gReg[0] = 0;
-            }
-            for (int d = 0; d < 3; d++)
-            {
-               double aReg[1];
-               int aRow = MapM(aRowInWarp, mM);
-               int aColumn = aColumnInWarp + mK * mmaK;
-               if (aRow < m && aColumn < k)
-               {
-                  ConstDeviceMatrix aA(A[d], k, m);
-                  aReg[0] = aA(aColumn, aRow);
-               }
-               else
-               {
-                  aReg[0] = 0;
-               }
-               Sync(aReg, d == gIdx ? gReg : bReg, &cReg[d * 2]);
-            }
-         }
-         for (int d = 0; d < 3; d++)
-         {
-#pragma unroll
-            for (int i = 0; i < 2; i++)
-            {
-               int cRow = MapM(groupId, mM);
-               int cColumn = MappedNCol(bankMap, threadIdInGroup * 2 + i, n0);
-               if (cRow < m && cColumn < n)
-               {
-                  DeviceMatrix cC(C[d], m, n);
-                  cC(cRow, cColumn) = cReg[d * 2 + i];
-               }
-            }
-         }
-      }
-   }
-}
-
-/// Transposed Grad strip-mine shared by GradZt (gIdx=0) and GradYt (gIdx=1).
-/// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
+/// Grad strip-mine shared by GradZ / GradZt / GradYt (gIdx selects G vs B).
+/// BG rows are B then G (or Bt/Gt); A[d] as (k,m); C[d] as (m,n).
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
                                         const int k, const int gIdx,
@@ -621,6 +540,17 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
          }
       }
    }
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF],
+                                   int gIdx)
+{
+   GradZtLike<MD1, MQ1, BUF>(m, n, k, gIdx, BG, A, C);
 }
 
 /** Mass interp core: strip-mined 1-comp B·A → C.

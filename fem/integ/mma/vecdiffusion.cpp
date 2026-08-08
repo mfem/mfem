@@ -12,6 +12,7 @@
 #include "../../bilininteg.hpp"
 #include "mma.hpp"
 #include "diffusion.hpp"
+#include "form/register.hpp"
 
 namespace mfem
 {
@@ -218,74 +219,9 @@ void VectorDiffusionIntegrator::AssembleSimplexMmaPA(
 
 void VectorDiffusionIntegrator::RegisterSimplexMmaKernels()
 {
-   // Match scalar DiffusionIntegrator simplex specializations.
-   AddSimplexMmaSpecialization<2,2,1>();
-   AddSimplexMmaSpecialization<2,2,4>();
-   AddSimplexMmaSpecialization<2,2,9>();
-   AddSimplexMmaSpecialization<2,2,12>();
-   AddSimplexMmaSpecialization<2,2,16>();
-   AddSimplexMmaSpecialization<2,2,25>();
-   AddSimplexMmaSpecialization<2,2,33>();
-
-   AddSimplexMmaSpecialization<2,3,3>();
-   AddSimplexMmaSpecialization<2,3,9>();
-   AddSimplexMmaSpecialization<2,3,16>();
-   AddSimplexMmaSpecialization<2,3,25>();
-   AddSimplexMmaSpecialization<2,3,33>();
-   AddSimplexMmaSpecialization<2,3,36>();
-   AddSimplexMmaSpecialization<2,3,42>();
-
-   AddSimplexMmaSpecialization<2,4,6>();
-   AddSimplexMmaSpecialization<2,4,16>();
-   AddSimplexMmaSpecialization<2,4,25>();
-
-   AddSimplexMmaSpecialization<2,5,12>();
-   AddSimplexMmaSpecialization<2,5,33>();
-
-   AddSimplexMmaSpecialization<2,6,16>();
-   AddSimplexMmaSpecialization<2,6,36>();
-   AddSimplexMmaSpecialization<2,6,42>();
-   AddSimplexMmaSpecialization<2,6,49>();
-   AddSimplexMmaSpecialization<2,6,55>();
-   AddSimplexMmaSpecialization<2,6,64>();
-   AddSimplexMmaSpecialization<2,6,67>();
-   AddSimplexMmaSpecialization<2,6,79>();
-   AddSimplexMmaSpecialization<2,6,81>();
-
-   AddSimplexMmaSpecialization<2,7,25>();
-   AddSimplexMmaSpecialization<2,7,49>();
-   AddSimplexMmaSpecialization<2,7,55>();
-   AddSimplexMmaSpecialization<2,7,64>();
-   AddSimplexMmaSpecialization<2,7,67>();
-   AddSimplexMmaSpecialization<2,7,79>();
-   AddSimplexMmaSpecialization<2,7,81>();
-   AddSimplexMmaSpecialization<2,7,100>();
-   AddSimplexMmaSpecialization<2,7,126>();
-
-   AddSimplexMmaSpecialization<2,8,33>();
-
-   AddSimplexMmaSpecialization<3,2,1>();
-   AddSimplexMmaSpecialization<3,2,8>();
-   AddSimplexMmaSpecialization<3,2,24>();
-
-   AddSimplexMmaSpecialization<3,3,4>();
-   AddSimplexMmaSpecialization<3,3,27>();
-   AddSimplexMmaSpecialization<3,3,46>();
-
-   AddSimplexMmaSpecialization<3,4,14>();
-   AddSimplexMmaSpecialization<3,4,81>();
-
-   AddSimplexMmaSpecialization<3,5,24>();
-   AddSimplexMmaSpecialization<3,5,123>();
-
-   AddSimplexMmaSpecialization<3,6,46>();
-   AddSimplexMmaSpecialization<3,6,175>();
-   AddSimplexMmaSpecialization<3,6,216>();
-
-   AddSimplexMmaSpecialization<3,7,81>();
-   AddSimplexMmaSpecialization<3,7,248>();
-
-   AddSimplexMmaSpecialization<3,8,123>();
+   // Shared with Diffusion — see form/register.hpp.
+   internal::mma::RegisterDiffusionSimplexMmaSpecializations<
+   VectorDiffusionIntegrator>();
 }
 
 VectorDiffusionIntegrator::ApplySimplexMmaKernelType
@@ -301,18 +237,8 @@ VectorDiffusionIntegrator::ApplySimplexMmaPAKernels::Fallback(int dim, int, int)
 
 void VectorDiffusionIntegrator::RegisterTensorsMmaKernels()
 {
-   // Match scalar mass/diffusion + VectorMass MMA specializations (p = 3..7).
-   AddTensorsMmaSpecialization<2,4,5>();
-   AddTensorsMmaSpecialization<2,5,6>();
-   AddTensorsMmaSpecialization<2,6,7>();
-   AddTensorsMmaSpecialization<2,7,8>();
-   AddTensorsMmaSpecialization<2,8,9>();
-
-   AddTensorsMmaSpecialization<3,4,5>();
-   AddTensorsMmaSpecialization<3,5,6>();
-   AddTensorsMmaSpecialization<3,6,7>();
-   AddTensorsMmaSpecialization<3,7,8>();
-   AddTensorsMmaSpecialization<3,8,9>();
+   // Shared tensor list (p = 3..7) — see form/register.hpp.
+   internal::mma::RegisterTensorsMmaSpecializations<VectorDiffusionIntegrator>();
 }
 
 VectorDiffusionIntegrator::ApplyTensorsMmaKernelType

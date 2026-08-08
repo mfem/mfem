@@ -37,7 +37,8 @@
     Entry points internal::Mma*Apply* are intentionally outside namespace mma.
 
     ## Adding a specialization:
-    Edit Register*MmaKernels() in mass.cpp / diffusion.cpp / domain_lf.cpp / vec*.cpp
+    Edit shared tables in form/register.hpp (Mass/Diffusion simplex + tensors),
+    or DomainLF's RegisterSimplexMmaKernels() in domain_lf.cpp.
     Order: DIM, then D1D, then QND/Q1D.
     Unregistered sizes use Fallback (runtime shell).
     See mode/README.md and form/README.md.

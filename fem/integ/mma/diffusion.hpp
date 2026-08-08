@@ -201,10 +201,8 @@ inline void MmaVectorDiffusionApplyTensors2D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
-   using mma::form::Diffusion;
-   ApplyTensor<Diffusion<2, true>, 2>(
-      NE, b, g, bt, gt, d, x, y, d1d, q1d, vdim);
+   MmaVectorDiffusionApplyTensors<2, 0, 0>(
+      NE, vdim, b, g, bt, gt, d, x, y, d1d, q1d);
 }
 
 inline void MmaVectorDiffusionApplyTensors3D(
@@ -214,10 +212,8 @@ inline void MmaVectorDiffusionApplyTensors3D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::ApplyTensor;
-   using mma::form::Diffusion;
-   ApplyTensor<Diffusion<3, true>, 3>(
-      NE, b, g, bt, gt, d, x, y, d1d, q1d, vdim);
+   MmaVectorDiffusionApplyTensors<3, 0, 0>(
+      NE, vdim, b, g, bt, gt, d, x, y, d1d, q1d);
 }
 
 } // namespace internal

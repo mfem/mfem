@@ -64,9 +64,7 @@ inline void MmaMassApplyTensors2D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::Mass;
-   using mma::form::ApplyTensor;
-   ApplyTensor<Mass, 2>(NE, b, bt, d, x, y, d1d, q1d);
+   MmaMassApplyTensors<2, 0, 0>(NE, b, bt, d, x, y, d1d, q1d);
 }
 
 inline void MmaMassApplyTensors3D(
@@ -75,9 +73,7 @@ inline void MmaMassApplyTensors3D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::Mass;
-   using mma::form::ApplyTensor;
-   ApplyTensor<Mass, 3>(NE, b, bt, d, x, y, d1d, q1d);
+   MmaMassApplyTensors<3, 0, 0>(NE, b, bt, d, x, y, d1d, q1d);
 }
 
 template <int DIM, int D1D, int QND>
@@ -130,9 +126,7 @@ inline void MmaVectorMassApplyTensors2D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::Mass;
-   using mma::form::ApplyTensor;
-   ApplyTensor<Mass, 2>(NE, b, bt, d, x, y, d1d, q1d, vdim);
+   MmaVectorMassApplyTensors<2, 0, 0>(NE, vdim, b, bt, d, x, y, d1d, q1d);
 }
 
 inline void MmaVectorMassApplyTensors3D(
@@ -141,9 +135,7 @@ inline void MmaVectorMassApplyTensors3D(
    const Vector &d, const Vector &x, Vector &y,
    const int d1d, const int q1d)
 {
-   using mma::form::Mass;
-   using mma::form::ApplyTensor;
-   ApplyTensor<Mass, 3>(NE, b, bt, d, x, y, d1d, q1d, vdim);
+   MmaVectorMassApplyTensors<3, 0, 0>(NE, vdim, b, bt, d, x, y, d1d, q1d);
 }
 
 } // namespace internal
