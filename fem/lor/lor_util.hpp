@@ -158,9 +158,59 @@ template <> MFEM_HOST_DEVICE inline void Jacobian2D<3>(
    J(2,1) = -(1-x)*v[2][0] - x*v[2][1] + x*v[2][2] + (1-x)*v[2][3];
 }
 
+MFEM_HOST_DEVICE inline void Get2DMatrixCoeff(
+   ConstDeviceTensor<4> coeff, bool is_const, int i, int j, int e, real_t *vals)
+{
+   if (is_const) { i = j = e = 0; }
+   const int vdim = coeff.GetShape()[0];
+   if (vdim == 1)
+   {
+      vals[0] = vals[3] = coeff(0, i, j, e);
+      vals[1] = vals[2] = 0.0;
+   }
+   else if (vdim == 2)
+   {
+      vals[0] = coeff(0, i, j, e);
+      vals[3] = coeff(1, i, j, e);
+      vals[1] = vals[2] = 0.0;
+   }
+   else
+   {
+      vals[0] = coeff(0, i, j, e);
+      vals[1] = coeff(1, i, j, e);
+      vals[2] = coeff(2, i, j, e);
+      vals[3] = coeff(3, i, j, e);
+   }
+}
+
+MFEM_HOST_DEVICE inline void Get2DSurfaceMatrixCoeff(
+   ConstDeviceTensor<4> coeff, bool is_const, int i, int j, int e, real_t *vals)
+{
+   if (is_const) { i = j = e = 0; }
+   const int vdim = coeff.GetShape()[0];
+   if (vdim == 1)
+   {
+      vals[0] = vals[4] = vals[8] = coeff(0, i, j, e);
+      vals[1] = vals[2] = vals[3] = vals[5] = vals[6] = vals[7] = 0.0;
+   }
+   else if (vdim == 3)
+   {
+      vals[0] = coeff(0, i, j, e);
+      vals[4] = coeff(1, i, j, e);
+      vals[8] = coeff(2, i, j, e);
+      vals[1] = vals[2] = vals[3] = vals[5] = vals[6] = vals[7] = 0.0;
+   }
+   else
+   {
+      for (int k = 0; k < vdim; ++k) { vals[k] = coeff(k, i, j, e); }
+   }
+}
+
 template <int ORDER, int SDIM, bool RT, bool ND>
 MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
-   const real_t *X, int iel_ho, int kx, int ky, DeviceTensor<3> &Q, bool piola)
+   const real_t *X, bool const_1, ConstDeviceTensor<4> coeff_1,
+   bool const_2, ConstDeviceTensor<3> coeff_2,
+   int iel_ho, int kx, int ky, DeviceTensor<3> &Q)
 {
    real_t vx[4], vy[4], vz[4];
    real_t *v[] = {vx, vy, vz};
@@ -170,6 +220,9 @@ MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
    {
       for (int iqx=0; iqx<2; ++iqx)
       {
+         // c_2 is always a scalar coefficient
+         const real_t c_2 = const_2 ? coeff_2(0,0,0) : coeff_2(kx+iqx, ky+iqy, iel_ho);
+
          const real_t x = iqx;
          const real_t y = iqy;
          const real_t w = 1.0/4.0;
@@ -181,27 +234,104 @@ MFEM_HOST_DEVICE inline void SetupLORQuadData2D(
 
          if (SDIM == 2)
          {
+            // c_1 may be a 2x2 matrix coefficient
+            real_t c_1[4];
+            Get2DMatrixCoeff(coeff_1, const_1, kx+iqx, ky+iqy, iel_ho, c_1);
+            const real_t e11 = c_1[0];
+            const real_t e21 = c_1[1];
+            const real_t e12 = c_1[2];
+            const real_t e22 = c_1[3];
+
             const real_t detJ = Det2D(J);
             const real_t w_detJ = w/detJ;
-            const real_t E = J(0,0)*J(0,0) + J(1,0)*J(1,0);
-            const real_t F = J(0,0)*J(0,1) + J(1,0)*J(1,1);
-            const real_t G = J(0,1)*J(0,1) + J(1,1)*J(1,1);
-            Q(0,iqy,iqx) = w_detJ * (RT ? E : G); // 1,1
-            Q(1,iqy,iqx) = w_detJ * (RT ? F : -F); // 1,2
-            Q(2,iqy,iqx) = w_detJ * (RT ? G : E); // 2,2
-            Q(3,iqy,iqx) = (ND || RT) ? w_detJ : w*detJ;
+
+            const real_t a = J(0,0);
+            const real_t b = J(0,1);
+            const real_t c = J(1,0);
+            const real_t d = J(1,1);
+
+            if (RT)
+            {
+               // Q = (w/detJ) * J^T K J
+               const real_t M11 = a*e11 + c*e21;
+               const real_t M12 = b*e11 + d*e21;
+               const real_t M21 = a*e12 + c*e22;
+               const real_t M22 = b*e12 + d*e22;
+
+               Q(0,iqy,iqx) = w_detJ * (a*M11 + c*M21); // 1,1
+               Q(1,iqy,iqx) = w_detJ * (b*M11 + d*M21); // 1,2
+               Q(2,iqy,iqx) = w_detJ * (b*M12 + d*M22); // 2,2
+            }
+            else
+            {
+               // Q = (w/detJ) * adj(J) K adj(J)^T
+               const real_t M11 = d*e11 - b*e21;
+               const real_t M12 = d*e12 - b*e22;
+               const real_t M21 = -c*e11 + a*e21;
+               const real_t M22 = -c*e12 + a*e22;
+
+               Q(0,iqy,iqx) = w_detJ * (d*M11 - b*M12);  // 1,1
+               Q(1,iqy,iqx) = w_detJ * (-c*M11 + a*M12); // 1,2
+               Q(2,iqy,iqx) = w_detJ * (-c*M21 + a*M22); // 2,2
+            }
+            Q(3,iqy,iqx) = c_2 * ((ND || RT) ? w_detJ : w*detJ);
          }
          else
          {
+            // c_1 may be a 3x3 matrix coefficient. Assume symmetry.
+            real_t c_1[9];
+            Get2DSurfaceMatrixCoeff(coeff_1, const_1, kx+iqx, ky+iqy, iel_ho, c_1);
+            const real_t e00 = c_1[0];
+            const real_t e01 = c_1[3];
+            const real_t e11 = c_1[4];
+            const real_t e02 = c_1[6];
+            const real_t e12 = c_1[7];
+            const real_t e22 = c_1[8];
+
             const real_t E = J(0,0)*J(0,0) + J(1,0)*J(1,0) + J(2,0)*J(2,0);
             const real_t F = J(0,0)*J(0,1) + J(1,0)*J(1,1) + J(2,0)*J(2,1);
             const real_t G = J(0,1)*J(0,1) + J(1,1)*J(1,1) + J(2,1)*J(2,1);
-            const real_t detJ = sqrt(E*G - F*F);
+
+            const real_t detg = E*G - F*F;
+            const real_t detJ = sqrt(detg);
+
+            // B = J^T eps J, B = [ B00 B01 ]
+            //                    [ B10 B11 ]
+            const real_t B00 =
+               J(0,0)*(e00*J(0,0) + e01*J(1,0) + e02*J(2,0)) +
+               J(1,0)*(e01*J(0,0) + e11*J(1,0) + e12*J(2,0)) +
+               J(2,0)*(e02*J(0,0) + e12*J(1,0) + e22*J(2,0));
+
+            const real_t B01 =
+               J(0,0)*(e00*J(0,1) + e01*J(1,1) + e02*J(2,1)) +
+               J(1,0)*(e01*J(0,1) + e11*J(1,1) + e12*J(2,1)) +
+               J(2,0)*(e02*J(0,1) + e12*J(1,1) + e22*J(2,1));
+
+            const real_t B11 =
+               J(0,1)*(e00*J(0,1) + e01*J(1,1) + e02*J(2,1)) +
+               J(1,1)*(e01*J(0,1) + e11*J(1,1) + e12*J(2,1)) +
+               J(2,1)*(e02*J(0,1) + e12*J(1,1) + e22*J(2,1));
+
+            if (RT)
+            {
+               const real_t s = w / detJ;
+               Q(0,iqy,iqx) = s * B00; // 1,1
+               Q(1,iqy,iqx) = s * B01; // 1,2
+               Q(2,iqy,iqx) = s * B11; // 2,2
+            }
+            else
+            {
+               const real_t C00 = G*(G*B00 - F*B01) - F*(G*B01 - F*B11);
+               const real_t C01 = G*(-F*B00 + E*B01) - F*(-F*B01 + E*B11);
+               const real_t C11 = -F*(-F*B00 + E*B01) + E*(-F*B01 + E*B11);
+               const real_t s = w / (detJ * detg);
+               Q(0,iqy,iqx) = s * C00; // 1,1
+               Q(1,iqy,iqx) = s * C01; // 1,2
+               Q(2,iqy,iqx) = s * C11; // 2,2
+            }
+
             const real_t w_detJ = w/detJ;
-            Q(0,iqy,iqx) = w_detJ * (RT ? E : G); // 1,1
-            Q(1,iqy,iqx) = w_detJ * (RT ? F : -F); // 1,2
-            Q(2,iqy,iqx) = w_detJ * (RT ? G : E); // 2,2
-            Q(3,iqy,iqx) =  (ND || RT) ? w_detJ : w*detJ;
+            Q(3,iqy,iqx) = c_2 * ((ND || RT) ? w_detJ : w*detJ);
          }
       }
    }
@@ -262,6 +392,69 @@ MFEM_HOST_DEVICE inline void Adjugate3D(const DeviceMatrix &J, DeviceMatrix &A)
    A(2,0) = (J(1,0) * J(2,1)) - (J(2,0) * J(1,1));
    A(2,1) = (J(2,0) * J(0,1)) - (J(0,0) * J(2,1));
    A(2,2) = (J(0,0) * J(1,1)) - (J(0,1) * J(1,0));
+}
+
+MFEM_HOST_DEVICE inline void Get3DMatrixCoeff(
+   ConstDeviceTensor<5> coeff, bool is_const,
+   int i, int j, int k, int e, real_t *vals)
+{
+   if (is_const) { i = j = k = e = 0; }
+   const int vdim = coeff.GetShape()[0];
+   if (vdim == 1)
+   {
+      vals[0] = vals[4] = vals[8] = coeff(0, i, j, k, e);
+      vals[1] = vals[2] = vals[3] = vals[5] = vals[6] = vals[7] = 0.0;
+   }
+   else if (vdim == 3)
+   {
+      vals[0] = coeff(0, i, j, k, e);
+      vals[4] = coeff(1, i, j, k, e);
+      vals[8] = coeff(2, i, j, k, e);
+      vals[1] = vals[2] = vals[3] = vals[5] = vals[6] = vals[7] = 0.0;
+   }
+   else
+   {
+      for (int l = 0; l < vdim; ++l) { vals[l] = coeff(l, i, j, k, e); }
+   }
+};
+
+// Assuming B is symmetric, compute the triple product AtBA in packed format
+MFEM_HOST_DEVICE inline void FillAtBA(
+   const DeviceMatrix &A, const DeviceMatrix &B, real_t *C, real_t alpha=1.0)
+{
+   const real_t e00 = B(0,0);
+   const real_t e01 = B(0,1);
+   const real_t e11 = B(1,1);
+   const real_t e02 = B(0,2);
+   const real_t e12 = B(1,2);
+   const real_t e22 = B(2,2);
+
+   const real_t u00 = A(0,0)*e00 + A(0,1)*e01 + A(0,2)*e02;
+   const real_t u10 = A(0,0)*e01 + A(0,1)*e11 + A(0,2)*e12;
+   const real_t u20 = A(0,0)*e02 + A(0,1)*e12 + A(0,2)*e22;
+
+   const real_t u01 = A(1,0)*e00 + A(1,1)*e01 + A(1,2)*e02;
+   const real_t u11 = A(1,0)*e01 + A(1,1)*e11 + A(1,2)*e12;
+   const real_t u21 = A(1,0)*e02 + A(1,1)*e12 + A(1,2)*e22;
+
+   const real_t u02 = A(2,0)*e00 + A(2,1)*e01 + A(2,2)*e02;
+   const real_t u12 = A(2,0)*e01 + A(2,1)*e11 + A(2,2)*e12;
+   const real_t u22 = A(2,0)*e02 + A(2,1)*e12 + A(2,2)*e22;
+
+   C[0] = alpha*(A(0,0)*u00 + A(0,1)*u10 + A(0,2)*u20); // 1,1
+   C[1] = alpha*(A(0,0)*u01 + A(0,1)*u11 + A(0,2)*u21); // 2,1
+   C[2] = alpha*(A(0,0)*u02 + A(0,1)*u12 + A(0,2)*u22); // 3,1
+   C[3] = alpha*(A(1,0)*u01 + A(1,1)*u11 + A(1,2)*u21); // 2,2
+   C[4] = alpha*(A(1,0)*u02 + A(1,1)*u12 + A(1,2)*u22); // 3,2
+   C[5] = alpha*(A(2,0)*u02 + A(2,1)*u12 + A(2,2)*u22); // 3,3
+}
+
+MFEM_HOST_DEVICE inline void Transpose3D(DeviceMatrix &A)
+{
+   real_t t;
+   t = A(0,1); A(0,1) = A(1,0); A(1,0) = t;
+   t = A(0,2); A(0,2) = A(2,0); A(2,0) = t;
+   t = A(1,2); A(1,2) = A(2,1); A(2,1) = t;
 }
 
 }

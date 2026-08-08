@@ -49,6 +49,26 @@ ElementTransformation *RefinedToCoarse(
    return coarse_T;
 }
 
+CoefficientBase *CoefficientBase::Get(Coefficient *coeff,
+                                      VectorCoefficient *vec_coeff,
+                                      MatrixCoefficient *mat_coeff)
+{
+   MFEM_ASSERT(
+      (coeff != nullptr) + (vec_coeff != nullptr) + (mat_coeff != nullptr) <= 1,
+      "At most one of the coefficients may be non-null.");
+   if (coeff) { return coeff; }
+   else if (vec_coeff) { return vec_coeff; }
+   else if (mat_coeff) { return mat_coeff; }
+   else { return nullptr; }
+}
+
+void CoefficientBase::Project(CoefficientVector &vec)
+{
+   QuadratureFunction &qf = vec.SetupQuadratureFunction(GetCoefficientSize());
+   Project(qf);
+   vec.SyncMemory(qf);
+}
+
 void Coefficient::Project(QuadratureFunction &qf)
 {
    QuadratureSpaceBase &qspace = *qf.GetSpace();
@@ -69,6 +89,11 @@ void Coefficient::Project(QuadratureFunction &qf)
          values[iq_p] = Eval(T, ip);
       }
    }
+}
+
+void ConstantCoefficient::Project(CoefficientVector &vec)
+{
+   vec.SetConstant(constant);
 }
 
 void ConstantCoefficient::Project(QuadratureFunction &qf)
@@ -345,6 +370,11 @@ void VectorCoefficient::Project(QuadratureFunction &qf)
          Eval(col, T, ip);
       }
    }
+}
+
+void VectorConstantCoefficient::Project(CoefficientVector &coeff_vec)
+{
+   coeff_vec.SetConstant(vec);
 }
 
 void PWVectorCoefficient::InitMap(const Array<int> & attr,
@@ -693,6 +723,11 @@ void VectorRestrictedCoefficient::Eval(
    }
 }
 
+void MatrixCoefficient::Project(QuadratureFunction &qf)
+{
+   Project(qf, false);
+}
+
 void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
 {
    MFEM_VERIFY(qf.GetVDim() == height*width, "Wrong sizes.");
@@ -716,6 +751,23 @@ void MatrixCoefficient::Project(QuadratureFunction &qf, bool transpose)
          if (transpose) { matrix.Transpose(); }
       }
    }
+}
+
+void MatrixCoefficient::Project(CoefficientVector &vec, bool transpose)
+{
+   QuadratureFunction &qf = vec.SetupQuadratureFunction(GetCoefficientSize());
+   Project(qf, transpose);
+   vec.SyncMemory(qf);
+}
+
+void MatrixCoefficient::Project(CoefficientVector &vec)
+{
+   Project(vec, false);
+}
+
+void MatrixConstantCoefficient::Project(CoefficientVector &vec, bool transpose)
+{
+   vec.SetConstant(mat, transpose);
 }
 
 void PWMatrixCoefficient::InitMap(const Array<int> & attr,
@@ -889,12 +941,28 @@ void SymmetricMatrixCoefficient::ProjectSymmetric(QuadratureFunction &qf)
       {
          const IntegrationPoint &ip = ir[iq];
          T.SetIntPoint(&ip);
-         matrix.UseExternalData(&values(0, iq), height);
+         const int iq_p = qspace.GetPermutedIndex(iel, iq);
+         matrix.UseExternalData(&values(0, iq_p), height);
          Eval(matrix, T, ip);
       }
    }
 }
 
+void SymmetricMatrixCoefficient::Project(CoefficientVector &vec, bool transpose)
+{
+   if (vec.GetStorage() & CoefficientStorage::SYMMETRIC)
+   {
+      QuadratureFunction &qf = vec.SetupQuadratureFunction(height*(height + 1)/2);
+      ProjectSymmetric(qf);
+      vec.SyncMemory(qf);
+   }
+   else
+   {
+      QuadratureFunction &qf = vec.SetupQuadratureFunction(height*width);
+      MatrixCoefficient::Project(qf);
+      vec.SyncMemory(qf);
+   }
+}
 
 void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
                                       const IntegrationPoint &ip)
@@ -907,6 +975,11 @@ void SymmetricMatrixCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
          K(i, j) = mat_aux(i, j);
       }
    }
+}
+
+void SymmetricMatrixConstantCoefficient::Project(CoefficientVector &vec, bool)
+{
+   vec.SetConstant(mat);
 }
 
 void SymmetricMatrixFunctionCoefficient::SetTime(real_t t)
@@ -1978,6 +2051,11 @@ void VectorQuadratureFunctionCoefficient::Eval(Vector &V,
    return;
 }
 
+void VectorQuadratureFunctionCoefficient::Project(CoefficientVector &vec)
+{
+   vec.MakeRef(QuadF);
+}
+
 void VectorQuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 {
    qf = QuadF;
@@ -2003,6 +2081,11 @@ real_t QuadratureFunctionCoefficient::Eval(ElementTransformation &T,
    return temp[0];
 }
 
+void QuadratureFunctionCoefficient::Project(CoefficientVector &vec)
+{
+   vec.MakeRef(QuadF);
+}
+
 void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 {
    qf = QuadF;
@@ -2011,7 +2094,7 @@ void QuadratureFunctionCoefficient::Project(QuadratureFunction &qf)
 
 CoefficientVector::CoefficientVector(
    QuadratureSpaceBase &qs_, CoefficientStorage storage_)
-   : Vector(), storage(storage_), vdim(0), qs(qs_), qf(NULL)
+   : Vector(), storage(storage_), vdim(0), qs(qs_)
 {
    UseDevice(true);
 }
@@ -2031,7 +2114,7 @@ CoefficientVector::CoefficientVector(Coefficient *coeff,
    }
 }
 
-CoefficientVector::CoefficientVector(Coefficient &coeff,
+CoefficientVector::CoefficientVector(CoefficientBase &coeff,
                                      QuadratureSpaceBase &qs_,
                                      CoefficientStorage storage_)
    : CoefficientVector(qs_, storage_)
@@ -2039,88 +2122,23 @@ CoefficientVector::CoefficientVector(Coefficient &coeff,
    Project(coeff);
 }
 
-CoefficientVector::CoefficientVector(VectorCoefficient &coeff,
-                                     QuadratureSpaceBase &qs_,
-                                     CoefficientStorage storage_)
-   : CoefficientVector(qs_, storage_)
+QuadratureFunction &CoefficientVector::SetupQuadratureFunction(int vdim_)
 {
-   Project(coeff);
+   vdim = vdim_;
+   if (!qf) { qf = std::make_unique<QuadratureFunction>(qs, vdim); }
+   qf->SetVDim(vdim);
+   Vector::MakeRef(*qf, 0, qf->Size());
+   return *qf;
 }
 
-CoefficientVector::CoefficientVector(MatrixCoefficient &coeff,
-                                     QuadratureSpaceBase &qs_,
-                                     CoefficientStorage storage_)
-   : CoefficientVector(qs_, storage_)
+void CoefficientVector::Project(CoefficientBase &coeff)
 {
-   Project(coeff);
-}
-
-void CoefficientVector::Project(Coefficient &coeff)
-{
-   vdim = 1;
-   if (auto *const_coeff = dynamic_cast<ConstantCoefficient*>(&coeff))
-   {
-      SetConstant(const_coeff->constant);
-   }
-   else if (auto *qf_coeff = dynamic_cast<QuadratureFunctionCoefficient*>(&coeff))
-   {
-      MakeRef(qf_coeff->GetQuadFunction());
-   }
-   else
-   {
-      if (qf == nullptr) { qf = new QuadratureFunction(qs); }
-      qf->SetVDim(1);
-      coeff.Project(*qf);
-      Vector::MakeRef(*qf, 0, qf->Size());
-   }
-}
-
-void CoefficientVector::Project(VectorCoefficient &coeff)
-{
-   vdim = coeff.GetVDim();
-   if (auto *const_coeff = dynamic_cast<VectorConstantCoefficient*>(&coeff))
-   {
-      SetConstant(const_coeff->GetVec());
-   }
-   else if (auto *qf_coeff =
-               dynamic_cast<VectorQuadratureFunctionCoefficient*>(&coeff))
-   {
-      MakeRef(qf_coeff->GetQuadFunction());
-   }
-   else
-   {
-      if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
-      qf->SetVDim(vdim);
-      coeff.Project(*qf);
-      Vector::MakeRef(*qf, 0, qf->Size());
-   }
+   coeff.Project(*this);
 }
 
 void CoefficientVector::Project(MatrixCoefficient &coeff, bool transpose)
 {
-   if (auto *const_coeff = dynamic_cast<MatrixConstantCoefficient*>(&coeff))
-   {
-      SetConstant(const_coeff->GetMatrix(), transpose);
-   }
-   else if (auto *const_sym_coeff =
-               dynamic_cast<SymmetricMatrixConstantCoefficient*>(&coeff))
-   {
-      SetConstant(const_sym_coeff->GetMatrix());
-   }
-   else
-   {
-      auto *sym_coeff = dynamic_cast<SymmetricMatrixCoefficient*>(&coeff);
-      const bool sym = sym_coeff && (storage & CoefficientStorage::SYMMETRIC);
-      const int height = coeff.GetHeight();
-      const int width = coeff.GetWidth();
-      vdim = sym ? height*(height + 1)/2 : width*height;
-
-      if (qf == nullptr) { qf = new QuadratureFunction(qs, vdim); }
-      qf->SetVDim(vdim);
-      if (sym) { sym_coeff->ProjectSymmetric(*qf); }
-      else { coeff.Project(*qf, transpose); }
-      Vector::MakeRef(*qf, 0, qf->Size());
-   }
+   coeff.Project(*this, transpose);
 }
 
 void CoefficientVector::ProjectTranspose(MatrixCoefficient &coeff)
@@ -2174,8 +2192,9 @@ void CoefficientVector::SetConstant(const DenseMatrix &constant, bool transpose)
       {
          for (int i = 0; i < height; ++i)
          {
-            const real_t val = transpose ? constant(j,i) : constant(i,j);
-            (*this)[i + j*height + iq*vdim] = val;
+            const real_t val = constant(i,j);
+            if (transpose) { (*this)[j + i*height + iq*vdim] = val; }
+            else { (*this)[i + j*height + iq*vdim] = val; }
          }
       }
    }
@@ -2201,9 +2220,8 @@ void CoefficientVector::SetConstant(const DenseSymmetricMatrix &constant)
 
 int CoefficientVector::GetVDim() const { return vdim; }
 
-CoefficientVector::~CoefficientVector()
-{
-   delete qf;
-}
+CoefficientStorage CoefficientVector::GetStorage() const { return storage; }
+
+CoefficientVector::~CoefficientVector() = default;
 
 }

@@ -153,6 +153,9 @@ using ConstDeviceMatrix = DeviceTensor<2,const real_t>;
 using DeviceCube = DeviceTensor<3,real_t>;
 using ConstDeviceCube = DeviceTensor<3,const real_t>;
 
+template <int Dim>
+using ConstDeviceTensor = DeviceTensor<Dim,const real_t>;
+
 } // mfem namespace
 
 #endif // MFEM_DTENSOR
