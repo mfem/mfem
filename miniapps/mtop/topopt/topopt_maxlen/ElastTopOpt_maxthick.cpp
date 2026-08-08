@@ -11,6 +11,7 @@
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../mtop_solvers.hpp"
 #include "../../diffusion_mass_solver.hpp"
+#include "checkpoint.hpp"
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -60,9 +61,9 @@ int main(int argc, char *argv[])
     // const real_t exponent = 3.0;
 
     int init_it  = 20;
-    real_t decay     = 0.8;
+    real_t decay     = 0.5;
     real_t eps_floor = 1e-6;
-    int decay_int    = 10;
+    int decay_int    = 50;
 
     int beta_steps   = 50;          // Heaviside beta continuation steps
     real_t beta_max  = 2.0;         // Heaviside beta max value
@@ -248,6 +249,26 @@ int main(int argc, char *argv[])
     // 8a. stacked design  x = [ rho ; alpha ]
     Vector rho_tv(n), rho_old(n);
     rho.GetTrueDofs(rho_tv);
+
+    // >>>>> TEMP warm-start experiment: seed rho from an ElastTopOpt_std run >>>>>
+    // Reads ./checkpoints_std written by ElastTopOpt_std. alpha is left at its
+    // domain_init value and MMA still starts fresh (std's optimizer state is
+    // sized n, not n+m, so it cannot be reused).
+    // {
+    //     Checkpoint cp("checkpoints_std", MPI_COMM_WORLD);
+    //     std::vector<Vector> no_alpha;
+    //     MFEM_VERIFY(cp.Exists(), "warm start: no checkpoints_std found");
+    //     MFEM_VERIFY(cp.ValidateCompatibility(ref_levels, order, 0),
+    //                 "warm start: checkpoints_std incompatible with this run");
+    //     MFEM_VERIFY(cp.Load(rho_tv, no_alpha), "warm start: failed to load rho");
+    //     rho.SetFromTrueDofs(rho_tv);
+    //     if (myid == 0)
+    //     {
+    //         mfem::out << "warm start: rho seeded from checkpoints_std (iteration "
+    //                   << cp.GetIteration() << ")\n";
+    //     }
+    // }
+    // <<<<< TEMP warm-start experiment <<<<<
 
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;

@@ -1,7 +1,15 @@
-// Linear elasticity topology optimization: 
-// 
-// Sample run:  mpirun -np 4 ./ElastTopOpt_std
-//              mpirun -np 4 ./ElastTopOpt_std -r 6 -rf 0.05 -b 4
+// Linear elasticity topology optimization with a maximum length scale imposed
+// through a p-norm aggregate of the max-filtered density gamma:
+//
+//   min_rho  c(rho)   s.t.   V_d/V* - 1 <= 0   and   P(gamma)/gamma_s - 1 <= 0
+//
+//   P(gamma) = ( int_Omega gamma^p dOmega / |Omega| )^(1/p)
+//
+// P is the power mean of gamma, so it approaches max(gamma) from below as
+// p -> infinity and equals gamma exactly for a uniform field.
+//
+// Sample run:  mpirun -np 4 ./ElastTopOpt_pnorm
+//              mpirun -np 4 ./ElastTopOpt_pnorm -r 6 -rf 0.05 -rs 0.2 -gs 0.7 -p 8
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
@@ -9,7 +17,6 @@
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../mtop_solvers.hpp"
 #include "../../diffusion_mass_solver.hpp"
-#include "checkpoint.hpp"
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -31,12 +38,15 @@ int main(int argc, char *argv[])
     int    ref_levels   = 5;
     int    order        = 2;
     real_t r_f          = 0.03;       // min filter length
+    real_t r_s          = 0.2;        // max filter length
     real_t beta         = 2.0;        // Heaviside beta
     real_t eta          = 0.2;        // Heaviside eta
     real_t vol_fraction = 0.5;
     int    max_it       = 300;
     real_t tol          = 1e-3;       // stopping tol on iteration error
     real_t move         = 0.2;        // MMA move limit
+    int    p            = 8;          // p-norm exponent for the max constraint
+    real_t gamma_s      = 0.7;        // max filter upper bound
 
     bool visualization = true;
     bool paraview      = false;
@@ -45,17 +55,27 @@ int main(int argc, char *argv[])
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 1.0;      // SIMP exponent (applied to the projection)
 
+    int    init_it    = 20;           // initial iterations before continuation
+    int    beta_steps = 50;           // Heaviside beta continuation steps
+    real_t beta_max   = 2.0;          // Heaviside beta max value
+
     OptionsParser args(argc, argv);
     args.AddOption(&dim, "-dim", "--dimension", "problem dimension (2 or 3)");
     args.AddOption(&ref_levels, "-r", "--refine", "uniform refinement levels");
     args.AddOption(&order, "-o", "--order", "finite element order");
     args.AddOption(&vol_fraction, "-vf", "--volume-fraction", "volume fraction");
     args.AddOption(&r_f, "-rf", "--r_fwidth", "min filter width");
+    args.AddOption(&r_s, "-rs", "--r_swidth", "max filter width");
     args.AddOption(&beta, "-b", "--beta", "Heaviside beta");
+    args.AddOption(&beta_steps, "-bs", "--beta-steps", "Heaviside beta continuation steps");
+    args.AddOption(&beta_max, "-bm", "--beta-max", "Heaviside beta max value");
     args.AddOption(&eta, "-e", "--eta", "Heaviside eta");
+    args.AddOption(&init_it, "-ii", "--init_it", "initial iterations before continuation");
     args.AddOption(&max_it, "-mi", "--max-it", "max optimization iterations");
     args.AddOption(&tol, "-tol", "--tol", "stopping tol on max design change");
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
+    args.AddOption(&p, "-p", "--pnorm", "p-norm exponent for the max constraint");
+    args.AddOption(&gamma_s, "-gs", "--gamma_s", "upper bound for max filtered density");
     args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                     "store solution in paraview");
     args.AddOption(&visualization, "-vis", "--visualization",
@@ -103,10 +123,16 @@ int main(int argc, char *argv[])
     // 5. Initialize all the grid functions and coefficients
     ParGridFunction rho(&control_fes);
     ParGridFunction rho_filter(&filter_fes);
+    ParGridFunction gamma(&filter_fes);
     rho = vol_fraction;
     rho_filter = vol_fraction;
+    gamma = vol_fraction;
 
     GridFunctionCoefficient rho_cf(&rho);
+
+    GridFunctionCoefficient gamma_cf(&gamma);
+    PowerCoefficient gamma_p_cf(gamma_cf, p);         // γ^p
+    PowerCoefficient gamma_pm1_cf(gamma_cf, p - 1);   // γ^(p-1)
 
     // Lame constants and SIMP material coefficients
     ConstantCoefficient E_cf(3.0), nu_cf(0.3);
@@ -121,7 +147,7 @@ int main(int argc, char *argv[])
 
     HeavisideCoefficient rho_inter_cf(&rho_filter, beta, 0.5);
 
-    // SIMP on the eroded projection: r(rho_e) = E_min + rho_e^p (E_max - E_min)
+    // SIMP on the eroded projection: r(rho_e) = E_min + rho_e^exponent (E_max - E_min)
     SIMPCoefficient simp_cf(rho_erod_cf, E_min, E_max, exponent);            // r(rho_e)
     SIMPGradCoefficient simp_grad_cf(rho_erod_cf, E_min, E_max, exponent);   // r'(rho_e)
 
@@ -153,6 +179,15 @@ int main(int argc, char *argv[])
     }
     filter.Assemble();
 
+    // 6c. Max length scale filter solver
+    PDEFilter maxfilter(control_fes, filter_fes);
+    maxfilter.SetFilterRadius(r_s);
+    DiffusionMassSolver &maxfilter_solver = maxfilter.GetSolver();
+    for(int a = 1; a <= pmesh.bdr_attributes.Max(); a++){
+        if (a != clamp_attr) maxfilter_solver.AddBoundaryID(a);
+    }
+    maxfilter.Assemble();
+
     // 7. Construct the quantity of interest objects
     Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
 
@@ -160,9 +195,24 @@ int main(int argc, char *argv[])
     VolumeResidual volume(MPI_COMM_WORLD, &filter_fes, &rho_dila_cf,
                            &rho_dila_grad_cf, vol_fraction);
 
+    // |Omega|, so the p-norm is a power mean on the same scale as gamma and
+    // gamma_s is directly a density bound, independent of domain size and p
+    real_t domain_volume = 0.0;
+    {
+        ConstantCoefficient one_cf(1.0);
+        ParLinearForm vol_lf(&filter_fes);
+        vol_lf.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+        vol_lf.Assemble();
+        std::unique_ptr<HypreParVector> vol_tv(vol_lf.ParallelAssemble());
+
+        real_t loc = vol_tv->Sum();
+        MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type,
+                      MPI_SUM, MPI_COMM_WORLD);
+    }
+
     // 8. MMA optimizer and its per-iteration work vectors.
     const int n = control_fes.GetTrueVSize();
-    const int num_con = 1;                          // constraints: volume only
+    const int num_con = 2;                          // constraints: volume, max-length p-norm
 
     Vector rho_tv(n), rho_old(n);
     rho.GetTrueDofs(rho_tv);
@@ -173,7 +223,8 @@ int main(int argc, char *argv[])
     
     Vector fival(num_con);
     Vector df0dx(n);                                 // objective gradient  df0/dx
-    Vector dfidx[num_con];  dfidx[0].SetSize(n);     // local gradient of constraint  dg/dx
+    Vector dfidx[num_con];                           // local gradient of constraint  dg/dx
+    for (int i = 0; i < num_con; i++) { dfidx[i].SetSize(n); }
     Vector tx_min(n), tx_max(n);
 
     Vector dcdrho(n);                                // compliance gradient  dc/drho
@@ -198,7 +249,8 @@ int main(int argc, char *argv[])
     // 9b. Paraview
     ParGridFunction phys_density(&filter_fes);
     std::ostringstream run_tag;
-    run_tag << "std_rf" << r_f << "_vf" << vol_fraction;
+    run_tag << "pnorm_rs" << r_s << "_gs" << gamma_s << "_p" << p
+            << "_vf" << vol_fraction;
     ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
@@ -215,14 +267,18 @@ int main(int argc, char *argv[])
     if (myid == 0)
     {
         csv.open("convergence.csv");
-        csv << "it,compliance,volume,iterErr\n";
+        csv << "it,compliance,volume,pnorm,fival,iterErr\n";
     }
 
     // 10. Optimization loop.
-    int k = 0;
     real_t iterationError = 1.0;
     real_t init_comp = 1.0;
-    for (; k < max_it && iterationError > tol; k++)
+
+    // Track next iteration for beta doubling
+    int next_beta_double = init_it + beta_steps;
+
+    int it = 1;
+    for (; (it <= init_it) || (it <= max_it && iterationError > tol); it++)
     {
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ
         rho.GetTrueDofs(rho_tv);
@@ -256,18 +312,47 @@ int main(int argc, char *argv[])
         volume.GetGrad(dvol_tilde);
         filter.MultTranspose(dvol_tilde, dfidx[0]);     // update constraint gradient
 
-        // (5) box constraints:  rho ∈ [0,1]  (move limits)
+        // (5) max filter: (r_s^2 K + M) γ = M_fc ρ
+        Vector gamma_tv(filter_fes.GetTrueVSize());
+        maxfilter.Mult(rho_tv, gamma_tv);
+        gamma.SetFromTrueDofs(gamma_tv);
+
+        // (6) p-norm constraint and gradient on the max filtered field:
+        //       P        = ( ∫ γ^p dΩ / |Ω| )^(1/p)  ->  max γ  as p -> ∞
+        //       g        = P / γ_s - 1
+        //       dP/dγ    = P^(1-p) (γ^(p-1), φ_i) / |Ω|
+        ParLinearForm gp_lf(&filter_fes);
+        gp_lf.AddDomainIntegrator(new DomainLFIntegrator(gamma_p_cf));
+        gp_lf.Assemble();
+        std::unique_ptr<HypreParVector> gp_tv(gp_lf.ParallelAssemble());
+
+        real_t loc_int = gp_tv->Sum(), glob_int;
+        MPI_Allreduce(&loc_int, &glob_int, 1, MPITypeMap<real_t>::mpi_type,
+                      MPI_SUM, MPI_COMM_WORLD);
+
+        const real_t pnorm_val = pow(glob_int / domain_volume, 1.0 / p);
+        fival(1) = pnorm_val / gamma_s - 1.0;           // update constraint value
+
+        ParLinearForm dP_lf(&filter_fes);
+        dP_lf.AddDomainIntegrator(new DomainLFIntegrator(gamma_pm1_cf));
+        dP_lf.Assemble();
+        std::unique_ptr<HypreParVector> dP_tv(dP_lf.ParallelAssemble());
+        *dP_tv *= pow(pnorm_val, 1.0 - p) / (domain_volume * gamma_s);
+
+        maxfilter.MultTranspose(*dP_tv, dfidx[1]);      // update constraint gradient
+
+        // (7) box constraints:  rho ∈ [0,1]  (move limits)
         for (int i = 0; i < n; i++)
         {
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
             tx_max[i] = std::min(real_t(1), rho_tv[i] + move);
         }
 
-        // (6) MMA update:
+        // (8) MMA update:
         rho_old = rho_tv;
 
         // Normalize compliance and gradient by initial value
-        if (k == 0) { init_comp = compliance; } 
+        if (it == 1) { init_comp = compliance; }
         compliance /= init_comp;
         df0dx /= init_comp;
 
@@ -279,25 +364,41 @@ int main(int argc, char *argv[])
         rho_old_gf.SetFromTrueDofs(rho_old);
         iterationError = rho_old_gf.ComputeL1Error(rho_cf);
 
-        const int it = k + 1;
-
         if (myid == 0)
         {
             const int w = 14;               // column width
             mfem::out << "\niteration " << it << '\n' << left
                     << setw(w) << "c"
                     << setw(w) << "volume"
+                    << setw(w) << "pnorm"
+                    << setw(w) << "fival"
+                    << setw(w) << "beta"
                     << setw(w) << "iterErr" << '\n'
-                    << string(3*w, '=') << '\n'
+                    << string(6*w, '=') << '\n'
                     << fixed      << setprecision(6) << setw(w) << compliance
                     <<               setprecision(4) << setw(w) << fival(0) + 1.0
+                    <<               setprecision(4) << setw(w) << pnorm_val
+                    << scientific << setprecision(3) << setw(w) << fival(1)
+                    << fixed      << setprecision(0) << setw(w) << beta
                     << scientific << setprecision(4) << setw(w) << iterationError << endl;
 
             csv << it << ','
                 << scientific << setprecision(8) << compliance << ','
                 << fival(0) + 1.0 << ','
+                << pnorm_val << ','
+                << fival(1) << ','
                 << iterationError << '\n';
             csv.flush();
+        }
+
+        // Beta doubling: starts at init_it + beta_steps, then every beta_steps iterations
+        if (it == next_beta_double && beta < beta_max)
+        {
+            beta *= 2;
+            rho_erod_cf.SetBeta(beta);  rho_erod_grad_cf.SetBeta(beta);
+            rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
+            rho_inter_cf.SetBeta(beta);
+            next_beta_double += beta_steps;
         }
 
         // physical density r(rho~) for both GLVis and the ParaView archive
@@ -310,28 +411,17 @@ int main(int argc, char *argv[])
         }
     }
 
-    // >>>>> TEMP warm-start experiment: dump final rho for maxthick/adv >>>>>
-    // Writes ./checkpoints_std/{rho.<rank>, metadata.txt} with n_dir = 0.
-    // Reader must use the same mesh, -r, -o and MPI rank count.
-    // {
-    //     const std::vector<Vector> no_alpha;
-    //     rho.GetTrueDofs(rho_tv);
-    //     Checkpoint cp("checkpoints_std", MPI_COMM_WORLD);
-    //     cp.Save(rho_tv, no_alpha, k, 0, ref_levels, order, 0.0, init_comp);
-    // }
-    // <<<<< TEMP warm-start experiment <<<<<
-
     if (myid == 0)
     {
         csv.close();
-        mfem::out << "\nfinished after " << k << " iterations\n";
+        mfem::out << "\nfinished after " << (it - 1) << " iterations\n";
     }
 
     // Option: save only the final solution instead of all iterations
     if (paraview)
     {
-        paraview_dc.SetCycle(k);
-        paraview_dc.SetTime(k);
+        paraview_dc.SetCycle(it - 1);
+        paraview_dc.SetTime(it - 1);
         paraview_dc.Save();
     }
 

@@ -51,9 +51,9 @@ int main(int argc, char *argv[])
     // const real_t exponent = 3.0;
 
     int init_it  = 20;
-    real_t decay     = 0.8;
+    real_t decay     = 0.5;
     real_t eps_floor = 1e-6;
-    int decay_int    = 10;
+    int decay_int    = 50;
 
     int beta_steps   = 50;          // Heaviside beta continuation steps
     real_t beta_max  = 2.0;         // Heaviside beta max value

@@ -26,7 +26,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o diffusion_mass_solver.o pseudo_transient_solver.o
 
 SEQ_MINIAPPS = 
-PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv ElastTopOpt_ct ElastTopOpt_std DiffuTopOpt
+PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv ElastTopOpt_ct ElastTopOpt_std ElastTopOpt_pnorm DiffuTopOpt
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else

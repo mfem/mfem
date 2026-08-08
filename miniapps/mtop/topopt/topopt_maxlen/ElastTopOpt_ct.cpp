@@ -13,6 +13,7 @@
 #include "../../diffusion_mass_solver.hpp"
 #include "../../mma/MMA_MFEM.hpp"
 #include "../../mtop_solvers.hpp"
+#include "checkpoint.hpp"
 #include <memory>
 #include <fstream>
 #include <sstream>
@@ -87,6 +88,7 @@ int main(int argc, char *argv[])
     real_t move         = 0.1;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
     bool   pa           = false;
+    bool   restart      = false;
     const int seed      = 0;
     int    ray_type = 1;              // thickness ray strategy: 1=parallel, 2=cone
 
@@ -100,9 +102,9 @@ int main(int argc, char *argv[])
     // const real_t exponent = 3.0;
 
     int    init_it   = 20;
-    real_t decay     = 0.9;
-    real_t eps_floor = 1e-5;
-    int    decay_int = 10;
+    real_t decay     = 0.5;
+    real_t eps_floor = 1e-6;
+    int    decay_int = 50;
 
     int    beta_steps = 50;           // Heaviside beta continuation steps
     real_t beta_max   = 2.0;          // Heaviside beta max value
@@ -133,6 +135,8 @@ int main(int argc, char *argv[])
                     "-no-vis", "--no-visualization", "enable GLVis visualization");
     args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa", "--no-partial-assembly",
                     "enable partial assembly (recommended for large problems)");
+    args.AddOption(&restart, "-restart", "--restart", "-no-restart", "--no-restart",
+                    "restart from checkpoint");
     args.Parse();
     if (!args.Good())
     {
@@ -452,8 +456,45 @@ int main(int argc, char *argv[])
     Vector rho_tv(n), rho_old(n);
     vector<Vector> alpha_tv(n_dir);
 
+    // initialize for normalization
+    real_t init_comp = 1.0;
+
     rho.GetTrueDofs(rho_tv);
     for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
+
+    // Initialize checkpoint system
+    Checkpoint checkpoint("checkpoints_ct", MPI_COMM_WORLD);
+    int start_iteration = 1;
+    const int cp_interval = 5;
+
+    // Verification: check if restart is requested and checkpoint is compatible
+    if (restart)
+    {
+        MFEM_VERIFY(checkpoint.Exists(),
+                    "Restart requested but no checkpoint found.");
+        MFEM_VERIFY(checkpoint.ValidateCompatibility(ref_levels, order, n_dir),
+                    "Checkpoint incompatible with current run parameters.");
+    }
+
+    // Loading: restore design variables and metadata from checkpoint
+    if (restart)
+    {
+        MFEM_VERIFY(checkpoint.Load(rho_tv, alpha_tv),
+                    "Failed to load checkpoint data.");
+
+        start_iteration = checkpoint.GetIteration() + 1;   // ct.cpp's `it` is 1-indexed
+        epsilon = checkpoint.GetEpsilon();
+        init_comp = checkpoint.GetInitComp();
+
+        if (myid == 0)
+        {
+            mfem::out << "\nRestarting from iteration " << start_iteration
+                      << " with epsilon = " << epsilon << "\n";
+        }
+    }
+
+    rho.SetFromTrueDofs(rho_tv);
+    for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
 
     BlockVector tx_local(toffsets);
     tx_local.GetBlock(0) = rho_tv;
@@ -462,6 +503,17 @@ int main(int argc, char *argv[])
     Vector a(num_con), c(num_con), d(num_con);
     a = 0.0; c = 1000.0; d = 0.0;
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, toffsets.Last(), num_con, tx_local, a, c, d);
+
+    // Restore MMA state if restarting (enables proper move-limit adaptation)
+    if (start_iteration > 1 && checkpoint.GetXOld1().Size() > 0)
+    {
+        mma.RestoreState(checkpoint.GetXOld1(), checkpoint.GetXOld2(),
+                         checkpoint.GetLowerAsymptotes(), checkpoint.GetUpperAsymptotes());
+        if (myid == 0)
+        {
+            mfem::out << "MMA state restored from checkpoint.\n";
+        }
+    }
 
     // 8b. objective initialization
     BlockVector df0dx(toffsets);                    // objective gradient  df0/dx = [ dc/drho ; 0 ; ... ]
@@ -547,15 +599,37 @@ int main(int argc, char *argv[])
 
     // 10. Optimization loop.
     real_t iterationError = 1.0;
-    real_t init_comp = 1.0;
 
     // Track next iteration for epsilon decay and beta doubling
     int next_epsilon_decay = init_it;
     int next_beta_double = init_it + beta_steps;
 
+    // These schedule counters (and the accumulated beta value) aren't part of
+    // the checkpoint, so fast-forward them to where a continuous run would be
+    // by iteration start_iteration -- otherwise a restarted run would freeze
+    // epsilon/beta continuation at their initial schedule forever.
+    if (restart)
+    {
+        if (decay_int > 0)
+        {
+            while (next_epsilon_decay < start_iteration) { next_epsilon_decay += decay_int; }
+        }
+        if (beta_steps > 0)
+        {
+            while (next_beta_double < start_iteration && beta < beta_max)
+            {
+                beta *= 2;
+                next_beta_double += beta_steps;
+            }
+        }
+        rho_erod_cf.SetBeta(beta);  rho_erod_grad_cf.SetBeta(beta);
+        rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
+        rho_inter_cf.SetBeta(beta);
+    }
+
     double opt_start_time = MPI_Wtime();
 
-    int it = 1;
+    int it = start_iteration;
     for (; (it <= init_it) || (it <= max_it && iterationError > tol); it++)
     {
         double iter_start_time = MPI_Wtime() - opt_start_time;
@@ -735,6 +809,19 @@ int main(int argc, char *argv[])
             rho_dila_cf.SetBeta(beta);  rho_dila_grad_cf.SetBeta(beta);
             rho_inter_cf.SetBeta(beta);
             next_beta_double += beta_steps;
+        }
+
+        // Checkpoint every cp_interval iterations
+        if (it % cp_interval == 0)
+        {
+            rho.GetTrueDofs(rho_tv);
+            for (int r = 0; r < n_dir; r++) { alpha[r]->GetTrueDofs(alpha_tv[r]); }
+
+            // Save with MMA state for proper restart
+            checkpoint.Save(rho_tv, alpha_tv,
+                            mma.GetXOld1(), mma.GetXOld2(),
+                            mma.GetLowerAsymptotes(), mma.GetUpperAsymptotes(),
+                            it, n_dir, ref_levels, order, epsilon, init_comp);
         }
 
         // physical density for both GLVis and the ParaView archive

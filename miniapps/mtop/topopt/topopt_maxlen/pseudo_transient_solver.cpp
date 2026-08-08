@@ -97,7 +97,7 @@ MaterialThicknessSolver::MaterialThicknessSolver(ParFiniteElementSpace &design_f
     Assemble();
 
     pt_solver = new PseudoTransientSolver(*Kopt, sol_fes->GetComm());
-    pt_solver->SetODESolver(std::make_unique<RK4Solver>());
+    pt_solver->SetODESolver(std::make_unique<RK3SSPSolver>());
 }
 
 MaterialThicknessSolver::~MaterialThicknessSolver()

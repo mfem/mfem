@@ -14,6 +14,14 @@
 // looks complete. ValidateCompatibility() checks rank count/refinement/order/
 // n_dir before Load(). Typical usage: call Exists() and ValidateCompatibility()
 // for verification, then Load() to restore state.
+//
+// SaveRho()/RhoExists()/LoadRho() give a lighter-weight, unvalidated path for
+// just the rho density field -- e.g. to warm-start a differently-configured
+// run (different alpha_max, ray type/count, vol_fraction, ...) from an
+// already fairly-converged rho, without needing alpha/MMA state or
+// n_dir/order/ref_level compatibility. The caller is responsible for using a
+// matching mesh/discretization/rank count; a mismatch fails via the file's
+// own magic/size check.
 
 #pragma once
 
@@ -103,6 +111,24 @@ public:
 
     // Loads rho/alpha into pre-sized vectors; call after ValidateCompatibility().
     bool Load(Vector& rho_tv, std::vector<Vector>& alpha_tv);
+
+    // Saves only the rho design vector -- no alpha, no MMA state, no
+    // n_dir/order/ref_level metadata. Writes the same rho.<rank> file format
+    // used by Save(), so it can warm-start a differently-configured run
+    // (different alpha_max, ray type/count, vol_fraction, ...) from an
+    // already fairly-converged density field.
+    bool SaveRho(const Vector& rho_tv, int iteration = 0);
+
+    // Whether a rho file (from SaveRho() or the rho part of a full Save())
+    // is present in this checkpoint's directory.
+    bool RhoExists() const;
+
+    // Loads just rho into a pre-sized vector. Only the file's own magic/size
+    // header is checked (so a mismatch -- e.g. a different mesh, refinement,
+    // order, or MPI rank count than what wrote the file -- fails loudly per
+    // rank); no n_dir/order/ref_level compatibility is enforced. The caller
+    // is responsible for using a matching mesh/discretization/rank count.
+    bool LoadRho(Vector& rho_tv);
 
     int GetIteration() const { return iteration_; }
     int GetNDir() const { return n_dir_; }
@@ -503,12 +529,19 @@ inline bool Checkpoint::Load(Vector& rho_tv,
         }
     }
 
-    // Try to load MMA state (optional - may not exist in older checkpoints)
-    // Allocate storage for MMA state vectors (same size as rho)
-    xold1_tv_.SetSize(rho_tv.Size());
-    xold2_tv_.SetSize(rho_tv.Size());
-    lower_asymptotes_tv_.SetSize(rho_tv.Size());
-    upper_asymptotes_tv_.SetSize(rho_tv.Size());
+    // Try to load MMA state (optional - may not exist in older checkpoints).
+    // MMA's internal stacked design is [ rho ; alpha_0 ; ... ; alpha_{n_dir-1} ],
+    // so its local size is rho's size plus every alpha block's size -- NOT just
+    // rho's size (those are equal only when n_dir == 0).
+    int64_t stacked_size = rho_tv.Size();
+    for (int r = 0; r < static_cast<int>(alpha_tv.size()); r++)
+    {
+        stacked_size += alpha_tv[r].Size();
+    }
+    xold1_tv_.SetSize(stacked_size);
+    xold2_tv_.SetSize(stacked_size);
+    lower_asymptotes_tv_.SetSize(stacked_size);
+    upper_asymptotes_tv_.SetSize(stacked_size);
 
     bool mma_ok = LoadVector(XOld1Path(myid_), magic_xold1_, xold1_tv_, iter_check);
     mma_ok = mma_ok && LoadVector(XOld2Path(myid_), magic_xold2_, xold2_tv_, iter_check);
@@ -529,6 +562,48 @@ inline bool Checkpoint::Load(Vector& rho_tv,
     }
 
     return AllOk(ok);
+}
+
+inline bool Checkpoint::SaveRho(const Vector& rho_tv, int iteration)
+{
+    if (!CreateDirectoryIfNeeded()) { return false; }
+
+    const bool ok = SaveVector(RhoPath(myid_), magic_rho_, rho_tv, iteration);
+    if (!AllOk(ok))
+    {
+        if (myid_ == 0)
+        {
+            MFEM_WARNING("Checkpoint: rho-only write failed on some rank.");
+        }
+        return false;
+    }
+
+    if (myid_ == 0)
+    {
+        mfem::out << "Rho-only checkpoint saved at iteration " << iteration
+                   << " in " << dir_ << "\n";
+    }
+    return true;
+}
+
+inline bool Checkpoint::RhoExists() const
+{
+    bool exists = false;
+    if (myid_ == 0)
+    {
+        std::ifstream test(RhoPath(0));
+        exists = test.good();
+    }
+    MPI_Bcast(&exists, 1, MPI_C_BOOL, 0, comm_);
+    return exists;
+}
+
+inline bool Checkpoint::LoadRho(Vector& rho_tv)
+{
+    int iter_check = 0;
+    const bool ok = AllOk(LoadVector(RhoPath(myid_), magic_rho_, rho_tv, iter_check));
+    if (ok) { iteration_ = iter_check; }
+    return ok;
 }
 
 } // namespace mfem
