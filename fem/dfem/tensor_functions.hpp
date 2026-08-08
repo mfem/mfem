@@ -39,7 +39,7 @@ namespace future
  *
  * Estimates the maximum eigenvalue using
  * \f[
- *     smooth_max_eigenvalue(A) = \log\Big( \mathrm{tr}\big(\exp(\beta A) \big) \Big)
+ *     smooth_max_eigenvalue(A) = \frac{1}{\beta} \log\Big( \mathrm{tr}\big(\exp(\beta A) \big) \Big)
  * \f]
  * which is equivalent to using the log-sum-exp function on the eigenvalues of A.
  *
@@ -57,6 +57,25 @@ namespace future
     sum += std::exp(beta*(lambda[i] - lambda_max));
   }
   return lambda_max + std::log1p(sum)/beta;
+}
+
+/**
+ * @brief Differentiable approximation of minimum eigenvale of a symmetric tensor
+ *
+ * Estimates the minimum eigenvalue using
+ * \f[
+ *     smooth_min_eigenvalue(A) = -\frac{1}{\beta} \log\Big( \mathrm{tr}\big(\exp(-\beta A) \big) \Big)
+ * \f]
+ * which is equivalent to using the negated log-sum-exp function on the eigenvalues of -A.
+ *
+ * @param A The input tensor
+ * @param beta Sharpness parameter. Must be > 0. Larger values makes the approximation sharper.
+ * @return Approximate minimum eigenvalue of A
+ */
+ template <int n> MFEM_HOST_DEVICE
+ real_t smooth_min_eigenvalue_symm(const tensor<real_t, n, n>& A, real_t beta)
+{
+  return smooth_max_eigenvalue_symm<n>(A, -beta);
 }
 
 #ifdef MFEM_USE_ENZYME

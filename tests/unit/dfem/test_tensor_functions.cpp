@@ -56,6 +56,16 @@ TEST_CASE("SmoothMaxEigenvalue of 2x2", "[Tensor]")
    CHECK_THAT(M, Catch::WithinAbs(lambda[1], 1e-5));
 }
 
+TEST_CASE("SmoothMinEigenvalue of 2x2", "[Tensor][foo]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto L = smooth_min_eigenvalue_symm(A, 5.0);
+   INFO("smooth min = " << L);
+   CHECK_THAT(L, Catch::WithinAbs(lambda[0], 1e-5));
+}
+
 #ifdef MFEM_USE_ENZYME
 
 template<int n>
