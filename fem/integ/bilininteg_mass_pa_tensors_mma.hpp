@@ -18,7 +18,7 @@
 
 #include "../bilininteg.hpp"
 #include "bilininteg_mass_pa_simplices_mma.hpp" // MassScale
-#include "mma/form/apply_tensor.hpp"
+#include "mma/form/tensors.hpp"
 
 namespace mfem
 {

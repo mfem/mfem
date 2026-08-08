@@ -10,6 +10,13 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
+/** @file simplex.hpp
+    Simplex dense form apply (integrator-agnostic).
+
+    Eval×Eval / Grad×Grad / ApplyLF pipelines on dense P/G basis.
+    Companion to tensors.hpp (tensor-product sum-fact ApplyTensor).
+*/
+
 // Gemm / DeviceGemmEnabled / smem accessors (via common → forall → device/dtensor).
 #include "../dispatch.hpp"
 // SmemPlan, Make*Plan, DumpForm*, field types / qfn_traits.
@@ -294,7 +301,7 @@ Apply(const int NE,
    constexpr int MAX_NQ = SimplexMaxNq<DIM, 0>();
    constexpr int MAX_NDOF = SimplexNdof<DIM, 0>();
    MFEM_VERIFY(nq <= MAX_NQ && ndof <= MAX_NDOF,
-               "pipeline Eval Apply runtime exceeds size caps");
+               "simplex Eval Apply runtime exceeds size caps");
 
    DumpFormApplyRuntime<QFn, DIM>("Apply", NE, nq, ndof);
 
@@ -314,7 +321,7 @@ Apply(const int NE,
    MFEM_VERIFY(x_ld <= PadLdBank<MmaMapDefault>(MAX_NDOF) &&
                u_ld <= PadLdBank<MmaMapDefault>(MAX_NQ) &&
                nb <= NBATCH,
-               "pipeline Eval Apply runtime smem layout exceeds caps");
+               "simplex Eval Apply runtime smem layout exceeds caps");
    VerifySharedMemBytes(plan.smem_bytes);
 
    const auto P = basis.Read();

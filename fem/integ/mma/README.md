@@ -16,7 +16,7 @@ Shared backends for MFEM partial-assembly MMA (CUDA DMMA / HIP MFMA / host blas+
 host tensor:   PreferTensorDense(D1D, NE) → blas sum-fact vs Emulate shell
                diffusion 2D → lapack fat GEMM if MFEM_USE_LAPACK
 host simplex:  PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS when large enough
-               else dense / form pipeline host path
+               else dense / form simplex host path
 device:        TensorMmaEnabled → dmma / mfma else blas Emulate
 ```
 
@@ -35,10 +35,7 @@ device:        TensorMmaEnabled → dmma / mfma else blas Emulate
 | `mma.hpp` / `mma.cpp` | ForceMMA, Uses*, simplex helpers |
 | `form/` | **Generic** Apply machinery (simplex + tensor-product) |
 | `batch.hpp` | Multi-plane smem batch NB + Q-tile (`BatchNB*`) |
-| `form/apply_tensor.hpp` | `ApplyTensor<QFn,…>` (Eval or Grad via `qfn_traits`) |
-| `form/tensor_eval.hpp` | Sum-fact Eval engine (`QFn` template) |
-| `form/tensor_grad.hpp` | Sum-fact Grad engine (`QFn` template) |
-| `form/tensor_metric.hpp` | PA metric pack + Grad QFn helpers (no physics) |
+| `form/tensors.hpp` | `ApplyTensor` + tensor Eval/Grad engines |
 
 **`mma/` is integrator-agnostic** (no Mass/Diffusion QFns or operator-named apply).
 

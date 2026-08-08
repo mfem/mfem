@@ -23,7 +23,7 @@
     - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
       (diffusion 2D may use lapack fat GEMM when LAPACK is on)
     - Simplex host: PreferMultiRhs(nq, ndof, NE) → lapack multi-RHS (size gate)
-      else → dense / form pipeline host path
+      else → dense / form simplex host path
 
     ## Device apply tree
     - TensorMmaEnabled → dmma (CUDA) / mfma (HIP); else blas Emulate

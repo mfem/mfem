@@ -1,7 +1,7 @@
 # MMA form layer — generic Apply machinery
 
 **This directory is integrator-agnostic.** It provides field types, trait helpers,
-smem plans, and pipelines. Physics QFns (mass, diffusion, linear form) live next
+smem plans, and apply engines. Physics QFns (mass, diffusion, linear form) live next
 to their drivers under `fem/integ/`.
 
 | Location | Responsibility |
@@ -102,14 +102,11 @@ Trait helpers in `fields.hpp`:
 ## What `form/` owns
 
 ```text
-form.hpp            umbrella include
-fields.hpp          eval_t / grad_t / none_t + qfn_traits helpers
-plan.hpp            MakeEvalPlan / MakeGradPlan + MFEM_MMA_FORM_DUMP
-pipeline.hpp        Apply (Eval / Grad), ApplyLF (None×Eval) — simplex dense
-apply_tensor.hpp    ApplyTensor — tensor-product (Eval or Grad via traits)
-tensor_eval.hpp     sum-fact Eval engine (QFn template)
-tensor_grad.hpp     sum-fact Grad engine (QFn template)
-tensor_metric.hpp   PackPaMetric + Grad QFn helpers
+form.hpp       umbrella include
+fields.hpp     eval_t / grad_t / none_t + qfn_traits helpers
+plan.hpp       MakeEvalPlan / MakeGradPlan + MFEM_MMA_FORM_DUMP
+simplex.hpp   Apply / ApplyLF — simplex dense
+tensors.hpp    ApplyTensor + sum-fact Eval/Grad engines (QFn templates)
 ```
 
 Host multi-RHS preference is `mma::lapack::PreferMultiRhs` in `mma/lapack.hpp`

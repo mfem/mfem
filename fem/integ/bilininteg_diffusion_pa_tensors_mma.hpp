@@ -18,7 +18,7 @@
 
 #include "../bilininteg.hpp"
 #include "bilininteg_diffusion_pa_simplices_mma.hpp" // DiffusionMetric
-#include "mma/form/apply_tensor.hpp"
+#include "mma/form/tensors.hpp"
 
 namespace mfem
 {

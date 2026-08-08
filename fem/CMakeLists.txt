@@ -279,11 +279,8 @@ set(HDRS
   integ/mma/form/form.hpp
   integ/mma/form/fields.hpp
   integ/mma/form/plan.hpp
-  integ/mma/form/pipeline.hpp
-  integ/mma/form/apply_tensor.hpp
-  integ/mma/form/tensor_eval.hpp
-  integ/mma/form/tensor_grad.hpp
-  integ/mma/form/tensor_metric.hpp
+  integ/mma/form/simplex.hpp
+  integ/mma/form/tensors.hpp
   integ/mma/batch.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_vecdiffusion_pa.hpp

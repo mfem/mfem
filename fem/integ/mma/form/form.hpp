@@ -13,7 +13,7 @@
 /** @file form.hpp
     Generic MMA Apply form layer (pointwise QFns on future::tensor).
 
-    Integrator-agnostic: fields, plans, pipelines. Physics QFns live under
+    Integrator-agnostic: fields, plans, simplex/tensor apply. Physics QFns live under
     fem/integ/ only (never under mma/).
 
     Author convention:
@@ -23,9 +23,8 @@
       - y = d * u;   or   y = A * u;
 
     Layout:
-      fields.hpp | plan.hpp | pipeline.hpp   — simplex dense Apply / ApplyLF
-      apply_tensor.hpp                       — tensor-product ApplyTensor
-      tensor_eval / tensor_grad / tensor_metric — sum-fact engines
+      fields.hpp | plan.hpp | simplex.hpp — simplex dense Apply / ApplyLF
+      tensors.hpp                          — tensor-product ApplyTensor + engines
 
     Authoring guide: form/README.md
     Design: docs/design/mma-declarative-kernels.md
@@ -33,5 +32,5 @@
 
 #include "fields.hpp" // IWYU pragma: export
 #include "plan.hpp" // IWYU pragma: export
-#include "pipeline.hpp" // IWYU pragma: export
-#include "apply_tensor.hpp" // IWYU pragma: export
+#include "simplex.hpp" // IWYU pragma: export
+#include "tensors.hpp" // IWYU pragma: export
