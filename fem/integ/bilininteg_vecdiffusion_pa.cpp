@@ -76,8 +76,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    use_simplices_mma = false;
    simplex_mma_G.DeleteAll();
 
-   // Simplex MMA before CEED / tensor maps (scalar Q / block-diag only).
-   if (UsesSimplexMMA(fes) && !VQ && !MQ)
+   // Simplex MMA before CEED / tensor maps (Q / VQ / MQ; sdim==dim).
+   if (UsesSimplexMMA(fes))
    {
       AssembleSimplexMmaPA(fes);
       return;
@@ -295,8 +295,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                  << " dim:" << dim << ", vdim:" << vdim << ", sdim:" << sdim);
    }
 
-   // Tensor MMA: block-diagonal scalar PA (sdim==dim; no surface).
-   if (UsesTensorMMA(fes) && !VQ && !MQ && coeff_vdim == 1 && sdim == dim)
+   // Tensor MMA: stock PA layouts for Q / VQ / MQ (sdim==dim; no surface).
+   if (UsesTensorMMA(fes) && sdim == dim)
    {
       use_tensors_mma = true;
    }
@@ -320,20 +320,24 @@ void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
    if (use_tensors_mma)
    {
-      static bool registered = false;
-      if (!registered)
+      // Tensor MQ Grad MMA needs large scratch; use stock apply on stock PA.
+      if (coeff_vdim != vdim * vdim)
       {
-         RegisterTensorsMmaKernels();
-         registered = true;
+         static bool registered = false;
+         if (!registered)
+         {
+            RegisterTensorsMmaKernels();
+            registered = true;
+         }
+         const Array<real_t> &B = maps->B;
+         const Array<real_t> &G = maps->G;
+         const Array<real_t> &Bt = maps->Bt;
+         const Array<real_t> &Gt = maps->Gt;
+         ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D,
+                                       ne, vdim, B, G, Bt, Gt, pa_data, x, y,
+                                       dofs1D, quad1D);
+         return;
       }
-      const Array<real_t> &B = maps->B;
-      const Array<real_t> &G = maps->G;
-      const Array<real_t> &Bt = maps->Bt;
-      const Array<real_t> &Gt = maps->Gt;
-      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D,
-                                    ne, vdim, B, G, Bt, Gt, pa_data, x, y,
-                                    dofs1D, quad1D);
-      return;
    }
 
    // Use CEED backend if available

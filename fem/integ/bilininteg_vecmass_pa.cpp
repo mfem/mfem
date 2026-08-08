@@ -26,8 +26,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    use_simplices_mma = false;
    simplex_mma_P.DeleteAll();
 
-   // Simplex MMA before CEED / tensor maps (scalar Q / block-diag only).
-   if (UsesSimplexMMA(fes) && !VQ && !MQ)
+   // Simplex MMA before CEED / tensor maps (Q / VQ / MQ).
+   if (UsesSimplexMMA(fes))
    {
       AssembleSimplexMmaPA(fes);
       return;
@@ -178,8 +178,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
                  << " dim:" << dim << ", vdim:" << vdim << ", sdim:" << sdim);
    }
 
-   // Tensor MMA: block-diagonal scalar PA (same D for every component).
-   if (UsesTensorMMA(fes) && !VQ && !MQ && coeff_vdim == 1)
+   // Tensor MMA: stock PA layouts for Q / VQ / MQ.
+   if (UsesTensorMMA(fes))
    {
       use_tensors_mma = true;
    }

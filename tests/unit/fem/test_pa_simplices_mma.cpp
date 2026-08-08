@@ -407,4 +407,115 @@ TEST_CASE("PA Simplices MMA VectorMass/Diffusion vs FA",
    }
 }
 
+/** Simplex VectorMass/Diffusion VQ or MQ MMA vs FA (smoke). */
+void test_pa_vec_coeff_simplices_mma_fa(Mesh &mesh, int p, bool diffusion,
+                                        bool mq)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, diffusion, mq, mesh.GetNE());
+
+   H1_FECollection fec(p, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+
+   VectorFunctionCoefficient vq(dim, [](const Vector &pt, Vector &v)
+   {
+      for (int i = 0; i < v.Size(); ++i) { v(i) = M_1_PI + pt[0] + real_t(i); }
+   });
+   MatrixFunctionCoefficient mq_coeff(dim, [](const Vector &pt, DenseMatrix &m)
+   {
+      m = 0.0;
+      for (int i = 0; i < m.Height(); ++i)
+      {
+         m(i, i) = 1.0 + M_1_PI * pt[0] + real_t(i);
+         for (int j = 0; j < i; ++j)
+         {
+            m(i, j) = m(j, i) = 0.1 * (pt[0] + real_t(i + j));
+         }
+      }
+   });
+
+   GridFunction x(&fes), y_mma(&fes), y_fa(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_fa = y_mma;
+
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      BilinearFormIntegrator *integ = nullptr;
+      if (diffusion)
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                         new VectorDiffusionIntegrator(mq_coeff))
+                    : static_cast<BilinearFormIntegrator *>(
+                         new VectorDiffusionIntegrator(vq));
+      }
+      else
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                         new VectorMassIntegrator(mq_coeff))
+                    : static_cast<BilinearFormIntegrator *>(
+                         new VectorMassIntegrator(vq));
+      }
+      integ->SetIntRule(ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+   fa.Assemble();
+   fa.Finalize();
+
+   pa.Mult(x, y_mma);
+   fa.Mult(x, y_fa);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+TEST_CASE("PA Simplices MMA Vector VQ/MQ vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   SECTION("2D VQ Mass")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, false);
+   }
+   SECTION("2D MQ Mass")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, true);
+   }
+   SECTION("2D VQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, false);
+   }
+   SECTION("2D MQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+   SECTION("3D VQ Mass")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, false);
+   }
+   SECTION("3D MQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+}
+
 } // namespace pa_simplices_mma

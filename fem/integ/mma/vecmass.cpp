@@ -16,6 +16,70 @@
 namespace mfem
 {
 
+namespace
+{
+
+/** Pack VectorMass PA (NQ, coeff_vdim, NE) = C * w * detJ — stock layout. */
+void PAVectorMassDetJSetupSimplex(const int dim,
+                                  const int NE,
+                                  const int NQ,
+                                  const int ND,
+                                  const int coeff_vdim,
+                                  const bool by_val,
+                                  const Array<real_t> &w,
+                                  const Array<real_t> &g,
+                                  const Vector &nodes_e,
+                                  const Vector &c,
+                                  Vector &d)
+{
+   const bool const_c = c.Size() == coeff_vdim;
+   const auto W = Reshape(w.Read(), NQ);
+   const auto G = Reshape(g.Read(), NQ, dim, ND);
+   const auto E = Reshape(nodes_e.Read(), ND, dim, NE);
+   const auto C = const_c ? Reshape(c.Read(), coeff_vdim, 1, 1)
+                  : Reshape(c.Read(), coeff_vdim, NQ, NE);
+   auto D = Reshape(d.Write(), NQ, coeff_vdim, NE);
+
+   if (dim == 2)
+   {
+      mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int e = idx / NQ;
+         const int q = idx - NQ * e;
+         real_t J11, J21, J12, J22;
+         internal::EvalSimplexJ2(E, G, q, e, ND, J11, J21, J12, J22);
+         const real_t detJ = J11 * J22 - J21 * J12;
+         const real_t w_det = W(q) * (by_val ? detJ : real_t(1) / detJ);
+         for (int c = 0; c < coeff_vdim; ++c)
+         {
+            const real_t Cc = const_c ? C(c, 0, 0) : C(c, q, e);
+            D(q, c, e) = Cc * w_det;
+         }
+      });
+      return;
+   }
+
+   MFEM_VERIFY(dim == 3, "");
+   mfem::forall(NQ * NE, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int e = idx / NQ;
+      const int q = idx - NQ * e;
+      real_t J11, J21, J31, J12, J22, J32, J13, J23, J33;
+      internal::EvalSimplexJ3(E, G, q, e, ND,
+                              J11, J21, J31, J12, J22, J32, J13, J23, J33);
+      const real_t detJ = J11 * (J22 * J33 - J32 * J23) -
+                          J21 * (J12 * J33 - J32 * J13) +
+                          J31 * (J12 * J23 - J22 * J13);
+      const real_t w_det = W(q) * (by_val ? detJ : real_t(1) / detJ);
+      for (int c = 0; c < coeff_vdim; ++c)
+      {
+         const real_t Cc = const_c ? C(c, 0, 0) : C(c, q, e);
+         D(q, c, e) = Cc * w_det;
+      }
+   });
+}
+
+} // namespace
 
 void VectorMassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 {
@@ -51,7 +115,6 @@ void VectorMassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    use_tensors_mma = false;
    maps = nullptr;
    geom = nullptr;
-   coeff_vdim = 1;
 
    simplex_mma_P.SetSize(nq * ndof, mt);
    {
@@ -76,15 +139,37 @@ void VectorMassIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
    const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
    MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
 
-   pa_data.SetSize(nq * ne, mt);
-
    QuadratureSpace qs(*mesh, ir);
-   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   CoefficientVector coeff(qs);
+   if (Q)
+   {
+      coeff.Project(*Q);
+   }
+   else if (VQ)
+   {
+      coeff.Project(*VQ);
+      MFEM_VERIFY(VQ->GetVDim() == vdim, "VQ vdim vs. vdim error");
+   }
+   else if (MQ)
+   {
+      coeff.ProjectTranspose(*MQ);
+      MFEM_VERIFY(MQ->GetVDim() == vdim, "MQ dimension vs. vdim error");
+      MFEM_VERIFY(coeff.Size() == (vdim * vdim) * ne * nq, "MQ size error");
+   }
+   else { coeff.SetConstant(1.0); }
+
+   coeff_vdim = coeff.GetVDim();
+   const bool const_coeff = coeff_vdim == 1;
+   const bool vector_coeff = coeff_vdim == vdim;
+   const bool matrix_coeff = coeff_vdim == vdim * vdim;
+   MFEM_VERIFY(const_coeff + vector_coeff + matrix_coeff == 1, "");
+
+   pa_data.SetSize(coeff_vdim * nq * ne, mt);
 
    const bool by_val = map_type == FiniteElement::VALUE;
-   internal::PADetJSetupSimplexFromNodes(
-      dim, ne, nq, nd_n,
-      by_val, ir.GetWeights(), nmaps.G, nodes_e, coeff, pa_data);
+   PAVectorMassDetJSetupSimplex(dim, ne, nq, nd_n, coeff_vdim, by_val,
+                                ir.GetWeights(), nmaps.G, nodes_e, coeff,
+                                pa_data);
 }
 
 void VectorMassIntegrator::RegisterSimplexMmaKernels()

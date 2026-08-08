@@ -245,27 +245,86 @@ inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
    }
 }
 
-/** Block-diag multi-component: X/Y layout (ndof × vdim × NE), shared D. */
+/** Eval multi-component with coeff_vdim (1 / vdim / vdim²), stock PA layouts. */
 template <typename QFn>
 inline void HostEvalApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *P, const real_t *D,
-                          const real_t *X, real_t *Y, const int vdim)
+                          const real_t *X, real_t *Y,
+                          const int vdim, const int coeff_vdim)
 {
    MFEM_VERIFY(vdim >= 1, "");
-   if (vdim == 1)
+   MFEM_VERIFY(coeff_vdim == 1 || coeff_vdim == vdim ||
+               coeff_vdim == vdim * vdim, "");
+   if (vdim == 1 && coeff_vdim == 1)
    {
       HostEvalApply(qfn, NE, nq, ndof, P, D, X, Y);
       return;
    }
+
+   // vdim==1: coeff_vdim==1 == vdim² is scalar Q, not MQ.
+   const bool matrix_coeff = (vdim > 1 && coeff_vdim == vdim * vdim);
+   const bool vector_coeff = (coeff_vdim == vdim);
+
    for (int e = 0; e < NE; ++e)
    {
-      auto *u = static_cast<real_t *>(
-                   alloca(sizeof(real_t) * static_cast<size_t>(nq)));
+      if (!matrix_coeff)
+      {
+         auto *u = static_cast<real_t *>(
+                      alloca(sizeof(real_t) * static_cast<size_t>(nq)));
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            const int off = ndof * (vc + vdim * e);
+            const real_t *D_e = vector_coeff
+                                ? (D + nq * (vc + vdim * e))
+                                : (D + nq * e);
+            EvalApplyDenseElement(qfn, nq, ndof, P, D_e, X + off, Y + off, u);
+         }
+         continue;
+      }
+
+      // MQ: gather all components at qp, y = D u, scatter (stock row-major).
+      auto *uq = static_cast<real_t *>(
+                    alloca(sizeof(real_t) * static_cast<size_t>(nq * vdim)));
+      auto *yq = static_cast<real_t *>(
+                    alloca(sizeof(real_t) * static_cast<size_t>(nq * vdim)));
+      const real_t *D_e = D + nq * coeff_vdim * e;
+      const real_t *X_e = X + ndof * vdim * e;
+      real_t *Y_e = Y + ndof * vdim * e;
+
+      for (int q = 0; q < nq; ++q)
+      {
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            real_t s = 0.0;
+            const real_t *X_c = X_e + ndof * vc;
+            for (int i = 0; i < ndof; ++i)
+            {
+               s += P[q + nq * i] * X_c[i];
+            }
+            uq[q + nq * vc] = s;
+         }
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            real_t s = 0.0;
+            for (int j = 0; j < vdim; ++j)
+            {
+               s += D_e[q + nq * (j + vdim * vc)] * uq[q + nq * j];
+            }
+            yq[q + nq * vc] = s;
+         }
+      }
       for (int vc = 0; vc < vdim; ++vc)
       {
-         const int off = ndof * (vc + vdim * e);
-         EvalApplyDenseElement(qfn, nq, ndof, P, D + nq * e,
-                               X + off, Y + off, u);
+         real_t *Y_c = Y_e + ndof * vc;
+         for (int i = 0; i < ndof; ++i)
+         {
+            real_t s = 0.0;
+            for (int q = 0; q < nq; ++q)
+            {
+               s += P[q + nq * i] * yq[q + nq * vc];
+            }
+            Y_c[i] += s;
+         }
       }
    }
 }
@@ -336,7 +395,7 @@ Apply(const int NE,
    });
 }
 
-/** Specialized Eval×Eval with block-diag vdim (X/Y: ndof × vdim × NE). */
+/** Specialized Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
 Apply(const int NE,
@@ -347,7 +406,12 @@ Apply(const int NE,
       const int vdim)
 {
    MFEM_VERIFY(vdim >= 1, "");
-   if (vdim == 1)
+   MFEM_VERIFY(NE > 0 && d.Size() % (QND * NE) == 0, "");
+   const int coeff_vdim = d.Size() / (QND * NE);
+   MFEM_VERIFY(coeff_vdim == 1 || coeff_vdim == vdim ||
+               coeff_vdim == vdim * vdim, "");
+
+   if (vdim == 1 && coeff_vdim == 1)
    {
       Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
       return;
@@ -359,7 +423,6 @@ Apply(const int NE,
 
    constexpr int NDOF = SimplexNdof<DIM, D1D>();
    constexpr int MQ = SimplexMaxNq<DIM, QND>();
-   MFEM_VERIFY(NE > 0 && d.Size() == QND * NE, "");
    MFEM_VERIFY(basis.Size() == QND * NDOF, "");
    MFEM_VERIFY(x.Size() >= NDOF * vdim * NE && y.Size() >= NDOF * vdim * NE, "");
 
@@ -369,21 +432,70 @@ Apply(const int NE,
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       HostEvalApply(qfn, NE, QND, NDOF,
-                    basis.Read(), d.Read(), x.Read(), y.ReadWrite(), vdim);
+                    basis.Read(), d.Read(), x.Read(), y.ReadWrite(),
+                    vdim, coeff_vdim);
       return;
    }
 
-   // Device: dense per-element × component (shared PA).
    const auto P = basis.Read(), D = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
+   const bool matrix_coeff = (vdim > 1 && coeff_vdim == vdim * vdim);
+   const bool vector_coeff = (coeff_vdim == vdim);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t u[MQ];
+      if (!matrix_coeff)
+      {
+         real_t u[MQ];
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            const int off = NDOF * (vc + vdim * e);
+            const real_t *D_e = vector_coeff
+                                ? (D + QND * (vc + vdim * e))
+                                : (D + QND * e);
+            EvalApplyDenseElement(qfn, QND, NDOF, P, D_e, X + off, Y + off, u);
+         }
+         return;
+      }
+      real_t uq[MQ * 3]; // vdim <= 3 for H1 vector spaces here
+      real_t yq[MQ * 3];
+      MFEM_ASSERT(vdim <= 3, "");
+      const real_t *D_e = D + QND * coeff_vdim * e;
+      const real_t *X_e = X + NDOF * vdim * e;
+      real_t *Y_e = Y + NDOF * vdim * e;
+      for (int q = 0; q < QND; ++q)
+      {
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            real_t s = 0.0;
+            const real_t *X_c = X_e + NDOF * vc;
+            for (int i = 0; i < NDOF; ++i)
+            {
+               s += P[q + QND * i] * X_c[i];
+            }
+            uq[q + QND * vc] = s;
+         }
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            real_t s = 0.0;
+            for (int j = 0; j < vdim; ++j)
+            {
+               s += D_e[q + QND * (j + vdim * vc)] * uq[q + QND * j];
+            }
+            yq[q + QND * vc] = s;
+         }
+      }
       for (int vc = 0; vc < vdim; ++vc)
       {
-         const int off = NDOF * (vc + vdim * e);
-         EvalApplyDenseElement(qfn, QND, NDOF, P, D + QND * e,
-                               X + off, Y + off, u);
+         real_t *Y_c = Y_e + NDOF * vc;
+         for (int i = 0; i < NDOF; ++i)
+         {
+            real_t s = 0.0;
+            for (int q = 0; q < QND; ++q)
+            {
+               s += P[q + QND * i] * yq[q + QND * vc];
+            }
+            Y_c[i] += s;
+         }
       }
    });
 }
@@ -446,7 +558,7 @@ Apply(const int NE,
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, plan.smem_bytes, body);
 }
 
-/** Runtime Eval×Eval with block-diag vdim. */
+/** Runtime Eval×Eval with vdim; PA size selects Q / VQ / MQ. */
 template <typename QFn, int DIM>
 inline std::enable_if_t<!qfn_traits<QFn>::trial_is_grad, void>
 Apply(const int NE,
@@ -456,8 +568,28 @@ Apply(const int NE,
       Vector &y,
       const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1, "");
-   if (vdim == 1)
+   MFEM_VERIFY(vdim >= 1 && NE > 0, "");
+   MFEM_VERIFY(basis.Size() > 0 && d.Size() % NE == 0, "");
+   // Infer nq from basis: basis is (nq × ndof); d is (nq × coeff_vdim × NE).
+   MFEM_VERIFY(basis.Size() % 1 == 0, "");
+   // Find nq: try coeff_vdim candidates against d.Size().
+   int nq = -1, coeff_vdim = -1, ndof = -1;
+   for (int cv : {1, vdim, vdim * vdim})
+   {
+      if (d.Size() % (cv * NE) != 0) { continue; }
+      const int nq_try = d.Size() / (cv * NE);
+      if (nq_try > 0 && basis.Size() % nq_try == 0)
+      {
+         nq = nq_try;
+         coeff_vdim = cv;
+         ndof = basis.Size() / nq_try;
+         break;
+      }
+   }
+   MFEM_VERIFY(nq > 0 && coeff_vdim > 0, "VectorMass MMA: bad PA size");
+   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+
+   if (vdim == 1 && coeff_vdim == 1)
    {
       Apply<QFn, DIM>(NE, basis, d, x, y);
       return;
@@ -465,12 +597,6 @@ Apply(const int NE,
 
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::load_x && !Tr::test_is_grad, "");
-
-   MFEM_VERIFY(NE > 0 && d.Size() % NE == 0, "");
-   const int nq = d.Size() / NE;
-   MFEM_VERIFY(nq > 0 && basis.Size() % nq == 0, "");
-   const int ndof = basis.Size() / nq;
-   MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
 
    constexpr int MAX_NQ = SimplexMaxNq<DIM, 0>();
    constexpr int MAX_NDOF = SimplexNdof<DIM, 0>();
@@ -482,20 +608,71 @@ Apply(const int NE,
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
       HostEvalApply(qfn, NE, nq, ndof,
-                    basis.Read(), d.Read(), x.Read(), y.ReadWrite(), vdim);
+                    basis.Read(), d.Read(), x.Read(), y.ReadWrite(),
+                    vdim, coeff_vdim);
       return;
    }
 
    const auto P = basis.Read(), D = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
+   const bool matrix_coeff = (vdim > 1 && coeff_vdim == vdim * vdim);
+   const bool vector_coeff = (coeff_vdim == vdim);
+   const int nq_c = nq, ndof_c = ndof, cv = coeff_vdim;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t u[MAX_NQ];
+      if (!matrix_coeff)
+      {
+         real_t u[MAX_NQ];
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            const int off = ndof_c * (vc + vdim * e);
+            const real_t *D_e = vector_coeff
+                                ? (D + nq_c * (vc + vdim * e))
+                                : (D + nq_c * e);
+            EvalApplyDenseElement(qfn, nq_c, ndof_c, P, D_e,
+                                  X + off, Y + off, u);
+         }
+         return;
+      }
+      real_t uq[MAX_NQ * 3];
+      real_t yq[MAX_NQ * 3];
+      const real_t *D_e = D + nq_c * cv * e;
+      const real_t *X_e = X + ndof_c * vdim * e;
+      real_t *Y_e = Y + ndof_c * vdim * e;
+      for (int q = 0; q < nq_c; ++q)
+      {
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            real_t s = 0.0;
+            const real_t *X_c = X_e + ndof_c * vc;
+            for (int i = 0; i < ndof_c; ++i)
+            {
+               s += P[q + nq_c * i] * X_c[i];
+            }
+            uq[q + nq_c * vc] = s;
+         }
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            real_t s = 0.0;
+            for (int j = 0; j < vdim; ++j)
+            {
+               s += D_e[q + nq_c * (j + vdim * vc)] * uq[q + nq_c * j];
+            }
+            yq[q + nq_c * vc] = s;
+         }
+      }
       for (int vc = 0; vc < vdim; ++vc)
       {
-         const int off = ndof * (vc + vdim * e);
-         EvalApplyDenseElement(qfn, nq, ndof, P, D + nq * e,
-                               X + off, Y + off, u);
+         real_t *Y_c = Y_e + ndof_c * vc;
+         for (int i = 0; i < ndof_c; ++i)
+         {
+            real_t s = 0.0;
+            for (int q = 0; q < nq_c; ++q)
+            {
+               s += P[q + nq_c * i] * yq[q + nq_c * vc];
+            }
+            Y_c[i] += s;
+         }
       }
    });
 }
@@ -988,30 +1165,193 @@ inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
    }
 }
 
+/** VectorDiffusion-style Grad apply: PA storage is always dim² per component
+    slot; SYM QFn reads the leading PackPaMetric slots (2D: convert full→SYM). */
+template <int DIM, bool SYM, typename QFn>
+MFEM_HOST_DEVICE inline void GradApplyDenseElementVecPa(
+   QFn qfn,
+   const int nq, const int ndof,
+   const real_t *G, const real_t *Dv_e,
+   const real_t *X_e, real_t *Y_e, real_t *u_scratch)
+{
+   MFEM_CONTRACT_VAR(SYM);
+   constexpr int PA_VEC = DIM * DIM;
+   // U = G X
+   for (int d = 0; d < DIM; ++d)
+   {
+      for (int q = 0; q < nq; ++q)
+      {
+         real_t s = 0.0;
+         for (int i = 0; i < ndof; ++i)
+         {
+            s += G[q + nq * (i + ndof * d)] * X_e[i];
+         }
+         u_scratch[d * nq + q] = s;
+      }
+   }
+   for (int q = 0; q < nq; ++q)
+   {
+      grad_t<DIM> u, y;
+      for (int d = 0; d < DIM; ++d) { u[d] = u_scratch[d * nq + q]; }
+      real_t O[PA_VEC];
+      for (int c = 0; c < PA_VEC; ++c)
+      {
+         O[c] = Dv_e[q + nq * c];
+      }
+      tensor<real_t, DIM, DIM> A{};
+      if constexpr (DIM == 2)
+      {
+         // Stock full 4: O11,O21,O12,O22 with O21==O12 for isotropic metric.
+         A(0, 0) = O[0]; A(0, 1) = O[1];
+         A(1, 0) = O[2]; A(1, 1) = O[3];
+      }
+      else
+      {
+         // Stock 9-pack stores SYM values in 0..5 (same as PackPaMetric SYM).
+         A(0, 0) = O[0]; A(0, 1) = O[1]; A(0, 2) = O[2];
+         A(1, 0) = O[1]; A(1, 1) = O[3]; A(1, 2) = O[4];
+         A(2, 0) = O[2]; A(2, 1) = O[4]; A(2, 2) = O[5];
+      }
+      InvokeQFn(qfn, u, y, A);
+      for (int d = 0; d < DIM; ++d) { u_scratch[d * nq + q] = y[d]; }
+   }
+   for (int d = 0; d < DIM; ++d)
+   {
+      for (int i = 0; i < ndof; ++i)
+      {
+         real_t s = 0.0;
+         for (int q = 0; q < nq; ++q)
+         {
+            s += G[q + nq * (i + ndof * d)] * u_scratch[d * nq + q];
+         }
+         Y_e[i] += s;
+      }
+   }
+}
+
+template <int DIM, bool SYM, typename QFn>
+inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
+                          const real_t *G, const real_t *Dv,
+                          const real_t *X, real_t *Y, const int vdim,
+                          const int ncomp)
+{
+   MFEM_VERIFY(vdim >= 1 && ncomp >= 1, "");
+   constexpr int PA_VEC = DIM * DIM;
+   const bool matrix_coeff = (ncomp == vdim * DIM);
+
+   for (int e = 0; e < NE; ++e)
+   {
+      auto *u = static_cast<real_t *>(
+                   alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
+      if (!matrix_coeff)
+      {
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            const int off = ndof * (vc + vdim * e);
+            const int slot = (ncomp == 1) ? 0 : vc;
+            GradApplyDenseElementVecPa<DIM, SYM>(
+               qfn, nq, ndof, G,
+               Dv + nq * PA_VEC * (slot + ncomp * e),
+               X + off, Y + off, u);
+         }
+         continue;
+      }
+
+      // MQ: couple components like stock SmemPAVectorDiffusionApply.
+      auto *grads = static_cast<real_t *>(
+                       alloca(sizeof(real_t) *
+                              static_cast<size_t>(DIM * nq * vdim)));
+      auto *outg = static_cast<real_t *>(
+                      alloca(sizeof(real_t) *
+                             static_cast<size_t>(DIM * nq * vdim)));
+      for (int i = 0; i < DIM * nq * vdim; ++i) { outg[i] = 0.0; }
+
+      const real_t *X_e = X + ndof * vdim * e;
+      real_t *Y_e = Y + ndof * vdim * e;
+      const real_t *Dv_e = Dv + nq * PA_VEC * ncomp * e;
+
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         const real_t *X_c = X_e + ndof * vc;
+         for (int d = 0; d < DIM; ++d)
+         {
+            for (int q = 0; q < nq; ++q)
+            {
+               real_t s = 0.0;
+               for (int i = 0; i < ndof; ++i)
+               {
+                  s += G[q + nq * (i + ndof * d)] * X_c[i];
+               }
+               grads[d * nq + q + DIM * nq * vc] = s;
+            }
+         }
+      }
+
+      for (int i = 0; i < vdim; ++i)
+      {
+         for (int j = 0; j < vdim; ++j)
+         {
+            const int k = j + i * vdim;
+            for (int q = 0; q < nq; ++q)
+            {
+               grad_t<DIM> ug, yg;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  ug[d] = grads[d * nq + q + DIM * nq * i];
+               }
+               real_t O[PA_VEC];
+               for (int c = 0; c < PA_VEC; ++c)
+               {
+                  O[c] = Dv_e[q + nq * (c + PA_VEC * k)];
+               }
+               tensor<real_t, DIM, DIM> A{};
+               if constexpr (DIM == 2)
+               {
+                  A(0, 0) = O[0]; A(0, 1) = O[1];
+                  A(1, 0) = O[2]; A(1, 1) = O[3];
+               }
+               else
+               {
+                  A(0, 0) = O[0]; A(0, 1) = O[1]; A(0, 2) = O[2];
+                  A(1, 0) = O[1]; A(1, 1) = O[3]; A(1, 2) = O[4];
+                  A(2, 0) = O[2]; A(2, 1) = O[4]; A(2, 2) = O[5];
+               }
+               InvokeQFn(qfn, ug, yg, A);
+               for (int d = 0; d < DIM; ++d)
+               {
+                  outg[d * nq + q + DIM * nq * j] += yg[d];
+               }
+            }
+         }
+      }
+
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         real_t *Y_c = Y_e + ndof * vc;
+         for (int d = 0; d < DIM; ++d)
+         {
+            for (int i = 0; i < ndof; ++i)
+            {
+               real_t s = 0.0;
+               for (int q = 0; q < nq; ++q)
+               {
+                  s += G[q + nq * (i + ndof * d)] *
+                       outg[d * nq + q + DIM * nq * vc];
+               }
+               Y_c[i] += s;
+            }
+         }
+      }
+   }
+}
+
 template <int DIM, bool SYM, typename QFn>
 inline void HostGradApply(QFn qfn, const int NE, const int nq, const int ndof,
                           const real_t *G, const real_t *Dv,
                           const real_t *X, real_t *Y, const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1, "");
-   if (vdim == 1)
-   {
-      HostGradApply<DIM, SYM>(qfn, NE, nq, ndof, G, Dv, X, Y);
-      return;
-   }
-   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
-   for (int e = 0; e < NE; ++e)
-   {
-      auto *u = static_cast<real_t *>(
-                   alloca(sizeof(real_t) * static_cast<size_t>(DIM * nq)));
-      for (int vc = 0; vc < vdim; ++vc)
-      {
-         const int off = ndof * (vc + vdim * e);
-         GradApplyDenseElement<DIM, SYM>(
-            qfn, nq, ndof, G, Dv + nq * PA_SIZE * e,
-            X + off, Y + off, u);
-      }
-   }
+   // Legacy shared-metric path (scalar Diffusion layout × vdim).
+   HostGradApply<DIM, SYM>(qfn, NE, nq, ndof, G, Dv, X, Y, vdim, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1291,7 +1631,7 @@ Apply(const int NE,
    });
 }
 
-/** Specialized Grad×Grad with block-diag vdim. */
+/** Specialized Grad×Grad with vdim (VectorDiffusion stock PA layouts). */
 template <typename QFn, int DIM, int D1D, int QND>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 Apply(const int NE,
@@ -1301,12 +1641,7 @@ Apply(const int NE,
       Vector &y,
       const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1, "");
-   if (vdim == 1)
-   {
-      Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
-      return;
-   }
+   MFEM_VERIFY(vdim >= 1 && NE > 0, "");
 
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "");
@@ -1314,12 +1649,21 @@ Apply(const int NE,
    static_assert(Tr::spatial_dim == DIM, "");
 
    constexpr bool SYM = Tr::symmetric_pa;
-   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
+   constexpr int PA_VEC = DIM * DIM;
    constexpr int ndof = SimplexNdof<DIM, D1D>();
    constexpr int MQ = SimplexMaxNq<DIM, QND>();
-   MFEM_VERIFY(NE > 0 && d.Size() == PA_SIZE * QND * NE, "");
+   MFEM_VERIFY(d.Size() % (PA_VEC * QND * NE) == 0, "");
+   const int ncomp = d.Size() / (PA_VEC * QND * NE);
+   MFEM_VERIFY(ncomp == 1 || ncomp == vdim || ncomp == vdim * DIM, "");
    MFEM_VERIFY(basis.Size() == QND * ndof * DIM, "");
    MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+
+   // Scalar Diffusion shared layout (ncomp==1, vdim==1) stays on scalar path.
+   if (vdim == 1 && ncomp == 1)
+   {
+      Apply<QFn, DIM, D1D, QND>(NE, basis, d, x, y);
+      return;
+   }
 
    DumpFormApply<QFn, DIM, D1D, QND>("ApplyGrad", NE, QND, ndof);
 
@@ -1328,21 +1672,106 @@ Apply(const int NE,
    {
       HostGradApply<DIM, SYM>(qfn, NE, QND, ndof,
                               basis.Read(), d.Read(), x.Read(), y.ReadWrite(),
-                              vdim);
+                              vdim, ncomp);
       return;
    }
 
+   // Device: reuse host-equivalent dense element path per element.
    const auto G = basis.Read(), Dv = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
+   const int ncomp_c = ncomp;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       real_t u[DIM * MQ];
+      const bool matrix_coeff = (ncomp_c == vdim * DIM);
+      if (!matrix_coeff)
+      {
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            const int off = ndof * (vc + vdim * e);
+            const int slot = (ncomp_c == 1) ? 0 : vc;
+            GradApplyDenseElementVecPa<DIM, SYM>(
+               qfn, QND, ndof, G,
+               Dv + QND * PA_VEC * (slot + ncomp_c * e),
+               X + off, Y + off, u);
+         }
+         return;
+      }
+      real_t grads[DIM * MQ * 3];
+      real_t outg[DIM * MQ * 3];
+      for (int i = 0; i < DIM * QND * vdim; ++i) { outg[i] = 0.0; }
+      const real_t *X_e = X + ndof * vdim * e;
+      real_t *Y_e = Y + ndof * vdim * e;
+      const real_t *Dv_e = Dv + QND * PA_VEC * ncomp_c * e;
       for (int vc = 0; vc < vdim; ++vc)
       {
-         const int off = ndof * (vc + vdim * e);
-         GradApplyDenseElement<DIM, SYM>(
-            qfn, QND, ndof, G, Dv + QND * PA_SIZE * e,
-            X + off, Y + off, u);
+         const real_t *X_c = X_e + ndof * vc;
+         for (int d = 0; d < DIM; ++d)
+         {
+            for (int q = 0; q < QND; ++q)
+            {
+               real_t s = 0.0;
+               for (int i = 0; i < ndof; ++i)
+               {
+                  s += G[q + QND * (i + ndof * d)] * X_c[i];
+               }
+               grads[d * QND + q + DIM * QND * vc] = s;
+            }
+         }
+      }
+      for (int i = 0; i < vdim; ++i)
+      {
+         for (int j = 0; j < vdim; ++j)
+         {
+            const int k = j + i * vdim;
+            for (int q = 0; q < QND; ++q)
+            {
+               grad_t<DIM> ug, yg;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  ug[d] = grads[d * QND + q + DIM * QND * i];
+               }
+               real_t O[PA_VEC];
+               for (int c = 0; c < PA_VEC; ++c)
+               {
+                  O[c] = Dv_e[q + QND * (c + PA_VEC * k)];
+               }
+               tensor<real_t, DIM, DIM> A{};
+               if constexpr (DIM == 2)
+               {
+                  A(0, 0) = O[0]; A(0, 1) = O[1];
+                  A(1, 0) = O[2]; A(1, 1) = O[3];
+               }
+               else
+               {
+                  A(0, 0) = O[0]; A(0, 1) = O[1]; A(0, 2) = O[2];
+                  A(1, 0) = O[1]; A(1, 1) = O[3]; A(1, 2) = O[4];
+                  A(2, 0) = O[2]; A(2, 1) = O[4]; A(2, 2) = O[5];
+               }
+               InvokeQFn(qfn, ug, yg, A);
+               for (int d = 0; d < DIM; ++d)
+               {
+                  outg[d * QND + q + DIM * QND * j] += yg[d];
+               }
+            }
+         }
+      }
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         real_t *Y_c = Y_e + ndof * vc;
+         for (int d = 0; d < DIM; ++d)
+         {
+            for (int i = 0; i < ndof; ++i)
+            {
+               real_t s = 0.0;
+               for (int q = 0; q < QND; ++q)
+               {
+                  s += G[q + QND * (i + ndof * d)] *
+                       outg[d * QND + q + DIM * QND * vc];
+               }
+               Y_c[i] += s;
+            }
+         }
       }
    });
 }
@@ -1424,7 +1853,7 @@ Apply(const int NE,
    mfem::forall_3D_smem(nbatches, nthreads, 1, 1, smem_bytes, body);
 }
 
-/** Runtime Grad×Grad with block-diag vdim. */
+/** Runtime Grad×Grad with vdim (VectorDiffusion stock PA layouts). */
 template <typename QFn, int DIM>
 inline std::enable_if_t<qfn_traits<QFn>::trial_is_grad, void>
 Apply(const int NE,
@@ -1434,25 +1863,39 @@ Apply(const int NE,
       Vector &y,
       const int vdim)
 {
-   MFEM_VERIFY(vdim >= 1, "");
-   if (vdim == 1)
-   {
-      Apply<QFn, DIM>(NE, basis, d, x, y);
-      return;
-   }
+   MFEM_VERIFY(vdim >= 1 && NE > 0, "");
 
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::test_is_grad, "");
    static_assert(Tr::spatial_dim == DIM, "");
 
    constexpr bool SYM = Tr::symmetric_pa;
-   constexpr int PA_SIZE = SYM ? (DIM * (DIM + 1)) / 2 : DIM * DIM;
-
-   MFEM_VERIFY(NE > 0 && d.Size() % (PA_SIZE * NE) == 0, "");
-   const int nq = d.Size() / (PA_SIZE * NE);
-   MFEM_VERIFY(nq > 0 && basis.Size() % (nq * DIM) == 0, "");
-   const int ndof = basis.Size() / (nq * DIM);
+   constexpr int PA_VEC = DIM * DIM;
+   MFEM_VERIFY(d.Size() % (PA_VEC * NE) == 0, "");
+   // Infer nq / ncomp from basis (nq*ndof*DIM) and d (nq*PA_VEC*ncomp*NE).
+   MFEM_VERIFY(basis.Size() % DIM == 0, "");
+   const int basis_nd = basis.Size() / DIM;
+   int nq = -1, ncomp = -1, ndof = -1;
+   for (int nc : {1, vdim, vdim * DIM})
+   {
+      if (d.Size() % (PA_VEC * nc * NE) != 0) { continue; }
+      const int nq_try = d.Size() / (PA_VEC * nc * NE);
+      if (nq_try > 0 && basis_nd % nq_try == 0)
+      {
+         nq = nq_try;
+         ncomp = nc;
+         ndof = basis_nd / nq_try;
+         break;
+      }
+   }
+   MFEM_VERIFY(nq > 0 && ncomp > 0, "VectorDiffusion MMA: bad PA size");
    MFEM_VERIFY(x.Size() >= ndof * vdim * NE && y.Size() >= ndof * vdim * NE, "");
+
+   if (vdim == 1 && ncomp == 1)
+   {
+      Apply<QFn, DIM>(NE, basis, d, x, y);
+      return;
+   }
 
    constexpr int max_nq = SimplexMaxNq<DIM, 0>();
    constexpr int max_ndof = SimplexNdof<DIM, 0>();
@@ -1465,21 +1908,106 @@ Apply(const int NE,
    {
       HostGradApply<DIM, SYM>(qfn, NE, nq, ndof,
                               basis.Read(), d.Read(), x.Read(), y.ReadWrite(),
-                              vdim);
+                              vdim, ncomp);
       return;
    }
 
    const auto G = basis.Read(), Dv = d.Read(), X = x.Read();
    auto Y = y.ReadWrite();
+   const int nq_c = nq, ndof_c = ndof, ncomp_c = ncomp;
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       real_t u[DIM * max_nq];
+      const bool matrix_coeff = (ncomp_c == vdim * DIM);
+      if (!matrix_coeff)
+      {
+         for (int vc = 0; vc < vdim; ++vc)
+         {
+            const int off = ndof_c * (vc + vdim * e);
+            const int slot = (ncomp_c == 1) ? 0 : vc;
+            GradApplyDenseElementVecPa<DIM, SYM>(
+               qfn, nq_c, ndof_c, G,
+               Dv + nq_c * PA_VEC * (slot + ncomp_c * e),
+               X + off, Y + off, u);
+         }
+         return;
+      }
+      // MQ: same algebra as HostGradApply (local scratch, no huge smem).
+      real_t grads[DIM * max_nq * 3];
+      real_t outg[DIM * max_nq * 3];
+      for (int i = 0; i < DIM * nq_c * vdim; ++i) { outg[i] = 0.0; }
+      const real_t *X_e = X + ndof_c * vdim * e;
+      real_t *Y_e = Y + ndof_c * vdim * e;
+      const real_t *Dv_e = Dv + nq_c * PA_VEC * ncomp_c * e;
       for (int vc = 0; vc < vdim; ++vc)
       {
-         const int off = ndof * (vc + vdim * e);
-         GradApplyDenseElement<DIM, SYM>(
-            qfn, nq, ndof, G, Dv + nq * PA_SIZE * e,
-            X + off, Y + off, u);
+         const real_t *X_c = X_e + ndof_c * vc;
+         for (int d = 0; d < DIM; ++d)
+         {
+            for (int q = 0; q < nq_c; ++q)
+            {
+               real_t s = 0.0;
+               for (int i = 0; i < ndof_c; ++i)
+               {
+                  s += G[q + nq_c * (i + ndof_c * d)] * X_c[i];
+               }
+               grads[d * nq_c + q + DIM * nq_c * vc] = s;
+            }
+         }
+      }
+      for (int i = 0; i < vdim; ++i)
+      {
+         for (int j = 0; j < vdim; ++j)
+         {
+            const int k = j + i * vdim;
+            for (int q = 0; q < nq_c; ++q)
+            {
+               grad_t<DIM> ug, yg;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  ug[d] = grads[d * nq_c + q + DIM * nq_c * i];
+               }
+               real_t O[PA_VEC];
+               for (int c = 0; c < PA_VEC; ++c)
+               {
+                  O[c] = Dv_e[q + nq_c * (c + PA_VEC * k)];
+               }
+               tensor<real_t, DIM, DIM> A{};
+               if constexpr (DIM == 2)
+               {
+                  A(0, 0) = O[0]; A(0, 1) = O[1];
+                  A(1, 0) = O[2]; A(1, 1) = O[3];
+               }
+               else
+               {
+                  A(0, 0) = O[0]; A(0, 1) = O[1]; A(0, 2) = O[2];
+                  A(1, 0) = O[1]; A(1, 1) = O[3]; A(1, 2) = O[4];
+                  A(2, 0) = O[2]; A(2, 1) = O[4]; A(2, 2) = O[5];
+               }
+               InvokeQFn(qfn, ug, yg, A);
+               for (int d = 0; d < DIM; ++d)
+               {
+                  outg[d * nq_c + q + DIM * nq_c * j] += yg[d];
+               }
+            }
+         }
+      }
+      for (int vc = 0; vc < vdim; ++vc)
+      {
+         real_t *Y_c = Y_e + ndof_c * vc;
+         for (int d = 0; d < DIM; ++d)
+         {
+            for (int i = 0; i < ndof_c; ++i)
+            {
+               real_t s = 0.0;
+               for (int q = 0; q < nq_c; ++q)
+               {
+                  s += G[q + nq_c * (i + ndof_c * d)] *
+                       outg[d * nq_c + q + DIM * nq_c * vc];
+               }
+               Y_c[i] += s;
+            }
+         }
       }
    });
 }

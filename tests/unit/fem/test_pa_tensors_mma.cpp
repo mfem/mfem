@@ -322,11 +322,11 @@ void test_pa_vecdiffusion_tensors_mma_cartesian(int dim, int p,
    test_pa_vecdiffusion_tensors_mma(mesh, p, ir_order);
 }
 
-/** VQ keeps MMA off; MMAForce on/off Mult must still agree (both stock). */
-void test_pa_vec_vq_stays_stock(Mesh &mesh, int p, bool diffusion)
+/** VQ/MQ VectorMass/VectorDiffusion: MMA Mult matches stock SUM-PA. */
+void test_pa_vec_coeff_tensors_mma(Mesh &mesh, int p, bool diffusion, bool mq)
 {
    const int dim = mesh.Dimension();
-   CAPTURE(dim, p, diffusion, mesh.GetNE());
+   CAPTURE(dim, p, diffusion, mq, mesh.GetNE());
 
    H1_FECollection fec(p, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec, dim);
@@ -336,10 +336,10 @@ void test_pa_vec_vq_stays_stock(Mesh &mesh, int p, bool diffusion)
       REQUIRE(UsesTensorMMA(fes));
    }
 
-   GridFunction x(&fes), y_on(&fes), y_off(&fes);
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
    x.Randomize(0x100001b3);
-   y_on.Randomize(0x9e3779b9);
-   y_off = y_on;
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
 
    const auto &fe = *fes.GetTypicalFE();
    const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), 2 * p + 2);
@@ -348,42 +348,58 @@ void test_pa_vec_vq_stays_stock(Mesh &mesh, int p, bool diffusion)
    {
       for (int i = 0; i < v.Size(); ++i) { v(i) = M_1_PI + pt[0] + real_t(i); }
    });
+   MatrixFunctionCoefficient mq_coeff(dim, [](const Vector &pt, DenseMatrix &m)
+   {
+      m = 0.0;
+      for (int i = 0; i < m.Height(); ++i)
+      {
+         m(i, i) = 1.0 + M_1_PI * pt[0] + real_t(i);
+         for (int j = 0; j < i; ++j)
+         {
+            m(i, j) = m(j, i) = 0.1 * (pt[0] + real_t(i + j));
+         }
+      }
+   });
 
-   BilinearForm pa_on(&fes), pa_off(&fes);
-   if (diffusion)
+   BilinearForm pa_mma(&fes), pa_sum(&fes);
+   auto add = [&](BilinearForm &a)
    {
-      auto *on = new VectorDiffusionIntegrator(vq);
-      auto *off = new VectorDiffusionIntegrator(vq);
-      on->SetIntRule(ir);
-      off->SetIntRule(ir);
-      pa_on.AddDomainIntegrator(on);
-      pa_off.AddDomainIntegrator(off);
-   }
-   else
-   {
-      auto *on = new VectorMassIntegrator(vq);
-      auto *off = new VectorMassIntegrator(vq);
-      on->SetIntRule(ir);
-      off->SetIntRule(ir);
-      pa_on.AddDomainIntegrator(on);
-      pa_off.AddDomainIntegrator(off);
-   }
-   pa_on.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   pa_off.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      BilinearFormIntegrator *integ = nullptr;
+      if (diffusion)
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                         new VectorDiffusionIntegrator(mq_coeff))
+                    : static_cast<BilinearFormIntegrator *>(
+                         new VectorDiffusionIntegrator(vq));
+      }
+      else
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                         new VectorMassIntegrator(mq_coeff))
+                    : static_cast<BilinearFormIntegrator *>(
+                         new VectorMassIntegrator(vq));
+      }
+      integ->SetIntRule(ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa_mma);
+   add(pa_sum);
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    {
       MMAForce on(true);
-      pa_on.Assemble();
+      pa_mma.Assemble();
    }
    {
       MMAForce off(false);
-      pa_off.Assemble();
+      pa_sum.Assemble();
    }
 
-   pa_on.Mult(x, y_on);
-   pa_off.Mult(x, y_off);
-   y_off -= y_on;
-   REQUIRE(y_off.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+   pa_mma.Mult(x, y_mma);
+   pa_sum.Mult(x, y_sum);
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
 }
 
 TEST_CASE("Tensors MMA VectorMass PA vs SUM-PA", "[MMA][GPU]")
@@ -512,7 +528,7 @@ TEST_CASE("Tensors MMA VectorDiffusion PA vs SUM-PA on meshes", "[MMA][GPU]")
    }
 }
 
-TEST_CASE("Tensors MMA Vector VQ stays on stock PA", "[MMA][GPU]")
+TEST_CASE("Tensors MMA Vector VQ/MQ vs SUM-PA", "[MMA][GPU]")
 {
    const int dim = GENERATE(2, 3);
    const int p = 3;
@@ -520,13 +536,21 @@ TEST_CASE("Tensors MMA Vector VQ stays on stock PA", "[MMA][GPU]")
                ? Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL)
                : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
 
-   SECTION("VectorMass")
+   SECTION("VectorMass VQ")
    {
-      test_pa_vec_vq_stays_stock(mesh, p, false);
+      test_pa_vec_coeff_tensors_mma(mesh, p, false, false);
    }
-   SECTION("VectorDiffusion")
+   SECTION("VectorMass MQ")
    {
-      test_pa_vec_vq_stays_stock(mesh, p, true);
+      test_pa_vec_coeff_tensors_mma(mesh, p, false, true);
+   }
+   SECTION("VectorDiffusion VQ")
+   {
+      test_pa_vec_coeff_tensors_mma(mesh, p, true, false);
+   }
+   SECTION("VectorDiffusion MQ")
+   {
+      test_pa_vec_coeff_tensors_mma(mesh, p, true, true);
    }
 }
 
