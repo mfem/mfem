@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../../general/forall.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
+#include "mma/mma.hpp"
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
 
@@ -20,13 +21,16 @@ namespace mfem
 
 void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma = false;
+
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const auto *ir = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, Trans);
    nq = ir->GetNPoints();
 
-   if (DeviceCanUseCeed())
+   // CEED path for scalar Q only; VQ/MQ stay on native PA / MMA.
+   if (DeviceCanUseCeed() && !VQ && !MQ)
    {
       delete ceedOp;
       const bool mixed =
@@ -163,10 +167,32 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_ABORT("Unknown VectorMassIntegrator::AssemblePA kernel for"
                  << " dim:" << dim << ", vdim:" << vdim << ", sdim:" << sdim);
    }
+
+   // Tensor MMA: block-diagonal scalar PA (same D for every component).
+   if (UsesTensorMMA(fes) && !VQ && !MQ && coeff_vdim == 1)
+   {
+      use_tensors_mma = true;
+   }
 }
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_tensors_mma)
+   {
+      static bool registered = false;
+      if (!registered)
+      {
+         RegisterTensorsMmaKernels();
+         registered = true;
+      }
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D,
+                                    ne, vdim, B, Bt, pa_data, x, y,
+                                    dofs1D, quad1D);
+      return;
+   }
+
    // Use CEED backend if available
    if (DeviceCanUseCeed()) { return ceedOp->AddMult(x, y); }
 
@@ -207,6 +233,10 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   if (use_tensors_mma)
+   {
+      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
+   }
    if (DeviceCanUseCeed()) { return ceedOp->GetDiagonal(diag); }
 
    MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");

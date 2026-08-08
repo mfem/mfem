@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../../general/forall.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
+#include "mma/mma.hpp"
 
 #include "./bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
@@ -70,12 +71,15 @@ VectorDiffusionIntegrator::VectorDiffusionIntegrator(MatrixCoefficient &mq)
 
 void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma = false;
+
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    const auto *ir = IntRule ? IntRule : &DiffusionIntegrator::GetRule(el, el);
    nq = ir->GetNPoints();
 
-   if (DeviceCanUseCeed())
+   // CEED for scalar Q only; VQ/MQ stay on native PA / MMA.
+   if (DeviceCanUseCeed() && !VQ && !MQ)
    {
       delete ceedOp;
       const bool mixed =
@@ -280,11 +284,35 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_ABORT("Unknown VectorDiffusionIntegrator::AssemblePA kernel for"
                  << " dim:" << dim << ", vdim:" << vdim << ", sdim:" << sdim);
    }
+
+   // Tensor MMA: block-diagonal scalar PA (sdim==dim; no surface).
+   if (UsesTensorMMA(fes) && !VQ && !MQ && coeff_vdim == 1 && sdim == dim)
+   {
+      use_tensors_mma = true;
+   }
 }
 
 // PA Diffusion Apply kernel
 void VectorDiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_tensors_mma)
+   {
+      static bool registered = false;
+      if (!registered)
+      {
+         RegisterTensorsMmaKernels();
+         registered = true;
+      }
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &G = maps->G;
+      const Array<real_t> &Bt = maps->Bt;
+      const Array<real_t> &Gt = maps->Gt;
+      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D,
+                                    ne, vdim, B, G, Bt, Gt, pa_data, x, y,
+                                    dofs1D, quad1D);
+      return;
+   }
+
    // Use CEED backend if available
    if (DeviceCanUseCeed()) { return ceedOp->AddMult(x, y); }
 
@@ -521,6 +549,10 @@ static void PAVectorDiffusionAssembleDiagonal(const int dim,
 
 void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   if (use_tensors_mma)
+   {
+      MFEM_ABORT("AssembleDiagonalPA not implemented for MMA PA");
+   }
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);

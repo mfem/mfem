@@ -2723,6 +2723,8 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int ne, dim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
+   /// Tensor-product MMA form path (scalar / block-diag PA, ForceMMA).
+   bool use_tensors_mma = false;
 
 public:
    /// Construct an integrator with coefficient 1.0
@@ -2774,6 +2776,22 @@ public:
    MFEM_REGISTER_KERNELS(VectorMassAddMultPA,
                          VectorMassAddMultPAType,
                          (int, int, int));
+
+   /// Tensor MMA apply: (ne, vdim, B, Bt, pa, x, y, d1d, q1d)
+   using ApplyTensorsMmaKernelType =
+      void(*)(const int, const int,
+              const Array<real_t>&, const Array<real_t>&,
+              const Vector&, const Vector&, Vector&,
+              const int, const int);
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
+                         (int, int, int));
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorsMmaSpecialization()
+   {
+      ApplyTensorsMmaPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+   static void RegisterTensorsMmaKernels();
 
    // PA DiagonalPA kernels
    using VectorMassAssembleDiagonalPAType =
@@ -3284,6 +3302,8 @@ protected:
    const GeometricFactors *geom;  ///< Not owned
    int ne, dim, sdim, nq = 0, dofs1D, quad1D, coeff_vdim;
    Vector pa_data;
+   /// Tensor-product MMA form path (scalar / block-diag PA, ForceMMA).
+   bool use_tensors_mma = false;
 
 public:
    VectorDiffusionIntegrator(const IntegrationRule *ir = nullptr);
@@ -3363,6 +3383,23 @@ public:
    {
       ApplyPAKernels::Specialization<DIM, VDIM, D1D, Q1D>::Add();
    }
+
+   /// Tensor MMA apply: (ne, vdim, B, G, Bt, Gt, pa, x, y, d1d, q1d)
+   using ApplyTensorsMmaKernelType =
+      void(*)(const int, const int,
+              const Array<real_t>&, const Array<real_t>&,
+              const Array<real_t>&, const Array<real_t>&,
+              const Vector&, const Vector&, Vector&,
+              const int, const int);
+   MFEM_REGISTER_KERNELS(ApplyTensorsMmaPAKernels, ApplyTensorsMmaKernelType,
+                         (int, int, int));
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddTensorsMmaSpecialization()
+   {
+      ApplyTensorsMmaPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+   static void RegisterTensorsMmaKernels();
 
    // struct Kernels { Kernels(); };
 };

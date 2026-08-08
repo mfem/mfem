@@ -96,6 +96,8 @@ set(SRCS
   integ/bilininteg_mass_pa.cpp
   integ/bilininteg_mass_pa_simplices_mma.cpp
   integ/bilininteg_mass_pa_tensors_mma.cpp
+  integ/bilininteg_vecmass_pa_tensors_mma.cpp
+  integ/bilininteg_vecdiffusion_pa_tensors_mma.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
   integ/mma/mma.cpp
@@ -269,6 +271,8 @@ set(HDRS
   integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_mass_pa_simplices_mma.hpp
   integ/bilininteg_mass_pa_tensors_mma.hpp
+  integ/bilininteg_vecmass_pa_tensors_mma.hpp
+  integ/bilininteg_vecdiffusion_pa_tensors_mma.hpp
   integ/mma/mma.hpp
   integ/mma/blas.hpp
   integ/mma/common.hpp

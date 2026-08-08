@@ -63,6 +63,13 @@ struct DiffusionMetric {
 
 // Tensor diffusion — bilininteg_diffusion_pa_tensors_mma.hpp
 // Kernel → ApplyTensor<DiffusionMetric<DIM,SYM>, …>(…)
+
+// Tensor vector mass (block-diag scalar Q) — bilininteg_vecmass_pa_tensors_mma.hpp
+// Kernel → ApplyTensor<MassScale, DIM, D1D, Q1D>(…, vdim)
+
+// Tensor vector diffusion (block-diag) — bilininteg_vecdiffusion_pa_tensors_mma.hpp
+// Kernel → ApplyTensor<DiffusionMetric<DIM,true>, …>(…, vdim)
+// Note: vdim>1 uses the device/Emulate shell (host PreferTensorDense is vdim==1).
 ```
 
 ---
