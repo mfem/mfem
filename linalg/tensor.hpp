@@ -43,6 +43,8 @@ struct tensor<T>
    MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
    MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()() { return values; }
+   MFEM_HOST_DEVICE const T& operator()() const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
    T values;
 };
@@ -270,10 +272,10 @@ MFEM_HOST_DEVICE constexpr zero operator/(zero, T /*other*/)
    return zero{};
 }
 
-/** @brief `zero` plus `zero` is `zero */
+/** @brief `zero` plus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator+=(zero, zero) { return zero{}; }
 
-/** @brief `zero` minus `zero` is `zero */
+/** @brief `zero` minus `zero` is `zero` */
 MFEM_HOST_DEVICE constexpr zero operator-=(zero, zero) { return zero{}; }
 
 /** @brief let `zero` be accessed like a tuple */
