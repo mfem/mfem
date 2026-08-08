@@ -707,7 +707,7 @@ void BatchedLORAssembly::ParAssemble(
 #endif
 
 void BatchedLORAssembly::Assemble(
-   BilinearForm &a, const Array<int> ess_dofs, OperatorHandle &A)
+   BilinearForm &a, const Array<int> &ess_dofs, OperatorHandle &A)
 {
 #ifdef MFEM_USE_MPI
    if (dynamic_cast<ParFiniteElementSpace*>(&fes_ho))
