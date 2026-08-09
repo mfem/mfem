@@ -34,12 +34,16 @@ TEST_CASE("Basic tensor operations", "[Tensor]")
    real_t squared_normA = 111.0;
    CHECK_THAT(sqnorm(A), Catch::WithinULP(squared_normA, 1));
 
-   auto Check3x3 = [](const tensor<real_t, 3, 3>& B, const tensor<real_t, 3, 3>& B_exact) {
-      for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-               CHECK_THAT(B[i][j], Catch::WithinULP(B_exact[i][j], 1));
-            }
+   auto Check3x3 = [](const tensor<real_t, 3, 3>& B,
+                      const tensor<real_t, 3, 3>& B_exact)
+   {
+      for (int i = 0; i < 3; i++)
+      {
+         for (int j = 0; j < 3; j++)
+         {
+            CHECK_THAT(B[i][j], Catch::WithinULP(B_exact[i][j], 1));
          }
+      }
    };
 
    tensor<real_t, 3, 3> symA = {{{0, 1.5, 3}, {1.5, 3, 4.5}, {3, 4.5, 6}}};
@@ -54,8 +58,10 @@ TEST_CASE("Basic tensor operations", "[Tensor]")
    tensor<real_t, 3, 3> invAp1 = {{{-4, -1, 3}, {-1.5, 0.5, 0.5}, {2, 0, -1}}};
    Check3x3(inv(A + I), invAp1);
 
-   auto Check3 = [](const tensor<real_t, 3>& w, const tensor<real_t, 3>& w_exact) {
-      for (int i = 0; i < 3; i++) {
+   auto Check3 = [](const tensor<real_t, 3>& w, const tensor<real_t, 3>& w_exact)
+   {
+      for (int i = 0; i < 3; i++)
+      {
          CHECK_THAT(w[i], Catch::WithinULP(w_exact[i], 1));
       }
    };
@@ -76,29 +82,36 @@ TEST_CASE("Basic tensor operations", "[Tensor]")
 
 TEST_CASE("Determinant", "[Tensor]")
 {
+   // *INDENT-OFF*
    tensor<real_t, 3, 3> A{{{ 3,  1, -9},
                            { 2,  2,  4}, 
                            {-7,  1,  5}}};
-   real_t detA = -164;   
+   // *INDENT-ON*
+   real_t detA = -164;
    CHECK_THAT(det(A), Catch::WithinULP(detA, 1));
 }
 
 // anonymous namespace for file-scope helper functions
-namespace {
+namespace
+{
 
 tensor<real_t, 2, 2> Orthogonal2x2Matrix()
 {
    // Orthogonal tensor that was generated externally and written out to 17 decimal places
+   // *INDENT-OFF*
    return {{{-0.364568375099243,   0.9311766212043223},
-            {-0.9311766212043223, -0.3645683750992428 }}};
+            {-0.9311766212043223, -0.3645683750992428}}};
+   // *INDENT-ON*
 }
 
 tensor<real_t, 3, 3> Orthogonal3x3Matrix()
 {
    // Orthogonal tensor that was generated externally and written out to 17 decimal places
+   // *INDENT-OFF*
    return {{{-0.33037703540355823,  0.1084986605114631,  -0.9375921582144203},
             {-0.4549579058918012,  -0.8886561428364343,   0.05747663582376441},
             {-0.8269608928749312,   0.4455539254302321,   0.34295390534182263}}};
+   // *INDENT-ON*
 }
 
 } // namespace
