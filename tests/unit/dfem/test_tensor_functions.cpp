@@ -206,7 +206,8 @@ void CheckSmoothMaxEigenvalueVJP(const tensor<real_t, n, n>& A, real_t beta)
    CHECK(fabs(beta_bar - da_dbeta_h) < 10 * h);
 }
 
-TEST_CASE("SmoothMaxEigenvalue 3x3 Enzyme reverse mode", "[Tensor]")
+TEST_CASE("SmoothMaxEigenvalue 3x3 Enzyme reverse mode with repeated eigenvalues",
+          "[Tensor]")
 {
    tensor<real_t, 3> lambda{{-2.2, 2.0, 2.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
@@ -215,7 +216,27 @@ TEST_CASE("SmoothMaxEigenvalue 3x3 Enzyme reverse mode", "[Tensor]")
    CheckSmoothMaxEigenvalueVJP(A, beta);
 }
 
-TEST_CASE("SmoothMaxEigenvalue 2x2 Enzyme reverse mode", "[Tensor]")
+TEST_CASE("SmoothMaxEigenvalue 3x3 Enzyme reverse mode with distinct eigenvalues",
+          "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 5.1, 2.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   real_t beta = 2.0;
+   CheckSmoothMaxEigenvalueVJP(A, beta);
+}
+
+TEST_CASE("SmoothMaxEigenvalue 2x2 Enzyme reverse mode with repeated eigenvalues",
+          "[Tensor]")
+{
+   real_t lambda = 2.2;
+   tensor<real_t, 2, 2> A = lambda*IdentityMatrix<2>();
+   real_t beta = 2.0;
+   CheckSmoothMaxEigenvalueVJP(A, beta);
+}
+
+TEST_CASE("SmoothMaxEigenvalue 2x2 Enzyme reverse mode with distinct eigenvalues",
+          "[Tensor]")
 {
    tensor<real_t, 2> lambda{{2.0, -1.5}};
    tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
