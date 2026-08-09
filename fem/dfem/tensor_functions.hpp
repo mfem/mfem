@@ -79,11 +79,11 @@ namespace future
 }
 
 #ifdef MFEM_USE_ENZYME
-// Custom forward-mode derivative rule for Enzyme
 
 namespace detail
 {
 
+// Custom forward-mode derivative rule for Enzyme
 template<int n> MFEM_HOST_DEVICE
 dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, real_t beta, real_t beta_dot)
 {
@@ -114,6 +114,7 @@ dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(const tensor<real_t, n, 
   return {value, derivative};
 }
 
+// Types and functions for Enzyme custom reverse mode derivative
 template <int n>
 struct SmoothMaxEigenvalueSymmTape
 {
