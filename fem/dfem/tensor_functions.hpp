@@ -90,7 +90,6 @@ dual<real_t, real_t> smooth_max_eigenvalue_symm_fwddiff(
    const tensor<real_t, n, n>& A, const tensor<real_t, n, n>& A_dot, real_t beta,
    real_t beta_dot)
 {
-   WARN("CALLING CUSTOM DERIVATIVE (REF VER)");
    auto [lambda, V] = eig_symm(A);
    real_t lambda_max = lambda[n - 1];
    real_t sum = 0;

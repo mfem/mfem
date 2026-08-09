@@ -28,7 +28,7 @@ tensor<real_t, 2, 2> Orthogonal2x2Matrix()
    // Orthogonal tensor that was generated externally and written out to 17 decimal places
    // *INDENT-OFF*
    return {{{-0.364568375099243,   0.9311766212043223},
-            {-0.9311766212043223, -0.3645683750992428 }}};
+            {-0.9311766212043223, -0.3645683750992428}}};
    // *INDENT-ON*
 }
 
