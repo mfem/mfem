@@ -1490,7 +1490,7 @@ tensor<int, 3> argsort(const tensor<T, 3>& v)
  *
  * Specialization for the degenerate case of a singleton.
  *
- * @param Matrix for which the eigendecomposition will be computed.
+ * @param A Matrix for which the eigendecomposition will be computed.
  * @return tuple with the eigenvalue in the first element, and the
  * eigenvector in the second element.
  */
