@@ -215,7 +215,7 @@ real_t smooth_max_eigenvalue_symm_rev(const tensor<real_t, n, n>* A,
 
 } // namespace detail
 
-// Register custom derivatives with Enzyme
+// Register custom derivatives (forward mode) with Enzyme
 __attribute__((used))
 void* __enzyme_register_derivative_smooth_max_eigenvalue_symm_2d[] = {
     reinterpret_cast<void*>(smooth_max_eigenvalue_symm<2>),

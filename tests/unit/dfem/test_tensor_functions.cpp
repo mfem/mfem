@@ -69,7 +69,7 @@ TEST_CASE("SmoothMinEigenvalue of 2x2", "[Tensor][foo]")
 #ifdef MFEM_USE_ENZYME
 
 template<int n>
-void CheckJacobian(const tensor<real_t, n, n>& A)
+void CheckSmoothMaxEigenvalueJVP(const tensor<real_t, n, n>& A)
 {
    constexpr real_t beta = 2.0;
    real_t a = smooth_max_eigenvalue_symm(A, beta);
@@ -121,7 +121,7 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on distinct eigenvalues 3x3", "
    tensor<real_t, 3> lambda{{-2.2, 2.0, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
-   CheckJacobian(A);
+   CheckSmoothMaxEigenvalueJVP(A);
 }
 
 TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on repeated eigenvalue 3x3", "[Tensor]")
@@ -131,14 +131,14 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on repeated eigenvalue 3x3", "[
    tensor<real_t, 3> lambda{{-2.2, 4.0, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
-   CheckJacobian(A);
+   CheckSmoothMaxEigenvalueJVP(A);
 }
 
 TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on spherical tensor 3x3", "[Tensor]")
 {
    real_t lambda = 2.2;
    auto A = lambda*IdentityMatrix<3>();
-   CheckJacobian(A);
+   CheckSmoothMaxEigenvalueJVP(A);
 }
 
 TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on distinct eigenvalues 2x2", "[Tensor]")
@@ -146,42 +146,38 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on distinct eigenvalues 2x2", "
    tensor<real_t, 2> lambda{{-2.2, 2.0}};
    tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
-   CheckJacobian(A);
+   CheckSmoothMaxEigenvalueJVP(A);
 }
 
 TEST_CASE("SmoothMaxEigenvalue Enzyme derivative on spherical tensor 2x2", "[Tensor]")
 {
    real_t lambda = 2.2;
    auto A = lambda*IdentityMatrix<2>();
-   CheckJacobian(A);
+   CheckSmoothMaxEigenvalueJVP(A);
 }
 
-TEST_CASE("SmoothMaxEigenvalue Enzyme reverse mode", "[TensorDiff][Tensor]")
+template<int n>
+void CheckSmoothMaxEigenvalueVJP(const tensor<real_t, n, n>& A, real_t beta)
 {
-   tensor<real_t, 3> lambda{{-2.2, 2.0, 2.0}};
-   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
-   auto A = dot(V, dot(diag(lambda), transpose(V)));
-   real_t beta = 2.0;
-
    // Wrapper function, since Enzyme cannot be directly applied to a function
    // with a custom derivative rule.
-   auto f = [](const tensor<real_t, 3, 3>& A, real_t Beta) -> real_t {
-      return smooth_max_eigenvalue_symm<3>(A, Beta);
+   auto f = [](const tensor<real_t, n, n>& A, real_t Beta) -> real_t {
+      return smooth_max_eigenvalue_symm(A, Beta);
    };
 
-   tensor<real_t, 3, 3> A_bar{};
+   tensor<real_t, n, n> A_bar{};
    auto beta_bar = __enzyme_autodiff<real_t>(reinterpret_cast<void*>(+f),
                                              enzyme_dup, &A[0][0], &A_bar[0][0],
                                              enzyme_out, beta);
 
    real_t a = smooth_max_eigenvalue_symm(A, beta);
-   tensor<real_t, 3, 3> da_dA;
-   tensor<real_t, 3, 3> A_p;
-   tensor<real_t, 3, 3> da_dA_h{};
+   tensor<real_t, n, n> da_dA;
+   tensor<real_t, n, n> A_p;
+   tensor<real_t, n, n> da_dA_h{};
    real_t h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
    // Take derivatives in symetric directions
-   for (int i = 0; i < 3; i++) {
-       for (int j = 0; j < 3; j++) {
+   for (int i = 0; i < n; i++) {
+       for (int j = 0; j < n; j++) {
          // Finite difference perturbations need to be symmetric, since we actually
          // modify the argument to the function (which is required to be symmetric)
          A_p = A;
@@ -198,6 +194,24 @@ TEST_CASE("SmoothMaxEigenvalue Enzyme reverse mode", "[TensorDiff][Tensor]")
 
   real_t da_dbeta_h = (smooth_max_eigenvalue_symm(A, beta + h) - a)/h;
   CHECK(fabs(beta_bar - da_dbeta_h) < 10 * h);
+}
+
+TEST_CASE("SmoothMaxEigenvalue 3x3 Enzyme reverse mode", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 2.0, 2.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   real_t beta = 2.0;
+   CheckSmoothMaxEigenvalueVJP(A, beta);
+}
+
+TEST_CASE("SmoothMaxEigenvalue 2x2 Enzyme reverse mode", "[Tensor]")
+{
+   tensor<real_t, 2> lambda{{2.0, -1.5}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   real_t beta = 2.0;
+   CheckSmoothMaxEigenvalueVJP(A, beta);
 }
 
 #endif // MFEM_USE_ENZYME
