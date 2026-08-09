@@ -61,13 +61,12 @@ TEST_CASE("SmoothMaxEigenvalue of 2x2", "[Tensor]")
    CHECK_THAT(M, Catch::WithinAbs(lambda[1], 1e-5));
 }
 
-TEST_CASE("SmoothMinEigenvalue of 2x2", "[Tensor][foo]")
+TEST_CASE("SmoothMinEigenvalue of 2x2", "[Tensor]")
 {
    tensor<real_t, 3> lambda{{-2.2, 4.0}};
    tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
    auto A = dot(V, dot(diag(lambda), transpose(V)));
    auto L = smooth_min_eigenvalue_symm(A, 5.0);
-   INFO("smooth min = " << L);
    CHECK_THAT(L, Catch::WithinAbs(lambda[0], 1e-5));
 }
 
@@ -110,8 +109,6 @@ void CheckSmoothMaxEigenvalueJVP(const tensor<real_t, n, n>& A)
          da_dA_h[i][j] = (a_p - a)/h;
       }
    }
-   INFO("da_dA" << da_dA);
-   INFO("da_dA_h" << da_dA_h);
    auto error = da_dA - da_dA_h;
    CHECK(norm(error) < 10*h);
 
@@ -120,7 +117,6 @@ void CheckSmoothMaxEigenvalueJVP(const tensor<real_t, n, n>& A)
                                               enzyme_dup, &A[0][0], &A_dot[0][0],
                                               enzyme_dup, beta, 1.0);
    real_t da_dbeta_h = (smooth_max_eigenvalue_symm(A, beta + h) - a)/h;
-   INFO("da_dbeta = " << da_dbeta);
    CHECK(fabs(da_dbeta - da_dbeta_h) < 10*h);
 }
 
@@ -203,8 +199,6 @@ void CheckSmoothMaxEigenvalueVJP(const tensor<real_t, n, n>& A, real_t beta)
          da_dA_h[i][j] = (a_p - a)/h;
       }
    }
-   INFO("da_dA" << A_bar);
-   INFO("da_dA_h" << da_dA_h);
    auto error = A_bar - da_dA_h;
    CHECK(norm(error) < 10*h);
 
