@@ -12,6 +12,7 @@
 // Implementation of data type mesh
 
 #include "mesh_headers.hpp"
+#include "ncnurbs.hpp"
 #include "vtkhdf.hpp"
 #include "../fem/fem.hpp"
 #include "../general/sort_pairs.hpp"
@@ -14479,6 +14480,11 @@ MeshPart::Entity MeshPart::EntityHelper::FindEntity(int bytype_entity_id)
    return { geom, nv, v };
 }
 
+namespace
+{
+void PrintMeshPartConnectivity(const MeshPart &mesh_part, std::ostream &os);
+}
+
 void MeshPart::Print(std::ostream &os) const
 {
    os << "MFEM mesh v1.2\n";
@@ -14568,16 +14574,29 @@ void MeshPart::Print(std::ostream &os) const
 
    os << "\nmfem_serial_mesh_end\n";
 
+   PrintMeshPartConnectivity(*this, os);
+}
+
+namespace
+{
+
+void PrintMeshPartConnectivity(const MeshPart &mesh_part, std::ostream &os)
+{
+   const int num_groups = mesh_part.my_groups.Size();
+   const Table &g2v  = mesh_part.group_shared_entity_to_vertex[Geometry::POINT];
+   const Table &g2ev = mesh_part.group_shared_entity_to_vertex[Geometry::SEGMENT];
+   const Table &g2tv = mesh_part.group_shared_entity_to_vertex[Geometry::TRIANGLE];
+   const Table &g2qv = mesh_part.group_shared_entity_to_vertex[Geometry::SQUARE];
+
    // Start: GroupTopology::Save
-   const int num_groups = my_groups.Size();
    os << "\ncommunication_groups\n";
    os << "number_of_groups " << num_groups << "\n\n";
 
    os << "# number of entities in each group, followed by ranks in group\n";
    for (int group_id = 0; group_id < num_groups; ++group_id)
    {
-      const int group_size = my_groups.RowSize(group_id);
-      const int *group_ptr = my_groups.GetRow(group_id);
+      const int group_size = mesh_part.my_groups.RowSize(group_id);
+      const int *group_ptr = mesh_part.my_groups.GetRow(group_id);
       os << group_size;
       for (int group_member_index = 0; group_member_index < group_size;
            ++group_member_index)
@@ -14588,19 +14607,14 @@ void MeshPart::Print(std::ostream &os) const
    }
    // End: GroupTopology::Save
 
-   const Table &g2v  = group_shared_entity_to_vertex[Geometry::POINT];
-   const Table &g2ev = group_shared_entity_to_vertex[Geometry::SEGMENT];
-   const Table &g2tv = group_shared_entity_to_vertex[Geometry::TRIANGLE];
-   const Table &g2qv = group_shared_entity_to_vertex[Geometry::SQUARE];
-
    MFEM_VERIFY(g2v.RowSize(0) == 0, "internal erroor");
    os << "\ntotal_shared_vertices " << g2v.Size_of_connections() << '\n';
-   if (dimension >= 2)
+   if (mesh_part.dimension >= 2)
    {
       MFEM_VERIFY(g2ev.RowSize(0) == 0, "internal erroor");
       os << "total_shared_edges " << g2ev.Size_of_connections()/2 << '\n';
    }
-   if (dimension >= 3)
+   if (mesh_part.dimension >= 3)
    {
       MFEM_VERIFY(g2tv.RowSize(0) == 0, "internal erroor");
       MFEM_VERIFY(g2qv.RowSize(0) == 0, "internal erroor");
@@ -14620,7 +14634,7 @@ void MeshPart::Print(std::ostream &os) const
             os << sv[i] << '\n';
          }
       }
-      if (dimension >= 2)
+      if (mesh_part.dimension >= 2)
       {
          const int  ne = g2ev.RowSize(gr)/2;
          const int *se = g2ev.GetRow(gr);
@@ -14631,7 +14645,7 @@ void MeshPart::Print(std::ostream &os) const
             os << v[0] << ' ' << v[1] << '\n';
          }
       }
-      if (dimension >= 3)
+      if (mesh_part.dimension >= 3)
       {
          const int  nt = g2tv.RowSize(gr)/3;
          const int *st = g2tv.GetRow(gr);
@@ -14658,6 +14672,8 @@ void MeshPart::Print(std::ostream &os) const
    // Write out section end tag for mesh.
    os << "\nmfem_mesh_end" << endl;
 }
+
+} // namespace
 
 Mesh &MeshPart::GetMesh()
 {
@@ -14767,6 +14783,124 @@ ExtractElementwiseGridFunction(const Array<int> &global_elem_ids,
 
    return local_gf;
 }
+
+template <typename NURBSExtType>
+class NURBSPartWriter : public NURBSExtType
+{
+private:
+   Array<int> source_active_dof;
+
+   void PrintNodalFESpace(std::ostream &os, const GridFunction &global_nodes) const
+   {
+      const FiniteElementSpace *fes = global_nodes.FESpace();
+      const int fes_format =
+         (this->GetOrder() == NURBSFECollection::VariableOrder ||
+          this->GetMaster().Size() != 0) ? 100 : 90;
+
+      os << (fes_format == 90 ?
+             "FiniteElementSpace\n" : "MFEM FiniteElementSpace v1.0\n")
+         << "FiniteElementCollection: " << fes->FEColl()->Name() << '\n'
+         << "VDim: " << fes->GetVDim() << '\n'
+         << "Ordering: " << fes->GetOrdering() << '\n';
+
+      if (fes_format == 100)
+      {
+         os << "End: MFEM FiniteElementSpace v1.0\n";
+      }
+   }
+
+public:
+   explicit NURBSPartWriter(const NURBSExtType &nurbs)
+      : NURBSExtType(nurbs), source_active_dof(this->activeDof)
+   { }
+
+   void SelectPart(const Array<int> &global_elem_ids,
+                   const Array<int> &global_bdr_ids)
+   {
+      const Vector source_weights(this->weights);
+      const Array<int> source_master(this->master);
+      const Array<int> source_slave(this->slave);
+
+      this->activeElem.SetSize(this->GetGNE());
+      this->activeElem = false;
+      for (int i = 0; i < global_elem_ids.Size(); i++)
+      {
+         const int elem = global_elem_ids[i];
+         MFEM_ASSERT(0 <= elem && elem < this->GetGNE(), "invalid element id");
+         this->activeElem[elem] = true;
+      }
+      this->NumOfActiveElems = global_elem_ids.Size();
+
+      this->activeBdrElem.SetSize(this->GetGNBE());
+      this->activeBdrElem = false;
+      for (int i = 0; i < global_bdr_ids.Size(); i++)
+      {
+         const int bdr = global_bdr_ids[i];
+         MFEM_ASSERT(0 <= bdr && bdr < this->GetGNBE(),
+                     "invalid boundary element id");
+         this->activeBdrElem[bdr] = true;
+      }
+      this->NumOfActiveBdrElems = global_bdr_ids.Size();
+
+      this->GenerateActiveVertices();
+      this->InitDofMap();
+      this->GenerateElementDofTable();
+      this->GenerateBdrElementDofTable();
+
+      Vector local_weights(this->GetNDof());
+      for (int gd = 0; gd < this->GetNTotalDof(); gd++)
+      {
+         if (!this->activeDof[gd]) { continue; }
+
+         const int old_ldof = source_active_dof[gd] - 1;
+         const int new_ldof = this->activeDof[gd] - 1;
+         MFEM_ASSERT(old_ldof >= 0, "missing source NURBS dof");
+         local_weights(new_ldof) = source_weights(old_ldof);
+      }
+      this->weights.Swap(local_weights);
+
+      this->master = source_master;
+      this->slave = source_slave;
+      this->ConnectBoundaries();
+   }
+
+   void PrintNodes(const GridFunction &global_nodes, std::ostream &os) const
+   {
+      const FiniteElementSpace *fes = global_nodes.FESpace();
+      const int vdim = fes->GetVDim();
+      const int old_ndof = global_nodes.Size()/vdim;
+      const int new_ndof = this->GetNDof();
+      const int ordering = fes->GetOrdering();
+
+      Vector local_nodes(vdim*new_ndof);
+      for (int gd = 0; gd < this->GetNTotalDof(); gd++)
+      {
+         if (!this->activeDof[gd]) { continue; }
+
+         const int old_ldof = source_active_dof[gd] - 1;
+         const int new_ldof = this->activeDof[gd] - 1;
+         MFEM_ASSERT(old_ldof >= 0, "missing source NURBS dof");
+
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            const int old_idx = (ordering == Ordering::byNODES) ?
+                                old_ldof*vdim + vd : old_ldof + vd*old_ndof;
+            const int new_idx = (ordering == Ordering::byNODES) ?
+                                new_ldof*vdim + vd : new_ldof + vd*new_ndof;
+            local_nodes(new_idx) = global_nodes(old_idx);
+         }
+      }
+
+      PrintNodalFESpace(os, global_nodes);
+      os << '\n';
+      local_nodes.Print(os, ordering == Ordering::byNODES ? 1 : vdim);
+   }
+
+   void PrintCoarsePatchData(std::ostream &os)
+   {
+      static_cast<NURBSExtension &>(*this).PrintCoarsePatches(os);
+   }
+};
 
 class NCMeshPartWriter : public NCMesh
 {
@@ -15383,6 +15517,53 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
    MFEM_VERIFY(0 <= part_id && part_id < num_parts,
                "invalid part_id = " << part_id
                << ", num_parts = " << num_parts);
+
+   if (mesh.NURBSext)
+   {
+      MFEM_VERIFY(mesh.GetNodes(), "missing NURBS nodes");
+
+      Array<int> owned_global_elem_ids(part_to_element.RowSize(part_id));
+      std::copy(part_to_element.GetRow(part_id),
+                part_to_element.GetRow(part_id) + owned_global_elem_ids.Size(),
+                owned_global_elem_ids.GetData());
+
+      Array<int> owned_global_bdr_ids(part_to_boundary.RowSize(part_id));
+      std::copy(part_to_boundary.GetRow(part_id),
+                part_to_boundary.GetRow(part_id) + owned_global_bdr_ids.Size(),
+                owned_global_bdr_ids.GetData());
+
+      if (const auto *nc_nurbs =
+             dynamic_cast<const NCNURBSExtension *>(mesh.NURBSext))
+      {
+         NURBSPartWriter<NCNURBSExtension> part_nurbs(*nc_nurbs);
+         part_nurbs.SelectPart(owned_global_elem_ids, owned_global_bdr_ids);
+         part_nurbs.Print(os);
+         os << '\n';
+         part_nurbs.PrintNodes(*mesh.GetNodes(), os);
+         part_nurbs.PrintCoarsePatchData(os);
+      }
+      else
+      {
+         NURBSPartWriter<NURBSExtension> part_nurbs(*mesh.NURBSext);
+         part_nurbs.SelectPart(owned_global_elem_ids, owned_global_bdr_ids);
+         part_nurbs.Print(os);
+         os << '\n';
+         part_nurbs.PrintNodes(*mesh.GetNodes(), os);
+      }
+
+      Mesh topology_only(mesh, false);
+      topology_only.Nodes = nullptr;
+      topology_only.own_nodes = 0;
+
+      MeshPartitioner topology_partitioner(topology_only, num_parts,
+                                           partitioning.GetData());
+      MeshPart mesh_part;
+      topology_partitioner.ExtractPart(part_id, mesh_part);
+
+      os << "\nmfem_serial_mesh_end\n";
+      PrintMeshPartConnectivity(mesh_part, os);
+      return;
+   }
 
    if (mesh.Nonconforming())
    {
