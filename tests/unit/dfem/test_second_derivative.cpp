@@ -224,7 +224,7 @@ public:
          functional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          MinimalSurfaceEnergyFunctional<real_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         auto second_derivatives = SecondDerivatives<DerivativePair<U, U>> {}; // Or equivalently: SecondDerivatives<Pairs::All> {}; 
+         auto second_derivatives = SecondDerivatives<DerivativePair<U, U>> {}; // Or equivalently: SecondDerivatives<Pairs::All> {};
          functional_dop->AddDomainIntegrator<LocalQFBackend>(
             energy,
             Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},

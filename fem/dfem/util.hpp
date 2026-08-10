@@ -1140,6 +1140,8 @@ void forall(func_t f,
    }
 }
 
+/// @cond Suppress_Doxygen_warnings
+
 #if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename data_t, typename body_t>
 __global__ void forall_data_kernel(MFEM_DFEM_GRID_CONSTANT const data_t data,
@@ -1163,6 +1165,8 @@ static void forall_data_kernel_launch_bounds(
 
 #undef MFEM_DFEM_GRID_CONSTANT
 #endif
+
+/// @endcond
 
 template <int MAX_THREADS_PER_BLOCK = 0, typename body_t, typename data_t>
 void forall_data(data_t data,

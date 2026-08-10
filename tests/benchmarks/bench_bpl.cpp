@@ -207,18 +207,18 @@ template<int DIM,
          bool COMPUTE_TIMESTEP>
 MFEM_HOST_DEVICE static inline
 void QUpdateBody2(
-                  const real_t h0,
-                  const real_t h1order,
-                  const real_t cfl,
-                  const real_t &weight,
-                  const tensor<real_t, DIM, DIM> &Jinv,
-                  const tensor<real_t, DIM, DIM> &grad_v,
-                  const real_t P,
-                  const real_t R,
-                  const real_t S,
-                  const real_t detJ,
-                  tensor<real_t, DIM, DIM> &stressJiT,
-                  real_t &dt_est)
+   const real_t h0,
+   const real_t h1order,
+   const real_t cfl,
+   const real_t &weight,
+   const tensor<real_t, DIM, DIM> &Jinv,
+   const tensor<real_t, DIM, DIM> &grad_v,
+   const real_t P,
+   const real_t R,
+   const real_t S,
+   const real_t detJ,
+   tensor<real_t, DIM, DIM> &stressJiT,
+   real_t &dt_est)
 {
    if constexpr (!COMPUTE_TIMESTEP)
    {
@@ -491,20 +491,20 @@ struct BPL
       global_qf(1.0 / std::max(1, n)),
       local_qf(1.0 / std::max(1, n)),
       global_dop({{Velocity, &H1},
-                  {Coordinates, &H1},
-                  {Energy, &L2},
-                  {Gamma, &L0},
-                  {Rho0DetJ0W, &scalar_qspace}},
-                 {{StressTensor, &dimsqr_qspace}},
-                 pmesh),
-      local_dop({{Velocity, &H1},
-                 {Coordinates, &H1},
-                 {Energy, &L2},
-                 {Gamma, &L0},
-                 {Rho0DetJ0W, &scalar_qspace}},
-                {{StressTensor, &dimsqr_qspace}},
-                pmesh),
-      qpts(qspace.GetSize())
+      {Coordinates, &H1},
+      {Energy, &L2},
+      {Gamma, &L0},
+      {Rho0DetJ0W, &scalar_qspace}},
+   { {StressTensor, &dimsqr_qspace}},
+   pmesh),
+   local_dop({{Velocity, &H1},
+      {Coordinates, &H1},
+      {Energy, &L2},
+      {Gamma, &L0},
+      {Rho0DetJ0W, &scalar_qspace}},
+   {{StressTensor, &dimsqr_qspace}},
+   pmesh),
+   qpts(qspace.GetSize())
    {
       smesh.Clear();
       SetDomainAttributes();
@@ -537,7 +537,7 @@ struct BPL
       stress.UseDevice(use_dev);
 
       VectorFunctionCoefficient x_coeff(DIM,
-         [] (const Vector &X, Vector &Y)
+                                        [] (const Vector &X, Vector &Y)
       {
          const real_t sx = std::sin(2.0 * M_PI * X(0));
          const real_t sy = std::sin(2.0 * M_PI * X(1));
@@ -550,7 +550,7 @@ struct BPL
       x.ProjectCoefficient(x_coeff);
 
       VectorFunctionCoefficient v_coeff(DIM,
-         [] (const Vector &X, Vector &Y)
+                                        [] (const Vector &X, Vector &Y)
       {
          Y.SetSize(DIM);
          Y(0) = std::sin(M_PI * X(0)) * std::cos(M_PI * X(1));
@@ -669,7 +669,7 @@ struct BPL
                Identity<Rho0DetJ0W>{},
                Weight{}},
          tuple{Identity<StressTensor>{}},
-         *ir, domain_attr, future::Derivatives<Energy>{});
+         *ir, domain_attr, future::Derivatives<Energy> {});
       const auto local_inputs = tuple{Gradient<Velocity>{},
                                       Gradient<Coordinates>{},
                                       Value<Energy>{},
@@ -689,14 +689,14 @@ struct BPL
       local_dop.SetQLayouts({}, {{Identity<StressTensor>{}, {2,1,0}}});
       local_dop.AddDomainIntegrator<LocalQFBackend>(
          local_qf, local_inputs, local_outputs, *ir, domain_attr,
-         future::Derivatives<Energy>{});
+         future::Derivatives<Energy> {});
    }
 
    template<int Q1D, typename IT, typename OT>
    void AddLaghosLocalSpecializations(const IT &, const OT &)
    {
       future::AddLocalSpecializations<DIM, Q1D, LocalQF, IT, OT,
-                                      future::Derivatives<Energy>>();
+             future::Derivatives<Energy>>();
    }
 
    void SetupDerivativeState()

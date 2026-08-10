@@ -179,7 +179,7 @@ template <
    typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
    std::size_t N, typename... Acc>
 struct build_action_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
-                                        outputs_t, MQ1, N, N, Acc...>
+          outputs_t, MQ1, N, N, Acc...>
 {
    using type = tuple<Acc...>;
 };
@@ -199,8 +199,8 @@ struct build_action_args_reg_tuple_impl
       is_output &&
       (is_identity_fop_v<output_fop_t> || is_functionalvalue_fop_v<output_fop_t>);
    using R = std::conditional_t<direct_output,
-                                UnusedQReg,
-                                typename backend_t::template QReg<qf_reg_param_t>>;
+         UnusedQReg,
+         typename backend_t::template QReg<qf_reg_param_t>>;
    using type = typename build_action_args_reg_tuple_impl<backend_t, qfunc_t,
          inputs_t, outputs_t, MQ1, K + 1, N, Acc..., R>::type;
 };

@@ -35,7 +35,7 @@ struct action_outputs_direct_impl<outputs_t, std::index_sequence<Is...>>
 
 template <typename outputs_t>
 constexpr bool action_outputs_direct_v = action_outputs_direct_impl<outputs_t,
-      std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
+               std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
 
 template <typename qfunc_t, typename inputs_t, typename outputs_t,
           typename index_seq>
@@ -44,21 +44,21 @@ struct action_outputs_direct_value_impl;
 template <typename qfunc_t, typename inputs_t, typename outputs_t,
           std::size_t... Is>
 struct action_outputs_direct_value_impl<qfunc_t, inputs_t, outputs_t,
-                                        std::index_sequence<Is...>>
+          std::index_sequence<Is...>>
 {
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr bool value =
       ((is_identity_fop_v<tuple_element_t<Is, outputs_t>> ||
         is_functionalvalue_fop_v<tuple_element_t<Is, outputs_t>>) && ...)
       && ((!qf_param_uses_dual_v<
-             typename qf_param_slot<qfunc_t, n_inputs + Is>::qf_decay_param_t>)
+           typename qf_param_slot<qfunc_t, n_inputs + Is>::qf_decay_param_t>)
           && ...);
 };
 
 template <typename qfunc_t, typename inputs_t, typename outputs_t>
 constexpr bool action_outputs_direct_value_v =
    action_outputs_direct_value_impl<qfunc_t, inputs_t, outputs_t,
-      std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
+   std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
 
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
 class Action
@@ -96,7 +96,7 @@ class Action
          if constexpr (qf_param_uses_dual_v<DT>)
          {
             return backend_t::template identity_qp_pull_dual<DT>(
-                      false, XE, XE, qx, qy, qz, e);
+               false, XE, XE, qx, qy, qz, e);
          }
          else
          {
@@ -426,7 +426,7 @@ public:
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
                   if constexpr (action_outputs_direct_value_v<qfunc_t, inputs_t,
-                                                               outputs_t>)
+                                outputs_t>)
                   {
                      call_qfunc_direct<backend_t>(
                         qfunc, rargs, in_XE, out_YE, qx, qy, qz, e,

@@ -1517,9 +1517,9 @@ void DifferentiableOperator::AddIntegrator(
             // Assemble the derivative into a HypreParMatrix
             assemble_hypreparmatrix_callbacks[callback_key].push_back(
                MakeDerivativeHypreParMatrixAssemble(
-               derivative_idx,
-               assemble_sparsematrix_callbacks[callback_key],
-               callback_ctx));
+                  derivative_idx,
+                  assemble_sparsematrix_callbacks[callback_key],
+                  callback_ctx));
 
             // Assemble the diagonal of the derivative into an L-vector
             assemble_diagonal_cbs[callback_key].push_back(
@@ -1608,13 +1608,14 @@ void DifferentiableOperator::AddIntegrator(
          else if constexpr (!no_second_derivatives)
          {
             for_constexpr_with_arg([&](auto, auto pair)
-                                   {
+            {
                using pair_t = decltype(pair);
                if constexpr (pair_t::gradient_id == idx)
                {
                   create_second_derivative_callbacks(
                      std::integral_constant<size_t, pair_t::direction_id> {});
-               } }, second_derivative_ids);
+               }
+            }, second_derivative_ids);
          }
 
          // The first derivative (gradient) of the functional is the plain
