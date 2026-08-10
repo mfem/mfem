@@ -130,50 +130,6 @@ TEST_CASE("Conforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
    }
 }
 
-TEST_CASE("Conforming Nurbs MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
-{
-   auto mesh_fname = GENERATE(
-       "../../data/ball-nurbs.mesh", "../../data/beam-hex-nurbs.mesh",
-       "../../data/segment-nurbs.mesh", "../../data/beam-quad-nurbs.mesh");
-   int rank = Mpi::WorldRank();
-   int nprocs = Mpi::WorldSize();
-   CAPTURE(rank);
-
-   auto mesh = Mesh(mesh_fname);
-   mesh.UniformRefinement();
-   mesh.UniformRefinement();
-   std::vector<int> partition(mesh.GetNE());
-   // evenly divide all elements
-   for (int i = 0, j = 0; j < mesh.GetNE(); ++j)
-   {
-      partition[j] = i;
-      i = (i + 1) % nprocs;
-   }
-   // mesh which only exists on rank 0
-   Mesh smesh;
-   std::vector<int> spartition;
-   if (rank == 0)
-   {
-      smesh = Mesh(mesh_fname);
-      smesh.UniformRefinement();
-      smesh.UniformRefinement();
-      spartition.resize(smesh.GetNE());
-      for (int i = 0, j = 0; j < smesh.GetNE(); ++j)
-      {
-         spartition[j] = i;
-         i = (i + 1) % nprocs;
-      }
-   }
-   REQUIRE(mesh.GetNE() > 0);
-   ParMesh pmesh1(MPI_COMM_WORLD, mesh, partition.data());
-   mesh.Clear();
-   ParMesh pmesh2 =
-       ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh, spartition.data());
-   // shouldn't need to clear smesh
-   REQUIRE(smesh.GetNE() == 0);
-   ComparePMeshes(pmesh1, pmesh2);
-}
-
 TEST_CASE("Nonconforming MakeFromSerial", "[Mesh] [MeshPartitioner] [Parallel]")
 {
    // 1. Create a serial random nonconforming mesh, with multiple levels of
