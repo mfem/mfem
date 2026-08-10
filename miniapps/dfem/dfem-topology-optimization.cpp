@@ -807,43 +807,64 @@ public:
    // approximate -w^T dR/drho with a centered finite-difference residual
    // contraction. This is only a stopgap until a mixed dFEM derivative
    // is implemented directly.
+   //
+   // Debug-only and deliberately serial-order: the perturbed dof is swept in
+   // global order, one dof at a time, so every rank makes the same number of
+   // (collective) residual evaluations and the w^T dR contraction is reduced
+   // across ranks. Cost is 2 * (global rho t-dofs) residual evaluations, so
+   // this is only usable on small meshes.
    void MixedDensitySensitivityFD(const Vector &u, const Vector &w,
                                   const Vector &rho_phys_tdofs, Vector &s)
    {
       const real_t h_base = 1e-6;
+      const MPI_Comm comm = fes.GetComm();
+      const int nranks = Mpi::WorldSize();
+      const int myrank = Mpi::WorldRank();
+
       Vector rho_saved = rho_tdofs;
       Vector rho_pert = rho_phys_tdofs;
-      Vector R_base;
       Vector R_plus;
       Vector R_minus;
-
-      rho_tdofs = rho_phys_tdofs;
-      UnconstrainedResidual(u, R_base);
 
       s.SetSize(rho_phys_tdofs.Size());
       s = 0.0;
 
-      for (int j = 0; j < rho_pert.Size(); j++)
+      // Local t-dof counts of every rank, so the sweep is identical everywhere.
+      Array<int> local_sizes(nranks);
+      const int my_size = rho_pert.Size();
+      MPI_Allgather(&my_size, 1, MPI_INT, local_sizes.GetData(), 1, MPI_INT, comm);
+
+      for (int r = 0; r < nranks; r++)
       {
-         const real_t rho_j = rho_pert(j);
-         const real_t h = h_base * std::max(real_t(1.0), std::abs(rho_j));
-
-         rho_pert(j) = rho_j + h;
-         SetDensity(rho_pert);
-         UnconstrainedResidual(u, R_plus);
-
-         rho_pert(j) = rho_j - h;
-         SetDensity(rho_pert);
-         UnconstrainedResidual(u, R_minus);
-
-         real_t contraction = 0.0;
-         for (int i = 0; i < w.Size(); i++)
+         for (int j = 0; j < local_sizes[r]; j++)
          {
-            contraction += w(i) * (R_plus(i) - R_minus(i));
-         }
-         s(j) = -0.5 * contraction / h;
+            const bool mine = (r == myrank);
+            const real_t rho_j = mine ? rho_pert(j) : 0.0;
+            const real_t h = h_base * std::max(real_t(1.0), std::abs(rho_j));
 
-         rho_pert(j) = rho_j;
+            if (mine) { rho_pert(j) = rho_j + h; }
+            SetDensity(rho_pert);
+            UnconstrainedResidual(u, R_plus);
+
+            if (mine) { rho_pert(j) = rho_j - h; }
+            SetDensity(rho_pert);
+            UnconstrainedResidual(u, R_minus);
+
+            real_t contraction = 0.0;
+            for (int i = 0; i < w.Size(); i++)
+            {
+               contraction += w(i) * (R_plus(i) - R_minus(i));
+            }
+            real_t global_contraction = 0.0;
+            MPI_Allreduce(&contraction, &global_contraction, 1, MPITypeMap<real_t>::mpi_type,
+                          MPI_SUM, comm);
+
+            if (mine)
+            {
+               s(j) = -0.5 * global_contraction / h;
+               rho_pert(j) = rho_j;
+            }
+         }
       }
 
       rho_tdofs = rho_saved;
@@ -852,6 +873,12 @@ public:
    // Compute the c2 sensitivity
    //   1. solve J^T w = 1/2[F; -delta],
    //   2. s = -(dR/d rho_tilde)^T w,  with R = grad_u V.
+   //
+   // s is the entire gradient, not one term of it. The chain rule gives
+   //   dc2/d rho_tilde = (partial c2/partial rho_tilde) - w^T dR/d rho_tilde,
+   // and the explicit partial vanishes here: c2 = 1/2 F^T u, with F a fixed
+   // volume force independent of rho_tilde. A rho-dependent load (self-weight)
+   // would revive that term -- see (2) below.
    //
    // Rather than transpose-applying GetSecondDerivative(Displacement, Density),
    // use the opposite block GetSecondDerivative(Density, Displacement): it maps
@@ -863,7 +890,7 @@ public:
    //
    // Breaks if: (1) R is not grad_u V of a potential (hand-written stress
    // qfunction, plasticity, follower loads); (2) a rho-dependent load lives
-   // outside V (self-weight -> silently wrong, not merely asymmetric);
+   // outside V;
    // (3) w is nonzero on essential t-dofs (no BC elimination in the mixed
    // block -> spurious sensitivity along the Dirichlet boundary);
    // (4) the rho -> material chain is not C^2 (keep rho_min > 0; hard clipping
@@ -926,6 +953,27 @@ private:
    HypreParMatrix *A = nullptr;
    HypreBoomerAMG amg;
 };
+
+// Build the preconditioner selected by -pc. The state solve and the c2 adjoint
+// solve both use it, on the same operator (the converged Newton tangent), but
+// each needs its OWN instance: IterativeSolver::SetOperator forwards to the
+// preconditioner, so a shared instance would be torn down and re-setup by
+// whichever of the two solves ran last.
+std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type)
+{
+   switch (type)
+   {
+      case PreconditionerType::None:
+         return nullptr;
+      case PreconditionerType::Diagonal:
+         return std::make_unique<OperatorJacobiSmoother>();
+      case PreconditionerType::AMG:
+         return std::make_unique<HessianAMG>();
+      default:
+         MFEM_ABORT("Unknown preconditioner type: " << static_cast<int>(type));
+   }
+   return nullptr;
+}
 
 class HelmholtzFilter
 {
@@ -1043,6 +1091,7 @@ int main(int argc, char *argv[])
    int prec_type = static_cast<int>(PreconditionerType::Diagonal);
    bool paraview_output = false;
    bool trace_qf_params = false;
+   bool fd_sensitivity_check = false;
    const char *outfolder = "output";
 
    OptionsParser args(argc, argv);
@@ -1084,6 +1133,11 @@ int main(int argc, char *argv[])
    args.AddOption(&trace_qf_params, "-trace-qf-params", "--trace-qf-params",
                   "-no-trace-qf-params", "--no-trace-qf-params",
                   "Print Neo-Hookean q-function parameters from Func calls.");
+   args.AddOption(&fd_sensitivity_check, "-fdcheck", "--fd-sensitivity-check",
+                  "-no-fdcheck", "--no-fd-sensitivity-check",
+                  "Finite-difference check of the c2 mixed density sensitivity. "
+                  "Very expensive: 2 residual evaluations per density t-dof per "
+                  "design step. Small meshes only.");
    args.AddOption(&outfolder, "-of", "--output-folder",
                   "Output folder for ParaView files.");
 
@@ -1185,22 +1239,9 @@ int main(int argc, char *argv[])
    cg.SetMaxIter(10000);
    cg.SetPrintLevel(2);
 
-   std::unique_ptr<Solver> pc;
-   switch (static_cast<PreconditionerType>(prec_type))
-   {
-      case PreconditionerType::None:
-         break;
-      case PreconditionerType::Diagonal:
-         pc = std::make_unique<OperatorJacobiSmoother>();
-         cg.SetPreconditioner(*pc);
-         break;
-      case PreconditionerType::AMG:
-         pc = std::make_unique<HessianAMG>();
-         cg.SetPreconditioner(*pc);
-         break;
-      default:
-         MFEM_ABORT("Unknown preconditioner type: " << prec_type);
-   }
+   std::unique_ptr<Solver> pc =
+      MakePreconditioner(static_cast<PreconditionerType>(prec_type));
+   if (pc) { cg.SetPreconditioner(*pc); }
 
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
@@ -1285,12 +1326,19 @@ int main(int argc, char *argv[])
 
    // Solver for the adjoint objective (c2) sensitivity, K&S eq. (33)-(35).
    std::unique_ptr<CGSolver> cg_obj;
+   std::unique_ptr<Solver> pc_obj;
    if (objective == ObjectiveType::Compliance)
    {
       cg_obj = std::make_unique<CGSolver>(MPI_COMM_WORLD);
       cg_obj->SetRelTol(1e-8);
       cg_obj->SetMaxIter(10000);
-      cg_obj->SetPrintLevel(0);
+      cg_obj->SetPrintLevel(2);
+      // Same -pc choice as the state solve, but a separate instance: both are
+      // applied to the Newton tangent, and SetOperator forwards to whichever
+      // preconditioner is attached, so sharing one would make each solve
+      // invalidate the other's setup.
+      pc_obj = MakePreconditioner(static_cast<PreconditionerType>(prec_type));
+      if (pc_obj) { cg_obj->SetPreconditioner(*pc_obj); }
    }
 
    //======================================================================
@@ -1357,7 +1405,7 @@ int main(int argc, char *argv[])
          // c2 = 1/2 F^T u - 1/2 lambda delta, K&S eq. (30)
 
          // Solve the adjoint problem: (dR/du)^T w = dc2/du
-         // dc2/du = 1/2 F - 1/2 lambda delta
+         // dc2/du = 1/2 F - 1/2 lambda delta     
          Operator &Jt = elasticity_op.GetGradient(U);
          Vector rhs(U.Size()), w_adj(U.Size());
          rhs = 0.5;
@@ -1365,20 +1413,49 @@ int main(int argc, char *argv[])
          rhs.SetSubVector(elasticity_op.GetEssentialTDofs(), 0.0);
          w_adj = 0.0;
          cg_obj->SetOperator(Jt);
+         if (Mpi::Root()) { mfem::out << "adjoint solve (c2):\n"; }
          cg_obj->Mult(rhs, w_adj);
 
          elasticity_op.MixedDensitySensitivity(U, w_adj, s_phys);
 
-         // Temporary test: finite-difference check of the mixed density sensitivity.
-         Vector s_phys_fd(filter_fes.GetTrueVSize());
-         elasticity_op.MixedDensitySensitivityFD(U, w_adj, rho_filter_tdofs, s_phys_fd);
-         Vector s_phys_diff(s_phys);
-         s_phys_diff -= s_phys_fd;
-         if (Mpi::Root())
+         // Optional debug check, linear elasticity only: compliance is
+         // self-adjoint there, so R = K u - F gives K w = 1/2 F and hence
+         // w = 1/2 u exactly. This pins down the adjoint right-hand side and
+         // the adjoint solve -- the two links the finite-difference check
+         // below cannot see, since it holds w fixed on both sides. It does
+         // not hold for the hyperelastic materials: losing self-adjointness
+         // is precisely why c2 needs an adjoint solve at all.
+         if (fd_sensitivity_check && material == MaterialType::LinearElastic)
          {
-            mfem::out << "mixed density sensitivity check: ||mixed - fd||_2 = "
-                      << s_phys_diff.Norml2()
-                      << ", ||fd||_2 = " << s_phys_fd.Norml2() << "\n";
+            Vector w_exact(U);
+            w_exact *= 0.5;
+            w_exact.SetSubVector(elasticity_op.GetEssentialTDofs(), 0.0);
+            const real_t w_ref = GlobalLpNorm(2.0, w_exact.Norml2(), MPI_COMM_WORLD);
+            w_exact -= w_adj;
+            const real_t w_err = GlobalLpNorm(2.0, w_exact.Norml2(), MPI_COMM_WORLD);
+            if (Mpi::Root())
+            {
+               mfem::out << "self-adjointness check: ||w - u/2||_2 / ||u/2||_2 = "
+                         << (w_ref > 0.0 ? w_err / w_ref : w_err) << "\n";
+            }
+         }
+
+         // Optional debug check: finite-difference the mixed density
+         // sensitivity. Costs 2 * (global rho t-dofs) residual evaluations per
+         // design step, so it is off by default.
+         if (fd_sensitivity_check)
+         {
+            Vector s_phys_fd(filter_fes.GetTrueVSize());
+            elasticity_op.MixedDensitySensitivityFD(U, w_adj, rho_filter_tdofs, s_phys_fd);
+            Vector s_phys_diff(s_phys);
+            s_phys_diff -= s_phys_fd;
+            const real_t diff_norm = GlobalLpNorm(2.0, s_phys_diff.Norml2(), MPI_COMM_WORLD);
+            const real_t fd_norm = GlobalLpNorm(2.0, s_phys_fd.Norml2(), MPI_COMM_WORLD);
+            if (Mpi::Root())
+            {
+               mfem::out << "mixed density sensitivity check: ||mixed - fd||_2 = "
+                         << diff_norm << ", ||fd||_2 = " << fd_norm << "\n";
+            }
          }
       }
 
