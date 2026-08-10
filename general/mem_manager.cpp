@@ -1824,20 +1824,19 @@ const char * MemoryManager::d_umpire_2_name = "MFEM_DEVICE_2";
 const char *MemoryTypeName[MemoryTypeSize] =
 {
 #ifdef MFEM_USE_NEW_MEM_MANAGER
-   "host-std",     "temp-host-std",     "host-32",       "temp-host-32",
-   "host-64",      "temp-host-64",      "host-debug",    "temp-host-debug",
-   "host-umpire",  "temp-host-umpire",  "host-pinned",   "temp-host-pinned",
+   "host-std",     "temp-host-std",     "host-32",        "temp-host-32",
+   "host-64",      "temp-host-64",      "host-debug",     "temp-host-debug",
+   "host-umpire",  "temp-host-umpire",  "host-pinned",    "temp-host-pinned",
 #if defined(MFEM_USE_CUDA)
-   "cuda-uvm",     "temp-cuda-uvm",     "cuda",          "temp-cuda",
+   "cuda-uvm",     "temp-cuda-uvm",     "cuda-uvm-umpire", "temp-cuda-uvm-umpire",
+   "cuda",         "temp-cuda",
 #elif defined(MFEM_USE_HIP)
-   "hip-uvm",      "temp-hip-uvm",      "hip",          "temp-hip",
+   "hip-uvm",      "temp-hip-uvm",      "hip-uvm-umpire", "temp-hip-uvm-umpire",
+   "hip",          "temp-hip",
 #else
-   "managed",
-   "temp-managed",
-   "managed-umpire",
-   "temp-managed-umpire",
-   "device",
-   "temp-device",
+   "managed",        "temp-managed",
+   "managed-umpire", "temp-managed-umpire",
+   "device",         "temp-device",
 #endif
    "device-debug", "temp-device-debug",
 #if defined(MFEM_USE_CUDA)
@@ -1845,8 +1844,7 @@ const char *MemoryTypeName[MemoryTypeSize] =
 #elif defined(MFEM_USE_HIP)
    "hip-umpire",   "temp-hip-umpire"
 #else
-   "device-umpire",
-   "temp-device-umpire",
+   "device-umpire",  "temp-device-umpire",
 #endif
 #else
    "host-std",     "host-32",       "host-64",
