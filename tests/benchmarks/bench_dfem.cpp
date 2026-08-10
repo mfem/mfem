@@ -95,7 +95,7 @@ constexpr int version_int(Version v) noexcept
 }
 
 // Custom benchmark arguments generator ///////////////////////////////////////
-static void CustomArguments(bm::Benchmark *b) noexcept
+static void CustomArguments(bmi::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 

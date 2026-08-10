@@ -19,51 +19,68 @@
 // and its directional derivative, but they differ in where the intermediate
 // value s = u^2 lives and in who owns its tangent (shadow) memory:
 //
-//   local          : LocalQFBackend, per-quadrature-point q-function.  The
-//                    temporary is a register, there is no scratch at all.
-//                    Reference point for "no scratch machinery".
-//   global         : GlobalQFBackend, single fused kernel, temporary is a
+//   Local            LocalQFBackend, per-quadrature-point q-function.  The
+//                    temporary is a register, there is no scratch at all, and
+//                    no Q-vector is ever materialized.  Baseline.
+//   Global           GlobalQFBackend, single fused kernel, temporary is a
 //                    register inside the forall body.  Reference point for
 //                    "global backend, no scratch".
-//   global+local   : GlobalQFBackend, split into two kernels, the temporary is
+//   GlobalLocalAlloc GlobalQFBackend, split into two kernels, the temporary is
 //                    a Vector allocated inside the q-function.  Enzyme
 //                    allocates and propagates the shadow buffer itself, so this
-//                    is the "let Enzyme own the memory" variant, and the one to
-//                    compare global+bank against.
-//
-//                    A scratch buffer handed to the q-function through the
-//                    signature as a dFEM *field* is deliberately not benchmarked
-//                    here, because neither form works today:
-//                      - as an output field, outputs reach Enzyme as
-//                        enzyme_dupnoneed, so the primal store of the scratch is
-//                        eliminated and the tangent loses its s*du term, coming
-//                        out at exactly 2/3 of the true value;
-//                      - as an input field it would be enzyme_dup, which is the
-//                        right shape, but inputs are materialized through
-//                        Vector::Read() and the q-function parameter has to be
-//                        const, so the scratch cannot be written.
-//                    Both need a library change to become expressible.
-//
-//   global+bank    : GlobalQFBackend, split into two kernels, the temporary
+//                    is the "let Enzyme own the memory" variant.  Note that the
+//                    allocation is Q-sized and happens on every apply, which
+//                    dominates its cost on the device.
+//   GlobalBank       GlobalQFBackend, split into two kernels, the temporary
 //                    lives in a ScratchBank owned by the q-function.  Enzyme
 //                    differentiates with respect to the q-function object
 //                    itself (enzyme_dup on &qfunc / &qfunc_shadow), so the
 //                    tangent is reached through the bank's indirections.
-//   global+bank+gs : same as global+bank plus a global scratch tuple
-//                    (bool, real_t, Vector), to isolate the extra cost of the
+//   GlobalBankGS     GlobalBank plus a global scratch tuple (bool, real_t,
+//                    Vector), to isolate the extra cost of the
 //                    non-quadrature-point scratch members.
 //
-// Only the derivative timings are expected to differ significantly: the
-// forward action does not touch any shadow memory.  Every variant reports its
-// max-norm error relative to the analytic result, so a timing win that comes
-// from a dropped derivative term is visible.
+// GlobalBank vs GlobalLocalAlloc is the comparison of interest: bank-owned
+// versus Enzyme-owned scratch memory.
 //
-// Usage (CPU):   ./bench_dfem_scratch -o 3 -nh 8
-//        (GPU):  ./bench_dfem_scratch -o 3 -nh 16 -d cuda
+// A scratch buffer handed to the q-function through the signature as a dFEM
+// *field* is deliberately not benchmarked, because neither form works today:
+//   - as an output field, outputs reach Enzyme as enzyme_dupnoneed, so the
+//     primal store of the scratch is eliminated and the tangent loses its
+//     s*du term, coming out at exactly 2/3 of the true value;
+//   - as an input field it would be enzyme_dup, which is the right shape, but
+//     inputs are materialized through Vector::Read() and the q-function
+//     parameter has to be const, so the scratch cannot be written.
+// Both need a library change to become expressible.
+//
+// Only the Derivative rows touch shadow memory; the Forward rows are there to
+// separate scratch cost from allocation cost.  Every row reports rel_err
+// against the analytic result, so a timing win that comes from a dropped
+// derivative term is visible rather than silent.
+//
+// Usage:
+//   ./bench_dfem_scratch --benchmark_context=device=cuda
+//   ./bench_dfem_scratch --benchmark_context=device=cuda --benchmark_context=q=15
+//   ./bench_dfem_scratch --benchmark_context=cached=1
+//   ./bench_dfem_scratch --benchmark_context=lvector=1
+//   ./bench_dfem_scratch --benchmark_filter='Derivative/4/32'
+//
+// Run on a single rank unless you pass a fixed iteration count.  Google
+// Benchmark picks the iteration count per process from its own timings, the
+// applies below are MPI-collective, and mismatched counts across ranks will
+// hang.  For a multi-rank run force the count to agree:
+//   mpirun -np 4 ./bench_dfem_scratch --benchmark_min_time=30x
 
-#include "mfem.hpp"
+#include "bench.hpp" // IWYU pragma: keep
 
-#if defined(MFEM_USE_MPI) && defined(MFEM_USE_ENZYME)
+#if defined(MFEM_USE_BENCHMARK) && defined(MFEM_USE_MPI) && \
+    defined(MFEM_USE_ENZYME)
+
+#include "fem/qinterp/det.hpp" // IWYU pragma: keep
+#include "fem/qinterp/grad.hpp" // IWYU pragma: keep
+#include "fem/qinterp/grad_transpose.hpp" // IWYU pragma: keep
+#include "fem/quadinterpolator.hpp" // IWYU pragma: keep
+#include "fem/integ/lininteg_domain_kernels.hpp" // IWYU pragma: keep
 
 #include "fem/dfem/doperator.hpp"
 #include "fem/dfem/backends/global_qf/prelude.hpp"
@@ -71,12 +88,11 @@
 #include "fem/dfem/backends/scratch_bank.hpp"
 #include "linalg/tensor_arrays.hpp"
 
+#include <algorithm>
 #include <cmath>
-#include <iomanip>
-#include <sstream>
+#include <memory>
 #include <string>
-#include <iostream>
-#include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace mfem;
@@ -87,6 +103,154 @@ using namespace mfem::future;
 using dscalar_t = real_t;
 
 static constexpr int U = 0, COEF = 1, COORDS = 2;
+
+// Above this relative error a variant is not computing the true tangent, and
+// its timing is not comparable with the others.
+constexpr real_t wrong_tangent_tol = 1e-10;
+
+/// Versions //////////////////////////////////////////////////////////////////
+
+void info()
+{
+   mfem::out << "\x1b[33m";
+   mfem::out << "version  0: Local            no scratch, no Q-vector"
+             << std::endl;
+   mfem::out << "version  1: Global           no scratch" << std::endl;
+   mfem::out << "version  2: GlobalLocalAlloc Enzyme-owned scratch, per-apply "
+             << "allocation" << std::endl;
+   mfem::out << "version  3: GlobalBank       ScratchBank-owned scratch"
+             << std::endl;
+   mfem::out << "version  4: GlobalBankGS     ScratchBank + global scratch tuple"
+             << std::endl;
+   mfem::out << "\x1b[m" << std::endl;
+}
+
+enum class Variant
+{
+   Local,
+   Global,
+   GlobalLocalAlloc,
+   GlobalBank,
+   GlobalBankGS,
+};
+
+constexpr int version_int(Variant v) noexcept
+{
+   return static_cast<int>(static_cast<std::underlying_type_t<Variant>>(v));
+}
+
+/// Which action is timed.  Forward does not touch shadow memory, so the
+/// difference between the two isolates the cost of the tangent.
+enum class Phase { Forward, Derivative };
+
+// Custom benchmark arguments generator ///////////////////////////////////////
+// Same (p, side) convention as bench_dfem: the second argument is the target
+// number of dofs per direction, not the number of elements, so a row named
+// /4/24 covers the same problem in both benchmarks.
+static void CustomArguments(bmi::Benchmark *b) noexcept
+{
+   // Smaller ceiling than bench_dfem: the Q-vector of the global variants is
+   // roughly 25 * #qp * 8 bytes on the derivative rows, so the sweep cannot
+   // run as far.
+   constexpr int MAX_NDOFS = 2 * 1024 * (mfem_use_gpu ? 1024 : 8);
+
+   constexpr auto ndofs = [](int n) constexpr noexcept -> int
+   {
+      return (n + 1) * (n + 1) * (n + 1);
+   };
+
+   constexpr auto inc = [](int n) constexpr noexcept -> int
+   {
+      return n < 80 ? 8 : n < 160 ? 16 : 32;
+   };
+
+   for (auto p : { 4, 3, 2 })
+   {
+      // BakeOff asserts side >= p.
+      for (int n = 8; ndofs(n) <= MAX_NDOFS; n += inc(n))
+      {
+         b->Args({ p, n });
+      }
+   }
+}
+
+// Register kernel specializations used in the benchmarks /////////////////////
+// Without these the shared E->Q stage falls back to generic kernels, which
+// penalizes both backends and makes the Local baseline unrepresentative.
+static void AddKernelSpecializations()
+{
+#ifndef MFEM_DEBUG
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 2>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 3>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 5>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 2, 6>::Add();
+   QuadratureInterpolator::DetKernels::Specialization<3, 3, 5, 5>::Add();
+   // Others use too much shared data
+
+   using GRAD = QuadratureInterpolator::GradKernels;
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 2>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 8>::Add();
+   GRAD::Specialization<3, QVectorLayout::byNODES, false, 3, 2, 9>::Add();
+
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 3>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 4>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 5>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 6>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 3, 2, 8>::Add();
+
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 2, 3>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 4, 5>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 5, 6>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 6, 7>::Add();
+   GRAD::Specialization<3, QVectorLayout::byVDIM, false, 1, 7, 8>::Add();
+
+   using GRAD_TRANSPOSE = QuadratureInterpolator::GradTransposeKernels;
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,2,3>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,4,5>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,5,6>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,6,7>::Add();
+   GRAD_TRANSPOSE::Specialization<3, QVectorLayout::byVDIM, false, 1,7,8>::Add();
+
+   using LIN = DomainLFIntegrator::AssembleKernels;
+   LIN::Specialization<3, 6, 6>::Add();
+   LIN::Specialization<3, 7, 7>::Add();
+   LIN::Specialization<3, 8, 8>::Add();
+#endif // MFEM_DEBUG
+}
+
+/// Globals ///////////////////////////////////////////////////////////////////
+
+// Integration rule order, overridden with --benchmark_context=q=<order>.  A
+// non-positive value selects the default 2*p rule.  Note this is the rule's
+// exactness order, not its point count: a 1D Gauss-Legendre rule of order q
+// has q/2+1 points, so q=11 gives 6 points per dimension and q=15 gives 8.
+int quadrature_order = 0;
+
+// Selects the cached DerivativeSetup/DerivativeApply path over the matrix-free
+// one, with --benchmark_context=cached=1.  This is the PA/MF distinction that
+// bench_dfem reports as separate versions, where PA is consistently the faster
+// route; it changes the Derivative rows only.
+bool cached_derivative = false;
+
+// Drops the T->L and L->T operators from the timed region, with
+// --benchmark_context=lvector=1, matching what bench_dfem does through
+// SetMultLevel(MultLevel::LVECTOR).
+//
+// Off by default, because it applies to the Forward rows only:
+// DerivativeOperator::Mult calls the three-argument prolongation(), whose
+// is_lvector parameter defaults to false, so the derivative always runs T->T
+// and cannot be changed without touching the library.  Leaving it off keeps
+// Forward and Derivative measured at the same level, so their ratio is the
+// cost of differentiating.  Turn it on to compare a Forward row directly
+// against bench_dfem, whose dFEM rows are all LVECTOR.
+//
+// Either way, comparing two variants within one phase is unaffected: the
+// prolongation is identical across variants and cancels in the difference.
+bool use_lvector = false;
+
+/// Q-functions ///////////////////////////////////////////////////////////////
 
 /// @brief Quadrature point loop used by every global q-function below.
 ///
@@ -106,8 +270,6 @@ inline void QForall(const int N, lambda &&body)
       for (int q = 0; q < N; ++q) { body(q); }
    }
 }
-
-/// Q-functions ///////////////////////////////////////////////////////////////
 
 // y = c * u^3 * det(J) * w, temporary in a register.
 template <int DIM>
@@ -231,56 +393,6 @@ struct CubicGlobalScratchBankGlobalQF : QFWithGlobalScratchType
    }
 };
 
-/// Which action is timed by one call to RunVariant().  The two phases are run
-/// as separate passes so that each row can be printed the moment it is
-/// measured, the way a Google Benchmark report streams: one row per finished
-/// benchmark.  The cost is that the (untimed) operator setup runs once per
-/// phase instead of once per variant.
-enum class Phase { Forward, Derivative };
-
-const char *PhaseName(Phase p)
-{
-   return (p == Phase::Forward) ? "Forward" : "Derivative";
-}
-
-/// Variants //////////////////////////////////////////////////////////////////
-
-enum class Variant
-{
-   Local,             // local backend, no scratch
-   Global,            // global backend, no scratch
-   GlobalScratchLocal,// global backend, scratch allocated inside the q-function
-   GlobalScratchBank, // global backend, ScratchBank
-   GlobalScratchBankGlobal // ScratchBank + global scratch tuple
-};
-
-const char *VariantName(Variant v)
-{
-   switch (v)
-   {
-      case Variant::Local: return "local";
-      case Variant::Global: return "global";
-      case Variant::GlobalScratchLocal: return "global+local";
-      case Variant::GlobalScratchBank: return "global+bank";
-      case Variant::GlobalScratchBankGlobal: return "global+bank+gs";
-   }
-   return "unknown";
-}
-
-// Benchmark-style tag used to build the row name, e.g. "Hex_GlobalBank".
-const char *VariantTag(Variant v)
-{
-   switch (v)
-   {
-      case Variant::Local: return "Local";
-      case Variant::Global: return "Global";
-      case Variant::GlobalScratchLocal: return "GlobalLocalAlloc";
-      case Variant::GlobalScratchBank: return "GlobalBank";
-      case Variant::GlobalScratchBankGlobal: return "GlobalBankGS";
-   }
-   return "Unknown";
-}
-
 template <int DIM, Variant V> struct VariantTraits;
 
 template <int DIM> struct VariantTraits<DIM, Variant::Local>
@@ -293,17 +405,17 @@ template <int DIM> struct VariantTraits<DIM, Variant::Global>
    using qfunc_t = CubicGlobalQF<DIM>;
    using backend_t = GlobalQFBackend;
 };
-template <int DIM> struct VariantTraits<DIM, Variant::GlobalScratchLocal>
+template <int DIM> struct VariantTraits<DIM, Variant::GlobalLocalAlloc>
 {
    using qfunc_t = CubicGlobalScratchLocalQF<DIM>;
    using backend_t = GlobalQFBackend;
 };
-template <int DIM> struct VariantTraits<DIM, Variant::GlobalScratchBank>
+template <int DIM> struct VariantTraits<DIM, Variant::GlobalBank>
 {
    using qfunc_t = CubicGlobalScratchBankQF<DIM>;
    using backend_t = GlobalQFBackend;
 };
-template <int DIM> struct VariantTraits<DIM, Variant::GlobalScratchBankGlobal>
+template <int DIM> struct VariantTraits<DIM, Variant::GlobalBankGS>
 {
    using qfunc_t = CubicGlobalScratchBankGlobalQF<DIM>;
    using backend_t = GlobalQFBackend;
@@ -311,54 +423,36 @@ template <int DIM> struct VariantTraits<DIM, Variant::GlobalScratchBankGlobal>
 
 /// Utilities /////////////////////////////////////////////////////////////////
 
-// Above this relative error a variant is not computing the true tangent.
-constexpr real_t wrong_tangent_tol = 1e-10;
-
-struct Timings
-{
-   double forward = 0.0;
-   double derivative = 0.0;
-   real_t err_forward = 0.0;     // relative to the analytic reference
-   real_t err_derivative = 0.0;  // relative to the analytic reference
-   real_t norm_derivative = 0.0; // |dy|_inf, diagnostic
-   real_t norm_ref = 0.0;        // |dy_ref|_inf, diagnostic
-   int dofs = 0;
-   long long nq = 0;
-   int order = 0;
-   int mesh_n = 0;
-   int iterations = 0;
-};
-
-template <typename F>
-double TimeIt(const int iterations, MPI_Comm comm, F &&f)
-{
-   MPI_Barrier(comm);
-   MFEM_DEVICE_SYNC;
-
-   StopWatch timer;
-   timer.Start();
-   for (int i = 0; i < iterations; i++) { f(); }
-   MFEM_DEVICE_SYNC;
-   timer.Stop();
-
-   const double local_time = timer.RealTime();
-   double global_time = 0.0;
-   MPI_Allreduce(&local_time, &global_time, 1, MPI_DOUBLE, MPI_MAX, comm);
-   return global_time / iterations;
-}
-
 template <int DIM>
-Mesh MakeTensorMesh(int n)
+Mesh MakeTensorMesh(int nx, int ny, int nz)
 {
    if constexpr (DIM == 2)
    {
-      return Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, true, 1.0, 1.0);
+      return Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, true,
+                                   1.0, 1.0);
    }
    else
    {
-      return Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+      return Mesh::MakeCartesian3D(nx, ny, nz, Element::HEXAHEDRON,
+                                   1.0, 1.0, 1.0);
    }
 }
+
+/// @brief Elements per direction that best approach @a side dofs per
+/// direction, copied from bench_dfem's BakeOff so that a /p/side row means
+/// the same problem in both benchmarks.  Note the result is not always cubic:
+/// nx and ny are bumped by one when that gets closer to side^3 total dofs.
+struct MeshDims
+{
+   int n, nx, ny, nz;
+   MeshDims(int p, int side):
+      // BakeOff asserts side >= p; clamp instead so a stray small side gives
+      // a one-element mesh rather than a zero-element one.
+      n(std::max(side / p, 1)),
+      nx(n + (p * (n + 1) * p * n * p * n < side * side * side ? 1 : 0)),
+      ny(n + (p * (n + 1) * p * (n + 1) * p * n < side * side * side ? 1 : 0)),
+      nz(n) {}
+};
 
 real_t GlobalNormlinf(const Vector &v, MPI_Comm comm)
 {
@@ -367,40 +461,6 @@ real_t GlobalNormlinf(const Vector &v, MPI_Comm comm)
    MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
                  comm);
    return global;
-}
-
-// State u and coefficient c used by every variant.
-inline real_t StateFunction(const Vector &x) { return 1.0 + x(0) + 0.25 * x(1); }
-inline real_t CoefFunction(const Vector &x) { return 0.5 + x(0) + 0.125 * x(1); }
-
-// Analytic references: int phi_i c u^3 dx and, for the direction du = 1,
-// int phi_i 3 c u^2 dx, both integrated with the same quadrature rule.
-void ComputeReference(ParFiniteElementSpace &pfes, const IntegrationRule &ir,
-                      Vector &y_ref, Vector &dy_ref)
-{
-   FunctionCoefficient forward_coeff([](const Vector &x)
-   {
-      const real_t u = StateFunction(x);
-      return CoefFunction(x) * u * u * u;
-   });
-   FunctionCoefficient derivative_coeff([](const Vector &x)
-   {
-      const real_t u = StateFunction(x);
-      return 3.0 * CoefFunction(x) * u * u;
-   });
-
-   ParLinearForm forward_lf(&pfes);
-   forward_lf.AddDomainIntegrator(new DomainLFIntegrator(forward_coeff, &ir));
-   forward_lf.Assemble();
-   y_ref.SetSize(pfes.GetTrueVSize());
-   pfes.GetProlongationMatrix()->MultTranspose(forward_lf, y_ref);
-
-   ParLinearForm derivative_lf(&pfes);
-   derivative_lf.AddDomainIntegrator(
-      new DomainLFIntegrator(derivative_coeff, &ir));
-   derivative_lf.Assemble();
-   dy_ref.SetSize(pfes.GetTrueVSize());
-   pfes.GetProlongationMatrix()->MultTranspose(derivative_lf, dy_ref);
 }
 
 // Relative max-norm error of @a v with respect to @a ref.
@@ -413,422 +473,340 @@ real_t RelativeError(const Vector &v, const Vector &ref, MPI_Comm comm)
    return GlobalNormlinf(diff, comm) / std::max(ref_norm, real_t(1e-300));
 }
 
+// State u and coefficient c used by every variant.
+inline real_t StateFunction(const Vector &x) { return 1.0 + x(0) + 0.25 * x(1); }
+inline real_t CoefFunction(const Vector &x) { return 0.5 + x(0) + 0.125 * x(1); }
+
+/// @brief Register the local backend's kernels for every q1d in @a Q1Ds.
+///
+/// q1d is a runtime value, so the set has to cover whatever the sweep can
+/// produce: the default 2*p+3 rule gives q1d = p+2, and an explicit q=11 or
+/// q=15 gives 6 or 8.  Derivatives<U> means the derivative kernels are needed
+/// too, hence the index_sequence naming field U as the differentiated input.
+template <int DIM, typename QT, typename IT, typename OT, int... Q1Ds>
+void AddLocalSpecializationSet(std::integer_sequence<int, Q1Ds...>)
+{
+   (AddLocalSpecializations<DIM, Q1Ds, QT, IT, OT,
+                            std::index_sequence<size_t(U)>>(), ...);
+}
+
 /// Benchmark case ////////////////////////////////////////////////////////////
 
-template <int DIM, Variant V>
-Timings RunVariant(const int order, const int mesh_n, const int warmup,
-                   const int iterations, const bool cached_derivative,
-                   const int quad_order, const Phase phase)
+template <int DIM, Variant V, Phase P>
+struct BKS
 {
+   static constexpr Variant version = V;
+
    using qfunc_t = typename VariantTraits<DIM, V>::qfunc_t;
    using backend_t = typename VariantTraits<DIM, V>::backend_t;
-   constexpr bool uses_bank = (V == Variant::GlobalScratchBank ||
-                               V == Variant::GlobalScratchBankGlobal);
+   static constexpr bool uses_bank = (V == Variant::GlobalBank ||
+                                      V == Variant::GlobalBankGS);
 
-   Mesh smesh = MakeTensorMesh<DIM>(mesh_n);
-   ParMesh pmesh(MPI_COMM_WORLD, smesh);
-   smesh.Clear();
+   // Only the forward action honors MultLevel; see use_lvector.
+   const bool lvec = use_lvector && (P == Phase::Forward);
 
-   pmesh.EnsureNodes();
-   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
-   ParFiniteElementSpace *mfes = nodes->ParFESpace();
-
-   const int p = std::max(order, pmesh.GetNodalFESpace()->GetMaxElementOrder());
-   H1_FECollection fec(p, DIM);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
-   // quad_order <= 0 selects the default 2*p rule.
-   const int q_order = (quad_order > 0) ? quad_order : 2 * p;
-   const IntegrationRule *ir =
-      &IntRules.Get(pmesh.GetTypicalElementGeometry(), q_order);
-   const int nq_total = pmesh.GetNE() * ir->GetNPoints();
-
-   // Coefficient c, stored as quadrature data.
-   QuadratureSpace qspace(pmesh, *ir);
-   VectorQuadratureSpace coef_qspace(qspace, 1);
-   QuadratureFunction coef(coef_qspace);
-   coef.UseDevice(true);
-   FunctionCoefficient coeff_fc(CoefFunction);
-   coeff_fc.Project(coef);
-
+   const int p, side;
+   MeshDims dims;
+   Mesh smesh;
+   ParMesh pmesh;
+   ParGridFunction *nodes;
+   H1_FECollection fec;
+   ParFiniteElementSpace pfes;
+   const IntegrationRule *ir;
+   int nqp_elem, q1d, nq_local;
+   QuadratureSpace qspace;
+   VectorQuadratureSpace coef_qspace;
+   QuadratureFunction coef;
    Array<int> all_domain_attr;
-   if (pmesh.attributes.Size() > 0)
-   {
-      all_domain_attr.SetSize(pmesh.attributes.Max());
-      all_domain_attr = 1;
-   }
-
-   const std::vector<FieldDescriptor> in_fds
-   {
-      { U, &pfes },
-      { COEF, &coef_qspace },
-      { COORDS, mfes }
-   };
-   const std::vector<FieldDescriptor> out_fds { FieldDescriptor{ U, &pfes } };
-
-   DifferentiableOperator dop(in_fds, out_fds, pmesh);
-
+   std::vector<FieldDescriptor> in_fds, out_fds;
+   DifferentiableOperator dop;
    qfunc_t qf;
-   if constexpr (uses_bank)
-   {
-      // One scalar scratch value per quadrature point of the whole domain.
-      qf.SetScratch(nq_total, {1});
-   }
    Vector global_scratch_vec;
-   if constexpr (V == Variant::GlobalScratchBankGlobal)
+   Vector xtvec, ytvec, dxtvec, dytvec, nodestv;
+   std::unique_ptr<MultiVector> X, Y, DY;
+   // Held as the concrete type, not Operator: the templated
+   // Mult(const Vector &, vector_t &) that takes a MultiVector is not virtual.
+   std::shared_ptr<DerivativeOperator> ddop;
+
+   long long dofs, qpts;
+   real_t rel_err;
+   double mdofs, mqpts;
+
+   BKS(int p, int side):
+      p(p), side(side),
+      dims(p, side),
+      smesh(MakeTensorMesh<DIM>(dims.nx, dims.ny, dims.nz)),
+      pmesh(MPI_COMM_WORLD, smesh),
+      nodes((pmesh.EnsureNodes(),
+             static_cast<ParGridFunction *>(pmesh.GetNodes()))),
+      fec(p, DIM),
+      pfes(&pmesh, &fec),
+      // Default rule order 2*p+3, the same Gauss-Legendre convention as
+      // bench_dfem's BakeOff, so q1d matches without passing q= explicitly.
+      ir(&IntRules.Get(pmesh.GetTypicalElementGeometry(),
+                       quadrature_order > 0 ? quadrature_order : 2 * p + 3)),
+      nqp_elem(ir->GetNPoints()),
+      q1d(IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints()),
+      nq_local(pmesh.GetNE() * nqp_elem),
+      qspace(pmesh, *ir),
+      coef_qspace(qspace, 1),
+      coef(coef_qspace),
+      in_fds({ { U, &pfes },
+               { COEF, &coef_qspace },
+               { COORDS, nodes->ParFESpace() } }),
+      out_fds({ FieldDescriptor{ U, &pfes } }),
+      dop(in_fds, out_fds, pmesh),
+      // LVECTOR mode hands the operator L-dof vectors directly.
+      xtvec(lvec ? pfes.GetVSize() : pfes.GetTrueVSize()),
+      ytvec(lvec ? pfes.GetVSize() : pfes.GetTrueVSize()),
+      dxtvec(pfes.GetTrueVSize()), dytvec(pfes.GetTrueVSize()),
+      mdofs(0.0), mqpts(0.0)
    {
-      global_scratch_vec.SetSize(1);
-      global_scratch_vec.UseDevice(true);
-      global_scratch_vec = 1.0;
-      const bool global_flag = true;
-      const real_t global_scalar = 1.0;
-      qf.SetGlobalScratch(
-         make_tuple(global_flag, global_scalar, global_scratch_vec));
-   }
+      smesh.Clear();
 
-   dop.AddDomainIntegrator<backend_t>(
-      qf,
-      Inputs<Value<U>, Identity<COEF>, Gradient<COORDS>, Weight> {},
-      Outputs<Value<U>> {},
-      *ir, all_domain_attr, Derivatives<U> {});
+      if (lvec) { dop.SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR); }
 
-   // State, direction and outputs.
-   Vector xtvec(pfes.GetTrueVSize()), ytvec(pfes.GetTrueVSize());
-   Vector dxtvec(pfes.GetTrueVSize()), dytvec(pfes.GetTrueVSize());
-   xtvec.UseDevice(true);
-   ytvec.UseDevice(true);
-   dxtvec.UseDevice(true);
-   dytvec.UseDevice(true);
+      coef.UseDevice(true);
+      FunctionCoefficient coeff_fc(CoefFunction);
+      coeff_fc.Project(coef);
 
-   ParGridFunction x_gf(&pfes);
-   FunctionCoefficient input_coeff(StateFunction);
-   x_gf.ProjectCoefficient(input_coeff);
-   x_gf.GetTrueDofs(xtvec);
-   dxtvec = 1.0;
-   ytvec = 0.0;
-   dytvec = 0.0;
-
-   Vector nodestv;
-   nodes->GetTrueDofs(nodestv);
-
-   // Move the fixed inputs to the device before warmup/timing so that repeated
-   // applies do not pay host-to-device copies.
-   xtvec.Read();
-   dxtvec.Read();
-   nodestv.Read();
-   coef.Read();
-
-   MultiVector X{xtvec, coef, nodestv};
-   MultiVector Y{ytvec};
-   MultiVector DY{dytvec};
-
-   auto ddop = dop.GetDerivative(U, X, cached_derivative);
-
-   for (int i = 0; i < warmup; i++)
-   {
-      if (phase == Phase::Forward) { dop.Mult(X, Y); }
-      else                         { ddop->Mult(dxtvec, DY); }
-   }
-   MFEM_DEVICE_SYNC;
-
-   Timings timings;
-   timings.dofs = pfes.GlobalTrueVSize();
-   // Sum over ranks: Dofs is global, so #qp must be too.
-   {
-      long long nq_local = nq_total, nq_global = 0;
-      MPI_Allreduce(&nq_local, &nq_global, 1, MPI_LONG_LONG, MPI_SUM,
-                    pmesh.GetComm());
-      timings.nq = static_cast<long long>(nq_global);
-   }
-   timings.order = order;
-   timings.mesh_n = mesh_n;
-   timings.iterations = iterations;
-
-   Vector y_ref, dy_ref;
-   ComputeReference(pfes, *ir, y_ref, dy_ref);
-
-   if (phase == Phase::Forward)
-   {
-      timings.forward = TimeIt(iterations, pmesh.GetComm(), [&]()
+      if (pmesh.attributes.Size() > 0)
       {
-         dop.Mult(X, Y);
-      });
-      timings.err_forward = RelativeError(ytvec, y_ref, pmesh.GetComm());
-   }
-   else
-   {
-      timings.derivative = TimeIt(iterations, pmesh.GetComm(), [&]()
+         all_domain_attr.SetSize(pmesh.attributes.Max());
+         all_domain_attr = 1;
+      }
+
+      if constexpr (uses_bank)
       {
-         ddop->Mult(dxtvec, DY);
+         // One scalar scratch value per quadrature point of the whole domain.
+         qf.SetScratch(nq_local, {1});
+      }
+      if constexpr (V == Variant::GlobalBankGS)
+      {
+         global_scratch_vec.SetSize(1);
+         global_scratch_vec.UseDevice(true);
+         global_scratch_vec = 1.0;
+         qf.SetGlobalScratch(make_tuple(true, real_t(1.0), global_scratch_vec));
+      }
+
+      using inputs_t =
+         Inputs<Value<U>, Identity<COEF>, Gradient<COORDS>, Weight>;
+      using outputs_t = Outputs<Value<U>>;
+
+      if constexpr (V == Variant::Local)
+      {
+         // The local backend dispatches its action, derivative action, setup
+         // and apply kernels on (DIM, q1d), falling back to a generic
+         // runtime-sized kernel when the pair is unregistered.  Without this
+         // the Local rows run unspecialized while the global variants do not,
+         // which biases the whole vs-Local comparison.  bench_dfem does the
+         // same through AddLocalQFActionSpecializations.
+         AddLocalSpecializationSet<DIM, qfunc_t, inputs_t, outputs_t>(
+            std::integer_sequence<int, 3, 4, 5, 6, 7, 8> {});
+      }
+
+      dop.AddDomainIntegrator<backend_t>(
+         qf, inputs_t {}, outputs_t {},
+         *ir, all_domain_attr, Derivatives<U> {});
+
+      xtvec.UseDevice(true);
+      ytvec.UseDevice(true);
+      dxtvec.UseDevice(true);
+      dytvec.UseDevice(true);
+
+      ParGridFunction x_gf(&pfes);
+      FunctionCoefficient input_coeff(StateFunction);
+      x_gf.ProjectCoefficient(input_coeff);
+      // A ParGridFunction is already an L-vector; GetTrueDofs restricts it.
+      if (lvec) { xtvec = x_gf; }
+      else      { x_gf.GetTrueDofs(xtvec); }
+      dxtvec = 1.0;
+      ytvec = 0.0;
+      dytvec = 0.0;
+
+      if (lvec) { nodestv = *nodes; }
+      else      { nodes->GetTrueDofs(nodestv); }
+
+      // Move the fixed inputs to the device before timing so that repeated
+      // applies do not pay host-to-device copies.
+      xtvec.Read();
+      dxtvec.Read();
+      nodestv.Read();
+      coef.Read();
+
+      X = std::make_unique<MultiVector>(MultiVector{xtvec, coef, nodestv});
+      Y = std::make_unique<MultiVector>(MultiVector{ytvec});
+      DY = std::make_unique<MultiVector>(MultiVector{dytvec});
+
+      ddop = dop.GetDerivative(U, *X, cached_derivative);
+
+      dofs = pfes.GlobalTrueVSize();
+      {
+         long long send = nq_local, recv = 0;
+         MPI_Allreduce(&send, &recv, 1, MPI_LONG_LONG, MPI_SUM, pmesh.GetComm());
+         qpts = recv;
+      }
+
+      // One untimed apply, both to warm the lazily built internals and to
+      // produce the vector checked against the analytic reference below.
+      benchmark();
+      MFEM_DEVICE_SYNC;
+      ComputeError();
+      mdofs = mqpts = 0.0;
+   }
+
+   // Analytic references: int phi_i c u^3 dx and, for the direction du = 1,
+   // int phi_i 3 c u^2 dx, both integrated with the same quadrature rule, so
+   // that the quadrature error cancels and rel_err sees only the derivative
+   // propagation.
+   void ComputeError()
+   {
+      FunctionCoefficient ref_coeff([](const Vector &x)
+      {
+         const real_t u = StateFunction(x);
+         return (P == Phase::Forward) ? CoefFunction(x) * u * u * u
+                : 3.0 * CoefFunction(x) * u * u;
       });
-      timings.err_derivative = RelativeError(dytvec, dy_ref, pmesh.GetComm());
+
+      ParLinearForm lf(&pfes);
+      lf.AddDomainIntegrator(new DomainLFIntegrator(ref_coeff, ir));
+      lf.Assemble();
+
+      // The assembled linear form is an L-vector, so it is the reference as-is
+      // in LVECTOR mode and needs P^T applied otherwise.
+      Vector ref;
+      if (lvec) { ref = lf; }
+      else
+      {
+         ref.SetSize(pfes.GetTrueVSize());
+         pfes.GetProlongationMatrix()->MultTranspose(lf, ref);
+      }
+
+      rel_err = RelativeError((P == Phase::Forward) ? ytvec : dytvec, ref,
+                              pmesh.GetComm());
    }
 
-   return timings;
-}
-
-/// Reporting /////////////////////////////////////////////////////////////////
-
-// Counts in the SI style used by Google Benchmark reports: 531441 ->
-// "531.441k", 4096000 -> "4.096M".  Up to 6 significant digits, trailing zeros
-// stripped by the default float format.
-std::string FormatCount(const double v)
-{
-   std::ostringstream os;
-   os << std::setprecision(6);
-   const double a = std::abs(v);
-   if (a >= 1e9)      { os << v * 1e-9 << "G"; }
-   else if (a >= 1e6) { os << v * 1e-6 << "M"; }
-   else if (a >= 1e3) { os << v * 1e-3 << "k"; }
-   else               { os << v; }
-   return os.str();
-}
-
-void PrintLegend()
-{
-   if (Mpi::WorldRank() != 0) { return; }
-   mfem::out <<
-             "\nAll variants evaluate F(u) = int phi c u^3 dx and its linearization.\n"
-             "They differ only in where the intermediate s = u^2 lives and who owns\n"
-             "its tangent (shadow) memory.\n"
-             "\nVariants\n"
-             "  Local             local backend, per-quadrature-point q-function.\n"
-             "                    s is a register, no scratch machinery at all.\n"
-             "  Global            global backend, one fused kernel, s in a register.\n"
-             "                    Reference for 'global backend, no scratch'.\n"
-             "  GlobalLocalAlloc  global backend, two kernels, s in a Vector allocated\n"
-             "                    inside the q-function.  Enzyme allocates and\n"
-             "                    propagates the shadow buffer itself.\n"
-             "  GlobalBank        global backend, two kernels, s in a ScratchBank owned\n"
-             "                    by the q-function.  Enzyme differentiates w.r.t. the\n"
-             "                    q-function object (enzyme_dup on &qf/&qf_shadow), so\n"
-             "                    the tangent is reached through the bank indirections.\n"
-             "  GlobalBankGS      GlobalBank plus a global scratch tuple\n"
-             "                    (bool, real_t, Vector), isolating its extra cost.\n"
-             "\n  GlobalBank vs GlobalLocalAlloc is the comparison of interest:\n"
-             "  bank-owned vs Enzyme-owned scratch memory.\n"
-             "\nRows\n"
-             "  _Forward          DifferentiableOperator::Mult\n"
-             "  _Derivative       GetDerivative(U)->Mult, the linearized action.\n"
-             "                    Only this one touches shadow memory.\n"
-             "  name/<p>/<n>      polynomial order and elements per direction.\n"
-             "\nColumns\n"
-             "  Time              wall time of one application (max over ranks).\n"
-             "  Dofs              global true dofs;  #qp  total quadrature points,\n"
-             "                    both summed over all MPI ranks.\n"
-             "  MDof/s            Dofs / Time, so higher is better.\n"
-             "  vs-local          Time relative to Local of the same row kind.\n"
-             "  rel_err           max-norm error against the analytic result.\n"
-             "                    Above 1e-10 the row is flagged: a variant that is\n"
-             "                    not computing the true tangent is not doing the same\n"
-             "                    work, so its Time is not comparable.\n"
-             << std::endl;
-}
-
-void PrintTableHeader()
-{
-   if (Mpi::WorldRank() != 0) { return; }
-   mfem::out << "\n"
-             << std::left << std::setw(38) << "Benchmark"
-             << std::right
-             << std::setw(12) << "Time"
-             << std::setw(12) << "Iterations"
-             << std::setw(12) << "Dofs"
-             << std::setw(12) << "MDof/s"
-             << std::setw(12) << "#qp"
-             << std::setw(6)  << "p"
-             << std::setw(11) << "vs-local"
-             << std::setw(11) << "rel_err"
-             << "\n" << std::string(124, '-') << std::endl;
-}
-
-// One row per timed quantity, in the style of a Google Benchmark report:
-//   <mesh>_<variant>_<kind>/<order>/<mesh_n>   <time> ms  <iters>  <counters>
-void PrintRow(const char *mesh_name, Variant v, const char *kind,
-              const double seconds, const double seconds_local,
-              const real_t rel_err, const Timings &t)
-{
-   if (Mpi::WorldRank() != 0) { return; }
-
-   std::ostringstream name;
-   name << mesh_name << "_" << VariantTag(v) << "_" << kind
-        << "/" << t.order << "/" << t.mesh_n;
-
-   std::ostringstream time_str;
-   time_str << std::fixed << std::setprecision(3) << seconds * 1e3 << " ms";
-
-   std::ostringstream rate_str;
-   rate_str << std::fixed << std::setprecision(2)
-            << (t.dofs / seconds) * 1e-6;
-
-   std::ostringstream vs_local_str;
-   vs_local_str << std::fixed << std::setprecision(2)
-                << seconds / seconds_local << "x";
-
-   std::ostringstream err_str;
-   err_str << std::scientific << std::setprecision(1) << rel_err;
-
-   mfem::out << std::left << std::setw(38) << name.str()
-             << std::right
-             << std::setw(12) << time_str.str()
-             << std::setw(12) << t.iterations
-             << std::setw(12) << FormatCount(t.dofs)
-             << std::setw(12) << rate_str.str()
-             << std::setw(12) << FormatCount(t.nq)
-             << std::setw(6)  << t.order
-             << std::setw(11) << vs_local_str.str()
-             << std::setw(11) << err_str.str();
-
-   // A variant that does not reproduce the analytic tangent is not doing the
-   // same work as the others, so its timing must not be compared against them.
-   if (!(rel_err < wrong_tangent_tol))
+   void benchmark()
    {
-      mfem::out << "   <-- WRONG TANGENT, timing not comparable";
+      if constexpr (P == Phase::Forward) { dop.Mult(*X, *Y); }
+      else { ddop->Mult(dxtvec, *DY); }
+      MFEM_DEVICE_SYNC;
+      mdofs += 1e-6 * static_cast<double>(dofs);
+      mqpts += 1e-6 * static_cast<double>(qpts);
    }
-   mfem::out << std::endl;
-}
+};
 
-// Run one (variant, phase) and stream its row out as soon as it is measured.
-// Returns the measured time so later rows can be scaled against Local.
-template <int DIM, Variant V>
-double RunAndPrintRow(const char *mesh_name, const Phase phase,
-                      const double local_time, const int order,
-                      const int mesh_n, const int warmup, const int iterations,
-                      const bool cached_derivative, const int quad_order)
+/// Benchmarks Registration ///////////////////////////////////////////////////
+
+template <typename T>
+static void Benchmark(bm::State &state) noexcept
 {
-   const Timings t = RunVariant<DIM, V>(order, mesh_n, warmup, iterations,
-                                        cached_derivative, quad_order, phase);
-   const bool fwd = (phase == Phase::Forward);
-   const double time = fwd ? t.forward : t.derivative;
-   const real_t err = fwd ? t.err_forward : t.err_derivative;
-   // Local runs first in each pass and is its own baseline.
-   const double baseline = (local_time > 0.0) ? local_time : time;
+   T run(static_cast<int>(state.range(0)), static_cast<int>(state.range(1)));
+   while (state.KeepRunning()) { run.benchmark(); }
 
-   PrintRow(mesh_name, V, PhaseName(phase), time, baseline, err, t);
-   return time;
-}
+   state.counters["Dofs"] = bm::Counter(static_cast<double>(run.dofs));
+   state.counters["MDof/s"] = bm::Counter(run.mdofs, bm::Counter::kIsRate);
+   state.counters["Qpts"] = bm::Counter(static_cast<double>(run.qpts));
+   state.counters["MQpt/s"] = bm::Counter(run.mqpts, bm::Counter::kIsRate);
+   state.counters["p"] = bm::Counter(state.range(0));
+   state.counters["q1d"] = bm::Counter(run.q1d);
+   state.counters["rel_err"] = bm::Counter(run.rel_err);
+   state.counters["cached"] = bm::Counter(cached_derivative ? 1 : 0);
+   state.counters["lvec"] = bm::Counter(run.lvec ? 1 : 0);
+   state.counters["version"] = bm::Counter(version_int(T::version));
 
-template <int DIM>
-void RunAllVariants(const int order, const int mesh_n, const int warmup,
-                    const int iterations, const bool cached_derivative,
-                    const int quad_order)
-{
-   const char *mesh_name = (DIM == 2) ? "quad" : "hex";
-
-   PrintTableHeader();
-
-#define RUN_ROW(VAR, PHASE, BASE) \
-   RunAndPrintRow<DIM, VAR>(mesh_name, PHASE, BASE, order, mesh_n, warmup, \
-                            iterations, cached_derivative, quad_order)
-
-   // Pass 1: forward action. Each row is printed as soon as it is measured.
-   const double fwd_local = RUN_ROW(Variant::Local, Phase::Forward, 0.0);
-   RUN_ROW(Variant::Global, Phase::Forward, fwd_local);
-   RUN_ROW(Variant::GlobalScratchLocal, Phase::Forward, fwd_local);
-   RUN_ROW(Variant::GlobalScratchBank, Phase::Forward, fwd_local);
-   RUN_ROW(Variant::GlobalScratchBankGlobal, Phase::Forward, fwd_local);
-
-   if (Mpi::WorldRank() == 0) { mfem::out << std::endl; }
-
-   // Pass 2: derivative action.
-   const double drv_local = RUN_ROW(Variant::Local, Phase::Derivative, 0.0);
-   const double drv_global =
-      RUN_ROW(Variant::Global, Phase::Derivative, drv_local);
-   const double drv_local_alloc =
-      RUN_ROW(Variant::GlobalScratchLocal, Phase::Derivative, drv_local);
-   const double drv_bank =
-      RUN_ROW(Variant::GlobalScratchBank, Phase::Derivative, drv_local);
-   const double drv_bank_gs =
-      RUN_ROW(Variant::GlobalScratchBankGlobal, Phase::Derivative, drv_local);
-
-#undef RUN_ROW
-
-   if (Mpi::Root())
+   // A variant that does not reproduce the analytic result is not doing the
+   // same work as the others, so its timing must not be compared with them.
+   if (!(run.rel_err < wrong_tangent_tol))
    {
-      mfem::out << std::string(124, '-') << "\n"
-                << "scratch cost, derivative action ("
-                << mesh_name << ", p=" << order << "):"
-                << std::fixed << std::setprecision(2)
-                << "  bank/local-alloc=" << drv_bank / drv_local_alloc << "x"
-                << "   bank/no-scratch=" << drv_bank / drv_global << "x"
-                << "   bank+gs/bank=" << drv_bank_gs / drv_bank << "x"
-                << std::endl;
+      state.SkipWithError("WRONG TANGENT, timing not comparable");
    }
 }
+
+#define REGISTER(DIM, VAR, PH) \
+   BENCHMARK_TEMPLATE(Benchmark, BKS<DIM, Variant::VAR, Phase::PH>) \
+      ->Name("BKS_" #VAR #PH)->Apply(CustomArguments)->Unit(bm::kMillisecond)
+
+/// Forward: no shadow memory is touched, so this separates the cost of the
+/// scratch itself from the cost of differentiating through it.
+REGISTER(3, Local, Forward);
+REGISTER(3, Global, Forward);
+REGISTER(3, GlobalLocalAlloc, Forward);
+REGISTER(3, GlobalBank, Forward);
+REGISTER(3, GlobalBankGS, Forward);
+
+/// Derivative: the comparison of interest.
+REGISTER(3, Local, Derivative);
+REGISTER(3, Global, Derivative);
+REGISTER(3, GlobalLocalAlloc, Derivative);
+REGISTER(3, GlobalBank, Derivative);
+REGISTER(3, GlobalBankGS, Derivative);
+
+/// main //////////////////////////////////////////////////////////////////////
 
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
    Hypre::Init();
 
-   int order = 3;
-   int quad_mesh_n = 32;
-   int hex_mesh_n = 8;
-   int warmup = 3;
-   int iterations = 25;
-   int quad_order = 0;
-   bool cached_derivative = false;
-   bool run_2d = true;
-   bool run_3d = true;
-   const char *device_config = "cpu";
+   bm::ConsoleReporter CR;
+   bm::Initialize(&argc, argv);
 
-   OptionsParser args(argc, argv);
-   args.AddOption(&order, "-o", "--order", "Finite element order.");
-   args.AddOption(&quad_mesh_n, "-nq", "--quad-mesh-size",
-                  "Number of quad elements per direction.");
-   args.AddOption(&hex_mesh_n, "-nh", "--hex-mesh-size",
-                  "Number of hex elements per direction.");
-   args.AddOption(&warmup, "-w", "--warmup", "Number of warmup iterations.");
-   args.AddOption(&iterations, "-i", "--iterations",
-                  "Number of timed iterations.");
-   args.AddOption(&quad_order, "-q", "--quadrature-order",
-                  "Integration rule order. Non-positive selects 2*order. "
-                  "A 1D Gauss-Legendre rule of order q has q/2+1 points, so "
-                  "-q 15 gives 8 points per dimension.");
-   args.AddOption(&cached_derivative, "-c", "--cached-derivative", "-no-c",
-                  "--no-cached-derivative",
-                  "Use the cached DerivativeSetup/DerivativeApply path.");
-   args.AddOption(&run_2d, "-2d", "--run-2d", "-no-2d", "--no-run-2d",
-                  "Run the 2D (quad) cases.");
-   args.AddOption(&run_3d, "-3d", "--run-3d", "-no-3d", "--no-run-3d",
-                  "Run the 3D (hex) cases.");
-   args.AddOption(&device_config, "-d", "--device",
-                  "MFEM device configuration string.");
-   args.Parse();
-   if (!args.Good())
+   AddKernelSpecializations();
+   if (Mpi::Root()) { info(); }
+
+   // Context options, cpu and the default 2*p rule unless overridden:
+   //   --benchmark_context=device=cuda  --benchmark_context=q=15
+   std::string device_config = "cpu";
+   if (const auto *ctx = bmi::GetGlobalContext())
    {
-      if (Mpi::WorldRank() == 0) { args.PrintUsage(mfem::out); }
-      return 1;
+      if (const auto device = ctx->find("device"); device != ctx->end())
+      {
+         device_config = device->second;
+      }
+      if (const auto q = ctx->find("q"); q != ctx->end())
+      {
+         quadrature_order = std::stoi(q->second);
+      }
+      if (const auto c = ctx->find("cached"); c != ctx->end())
+      {
+         cached_derivative = (std::stoi(c->second) != 0);
+      }
+      if (const auto l = ctx->find("lvector"); l != ctx->end())
+      {
+         use_lvector = (std::stoi(l->second) != 0);
+      }
+   }
+   Device device(device_config.c_str());
+   if (Mpi::Root()) { device.Print(); }
+
+   if (bm::ReportUnrecognizedArguments(argc, argv)) { return EXIT_FAILURE; }
+
+   // Every rank runs the benchmarks, since the applies are MPI-collective,
+   // but only the root reports.
+   if (Mpi::Root())
+   {
+      bm::RunSpecifiedBenchmarks(&CR);
+   }
+   else
+   {
+      bm::BenchmarkReporter *quiet = new bm::ConsoleReporter();
+      quiet->SetOutputStream(&mfem::err);
+      quiet->SetErrorStream(&mfem::err);
+      bm::RunSpecifiedBenchmarks(quiet);
+      delete quiet;
    }
 
-   Device device(device_config);
-   if (Mpi::WorldRank() == 0)
-   {
-      args.PrintOptions(mfem::out);
-      device.Print(mfem::out);
-   }
-   PrintLegend();
-
-   if (run_2d)
-   {
-      RunAllVariants<2>(order, quad_mesh_n, warmup, iterations,
-                        cached_derivative, quad_order);
-   }
-   if (run_3d)
-   {
-      RunAllVariants<3>(order, hex_mesh_n, warmup, iterations,
-                        cached_derivative, quad_order);
-   }
-
-   return 0;
+   return EXIT_SUCCESS;
 }
 
 #else
 
 int main(int, char *[])
 {
-   mfem::out << "This benchmark requires MFEM_USE_MPI=YES and "
-             << "MFEM_USE_ENZYME=YES.\n";
+   mfem::out << "This benchmark requires MFEM_USE_BENCHMARK=YES, "
+             << "MFEM_USE_MPI=YES and MFEM_USE_ENZYME=YES.\n";
    return MFEM_SKIP_RETURN_VALUE;
 }
 
-#endif // MFEM_USE_MPI && MFEM_USE_ENZYME
+#endif // MFEM_USE_BENCHMARK && MFEM_USE_MPI && MFEM_USE_ENZYME

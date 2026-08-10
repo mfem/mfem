@@ -22,20 +22,6 @@ if (MFEM_USE_BENCHMARK)
 endif(MFEM_USE_BENCHMARK)
 
 #-------------------------------------------------------------------------------
-# Simple timer-based benchmark that intentionally does not use Google Benchmark.
-#-------------------------------------------------------------------------------
-if (MFEM_USE_MPI)
-    set(DFEM_SCRATCH_BENCH_SRCS bench_dfem_scratch.cpp)
-    if (MFEM_USE_CUDA)
-       set_property(SOURCE ${DFEM_SCRATCH_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
-    endif(MFEM_USE_CUDA)
-
-    mfem_add_executable(bench_dfem_scratch ${DFEM_SCRATCH_BENCH_SRCS})
-    target_link_libraries(bench_dfem_scratch PRIVATE mfem)
-    add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_dfem_scratch)
-endif(MFEM_USE_MPI)
-
-#-------------------------------------------------------------------------------
 # Function to add one benchmark from the tests/benchmarks directory.
 #-------------------------------------------------------------------------------
 function(add_benchmark name)
@@ -68,6 +54,9 @@ endfunction(add_benchmark)
 add_benchmark(assembly_levels)
 add_benchmark(ceed)
 add_benchmark(dfem)
+if (MFEM_USE_MPI)
+    add_benchmark(dfem_scratch)
+endif(MFEM_USE_MPI)
 add_benchmark(dg_amr)
 add_benchmark(elasticity)
 add_benchmark(tmop)
