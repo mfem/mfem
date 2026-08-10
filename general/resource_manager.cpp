@@ -714,6 +714,8 @@ void MemoryManager::Destroy()
    allocs_storage[15].reset();
    allocs[static_cast<int>(MemoryType::HOST_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::TEMP_HOST_UMPIRE)] = nullptr;
+   allocs[static_cast<int>(MemoryType::MANAGED_UMPIRE)] = nullptr;
+   allocs[static_cast<int>(MemoryType::TEMP_MANAGED_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] = nullptr;
    allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE)] = nullptr;
 #endif
