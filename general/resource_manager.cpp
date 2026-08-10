@@ -788,7 +788,6 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
 #ifdef MFEM_USE_UMPIRE
       case MemoryType::HOST_UMPIRE:
       case MemoryType::TEMP_HOST_UMPIRE:
-      {
          if (!allocs_storage[10])
          {
             allocs_storage[10].reset(
@@ -800,48 +799,44 @@ void MemoryManager::EnsureAlloc(MemoryType mt)
             allocs[static_cast<int>(MemoryType::TEMP_HOST_UMPIRE)] =
                allocs_storage[10].get();
          }
-      }
-      break;
+         break;
       case MemoryType::DEVICE_UMPIRE:
-      case MemoryType::DEVICE_UMPIRE_2:
-      {
          if (!allocs_storage[11])
          {
             allocs_storage[11].reset(
                new UmpireAllocator(d_umpire_name.c_str(), "DEVICE"));
-            allocs_storage[12].reset(
-               new UmpireAllocator(d_umpire_2_name.c_str(), "DEVICE"));
             allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE)] =
                allocs_storage[11].get();
+         }
+         break;
+      case MemoryType::TEMP_DEVICE_UMPIRE:
+         if (!allocs_storage[12])
+         {
+            allocs_storage[12].reset(
+               new UmpireAllocator(d_umpire_2_name.c_str(), "DEVICE"));
             // DEVICE_UMPIRE_2 is the temp pool
             allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE)] =
                allocs_storage[12].get();
-
-            allocs[static_cast<int>(MemoryType::DEVICE_UMPIRE_2)] =
-               allocs_storage[12].get();
-            allocs[static_cast<int>(MemoryType::TEMP_DEVICE_UMPIRE_2)] =
-               allocs_storage[12].get();
-            // TODO: Umpire HostPinned pools?
          }
-      }
-      break;
+         break;
       case MemoryType::MANAGED_UMPIRE:
-      case MemoryType::TEMP_MANAGED_UMPIRE:
-      {
          if (!allocs_storage[14])
          {
             allocs_storage[14].reset(
                new UmpireAllocator(managed_umpire_name.c_str(), "MANAGED"));
-            allocs_storage[15].reset(
-               new UmpireAllocator(temp_managed_umpire_name.c_str(), "MANAGED"));
             allocs[static_cast<int>(MemoryType::MANAGED_UMPIRE)] =
                allocs_storage[14].get();
-            // DEVICE_UMPIRE_2 is the temp pool
+         }
+         break;
+      case MemoryType::TEMP_MANAGED_UMPIRE:
+         if (!allocs_storage[15])
+         {
+            allocs_storage[15].reset(
+               new UmpireAllocator(temp_managed_umpire_name.c_str(), "MANAGED"));
             allocs[static_cast<int>(MemoryType::TEMP_MANAGED_UMPIRE)] =
                allocs_storage[15].get();
          }
-      }
-      break;
+         break;
 #endif
       default:
          break;
