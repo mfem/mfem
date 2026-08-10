@@ -70,19 +70,17 @@ protected:
    {
       int v[4];
       char tag;
-      static Vert4_tag Make(int v0, int v1, int v2, int v3, char _tag = 0)
-      {
-          return Vert4_tag{{v0, v1, v2, v3}, _tag};
-      }
-      static Vert4_tag Set(const int *w, char _tag = 0)
-      {
-          return Vert4_tag{{w[0], w[1], w[2], w[3]}, _tag};
-      }
 
-      static Vert4_tag Make(const Vert4_tag &w)
+      Vert4_tag() = default;
+      Vert4_tag(int v0, int v1, int v2, int v3, char _tag = 0)
       {
-          return Vert4_tag{{w.v[0], w.v[1], w.v[2], w.v[3]}, w.tag};
-      }   };
+          v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; tag = _tag;
+      }
+      void Set(int v0, int v1, int v2, int v3,  char _tag = 0)
+      { v[0] = v0; v[1] = v1; v[2] = v2; v[3] = v3; tag = _tag; }
+      void Set(const int *w, char _tag = 0)
+      { v[0] = w[0]; v[1] = w[1]; v[2] = w[2]; v[3] = w[3]; tag = _tag; }
+    };
 
    Array<Element *> shared_edges;
    // shared face id 'i' is:

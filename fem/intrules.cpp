@@ -2051,6 +2051,7 @@ IntegrationRule *IntegrationRules::TesseractIntegrationRule(int Order)
 
                index++;
             }
+   TesseractIntRules[i]->SetOrder(i);
    return TesseractIntRules[i];
 }
 

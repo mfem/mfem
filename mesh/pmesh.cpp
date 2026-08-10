@@ -294,7 +294,7 @@ ParMesh::ParMesh(MPI_Comm comm, Mesh &mesh, int *partitioning_,
 
       FindSharedFaces(mesh, partitioning, face_group, groups);
       // usuned?
-      // int nsplanars = FindSharedPlanars(mesh, partitioning, plan_element, groups);
+      int nsplanars = FindSharedPlanars(mesh, partitioning, plan_element, groups);
       int nsedges = FindSharedEdges(mesh, partitioning, edge_element, groups);
       int nsvert = FindSharedVertices(partitioning, vert_element, groups);
 
@@ -1042,7 +1042,7 @@ void ParMesh::BuildSharedFaceElems4D(int ntet_faces, int nhex_faces,
                 if (fv[0] >= v2t.first || fv[1] >= v2t.first || fv[2] >= v2t.first || fv[3] >= v2t.first)
                     init_tag = v2t.second;
             }
-            shared_tetra[stetr_counter].Make(fv[0], fv[1], fv[2], fv[3], init_tag);
+            shared_tetra[stetr_counter].Set(fv[0], fv[1], fv[2], fv[3], init_tag);
             int *v = shared_tetra[stetr_counter].v;
             for (int j = 0; j <4 ; j++) { v[j] = vert_global_local[v[j]]; }
             sface_lface[stetr_counter] =
@@ -2315,7 +2315,7 @@ void ParMesh::GetFaceSplittings4D(const Vert4_tag &_f, const HashTable<Hashed2> 
    Array<Vert4_tag> face_stack;
 
    unsigned code = 0;
-   face_stack.Append(Vert4_tag::Make(_f.v[0], _f.v[1], _f.v[2], _f.v[3], _f.tag));
+   face_stack.Append(Vert4_tag(_f.v[0], _f.v[1], _f.v[2], _f.v[3], _f.tag));
    for (unsigned bit = 0; face_stack.Size() > 0; bit++)
    {
          code = bit = 0;
@@ -2374,11 +2374,11 @@ void ParMesh::GetFaceSplittings4D(const Vert4_tag &_f, const HashTable<Hashed2> 
          char new_tag = (tag+1) % 3;
          if (tag > 0)
          {
-            face_stack.Append(Vert4_tag::Make(f.v[3], ind, f.v[1], f.v[2], new_tag));
+            face_stack.Append(Vert4_tag(f.v[3], ind, f.v[1], f.v[2], new_tag));
          }
          else
          {
-            face_stack.Append(Vert4_tag::Make(f.v[3], ind, f.v[2], f.v[1], new_tag));
+            face_stack.Append(Vert4_tag(f.v[3], ind, f.v[2], f.v[1], new_tag));
          }
          Vert4_tag &r = face_stack[face_stack.Size()-2];
          r.tag = new_tag;
@@ -2394,7 +2394,7 @@ void ParMesh::GetFaceSplittings4D_old(const Vert4_tag &_f, const HashTable<Hashe
    Array<Vert4_tag> face_stack;
 
    unsigned code = 0;
-   face_stack.Append(Vert4_tag::Make(_f.v[0], _f.v[1], _f.v[2], _f.v[3], _f.tag));
+   face_stack.Append(Vert4_tag(_f.v[0], _f.v[1], _f.v[2], _f.v[3], _f.tag));
    for (unsigned bit = 0; face_stack.Size() > 0; bit++)
    {
       if (bit == 8*sizeof(unsigned))
@@ -2418,11 +2418,11 @@ void ParMesh::GetFaceSplittings4D_old(const Vert4_tag &_f, const HashTable<Hashe
          char new_tag = (tag+1) % 3;
          if (tag > 0)
          {
-            face_stack.Append(Vert4_tag::Make(f.v[3], mid, f.v[1], f.v[2], new_tag));
+            face_stack.Append(Vert4_tag(f.v[3], mid, f.v[1], f.v[2], new_tag));
          }
          else
          {
-            face_stack.Append(Vert4_tag::Make(f.v[3], mid, f.v[2], f.v[1], new_tag));
+            face_stack.Append(Vert4_tag(f.v[3], mid, f.v[2], f.v[1], new_tag));
          }
          Vert4_tag &r = face_stack[face_stack.Size()-2];
          r.tag = new_tag;
@@ -2474,7 +2474,7 @@ bool ParMesh::DecodeFaceSplittings4D(HashTable<Hashed2> &v_to_v, const Vert4_tag
    Array<Vert4_tag> face_stack;
 
    bool need_refinement = 0;
-   face_stack.Append(Vert4_tag::Make(v.v[0], v.v[1], v.v[2], v.v[3], v.tag));
+   face_stack.Append(Vert4_tag(v.v[0], v.v[1], v.v[2], v.v[3], v.tag));
    // for (unsigned bit = 0, code; face_stack.Size() > 0; )
    for (unsigned code; face_stack.Size() > 0; )
    {
@@ -2509,11 +2509,11 @@ bool ParMesh::DecodeFaceSplittings4D(HashTable<Hashed2> &v_to_v, const Vert4_tag
       char new_tag = (tag + 1) % 3;
       if (tag > 0)
       {
-         face_stack.Append(Vert4_tag::Make(f.v[rv[3]], mid, f.v[rv[1]], f.v[rv[2]], new_tag));
+         face_stack.Append(Vert4_tag(f.v[rv[3]], mid, f.v[rv[1]], f.v[rv[2]], new_tag));
       }
       else
       {
-         face_stack.Append(Vert4_tag::Make(f.v[rv[3]], mid, f.v[rv[2]], f.v[rv[1]], new_tag));
+         face_stack.Append(Vert4_tag(f.v[rv[3]], mid, f.v[rv[2]], f.v[rv[1]], new_tag));
       }
       Vert4_tag &r = face_stack[face_stack.Size()-2];
       r.tag = new_tag;
@@ -2528,7 +2528,7 @@ bool ParMesh::DecodeFaceSplittings4D_old(HashTable<Hashed2> &v_to_v, const Vert4
    Array<Vert4_tag> face_stack;
 
    bool need_refinement = 0;
-   face_stack.Append(Vert4_tag::Make(v.v[0], v.v[1], v.v[2], v.v[3], v.tag));
+   face_stack.Append(Vert4_tag(v.v[0], v.v[1], v.v[2], v.v[3], v.tag));
    for (unsigned bit = 0, code = codes[pos++]; face_stack.Size() > 0; bit++)
    {
       if (bit == 8*sizeof(unsigned))
@@ -2554,11 +2554,11 @@ bool ParMesh::DecodeFaceSplittings4D_old(HashTable<Hashed2> &v_to_v, const Vert4
       char new_tag = (tag + 1) % 3;
       if (tag > 0)
       {
-         face_stack.Append(Vert4_tag::Make(f.v[3], mid, f.v[1], f.v[2], new_tag));
+         face_stack.Append(Vert4_tag(f.v[3], mid, f.v[1], f.v[2], new_tag));
       }
       else
       {
-         face_stack.Append(Vert4_tag::Make(f.v[3], mid, f.v[2], f.v[1], new_tag));
+         face_stack.Append(Vert4_tag(f.v[3], mid, f.v[2], f.v[1], new_tag));
       }
       Vert4_tag &r = face_stack[face_stack.Size()-2];
       r.tag = new_tag;
@@ -5193,44 +5193,44 @@ void ParMesh::UniformRefineGroups4D_Freudenthal(int old_nv,
 
          if (sw[0]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          w[0] = midEdges[0]; w[1] = v[1];        w[2] = midEdges[3]; w[3] = midEdges[4];
 
          if (sw[1]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = v[2];        w[3] = midEdges[5];
 
          if (sw[2]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          w[0] = midEdges[2]; w[1] = midEdges[4]; w[2] = midEdges[5]; w[3] = v[3];
 
          if (sw[3]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          //
          w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[3]; w[3] = midEdges[4];
 
          if (sw[4]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          w[0] = midEdges[0]; w[1] = midEdges[1]; w[2] = midEdges[2]; w[3] = midEdges[4];
 
          if (sw[5]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          w[0] = midEdges[1]; w[1] = midEdges[3]; w[2] = midEdges[4]; w[3] = midEdges[5];
 
          if (sw[6]) { Swap(w); }
 
-         tet.Set(w); shared_tetra.Append(Vert4_tag::Make(tet));
+         tet.Set(w); shared_tetra.Append(Vert4_tag(tet));
          group_faces.Append(sface_lface.Append(-1)-1);
          w[0] = midEdges[1]; w[1] = midEdges[2]; w[2] = midEdges[4]; w[3] = midEdges[5];
 
@@ -5826,9 +5826,9 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
 //            splan_stack.Append(Vert3(v[1], ind, v[2])); // FIXME orientation matters
             // Put the upper sub-tetrahedron on top of the face stack
             if (tag > 0)
-               sface_stack.Append(Vert4_tag::Make(v[3], ind, v[1], v[2], (tag+1) % 3));
+               sface_stack.Append(Vert4_tag(v[3], ind, v[1], v[2], (tag+1) % 3));
             else
-               sface_stack.Append(Vert4_tag::Make(v[3], ind, v[2], v[1], (tag+1) % 3));
+               sface_stack.Append(Vert4_tag(v[3], ind, v[2], v[1], (tag+1) % 3));
             // The lower sub-tetrahedron replaces the original one
             v[3] = v[2]; v[2] = v[1]; v[1] = ind;
             tag = (tag+1) % 3;
@@ -5875,7 +5875,7 @@ void ParMesh::RefineGroups4D(int old_nv, const HashTable<Hashed2> &v_to_v)
                }
 //               splan_stack.Append(Vert3(v[1], ind, v[2])); // TODO check if orientation matters
                // Put the lower sub-tetrahedron on top of the face stack
-               sface_stack.Append(Vert4_tag::Make(v[0], ind, v[1], v[2], (tag + 1) % 3));
+               sface_stack.Append(Vert4_tag(v[0], ind, v[1], v[2], (tag + 1) % 3));
                // Note that the above Append() may invalidate 'v'
                v = sface_stack[sface_stack.Size()-2].v;
                // The upper sub-triangle replaces the original one
