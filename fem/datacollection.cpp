@@ -809,7 +809,7 @@ ParaViewDataCollectionBase::ParaViewDataCollectionBase(
 
 void ParaViewDataCollectionBase::SetLevelsOfDetail(int levels_of_detail_)
 {
-   levels_of_detail = levels_of_detail_;
+   levels_of_detail = std::max(levels_of_detail_, 1);
 }
 
 void ParaViewDataCollectionBase::SetHighOrderOutput(bool high_order_output_)
@@ -1181,12 +1181,14 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
    DenseMatrix vval, pmat;
    std::vector<char> buf;
    int vec_dim = it->second->VectorDim();
+   int map_type = it->second->FESpace()->GetTypicalFE()->GetMapType();
    os << "<DataArray type=\"" << GetDataTypeString()
       << "\" Name=\"" << it->first
       << "\" NumberOfComponents=\"" << vec_dim << "\" "
       << VTKComponentLabels(vec_dim) << " "
       << "format=\"" << GetDataFormatString() << "\" >" << '\n';
-   if (vec_dim == 1)
+   if (vec_dim == 1 && (map_type == FiniteElement::VALUE ||
+                        map_type == FiniteElement::INTEGRAL))
    {
       for (int i = 0; i < mesh->GetNE(); i++)
       {

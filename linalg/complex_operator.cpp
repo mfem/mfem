@@ -246,6 +246,10 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int  nrows_i = (A_i)?A_i->Height():0;
    const int    nrows = std::max(nrows_r, nrows_i);
 
+   const int  ncols_r = (A_r)?A_r->Width():0;
+   const int  ncols_i = (A_i)?A_i->Width():0;
+   const int    ncols = std::max(ncols_r, ncols_i);
+
    const int     *I_r = (A_r)?A_r->GetI():NULL;
    const int     *I_i = (A_i)?A_i->GetI():NULL;
 
@@ -280,7 +284,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
             J[I[i] + j] = J_r[I_r[i] + j];
             D[I[i] + j] = D_r[I_r[i] + j];
 
-            J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + nrows;
+            J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + ncols;
             D[I[i+nrows] + off_i + j] = factor*D_r[I_r[i] + j];
          }
       }
@@ -289,7 +293,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
          const int off_r = (I_r)?(I_r[i+1] - I_r[i]):0;
          for (int j=0; j<I_i[i+1] - I_i[i]; j++)
          {
-            J[I[i] + off_r + j] =  J_i[I_i[i] + j] + nrows;
+            J[I[i] + off_r + j] =  J_i[I_i[i] + j] + ncols;
             D[I[i] + off_r + j] = -D_i[I_i[i] + j];
 
             J[I[i+nrows] + j] = J_i[I_i[i] + j];
@@ -892,12 +896,12 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    HYPRE_BigInt loc_start_stop[2];
    offd_col_start_stop = new HYPRE_BigInt[2 * num_recv_procs];
 
-   const HYPRE_BigInt * row_part = (A_r) ? A_r->RowPart() :
-                                   ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_BigInt * col_part = (A_r) ? A_r->ColPart() :
+                                   ((A_i) ? A_i->ColPart() : NULL);
 
-   int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
-   loc_start_stop[0] = row_part[row_part_ind];
-   loc_start_stop[1] = row_part[row_part_ind+1];
+   int col_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
+   loc_start_stop[0] = col_part[col_part_ind];
+   loc_start_stop[1] = col_part[col_part_ind+1];
 
    MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
    MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];

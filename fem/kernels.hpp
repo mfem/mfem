@@ -112,7 +112,7 @@ constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
 #endif // CUDA/HIP && DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
-template <int MQ1>
+template <int MQ1, bool TRANSPOSE = false>
 inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
                                         const real_t *M, real_t (*sm)[MQ1])
 {
@@ -122,7 +122,14 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            sm[dy][qx] = M[dy * q1d + qx];
+            if constexpr (TRANSPOSE)
+            {
+               sm[dy][qx] = M[qx * d1d + dy];
+            }
+            else
+            {
+               sm[dy][qx] = M[dy * q1d + qx];
+            }
          }
       }
    }
