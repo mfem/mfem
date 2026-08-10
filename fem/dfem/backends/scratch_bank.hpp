@@ -9,10 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 #pragma once
-#include "mfem.hpp"
+#include "../../../general/error.hpp"
+#include "../../../linalg/vector.hpp"
 #include "../tuple.hpp"
+#include <initializer_list>
 #include <memory>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace mfem::future
