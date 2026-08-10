@@ -17,6 +17,51 @@ using namespace mfem;
 namespace project_bdr
 {
 
+TEST_CASE("3D ProjectBdrCoefficient",
+          "[GridFunction]"
+          "[NCMesh]")
+{
+   const char *mesh_file = GENERATE("data/hex-nc-cross.mesh",
+                                    "data/tet-nc-cross.mesh");
+   CAPTURE(mesh_file);
+   constexpr int order = 3;
+   constexpr real_t freq = 5.0;
+
+   // Attributes
+   Array<int> bdr_attr(2);
+   bdr_attr = 0;
+   bdr_attr[1] = 1;
+
+   // Coefficient
+   FunctionCoefficient coeff([&](const Vector &x)
+   {
+      return cos(freq * M_PI * x[0])
+             * cos(freq * M_PI * x[1])
+             * cos(freq * M_PI * x[2]);
+   });
+
+   // Vertex-based mesh
+   Mesh mesh_v(mesh_file, 1, 1);
+   H1_FECollection fec_v(order, mesh_v.Dimension());
+   FiniteElementSpace fes_v(&mesh_v, &fec_v);
+   GridFunction gf_v(&fes_v);
+   gf_v = 0.0;
+   gf_v.ProjectBdrCoefficient(coeff, bdr_attr);
+
+   // Nodal mesh
+   Mesh mesh_n(mesh_file, 1, 1);
+   mesh_n.SetCurvature(order, true);
+   H1_FECollection fec_n(order, mesh_n.Dimension());
+   FiniteElementSpace fes_n(&mesh_n, &fec_n);
+   GridFunction gf_n(&fes_n);
+   gf_n = 0.0;
+   gf_n.ProjectBdrCoefficient(coeff, bdr_attr);
+
+   gf_n -= gf_v;
+
+   REQUIRE(gf_n.Norml2() == MFEM_Approx(0.0));
+}
+
 void Func_3D_lin(const Vector &x, Vector &v)
 {
    v.SetSize(3);
