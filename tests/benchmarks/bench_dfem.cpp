@@ -39,6 +39,7 @@ using future::tuple;
 #include "fem/kernels.hpp"
 namespace ker = kernels::internal;
 
+
 #if defined(__HIP__)
 #include "../usr/src/array/tensor_std_array.hpp"
 #endif
@@ -1256,18 +1257,18 @@ struct BP : public BakeOff<BFI, VER, VDIM, GLL>
       static_assert(VDIM == 1 && GLL == false);
 
       cg.SetOperator(*A);
-      cg.SetAbsTol(0.0);
+      cg.SetAbsTol(1e-12);
       cg.iterative_mode = false;
       if (dofs < 128 * 1024)
       {
-         cg.SetPrintLevel(3/*-1*/);
+         cg.SetPrintLevel(-1);
          cg.SetMaxIter(200);
          cg.SetRelTol(1e-8);
          cg.Mult(B, X);
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          // mfem::out << (cg.GetConverged() ? "✅" : "❌") << std::endl;
       }
-      cg.SetRelTol(0.0);
+      cg.SetRelTol(1e-8);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
 

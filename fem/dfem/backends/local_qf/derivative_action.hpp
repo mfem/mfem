@@ -278,7 +278,7 @@ public:
    template<typename backend_t, int T_Q1D>
    __attribute__((always_inline)) MFEM_HOST_DEVICE static void
    derivative_action_kernel_body(
-      DerivativeActionKernelData<backend_t, T_Q1D> data, const int e)
+      const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
    {
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
@@ -621,7 +621,7 @@ public:
    struct DerivativeActionKernelBody
    {
       __attribute__((always_inline)) MFEM_HOST_DEVICE static void run(
-         DerivativeActionKernelData<backend_t, T_Q1D> data, const int e)
+         const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
       {
          derivative_action_kernel_body<backend_t, T_Q1D>(data, e);
       }

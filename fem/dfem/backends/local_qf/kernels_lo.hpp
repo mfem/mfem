@@ -183,7 +183,260 @@ pull_directional(Reg &preg, Reg &sreg, int qx, int qy, int qz, bool dependent)
 
 // ────────────────────────────────────────────────────────────────────────────
 /// LO tensor-product kernels
-template<int T_DIM, int MQ1>
+namespace loz
+{
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int dx = 0; dx < d1d; ++dx)
+               {
+                  u = std::fma(B[dx][qx], sm0[dz][dy][dx][c], u);
+               }
+               sm1[dz][dy][qx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalY(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int dy = 0; dy < d1d; ++dy)
+               {
+                  u = std::fma(B[dy][qy], sm1[dz][dy][qx][c], u);
+               }
+               sm0[dz][qy][qx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   ker::regs3d_t<VDIM, MQ1> &reg)
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int dz = 0; dz < d1d; ++dz)
+               {
+                  u = std::fma(B[dz][qz], sm0[dz][qy][qx][c], u);
+               }
+               reg[qz][qy][qx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                    ker::regs3d_t<VDIM, MQ1> &reg)
+{
+   loz::EvalX<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, sm1);
+   loz::EvalY<VDIM, DIM, MQ1>(d1d, q1d, B, sm1, sm0);
+   loz::EvalZ<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, reg);
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u = 0.0, v = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dx = 0; dx < d1d; ++dx)
+            {
+               const real_t x = sm0[dz][dy][dx][0];
+               u = std::fma(B[dx][qx], x, u);
+               v = std::fma(G[dx][qx], x, v);
+            }
+            sm1[dz][dy][qx][0] = u;
+            sm1[dz][dy][qx][1] = v;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dy = 0; dy < d1d; ++dy)
+            {
+               u = std::fma(sm1[dz][dy][qx][1], B[dy][qy], u);
+               v = std::fma(sm1[dz][dy][qx][0], G[dy][qy], v);
+               w = std::fma(sm1[dz][dy][qx][0], B[dy][qy], w);
+            }
+            sm0[dz][qy][qx][0] = u;
+            sm0[dz][qy][qx][1] = v;
+            sm0[dz][qy][qx][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   ker::regs3d_t<DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u[0] = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
+            }
+            reg[qz][qy][qx][0] = u[0];
+            reg[qz][qy][qx][1] = u[1];
+            reg[qz][qy][qx][2] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradZ(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1],
+   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   ker::regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u[0] = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
+            }
+            reg[qz][qy][qx][c][0] = u[0];
+            reg[qz][qy][qx][c][1] = u[1];
+            reg[qz][qy][qx][c][2] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                    ker::regs3d_t<DIM, MQ1> &reg)
+{
+   loz::GradX<DIM, MQ1>(d1d, q1d, B, G, sm0, sm1);
+   loz::GradY<DIM, MQ1>(d1d, q1d, B, G, sm1, sm0);
+   loz::GradZ<DIM, MQ1>(d1d, q1d, B, G, sm0, reg);
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGrad3d(const int d1d, const int q1d,
+                                          const int c,
+                                          const real_t (*B)[MQ1],
+                                          const real_t (*G)[MQ1],
+                                          real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                          real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                          ker::regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   loz::GradX<DIM, MQ1>(d1d, q1d, B, G, sm0, sm1);
+   loz::GradY<DIM, MQ1>(d1d, q1d, B, G, sm1, sm0);
+   loz::VectorGradZ<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, sm0, reg);
+}
+
+} // namespace loz
+
+template<int T_DIM, int MQ1, bool LOOP_Z = false>
 struct lo_ker_backend
 {
    static constexpr int DIM = T_DIM;
@@ -238,7 +491,14 @@ struct lo_ker_backend
       else
       {
          ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
-         ker::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);
+         if constexpr (LOOP_Z)
+         {
+            loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+         }
+         else
+         {
+            ker::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);
+         }
       }
    }
 
@@ -271,7 +531,14 @@ struct lo_ker_backend
             else
             {
                ker::LoadDofs3d(e, d, 0, XE, s.M[0]);
-               ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+               if constexpr (LOOP_Z)
+               {
+                  loz::Grad3d<DIM, MQ1>(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+               }
+               else
+               {
+                  ker::Grad3d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
+               }
             }
          }
       }
@@ -291,7 +558,15 @@ struct lo_ker_backend
                else
                {
                   ker::LoadDofs3d(e, d, c, XE, s.M[0]);
-                  ker::VectorGrad3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                  if constexpr (LOOP_Z)
+                  {
+                     loz::VectorGrad3d<VDIM, DIM, MQ1>(
+                        d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                  }
+                  else
+                  {
+                     ker::VectorGrad3d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
+                  }
                }
             }
          }
@@ -384,26 +659,28 @@ struct lo_ker_backend
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int T_DIM, int T_Q1D = LocalQFLOBackendMQ1()>
+template<int T_DIM, int T_Q1D = LocalQFLOBackendMQ1(), int T_ZTHREADS = T_Q1D>
 struct LocalQFLOBackend
 {
    // ─────────────────────────────────────────────────────
    static constexpr int DIM = T_DIM, MQ1 = T_Q1D, Q1D = T_Q1D;
+   static constexpr int ZTHREADS = T_ZTHREADS;
    static_assert(DIM == 2 || DIM == 3);
+   static_assert(ZTHREADS > 0 && ZTHREADS <= Q1D);
 
    // ─────────────────────────────────────────────────────
    static inline ThreadBlocks thread_blocks(const int q1d)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
-      return { q1d, q1d, (DIM == 2) ? 1 : q1d };
+      return { q1d, q1d, (DIM == 2) ? 1 : std::min(q1d, ZTHREADS) };
    }
 
    // ─────────────────────────────────────────────────────
    static inline constexpr int MAX_THREADS_PER_BLOCK()
-   { return Q1D * Q1D * ((DIM == 2) ? 1 : Q1D); }
+   { return Q1D * Q1D * ((DIM == 2) ? 1 : ZTHREADS); }
 
    // ─────────────────────────────────────────────────────
-   using backend_t = lo_ker_backend<DIM, Q1D>;
+   using backend_t = lo_ker_backend<DIM, Q1D, (DIM == 3 && ZTHREADS < Q1D)>;
 
    // ─────────────────────────────────────────────────────
    using Shared = typename backend_t::Shared;

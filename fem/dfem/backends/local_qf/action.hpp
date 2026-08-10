@@ -17,8 +17,48 @@
 #include "../../integrator_ctx.hpp"
 #include "../util.hpp"
 
+#include <utility>
+
 namespace mfem::future::LocalQFImpl
 {
+
+template <typename outputs_t, typename index_seq>
+struct action_outputs_direct_impl;
+
+template <typename outputs_t, std::size_t... Is>
+struct action_outputs_direct_impl<outputs_t, std::index_sequence<Is...>>
+{
+   static constexpr bool value =
+      ((is_identity_fop_v<tuple_element_t<Is, outputs_t>> ||
+        is_functionalvalue_fop_v<tuple_element_t<Is, outputs_t>>) && ...);
+};
+
+template <typename outputs_t>
+constexpr bool action_outputs_direct_v = action_outputs_direct_impl<outputs_t,
+      std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
+
+template <typename qfunc_t, typename inputs_t, typename outputs_t,
+          typename index_seq>
+struct action_outputs_direct_value_impl;
+
+template <typename qfunc_t, typename inputs_t, typename outputs_t,
+          std::size_t... Is>
+struct action_outputs_direct_value_impl<qfunc_t, inputs_t, outputs_t,
+                                        std::index_sequence<Is...>>
+{
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr bool value =
+      ((is_identity_fop_v<tuple_element_t<Is, outputs_t>> ||
+        is_functionalvalue_fop_v<tuple_element_t<Is, outputs_t>>) && ...)
+      && ((!qf_param_uses_dual_v<
+             typename qf_param_slot<qfunc_t, n_inputs + Is>::qf_decay_param_t>)
+          && ...);
+};
+
+template <typename qfunc_t, typename inputs_t, typename outputs_t>
+constexpr bool action_outputs_direct_value_v =
+   action_outputs_direct_value_impl<qfunc_t, inputs_t, outputs_t,
+      std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
 
 template<typename qfunc_t, typename inputs_t, typename outputs_t>
 class Action
@@ -37,6 +77,85 @@ class Action
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
+
+   template<typename backend_t, std::size_t I, typename RArgs, typename InXEs>
+   static MFEM_HOST_DEVICE decltype(auto) direct_input_arg(
+      RArgs &rargs,
+      const InXEs &in_XE,
+      const int qx,
+      const int qy,
+      const int qz,
+      const int e)
+   {
+      const auto &XE = in_XE[I];
+      using FOP = tuple_element_t<I, inputs_t>;
+      using ARG = typename qf_param_slot<qfunc_t, I>::qf_reg_param_t;
+      if constexpr (is_identity_fop_v<FOP>)
+      {
+         using DT = typename qf_param_slot<qfunc_t, I>::qf_decay_param_t;
+         if constexpr (qf_param_uses_dual_v<DT>)
+         {
+            return backend_t::template identity_qp_pull_dual<DT>(
+                      false, XE, XE, qx, qy, qz, e);
+         }
+         else
+         {
+            return as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+         }
+      }
+      else if constexpr (is_weight_fop_v<FOP>)
+      {
+         return XE(qx, qy, qz, 0, 0);
+      }
+      else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      {
+         return backend_t::template qp_pull<ARG>(get<I>(rargs), qx, qy, qz);
+      }
+      else
+      {
+         static_assert(false, "Unsupported");
+      }
+   }
+
+   template<std::size_t I, typename OutYEs>
+   static MFEM_HOST_DEVICE decltype(auto) direct_output_arg(
+      const OutYEs &out_YE,
+      const int qx,
+      const int qy,
+      const int qz,
+      const int e)
+   {
+      constexpr size_t o = n_inputs + I;
+      const auto &YE = out_YE[I];
+      using DT = typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+      using ARG = typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+      if constexpr (std::is_same_v<DT, real_t>)
+      {
+         return YE(0, qx, qy, qz, e);
+      }
+      else
+      {
+         return as_tensor<ARG>(&YE(0, qx, qy, qz, e));
+      }
+   }
+
+   template<typename backend_t, typename RArgs, typename InXEs, typename OutYEs,
+            std::size_t... InIs, std::size_t... OutIs>
+   static MFEM_HOST_DEVICE void call_qfunc_direct(
+      const qfunc_t &qfunc,
+      RArgs &rargs,
+      const InXEs &in_XE,
+      const OutYEs &out_YE,
+      const int qx,
+      const int qy,
+      const int qz,
+      const int e,
+      std::index_sequence<InIs...>,
+      std::index_sequence<OutIs...>)
+   {
+      qfunc(direct_input_arg<backend_t, InIs>(rargs, in_XE, qx, qy, qz, e)...,
+            direct_output_arg<OutIs>(out_YE, qx, qy, qz, e)...);
+   }
 
    const qfunc_t qfunc;
    const inputs_t inputs;
@@ -252,7 +371,7 @@ public:
          // -----------------------------------------------
          // Inputs and outputs argument registers
          // -----------------------------------------------
-         args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         action_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
 
          // -----------------------------------------------
          // Shared memory
@@ -306,134 +425,151 @@ public:
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
-                  args_tuple_t qargs;
-
-                  // --------------------------------------
-                  // Pulling arguments from registers to qargs tuple
-                  // --------------------------------------
-                  for_constexpr<n_inputs>([&](auto ic)
+                  if constexpr (action_outputs_direct_value_v<qfunc_t, inputs_t,
+                                                               outputs_t>)
                   {
-                     constexpr size_t i = ic.value;
-                     auto &qarg = get<i>(qargs);
-                     const auto &XE = in_XE[i];
-                     using FOP = tuple_element_t<i, inputs_t>;
-                     using ARG =
-                        typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP>)
+                     call_qfunc_direct<backend_t>(
+                        qfunc, rargs, in_XE, out_YE, qx, qy, qz, e,
+                        std::make_index_sequence<n_inputs> {},
+                        std::make_index_sequence<n_outputs> {});
+                  }
+                  else
+                  {
+                     args_tuple_t qargs;
+
+                     // --------------------------------------
+                     // Pulling arguments from registers to qargs tuple
+                     // --------------------------------------
+                     for_constexpr<n_inputs>([&](auto ic)
                      {
-                        using DT =
-                           typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-                        if constexpr (qf_param_uses_dual_v<DT>)
+                        constexpr size_t i = ic.value;
+                        auto &qarg = get<i>(qargs);
+                        const auto &XE = in_XE[i];
+                        using FOP = tuple_element_t<i, inputs_t>;
+                        using ARG =
+                           typename qf_param_slot<qfunc_t, i>::qf_reg_param_t;
+                        if constexpr (is_identity_fop_v<FOP>)
                         {
-                           qarg = backend_t::template identity_qp_pull_dual<DT>(
-                              false, XE, XE, qx, qy, qz, e);
+                           using DT =
+                              typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+                           if constexpr (qf_param_uses_dual_v<DT>)
+                           {
+                              qarg = backend_t::template identity_qp_pull_dual<DT>(
+                                 false, XE, XE, qx, qy, qz, e);
+                           }
+                           else
+                           {
+                              qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                           }
+                        }
+                        else if constexpr (is_weight_fop_v<FOP>)
+                        {
+                           qarg = XE(qx, qy, qz, 0, 0);
+                        }
+                        else if constexpr (is_value_fop_v<FOP> ||
+                                           is_gradient_fop_v<FOP>)
+                        {
+                           qarg = backend_t::template qp_pull<ARG>(
+                              get<i>(rargs), qx, qy, qz);
                         }
                         else
                         {
-                           qarg = as_tensor<ARG>(&XE(0, qx, qy, qz, e));
+                           static_assert(false, "Unsupported");
                         }
-                     }
-                     else if constexpr (is_weight_fop_v<FOP>)
-                     {
-                        qarg = XE(qx, qy, qz, 0, 0);
-                     }
-                     else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
-                     {
-                        qarg = backend_t::template qp_pull<ARG>(
-                           get<i>(rargs), qx, qy, qz);
-                     }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
-                  });
+                     });
 
-                  // --------------------------------------
-                  // Call the quadrature function
-                  // --------------------------------------
-                  call_qfunc_no_move(qfunc, qargs);
+                     // --------------------------------------
+                     // Call the quadrature function
+                     // --------------------------------------
+                     call_qfunc_no_move(qfunc, qargs);
 
-                  // --------------------------------------
-                  // Pushing arguments from qargs tuple to registers
-                  // --------------------------------------
-                  for_constexpr<n_outputs>([&](auto ic)
-                  {
-                     constexpr size_t i = ic.value, o = n_inputs + i;
-                     const auto &qarg = get<o>(qargs);
-                     const auto &YE = out_YE[i];
-                     using FOP = tuple_element_t<i, outputs_t>;
-                     using ARG =
-                        typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
-                     if constexpr (is_identity_fop_v<FOP> ||
-                                   is_functionalvalue_fop_v<FOP>)
+                     // --------------------------------------
+                     // Pushing arguments from qargs tuple to registers
+                     // --------------------------------------
+                     for_constexpr<n_outputs>([&](auto ic)
                      {
-                        using DT =
-                           typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-                        if constexpr (qf_param_uses_dual_v<DT>)
+                        constexpr size_t i = ic.value, o = n_inputs + i;
+                        const auto &qarg = get<o>(qargs);
+                        const auto &YE = out_YE[i];
+                        using FOP = tuple_element_t<i, outputs_t>;
+                        using ARG =
+                           typename qf_param_slot<qfunc_t, o>::qf_reg_param_t;
+                        if constexpr (is_identity_fop_v<FOP> ||
+                                      is_functionalvalue_fop_v<FOP>)
                         {
-                           backend_t::identity_qp_write_value(
-                              YE, qx, qy, qz, e, qarg);
+                           using DT =
+                              typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+                           if constexpr (qf_param_uses_dual_v<DT>)
+                           {
+                              backend_t::identity_qp_write_value(
+                                 YE, qx, qy, qz, e, qarg);
+                           }
+                           else
+                           {
+                              as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
+                           }
+                        }
+                        else if constexpr (is_value_fop_v<FOP> ||
+                                           is_gradient_fop_v<FOP>)
+                        {
+                           auto &rarg = get<o>(rargs);
+                           backend_t::template qp_push<ARG>(
+                              rarg, qx, qy, qz, qarg);
                         }
                         else
                         {
-                           as_tensor<ARG>(&YE(0, qx, qy, qz, e)) = qarg;
+                           static_assert(false, "Unsupported");
                         }
-                     }
-                     else if constexpr (is_value_fop_v<FOP> ||
-                                        is_gradient_fop_v<FOP>)
-                     {
-                        auto &rarg = get<o>(rargs);
-                        backend_t::template qp_push<ARG>(
-                           rarg, qx, qy, qz, qarg);
-                     }
-                     else
-                     {
-                        static_assert(false, "Unsupported");
-                     }
-                  });
+                     });
+                  }
                }
             }
          }
-         MFEM_SYNC_THREAD;
+         if constexpr (!action_outputs_direct_v<outputs_t>)
+         {
+            MFEM_SYNC_THREAD;
+         }
 
          // -----------------------------------------------
          // Integrate outputs
          // -----------------------------------------------
-         for_constexpr<n_outputs>([&](auto ic)
+         if constexpr (!action_outputs_direct_v<outputs_t>)
          {
-            constexpr size_t i = ic.value, o = n_inputs + i;
-            const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
-            const auto B = out_B[i], G = out_G[i];
-            const auto &YE = out_YE[i];
-            auto &rarg = get<o>(rargs);
-            using FOP = tuple_element_t<i, outputs_t>;
-            if constexpr (is_value_fop_v<FOP>)
+            for_constexpr<n_outputs>([&](auto ic)
             {
-               backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               using YE_t = decltype(YE);
-               using rarg_t = decltype(rarg);
-               // Both the rank and the extents have to come from the output
-               // parameter slot o, not from the output index i.
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, Q1D, B, G, YE, rarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP> ||
-                               is_functionalvalue_fop_v<FOP>)
-            {
-               // nothing to do
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
-         });
+               constexpr size_t i = ic.value, o = n_inputs + i;
+               const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
+               const auto B = out_B[i], G = out_G[i];
+               const auto &YE = out_YE[i];
+               auto &rarg = get<o>(rargs);
+               using FOP = tuple_element_t<i, outputs_t>;
+               if constexpr (is_value_fop_v<FOP>)
+               {
+                  backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
+               }
+               else if constexpr (is_gradient_fop_v<FOP>)
+               {
+                  using YE_t = decltype(YE);
+                  using rarg_t = decltype(rarg);
+                  // Both the rank and the extents have to come from the output
+                  // parameter slot o, not from the output index i.
+                  using qf_param_t =
+                     typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
+                  constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
+                  backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
+                     smem, e, d, q, Q1D, B, G, YE, rarg);
+               }
+               else if constexpr (is_identity_fop_v<FOP> ||
+                                  is_functionalvalue_fop_v<FOP>)
+               {
+                  // nothing to do
+               }
+               else
+               {
+                  static_assert(false, "Unsupported");
+               }
+            });
+         }
       },
       ne,
       backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
@@ -454,7 +590,15 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
-   return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D>>;
+   if constexpr (DIM == 3 && Q1D == LocalQFLOBackendMQ1() &&
+                 action_outputs_direct_value_v<qfunc_t, inputs_t, outputs_t>)
+   {
+      return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D, Q1D / 2>>;
+   }
+   else
+   {
+      return action_t::template action_callback<LocalQFLOBackend<DIM, Q1D>>;
+   }
 }
 
 // Low Order fallback

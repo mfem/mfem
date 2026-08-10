@@ -67,6 +67,7 @@ endfunction(add_benchmark)
 #-------------------------------------------------------------------------------
 if (MFEM_USE_BENCHMARK)
     add_benchmark(assembly_levels)
+    add_benchmark(bpl)
     add_benchmark(ceed)
     add_benchmark(dfem)
     add_benchmark(dg_amr)

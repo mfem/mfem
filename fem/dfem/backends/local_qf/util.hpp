@@ -148,6 +148,70 @@ using args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
 
+/// Empty stand-in for a tuple slot that is never loaded, read or addressed.
+struct UnusedSlot {};
+using UnusedQReg = UnusedSlot;
+
+/// Register bank for primal action. Outputs that are written directly at
+/// quadrature points, e.g. Identity/FunctionalValue outputs, do not need a
+/// per-qpoint register bank, because they are stored to the output tensor in the
+/// qfunction loop and skipped in the integration pass.
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t K, std::size_t N, typename... Acc>
+struct build_action_args_reg_tuple_impl;
+
+template <typename outputs_t, std::size_t output_idx, bool is_output>
+struct action_output_fop
+{
+   using type = UnusedSlot;
+};
+
+template <typename outputs_t, std::size_t output_idx>
+struct action_output_fop<outputs_t, output_idx, true>
+{
+   using type = tuple_element_t<output_idx, outputs_t>;
+};
+
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t N, typename... Acc>
+struct build_action_args_reg_tuple_impl<backend_t, qfunc_t, inputs_t,
+                                        outputs_t, MQ1, N, N, Acc...>
+{
+   using type = tuple<Acc...>;
+};
+
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1,
+   std::size_t K, std::size_t N, typename... Acc>
+struct build_action_args_reg_tuple_impl
+{
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr bool is_output = (K >= n_inputs);
+   using qf_reg_param_t = typename qf_param_slot<qfunc_t, K>::qf_reg_param_t;
+   using output_fop_t = typename action_output_fop<outputs_t,
+         is_output ? (K - n_inputs) : 0, is_output>::type;
+   static constexpr bool direct_output =
+      is_output &&
+      (is_identity_fop_v<output_fop_t> || is_functionalvalue_fop_v<output_fop_t>);
+   using R = std::conditional_t<direct_output,
+                                UnusedQReg,
+                                typename backend_t::template QReg<qf_reg_param_t>>;
+   using type = typename build_action_args_reg_tuple_impl<backend_t, qfunc_t,
+         inputs_t, outputs_t, MQ1, K + 1, N, Acc..., R>::type;
+};
+
+template <
+   typename backend_t,
+   typename qfunc_t, typename inputs_t, typename outputs_t, int MQ1>
+using action_args_reg_t = typename build_action_args_reg_tuple_impl<backend_t,
+      qfunc_t, inputs_t, outputs_t, MQ1, 0,
+      tuple_size<inputs_t>::value + tuple_size<outputs_t>::value>::type;
+
 /// Register bank covering q-function inputs only (same types as first
 /// `n_inputs` slots of args_reg_t). Used where shadow / tangent paths never
 /// touch output parameter registers.
@@ -157,10 +221,6 @@ template <
 using input_args_reg_t = typename build_args_reg_tuple_impl<backend_t, qfunc_t,
       inputs_t, outputs_t, MQ1, 0, 0,
       tuple_size<inputs_t>::value>::type;
-
-/// Empty stand-in for a tuple slot that is never loaded, read or addressed.
-struct UnusedSlot {};
-using UnusedQReg = UnusedSlot;
 
 /// Copy of a q-function argument tuple with every slot whose mask entry is
 /// false collapsed to an empty type. Used for the shadow argument tuple of a

@@ -986,6 +986,41 @@ tensor<decltype(S {} * T{}), m, p>
    return AB;
 }
 
+template <typename S, typename T, int m, int n, int p> MFEM_HOST_DEVICE
+auto dot_transpose(const tensor<S, m, n>& A,
+                   const tensor<T, p, n>& B) ->
+tensor<decltype(S {} * T{}), m, p>
+{
+   tensor<decltype(S{} * T{}), m, p> AB{};
+   for (int i = 0; i < m; i++)
+   {
+      for (int j = 0; j < p; j++)
+      {
+         for (int k = 0; k < n; k++)
+         {
+            AB[i][j] = AB[i][j] + A[i][k] * B[j][k];
+         }
+      }
+   }
+   return AB;
+}
+
+template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
+auto scaled_transpose(const S scale,
+                      const tensor<T, m, n>& A) ->
+tensor<decltype(S {} * T{}), n, m>
+{
+   tensor<decltype(S{} * T{}), n, m> AT{};
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < m; j++)
+      {
+         AT[i][j] = scale * A[j][i];
+      }
+   }
+   return AT;
+}
+
 /**
  * @overload
  * @note vector . matrix
