@@ -126,7 +126,8 @@ void GPUBlasBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    const blasStatus_t status = MFEM_GPUBLAS_PREFIX(getrfBatched)(
                                   GPUBlas::Handle(), n, d_A_ptrs, n, P.Write(),
                                   info_array.Write(), n_mat);
-   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
+   VerifyBatchedLUInfo(info_array, "Batch LU factorization failed");
 }
 
 void GPUBlasBatchedLinAlg::LUSolve(
@@ -189,12 +190,14 @@ void GPUBlasBatchedLinAlg::Invert(DenseTensor &A) const
    status = MFEM_GPUBLAS_PREFIX(getrfBatched)(
                GPUBlas::Handle(), n, d_LU_ptrs, n, P.Write(),
                info_array.Write(), n_mat);
-   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
+   VerifyBatchedLUInfo(info_array, "Batch LU factorization failed");
 
    status = MFEM_GPUBLAS_PREFIX(getriBatched)(
                GPUBlas::Handle(), n, d_LU_ptrs, n, P.ReadWrite(), d_A_ptrs, n,
                info_array.Write(), n_mat);
-   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "");
+   MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
+   VerifyBatchedLUInfo(info_array, "Batch matrix inversion failed");
 }
 
 #endif
