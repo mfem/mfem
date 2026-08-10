@@ -346,13 +346,13 @@ private:
       template<typename T>
       T operator() (const blitz::TinyVector<T,3>& x) const
       {
-         int el_order=el->GetOrder();
-         T u1[el_order+1];
-         T u2[el_order+1];
-         T u3[el_order+1];
-         TmplPoly_1D::CalcBernstein(el_order, x[0], u1);
-         TmplPoly_1D::CalcBernstein(el_order, x[1], u2);
-         TmplPoly_1D::CalcBernstein(el_order, x[2], u3);
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> u3(el_order+1);
+         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[2], u3.data());
 
          const Array<int>& dof_map=el->GetDofMap();
 
@@ -370,17 +370,17 @@ private:
       template<typename T>
       blitz::TinyVector<T,3> grad(const blitz::TinyVector<T,3>& x) const
       {
-         int el_order=el->GetOrder();
-         T u1[el_order+1];
-         T u2[el_order+1];
-         T u3[el_order+1];
-         T d1[el_order+1];
-         T d2[el_order+1];
-         T d3[el_order+1];
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> u3(el_order+1);
+         std::vector<T> d1(el_order+1);
+         std::vector<T> d2(el_order+1);
+         std::vector<T> d3(el_order+1);
 
-         TmplPoly_1D::CalcBernstein(el_order,x[0], u1, d1);
-         TmplPoly_1D::CalcBernstein(el_order,x[1], u2, d2);
-         TmplPoly_1D::CalcBernstein(el_order,x[2], u3, d3);
+         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.data(), d1.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.data(), d2.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[2], u3.data(), d3.data());
 
          blitz::TinyVector<T,3> res(T(0.0),T(0.0),T(0.0));
 
@@ -415,11 +415,11 @@ private:
       template<typename T>
       T operator() (const blitz::TinyVector<T,2>& x) const
       {
-         int el_order=el->GetOrder();
-         T u1[el_order+1];
-         T u2[el_order+1];
-         TmplPoly_1D::CalcBernstein(el_order, x[0], u1);
-         TmplPoly_1D::CalcBernstein(el_order, x[1], u2);
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         TmplPoly_1D::CalcBernstein(el_order, x[0], u1.data());
+         TmplPoly_1D::CalcBernstein(el_order, x[1], u2.data());
 
          const Array<int>& dof_map=el->GetDofMap();
 
@@ -437,14 +437,14 @@ private:
       template<typename T>
       blitz::TinyVector<T,2> grad(const blitz::TinyVector<T,2>& x) const
       {
-         int el_order=el->GetOrder();
-         T u1[el_order+1];
-         T u2[el_order+1];
-         T d1[el_order+1];
-         T d2[el_order+1];
+         const int el_order = el->GetOrder();
+         std::vector<T> u1(el_order+1);
+         std::vector<T> u2(el_order+1);
+         std::vector<T> d1(el_order+1);
+         std::vector<T> d2(el_order+1);
 
-         TmplPoly_1D::CalcBernstein(el_order,x[0], u1, d1);
-         TmplPoly_1D::CalcBernstein(el_order,x[1], u2, d2);
+         TmplPoly_1D::CalcBernstein(el_order,x[0], u1.data(), d1.data());
+         TmplPoly_1D::CalcBernstein(el_order,x[1], u2.data(), d2.data());
 
          blitz::TinyVector<T,2> res(T(0.0),T(0.0));
 

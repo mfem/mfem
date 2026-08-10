@@ -48,11 +48,16 @@
 // Device runs:
 //    mpirun -np 2 pfindpts -m ../../data/inline-quad.mesh -o 3 -mo 2 -random 1 -d debug
 //    mpirun -np 2 pfindpts -m ../../data/amr-quad.mesh -rs 1 -o 4 -mo 2 -random 1 -npt 100 -d debug
-//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug
-
+//    mpirun -np 2 pfindpts -m ../../data/inline-hex.mesh -o 3 -mo 2 -random 1 -d debug -ft 1
+// Surface meshes:
+//    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf
+//    mpirun -np 4 pfindpts -m ../../data/star-q3.mesh -o 6 -mo 3 -vis -random 1 -surf
+//    mpirun -np 4 pfindpts -m ../../data/fichera-q2.mesh -o 6 -mo 3 -vis -random 1 -surf
+// Surface meshes + bounding box size increase:
+//    mpirun -np 4 pfindpts -m ../../data/square-disc-p2.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
+//    mpirun -np 4 pfindpts -m ../../data/tinyzoo-3d.mesh -o 4 -mo 2 -vis -random 1 -surf -sabs 0.1
 
 #include "mfem.hpp"
-#include "general/forall.hpp"
 #include "../common/mfem-common.hpp"
 
 using namespace mfem;
@@ -99,7 +104,8 @@ int main (int argc, char *argv[])
    const char *devopt    = "cpu";
    int randomization     = 0;
    int npt               = 100; //points per proc
-   int visport           = 19916;
+   bool surface          = false;
+   double surf_aabb_sz_inc = 0.0;
 
    // Parse command-line options.
    OptionsParser args(argc, argv);
@@ -122,7 +128,8 @@ int main (int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&search_on_rank_0, "-sr0", "--search-on-r0", "-no-sr0",
                   "--no-search-on-r0",
-                  "Enable search only on rank 0 (disable to search points on all tasks).");
+                  "Enable search only on rank 0 (disable to search points on all tasks). "
+                  "All points added by other procs are ignored.");
    args.AddOption(&hrefinement, "-hr", "--h-refinement", "-no-hr",
                   "--no-h-refinement",
                   "Do random h refinements to mesh (does not work for pyramids).");
@@ -130,17 +137,21 @@ int main (int argc, char *argv[])
                   "Ordering of points to be found."
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&gf_ordering, "-gfo", "--gridfunc-ordering",
-                  "Ordering of fespace that will be used for grid function to be interpolated."
+                  "Ordering of fespace that will be used for grid function to be interpolated. "
                   "0 (default): byNodes, 1: byVDIM");
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&randomization, "-random", "--random",
-                  "0: generate points randomly in the bounding box of domain,"
+                  "0: generate points randomly in the bounding box of domain, "
                   "1: generate points randomly inside each element in mesh.");
    args.AddOption(&npt, "-npt", "--npt",
-                  "# points per proc or element");
-   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
-
+                  "# points / rank initialized on entire mesh (random = 0) or every element (random = 1).");
+   args.AddOption(&surface, "-surf", "--surface", "-no-surf",
+                  "--no-surface",
+                  "Extract surface mesh from volume mesh.");
+   args.AddOption(&surf_aabb_sz_inc, "-sabs", "--surface-aabb-size-inc",
+                  "Absolute AABB expansion applied to surface-search "
+                  "axis-aligned bounding boxes in FindPointsGSLIB surface meshes.");
    args.Parse();
    if (!args.Good())
    {
@@ -155,20 +166,19 @@ int main (int argc, char *argv[])
 
    func_order = std::min(order, 2);
 
-   // Initialize and refine the starting mesh.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1, false);
-   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
-   const int dim = mesh->Dimension();
-
-   if (mesh->GetNumGeometries(dim) != 1 ||
-       (mesh->GetElementType(0)!=Element::QUADRILATERAL &&
-        mesh->GetElementType(0) != Element::HEXAHEDRON))
+   // Initialize and extract surface mesh if requested.
+   Mesh *input_mesh = new Mesh(mesh_file, 1, 1, false);
+   Mesh *mesh = surface ? nullptr : input_mesh;
+   if (surface)
    {
-      randomization = 0;
+      MFEM_VERIFY(input_mesh->bdr_attributes.Size() > 0,
+                  "--surface requires a mesh with boundary attributes.");
+      mesh = new Mesh(SubMesh::CreateFromBoundary(*input_mesh,
+                                                  input_mesh->bdr_attributes));
    }
-
-   Vector xmin, xmax;
-   mesh->GetBoundingBox(xmin, xmax);
+   for (int lev = 0; lev < rs_levels; lev++) { mesh->UniformRefinement(); }
+   const int dim = mesh->Dimension(),
+             sdim = mesh->SpaceDimension();
 
    if (myid == 0)
    {
@@ -184,10 +194,13 @@ int main (int argc, char *argv[])
    mesh->GetBoundingBox(pos_min, pos_max, mesh_poly_deg);
    if (myid == 0)
    {
-      cout << "--- Generating equidistant point for:\n"
-           << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n"
-           << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
-      if (dim == 3)
+      cout << "--- Generating points for:\n"
+           << "x in [" << pos_min(0) << ", " << pos_max(0) << "]\n";
+      if (sdim >= 2)
+      {
+         cout << "y in [" << pos_min(1) << ", " << pos_max(1) << "]" << std::endl;
+      }
+      if (sdim == 3)
       {
          cout << "z in [" << pos_min(2) << ", " << pos_max(2) << "]" << std::endl;
       }
@@ -195,8 +208,13 @@ int main (int argc, char *argv[])
 
    // Distribute the mesh.
    if (hrefinement) { mesh->EnsureNCMesh(); }
-   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
-   if (randomization == 0) { delete mesh; }
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh, nullptr,
+                 (dim == 1 && sdim == 3) ? 0 : 1);
+   if (randomization == 0)
+   {
+      delete mesh;
+      if (surface) { delete input_mesh; }
+   }
    else
    {
       // we will need mesh nodal space later
@@ -209,7 +227,7 @@ int main (int argc, char *argv[])
 
    // Curve the mesh based on the chosen polynomial degree.
    H1_FECollection fecm(mesh_poly_deg, dim);
-   ParFiniteElementSpace pfespace(&pmesh, &fecm, dim);
+   ParFiniteElementSpace pfespace(&pmesh, &fecm, sdim);
    pmesh.SetNodalFESpace(&pfespace);
    ParGridFunction x(&pfespace);
    pmesh.SetNodalGridFunction(&x);
@@ -237,14 +255,14 @@ int main (int argc, char *argv[])
    {
       fec = new RT_FECollection(order, dim);
       ncomp = 1;
-      vec_dim = dim;
+      vec_dim = sdim;
       if (myid == 0) { cout << "H(div)-GridFunction" << std::endl; }
    }
    else if (fieldtype == 3)
    {
       fec = new ND_FECollection(order, dim);
       ncomp = 1;
-      vec_dim = dim;
+      vec_dim = sdim;
       if (myid == 0) { cout << "H(curl)-GridFunction" << std::endl; }
    }
    else
@@ -263,13 +281,13 @@ int main (int argc, char *argv[])
    {
       char vishost[] = "localhost";
       socketstream sout;
-      sout.open(vishost, visport);
+      sout.open(vishost, 19916);
       if (!sout)
       {
          if (myid == 0)
          {
             cout << "Unable to connect to GLVis server at "
-                 << vishost << ':' << visport << endl;
+                 << vishost << ':' << 19916 << endl;
          }
       }
       else
@@ -277,28 +295,31 @@ int main (int argc, char *argv[])
          sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(8);
          sout << "solution\n" << pmesh << field_vals;
-         if (dim == 2) { sout << "keys RmjA*****\n"; }
-         if (dim == 3) { sout << "keys mA\n"; }
+         if (sdim == 2) { sout << "keys RmjA*****\n"; }
+         if (sdim == 3) { sout << "keys mA\n"; }
+         sout << "window_title 'Solution'\n"
+              << "window_geometry "
+              << 0 << " " << 0 << " " << 400 << " " << 400 << "\n";
          sout << flush;
       }
    }
 
-   // Generate equidistant points in physical coordinates over the whole mesh.
-   // Note that some points might be outside, if the mesh is not a box. Note
-   // also that all tasks search the same points (not mandatory).
+   // Generate random points in physical coordinates over the whole mesh.
+   // Note that some points might be outside if the mesh is not a box.
    int pts_cnt = npt;
    Vector vxyz;
    vxyz.UseDevice(!cpu_mode);
-   int npt_face_per_elem = 4; // number of pts on el faces for randomization != 0
+   int npt_face_per_elem = 4; // number of pts on faces when randomization != 0
+   int npt_total_face = 0;
    if (randomization == 0)
    {
-      vxyz.SetSize(pts_cnt * dim);
+      vxyz.SetSize(pts_cnt * sdim);
       vxyz.Randomize(myid+1);
 
       // Scale based on min/max dimensions
       for (int i = 0; i < pts_cnt; i++)
       {
-         for (int d = 0; d < dim; d++)
+         for (int d = 0; d < sdim; d++)
          {
             if (point_ordering == Ordering::byNODES)
             {
@@ -307,8 +328,8 @@ int main (int argc, char *argv[])
             }
             else
             {
-               vxyz(i*dim + d) =
-                  pos_min(d) + vxyz(i*dim + d) * (pos_max(d) - pos_min(d));
+               vxyz(i*sdim + d) =
+                  pos_min(d) + vxyz(i*sdim + d) * (pos_max(d) - pos_min(d));
             }
          }
       }
@@ -316,30 +337,24 @@ int main (int argc, char *argv[])
    else // randomization == 1
    {
       pts_cnt = npt*nelemglob;
-      vxyz.SetSize(pts_cnt * dim);
+      vxyz.SetSize(pts_cnt * sdim);
       for (int i=0; i<mesh->GetNE(); i++)
       {
          const FiniteElementSpace *s_fespace = mesh->GetNodalFESpace();
          ElementTransformation *transf = s_fespace->GetElementTransformation(i);
-
-         Vector pos_ref1(npt*dim);
-         pos_ref1.Randomize((myid+1)*17.0);
+         const Geometry::Type geom = mesh->GetElementGeometry(i);
          for (int j=0; j<npt; j++)
          {
             IntegrationPoint ip;
-            ip.x = pos_ref1(j*dim + 0);
-            ip.y = pos_ref1(j*dim + 1);
-            if (dim == 3)
-            {
-               ip.z = pos_ref1(j*dim + 2);
-            }
+            Geometry::GetRandomPoint(geom, ip);
             if (j < npt_face_per_elem)
             {
-               ip.x = 0.0; // force point to be on the face
+               ip.x = 0.0; // force point to be on a face
+               npt_total_face++;
             }
-            Vector pos_i(dim);
+            Vector pos_i(sdim);
             transf->Transform(ip, pos_i);
-            for (int d=0; d<dim; d++)
+            for (int d=0; d<sdim; d++)
             {
                if (point_ordering == Ordering::byNODES)
                {
@@ -347,35 +362,38 @@ int main (int argc, char *argv[])
                }
                else
                {
-                  vxyz((j + npt*i)*dim + d) = pos_i(d);
+                  vxyz((j + npt*i)*sdim + d) = pos_i(d);
                }
             }
          }
       }
    }
-
    if ( (myid != 0) && (search_on_rank_0) )
    {
       pts_cnt = 0;
       vxyz.Destroy();
+      npt_total_face = 0;
    }
+   MPI_Allreduce(MPI_IN_PLACE, &npt_total_face, 1, MPI_INT, MPI_SUM,
+                 pmesh.GetComm());
 
    // Find and Interpolate FE function values on the desired points.
    Vector interp_vals(pts_cnt*vec_dim);
-   FindPointsGSLIB finder(MPI_COMM_WORLD);
-   finder.Setup(pmesh);
-   finder.SetDistanceToleranceForPointsFoundOnBoundary(10);
-   // Enable GPU to CPU fallback for GPUData only if you must use an older
+   FindPointsGSLIB finder;
+   if (surface && surf_aabb_sz_inc > 0.0)
+   {
+      Vector bb_size({surf_aabb_sz_inc});
+      finder.SetupSurfWithAABBExpansion(pmesh, bb_size);
+   }
+   else
+   {
+      finder.Setup(pmesh);
+   }
+   // finder.SetDistanceToleranceForPointsFoundOnBoundary(1e-10);
+   // Enable GPU to CPU fallback for GPUData only if you are using an older
    // version of GSLIB.
    // finder.SetGPUtoCPUFallback(true);
    finder.FindPoints(vxyz, point_ordering);
-
-   Array<unsigned int> code_out1    = finder.GetCode();
-   Array<unsigned int> el_out1    = finder.GetGSLIBElem();
-   Vector ref_rst1    = finder.GetGSLIBReferencePosition();
-   Vector ref_rst0   = finder.GetReferencePosition();
-   Vector dist1    = finder.GetDist();
-   Array<unsigned int> proc_out1    = finder.GetProc();
 
    finder.Interpolate(field_vals, interp_vals);
    if (interp_vals.UseDevice())
@@ -387,28 +405,31 @@ int main (int argc, char *argv[])
    Array<unsigned int> code_out    = finder.GetCode();
    Array<unsigned int> task_id_out = finder.GetProc();
    Vector dist_p_out = finder.GetDist();
-   Vector rst = finder.GetReferencePosition();
+
+   auto h_code_out = code_out.HostRead();
+   auto h_task_id_out = task_id_out.HostRead();
+   auto h_dist_p_out = dist_p_out.HostRead();
 
    int face_pts = 0, not_found = 0, found_loc = 0, found_away = 0;
    double error = 0.0, max_error = 0.0, max_dist = 0.0;
 
-   Vector pos(dim);
+   Vector pos(sdim);
    for (int j = 0; j < vec_dim; j++)
    {
       for (int i = 0; i < pts_cnt; i++)
       {
          if (j == 0)
          {
-            (task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
+            (h_task_id_out[i] == (unsigned)myid) ? found_loc++ : found_away++;
          }
 
-         if (code_out[i] < 2)
+         if (h_code_out[i] < 2)
          {
-            for (int d = 0; d < dim; d++)
+            for (int d = 0; d < sdim; d++)
             {
                pos(d) = point_ordering == Ordering::byNODES ?
                         vxyz(d*pts_cnt + i) :
-                        vxyz(i*dim + d);
+                        vxyz(i*sdim + d);
             }
             Vector exact_val(vec_dim);
             F_exact(pos, exact_val);
@@ -416,8 +437,8 @@ int main (int argc, char *argv[])
                     fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                     fabs(exact_val(j) - interp_vals[i*vec_dim + j]);
             max_error  = std::max(max_error, error);
-            max_dist = std::max(max_dist, dist_p_out(i));
-            if (code_out[i] == 1 && j == 0) { face_pts++; }
+            max_dist = std::max(max_dist, h_dist_p_out[i]);
+            if (h_code_out[i] == 1 && j == 0) { face_pts++; }
          }
          else { if (j == 0) { not_found++; } }
       }
@@ -442,21 +463,26 @@ int main (int argc, char *argv[])
       cout << setprecision(16)
            << "Total number of elements: " << nelemglob
            << "\nTotal number of procs: " << num_procs
-           << "\nSearched total points: " << pts_cnt*num_procs
+           << "\nSearched total points: " <<  (search_on_rank_0 ? pts_cnt :
+                                               pts_cnt*num_procs)
            << "\nFound locally on ranks:  " << found_loc
            << "\nFound on other tasks: " << found_away
            << "\nPoints not found:     " << not_found
-           << "\nPoints on faces:      " << face_pts
+           << "\nPoints on faces:      " << face_pts << " out of "
+           << npt_total_face
            << "\nMax interp error:     " << max_error
-           << "\nMax dist (of found):  " << max_dist
+           << "\nMax dist^2 (of found): " << max_dist
            << endl;
    }
 
-   // Free the internal gslib data.
-   finder.FreeData();
 
    delete fec;
-   if (randomization != 0) { delete mesh; }
+
+   if (randomization != 0)
+   {
+      delete mesh;
+      if (surface) { delete input_mesh; }
+   }
 
    return 0;
 }

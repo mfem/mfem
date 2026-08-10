@@ -14,9 +14,6 @@ MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/plasma/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -28,6 +25,14 @@ ifeq ($(MFEM_USE_MPI),NO)
 else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
+
+PLASMA_SUBDIRS = pic
+
+SUBDIRS_ALL = $(addsuffix /all,$(PLASMA_SUBDIRS))
+SUBDIRS_TEST = $(addsuffix /test,$(PLASMA_SUBDIRS))
+SUBDIRS_TEST_NOCLEAN = $(addsuffix /test-noclean,$(PLASMA_SUBDIRS))
+SUBDIRS_CLEAN = $(addsuffix /clean,$(PLASMA_SUBDIRS))
+SUBDIRS_TPRINT = $(addsuffix /test-print,$(PLASMA_SUBDIRS))
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -47,7 +52,10 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS)
+all: $(MINIAPPS) $(SUBDIRS_ALL) 
+
+.PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) \
+   $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
 
 # Rules for building the miniapps
 %: $(SRC)%.cpp $(COMMON_O) $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
@@ -59,12 +67,20 @@ $(COMMON_O) $(addsuffix _solver.o,$(MINIAPPS)): \
 %.o: $(SRC)%.cpp $(SRC)%.hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
+$(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) $(SUBDIRS_CLEAN):
+	$(MAKE) -C $(@D) $(@F)
+$(SUBDIRS_TPRINT):
+	@$(MAKE) -C $(@D) $(@F)
+
 # Rule for building lib-common
 lib-common:
 	$(MAKE) -C $(MFEM_BUILD_DIR)/miniapps/common
 
-MFEM_TESTS = 
+MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
+test: $(SUBDIRS_TEST)
+test-noclean: $(SUBDIRS_TEST_NOCLEAN)
+test-print: $(SUBDIRS_TPRINT)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
@@ -75,7 +91,7 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec
+clean: clean-build clean-exec $(SUBDIRS_CLEAN)
 
 clean-build:
 	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
@@ -83,4 +99,3 @@ clean-build:
 
 clean-exec:
 	@rm -rf G_EQDSK_Viewer_* gnuplot_eqdsk.*
-

@@ -19,6 +19,7 @@ set(MESH_FILES
   square01.mesh
   square01-tri.mesh
   stretched2D.mesh
+  stretched3D.mesh
 )
 
 # Add a target to copy the mesh files from the source directory; used by sample
@@ -27,11 +28,9 @@ set(SRC_MESH_FILES)
 foreach(MESH_FILE ${MESH_FILES})
   list(APPEND SRC_MESH_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${MESH_FILE})
 endforeach()
-add_custom_command(OUTPUT data_is_copied
+add_custom_target(copy_miniapps_meshing_data
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SRC_MESH_FILES} .
-  COMMAND ${CMAKE_COMMAND} -E touch data_is_copied
-  COMMENT "Copying meshing miniapps data files ...")
-add_custom_target(copy_miniapps_meshing_data DEPENDS data_is_copied)
+  COMMENT "Syncing meshing miniapps data files ...")
 
 add_mfem_miniapp(klein-bottle
   MAIN klein-bottle.cpp
@@ -121,6 +120,11 @@ endif()
 
 # Parallel apps.
 if (MFEM_USE_MPI)
+  add_mfem_miniapp(mesh-bounding-boxes
+    MAIN mesh-bounding-boxes.cpp
+    ${MFEM_MINIAPPS_COMMON_HEADERS}
+    LIBRARIES mfem-common)
+
   add_mfem_miniapp(pmesh-optimizer
     MAIN pmesh-optimizer.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
@@ -147,14 +151,20 @@ if (MFEM_USE_MPI)
     MAIN phpref.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(pref321
+    MAIN pref321.cpp
+    LIBRARIES mfem)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
+      mesh-bounding-boxes
       pmesh-optimizer
       pmesh-fitting
       fit-node-position
       pminimal-surface
       phpref
+      pref321
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)

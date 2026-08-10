@@ -36,6 +36,7 @@ int main (int argc, char *argv[])
    // Initialize MPI.
    Mpi::Init();
    int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    const char *mesh_file = "square01.mesh";
    int rs_levels     = 2;
@@ -224,5 +225,6 @@ int main (int argc, char *argv[])
    }
 
    delete metric;
+   delete fec_mesh;
    return 0;
 }

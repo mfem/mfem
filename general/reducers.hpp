@@ -12,11 +12,10 @@
 #ifndef MFEM_REDUCERS_HPP
 #define MFEM_REDUCERS_HPP
 
+#include "array.hpp"
 #include "forall.hpp"
 
-#include <climits>
 #include <cmath>
-#include <cstdint>
 #include <limits>
 #include <type_traits>
 
@@ -439,6 +438,160 @@ template <class I> struct ArgMinMaxReducer<double, I>
    }
 };
 
+namespace internal
+{
+
+/**
+ @brief Device portion of a reduction over a 1D sequence [0, N)
+ @tparam B Reduction body. Must be callable with the signature void(int i, value_type&
+ v), where i is the index to evaluate and v is the value to update.
+ @tparam R Reducer capable of combining values of type value_type. See reducers.hpp for
+ pre-defined reducers.
+ */
+template<class B, class R> struct reduction_kernel
+{
+   /// value type body and reducer operate on.
+   using value_type = typename R::value_type;
+   /// workspace for the intermediate reduction results
+   mutable value_type *work;
+   B body;
+   R reducer;
+   /// Length of sequence to reduce over.
+   int N;
+   /// How many items is each thread responsible for during the serial phase
+   int items_per_thread;
+
+   constexpr static MFEM_HOST_DEVICE int max_blocksize() { return 256; }
+
+   /// helper for computing the reduction block size
+   static int block_log2(unsigned N)
+   {
+#if defined(__GNUC__) || defined(__clang__)
+      return N ? (sizeof(unsigned) * 8 - __builtin_clz(N)) : 0;
+#elif defined(_MSC_VER)
+      return sizeof(unsigned) * 8 - __lzclz(N);
+#else
+      int res = 0;
+      while (N)
+      {
+         N >>= 1;
+         ++res;
+      }
+      return res;
+#endif
+   }
+
+   MFEM_HOST_DEVICE void operator()(int work_idx) const
+   {
+      MFEM_SHARED value_type buffer[max_blocksize()];
+      reducer.SetInitialValue(buffer[MFEM_THREAD_ID(x)]);
+      // serial part
+      for (int idx = 0; idx < items_per_thread; ++idx)
+      {
+         int i = MFEM_THREAD_ID(x) +
+                 (idx + work_idx * items_per_thread) * MFEM_THREAD_SIZE(x);
+         if (i < N)
+         {
+            body(i, buffer[MFEM_THREAD_ID(x)]);
+         }
+         else
+         {
+            break;
+         }
+      }
+      // binary tree reduction
+      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      {
+         MFEM_SYNC_THREAD;
+         if (MFEM_THREAD_ID(x) < i)
+         {
+            reducer.Join(buffer[MFEM_THREAD_ID(x)], buffer[MFEM_THREAD_ID(x) + i]);
+         }
+      }
+      if (MFEM_THREAD_ID(x) == 0)
+      {
+         work[work_idx] = buffer[0];
+      }
+   }
+};
+}
+
+/**
+ @brief Performs a 1D reduction on the range [0,N).
+ @a res initial value and where the result will be written.
+ @a body reduction function body.
+ @a reducer helper for joining two reduced values.
+ @a use_dev true to perform the reduction on the device, if possible.
+ @a workspace temporary workspace used for device reductions. May be resized to
+ a larger capacity as needed. Preferably should have MemoryType::MANAGED or
+ MemoryType::HOST_PINNED. TODO: replace with internal temporary workspace
+ vectors once that's added to the memory manager.
+ @tparam T value_type to operate on
+ */
+template <class T, class B, class R>
+void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
+            Array<T> &workspace)
+{
+   if (N == 0)
+   {
+      return;
+   }
+
+#if defined(MFEM_USE_CUDA_OR_HIP)
+   if (use_dev &&
+       mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
+                            Backend::RAJA_HIP))
+   {
+      using red_type = internal::reduction_kernel<typename std::decay<B>::type,
+            typename std::decay<R>::type>;
+      // max block size is 256, but can be smaller
+      int block_size = std::min<int>(red_type::max_blocksize(),
+                                     1ll << red_type::block_log2(N));
+
+      int num_mp = Device::NumMultiprocessors(Device::GetId());
+#if defined(MFEM_USE_CUDA)
+      // good value of mp_sat found experimentally on Lassen
+      constexpr int mp_sat = 8;
+#elif defined(MFEM_USE_HIP)
+      // good value of mp_sat found experimentally on Tuolumne
+      constexpr int mp_sat = 4;
+#else
+      num_mp = 1;
+      constexpr int mp_sat = 1;
+#endif
+      // determine how many items each thread should sum during the serial
+      // portion
+      int nblocks = std::min(mp_sat * num_mp, (N + block_size - 1) / block_size);
+      int items_per_thread =
+         (N + block_size * nblocks - 1) / (block_size * nblocks);
+
+      red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
+      // allocate res to fit block_size entries
+      auto mt = workspace.GetMemory().GetMemoryType();
+      if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
+      {
+         mt = MemoryType::HOST_PINNED;
+      }
+      workspace.SetSize(nblocks, mt);
+      auto work = workspace.HostWrite();
+      red.work = work;
+      forall_2D(nblocks, block_size, 1, std::move(red));
+      // wait for results
+      MFEM_DEVICE_SYNC;
+      for (int i = 0; i < nblocks; ++i)
+      {
+         reducer.Join(res, work[i]);
+      }
+      return;
+   }
+#endif
+
+   for (int i = 0; i < N; ++i)
+   {
+      body(i, res);
+   }
+}
+
 } // namespace mfem
 
-#endif
+#endif // MFEM_REDUCERS_HPP

@@ -22,10 +22,20 @@ using namespace std;
 namespace mfem
 {
 
-ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf)
+ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, GridFunction *gf,
+                                 bool preserve)
 {
    fes = pfes = pf;
    SetDataAndSize(gf->GetData(), gf->Size());
+
+   if (pfes->HaveDofSigns())
+   {
+      MFEM_VERIFY(!preserve, "Differing sign conventions for the serial and "
+                  "parallel grid functions will prevent preserving the serial "
+                  "GridFunctions in this context.");
+
+      pfes->ApplyDofSigns(HostReadWrite());
+   }
 }
 
 ParGridFunction::ParGridFunction(ParFiniteElementSpace *pf, HypreParVector *tv)
@@ -55,22 +65,16 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, const GridFunction *gf,
       int element_counter = 0;
       const int MyRank = pfes->GetMyRank();
       const int glob_ne = glob_fes->GetNE();
+      DofTransformation ltrans, gtrans;
       for (int i = 0; i < glob_ne; i++)
       {
          if (partitioning[i] == MyRank)
          {
-            const DofTransformation* const ltrans = pfes->GetElementVDofs(element_counter,
-                                                                          lvdofs);
-            const DofTransformation* const gtrans = glob_fes->GetElementVDofs(i, gvdofs);
+            pfes->GetElementVDofs(element_counter, lvdofs, ltrans);
+            glob_fes->GetElementVDofs(i, gvdofs, gtrans);
             gf->GetSubVector(gvdofs, lnodes);
-            if (gtrans)
-            {
-               gtrans->InvTransformPrimal(lnodes);
-            }
-            if (ltrans)
-            {
-               ltrans->TransformPrimal(lnodes);
-            }
+            gtrans.InvTransformPrimal(lnodes);
+            ltrans.TransformPrimal(lnodes);
             SetSubVector(lvdofs, lnodes);
             element_counter++;
          }
@@ -86,6 +90,8 @@ ParGridFunction::ParGridFunction(ParMesh *pmesh, std::istream &input)
                                     fes->GetOrdering());
    delete fes;
    fes = pfes;
+
+   pfes->ApplyDofSigns(HostReadWrite());
 }
 
 void ParGridFunction::Update()
@@ -279,11 +285,11 @@ const
    Array<int> dofs;
    Vector DofVal, LocVec;
    const int nbr_el_no = i - pfes->GetParMesh()->GetNE();
+   DofTransformation doftrans;
    if (nbr_el_no >= 0)
    {
       int fes_vdim = pfes->GetVDim();
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                   nbr_el_no, dofs);
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
       // Choose fe to be of the order whose number of DOFs matches dofs.Size(),
       // in the variable order case.
       const int ndofs = pfes->IsVariableOrder() ? dofs.Size() : 0;
@@ -302,10 +308,7 @@ const
          face_nbr_data.GetSubVector(dofs, LocVec);
          DofVal.SetSize(dofs.Size());
       }
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(LocVec);
-      }
+      doftrans.InvTransformPrimal(LocVec);
 
       if (fe->GetMapType() == FiniteElement::VALUE)
       {
@@ -321,7 +324,7 @@ const
    }
    else
    {
-      const DofTransformation* const doftrans = fes->GetElementDofs(i, dofs);
+      fes->GetElementDofs(i, dofs, doftrans);
       fes->DofsToVDofs(vdim-1, dofs);
       DofVal.SetSize(dofs.Size());
       const FiniteElement *fe = fes->GetFE(i);
@@ -336,10 +339,7 @@ const
          fe->CalcPhysShape(*Tr, DofVal);
       }
       GetSubVector(dofs, LocVec);
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(LocVec);
-      }
+      doftrans.InvTransformPrimal(LocVec);
    }
 
    return (DofVal * LocVec);
@@ -352,15 +352,11 @@ void ParGridFunction::GetVectorValue(int i, const IntegrationPoint &ip,
    if (nbr_el_no >= 0)
    {
       Array<int> dofs;
-      const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                   nbr_el_no,
-                                                   dofs);
+      DofTransformation doftrans;
+      pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
       Vector loc_data;
       face_nbr_data.GetSubVector(dofs, loc_data);
-      if (doftrans)
-      {
-         doftrans->InvTransformPrimal(loc_data);
-      }
+      doftrans.InvTransformPrimal(loc_data);
       const FiniteElement *FElem = pfes->GetFaceNbrFE(nbr_el_no);
       int dof = FElem->GetDof();
       if (FElem->GetRangeType() == FiniteElement::SCALAR)
@@ -428,8 +424,8 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
 
    Array<int> dofs;
    const FiniteElement * fe = pfes->GetFaceNbrFE(nbr_el_no);
-   const DofTransformation* const doftrans = pfes->GetFaceNbrElementVDofs(
-                                                nbr_el_no, dofs);
+   DofTransformation doftrans;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, dofs, doftrans);
 
    pfes->DofsToVDofs(comp-1, dofs);
    Vector DofVal(dofs.Size()), LocVec;
@@ -442,10 +438,7 @@ real_t ParGridFunction::GetValue(ElementTransformation &T,
       fe->CalcPhysShape(T, DofVal);
    }
    face_nbr_data.GetSubVector(dofs, LocVec);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(LocVec);
-   }
+   doftrans.InvTransformPrimal(LocVec);
 
 
    return (DofVal * LocVec);
@@ -476,13 +469,11 @@ void ParGridFunction::GetVectorValue(ElementTransformation &T,
    }
 
    Array<int> vdofs;
-   DofTransformation * doftrans = pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs);
+   DofTransformation doftrans;
+   pfes->GetFaceNbrElementVDofs(nbr_el_no, vdofs, doftrans);
    Vector loc_data;
    face_nbr_data.GetSubVector(vdofs, loc_data);
-   if (doftrans)
-   {
-      doftrans->InvTransformPrimal(loc_data);
-   }
+   doftrans.InvTransformPrimal(loc_data);
 
    const FiniteElement *fe = pfes->GetFaceNbrFE(nbr_el_no);
    const int dof = fe->GetDof();
@@ -564,13 +555,24 @@ void ParGridFunction::GetElementDofValues(int el, Vector &dof_vals) const
    }
 }
 
-void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
+void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 {
+   MFEM_VERIFY(VectorDim() == 1,
+               "Cannot project scalar coefficient onto vector ParGridFunction");
    DeltaCoefficient *delta_c = dynamic_cast<DeltaCoefficient *>(&coeff);
 
    if (delta_c == NULL)
    {
-      GridFunction::ProjectCoefficient(coeff);
+      (*this) = std::numeric_limits<real_t>::min();
+      GridFunction::ProjectCoefficient(coeff,type);
+
+      // Accumulate for all vdofs.
+      if (pfes->GetNURBSext())
+      {
+         GroupCommunicator &gcomm = pfes->GroupComm();
+         gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+         gcomm.Bcast<real_t>(data);
+      }
    }
    else
    {
@@ -586,7 +588,149 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff)
    }
 }
 
-void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
+void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
+                                         ProjectType type)
+{
+   GridFunction::ProjectCoefficient(vcoeff, type);
+
+   // Accumulate for all vdofs.
+   if (pfes->GetNURBSext())
+   {
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(data);
+   }
+}
+
+void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
+                                                 real_t rtol,
+                                                 int iter)
+{
+   // Define and assemble linear form
+   ParLinearForm b(pfes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(coeff));
+   b.Assemble();
+
+   // Define and assemble bilinear form
+   ParBilinearForm a(pfes);
+   a.AddDomainIntegrator(new MassIntegrator());
+   a.Assemble();
+
+   // Configure solver
+   OperatorPtr A;
+   Vector B, X, x(*this);
+   Array<int> ess_tdof_list;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
+   delete prec;
+}
+
+void ParGridFunction::ProjectCoefficientElementL2(Coefficient &coeff)
+{
+   Vector Va;
+   ProjectCoefficientElementL2_(coeff, *this, Va);
+
+   GroupCommunicator &gcomm = pfes->GroupComm();
+   gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(GetData());
+
+   gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(Va.GetData());
+   (*this)/=Va;
+}
+
+void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
+                                                 real_t rtol, int iter)
+{
+   // Define and assemble linear form
+   ParLinearForm b(pfes);
+   ParBilinearForm a(pfes);
+
+   // Dimension argument to GetRangeType is arbitrary to be 3, could also be 2.
+   if (fes->FEColl()->GetRangeType(3)  == mfem::FiniteElement::VECTOR)
+   {
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorFEMassIntegrator());
+   }
+   else
+   {
+      b.AddDomainIntegrator(new VectorDomainLFIntegrator(vcoeff));
+      a.AddDomainIntegrator(new VectorMassIntegrator());
+   }
+   b.Assemble();
+   a.Assemble();
+
+   // Configure solver
+   OperatorPtr A;
+   Vector B, X, x(*this);
+   x = 0.0;
+   Array<int> ess_tdof_list;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+   Solver *prec = new HypreBoomerAMG;
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(rtol);
+   cg.SetMaxIter(iter);
+   cg.SetPrintLevel(0);
+   cg.SetPreconditioner(*prec);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   a.RecoverFEMSolution(X, b, x);
+   x.Print();
+   delete prec;
+}
+
+void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
+{
+   if (fes->GetTypicalFE()->GetRangeType() == mfem::FiniteElement::VECTOR)
+   {
+      Vector Va;
+      ProjectCoefficientElementL2_(vcoeff, *this, Va);
+
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(GetData());
+
+      gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(Va.GetData());
+      (*this)/=Va;
+   }
+   else
+   {
+      Array<int> vdofs(fes->GetNDofs());
+      Vector x, Va, gVa(Size());
+      VectorComponentCoefficient coeff(vcoeff,0);
+      *this = 0.0;
+      gVa = 0.0;
+      for (int v = 0; v < VectorDim(); v++)
+      {
+         coeff.SetComponent(v);
+         ProjectCoefficientElementL2_(coeff, x, Va);
+         fes->GetVDofs(v, vdofs);
+         SetSubVector(vdofs, x);
+         gVa.SetSubVector(vdofs, Va);
+      }
+
+      GroupCommunicator &gcomm = pfes->GroupComm();
+      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(GetData());
+
+      gcomm.Reduce<real_t>(gVa.GetData(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(gVa.GetData());
+      *this /= gVa;
+   }
+}
+
+
+void ParGridFunction::ProjectDiscCoefficient(
+   std::variant<Coefficient*, VectorCoefficient*> coeff)
 {
    // local maximal element attribute for each dof
    Array<int> ldof_attr;
@@ -632,6 +776,9 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &coeff)
 
 void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
 {
+   MFEM_VERIFY(
+      VectorDim() == 1,
+      "Cannot project scalar coefficient onto a vector ParGridFunction");
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
 
@@ -656,6 +803,8 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
 {
    // Harmonic  (x1 ... xn) = [ (1/x1 + ... + 1/xn) / n ]^-1.
    // Arithmetic(x1 ... xn) = (x1 + ... + xn) / n.
+
+   MFEM_VERIFY(VectorDim() == vcoeff.GetVDim(), "vcoeff vdim != VectorDim()");
 
    // Number of zones that contain a given dof.
    Array<int> zones_per_vdof;
@@ -727,6 +876,12 @@ void ParGridFunction::ProjectBdrCoefficient(
                   "internal error");
    }
 #endif
+}
+
+void ParGridFunction::ProjectBdrCoefficient(VectorCoefficient &vcoeff,
+                                            const Array<int> &attr)
+{
+   ProjectBdrCoefficient(NULL, &vcoeff, attr);
 }
 
 void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
@@ -939,18 +1094,17 @@ real_t ParGridFunction::ComputeDGFaceJumpError(Coefficient *exsol,
 
 void ParGridFunction::Save(std::ostream &os) const
 {
-   real_t *data_  = const_cast<real_t*>(HostRead());
-   for (int i = 0; i < size; i++)
-   {
-      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
-   }
+   // We use const_cast + HostRead (instead of HostReadWrite) because we only
+   // need to change the host data temporarily and this way we do not invalidate
+   // the data if it is on device. If we use HostReadWrite here, later calls to
+   // Read or ReadWrite will need to copy the data from host to device. With the
+   // approach used here, the host-to-device copy is avoided.
+   real_t *h_data = const_cast<real_t*>(HostRead());
+   pfes->ApplyDofSigns(h_data);
 
    GridFunction::Save(os);
 
-   for (int i = 0; i < size; i++)
-   {
-      if (pfes->GetDofSign(i) < 0) { data_[i] = -data_[i]; }
-   }
+   pfes->ApplyDofSigns(h_data);
 }
 
 void ParGridFunction::Save(const char *fname, int precision) const
@@ -1121,7 +1275,13 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
    int *nfdofs = new int[NRanks];
    int *nrdofs = new int[NRanks];
 
+   // We use const_cast + HostRead (instead of HostReadWrite) because we only
+   // need to change the host data temporarily and this way we do not invalidate
+   // the data if it is on device. If we use HostReadWrite here, later calls to
+   // Read or ReadWrite will need to copy the data from host to device. With the
+   // approach used here, the host-to-device copy is avoided.
    real_t * h_data = const_cast<real_t *>(this->HostRead());
+   pfes->ApplyDofSigns(h_data);  // temporarily flip the dof signs
 
    values[0] = h_data;
    nv[0]     = pfes -> GetVSize();
@@ -1227,6 +1387,8 @@ void ParGridFunction::SaveAsOne(std::ostream &os) const
       MPI_Send(&nfdofs[0], 1, MPI_INT, 0, 458, MyComm);
       MPI_Send(h_data, nv[0], MPITypeMap<real_t>::mpi_type, 0, 460, MyComm);
    }
+
+   pfes->ApplyDofSigns(h_data);  // restore the original h_data
 
    delete [] values;
    delete [] nv;
@@ -1335,25 +1497,20 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
    ParFiniteElementSpace *xfes = x.ParFESpace();
    Array<int> xdofs, fdofs;
    Vector el_x, el_f;
+   DofTransformation xtrans, ftrans;
 
    for (int i = 0; i < xfes->GetNE(); i++)
    {
-      const DofTransformation* const xtrans = xfes->GetElementVDofs(i, xdofs);
+      xfes->GetElementVDofs(i, xdofs, xtrans);
       x.GetSubVector(xdofs, el_x);
-      if (xtrans)
-      {
-         xtrans->InvTransformPrimal(el_x);
-      }
+      xtrans.InvTransformPrimal(el_x);
 
       ElementTransformation *Transf = xfes->GetElementTransformation(i);
       flux_integrator.ComputeElementFlux(*xfes->GetFE(i), *Transf, el_x,
                                          *flux_fes.GetFE(i), el_f, false);
 
-      const DofTransformation* const ftrans = flux_fes.GetElementVDofs(i, fdofs);
-      if (ftrans)
-      {
-         ftrans->TransformPrimal(el_f);
-      }
+      flux_fes.GetElementVDofs(i, fdofs, ftrans);
+      ftrans.TransformPrimal(el_f);
       flux.SetSubVector(fdofs, el_f);
    }
 
@@ -1430,6 +1587,51 @@ real_t L2ZZErrorEstimator(BilinearFormIntegrator &flux_integrator,
                  xfes->GetComm());
 
    return pow(glob_error, 1.0/norm_p);
+}
+
+PLBound ParGridFunction::GetBounds(Vector &lower, Vector &upper,
+                                   const int ref_factor, const int vdim) const
+{
+   PLBound plb = GridFunction::GetBounds(lower, upper, ref_factor, vdim);
+   int siz = vdim > 0 ? 1 : fes->GetVDim();
+   MPI_Allreduce(MPI_IN_PLACE, lower.HostReadWrite(), siz,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, upper.HostReadWrite(), siz,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   return plb;
+}
+
+std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMinimum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   std::pair<real_t, real_t> minmax =
+      GridFunction::EstimateFunctionMinimum(vdim, plb, max_depth, tol);
+
+   real_t glob_min_lower = minmax.first;
+   real_t glob_min_upper = minmax.second;
+   MPI_Allreduce(MPI_IN_PLACE, &glob_min_lower, 1,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &glob_min_upper, 1,
+                 MFEM_MPI_REAL_T, MPI_MIN, pfes->GetComm());
+
+   return std::make_pair(glob_min_lower, glob_min_upper);
+}
+
+std::pair<real_t, real_t> ParGridFunction::EstimateFunctionMaximum(
+   const int vdim, const PLBound &plb, const int max_depth,
+   const real_t tol) const
+{
+   std::pair<real_t, real_t> minmax =
+      GridFunction::EstimateFunctionMaximum(vdim, plb, max_depth, tol);
+
+   real_t glob_max_lower = minmax.first;
+   real_t glob_max_upper = minmax.second;
+   MPI_Allreduce(MPI_IN_PLACE, &glob_max_lower, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   MPI_Allreduce(MPI_IN_PLACE, &glob_max_upper, 1,
+                 MFEM_MPI_REAL_T, MPI_MAX, pfes->GetComm());
+   return std::make_pair(glob_max_lower, glob_max_upper);
 }
 
 } // namespace mfem

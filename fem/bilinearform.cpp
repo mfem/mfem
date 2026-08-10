@@ -466,7 +466,6 @@ void BilinearForm::Assemble(int skip_zeros)
    }
 
    ElementTransformation *eltrans;
-   DofTransformation * doftrans;
    Mesh *mesh = fes -> GetMesh();
    DenseMatrix elmat, *elmat_p;
 
@@ -503,13 +502,14 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation doftrans;
       // Element-wise integration
       for (int i = 0; i < fes -> GetNE(); i++)
       {
          // Set both doftrans (potentially needed to assemble the element
          // matrix) and vdofs, which is also needed when the element matrices
          // are pre-assembled.
-         doftrans = fes->GetElementVDofs(i, vdofs);
+         fes->GetElementVDofs(i, vdofs, doftrans);
          if (element_matrices)
          {
             elmat_p = &(*element_matrices)(i);
@@ -547,10 +547,7 @@ void BilinearForm::Assemble(int skip_zeros)
             {
                elmat_p = &elmat;
             }
-            if (doftrans)
-            {
-               doftrans->TransformDual(elmat);
-            }
+            doftrans.TransformDual(elmat);
             elmat_p = &elmat;
          }
          if (static_cond)
@@ -628,13 +625,14 @@ void BilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation doftrans;
       for (int i = 0; i < fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
          const FiniteElement &be = *fes->GetBE(i);
-         doftrans = fes -> GetBdrElementVDofs (i, vdofs);
+         fes -> GetBdrElementVDofs (i, vdofs, doftrans);
          eltrans = fes -> GetBdrElementTransformation (i);
          int k = 0;
          for (; k < boundary_integs.Size(); k++)
@@ -654,10 +652,7 @@ void BilinearForm::Assemble(int skip_zeros)
             boundary_integs[k]->AssembleElementMatrix(be, *eltrans, elemmat);
             elmat += elemmat;
          }
-         if (doftrans)
-         {
-            doftrans->TransformDual(elmat);
-         }
+         doftrans.TransformDual(elmat);
          elmat_p = &elmat;
          if (!static_cond)
          {
@@ -734,7 +729,8 @@ void BilinearForm::Assemble(int skip_zeros)
          tr = mesh -> GetBdrFaceTransformations (i);
          if (tr != NULL)
          {
-            fes -> GetElementVDofs (tr -> Elem1No, vdofs);
+            mfem::DofTransformation doftrans;
+            fes -> GetElementVDofs (tr -> Elem1No, vdofs, doftrans);
             fe1 = fes -> GetFE (tr -> Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
             // but we can't dereference a NULL pointer, and we don't want to
@@ -748,6 +744,7 @@ void BilinearForm::Assemble(int skip_zeros)
 
                boundary_face_integs[k] -> AssembleFaceMatrix (*fe1, *fe2, *tr,
                                                               elemmat);
+               doftrans.TransformDual(elemmat);
                mat -> AddSubMatrix (vdofs, vdofs, elemmat, skip_zeros);
             }
          }
@@ -830,14 +827,46 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
                                     Vector &b, OperatorHandle &A, Vector &X,
                                     Vector &B, int copy_interior)
 {
+   const SparseMatrix *P = fes->GetConformingProlongation();
+   const SparseMatrix *R = fes->GetConformingRestriction();
    if (ext)
    {
       if (hybridization)
       {
          FormSystemMatrix(ess_tdof_list, A);
-         ConstrainedOperator A_constrained(this, ess_tdof_list);
-         A_constrained.EliminateRHS(x, b);
-         hybridization->ReduceRHS(b, B);
+
+         std::unique_ptr<ConstrainedOperator> A_constrained([&]()
+         {
+            Operator *op;
+            Operator::FormSystemOperator(ess_tdof_list, op);
+            return dynamic_cast<ConstrainedOperator*>(op);
+         }());
+         MFEM_ASSERT(A_constrained != nullptr, "");
+
+         Vector conf_b, conf_x;
+         if (P)
+         {
+            // Nonconforming
+            conf_b.SetSize(P->Width());
+            conf_x.SetSize(P->Width());
+            P->MultTranspose(b, conf_b);
+            R->Mult(x, conf_x);
+         }
+         else
+         {
+            // Conforming
+            conf_b.MakeRef(b, 0, b.Size());
+            conf_x.MakeRef(x, 0, x.Size());
+         }
+
+         A_constrained->EliminateRHS(conf_x, conf_b);
+
+         if (P)
+         {
+            R->MultTranspose(conf_b, b); // store eliminated rhs in b
+         }
+
+         hybridization->ReduceRHS(conf_b, B);
          X.SetSize(B.Size());
          X = 0.0;
       }
@@ -847,7 +876,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       }
       return;
    }
-   const SparseMatrix *P = fes->GetConformingProlongation();
    FormSystemMatrix(ess_tdof_list, A);
 
    // Transform the system and perform the elimination in B, based on the
@@ -883,7 +911,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       if (hybridization)
       {
          // Reduction to the Lagrange multipliers system
-         const SparseMatrix *R = fes->GetConformingRestriction();
          Vector conf_b(P->Width()), conf_x(P->Width());
          P->MultTranspose(b, conf_b);
          R->Mult(x, conf_x);
@@ -896,7 +923,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
       else
       {
          // Variational restriction with P
-         const SparseMatrix *R = fes->GetConformingRestriction();
          B.SetSize(P->Width());
          P->MultTranspose(b, B);
          X.SetSize(R->Height());
@@ -1530,8 +1556,6 @@ void MixedBilinearForm::Assemble(int skip_zeros)
    }
 
    ElementTransformation *eltrans;
-   DofTransformation * dom_dof_trans;
-   DofTransformation * ran_dof_trans;
    DenseMatrix elmat;
 
    Mesh *mesh = test_fes -> GetMesh();
@@ -1554,11 +1578,12 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation dom_dof_trans, ran_dof_trans;
       for (int i = 0; i < test_fes -> GetNE(); i++)
       {
          const int elem_attr = mesh->GetAttribute(i);
-         dom_dof_trans = trial_fes -> GetElementVDofs (i, trial_vdofs);
-         ran_dof_trans = test_fes  -> GetElementVDofs (i, test_vdofs);
+         trial_fes->GetElementVDofs (i, trial_vdofs, dom_dof_trans);
+         test_fes->GetElementVDofs (i, test_vdofs, ran_dof_trans);
          eltrans = test_fes -> GetElementTransformation (i);
 
          elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
@@ -1574,10 +1599,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                elmat += elemmat;
             }
          }
-         if (ran_dof_trans || dom_dof_trans)
-         {
-            TransformDual(ran_dof_trans, dom_dof_trans, elmat);
-         }
+         TransformDual(ran_dof_trans, dom_dof_trans, elmat);
          mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
       }
    }
@@ -1605,13 +1627,14 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation dom_dof_trans, ran_dof_trans;
       for (int i = 0; i < test_fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
-         dom_dof_trans = trial_fes -> GetBdrElementVDofs (i, trial_vdofs);
-         ran_dof_trans = test_fes  -> GetBdrElementVDofs (i, test_vdofs);
+         trial_fes->GetBdrElementVDofs (i, trial_vdofs, dom_dof_trans);
+         test_fes->GetBdrElementVDofs (i, test_vdofs, ran_dof_trans);
          eltrans = test_fes -> GetBdrElementTransformation (i);
 
          elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
@@ -1626,10 +1649,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                                                         *eltrans, elemmat);
             elmat += elemmat;
          }
-         if (ran_dof_trans || dom_dof_trans)
-         {
-            TransformDual(ran_dof_trans, dom_dof_trans, elmat);
-         }
+         TransformDual(ran_dof_trans, dom_dof_trans, elmat);
          mat -> AddSubMatrix (test_vdofs, trial_vdofs, elmat, skip_zeros);
       }
    }
@@ -1705,6 +1725,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation dom_dof_trans, ran_dof_trans;
       for (int i = 0; i < trial_fes -> GetNBE(); i++)
       {
          const int bdr_attr = mesh->GetBdrAttribute(i);
@@ -1713,8 +1734,8 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          ftr = mesh -> GetBdrFaceTransformations (i);
          if (ftr != NULL)
          {
-            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs);
-            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs);
+            trial_fes->GetElementVDofs(ftr->Elem1No, trial_vdofs, dom_dof_trans);
+            test_fes->GetElementVDofs(ftr->Elem1No, test_vdofs, ran_dof_trans);
             trial_fe1 = trial_fes->GetFE(ftr->Elem1No);
             test_fe1 = test_fes->GetFE(ftr->Elem1No);
             // The test_fe2 object is really a dummy and not used on the
@@ -1730,6 +1751,7 @@ void MixedBilinearForm::Assemble(int skip_zeros)
                boundary_face_integs[k]->AssembleFaceMatrix(*trial_fe1, *test_fe1, *trial_fe2,
                                                            *test_fe2,
                                                            *ftr, elemmat);
+               TransformDual(ran_dof_trans, dom_dof_trans, elemmat);
                mat->AddSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
             }
          }
@@ -2407,8 +2429,6 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
    }
 
    ElementTransformation *eltrans;
-   DofTransformation * dom_dof_trans;
-   DofTransformation * ran_dof_trans;
    DenseMatrix elmat;
 
    Mesh *mesh = test_fes->GetMesh();
@@ -2431,11 +2451,13 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
          }
       }
 
+      DofTransformation dom_dof_trans;
+      DofTransformation ran_dof_trans;
       for (int i = 0; i < test_fes->GetNE(); i++)
       {
          const int elem_attr = mesh->GetAttribute(i);
-         dom_dof_trans = trial_fes->GetElementVDofs(i, trial_vdofs);
-         ran_dof_trans = test_fes->GetElementVDofs(i, test_vdofs);
+         trial_fes->GetElementVDofs(i, trial_vdofs, dom_dof_trans);
+         test_fes->GetElementVDofs(i, test_vdofs, ran_dof_trans);
          eltrans = test_fes->GetElementTransformation(i);
 
          elmat.SetSize(test_vdofs.Size(), trial_vdofs.Size());
@@ -2451,10 +2473,7 @@ void DiscreteLinearOperator::Assemble(int skip_zeros)
                elmat += elemmat;
             }
          }
-         if (ran_dof_trans || dom_dof_trans)
-         {
-            TransformPrimal(ran_dof_trans, dom_dof_trans, elemmat);
-         }
+         TransformPrimal(ran_dof_trans, dom_dof_trans, elemmat);
          mat->SetSubMatrix(test_vdofs, trial_vdofs, elemmat, skip_zeros);
       }
    }

@@ -11,6 +11,12 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
+# Initialize modules for users not using bash as a default shell
+if test -e /usr/share/lmod/lmod/init/bash
+then
+  . /usr/share/lmod/lmod/init/bash
+fi
+
 set -o errexit
 set -o nounset
 
@@ -60,15 +66,40 @@ function usage()
 }
 
 project_dir="$(pwd)"
+hostname="$(hostname)"
 
-mode=""
 spec=""
+mode=""
 data_dir=""
 with_data=false
 
 sys_type=${SYS_TYPE:-""}
-
 threads=${THREADS:-""}
+module_list=${MODULE_LIST:-""}
+job_unique_id=${CI_JOB_ID:-""}
+use_dev_shm=${USE_DEV_SHM:-true}
+spack_debug=${SPACK_DEBUG:-false}
+debug_mode=${DEBUG_MODE:-false}
+
+# CI_REGISTRY_USER, CI_REGISTRY_IMAGE, and CI_JOB_TOKEN are automatically set by
+# Gitlab, see https://docs.gitlab.com/ee/ci/variables/predefined_variables.html.
+# The Spack build cache files can be viewed from the Gitlab web interface under
+# "Deploy" -> "Container Registry".
+#
+# Since the CI_<VARIABLES> are only set in CI, we provide sensible defaults for
+# usage outside CI context (e.g. to reproduce a CI scenario locally).
+#
+# REGISTRY_TOKEN when set allows to provide our own personal access token to
+# the CI registry. Be sure to set the token with at least read access to the
+# registry. It is optional outside CI but will speed up the build if many
+# dependencies are needed.
+#
+registry_token=${REGISTRY_TOKEN:-""}
+ci_registry_user=${CI_REGISTRY_USER:-"${USER}"}
+ci_registry_image=${CI_REGISTRY_IMAGE:-"czregistry.llnl.gov:5050/mfem/mfem-autotest"}
+ci_registry_token=${CI_JOB_TOKEN:-"${registry_token}"}
+
+spec_tab=()
 
 # Options
 while [[ $# -gt 0 ]]
@@ -77,9 +108,19 @@ do
 
     case $key in
         --spec)
-            spec="$2"
-            shift # past argument
-            shift # past value
+            shift
+            arg="${1}"
+            if [[ "${arg}" =~ ^\" ]]; then
+              arg="${arg#\"}"
+              while [[ ! "${arg}" =~ [^\\]\"$ ]]; do
+                spec_tab+=("${arg}")
+                shift
+                arg="${1}"
+              done
+              arg="${arg%\"}"
+            fi
+            spec_tab+=("${arg}")
+            shift
             ;;
         --deps-only|--build-only|--test-only)
             mode="$key"
@@ -99,47 +140,132 @@ do
             exit 0;
             ;;
         *)  # unknown option
-            echo "ERROR: option $key is unknown"
+            echo "[Error]: option $key is unknown"
             exit 1;
             ;;
     esac
 done
 
+spec="${spec_tab[@]}"
+
+timed_message ()
+{
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo "~ $(date --rfc-3339=seconds) ~ ${1}"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+}
+
+at_exit()
+{
+  if [[ "${debug_mode}" != "true" ]]; then
+    if [[ "${#exit_rm_list[@]}" != 0 ]]; then
+      echo ${script_name}:at_exit: rm -rf "${exit_rm_list[@]}"
+      rm -rf "${exit_rm_list[@]}"
+    fi
+    if [[ "${exit_distclean}" == 1 ]]; then
+      echo ${script_name}:at_exit: \
+        make -C "${project_dir}" distclean "> /dev/null 2>&1"
+      make -C "${project_dir}" distclean > /dev/null 2>&1
+    fi
+  fi
+}
+
+if [[ ${debug_mode} == true ]]
+then
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo "~~~~~ Debug mode:"
+    echo "~~~~~ - Spack debug mode."
+    echo "~~~~~ - Deactivated shared memory."
+    echo "~~~~~ - Do not push to buildcache."
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    use_dev_shm=false
+    spack_debug=true
+fi
+
+if [[ -n ${module_list} ]]
+then
+    timed_message "Modules to load: ${module_list}"
+    module load ${module_list}
+fi
+
+prefix=""
+
+if [[ -d /dev/shm && ${use_dev_shm} == true ]]
+then
+    prefix="/dev/shm/${hostname}"
+    if [[ -z ${job_unique_id} ]]; then
+      job_unique_id=manual_job_$(date +%s)
+      while [[ -d ${prefix}-${job_unique_id} ]] ; do
+          sleep 1
+          job_unique_id=manual_job_$(date +%s)
+      done
+    fi
+
+    prefix="${prefix}-${job_unique_id}"
+else
+    # We set the prefix in the parent directory so that spack dependencies are
+    # not installed inside the source tree.
+    prefix="${project_dir}/../spack-and-build-root"
+fi
+
+echo "Creating directory ${prefix}"
+echo "project_dir: ${project_dir}"
+
+mkdir -p ${prefix}
+
+# List of files/directories to remove at exit; more entries are added below.
+# This list will be removed even if there's an error. In debug mode, this
+# cleanup is not performed.
+exit_rm_list=("${prefix}")
+exit_distclean=
+trap 'at_exit' EXIT HUP INT QUIT ABRT KILL PIPE TERM XCPU
+
+# Prefix tree:
+#   <prefix>
+#    ├── spack
+#    ├── spack_env
+#    └── spack-user-cache
+
+spack_cmd="${prefix}/spack/bin/spack"
+spack_env_path="${prefix}/spack_env"
+command -v python3 > /dev/null && python_cmd=python3 || python_cmd=python
+uberenv_cmd="${python_cmd} tests/uberenv/uberenv.py"
+if [[ ${spack_debug} == true ]]
+then
+    spack_cmd="${spack_cmd} --debug --stacktrace"
+    uberenv_cmd="${uberenv_cmd} --spack-debug"
+fi
+
 # Dependencies
 if [[ "${mode}" != "--build-only" && "${mode}" != "--test-only" ]]
 then
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ Building Dependencies"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    timed_message "Building dependencies"
 
     if [[ -z ${spec} ]]
     then
-        echo "--spec is mandatory to build dependencies, aborting..."
+        echo "[Error]: SPEC is undefined, aborting..."
         exit 1
     fi
 
-    upstream_opt=""
-    if [[ ${sys_type} != "" ]]
-    then
-        upstream_opt="--upstream=/usr/workspace/mfem/mfem-dependencies/install"
-    fi
+    prefix_opt="--prefix=${prefix}"
 
-    prefix_opt=""
-
-    # Do not run on /dev/shm if only installing dependencies: they will be lost
-    # otherwise.
-    if [[ -d "/dev/shm" && "${mode}" != "--deps-only" ]]
-    then
-        prefix="/dev/shm/${USER}_${CI_PIPELINE_ID:-"NONE"}_${RANDOM}"
-        mkdir -p ${prefix}
-        # clean up ${prefix} at exit:
-        trap 'rm -rf "${prefix}"' EXIT
-        prefix_opt="--prefix=${prefix}"
-    fi
     echo ${spec} > spec.txt
 
-    echo "Fetching uberenv."
+    # We force Spack to put all generated files (cache and configuration of
+    # all sorts) in a unique location so that there can be no collision
+    # with existing or concurrent Spack.
+    spack_user_cache="${prefix}/spack-user-cache"
+    export SPACK_DISABLE_LOCAL_CONFIG=""
+    export SPACK_USER_CACHE_PATH="${spack_user_cache}"
+    mkdir -p ${spack_user_cache}
+
+    echo "Fetching uberenv ..."
+    # FIXME: the messages from the next clone appear out-of-place, at the end of
+    #        the logs on Gitlab. (On Lassen the messages are where expected.)
     tests/gitlab/get_mfem_uberenv || { echo "Error fetching Uberenv"; exit 1; }
+
+    # Remove "${project_dir}/tests/uberenv" at exit (even if there's an error)
+    exit_rm_list=("${exit_rm_list[@]}" "${project_dir}/tests/uberenv")
 
     echo "Removing existing configuration"
     make distclean
@@ -149,10 +275,38 @@ then
         config/defaults.mk.new
     mv -f config/defaults.mk.new config/defaults.mk
 
-    echo "Installing dependencies."
-    command -v python > /dev/null && python_cmd=python || python_cmd=python3
-    $python_cmd tests/uberenv/uberenv.py --spec="${spec}" "${upstream_opt}" \
-        "${prefix_opt}"
+    # generate cmake cache file with uberenv and radiuss spack package
+    timed_message "Spack setup and environment"
+    ${uberenv_cmd} --setup-and-env-only --spec="${spec}" ${prefix_opt}
+
+    if [[ -n ${ci_registry_token} ]]
+    then
+        timed_message "GitLab registry as Spack Buildcache"
+        ${spack_cmd} -D ${spack_env_path} mirror add --unsigned \
+          --oci-username ${ci_registry_user} \
+          --oci-password ${ci_registry_token} \
+          gitlab_ci oci://${ci_registry_image}
+    fi
+
+    timed_message "Spack build of dependencies"
+    ${uberenv_cmd} --skip-setup-and-env --spec="${spec}" ${prefix_opt} || \
+    {
+      # Save Spack logs
+      cd ${SPACK_USER_CACHE_PATH}
+      log_archive="${project_dir}/spack-logs-${hostname}-${CI_JOB_ID}.tgz"
+      tar zvcf "${log_archive}" stage/*/*/spack*.txt
+      timed_message "Spack build failed! See log archive: ${log_archive}"
+      exit 1
+    }
+
+    if [[ -n ${ci_registry_token} && ${debug_mode} == false ]]
+    then
+        timed_message "Push dependencies to buildcache"
+        ${spack_cmd} -D ${spack_env_path} buildcache push \
+          --only dependencies gitlab_ci
+    fi
+
+    timed_message "Dependencies built"
 
     # Make sure that a configuration was generated by spack (part 1).
     cp config/config.mk config/spack-config.mk
@@ -170,10 +324,10 @@ then
         cp config/spack-config.mk config/config.mk
         cp config/spack_config.hpp config/_config.hpp
     else
-        echo "No result for at least one of"
-        echo "    ${project_dir}/config/spack-config.mk"
-        echo "    ${project_dir}/config/spack_config.hpp"
-        echo "ERROR: Spack generated configuration not found."
+        echo "[Error]: No result for at least one of"
+        echo "[Error]:     ${project_dir}/config/spack-config.mk"
+        echo "[Error]:     ${project_dir}/config/spack_config.hpp"
+        echo "[Error]: Spack generated configuration not found."
         exit 1
     fi
 
@@ -188,10 +342,10 @@ then
         # project parent dir.
         if [[ -e "../data" ]]; then
             if [[ -L "../data" ]]; then
-                echo "'../data' link already exists. Deleting."
+                echo "[Information]: '../data' link already exists. Deleting."
                 rm "../data"
             else
-                echo "Error: '../data' already exists and it's NOT a link"
+                echo "[Error]: '../data' already exists and it's NOT a link"
                 exit 1
             fi
         fi
@@ -204,7 +358,7 @@ then
 
     if [[ "$with_data" == "true" && ! -d "../data" ]]
     then
-        echo "ERROR: '$data_dir' is not a directory while asking for --data"
+        echo "[Error]: '$data_dir' is not a directory while asking for --data"
         exit 1
     fi
 fi
@@ -216,42 +370,45 @@ then
     echo "~ Project Dir: ${project_dir}"
     echo "~ Data Dir: ${data_dir}"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo ""
 
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ MFEM configuration"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    timed_message "MFEM Configuration"
 
     make info
 
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ Building MFEM"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    timed_message "Building MFEM"
+
+    # If the build is terminated, e.g. job timeout, run 'make distclean'
+    exit_distclean=1
 
     make all -j ${threads}
+
+    exit_distclean=
 fi
 
 # Test
 if [[ "${mode}" != "--deps-only" && "${mode}" != "--build-only" ]]
 then
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ Testing MFEM"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    timed_message "Testing MFEM"
+
+    # If the build is terminated, e.g. job timeout, run 'make distclean'
+    exit_distclean=1
 
     make test
     test_status=$?
 
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    echo "~~~~~ Cleaning MFEM"
-    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    timed_message "Cleaning MFEM"
 
     if make distclean > distclean.log 2>&1; then
-      echo "[make distclean]: OK"
+      echo "[Information]: make distclean OK"
     else
       cat distclean.log
       echo
-      echo "[make distclean]: FAILED (see above)"
+      echo "[Information]: make distclean FAILED (see above)"
     fi
     rm -f distclean.log
+
+    exit_distclean=
 
     exit $test_status
 fi

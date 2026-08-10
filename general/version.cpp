@@ -73,9 +73,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_AMGX
       "MFEM_USE_AMGX\n"
 #endif
-#ifdef MFEM_USE_MAGMA
-      "MFEM_USE_MAGMA\n"
-#endif
 #ifdef MFEM_USE_CEED
       "MFEM_USE_CEED\n"
 #endif
@@ -87,6 +84,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_DOUBLE
       "MFEM_USE_DOUBLE\n"
+#endif
+#ifdef MFEM_USE_ENZYME
+      "MFEM_USE_ENZYME\n"
 #endif
 #ifdef MFEM_USE_EXCEPTIONS
       "MFEM_USE_EXCEPTIONS\n"
@@ -117,6 +117,9 @@ const char *GetConfigStr()
 #endif
 #ifdef MFEM_USE_LIBUNWIND
       "MFEM_USE_LIBUNWIND\n"
+#endif
+#ifdef MFEM_USE_MAGMA
+      "MFEM_USE_MAGMA\n"
 #endif
 #ifdef MFEM_USE_MEMALLOC
       "MFEM_USE_MEMALLOC\n"

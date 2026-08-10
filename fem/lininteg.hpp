@@ -18,6 +18,8 @@
 #include <random>
 #include "integrator.hpp"
 
+#include "kernel_dispatch.hpp"
+
 namespace mfem
 {
 
@@ -109,14 +111,12 @@ class DomainLFIntegrator : public DeltaLFIntegrator
    int oa, ob;
 public:
    /// Constructs a domain integrator with a given Coefficient
-   DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
-   // the old default was a = 1, b = 1
-   // for simple elliptic problems a = 2, b = -2 is OK
-      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+   /// the old default was a = 1, b = 1
+   /// for simple elliptic problems a = 2, b = -2 is OK
+   DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0);
 
    /// Constructs a domain integrator with a given Coefficient
-   DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+   DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir);
 
    bool SupportsDevice() const override { return true; }
 
@@ -136,6 +136,22 @@ public:
                                  Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// args: vdim, ne, d1d, q1d, map_type, markers, B, detJ, W, coeff, y
+   using AssembleKernelType = void (*)(const int, const int, const int,
+                                       const int, const int, const int *,
+                                       const real_t *, const real_t *,
+                                       const real_t *, const Vector &coeff,
+                                       real_t *y);
+
+   /// parameters: use DIM, T_D1D, T_Q1D
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /// Class for domain integrator $ L(v) := (f, \nabla v) $
@@ -148,8 +164,8 @@ private:
 
 public:
    /// Constructs the domain integrator $ (Q, \nabla v) $
-   DomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   DomainLFGradIntegrator(VectorCoefficient &QF, const IntegrationRule *ir = NULL)
+      : DeltaLFIntegrator(QF, ir), Q(QF) { }
 
    bool SupportsDevice() const override { return true; }
 
@@ -256,14 +272,13 @@ private:
 
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   VectorDomainLFIntegrator(VectorCoefficient &QF,
+                            const IntegrationRule *ir = nullptr);
 
    bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   void AssembleDevice(const FiniteElementSpace &fes,
-                       const Array<int> &markers,
+   void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
                        Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
@@ -277,6 +292,12 @@ public:
                                  Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      // uses the same kernels for assembly
+      DomainLFIntegrator::AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /** Class for domain integrator $ L(v) := (f, \nabla v) $, where
@@ -348,8 +369,8 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F,
+                              const IntegrationRule *ir = nullptr);
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
@@ -366,6 +387,40 @@ public:
                        Vector &b) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// @param ne number of elements
+   /// @param markers array where entry markers[e] == 0 to skip assembly over
+   /// element e element
+   /// @param jac Spatial Jacobians evaluated at all quadrature points
+   /// @param weights 1D quadrature weights
+   /// @param testBO 1D open basis test functions
+   /// @param testBC 1D closed basis test functions
+   /// @param coeff coefficient values evaluated at quadrature points, possibly
+   /// compressed.
+   /// @param d number of 1D closed dofs
+   /// @param q number of 1D quadrature points
+   using AssembleKernelType = void (*)(const int NE, const Array<int> &markers,
+                                       const Vector &jac,
+                                       const Array<real_t> &weights,
+                                       const Array<real_t> &testBO,
+                                       const Array<real_t> &testBC,
+                                       const Vector &coeff, Vector &y,
+                                       const int testd1d, const int q1d);
+
+   /// parameters: test_fetype, ndims, test_d1d, q1d
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType,
+                         (FiniteElement::DerivType, int, int, int));
+
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <FiniteElement::DerivType TestType, int DIM, int TEST_D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<TestType, DIM, TEST_D1D, Q1D>::Add();
+   }
 };
 
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
@@ -544,7 +599,7 @@ public:
     Specifically, given the Dirichlet data $u_D$, the linear form assembles the
     following integrals on the boundary:
    $$
-    \sigma \langle u_D, (Q \nabla v)) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
+    \sigma \langle u_D, (Q \nabla v) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
    $$
     where Q is a scalar or matrix diffusion coefficient and v is the test
     function. The parameters $\sigma$ and $\kappa$ should be the same as the ones
@@ -673,7 +728,7 @@ public:
       int myid;
       MPI_Comm_rank(comm, &myid);
 
-      int seed = (seed_ > 0) ? seed_ + myid : (int)time(0) + myid;
+      int seed = (seed_ > 0) ? seed_ + myid : time(nullptr) + myid;
       SetSeed(seed);
    }
 #else

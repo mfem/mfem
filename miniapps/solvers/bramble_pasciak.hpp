@@ -49,9 +49,7 @@
 #include "darcy_solver.hpp"
 #include <memory>
 
-namespace mfem
-{
-namespace blocksolvers
+namespace mfem::blocksolvers
 {
 
 /// Parameters for the BramblePasciakSolver method
@@ -70,11 +68,11 @@ protected:
    void UpdateVectors();
 
 public:
-   BPCGSolver(const Operator &ipc, const Operator &ppc) { pprec = &ppc; iprec = &ipc; }
+   BPCGSolver(const Operator *ipc, const Operator *ppc): iprec(ipc), pprec(ppc) {}
 
 #ifdef MFEM_USE_MPI
-   BPCGSolver(MPI_Comm comm_, const Operator &ipc, const Operator &ppc)
-      : IterativeSolver(comm_) { pprec = &ppc; iprec = &ipc; }
+   BPCGSolver(MPI_Comm comm_, const Operator *ipc, const Operator *ppc)
+      : IterativeSolver(comm_), iprec(ipc), pprec(ppc) { }
 #endif
 
    void SetOperator(const Operator &op) override
@@ -83,11 +81,9 @@ public:
    void SetPreconditioner(Solver &pc) override
    { if (Mpi::Root()) { MFEM_WARNING("SetPreconditioner has no effect on BPCGSolver.\n"); } }
 
-   virtual void SetIncompletePreconditioner(const Operator &ipc)
-   { iprec = &ipc; }
+   virtual void SetIncompletePreconditioner(const Operator *ipc) { iprec = ipc; }
 
-   virtual void SetParticularPreconditioner(const Operator &ppc)
-   { pprec = &ppc; }
+   virtual void SetParticularPreconditioner(const Operator *ppc) { pprec = ppc; }
 
    void Mult(const Vector &b, Vector &x) const override;
 };
@@ -116,23 +112,20 @@ public:
     1. P. Vassilevski, Multilevel Block Factorization Preconditioners (Appendix
        F.3), Springer, 2008.
 
-    2. J. Bramble and J. Pasciak.  A Preconditioning Technique for Indefinite
+    2. J. Bramble and J. Pasciak. A Preconditioning Technique for Indefinite
        Systems Resulting From Mixed Approximations of Elliptic Problems,
        Mathematics of Computation, 50:1-17, 1988. */
 class BramblePasciakSolver : public DarcySolver
 {
    mutable bool use_bpcg;
    std::unique_ptr<IterativeSolver> solver_;
-   BlockOperator *oop_, *ipc_;
-   ProductOperator *mop_;
-   SumOperator *map_;
-   ProductOperator *ppc_;
-   BlockDiagonalPreconditioner *cpc_;
-   std::unique_ptr<HypreParMatrix> M_;
-   std::unique_ptr<HypreParMatrix> B_;
-   std::unique_ptr<HypreParMatrix> Q_;
-   OperatorPtr M0_;
-   OperatorPtr M1_;
+   std::unique_ptr<BlockOperator> oop_, ipc_;
+   std::unique_ptr<ProductOperator> mop_, ppc_;
+   std::unique_ptr<SumOperator> map_;
+   std::unique_ptr<BlockDiagonalPreconditioner> cpc_;
+   std::unique_ptr<HypreParMatrix> M_, B_, Q_, S_;
+   std::unique_ptr<TransposeOperator> Bt_;
+   OperatorPtr M0_, M1_;
    Array<int> ess_zero_dofs_;
 
    void Init(HypreParMatrix &M, HypreParMatrix &B,
@@ -142,8 +135,8 @@ class BramblePasciakSolver : public DarcySolver
 public:
    /// System and mass preconditioner are constructed from bilinear forms
    BramblePasciakSolver(
-      ParBilinearForm *mVarf,
-      ParMixedBilinearForm *bVarf,
+      ParBilinearForm &mVarf,
+      ParMixedBilinearForm &bVarf,
       const BPSParameters &param);
 
    /// System and mass preconditioner are user-provided
@@ -158,8 +151,8 @@ public:
        element T:
                                 M_T x_T = lambda_T diag(M_T) x_T.
        We set Q_T = alpha * min(lambda_T) * diag(M_T), 0 < alpha < 1. */
-   static HypreParMatrix *ConstructMassPreconditioner(ParBilinearForm &mVarf,
-                                                      real_t alpha = 0.5);
+   static HypreParMatrix *ConstructMassPreconditioner(const ParBilinearForm &mVarf,
+                                                      const real_t alpha = 0.5);
 
    void Mult(const Vector &x, Vector &y) const override;
    void SetOperator(const Operator &op) override { }
@@ -167,7 +160,6 @@ public:
    int GetNumIterations() const override { return solver_->GetNumIterations(); }
 };
 
-} // namespace blocksolvers
-} // namespace mfem
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_BP_SOLVER_HPP

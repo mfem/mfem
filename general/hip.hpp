@@ -18,11 +18,13 @@
 // HIP block size used by MFEM.
 #define MFEM_HIP_BLOCKS 256
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP) && defined(__HIP__)
 #define MFEM_USE_CUDA_OR_HIP
+constexpr bool mfem_use_gpu = true;
 #define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
 #define MFEM_LAMBDA __host__ __device__
+#define MFEM_LAUNCH_BOUNDS __launch_bounds__
 // #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(hipDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(hipStreamSynchronize(0))
@@ -37,18 +39,39 @@
                              __FILE__, __LINE__);                              \
     }                                                                          \
   } while (0)
-#endif // MFEM_USE_HIP
 
 // Define the MFEM inner threading macros
-#if defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
+#if defined(__HIP_DEVICE_COMPILE__)
 #define MFEM_SHARED __shared__
 #define MFEM_SYNC_THREAD __syncthreads()
 #define MFEM_BLOCK_ID(k) hipBlockIdx_ ##k
 #define MFEM_THREAD_ID(k) hipThreadIdx_ ##k
 #define MFEM_THREAD_SIZE(k) hipBlockDim_ ##k
 #define MFEM_FOREACH_THREAD(i,k,N) \
-    for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
-#endif
+   for(int i=hipThreadIdx_ ##k; i<N; i+=hipBlockDim_ ##k)
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) \
+   if(const int i=hipThreadIdx_ ##k; i<N)
+// Assigns a thread block shaped (SX,SY,SZ) contiguous in x.
+// Example (3,2,1) block:
+// 0 (0,0), 1 (1,0), 2 (2,0)
+// 3 (1,0), 4 (1,1), 5 (2,1)
+#define MFEM_FOREACH_THREAD_DIRECT_3D(ix, iy, iz, k, SX, SY, SZ)               \
+   if (int ix = hipThreadIdx_##k % (SX), iy = hipThreadIdx_##k / (SX),         \
+       iz = iy / (SY);                                                         \
+       (iy %= (SY)), (hipThreadIdx_##k < (SX) * (SY) * (SZ)))
+// Assigns a thread block shaped (OX,OY,OZ) to work on items (SX,SY,SZ),
+// contiguous in x. This intentionally offsets threads within the block to avoid
+// shared memory bank conflicts.
+// Example (3,2,1) block assigned to work on (2,2,1) items:
+// 0 (0,0), 1 (1,0), 2 (N/A)
+// 3 (1,0), 4 (1,1), 5 (N/A)
+#define MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(ix, iy, iz, k, SX, SY, SZ, OX,    \
+                                             OY, OZ)                           \
+   if (int ix = hipThreadIdx_##k % (OX), iy = hipThreadIdx_##k / (OX),         \
+       iz = iy / (OY);                                                         \
+       (ix < (SX)) && ((iy %= (OY)) < (SY)) && (iz < (SZ)))
+#endif // defined(__HIP_DEVICE_COMPILE__)
+#endif // defined(MFEM_USE_HIP) && defined(__HIP__)
 
 namespace mfem
 {

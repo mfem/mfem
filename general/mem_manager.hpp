@@ -209,27 +209,27 @@ public:
    Memory() { Reset(); }
 
    /// Copy constructor: default.
-   Memory(const Memory &orig) = default;
+   Memory(const Memory &) = default;
 
    /** Move constructor. Sets the pointers and associated ownership of validity
        flags of @a *this to those of @a other. Resets @a other. */
-   Memory(Memory &&orig)
+   Memory(Memory &&other)
    {
-      *this = orig;
-      orig.Reset();
+      *this = other;
+      other.Reset();
    }
 
    /// Copy-assignment operator: default.
-   Memory &operator=(const Memory &orig) = default;
+   Memory &operator=(const Memory &) = default;
 
    /** Move assignment operator. Sets the pointers and associated ownership of
        validity flags of @a *this to those of @a other. Resets @a other. */
-   Memory &operator=(Memory &&orig)
+   Memory &operator=(Memory &&other)
    {
       // Guard self-assignment:
-      if (this == &orig) { return *this; }
-      *this = orig;
-      orig.Reset();
+      if (this == &other) { return *this; }
+      *this = other;
+      other.Reset();
       return *this;
    }
 
@@ -279,6 +279,14 @@ public:
    /// Destructor: default.
    /** @note The destructor will NOT delete the current memory. */
    ~Memory() = default;
+
+   /// Swap without using move assignment, avoiding Reset() calls.
+   void Swap(Memory &other)
+   {
+      Memory tmp(*this);
+      *this = other;
+      other = tmp;
+   }
 
    /** @brief Return true if the host pointer is owned. Ownership indicates
        whether the pointer will be deleted by the method Delete(). */
@@ -601,6 +609,15 @@ private:
 };
 
 
+/** @brief Swap of Memory<T> objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+template <typename T>
+void swap(Memory<T> &a, Memory<T> &b)
+{
+   a.Swap(b);
+}
+
+
 /** The MFEM memory manager class. Host-side pointers are inserted into this
     manager which keeps track of the associated device pointer, and where the
     data currently resides. */
@@ -896,6 +913,7 @@ inline HYPRE_MemoryLocation GetHypreMemoryLocation()
 #elif MFEM_HYPRE_VERSION < 23100
    return HYPRE_MEMORY_DEVICE;
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (!HYPRE_Initialized()) { return HYPRE_MEMORY_HOST; }
    HYPRE_MemoryLocation loc;
    HYPRE_GetMemoryLocation(&loc);
    return loc;
@@ -1057,7 +1075,8 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          // register the 'base' if the MemoryManager::Exists():
          MemoryManager::Exists()
 #else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
-         MemoryManager::Exists() && HypreUsingGPU()
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType()) ||
+         (MemoryManager::Exists() && HypreUsingGPU())
 #endif
       )
       {

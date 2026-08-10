@@ -37,9 +37,9 @@
 //               plor-transfer -m ../../data/star-q2.mesh -lref 5 -p 4
 //               plor-transfer -m ../../data/star-mixed.mesh -lref 3 -p 2
 //               plor-transfer -lref 4 -o 4 -lo 0 -p 1
-//               plor-transfer -lref 5 -o 4 -lo 0 -p 1
-//               plor-transfer -lref 5 -o 4 -lo 3 -p 2
-//               plor-transfer -lref 5 -o 4 -lo 0 -p 3
+//               plor-transfer -lref 4 -o 4 -lo 0 -p 1
+//               plor-transfer -lref 4 -o 4 -lo 2 -p 2
+//               plor-transfer -lref 4 -o 4 -lo 0 -p 3
 
 #include "mfem.hpp"
 #include <fstream>

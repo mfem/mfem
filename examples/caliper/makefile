@@ -64,12 +64,12 @@ ex1p-test-par: ex1p
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
 
-clean: clean-build clean-exec $(SUBDIRS_CLEAN)
+clean: clean-build clean-exec
 
 clean-build:
 	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh displaced.mesh mesh.* ex5.mesh
-	@rm -f sphere_refined.* sol.* sol_u.* sol_p.* sol_r.* sol_i.*
+	@rm -f refined.mesh mesh.*
+	@rm -f sol.*

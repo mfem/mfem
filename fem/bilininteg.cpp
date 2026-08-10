@@ -121,6 +121,12 @@ void BilinearFormIntegrator::AddMultPA(const Vector &, Vector &) const
               "   is not implemented for this class.");
 }
 
+void BilinearFormIntegrator::AddAbsMultPA(const Vector &, Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator:AddAbsMultPA:(...)\n"
+              "   is not implemented for this class.");
+}
+
 void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultNURBSPA(...)\n"
@@ -130,6 +136,13 @@ void BilinearFormIntegrator::AddMultNURBSPA(const Vector &, Vector &) const
 void BilinearFormIntegrator::AddMultTransposePA(const Vector &, Vector &) const
 {
    MFEM_ABORT("BilinearFormIntegrator::AddMultTransposePA(...)\n"
+              "   is not implemented for this class.");
+}
+
+void BilinearFormIntegrator::AddAbsMultTransposePA(const Vector &,
+                                                   Vector &) const
+{
+   MFEM_ABORT("BilinearFormIntegrator::AddAbsMultTransposePA(...)\n"
               "   is not implemented for this class.");
 }
 
@@ -418,11 +431,27 @@ void SumIntegrator::AddMultPA(const Vector& x, Vector& y) const
    }
 }
 
+void SumIntegrator::AddAbsMultPA(const Vector& x, Vector& y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddAbsMultPA(x, y);
+   }
+}
+
 void SumIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
    for (int i = 0; i < integrators.Size(); i++)
    {
       integrators[i]->AddMultTransposePA(x, y);
+   }
+}
+
+void SumIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
+{
+   for (int i = 0; i < integrators.Size(); i++)
+   {
+      integrators[i]->AddAbsMultTransposePA(x, y);
    }
 }
 
@@ -1316,7 +1345,8 @@ real_t DiffusionIntegrator::ComputeFluxEnergy
 }
 
 const IntegrationRule &DiffusionIntegrator::GetRule(
-   const FiniteElement &trial_fe, const FiniteElement &test_fe)
+   const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   const bool stroud)
 {
    int order;
    if (trial_fe.Space() == FunctionSpace::Pk)
@@ -1333,7 +1363,15 @@ const IntegrationRule &DiffusionIntegrator::GetRule(
    {
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
+
+   if (stroud)
+   {
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   else
+   {
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 }
 
 MassIntegrator::MassIntegrator(const IntegrationRule *ir)
@@ -1420,7 +1458,8 @@ void MassIntegrator::AssembleElementMatrix2(
 
 const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
                                                const FiniteElement &test_fe,
-                                               const ElementTransformation &Trans)
+                                               const ElementTransformation &Trans,
+                                               const bool stroud)
 {
    // int order = trial_fe.GetOrder() + test_fe.GetOrder();
    const int order = trial_fe.GetOrder() + test_fe.GetOrder() + Trans.OrderW();
@@ -1429,7 +1468,15 @@ const IntegrationRule &MassIntegrator::GetRule(const FiniteElement &trial_fe,
    {
       return RefinedIntRules.Get(trial_fe.GetGeomType(), order);
    }
-   return IntRules.Get(trial_fe.GetGeomType(), order);
+
+   if (stroud)
+   {
+      return StroudIntRules.Get(trial_fe.GetGeomType(), order);
+   }
+   else
+   {
+      return IntRules.Get(trial_fe.GetGeomType(), order);
+   }
 }
 
 
@@ -3037,7 +3084,6 @@ void VectorDiffusionIntegrator::AssembleElementMatrix(
 
    for (int i = 0; i < ir -> GetNPoints(); i++)
    {
-
       const IntegrationPoint &ip = ir->IntPoint(i);
       el.CalcDShape(ip, dshape);
 

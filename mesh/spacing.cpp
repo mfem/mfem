@@ -66,6 +66,13 @@ std::unique_ptr<SpacingFunction> GetSpacingFunction(const SpacingType
                    new PiecewiseSpacingFunction(ipar[0], ipar[1],
                                                 (bool) ipar[2], relN, iparsub,
                                                 dpar));
+      case SpacingType::PARTIAL:
+         MFEM_VERIFY(ipar.Size() >= 8, "Invalid spacing function parameters");
+         ipar.GetSubArray(8, ipar.Size() - 8, iparsub);
+         return std::unique_ptr<SpacingFunction>(
+                   new PartialSpacingFunction(ipar[0], ipar[1], ipar[2],
+                                              ipar[3], ipar[4], iparsub,
+                                              dpar, (SpacingType) ipar[5]));
       default:
          MFEM_ABORT("Unknown spacing type \"" << int(spacingType) << "\"");
          break;
@@ -90,7 +97,7 @@ void GeometricSpacingFunction::CalculateSpacing()
    // Find the root of g(r) = s * (r^n - 1) - r + 1 by Newton's method.
 
    constexpr real_t convTol = 1.0e-8;
-   constexpr int maxIter = 20;
+   constexpr int maxIter = 100;
 
    const real_t s_unif = 1.0 / ((real_t) n);
 
@@ -471,7 +478,7 @@ void PiecewiseSpacingFunction::SetupPieces(Array<int> const& ipar,
 
 void PiecewiseSpacingFunction::ScaleParameters(real_t a)
 {
-   for (auto& p : pieces) { p->ScaleParameters(a); }
+   for (auto &p : pieces) { p->ScaleParameters(a); }
 }
 
 void PiecewiseSpacingFunction::Print(std::ostream &os) const
@@ -498,6 +505,8 @@ void PiecewiseSpacingFunction::Print(std::ostream &os) const
    Array<int> ipar;
    for (auto& p : pieces)
    {
+      MFEM_VERIFY(p->GetSpacingType() != SpacingType::PIECEWISE,
+                  "Piecewise spacings should not be composed");
       os << "\n" << int(p->GetSpacingType()) << " " << p->NumIntParameters()
          << " " << p->NumDoubleParameters();
 
@@ -597,7 +606,7 @@ void PiecewiseSpacingFunction::CalculateSpacing()
 
 bool PiecewiseSpacingFunction::Nested() const
 {
-   for (auto& p : pieces)
+   for (const auto &p : pieces)
    {
       if (!p->Nested())
       {
@@ -608,4 +617,82 @@ bool PiecewiseSpacingFunction::Nested() const
    return true;
 }
 
+void PartialSpacingFunction::SetupFull(SpacingType typeFull,
+                                       Array<int> const& ipar,
+                                       Vector const& dpar)
+{
+   fullSpacing = GetSpacingFunction(typeFull, ipar, dpar);
 }
+
+void PartialSpacingFunction::CalculateSpacing()
+{
+   s.SetSize(n);
+
+   if (n == 1)
+   {
+      s[0] = 1.0;
+      fullSpacing->SetSize(1);
+      return;
+   }
+
+   const int ref = n / num_elems;
+   MFEM_VERIFY(ref * num_elems == n, "Invalid number of elements");
+
+   fullSpacing->SetSize(ref * num_elems_full);
+
+   const int os = ref * first_elem;
+   for (int i = 0; i < n; ++i)
+   {
+      s[i] = fullSpacing->Eval(os + i);
+   }
+
+   // Normalize
+   const double d1 = s.Sum();
+   for (int i = 0; i < n; ++i)
+   {
+      s[i] /= d1;
+   }
+}
+
+void PartialSpacingFunction::ScaleParameters(real_t a)
+{
+   fullSpacing->ScaleParameters(a);
+}
+
+void PartialSpacingFunction::Print(std::ostream &os) const
+{
+   os << int(SpacingType::PARTIAL) << " " << NumIntParameters() << " "
+      << NumDoubleParameters() << " " << n << " " << (int) reverse << "\n"
+      << first_elem << " " << num_elems << " " << num_elems_full << "\n";
+
+   // Write integer parameters for the full spacing.
+   Array<int> ipar;
+   os << int(fullSpacing->GetSpacingType()) << " "
+      << fullSpacing->NumIntParameters() << " "
+      << fullSpacing->NumDoubleParameters();
+
+   fullSpacing->GetIntParameters(ipar);
+
+   for (auto& ip : ipar)
+   {
+      os << " " << ip;
+   }
+
+   os << "\n";
+
+   // Write double parameters for the full spacing.
+   Vector dpar;
+   fullSpacing->GetDoubleParameters(dpar);
+
+   if (dpar.Size() > 0)
+   {
+      for (auto dp : dpar)
+      {
+         os << dp << " ";
+      }
+   }
+
+   os << "\n";
+}
+
+} // namespace mfem

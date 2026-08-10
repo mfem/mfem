@@ -23,11 +23,14 @@
 #include "_config.hpp"
 #endif
 
+#include <cstdint>
+#include <climits>
+
 namespace mfem
 {
 
 #if (defined(MFEM_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(MFEM_USE_HIP) && defined(__HIPCC__))
+    (defined(MFEM_USE_HIP) && defined(__HIP__))
 #define MFEM_HOST_DEVICE __host__ __device__
 #else
 #define MFEM_HOST_DEVICE
@@ -153,5 +156,11 @@ constexpr real_t operator""_r(unsigned long long v)
 #error Building with PUMI (MFEM_USE_PUMI=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #endif // MFEM_USE_MPI not defined
+
+#ifndef MFEM_USE_CUDA
+#ifdef MFEM_USE_CUDSS
+#error Building with cuDSS (MFEM_USE_CUDSS=YES) requires CUDA (MFEM_USE_CUDA=YES)
+#endif
+#endif // MFEM_USE_CUDSS not defined
 
 #endif // MFEM_CONFIG_HPP

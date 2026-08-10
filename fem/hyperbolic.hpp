@@ -306,12 +306,14 @@ MFEM_DEPRECATED typedef NumericalFlux RiemannSolver;
 class HyperbolicFormIntegrator : public NonlinearFormIntegrator
 {
 private:
-   // The maximum characteristic speed, updated during element/face vector assembly
-   real_t max_char_speed;
    const NumericalFlux &numFlux;   // Numerical flux that maps F(u±,x) to F̂
    const FluxFunction &fluxFunction;
    const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
    const real_t sign;
+
+   // The maximum characteristic speed, updated during element/face vector assembly
+   real_t max_char_speed;
+
 #ifndef MFEM_THREAD_SAFE
    // Local storage for element integration
    Vector shape;              // shape function value at an integration point
@@ -331,8 +333,9 @@ private:
 
 public:
    const int num_equations;  // the number of equations
+
    /**
-    * @brief Construct a new Hyperbolic Form Integrator object
+    * @brief Construct a new HyperbolicFormIntegrator object
     *
     * @param[in] numFlux numerical flux
     * @param[in] IntOrderOffset integration order offset
@@ -343,21 +346,14 @@ public:
       const int IntOrderOffset = 0,
       const real_t sign = 1.);
 
-   /**
-    * @brief Reset the Max Char Speed 0
-    *
-    */
-   void ResetMaxCharSpeed()
-   {
-      max_char_speed = 0.0;
-   }
+   /// Reset the maximum characteristic speed to zero
+   void ResetMaxCharSpeed() { max_char_speed = 0.0; }
 
-   real_t GetMaxCharSpeed()
-   {
-      return max_char_speed;
-   }
+   /// Get the maximum characteristic speed
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
 
-   const FluxFunction &GetFluxFunction() { return fluxFunction; }
+   /// Get the associated flux function
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
 
    /**
     * @brief Implements (F(u), ∇v) with abstract F computed by
@@ -414,6 +410,182 @@ public:
                          const FiniteElement &el2,
                          FaceElementTransformations &Tr,
                          const Vector &elfun, DenseMatrix &elmat) override;
+};
+
+/**
+ * @brief Abstract boundary hyperbolic form integrator, assembling
+ * <F̂(u⁻,u_b,x) n, [v]> term for scalar finite elements at the boundary.
+ *
+ * This form integrator is coupled with a NumericalFlux that implements the
+ * numerical flux F̂ at the boundary faces. The flux F is obtained from the
+ * FluxFunction assigned to the aforementioned NumericalFlux with the given
+ * boundary coefficient for the state u_b.
+ *
+ * Note the class can be used for imposing conditions on interior interfaces.
+ */
+class BdrHyperbolicDirichletIntegrator : public NonlinearFormIntegrator
+{
+private:
+   const NumericalFlux &numFlux;    // Numerical flux that maps F to F̂
+   const FluxFunction &fluxFunction;
+   VectorCoefficient &u_vcoeff;     // Boundary state vector coefficient
+   const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
+   const real_t sign;
+
+   // The maximum characteristic speed, updated during element/face vector assembly
+   real_t max_char_speed;
+
+#ifndef MFEM_THREAD_SAFE
+   // Local storage for element integration
+   Vector shape;  // shape function value at an integration point
+   Vector state_in;  // state value at an integration point - interior
+   Vector state_out;  // state value at an integration point - boundary
+   Vector nor;     // normal vector, see mfem::CalcOrtho()
+   Vector fluxN;   // F̂(u⁻,u_b,x) n
+   DenseMatrix JDotN;   // Ĵ(u⁻,u_b,x) n
+#endif
+
+public:
+   const int num_equations;  // the number of equations
+
+   /**
+    * @brief Construct a new BdrHyperbolicDirichletIntegrator object
+    *
+    * @param[in] numFlux numerical flux
+    * @param[in] bdrState boundary state coefficient
+    * @param[in] IntOrderOffset integration order offset
+    * @param[in] sign sign of the convection term
+    */
+   BdrHyperbolicDirichletIntegrator(
+      const NumericalFlux &numFlux,
+      VectorCoefficient &bdrState,
+      const int IntOrderOffset = 0,
+      const real_t sign = 1.);
+
+   /// Reset the maximum characteristic speed to zero
+   void ResetMaxCharSpeed() { max_char_speed = 0.0; }
+
+   /// Get the maximum characteristic speed
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
+
+   /// Get the associated flux function
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
+
+   /**
+    * @brief Implements <-F̂(u⁻,u_b,x) n, [v]> with abstract F̂ computed by
+    * NumericalFlux::Eval() of the numerical flux object
+    *
+    * @param[in] el1 finite element of the interior element
+    * @param[in] el2 not used
+    * @param[in] Tr face element transformations
+    * @param[in] elfun local coefficient of basis for the interior element
+    * @param[out] elvect evaluated dual vector <-F̂(u⁻,u_b,x) n, [v]>
+    */
+   void AssembleFaceVector(const FiniteElement &el1,
+                           const FiniteElement &el2,
+                           FaceElementTransformations &Tr,
+                           const Vector &elfun, Vector &elvect) override;
+
+   /**
+    * @brief Implements <-Ĵ(u⁻,u_b,x) n, [v]> with abstract Ĵ computed by
+    * NumericalFlux::Grad() of the numerical flux object
+    *
+    * @param[in] el1 finite element of the interior element
+    * @param[in] el2 not used
+    * @param[in] Tr face element transformations
+    * @param[in] elfun local coefficient of basis for the interior element
+    * @param[out] elmat evaluated Jacobian matrix <-Ĵ(u⁻,u_b,x) n, [v]>
+    */
+   void AssembleFaceGrad(const FiniteElement &el1,
+                         const FiniteElement &el2,
+                         FaceElementTransformations &Tr,
+                         const Vector &elfun, DenseMatrix &elmat) override;
+};
+
+/**
+ * @brief Abstract boundary hyperbolic linear form integrator, assembling
+ * <ɑ/2 F(u,x) n - β |F(u,x) n|, v> terms for scalar finite elements.
+ *
+ * This form integrator is coupled with a FluxFunction that evaluates the
+ * flux F at the boundary.
+ *
+ * Note the upwinding is performed component-wise. For general boundary
+ * integration with a numerical flux, see BdrHyperbolicDirichletIntegrator.
+ */
+class BoundaryHyperbolicFlowIntegrator : public LinearFormIntegrator
+{
+   const FluxFunction &fluxFunction;
+   VectorCoefficient &u_vcoeff;
+   const real_t alpha, beta;
+   const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
+
+   // The maximum characteristic speed, updated during face vector assembly
+   real_t max_char_speed;
+
+#ifndef MFEM_THREAD_SAFE
+   // Local storage for element integration
+   Vector shape;   // shape function value at an integration point
+   Vector state;   // state value at an integration point
+   Vector nor;     // normal vector, see mfem::CalcOrtho()
+   Vector fluxN;   // F(u,x) n
+#endif
+
+public:
+   /**
+    * @brief Construct a new BoundaryHyperbolicFlowIntegrator object
+    *
+    * @param[in] flux flux function
+    * @param[in] u vector state coefficient
+    * @param[in] alpha ɑ coefficient (β = ɑ/2)
+    * @param[in] IntOrderOffset integration order offset
+    */
+   BoundaryHyperbolicFlowIntegrator(const FluxFunction &flux, VectorCoefficient &u,
+                                    real_t alpha = -1., int IntOrderOffset = 0)
+      : BoundaryHyperbolicFlowIntegrator(flux, u, alpha, alpha/2., IntOrderOffset) { }
+
+   /**
+    * @brief Construct a new BoundaryHyperbolicFlowIntegrator object
+    *
+    * @param[in] flux flux function
+    * @param[in] u vector state coefficient
+    * @param[in] alpha ɑ coefficient
+    * @param[in] beta β coefficient
+    * @param[in] IntOrderOffset integration order offset
+    */
+   BoundaryHyperbolicFlowIntegrator(const FluxFunction &flux, VectorCoefficient &u,
+                                    real_t alpha, real_t beta, int IntOrderOffset = 0);
+
+   /// Reset the maximum characteristic speed to zero
+   void ResetMaxCharSpeed() { max_char_speed = 0.0; }
+
+   /// Get the maximum characteristic speed
+   real_t GetMaxCharSpeed() const { return max_char_speed; }
+
+   /// Get the associated flux function
+   const FluxFunction &GetFluxFunction() const { return fluxFunction; }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /**
+    * @warning Boundary element integration not implemented, use
+    * AssembleRHSElementVect(const FiniteElement&,
+    * FaceElementTransformations &, Vector &) instead
+    */
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+
+   /**
+    * @brief Implements <-F(u,x) n, v> with abstract F computed by
+    * FluxFunction::ComputeFluxDotN() of the flux function object
+    *
+    * @param[in] el finite element
+    * @param[in] Tr face element transformations
+    * @param[out] elvect evaluated dual vector <F(u,x) n, v>
+    */
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 };
 
 

@@ -38,7 +38,6 @@
 #include "../../linalg/vector.hpp"
 #include "../../linalg/tensor.hpp"
 #include "../quadinterpolator.hpp"
-#include "../bilininteg.hpp"
 #include "../coefficient.hpp"
 #include "../qfunction.hpp"
 
@@ -133,12 +132,12 @@ void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
 /// @param[in] mu Quadrature function for second Lame param.
 /// @param[in] geom Geometric factors corresponding to fespace.
 /// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param QVec Scratch Q-Vector. nQuad x dim x dim x dim x dim x numEls.
+/// @param[in] ir Integration rule.
 /// @param[out] diag diagonal of A. nDofs x dim x numEls.
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
                                   const CoefficientVector &lambda,
                                   const CoefficientVector &mu, const GeometricFactors &geom,
-                                  const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag);
+                                  const DofToQuad &maps, const IntegrationRule &ir, Vector &diag);
 
 /// Templated implementation of ElasticityAddMultPA.
 template<int dim, int i_block = -1, int j_block = -1>
@@ -147,6 +146,11 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                           const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
                           QuadratureFunction &QVec, Vector &y)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    static_assert((i_block < 0) == (j_block < 0),
                  "i_block and j_block must both be non-negative or strictly negative.");
    static constexpr int d = dim;
@@ -207,7 +211,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
             const int iIndex = isComponent ? 0 : i;
             div += gradx(iIndex,i);
          }
-         const real_t w = ipWeights[p] /det(invJ);
+         const real_t w = ipWeights[p]/det(invJ);
          for (int m = 0; m < d; m++)
          {
             for (int q = qLower; q < qUpper; q++)
@@ -221,8 +225,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                {
                   for (int a = 0; a < d; a++)
                   {
-                     contraction += 2*((a == q)*invJ(m,j_block) + (j_block==q)*invJ(m,a))*(gradx(0,
-                                                                                                 a));
+                     contraction += 2*((a == q)*invJ(m,j_block)
+                                       + (j_block==q)*invJ(m,a))*(gradx(0, a));
                   }
                }
                else
@@ -231,7 +235,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                   {
                      for (int b = 0; b < d; b++)
                      {
-                        contraction += ((a == q)*invJ(m,b) + (b==q)*invJ(m,a))
+                        contraction += ((a == q)*invJ(m,b) + (b == q)*invJ(m,a))
                                        *(gradx(a,b) + gradx(b, a));
                      }
                   }
@@ -239,7 +243,8 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
                // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
                // contraction = 4*sym(grad(u))sym(grad(v))
                const int qIndex = isComponent ? 0 : q;
-               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div + 0.5*muDev(p, e)*contraction);
+               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div
+                                    + 0.5*muDev(p, e)*contraction);
             }
          }
       }
@@ -274,72 +279,67 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
 template<int dim>
 void ElasticityAssembleDiagonalPA_(const int nDofs,
                                    const CoefficientVector &lambda,
-                                   const CoefficientVector &mu, const GeometricFactors &geom,
-                                   const DofToQuad &maps, QuadratureFunction &QVec, Vector &diag)
+                                   const CoefficientVector &mu,
+                                   const GeometricFactors &geom,
+                                   const DofToQuad &maps,
+                                   const IntegrationRule &ir,
+                                   Vector &diag)
 {
+   using future::det;
+   using future::inv;
+   using future::make_tensor;
+   using future::tensor;
+
    // Assuming all elements are the same
-   const auto &ir = QVec.GetIntRule(0);
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();
-   const int numEls = lambda.Size()/numPoints;
+   const int numEls = lambda.Size() / numPoints;
+
    const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
    const auto muDev = Reshape(mu.Read(), numPoints, numEls);
    const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
-   auto Q = Reshape(QVec.ReadWrite(), numPoints, d,d, d, numEls);
    const real_t *ipWeights = ir.GetWeights().Read();
-   mfem::forall_2D(numEls, numPoints,1, [=] MFEM_HOST_DEVICE (int e)
-   {
-      MFEM_FOREACH_THREAD(p, x,numPoints)
-      {
-         auto invJ = inv(make_tensor<d, d>(
-         [&](int i, int j) { return J(p, i, j, e); }));
-         const real_t w = ipWeights[p] /det(invJ);
-         for (int n = 0; n < d; n++)
-         {
-            for (int m = 0; m < d; m++)
-            {
-               for (int q = 0; q < d; q++)
-               {
-                  // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-                  // this contraction could be made slightly cheaper using Voigt
-                  // notation, but repeated entries are summed for simplicity.
-                  real_t contraction = 0.;
-                  for (int a = 0; a < d; a++)
-                  {
-                     for (int b = 0; b < d; b++)
-                     {
-                        contraction += ((a == q)*invJ(m,b) + (b==q)*invJ(m,a))*((a == q)
-                                                                                *invJ(n, b) + (b==q)*invJ(n,a));
-                     }
-                  }
-                  // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
-                  // contraction = 4*sym(grad(u))sym(grad(v))
-                  Q(p,m,n,q,e) = w*(lamDev(p, e)*invJ(m,q)*invJ(n,q)
-                                    + 0.5*muDev(p, e)*contraction);
-               }
-            }
-         }
-      }
-   });
-
-   // Reduce quadrature function to an E-Vector
-   const auto QRead = Reshape(QVec.Read(), numPoints, d, d, d, numEls);
-   auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
+   auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
+
    mfem::forall_2D(numEls, d, nDofs, [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD(i, y, nDofs)
+      MFEM_FOREACH_THREAD_DIRECT(i, y, nDofs)
       {
-         MFEM_FOREACH_THREAD(q, x, d)
+         MFEM_FOREACH_THREAD_DIRECT(q, x, d)
          {
-            real_t sum = 0.;
-            for (int n = 0; n < d; n++)
+            real_t sum = 0.0;
+            for (int p = 0; p < numPoints; p++)
             {
-               for (int m = 0; m < d; m++)
+               const auto invJ = inv(make_tensor<d, d>([&](int r, int c)
                {
-                  for (int p = 0; p < numPoints; p++ )
+                  return J(p, r, c, e);
+               }));
+               const real_t w = ipWeights[p] / det(invJ);
+
+               for (int n = 0; n < d; n++)
+               {
+                  for (int m = 0; m < d; m++)
                   {
-                     sum += QRead(p,m,n,q,e)*G(p,m,i)*G(p,n,i);
+                     // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
+                     // this contraction could be made slightly cheaper using Voigt
+                     // notation, but repeated entries are summed for simplicity.
+                     real_t contraction = 0.0;
+                     for (int a = 0; a < d; a++)
+                     {
+                        for (int b = 0; b < d; b++)
+                        {
+                           contraction +=
+                              ((a == q) * invJ(m, b) + (b == q) * invJ(m, a)) *
+                              ((a == q) * invJ(n, b) + (b == q) * invJ(n, a));
+                        }
+                     }
+                     // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
+                     // contraction = 4*sym(grad(u))sym(grad(v))
+                     const real_t Q =
+                        w * (lamDev(p, e) * invJ(m, q) * invJ(n, q)
+                             + 0.5 * muDev(p, e) * contraction);
+                     sum += Q * G(p, m, i) * G(p, n, i);
                   }
                }
             }
@@ -361,6 +361,11 @@ void ElasticityAssembleEA_(const int i_block,
                            const DofToQuad &maps,
                            Vector &emat)
 {
+   using future::tensor;
+   using future::make_tensor;
+   using future::det;
+   using future::inv;
+
    // Assuming all elements are the same
    static constexpr int d = dim;
    const int numPoints = ir.GetNPoints();

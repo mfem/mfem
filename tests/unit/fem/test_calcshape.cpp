@@ -83,7 +83,7 @@ void TestCalcShape(FiniteElement* fe, int res, double tol=1e-12)
 
    Vector weights( fe->GetDof() );
 
-   // Get a uniform grid or integration points
+   // Get a uniform grid of integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
    const IntegrationRule& intRule = ref->RefPts;
 

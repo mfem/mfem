@@ -20,9 +20,8 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-# Currently there are only serial Ginkgo examples
 SEQ_EXAMPLES = ex1
-PAR_EXAMPLES =
+PAR_EXAMPLES = ex1p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -77,4 +76,4 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -f refined.mesh sol.gf
+	@rm -f refined.mesh sol.gf mesh.* sol.*

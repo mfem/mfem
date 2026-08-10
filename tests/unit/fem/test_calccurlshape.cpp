@@ -231,7 +231,7 @@ void TestFDCalcCurlShape(FiniteElement* fe, ElementTransformation * T,
       IntegrationPoint pt = ir->IntPoint(i);
       fe->CalcCurlShape(pt, dshape);
 
-      CAPTURE(pt.x, pt.y, pt.z);
+      CAPTURE(pt.x, pt.y, dim == 3 ? pt.z : 0_r);
 
       fdshape = 0.0;
       for (int d=0; d<dim; d++)

@@ -13,11 +13,11 @@
 #define MFEM_DIVFREE_SOLVER_HPP
 
 #include "darcy_solver.hpp"
+#include <memory>
 
-namespace mfem
+namespace mfem::blocksolvers
 {
-namespace blocksolvers
-{
+
 /// Parameters for the divergence free solver
 struct DFSParameters : IterSolveParameters
 {
@@ -35,14 +35,18 @@ struct DFSParameters : IterSolveParameters
 /// Data for the divergence free solver
 struct DFSData
 {
-   std::vector<OperatorPtr> agg_hdivdof;  // agglomerates to H(div) dofs table
-   std::vector<OperatorPtr> agg_l2dof;    // agglomerates to L2 dofs table
-   std::vector<OperatorPtr> P_hdiv;   // Interpolation matrix for H(div) space
-   std::vector<OperatorPtr> P_l2;     // Interpolation matrix for L2 space
-   std::vector<OperatorPtr> P_hcurl;  // Interpolation for kernel space of div
-   std::vector<OperatorPtr> Q_l2;     // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
-   Array<int> coarsest_ess_hdivdofs;  // coarsest level essential H(div) dofs
-   std::vector<OperatorPtr> C;        // discrete curl: ND -> RT, map to Null(B)
+   using UniqueOperatorPtr = std::unique_ptr<OperatorPtr>;
+   using UniqueHypreParMatrix = std::unique_ptr<HypreParMatrix>;
+
+   std::vector<OperatorPtr> agg_hdivdof; // agglomerates to H(div) dofs table
+   std::vector<OperatorPtr> agg_l2dof; // agglomerates to L2 dofs table
+   std::vector<UniqueOperatorPtr> P_hdiv; // Interpolation matrix for H(div) space
+   std::vector<UniqueOperatorPtr> P_l2; // Interpolation matrix for L2 space
+   std::vector<UniqueOperatorPtr> P_hcurl; // Interpolation for kernel space of div
+   std::vector<OperatorPtr> Q_l2; // Q_l2[l] = (W_{l+1})^{-1} P_l2[l]^T W_l
+   Array<int> coarsest_ess_hdivdofs; // coarsest level essential H(div) dofs
+   std::vector<OperatorPtr> C; // discrete curl: ND -> RT, map to Null(B)
+   std::vector<UniqueHypreParMatrix> Ae;
    DFSParameters param;
 };
 
@@ -92,8 +96,7 @@ public:
 /// Compute the product B * B^T and solve it with CG preconditioned by BoomerAMG
 class BBTSolver : public Solver
 {
-   OperatorPtr BBT_;
-   OperatorPtr BBT_prec_;
+   OperatorPtr BBT_, BBT_prec_;
    CGSolver BBT_solver_;
 public:
    BBTSolver(const HypreParMatrix &B, IterSolveParameters param);
@@ -115,14 +118,11 @@ public:
 ///                      [ B   0  ]
 class SaddleSchwarzSmoother : public Solver
 {
-   const SparseMatrix& agg_hdivdof_;
-   const SparseMatrix& agg_l2dof_;
+   const SparseMatrix &agg_hdivdof_, &agg_l2dof_;
    OperatorPtr coarse_l2_projector_;
 
    Array<int> offsets_;
-   mutable Array<int> offsets_loc_;
-   mutable Array<int> hdivdofs_loc_;
-   mutable Array<int> l2dofs_loc_;
+   mutable Array<int> offsets_loc_, hdivdofs_loc_, l2dofs_loc_;
    std::vector<OperatorPtr> solvers_loc_;
 public:
    /** SaddleSchwarzSmoother solves local saddle point problems defined on a
@@ -140,7 +140,7 @@ public:
                          const SparseMatrix& agg_hdivdof,
                          const SparseMatrix& agg_l2dof,
                          const HypreParMatrix& P_l2,
-                         const HypreParMatrix& Q_l2);
+                         const ProductOperator& Q_l2);
    void Mult(const Vector &x, Vector &y) const override;
    void MultTranspose(const Vector &x, Vector &y) const override { Mult(x, y); }
    void SetOperator(const Operator &op) override { }
@@ -178,11 +178,10 @@ class DivFreeSolver : public DarcySolver
    OperatorPtr BT_;
    BBTSolver BBT_solver_;
    std::vector<Array<int>> ops_offsets_;
-   Array<BlockOperator*> ops_;
-   Array<BlockOperator*> blk_Ps_;
-   Array<Solver*> smoothers_;
-   OperatorPtr prec_;
-   OperatorPtr solver_;
+   std::vector<std::unique_ptr<BlockOperator>> ops_;
+   std::vector<std::unique_ptr<BlockOperator>> blk_Ps_;
+   std::vector<std::unique_ptr<Solver>> smoothers_;
+   OperatorPtr prec_, solver_;
 
    void SolveParticular(const Vector& rhs, Vector& sol) const;
    void SolveDivFree(const Vector& rhs, Vector& sol) const;
@@ -190,14 +189,11 @@ class DivFreeSolver : public DarcySolver
 public:
    DivFreeSolver(const HypreParMatrix& M, const HypreParMatrix &B,
                  const DFSData& data);
-   ~DivFreeSolver();
    void Mult(const Vector &x, Vector &y) const override;
    void SetOperator(const Operator &op) override { }
    int GetNumIterations() const override;
 };
 
-} // namespace blocksolvers
-
-} // namespace mfem
+} // namespace mfem::blocksolvers
 
 #endif // MFEM_DIVFREE_SOLVER_HPP

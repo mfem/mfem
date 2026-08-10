@@ -221,7 +221,8 @@ TEST_CASE("FE Symmetry",
          const int ne = order; // Num DoFs per edge
          const int nt = order * (order - 1); // Num DoF per tri face
          const int nq = 2 * nt; // Num DoF per quad face
-         const int ni = order * pow(order - 1, 2); // Num DoF per interior dir
+         // Num DoF per interior dir
+         const int ni = order * (static_cast<int>(pow(order-1, 2)));
          const int oq = 8 * ne; // Offset to first quad DoF
          const int ot = oq + nq; // Offset to first tri DoF
          const int oi = ot + 4 * nt; // Offset to first interior DoF

@@ -28,6 +28,7 @@ namespace mfem
 #ifdef MFEM_USE_PUMI
 class ParPumiMesh;
 #endif
+class ParGridFunction;
 
 /// Class for parallel meshes
 class ParMesh : public Mesh
@@ -96,9 +97,11 @@ protected:
    mutable long glob_offset_sequence;
    void ComputeGlobalElementOffset() const;
 
-   // Enable Print() to add the parallel interface as boundary (typically used
-   // for visualization purposes)
+   // See SetPrintShared()
    bool print_shared = true;
+
+   // See SetPrintInterfaces()
+   bool print_interfaces = false;
 
    /// Create from a nonconforming mesh.
    ParMesh(const ParNCMesh &pncmesh);
@@ -150,15 +153,7 @@ protected:
                     int elem, int start, int end, const int fverts[][N]);
 
    void GetGhostFaceTransformation(
-      FaceElementTransformations &FElTr, Element::Type face_type,
-      Geometry::Type face_geom) const;
-   void GetGhostFaceTransformation(
-      FaceElementTransformations *FElTr, Element::Type face_type,
-      Geometry::Type face_geom) const
-   {
-      MFEM_ASSERT(FElTr, "Missing FaceElementTransformations object!");
-      GetGhostFaceTransformation(*FElTr, face_type, face_geom);
-   }
+      int FaceNo, FaceElementTransformations &FElTr) const;
 
    /// Update the groups after triangle refinement
    void RefineGroups(const DSTable &v_to_v, int *middle);
@@ -190,6 +185,8 @@ protected:
        @param[in] tol NURBS geometry deviation tolerance. */
    void NURBSUniformRefinement(int rf = 2, real_t tol=1.0e-12) override;
    void NURBSUniformRefinement(const Array<int> &rf, real_t tol=1.e-12) override;
+
+   void RefineNURBSWithKVFactors(int rf, const std::string &kvf) override;
 
    /// This function is not public anymore. Use GeneralRefinement instead.
    void LocalRefinement(const Array<int> &marked_el, int type = 3) override;
@@ -309,6 +306,9 @@ protected:
    void GetSharedTriCommunicator(int ordering,
                                  GroupCommunicator& stria_comm) const;
 
+   // Optionally called by Print() and PrintAsOne() (so this needs to be const)
+   void FindInterface(Array<int> &interface) const;
+
    // Similar to Mesh::GetFacesTable()
    STable3D *GetSharedFacesTable();
 
@@ -394,7 +394,8 @@ public:
 
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
-   void SetAttributes() override;
+   void SetAttributes(bool elem_attrs_changed = true,
+                      bool bdr_attrs_changed = true) override;
 
    /// Checks if any rank in the mesh has boundary elements
    bool HasBoundaryElements() const override;
@@ -562,7 +563,9 @@ public:
    void ExchangeFaceNbrNodes();
 
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1) override;
+                     int ordering = 1, int pyrtype = 1) override;
+
+   std::unique_ptr<ParGridFunction> GetJacobianDeterminantGF() const;
 
    /** Replace the internal node GridFunction with a new GridFunction defined on
        the given FiniteElementSpace. The new node coordinates are projected
@@ -725,13 +728,35 @@ public:
        begin with '#'. */
    void ParPrint(std::ostream &out, const std::string &comments = "") const;
 
-   // Enable Print() to add the parallel interface as boundary (typically used
-   // for visualization purposes)
+   /** @brief Enable Print() and PrintAsOne() to add the parallel interface as
+       boundary (typically used for visualization purposes).
+
+       In PrintAsOne(), this setting also controls what element and boundary
+       attributes are printed:
+       - if @a print == false, use the real element and boundary attributes,
+       - otherwise, processor rank + 1 is used for both, the element and
+         boundary attributes.
+
+      The ParMesh object itself is not modified, this only affects file output
+      for visualization.
+
+      The default value of this flag is true. */
    void SetPrintShared(bool print) { print_shared = print; }
 
+   /** @brief Enable Print() and PrintAsOne() to add material interfaces, i.e.
+       intefaces between different mesh element attributes, as boundary
+       (typically used for visualization purposes).
+
+       The ParMesh object itself is not modified, this only affects file output
+       for visualization.
+
+       The default value of this flag is false. */
+   void SetPrintInterfaces(bool print) { print_interfaces = print; }
+
    /** Print the part of the mesh in the calling processor using the mfem v1.0
-       format. Depending on SetPrintShared(), the parallel interface can be
-       added as boundary for visualization (true by default). If @a comments is
+       format. Depending on SetPrintShared() and SetPrintInterfaces(), the
+       parallel interface and/or material interfaces can be added as boundary
+       for visualization (true/false respectively by default). If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
    void Print(std::ostream &out = mfem::out,
@@ -753,12 +778,18 @@ public:
        as boundary (for visualization purposes) using Netgen/Truegrid format .*/
    void PrintXG(std::ostream &out = mfem::out) const override;
 
-   /** Write the mesh to the stream 'out' on Process 0 in a form suitable for
-       visualization: the mesh is written as a disjoint mesh and the shared
-       boundary is added to the actual boundary; both the element and boundary
-       attributes are set to the processor number. If @a comments is non-empty,
-       it will be printed after the first line of the file, and each line should
-       begin with '#'. */
+   /** @brief Write the mesh to the stream 'out' on Process 0 in a form suitable
+       for visualization.
+
+       The mesh is written as a disjoint mesh. If SetPrintShared() is enabled,
+       the shared boundary is added to the actual boundary and both the element
+       and boundary attributes are set to the processor number + 1.
+
+       If SetPrintInterfaces() is enabled, material interfaces, i.e. interfaces
+       between different mesh element attributes, are added as boundary as well.
+
+       If @a comments is non-empty, it will be printed after the first line of
+       the file, and each line should begin with '#'. */
    void PrintAsOne(std::ostream &out = mfem::out,
                    const std::string &comments = "") const;
 
@@ -787,7 +818,7 @@ public:
                  VTKFormat format=VTKFormat::ASCII,
                  bool high_order_output=false,
                  int compression_level=0,
-                 bool bdr=false) override;
+                 bool bdr_elements=false) override;
 
    /// Parallel version of Mesh::Load().
    void Load(std::istream &input, int generate_edges = 0,
@@ -813,6 +844,22 @@ public:
 
    /// Debugging method
    void PrintSharedEntities(const std::string &fname_prefix) const;
+
+   /** @brief Return true if the input array of refinements to be performed would
+       result in conflicting anisotropic directions on a face. Indices of
+       @a refinements entries are contained in @a conflicts, for marked elements
+       neighboring a face with a conflict.
+
+       The return value is globally MPI-reduced (true if any MPI process has a
+       conflict), whereas @a conflicts contains local indices of conflicting
+       entries of @a refinements. Conflicts are defined as anisotropic
+       refinements in different directions on a face shared by two elements.
+       Conflicts are checked for the mesh that would result from the input
+       refinements. If there are no conflicts, then the refinements can be
+       performed without forced refinements. This function is supported only for
+       3D meshes with all hexahedral elements. */
+   bool AnisotropicConflict(const Array<Refinement> &refinements,
+                            std::set<int> &conflicts) const;
 
    virtual ~ParMesh();
 };

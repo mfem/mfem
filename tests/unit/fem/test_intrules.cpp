@@ -105,39 +105,39 @@ TEST_CASE("Integration rule order initialization", "[IntegrationRules]")
    SECTION("Segment rule constructed by accessing square rule")
    {
       auto &quad5_ir = intrules.Get(Geometry::SQUARE, 5);
-      REQUIRE(quad5_ir.GetOrder() == 5);
+      REQUIRE(quad5_ir.GetOrder() >= 5);
       // The segment integration rule of order 5 is lazy constructed when we get
       // the square integration rule of order 5. Make sure its order was
       // properly set:
       auto &line5_ir = intrules.Get(Geometry::SEGMENT, 5);
-      REQUIRE(line5_ir.GetOrder() == 5);
+      REQUIRE(line5_ir.GetOrder() >= 5);
    }
 
    SECTION("Segment rule constructed by accessing cube rule")
    {
       auto &hex7_ir = intrules.Get(Geometry::CUBE, 7);
-      REQUIRE(hex7_ir.GetOrder() == 7);
+      REQUIRE(hex7_ir.GetOrder() >= 7);
       // The segment integration rule of order 7 is lazy constructed when we get
       // the cube integration rule of order 7. Make sure its order was properly
       // set:
       auto &line7_ir = intrules.Get(Geometry::SEGMENT, 7);
-      REQUIRE(line7_ir.GetOrder() == 7);
+      REQUIRE(line7_ir.GetOrder() >= 7);
    }
 
    SECTION("Segment and triangle rules constructed by accessing prism rule")
    {
       auto &prism3_ir = intrules.Get(Geometry::PRISM, 3);
-      REQUIRE(prism3_ir.GetOrder() == 3);
+      REQUIRE(prism3_ir.GetOrder() >= 3);
       // The segment integration rule of order 3 is lazy constructed when we get
       // the prism integration rule of order 3. Make sure its order was properly
       // set:
       auto &line3_ir = intrules.Get(Geometry::SEGMENT, 3);
-      REQUIRE(line3_ir.GetOrder() == 3);
+      REQUIRE(line3_ir.GetOrder() >= 3);
       // The triangle integration rule of order 3 is lazy constructed when we
       // get the prism integration rule of order 3. Make sure its order was
       // properly set:
       auto &tri3_ir = intrules.Get(Geometry::TRIANGLE, 3);
-      REQUIRE(tri3_ir.GetOrder() == 3);
+      REQUIRE(tri3_ir.GetOrder() >= 3);
    }
 }
 
@@ -168,6 +168,44 @@ TEST_CASE("Integration rule weights",
    }
    REQUIRE(Geometry::Volume[geom] == MFEM_Approx(weight_sum));
 }
+
+// Test the Gauss-Jacobi rules over a range of alpha and beta. The n-point rule is
+// exact for integrands of the form
+//       x^beta * (1-x)^alpha * p(x),
+// where p(x) is a degree 2*n-1 polynomial. We test monomials up to degree 2*n-1 here,
+// meaning that the exact integral is given by Beta(beta+2*n, alpha+1).
+TEST_CASE("Gauss-Jacobi integration rules", "[GaussJacobiRules]")
+{
+   const auto alpha = GENERATE(-0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75,
+                               2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0);
+   const auto beta = GENERATE(-0.25, 0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75,
+                              2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0);
+
+   for (int np = 1; np <= 50; np++)
+   {
+      const int p = 2*np - 1;
+      IntegrationRule ir_a_b;
+      QuadratureFunctions1D::GaussJacobi(np, alpha, beta, &ir_a_b);
+      // Gauss-Jacobi rule (alpha,beta) is exact up to polynomials of degree 2*np-1
+      for (int n = 0; n <= p; n++)
+      {
+         double integral = 0.0;
+         for (int i = 0; i < ir_a_b.GetNPoints(); i++)
+         {
+            const IntegrationPoint &ip = ir_a_b.IntPoint(i);
+            integral += ip.weight * pow(ip.x, n);
+         }
+         double exact = std::tgamma(beta+n+1) * std::tgamma(alpha+1) / std::tgamma(
+                           alpha+n+2+beta);
+         // use tgamma instead of beta for compliance with C++11 standard
+         double relerr = 1. - integral/exact;
+
+         INFO("p=" << n << ", alpha=" << alpha << ", beta=" << beta);
+         REQUIRE(fabs(relerr) < 1e-11);
+      }
+   }
+}
+
 
 double poly2d(const IntegrationPoint &ip, int m, int n)
 {
@@ -271,3 +309,122 @@ TEST_CASE("Simplex integration rules", "[SimplexRules]")
       }
    }
 }
+
+TEST_CASE("Stroud conical quadrature rules in a simplex",
+          "[SimplexRules][StroudRules]")
+{
+   const int maxn = 32;
+   int binom[maxn+1][maxn+1];
+   for (int n = 0; n <= maxn; n++)
+   {
+      binom[n][0] = binom[n][n] = 1;
+      for (int k = 1; k < n; k++)
+      {
+         binom[n][k] = binom[n-1][k] + binom[n-1][k-1];
+      }
+   }
+
+   SECTION("low triangle integration error on reference element for f=x^m y^n, where m+n <= p")
+   {
+      for (int order = 0; order <= 25; order++)
+      {
+         const IntegrationRule &ir = StroudIntRules.Get(Geometry::TRIANGLE, order);
+
+         // using the monomial basis: x^m y^n, 0 <= m+n <= order
+         for (int p = 0; p <= order; p++)
+         {
+            for (int m = p; m >= 0; m--)
+            {
+               int n = p - m;
+
+               double integral = 0.0;
+               for (int i = 0; i < ir.GetNPoints(); i++)
+               {
+                  const IntegrationPoint &ip = ir.IntPoint(i);
+                  integral += ip.weight*poly2d(ip, m, n);
+               }
+
+               double exact = 1.0/binom[p][m]/(p + 1)/(p + 2);
+               double relerr = 1. - integral/exact;
+
+               // If a test fails any INFO statements preceding the REQUIRE are displayed
+               INFO("p=" << p << ", m=" << m << ", n=" << n);
+               REQUIRE(fabs(relerr) < 1e-11);
+            }
+         }
+      }
+   }
+
+   SECTION("low tet integration error on reference element for f=x^l y^m z^n, where l+m+n <= p")
+   {
+      for (int order = 0; order <= 21; order++)
+      {
+         const IntegrationRule &ir = StroudIntRules.Get(Geometry::TETRAHEDRON, order);
+
+         for (int p = 0; p <= order; p++)
+         {
+            for (int l = p; l >= 0; l--)
+            {
+               for (int m = p - l; m >= 0; m--)
+               {
+                  int n = p - l - m;
+
+                  double integral = 0.0;
+                  for (int i = 0; i < ir.GetNPoints(); i++)
+                  {
+                     const IntegrationPoint &ip = ir.IntPoint(i);
+                     integral += ip.weight*poly3d(ip, l, m, n);
+                  }
+
+                  double exact = 1.0/binom[p][l+m]/binom[l+m][l]/(p+1)/(p+2)/(p+3);
+                  double relerr = 1. - integral/exact;
+
+                  // If a test fails any INFO statements preceding the REQUIRE are displayed
+                  INFO("p=" << p << ", l=" << l << ", m=" << m << ", n=" << n);
+                  REQUIRE(fabs(relerr) < 1e-11);
+               }
+            }
+         }
+      }
+   }
+}
+
+
+// Monomial exactness is tested by [SimplexRules] above, which now uses
+// positive-weight rules by default. The tests below verify properties
+// specific to the positive-weight rules: weight positivity, stability,
+// and interior point placement.
+
+TEST_CASE("Simplex rule positivity", "[IntegrationRules]")
+{
+   IntegrationRules rules;
+
+   SECTION("triangle rules have all positive weights for orders 0-25")
+   {
+      for (int order = 0; order <= 25; order++)
+      {
+         const IntegrationRule &ir = rules.Get(Geometry::TRIANGLE, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            INFO("order=" << order << ", point=" << i);
+            REQUIRE(ir.IntPoint(i).weight > 0.0);
+         }
+      }
+   }
+
+   SECTION("tet rules have all positive weights for orders 0-20")
+   {
+      for (int order = 0; order <= 20; order++)
+      {
+         const IntegrationRule &ir =
+            rules.Get(Geometry::TETRAHEDRON, order);
+         for (int i = 0; i < ir.GetNPoints(); i++)
+         {
+            INFO("order=" << order << ", point=" << i);
+            REQUIRE(ir.IntPoint(i).weight > 0.0);
+         }
+      }
+   }
+}
+
+

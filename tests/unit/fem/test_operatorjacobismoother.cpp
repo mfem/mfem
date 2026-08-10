@@ -20,7 +20,7 @@ TEST_CASE("OperatorJacobiSmoother", "[OperatorJacobiSmoother]")
    {
       for (int ne = 1; ne < 3; ++ne)
       {
-         const int n_elements = std::pow(ne, dimension);
+         const int n_elements = static_cast<int>(std::pow(ne, dimension));
          for (int order = 1; order < 5; ++order)
          {
             CAPTURE(dimension, n_elements, order);

@@ -16,9 +16,7 @@ namespace mfem
 
 void DofTransformation::TransformPrimal(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Size();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -48,9 +46,7 @@ void DofTransformation::TransformPrimal(real_t *v) const
 
 void DofTransformation::InvTransformPrimal(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Height();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -80,9 +76,7 @@ void DofTransformation::InvTransformPrimal(real_t *v) const
 
 void DofTransformation::TransformDual(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Size();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -112,9 +106,7 @@ void DofTransformation::TransformDual(real_t *v) const
 
 void DofTransformation::InvTransformDual(real_t *v) const
 {
-   MFEM_ASSERT(dof_trans_,
-               "DofTransformation has no local transformation, call "
-               "SetDofTransformation first!");
+   if (IsIdentity()) { return; }
    int size = dof_trans_->Size();
 
    if (vdim_ == 1 || (Ordering::Type)ordering_ == Ordering::byNODES)
@@ -142,33 +134,33 @@ void DofTransformation::InvTransformDual(real_t *v) const
    }
 }
 
-void TransformPrimal(const DofTransformation *ran_dof_trans,
-                     const DofTransformation *dom_dof_trans,
+void TransformPrimal(const DofTransformation &ran_dof_trans,
+                     const DofTransformation &dom_dof_trans,
                      DenseMatrix &elmat)
 {
    // No action if both transformations are NULL
-   if (ran_dof_trans)
+   if (!ran_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformPrimalCols(elmat);
+      ran_dof_trans.TransformPrimalCols(elmat);
    }
-   if (dom_dof_trans)
+   if (!dom_dof_trans.IsIdentity())
    {
-      dom_dof_trans->TransformDualRows(elmat);
+      dom_dof_trans.TransformDualRows(elmat);
    }
 }
 
-void TransformDual(const DofTransformation *ran_dof_trans,
-                   const DofTransformation *dom_dof_trans,
+void TransformDual(const DofTransformation &ran_dof_trans,
+                   const DofTransformation &dom_dof_trans,
                    DenseMatrix &elmat)
 {
    // No action if both transformations are NULL
-   if (ran_dof_trans)
+   if (!ran_dof_trans.IsIdentity())
    {
-      ran_dof_trans->TransformDualCols(elmat);
+      ran_dof_trans.TransformDualCols(elmat);
    }
-   if (dom_dof_trans)
+   if (!dom_dof_trans.IsIdentity())
    {
-      dom_dof_trans->TransformDualRows(elmat);
+      dom_dof_trans.TransformDualRows(elmat);
    }
 }
 

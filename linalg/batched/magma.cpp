@@ -68,7 +68,7 @@ void MagmaBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
    auto d_x = x.Read(); // Shape (n, k, n_mat);
    auto d_y = beta == 0.0 ? y.Write() : y.ReadWrite(); // Shape (m, k, n_mat);
 
-   magma_trans_t magma_op = tr ? MagmaNoTrans : MagmaTrans;
+   magma_trans_t magma_op = tr ? MagmaTrans : MagmaNoTrans;
 
    MFEM_MAGMABLAS_PREFIX(gemm_batched_strided)(
       magma_op, MagmaNoTrans, m, k, n, alpha, d_A, m, m*n, d_x, n, n*k,
@@ -99,7 +99,8 @@ void MagmaBatchedLinAlg::LUFactor(DenseTensor &A, Array<int> &P) const
    const magma_int_t status = MFEM_MAGMA_PREFIX(getrf_batched)(
                                  n, n, d_A_ptrs, n, d_P_ptrs,
                                  info_array.Write(), n_mat, Magma::Queue());
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "");
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA error.");
+   VerifyBatchedLUInfo(info_array, "Batch LU factorization failed");
 }
 
 void MagmaBatchedLinAlg::LUSolve(
@@ -167,14 +168,16 @@ void MagmaBatchedLinAlg::Invert(DenseTensor &A) const
    magma_int_t status;
 
    status = MFEM_MAGMA_PREFIX(getrf_batched)(
-               n, n, d_A_ptrs, n, d_P_ptrs, info_array.Write(), n_mat,
+               n, n, d_LU_ptrs, n, d_P_ptrs, info_array.Write(), n_mat,
                Magma::Queue());
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "");
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA error.");
+   VerifyBatchedLUInfo(info_array, "Batch LU factorization failed");
 
    status = MFEM_MAGMA_PREFIX(getri_outofplace_batched)(
                n, d_LU_ptrs, n, d_P_ptrs, d_A_ptrs, n, info_array.Write(),
                n_mat, Magma::Queue());
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "");
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA error.");
+   VerifyBatchedLUInfo(info_array, "Batch matrix inversion failed");
 }
 
 } // namespace mfem

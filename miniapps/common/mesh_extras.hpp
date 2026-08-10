@@ -33,10 +33,47 @@ void MergeMeshNodes(Mesh * mesh, int logging);
 /// Convert a set of attribute numbers to a marker array
 /** The marker array will be of size max_attr and it will contain only zeroes
     and ones. Ones indicate which attribute numbers are present in the attrs
-    array. In the special case when attrs has a single entry equal to -1 the
-    marker array will contain all ones. */
-void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker);
+    array. In the special case when attrs has an entry equal to -1 the marker
+    array will contain all ones. */
+inline
+void AttrToMarker(int max_attr, const Array<int> &attrs, Array<int> &marker)
+{
+   if (attrs.Find(-1) != -1) { (marker = Array<int>(max_attr)) = 1; }
+   else { marker = AttributeSets::AttrToMarker(max_attr, attrs); }
+}
 
+/// Transform a mesh according to an arbitrary affine transformation
+///    y = A x + b
+/// Where A is a spaceDim x spaceDim matrix and b is a vector of size spaceDim.
+/// If A is of size zero the transformation will be y = b.
+/// If b is of size zero the transformation will be y = A x.
+///
+/// Note that no error checking related to the determinant of A is performed.
+/// If A has a non-positive determinant it is likely to produce an invalid
+/// transformed mesh.
+class AffineTransformation : public VectorCoefficient
+{
+private:
+   DenseMatrix A;
+   Vector b;
+   Vector x;
+
+public:
+   AffineTransformation(int dim_, const DenseMatrix &A_, const Vector & b_)
+      : VectorCoefficient(dim_), A(A_), b(b_), x(dim_)
+   {
+      MFEM_VERIFY((A.Height() == dim_ && A.Width() == dim_) ||
+                  (A.Height() == 0 && A.Width() == 0),
+                  "Affine transformation given an invalid matrix");
+      MFEM_VERIFY(b.Size() == dim_ || b.Size() == 0,
+                  "Affine transformation given an invalid vector");
+   }
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   using VectorCoefficient::Eval;
+};
 
 /// Generalized Kershaw mesh transformation in 2D and 3D, see D. Kershaw,
 /// "Differencing of the diffusion equation in Lagrangian hydrodynamic codes",

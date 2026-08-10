@@ -18,15 +18,22 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ASTYLE_BIN = astyle
 ETAGS_BIN = $(shell command -v etags 2> /dev/null)
 EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 
 CXX = g++
 MPICXX = mpicxx
 
-BASE_FLAGS  = -std=c++11
+BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+
+# Shadow warnings for clang only; GCC's -Wshadow flags more.
+SHADOW_WARNING_FLAG = $(if $(findstring clang,\
+ $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
+WARNING_FLAGS = -pedantic -Wall $(SHADOW_WARNING_FLAG)
+
+DEBUG_FLAGS = $(strip -g $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
 CXX_XCOMPILER =
@@ -43,12 +50,23 @@ SHARED = NO
 
 # CUDA configuration options
 #
-# If you set MFEM_USE_ENZYME=YES, CUDA_CXX has to be configured to use cuda with
-# clang as its host compiler.
+# If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
 CUDA_ARCH = sm_60
-CUDA_FLAGS = -x=cu --expt-extended-lambda -arch=$(CUDA_ARCH)
-# Prefixes for passing flags to the host compiler and linker when using CUDA_CXX
+# Base CUDA install directory, only needed if building with clang+cuda:
+# The default setting is:
+# 1. If CUDA_HOME is defined and non-empty, use that.
+# 2. If nvcc is in the path, use the directory two levels up from that.
+# 3. Use /usr/local/cuda
+CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
+ $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
+# flags for clang+cuda
+CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
+# flags for nvcc
+NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
+ -arch=$(CUDA_ARCH) -isystem "$(CUDA_DIR)/include"
+# Prefixes for passing flags to the host compiler and linker when using
+# CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
 CUDA_XLINKER   = -Xlinker=
 
@@ -141,6 +159,7 @@ MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
 MFEM_USE_MUMPS         = NO
 MFEM_USE_STRUMPACK     = NO
+MFEM_USE_CUDSS         = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
@@ -227,7 +246,7 @@ HYPRE_OPT = -I$(HYPRE_DIR)/include
 HYPRE_LIB = -L$(HYPRE_DIR)/lib -lHYPRE
 ifeq (YES,$(MFEM_USE_CUDA))
    # This is only necessary when hypre is built with cuda:
-   HYPRE_LIB += -lcusparse -lcurand -lcublas
+   HYPRE_LIB += -lcusolver -lcusparse -lcurand -lcublas
 endif
 ifeq (YES,$(MFEM_USE_HIP))
    # This is only necessary when hypre is built with hip:
@@ -242,7 +261,7 @@ ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
      METIS_OPT =
      METIS_LIB = -L$(METIS_DIR) -lmetis
    else
-     METIS_DIR = @MFEM_DIR@/../metis-5.0
+     METIS_DIR = @MFEM_DIR@/../metis-5.1.0
      METIS_OPT = -I$(METIS_DIR)/include
      METIS_LIB = -L$(METIS_DIR)/lib -lmetis
    endif
@@ -356,6 +375,19 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
 
+# CUDSS library configuration
+CUDSS_DIR         = @MFEM_DIR@/../cudss
+CUDSS_INCLUDE_DIR = $(CUDSS_DIR)/include
+CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
+CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
+CUDSS_LIB         = \
+ $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
+# The cuDSS communication and threading libraries. 
+MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
+
 # Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
 GINKGO_SEARCH_DIR = $(subst @MFEM_DIR@,$(MFEM_DIR),$(GINKGO_DIR))
@@ -396,7 +428,7 @@ AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
 # MAGMA library configuration
 MAGMA_DIR = @MFEM_DIR@/../magma
 MAGMA_OPT = -I$(MAGMA_DIR)/include
-MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
+MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a $(LAPACK_LIB)
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -511,6 +543,9 @@ GSLIB_LIB = -L$(GSLIB_DIR)/lib -lgs
 # CUDA library configuration
 CUDA_OPT =
 CUDA_LIB = -lcusparse -lcublas
+CLANG_CUDA_LIB = -L$(CUDA_DIR)/lib64 -L$(CUDA_DIR)/lib \
+ $(XLINKER)-rpath,$(CUDA_DIR)/lib64,-rpath,$(CUDA_DIR)/lib \
+ -lcudart -ldl -lrt -pthread
 
 # HIP library configuration
 HIP_OPT =
@@ -606,33 +641,24 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -ltribol_shared -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
    -laxom_slam -laxom_slic -laxom_core
 
 # Enzyme configuration
-
-# If you want to enable automatic differentiation at compile time, use the
-# options below, adapted to your configuration. To be more flexible, we
-# recommend using the Enzyme plugin during link time optimization. One option is
-# to add your options to the global compiler/linker flags like
-#
-# BASE_FLAGS += -flto
-# CXX_XLINKER += -fuse-ld=lld -Wl,--lto-legacy-pass-manager\
-#                -Wl,-mllvm=-load=$(ENZYME_DIR)/LLDEnzyme-$(ENZYME_VERSION).so -Wl,
-#
-ENZYME_DIR ?= @MFEM_DIR@/../enzyme
-ENZYME_VERSION ?= 14
-ENZYME_OPT = -fno-experimental-new-pass-manager -Xclang -load -Xclang $(ENZYME_DIR)/ClangEnzyme-$(ENZYME_VERSION).so
-ENZYME_LIB = ""
-
-# Google Benchmark, SUNDIALS >= 6.4.0, STRUMPACK, RAJA, UMPIRE, and Tribol require C++14:
-ifneq ($(filter YES,$(MFEM_USE_BENCHMARK) $(MFEM_USE_SUNDIALS) $(MFEM_USE_STRUMPACK) $(MFEM_USE_RAJA) $(MFEM_USE_UMPIRE) $(MFEM_USE_TRIBOL)),)
-    BASE_FLAGS = -std=c++14
+ENZYME_DIR = @MFEM_DIR@/../enzyme
+ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
+   @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
+ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
+   ifeq ($(ENZYME_PLUGIN),)
+      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+   endif
+   ifneq ($(words $(ENZYME_PLUGIN)),1)
+      $(error Multiple versions of the Enzyme pluging found! \
+              Please set ENZYME_PLUGIN directly)
+   endif
 endif
-# Ginkgo requires C++17:
-ifeq ($(MFEM_USE_GINKGO),YES)
-   BASE_FLAGS = -std=c++17
-endif
+ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
+ENZYME_LIB =
 
 # If YES, enable some informational messages
 VERBOSE = NO
