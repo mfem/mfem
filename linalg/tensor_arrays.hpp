@@ -21,7 +21,6 @@
                           std::make_index_sequence */
 #include <algorithm>   // std::min
 #include <tuple>       // std::apply, std::tuple_size_v
-#include <numeric>     // std::iota
 
 namespace mfem
 {
@@ -126,7 +125,7 @@ public:
    }
 
 private:
-   scalar_t *data;  /// Not owned
+   scalar_t *m_data;  /// Global data array. Not owned.
    std::array<std::size_t,ndims> dyn_sizes;
    std::array<std::size_t,total_dims> strides;
 
@@ -134,13 +133,20 @@ public:
    /** @brief Constructor with the default, column-major or left, layout where
        the dynamic dimensions are first, on the left, and the tensor dimensions
        are second. */
+   MFEM_HOST_DEVICE
    tensor_ndarray(scalar_t *ptr, std::array<std::size_t,ndims> dynamic_sizes)
-      : data(ptr), dyn_sizes(dynamic_sizes)
+      : m_data(ptr), dyn_sizes(dynamic_sizes)
    {
       std::array<std::size_t,total_dims> default_perm;
-      std::iota(default_perm.begin(), default_perm.end(), 0); // 0, 1, 2, ...
+      for (std::size_t i = 0; i < total_dims; i++)
+      {
+         default_perm[i] = i;
+      }
       set_layout(default_perm);
    }
+
+   /// Access the underlting global data array.
+   MFEM_HOST_DEVICE scalar_t *data() const { return m_data; }
 
    /// Number of dynamic array dimensions.
    static constexpr std::size_t rank() { return ndims; }
@@ -247,7 +253,7 @@ public:
             const std::array<std::size_t,tensor_rank()> &js)
       {
          ::mfem::future::apply(result, js) =
-            data[dynamic_offset + get_static_offset(js)];
+            m_data[dynamic_offset + get_static_offset(js)];
       });
       return result;
    }
@@ -303,7 +309,7 @@ public:
                       const std::array<std::size_t,rank()> &is)
          : base_array(base)
       {
-         offset_data = base_array.data + base_array.get_dynamic_offset(is);
+         offset_data = base_array.m_data + base_array.get_dynamic_offset(is);
       }
 
       /// Read-write access to a particular entry of the referenced tensor.
@@ -313,6 +319,17 @@ public:
       scalar_t &operator()(const std::array<std::size_t,tensor_rank()> &js)
       {
          return offset_data[base_array.get_static_offset(js)];
+      }
+
+      /// Read-write access to a particular entry of the referenced tensor.
+      /** The returned reference points to the corresponding entry in the global
+          data array of the base tensor_ndarray. */
+      template <typename... index_types> MFEM_HOST_DEVICE
+      scalar_t &operator()(index_types... js)
+      {
+         static_assert(sizeof...(js) == tensor_rank(),
+                       "invalid number of indices!");
+         return operator()({std::size_t(js)...});
       }
 
       /** @brief Write a tensor to the referenced tensor in the global data
@@ -365,6 +382,7 @@ public:
     explicitly given as template parameters, the rest can be deduced from the
     function call arguments. */
 template <int... tensor_sizes, typename scalar_t, typename... dyn_sizes_t>
+MFEM_HOST_DEVICE
 decltype(auto) make_tensor_ndarray(scalar_t *ptr, dyn_sizes_t... dynamic_sizes)
 {
    return tensor_ndarray<scalar_t,sizeof...(dynamic_sizes),tensor_sizes...>(
@@ -374,6 +392,7 @@ decltype(auto) make_tensor_ndarray(scalar_t *ptr, dyn_sizes_t... dynamic_sizes)
 
 /// Alias for make_tensor_ndarray = make_tensor_array.
 template <int... tensor_sizes, typename scalar_t, typename... dyn_sizes_t>
+MFEM_HOST_DEVICE
 decltype(auto) make_tensor_array(scalar_t *ptr, dyn_sizes_t... dynamic_sizes)
 {
    return tensor_ndarray<scalar_t,sizeof...(dynamic_sizes),tensor_sizes...>(
