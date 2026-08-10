@@ -14836,6 +14836,7 @@ MeshPartitioner::MeshPartitioner(Mesh &mesh_,
                                  int part_method)
    : mesh(mesh_), num_parts(num_parts_)
 {
+   MFEM_VERIFY(mesh.NURBSext == nullptr, "NURBS meshes not supported yet");
    if (partitioning_)
    {
       partitioning.MakeRef(const_cast<int *>(partitioning_), mesh.GetNE(),
