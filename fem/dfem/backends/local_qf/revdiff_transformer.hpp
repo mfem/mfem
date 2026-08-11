@@ -167,7 +167,7 @@ struct RevDiff
    // configured qfunction instance, so it can be handed to Enzyme as a function
    // pointer without default-constructing away runtime qfunction state.
    template <size_t... Is>
-   MFEM_HOST_DEVICE static __attribute__((always_inline)) void
+   MFEM_HOST_DEVICE static MFEM_FUTURE_ALWAYS_INLINE void
    static_call(Func *func, tuple_element_t<Is, args_tuple>... args)
    {
       (*func)(args...);
@@ -182,7 +182,7 @@ struct RevDiff
 
    // Recursive builder of the per-argument reverse-mode enzyme call.
    template <size_t I = 0, typename AllPtrs, typename... Built>
-   MFEM_HOST_DEVICE __attribute__((always_inline)) void
+   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void
    call_enzyme_rev(AllPtrs &ptrs, output_view &scratch, output_view &adjoint,
                    Built... built) const
    {
@@ -216,7 +216,7 @@ struct RevDiff
    // Zero all gradient outputs before the enzyme call (Enzyme accumulates).
    template <typename AllPtrs, size_t... Ss>
    MFEM_HOST_DEVICE static
-   __attribute__((always_inline)) void zero_grads(
+   MFEM_FUTURE_ALWAYS_INLINE void zero_grads(
       AllPtrs &ptrs,
       std::index_sequence<Ss...>)
    {
@@ -233,7 +233,7 @@ struct RevDiff
    // scratch (enzyme_dupnoneed). A single __enzyme_autodiff call yields all
    // gradient blocks simultaneously.
    template <typename... Args>
-   MFEM_HOST_DEVICE __attribute__((always_inline)) void operator()(
+   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void operator()(
       Args &&...args) const
    {
       static_assert(sizeof...(Args) == num_inputs + num_active_inputs,
@@ -246,9 +246,9 @@ struct RevDiff
       call_enzyme_rev(ptrs, out_scratch, out_adjoint);
    }
 
-   static __attribute__((always_inline)) void print() { print_impl(std::make_index_sequence<arity> {}); }
+   static MFEM_FUTURE_ALWAYS_INLINE void print() { print_impl(std::make_index_sequence<arity> {}); }
 
-   template <size_t... Is> static __attribute__((always_inline)) void print_impl(
+   template <size_t... Is> static MFEM_FUTURE_ALWAYS_INLINE void print_impl(
       std::index_sequence<Is...>)
    {
       mfem::out << "__enzyme_autodiff<void>(fptr";

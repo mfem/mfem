@@ -42,6 +42,12 @@
 #include "parameterspace.hpp"
 #include "tuple.hpp"
 
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_FUTURE_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define MFEM_FUTURE_ALWAYS_INLINE
+#endif
+
 namespace mfem::future
 {
 
@@ -125,7 +131,7 @@ inline void DeleteOwnedVectorPointers(vector_groups_t &... vector_groups)
 }
 
 template <typename lambda, std::size_t... i>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr(lambda&& f,
               std::integral_constant<std::size_t, i>... Is)
 {
@@ -134,7 +140,7 @@ for_constexpr(lambda&& f,
 
 
 template <std::size_t... n, typename lambda, typename... arg_types>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr(lambda&& f,
               std::integer_sequence<std::size_t, n...>,
               arg_types... args)
@@ -146,7 +152,7 @@ for_constexpr(lambda&& f,
 }  // namespace detail
 
 template <typename lambda, std::size_t... i>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr(lambda&& f,
               std::integer_sequence<std::size_t, i ... >)
 {
@@ -154,25 +160,25 @@ for_constexpr(lambda&& f,
 }
 
 template <typename lambda>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void for_constexpr(
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void for_constexpr(
    lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr_with_arg(lambda&&, arg_t&&, std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
 }
 
 template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr_with_arg(lambda&& f, arg_t&& arg,
                        std::integer_sequence<std::size_t, i, Is...>)
 {
@@ -182,7 +188,7 @@ for_constexpr_with_arg(lambda&& f, arg_t&& arg,
 }
 
 template <typename lambda, typename arg_t>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
 for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =

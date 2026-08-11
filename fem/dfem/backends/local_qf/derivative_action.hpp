@@ -92,7 +92,7 @@ class DerivativeAction
    // `qf_t` is deduced because the kernel captures the q-function by value into
    // a const lambda, so it arrives here as `const qfunc_t`.
    template <typename qf_t, std::size_t... Is>
-   __attribute__((always_inline))
+   MFEM_FUTURE_ALWAYS_INLINE
    MFEM_HOST_DEVICE static void call_fwddiff(qf_t &qfunc,
                                              args_tuple_t &primal_args,
                                              shadow_args_t &shadow_args,
@@ -276,7 +276,7 @@ public:
    };
 
    template<typename backend_t, int T_Q1D>
-   __attribute__((always_inline)) MFEM_HOST_DEVICE static void
+   MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE static void
    derivative_action_kernel_body(
       const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
    {
@@ -620,7 +620,7 @@ public:
    template<typename backend_t, int T_Q1D>
    struct DerivativeActionKernelBody
    {
-      __attribute__((always_inline)) MFEM_HOST_DEVICE static void run(
+      MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE static void run(
          const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
       {
          derivative_action_kernel_body<backend_t, T_Q1D>(data, e);
