@@ -837,7 +837,7 @@ void DifferentiableOperator::AddIntegrator(
          &restriction_cb = this->restriction_callback,
          &fields_e_ = this->fields_e,
          &residual_e_ = this->residual_e,
-         &output_restriction_tr = this->output_restriction_transpose
+         &output_restriction_transpose_ = this->output_restriction_transpose
       ]
       (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
       mutable // mutable: needed to modify 'shmem_cache'
@@ -878,7 +878,7 @@ void DifferentiableOperator::AddIntegrator(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
       }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
-      output_restriction_tr(residual_e_, res);
+      output_restriction_transpose_(residual_e_, res);
    });
 
    // Without this compile-time check, some valid instantiations of this method
