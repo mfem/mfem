@@ -18,7 +18,7 @@ using namespace mfem::future;
 TEST_CASE("Tensor array generic tests", "[TensorArray][GPU]")
 {
    const int size = 10;
-   constexpr int dim = 3;
+   static constexpr int dim = 3; // 'static' is needed for MSVC
 
    Vector vec_data(size*dim), mat_data(size*dim*dim);
    vec_data.UseDevice(true);
