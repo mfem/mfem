@@ -100,7 +100,11 @@ GPU computing
 
 - Added partial assembly support for MixedScalarWeakCrossProductIntegrator.
 
-- Added support for device "partial assembly" CurlInterpolator.
+- Added support for device partial assembly CurlInterpolator.
+  This supports 2D and 3D variants:
+    2D H1 (out-of-plane) to RT (in-plane)
+    2D ND (in-plane) to Integral L2 (out-of-plane)
+    3D ND to RT
 
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
