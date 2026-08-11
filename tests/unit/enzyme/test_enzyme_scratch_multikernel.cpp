@@ -289,10 +289,12 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf const across separate calls",
 
    for (int q = 0; q < N; q++)
    {
+      const double exact_y = coef_h[q] * x_h[q] * x_h[q] * x_h[q];
       const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
       const double observed_yd = coef_h[q] * x_h[q] * x_h[q];
       const double exact_scratch = x_h[q] * x_h[q];
 
+      REQUIRE(y_h[q] == MFEM_Approx(exact_y));
       // yd is wrong-by-construction: the x^2 term's derivative never
       // survives the boundary between Kernel1/Kernel2's separate calls.
       REQUIRE(yd_h[q] == MFEM_Approx(observed_yd));
@@ -388,10 +390,12 @@ TEST_CASE("Enzyme multi-kernel qfunction with explicit scratch buffers dup'd",
 
    for (int q = 0; q < N; q++)
    {
+      const double exact_y = coef_h[q] * x_h[q] * x_h[q] * x_h[q];
       const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
       const double exact_scratch = x_h[q] * x_h[q];
       const double exact_scratchd = 2.0 * x_h[q];
 
+      REQUIRE(y_h[q] == MFEM_Approx(exact_y));
       REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
       REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
@@ -490,10 +494,12 @@ TEST_CASE("Enzyme multi-kernel qfunction with qf dup and member scratch_d",
 
    for (int q = 0; q < N; q++)
    {
+      const double exact_y = coef_h[q] * x_h[q] * x_h[q] * x_h[q];
       const double exact_yd = 3.0 * coef_h[q] * x_h[q] * x_h[q];
       const double exact_scratch = x_h[q] * x_h[q];
       const double exact_scratchd = 2.0 * x_h[q];
 
+      REQUIRE(y_h[q] == MFEM_Approx(exact_y));
       REQUIRE(yd_h[q] == MFEM_Approx(exact_yd));
       REQUIRE(scratch_h[q] == MFEM_Approx(exact_scratch));
       REQUIRE(scratchd_h[q] == MFEM_Approx(exact_scratchd));
