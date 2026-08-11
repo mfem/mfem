@@ -25,7 +25,7 @@ using dscalar_t = real_t;
 #else
 using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
-#endif
+#endif // MFEM_USE_MPI
 
 
 constexpr int dim = 3;
@@ -269,6 +269,8 @@ struct HyperelasticityTestContext
 };
 
 
+#ifdef MFEM_USE_ENZYME
+
 TEST_CASE("dfem neo-hookean energy and stress agree",
           "[Parallel][dFEM][GPU][Hyperelasticity]")
 {
@@ -309,5 +311,7 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
    REQUIRE(energy_action.Norml2() > 0.0);
    REQUIRE(stress_action.Norml2() > 0.0);
 }
+
+#endif // MFEM_USE_ENZYME
 
 #endif

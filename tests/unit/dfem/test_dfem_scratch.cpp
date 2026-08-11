@@ -36,6 +36,8 @@
 
 #include "../../../linalg/tensor_arrays.hpp"
 
+#ifdef MFEM_USE_ENZYME
+
 using namespace std;
 using namespace mfem;
 using namespace mfem::future;
@@ -664,5 +666,7 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
    CheckScratchResults(pmesh, ir, stored_setup_qf->GetScratchVector(0),
                        stored_setup_qf_shadow->GetScratchVector(0));
 }
+
+#endif // MFEM_USE_ENZYME
 
 #endif // MFEM_USE_MPI
