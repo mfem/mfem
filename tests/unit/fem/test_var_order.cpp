@@ -271,6 +271,8 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
       const auto space_type = GENERATE(SpaceType::RT, SpaceType::ND);
       const int dim = GENERATE(2, 3);
+      CAPTURE(space_type);
+      CAPTURE(dim);
 
       Mesh mesh = MakeCartesianMesh(dim == 2 ? 4 : 2, dim);
       mesh.EnsureNCMesh();
@@ -698,7 +700,14 @@ static void TestSolveVec(FiniteElementSpace &fespace)
 
    GridFunction x(&fespace);
    x = 0.0;
-   x.ProjectBdrCoefficient(exsol, ess_attr);
+   if (x.FESpace()->GetTypicalBE()->GetRangeDim() == 0)
+   {
+      x.ProjectBdrCoefficientNormal(exsol, ess_attr);
+   }
+   else
+   {
+      x.ProjectBdrCoefficientTangent(exsol, ess_attr);
+   }
 
    // Assemble the linear form
    LinearForm lf(&fespace);
@@ -1082,7 +1091,14 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
 
    ParGridFunction x(&fespace);
    x = 0.0;
-   x.ProjectBdrCoefficient(exsol, ess_attr);
+   if (x.FESpace()->GetTypicalBE()->GetRangeDim() == 0)
+   {
+      x.ProjectBdrCoefficientNormal(exsol, ess_attr);
+   }
+   else
+   {
+      x.ProjectBdrCoefficientTangent(exsol, ess_attr);
+   }
 
    // Assemble the linear form
    ParLinearForm lf(&fespace);

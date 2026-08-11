@@ -23,6 +23,8 @@
 
 namespace mfem
 {
+class QuadratureSpace;
+class FaceQuadratureSpace;
 
 /// Abstract base class BilinearFormIntegrator
 class BilinearFormIntegrator : public NonlinearFormIntegrator
@@ -2182,11 +2184,22 @@ public:
                                    const Vector&, const Vector&,
                                    Vector&, const int, const int);
 
+   using ApplySimplexKernelType = void(*)(const int, const bool, const Array<int>&,
+                                          const Array<int>&,
+                                          const Array<int>&, const Array<int>&, const Array<int>&,
+                                          const Array<real_t>&, const Array<real_t>&,
+                                          const Array<real_t>&, const Array<real_t>&,
+                                          const Array<real_t>&, const Array<real_t>&,
+                                          const Vector&, const Vector&,
+                                          Vector&, const int, const int);
+
    using DiagonalKernelType = void(*)(const int, const bool, const Array<real_t>&,
                                       const Array<real_t>&, const Vector&, Vector&,
                                       const int, const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
+                                                                         int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2339,7 +2352,8 @@ public:
    void AddMultPatchPA(const int patch, const Vector &x, Vector &y) const;
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
-                                         const FiniteElement &test_fe);
+                                         const FiniteElement &test_fe,
+                                         const bool stroud = false);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
@@ -2350,6 +2364,13 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      AddSimplexSpecialization<DIM,D1D,Q1D>();
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexSpecialization()
+   {
+      ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
@@ -2386,11 +2407,22 @@ public:
                                    const Array<real_t>&, const Vector&,
                                    const Vector&, Vector&, const int, const int);
 
+   using ApplySimplexKernelType = void(*)(const int, const Array<int>&,
+                                          const Array<int>&,
+                                          const Array<int>&, const Array<int>&, const Array<int>&,
+                                          const Array<real_t>&, const Array<real_t>&,
+                                          const Array<real_t>&, const Array<real_t>&,
+                                          const Array<real_t>&, const Array<real_t>&,
+                                          const Vector&, const Vector&, Vector&,
+                                          const int, const int);
+
    using DiagonalKernelType =  void(*)(const int, const Array<real_t>&,
                                        const Vector&, Vector&, const int,
                                        const int);
 
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType, (int, int,
+                                                                         int));
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 
@@ -2439,7 +2471,8 @@ public:
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
-                                         const ElementTransformation &Trans);
+                                         const ElementTransformation &Trans,
+                                         const bool stroud = false);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
@@ -2450,6 +2483,13 @@ public:
    {
       ApplyPAKernels::Specialization<DIM,D1D,Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM,D1D,Q1D>::Add();
+      AddSimplexSpecialization<DIM,D1D,Q1D>();
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexSpecialization()
+   {
+      ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 
 protected:
@@ -2494,8 +2534,7 @@ private:
 #endif
 
 public:
-   ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0)
-      : Q(&q) { alpha = a; }
+   ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0);
 
    void AssembleElementMatrix(const FiniteElement &,
                               ElementTransformation &,
@@ -2527,6 +2566,28 @@ public:
                                          const ElementTransformation &Trans);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   /// arguments: NE, B, G, Bt, Gt, pa_data, x, y, D1D, Q1D
+   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &, const Vector &,
+                                    const Vector &, Vector &, const int,
+                                    const int);
+
+   /// arguments: DIMS, D1D, Q1D
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIMS, D1D, Q1D
+   MFEM_REGISTER_KERNELS(ApplyPATKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   struct Kernels { Kernels(); };
 
 protected:
    const IntegrationRule* GetDefaultIntegrationRule(
@@ -2573,41 +2634,40 @@ public:
     by scalar FE through standard transformation. */
 class VectorMassIntegrator: public BilinearFormIntegrator
 {
-private:
-   int vdim;
+   int vdim = -1, Q_order = 0;
    Vector shape, te_shape, vec;
    DenseMatrix partelmat;
    DenseMatrix mcoeff;
-   int Q_order;
 
 protected:
-   Coefficient *Q;
-   VectorCoefficient *VQ;
-   MatrixCoefficient *MQ;
+   Coefficient *Q = nullptr;
+   VectorCoefficient *VQ = nullptr;
+   MatrixCoefficient *MQ = nullptr;
    // PA extension
-   Vector pa_data;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq, dofs1D, quad1D;
+   int ne, dim, dofs1D, quad1D, coeff_vdim;
+   Vector pa_data;
 
 public:
    /// Construct an integrator with coefficient 1.0
-   VectorMassIntegrator()
-      : vdim(-1), Q_order(0), Q(NULL), VQ(NULL), MQ(NULL) { }
+   VectorMassIntegrator() = default;
+
    /** Construct an integrator with scalar coefficient q.  If possible, save
        memory by using a scalar integrator since the resulting matrix is block
        diagonal with the same diagonal block repeated. */
-   VectorMassIntegrator(Coefficient &q, int qo = 0)
-      : vdim(-1), Q_order(qo), Q(&q), VQ(NULL), MQ(NULL) { }
-   VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), vdim(-1), Q_order(0), Q(&q), VQ(NULL),
-        MQ(NULL) { }
+   VectorMassIntegrator(Coefficient &q, int qo = 0): Q_order(qo), Q(&q) { }
+
+   VectorMassIntegrator(Coefficient &q, const IntegrationRule *ir):
+      BilinearFormIntegrator(ir), Q(&q) { }
+
    /// Construct an integrator with diagonal coefficient q
-   VectorMassIntegrator(VectorCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(&q), MQ(NULL) { }
+   VectorMassIntegrator(VectorCoefficient &q, int qo = 0):
+      vdim(q.GetVDim()), Q_order(qo), VQ(&q) { }
+
    /// Construct an integrator with matrix coefficient q
-   VectorMassIntegrator(MatrixCoefficient &q, int qo = 0)
-      : vdim(q.GetVDim()), Q_order(qo), Q(NULL), VQ(NULL), MQ(&q) { }
+   VectorMassIntegrator(MatrixCoefficient &q, int qo = 0):
+      vdim(q.GetVDim()), Q_order(qo), MQ(&q) { }
 
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
@@ -2619,6 +2679,7 @@ public:
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
@@ -2627,6 +2688,23 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   // PA AddMultPA kernels
+   using VectorMassAddMultPAType =
+      void(*)(const int,  const int,
+              const Array<real_t>&, const Vector&,
+              const Vector&, Vector&, const int, const int);
+   MFEM_REGISTER_KERNELS(VectorMassAddMultPA,
+                         VectorMassAddMultPAType,
+                         (int, int, int));
+
+   // PA DiagonalPA kernels
+   using VectorMassAssembleDiagonalPAType =
+      void(*)(const int, const int, const int,
+              const real_t*, const real_t*, real_t*);
+   MFEM_REGISTER_KERNELS(VectorMassAssembleDiagonalPA,
+                         VectorMassAssembleDiagonalPAType,
+                         (int /*dim*/, int /*q1d*/));
 };
 
 
@@ -2678,7 +2756,7 @@ public:
 
 
 /** Integrator for $(-Q u, \nabla v)$ for Nedelec ($u$) and $H^1$ ($v$) elements.
-    This is equivalent to a weak divergence of the $H(curl$ basis functions. */
+    This is equivalent to a weak divergence of the $H(curl)$ basis functions. */
 class VectorFEWeakDivergenceIntegrator: public BilinearFormIntegrator
 {
 protected:
@@ -2798,15 +2876,13 @@ protected:
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
-   CurlCurlIntegrator() { Q = NULL; DQ = NULL; MQ = NULL; }
+   CurlCurlIntegrator();
    /// Construct a bilinear form integrator for Nedelec elements
-   CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q), DQ(NULL), MQ(NULL) { }
+   CurlCurlIntegrator(Coefficient &q, const IntegrationRule *ir = nullptr);
    CurlCurlIntegrator(DiagonalMatrixCoefficient &dq,
-                      const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(&dq), MQ(NULL) { }
-   CurlCurlIntegrator(MatrixCoefficient &mq, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(NULL), DQ(NULL), MQ(&mq) { }
+                      const IntegrationRule *ir = nullptr);
+   CurlCurlIntegrator(MatrixCoefficient &mq,
+                      const IntegrationRule *ir = nullptr);
 
    /* Given a particular Finite Element, compute the
       element curl-curl matrix elmat */
@@ -2836,6 +2912,34 @@ public:
    void AssembleDiagonalPA(Vector& diag) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   /// arguments: d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct, pa_data,
+   /// x, y, useAbs
+   using ApplyKernelType = void (*)(
+                              const int, const int, const bool, const int, const Array<real_t> &,
+                              const Array<real_t> &, const Array<real_t> &, const Array<real_t> &,
+                              const Array<real_t> &, const Array<real_t> &, const Vector &,
+                              const Vector &, Vector &, const bool);
+
+   /// arguments: d1d, q1d, symmetric, ne, Bo, Bc, Go, Gc, pa_data, diag
+   using DiagonalKernelType = void (*)(const int, const int, const bool,
+                                       const int, const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &,
+                                       const Array<real_t> &, const Vector &,
+                                       Vector &);
+
+   /// parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      DiagonalPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /** Integrator for $(\mathrm{curl}(u), \mathrm{curl}(v))$ for FE spaces defined by 'dim' copies of a
@@ -2899,11 +3003,10 @@ public:
     vector (diagonal matrix), or matrix), trial function $u$ is in $H(curl$ or
     $H(div)$, and test function $v$ is in $H(curl$, $H(div)$, or $v=(v_1,\dots,v_n)$, where
     $v_i$ are in $H^1$. */
-class VectorFEMassIntegrator: public BilinearFormIntegrator
+class VectorFEMassIntegrator : public BilinearFormIntegrator
 {
 private:
-   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq)
-   { Q = q; DQ = dq; MQ = mq; }
+   void Init(Coefficient *q, DiagonalMatrixCoefficient *dq, MatrixCoefficient *mq);
 
 #ifndef MFEM_THREAD_SAFE
    Vector shape;
@@ -2926,7 +3029,8 @@ protected:
    const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D, trial_fetype, test_fetype;
+   int dim, ne, nq, dofs1D, dofs1Dtest, quad1D;
+   FiniteElement::DerivType trial_fetype, test_fetype;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
 
 public:
@@ -2957,6 +3061,29 @@ public:
                    const bool add) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   using ApplyKernelType =
+      void (*)(const int NE, bool symmetric, const bool scalar_coeff,
+               const Array<real_t> &trialBO, const Array<real_t> &trialBC,
+               const Array<real_t> &testBOt, const Array<real_t> &testBCt,
+               const Vector &pa_data, const Vector &x, Vector &y,
+               const int triald1d, const int testd1d, const int q1d);
+
+   /// parameters: trial_fetype, test_fetype, ndims, trial_d1d, test_d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType,
+                         (FiniteElement::DerivType, FiniteElement::DerivType,
+                          int, int, int, int));
+
+   struct Kernels { Kernels(); };
+
+   template <FiniteElement::DerivType TrialType,
+             FiniteElement::DerivType TestType, int DIM, int TRIAL_D1D,
+             int TEST_D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<TrialType, TestType, DIM, TRIAL_D1D,
+                     TEST_D1D, Q1D>::Add();
+   }
 };
 
 /** Integrator for $(Q \nabla \cdot u, v)$ where $u=(u_1,\cdots,u_n)$ and all $u_i$ are in the same
@@ -3001,6 +3128,24 @@ public:
 
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   using VectorDivergenceAddMultPAType =
+      void (*)(const int ne,
+               const Array<real_t> &b, const Array<real_t> &g, const Array<real_t> &bt,
+               const Vector &op, const Vector &x, Vector &y,
+               const int tr_d1d, const int te_d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorDivergenceAddMultPA,
+                         VectorDivergenceAddMultPAType,
+                         (int, int, int, int));
+
+   using VectorDivergenceAddMultTransposePAType =
+      void (*)(const int ne,
+               const Array<real_t> &bt, const Array<real_t> &gt, const Array<real_t> &b,
+               const Vector &q, const Vector &x, Vector &y,
+               const int tr_d1d, const int te_d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(VectorDivergenceAddMultTransposePA,
+                         VectorDivergenceAddMultTransposePAType,
+                         (int, int, int, int));
 
    static const IntegrationRule &GetRule(const FiniteElement &trial_fe,
                                          const FiniteElement &test_fe,
@@ -3071,39 +3216,34 @@ public:
     to be the spatial dimension (i.e. 2-dimension or 3-dimension). */
 class VectorDiffusionIntegrator : public BilinearFormIntegrator
 {
-protected:
-   Coefficient *Q = NULL;
-   VectorCoefficient *VQ = NULL;
-   MatrixCoefficient *MQ = NULL;
-
-   // PA extension
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int dim, sdim, ne, dofs1D, quad1D;
-   Vector pa_data;
-
-private:
-   DenseMatrix dshape, dshapedxt, pelmat;
    int vdim = -1;
+   DenseMatrix dshape, dshapedxt, pelmat;
    DenseMatrix mcoeff;
    Vector vcoeff;
 
+protected:
+   Coefficient *Q = nullptr;
+   VectorCoefficient *VQ = nullptr;
+   MatrixCoefficient *MQ = nullptr;
+   // PA extension
+   const DofToQuad *maps;         ///< Not owned
+   const GeometricFactors *geom;  ///< Not owned
+   int ne, dim, sdim, dofs1D, quad1D, coeff_vdim;
+   Vector pa_data;
+
 public:
-   VectorDiffusionIntegrator() { }
+   VectorDiffusionIntegrator(const IntegrationRule *ir = nullptr);
 
    /** \brief Integrator with unit coefficient for caller-specified vector
        dimension.
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(int vector_dimension)
-      : vdim(vector_dimension) { }
+   VectorDiffusionIntegrator(int vector_dimension);
 
-   VectorDiffusionIntegrator(Coefficient &q)
-      : Q(&q) { }
+   VectorDiffusionIntegrator(Coefficient &q);
 
-   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir)
-      : BilinearFormIntegrator(ir), Q(&q) { }
+   VectorDiffusionIntegrator(Coefficient &q, const IntegrationRule *ir);
 
    /** \brief Integrator with scalar coefficient for caller-specified vector
        dimension.
@@ -3113,8 +3253,7 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension)
-      : Q(&q), vdim(vector_dimension) { }
+   VectorDiffusionIntegrator(Coefficient &q, int vector_dimension);
 
    /** \brief Integrator with \c VectorCoefficient. The vector dimension of the
        \c FiniteElementSpace is assumed to be the same as the dimension of the
@@ -3125,8 +3264,7 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(VectorCoefficient &vq)
-      : VQ(&vq), vdim(vq.GetVDim()) { }
+   VectorDiffusionIntegrator(VectorCoefficient &vq);
 
    /** \brief Integrator with \c MatrixCoefficient. The vector dimension of the
        \c FiniteElementSpace is assumed to be the same as the dimension of the
@@ -3137,8 +3275,7 @@ public:
 
        If the vector dimension does not match the true dimension of the space,
        the resulting element matrix will be mathematically invalid. */
-   VectorDiffusionIntegrator(MatrixCoefficient& mq)
-      : MQ(&mq), vdim(mq.GetVDim()) { }
+   VectorDiffusionIntegrator(MatrixCoefficient& mq);
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3146,6 +3283,7 @@ public:
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &Tr,
                               const Vector &elfun, Vector &elvect) override;
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
@@ -3154,6 +3292,23 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultMF(const Vector &x, Vector &y) const override;
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   /// arguments: ne, coeff_vdim, B, G, pa_data, x, y, d1d, q1d, vdim
+   using ApplyKernelType = void (*)(const int, const int,
+                                    const Array<real_t> &, const Array<real_t> &,
+                                    const Vector &, const Vector &, Vector &,
+                                    const int, const int, const int);
+
+   /// arguments: dim, vdim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int, int));
+
+   template <int DIM, int VDIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, VDIM, D1D, Q1D>::Add();
+   }
+
+   // struct Kernels { Kernels(); };
 };
 
 /** Integrator for the linear elasticity form:
@@ -3307,8 +3462,8 @@ public:
 class DGTraceIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *rho;
-   VectorCoefficient *u;
+   Coefficient *rho = nullptr;
+   VectorCoefficient *u = nullptr;
    real_t alpha, beta;
    // PA extension
    Vector pa_data;
@@ -3321,17 +3476,16 @@ private:
    Vector tr_shape1, te_shape1, tr_shape2, te_shape2;
 
 public:
+   DGTraceIntegrator(real_t a, real_t b);
+
    /// Construct integrator with $\rho = 1$, $\beta = \alpha/2$.
-   DGTraceIntegrator(VectorCoefficient &u_, real_t a)
-   { rho = NULL; u = &u_; alpha = a; beta = 0.5*a; }
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a);
 
    /// Construct integrator with $\rho = 1$.
-   DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b)
-   { rho = NULL; u = &u_; alpha = a; beta = b; }
+   DGTraceIntegrator(VectorCoefficient &u_, real_t a, real_t b);
 
    DGTraceIntegrator(Coefficient &rho_, VectorCoefficient &u_,
-                     real_t a, real_t b)
-   { rho = &rho_; u = &u_; alpha = a; beta = b; }
+                     real_t a, real_t b);
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
@@ -3369,6 +3523,26 @@ public:
 
    static const IntegrationRule &GetRule(Geometry::Type geom, int order,
                                          const ElementTransformation &T);
+
+   /// arguments: nf, B, Bt, pa_data, x, y, dofs1D, quad1D
+   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
+                                    const Array<real_t> &, const Vector &,
+                                    const Vector &, Vector &, const int,
+                                    const int);
+
+   /// arguments: DIM, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIM, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPATKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      ApplyPATKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   struct Kernels { Kernels(); };
+
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);
@@ -3416,8 +3590,8 @@ public:
 class DGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
-   Coefficient *Q;
-   MatrixCoefficient *MQ;
+   Coefficient *Q = nullptr;
+   MatrixCoefficient *MQ = nullptr;
    real_t sigma, kappa;
 
    // these are not thread-safe!
@@ -3432,15 +3606,11 @@ protected:
    IntegrationRules irs{0, Quadrature1D::GaussLobatto};
 
 public:
-   DGDiffusionIntegrator(const real_t s, const real_t k)
-      : Q(NULL), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k)
-      : Q(&q), MQ(NULL), sigma(s), kappa(k) { }
-   DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k)
-      : Q(NULL), MQ(&q), sigma(s), kappa(k) { }
+   DGDiffusionIntegrator(const real_t s, const real_t k);
+   DGDiffusionIntegrator(Coefficient &q, const real_t s, const real_t k);
+   DGDiffusionIntegrator(MatrixCoefficient &q, const real_t s, const real_t k);
    using BilinearFormIntegrator::AssembleFaceMatrix;
-   void AssembleFaceMatrix(const FiniteElement &el1,
-                           const FiniteElement &el2,
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
@@ -3458,6 +3628,28 @@ public:
    const IntegrationRule &GetRule(int order, FaceElementTransformations &T);
 
    const IntegrationRule &GetRule(int order, Geometry::Type geom);
+
+   real_t GetPenaltyParameter() const { return kappa; }
+
+   /// arguments: nf, B, Bt, G, Gt, sigma, pa_data, x, dxdn, y, dydn, dofs1D,
+   /// quad1D
+   using ApplyKernelType = void (*)(const int, const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &, const real_t,
+                                    const Vector &, const Vector &_,
+                                    const Vector &, Vector &, Vector &,
+                                    const int, const int);
+
+   /// arguments: DIM, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   struct Kernels { Kernels(); };
 
 private:
    void SetupPA(const FiniteElementSpace &fes, FaceType type);

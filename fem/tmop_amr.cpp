@@ -759,6 +759,7 @@ void TMOPHRSolver::Update()
       gridfuncarr[i]->SetTrueVector();
       gridfuncarr[i]->SetFromTrueVector();
    }
+   tmopns->UpdateDeterminantBoundGridFunction();
 
    // Update Discrete Indicator for all the TMOP_Integrators in NonLinearForm
    Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());
@@ -806,6 +807,7 @@ void TMOPHRSolver::ParUpdate()
       pgridfuncarr[i]->SetTrueVector();
       pgridfuncarr[i]->SetFromTrueVector();
    }
+   tmopns->UpdateDeterminantBoundGridFunction();
 
    // Update Discrete Indicator
    Array<NonlinearFormIntegrator*> &integs = *(nlf->GetDNFI());

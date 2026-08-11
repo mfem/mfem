@@ -9,11 +9,15 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 
-#include <fstream>
-#include <iostream>
+#include "fem/integ/bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
 
 using namespace mfem;
 
@@ -343,60 +347,192 @@ TEST_CASE("Nonlinear Convection", "[PartialAssembly], [NonlinearPA], [GPU]")
 }
 
 template <typename INTEGRATOR>
-real_t test_vector_pa_integrator(int dim)
+real_t test_pa_vector_integrator(int dim, int sdim)
 {
-   Mesh mesh = MakeCartesianNonaligned(dim, 2);
-   int order = 2;
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fes(&mesh, &fec, dim);
+   const bool all = launch_all_non_regression_tests;
+   const auto NE = all ? GENERATE(1, 2, 3) : 2;
+   const auto p = all ? GENERATE(1, 2, 3): 2;
+   CAPTURE(p, NE);
+
+   Mesh mesh = MakeCartesianNonaligned(dim, NE);
+   mesh.SetCurvature(p, false, sdim);
+
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, sdim);
 
    GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
+   ConstantCoefficient const_coeff(M_PI_2);
+   FunctionCoefficient funct_coeff([](const Vector &x) { return M_1_PI + x[0]*x[0]; });
+
+   Vector val(dim); val = 1.0;
+   VectorConstantCoefficient v_const_coeff(val);
+   VectorFunctionCoefficient v_funct_coeff(dim, [&](const Vector &x, Vector &v)
+   {
+      v(0) = M_LN2 * x(0);
+      if (dim > 1) { v(1) = M_E * x(1); }
+      if (dim > 2) { v(2) = M_PI * x(2); }
+   });
+
+   MatrixFunctionCoefficient m_funct_coeff(dim, [&](const Vector &x,
+                                                    DenseMatrix &f)
+   {
+      f = 0.0;
+      if (dim == 1)
+      {
+         f(0,0) = 1.1 + sin(M_PI * x[0]);  // 1,1
+      }
+      else if (dim == 2)
+      {
+         f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
+         f(1,0) = cos(1.3 * M_PI * x[1]);  // 2,1
+         f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
+         f(1,1) = 1.1 + sin(4.9 * M_PI * x[0]);  // 2,2
+      }
+      else if (dim == 3)
+      {
+         f(0,0) = 1.1 + sin(M_PI * x[1]);  // 1,1
+         f(0,1) = cos(2.5 * M_PI * x[0]);  // 1,2
+         f(0,2) = sin(4.9 * M_PI * x[2]);  // 1,3
+         f(1,0) = cos(M_PI * x[0]);  // 2,1
+         f(1,1) = 1.1 + sin(6.1 * M_PI * x[1]);  // 2,2
+         f(1,2) = cos(6.1 * M_PI * x[2]);  // 2,3
+         f(2,0) = sin(1.5 * M_PI * x[1]);  // 3,1
+         f(2,1) = cos(2.9 * M_PI * x[0]);  // 3,2
+         f(2,2) = 1.1 + sin(6.1 * M_PI * x[2]);  // 3,3
+      }
+   });
+   REQUIRE((sdim > dim || m_funct_coeff.GetVDim() == fes.GetVDim()));
+
    BilinearForm blf_fa(&fes);
+   blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   // scalar coefficients
    blf_fa.AddDomainIntegrator(new INTEGRATOR);
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   blf_fa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   if (sdim == dim)
+   {
+      // vector coefficients
+      blf_fa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+      blf_fa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
+      // matrix coefficients
+      blf_fa.AddDomainIntegrator(new INTEGRATOR(m_funct_coeff));
+   }
    blf_fa.Assemble();
    blf_fa.Finalize();
    blf_fa.Mult(x, y_fa);
 
    BilinearForm blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // scalar coefficients
    blf_pa.AddDomainIntegrator(new INTEGRATOR);
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(const_coeff));
+   blf_pa.AddDomainIntegrator(new INTEGRATOR(funct_coeff));
+   if (sdim == dim)
+   {
+      // vector coefficients
+      blf_pa.AddDomainIntegrator(new INTEGRATOR(v_const_coeff));
+      blf_pa.AddDomainIntegrator(new INTEGRATOR(v_funct_coeff));
+      // matrix coefficients
+      blf_pa.AddDomainIntegrator(new INTEGRATOR(m_funct_coeff));
+   }
    blf_pa.Assemble();
    blf_pa.Mult(x, y_pa);
 
    y_fa -= y_pa;
-   real_t difference = y_fa.Norml2();
 
-   return difference;
+   return y_fa.Norml2();
 }
 
-TEST_CASE("PA Vector Mass", "[PartialAssembly], [VectorPA], [GPU]")
+void test_pa_vector_mass_kernels(int dim, int p, int q_order)
 {
-   SECTION("2D")
+   CAPTURE(dim, p, q_order);
+
+   Mesh mesh = MakeCartesianNonaligned(dim, 2);
+   mesh.SetCurvature(p, false, dim);
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), q_order);
+
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+
+   GridFunction x(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(1);
+
+   BilinearForm blf_fa(&fes);
+   blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   // blf_fa will take ownership of integ_fa
+   auto *integ_fa = new VectorMassIntegrator;
+   integ_fa->SetIntRule(&ir);
+   blf_fa.AddDomainIntegrator(integ_fa);
+   blf_fa.Assemble();
+   blf_fa.Finalize();
+   blf_fa.Mult(x, y_fa);
+
+   Vector diag_fa(fes.GetVSize());
+   blf_fa.SpMat().GetDiag(diag_fa);
+
+   BilinearForm blf_pa(&fes);
+   blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // blf_pa will take ownership of integ_pa
+   auto *integ_pa = new VectorMassIntegrator;
+   integ_pa->SetIntRule(&ir);
+   blf_pa.AddDomainIntegrator(integ_pa);
+   blf_pa.Assemble();
+   blf_pa.Mult(x, y_pa);
+
+   Vector diag_pa(fes.GetVSize());
+   blf_pa.AssembleDiagonal(diag_pa);
+
+   y_fa -= y_pa;
+   diag_fa -= diag_pa;
+
+   REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   REQUIRE(diag_fa.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("PA Vector Mass",
+          "[PartialAssembly][VectorPA][VectorMassPA][GPU]")
+{
+   using Mass = VectorMassIntegrator;
+
+   SECTION("built-in specializations")
    {
-      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(2) == MFEM_Approx(0.0));
+      const auto DIM = GENERATE(2, 3);
+      CAPTURE(DIM);
+      REQUIRE(test_pa_vector_integrator<Mass>(DIM, DIM) == MFEM_Approx(0.0));
    }
 
-   SECTION("3D")
+   SECTION("user specializations")
    {
-      REQUIRE(test_vector_pa_integrator<VectorMassIntegrator>(3) == MFEM_Approx(0.0));
+      constexpr int user_dim = 2, user_d1d = 2, user_q1d = 9;
+      using AddMult = VectorMassIntegrator::VectorMassAddMultPA;
+      using Diag = VectorMassIntegrator::VectorMassAssembleDiagonalPA;
+      AddMult::Specialization<user_dim, user_d1d, user_q1d>::Add();
+      Diag::Specialization<user_dim, user_q1d>::Add();
+
+      constexpr int p = 1, q_order = 2*user_q1d - 1;
+      test_pa_vector_mass_kernels(user_dim, p, q_order);
    }
 }
 
-TEST_CASE("PA Vector Diffusion", "[PartialAssembly], [VectorPA], [GPU]")
+TEST_CASE("PA Vector Diffusion",
+          "[PartialAssembly][VectorPA][VectorDiffusionPA][GPU]")
 {
-   SECTION("2D")
-   {
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(2)
-              == MFEM_Approx(0.0));
-   }
+   const auto DIM = GENERATE(2, 3);
+   CAPTURE(DIM);
+   REQUIRE(test_pa_vector_integrator<VectorDiffusionIntegrator>(DIM, DIM)
+           == MFEM_Approx(0.0));
+}
 
-   SECTION("3D")
-   {
-      REQUIRE(test_vector_pa_integrator<VectorDiffusionIntegrator>(3)
-              == MFEM_Approx(0.0));
-   }
+TEST_CASE("PA Vector Diffusion 2D/3D",
+          "[PartialAssembly][VectorPA][VectorDiffusionPA][GPU]")
+{
+   const int DIM = 2, SDIM = 3;
+   CAPTURE(DIM, SDIM);
+   REQUIRE(test_pa_vector_integrator<VectorDiffusionIntegrator>(DIM, SDIM)
+           == MFEM_Approx(0.0));
 }
 
 void velocity_function(const Vector &x, Vector &v)
@@ -730,7 +866,48 @@ template <> struct ParTypeHelper<ParFiniteElementSpace>
 #endif
 }
 
-template <typename FES>
+template <typename CoeffType>
+std::unique_ptr<CoeffType> MakeCoeff(int);
+
+template <>
+std::unique_ptr<ConstantCoefficient> MakeCoeff<ConstantCoefficient>(int)
+{
+   return std::make_unique<ConstantCoefficient>(3.14159);
+}
+
+template <>
+std::unique_ptr<MatrixConstantCoefficient> MakeCoeff<MatrixConstantCoefficient>
+(int dim)
+{
+   DenseMatrix A(dim);
+   for (int i = 0; i < dim*dim; ++i)
+   {
+      A.GetData()[i] = 1.0 / (i + 3.0);
+   }
+   for (int i = 0; i < dim; ++i)
+   {
+      A(i,i) += 2.0 + i;
+   }
+   return std::make_unique<MatrixConstantCoefficient>(A);
+}
+
+template <> std::unique_ptr<SymmetricMatrixConstantCoefficient>
+MakeCoeff<SymmetricMatrixConstantCoefficient>(int dim)
+{
+   DenseSymmetricMatrix A(dim);
+   for (int i = 0; i < A.GetStoredSize(); ++i)
+   {
+      A.GetData()[i] = 1.0 / (i + 3.0);
+   }
+   for (int i = 0; i < dim; ++i)
+   {
+      A(i,i) += 2.0 + i;
+   }
+   return std::make_unique<SymmetricMatrixConstantCoefficient>(A);
+}
+
+template <typename CoeffType = ConstantCoefficient,
+          typename FES = FiniteElementSpace>
 void test_dg_diffusion(FES &fes)
 {
    using GF_t = typename ParTypeHelper<FES>::GF_t;
@@ -739,7 +916,8 @@ void test_dg_diffusion(FES &fes)
    GF_t x(&fes), y_fa(&fes), y_pa(&fes);
    x.Randomize(1);
 
-   ConstantCoefficient pi(3.14159);
+   const int dim = fes.GetMesh()->Dimension();
+   auto coeff = MakeCoeff<CoeffType>(dim);
 
    const real_t sigma = -1.0;
    const real_t kappa = 10.0;
@@ -749,8 +927,9 @@ void test_dg_diffusion(FES &fes)
                                        2*fes.GetMaxElementOrder());
 
    BLF_t blf_fa(&fes);
-   blf_fa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
-   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_fa.AddInteriorFaceIntegrator(
+      new DGDiffusionIntegrator(*coeff, sigma, kappa));
+   blf_fa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*coeff, sigma, kappa));
    (*blf_fa.GetFBFI())[0]->SetIntegrationRule(ir);
    (*blf_fa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_fa.Assemble();
@@ -762,8 +941,9 @@ void test_dg_diffusion(FES &fes)
 
    BLF_t blf_pa(&fes);
    blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-   blf_pa.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
-   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(pi, sigma, kappa));
+   blf_pa.AddInteriorFaceIntegrator(
+      new DGDiffusionIntegrator(*coeff, sigma, kappa));
+   blf_pa.AddBdrFaceIntegrator(new DGDiffusionIntegrator(*coeff, sigma, kappa));
    (*blf_pa.GetFBFI())[0]->SetIntegrationRule(ir);
    (*blf_pa.GetBFBFI())[0]->SetIntegrationRule(ir);
    blf_pa.Assemble();
@@ -804,7 +984,9 @@ TEST_CASE("PA DG Diffusion", "[PartialAssembly], [GPU]")
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    FiniteElementSpace fes(&mesh, &fec);
 
-   test_dg_diffusion(fes);
+   test_dg_diffusion<ConstantCoefficient>(fes);
+   test_dg_diffusion<MatrixConstantCoefficient>(fes);
+   test_dg_diffusion<SymmetricMatrixConstantCoefficient>(fes);
 }
 
 #ifdef MFEM_USE_MPI
@@ -824,7 +1006,8 @@ TEST_CASE("Parallel PA DG Diffusion", "[PartialAssembly][Parallel][GPU]")
    DG_FECollection fec(order, dim, BasisType::GaussLobatto);
    ParFiniteElementSpace fes(&mesh, &fec);
 
-   test_dg_diffusion(fes);
+   test_dg_diffusion<ConstantCoefficient>(fes);
+   test_dg_diffusion<MatrixConstantCoefficient>(fes);
 }
 
 #endif

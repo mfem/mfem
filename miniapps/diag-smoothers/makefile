@@ -15,11 +15,9 @@ MFEM_BUILD_DIR ?= ../..
 
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/diag-smoothers/,)
 CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-DEFAULTS_MK = $(MFEM_DIR)/config/defaults.mk
 
 MFEM_LIB_FILE = mfem_is_not_built
 
--include $(DEFAULTS_MK)
 -include $(CONFIG_MK)
 
 DS_COMMON_SRC = ds-common.cpp
@@ -31,8 +29,7 @@ MINIAPPS = $(if $(MFEM_USE_MPI:NO=),$(PAR_MINIAPPS),)
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
 COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
-   $(if $(MFEM_USE_CUDA:YES=),$(CXX_XLINKER),$(CUDA_XLINKER))-rpath,$(abspath\
-   $(MFEM_BUILD_DIR)/miniapps/common))
+   $(MFEM_XLINKER)-rpath,$(abspath $(MFEM_BUILD_DIR)/miniapps/common))
 
 APP_DEPS = $(DS_COMMON_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
 APP_LIBS = $(COMMON_LIB) $(MFEM_LIBS)

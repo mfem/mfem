@@ -29,3 +29,47 @@ jobs:
         operations-per-run: 500
         exempt-issue-labels: "bug,WIP,ready-for-review,in-review,in-next"
         exempt-pr-labels: "bug,WIP,ready-for-review,in-review,in-next"
+
+  # Stale action for PRs with "in-review" label.
+  stale-in-review-pr:
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      actions: write
+
+    steps:
+    - uses: actions/stale@v9
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-pr-message: ':warning: This PR has been automatically marked as stale because it has not had any activity in the last 150 days. *If no activity occurs in the next 30 days, it will be automatically closed.* Thank you for your contributions.'
+        only-pr-labels: "in-review"
+        days-before-pr-stale: 150
+        days-before-pr-close: 30
+        days-before-issue-stale: -1
+        days-before-issue-close: -1
+        stale-pr-label: 'stale'
+        operations-per-run: 500
+
+  # Stale action for PRs with "WIP" label.
+  stale-wip-pr:
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      actions: write
+
+    steps:
+    - uses: actions/stale@v9
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-pr-message: ':warning: This PR has been automatically marked as stale because it has not had any activity in the last 300 days. *If no activity occurs in the next 30 days, it will be automatically closed.* Thank you for your contributions.'
+        only-pr-labels: "WIP"
+        days-before-pr-stale: 300
+        days-before-pr-close: 30
+        days-before-issue-stale: -1
+        days-before-issue-close: -1
+        stale-pr-label: 'stale'
+        operations-per-run: 500

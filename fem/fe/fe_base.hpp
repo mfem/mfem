@@ -44,7 +44,7 @@ public:
       NumBasisTypes   = 9   /**< Keep track of maximum types to prevent
                                  hard-coding */
    };
-   /** @brief If the input does not represents a valid BasisType, abort with an
+   /** @brief If the input does not represent a valid BasisType, abort with an
        error; otherwise return the input. */
    static int Check(int b_type)
    {
@@ -52,7 +52,7 @@ public:
                   "unknown BasisType: " << b_type);
       return b_type;
    }
-   /** @brief If the input does not represents a valid nodal BasisType, abort
+   /** @brief If the input does not represent a valid nodal BasisType, abort
        with an error; otherwise return the input. */
    static int CheckNodal(int b_type)
    {
@@ -167,7 +167,15 @@ public:
       /** @brief Full multidimensional representation which does not use tensor
           product structure. The ordering of the degrees of freedom is the
           same as TENSOR, but the sizes of B and G are the same as FULL.*/
-      LEXICOGRAPHIC_FULL
+      LEXICOGRAPHIC_FULL,
+
+      /** @brief Ragged tensor product representation using 1D matrices/tensors
+          with dimensions using 1D number of quadrature points and ragged tensor degrees of
+          freedom. */
+      /** Used only for partial assembly of the H1 positive basis. The
+          size of B is d1d x qnpt x dim. Since different Gauss-Jacobi quadrature rules
+          are employed in each dimension, we need to store dim arrays. */
+      RAGGED_TENSOR
    };
 
    /// Describes the contents of the #B, #Bt, #G, and #Gt arrays, see #Mode.
@@ -222,6 +230,45 @@ public:
 
    /// Returns absolute value of the maps
    DofToQuad Abs() const;
+
+   /// Auxiliary function for searching DofToQuad arrays.
+   static inline DofToQuad *SearchArray(
+      const Array<DofToQuad*> &dof2quad_array,
+      const IntegrationRule &ir,
+      DofToQuad::Mode mode);
+
+   virtual ~DofToQuad() = default;
+};
+
+/** @brief Structure representing the matrices/tensors needed to evaluate (in
+    reference space) the values, gradients, divergences, or curls of a positive
+    FiniteElement on simplices at the quadrature points of Stroud conical quadrature. */
+class RaggedDofToQuad : public DofToQuad
+{
+public:
+   /** @brief Special basis function structures for positive (Bernstein) basis with
+      partial assembly. The storage layout of Ba1 is ndof x nqpt for scalar elements.
+      The storage layout of Ba2 is ndof x ndof x nqpt. In particular, we have
+            Ba2(iqpt, a1, a2) = B^{p-a1}_{a2}(x_{iqpt}). */
+   Array<real_t> Ba1, Ba2, Ba3;
+   Array<real_t> Ba1t, Ba2t, Ba3t;
+
+   /** @brief Special structures for gradients of positive basis with partial assembly.
+      The gradient arrays exploit properties of the Bernstein basis which allow grad(B^p_alpha)
+      to be expressed as the sum of products of B^{p-1}_alpha and the barycentric coordinates.
+      Thus, Ga1 and Ga2 simply contain the ragged tensor product components of B^{p-1}_alpha */
+   Array<real_t> Ga1, Ga2, Ga3;
+   Array<real_t> Ga1t, Ga2t, Ga3t;
+
+   /** @brief Mapping from the Bernstein multi-index (a_1, ..., a_d) to the lexicographic
+       dof index. */
+   Array<int> lex_map;
+
+   Array<int> forward_map2d_diff, forward_map3d_diff;
+   Array<int> inverse_map2d_diff, inverse_map3d_diff;
+
+   Array<int> forward_map2d_mass, forward_map3d_mass;
+   Array<int> inverse_map2d_mass, inverse_map3d_mass;
 };
 
 /// Describes the function space on each element
@@ -289,10 +336,20 @@ public:
                           $ u(x) = (1/w) \hat u(\hat x) $ */
       H_DIV,     /**< For vector fields; preserves surface integrals of the
                           normal component $ u(x) = (J/w) \hat u(\hat x) $ */
-      H_CURL     /**< For vector fields; preserves line integrals of the
+      H_CURL,    /**< For vector fields; preserves line integrals of the
                           tangential component
                           $ u(x) = J^{-t} \hat u(\hat x) $ (square J),
                           $ u(x) = J(J^t J)^{-1} \hat u(\hat x) $ (general J) */
+      H_DIV_R2D, /**< For 3-component vector fields in 2D; equivalent to a
+                          direct sum of an H_DIV basis and an INTEGRAL basis */
+      H_CURL_R2D,/**< For 3-component vector fields in 2D; equivalent to a
+                          direct sum of an H_CURL basis and a VALUE basis */
+      H_DIV_R1D, /**< For 3-component vector fields in 1D; equivalent to a
+                          direct sum of a VALUE basis and a pair of INTEGRAL
+                          bases */
+      H_CURL_R1D /**< For 3-component vector fields in 1D; equivalent to a
+                          direct sum of an INTEGRAL basis and a pair of VALUE
+                          bases */
    };
 
    /** @brief Enumeration for DerivType: defines which derivative method
@@ -324,11 +381,27 @@ public:
    int GetDim() const { return dim; }
 
    /** @brief Returns the vector dimension for vector-valued finite elements,
-       which is also the dimension of the interpolation operation. */
+       which is also the dimension of the interpolation operation and the
+       width of the DenseMatrix argument in
+       CalcVShape(const IntegrationPoint &ip, DenseMatrix &shape). */
    int GetRangeDim() const { return vdim; }
 
-   /// Returns the dimension of the curl for vector-valued finite elements.
+   /** @brief Returns the vector dimension, in physical space, for
+       vector-valued finite elements, which is also the width of the
+       DenseMatrix argument in
+       CalcPhysVShape(ElementTransformation &Trans, DenseMatrix &shape). */
+   virtual int GetPhysRangeDim(int /* space_dim */) const { return vdim; }
+
+   /** Returns the dimension of the curl for vector-valued finite elements,
+       which is also the width of the DenseMatrix argument in
+       CalcCurlShape(const IntegrationPoint &ip, DenseMatrix &curl_shape). */
    int GetCurlDim() const { return cdim; }
+
+   /** Returns the dimension, in physical space, of the curl for vector-valued
+       finite elements, which is also the width of the DenseMatrix argument in
+       CalcPhysCurlShape(ElementTransformation &Trans, DenseMatrix &curl_shape).
+   */
+   virtual int GetPhysCurlDim(int /* space_dim */) const { return cdim; }
 
    /// Returns the Geometry::Type of the reference element.
    Geometry::Type GetGeomType() const { return geom_type; }
@@ -407,6 +480,7 @@ public:
    /** Each row of the result DenseMatrix @a Hessian contains upper triangular
        part of the Hessian of one shape function.
        The order in 2D is {u_xx, u_xy, u_yy}.
+       The order in 3D is {u_xx, u_xy, u_xz, u_yy, u_yz, u_zz}.
        The size (#dof x (#dim (#dim+1)/2) of @a Hessian must be set in advance.*/
    virtual void CalcHessian(const IntegrationPoint &ip,
                             DenseMatrix &Hessian) const;
@@ -983,6 +1057,8 @@ protected:
 public:
    VectorFiniteElement(int D, Geometry::Type G, int Do, int O, int M,
                        int F = FunctionSpace::Pk);
+
+   int GetPhysRangeDim(int space_dim) const override { return space_dim; }
 };
 
 /// @brief Class for computing 1D special polynomials and their associated basis
@@ -1120,7 +1196,7 @@ public:
       return GetPoints(p, btype, on_device);
    }
 
-   /// Get coordinates of a closed (GaussLegendre) set of points if degree @a p
+   /// Get coordinates of a closed (GaussLobatto) set of points if degree @a p
    const real_t *ClosedPoints(const int p,
                               const int btype = BasisType::GaussLobatto,
                               bool on_device = false)
@@ -1375,6 +1451,21 @@ public:
 
 void InvertLinearTrans(ElementTransformation &trans,
                        const IntegrationPoint &pt, Vector &x);
+
+
+// static inline method
+inline DofToQuad *DofToQuad::SearchArray(
+   const Array<DofToQuad*> &dof2quad_array,
+   const IntegrationRule &ir,
+   DofToQuad::Mode mode)
+{
+   for (int i = 0; i < dof2quad_array.Size(); i++)
+   {
+      DofToQuad *d2q = dof2quad_array[i];
+      if (d2q->IntRule == &ir && d2q->mode == mode) { return d2q; }
+   }
+   return nullptr;
+}
 
 } // namespace mfem
 

@@ -24,7 +24,7 @@ namespace mfem
 class DenseSymmetricMatrix : public Matrix
 {
 private:
-   Memory<real_t> data;
+   Array<real_t> data;
 
 public:
 
@@ -35,36 +35,42 @@ public:
    /// Creates square matrix of size s.
    explicit DenseSymmetricMatrix(int s);
 
+   /// Copy constructor: default
+   DenseSymmetricMatrix(const DenseSymmetricMatrix &) = default;
+
+   /// Move constructor: default
+   DenseSymmetricMatrix(DenseSymmetricMatrix &&) = default;
+
    /// Construct a DenseSymmetricMatrix using an existing data array.
-   /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
-       not delete the array. */
+   /** The DenseSymmetricMatrix does not assume ownership of the data array,
+       i.e. it will not delete the array. */
    DenseSymmetricMatrix(real_t *d, int s)
       : Matrix(s, s) { UseExternalData(d, s); }
 
    /// Change the data array and the size of the DenseSymmetricMatrix.
-   /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
-       not delete the data array @a d. This method should not be used with
-       DenseSymmetricMatrix that owns its current data array. */
+   /** The DenseSymmetricMatrix does not assume ownership of the data array,
+       i.e. it will not delete the data array @a d. This method should not be
+       used with DenseSymmetricMatrix that owns its current data array. */
    void UseExternalData(real_t *d, int s)
    {
-      data.Wrap(d, (s*(s+1))/2, false);
+      data.MakeRef(d, (s*(s+1))/2);
       height = s; width = s;
    }
 
    /// Change the data array and the size of the DenseSymmetricMatrix.
-   /** The DenseSymmetricMatrix does not assume ownership of the data array, i.e. it will
-       not delete the new array @a d. This method will delete the current data
-       array, if owned. */
+   /** The DenseSymmetricMatrix does not assume ownership of the data array,
+       i.e. it will not delete the new array @a d. This method will delete the
+       current data array, if owned. */
    void Reset(real_t *d, int s)
-   { if (OwnsData()) { data.Delete(); } UseExternalData(d, s); }
+   { UseExternalData(d, s); }
 
-   /** Clear the data array and the dimensions of the DenseSymmetricMatrix. This method
-       should not be used with DenseSymmetricMatrix that owns its current data array. */
-   void ClearExternalData() { data.Reset(); height = width = 0; }
+   /** Clear the data array and the dimensions of the DenseSymmetricMatrix. This
+       method should not be used with DenseSymmetricMatrix that owns its current
+       data array. */
+   void ClearExternalData() { data.LoseData(); height = width = 0; }
 
    /// Delete the matrix data array (if owned) and reset the matrix state.
-   void Clear()
-   { if (OwnsData()) { data.Delete(); } ClearExternalData(); }
+   void Clear() { data.DeleteAll(); height = width = 0; }
 
    /// Change the size of the DenseSymmetricMatrix to s x s.
    void SetSize(int s);
@@ -79,11 +85,11 @@ public:
    /// Returns the matrix data array.
    inline real_t *GetData() const { return Data(); }
 
-   Memory<real_t> &GetMemory() { return data; }
-   const Memory<real_t> &GetMemory() const { return data; }
+   Memory<real_t> &GetMemory() { return data.GetMemory(); }
+   const Memory<real_t> &GetMemory() const { return data.GetMemory(); }
 
    /// Return the DenseSymmetricMatrix data (host pointer) ownership flag.
-   inline bool OwnsData() const { return data.OwnsHostPtr(); }
+   inline bool OwnsData() const { return data.OwnsData(); }
 
    /// Returns reference to a_{ij}.
    inline real_t &operator()(int i, int j);
@@ -102,43 +108,38 @@ public:
 
    DenseSymmetricMatrix &operator*=(real_t c);
 
-   /// Sets the matrix size and elements equal to those of m
-   DenseSymmetricMatrix &operator=(const DenseSymmetricMatrix &m);
+   /** @brief Copy assignment: default.
+       Sets the matrix size and elements equal to those of @a m. */
+   DenseSymmetricMatrix &operator=(const DenseSymmetricMatrix &m) = default;
+
+   /// Move assignment: default
+   DenseSymmetricMatrix &operator=(DenseSymmetricMatrix &&) = default;
 
    std::size_t MemoryUsage() const { return data.Capacity() * sizeof(real_t); }
 
-   /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const real_t *Read(bool on_dev = true) const
-   { return mfem::Read(data, Height()*Width(), on_dev); }
+   /// Shortcut for mfem::Read(GetMemory(), GetStoredSize(), on_dev).
+   const real_t *Read(bool on_dev = true) const { return data.Read(on_dev); }
 
-   /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const real_t *HostRead() const
-   { return mfem::Read(data, Height()*Width(), false); }
+   /// Shortcut for mfem::Read(GetMemory(), GetStoredSize(), false).
+   const real_t *HostRead() const { return data.Read(false); }
 
-   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   real_t *Write(bool on_dev = true)
-   { return mfem::Write(data, Height()*Width(), on_dev); }
+   /// Shortcut for mfem::Write(GetMemory(), GetStoredSize(), on_dev).
+   real_t *Write(bool on_dev = true) { return data.Write(on_dev); }
 
-   /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   real_t *HostWrite()
-   { return mfem::Write(data, Height()*Width(), false); }
+   /// Shortcut for mfem::Write(GetMemory(), GetStoredSize(), false).
+   real_t *HostWrite() { return data.Write(false); }
 
-   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   real_t *ReadWrite(bool on_dev = true)
-   { return mfem::ReadWrite(data, Height()*Width(), on_dev); }
+   /// Shortcut for mfem::ReadWrite(GetMemory(), GetStoredSize(), on_dev).
+   real_t *ReadWrite(bool on_dev = true) { return data.ReadWrite(on_dev); }
 
-   /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   real_t *HostReadWrite()
-   { return mfem::ReadWrite(data, Height()*Width(), false); }
+   /// Shortcut for mfem::ReadWrite(GetMemory(), GetStoredSize(), false).
+   real_t *HostReadWrite() { return data.ReadWrite(false); }
 
    /// Matrix vector multiplication.
    void Mult(const Vector &x, Vector &y) const override;
 
    /// Returns a pointer to (an approximation) of the matrix inverse.
    MatrixInverse *Inverse() const override;
-
-   /// Destroys the symmetric matrix.
-   virtual ~DenseSymmetricMatrix();
 };
 
 // Inline methods
