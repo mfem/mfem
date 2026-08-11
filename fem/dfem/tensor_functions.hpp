@@ -50,7 +50,7 @@ namespace future
 template <int n> MFEM_HOST_DEVICE
 real_t smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, real_t beta)
 {
-   auto [lambda, V] = eig_symm(get_value(A));
+   auto [lambda, V] = eig_symm(A);
    real_t lambda_max = lambda[n - 1];
    real_t sum = 0;
    for (int i = 0; i < n - 1; i++)
@@ -76,7 +76,7 @@ real_t smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, real_t beta)
 template <int n> MFEM_HOST_DEVICE
 real_t smooth_min_eigenvalue_symm(const tensor<real_t, n, n>& A, real_t beta)
 {
-   return smooth_max_eigenvalue_symm<n>(A, -beta);
+   return -smooth_max_eigenvalue_symm<n>(-A, beta);
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -146,7 +146,7 @@ smooth_max_eigenvalue_symm_aug(const tensor<real_t, n, n>* A,
 {
    (void)A_bar; // accumulated in reverse pass
 
-   auto [lambda, V] = eig_symm(get_value(*A));
+   auto [lambda, V] = eig_symm(*A);
    const real_t lambda_max = lambda[n - 1];
 
    tensor<real_t, n> eg;
