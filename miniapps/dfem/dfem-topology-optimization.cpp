@@ -873,29 +873,6 @@ public:
    // Compute the c2 sensitivity
    //   1. solve J^T w = 1/2[F; -delta],
    //   2. s = -(dR/d rho_tilde)^T w,  with R = grad_u V.
-   //
-   // s is the entire gradient, not one term of it. The chain rule gives
-   //   dc2/d rho_tilde = (partial c2/partial rho_tilde) - w^T dR/d rho_tilde,
-   // and the explicit partial vanishes here: c2 = 1/2 F^T u, with F a fixed
-   // volume force independent of rho_tilde. A rho-dependent load (self-weight)
-   // would revive that term -- see (2) below.
-   //
-   // Rather than transpose-applying GetSecondDerivative(Displacement, Density),
-   // use the opposite block GetSecondDerivative(Density, Displacement): it maps
-   // displacement-space -> density-space, so a forward Mult on w yields s.
-   // The two are exact transposes -- V_h is a real-valued function of the t-dof
-   // vectors (U, Rho), so Schwarz applies to its discrete Hessian blocks, and
-   // dFEM differentiates that same V_h along both paths. Exact to roundoff, no
-   // consistency argument needed.
-   //
-   // Breaks if: (1) R is not grad_u V of a potential (hand-written stress
-   // qfunction, plasticity, follower loads); (2) a rho-dependent load lives
-   // outside V;
-   // (3) w is nonzero on essential t-dofs (no BC elimination in the mixed
-   // block -> spurious sensitivity along the Dirichlet boundary);
-   // (4) the rho -> material chain is not C^2 (keep rho_min > 0; hard clipping
-   // is not allowed, tanh is fine); (5) the two blocks are evaluated at
-   // different states (pass use_cached_setup=false when cross-checking).
    void MixedDensitySensitivity(const Vector &u, const Vector &w, Vector &s) const
    {
       MultiVector X{u, mesh_nodes_tdofs, rho_tdofs};
@@ -930,7 +907,10 @@ private:
 class HessianAMG : public Solver
 {
 public:
-   HessianAMG() { amg.SetPrintLevel(0); }
+   HessianAMG(ParFiniteElementSpace *fes_) : fes(fes_)
+   {
+      amg.SetPrintLevel(0);
+   }
 
    void SetOperator(const Operator &op) override
    {
@@ -943,6 +923,14 @@ public:
       A = nullptr;
       H->AssembleHessian(A);
       amg.SetOperator(*A);
+      // Tell BoomerAMG this is a dim-component displacement system rather than
+      // a scalar one. order_bynodes MUST be true: the state space is built as
+      // ParFiniteElementSpace(&pmesh, &fec, dim), which is Ordering::byNODES,
+      // while hypre's default assumes byVDIM. Getting this flag wrong hands
+      // hypre a bogus dof -> function map and converges *worse* than passing no
+      // systems options at all. Must follow SetOperator: the dof map is sized
+      // from height, which SetOperator establishes.
+      amg.SetSystemsOptions(fes->GetVDim(), /*order_bynodes=*/true);
    }
 
    void Mult(const Vector &x, Vector &y) const override { amg.Mult(x, y); }
@@ -950,6 +938,7 @@ public:
    ~HessianAMG() { delete A; }
 
 private:
+   ParFiniteElementSpace *fes;
    HypreParMatrix *A = nullptr;
    HypreBoomerAMG amg;
 };
@@ -959,7 +948,8 @@ private:
 // each needs its OWN instance: IterativeSolver::SetOperator forwards to the
 // preconditioner, so a shared instance would be torn down and re-setup by
 // whichever of the two solves ran last.
-std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type)
+std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type,
+                                          ParFiniteElementSpace *fes)
 {
    switch (type)
    {
@@ -968,7 +958,7 @@ std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type)
       case PreconditionerType::Diagonal:
          return std::make_unique<OperatorJacobiSmoother>();
       case PreconditionerType::AMG:
-         return std::make_unique<HessianAMG>();
+         return std::make_unique<HessianAMG>(fes);
       default:
          MFEM_ABORT("Unknown preconditioner type: " << static_cast<int>(type));
    }
@@ -1240,7 +1230,7 @@ int main(int argc, char *argv[])
    cg.SetPrintLevel(2);
 
    std::unique_ptr<Solver> pc =
-      MakePreconditioner(static_cast<PreconditionerType>(prec_type));
+      MakePreconditioner(static_cast<PreconditionerType>(prec_type), &state_fes);
    if (pc) { cg.SetPreconditioner(*pc); }
 
    NewtonSolver newton(MPI_COMM_WORLD);
@@ -1283,6 +1273,16 @@ int main(int argc, char *argv[])
    MappedGridFunctionCoefficient rho(&psi, sigmoid);
    ParGridFunction rho_gf(&control_fes);
    DiffMappedGridFunctionCoefficient succ_diffho(&psi, &psi_old, sigmoid);
+
+   // Measure of non-discreteness, Mnd = int 4 rho (1-rho) dx / |Omega|. It is 0
+   // for a fully 0/1 design and 1 for a uniformly grey rho = 1/2, so it says
+   // whether a plateau in the objective is a real converged structure or the
+   // optimizer stalling in grey material.
+   MappedGridFunctionCoefficient nondiscrete_cf(&psi, [](const real_t x)
+   {
+      const real_t s = sigmoid(x);
+      return 4.0 * s * (1.0 - s);
+   });
 
    ParGridFunction grad(&control_fes);
    ParGridFunction w_filter(&filter_fes);
@@ -1337,7 +1337,7 @@ int main(int argc, char *argv[])
       // applied to the Newton tangent, and SetOperator forwards to whichever
       // preconditioner is attached, so sharing one would make each solve
       // invalidate the other's setup.
-      pc_obj = MakePreconditioner(static_cast<PreconditionerType>(prec_type));
+      pc_obj = MakePreconditioner(static_cast<PreconditionerType>(prec_type), &state_fes);
       if (pc_obj) { cg_obj->SetPreconditioner(*pc_obj); }
    }
 
@@ -1376,6 +1376,13 @@ int main(int argc, char *argv[])
       // Full residual for diagnostics and the c2 adjoint path.
       R_full.SetSize(U.Size());
       elasticity_op.UnconstrainedResidual(U, R_full);
+
+      // Compliance, c2 = 1/2 F.u (K&S eq. (30)). The -1/2 lambda delta term is
+      // absent because no prescribed displacement is applied here. For c1 the
+      // objective is the potential energy, which is not assembled in this
+      // miniapp, so the compliance is reported as a diagnostic instead.
+      const real_t compliance =
+         0.5 * InnerProduct(MPI_COMM_WORLD, load_tdofs, U);
 
 
       //======================================================================
@@ -1486,15 +1493,21 @@ int main(int argc, char *argv[])
       const real_t material_volume = proj(psi, alpha_grad, target_volume);
 
       real_t norm_increment = zerogf.ComputeL1Error(succ_diffho);
+      // 4 rho (1-rho) >= 0, so the L1 error against zero is the integral.
+      const real_t nondiscreteness =
+         zerogf.ComputeL1Error(nondiscrete_cf) / domain_volume;
       real_t normeduced_gradient = norm_increment / alpha;
       psi_old = psi;
 
       if (Mpi::Root())
       {
-         mfem::out << "objective (" << objective_name << ")   = c(rho)\n"
+         mfem::out << (objective == ObjectiveType::Compliance
+                       ? "objective (c2)   = "
+                       : "compliance (c2)  = ") << compliance << "\n"
                    << "norm of the reduced gradient = " << normeduced_gradient << "\n"
                    << "norm of the increment        = " << norm_increment << "\n"
                    << "volume fraction               = " << material_volume / domain_volume
+                   << "\nnon-discreteness (Mnd)       = " << nondiscreteness
                    << std::endl;
       }
 
