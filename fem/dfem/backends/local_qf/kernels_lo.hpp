@@ -52,6 +52,21 @@ struct lo_qreg<KerOps, T, 2>
 template<typename KerOps, typename T>
 using lo_qreg_t = typename lo_qreg<KerOps, T>::type;
 
+template<typename T, int rank = qf_param_shape<T>::rank>
+struct qf_value_vdim
+{
+   static constexpr int value = qf_param_shape<T>::extents[rank - 1];
+};
+
+template<typename T>
+struct qf_value_vdim<T, 0>
+{
+   static constexpr int value = 1;
+};
+
+template<typename T>
+inline constexpr int qf_value_vdim_v = qf_value_vdim<T>::value;
+
 // ────────────────────────────────────────────────────────────────────────────
 namespace lok
 {
@@ -477,16 +492,11 @@ struct lo_ker_backend
    {
       ker::LoadMatrix(d, q, B, s.B);
       using field_t = std::remove_cv_t<std::remove_reference_t<FieldParamT>>;
-      constexpr int RNK = qf_param_shape<field_t>::rank;
-      constexpr int VDIM = []()
-      {
-         if constexpr (RNK == 0) { return 1; }
-         else { return qf_param_shape<field_t>::extents[RNK - 1]; }
-      }();
+      constexpr int VDIM = qf_value_vdim_v<field_t>;
       if constexpr (DIM == 2)
       {
          ker::LoadDofs2d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
-         ker::Eval2d(d, q, s.B, s.M[0], s.M[1], rarg);
+         ker::Eval2d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
       }
       else
       {
@@ -497,7 +507,7 @@ struct lo_ker_backend
          }
          else
          {
-            ker::Eval3d(d, q, s.B, s.M[0], s.M[1], rarg);
+            ker::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
          }
       }
    }
@@ -583,15 +593,17 @@ struct lo_ker_backend
                                             ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
+      using field_t = std::remove_cv_t<std::remove_reference_t<ArgRegT>>;
+      constexpr int VDIM = qf_value_vdim_v<field_t>;
       if constexpr (DIM == 2)
       {
-         ker::EvalTranspose2d(d, q, s.B, rarg, s.M[1], s.M[0]);
-         ker::WriteEvalDofs2d(d, 0, e, rarg, YE);
+         ker::EvalTranspose2d<VDIM, DIM, MQ1>(d, q, s.B, rarg, s.M[1], s.M[0]);
+         ker::WriteEvalDofs2d<VDIM, MQ1>(d, 0, e, rarg, YE);
       }
       else
       {
-         ker::EvalTranspose3d(d, q, s.B, rarg, s.M[1], s.M[0]);
-         ker::WriteEvalDofs3d(d, 0, e, rarg, YE);
+         ker::EvalTranspose3d<VDIM, DIM, MQ1>(d, q, s.B, rarg, s.M[1], s.M[0]);
+         ker::WriteEvalDofs3d<VDIM, MQ1>(d, 0, e, rarg, YE);
       }
    }
 

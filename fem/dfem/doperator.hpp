@@ -886,11 +886,10 @@ public:
    /// integrator.
    /// @param second_derivative_ids Second derivative (Hessian) blocks to be
    /// made available for this integrator, only supported for functional
-   /// integrators. Either SecondDerivatives<Pairs::None> {} for none of them
-   /// (the default), SecondDerivatives<Pairs::All> {} for every block that can
-   /// be formed from @a derivative_ids, SecondDerivatives<Pairs::Diagonal> {}
-   /// for the diagonal blocks only, or an explicit list such as
-   /// SecondDerivatives<DerivativePair<U, Rho>> {}.
+   /// integrators. Use the Pairs::None selector for none of them (the default),
+   /// Pairs::All for every block that can be formed from @a derivative_ids,
+   /// Pairs::Diagonal for the diagonal blocks only, or an explicit list of
+   /// DerivativePair entries.
    template <
       typename backend_t = GlobalQFBackend,
       typename qfunc_t,
@@ -1298,8 +1297,6 @@ void DifferentiableOperator::AddIntegrator(
                "the union of FieldDescriptors (" +
                std::to_string(unionfds.size()) + ")");
 
-   constexpr bool is_functional = check_if_functional_v<output_t>;
-
    // The requested second derivative blocks are either selected by one of the
    // Pairs markers or listed explicitly as DerivativePairs.
    constexpr bool no_second_derivatives =
@@ -1317,7 +1314,7 @@ void DifferentiableOperator::AddIntegrator(
    //   and carry no ids of their own to check.
    if constexpr (!no_second_derivatives)
    {
-      static_assert(is_functional,
+      static_assert(check_if_functional_v<output_t>,
                     "second derivatives are only available for functional "
                     "integrators");
 
@@ -1547,7 +1544,7 @@ void DifferentiableOperator::AddIntegrator(
       constexpr size_t idx = decltype(i)::value;
 #endif
 
-      if constexpr (is_functional)
+      if constexpr (check_if_functional_v<output_t>)
       {
 #ifdef MFEM_USE_ENZYME
          has_functional_integrator = true;
