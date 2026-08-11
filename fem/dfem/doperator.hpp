@@ -697,11 +697,12 @@ void DifferentiableOperator::AddIntegrator(
 
    // The explicit captures are necessary to avoid dependency on
    // the specific instance of this class (this pointer).
-   restriction_callback =
-      [=, solutions_ = this->solutions, parameters_ = this->parameters]
-      (std::vector<Vector> &sol,
-       const std::vector<Vector> &par,
-       std::vector<Vector> &f)
+   restriction_callback = [element_dof_ordering,
+                           solutions_ = this->solutions,
+                           parameters_ = this->parameters]
+   (std::vector<Vector> &sol,
+    const std::vector<Vector> &par,
+    std::vector<Vector> &f)
    {
       restriction<entity_t>(solutions_, sol, f,
                             element_dof_ordering);
