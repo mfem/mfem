@@ -1073,43 +1073,141 @@ TEST_CASE("Partial Assemble Linear Interpolator",
           "[CurlInterpolator]"
           "[GPU]")
 {
-   const int maxOrder = 3;
+   constexpr int maxOrder = 3;
    auto order = GENERATE_COPY(range(1, maxOrder + 1));
    CAPTURE(order);
 
-   int n = 3, dim = -1;
-   real_t tol = 1e-10;
+   auto dim = GENERATE(2, 3);
+   CAPTURE(dim);
 
-   auto type = Element::HEXAHEDRON;
-   CAPTURE(type);
+   int n = 3;
+   real_t tol = 1e-10;
 
    Mesh mesh;
 
+   switch (dim)
    {
-      dim = 3;
-      mesh = Mesh::MakeCartesian3D(n, n, n, (Element::Type)type,
-                                   2.0, 3.0, 5.0);
+      case 2:
+         mesh =
+            Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, true, 2.0, 3.0);
+         break;
+      case 3:
+         mesh = Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON, 2.0, 3.0, 5.0);
+         break;
    }
 
-   ND_FECollection    fec_nd(order, dim);
-   RT_FECollection    fec_rt(order - 1, dim);
-
+   // domain spaces
+   H1_FECollection fec_h1(order, dim);
+   FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+   ND_FECollection fec_nd(order, dim);
    FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+   // range spaces
+   RT_FECollection fec_rt(order - 1, dim);
    FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+   L2_FECollection fec_l2(order - 1, dim, BasisType::GaussLegendre,
+                          FiniteElement::INTEGRAL);
+   FiniteElementSpace fespace_l2(&mesh, &fec_l2);
 
-   // 3D
+
+   switch (dim)
    {
-      DiscreteLinearOperator CurlFA(&fespace_nd, &fespace_rt);
-      CurlFA.AddDomainInterpolator(new CurlInterpolator());
-      CurlFA.Assemble();
-      CurlFA.Finalize();
-      DiscreteLinearOperator CurlPA(&fespace_nd, &fespace_rt);
-      CurlPA.AddDomainInterpolator(new CurlInterpolator());
-      CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-      CurlPA.Assemble();
-
-      SECTION("Curl (3D)")
+      case 2:
       {
+         // out of plane H1 -> in-plane RT
+         SECTION("H1 to RT")
+         {
+            DiscreteLinearOperator CurlFA(&fespace_h1, &fespace_rt);
+            CurlFA.AddDomainInterpolator(new CurlInterpolator());
+            CurlFA.Assemble();
+            CurlFA.Finalize();
+            DiscreteLinearOperator CurlPA(&fespace_h1, &fespace_rt);
+            CurlPA.AddDomainInterpolator(new CurlInterpolator());
+            CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            CurlPA.Assemble();
+
+            SparseMatrix &Curl = CurlFA.SpMat();
+            GridFunction x(&fespace_h1), y_fa(&fespace_rt), y_pa(&fespace_rt);
+            FunctionCoefficient coeff([](const Vector &x)
+            { return sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2); });
+            x.ProjectCoefficient(coeff);
+            REQUIRE(x.Size() == Curl.Width());
+            REQUIRE(y_fa.Size() == Curl.Height());
+            REQUIRE(x.Size() == CurlPA.Width());
+            REQUIRE(y_pa.Size() == CurlPA.Height());
+            Curl.Mult(x, y_fa);
+            CurlPA.Mult(x, y_pa);
+            y_pa -= y_fa;
+            REQUIRE(y_pa.Normlinf() < tol);
+            // transpose
+            VectorFunctionCoefficient vcoeff(2, [](const Vector &x, Vector &y)
+            {
+               y.SetSize(2);
+               y[0] = -cos(2 * M_PI * x[1] / 3);
+               y[1] = sin(2 * M_PI * x[0] / 2);
+            });
+            y_fa.ProjectCoefficient(vcoeff);
+            GridFunction x_fa(&fespace_h1), x_pa(&fespace_h1);
+            Curl.MultTranspose(y_fa, x_fa);
+            CurlPA.MultTranspose(y_fa, x_pa);
+            x_pa -= x_fa;
+            REQUIRE(x_pa.Normlinf() < tol);
+         }
+         // in-plane ND -> out of plane L2
+         SECTION("ND to L2")
+         {
+            DiscreteLinearOperator CurlFA(&fespace_nd, &fespace_l2);
+            CurlFA.AddDomainInterpolator(new CurlInterpolator());
+            CurlFA.Assemble();
+            CurlFA.Finalize();
+            DiscreteLinearOperator CurlPA(&fespace_nd, &fespace_l2);
+            CurlPA.AddDomainInterpolator(new CurlInterpolator());
+            CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            CurlPA.Assemble();
+
+            SparseMatrix &Curl = CurlFA.SpMat();
+            GridFunction x(&fespace_nd), y_fa(&fespace_l2), y_pa(&fespace_l2);
+            FunctionCoefficient coeff([](const Vector &x)
+            { return sin(2 * M_PI * x[1] / 3) - cos(2 * M_PI * x[0] / 2); });
+            VectorFunctionCoefficient vcoeff(2, [](const Vector &x, Vector &y)
+            {
+               y.SetSize(2);
+               y[0] = -cos(2 * M_PI * x[1] / 3);
+               y[1] = sin(2 * M_PI * x[0] / 2);
+            });
+            x.ProjectCoefficient(vcoeff);
+            REQUIRE(x.Size() == Curl.Width());
+            REQUIRE(y_fa.Size() == Curl.Height());
+            REQUIRE(x.Size() == CurlPA.Width());
+            REQUIRE(y_pa.Size() == CurlPA.Height());
+            Curl.Mult(x, y_fa);
+            CurlPA.Mult(x, y_pa);
+            mesh.Save("out.mesh");
+            y_fa.Save("y_fa.gf");
+            y_pa.Save("y_pa.gf");
+            y_pa -= y_fa;
+            REQUIRE(y_pa.Normlinf() < tol);
+            // transpose
+            y_fa.ProjectCoefficient(coeff);
+            GridFunction x_fa(&fespace_nd), x_pa(&fespace_nd);
+            Curl.MultTranspose(y_fa, x_fa);
+            CurlPA.MultTranspose(y_fa, x_pa);
+            x_pa -= x_fa;
+            REQUIRE(x_pa.Normlinf() < tol);
+         }
+         break;
+      }
+      case 3:
+      {
+         DiscreteLinearOperator CurlFA(&fespace_nd, &fespace_rt);
+         CurlFA.AddDomainInterpolator(new CurlInterpolator());
+         CurlFA.Assemble();
+         CurlFA.Finalize();
+         DiscreteLinearOperator CurlPA(&fespace_nd, &fespace_rt);
+         CurlPA.AddDomainInterpolator(new CurlInterpolator());
+         CurlPA.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+         CurlPA.Assemble();
+
          SparseMatrix &Curl = CurlFA.SpMat();
          GridFunction x(&fespace_nd), y_fa(&fespace_rt), y_pa(&fespace_rt);
          VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &y)
@@ -1136,6 +1234,7 @@ TEST_CASE("Partial Assemble Linear Interpolator",
          CurlPA.MultTranspose(y_fa, x_pa);
          x_pa -= x_fa;
          REQUIRE(x_pa.Normlinf() < tol);
+         break;
       }
    }
 }
