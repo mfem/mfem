@@ -1,6 +1,6 @@
 
-#ifndef MFEM_MESHOPS
-#define MFEM_MESHOPS
+#ifndef MFEM_SAMRAICOUPLINGMANAGER
+#define MFEM_SAMRAICOUPLINGMANAGER
 
 #include "SAMRAI/hier/PatchHierarchy.h"
 #include "SAMRAI/pdat/NodeData.h"
@@ -11,13 +11,13 @@
 namespace mfem
 {
 
-class MeshOps
+class SAMRAICouplingManager
 {
 public:
 
    enum BDR_ATTRIBUTE {Ylower=1, Xupper=2, Yupper=3, Xlower=4};
 
-   MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy);
+   SAMRAICouplingManager(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy);
 
    // read-only access to current MFEM mesh object (meant for temporary access)
    const ParMesh& GetMesh() const { return *mesh; }
@@ -43,7 +43,7 @@ public:
    // existing MFEM mesh or creating a new mesh, with all "managed" finite
    // element spaces updated in either case (**"unmanaged" spaces created by
    // CreateFESpace become invalid)**
-   void SynchronizeToHierarchy(const bool build_new_mesh=false);
+   void SynchronizeMeshToHierarchy(const bool build_new_mesh=false);
 
    // transfer SAMRAI node positions and specified node and cell values to the
    // MFEM mesh nodes and specified grid function. This method assumes the

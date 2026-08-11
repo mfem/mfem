@@ -1,21 +1,22 @@
 #include "SAMRAI/hier/PatchLevel.h"
 
-#include "MeshOps.hpp"
+#include "SAMRAICouplingManager.hpp"
 
 namespace mfem
 {
 
-MeshOps::MeshOps(std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
+SAMRAICouplingManager::SAMRAICouplingManager(
+   std::shared_ptr<SAMRAI::hier::PatchHierarchy> hierarchy) :
    hierarchy(hierarchy),
    corners(hierarchy->getDim().getValue() == 3 ? corners3D :
             hierarchy->getDim().getValue() == 2 ? corners2D : corners1D),
    fe_collection_node(1, hierarchy->getDim().getValue()),
    fe_collection_cell(0, hierarchy->getDim().getValue())
 {
-   SynchronizeToHierarchy(true);
+   SynchronizeMeshToHierarchy(true);
 }
 
-void MeshOps::SynchronizeToHierarchy(const bool build_new_mesh)
+void SAMRAICouplingManager::SynchronizeMeshToHierarchy(const bool build_new_mesh)
 {
    // update global patch info and obtain corresponding patch bounds
    std::vector<PatchLevelBounds> global_patch_bounds;
@@ -59,7 +60,7 @@ void MeshOps::SynchronizeToHierarchy(const bool build_new_mesh)
    mesh_grid_function->GetTrueDofs(mesh_index_space_tdofs);
 }
 
-void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
+void SAMRAICouplingManager::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_info,
    std::vector<PatchInfo>& gathered_patch_info) const
 {
    const int dim = hierarchy->getDim().getValue();
@@ -106,7 +107,7 @@ void MeshOps::GatherGlobalPatchInfo(const std::vector<PatchInfo>& local_patch_in
    }
 }
 
-void MeshOps::AddNewPatchesToGlobalPatchInfo()
+void SAMRAICouplingManager::AddNewPatchesToGlobalPatchInfo()
 {
    const int rank = hierarchy->getMPI().getRank();
 
@@ -150,7 +151,7 @@ void MeshOps::AddNewPatchesToGlobalPatchInfo()
    }
 }
 
-void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
+void SAMRAICouplingManager::RemoveOldPatchesFromGlobalPatchInfo()
 {
    const int rank = hierarchy->getMPI().getRank();
 
@@ -207,7 +208,7 @@ void MeshOps::RemoveOldPatchesFromGlobalPatchInfo()
    global_patch_info = std::move(new_global_patch_info);
 }
 
-void MeshOps::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const
+void SAMRAICouplingManager::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_bounds) const
 {
    // organize patch bounds by level
    global_patch_bounds.resize(hierarchy->getMaxNumberOfLevels());
@@ -220,7 +221,7 @@ void MeshOps::GetGlobalPatchBounds(std::vector<PatchLevelBounds>& global_patch_b
    }
 }
 
-void MeshOps::CreateMesh()
+void SAMRAICouplingManager::CreateMesh()
 {
    MPI_Comm comm = hierarchy->getMPI().getCommunicator();
    const unsigned short dim = hierarchy->getDim().getValue();
@@ -283,7 +284,7 @@ void MeshOps::CreateMesh()
    serial_mesh.Clear();
 }
 
-void MeshOps::UpdateFiniteElementSpaces()
+void SAMRAICouplingManager::UpdateFiniteElementSpaces()
 {
    for (auto& [dim, fespace] : fe_spaces_node)
    {
@@ -299,7 +300,7 @@ void MeshOps::UpdateFiniteElementSpaces()
    }
 }
 
-void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
+void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
 {
    const real_t error_threshold = 1.0;
    Array<real_t> pseudo_error(mesh->GetNE());
@@ -371,7 +372,7 @@ void MeshOps::DerefineMesh(const std::vector<PatchLevelBounds>& global_patch_bou
    }
 }
 
-void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
+void SAMRAICouplingManager::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bounds)
 {
    for (int level_num=1; level_num <= hierarchy->getFinestLevelNumber(); level_num++)
    {
@@ -468,7 +469,7 @@ void MeshOps::RefineMesh(const std::vector<PatchLevelBounds>& global_patch_bound
    }
 }
 
-void MeshOps::CreateTransferMaps()
+void SAMRAICouplingManager::CreateTransferMaps()
 {
    const int rank = mesh->GetMyRank();
    const int ranks = mesh->GetNRanks();
@@ -599,7 +600,7 @@ void MeshOps::CreateTransferMaps()
    MPI_Barrier(mesh->GetComm());
 }
 
-std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
+std::vector<std::unique_ptr<ParGridFunction>> SAMRAICouplingManager::TransferToMFEM(
    const int position_id, const std::vector<int>& node_ids,
    const std::vector<int>& cell_ids)
 {
@@ -811,7 +812,7 @@ std::vector<std::unique_ptr<ParGridFunction>> MeshOps::TransferToMFEM(
    return grid_functions;
 }
 
-void MeshOps::TransferToSAMRAI(
+void SAMRAICouplingManager::TransferToSAMRAI(
    std::vector<std::pair<int, GridFunction&>> node_fields,
    std::vector<std::pair<int, ParGridFunction&>> cell_fields) const
 {
@@ -995,7 +996,7 @@ void MeshOps::TransferToSAMRAI(
    MPI_Barrier(mesh->GetComm());
 }
 
-std::tuple<int,Array<int>,Array<int>> MeshOps::ExtractBufferInfo(
+std::tuple<int,Array<int>,Array<int>> SAMRAICouplingManager::ExtractBufferInfo(
    std::vector<std::pair<int, GridFunction&>> node_fields,
    std::vector<std::pair<int, ParGridFunction&>> cell_fields) const
 {
@@ -1016,12 +1017,12 @@ std::tuple<int,Array<int>,Array<int>> MeshOps::ExtractBufferInfo(
    return {num_variables, node_field_vector_dimensions, node_field_offsets};
 }
 
-SAMRAI::hier::Index MeshOps::ToIndex(const Vector& vector)
+SAMRAI::hier::Index SAMRAICouplingManager::ToIndex(const Vector& vector)
 {
    return SAMRAI::hier::Index(std::vector<int>(vector.begin(),vector.end()));
 }
 
-SAMRAI::hier::Index MeshOps::ToIndex(const Array<int>& array,
+SAMRAI::hier::Index SAMRAICouplingManager::ToIndex(const Array<int>& array,
    const unsigned dim, const int start)
 {
    MFEM_VERIFY(start + dim <= array.Size(), "size mismatch");
@@ -1031,7 +1032,7 @@ SAMRAI::hier::Index MeshOps::ToIndex(const Array<int>& array,
    return SAMRAI::hier::Index(std::vector<int>(begin, end));
 }
 
-Vector MeshOps::ToVector(const SAMRAI::hier::IntVector& vector)
+Vector SAMRAICouplingManager::ToVector(const SAMRAI::hier::IntVector& vector)
 {
    Vector result(vector.getDim().getValue());
    for (int i=0; i < result.Size(); i++)
@@ -1039,7 +1040,7 @@ Vector MeshOps::ToVector(const SAMRAI::hier::IntVector& vector)
    return result;
 }
 
-Vector MeshOps::GetElementDimensions(Mesh& mesh, const int element_ind)
+Vector SAMRAICouplingManager::GetElementDimensions(Mesh& mesh, const int element_ind)
 {
    // TODO: support 3D
    MFEM_VERIFY(mesh.Dimension() == 2, "3D not yet supported");
@@ -1054,12 +1055,12 @@ Vector MeshOps::GetElementDimensions(Mesh& mesh, const int element_ind)
 }
 
 template<typename PODType>
-MeshOps::BlockArray<PODType>::BlockArray(const unsigned block_size,
+SAMRAICouplingManager::BlockArray<PODType>::BlockArray(const unsigned block_size,
    const unsigned num_blocks) : block_size(block_size),num_blocks(num_blocks),
    data(num_blocks*block_size) {}
 
 template<typename PODType>
-void MeshOps::BlockArray<PODType>::SetBlock(const unsigned index,
+void SAMRAICouplingManager::BlockArray<PODType>::SetBlock(const unsigned index,
    const Array<PODType> &values)
 {
    MFEM_ASSERT(values.Size() == block_size,
@@ -1072,7 +1073,7 @@ void MeshOps::BlockArray<PODType>::SetBlock(const unsigned index,
 }
 
 template<typename PODType>
-Array<PODType> MeshOps::BlockArray<PODType>::GetBlock(const unsigned index) const
+Array<PODType> SAMRAICouplingManager::BlockArray<PODType>::GetBlock(const unsigned index) const
 {
    Array<PODType> values(block_size);
    // TODO: consider replacing with memcpy
@@ -1084,25 +1085,25 @@ Array<PODType> MeshOps::BlockArray<PODType>::GetBlock(const unsigned index) cons
 }
 
 template<typename PODType>
-unsigned MeshOps::BlockArray<PODType>::NumBlocks() const
+unsigned SAMRAICouplingManager::BlockArray<PODType>::NumBlocks() const
 {
    return num_blocks;
 }
 
 template<typename PODType>
-void* MeshOps::BlockArray<PODType>::GetData()
+void* SAMRAICouplingManager::BlockArray<PODType>::GetData()
 {
    return data.GetData();
 }
 
 template<typename PODType>
-int MeshOps::BlockArray<PODType>::Size() const
+int SAMRAICouplingManager::BlockArray<PODType>::Size() const
 {
    return data.Size();
 }
 
 template<typename PODType>
-void MeshOps::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_counts,
+void SAMRAICouplingManager::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_counts,
    Array<int> &element_counts) const
 {
    element_counts.SetSize(block_counts.Size());
@@ -1110,7 +1111,7 @@ void MeshOps::BlockArray<PODType>::GetElementCounts(const Array<PODType> &block_
       element_counts[i] = block_counts[i] * block_size;
 }
 
-MeshOps::PatchInfo MeshOps::PatchInfo::FromArray(const Array<int>& values)
+SAMRAICouplingManager::PatchInfo SAMRAICouplingManager::PatchInfo::FromArray(const Array<int>& values)
 {
    MFEM_ASSERT((values.Size() - 2) % 2 == 0,
       "Provided array is not a valid size.")
@@ -1122,12 +1123,12 @@ MeshOps::PatchInfo MeshOps::PatchInfo::FromArray(const Array<int>& values)
    return PatchInfo(rank, level_number, lower_index, upper_index);
 }
 
-MeshOps::PatchInfo::PatchInfo(const int rank_, const int level_number_,
+SAMRAICouplingManager::PatchInfo::PatchInfo(const int rank_, const int level_number_,
    const SAMRAI::hier::Index lower_index_, const SAMRAI::hier::Index upper_index_) :
    rank(rank_), level_number(level_number_), lower_index(lower_index_),
    upper_index(upper_index_) {}
 
-Array<int> MeshOps::PatchInfo::AsArray() const
+Array<int> SAMRAICouplingManager::PatchInfo::AsArray() const
 {
    const unsigned dimension = lower_index.getDim().getValue();
    Array<int> array(Size(dimension));
@@ -1141,22 +1142,22 @@ Array<int> MeshOps::PatchInfo::AsArray() const
    return array;
 }
 
-unsigned MeshOps::PatchInfo::Size(const unsigned dimension)
+unsigned SAMRAICouplingManager::PatchInfo::Size(const unsigned dimension)
 {
    return 2 + 2*dimension;
 }
 
-bool MeshOps::PatchInfo::operator==(const PatchInfo& other) const
+bool SAMRAICouplingManager::PatchInfo::operator==(const PatchInfo& other) const
 {
    return rank == other.rank && level_number == other.level_number &&
             lower_index == other.lower_index && upper_index == other.upper_index;
 }
 
-MeshOps::ElementInfo::ElementInfo(const int level_number_,
+SAMRAICouplingManager::ElementInfo::ElementInfo(const int level_number_,
    const SAMRAI::hier::Index index_) : level_number(level_number_),
    index(index_) {}
 
-MeshOps::ElementInfo MeshOps::ElementInfo::FromArray(const Array<int>& values)
+SAMRAICouplingManager::ElementInfo SAMRAICouplingManager::ElementInfo::FromArray(const Array<int>& values)
 {
    MFEM_ASSERT(values.Size() > 1, "Provided array is not a valid size.");
    const unsigned dimension = values.Size()-1;
@@ -1165,7 +1166,7 @@ MeshOps::ElementInfo MeshOps::ElementInfo::FromArray(const Array<int>& values)
    return ElementInfo(level_number, index);
 }
 
-Array<int> MeshOps::ElementInfo::AsArray() const
+Array<int> SAMRAICouplingManager::ElementInfo::AsArray() const
 {
    const unsigned dimension = index.getDim().getValue();
    Array<int> array(Size(dimension));
@@ -1176,7 +1177,7 @@ Array<int> MeshOps::ElementInfo::AsArray() const
    return array;
 }
 
-unsigned MeshOps::ElementInfo::Size(const unsigned dimension)
+unsigned SAMRAICouplingManager::ElementInfo::Size(const unsigned dimension)
 {
    return 1 + dimension;
 }

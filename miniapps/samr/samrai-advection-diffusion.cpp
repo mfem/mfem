@@ -2,7 +2,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "MeshOps.hpp"
+#include "SAMRAICouplingManager.hpp"
 #include "reconstruction.hpp"
 
 // SAMRAI includes
@@ -197,15 +197,16 @@ int main(int argc, char *argv[])
 
    /************************** Create MFEM objects ****************************/
 
-   // Create MFEM mesh to match SAMRAI mesh using the SAMRAI communicator
-   auto mesh_ops = std::make_unique<MeshOps>(samrai_time_integrator->getPatchHierarchy());
+   // Create coupling manager with SAMRAI hierarchy
+   auto coupling_manager = std::make_unique<SAMRAICouplingManager>(
+      samrai_time_integrator->getPatchHierarchy());
 
    // Transfer initial SAMRAI state (cell averages) to an MFEM grid function
    // (piecewise-constant representation)
    std::unique_ptr<ParGridFunction> uavg_gf;
    {
       std::vector<std::unique_ptr<ParGridFunction>> gfs =
-         mesh_ops->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
+         coupling_manager->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
       uavg_gf = std::move(gfs[0]);
    }
 
@@ -219,7 +220,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParGridFunction> u_gf;
    Vector u;
    std::tie(u_fecollection, u_fespace, u_gf) =
-      createFiniteElementField<FECType>(*mesh_ops, order);
+      createFiniteElementField<FECType>(*coupling_manager, order);
    if (Mpi::Root())
    {
       std::cout << "Number of temperature unknowns: "
@@ -237,7 +238,7 @@ int main(int argc, char *argv[])
    {
       std::ofstream omesh("ex16.mesh");
       omesh.precision(precision);
-      mesh_ops->GetMesh().Print(omesh);
+      coupling_manager->GetMesh().Print(omesh);
       std::ofstream osol("ex16-init.gf");
       osol.precision(precision);
       u_gf->Save(osol);
@@ -274,9 +275,9 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "parallel " << mesh_ops->GetMesh().GetNRanks() << " "
-                             << mesh_ops->GetMesh().GetMyRank() << "\n";
-         sout << "solution\n" << mesh_ops->GetMesh() << *u_gf;
+         sout << "parallel " << coupling_manager->GetMesh().GetNRanks() << " "
+                             << coupling_manager->GetMesh().GetMyRank() << "\n";
+         sout << "solution\n" << coupling_manager->GetMesh() << *u_gf;
          sout << "pause\n";
          sout << std::flush;
          if (Mpi::Root())
@@ -304,10 +305,10 @@ int main(int argc, char *argv[])
       const double dt_new = samrai_time_integrator->advanceHierarchy(dt);
 
       // Transfer SAMRAI values to MFEM mesh
-      mesh_ops->SynchronizeToHierarchy(use_new_mesh);
+      coupling_manager->SynchronizeMeshToHierarchy(use_new_mesh);
       {
          std::vector<std::unique_ptr<ParGridFunction>> gfs =
-            mesh_ops->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
+            coupling_manager->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
          uavg_gf = std::move(gfs[0]);
       }
       std::tie(u_fecollection, u_fespace, u_gf) =
@@ -323,18 +324,18 @@ int main(int argc, char *argv[])
 
       // Transfer MFEM values back to SAMRAI grid
       std::pair<int, ParGridFunction&> u_fields = {samrai_state_id, *u_gf};
-      mesh_ops->TransferToSAMRAI({}, {u_fields});
+      coupling_method->TransferToSAMRAI({}, {u_fields});
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         if (mesh_ops->GetMesh().GetMyRank() == 0)
+         if (Mpi::Root())
             std::cout << "step " << ti << ", t = " << time << std::endl;
 
          if (visualization)
          {
-            sout << "parallel " << mesh_ops->GetMesh().GetNRanks() << " "
-                                << mesh_ops->GetMesh().GetMyRank() << "\n";
-            sout << "solution\n" << mesh_ops->GetMesh() << *u_gf << std::flush;
+            sout << "parallel " << coupling_manager->GetMesh().GetNRanks() << " "
+                                << coupling_manager->GetMesh().GetMyRank() << "\n";
+            sout << "solution\n" << coupling_manager->GetMesh() << *u_gf << std::flush;
          }
 
          if (visit)
@@ -361,7 +362,7 @@ int main(int argc, char *argv[])
       u_gf->Save(osol);
    }
 
-   if (mesh_ops->GetMesh().GetMyRank() == 0)
+   if (Mpi::Root())
       std::cout << "\nMFEM solution saved to: ex16.mesh, ex16-final.gf" << std::endl;
 
    SAMRAI::tbox::SAMRAIManager::shutdown();

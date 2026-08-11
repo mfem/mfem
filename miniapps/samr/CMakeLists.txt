@@ -21,7 +21,8 @@ if (MFEM_USE_SAMRAI)
   enable_language(Fortran)
   add_mfem_miniapp(samrai-advection-diffusion
     MAIN samrai-advection-diffusion.cpp LIBRARIES mfem ${SAMRAI_LIBRARIES}
-    EXTRA_SOURCES MeshOps.cpp samrai/LinAdv.cpp samrai/fortran/flux2d.f
+    EXTRA_SOURCES SAMRAICouplingManager.cpp
+                  samrai/LinAdv.cpp samrai/fortran/flux2d.f
                   samrai/fortran/flux3d.f samrai/fortran/fluxcorner3d.f
                   samrai/fortran/grad2d.f samrai/fortran/grad3d.f
                   samrai/fortran/init2d.f samrai/fortran/init3d.f
