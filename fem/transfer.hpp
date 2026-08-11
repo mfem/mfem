@@ -168,11 +168,11 @@ struct CoefficientWithOrder
 {
    Coefficient *coeff;
    int order;
-   CoefficientWithOrder() : coeff(nullptr), order(0) {}
-   CoefficientWithOrder(std::nullptr_t) : coeff(nullptr), order(0) {}
-   CoefficientWithOrder(Coefficient &coeff_) : coeff(&coeff_), order(1) {}
+   CoefficientWithOrder() : coeff(nullptr), order(0) { }
+   CoefficientWithOrder(std::nullptr_t) : coeff(nullptr), order(0) { }
+   CoefficientWithOrder(Coefficient &coeff_) : coeff(&coeff_), order(1) { }
    CoefficientWithOrder(Coefficient &coeff_, int order_)
-      : coeff(&coeff_), order(order_) {}
+      : coeff(&coeff_), order(order_) { }
    operator bool() const { return coeff != nullptr; }
 };
 
@@ -233,6 +233,11 @@ public:
                    CoefficientWithOrder coeff_ho_,
                    CoefficientWithOrder coeff_lor_,
                    MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2Projection(const FiniteElementSpace& fes_ho_,
+                   const FiniteElementSpace& fes_lor_,
+                   MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2Projection(fes_ho_, fes_lor_, nullptr, nullptr, d_mt_) { }
 
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
@@ -310,6 +315,12 @@ public:
                           const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
 
+      L2ProjectionL2Space(const FiniteElementSpace& fes_ho_,
+                          const FiniteElementSpace& fes_lor_,
+                          const bool use_ea_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2ProjectionL2Space(fes_ho_, fes_lor_, nullptr, nullptr, use_ea_, d_mt_) { }
+
       /*Same as above but assembles and stores R_ea, P_ea */
       void EAL2ProjectionL2Space();
 
@@ -380,6 +391,13 @@ public:
                           CoefficientWithOrder coeff_lor_,
                           const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2ProjectionH1Space(const FiniteElementSpace& fes_ho_,
+                          const FiniteElementSpace& fes_lor_,
+                          const bool use_ea_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2ProjectionH1Space(fes_ho_, fes_lor_, nullptr, nullptr, use_ea_, d_mt_) { }
+
 #ifdef MFEM_USE_MPI
       L2ProjectionH1Space(const ParFiniteElementSpace &pfes_ho_,
                           const ParFiniteElementSpace &pfes_lor_,
@@ -387,6 +405,12 @@ public:
                           CoefficientWithOrder coeff_lor_,
                           const bool use_ea_,
                           MemoryType d_mt_ = Device::GetHostMemoryType());
+
+      L2ProjectionH1Space(const ParFiniteElementSpace& fes_ho_,
+                          const ParFiniteElementSpace& fes_lor_,
+                          const bool use_ea_,
+                          MemoryType d_mt_ = Device::GetHostMemoryType())
+         : L2ProjectionH1Space(fes_ho_, fes_lor_, nullptr, nullptr, use_ea_, d_mt_) { }
 #endif
       /// Same as above but assembles action of R through 4 parts:
       ///   ( )  inv( lumped(M_L) ), which is a diagonal matrix (essentially a vector)
