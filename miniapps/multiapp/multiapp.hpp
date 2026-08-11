@@ -31,7 +31,7 @@ class GraphGradient;
 class Field
 {
 public:
-    enum Type
+    enum Type ///< Not used for now, but could be used to distinguish between input/output fields
     {
         INPUT , ///< Input field
         OUTPUT, ///< Output field
@@ -93,10 +93,10 @@ public:
     void SetName(const std::string &n) { name = n; }
     int ID() const { return id; }
 
-    void SetID(int id_)
+    void SetID(int i)
     {
-        MFEM_ASSERT(id_ >= 0, "Field::SetID: ID must be non-negative.");
-        id = id_;
+        MFEM_ASSERT(i >= 0, "ID must be non-negative.");
+        id = i;
     }
 
     bool IsInput() const {return (type == Type::INPUT);}
@@ -106,8 +106,6 @@ public:
     virtual ~Field() = default;
 
 protected:
-    void MakeInput() { type = Type::INPUT; }
-    void MakeOutput() { type = Type::OUTPUT; }
 
     ///@brief Set the type of the field (prevents changing type of input/output fields)
     void SetType(Type t)
@@ -219,9 +217,7 @@ public:
     Array<Field*>& InputFields() { return input_fields; }
     Array<Field*>& OutputFields() { return output_fields; }
 
-
     Field* InputField(int i) const { return input_fields[i]; }
-
     Field *InputField(const std::string &field_name) const
     {
         bool has_index = index_map.Has(field_name);
@@ -233,7 +229,7 @@ public:
         }
 
         int index = index_map.Get(field_name);
-        MFEM_VERIFY(index >= 0 && index < static_cast<int>(input_fields.Size()),
+        MFEM_VERIFY(index >= 0 && index < input_fields.Size(),
                     "FieldCollection::InputField: Invalid index for field name: "
                     << field_name << ".");
         return input_fields[index];
@@ -251,7 +247,7 @@ public:
         }
 
         int index = index_map.Get(field_name);
-        MFEM_VERIFY(index >= 0 && index < static_cast<int>(output_fields.Size()),
+        MFEM_VERIFY(index >= 0 && index < output_fields.Size(),
                     "FieldCollection::OutputField: Invalid index for field name: "
                     << field_name << ".");
         return output_fields[index];
@@ -296,8 +292,6 @@ public:
             if(i != output_fields.Size() - 1) out << ",";
             out << "\n";
         }
-
-
         out << "}\n";
     }
 
@@ -341,7 +335,7 @@ public:
     enum ExecutionMode
     {
         GRADIENT_MODE, ///< Node is being executed as part of a gradient evaluation
-        DEFAULT_MODE   ///< Node is being executed in default mode (e.g. operator evaluation)
+        DEFAULT_MODE   ///< Node is being executed as default, operator evaluation
     };
 
 private:
@@ -349,15 +343,15 @@ private:
 
 protected:
     int id = -1;
-    int node_index = std::numeric_limits<int>::min();
+    int node_index = -1;
     mutable ExecutionMode exec_mode = DEFAULT_MODE;
 
     std::string name;
     mutable FieldCollection field_collection; ///< Collection of fields associated with this node
 
-    // Block offsets to be used for block operation on Vector
-    Array<int> input_offset;  ///< Block offsets for input fields
-    Array<int> output_offset; ///< Block offsets for output fields
+    // Offsets to be used for operation on BlockVector
+    Array<int> input_offsets;  ///< Offsets for input fields
+    Array<int> output_offsets; ///< Offsets for output fields
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
     {
@@ -371,16 +365,6 @@ public:
                               field_collection(this) { }
 
     GraphNode(int s = 0) : GraphNode(s, s) { }
-
-    virtual void Execute(const Vector &x, Vector &y)
-    {
-        MFEM_ABORT("GraphNode::Execute() not implemented");
-    }
-
-    virtual void Mult(const Vector &x, Vector &y) const override
-    {
-        MFEM_ABORT("GraphNode::Mult() not implemented");
-    }
 
     void SetNodeIndex(int index){ node_index = index; }
     int GetNodeIndex() const { return node_index; }
@@ -447,47 +431,59 @@ public:
         out << "}";
     }
 
-    virtual void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const
+    virtual void Mult(const Vector &x, Vector &y) const override
     {
-        MFEM_ABORT("GraphNode::GradientMult() not implemented");
+        MFEM_ABORT("GraphNode::Mult() not implemented");
     }
 
-    virtual void GradientMultTranspose(const Vector &x, const Vector &dx, Vector &dy) const
+    virtual void Mult(const MultiVector &x, MultiVector &y) override
     {
-        MFEM_ABORT("GraphNode::GradientMultTranspose() not implemented");
+        MFEM_ABORT("GraphNode::Mult(MultiVector) not implemented");
     }
 
     using Operator::GetGradient;
-    virtual Operator &GetGradient(Field* fy, Field* fx, Vector &x) const
+
+    // TODO: Possibly remove this and only support MultiVector version of GradientMult
+    virtual void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const
     {
-        MFEM_ABORT("GraphNode::GetGradient() not implemented");
+        MFEM_ABORT("GraphNode::GradientMult() not implemented");
+        GetGradient(x).Mult(dx, dy);
     }
 
-    virtual void operator()(const Vector &x, Vector &y) const
+    virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
     {
-        Mult(x, y);
+        MFEM_ABORT("GraphNode::GradientMult() not implemented");
+        GetGradient(x).Mult(dx, dy);
     }
 
-    virtual void operator()(const Vector &x0, const Vector &x, Vector &y) const
+    // TODO: Possibly remove this and only support MultiVector version of GradientMultTranspose
+    virtual void GradientMultTranspose(const Vector &x, const Vector &dx, Vector &dy) const
     {
-        MFEM_ABORT("GraphNode::operator()(const Vector&, const Vector&, Vector&) not implemented");
+        MFEM_ABORT("GraphNode::GradientMultTranspose() not implemented");
+        GetGradient(x).MultTranspose(dx, dy);
+    }
+
+    virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
+    {
+        MFEM_ABORT("GraphNode::GradientMultTranspose() not implemented");
+        // GetGradient(x).MultTranspose(dx, dy); // Not yet implemented
     }
 
     /// @brief Return the input offsets for block starts.
-    Array<int>& InputOffsets() { return input_offset; }
+    Array<int>& InputOffsets() { return input_offsets; }
 
     /// @brief Read only access to the input offsets for block starts.
-    const Array<int>& InputOffsets() const { return input_offset; }
+    const Array<int>& InputOffsets() const { return input_offsets; }
 
-    void SetInputOffsets(const Array<int> &offsets) { input_offset = offsets; }
+    void SetInputOffsets(const Array<int> &offsets) { input_offsets = offsets; }
 
     /// @brief Return the output offsets for block starts.
-    Array<int>& OutputOffsets() { return output_offset; }
+    Array<int>& OutputOffsets() { return output_offsets; }
 
     /// @brief Read only access to the output offsets for block starts.
-    const Array<int>& OutputOffsets() const { return output_offset; }
+    const Array<int>& OutputOffsets() const { return output_offsets; }
 
-    void SetOutputOffsets(const Array<int> &offsets) { output_offset = offsets; }
+    void SetOutputOffsets(const Array<int> &offsets) { output_offsets = offsets; }
 
     virtual ~GraphNode() = default;
 };
@@ -508,18 +504,8 @@ protected:
     class CheckMember{
         private:
 
-        /// @brief A type trait to check if the erased class has the functions Execute and Mult
+        /// @brief A type trait to check if the erased class has the function Mult
         /// with the needed signatures.
-        template<class T>
-        using Execute = decltype(std::declval<T&>().Execute(std::declval<const Vector&>(),
-                                                            std::declval<Vector&>()));
-
-        template<class T>
-        using ExecutePtr = decltype(std::declval<T&>().Execute(std::declval<const int>(),
-                                                               std::declval<const real_t*>(),
-                                                               std::declval<const int>(),
-                                                               std::declval<real_t*>()));
-
         template<class T>
         using Mult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),
                                                       std::declval<Vector&>()));
@@ -538,15 +524,10 @@ protected:
         static constexpr std::false_type Check(...);
 
         // --- Check for the existence of the member functions
-        typedef decltype(Check<C,Execute,void>(0)) Has_Execute;
         typedef decltype(Check<C,Mult,void>(0)) Has_Mult;
-
-        typedef decltype(Check<C,ExecutePtr,void>(0)) Has_ExecutePtr;
         typedef decltype(Check<C,MultPtr,void>(0)) Has_MultPtr;
     public:
-        static constexpr bool HasExecute  = Has_Execute::value;
         static constexpr bool HasMult  = Has_Mult::value;
-        static constexpr bool HasExecutePtr  = Has_ExecutePtr::value;
         static constexpr bool HasMultPtr  = Has_MultPtr::value;
     };
 
@@ -564,27 +545,6 @@ public:
 
     /// @brief Constructor for the type-erased AbstractOperator class.
     AbstractOperator(OpType *op_, int s = 0) : AbstractOperator(op_,s,s) {}
-
-    /**
-       @brief Perform Mult operation with the stored operator, if it exists.
-     */
-    void Execute(const Vector &x, Vector &y) override
-    {
-        if constexpr (CheckMember<OpType>::HasExecute)
-        {
-            op->Execute(x,y);
-        }
-        else if constexpr (CheckMember<OpType>::HasExecutePtr)
-        {
-            op->Execute(x.Size(), x.GetData(), y.Size(), y.GetData());
-        }
-        else
-        {
-            MFEM_ABORT("The AbstractOperator does not have the function, "
-                       "Execute(const Vector&, Vector&) or "
-                       "Execute(int, double*, int, double*).");
-        }
-    }
 
     /**
        @brief Perform Mult operation with the stored operator, if it exists.
@@ -616,14 +576,15 @@ class DAGraph : public GraphNode
 {
 public:
 
-    using IdToIndexMap = GenericFieldMap<int, int>;
-    using IdToFieldMap = GenericFieldMap<int, Field*>;
+    using IntToIntMap = GenericFieldMap<int, int>;
+    using IntToFieldMap = GenericFieldMap<int, Field*>;
 
-    enum GradMode
+    enum class GradMode
     {
-        FINITE_DIFF, ///< Finite difference Jacobian
-        ASSEMBLED,   ///< Assembled Jacobian
-        MATRIX_FREE  ///< Matrix-free Jacobian
+        FINITE_DIFF = 0,  ///< Finite difference Jacobian
+        MATRIX_FREE = 1,  ///< Matrix-free Jacobian
+        ASSEMBLED = 2,    ///< Assembled Jacobian
+        NONE = 3          ///< Not implemented
     };
 
     enum InputType
@@ -638,22 +599,21 @@ protected:
     Array<bool> node_owned; ///< Whether the operators are owned
     Array<int> node_depth; ///< Depth of each operator in the graph
 
-    int total_width  = 0; ///< Total width including intermediate inputs
-    int total_height = 0; ///< Total height including intermediate inputs
     int max_width  = 0;     ///< Largest operator width
     int max_height = 0;     ///< Largest operator height
     int nnodes     = 0;     ///< The number of nodes
     bool sorted    = false; ///< True if the nodes are topologically sorted
     bool assembled = false; ///< True if the graph is assembled
-    
-    mutable Operator *grad = nullptr; ///< Jacobain operator
+
     GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
+    mutable Operator *grad = nullptr; ///< Gradient operator
 
-    InputType input_type = InputType::VECTOR; ///< Input type for the graph
-    mutable Vector x_node, y_node; ///< Temporary vectors for node evaluation
+    InputType input_type = InputType::MULTIVECTOR; ///< Input type for the graph
+    mutable Vector x_node, y_node; ///< Temporary vectors for evaluating nodes
+    mutable MultiVector xmv_node, ymv_node; ///< Temporary multivectors for evaluating nodes
 
-    IdToIndexMap id_to_index; ///< Map from field ID to index in a vector of fields
-    IdToFieldMap id_to_field; ///< Map from field ID to field pointer
+    IntToFieldMap fid_to_field; ///< Map from Field ID to Field pointer
+    IntToIntMap fid_to_index; ///< Map from ID to index in an array; needed since ordering is not unique
 
     friend class GraphGradient;
 
@@ -723,8 +683,11 @@ public:
     int MaxWidth() const {return max_width;}
     int MaxHeight() const {return max_height;}
 
-    IdToIndexMap &GetIdToIndexMap() { return id_to_index; }
-    IdToFieldMap &GetIdToFieldMap() { return id_to_field; }
+    IntToIntMap &GetFieldIdToIndexMap() { return fid_to_index; }
+    IntToIntMap GetFieldIdToIndexMap() const { return fid_to_index; }
+
+    IntToFieldMap &GetFieldIdToFieldMap() { return fid_to_field; }
+    IntToFieldMap GetFieldIdToFieldMap() const { return fid_to_field; }
 
     /// @brief Get the operator at index @a i
     GraphNode* GetNode(const int i)
@@ -756,27 +719,27 @@ public:
 
     void ValidateNode(GraphNode &node);
 
-    void CollectFields();
+    void CollectFieldMaps();
 
     using GraphNode::AddInput;
     void AddInput(Field *field, int sz, bool own = false)
     {
-        if(input_offset.Size() == 0)
+        if(input_offsets.Size() == 0)
         {   // First entry
-            input_offset.Append(0);
+            input_offsets.Append(0);
         }
-        input_offset.Append(input_offset.Last() + sz);
+        input_offsets.Append(input_offsets.Last() + sz);
         AddInput(field, own);
     }
 
     using GraphNode::AddOutput;
     void AddOutput(Field *field, int sz, bool own = false)
     {
-        if(output_offset.Size() == 0)
+        if(output_offsets.Size() == 0)
         {   // First entry
-            output_offset.Append(0);
+            output_offsets.Append(0);
         }
-        output_offset.Append(output_offset.Last() + sz);
+        output_offsets.Append(output_offsets.Last() + sz);
         AddOutput(field, own);
     }
 
@@ -799,7 +762,9 @@ public:
      */
     virtual void Mult(const Vector &x, Vector &y) const override;
 
-    virtual void Execute(const Vector &x, Vector &y) override;
+    virtual void Mult(const MultiVector &x, MultiVector &y) override;
+
+    virtual void Execute(const MultiVector &x, MultiVector &y) const;
 
     virtual void Save (std::ostream &out) const
     {
@@ -834,9 +799,10 @@ public:
 
 protected:
     mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
-    mutable Vector fx; ///< Point of linearization for gradient computations
+    Array<Vector*> x_work; ///< Array to store linearization point (intermediate fields)
+    mutable MultiVector xlin;
     mutable Vector x0, dx, dy;
-    Array<Vector*> x_fields; ///< Intermediate fields
+    mutable MultiVector x0_mv, dx_mv, dy_mv;
 
 public:
     GraphGradient(DAGraph &dag);
@@ -845,26 +811,27 @@ public:
 
     void Mult(const Vector &x, Vector &y) const override;
 
+    void Mult(const MultiVector &x, MultiVector &y) override;
+
     void MultTranspose(const Vector &x, Vector &y) const override;
+
+    void MultTranspose(const MultiVector &x, MultiVector &y);
 
     Operator &GetGradient(const Vector &x) const override;
 
-    void Forward(const Vector &x, Vector &y) const;
+    void Forward(const MultiVector &x, MultiVector &y) const;
 
-    void Backward(const Vector &x, Vector &y) const;
+    void Reverse(const MultiVector &x, MultiVector &y) const;
 
     ~GraphGradient()
     {
-        for (auto &v : x_fields)
+        for (auto &v : x_work)
         {
             if(v) { delete v; v = nullptr; }
         }
+        x_work.DeleteAll();
     }
 };
-
-
-void FieldBlockVectorTransfer(const Array<int> &offsets, Array<Field*> &fields, Vector &v,
-                              std::function<void(Field&, Vector&)> assemble = nullptr);
 
 } //mfem namespace
 

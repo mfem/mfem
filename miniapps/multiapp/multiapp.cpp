@@ -11,29 +11,8 @@
 
 #include "multiapp.hpp"
 
-#ifdef MFEM_USE_MPI
-
 namespace mfem
 {
-
-
-void FieldBlockVectorTransfer(const Array<int> &offsets, Array<Field*> &fields, Vector &v,
-                               std::function<void(Field&, Vector&)> assemble)
-{
-    int nblocks = offsets.Size() - 1;
-    MFEM_ASSERT(nblocks == fields.Size(),
-                "Number of blocks in offsets does not match number of fields");
-
-    v.SetSize(offsets.Last());
-    BlockVector vb(v.GetData(), offsets);
-    for(int i=0; i < nblocks; i++)
-    {
-        auto field = fields[i];
-        assemble(*field, vb.GetBlock(i));
-    }
-}
-
-
 
 DAGraph::~DAGraph()
 {
@@ -47,13 +26,14 @@ DAGraph::~DAGraph()
 void DAGraph::Assemble()
 {
     // Sort graph nodes topologically to ensure correct execution order
+    // Ordering is not unique, hence, id->index maps are needed
     TopologicalSort();
+
+    // Collect all fields from the nodes into the field map
+    CollectFieldMaps();
 
     // Compute depth of the graph nodes
     ComputeDepth();
-
-    // Collect all fields from the nodes into the field map
-    CollectFields();
 
     // Validate each node
     for (auto &node : nodes)
@@ -64,8 +44,8 @@ void DAGraph::Assemble()
     // Update width and height of the DAG from offsets
     // Check that the input and output offsets are consistent
     ValidateOffsets();
-    width  = input_offset.Last();
-    height = output_offset.Last();
+    width  = input_offsets.Last();
+    height = output_offsets.Last();
 
     // Delete any existing gradient operator as node ordering may have changed
     if (grad) delete grad;
@@ -79,22 +59,22 @@ void DAGraph::ValidateOffsets()
     // with the number of inputs and outputs
     if(InputFields().Size() > 1)
     {
-        MFEM_ASSERT(input_offset.Size() == InputFields().Size() + 1,
+        MFEM_ASSERT(input_offsets.Size() == InputFields().Size() + 1,
                     "Input offsets size inconsistent with number of input fields");
     }
     else
     {
-        input_offset = Array<int>({0, nodes[0]->Width()});
+        input_offsets = Array<int>({0, nodes[0]->Width()});
     }
 
     if(OutputFields().Size() > 1)
     {
-        MFEM_ASSERT(output_offset.Size() == OutputFields().Size() + 1,
+        MFEM_ASSERT(output_offsets.Size() == OutputFields().Size() + 1,
                     "Output offsets size inconsistent with number of output fields");
     }
     else
     {
-        output_offset = Array<int>({0, nodes.Last()->Height()});
+        output_offsets = Array<int>({0, nodes.Last()->Height()});
     }
 }
 
@@ -119,12 +99,12 @@ void DAGraph::ValidateNode(GraphNode &node)
     // Check that all input and output fields are registered in the graph's field map
     for(auto input_field : inputs)
     {
-        MFEM_ASSERT(id_to_index.Has(input_field->ID()),
+        MFEM_ASSERT(fid_to_index.Has(input_field->ID()),
                     "Input field ID " << input_field->ID() << " not found in graph's field map");
     }
     for(auto output_field : outputs)
     {
-        MFEM_ASSERT(id_to_index.Has(output_field->ID()),
+        MFEM_ASSERT(fid_to_index.Has(output_field->ID()),
                     "Output field ID " << output_field->ID() << " not found in graph's field map");
     }
 }
@@ -170,6 +150,12 @@ void DAGraph::TopologicalSort()
     nodes.Permute(sorted_indices);
     node_owned.Permute(sorted_indices);
 
+    // Update the node indices after sorting
+    for(int i=0; i < nnodes; i++)
+    {
+        nodes[i]->SetNodeIndex(i);
+    }
+
     sorted = true;
 }
 
@@ -180,7 +166,7 @@ void DAGraph::ComputeDepth()
     node_depth = 0;
     for(int i=0; i < nnodes; i++)
     {
-        int max_dep = 0;
+        int max_depth = 0;
         auto node = nodes[i];
         for(auto input_field : node->InputFields())
         {
@@ -192,105 +178,118 @@ void DAGraph::ComputeDepth()
                 {
                     if(input_field->ID() == output_field->ID()) // Compare by unique ID
                     {
-                        max_dep = std::max(max_dep, node_depth[j] + 1);
+                        max_depth = std::max(max_depth, node_depth[j] + 1);
                     }
                 }
             }
         }
-        node_depth[i] = max_dep;
+        node_depth[i] = max_depth;
     }
 }
 
-void DAGraph::CollectFields()
+void DAGraph::CollectFieldMaps()
 {
     MFEM_ASSERT(sorted, "DAGraph must be topologically sorted before collecting fields");
 
-    id_to_index.clear();
-    id_to_field.clear();
+    fid_to_index.clear();
+    fid_to_field.clear();
 
     int nfields = 0;
     for (auto f : InputFields())
     {
-        id_to_index.Register(f->ID(), nfields++);
-        id_to_field.Register(f->ID(), f);
+        fid_to_index.Register(f->ID(), nfields++);
+        fid_to_field.Register(f->ID(), f);
     }
 
     for (auto &node : nodes)
     {
         for (auto f : node->OutputFields())
         {
-            if (!id_to_index.Has(f->ID()))
+            if (!fid_to_index.Has(f->ID()))
             {
-                id_to_index.Register(f->ID(), nfields++);
+                fid_to_index.Register(f->ID(), nfields++);
             }
-            if (!id_to_field.Has(f->ID()))
+            if (!fid_to_field.Has(f->ID()))
             {
-                id_to_field.Register(f->ID(), f);
+                fid_to_field.Register(f->ID(), f);
             }
         }
     }
+    // TODO: Possibly add all intermediate fields from nodes to the graph's FieldCollection
 }
 
 void DAGraph::Mult(const Vector &x, Vector &y) const
 {
-    MFEM_ASSERT(assembled, "DAGraph must be assembled before calling Mult()");
-
     MFEM_ASSERT(width == x.Size(), "Input vector size (" << x.Size()
                 << ") must match matrix width (" << width << ")");
 
     MFEM_ASSERT(height == y.Size(), "Output vector size (" << y.Size()
                 << ") must match matrix height (" << height << ")");
 
-    BlockVector xb(x.GetData(), input_offset);
-    BlockVector yb(y.GetData(), output_offset);
-
     auto inputs  = InputFields();
     auto outputs = OutputFields();
+
+    BlockVector xb(x.GetData(), input_offsets);
+    BlockVector yb(y.GetData(), output_offsets);
+    MultiVector xmv(inputs.Size()), ymv(outputs.Size());
+
+    // Set the data pointers of the input and output fields
+    // of the graph to point to the corresponding blocks of
+    // the input and output vectors
     for(int i=0; i < inputs.Size(); i++)
     {
-        inputs[i]->SetData(&xb.GetBlock(i));
+        xmv.MakeRef(i, xb.GetBlock(i));
     }
 
     for(int i=0; i < outputs.Size(); i++)
     {
-        outputs[i]->SetData(&yb.GetBlock(i));
+        ymv.MakeRef(i, yb.GetBlock(i));
     }
 
-    if(input_type == InputType::VECTOR)
+    const_cast<DAGraph*>(this)->Mult(xmv, ymv);
+}
+
+void DAGraph::Mult(const MultiVector &x, MultiVector &y)
+{
+    auto inputs  = InputFields();
+    auto outputs = OutputFields();
+
+    MFEM_ASSERT(inputs.Size() == x.NumBlocks(), "Number of input blocks (" << x.NumBlocks()
+                << ") must match number of input fields (" << inputs.Size() << ")");
+
+    MFEM_ASSERT(outputs.Size() == y.NumBlocks(), "Number of output blocks (" << y.NumBlocks()
+                << ") must match number of output fields (" << outputs.Size() << ")");
+
+    for(int i=0; i < inputs.Size(); i++)
     {
-        auto f_to_vec = [](Field &f, Vector &v) { v = *f.Data(); };
-        auto vec_to_f = [](Field &f, Vector &v) { *f.Data() = v; };
+        inputs[i]->SetData(const_cast<Vector*>(&x[i]));
+    }
+    for (int i=0; i < outputs.Size(); i++)
+    {
+        outputs[i]->SetData(&y[i]);
+    }
 
-        x_node.SetSize(MaxWidth());
-        y_node.SetSize(MaxHeight());
+    auto index_map = GetFieldIdToIndexMap();
+    auto fld_map = GetFieldIdToFieldMap();
+    int nfields = index_map.NumFields();
+    MultiVector ymv(nfields); // TODO: Should this be a member function?
 
-        for (auto node : nodes)
+    // Assemble the multivector from the individual fields based on their IDs
+    // This multivector contains all input, output, and intermediate fields in the graph
+    for (auto const& [id, idx] : index_map)
+    {
+        if (fld_map.Has(id))
         {
-            x_node.SetSize(node->Width());
-            y_node.SetSize(node->Height());
-
-            FieldBlockVectorTransfer(node->InputOffsets(), node->InputFields(), x_node, f_to_vec);
-            node->Mult(x_node, y_node);
-            FieldBlockVectorTransfer(node->OutputOffsets(), node->OutputFields(), y_node, vec_to_f);
+            auto field = fld_map.Get(id);
+            ymv.MakeRef(idx, *field->Data());
+        }
+        else
+        {
+            MFEM_ABORT("Field ID " << id << " not found in field map");
         }
     }
-    else if(input_type == InputType::MULTIVECTOR)
-    {
-        MFEM_ABORT("DAGraph::Mult() not implemented for input type: MULTIVECTOR");
-    }
-    else if(input_type == InputType::NONE)
-    {
-        Vector x_unused, y_unused;
-        for (auto node : nodes)
-        {
-            node->Mult(x_unused, y_unused);
-        }
-    }
-    else
-    {
-        MFEM_ABORT("DAGraph::Mult() not implemented for input type: "
-                    << static_cast<int>(input_type));
-    }
+    
+    Execute(x, ymv);
 
     for(auto &f : inputs)
     {
@@ -302,14 +301,103 @@ void DAGraph::Mult(const Vector &x, Vector &y) const
     }
 }
 
-void DAGraph::Execute(const Vector &x, Vector &y)
+void DAGraph::Execute(const MultiVector &x, MultiVector &y) const
 {
-    // Call Mult for now
-    Mult(x, y);
+    MFEM_ASSERT(assembled, "DAGraph must be assembled before calling Execute()");
+
+    MFEM_ASSERT(x.NumBlocks() == InputFields().Size(),
+                "Number of input blocks (" << x.NumBlocks()
+                << ") must match number of input fields (" << InputFields().Size() << ")");
+    
+    auto index_map = GetFieldIdToIndexMap();
+    
+    MFEM_ASSERT(y.NumBlocks() == index_map.NumFields(),
+                "Number of output blocks (" << y.NumBlocks()
+                << ") must match number of fields (" << index_map.NumFields() << ")");
+
+    auto inputs  = InputFields();
+    for(int i=0; i < inputs.Size(); i++)
+    {
+        int idx = index_map.Get(inputs[i]->ID());
+        if(&y[idx] != &x[i]) // copy data, if address is different
+        {
+            y[idx] = x[i];
+        }
+    }
+
+    if(input_type == InputType::VECTOR)
+    {
+        x_node.SetSize(MaxWidth());
+        y_node.SetSize(MaxHeight());
+
+        for (auto node : nodes)
+        {
+            x_node.SetSize(node->Width());
+            y_node.SetSize(node->Height());
+
+            // Assemble input fields into a single vector for the node
+            auto node_inputs = node->InputFields();
+            auto ioffsets = node->InputOffsets();
+            for (int i=0; i < node_inputs.Size(); i++)
+            {
+                auto in_field = node_inputs[i];
+                int idx = index_map.Get(in_field->ID());
+                x_node.SetVector(y[idx],ioffsets[i]);
+            }
+
+            node->Mult(x_node, y_node);
+
+            // Disassemble output vector back
+            auto node_outputs = node->OutputFields();
+            BlockVector ynb(y_node.GetData(), node->OutputOffsets());
+            for (int i=0; i < node_outputs.Size(); i++)
+            {
+                auto out_field = node_outputs[i];
+                int idx = index_map.Get(out_field->ID());
+                y[idx] = ynb.GetBlock(i);
+            }
+        }
+    }
+    else if(input_type == InputType::MULTIVECTOR)
+    {
+        for (auto node : nodes)
+        {
+            auto node_inputs = node->InputFields();
+            auto node_outputs = node->OutputFields();
+            xmv_node.SetNumBlocks(node_inputs.Size());
+            ymv_node.SetNumBlocks(node_outputs.Size());
+
+            for (int i=0; i < node_inputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_inputs[i]->ID());
+                xmv_node.MakeRef(i, y[idx]);
+            }
+            for (int i=0; i < node_outputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_outputs[i]->ID());
+                ymv_node.MakeRef(i, y[idx]);
+            }
+            node->Mult(xmv_node, ymv_node);
+        }
+    }
+    else if(input_type == InputType::NONE)
+    {
+        Vector x_unused, y_unused;
+        for (auto node : nodes)
+        {
+            node->Mult(x_unused, y_unused);
+        }
+    }
+    else
+    {
+        MFEM_ABORT("DAGraph::Execute() not implemented for input type: "
+                    << static_cast<int>(input_type));
+    }
 }
 
 Operator& DAGraph::GetGradient(const Vector &x) const
 {
+    // TODO: Should/could be removed
     if(grad_mode == GradMode::FINITE_DIFF)
     {
         if(!grad)
@@ -323,27 +411,22 @@ Operator& DAGraph::GetGradient(const Vector &x) const
         return *grad;
     }
 
-    if(grad_mode == GradMode::ASSEMBLED ||
-       grad_mode == GradMode::MATRIX_FREE)
+    MFEM_ASSERT(static_cast<int>(grad_mode) < static_cast<int>(GradMode::NONE),
+                "DAGraph::GetGradient() called with invalid grad_mode: "
+                << static_cast<int>(grad_mode));
+
+    if(!grad)
     {
-        if(!grad)
-        {
-            grad = new GraphGradient(const_cast<DAGraph&>(*this)); // Create a new GraphGradient operator
-        }
-        if(grad_mode == GradMode::ASSEMBLED)
-        {
-            return grad->GetGradient(x); // Assembled the Jacobian
-        }
-        else // GradMode::MATRIX_FREE
-        {
-            dynamic_cast<GraphGradient*>(grad)->Update(x); // Update the GraphGradient with new point x
-        }
-        return *grad;
+        grad = new GraphGradient(const_cast<DAGraph&>(*this));
     }
-    else
+
+    if(grad_mode == GradMode::ASSEMBLED)
     {
-        MFEM_ABORT("DAGraph::GetGradient() not implemented for gradient mode: "
-                    << static_cast<int>(grad_mode));
+        return grad->GetGradient(x); // Assemble the Jacobian matrix
+    }
+    else // GradMode::MATRIX_FREE
+    {
+        dynamic_cast<GraphGradient*>(grad)->Update(x); // Update the GraphGradient with new point x
     }
 
     return *grad;
@@ -355,14 +438,29 @@ GraphGradient::GraphGradient(DAGraph &dag) : Operator(dag.Height(), dag.Width())
     MFEM_ASSERT(graph->IsAssembled(), "GraphGradient requires an assembled DAGraph.");
     MFEM_ASSERT(graph->IsSorted(), "GraphGradient requires a topologically sorted DAGraph.");
 
-    auto id_map = graph->GetIdToIndexMap();
-    auto field_map = graph->GetIdToFieldMap();
+    auto index_map = graph->GetFieldIdToIndexMap();
+    auto field_map = graph->GetFieldIdToFieldMap();
 
-    MFEM_ASSERT(id_map.NumFields() == field_map.NumFields(),
-                "Mismatch in number of fields between id_map and field_map");
+    MFEM_ASSERT(index_map.NumFields() == field_map.NumFields(),
+                "Mismatch in number of fields between index_map and field_map");
 
-    x_fields.SetSize(id_map.NumFields());
-    x_fields = nullptr; // Initialize all pointers to nullptr
+    x_work.DeleteAll(); // Clear any existing pointers
+    x_work.SetSize(index_map.NumFields());
+    x_work = nullptr; // Initialize all pointers to nullptr
+    xlin.SetNumBlocks(index_map.NumFields());
+
+    for (auto const& [id, idx] : index_map)
+    {
+        MFEM_ASSERT(idx >= 0 && idx < x_work.Size(), "Index out of bounds for field ID: " << id);
+        MFEM_ASSERT(field_map.Has(id), "Field ID not found in field_map: " << id);
+
+        if(x_work[idx] == nullptr)
+        {
+            x_work[idx] = new Vector(); // Allocate a new Vector for this field
+        }
+        xlin.MakeRef(idx, *x_work[idx]); // Make xlin refer to the allocated Vector
+    }
+
 }
 
 void GraphGradient::Update(const Vector &x)
@@ -377,66 +475,21 @@ void GraphGradient::Update(const Vector &x)
         }
     };
 
-    set_exec_mode(DAGraph::ExecutionMode::GRADIENT_MODE); // Set execution mode for forward pass
-    fx.SetSize(graph->Height());
-    graph->Mult(x, fx); // Forward pass to populate fields for gradient computations
-    set_exec_mode(DAGraph::ExecutionMode::DEFAULT_MODE); // Reset execution mode for forward pass
-
+    auto inputs = graph->InputFields();
     BlockVector xb(x.GetData(), graph->InputOffsets());
-    BlockVector yb(fx.GetData(), graph->OutputOffsets());
-
-    auto inputs  = graph->InputFields();
-    auto outputs = graph->OutputFields();
-
+    MultiVector xmv(inputs.Size());
     for(int i=0; i < inputs.Size(); i++)
     {
-        inputs[i]->SetData(&xb.GetBlock(i));
+        xmv.MakeRef(i, xb.GetBlock(i));
     }
 
-    for(int i=0; i < outputs.Size(); i++)
-    {
-        outputs[i]->SetData(&yb.GetBlock(i));
-    }
-
-    auto id_map = graph->GetIdToIndexMap();
-    auto field_map = graph->GetIdToFieldMap();
-
-    for (auto const& [id, idx] : id_map)
-    {
-        MFEM_ASSERT(idx >= 0 && idx < x_fields.Size(), "Index out of bounds for field ID: " << id);
-        MFEM_ASSERT(field_map.Has(id), "Field ID not found in field_map: " << id);
-
-        auto field = field_map.Get(id);
-        auto f_data = field->Data();
-
-        MFEM_ASSERT(f_data != nullptr, "Field data pointer is null for field ID: " << id);
-
-        if(x_fields[idx] == nullptr)
-        {
-            x_fields[idx] = new Vector(*f_data); // Store a copy
-        }
-        else
-        {
-            x_fields[idx]->SetSize(f_data->Size());
-            *x_fields[idx] = *f_data; // Update the stored copy
-        }
-    }
+    set_exec_mode(DAGraph::ExecutionMode::GRADIENT_MODE);
+    graph->Execute(xmv, xlin); // Forward pass to populate fields for gradient computations
+    set_exec_mode(DAGraph::ExecutionMode::DEFAULT_MODE); // Reset execution mode for forward pass
 }
 
 void GraphGradient::Mult(const Vector &x, Vector &y) const
 {
-    Forward(x, y); // Forward mode: compute JVP, y = J(z) * x
-}
-
-void GraphGradient::MultTranspose(const Vector &x, Vector &y) const
-{
-    Backward(x, y); // Backward mode: compute VJP, y = J^T(z) * x
-}
-
-void GraphGradient::Forward(const Vector &x, Vector &y) const
-{
-    MFEM_ASSERT(graph != nullptr, "GraphGradient operator requires a non-null DAGraph pointer.");
-
     MFEM_ASSERT(x.Size() == graph->Width(), "Input vector size (" << x.Size()
                 << ") must match graph width (" << graph->Width() << ")");
 
@@ -446,31 +499,183 @@ void GraphGradient::Forward(const Vector &x, Vector &y) const
     auto in_offsets  = graph->InputOffsets();
     auto out_offsets = graph->OutputOffsets();
 
-    BlockVector xb(x.GetData(), in_offsets);
-    BlockVector yb(y.GetData(), out_offsets);
-
     auto inputs  = graph->InputFields();
     auto outputs = graph->OutputFields();
 
+    BlockVector xb(x.GetData(), in_offsets);
+    BlockVector yb(y.GetData(), out_offsets);
+    MultiVector xmv(inputs.Size()), ymv(outputs.Size());
+
     for(int i=0; i < inputs.Size(); i++)
     {
-        inputs[i]->SetAdjoint(&xb.GetBlock(i));
+        xmv.MakeRef(i, xb.GetBlock(i));
     }
 
     for(int i=0; i < outputs.Size(); i++)
     {
-        outputs[i]->SetAdjoint(&yb.GetBlock(i));
+        ymv.MakeRef(i, yb.GetBlock(i));
     }
 
+    const_cast<GraphGradient*>(this)->Mult(xmv, ymv); // Forward mode: compute JVP, y = J(z) * x
+}
+
+void GraphGradient::Mult(const MultiVector &x, MultiVector &y)
+{
+    auto inputs  = graph->InputFields();
+    auto outputs = graph->OutputFields();
+
+    MFEM_ASSERT(inputs.Size() == x.NumBlocks(), "Number of input blocks (" << x.NumBlocks()
+                << ") must match number of input fields (" << inputs.Size() << ")");
+
+    MFEM_ASSERT(outputs.Size() == y.NumBlocks(), "Number of output blocks (" << y.NumBlocks()
+                << ") must match number of output fields (" << outputs.Size() << ")");
+
+    for(int i=0; i < inputs.Size(); i++)
+    {
+        inputs[i]->SetAdjoint(const_cast<Vector*>(&x[i]));
+    }
+    for (int i=0; i < outputs.Size(); i++)
+    {
+        outputs[i]->SetAdjoint(&y[i]);
+    }
+
+    auto index_map = graph->GetFieldIdToIndexMap();
+    auto fld_map = graph->GetFieldIdToFieldMap();
+    int nfields = index_map.NumFields();
+    MultiVector ymv(nfields); // TODO: Should this be a member function?
+
+    // Assemble the multivector from the individual fields based on their IDs
+    // This multivector contains all input, output, and intermediate fields in the graph
+    for (auto const& [id, idx] : index_map)
+    {
+        if (fld_map.Has(id))
+        {
+            auto field = fld_map.Get(id);
+            ymv.MakeRef(idx, *field->Adjoint());
+        }
+        else
+        {
+            MFEM_ABORT("Field ID " << id << " not found in field map");
+        }
+    }
+
+    Forward(x, ymv); // Forward mode: compute JVP, y = J(z) * x
+
+    for (auto &f : inputs)
+    {
+        f->SetAdjoint(nullptr);
+    }
+    for (auto &f : outputs)
+    {
+        f->SetAdjoint(nullptr);
+    }
+}
+
+void GraphGradient::MultTranspose(const Vector &x, Vector &y) const
+{
+    MFEM_ASSERT(x.Size() == graph->Height(), "Input vector size (" << x.Size()
+                << ") must match graph height (" << graph->Height() << ")");
+    MFEM_ASSERT(y.Size() == graph->Width(), "Output vector size (" << y.Size()
+                << ") must match graph width (" << graph->Width() << ")");
+
+    auto in_offsets  = graph->InputOffsets();
+    auto out_offsets = graph->OutputOffsets();
+
+    auto inputs  = graph->InputFields();
+    auto outputs = graph->OutputFields();
+
+    BlockVector xb(x.GetData(), out_offsets);
+    BlockVector yb(y.GetData(), in_offsets);
+    MultiVector xmv(outputs.Size()), ymv(inputs.Size());
+
+    for(int i=0; i < inputs.Size(); i++)
+    {
+        xmv.MakeRef(i, xb.GetBlock(i));
+    }
+
+    for(int i=0; i < outputs.Size(); i++)
+    {
+        ymv.MakeRef(i, yb.GetBlock(i));
+    }
+    const_cast<GraphGradient*>(this)->MultTranspose(xmv, ymv); // Reverse mode: compute VJP, y = J(z)^T * x
+}
+
+void GraphGradient::MultTranspose(const MultiVector &x, MultiVector &y)
+{
+    auto inputs  = graph->InputFields();
+    auto outputs = graph->OutputFields();
+
+    MFEM_ASSERT(outputs.Size() == x.NumBlocks(), "Number of input blocks (" << x.NumBlocks()
+                << ") must match number of output fields (" << outputs.Size() << ")");
+
+    MFEM_ASSERT(inputs.Size() == y.NumBlocks(), "Number of output blocks (" << y.NumBlocks()
+                << ") must match number of input fields (" << inputs.Size() << ")");
+
+    for(int i=0; i < outputs.Size(); i++)
+    {
+        outputs[i]->SetAdjoint(const_cast<Vector*>(&x[i]));
+    }
+    for (int i=0; i < inputs.Size(); i++)
+    {
+        inputs[i]->SetAdjoint(&y[i]);
+    }
+
+    auto index_map = graph->GetFieldIdToIndexMap();
+    auto fld_map = graph->GetFieldIdToFieldMap();
+    int nfields = index_map.NumFields();
+    MultiVector ymv(nfields); // TODO: Should this be a member function?
+
+    for(auto const& [id, idx] : index_map)
+    {
+        if (fld_map.Has(id))
+        {
+            auto field = fld_map.Get(id);
+            ymv.MakeRef(idx, *field->Adjoint());
+        }
+        else
+        {
+            MFEM_ABORT("Field ID " << id << " not found in field map");
+        }
+    }
+
+    Reverse(x, ymv); // Reverse mode: compute VJP, y = J(z)^T * x
+
+    for (auto &f : outputs)
+    {
+        f->SetAdjoint(nullptr);
+    }
+    for (auto &f : inputs)
+    {
+        f->SetAdjoint(nullptr);
+    }
+}
+
+void GraphGradient::Forward(const MultiVector &x, MultiVector &y) const
+{
+    MFEM_ASSERT(x.NumBlocks() == graph->InputFields().Size(),
+                "Number of input blocks (" << x.NumBlocks()
+                << ") must match number of input fields (" << graph->InputFields().Size() << ")");
+    
     auto in_type = graph->GetInputType();
-    auto id_map  = graph->GetIdToIndexMap();
-    auto field_map = graph->GetIdToFieldMap();
+    auto index_map  = graph->GetFieldIdToIndexMap();
+    auto field_map = graph->GetFieldIdToFieldMap();
+
+    MFEM_ASSERT(y.NumBlocks() == index_map.NumFields(),
+                "Number of output blocks (" << y.NumBlocks()
+                << ") must match number of fields (" << index_map.NumFields() << ")");
+
+    auto inputs  = graph->InputFields();
+    for(int i=0; i < inputs.Size(); i++)
+    {
+        int idx = index_map.Get(inputs[i]->ID());
+        if(&y[idx] != &x[i]) // copy data, if address is different
+        {
+            y[idx] = x[i];
+        }
+    }
 
     if(in_type == InputType::VECTOR)
     {
-        auto fadj_to_vec = [](Field &f, Vector &v) { v = *f.Adjoint(); };
-        auto vec_to_fadj = [](Field &f, Vector &v) { *f.Adjoint() = v; };
-
         x0.SetSize(graph->MaxWidth());
         dx.SetSize(graph->MaxWidth());
         dy.SetSize(graph->MaxHeight());
@@ -482,26 +687,56 @@ void GraphGradient::Forward(const Vector &x, Vector &y) const
             dx.SetSize(node->Width());
             dy.SetSize(node->Height());
 
-            int ioff = 0;
-            auto node_offsets = node->InputOffsets();
-            for(auto input_field : node->InputFields())
+            // Assemble input fields into a single vector for the node
+            auto node_inputs = node->InputFields();
+            auto ioffsets = node->InputOffsets();
+            for(int i=0; i < node_inputs.Size(); i++)
             {
-                MFEM_ASSERT(id_map.Has(input_field->ID()), "Input field ID not found in id_map");
-                int idx = id_map.Get(input_field->ID());
-                x0.SetVector(*x_fields[idx], node_offsets[ioff]);
-                ioff++;
+                auto in_field = node_inputs[i];
+                MFEM_ASSERT(index_map.Has(in_field->ID()), "Input field ID not found in index_map");
+                int idx = index_map.Get(in_field->ID());
+                x0.SetVector(xlin[idx], ioffsets[i]);
+                dx.SetVector(y[idx], ioffsets[i]);
             }
-
-            FieldBlockVectorTransfer(node->InputOffsets(), node->InputFields(), dx, fadj_to_vec);
 
             node->GradientMult(x0, dx, dy); // Compute JVP for the node
 
-            FieldBlockVectorTransfer(node->OutputOffsets(), node->OutputFields(), dy, vec_to_fadj);
+            // Disassemble output vector back
+            auto node_outputs = node->OutputFields();
+            BlockVector ynb(dy.GetData(), node->OutputOffsets());
+            for(int i=0; i < node_outputs.Size(); i++)
+            {
+                auto out_field = node_outputs[i];
+                MFEM_ASSERT(index_map.Has(out_field->ID()), "Output field ID not found in index_map");
+                int idx = index_map.Get(out_field->ID());
+                y[idx] = ynb.GetBlock(i);
+            }
         }
     }
     else if(in_type == InputType::MULTIVECTOR)
     {
-        MFEM_ABORT("GraphGradient::Forward() not implemented for input type: MULTIVECTOR");
+        auto nodes = graph->Nodes();
+        for (auto node : nodes)
+        {
+            auto node_inputs = node->InputFields();
+            auto node_outputs = node->OutputFields();
+            x0_mv.SetNumBlocks(node_inputs.Size());
+            dx_mv.SetNumBlocks(node_inputs.Size());
+            dy_mv.SetNumBlocks(node_outputs.Size());
+
+            for(int i=0; i < node_inputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_inputs[i]->ID());
+                x0_mv.MakeRef(i, xlin[idx]);
+                dx_mv.MakeRef(i, y[idx]);
+            }
+            for(int i=0; i < node_outputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_outputs[i]->ID());
+                dy_mv.MakeRef(i, y[idx]);
+            }
+            node->GradientMult(x0_mv, dx_mv, dy_mv); // Compute JVP for the node
+        }
     }
     else if(in_type == InputType::NONE)
     {
@@ -517,40 +752,114 @@ void GraphGradient::Forward(const Vector &x, Vector &y) const
         MFEM_ABORT("GraphGradient::Forward() not implemented for input type: "
                     << static_cast<int>(in_type));
     }
-
 }
 
-void GraphGradient::Backward(const Vector &x, Vector &y) const
+void GraphGradient::Reverse(const MultiVector &x, MultiVector &y) const
 {
-    auto in_offsets  = graph->InputOffsets();
-    auto out_offsets = graph->OutputOffsets();
+    MFEM_ASSERT(x.NumBlocks() == graph->OutputFields().Size(),
+                "Number of input blocks (" << x.NumBlocks()
+                << ") must match number of output fields (" << graph->OutputFields().Size() << ")");
 
-    // Note the switch of input and output offsets for backward mode
-    BlockVector xb(x.GetData(), out_offsets);
-    BlockVector yb(y.GetData(), in_offsets);
-
-    auto outputs = graph->OutputFields();
-    int noutputs = outputs.Size();
-    for(int i=0; i < noutputs; i++)
-    {
-        auto field = outputs[i];
-        field->SetAdjoint(&xb.GetBlock(i));
-    }
-
-    auto inputs = graph->InputFields();
-    int ninputs = inputs.Size();
-    for(int i=0; i < ninputs; i++)
-    {
-        auto field = inputs[i];
-        field->SetAdjoint(&yb.GetBlock(i));
-    }
-
-    // Vector x0, dx, dy;
+    auto in_type = graph->GetInputType();
+    auto index_map  = graph->GetFieldIdToIndexMap();
+    auto field_map = graph->GetFieldIdToFieldMap();
     int nnodes  = graph->Size();
-    for (int i=nnodes-1; i >= 0; i--)
+
+    MFEM_ASSERT(y.NumBlocks() == index_map.NumFields(),
+                "Number of output blocks (" << y.NumBlocks()
+                << ") must match number of fields (" << index_map.NumFields() << ")");
+
+    auto outputs  = graph->OutputFields();
+    for(int i=0; i < outputs.Size(); i++)
     {
-        auto node = graph->GetNode(i);
-        node->GradientMultTranspose(x0, dx, dy); // Compute VJP for the node
+        int idx = index_map.Get(outputs[i]->ID());
+        if(&y[idx] != &x[i]) // copy data, if address is different
+        {
+            y[idx] = x[i];
+        }
+    }
+
+    if(in_type == InputType::VECTOR)
+    {
+        x0.SetSize(graph->MaxWidth());
+        dx.SetSize(graph->MaxHeight());
+        dy.SetSize(graph->MaxWidth());
+
+        for (int i=nnodes-1; i >= 0; i--)
+        {
+            auto node = graph->GetNode(i);
+            x0.SetSize(node->Width());
+            dx.SetSize(node->Height());
+            dy.SetSize(node->Width());
+
+            auto node_inputs = node->InputFields();
+            auto ioffsets = node->InputOffsets();
+            for(int i=0; i < node_inputs.Size(); i++)
+            {
+                auto in_field = node_inputs[i];
+                MFEM_ASSERT(index_map.Has(in_field->ID()), "Input field ID not found in index_map");
+                int idx = index_map.Get(in_field->ID());
+                x0.SetVector(xlin[idx], ioffsets[i]);
+            }
+
+            auto node_outputs = node->OutputFields();
+            auto ooffsets = node->OutputOffsets();
+            for(int i=0; i < node_outputs.Size(); i++)
+            {
+                auto out_field = node_outputs[i];
+                MFEM_ASSERT(index_map.Has(out_field->ID()), "Output field ID not found in index_map");
+                int idx = index_map.Get(out_field->ID());
+                dx.SetVector(y[idx], ooffsets[i]);
+            }
+
+            node->GradientMultTranspose(x0, dx, dy); // Compute JVP for the node
+
+            BlockVector dynb(dy.GetData(), node->InputOffsets());
+            for(int i=0; i < node_inputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_inputs[i]->ID());
+                y[idx] = dynb.GetBlock(i);
+            }
+        }
+    }
+    else if(in_type == InputType::MULTIVECTOR)
+    {
+        for (int i=nnodes-1; i >= 0; i--)
+        {
+            auto node = graph->GetNode(i);
+            auto node_inputs = node->InputFields();
+            auto node_outputs = node->OutputFields();
+            x0_mv.SetNumBlocks(node_inputs.Size());
+            dx_mv.SetNumBlocks(node_outputs.Size());
+            dy_mv.SetNumBlocks(node_inputs.Size());
+
+            for(int i=0; i < node_inputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_inputs[i]->ID());
+                x0_mv.MakeRef(i, xlin[idx]);
+                dy_mv.MakeRef(i, y[idx]);
+            }
+            for(int i=0; i < node_outputs.Size(); i++)
+            {
+                int idx = index_map.Get(node_outputs[i]->ID());
+                dx_mv.MakeRef(i, y[idx]);
+            }
+            node->GradientMultTranspose(x0_mv, dx_mv, dy_mv); // Compute JVP for the node
+        }
+    }
+    else if(in_type == InputType::NONE)
+    {
+        Vector x_unused, dx_unused, dy_unused;
+        for (int i=nnodes-1; i >= 0; i--)
+        {
+            auto node = graph->GetNode(i);
+            node->GradientMultTranspose(x_unused, dx_unused, dy_unused); // Compute VJP for the node
+        }
+    }
+    else
+    {
+        MFEM_ABORT("GraphGradient::Reverse() not implemented for input type: "
+                    << static_cast<int>(in_type));
     }
 }
 
@@ -562,4 +871,3 @@ Operator& GraphGradient::GetGradient(const Vector &x) const
 
 
 } // namespace mfem
-#endif // MFEM_USE_MPI
