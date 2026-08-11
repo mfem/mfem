@@ -355,8 +355,8 @@ TEST_CASE("dFEM Scratch scalar", "[Parallel][dFEM][Scratch-Scalar]")
 
    ///<--- Apply the operator
    MultiVector X{x, coef, nodes_tvec};
-   MultiVector Y{y};
-   dop.Mult(X, Y);
+   MultiVector y_mv{y};
+   dop.Mult(X, y_mv);
 
    //<--- Apply derivative operator
    auto dop_deriv = dop.GetDerivative(U, X);
@@ -443,8 +443,8 @@ TEST_CASE("dFEM Scratch multiple sizes",
 
    ///<--- Apply the operator
    MultiVector X{x, coef, nodes_tvec};
-   MultiVector Y{y};
-   dop.Mult(X, Y);
+   MultiVector y_mv{y};
+   dop.Mult(X, y_mv);
 
    //<--- Apply derivative operator
    auto dop_deriv = dop.GetDerivative(U, X);
@@ -505,7 +505,7 @@ TEST_CASE("dFEM Global Scratch with tuple objects",
    global_vec.UseDevice(true);
    global_vec = 0.0;
    real_t global_scalar = 1.0;
-   bool global_flag;
+   bool global_flag = false;
 
    CubicQFWithGlobalScratch cubic_qf;
    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
@@ -534,8 +534,8 @@ TEST_CASE("dFEM Global Scratch with tuple objects",
 
    ///<--- Apply the operator
    MultiVector X{x, coef, nodes_tvec};
-   MultiVector Y{y};
-   dop.Mult(X, Y);
+   MultiVector y_mv{y};
+   dop.Mult(X, y_mv);
 
    //<--- Apply derivative operator
    auto dop_deriv = dop.GetDerivative(U, X);
@@ -621,8 +621,8 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
 
    // DifferentiableOperator action
    MultiVector X{x, coef, nodes_tvec};
-   MultiVector Y{y};
-   dop.Mult(X, Y);
+   MultiVector y_mv{y};
+   dop.Mult(X, y_mv);
 
    // Derivative action (non-cached)
    auto dop_deriv_action = dop.GetDerivative(U, X, false);
