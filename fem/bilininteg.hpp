@@ -4124,6 +4124,7 @@ public:
     discrete curl matrix. */
 class CurlInterpolator : public DiscreteInterpolator
 {
+   // members only required for partial assembly
    /// 1D finite elements that generate and own the 1D DofToQuad maps below
    std::unique_ptr<FiniteElement> closed_dofquad_fe;
    std::unique_ptr<FiniteElement> open_dofquad_fe;
