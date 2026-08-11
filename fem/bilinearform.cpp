@@ -13,6 +13,11 @@
 
 #include "fem.hpp"
 #include "../general/device.hpp"
+#include "../mesh/submesh/submesh_utils.hpp"
+#include "../mesh/submesh/submesh.hpp"
+#ifdef MFEM_USE_MPI
+#include "../mesh/submesh/psubmesh.hpp"
+#endif
 #include "../mesh/nurbs.hpp"
 #include <cmath>
 
@@ -1547,12 +1552,131 @@ void MixedBilinearForm::AddBdrTraceFaceIntegrator(BilinearFormIntegrator *bfi,
    boundary_trace_face_integs_marker.Append(&bdr_marker);
 }
 
+static bool GetSubMeshParentIDMaps(const Mesh *sub, const Mesh *parent,
+                                   const Array<int> *&sub_to_parent_element_ids)
+{
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      const SubMesh *submesh = static_cast<const SubMesh *>(sub);
+      sub_to_parent_element_ids = &submesh->GetParentElementIDMap();
+      return true;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      const ParSubMesh *submesh = static_cast<const ParSubMesh *>(sub);
+      sub_to_parent_element_ids = &submesh->GetParentElementIDMap();
+      return true;
+   }
+#endif
+   return false;
+}
+
+static bool IsSubMesh(const Mesh *sub, const Mesh *parent)
+{
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      return true;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      return true;
+   }
+#endif
+   return false;
+}
+
+static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteElementSpace &parent_fes,
+                                   Array<int> &sub_to_parent_vdof_map)
+{
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      const SubMesh *submesh = static_cast<const SubMesh *>(sub);
+      SubMeshUtils::BuildVdofToVdofMap(submesh_fes,
+                                       parent_fes,
+                                       submesh->GetFrom(),
+                                       submesh->GetParentElementIDMap(),
+                                       sub_to_parent_vdof_map);
+      root_gc_ = &parent_fes.GroupComm();
+      CommunicateIndicesSet(sub_to_parent_vdof_map, parent_fes.GetVSize());                                       
+      return true;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      const ParSubMesh *submesh = static_cast<const ParSubMesh *>(sub);
+      SubMeshUtils::BuildVdofToVdofMap(submesh_fes,
+                                       parent_fes,
+                                       submesh->GetFrom(),
+                                       submesh->GetParentElementIDMap(),
+                                       sub_to_parent_vdof_map);   
+      return true;
+   }
+#endif
+   return false;
+}
+
+void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
+{
+   Mesh *trial_mesh = trial_fes->GetMesh();
+   Mesh *test_mesh = test_fes->GetMesh();
+
+   const bool is_trial_submesh = IsSubMesh(trial_mesh, test_mesh);
+   const bool is_test_submesh = IsSubMesh(test_mesh, trial_mesh);
+
+   const Array<int> *submesh_parent_element_ids = NULL;
+   Array<int> sub_to_parent_vdof_map;
+
+   MFEM_VERIFY(is_trial_submesh || is_test_submesh,
+               "MixedBilinearForm::Assemble requires trial and test spaces "
+               "on the same mesh, or the trial space on a direct SubMesh "
+               "of the test space");
+
+   FiniteElementSpace &submesh_fes = is_trial_submesh ? *trial_fes : *test_fes;
+   FiniteElementSpace &parent_fes  = is_test_submesh ? *trial_fes : *test_fes;
+
+   if (is_trial_submesh)
+   {
+      GetSubMeshParentIDMaps(trial_mesh, test_mesh,
+                              submesh_parent_element_ids);
+   }
+   if (is_test_submesh)
+   {
+      GetSubMeshParentIDMaps(test_mesh, trial_mesh,
+                              submesh_parent_element_ids);
+   }
+
+
+
+
+
+   // if i is submesh index
+   // j = sub_to_parent_vdof_map_[i]
+   // else
+   // i = sub_to_parent_vdof_map_[j]
+   
+      const int *d_ia = ReadI();
+      int *d_ja = ReadWriteJ();  
+   Array<int> sub_to_parent_vdof_map_;
+      SparseMatrix &spmat = a.SpMat();
+      const int height = spmat.Height();
+      const int nnz = spmat.NumNonZeroElems();   
+      REQUIRE(spmat.GetMemoryI().CompareHostAndDevice(height+1) == 0);
+      REQUIRE(spmat.GetMemoryJ().CompareHostAndDevice(nnz) == 0);  
+}
+
 void MixedBilinearForm::Assemble(int skip_zeros)
 {
    if (ext)
    {
       ext->Assemble();
       return;
+   }
+
+   if (trial_fes->GetMesh() != test_fes->GetMesh())
+   {
+      SubMeshTolerantAssemble(int skip_zeros);
    }
 
    ElementTransformation *eltrans;
