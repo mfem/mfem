@@ -28,10 +28,14 @@ MPICXX = mpicxx
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 
-# Shadow warnings for clang only; GCC's -Wshadow flags more.
+# Enabled -pedantic flag only for gcc or clang. nvcc complains with -pedantic
+# because of line directives.
+PEDANTIC_FLAG = $(if $(shell $(MFEM_CXX) -v 2>&1 | \
+   grep -Eiq 'gcc version | clang version' && echo 1), -pedantic,)
+# Enable shadow warnings for clang only; GCC's -Wshadow flags more.
 SHADOW_WARNING_FLAG = $(if $(findstring clang,\
  $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
-WARNING_FLAGS = -pedantic -Wall $(SHADOW_WARNING_FLAG)
+WARNING_FLAGS = $(PEDANTIC_FLAG) -Wall $(SHADOW_WARNING_FLAG)
 
 DEBUG_FLAGS = $(strip -g $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
 
