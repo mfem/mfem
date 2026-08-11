@@ -379,7 +379,8 @@ std::string CheckFaceNeighborExchange(ParMesh &pmesh)
       auto *tr = pmesh.GetSharedFaceTransformations(sf, true);
       REQUIRE(tr != nullptr);
       REQUIRE(tr->Elem2 != nullptr);
-      REQUIRE((tr->GetConfigurationMask() & FaceElementTransformations::HAVE_LOC2) != 0);
+      REQUIRE((tr->GetConfigurationMask() & FaceElementTransformations::HAVE_LOC2) !=
+              0);
 
       tr->SetAllIntPoints(&face_center);
 
@@ -482,14 +483,17 @@ TEST_CASE("ConduitDataCollectionParMeshRoundTrip",
    INFO("roundtrip shared-face signature: " << Join(roundtrip_shared_faces));
    REQUIRE(original_shared_faces == roundtrip_shared_faces);
 
-   const std::string original_vertex_comm = CheckSharedVertexCommunication(original);
-   const std::string roundtrip_vertex_comm = CheckSharedVertexCommunication(*roundtrip);
+   const std::string original_vertex_comm = CheckSharedVertexCommunication(
+                                               original);
+   const std::string roundtrip_vertex_comm = CheckSharedVertexCommunication(
+                                                *roundtrip);
    INFO("original shared-vertex summary: " << original_vertex_comm);
    INFO("roundtrip shared-vertex summary: " << roundtrip_vertex_comm);
    REQUIRE(original_vertex_comm == roundtrip_vertex_comm);
 
    const std::string original_edge_comm = CheckSharedEdgeCommunication(original);
-   const std::string roundtrip_edge_comm = CheckSharedEdgeCommunication(*roundtrip);
+   const std::string roundtrip_edge_comm = CheckSharedEdgeCommunication(
+                                              *roundtrip);
    INFO("original shared-edge summary: " << original_edge_comm);
    INFO("roundtrip shared-edge summary: " << roundtrip_edge_comm);
    REQUIRE(original_edge_comm == roundtrip_edge_comm);

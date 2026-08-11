@@ -4845,7 +4845,8 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    {
       boundary[i] = NewElement(boundary_type);
       boundary[i]->SetVertices(boundary_indices + i * boundary_index_stride);
-      boundary[i]->SetAttribute(boundary_attributes ? boundary_attributes[i] : (i + 1));
+      boundary[i]->SetAttribute(boundary_attributes ? boundary_attributes[i] :
+                                (i + 1));
    }
    NumOfBdrElements = num_boundary_elements;
 

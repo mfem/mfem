@@ -342,7 +342,7 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
       n_topo,
       [&](conduit::blueprint::mesh::utils::topology::entity &e)
    {
-      if(e.shape.is_polygonal())
+      if (e.shape.is_polygonal())
       {
          // We have to handle polygons specially because ShapeType::num_faces(),
          // ShapeType::get_face() does not do what we need for polygons because of
@@ -352,12 +352,14 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
             conduit::index_t prev_i = (i == 0) ? (e.element_ids.size() - 1) : (i - 1);
             constexpr int MAX_NODES_PER_EDGE = 2;
             conduit::index_t thisEdgeIds[MAX_NODES_PER_EDGE] = {e.element_ids[prev_i], e.element_ids[i]};
-            bool allPointsSelected = pointIsSelected[thisEdgeIds[0]] && pointIsSelected[thisEdgeIds[1]];
+            bool allPointsSelected = pointIsSelected[thisEdgeIds[0]] &&
+                                     pointIsSelected[thisEdgeIds[1]];
             // Make a face
             if (allPointsSelected)
             {
                const int index =
-                  func(e.entity_id, thisEdgeIds, MAX_NODES_PER_EDGE, conn, sizes, offsets, originalElement);
+                  func(e.entity_id, thisEdgeIds, MAX_NODES_PER_EDGE, conn, sizes, offsets,
+                       originalElement);
 
                counts[index]++;
             }
@@ -436,7 +438,7 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
    {
       n_new_topo["elements/shape"] = "polygonal";
    }
-   else if(nzones > 0)
+   else if (nzones > 0)
    {
       assert("Unhandled shape type.");
    }
@@ -444,8 +446,9 @@ void extract_topology_with_selected_nodes(const conduit::Node &n_topo,
    n_new_topo["elements/sizes"].set(sizes);
    n_new_topo["elements/offsets"].set(offsets);
 
-   const auto newZoneCount = counts[0] + counts[1] + counts[2] + counts[3] + counts[4] + counts[5];
-   if(newZoneCount > 0)
+   const auto newZoneCount = counts[0] + counts[1] + counts[2] + counts[3] +
+                             counts[4] + counts[5];
+   if (newZoneCount > 0)
    {
       // Figure out a spatial ordering for the face topology. Save it as a field.
       const auto order = spatial_ordering(n_new_topo);
@@ -518,7 +521,8 @@ private:
      @param comm The MPI communicator to use.
      @param n_adjset The node that contains the adjacency set.
     */
-   static void InitGroupTopology(MPI_Comm comm, ParMesh *pmesh, const conduit::Node &n_adjset);
+   static void InitGroupTopology(MPI_Comm comm, ParMesh *pmesh,
+                                 const conduit::Node &n_adjset);
 
    /**
      @brief Initializes ParMesh's shared vertices members from the adjacency set.
@@ -625,7 +629,7 @@ ConduitParMeshBuilder::Build(MPI_Comm comm, mfem::Mesh &mesh,
    InitGroupTopology(comm, pmesh, *adjset);
    InitSharedVertices(pmesh, *adjset);
    InitSharedEdges(comm, pmesh, *adjset, *topology);
-   if(mesh.Dimension() == 3)
+   if (mesh.Dimension() == 3)
    {
       InitSharedFaces(comm, pmesh, *adjset, *topology);
    }
@@ -840,7 +844,7 @@ ConduitParMeshBuilder::InitSharedFaces(MPI_Comm comm,
       // Check whether the new topology was empty.
       conduit::Node &n_topo = n_group_faces["topologies"][0];
       const conduit::Node &n_conn = n_topo["elements/connectivity"];
-      if(n_conn.dtype().number_of_elements() == 0)
+      if (n_conn.dtype().number_of_elements() == 0)
       {
          continue;
       }
@@ -976,7 +980,8 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
    // Save the MFEM mesh edges to a Blueprint file.
    conduit::Node n_mfem;
    MeshEdges(*pmesh, n_mfem);
-   n_mfem["adjset_info/adjset"].set_external(n_adjset); // Just to be able to see the adjset.
+   n_mfem["adjset_info/adjset"].set_external(
+      n_adjset); // Just to be able to see the adjset.
    n_mfem["adjset_info/numGroups"].set(numGroups);
    std::stringstream ss1;
    ss1 << "mfem_edges_rank_" << rank;
@@ -1011,7 +1016,7 @@ void ConduitParMeshBuilder::InitSharedEdges(MPI_Comm comm,
       // the topology at a single node.
       conduit::Node &n_topo = n_group_edges["topologies"][0];
       const conduit::Node &n_conn = n_topo["elements/connectivity"];
-      if(n_conn.dtype().number_of_elements() == 0)
+      if (n_conn.dtype().number_of_elements() == 0)
       {
          continue;
       }
@@ -1428,9 +1433,10 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       const bool same_size = ele_sizes.min() == ele_sizes.max();
       const bool is_tri_or_quad = ele_sizes.min() == 3 || ele_sizes.min() == 4;
       MFEM_ASSERT(same_size,
-                 "Topology named \"" + topo_name + "\" contains polygons of varying sizes.");
+                  "Topology named \"" + topo_name + "\" contains polygons of varying sizes.");
       MFEM_ASSERT(is_tri_or_quad,
-                 "Topology named \"" + topo_name + "\" contains polygons with other than 3 or 4 sides.");
+                  "Topology named \"" + topo_name +
+                  "\" contains polygons with other than 3 or 4 sides.");
 
       if (ele_sizes.min() == 3)
       {
@@ -1534,7 +1540,7 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
    // name containing "_attribute", that doesn't contain "boundary"
    std::string main_att_name = "";
 
-   if(n_mesh.has_path("fields"))
+   if (n_mesh.has_path("fields"))
    {
       const Node &n_fields = n_mesh["fields"];
       NodeConstIterator itr = n_fields.children();
