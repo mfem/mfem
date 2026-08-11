@@ -111,7 +111,12 @@ void Operator::ArrayAddMultTranspose(const Array<const Vector *> &X,
    }
 }
 
-void Operator::MultMV(const MultiVector &, MultiVector &)
+void Operator::MultMV(const MultiVector &, MultiVector &) const
+{
+   MFEM_ABORT("this method is not overridden for this class!");
+}
+
+void Operator::MultTransposeMV(const MultiVector &x, MultiVector &y) const
 {
    MFEM_ABORT("this method is not overridden for this class!");
 }

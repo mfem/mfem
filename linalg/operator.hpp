@@ -135,7 +135,14 @@ public:
        non-contiguous memory representation.
 
        The base class implementation for the method is to generate an error. */
-   virtual void MultMV(const MultiVector &x, MultiVector &y);
+   virtual void MultMV(const MultiVector &x, MultiVector &y) const;
+
+   /** @brief Action of the transpose operator, y = A^t(x), where the input @a x
+       and the output @a y are MultiVector objects, i.e. they generally use
+       non-contiguous memory representation.
+
+       The base class implementation for this method is to generate an error. */
+   virtual void MultTransposeMV(const MultiVector &x, MultiVector &y) const;
 
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
