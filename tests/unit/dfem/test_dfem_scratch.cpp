@@ -36,13 +36,17 @@
 
 #include "../../../linalg/tensor_arrays.hpp"
 
-#ifdef MFEM_USE_ENZYME
 
 using namespace std;
 using namespace mfem;
 using namespace mfem::future;
 
+#ifdef MFEM_USE_ENZYME
 using dscalar_t = real_t;
+#else
+using dscalar_t = dual<real_t, real_t>;
+#endif
+
 
 ///<--- Q-functions
 constexpr int U = 1;
@@ -52,7 +56,7 @@ constexpr int COORDINATES = 4;
 
 // Global qf with splitting and scratch space.
 // The user only writes operator(); the shared base handles scratch setup.
-struct CubicQFWithScratch : QFWithScratchType
+struct CubicQFWithScratch : QFWithScratchType<dscalar_t>
 {
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
@@ -87,7 +91,7 @@ struct CubicQFWithScratch : QFWithScratchType
 };
 
 template <int DIM>
-struct CubicQFWithScratchMultipleSizes : QFWithScratchType
+struct CubicQFWithScratchMultipleSizes : QFWithScratchType<dscalar_t>
 {
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
@@ -122,7 +126,7 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratchType
    }
 };
 
-struct CubicQFWithGlobalScratch : QFWithGlobalScratchType
+struct CubicQFWithGlobalScratch : QFWithGlobalScratchType<dscalar_t>
 {
    void operator()(tensor_array<const dscalar_t> &x,
                    tensor_array<const dscalar_t> &coef,
@@ -240,14 +244,27 @@ void CheckResults(ParFiniteElementSpace &fes, const IntegrationRule &ir,
    REQUIRE(global_deriv_err == MFEM_Approx(0.0));
 }
 
+// @a scratch_d is the shadow scratch bank under Enzyme, and null with the
+// native dual fallback, where the tangent is the .gradient half of the primal
+// scratch entry itself and no shadow bank is allocated.
 void CheckScratchResults(ParMesh &pmesh, const IntegrationRule &ir,
-                         const Vector &scratch, const Vector &scratch_d)
+                         const Vector &scratch, const Vector *scratch_d)
 {
-   REQUIRE(scratch.Size() == scratch_d.Size());
-   REQUIRE(scratch.Size() == pmesh.GetNE() * ir.GetNPoints());
+   constexpr int SCRATCH_MULT = CubicQFWithScratch::scalar_size;
+   REQUIRE(scratch.Size() ==
+           SCRATCH_MULT * pmesh.GetNE() * ir.GetNPoints());
 
-   const real_t *scratch_h = scratch.HostRead();
-   const real_t *scratch_d_h = scratch_d.HostRead();
+   const real_t *scratch_raw = scratch.HostRead();
+   const real_t *scratch_d_raw = scratch_raw;
+   if (scratch_d)
+   {
+      REQUIRE(scratch_d->Size() == scratch.Size());
+      scratch_d_raw = scratch_d->HostRead();
+   }
+   auto scratch_value = [&](int i)
+   { return scratch_raw[SCRATCH_MULT * i]; };
+   auto scratch_grad = [&](int i)
+   { return scratch_d_raw[SCRATCH_MULT * i + (SCRATCH_MULT - 1)]; };
 
    real_t local_scratch_err = 0.0;
    real_t local_scratch_d_err = 0.0;
@@ -264,9 +281,9 @@ void CheckScratchResults(ParMesh &pmesh, const IntegrationRule &ir,
                             (p.Size() > 1 ? p(1) : 0.0_r);
          const int idx = q + ir.GetNPoints() * e;
          local_scratch_err = std::max(local_scratch_err,
-                                      std::abs(scratch_h[idx] - u_q * u_q));
+                                      std::abs(scratch_value(idx) - u_q * u_q));
          local_scratch_d_err = std::max(local_scratch_d_err,
-                                        std::abs(scratch_d_h[idx] - 2.0_r * u_q));
+                                        std::abs(scratch_grad(idx) - 2.0_r * u_q));
       }
    }
 
@@ -642,13 +659,16 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
    CheckResults(fes, ir, y_action_check, dy_action);
 
    auto *stored_qf = dop.GetDerivativeActionQFunction<CubicQFWithScratch>(U);
+   REQUIRE(stored_qf != nullptr);
+#ifdef MFEM_USE_ENZYME
    auto *stored_qf_shadow =
       dop.GetDerivativeActionShadowQFunction<CubicQFWithScratch>(U);
-   REQUIRE(stored_qf != nullptr);
    REQUIRE(stored_qf_shadow != nullptr);
-
    CheckScratchResults(pmesh, ir, stored_qf->GetScratchVector(0),
-                       stored_qf_shadow->GetScratchVector(0));
+                       &stored_qf_shadow->GetScratchVector(0));
+#else
+   CheckScratchResults(pmesh, ir, stored_qf->GetScratchVector(0), nullptr);
+#endif
 
    // Derivative action (cached)
    auto dop_deriv_cached = dop.GetDerivative(U, X, true);
@@ -659,14 +679,16 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
    CheckResults(fes, ir, y_cached_check, dy_cached);
 
    auto *stored_setup_qf = dop.GetDerivativeSetupQFunction<CubicQFWithScratch>(U);
+   REQUIRE(stored_setup_qf != nullptr);
+#ifdef MFEM_USE_ENZYME
    auto *stored_setup_qf_shadow =
       dop.GetDerivativeSetupShadowQFunction<CubicQFWithScratch>(U);
-   REQUIRE(stored_setup_qf != nullptr);
    REQUIRE(stored_setup_qf_shadow != nullptr);
    CheckScratchResults(pmesh, ir, stored_setup_qf->GetScratchVector(0),
-                       stored_setup_qf_shadow->GetScratchVector(0));
+                       &stored_setup_qf_shadow->GetScratchVector(0));
+#else
+   CheckScratchResults(pmesh, ir, stored_setup_qf->GetScratchVector(0), nullptr);
+#endif
 }
-
-#endif // MFEM_USE_ENZYME
 
 #endif // MFEM_USE_MPI
