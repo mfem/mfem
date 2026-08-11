@@ -93,10 +93,11 @@ GPU computing
 New and updated examples and miniapps
 -------------------------------------
 - Added a new Particle-In-Cell (PIC) miniapp in miniapps/plasma/pic, performing
-  electrostatic PIC simulation of multiple charged particles in 2D or 3D based
-  on the ParticleSet capability. Each time step deposits the particle charges on
-  the grid, solves a Poisson problem for the electric potential, and pushes the
-  particles with a leap-frog scheme in a periodic domain.
+  electrostatic PIC simulation of charged particles in 2D or 3D using the
+  ParticleSet capability. Each time step deposits the particle charges on the
+  grid, solves a Poisson problem for the electric potential, interpolates the
+  electric field, and pushes the particles with leap-frog scheme in a periodic
+  domain.
 
 - The Lorentz miniapp (in miniapps/electromagnetics) has been updated to
   leverage the ParticleSet capability.
