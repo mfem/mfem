@@ -117,6 +117,61 @@ template <int DIM> struct QFunction
      }
   };
 
+template <int DIM>
+  struct AdjointResidualFunctionalQF
+  {
+     using matd_t = mfem::future::tensor<real_t, DIM, DIM>;
+
+     MFEM_HOST_DEVICE inline void operator()(const matd_t &dudxi,
+                                             const matd_t &dadjdxi,
+                                             const real_t &rho,
+                                             const real_t &L,
+                                             const real_t &M,
+                                             const matd_t &J,
+                                             const real_t &w,
+                                             real_t &q) const
+     {
+        constexpr real_t exponent = 3.0;
+        constexpr real_t rho_min = 1e-3;
+
+        const auto Jinv = mfem::future::inv(J);
+        constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
+
+        const auto eps_u = mfem::future::sym(dudxi * Jinv);
+        const auto eps_adj = mfem::future::sym(dadjdxi * Jinv);
+        const auto sigma_u = L * tr(eps_u) * I + 2.0 * M * eps_u;
+
+        const real_t simp = rho_min + mfem::future::pow(rho, exponent) *
+                                        (1.0 - rho_min);
+
+        q = -simp * mfem::future::inner(eps_adj, sigma_u) * det(J) * w;
+     }
+  };
+
+  template <int DIM>
+  struct AdjointElasticEnergyQF
+  {
+     using matd_t = mfem::future::tensor<real_t, DIM, DIM>;
+
+     MFEM_HOST_DEVICE inline void operator()(const matd_t &dudxi,
+                                             const matd_t &dadjdxi,
+                                             const real_t &L,
+                                             const real_t &M,
+                                             const matd_t &J,
+                                             const real_t &w,
+                                             real_t &q) const
+     {
+        const auto Jinv = mfem::future::inv(J);
+        constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
+
+        const auto eps_u = mfem::future::sym(dudxi * Jinv);
+        const auto eps_adj = mfem::future::sym(dadjdxi * Jinv);
+        const auto sigma_u = L * tr(eps_u) * I + 2.0 * M * eps_u;
+
+        q = mfem::future::inner(eps_adj, sigma_u) * det(J) * w;
+     }
+  };
+
    void GetQuadPointsPositions(const mfem::ParMesh & pmesh_init, const QuadratureSpace &qspace,
       const Vector &pos_mesh,  Vector &pos_quads)
 {
@@ -581,7 +636,7 @@ int main(int argc, char *argv[])
       elsolver.AddSurfLoad(neumannBCIndex, 0.0, neumannLoad);
       elsolver.SetLinearSolver(1e-6,1e-8,1000);
 
-      int numTOit = 4;
+      int numTOit = 40;
       for( int ik = 0; ik < numTOit; ik++)
       {
          if (ik > 1) { alpha *= ((real_t) ik) / ((real_t) ik-1); }
@@ -600,152 +655,94 @@ int main(int argc, char *argv[])
          elsolver.GetSol(u);
 
          mfem::Coefficient *rhs_cf = nullptr;
-
-         bool useOldDerivative = false;
          mfem::ParGridFunction adjTimesdRdrho(&filter_fes); adjTimesdRdrho = 0.0;
          
-         if(useOldDerivative)
+      {
+         Array<int> all_domain_attr;
+         if (pmesh.attributes.Size() > 0)
          {
-            rhs_cf = new StrainEnergyDensityCoefficient(&lambda_cf,&mu_cf,&u, &rho_filter, rho_min);
+            all_domain_attr.SetSize(pmesh.attributes.Max());
+            all_domain_attr = 1;
          }
-         else
+
+         mfem::QuadratureSpace scalar_qs(pmesh, ir);
+         mfem::VectorQuadratureSpace Lambda_scalar_qs(scalar_qs, 1);
+         mfem::VectorQuadratureSpace Mu_scalar_qs(scalar_qs, 1);
+         mfem::VectorQuadratureSpace q_scalar_qs(scalar_qs, 1);
+
+         CoefficientVector Lambda_scalar_cv(lambda_cf, scalar_qs);
+         CoefficientVector Mu_scalar_cv(mu_cf, scalar_qs);
+         QuadratureFunction scalar_q(q_scalar_qs);
+
+         static constexpr int uN = 0, adjN = 1, rhoN = 2;
+         static constexpr int coordsN = 3, lambdaN = 4, muN = 5, qN = 6;
+
+         mfem::future::DifferentiableOperator scalar_dop(
+            std::vector<mfem::future::FieldDescriptor>
          {
-            Array<int> all_domain_attr;
-            if (pmesh.attributes.Size() > 0)
-            {
-               all_domain_attr.SetSize(pmesh.attributes.Max());
-               all_domain_attr = 1;
-            }
+            { uN, &state_fes },
+            { adjN, &state_fes },
+            { rhoN, &filter_fes },
+            { coordsN, &coord_fes },
+            { lambdaN, &Lambda_scalar_qs },
+            { muN, &Mu_scalar_qs }
+         },
+         std::vector<mfem::future::FieldDescriptor>
+         {
+            { qN, &q_scalar_qs }
+         },
+         pmesh);
 
-            //IsoLinElasticSolver::NqptUniformParameterSpace Lambda_ps(pmesh, ir, 1);
-            //IsoLinElasticSolver::NqptUniformParameterSpace Mu_ps(pmesh, ir, 1);
-            mfem::QuadratureSpace qs(pmesh, ir);
-            mfem::VectorQuadratureSpace Lambda_qs(qs, 1);
-            mfem::VectorQuadratureSpace Mu_qs(qs, 1);
-
-            // sample lambda on the integration points
-            CoefficientVector Lambda_cv(lambda_cf, qs);
-            CoefficientVector Mu_cv(mu_cf, qs);
-
-            static constexpr int uN = 0, adjN = 2, rhoN = 3, coordsN = 1, lambdaN = 4, muN = 5;
-            std::unique_ptr<mfem::future::DifferentiableOperator> dopdRds = std::make_unique<mfem::future::DifferentiableOperator>(
-                           std::vector<mfem::future::FieldDescriptor>
-                {
-                   { uN, &state_fes },
-                   { adjN, &state_fes },
-                   { rhoN, &filter_fes },
-                   { lambdaN, &Lambda_qs },
-                   { muN, &Mu_qs },
-                   { coordsN, &coord_fes }
-               },
-               std::vector<mfem::future::FieldDescriptor>
-                {
-                   { rhoN, &filter_fes }
-                },pmesh);
-
-            
-
-            const auto inputs = mfem::future::tuple{ mfem::future::Gradient<uN>{},
-                                                  mfem::future::Gradient<adjN>{},
-                                                  mfem::future::Value<rhoN>{},
-                                                  mfem::future::Identity<lambdaN>{},
-                                                  mfem::future::Identity<muN>{},
-                                                  mfem::future::Gradient<coordsN>{},
-                                                  mfem::future::Weight{} };
-            const auto output = mfem::future::tuple{ mfem::future::Value<rhoN>{} };
-
-         std::cout<<"running qFunc"<<std::endl;
+         const auto scalar_inputs = mfem::future::tuple
+         {
+            mfem::future::Gradient<uN>{},
+            mfem::future::Gradient<adjN>{},
+            mfem::future::Value<rhoN>{},
+            mfem::future::Identity<lambdaN>{},
+            mfem::future::Identity<muN>{},
+            mfem::future::Gradient<coordsN>{},
+            mfem::future::Weight{}
+         };
+         const auto scalar_outputs = mfem::future::tuple
+         {
+            mfem::future::FunctionalValue<qN>{}
+         };
+         const auto scalar_derivatives = std::integer_sequence<size_t, rhoN>{};
 
          if (2 == DIM)
          {
-            typename QFunction<2>::Elasticity_dDdrho e2qf;
-            dopdRds->AddDomainIntegrator<mfem::future::LocalQFBackend>(e2qf, inputs, output, ir, all_domain_attr);
-            //dopdRds->AddDomainIntegrator(e2qf, inputs, output, ir, all_domain_attr);
+            AdjointResidualFunctionalQF<2> qf;
+            scalar_dop.AddDomainIntegrator<mfem::future::LocalQFBackend>(
+               qf, scalar_inputs, scalar_outputs, ir, all_domain_attr,
+               scalar_derivatives);
          }
          else if (3 == DIM)
          {
-             typename QFunction<3>::Elasticity_dDdrho e3qf;
-             dopdRds->AddDomainIntegrator<mfem::future::LocalQFBackend>(e3qf, inputs, output, ir, all_domain_attr);
-            //dopdRds->AddDomainIntegrator(e3qf, inputs, output, ir, all_domain_attr);
+            AdjointResidualFunctionalQF<3> qf;
+            scalar_dop.AddDomainIntegrator<mfem::future::LocalQFBackend>(
+               qf, scalar_inputs, scalar_outputs, ir, all_domain_attr,
+               scalar_derivatives);
          }
 
-             mfem::MultiVector dRds_x{u, u, rho_filter, Lambda_cv, Mu_cv, coords_};
-             mfem::MultiVector dRds_y{adjTimesdRdrho};
-    
-             dopdRds->Mult(dRds_x, dRds_y);
+         mfem::MultiVector scalar_x
+         {
+            u, u, rho_filter, coords_, Lambda_scalar_cv, Mu_scalar_cv
+         };
+         mfem::MultiVector scalar_y { scalar_q };
 
-         //adjTimesdRdrho.Print();
+         scalar_dop.Mult(scalar_x, scalar_y);
+
+         Vector scalar_dRdrho_true(filter_fes.GetTrueVSize());
+         scalar_dop.GetDerivative(rhoN, scalar_x)->Assemble(scalar_dRdrho_true);
+
+         adjTimesdRdrho.SetFromTrueDofs(scalar_dRdrho_true);
 
          rhs_cf = new mfem::GridFunctionCoefficient(&adjTimesdRdrho);
-      }
-
-         //mfem::ParGridFunction outputAA(&filter_fes);
-         //outputAA.ProjectCoefficient(*rhs_cf);
-         //outputAA.Print();
-
-      if(dQdxFD_global)
-      {
-         double epsilon = 1.0e-8;
-        ParGridFunction tFD_sens(&filter_fes); tFD_sens = 0.0;
-        ParGridFunction filteredNodePos(&coord_fes); filteredNodePos = 0.0;
-        for( int Ia = 0; Ia<rho_filter.Size(); Ia++)
-        {
-            Array<int> neumannBdr(pmesh.bdr_attributes.Max());
-            neumannBdr = 0; neumannBdr[neumannBCIndex-1] = 1;
-
-            QuantityOfInterest QoIEvaluator_FD1(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
-            QuantityOfInterest QoIEvaluator_FD2(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
-            QoIEvaluator_FD1.setTractionCoeff(&tractionLoad);
-            QoIEvaluator_FD2.setTractionCoeff(&tractionLoad);
-
-            rho_filter[Ia] +=epsilon;
-          
-            SIMPInterpolationCoefficient SIMP_cf_1(&rho_filter,rho_min, 1.0, 3.0);
-            ProductCoefficient lambda_SIMP_cf_1(lambda_cf,SIMP_cf_1);
-            ProductCoefficient mu_SIMP_cf_1(mu_cf,SIMP_cf_1);
-
-            elsolver.SetMaterialLame(lambda_SIMP_cf_1, mu_SIMP_cf_1);
-            elsolver.Assemble();
-            elsolver.FSolve();
-            elsolver.GetSol(u);
-
-            QoIEvaluator_FD1.SetDiscreteSol( u );            
-            QoIEvaluator_FD1.SetDesign( filteredNodePos );
-            QoIEvaluator_FD1.SetNodes(x0);
-
-            double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
-
-            rho_filter[Ia] -= 2.0 * epsilon;
-          
-            SIMPInterpolationCoefficient SIMP_cf_2(&rho_filter,rho_min, 1.0, 3.0);
-            ProductCoefficient lambda_SIMP_cf_2(lambda_cf,SIMP_cf_2);
-            ProductCoefficient mu_SIMP_cf_2(mu_cf,SIMP_cf_2);
-
-            elsolver.SetMaterialLame(lambda_SIMP_cf_2, mu_SIMP_cf_2);
-            elsolver.Assemble();
-            elsolver.FSolve();
-            elsolver.GetSol(u);
-
-            QoIEvaluator_FD2.SetDiscreteSol( u );
-            QoIEvaluator_FD2.SetDesign( filteredNodePos );
-            QoIEvaluator_FD2.SetNodes(x0);
-            double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
-
-            rho_filter[Ia] +=  epsilon;
-
-            tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
-        }
-
-        //dQdx.Print();
-        std::cout<<"  ----------  FD Diff - Global ------------"<<std::endl;
-        tFD_sens.Print();
       }
 
          FilterSolver->SetRHSCoefficient(rhs_cf);
          FilterSolver->Solve();
          w_filter = *FilterSolver->GetFEMSolution();
-
-         // mfem::mfem_error("aaaaaaaaaaaaaaaaaaaaaa");
 
 
          delete rhs_cf;
@@ -766,48 +763,6 @@ int main(int argc, char *argv[])
          real_t norm_reduced_gradient = norm_increment/alpha;
          psi_old = psi;
 
-
-         //====================== QoI ==================================
-
-//          ParGridFunction one(&fes); one = 1.0;
-//          Vector one_trueV(fes.GetTrueVSize()); one_trueV = 1.0;
-//          one.SetFromTrueDofs(one_trueV);
-
-//          static constexpr int U = 0, Coords = 1;
-//          const auto vol_in = std::vector{ mfem::future::FieldDescriptor{ U, &fes } };
-//          mfem::future::DifferentiableOperator dop_volume(vol_in, {{Coords, nodes->ParFESpace()}}, pmesh);
-
-
-//          Array<int> all_domain_attr;
-//          if (pmesh.attributes.Size() > 0)
-//          {
-//             all_domain_attr.SetSize(pmesh.attributes.Max());
-//             all_domain_attr = 1;
-//          }
-
-//          auto derivatives = std::integer_sequence<size_t, U> {};
-//          dop_volume.AddDomainIntegrator(vol_functional_qf,
-//                            tuple{ mfem::future::Value<U>{}, mfem::future::Gradient<Coords>{}, mfem::future::Weight{} },
-//                            tuple{ mfem::future::Sum<U>{} },
-//                            *ir, all_domain_attr, derivatives);
-//          dop_volume.SetParameters({ nodes });
-
-//          fes.GetRestrictionMatrix()->Mult(one, one_trueV);
-//          mfem::Vector sum(1);
-//          dop_volume.Mult(one_trueV, sum);
-
-         // ========= adjoint solve ===================
-
-         // perfom adjoint solver
-         // elsolver.ASolve( dQdu );
-
-         // // extract the adjoint solution
-         // ParGridFunction &adj = elsolver.GetADisplacements();
-
-
-         // ========= postmultiplication ===============
-
-
          rho_gf.ProjectCoefficient(rho);
          paraview_dc.SetCycle(ik+1);
          paraview_dc.SetTime(ik+1);
@@ -826,14 +781,6 @@ int main(int argc, char *argv[])
       Array<int> neumannBdr(pmesh.bdr_attributes.Max());
       std::cout<<"bdr_attributes: "<<pmesh.bdr_attributes.Max()<<std::endl;
       neumannBdr = 0; neumannBdr[neumannBCIndex-1] = 1;
-
-      // QuantityOfInterest QoIEvaluator(&pmesh, QoIType::STRUC_COMPLIANCE, order, 
-      //                         order, neumannBdr, dim);
-      // QoIEvaluator.setTractionCoeff(&tractionLoad);
-
-      // TMOP_QualityMetric *metric = new TMOP_Metric_001;
-      // TargetConstructor *target_c2 = new TargetConstructor(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE, MPI_COMM_WORLD);
-      // NodeAwareTMOPQuality MeshQualityEvaluator(&pmesh, order, metric, target_c2);
 
       std::vector<std::pair<int, int>> essentialBCfilter(pmesh.bdr_attributes.Max());
       essentialBCfilter[0] = {1, 1};
@@ -860,8 +807,6 @@ int main(int argc, char *argv[])
       QuadratureSpace constrolQuadSpace(pmesh, ir);
       QuadratureFunction dens_interp(&constrolQuadSpace);
 
-      ParGridFunction sensitivity_GF(&coord_fes); sensitivity_GF = 0.0;
-
       MMA* mma=new MMA(MPI_COMM_WORLD, trueOptvar.Size(), 0, trueOptvar);
 
       ParaViewDataCollection paraview_dc_morph("isoel_morph", &pmesh);
@@ -875,7 +820,7 @@ int main(int argc, char *argv[])
       paraview_dc_morph.RegisterField("mesh_disp", &mesh_disp);
       paraview_dc_morph.RegisterField("design", &rho_filter);
       paraview_dc_morph.RegisterQField("designQuadrature", &dens_interp);
-      paraview_dc_morph.RegisterField("sensitivity", &sensitivity_GF);
+
 
       paraview_dc_morph.Save();
 
@@ -966,10 +911,7 @@ int main(int argc, char *argv[])
 
          // ----------------------- compute and set material 
 
-
-         
          // update mesh coordinates
-
          pmesh.SetNodes(Xi);
          pmesh.DeleteGeometricFactors();
 
@@ -989,29 +931,16 @@ int main(int argc, char *argv[])
          elsolver_morph.Assemble();
          elsolver_morph.FSolve();
          elsolver_morph.GetSol(u_morph);
-
-         QuantityOfInterest QoIEvaluator(&pmesh, QoIType::STRUC_COMPLIANCE, order,
-                                 order, neumannBdr, dim);
-             QoIEvaluator.setTractionCoeff(&tractionLoad);
     
-             TMOP_QualityMetric *metric = new TMOP_Metric_001;
-             TargetConstructor *target_c2 = new TargetConstructor(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE, MPI_COMM_WORLD);
-             NodeAwareTMOPQuality MeshQualityEvaluator(&pmesh, order, metric, target_c2);
-   
-         // MeshQualityEvaluator.SetDesign( filteredNodePos );
-         // QoIEvaluator.SetDesign( filteredNodePos );
-         QoIEvaluator.SetDiscreteSol( u_morph );                       //fix
+         TMOP_QualityMetric *metric = new TMOP_Metric_001;
+         TargetConstructor *target_c2 = new TargetConstructor(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE, MPI_COMM_WORLD);
+         NodeAwareTMOPQuality MeshQualityEvaluator(&pmesh, order, metric, target_c2);
 
-         double ObjVal = QoIEvaluator.EvalQoI();
          double meshQualityVal = MeshQualityEvaluator.EvalQoI();
-
-         QoIEvaluator.EvalQoIGrad();
          MeshQualityEvaluator.EvalQoIGrad();
-
-         ParLinearForm * dQdu = QoIEvaluator.GetDQDu();
-         ParLinearForm * dQdxExpl = QoIEvaluator.GetDQDx();
          ParLinearForm * dMeshQdxExpl = MeshQualityEvaluator.GetDQDx();
 
+         real_t ObjVal = 0.0;
          Vector dfem_dQdu(state_fes.GetTrueVSize());
          Vector dfem_dQdx(coord_fes.GetTrueVSize());
          dfem_dQdu = 0.0;
@@ -1067,7 +996,6 @@ int main(int argc, char *argv[])
             const auto compliance_outputs = mfem::future::tuple
             {
                mfem::future::FunctionalValue<qDFEM>{}
-               //mfem::future::Identity<qDFEM>{}
             };
             const auto compliance_derivatives =
                std::integer_sequence<size_t, uDFEM, coordsDFEM>{};
@@ -1095,134 +1023,120 @@ int main(int argc, char *argv[])
             mfem::MultiVector compliance_y { compliance_q };
 
             compliance_dop.Mult(compliance_x, compliance_y);
-            real_t dfem_ObjVal = compliance_q.Sum();
-            MPI_Allreduce(MPI_IN_PLACE, &dfem_ObjVal, 1,
+            ObjVal = compliance_q.Sum();
+            MPI_Allreduce(MPI_IN_PLACE, &ObjVal, 1,
                           MPITypeMap<real_t>::mpi_type, MPI_SUM,
                           pmesh.GetComm());
 
-            // compliance_q = 1.0;
-            // mfem::MultiVector compliance_seed { compliance_q };
-
-          std::cout<<dfem_dQdu.Size()<<" abefore: "<<dfem_dQdx.Size()<<std::endl;
 
             compliance_dop.GetDerivative(uDFEM, compliance_x)->Assemble(dfem_dQdu);
             compliance_dop.GetDerivative(coordsDFEM, compliance_x)->Assemble(dfem_dQdx);
-
-          std::cout<<dfem_dQdu.Size()<<"after: "<<dfem_dQdx.Size()<<std::endl;
-            const real_t old_ObjVal = ObjVal;
-            ObjVal = dfem_ObjVal;
-
-            // real_t dQdu_norm = InnerProduct(dfem_dQdu, dfem_dQdu);
-            // real_t dQdx_norm = InnerProduct(dfem_dQdx, dfem_dQdx);
-
-            // MPI_Allreduce(MPI_IN_PLACE, &dQdu_norm, 1,
-            //               MPITypeMap<real_t>::mpi_type, MPI_SUM,
-            //               pmesh.GetComm());
-            // MPI_Allreduce(MPI_IN_PLACE, &dQdx_norm, 1,
-            //               MPITypeMap<real_t>::mpi_type, MPI_SUM,
-            //               pmesh.GetComm());
-
-
-            if (Mpi::Root())
-            {
-               std::cout << "dFEM internal compliance: " << ObjVal
-                         << " | traction compliance: " << old_ObjVal << " | "<< dfem_dQdx.Norml2() << " | "<< dfem_dQdu.Norml2() 
-                         << std::endl;
-            }
-
-            // for (int k = 0; k < dQdu->Size(); k++)
-            // //for (int k = 0; k < 150; k++)
-            // {
-            //    std::cout << " Index: " << k
-            //              << " " << (*dQdu)[k]
-            //              << " " << dfem_dQdu[k]
-            //              << " " << ((*dQdu)[k] - dfem_dQdu[k])
-            //              << " " << (*dQdxExpl)[k]
-            //              << " " << dfem_dQdx[k]
-            //              << " " << ((*dQdxExpl)[k] - dfem_dQdx[k])
-            //              << std::endl;
-            // }
-
-            
          }
 
-
          double val = weight_1 * ObjVal+ weight_tmop * meshQualityVal;
-
-         elsolver_morph.ASolve( *dQdu );
-         mfem::ParGridFunction adj_sol = elsolver_morph.GetADisplacements();
 
          elsolver_morph.ASolve( dfem_dQdu );
          mfem::ParGridFunction adj_sol_dfem = elsolver_morph.GetADisplacements();
 
-
-         // const IntegrationRule &ir = constrolQuadSpace.GetIntRule(0);
-         ParLinearForm LHS_sensitivity(&coord_fes);
-         LinearFormIntegrator *lfi = new ElasticityStiffnessShapeSensitivityIntegrator(
-                                            lambda_SIMP_cf_morph, mu_SIMP_cf_morph, u_morph, adj_sol);
-         //lfi->SetIntRule(&ir);
-         LHS_sensitivity.AddDomainIntegrator(lfi);
-         LHS_sensitivity.Assemble();
-         ParLinearForm dQdxImpl(&coord_fes); dQdxImpl = 0.0;
-         dQdxImpl.Add(-1.0, LHS_sensitivity);
-
-         ParLinearForm LHS_sensitivity_dfem(&coord_fes);
-         LinearFormIntegrator *lfi1 = new ElasticityStiffnessShapeSensitivityIntegrator(
-                                            lambda_SIMP_cf_morph, mu_SIMP_cf_morph, u_morph, adj_sol_dfem);
-         LHS_sensitivity_dfem.AddDomainIntegrator(lfi1);
-         LHS_sensitivity_dfem.Assemble();
          ParLinearForm dQdxImpl_dfem(&coord_fes); dQdxImpl_dfem = 0.0;
-         dQdxImpl_dfem.Add(-1.0, LHS_sensitivity_dfem);
 
-         ParLinearForm dQdx_filtered_1(&coord_fes); dQdx_filtered_1 = 0.0;
-         ParLinearForm dQdx_filtered_2(&coord_fes); dQdx_filtered_2 = 0.0;
-
-         dQdx_filtered_1.Add(weight_1, *dQdxExpl);
-         dQdx_filtered_1.Add(weight_1, dQdxImpl);
-std::cout<<"adj_sol111111331: "<<dQdx_filtered_1.Size()<<" | "<<dQdx_filtered_2.Size()<<" | "<<dfem_dQdx.Size()<<" aa "<<coord_fes.GetTrueVSize()<<" | "<<dQdxImpl_dfem.Size()<<" | " <<std::endl;
-         dQdx_filtered_2.Add(weight_1, dfem_dQdx);
-         dQdx_filtered_2.Add(weight_1, dQdxImpl_dfem);
-std::cout<<"adj_sol1111113www31: "<<std::endl;
-         //for (int k = 0; k < dQdx_filtered_2.Size(); k++)
-         for (int k = 0; k < 15; k++)
          {
-               std::cout << " Index: " << k
-                         << " " << (dQdx_filtered_1)[k]
-                         << " " << (dQdx_filtered_2)[k]
-                         << " " << ((dQdx_filtered_1)[k] - (dQdx_filtered_2)[k]) << " " << dfem_dQdx[k] << " " << dQdxImpl_dfem[k]
-                         << std::endl;
+            static constexpr int uA = 0, adjA = 1, lambdaA = 2;
+            static constexpr int muA = 3, coordsA = 4, qA = 5;
+
+            Array<int> all_domain_attr;
+            if (pmesh.attributes.Size() > 0)
+            {
+               all_domain_attr.SetSize(pmesh.attributes.Max());
+               all_domain_attr = 1;
+            }
+
+            mfem::QuadratureSpace energy_qspace(pmesh, ir);
+            mfem::VectorQuadratureSpace lambda_qspace(energy_qspace, 1);
+            mfem::VectorQuadratureSpace mu_qspace(energy_qspace, 1);
+            mfem::VectorQuadratureSpace q_qspace(energy_qspace, 1);
+
+            CoefficientVector lambda_cv(lambda_SIMP_cf_morph, energy_qspace);
+            CoefficientVector mu_cv(mu_SIMP_cf_morph, energy_qspace);
+            QuadratureFunction energy_q(q_qspace);
+
+            ParGridFunction current_coords(&coord_fes);
+            Vector current_nodes;
+            pmesh.GetNodes(current_nodes);
+            current_coords = current_nodes;
+
+            mfem::future::DifferentiableOperator energy_dop(
+               std::vector<mfem::future::FieldDescriptor>
+            {
+               { uA, &state_fes },
+               { adjA, &state_fes },
+               { lambdaA, &lambda_qspace },
+               { muA, &mu_qspace },
+               { coordsA, &coord_fes }
+            },
+            std::vector<mfem::future::FieldDescriptor>
+            {
+               { qA, &q_qspace }
+            },
+            pmesh);
+
+            const auto energy_inputs = mfem::future::tuple
+            {
+               mfem::future::Gradient<uA>{},
+               mfem::future::Gradient<adjA>{},
+               mfem::future::Identity<lambdaA>{},
+               mfem::future::Identity<muA>{},
+               mfem::future::Gradient<coordsA>{},
+               mfem::future::Weight{}
+            };
+            const auto energy_outputs = mfem::future::tuple
+            {
+               mfem::future::FunctionalValue<qA>{}
+            };
+            const auto energy_derivatives =
+               std::integer_sequence<size_t, coordsA>{};
+
+            if (2 == DIM)
+            {
+               AdjointElasticEnergyQF<2> qf;
+               energy_dop.AddDomainIntegrator<mfem::future::LocalQFBackend>(
+                  qf, energy_inputs, energy_outputs, ir, all_domain_attr,
+                  energy_derivatives);
+            }
+            else if (3 == DIM)
+            {
+               AdjointElasticEnergyQF<3> qf;
+               energy_dop.AddDomainIntegrator<mfem::future::LocalQFBackend>(
+                  qf, energy_inputs, energy_outputs, ir, all_domain_attr,
+                  energy_derivatives);
+            }
+            else { MFEM_ABORT("Space dimension not supported"); }
+
+            mfem::MultiVector energy_x
+            {
+               u_morph, adj_sol_dfem, lambda_cv, mu_cv, current_coords
+            };
+            mfem::MultiVector energy_y { energy_q };
+
+            energy_dop.Mult(energy_x, energy_y);
+
+            Vector dA_dx(coord_fes.GetTrueVSize());
+            dA_dx = 0.0;
+            energy_dop.GetDerivative(coordsA, energy_x)->Assemble(dA_dx);
+
+            dQdxImpl_dfem = 0.0;
+            dQdxImpl_dfem.Add(-1.0, dA_dx);
          }
 
-            mfem::mfem_error("aaaaaaaaaaaaaaaaaaaaaa");
 
-         if(i==40){
+         if(i==60){
             mfem::mfem_error("aaaaaaaaaaaaaaaaaaaaaa");
          }
-
-         MFEM_VERIFY( !static_cast<bool>(LHS_sensitivity.CheckFinite()), "LHS_sensitivity before filter is NAN.");
-
-         // ParLinearForm RHS_sensitivity(coord_fes);
-         // RHS_sensitivity.AddBoundaryIntegrator(new ElasticityTractionShapeSensitivityIntegrator(*QCoef_, adj_sol, 12,12), bdr);
-         // RHS_sensitivity.Assemble();
-
-
-         //dQdxImpl.Add(1.0, *dQdxImplold);
-         //dQdx_->Add( 1.0, RHS_sensitivity);
 
          ParLinearForm dQdx_filtered(&coord_fes); dQdx_filtered = 0.0;
 
-         MFEM_VERIFY( !static_cast<bool>(dQdxExpl->CheckFinite()), "dQdxExpl before filter is NAN.");
-         MFEM_VERIFY( !static_cast<bool>(dQdxImpl.CheckFinite()), "dQdxImpl before filter is NAN.");
-
-         HypreParVector *dQdxExpl_H = dQdxExpl->ParallelAssemble();
-         HypreParVector *dQdxImpl_H = dQdxImpl.ParallelAssemble();
-         sensitivity_GF = 0.0;
-         sensitivity_GF += *dQdxExpl_H;
-         sensitivity_GF += *dQdxImpl_H;
-         //dQdxImpl.Print();
-
-         dQdx_filtered.Add(weight_1, *dQdxExpl);
-         dQdx_filtered.Add(weight_1, dQdxImpl);
+         dQdx_filtered.Add(weight_1, dfem_dQdx);
+         dQdx_filtered.Add(weight_1, dQdxImpl_dfem);
          dQdx_filtered.Add(weight_tmop, *dMeshQdxExpl);
 
          paraview_dc_morph.SetCycle(i+1);
@@ -1238,7 +1152,6 @@ std::cout<<"adj_sol1111113www31: "<<std::endl;
 
          ParLinearForm dQdx(&coord_fes); dQdx = 0.0;
          dQdx.Add(1.0, *dQdxImplfilter);
-         //dQdx.Add(1.0, dQdx_filtered);
 
          HypreParVector *truedQdx = dQdx.ParallelAssemble();
 
@@ -1246,242 +1159,25 @@ std::cout<<"adj_sol1111113www31: "<<std::endl;
 
          objgrad *= 1e-0;
 
-
-
       double epsilon = 1e-8;
 
-       if(dQduFD)
+      if(dQduFD)
       {
-         QuantityOfInterest QoIEvaluator_FD1(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
-         QuantityOfInterest QoIEvaluator_FD2(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
-         QoIEvaluator_FD1.setTractionCoeff(&tractionLoad);
-         QoIEvaluator_FD2.setTractionCoeff(&tractionLoad);
-
-        ParGridFunction tFD_sens(&state_fes); tFD_sens = 0.0;
-        for( int Ia = 0; Ia<u_morph.Size(); Ia++)
-        {
-          u_morph[Ia] +=epsilon;
-
-          QoIEvaluator_FD1.SetDesign( filteredNodePos );
-          QoIEvaluator_FD1.SetDiscreteSol( u_morph);
-          QoIEvaluator_FD1.SetNodes(x0);
-          //QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
-
-          double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
-
-          u_morph[Ia] -=2.0*epsilon;
-
-          QoIEvaluator_FD2.SetDesign( filteredNodePos );
-          QoIEvaluator_FD2.SetDiscreteSol( u_morph );
-          QoIEvaluator_FD2.SetNodes(x0);
-          //QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
-
-          double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
-
-          u_morph[Ia] +=epsilon;
-
-          tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
-        }
-        dQdu->Print();
-        std::cout<<"  ----------  FD Diff ------------"<<std::endl;
-        tFD_sens.Print();
-
-        std::cout<<"  ---------- dQdu Analytic - FD Diff ------------"<<std::endl;
-        ParGridFunction tFD_diff(&state_fes); tFD_diff = 0.0;
-        tFD_diff = *dQdu;
-        tFD_diff -=tFD_sens;
-        //tFD_diff.Print();
-        std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
       }
 
       if(dQdxFD)
       {
-        ParGridFunction tFD_sens(&coord_fes); tFD_sens = 0.0;
-
-        for( int Ia = 0; Ia<filteredNodePos.Size(); Ia++)
-        {
-          if(gridfuncBoundIndicator[Ia] == 1.0)
-          {
-            (*dQdxExpl)[Ia] = 0.0;
-
-            continue;
-          }
-
-          double fac = 1.0-gridfuncBoundIndicator[Ia];
-          filteredNodePos[Ia] +=(fac)*epsilon;
-
-          QuantityOfInterest QoIEvaluator_FD1(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
-          QoIEvaluator_FD1.setTractionCoeff(&tractionLoad);
-          QoIEvaluator_FD1.SetDesign( filteredNodePos );
-          QoIEvaluator_FD1.SetDiscreteSol( u_morph );
-          QoIEvaluator_FD1.SetNodes(x0);
-
-          double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
-
-          filteredNodePos[Ia] -=(fac)*2.0*epsilon;
-
-          QuantityOfInterest QoIEvaluator_FD2(&pmesh, QoIType::STRUC_COMPLIANCE, order, order, neumannBdr, dim);
-          QoIEvaluator_FD2.setTractionCoeff(&tractionLoad);
-          QoIEvaluator_FD2.SetDesign( filteredNodePos );
-          QoIEvaluator_FD2.SetDiscreteSol( u_morph );
-          QoIEvaluator_FD2.SetNodes(x0);
-
-          double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
-
-          filteredNodePos[Ia] +=(fac)*epsilon;
-
-          tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
-        }
-
-        dQdxExpl->Print();
-        std::cout<<"  ----------  FD Diff ------------"<<std::endl;
-        tFD_sens.Print();
-
-        std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
-        ParGridFunction tFD_diff(&coord_fes); tFD_diff = 0.0;
-        tFD_diff = *dQdxExpl;
-        tFD_diff -=tFD_sens;
-        tFD_diff.Print();
-        std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
-        for( int Ia = 0; Ia<filteredNodePos.Size(); Ia++)
-        {
-          tFD_diff[Ia] *= (1.0-gridfuncBoundIndicator[Ia]);
-        }
-        // tFD_diff.Print();
-        std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
       }
 
       if(dQdxFD_global)
-      {
-      //   ParGridFunction tFD_sens(&coord_fes); tFD_sens = 0.0;
-      //   for( int Ia = 0; Ia<filteredNodePos.Size(); Ia++)
-      //   {
-      //     if(gridfuncBoundIndicator[Ia] == 1.0)
-      //     {
-      //       dQdx_physics[Ia] = 0.0;
-      //       dQdx[Ia] = 0.0;
-
-      //       continue;
-      //     }
-      //     std::cout<<"iter: "<< Ia<< " out of: "<<gridfuncOptVar.Size() <<std::endl;
-      //     double fac = 1.0-gridfuncBoundIndicator[Ia];
-      //     gridfuncOptVar[Ia] +=fac*epsilon;
-
-      //     IsoLinElasticSolver elsolver_1(&pmesh, order, pa, dfem);
-      //     elsolver_1.AddDispBC(4, -1, 0.0);
-      //     elsolver_1.AddSurfLoad(neumannBCIndex, 0.0, neumannLoad);
-      //     elsolver_1.SetLinearSolver(1e-6,1e-8,100);
-
-      //    Vector Xi = X0_;
-      //    Xi += filteredNodePos;
-
-      //    // ----------------------   gslib densities
-
-      //    Vector pos_quad_final;
-      //    GetQuadPointsPositions(pmesh, constrolQuadSpace, Xi, pos_quad_final);
-
-      //    FindPointsGSLIB finder(pmesh.GetComm());
-      //    finder.SetL2AvgType(FindPointsGSLIB::NONE);
-      //    finder.Setup(pmesh);
-      //    finder.Interpolate(pos_quad_final, test_design_filter, dens_interp);      //TODO filtered density
-
-      //    QuadratureFunctionCoefficient newDensityCoeff(dens_interp);         
-      //    SIMPInterpolationCoefficientUsingCoeff SIMP_cf_morph(&newDensityCoeff,rho_min, 1.0, 3.0);
-      //    ProductCoefficient lambda_SIMP_cf_morph(lambda_cf,SIMP_cf_morph);
-      //    ProductCoefficient mu_SIMP_cf_morph(mu_cf,SIMP_cf_morph);
-         
-      //    pmesh.SetNodes(Xi);
-      //    pmesh.DeleteGeometricFactors();
-
-      //    elsolver.SetMaterialLame(lambda_SIMP_cf_morph, mu_SIMP_cf_morph);
-      //    elsolver.Assemble();
-      //    elsolver.FSolve();
-
-
-
-      //     solver_FD1.SetDesign( gridfuncOptVar );
-      //     solver_FD1.FSolve();
-      //     ParGridFunction & discreteSol_1 = solver_FD1.GetSolution();
-
-      //     QoIEvaluator_FD1.setTrueSolCoeff(  trueSolution );
-      //     if(qoiType == QoIType::ENERGY){QoIEvaluator_FD1.setTrueSolCoeff( QCoef );}
-      //     QoIEvaluator_FD1.setTrueSolGradCoeff(trueSolutionGrad);
-      //     QoIEvaluator_FD1.SetDesign( gridfuncOptVar );
-      //     QoIEvaluator_FD1.SetDiscreteSol( discreteSol_1 );
-      //     QoIEvaluator_FD1.SetNodes(x0);
-      //     QoIEvaluator_FD1.SetIntegrationRules(&IntRulesLo, quad_order);
-
-      //     double ObjVal_FD1 = QoIEvaluator_FD1.EvalQoI();
-
-      //     gridfuncOptVar[Ia] -=fac*2.0*epsilon;
-
-      //     solver_FD2.SetDesign( gridfuncOptVar );
-      //     solver_FD2.FSolve();
-      //     ParGridFunction & discreteSol_2 = solver_FD2.GetSolution();
-
-      //     QoIEvaluator_FD2.setTrueSolCoeff(  trueSolution );
-      //     if(qoiType == QoIType::ENERGY){QoIEvaluator_FD2.setTrueSolCoeff( QCoef );}
-      //     QoIEvaluator_FD2.setTrueSolGradCoeff(trueSolutionGrad);
-      //     QoIEvaluator_FD2.SetDesign( gridfuncOptVar );
-      //     QoIEvaluator_FD2.SetDiscreteSol( discreteSol_2 );
-      //     QoIEvaluator_FD2.SetNodes(x0);
-      //     QoIEvaluator_FD2.SetIntegrationRules(&IntRulesLo, quad_order);
-
-      //     double ObjVal_FD2 = QoIEvaluator_FD2.EvalQoI();
-
-      //     gridfuncOptVar[Ia] +=fac*epsilon;
-
-      //     tFD_sens[Ia] = (ObjVal_FD1-ObjVal_FD2)/(2.0*epsilon);
-      //   }
-
-      //   dQdx.Print();
-      //   std::cout<<"  ----------  FD Diff - Global ------------"<<std::endl;
-      //   tFD_sens.Print();
-
-      //   std::cout<<"  ---------- dQdx Analytic - FD Diff ------------"<<std::endl;
-      //   ParGridFunction tFD_diff(pfespace); tFD_diff = 0.0;
-      //   tFD_diff = dQdx;
-      //   tFD_diff -=tFD_sens;
-      //   tFD_diff.Print();
-      //   std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
-      //   for( int Ia = 0; Ia<gridfuncOptVar.Size(); Ia++)
-      //   {
-      //     tFD_diff[Ia] *= (1.0-gridfuncLSBoundIndicator[Ia]);
-      //   }
-      //   // tFD_diff.Print();
-      //   std::cout<<"norm: "<<tFD_diff.Norml2()<<std::endl;
+      {     
       }
 
       if( BreakAfterFirstIt )
       {
         mfem_error("break before update");
       }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//       //----------------------------------------------------------------------------------------------------------
-//       gridfuncOptVar.SetTrueVector();
+      //----------------------------------------------------------------------------------------------------------
       Vector & trueBounds = gridfuncBoundIndicator.GetTrueVector();
       Vector & trueBounds_Max = gridfuncBoundfunc_Max.GetTrueVector();
       Vector & trueBounds_Min = gridfuncBoundfunc_Min.GetTrueVector();
@@ -1505,17 +1201,6 @@ std::cout<<"adj_sol1111113www31: "<<std::endl;
           xxmax[li] =  1e-10;
         }
       }
-
-
-      ParaViewDataCollection paraview_dc_morph1("isoel_bdr_mor11ph", &pmesh);
-      paraview_dc_morph1.SetPrefixPath("ParaView");
-      paraview_dc_morph1.SetLevelsOfDetail(1);
-      paraview_dc_morph1.SetDataFormat(VTKFormat::BINARY);
-      paraview_dc_morph1.SetHighOrderOutput(true);
-      paraview_dc_morph1.SetCycle(0);
-      paraview_dc_morph1.SetTime(0.0);
-      paraview_dc_morph1.RegisterField("bdr", &gridfuncBoundIndicator);
-      paraview_dc_morph1.Save();
 
 //       Vector Xi = x0;
 //       Xi += filteredDesign;
