@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "fem/dfem/fieldoperator.hpp"
+#include "../../fieldoperator.hpp"
 #include "kernels.hpp"
 #include "util.hpp"
 
