@@ -1540,9 +1540,7 @@ void DifferentiableOperator::AddIntegrator(
                   callback_ctx, qf, inputs, outputs)));
       };
 
-#ifdef MFEM_USE_ENZYME
       constexpr size_t idx = decltype(i)::value;
-#endif
 
       if constexpr (check_if_functional_v<output_t>)
       {
@@ -1647,10 +1645,9 @@ void DifferentiableOperator::AddIntegrator(
       }
       else
       {
-         constexpr size_t derivative_idx = decltype(i)::value;
          integrator_qp_caches.emplace_back(std::make_unique<Vector>());
          Vector &qp_cache = *integrator_qp_caches.back();
-         create_callbacks(i, derivative_idx,
+         create_callbacks(i, idx,
                           derivative_setup_callbacks,
                           derivative_apply_callbacks,
                           daction_transpose_callbacks,
