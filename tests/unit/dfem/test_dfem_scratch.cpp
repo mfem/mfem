@@ -258,12 +258,13 @@ void CheckScratchResults(ParMesh &pmesh, const IntegrationRule &ir,
          T->SetIntPoint(&ip);
          Vector p;
          T->Transform(ip, p);
-         const real_t u_q = 1.0 + p(0) + 0.25 * (p.Size() > 1 ? p(1) : 0.0);
+         const real_t u_q = 1.0_r + p(0) + 0.25_r *
+                            (p.Size() > 1 ? p(1) : 0.0_r);
          const int idx = q + ir.GetNPoints() * e;
          local_scratch_err = std::max(local_scratch_err,
                                       std::abs(scratch_h[idx] - u_q * u_q));
          local_scratch_d_err = std::max(local_scratch_d_err,
-                                        std::abs(scratch_d_h[idx] - 2.0 * u_q));
+                                        std::abs(scratch_d_h[idx] - 2.0_r * u_q));
       }
    }
 
