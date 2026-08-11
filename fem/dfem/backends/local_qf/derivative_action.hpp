@@ -295,6 +295,7 @@ public:
       const auto &out_d1d = data.out_d1d;
       const auto &out_q1d = data.out_q1d;
       const auto &input_dep = data.input_dep;
+      MFEM_CONTRACT_VAR(input_dep);
       const auto d_attr = data.d_attr;
       const bool has_attr = data.has_attr;
       const auto d_elem_attr = data.d_elem_attr;
