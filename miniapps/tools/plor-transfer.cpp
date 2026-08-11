@@ -261,12 +261,12 @@ int main(int argc, char *argv[])
       vel_gt.ForwardOperator().Mult(w, w_lor);
       compute_mass(w_lor, ho_momentum, "rho w LOR", prod_lor_weight);
 
-      ParGridFunction w_prev = w;
-      vel_gt.BackwardOperator().Mult(w_lor, w);
-      compute_mass(w, ho_momentum, "P(rho w) ", prod_weight);
-
       if (vel_gt.SupportsBackwardsOperator())
       {
+         ParGridFunction w_prev = w;
+         vel_gt.BackwardOperator().Mult(w_lor, w);
+         compute_mass(w, ho_momentum, "P(rho w) ", prod_weight);
+
          w_prev -= w;
          Vector w_prev_true(fespace.GetTrueVSize());
          w_prev.GetTrueDofs(w_prev_true);
