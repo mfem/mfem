@@ -1641,9 +1641,10 @@ void DifferentiableOperator::AddIntegrator(
       }
       else
       {
+         constexpr size_t derivative_idx = decltype(i)::value;
          integrator_qp_caches.emplace_back(std::make_unique<Vector>());
          Vector &qp_cache = *integrator_qp_caches.back();
-         create_callbacks(i, idx,
+         create_callbacks(i, derivative_idx,
                           derivative_setup_callbacks,
                           derivative_apply_callbacks,
                           daction_transpose_callbacks,
