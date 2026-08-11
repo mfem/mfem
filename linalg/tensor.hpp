@@ -1770,13 +1770,15 @@ tensor<T, n> linear_solve(tensor<T, n, n> A, const tensor<T, n> b)
  * @param[in] A The matrix to invert
  * @note Uses a shortcut for inverting a 1x1, 2x2 and 3x3 matrix
  */
-template <typename T>
+template <typename T,
+          typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 inline MFEM_HOST_DEVICE tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 {
    return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
 }
 
-template <typename T>
+template <typename T,
+          typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
 {
    T inv_detA(1.0_r / det(A));
@@ -1795,7 +1797,8 @@ inline MFEM_HOST_DEVICE tensor<T, 2, 2> inv(const tensor<T, 2, 2>& A)
  * @overload
  * @note Uses a shortcut for inverting a 3-by-3 matrix
  */
-template <typename T>
+template <typename T,
+          typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
 {
    T inv_detA(1.0_r / det(A));
@@ -1821,8 +1824,9 @@ inline MFEM_HOST_DEVICE tensor<T, 3, 3> inv(const tensor<T, 3, 3>& A)
  */
 template <typename T, int n>
 MFEM_HOST_DEVICE
-typename std::enable_if<(n > 3), tensor<T, n, n>>::type
-                                               inv(const tensor<T, n, n>& A)
+typename std::enable_if<(n > 3) && !is_dual_number<T>::value,
+         tensor<T, n, n>>::type
+         inv(const tensor<T, n, n>& A)
 {
    auto abs  = [](T x) { return (x < 0) ? -x : x; };
    auto swap = [](tensor<T, n>& x, tensor<T, n>& y)
@@ -1891,10 +1895,13 @@ typename std::enable_if<(n > 3), tensor<T, n, n>>::type
  * TODO: compare performance of this hardcoded implementation to just using inv() directly
  */
 template <typename value_type, typename gradient_type, int n> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> inv(
-   tensor<dual<value_type, gradient_type>, n, n> A)
+tensor<dual<value_type, gradient_type>, n, n> inv(
+   const tensor<dual<value_type, gradient_type>, n, n> &A)
 {
-   auto invA = inv(get_value(A));
+   const auto invA = inv(make_tensor<n, n>([&](int i, int j)
+   {
+      return A[i][j].value;
+   }));
    return make_tensor<n, n>([&](int i, int j)
    {
       auto          value = invA[i][j];
