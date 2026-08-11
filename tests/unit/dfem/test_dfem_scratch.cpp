@@ -71,12 +71,15 @@ struct CubicQFWithScratch : QFWithScratchType
 
       for (int q = 0; q < NQ; ++q)
       {
-         scratch_q(q) = scratch_q(q) * x(q);
+         const dscalar_t scratch_val = scratch_q(q);
+         const dscalar_t x_val = x(q);
+         scratch_q(q) = scratch_val * x_val;
       }
 
       for (int q = 0; q < NQ; ++q)
       {
-         y(q) = coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
+         const dscalar_t scratch_val = scratch_q(q);
+         y(q) = coef(q) * scratch_val * x(q) * det(J(q)) * w(q);
       }
    }
 };
@@ -99,8 +102,9 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratchType
 
       for (int q = 0; q < NQ; ++q)
       {
-         scratch_vector(q)(0) = x(q);
-         scratch_vector(q)(1) = x(q) * x(q);
+         const dscalar_t x_val = x(q);
+         scratch_vector(q)(0) = x_val;
+         scratch_vector(q)(1) = x_val * x_val;
       }
 
       for (int q = 0; q < NQ; ++q)
@@ -110,7 +114,8 @@ struct CubicQFWithScratchMultipleSizes : QFWithScratchType
 
       for (int q = 0; q < NQ; ++q)
       {
-         y(q) = coef(q) * scratch_scalar(q) * det(J(q)) * w(q);
+         const dscalar_t scratch_val = scratch_scalar(q);
+         y(q) = coef(q) * scratch_val * det(J(q)) * w(q);
       }
    }
 };
@@ -144,13 +149,15 @@ struct CubicQFWithGlobalScratch : QFWithGlobalScratchType
 
       for (int q = 0; q < NQ; ++q)
       {
-         scratch_q(q) = x(q) * x(q);
+         const dscalar_t x_val = x(q);
+         scratch_q(q) = x_val * x_val;
       }
 
       for (int q = 0; q < NQ; ++q)
       {
          const real_t global_scale = has_scale ? scale * global_vector(0) : 0.0;
-         y(q) = global_scale * coef(q) * scratch_q(q) * x(q) * det(J(q)) * w(q);
+         const dscalar_t scratch_val = scratch_q(q);
+         y(q) = global_scale * coef(q) * scratch_val * x(q) * det(J(q)) * w(q);
       }
    }
 };
