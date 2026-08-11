@@ -68,11 +68,14 @@ class DerivativeAction
    std::make_index_sequence<n_inputs> {}));
 
    /// Per-quadrature-point shadow argument tuple. Only the active inputs and
-   /// the outputs are materialized; the rest are `enzyme_const` and their
-   /// shadow slots are never addressed. This is the innermost live state of the
-   /// kernel, and on device it shares a per-thread register budget capped by
-   /// the launch bounds, so the dead slots are worth removing explicitly rather
-   /// than hoping the optimizer splits the tuple.
+   /// the outputs are materialized where supported; the rest are `enzyme_const`
+   /// and their shadow slots are never addressed. This is the innermost live
+   /// state of the kernel, and on device it shares a per-thread register budget
+   /// capped by the launch bounds, so the dead slots are worth removing
+   /// explicitly rather than hoping the optimizer splits the tuple.
+#ifdef _MSC_VER
+   using shadow_args_t = args_tuple_t;
+#else
    template <std::size_t... Is>
    static auto shadow_tuple_type(std::index_sequence<Is...>)
    -> masked_args_tuple_t < args_tuple_t,
@@ -80,6 +83,7 @@ class DerivativeAction
 
    using shadow_args_t = decltype(shadow_tuple_type(
    std::make_index_sequence<n_inputs + n_outputs> {}));
+#endif
 
 #ifdef MFEM_USE_ENZYME
    /// Forward-mode call with the activity of every q-function parameter fixed

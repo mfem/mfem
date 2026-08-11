@@ -814,7 +814,7 @@ void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
 
 #ifdef MFEM_USE_ENZYME
 template <const int BLCK, typename DBODY>
-__attribute__((always_inline)) void CuWrap1DWithEnzyme(const int N,
+void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
                                                        DBODY &&d_body);
 #endif
 
@@ -912,7 +912,7 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 {
    static constexpr int ACTUAL_BLCK = BLCK == 0 ? MFEM_CUDA_BLOCKS : BLCK;
 
-   __attribute__((always_inline)) static void Call(const int N, DBODY *body)
+   static void __attribute__((always_inline)) Call(const int N, DBODY *body)
    {
       if (N == 0)
       {
@@ -923,7 +923,7 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
       MFEM_GPU_CHECK(cudaGetLastError());
    }
 
-   __attribute__((always_inline)) static void FwdCall(const int N, int dN,
+   static void __attribute__((always_inline)) FwdCall(const int N, int dN,
                                                       DBODY *body,
                                                       DBODY *d_body)
    {
@@ -945,7 +945,7 @@ template <const int BLCK, typename DBODY> struct CuWrap1DStruct
 };
 
 template <const int BLCK, typename DBODY>
-__attribute__((always_inline)) void CuWrap1DWithEnzyme(const int N,
+void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
                                                        DBODY &&d_body)
 {
    using DBODY_BASE = std::remove_reference_t<DBODY>;
