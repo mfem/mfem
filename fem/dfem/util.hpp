@@ -158,7 +158,8 @@ __attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void
 for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
-__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void for_constexpr(lambda&& f)
+__attribute__((always_inline)) MFEM_HOST_DEVICE constexpr void for_constexpr(
+   lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }

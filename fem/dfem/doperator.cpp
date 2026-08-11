@@ -287,7 +287,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    size_t derivative_id)
 {
-   MFEM_ASSERT(has_functional_integrator,
+   MFEM_ASSERT(HasFunctionalIntegrator(),
                "stateless GetDerivative is available only for functionals");
 
    const auto it_action = derivative_action_callbacks.find(derivative_id);
@@ -315,7 +315,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    size_t gradient_id, size_t direction_id, const Vector &x)
 {
-   MFEM_ASSERT(has_functional_integrator,
+   MFEM_ASSERT(HasFunctionalIntegrator(),
                "second derivatives are available only for functionals");
 
    return MakeStatefulSecondDerivativeOperator(
@@ -345,7 +345,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    size_t gradient_id, size_t direction_id, const MultiVector &x,
    const bool use_cached_setup)
 {
-   MFEM_ASSERT(has_functional_integrator,
+   MFEM_ASSERT(HasFunctionalIntegrator(),
                "second derivatives are available only for functionals");
 
    return MakeStatefulSecondDerivativeOperator(

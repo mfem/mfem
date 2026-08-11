@@ -1124,6 +1124,15 @@ public:
    }
 
 private:
+   bool HasFunctionalIntegrator() const
+   {
+#ifdef MFEM_USE_ENZYME
+      return has_functional_integrator;
+#else
+      return false;
+#endif
+   }
+
    const ParMesh &mesh;
 
    MultLevel mult_level = TVECTOR;
