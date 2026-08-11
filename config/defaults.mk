@@ -30,8 +30,11 @@ OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 
 # Enabled -pedantic flag only for gcc or clang. nvcc complains with -pedantic
 # because of line directives.
-PEDANTIC_FLAG = $(if $(shell $(MFEM_CXX) -v 2>&1 | \
-   grep -Eiq 'gcc version | clang version' && echo 1), -pedantic,)
+PEDANTIC_FLAG = $(if \
+   $(findstring NVIDIA,$(shell $(MFEM_CXX) --version 2>&1)),, \
+   $(if $(or \
+      $(findstring gcc version,$(shell $(MFEM_CXX) -v 2>&1)), \
+      $(findstring clang version,$(shell $(MFEM_CXX) -v 2>&1))),-pedantic,))
 # Enable shadow warnings for clang only; GCC's -Wshadow flags more.
 SHADOW_WARNING_FLAG = $(if $(findstring clang,\
  $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
