@@ -214,10 +214,21 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][GPU]")
    ParFiniteElementSpace vert_fespace(edge_fespace.GetParMesh(), &vert_fec);
 
    ParDiscreteLinearOperator grad(&vert_fespace, &edge_fespace);
-   grad.AddDomainInterpolator(new GradientInterpolator);
+   if (space_type == RT)
+   {
+      grad.AddDomainInterpolator(new CurlInterpolator);
+   }
+   else
+   {
+      grad.AddDomainInterpolator(new GradientInterpolator);
+   }
    grad.Assemble();
    grad.Finalize();
    std::unique_ptr<HypreParMatrix> G(grad.ParallelAssemble());
+   if (space_type == RT)
+   {
+      *G *= -1_r;
+   }
 
    Vector X_vert;
    BatchedLORAssembly::FormLORVertexCoordinates(fespace, X_vert);

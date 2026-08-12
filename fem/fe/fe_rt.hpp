@@ -79,13 +79,6 @@ public:
                     DenseMatrix &curl) const override
    { ProjectCurl2D_RT(nk, dof2nk, fe, Trans, curl); }
 
-   // -ProjectCurl(fe, Trans, curl); H1 -> H(div)
-   // FIXME: used by HypreAMS, perhaps could be removed?
-   void ProjectGrad(const FiniteElement &fe,
-                    ElementTransformation &Trans,
-                    DenseMatrix &curl) const override
-   { ProjectRotGrad_RT(nk, dof2nk, fe, Trans, curl); }
-
    void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 
 protected:
@@ -217,12 +210,6 @@ public:
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
    { ProjectCurl2D_RT(nk, dof2nk, fe, Trans, curl); }
-
-   // FIXME: used by HypreAMS, perhaps could be removed?
-   void ProjectGrad(const FiniteElement &fe,
-                    ElementTransformation &Trans,
-                    DenseMatrix &curl) const override
-   { ProjectRotGrad_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 
