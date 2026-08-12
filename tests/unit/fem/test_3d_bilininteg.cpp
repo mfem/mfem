@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,9 @@ using namespace mfem;
 
 namespace bilininteg_3d
 {
+
+static int first_3D_et = (int)Element::TETRAHEDRON;
+static int  last_3D_et = (int)Element::PYRAMID;
 
 double zero3(const Vector & x) { return 0.0; }
 void Zero3(const Vector & x, Vector & v) { v.SetSize(3); v = 0.0; }
@@ -531,8 +534,7 @@ TEST_CASE("3D Bilinear Mass Integrators",
    FunctionCoefficient q3_coef(q3);
    FunctionCoefficient qf3_coef(qf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -807,8 +809,7 @@ TEST_CASE("3D Bilinear Vector Mass Integrators",
    VectorFunctionCoefficient DF3_coef(dim, DF3);
    VectorFunctionCoefficient MF3_coef(dim, MF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -1891,153 +1892,152 @@ TEST_CASE("3D Bilinear Gradient Integrator",
    VectorFunctionCoefficient Ddf3_coef(dim, DGrad_f3);
    VectorFunctionCoefficient Mdf3_coef(dim, MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   auto type = GENERATE(range(first_3D_et, last_3D_et + 1));
+   CAPTURE(type);
+
+   Mesh mesh =
+      Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+
+   SECTION("Operators on H1 for element type " + std::to_string(type))
    {
-      Mesh mesh =
-         Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
+      H1_FECollection    fec_h1(order, dim);
+      FiniteElementSpace fespace_h1(&mesh, &fec_h1);
 
-      SECTION("Operators on H1 for element type " + std::to_string(type))
+      GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+
+      SECTION("Mapping H1 to ND")
       {
-         H1_FECollection    fec_h1(order, dim);
-         FiniteElementSpace fespace_h1(&mesh, &fec_h1);
+         ND_FECollection    fec_nd(order, dim);
+         FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
-         GridFunction f_h1(&fespace_h1); f_h1.ProjectCoefficient(f3_coef);
+         BilinearForm m_nd(&fespace_nd);
+         m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_nd.Assemble();
+         m_nd.Finalize();
 
-         SECTION("Mapping H1 to ND")
+         GridFunction g_nd(&fespace_nd);
+
+         Vector tmp_nd(fespace_nd.GetNDofs());
+
+         SECTION("Without Coefficient")
          {
-            ND_FECollection    fec_nd(order, dim);
-            FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-            BilinearForm m_nd(&fespace_nd);
-            m_nd.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_nd.Assemble();
-            m_nd.Finalize();
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            GridFunction g_nd(&fespace_nd);
-
-            Vector tmp_nd(fespace_nd.GetNDofs());
-
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(df3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(qdf3_coef) < tol );
-            }
-            SECTION("With Diagonal Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(D3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Ddf3_coef) < tol );
-            }
-            SECTION("With Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_nd);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(M3_coef));
-               blf.Assemble();
-               blf.Finalize();
-
-               blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
-               CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
-
-               REQUIRE( g_nd.ComputeL2Error(Mdf3_coef) < tol );
-            }
+            REQUIRE( g_nd.ComputeL2Error(df3_coef) < tol );
          }
-         SECTION("Mapping H1 to RT")
+         SECTION("With Scalar Coefficient")
          {
-            // Tests requiring an RT test space with same order of
-            // convergence as the RT trial space
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            RT_FECollection    fec_rt(order - 1, dim);
-            FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            BilinearForm m_rt(&fespace_rt);
-            m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
-            m_rt.Assemble();
-            m_rt.Finalize();
+            REQUIRE( g_nd.ComputeL2Error(qdf3_coef) < tol );
+         }
+         SECTION("With Diagonal Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(D3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            GridFunction g_rt(&fespace_rt);
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-            Vector tmp_rt(fespace_rt.GetNDofs());
+            REQUIRE( g_nd.ComputeL2Error(Ddf3_coef) < tol );
+         }
+         SECTION("With Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_nd);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(M3_coef));
+            blf.Assemble();
+            blf.Finalize();
 
-            SECTION("Without Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
-               blf.Assemble();
-               blf.Finalize();
+            blf.Mult(f_h1, tmp_nd); g_nd = 0.0;
+            CG(m_nd, tmp_nd, g_nd, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+            REQUIRE( g_nd.ComputeL2Error(Mdf3_coef) < tol );
+         }
+      }
+      SECTION("Mapping H1 to RT")
+      {
+         // Tests requiring an RT test space with same order of
+         // convergence as the RT trial space
 
-               REQUIRE( g_rt.ComputeL2Error(df3_coef) < tol );
-            }
-            SECTION("With Scalar Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(q3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         RT_FECollection    fec_rt(order - 1, dim);
+         FiniteElementSpace fespace_rt(&mesh, &fec_rt);
 
-               blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+         BilinearForm m_rt(&fespace_rt);
+         m_rt.AddDomainIntegrator(new VectorFEMassIntegrator());
+         m_rt.Assemble();
+         m_rt.Finalize();
 
-               REQUIRE( g_rt.ComputeL2Error(qdf3_coef) < tol );
-            }
-            SECTION("With Diagonal Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(D3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         GridFunction g_rt(&fespace_rt);
 
-               blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+         Vector tmp_rt(fespace_rt.GetNDofs());
 
-               REQUIRE( g_rt.ComputeL2Error(Ddf3_coef) < tol );
-            }
-            SECTION("With Matrix Coefficient")
-            {
-               MixedBilinearForm blf(&fespace_h1, &fespace_rt);
-               blf.AddDomainIntegrator(
-                  new MixedVectorGradientIntegrator(M3_coef));
-               blf.Assemble();
-               blf.Finalize();
+         SECTION("Without Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(new MixedVectorGradientIntegrator());
+            blf.Assemble();
+            blf.Finalize();
 
-               blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
-               CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
 
-               REQUIRE( g_rt.ComputeL2Error(Mdf3_coef) < tol );
-            }
+            REQUIRE( g_rt.ComputeL2Error(df3_coef) < tol );
+         }
+         SECTION("With Scalar Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(q3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(qdf3_coef) < tol );
+         }
+         SECTION("With Diagonal Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(D3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(Ddf3_coef) < tol );
+         }
+         SECTION("With Matrix Coefficient")
+         {
+            MixedBilinearForm blf(&fespace_h1, &fespace_rt);
+            blf.AddDomainIntegrator(
+               new MixedVectorGradientIntegrator(M3_coef));
+            blf.Assemble();
+            blf.Finalize();
+
+            blf.Mult(f_h1, tmp_rt); g_rt = 0.0;
+            CG(m_rt, tmp_rt, g_rt, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+            REQUIRE( g_rt.ComputeL2Error(Mdf3_coef) < tol );
          }
       }
    }
@@ -2045,6 +2045,7 @@ TEST_CASE("3D Bilinear Gradient Integrator",
 
 TEST_CASE("3D Bilinear Curl Integrator",
           "[MixedVectorCurlIntegrator]"
+          "[MixedCurlIntegrator]"
           "[MixedVectorIntegrator]"
           "[BilinearFormIntegrator]"
           "[NonlinearFormIntegrator]")
@@ -2053,8 +2054,7 @@ TEST_CASE("3D Bilinear Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2074,6 +2074,63 @@ TEST_CASE("3D Bilinear Curl Integrator",
          FiniteElementSpace fespace_nd(&mesh, &fec_nd);
 
          GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
+
+         SECTION("Mapping ND to vector L2")
+         {
+            L2_FECollection    fec_l2(order - 1, dim);
+            FiniteElementSpace fespace_l2(&mesh, &fec_l2,dim);
+
+            BilinearForm m_l2(&fespace_l2);
+            m_l2.AddDomainIntegrator(new VectorMassIntegrator());
+            m_l2.Assemble();
+            m_l2.Finalize();
+
+            GridFunction g_l2(&fespace_l2);
+
+            Vector tmp_l2(fespace_l2.GetVSize());
+
+            SECTION("With Scalar Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_nd, &fespace_l2);
+               blf.AddDomainIntegrator(
+                  new MixedCurlIntegrator(q3_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               blf.Mult(f_nd, tmp_l2); g_l2 = 0.0;
+               CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+               REQUIRE( g_l2.ComputeL2Error(qdF3_coef) < tol );
+            }
+         }
+         SECTION("Mapping ND to vector H1")
+         {
+            H1_FECollection    fec_h1(order - 1, dim);
+            FiniteElementSpace fespace_h1(&mesh, &fec_h1,dim);
+
+            BilinearForm m_h1(&fespace_h1);
+            m_h1.AddDomainIntegrator(new VectorMassIntegrator());
+            m_h1.Assemble();
+            m_h1.Finalize();
+
+            GridFunction g_h1(&fespace_h1);
+
+            Vector tmp_h1(fespace_h1.GetVSize());
+
+            SECTION("With Scalar Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_nd, &fespace_h1);
+               blf.AddDomainIntegrator(
+                  new MixedCurlIntegrator(q3_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               blf.Mult(f_nd, tmp_h1); g_h1 = 0.0;
+               CG(m_h1, tmp_h1, g_h1, 0, 200, cg_rtol * cg_rtol, 0.0);
+
+               REQUIRE( g_h1.ComputeL2Error(qdF3_coef) < tol );
+            }
+         }
 
          SECTION("Mapping ND to RT")
          {
@@ -2218,8 +2275,7 @@ TEST_CASE("3D Bilinear Cross Product Gradient Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2305,8 +2361,7 @@ TEST_CASE("3D Bilinear Cross Product Curl Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2389,8 +2444,7 @@ TEST_CASE("3D Bilinear Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2508,8 +2562,7 @@ TEST_CASE("3D Bilinear Vector Divergence Integrator",
    double cg_rtol = 1e-14;
    double tol = 1e-9;
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2596,8 +2649,7 @@ TEST_CASE("3D Bilinear Vector Product Integrators",
    VectorFunctionCoefficient  V3_coef(dim, V3);
    VectorFunctionCoefficient Vf3_coef(dim, Vf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -2822,8 +2874,7 @@ TEST_CASE("3D Bilinear Vector Cross Product Integrators",
    VectorFunctionCoefficient   V3_coef(dim, V3);
    VectorFunctionCoefficient VxF3_coef(dim, VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3039,8 +3090,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
    VectorFunctionCoefficient  V3_coef(dim, V3);
    FunctionCoefficient       VF3_coef(VdotF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3204,8 +3254,7 @@ TEST_CASE("3D Bilinear Directional Derivative Integrator",
    VectorFunctionCoefficient   V3_coef(dim, V3);
    FunctionCoefficient       Vdf3_coef(VdotGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3299,8 +3348,7 @@ TEST_CASE("3D Bilinear Weak Gradient Integrators",
    VectorFunctionCoefficient  df3_coef(dim, Grad_f3);
    VectorFunctionCoefficient dqf3_coef(dim, Grad_qf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3507,8 +3555,7 @@ TEST_CASE("3D Bilinear Scalar Weak Divergence Integrators",
    VectorFunctionCoefficient  Vf3_coef(dim, Vf3);
    FunctionCoefficient       dVf3_coef(Div_Vf3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3661,8 +3708,7 @@ TEST_CASE("3D Bilinear Weak Divergence Integrators",
    FunctionCoefficient      dDF3_coef(Div_DF3);
    FunctionCoefficient      dMF3_coef(Div_MF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -3997,8 +4043,7 @@ TEST_CASE("3D Bilinear Weak Curl Integrators",
    VectorFunctionCoefficient dDF3_coef(dim, Curl_DF3);
    VectorFunctionCoefficient dMF3_coef(dim, Curl_MF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4320,8 +4365,7 @@ TEST_CASE("3D Bilinear Weak Div Cross Integrators",
    VectorFunctionCoefficient  VF3_coef(dim, VcrossF3);
    FunctionCoefficient       dVF3_coef(Div_VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4456,8 +4500,7 @@ TEST_CASE("3D Bilinear Weak Curl Cross Integrators",
    VectorFunctionCoefficient  VxF3_coef(dim, VcrossF3);
    VectorFunctionCoefficient dVxF3_coef(dim, Curl_VcrossF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4589,8 +4632,7 @@ TEST_CASE("3D Bilinear Weak Grad Dot Product Integrators",
    FunctionCoefficient       VdotF3_coef(VdotF3);
    VectorFunctionCoefficient   dVF3_coef(dim, GradVdotF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4727,8 +4769,7 @@ TEST_CASE("3D Bilinear Grad Div Integrators",
    VectorFunctionCoefficient dVdf3_coef(dim, GradVdotGrad_f3);
    FunctionCoefficient       dVdF3_coef(DivVDivF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4854,8 +4895,7 @@ TEST_CASE("3D Bilinear Grad Grad Integrators",
    FunctionCoefficient      dqdf3_coef(Div_qGrad_f3);
    FunctionCoefficient      dMdf3_coef(Div_MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -4991,8 +5031,7 @@ TEST_CASE("3D Bilinear Mixed Grad Grad Integrators",
    FunctionCoefficient      dDdf3_coef(Div_DGrad_f3);
    FunctionCoefficient      dMdf3_coef(Div_MGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5150,8 +5189,7 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Grad Integrators",
    VectorFunctionCoefficient Vxdf3_coef(dim, VcrossGrad_f3);
    FunctionCoefficient      dVxdf3_coef(Div_VcrossGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5223,8 +5261,7 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Grad Integrators",
    VectorFunctionCoefficient VxdF3_coef(dim, VcrossCurlF3);
    FunctionCoefficient      dVxdF3_coef(DivVcrossCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5307,8 +5344,7 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
    VectorFunctionCoefficient  qdF3_coef(dim, qCurlF3);
    VectorFunctionCoefficient dqdF3_coef(dim, Curl_qCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5317,6 +5353,9 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
       {
          ND_FECollection    fec_nd(order, dim);
          FiniteElementSpace fespace_nd(&mesh, &fec_nd);
+
+         ND_FECollection    enriched_fec_nd(order+1, dim);
+         FiniteElementSpace enriched_fespace_nd(&mesh, &enriched_fec_nd);
 
          GridFunction f_nd(&fespace_nd); f_nd.ProjectCoefficient(F3_coef);
 
@@ -5382,6 +5421,43 @@ TEST_CASE("3D Bilinear Curl Curl Integrators",
                REQUIRE( g_nd.ComputeL2Error(dqdF3_coef) < tol );
             }
          }
+         SECTION("Mapping ND to enriched ND")
+         {
+
+            GridFunction g_nd(&enriched_fespace_nd);
+            Vector tmp_nd(enriched_fespace_nd.GetNDofs());
+
+            SECTION("Without Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_nd, &enriched_fespace_nd);
+               blf.AddDomainIntegrator(new CurlCurlIntegrator());
+               blf.Assemble();
+               blf.Finalize();
+
+               LinearForm lf(&enriched_fespace_nd);
+               lf.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(dF3_coef));
+               lf.Assemble();
+
+               blf.Mult(f_nd, tmp_nd);
+               tmp_nd-=lf;
+               REQUIRE( tmp_nd.Norml2() < tol );
+            }
+            SECTION("With Scalar Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_nd, &enriched_fespace_nd);
+               blf.AddDomainIntegrator(new CurlCurlIntegrator(q3_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               LinearForm lf(&enriched_fespace_nd);
+               lf.AddDomainIntegrator(new VectorFEDomainLFCurlIntegrator(qdF3_coef));
+               lf.Assemble();
+
+               blf.Mult(f_nd, tmp_nd);
+               tmp_nd-=lf;
+               REQUIRE( tmp_nd.Norml2() < tol );
+            }
+         }
       }
    }
 }
@@ -5413,8 +5489,7 @@ TEST_CASE("3D Bilinear Mixed Curl Curl Integrators",
    VectorFunctionCoefficient dDdF3_coef(dim, Curl_DCurlF3);
    VectorFunctionCoefficient dMdF3_coef(dim, Curl_MCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5570,8 +5645,7 @@ TEST_CASE("3D Bilinear Mixed Cross Curl Curl Integrators",
    VectorFunctionCoefficient  VdF3_coef(dim, VcrossCurlF3);
    VectorFunctionCoefficient dVdF3_coef(dim, Curl_VcrossCurlF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5642,8 +5716,7 @@ TEST_CASE("3D Bilinear Mixed Cross Grad Curl Integrators",
    VectorFunctionCoefficient  Vdf3_coef(dim, VcrossGrad_f3);
    VectorFunctionCoefficient dVdf3_coef(dim, Curl_VcrossGrad_f3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5728,8 +5801,7 @@ TEST_CASE("3D Bilinear Div Div Integrators",
    FunctionCoefficient         qdF3_coef(qDivF3);
    VectorFunctionCoefficient  dqdF3_coef(dim, Grad_qDivF3);
 
-   for (int type = (int)Element::TETRAHEDRON;
-        type <= (int)Element::WEDGE; type++)
+   for (int type = first_3D_et; type <= last_3D_et; type++)
    {
       Mesh mesh =
          Mesh::MakeCartesian3D(n, n, n, (Element::Type)type, 2.0, 3.0, 5.0);
@@ -5738,6 +5810,9 @@ TEST_CASE("3D Bilinear Div Div Integrators",
       {
          RT_FECollection    fec_rt(order - 1, dim);
          FiniteElementSpace fespace_rt(&mesh, &fec_rt);
+
+         RT_FECollection    enriched_fec_rt(order, dim);
+         FiniteElementSpace enriched_fespace_rt(&mesh, &enriched_fec_rt);
 
          GridFunction f_rt(&fespace_rt); f_rt.ProjectCoefficient(F3_coef);
 
@@ -5802,6 +5877,43 @@ TEST_CASE("3D Bilinear Div Div Integrators",
                g_rt *= -1.0;
 
                REQUIRE( g_rt.ComputeL2Error(dqdF3_coef) < tol );
+            }
+         }
+         SECTION("Mapping RT to enriched RT")
+         {
+            Vector tmp_rt(enriched_fespace_rt.GetNDofs());
+
+            SECTION("Without Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_rt, &enriched_fespace_rt);
+               blf.AddDomainIntegrator(new DivDivIntegrator());
+               blf.Assemble();
+               blf.Finalize();
+
+               LinearForm lf(&enriched_fespace_rt);
+               lf.AddDomainIntegrator(
+                  new VectorFEDomainLFDivIntegrator(dF3_coef));
+               lf.Assemble();
+
+               blf.Mult(f_rt, tmp_rt); tmp_rt -= lf;
+
+               REQUIRE( tmp_rt.Norml2() < tol );
+            }
+            SECTION("With Scalar Coefficient")
+            {
+               MixedBilinearForm blf(&fespace_rt, &enriched_fespace_rt);
+               blf.AddDomainIntegrator(new DivDivIntegrator(q3_coef));
+               blf.Assemble();
+               blf.Finalize();
+
+               LinearForm lf(&enriched_fespace_rt);
+               lf.AddDomainIntegrator(
+                  new VectorFEDomainLFDivIntegrator(qdF3_coef));
+               lf.Assemble();
+
+               blf.Mult(f_rt, tmp_rt); tmp_rt -= lf;
+
+               REQUIRE( tmp_rt.Norml2() < tol );
             }
          }
       }

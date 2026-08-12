@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,7 +16,9 @@
 
 #include "general/error.hpp"
 #include "general/device.hpp"
+#include "general/forall.hpp"
 #include "general/array.hpp"
+#include "general/arrays_by_name.hpp"
 #include "general/sets.hpp"
 #include "general/hash.hpp"
 #include "general/mem_alloc.hpp"
@@ -35,6 +37,7 @@
 #include "general/zstr.hpp"
 #include "general/version.hpp"
 #include "general/globals.hpp"
+#include "general/kdtree.hpp"
 #include "general/enzyme.hpp"
 #ifdef MFEM_USE_MPI
 #include "general/communication.hpp"

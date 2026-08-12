@@ -19,9 +19,7 @@ RUN apt-get update && \
     apt-get install -y libcurl4-openssl-dev libssl-dev
 
 ENV PATH=$PATH:/opt/mfem-view/bin
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/mfem-view/lib:/opt/mfem-view/lib64
 ENV DEBIAN_FRONTEND=noninteractive
 
 # The user will see the view on shell into the container
 WORKDIR /opt/mfem-view
-ENTRYPOINT ["/bin/bash"]

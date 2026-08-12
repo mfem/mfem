@@ -1,7 +1,7 @@
 MFEM mesh v1.0
 
 #
-# MFEM Geometry Types (see mesh/geom.hpp):
+# MFEM Geometry Types (see fem/geom.hpp):
 #
 # POINT       = 0
 # SEGMENT     = 1
@@ -56,7 +56,7 @@ vertices
 
 nodes
 FiniteElementSpace
-FiniteElementCollection: Quadratic
+FiniteElementCollection: H1_3D_P2
 VDim: 3
 Ordering: 0
 

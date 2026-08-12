@@ -8,7 +8,7 @@
 //
 // Description: This example code demonstrates the most basic parallel usage of
 //              MFEM to define a simple finite element discretization of the
-//              Laplace problem -Delta u = 1 with zero Dirichlet boundary
+//              Poisson problem -Delta u = 1 with zero Dirichlet boundary
 //              conditions. General 2D/3D serial mesh files and finite element
 //              polynomial degrees can be specified by command line options.
 
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
    Hypre::Init();
 
    // 2. Parse command line options.
-   const char *mesh_file = "../data/star.mesh";
+   string mesh_file = "../data/star.mesh";
    int order = 1;
 
    OptionsParser args(argc, argv);

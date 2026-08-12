@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -10,6 +10,9 @@
 // CONTRIBUTING.md for details.
 
 #include "complex_operator.hpp"
+#ifdef MFEM_USE_MPI
+#include "blockoperator.hpp"
+#endif
 #include <set>
 #include <map>
 
@@ -164,6 +167,51 @@ void ComplexOperator::MultTranspose(const Vector &x_r, const Vector &x_i,
    }
 }
 
+#ifdef MFEM_USE_MPI
+ComplexHypreParMatrix * ComplexOperator::AsComplexHypreParMatrix() const
+{
+   HypreParMatrix *Ar = nullptr;
+   HypreParMatrix *Ai = nullptr;
+   bool own_r = false;
+   bool own_i = false;
+
+   if (auto *Ahr = dynamic_cast<const HypreParMatrix*>(&real()))
+   {
+      Ar = const_cast<HypreParMatrix*>(Ahr);
+   }
+   else if (auto *Br = dynamic_cast<const BlockOperator*>(&real()))
+   {
+      Ar = Br->GetMonolithicHypreParMatrix();
+      own_r = true;
+   }
+   else
+   {
+      MFEM_ABORT("Real part is neither HypreParMatrix nor BlockOperator.");
+   }
+
+   if (auto *Ahi = dynamic_cast<const HypreParMatrix*>(&imag()))
+   {
+      Ai = const_cast<HypreParMatrix*>(Ahi);
+   }
+   else if (auto *Bi = dynamic_cast<const BlockOperator*>(&imag()))
+   {
+      Ai = Bi->GetMonolithicHypreParMatrix();
+      own_i = true;
+   }
+   else
+   {
+      MFEM_ABORT("Imag part is neither HypreParMatrix nor BlockOperator.");
+   }
+
+   return new ComplexHypreParMatrix(Ar, Ai, own_r, own_i, GetConvention());
+}
+
+
+
+#endif
+
+
+
 
 SparseMatrix & ComplexSparseMatrix::real()
 {
@@ -198,14 +246,18 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
    const int  nrows_i = (A_i)?A_i->Height():0;
    const int    nrows = std::max(nrows_r, nrows_i);
 
+   const int  ncols_r = (A_r)?A_r->Width():0;
+   const int  ncols_i = (A_i)?A_i->Width():0;
+   const int    ncols = std::max(ncols_r, ncols_i);
+
    const int     *I_r = (A_r)?A_r->GetI():NULL;
    const int     *I_i = (A_i)?A_i->GetI():NULL;
 
    const int     *J_r = (A_r)?A_r->GetJ():NULL;
    const int     *J_i = (A_i)?A_i->GetJ():NULL;
 
-   const double  *D_r = (A_r)?A_r->GetData():NULL;
-   const double  *D_i = (A_i)?A_i->GetData():NULL;
+   const real_t  *D_r = (A_r)?A_r->GetData():NULL;
+   const real_t  *D_i = (A_i)?A_i->GetData():NULL;
 
    const int    nnz_r = (I_r)?I_r[nrows]:0;
    const int    nnz_i = (I_i)?I_i[nrows]:0;
@@ -213,9 +265,9 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
 
    int    *I = Memory<int>(this->Height()+1);
    int    *J = Memory<int>(nnz);
-   double *D = Memory<double>(nnz);
+   real_t *D = Memory<real_t>(nnz);
 
-   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+   const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    I[0] = 0;
    I[nrows] = nnz_r + nnz_i;
@@ -232,7 +284,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
             J[I[i] + j] = J_r[I_r[i] + j];
             D[I[i] + j] = D_r[I_r[i] + j];
 
-            J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + nrows;
+            J[I[i+nrows] + off_i + j] = J_r[I_r[i] + j] + ncols;
             D[I[i+nrows] + off_i + j] = factor*D_r[I_r[i] + j];
          }
       }
@@ -241,7 +293,7 @@ SparseMatrix * ComplexSparseMatrix::GetSystemMatrix() const
          const int off_r = (I_r)?(I_r[i+1] - I_r[i]):0;
          for (int j=0; j<I_i[i+1] - I_i[i]; j++)
          {
-            J[I[i] + off_r + j] =  J_i[I_i[i] + j] + nrows;
+            J[I[i] + off_r + j] =  J_i[I_i[i] + j] + ncols;
             D[I[i] + off_r + j] = -D_i[I_i[i] + j];
 
             J[I[i+nrows] + j] = J_i[I_i[i] + j];
@@ -308,8 +360,8 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    const int * Ap =
       mat->real().HostReadI(); // assuming real and imag have the same sparsity
    const int * Ai = mat->real().HostReadJ();
-   const double * Ax = mat->real().HostReadData();
-   const double * Az = mat->imag().HostReadData();
+   const real_t * Ax = mat->real().HostReadData();
+   const real_t * Az = mat->imag().HostReadData();
 
    if (!use_long_ints)
    {
@@ -384,8 +436,8 @@ void ComplexUMFPackSolver::Mult(const Vector &b, Vector &x) const
    x.HostReadWrite();
 
    int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
+   real_t * datax = x.GetData();
+   real_t * datab = b.GetData();
 
    // For the Block Symmetric case data the imaginary part
    // has to be scaled by -1
@@ -439,8 +491,8 @@ void ComplexUMFPackSolver::MultTranspose(const Vector &b, Vector &x) const
    b.HostRead();
    x.HostReadWrite();
    int n = b.Size()/2;
-   double * datax = x.GetData();
-   double * datab = b.GetData();
+   real_t * datax = x.GetData();
+   real_t * datab = b.GetData();
 
    ComplexOperator::Convention conv = mat->GetConvention();
    Vector bimag;
@@ -587,7 +639,7 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    }
 
    SparseMatrix diag_r, diag_i, offd_r, offd_i;
-   HYPRE_BigInt * cmap_r, * cmap_i;
+   HYPRE_BigInt * cmap_r = NULL, * cmap_i = NULL;
 
    int nrows_r = 0, nrows_i = 0, ncols_r = 0, ncols_i = 0;
    int ncols_offd_r = 0, ncols_offd_i = 0;
@@ -629,8 +681,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    const int * diag_r_J = (A_r) ? diag_r.GetJ() : NULL;
    const int * diag_i_J = (A_i) ? diag_i.GetJ() : NULL;
 
-   const double * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
-   const double * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
+   const real_t * diag_r_D = (A_r) ? diag_r.GetData() : NULL;
+   const real_t * diag_i_D = (A_i) ? diag_i.GetData() : NULL;
 
    int diag_r_nnz = (diag_r_I) ? diag_r_I[nrows] : 0;
    int diag_i_nnz = (diag_i_I) ? diag_i_I[nrows] : 0;
@@ -643,8 +695,8 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    const int * offd_r_J = (A_r) ? offd_r.GetJ() : NULL;
    const int * offd_i_J = (A_i) ? offd_i.GetJ() : NULL;
 
-   const double * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
-   const double * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
+   const real_t * offd_r_D = (A_r) ? offd_r.GetData() : NULL;
+   const real_t * offd_i_D = (A_i) ? offd_i.GetData() : NULL;
 
    int offd_r_nnz = (offd_r_I) ? offd_r_I[nrows] : 0;
    int offd_i_nnz = (offd_i_I) ? offd_i_I[nrows] : 0;
@@ -653,16 +705,16 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    // Allocate CSR arrays for the combined matrix
    HYPRE_Int * diag_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * diag_J = mfem_hypre_CTAlloc_host(HYPRE_Int, diag_nnz);
-   double    * diag_D = mfem_hypre_CTAlloc_host(double, diag_nnz);
+   real_t    * diag_D = mfem_hypre_CTAlloc_host(real_t, diag_nnz);
 
    HYPRE_Int * offd_I = mfem_hypre_CTAlloc_host(HYPRE_Int, 2 * nrows + 1);
    HYPRE_Int * offd_J = mfem_hypre_CTAlloc_host(HYPRE_Int, offd_nnz);
-   double    * offd_D = mfem_hypre_CTAlloc_host(double, offd_nnz);
+   real_t    * offd_D = mfem_hypre_CTAlloc_host(real_t, offd_nnz);
    HYPRE_BigInt * cmap = mfem_hypre_CTAlloc_host(HYPRE_BigInt,
                                                  2 * num_cols_offd);
 
    // Fill the CSR arrays for the diagonal portion of the matrix
-   const double factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
+   const real_t factor = (convention_ == HERMITIAN) ? 1.0 : -1.0;
 
    diag_I[0] = 0;
    diag_I[nrows] = diag_r_nnz + diag_i_nnz;
@@ -844,12 +896,12 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    HYPRE_BigInt loc_start_stop[2];
    offd_col_start_stop = new HYPRE_BigInt[2 * num_recv_procs];
 
-   const HYPRE_BigInt * row_part = (A_r) ? A_r->RowPart() :
-                                   ((A_i) ? A_i->RowPart() : NULL);
+   const HYPRE_BigInt * col_part = (A_r) ? A_r->ColPart() :
+                                   ((A_i) ? A_i->ColPart() : NULL);
 
-   int row_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
-   loc_start_stop[0] = row_part[row_part_ind];
-   loc_start_stop[1] = row_part[row_part_ind+1];
+   int col_part_ind = (HYPRE_AssumedPartitionCheck()) ? 0 : myid_;
+   loc_start_stop[0] = col_part[col_part_ind];
+   loc_start_stop[1] = col_part[col_part_ind+1];
 
    MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
    MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];

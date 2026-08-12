@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -13,11 +13,16 @@ name: "Checks"
 
 permissions:
   actions: write
+  pull-requests: read
 
 on:
   push:
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # This workflow is run on pushes to any branch in the MFEM repo (with or without
 # PRs), as well as on updates to PRs from forks. In particular, we do not
@@ -25,6 +30,11 @@ on:
 # by checking if the workflow trigger is 'push' ("github.event_name == 'push'")
 # and if we are in a fork ("github.event.pull_request.head.repo.full_name !=
 # github.repository").
+#
+# The logic for the branch-history check is slightly different, since that check
+# also inspects the PR's labels to allow for overriding failures. In this case,
+# we run on all 'pull_request' triggers, but only run for 'push' triggers that
+# do not correspond to any open PRs.
 
 jobs:
   file-headers-check:
@@ -33,49 +43,54 @@ jobs:
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
-    - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.9.0
-      with:
-        access_token: ${{ github.token }}
+      - name: checkout mfem
+        uses: actions/checkout@v6
 
-    - name: checkout mfem
-      uses: actions/checkout@v2
+      - name: copyright check
+        id: copyright
+        run: |
+          ./config/githooks/pre-push --copyright
 
-    - name: copyright check
-      id: copyright
-      run: |
-        ./config/githooks/pre-push --copyright
+        continue-on-error: true
 
-      continue-on-error: true
+      - name: license check
+        id: license
+        run: |
+          ./config/githooks/pre-push --license
+        continue-on-error: true
 
-    - name: license check
-      id: license
-      run: |
-        ./config/githooks/pre-push --license
-      continue-on-error: true
+      - name: release check
+        id: release
+        run: |
+          ./config/githooks/pre-push --release
+        continue-on-error: true
 
-    - name: release check
-      id: release
-      run: |
-        ./config/githooks/pre-push --release
-      continue-on-error: true
+      - name: math check
+        id: math
+        run: |
+          ./config/githooks/pre-push --math
+        continue-on-error: true
 
-    - name: wrap-up
-      if: |
-        steps.copyright.outcome != 'success' ||
-        steps.license.outcome != 'success' ||
-        steps.release.outcome != 'success'
-      run: |
-        if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
-          echo "copyright check failed, unroll log for details"
-        fi
-        if [[ "${{ steps.license.outcome }}" != "success" ]]; then
-          echo "license check failed, unroll log for details"
-        fi
-        if [[ "${{ steps.release.outcome }}" != "success" ]]; then
-          echo "release check failed, unroll log for details"
-        fi
-        exit 1
+      - name: wrap-up
+        if: |
+          steps.copyright.outcome != 'success' ||
+          steps.license.outcome != 'success' ||
+          steps.release.outcome != 'success' ||
+          steps.math.outcome != 'success'
+        run: |
+          if [[ "${{ steps.copyright.outcome }}" != "success" ]]; then
+            echo "copyright check failed, unroll log for details"
+          fi
+          if [[ "${{ steps.license.outcome }}" != "success" ]]; then
+            echo "license check failed, unroll log for details"
+          fi
+          if [[ "${{ steps.release.outcome }}" != "success" ]]; then
+            echo "release check failed, unroll log for details"
+          fi
+          if [[ "${{ steps.math.outcome }}" != "success" ]]; then
+            echo "math check failed, unroll log for details"
+          fi
+          exit 1
 
   code-style:
     runs-on: ubuntu-latest
@@ -83,16 +98,16 @@ jobs:
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
+      - name: checkout mfem
+        uses: actions/checkout@v6
 
-    - name: get astyle
-      run: |
-        sudo apt-get install astyle
+      - name: get astyle
+        run: |
+          sudo apt-get install astyle
 
-    - name: style check
-      run: |
-        ./config/githooks/pre-push --style
+      - name: style check
+        run: |
+          ./config/githooks/pre-push --style
 
   documentation:
     runs-on: ubuntu-latest
@@ -100,41 +115,67 @@ jobs:
       (github.event_name == 'push' ||
        github.event.pull_request.head.repo.full_name != github.repository)
     steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
+      - name: checkout mfem
+        uses: actions/checkout@v6
 
-    - name: get doxygen and graphviz
-      run: |
-        sudo apt-get install doxygen graphviz
-        cd doc
-        doxygen -u CodeDocumentation.conf.in
+      - name: get doxygen and graphviz
+        run: |
+          sudo apt-get install doxygen graphviz
 
-    - name: build documentation
-      run: |
-        cd tests/scripts
-        ./runtest documentation
+      - name: update doxygen config file
+        run: |
+          cd doc
+          doxygen -u CodeDocumentation.conf.in
+
+      - name: build documentation
+        run: |
+          cd tests/scripts
+          ./runtest documentation
 
   branch-history:
     if: |
-      github.ref != 'refs/heads/next' &&
-      github.ref != 'refs/heads/master' &&
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
+      github.ref != 'refs/heads/next' && github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
-    - name: checkout mfem
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
+      - name: checkout mfem
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-    - name: branch-history
-      run: |
-        # We override origin to make sure we point to the main repo.
-        # This is to have consistent test results on PRs from forks.
-        git remote remove origin
-        git remote add origin https://github.com/mfem/mfem.git
-        git checkout -b gh-actions-branch-history
-        ./config/githooks/pre-push --history
+      - name: check for pull request
+        id: check_pr
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_exists=$(gh pr list --repo "$GITHUB_REPOSITORY" \
+            --head "$GITHUB_REF_NAME" \
+            --state open \
+            --json number \
+            --jq 'length > 0')
+          echo "pr_exists=$pr_exists" >> "$GITHUB_OUTPUT"
+
+      - name: branch-history
+        id: branch_history
+        if: |
+          (github.event_name == 'pull_request' ||
+           github.event_name == 'workflow_dispatch' ||
+           steps.check_pr.outputs.pr_exists == 'false')
+        continue-on-error: ${{ contains(github.event.pull_request.labels.*.name,
+                                        'branch-history-override') }}
+        run: |
+          # We override origin to make sure we point to the main repo.
+          # This is to have consistent test results on PRs from forks.
+          git remote remove origin
+          git remote add origin https://github.com/mfem/mfem.git
+          git checkout -b gh-actions-branch-history
+          ./config/githooks/pre-push --history
+
+      - name: report branch-history override
+        if: steps.branch_history.outcome == 'failure'
+        run: |
+          echo "::warning::branch-history check failed, but the" \
+            "'branch-history-override' label is set."
 
   codespell:
     runs-on: ubuntu-latest
@@ -145,3 +186,4 @@ jobs:
         check_filenames: true
         check_hidden: true
         ignore_words_list: allright,ba,equil,esy,fo,hda,lod,nd,ned,numer,ot,pres,ro,seh,shat,solfes,strat,tbe,te,warmup
+

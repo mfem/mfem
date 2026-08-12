@@ -96,6 +96,7 @@ public:
    {
       Vector w_glob(width);
       pfes.Dof_TrueDof_Matrix()->MultTranspose(w, w_glob);
+      w_glob.HostReadWrite(); // read+write -> can use w_glob(i) (non-const)
       for (int i = 0; i < width; i++) { grad(0, i) = w_glob(i); }
    }
 

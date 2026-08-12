@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -116,9 +116,9 @@ using namespace mfem::electromagnetics;
 
 void display_banner(ostream & os);
 
-static double mj_ = 0.0;
-static double sj_ = 0.0;
-static double wj_ = 0.0;
+static real_t mj_ = 0.0;
+static real_t sj_ = 0.0;
+static real_t wj_ = 0.0;
 
 // Initialize variables used in joule_solver.cpp
 int electromagnetics::SOLVER_PRINT_LEVEL = 0;
@@ -140,13 +140,13 @@ int main(int argc, char *argv[])
    int par_ref_levels = 0;
    int order = 2;
    int ode_solver_type = 1;
-   double t_final = 100.0;
-   double dt = 0.5;
-   double mu = 1.0;
-   double sigma = 2.0*M_PI*10;
-   double Tcapacity = 1.0;
-   double Tconductivity = 0.01;
-   double freq = 1.0/60.0;
+   real_t t_final = 100.0;
+   real_t dt = 0.5;
+   real_t mu = 1.0;
+   real_t sigma = 2.0*M_PI*10;
+   real_t Tcapacity = 1.0;
+   real_t Tconductivity = 0.01;
+   real_t freq = 1.0/60.0;
    bool visualization = true;
    bool visit = true;
    int vis_steps = 1;
@@ -154,6 +154,7 @@ int main(int argc, char *argv[])
    const char *basename = "Joule";
    int amr = 0;
    int debug = 0;
+   int visport = 19916;
    const char *problem = "rod";
 
    OptionsParser args(argc, argv);
@@ -199,6 +200,7 @@ int main(int argc, char *argv[])
                   "Hypre print level");
    args.AddOption(&problem, "-p", "--problem",
                   "Name of problem to run");
+   args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.Parse();
    if (!args.Good())
    {
@@ -233,10 +235,10 @@ int main(int argc, char *argv[])
    //
    //    We can use the same material maps for both problems.
 
-   std::map<int, double> sigmaMap, InvTcondMap, TcapMap, InvTcapMap;
-   double sigmaAir;
-   double TcondAir;
-   double TcapAir;
+   std::map<int, real_t> sigmaMap, InvTcondMap, TcapMap, InvTcapMap;
+   real_t sigmaAir = 0.0; // init to suppress gcc warning
+   real_t TcondAir;
+   real_t TcapAir;
    if (strcmp(problem,"rod")==0 || strcmp(problem,"coil")==0)
    {
       sigmaAir     = 1.0e-6 * sigma;
@@ -252,21 +254,21 @@ int main(int argc, char *argv[])
    if (strcmp(problem,"rod")==0 || strcmp(problem,"coil")==0)
    {
 
-      sigmaMap.insert(pair<int, double>(1, sigma));
-      sigmaMap.insert(pair<int, double>(2, sigmaAir));
-      sigmaMap.insert(pair<int, double>(3, sigmaAir));
+      sigmaMap.insert(pair<int, real_t>(1, sigma));
+      sigmaMap.insert(pair<int, real_t>(2, sigmaAir));
+      sigmaMap.insert(pair<int, real_t>(3, sigmaAir));
 
-      InvTcondMap.insert(pair<int, double>(1, 1.0/Tconductivity));
-      InvTcondMap.insert(pair<int, double>(2, 1.0/TcondAir));
-      InvTcondMap.insert(pair<int, double>(3, 1.0/TcondAir));
+      InvTcondMap.insert(pair<int, real_t>(1, 1.0/Tconductivity));
+      InvTcondMap.insert(pair<int, real_t>(2, 1.0/TcondAir));
+      InvTcondMap.insert(pair<int, real_t>(3, 1.0/TcondAir));
 
-      TcapMap.insert(pair<int, double>(1, Tcapacity));
-      TcapMap.insert(pair<int, double>(2, TcapAir));
-      TcapMap.insert(pair<int, double>(3, TcapAir));
+      TcapMap.insert(pair<int, real_t>(1, Tcapacity));
+      TcapMap.insert(pair<int, real_t>(2, TcapAir));
+      TcapMap.insert(pair<int, real_t>(3, TcapAir));
 
-      InvTcapMap.insert(pair<int, double>(1, 1.0/Tcapacity));
-      InvTcapMap.insert(pair<int, double>(2, 1.0/TcapAir));
-      InvTcapMap.insert(pair<int, double>(3, 1.0/TcapAir));
+      InvTcapMap.insert(pair<int, real_t>(1, 1.0/Tcapacity));
+      InvTcapMap.insert(pair<int, real_t>(2, 1.0/TcapAir));
+      InvTcapMap.insert(pair<int, real_t>(3, 1.0/TcapAir));
    }
    else
    {
@@ -520,7 +522,6 @@ int main(int argc, char *argv[])
 
    socketstream vis_T, vis_E, vis_B, vis_w, vis_P;
    char vishost[] = "localhost";
-   int  visport   = 19916;
    if (visualization)
    {
       // Make sure all ranks have sent their 'v' solution before initiating
@@ -582,7 +583,7 @@ int main(int argc, char *argv[])
    //     has a Mult() method and an ImplicitSolve() method which are used by
    //     the time integrators.
    ode_solver->Init(oper);
-   double t = 0.0;
+   real_t t = 0.0;
 
    bool last_step = false;
    for (int ti = 1; !last_step; ti++)
@@ -657,7 +658,7 @@ int main(int argc, char *argv[])
 
       if (last_step || (ti % vis_steps) == 0)
       {
-         double el = oper.ElectricLosses(E_gf);
+         real_t el = oper.ElectricLosses(E_gf);
 
          if (Mpi::Root())
          {
@@ -735,30 +736,30 @@ void edot_bc(const Vector &x, Vector &E)
    E = 0.0;
 }
 
-void e_exact(const Vector &x, double t, Vector &E)
+void e_exact(const Vector &x, real_t t, Vector &E)
 {
    E[0] = 0.0;
    E[1] = 0.0;
    E[2] = 0.0;
 }
 
-void b_exact(const Vector &x, double t, Vector &B)
+void b_exact(const Vector &x, real_t t, Vector &B)
 {
    B[0] = 0.0;
    B[1] = 0.0;
    B[2] = 0.0;
 }
 
-double t_exact(const Vector &x)
+real_t t_exact(const Vector &x)
 {
-   double T = 0.0;
+   real_t T = 0.0;
    return T;
 }
 
-double p_bc(const Vector &x, double t)
+real_t p_bc(const Vector &x, real_t t)
 {
    // the value
-   double T;
+   real_t T;
    if (x[2] < 0.0)
    {
       T = 1.0;

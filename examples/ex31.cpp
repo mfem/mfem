@@ -39,7 +39,7 @@ using namespace mfem;
 void E_exact(const Vector &, Vector &);
 void CurlE_exact(const Vector &, Vector &);
 void f_exact(const Vector &, Vector &);
-double freq = 1.0, kappa;
+real_t freq = 1.0, kappa;
 int dim;
 
 int main(int argc, char *argv[])
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
 
    // 13. Compute and print the H(Curl) norm of the error.
    {
-      double error = sol.ComputeHCurlError(&E, &CurlE);
+      real_t error = sol.ComputeHCurlError(&E, &CurlE);
       cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
    }
 
@@ -376,8 +376,8 @@ void CurlE_exact(const Vector &x, Vector &dE)
 {
    if (dim == 1)
    {
-      double c4 = cos(kappa * x(0) + 0.4 * M_PI);
-      double c9 = cos(kappa * x(0) + 0.9 * M_PI);
+      real_t c4 = cos(kappa * x(0) + 0.4 * M_PI);
+      real_t c9 = cos(kappa * x(0) + 0.9 * M_PI);
 
       dE(0) =  0.0;
       dE(1) = -1.3 * c9;
@@ -386,9 +386,9 @@ void CurlE_exact(const Vector &x, Vector &dE)
    }
    else if (dim == 2)
    {
-      double c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
 
       dE(0) =  1.3 * c9;
       dE(1) = -1.3 * c9;
@@ -397,13 +397,13 @@ void CurlE_exact(const Vector &x, Vector &dE)
    }
    else
    {
-      double s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
-      double sk = sin(kappa * x(2));
-      double ck = cos(kappa * x(2));
+      real_t s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t sk = sin(kappa * x(2));
+      real_t ck = cos(kappa * x(2));
 
       dE(0) =  1.2 * s4 * sk + 1.3 * M_SQRT1_2 * c9 * ck;
       dE(1) = -1.1 * s0 * sk - 1.3 * M_SQRT1_2 * c9 * ck;
@@ -416,9 +416,9 @@ void f_exact(const Vector &x, Vector &f)
 {
    if (dim == 1)
    {
-      double s0 = sin(kappa * x(0) + 0.0 * M_PI);
-      double s4 = sin(kappa * x(0) + 0.4 * M_PI);
-      double s9 = sin(kappa * x(0) + 0.9 * M_PI);
+      real_t s0 = sin(kappa * x(0) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * x(0) + 0.4 * M_PI);
+      real_t s9 = sin(kappa * x(0) + 0.9 * M_PI);
 
       f(0) = 2.2 * s0 + 1.2 * M_SQRT1_2 * s4;
       f(1) = 1.2 * (2.0 + kappa * kappa) * s4 +
@@ -427,9 +427,9 @@ void f_exact(const Vector &x, Vector &f)
    }
    else if (dim == 2)
    {
-      double s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
 
       f(0) = 0.55 * (4.0 + kappa * kappa) * s0 +
              0.6 * (M_SQRT2 - kappa * kappa) * s4;
@@ -440,14 +440,14 @@ void f_exact(const Vector &x, Vector &f)
    }
    else
    {
-      double s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
-      double s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
-      double s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
-      double c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
-      double sk = sin(kappa * x(2));
-      double ck = cos(kappa * x(2));
+      real_t s0 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t c0 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.0 * M_PI);
+      real_t s4 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t c4 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.4 * M_PI);
+      real_t s9 = sin(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t c9 = cos(kappa * M_SQRT1_2 * (x(0) + x(1)) + 0.9 * M_PI);
+      real_t sk = sin(kappa * x(2));
+      real_t ck = cos(kappa * x(2));
 
       f(0) = 0.55 * (4.0 + 3.0 * kappa * kappa) * s0 * ck +
              0.6 * (M_SQRT2 - kappa * kappa) * s4 * ck -

@@ -295,7 +295,12 @@ namespace Catch {
 // Otherwise all supported compilers support COUNTER macro,
 // but user still might want to turn it off
 #if ( !defined(__JETBRAINS_IDE__) || __JETBRAINS_IDE__ >= 20170300L )
+#if ( !(defined(__clang__) && __clang_major__ >= 22 ) )
+// don't use __COUNTER__ if compiling with clang 22+ to avoid compiler warning
+// https://github.com/llvm/llvm-project/pull/162662
+// TODO: can enable if building with C2y
     #define CATCH_INTERNAL_CONFIG_COUNTER
+#endif
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15790,7 +15795,7 @@ namespace Catch {
 #ifdef _MSC_VER
         sprintf_s(buffer, "%.3f", duration);
 #else
-        std::sprintf(buffer, "%.3f", duration);
+        std::snprintf(buffer, maxDoubleSize, "%.3f", duration);
 #endif
         return std::string(buffer);
     }
@@ -17969,4 +17974,3 @@ using Catch::Detail::Approx;
 // end catch_reenable_warnings.h
 // end catch.hpp
 #endif // TWOBLUECUBES_SINGLE_INCLUDE_CATCH_HPP_INCLUDED
-

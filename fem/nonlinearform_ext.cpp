@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,9 +38,9 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    ye.UseDevice(true);
 }
 
-double PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
+real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
-   double energy = 0.0;
+   real_t energy = 0.0;
 
    elemR->Mult(x, xe);
    for (int i = 0; i < dnfi.Size(); i++)
@@ -100,6 +100,17 @@ PANonlinearFormExtension::Gradient::Gradient(const PANonlinearFormExtension &e):
 
 void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
 {
+   if (DeviceCanUseCeed())
+   {
+      for (int i = 0; i < ext.dnfi.Size(); ++i)
+      {
+         MFEM_VERIFY(dynamic_cast<VectorConvectionNLFIntegrator *>
+                     (ext.dnfi[i]) == nullptr,
+                     "VectorConvectionNLFIntegrator PA gradients are not supported "
+                     "with the libCEED backend");
+      }
+   }
+
    ext.elemR->Mult(g, ext.xe);
    for (int i = 0; i < ext.dnfi.Size(); ++i)
    {

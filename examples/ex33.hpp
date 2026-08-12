@@ -50,8 +50,8 @@ using namespace mfem;
 
     See pg. A1501 of Nakatsukasa et al. [1]. */
 void RationalApproximation_AAA(const Vector &val, const Vector &pt,
-                               Array<double> &z, Array<double> &f, Vector &w,
-                               double tol, int max_order)
+                               Array<real_t> &z, Array<real_t> &f, Vector &w,
+                               real_t tol, int max_order)
 {
 
    // number of sample points
@@ -67,11 +67,11 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    DenseMatrix C, Ctemp, A, Am;
    // auxiliary arrays and vectors
    Vector f_vec;
-   Array<double> c_i;
+   Array<real_t> c_i;
 
    // mean of the value vector
    Vector R(val.Size());
-   double mean_val = val.Sum()/size;
+   real_t mean_val = val.Sum()/size;
 
    for (int i = 0; i<R.Size(); i++) { R(i) = mean_val; }
 
@@ -79,10 +79,10 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
    {
       // select next support point
       int idx = 0;
-      double tmp_max = 0;
+      real_t tmp_max = 0;
       for (int j = 0; j < size; j++)
       {
-         double tmp = abs(val(j)-R(j));
+         real_t tmp = abs(val(j)-R(j));
          if (tmp > tmp_max)
          {
             tmp_max = tmp;
@@ -98,7 +98,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       J.DeleteFirst(idx);
 
       // next column in Cauchy matrix
-      Array<double> C_tmp(size);
+      Array<real_t> C_tmp(size);
       for (int j = 0; j < size; j++)
       {
          C_tmp[j] = 1.0/(pt(j)-pt(idx));
@@ -131,7 +131,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
       }
 
 #ifdef MFEM_USE_LAPACK
-      DenseMatrixSVD svd(Am,false,true);
+      DenseMatrixSVD svd(Am,'N','A');
       svd.Eval(Am);
       DenseMatrix &v = svd.RightSingularvectors();
       v.GetRow(k,w);
@@ -173,7 +173,7 @@ void RationalApproximation_AAA(const Vector &val, const Vector &pt,
 
     See pg. A1501 of Nakatsukasa et al. [1]. */
 void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
-                          Array<double> & poles, Array<double> & zeros, double &scale)
+                          Array<real_t> & poles, Array<real_t> & zeros, real_t &scale)
 {
    // Initialization
    poles.SetSize(0);
@@ -242,8 +242,8 @@ void ComputePolesAndZeros(const Vector &z, const Vector &f, const Vector &w,
     @param[in]  zeros   Array of zeros
     @param[in]  scale   Scaling constant
     @param[out] coeffs  Coefficients c_i */
-void PartialFractionExpansion(double scale, Array<double> & poles,
-                              Array<double> & zeros, Array<double> & coeffs)
+void PartialFractionExpansion(real_t scale, Array<real_t> & poles,
+                              Array<real_t> & zeros, Array<real_t> & coeffs)
 {
    int psize = poles.Size();
    int zsize = zeros.Size();
@@ -259,13 +259,13 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
 
    for (int i=0; i<psize; i++)
    {
-      double tmp_numer=1.0;
+      real_t tmp_numer=1.0;
       for (int j=0; j<zsize; j++)
       {
          tmp_numer *= poles[i]-zeros[j];
       }
 
-      double tmp_denom=1.0;
+      real_t tmp_denom=1.0;
       for (int k=0; k<psize; k++)
       {
          if (k != i) { tmp_denom *= poles[i]-poles[k]; }
@@ -292,10 +292,10 @@ void PartialFractionExpansion(double scale, Array<double> & poles,
            @a alpha != 0.99, then @a alpha = 0.5 is used by default.
 
    See pg. A1501 of Nakatsukasa et al. [1]. */
-void ComputePartialFractionApproximation(double & alpha,
-                                         Array<double> & coeffs, Array<double> & poles,
-                                         double lmax = 1000.,
-                                         double tol=1e-10, int npoints = 1000,
+void ComputePartialFractionApproximation(real_t & alpha,
+                                         Array<real_t> & coeffs, Array<real_t> & poles,
+                                         real_t lmax = 1000.,
+                                         real_t tol=1e-10, int npoints = 1000,
                                          int max_order = 100)
 {
    MFEM_VERIFY(alpha < 1., "alpha must be less than 1");
@@ -320,41 +320,41 @@ void ComputePartialFractionApproximation(double & alpha,
             << "\nThe default is alpha = 0.5.\n" << string(80, '=') << "\n"
             << endl;
    }
-   const double eps = std::numeric_limits<double>::epsilon();
+   const real_t eps = std::numeric_limits<real_t>::epsilon();
 
    if (abs(alpha - 0.33) < eps)
    {
-      coeffs = Array<double> ({1.821898e+03, 9.101221e+01, 2.650611e+01,
+      coeffs = Array<real_t> ({1.821898e+03, 9.101221e+01, 2.650611e+01,
                                1.174937e+01, 6.140444e+00, 3.441713e+00,
                                1.985735e+00, 1.162634e+00, 6.891560e-01,
                                4.111574e-01, 2.298736e-01});
-      poles = Array<double> ({-4.155583e+04, -2.956285e+03, -8.331715e+02,
+      poles = Array<real_t> ({-4.155583e+04, -2.956285e+03, -8.331715e+02,
                               -3.139332e+02, -1.303448e+02, -5.563385e+01,
                               -2.356255e+01, -9.595516e+00, -3.552160e+00,
                               -1.032136e+00, -1.241480e-01});
    }
    else if (abs(alpha - 0.99) < eps)
    {
-      coeffs = Array<double>({2.919591e-02, 1.419750e-02, 1.065798e-02,
+      coeffs = Array<real_t>({2.919591e-02, 1.419750e-02, 1.065798e-02,
                               9.395094e-03, 8.915329e-03, 8.822991e-03,
                               9.058247e-03, 9.814521e-03, 1.180396e-02,
                               1.834554e-02, 9.840482e-01});
-      poles = Array<double> ({-1.069683e+04, -1.769370e+03, -5.718374e+02,
+      poles = Array<real_t> ({-1.069683e+04, -1.769370e+03, -5.718374e+02,
                               -2.242095e+02, -9.419132e+01, -4.031012e+01,
                               -1.701525e+01, -6.810088e+00, -2.382810e+00,
                               -5.700059e-01, -1.384324e-03});
    }
    else
    {
-      if (abs(alpha - 0.5) > eps && print_warning)
+      if (abs(alpha - 0.5) > eps)
       {
          alpha = 0.5;
       }
-      coeffs = Array<double>({2.290262e+02, 2.641819e+01, 1.005566e+01,
+      coeffs = Array<real_t>({2.290262e+02, 2.641819e+01, 1.005566e+01,
                               5.390411e+00, 3.340725e+00, 2.211205e+00,
                               1.508883e+00, 1.049474e+00, 7.462709e-01,
                               5.482686e-01, 4.232510e-01, 3.578967e-01});
-      poles = Array<double>({-3.168211e+04, -3.236077e+03, -9.868287e+02,
+      poles = Array<real_t>({-3.168211e+04, -3.236077e+03, -9.868287e+02,
                              -3.945597e+02, -1.738889e+02, -7.925178e+01,
                              -3.624992e+01, -1.629196e+01, -6.982956e+00,
                              -2.679984e+00, -7.782607e-01, -7.649166e-02});
@@ -368,19 +368,21 @@ void ComputePartialFractionApproximation(double & alpha,
 
 
    return;
+#else
+   MFEM_CONTRACT_VAR(print_warning);
 #endif
 
    Vector x(npoints);
    Vector val(npoints);
-   double dx = lmax / (double)(npoints-1);
+   real_t dx = lmax / (real_t)(npoints-1);
    for (int i = 0; i<npoints; i++)
    {
-      x(i) = dx * (double)i;
+      x(i) = dx * (real_t)i;
       val(i) = pow(x(i),1.-alpha);
    }
 
    // Apply triple-A algorithm to f(x) = x^{1-a}
-   Array<double> z, f;
+   Array<real_t> z, f;
    Vector w;
    RationalApproximation_AAA(val,x,z,f,w,tol,max_order);
 
@@ -389,8 +391,8 @@ void ComputePartialFractionApproximation(double & alpha,
    vecf.SetDataAndSize(f.GetData(), f.Size());
 
    // Compute poles and zeros for RA of f(x) = x^{1-a}
-   double scale;
-   Array<double> zeros;
+   real_t scale;
+   Array<real_t> zeros;
    ComputePolesAndZeros(vecz, vecf, w, poles, zeros, scale);
 
    // Remove the zero at x=0, thus, delivering a RA for f(x) = x^{-a}

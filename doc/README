@@ -14,7 +14,7 @@ If not already available, Doxygen can be downloaded from
 
    http://www.doxygen.org
 
-We recommend using version 1.8 or later.
+We recommend using version 1.9.8 or later.
 
 To build the documentation, simply type "make" in the doc/ directory. This will
 create the file CodeDocumentation.html, which can be viewed in any web browser.

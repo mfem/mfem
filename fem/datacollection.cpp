@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #include "fem.hpp"
 #include "../mesh/nurbs.hpp"
 #include "../mesh/vtk.hpp"
+#include "../mesh/vtkhdf.hpp"
 #include "../general/binaryio.hpp"
 #include "../general/text.hpp"
 #include "picojson.h"
@@ -110,8 +111,8 @@ DataCollection::DataCollection(const std::string& collection_name, Mesh *mesh_)
    precision = precision_default;
    pad_digits_cycle = pad_digits_rank = pad_digits_default;
    format = SERIAL_FORMAT; // use serial mesh format
-   compression = false;
-   error = NO_ERROR;
+   compression = 0;
+   error = No_Error;
 }
 
 void DataCollection::SetMesh(Mesh *new_mesh)
@@ -309,9 +310,9 @@ void DataCollection::SaveField(const std::string &field_name)
    }
 }
 
-void DataCollection::SaveQField(const std::string &q_field_name)
+void DataCollection::SaveQField(const std::string &field_name)
 {
-   QFieldMapIterator it = q_field_map.find(q_field_name);
+   QFieldMapIterator it = q_field_map.find(field_name);
    if (it != q_field_map.end())
    {
       SaveOneQField(it);
@@ -429,7 +430,9 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
 
    DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
+   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD,
+                                         gf->FESpace()->FEColl()->Name(),
+                                         gf->FESpace()->FEColl()->GetOrder());
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -442,13 +445,20 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    {
       int locLOD = GlobGeometryRefiner.GetRefinementLevelFromElems(
                       mesh->GetElementBaseGeometry(e),
-                      qf->GetElementIntRule(e).GetNPoints());
+                      qf->GetIntRule(e).GetNPoints());
 
       LOD = std::max(LOD,locLOD);
    }
 
    DataCollection::RegisterQField(name, qf);
-   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
+   // For quadrature functions, use basis pattern:
+   //   QF_{ORDER}_{VDIM}
+   int qf_vdim  = qf->GetVDim();
+   int qf_order = qf->GetSpace()->GetOrder();
+   std::ostringstream oss;
+   oss << "QF_" << qf_order << "_" << qf_vdim;
+   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD,
+                                         oss.str(), qf_order);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -482,6 +492,8 @@ void VisItDataCollection::SaveRootFile()
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
    std::ofstream root_file(root_name);
+   MFEM_VERIFY(root_file.is_open(),
+               "Failed to open ofstream " << root_name);
    root_file << GetVisItRootString();
    if (!root_file)
    {
@@ -494,7 +506,7 @@ void VisItDataCollection::Load(int cycle_)
 {
    DeleteAll();
    time_step = 0.0;
-   error = NO_ERROR;
+   error = No_Error;
    cycle = cycle_;
    std::string root_name = prefix_path + name + "_" +
                            to_padded_string(cycle, pad_digits_cycle) +
@@ -622,7 +634,8 @@ void VisItDataCollection::LoadFields()
          {
             field_map.Register(it->first, new GridFunction(mesh, file), own_data);
          }
-         else if ((it->second).association == "elements")
+         else if ((it->second).association == "elements" || // old style
+                  (it->second).association == "quadrature") // new style
          {
             q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
          }
@@ -636,7 +649,8 @@ void VisItDataCollection::LoadFields()
                it->first,
                new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
          }
-         else if ((it->second).association == "elements")
+         else if ((it->second).association == "elements" || // old style
+                  (it->second).association == "quadrature") // new style
          {
             q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
          }
@@ -675,6 +689,8 @@ std::string VisItDataCollection::GetVisItRootString()
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
       ftags["lod"] = picojson::value(to_string((it->second).lod));
+      ftags["basis"] = picojson::value((it->second).basis);
+      ftags["order"] = picojson::value(to_string((it->second).order));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);
@@ -724,7 +740,7 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
 
    // Set the DataCollection::name using the mesh path
    std::string path = mesh.get("path").get<std::string>();
-   size_t right_sep = path.find('_');
+   size_t right_sep = path.rfind('_');
    if (right_sep == std::string::npos)
    {
       error = READ_ERROR;
@@ -751,38 +767,92 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
            it != fields_obj.end(); ++it)
       {
          picojson::value tags = it->second.get("tags");
+
+         // defaults that allow us to parse older mfem_root files
+         int lod = 1;
+         std::string basis = "";
+         int order = -1;
+
+         if (tags.contains("lod"))
+         {
+            lod = to_int(tags.get("lod").get<std::string>());
+         }
+
+         if (tags.contains("basis"))
+         {
+            basis = tags.get("comps").get<std::string>();
+         }
+
+         if (tags.contains("order"))
+         {
+            order = to_int(tags.get("comps").get<std::string>());
+         }
+
          field_info_map[it->first] =
             VisItFieldInfo(tags.get("assoc").get<std::string>(),
-                           to_int(tags.get("comps").get<std::string>()));
+                           to_int(tags.get("comps").get<std::string>()),
+                           lod, basis, order);
       }
    }
 }
 
-ParaViewDataCollection::ParaViewDataCollection(const std::string&
-                                               collection_name,
-                                               Mesh *mesh_)
-   : DataCollection(collection_name, mesh_),
-     levels_of_detail(1),
-     pv_data_format(VTKFormat::BINARY),
-     high_order_output(false),
-     restart_mode(false)
+ParaViewDataCollectionBase::ParaViewDataCollectionBase(
+   const std::string &name, Mesh *mesh) : DataCollection(name, mesh)
 {
+   cycle = 0;
 #ifdef MFEM_USE_ZLIB
-   compression = -1; // default zlib compression level, equivalent to 6
-#else
-   compression = 0;
+   // If we have zlib, enable compression. Otherwise, compression is disabled in
+   // the DataCollection base class constructor.
+   compression = true;
 #endif
 }
 
-void ParaViewDataCollection::SetLevelsOfDetail(int levels_of_detail_)
+void ParaViewDataCollectionBase::SetLevelsOfDetail(int levels_of_detail_)
 {
-   levels_of_detail = levels_of_detail_;
+   levels_of_detail = std::max(levels_of_detail_, 1);
 }
 
-void ParaViewDataCollection::Load(int )
+void ParaViewDataCollectionBase::SetHighOrderOutput(bool high_order_output_)
 {
-   MFEM_WARNING("ParaViewDataCollection::Load() is not implemented!");
+   high_order_output = high_order_output_;
 }
+
+void ParaViewDataCollectionBase::SetBoundaryOutput(bool bdr_output_)
+{
+   bdr_output = bdr_output_;
+}
+
+void ParaViewDataCollectionBase::SetCompressionLevel(int compression_level_)
+{
+   MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
+               "Compression level must be between -1 and 9 (inclusive).");
+   if (compression_level_ != 0) { SetCompression(true);}
+   compression_level = compression_level_;
+}
+
+int ParaViewDataCollectionBase::GetCompressionLevel() const
+{
+   return compression ? compression_level : 0;
+}
+
+void ParaViewDataCollectionBase::SetDataFormat(VTKFormat fmt)
+{
+   pv_data_format = fmt;
+}
+
+bool ParaViewDataCollectionBase::IsBinaryFormat() const
+{
+   return pv_data_format != VTKFormat::ASCII;
+}
+
+void ParaViewDataCollectionBase::UseRestartMode(bool restart_mode_)
+{
+   restart_mode = restart_mode_;
+}
+
+ParaViewDataCollection::ParaViewDataCollection(
+   const std::string& collection_name, Mesh *mesh_)
+   : ParaViewDataCollectionBase(collection_name, mesh_) { }
 
 std::string ParaViewDataCollection::GenerateCollectionPath()
 {
@@ -898,7 +968,7 @@ void ParaViewDataCollection::Save()
          // Initialize new pvd file.
          pvd_stream.open(pvdname,std::ios::out|std::ios::trunc);
          pvd_stream << "<?xml version=\"1.0\"?>\n";
-         pvd_stream << "<VTKFile type=\"Collection\" version=\"0.1\"";
+         pvd_stream << "<VTKFile type=\"Collection\" version=\"2.2\"";
          pvd_stream << " byte_order=\"" << VTKByteOrder() << "\">\n";
          pvd_stream << "<Collection>" << std::endl;
       }
@@ -907,19 +977,28 @@ void ParaViewDataCollection::Save()
    std::string vtu_prefix = col_path + "/" + GenerateVTUPath() + "/";
 
    // Save the local part of the mesh and grid functions fields to the local
-   // VTU file
+   // VTU file. Also save coefficient fields.
    {
-      std::ofstream os(vtu_prefix + GenerateVTUFileName("proc", myid));
+      std::string os_str = vtu_prefix + GenerateVTUFileName("proc", myid);
+      std::ofstream os(os_str);
+      MFEM_VERIFY(os.is_open(),
+                  "Failed to open ofstream " << os_str);
       os.precision(precision);
       SaveDataVTU(os, levels_of_detail);
    }
 
-   // Save the local part of the quadrature function fields
+   // Save the local part of the quadrature function fields.
    for (const auto &qfield : q_field_map)
    {
+      MFEM_VERIFY(!bdr_output,
+                  "QuadratureFunction output is not supported for "
+                  "ParaViewDataCollection on domain boundary!");
       const std::string &field_name = qfield.first;
-      std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
-      qfield.second->SaveVTU(os, pv_data_format, compression);
+      std::string os_str = vtu_prefix + GenerateVTUFileName(field_name, myid);
+      std::ofstream os(os_str);
+      MFEM_VERIFY(os.is_open(),
+                  "Failed to open ofstream " << os_str);
+      qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel(), field_name);
    }
 
    // MPI rank 0 also creates a "PVTU" file that points to all of the separately
@@ -929,10 +1008,13 @@ void ParaViewDataCollection::Save()
    {
       // Create the main PVTU file
       {
-         std::ofstream pvtu_out(vtu_prefix + GeneratePVTUFileName("data"));
+         std::string os_str = vtu_prefix + GeneratePVTUFileName("data");
+         std::ofstream pvtu_out(os_str);
+         MFEM_VERIFY(pvtu_out.is_open(),
+                     "Failed to open ofstream " << os_str);
          WritePVTUHeader(pvtu_out);
 
-         // Grid function fields
+         // Grid function fields and coefficient fields
          pvtu_out << "<PPointData>\n";
          for (auto &field_it : field_map)
          {
@@ -940,9 +1022,27 @@ void ParaViewDataCollection::Save()
             pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
                      << "\" Name=\"" << field_it.first
                      << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                     << VTKComponentLabels(vec_dim) << " "
+                     << "format=\"" << GetDataFormatString() << "\" />\n";
+         }
+         for (auto &field_it : coeff_field_map)
+         {
+            int vec_dim = 1;
+            pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
+                     << "\" Name=\"" << field_it.first
+                     << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                     << "format=\"" << GetDataFormatString() << "\" />\n";
+         }
+         for (auto &field_it : vcoeff_field_map)
+         {
+            int vec_dim = field_it.second->GetVDim();
+            pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
+                     << "\" Name=\"" << field_it.first
+                     << "\" NumberOfComponents=\"" << vec_dim << "\" "
                      << "format=\"" << GetDataFormatString() << "\" />\n";
          }
          pvtu_out << "</PPointData>\n";
+
          // Element attributes
          pvtu_out << "<PCellData>\n";
          pvtu_out << "\t<PDataArray type=\"Int32\" Name=\"" << "attribute"
@@ -966,14 +1066,17 @@ void ParaViewDataCollection::Save()
          const std::string &q_field_name = q_field.first;
          std::string q_fname = GeneratePVTUPath() + "/"
                                + GeneratePVTUFileName(q_field_name);
-
-         std::ofstream pvtu_out(col_path + "/" + q_fname);
+         std::string os_str = col_path + "/" + q_fname;
+         std::ofstream pvtu_out(os_str);
+         MFEM_VERIFY(pvtu_out.is_open(),
+                     "Failed to open ofstream " << os_str);
          WritePVTUHeader(pvtu_out);
          int vec_dim = q_field.second->GetVDim();
          pvtu_out << "<PPointData>\n";
          pvtu_out << "<PDataArray type=\"" << GetDataTypeString()
                   << "\" Name=\"" << q_field_name
                   << "\" NumberOfComponents=\"" << vec_dim << "\" "
+                  << VTKComponentLabels(vec_dim) << " "
                   << "format=\"" << GetDataFormatString() << "\" />\n";
          pvtu_out << "</PPointData>\n";
          WritePVTUFooter(pvtu_out, q_field_name);
@@ -996,7 +1099,7 @@ void ParaViewDataCollection::WritePVTUHeader(std::ostream &os)
 {
    os << "<?xml version=\"1.0\"?>\n";
    os << "<VTKFile type=\"PUnstructuredGrid\"";
-   os << " version =\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << " version =\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<PUnstructuredGrid GhostLevel=\"0\">\n";
 
    os << "<PPoints>\n";
@@ -1033,13 +1136,14 @@ void ParaViewDataCollection::WritePVTUFooter(std::ostream &os,
 void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
 {
    os << "<VTKFile type=\"UnstructuredGrid\"";
-   if (compression != 0)
+   if (GetCompressionLevel() != 0)
    {
       os << " compressor=\"vtkZLibDataCompressor\"";
    }
-   os << " version=\"0.1\" byte_order=\"" << VTKByteOrder() << "\">\n";
+   os << " version=\"2.2\" byte_order=\"" << VTKByteOrder() << "\">\n";
    os << "<UnstructuredGrid>\n";
-   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,compression);
+   mesh->PrintVTU(os,ref,pv_data_format,high_order_output,GetCompressionLevel(),
+                  bdr_output);
 
    // dump out the grid functions as point data
    os << "<PointData >\n";
@@ -1047,7 +1151,20 @@ void ParaViewDataCollection::SaveDataVTU(std::ostream &os, int ref)
    // iterate over all grid functions
    for (FieldMapIterator it=field_map.begin(); it!=field_map.end(); ++it)
    {
+      MFEM_VERIFY(!bdr_output,
+                  "GridFunction output is not supported for "
+                  "ParaViewDataCollection on domain boundary!");
       SaveGFieldVTU(os,ref,it);
+   }
+   // save the coefficient functions
+   // iterate over all Coefficient and VectorCoefficient functions
+   for (const auto &kv : coeff_field_map)
+   {
+      SaveCoeffFieldVTU(os, ref, kv.first, *kv.second);
+   }
+   for (const auto &kv : vcoeff_field_map)
+   {
+      SaveVCoeffFieldVTU(os, ref, kv.first, *kv.second);
    }
    os << "</PointData>\n";
    // close the mesh
@@ -1064,13 +1181,15 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
    DenseMatrix vval, pmat;
    std::vector<char> buf;
    int vec_dim = it->second->VectorDim();
+   int map_type = it->second->FESpace()->GetTypicalFE()->GetMapType();
    os << "<DataArray type=\"" << GetDataTypeString()
       << "\" Name=\"" << it->first
-      << "\" NumberOfComponents=\"" << vec_dim << "\""
-      << " format=\"" << GetDataFormatString() << "\" >" << '\n';
-   if (vec_dim == 1)
+      << "\" NumberOfComponents=\"" << vec_dim << "\" "
+      << VTKComponentLabels(vec_dim) << " "
+      << "format=\"" << GetDataFormatString() << "\" >" << '\n';
+   if (vec_dim == 1 && (map_type == FiniteElement::VALUE ||
+                        map_type == FiniteElement::INTEGRAL))
    {
-      // scalar data
       for (int i = 0; i < mesh->GetNE(); i++)
       {
          RefG = GlobGeometryRefiner.Refine(
@@ -1100,51 +1219,133 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
          }
       }
    }
-
-   if (IsBinaryFormat())
+   if (pv_data_format != VTKFormat::ASCII)
    {
-      WriteVTKEncodedCompressed(os,buf.data(),buf.size(),compression);
-      os << '\n';
+      WriteBase64WithSizeAndClear(os, buf, GetCompressionLevel());
    }
    os << "</DataArray>" << std::endl;
 }
 
-void ParaViewDataCollection::SetDataFormat(VTKFormat fmt)
+void ParaViewDataCollection::SaveCoeffFieldVTU(std::ostream &os, int ref_,
+                                               const std::string &name, Coefficient &coeff)
 {
-   pv_data_format = fmt;
-}
-
-bool ParaViewDataCollection::IsBinaryFormat() const
-{
-   return pv_data_format != VTKFormat::ASCII;
-}
-
-void ParaViewDataCollection::SetHighOrderOutput(bool high_order_output_)
-{
-   high_order_output = high_order_output_;
-}
-
-void ParaViewDataCollection::SetCompressionLevel(int compression_level_)
-{
-   MFEM_ASSERT(compression_level_ >= -1 && compression_level_ <= 9,
-               "Compression level must be between -1 and 9 (inclusive).");
-   compression = compression_level_;
-}
-
-void ParaViewDataCollection::SetCompression(bool compression_)
-{
-   // If we are enabling compression, and it was disabled previously, use the
-   // default compression level. Otherwise, leave the compression level
-   // unchanged.
-   if (compression_ && compression == 0)
+   RefinedGeometry *RefG;
+   real_t val;
+   std::vector<char> buf;
+   int vec_dim = 1;
+   os << "<DataArray type=\"" << GetDataTypeString()
+      << "\" Name=\"" << name
+      << "\" NumberOfComponents=\"" << vec_dim << "\""
+      << " format=\"" << GetDataFormatString() << "\" >" << '\n';
    {
-      SetCompressionLevel(-1);
+      // scalar data
+      if (!bdr_output)
+      {
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            RefG = GlobGeometryRefiner.Refine(
+                      mesh->GetElementBaseGeometry(i), ref_, 1);
+
+            ElementTransformation *eltrans = mesh->GetElementTransformation(i);
+            const IntegrationRule *ir = &RefG->RefPts;
+            for (int j = 0; j < ir->GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir->IntPoint(j);
+               eltrans->SetIntPoint(&ip);
+               val = coeff.Eval(*eltrans, ip);
+               WriteBinaryOrASCII(os, buf, val, "\n", pv_data_format);
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < mesh->GetNBE(); i++)
+         {
+            RefG = GlobGeometryRefiner.Refine(
+                      mesh->GetBdrElementBaseGeometry(i), ref_, 1);
+
+            ElementTransformation *eltrans = mesh->GetBdrElementTransformation(i);
+            const IntegrationRule *ir = &RefG->RefPts;
+            for (int j = 0; j < ir->GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir->IntPoint(j);
+               eltrans->SetIntPoint(&ip);
+               val = coeff.Eval(*eltrans, ip);
+               WriteBinaryOrASCII(os, buf, val, "\n", pv_data_format);
+            }
+         }
+      }
    }
+   if (pv_data_format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(os, buf, GetCompressionLevel());
+   }
+   os << "</DataArray>" << std::endl;
 }
 
-void ParaViewDataCollection::UseRestartMode(bool restart_mode_)
+void ParaViewDataCollection::SaveVCoeffFieldVTU(std::ostream &os, int ref_,
+                                                const std::string &name, VectorCoefficient &coeff)
 {
-   restart_mode = restart_mode_;
+   RefinedGeometry *RefG;
+   Vector val;
+   std::vector<char> buf;
+   int vec_dim = coeff.GetVDim();
+   os << "<DataArray type=\"" << GetDataTypeString()
+      << "\" Name=\"" << name
+      << "\" NumberOfComponents=\"" << vec_dim << "\""
+      << " format=\"" << GetDataFormatString() << "\" >" << '\n';
+   {
+      // vector data
+      if (!bdr_output)
+      {
+         for (int i = 0; i < mesh->GetNE(); i++)
+         {
+            RefG = GlobGeometryRefiner.Refine(
+                      mesh->GetElementBaseGeometry(i), ref_, 1);
+
+            ElementTransformation *eltrans = mesh->GetElementTransformation(i);
+            const IntegrationRule *ir = &RefG->RefPts;
+            for (int j = 0; j < ir->GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir->IntPoint(j);
+               eltrans->SetIntPoint(&ip);
+               coeff.Eval(val, *eltrans, ip);
+               for (int jj = 0; jj < val.Size(); jj++)
+               {
+                  WriteBinaryOrASCII(os, buf, val(jj), " ", pv_data_format);
+               }
+               if (pv_data_format == VTKFormat::ASCII) { os << '\n'; }
+            }
+         }
+      }
+      else
+      {
+         for (int i = 0; i < mesh->GetNBE(); i++)
+         {
+            RefG = GlobGeometryRefiner.Refine(
+                      mesh->GetBdrElementBaseGeometry(i), ref_, 1);
+
+            ElementTransformation *eltrans = mesh->GetBdrElementTransformation(i);
+            const IntegrationRule *ir = &RefG->RefPts;
+            for (int j = 0; j < ir->GetNPoints(); j++)
+            {
+               const IntegrationPoint &ip = ir->IntPoint(j);
+               eltrans->SetIntPoint(&ip);
+               coeff.Eval(val, *eltrans, ip);
+               for (int jj = 0; jj < val.Size(); jj++)
+               {
+                  WriteBinaryOrASCII(os, buf, val(jj), " ", pv_data_format);
+               }
+               if (pv_data_format == VTKFormat::ASCII) { os << '\n'; }
+            }
+         }
+      }
+   }
+   if (pv_data_format != VTKFormat::ASCII)
+   {
+      WriteBase64WithSizeAndClear(os, buf, GetCompressionLevel());
+   }
+   os << "</DataArray>" << std::endl;
 }
 
 const char *ParaViewDataCollection::GetDataFormatString() const
@@ -1170,5 +1371,86 @@ const char *ParaViewDataCollection::GetDataTypeString() const
       return "Float32";
    }
 }
+
+#ifdef MFEM_USE_HDF5
+
+ParaViewHDFDataCollection::ParaViewHDFDataCollection(
+   const std::string &collection_name, Mesh *mesh)
+   : ParaViewDataCollectionBase(collection_name, mesh)
+{
+   compression = true;
+}
+
+void ParaViewHDFDataCollection::SetCompression(bool compression_)
+{
+   compression = compression_;
+}
+
+void ParaViewHDFDataCollection::EnsureVTKHDF()
+{
+   if (!vtkhdf)
+   {
+      if (!prefix_path.empty())
+      {
+         const int error_code = create_directory(prefix_path, mesh, myid);
+         MFEM_VERIFY(error_code == 0, "Error creating directory " << prefix_path);
+      }
+
+      std::string fname = prefix_path + name + ".vtkhdf";
+      bool use_mpi = false;
+#ifdef MFEM_USE_MPI
+      if (ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh))
+      {
+         use_mpi = true;
+#ifdef MFEM_PARALLEL_HDF5
+         vtkhdf.reset(new VTKHDF(fname, pmesh->GetComm(), {restart_mode, time}));
+#else
+         MFEM_ABORT("Requires HDF5 library with parallel support enabled");
+#endif
+      }
+#endif
+      if (!use_mpi)
+      {
+         vtkhdf.reset(new VTKHDF(fname, {restart_mode, time}));
+      }
+   }
+}
+
+template <typename FP_T>
+void ParaViewHDFDataCollection::TSave()
+{
+   EnsureVTKHDF();
+
+   if (compression)
+   {
+      vtkhdf->EnableCompression(compression_level >= 0 ? compression_level : 6);
+   }
+   else
+   {
+      vtkhdf->DisableCompression();
+   }
+
+   vtkhdf->SaveMesh<FP_T>(*mesh, high_order_output, levels_of_detail);
+   for (const auto &field : field_map)
+   {
+      vtkhdf->SaveGridFunction<FP_T>(*field.second, field.first);
+   }
+   vtkhdf->UpdateSteps(time);
+   vtkhdf->Flush();
+}
+
+void ParaViewHDFDataCollection::Save()
+{
+   switch (pv_data_format)
+   {
+      case VTKFormat::BINARY32: TSave<float>(); break;
+      case VTKFormat::BINARY: TSave<double>(); break;
+      default: MFEM_ABORT("Unsupported VTK format.");
+   }
+}
+
+ParaViewHDFDataCollection::~ParaViewHDFDataCollection() = default;
+
+#endif
 
 }  // end namespace MFEM

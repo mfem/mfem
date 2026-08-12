@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2022, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,11 @@
 #else
 #include <direct.h> // _rmdir
 #define rmdir(dir) _rmdir(dir)
+#endif
+
+#ifdef MFEM_USE_HDF5
+#include <hdf5.h>
+#include <hdf5_hl.h>
 #endif
 
 using namespace mfem;
@@ -79,11 +84,13 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(dc.GetTime() == 8.0);
 
          // Save the DataCollection and load it into a new DataCollection for comparison
-         dc.SetPadDigits(5);
+         dc.SetPadDigitsCycle(5);
+         dc.SetPadDigitsRank(5);
          dc.Save();
 
          VisItDataCollection dc_new("base");
-         dc_new.SetPadDigits(5);
+         dc_new.SetPadDigitsCycle(5);
+         dc_new.SetPadDigitsRank(5);
          dc_new.Load(dc.GetCycle());
          Mesh* mesh_new = dc_new.GetMesh();
          GridFunction *u_new = dc_new.GetField("u");
@@ -165,12 +172,14 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(dc.GetTime() == 8.0);
 
          // Save the DataCollection and load it into a new DataCollection for comparison
-         dc.SetPadDigits(5);
+         dc.SetPadDigitsCycle(5);
+         dc.SetPadDigitsRank(5);
          dc.SetCompression(true);
          dc.Save();
 
          VisItDataCollection dc_new("base");
-         dc_new.SetPadDigits(5);
+         dc_new.SetPadDigitsCycle(5);
+         dc_new.SetPadDigitsRank(5);
          dc_new.Load(dc.GetCycle());
          Mesh *mesh_new = dc_new.GetMesh();
          GridFunction *u_new = dc_new.GetField("u");
@@ -228,6 +237,13 @@ TEST_CASE("Save and load from collections", "[DataCollection]")
          REQUIRE(rmdir("base_00005") == 0);
       }
 #endif
+      delete fec;
+      delete fespace;
+      delete u;
+      delete v;
+      delete qspace;
+      delete qs;
+      delete qv;
    }
 
 }
@@ -314,3 +330,55 @@ TEST_CASE("ParaView restart mode", "[ParaView]")
    REQUIRE(remove("ParaView/ParaView.pvd") == 0);
    REQUIRE(rmdir("ParaView") == 0);
 }
+
+#ifdef MFEM_USE_HDF5
+
+TEST_CASE("ParaView VTKHDF restart mode", "[ParaView]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 3, Element::QUADRILATERAL);
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction u(&fes);
+   u = 0.0;
+
+   // Write initial dataset with three timesteps: 0, 1, 2.
+   {
+      ParaViewHDFDataCollection dc("ParaView", &mesh);
+      dc.RegisterField("u", &u);
+      SaveDataCollection(dc, 0, 0);
+      SaveDataCollection(dc, 1, 1);
+      SaveDataCollection(dc, 2, 2);
+   }
+
+   auto read_time_vals = []()
+   {
+      const hid_t f = H5Fopen("ParaView.vtkhdf", H5F_ACC_RDONLY, H5P_DEFAULT);
+      hsize_t size;
+      H5LTget_dataset_info(f, "/VTKHDF/Steps/Values", &size, nullptr, nullptr);
+      std::vector<double> vals(size);
+      H5LTread_dataset(f, "/VTKHDF/Steps/Values", H5T_NATIVE_DOUBLE, vals.data());
+      H5Fclose(f);
+      return vals;
+   };
+
+   // Check that the time steps were written correctly
+   REQUIRE(read_time_vals() == std::vector<double>({0.0, 1.0, 2.0}));
+
+   // Using restart mode, append to the existing dataset, overwriting timesteps
+   // 1 and 2 with 1 and 1.5.
+   {
+      ParaViewHDFDataCollection dc("ParaView", &mesh);
+      dc.UseRestartMode(true);
+      dc.RegisterField("u", &u);
+      SaveDataCollection(dc, 1, 1.0);
+      SaveDataCollection(dc, 2, 1.5);
+   }
+
+   // Check that the time steps were updated correctly
+   REQUIRE(read_time_vals() == std::vector<double>({0.0, 1.0, 1.5}));
+
+   // Clean up
+   REQUIRE(remove("ParaView.vtkhdf") == 0);
+}
+
+#endif // MFEM_USE_HDF5

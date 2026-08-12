@@ -1,0 +1,64 @@
+MFEM NURBS mesh v1.0
+
+# 3D two cubes mesh consisting of two patches 
+# with the origin in the bottom left corner at z = 0.
+# The edges are not defined to test the usage of 
+# automated edge generation.
+
+dimension
+3
+
+elements
+2
+1 5 0 1 4 3 6 7 10 9
+1 5 1 2 5 4 7 8 11 10
+
+boundary
+0
+
+edges
+0
+
+vertices
+12
+
+patches
+
+knotvectors
+3
+1 2 0 0 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+
+dimension
+3
+
+controlpoints
+0 0 0 1
+1 0 0 1
+0 1 0 1
+1 1 0 1
+0 0 1 1
+1 0 1 1
+0 1 1 1
+1 1 1 1
+
+knotvectors
+3
+1 2 0 0 1 1
+1 2 0 0 1 1
+1 2 0 0 1 1
+
+dimension
+3
+
+controlpoints
+1 0 0 1
+2 0 0 1
+1 1 0 1
+2 1 0 1
+1 0 1 1
+2 0 1 1
+1 1 1 1
+2 1 1 1
+

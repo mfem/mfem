@@ -3,28 +3,28 @@
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/star-mixed.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge.mesh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/star-mixed-p2.mesh -o 2
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex1 -m ../../data/square-disc.mesh
+//               ex1 -m ../../data/star.mesh
+//               ex1 -m ../../data/star-mixed.mesh
+//               ex1 -m ../../data/escher.mesh
+//               ex1 -m ../../data/fichera.mesh
+//               ex1 -m ../../data/fichera-mixed.mesh
+//               ex1 -m ../../data/toroid-wedge.mesh
+//               ex1 -m ../../data/square-disc-p2.vtk -o 2
+//               ex1 -m ../../data/square-disc-p3.mesh -o 3
+//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/star-mixed-p2.mesh -o 2
+//               ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../../data/fichera-mixed-p2.mesh -o 2
+//               ex1 -m ../../data/star-surf.mesh
+//               ex1 -m ../../data/square-disc-surf.mesh
+//               ex1 -m ../../data/inline-segment.mesh
+//               ex1 -m ../../data/amr-quad.mesh
+//               ex1 -m ../../data/amr-hex.mesh
+//               ex1 -m ../../data/fichera-amr.mesh
+//               ex1 -m ../../data/mobius-strip.mesh
+//               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
@@ -32,10 +32,10 @@
 //               ex1 -pa -d occa-cuda
 //               ex1 -pa -d raja-omp
 //               ex1 -pa -d occa-omp
-//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
+//               ex1 -m ../../data/beam-hex.mesh -pa -d cuda
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
             Ginkgo::IcPreconditioner ginkgo_precond(exec, "paric", 30);
             Ginkgo::CGSolver ginkgo_solver(exec, ginkgo_precond);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
             Ginkgo::MFEMPreconditioner gko_M(exec, M);
             Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
                Ginkgo::MFEMPreconditioner gko_M(exec, M);
                Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
                ginkgo_solver.SetPrintLevel(print_lvl);
-               ginkgo_solver.SetRelTol(1e-12);
+               ginkgo_solver.SetRelTol(sqrt(1e-12));
                ginkgo_solver.SetAbsTol(0.0);
                ginkgo_solver.SetMaxIter(400);
                ginkgo_solver.SetOperator(*(A.Ptr()));
