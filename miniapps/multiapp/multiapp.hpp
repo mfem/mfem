@@ -443,24 +443,10 @@ public:
 
     using Operator::GetGradient;
 
-    // TODO: Possibly remove this and only support MultiVector version of GradientMult
-    virtual void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const
-    {
-        MFEM_ABORT("GraphNode::GradientMult() not implemented");
-        GetGradient(x).Mult(dx, dy);
-    }
-
     virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
     {
         MFEM_ABORT("GraphNode::GradientMult() not implemented");
         GetGradient(x).Mult(dx, dy);
-    }
-
-    // TODO: Possibly remove this and only support MultiVector version of GradientMultTranspose
-    virtual void GradientMultTranspose(const Vector &x, const Vector &dx, Vector &dy) const
-    {
-        MFEM_ABORT("GraphNode::GradientMultTranspose() not implemented");
-        GetGradient(x).MultTranspose(dx, dy);
     }
 
     virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
@@ -587,13 +573,6 @@ public:
         NONE = 3          ///< Not implemented
     };
 
-    enum InputType
-    {
-        VECTOR,      ///< Asemble the input blockvector from individual fields
-        MULTIVECTOR, ///< Asemble the multivector from individual fields
-        NONE         ///< No input
-    };
-
 protected:
     Array<GraphNode*> nodes; ///< Vector of individual operators
     Array<bool> node_owned; ///< Whether the operators are owned
@@ -607,9 +586,6 @@ protected:
 
     GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
     mutable Operator *grad = nullptr; ///< Gradient operator
-
-    InputType input_type = InputType::MULTIVECTOR; ///< Input type for the graph
-    mutable Vector x_node, y_node; ///< Temporary vectors for evaluating nodes
     mutable MultiVector xmv_node, ymv_node; ///< Temporary multivectors for evaluating nodes
 
     IntToFieldMap fid_to_field; ///< Map from Field ID to Field pointer
@@ -753,9 +729,6 @@ public:
         }
     }
 
-    void SetInputType(InputType type) { input_type = type; }
-    InputType GetInputType() const { return input_type; }
-
     /**
        @brief Apply the operator to the vector @a x 
        and return the result in @a y.
@@ -794,14 +767,10 @@ public:
 
 class GraphGradient : public Operator
 {
-public:
-    using InputType = DAGraph::InputType;
-
 protected:
     mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
     Array<Vector*> x_work; ///< Array to store linearization point (intermediate fields)
     mutable MultiVector xlin;
-    mutable Vector x0, dx, dy;
     mutable MultiVector x0_mv, dx_mv, dy_mv;
 
 public:

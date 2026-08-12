@@ -360,20 +360,6 @@ public:
       }
    }
 
-   // TODO: Possibly delete and only support MultiVector version of GradientMult
-   void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const override
-   {
-      BlockVector xb(x.GetData(), InputOffsets());
-      BlockVector dxb(dx.GetData(), InputOffsets());
-      BlockVector dyb(dy.GetData(), OutputOffsets());
-
-      MultiVector xmv(1), dxmv(1), dymv(1);
-      xmv.MakeRef(0, xb.GetBlock(0));
-      dxmv.MakeRef(0, dxb.GetBlock(0));
-      dymv.MakeRef(0, dyb.GetBlock(0));
-      const_cast<DiffusionCoefficient*>(this)->GradientMult(xmv, dxmv, dymv);
-   }
-
    void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
    {
       const Vector &tdof = x[0];
@@ -458,23 +444,6 @@ public:
       Vector &y_dof = y[0];
       y_gf.ProjectCoefficient(prod_coeff);
       y_gf.GetTrueDofs(y_dof);
-   }
-
-   // TODO: Possibly delete and only support MultiVector version of GradientMult
-   void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const override
-   {
-      BlockVector xb(x.GetData(), InputOffsets());
-      BlockVector dxb(dx.GetData(), InputOffsets());
-      BlockVector dyb(dy.GetData(), OutputOffsets());
-
-      MultiVector xmv(x_gf.size()), dxmv(x_gf.size()), dymv(1);
-      for (size_t i = 0; i < x_gf.size(); i++)
-      {
-         xmv.MakeRef(i, xb.GetBlock(i));
-         dxmv.MakeRef(i, dxb.GetBlock(i));
-      }
-      dymv.MakeRef(0, dyb.GetBlock(0));
-      const_cast<ProductGridFunctions*>(this)->GradientMult(xmv, dxmv, dymv);
    }
 
    void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
@@ -638,24 +607,6 @@ public:
    Operator& GetGradient(const Vector &x) const override
    {
       MFEM_ABORT("GetGradient not implemented for DiffusionOperator");
-   }
-
-   // TODO: Possibly delete and only support MultiVector version of GradientMult
-   void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const override
-   {
-      BlockVector xb(x.GetData(), InputOffsets());
-      BlockVector dxb(dx.GetData(), InputOffsets());
-      BlockVector dyb(dy.GetData(), OutputOffsets());
-
-      Vector &Tadj = dxb.GetBlock(0);
-      Vector &kadj = dxb.GetBlock(1);
-      Vector &yadj = dyb.GetBlock(0);
-
-      Vector &tdofs = xb.GetBlock(0);
-      Vector &kdofs = xb.GetBlock(1);
-
-      dfdT_mat->Mult(Tadj, yadj);
-      dfdk_mat->AddMult(kadj, yadj);
    }
 
    void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override

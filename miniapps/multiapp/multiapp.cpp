@@ -325,73 +325,24 @@ void DAGraph::Execute(const MultiVector &x, MultiVector &y) const
         }
     }
 
-    if(input_type == InputType::VECTOR)
+    for (auto node : nodes)
     {
-        x_node.SetSize(MaxWidth());
-        y_node.SetSize(MaxHeight());
+        auto node_inputs = node->InputFields();
+        auto node_outputs = node->OutputFields();
+        xmv_node.SetNumBlocks(node_inputs.Size());
+        ymv_node.SetNumBlocks(node_outputs.Size());
 
-        for (auto node : nodes)
+        for (int i=0; i < node_inputs.Size(); i++)
         {
-            x_node.SetSize(node->Width());
-            y_node.SetSize(node->Height());
-
-            // Assemble input fields into a single vector for the node
-            auto node_inputs = node->InputFields();
-            auto ioffsets = node->InputOffsets();
-            for (int i=0; i < node_inputs.Size(); i++)
-            {
-                auto in_field = node_inputs[i];
-                int idx = index_map.Get(in_field->ID());
-                x_node.SetVector(y[idx],ioffsets[i]);
-            }
-
-            node->Mult(x_node, y_node);
-
-            // Disassemble output vector back
-            auto node_outputs = node->OutputFields();
-            BlockVector ynb(y_node.GetData(), node->OutputOffsets());
-            for (int i=0; i < node_outputs.Size(); i++)
-            {
-                auto out_field = node_outputs[i];
-                int idx = index_map.Get(out_field->ID());
-                y[idx] = ynb.GetBlock(i);
-            }
+            int idx = index_map.Get(node_inputs[i]->ID());
+            xmv_node.MakeRef(i, y[idx]);
         }
-    }
-    else if(input_type == InputType::MULTIVECTOR)
-    {
-        for (auto node : nodes)
+        for (int i=0; i < node_outputs.Size(); i++)
         {
-            auto node_inputs = node->InputFields();
-            auto node_outputs = node->OutputFields();
-            xmv_node.SetNumBlocks(node_inputs.Size());
-            ymv_node.SetNumBlocks(node_outputs.Size());
-
-            for (int i=0; i < node_inputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_inputs[i]->ID());
-                xmv_node.MakeRef(i, y[idx]);
-            }
-            for (int i=0; i < node_outputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_outputs[i]->ID());
-                ymv_node.MakeRef(i, y[idx]);
-            }
-            node->Mult(xmv_node, ymv_node);
+            int idx = index_map.Get(node_outputs[i]->ID());
+            ymv_node.MakeRef(i, y[idx]);
         }
-    }
-    else if(input_type == InputType::NONE)
-    {
-        Vector x_unused, y_unused;
-        for (auto node : nodes)
-        {
-            node->Mult(x_unused, y_unused);
-        }
-    }
-    else
-    {
-        MFEM_ABORT("DAGraph::Execute() not implemented for input type: "
-                    << static_cast<int>(input_type));
+        node->Mult(xmv_node, ymv_node);
     }
 }
 
@@ -542,7 +493,7 @@ void GraphGradient::Mult(const MultiVector &x, MultiVector &y)
     auto index_map = graph->GetFieldIdToIndexMap();
     auto fld_map = graph->GetFieldIdToFieldMap();
     int nfields = index_map.NumFields();
-    MultiVector ymv(nfields); // TODO: Should this be a member function?
+    MultiVector ymv(nfields); // TODO: Should this be a class member?
 
     // Assemble the multivector from the individual fields based on their IDs
     // This multivector contains all input, output, and intermediate fields in the graph
@@ -623,7 +574,7 @@ void GraphGradient::MultTranspose(const MultiVector &x, MultiVector &y)
     auto index_map = graph->GetFieldIdToIndexMap();
     auto fld_map = graph->GetFieldIdToFieldMap();
     int nfields = index_map.NumFields();
-    MultiVector ymv(nfields); // TODO: Should this be a member function?
+    MultiVector ymv(nfields); // TODO: Should this be a class member?
 
     for(auto const& [id, idx] : index_map)
     {
@@ -656,7 +607,6 @@ void GraphGradient::Forward(const MultiVector &x, MultiVector &y) const
                 "Number of input blocks (" << x.NumBlocks()
                 << ") must match number of input fields (" << graph->InputFields().Size() << ")");
     
-    auto in_type = graph->GetInputType();
     auto index_map  = graph->GetFieldIdToIndexMap();
     auto field_map = graph->GetFieldIdToFieldMap();
 
@@ -674,83 +624,27 @@ void GraphGradient::Forward(const MultiVector &x, MultiVector &y) const
         }
     }
 
-    if(in_type == InputType::VECTOR)
+    auto nodes = graph->Nodes();
+    for (auto node : nodes)
     {
-        x0.SetSize(graph->MaxWidth());
-        dx.SetSize(graph->MaxWidth());
-        dy.SetSize(graph->MaxHeight());
+        auto node_inputs = node->InputFields();
+        auto node_outputs = node->OutputFields();
+        x0_mv.SetNumBlocks(node_inputs.Size());
+        dx_mv.SetNumBlocks(node_inputs.Size());
+        dy_mv.SetNumBlocks(node_outputs.Size());
 
-        auto nodes = graph->Nodes();
-        for (auto node : nodes)
+        for(int i=0; i < node_inputs.Size(); i++)
         {
-            x0.SetSize(node->Width());
-            dx.SetSize(node->Width());
-            dy.SetSize(node->Height());
-
-            // Assemble input fields into a single vector for the node
-            auto node_inputs = node->InputFields();
-            auto ioffsets = node->InputOffsets();
-            for(int i=0; i < node_inputs.Size(); i++)
-            {
-                auto in_field = node_inputs[i];
-                MFEM_ASSERT(index_map.Has(in_field->ID()), "Input field ID not found in index_map");
-                int idx = index_map.Get(in_field->ID());
-                x0.SetVector(xlin[idx], ioffsets[i]);
-                dx.SetVector(y[idx], ioffsets[i]);
-            }
-
-            node->GradientMult(x0, dx, dy); // Compute JVP for the node
-
-            // Disassemble output vector back
-            auto node_outputs = node->OutputFields();
-            BlockVector ynb(dy.GetData(), node->OutputOffsets());
-            for(int i=0; i < node_outputs.Size(); i++)
-            {
-                auto out_field = node_outputs[i];
-                MFEM_ASSERT(index_map.Has(out_field->ID()), "Output field ID not found in index_map");
-                int idx = index_map.Get(out_field->ID());
-                y[idx] = ynb.GetBlock(i);
-            }
+            int idx = index_map.Get(node_inputs[i]->ID());
+            x0_mv.MakeRef(i, xlin[idx]);
+            dx_mv.MakeRef(i, y[idx]);
         }
-    }
-    else if(in_type == InputType::MULTIVECTOR)
-    {
-        auto nodes = graph->Nodes();
-        for (auto node : nodes)
+        for(int i=0; i < node_outputs.Size(); i++)
         {
-            auto node_inputs = node->InputFields();
-            auto node_outputs = node->OutputFields();
-            x0_mv.SetNumBlocks(node_inputs.Size());
-            dx_mv.SetNumBlocks(node_inputs.Size());
-            dy_mv.SetNumBlocks(node_outputs.Size());
-
-            for(int i=0; i < node_inputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_inputs[i]->ID());
-                x0_mv.MakeRef(i, xlin[idx]);
-                dx_mv.MakeRef(i, y[idx]);
-            }
-            for(int i=0; i < node_outputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_outputs[i]->ID());
-                dy_mv.MakeRef(i, y[idx]);
-            }
-            node->GradientMult(x0_mv, dx_mv, dy_mv); // Compute JVP for the node
+            int idx = index_map.Get(node_outputs[i]->ID());
+            dy_mv.MakeRef(i, y[idx]);
         }
-    }
-    else if(in_type == InputType::NONE)
-    {
-        Vector x_unused, dx_unused, dy_unused;
-        auto nodes = graph->Nodes();
-        for (auto node : nodes)
-        {
-            node->GradientMult(x_unused, dx_unused, dy_unused);
-        }
-    }
-    else
-    {
-        MFEM_ABORT("GraphGradient::Forward() not implemented for input type: "
-                    << static_cast<int>(in_type));
+        node->GradientMult(x0_mv, dx_mv, dy_mv); // Compute JVP for the node
     }
 }
 
@@ -760,7 +654,6 @@ void GraphGradient::Reverse(const MultiVector &x, MultiVector &y) const
                 "Number of input blocks (" << x.NumBlocks()
                 << ") must match number of output fields (" << graph->OutputFields().Size() << ")");
 
-    auto in_type = graph->GetInputType();
     auto index_map  = graph->GetFieldIdToIndexMap();
     auto field_map = graph->GetFieldIdToFieldMap();
     int nnodes  = graph->Size();
@@ -779,87 +672,27 @@ void GraphGradient::Reverse(const MultiVector &x, MultiVector &y) const
         }
     }
 
-    if(in_type == InputType::VECTOR)
+    for (int i=nnodes-1; i >= 0; i--)
     {
-        x0.SetSize(graph->MaxWidth());
-        dx.SetSize(graph->MaxHeight());
-        dy.SetSize(graph->MaxWidth());
+        auto node = graph->GetNode(i);
+        auto node_inputs = node->InputFields();
+        auto node_outputs = node->OutputFields();
+        x0_mv.SetNumBlocks(node_inputs.Size());
+        dx_mv.SetNumBlocks(node_outputs.Size());
+        dy_mv.SetNumBlocks(node_inputs.Size());
 
-        for (int i=nnodes-1; i >= 0; i--)
+        for(int i=0; i < node_inputs.Size(); i++)
         {
-            auto node = graph->GetNode(i);
-            x0.SetSize(node->Width());
-            dx.SetSize(node->Height());
-            dy.SetSize(node->Width());
-
-            auto node_inputs = node->InputFields();
-            auto ioffsets = node->InputOffsets();
-            for(int i=0; i < node_inputs.Size(); i++)
-            {
-                auto in_field = node_inputs[i];
-                MFEM_ASSERT(index_map.Has(in_field->ID()), "Input field ID not found in index_map");
-                int idx = index_map.Get(in_field->ID());
-                x0.SetVector(xlin[idx], ioffsets[i]);
-            }
-
-            auto node_outputs = node->OutputFields();
-            auto ooffsets = node->OutputOffsets();
-            for(int i=0; i < node_outputs.Size(); i++)
-            {
-                auto out_field = node_outputs[i];
-                MFEM_ASSERT(index_map.Has(out_field->ID()), "Output field ID not found in index_map");
-                int idx = index_map.Get(out_field->ID());
-                dx.SetVector(y[idx], ooffsets[i]);
-            }
-
-            node->GradientMultTranspose(x0, dx, dy); // Compute JVP for the node
-
-            BlockVector dynb(dy.GetData(), node->InputOffsets());
-            for(int i=0; i < node_inputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_inputs[i]->ID());
-                y[idx] = dynb.GetBlock(i);
-            }
+            int idx = index_map.Get(node_inputs[i]->ID());
+            x0_mv.MakeRef(i, xlin[idx]);
+            dy_mv.MakeRef(i, y[idx]);
         }
-    }
-    else if(in_type == InputType::MULTIVECTOR)
-    {
-        for (int i=nnodes-1; i >= 0; i--)
+        for(int i=0; i < node_outputs.Size(); i++)
         {
-            auto node = graph->GetNode(i);
-            auto node_inputs = node->InputFields();
-            auto node_outputs = node->OutputFields();
-            x0_mv.SetNumBlocks(node_inputs.Size());
-            dx_mv.SetNumBlocks(node_outputs.Size());
-            dy_mv.SetNumBlocks(node_inputs.Size());
-
-            for(int i=0; i < node_inputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_inputs[i]->ID());
-                x0_mv.MakeRef(i, xlin[idx]);
-                dy_mv.MakeRef(i, y[idx]);
-            }
-            for(int i=0; i < node_outputs.Size(); i++)
-            {
-                int idx = index_map.Get(node_outputs[i]->ID());
-                dx_mv.MakeRef(i, y[idx]);
-            }
-            node->GradientMultTranspose(x0_mv, dx_mv, dy_mv); // Compute JVP for the node
+            int idx = index_map.Get(node_outputs[i]->ID());
+            dx_mv.MakeRef(i, y[idx]);
         }
-    }
-    else if(in_type == InputType::NONE)
-    {
-        Vector x_unused, dx_unused, dy_unused;
-        for (int i=nnodes-1; i >= 0; i--)
-        {
-            auto node = graph->GetNode(i);
-            node->GradientMultTranspose(x_unused, dx_unused, dy_unused); // Compute VJP for the node
-        }
-    }
-    else
-    {
-        MFEM_ABORT("GraphGradient::Reverse() not implemented for input type: "
-                    << static_cast<int>(in_type));
+        node->GradientMultTranspose(x0_mv, dx_mv, dy_mv); // Compute JVP for the node
     }
 }
 
