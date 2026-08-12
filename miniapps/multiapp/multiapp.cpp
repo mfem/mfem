@@ -246,10 +246,10 @@ void DAGraph::Mult(const Vector &x, Vector &y) const
         ymv.MakeRef(i, yb.GetBlock(i));
     }
 
-    const_cast<DAGraph*>(this)->Mult(xmv, ymv);
+    MultMV(xmv, ymv);
 }
 
-void DAGraph::Mult(const MultiVector &x, MultiVector &y)
+void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
 {
     auto inputs  = InputFields();
     auto outputs = OutputFields();
@@ -342,7 +342,7 @@ void DAGraph::Execute(const MultiVector &x, MultiVector &y) const
             int idx = index_map.Get(node_outputs[i]->ID());
             ymv_node.MakeRef(i, y[idx]);
         }
-        node->Mult(xmv_node, ymv_node);
+        node->MultMV(xmv_node, ymv_node);
     }
 }
 
@@ -467,10 +467,10 @@ void GraphGradient::Mult(const Vector &x, Vector &y) const
         ymv.MakeRef(i, yb.GetBlock(i));
     }
 
-    const_cast<GraphGradient*>(this)->Mult(xmv, ymv); // Forward mode: compute JVP, y = J(z) * x
+    MultMV(xmv, ymv); // Forward mode: compute JVP, y = J(z) * x
 }
 
-void GraphGradient::Mult(const MultiVector &x, MultiVector &y)
+void GraphGradient::MultMV(const MultiVector &x, MultiVector &y) const
 {
     auto inputs  = graph->InputFields();
     auto outputs = graph->OutputFields();
@@ -548,10 +548,10 @@ void GraphGradient::MultTranspose(const Vector &x, Vector &y) const
     {
         ymv.MakeRef(i, yb.GetBlock(i));
     }
-    const_cast<GraphGradient*>(this)->MultTranspose(xmv, ymv); // Reverse mode: compute VJP, y = J(z)^T * x
+    MultTransposeMV(xmv, ymv); // Reverse mode: compute VJP, y = J(z)^T * x
 }
 
-void GraphGradient::MultTranspose(const MultiVector &x, MultiVector &y)
+void GraphGradient::MultTransposeMV(const MultiVector &x, MultiVector &y) const
 {
     auto inputs  = graph->InputFields();
     auto outputs = graph->OutputFields();

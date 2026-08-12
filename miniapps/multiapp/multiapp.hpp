@@ -433,26 +433,26 @@ public:
 
     virtual void Mult(const Vector &x, Vector &y) const override
     {
-        MFEM_ABORT("GraphNode::Mult() not implemented");
+        MFEM_ABORT("This method is not overridden for this class!");
     }
 
-    virtual void Mult(const MultiVector &x, MultiVector &y) override
+    virtual void MultMV(const MultiVector &x, MultiVector &y) const override
     {
-        MFEM_ABORT("GraphNode::Mult(MultiVector) not implemented");
+        MFEM_ABORT("This method is not overridden for this class!");
     }
 
     using Operator::GetGradient;
 
     virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
     {
-        MFEM_ABORT("GraphNode::GradientMult() not implemented");
-        GetGradient(x).Mult(dx, dy);
+        MFEM_ABORT("This method is not overridden for this class!");
+        GetGradientMV(x).MultMV(dx, dy);
     }
 
     virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
     {
-        MFEM_ABORT("GraphNode::GradientMultTranspose() not implemented");
-        // GetGradient(x).MultTranspose(dx, dy); // Not yet implemented
+        MFEM_ABORT("This method is not overridden for this class!");
+        GetGradientMV(x).MultTransposeMV(dx, dy); // Not yet implemented
     }
 
     /// @brief Return the input offsets for block starts.
@@ -735,7 +735,7 @@ public:
      */
     virtual void Mult(const Vector &x, Vector &y) const override;
 
-    virtual void Mult(const MultiVector &x, MultiVector &y) override;
+    virtual void MultMV(const MultiVector &x, MultiVector &y) const override;
 
     virtual void Execute(const MultiVector &x, MultiVector &y) const;
 
@@ -780,11 +780,11 @@ public:
 
     void Mult(const Vector &x, Vector &y) const override;
 
-    void Mult(const MultiVector &x, MultiVector &y) override;
+    void MultMV(const MultiVector &x, MultiVector &y) const override;
 
     void MultTranspose(const Vector &x, Vector &y) const override;
 
-    void MultTranspose(const MultiVector &x, MultiVector &y);
+    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
 
     Operator &GetGradient(const Vector &x) const override;
 

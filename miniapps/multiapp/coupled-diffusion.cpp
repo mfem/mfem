@@ -341,10 +341,10 @@ public:
       xmv.MakeRef(0, xb.GetBlock(0));
       ymv.MakeRef(0, yb.GetBlock(0));
 
-      const_cast<DiffusionCoefficient*>(this)->Mult(xmv, ymv);
+      MultMV(xmv, ymv);
    }
 
-   void Mult(const MultiVector &x, MultiVector &y) override
+   void MultMV(const MultiVector &x, MultiVector &y) const override
    {
       const Vector &tdof = x[0];
       Vector &kdof = y[0];
@@ -429,10 +429,10 @@ public:
          xmv.MakeRef(i, xb.GetBlock(i));
       }
       ymv.MakeRef(0, yb.GetBlock(0));
-      const_cast<ProductGridFunctions*>(this)->Mult(xmv, ymv);
+      MultMV(xmv, ymv);
    }
 
-   void Mult(const MultiVector &x, MultiVector &y) override
+   void MultMV(const MultiVector &x, MultiVector &y) const override
    {
       for (size_t i = 0; i < x_gf.size(); i++)
       {
@@ -567,10 +567,10 @@ public:
       xmv.MakeRef(1, xb.GetBlock(1));
       ymv.MakeRef(0, yb.GetBlock(0));
 
-      const_cast<DiffusionOperator*>(this)->Mult(xmv, ymv);
+      MultMV(xmv, ymv);
    }
 
-   void Mult(const MultiVector &x, MultiVector &y) override
+   void MultMV(const MultiVector &x, MultiVector &y) const override
    {
       const Vector &tdofs = x[0];
       const Vector &kdofs = x[1];
