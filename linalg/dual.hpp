@@ -65,6 +65,27 @@ struct is_dual_number<dual<value_type, gradient_type> >
    static constexpr bool value = true;  ///< whether or not type T is a dual number
 };
 
+/** @brief class for checking if a type is a nested dual number or not */
+template <typename T>
+struct is_nested_dual_number
+{
+   static constexpr bool value = false;  ///< whether or not type T is a nested dual number
+};
+
+template <typename value_type, typename gradient_type>
+struct is_nested_dual_number<dual<dual<value_type, gradient_type>,
+                                  dual<value_type, gradient_type> > >
+{
+   static constexpr bool value = true;  ///< whether or not type T is a nested dual number
+};
+
+template <typename V, typename G>
+struct is_nested_dual_number<dual<V, G>>
+{
+   static constexpr bool value =
+      is_dual_number<V>::value || is_dual_number<G>::value;
+};
+
 /** @brief addition of a dual number and a non-dual number */
 template <typename other_type, typename value_type, typename gradient_type,
           typename = typename std::enable_if<

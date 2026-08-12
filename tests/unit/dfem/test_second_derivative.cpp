@@ -13,8 +13,6 @@
 
 #include "mfem.hpp"
 
-#ifdef MFEM_USE_ENZYME
-
 #include "../linalg/test_same_matrices.hpp"
 
 #include "../../../fem/dfem/doperator.hpp"
@@ -46,7 +44,7 @@ struct MinimalSurfaceEnergyFunctional
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f /* dfdu, dfddudxi */
+                   dscalar_t &f /* dfdu, dfddudxi */
                   ) const
    {
       const auto invJ = inv(J);
@@ -64,7 +62,7 @@ struct MinimalSurfaceEnergy
    auto operator()(const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   dscalar_t &f) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -81,7 +79,7 @@ struct MinimalSurfaceResidual
    auto operator()(const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   tensor<real_t, dim> &dvdx) const
+                   tensor<dscalar_t, dim> &dvdx) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -124,7 +122,7 @@ struct MixedFunctional
                    const dscalar_t &rho,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   dscalar_t &f) const
    {
       f = (rho * u * u + 0.5_r * rho * rho) * det(J) * w;
    }
@@ -138,7 +136,7 @@ struct MixedFunctionalUUAction
                    const dscalar_t &rho,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &v) const
+                   dscalar_t &v) const
    {
       v = 2.0_r * rho * du * det(J) * w;
    }
@@ -152,7 +150,7 @@ struct MixedFunctionalURhoAction
                    const dscalar_t &u,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &v) const
+                   dscalar_t &v) const
    {
       v = 2.0_r * u * drho * det(J) * w;
    }
@@ -166,7 +164,7 @@ struct MixedFunctionalRhoUAction
                    const dscalar_t &u,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &v) const
+                   dscalar_t &v) const
    {
       v = 2.0_r * u * du * det(J) * w;
    }
@@ -222,7 +220,7 @@ public:
          };
 
          functional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
-         MinimalSurfaceEnergyFunctional<real_t, dim> energy;
+         MinimalSurfaceEnergyFunctional<dscalar_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
          auto second_derivatives = SecondDerivatives<DerivativePair<U, U>> {}; // Or equivalently: SecondDerivatives<Pairs::All> {};
          functional_dop->AddDomainIntegrator<LocalQFBackend>(
@@ -245,7 +243,7 @@ public:
          };
 
          residual_dop = std::make_unique<DifferentiableOperator>(in, out, pmesh);
-         MinimalSurfaceResidual<real_t, dim> residual;
+         MinimalSurfaceResidual<dscalar_t, dim> residual;
          auto derivatives = std::integer_sequence<size_t, U> {};
          residual_dop->AddDomainIntegrator<LocalQFBackend>(
             residual,
@@ -269,8 +267,11 @@ public:
          dfunctional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          // Differentiate output f (argument 3) with respect to dudxi
          // (argument 0).
-         RevDiff<MinimalSurfaceEnergy<real_t, dim>, tuple<Active, Const, Const>, tuple<Active>>
-               fd;
+         RevDiff<MinimalSurfaceEnergy<dscalar_t, dim>,
+                 tuple<Active, Const, Const>,
+                 tuple<Active>,
+                 RevDiffDualMode::Derivative>
+         fd;
 
          auto derivatives = std::integer_sequence<size_t, U> {};
          dfunctional_dop->AddDomainIntegrator<LocalQFBackend>(
@@ -460,6 +461,19 @@ void second_derivative(const char *filename, int p)
    diff -= exact_Hv;
    REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
 
+
+   if (verbose_tests)
+   {
+      mfem::out << "Hessian-vector (functional) product norm: "
+                << Hv_functional.Norml2() << std::endl;
+      mfem::out << "Hessian-vector (hand-coded residual) product norm: "
+                << Hv_dres.Norml2() << std::endl;
+      mfem::out << "Hessian-vector (forward over reverse) product norm: "
+                << Hv.Norml2() << std::endl;
+      mfem::out << "Exact Hessian-vector product norm: "
+                << exact_Hv.Norml2() << std::endl;
+   }
+
    // std::cout << "Gradient using FwdDiff<f>:\n";
    // pretty_print(g);
 
@@ -553,7 +567,7 @@ void mixed_second_derivative(const char *filename, int p)
    };
 
    DifferentiableOperator functional_dop(functional_in, functional_out, pmesh);
-   MixedFunctional<real_t, DIM> functional;
+   MixedFunctional<dscalar_t, DIM> functional;
    functional_dop.AddDomainIntegrator<LocalQFBackend>(
       functional,
       Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
@@ -710,7 +724,7 @@ std::array<bool, 4> registered_blocks(second_derivatives_t second_derivatives)
                   FieldDescriptor{Coords, mfes}},
       std::vector{FieldDescriptor{Q, &qspace_vec}}, pmesh);
 
-   MixedFunctional<real_t, DIM> functional;
+   MixedFunctional<dscalar_t, DIM> functional;
    dop.AddDomainIntegrator<LocalQFBackend>(
       functional,
       Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
@@ -811,5 +825,3 @@ TEST_CASE("dFEM functional mixed second derivative action matches exact action",
 }
 
 #endif // MFEM_USE_MPI
-
-#endif // MFEM_USE_ENZYME
