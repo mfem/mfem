@@ -2269,6 +2269,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
       const FiniteElement *coarse_fe =
          c_fes->fec->FiniteElementForGeometry(geom);
       const DenseTensor &pmats = rtrans.point_matrices[geom];
+      if (!fine_fe || !coarse_fe) { continue; } // for trace spaces, the FiniteElement might not exist
 
       lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
       lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
@@ -2383,6 +2384,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
                                                       DenseTensor &localR) const
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   if (!fe) { return; } // for trace spaces, the FiniteElement might not exist
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
@@ -2511,6 +2513,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElement *fine_fe = fec->FiniteElementForGeometry(geom);
    const FiniteElement *coarse_fe =
       coarse_fes.fec->FiniteElementForGeometry(geom);
+   if (!fine_fe || !coarse_fe) { return; } // for trace spaces, the FiniteElement might not exist
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    const DenseTensor &pmats = rtrans.point_matrices[geom];
