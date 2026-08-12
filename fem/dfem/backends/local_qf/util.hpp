@@ -21,6 +21,7 @@
 #include <array>
 #include <cstddef>
 #include <type_traits>
+#include <utility>
 
 namespace mfem::future
 {
@@ -98,9 +99,36 @@ constexpr bool active_qparams_use_dual()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// `tensor` base class of `T`, or `void` when `T` has none.
+///
+/// On device, the register types in mfem::kernels::internal (regs2d_t,
+/// regs3d_t, ...) are wrapper structs *deriving* from `tensor` instead of
+/// aliases of it, so that the thread-tile extents can be zeroed while keeping
+/// the MQ1 extent part of the type. A derived class does not match the `tensor`
+/// partial specialization of qf_param_shape below, so look through to the base.
+template <typename scalar_t, int... Is>
+tensor<scalar_t, Is...> qf_tensor_base_of(const tensor<scalar_t, Is...> &);
+
+template <typename T, typename = void>
+struct qf_tensor_base { using type = void; };
+
+template <typename T>
+struct qf_tensor_base<
+   T, std::void_t<decltype(qf_tensor_base_of(std::declval<const T &>()))>>
+{
+   using type = decltype(qf_tensor_base_of(std::declval<const T &>()));
+};
+
+template <typename T>
+using qf_tensor_base_t = typename qf_tensor_base<T>::type;
+
+///////////////////////////////////////////////////////////////////////////////
 /// Static shape for one decayed q-function parameter type
 template <typename T>
-struct qf_param_shape
+struct qf_param_shape : qf_param_shape<qf_tensor_base_t<T>> {};
+
+template <>
+struct qf_param_shape<void>
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
