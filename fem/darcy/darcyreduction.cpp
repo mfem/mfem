@@ -259,6 +259,7 @@ void DarcyReduction::AssemblePotFaceMatrix(int face, const DenseMatrix &elmat)
 
 void DarcyReduction::Mult(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(S, "DarcyReduction must be finalized!");
    S->Mult(x, y);
 }
 

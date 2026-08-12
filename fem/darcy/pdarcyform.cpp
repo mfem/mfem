@@ -595,7 +595,6 @@ void ParDarcyForm::AssembleDivLDGSharedFaces(int skip_zeros)
       for (int sf = 0; sf < nsfaces; sf++)
       {
          tr = pmesh->GetSharedFaceTransformations(sf);
-         if (tr == NULL) { continue; }
 
          const FiniteElement *trial_fe1 = pfes_u.GetFE(tr->Elem1No);
          const FiniteElement *trial_fe2 = pfes_u.GetFaceNbrFE(tr->Elem2No - NE);

@@ -108,6 +108,7 @@ void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
    if (assembly != AssemblyLevel::LEGACY)
    {
       MFEM_WARNING("Reduction not supported for this assembly level");
+      delete reduction_;
       return;
    }
    reduction.reset(reduction_);
@@ -729,7 +730,6 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
    }
 
    VectorCoefficient *vel = NULL;
-   const FluxFunction *flux_fun = NULL;
    if (M_p && M_p->GetDBFI())
    {
       auto &dbfis = *M_p->GetDBFI();
@@ -756,21 +756,6 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
          Vector cp(q.Size());
          vel->Eval(cp, Tr, Tr.GetIntPoint());
          qt.Add(p, cp);
-      };
-      hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
-   }
-   else if (flux_fun)
-   {
-      auto fx = [flux_fun](ElementTransformation &Tr, const Vector &q, real_t p,
-                           Vector &qt)
-      {
-         qt = q;
-
-         Vector qc(q.Size());
-         DenseMatrix flux(qc.GetData(), 1, qc.Size());
-         Vector state{p};
-         flux_fun->ComputeFlux(state, Tr, flux);
-         qt += qc;
       };
       hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
    }
