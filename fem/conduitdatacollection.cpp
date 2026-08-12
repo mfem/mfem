@@ -30,11 +30,10 @@
 #include <sstream>
 
 // These macros control output of Blueprint debugging files.
-#define DEBUG_SHARED_EDGES
-#define DEBUG_SHARED_FACES
+// #define DEBUG_SHARED_EDGES
+// #define DEBUG_SHARED_FACES
 
 #if defined(DEBUG_SHARED_EDGES) || defined(DEBUG_SHARED_FACES)
-#include <conduit_relay.hpp>
 #include <conduit_relay_io_blueprint.hpp>
 #endif
 
