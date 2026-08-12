@@ -21,6 +21,7 @@
 #include "dual.hpp"
 #include <limits>
 #include <type_traits> // for std::false_type, std::conditional_t, and more
+#include <array>
 
 namespace mfem
 {
@@ -1984,12 +1985,19 @@ decltype(df_dx * dx)
    return df_dx * dx;
 }
 
+template <typename>
+constexpr bool dependent_false = false;
+
 template <typename T, int... n> struct isotropic_tensor;
 
 template <typename T, int n>
 struct isotropic_tensor<T, n>
 {
-   static_assert(false,
+   // static_assert(false, ...) is not supported by all compilers;
+   // workaround before CWG2518/P2593R1 is to use the 'dependent_false' template
+   // defined above; see:
+   //    https://cppreference.com/cpp/language/static_assert
+   static_assert(dependent_false<T>,
                  "error: there is no such thing as a rank-1 isotropic tensor!");
 };
 
