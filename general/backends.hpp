@@ -115,16 +115,16 @@ namespace mfem::internal
 {
 
 #if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
-static constexpr bool using_cuda_or_hip_language = false;
+static constexpr bool can_compile_kernels = false;
 #else
-static constexpr bool using_cuda_or_hip_language = true;
+static constexpr bool can_compile_kernels = true;
 #endif
 
-template <bool using_cuda_or_hip_language=using_cuda_or_hip_language>
-void RequireCudaOrHipLanguage()
+template <bool can_compile_kernels = can_compile_kernels>
+void RequireKernelCompilation()
 {
    static_assert(
-      using_cuda_or_hip_language,
+      can_compile_kernels,
       "The calling function needs to be compiled with CUDA/HIP language!");
 }
 

@@ -617,7 +617,7 @@ void forall(func_t f,
             int num_shmem = 0,
             real_t *shmem = nullptr)
 {
-   internal::RequireCudaOrHipLanguage();
+   internal::RequireKernelCompilation();
 
 #if defined(MFEM_USE_CUDA_OR_HIP_LANG)
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
