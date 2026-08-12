@@ -136,6 +136,7 @@ void DarcyForm::EnableReduction(const Array<int> &ess_flux_tdof_list,
    if (assembly != AssemblyLevel::LEGACY)
    {
       MFEM_WARNING("Reduction not supported for this assembly level");
+      delete reduction_;
       return;
    }
    reduction.reset(reduction_);

@@ -502,7 +502,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    }
    else
    {
-      int face_master;
+      int face_master = -1;
       DenseMatrix H_f, ItHI_f;
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
       face_getter fx([this, &ItHI_f, &face_master](int f, DenseMatrix &m)
@@ -515,6 +515,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       AssembleNCSlaveFaceMatrix(face, face_getter(), NULL, face_getter(), NULL,
                                 fx, &H_f);
 
+      if (face_master < 0) { return; } // ghost master?
       if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
       Array<int> c_dofs;
       c_fes.GetFaceVDofs(face_master, c_dofs);
@@ -1381,8 +1382,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       // put zeroes on the diagonal
       for (int i = 0; i < H_->Height(); i++)
       {
-         H_->SetColPtr(i);
-         H_->SearchRow(i);
+         H_->SearchRow(i, i);
       }
       H_->Finalize(0);
    }

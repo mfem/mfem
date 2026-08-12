@@ -465,9 +465,9 @@ public:
    /// Read-only access to the associated flux FiniteElementSpace.
    const FiniteElementSpace *FluxFESpace() const { return fes_u; }
 
-   /// Return the associated flux FE space.
+   /// Return the associated potential FE space.
    FiniteElementSpace *PotentialFESpace() { return fes_p; }
-   /// Read-only access to the associated flux FiniteElementSpace.
+   /// Read-only access to the associated potential FiniteElementSpace.
    const FiniteElementSpace *PotentialFESpace() const { return fes_p; }
 
    /** @brief Update the FiniteElementSpace%s and delete all data associated

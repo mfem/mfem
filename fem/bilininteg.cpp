@@ -785,6 +785,7 @@ real_t mfem::VectorBlockDiagonalIntegrator::ComputeHDGFaceEnergy(
 
       BilinearFormIntegrator *bfi = ((int)integs.size() < numBlocks) ?
                                     integs[0] : integs[i];
+      if (!bfi) { continue; }
       en += bfi->ComputeHDGFaceEnergy(side, trace_face_fe, fe, Tr, tr_d, el_d,
                                       d_energy ? &d_denergy : NULL);
 
@@ -4184,14 +4185,11 @@ void DGNormalTraceIntegrator::AssembleFaceMatrix(const FiniteElement &trial_fe1,
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
-      Trans.Loc1.Transform(ip, eip1);
-      Trans.Elem1->SetIntPoint(&eip1);
-      if (tr_ndof2 && te_ndof2)
-      {
-         Trans.Loc2.Transform(ip, eip2);
-         Trans.Elem2->SetIntPoint(&eip2);
-      }
+      Trans.SetAllIntPoints(&ip);
+
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
       trial_fe1.CalcPhysShape(*Trans.Elem1, tr_shape1);
 
       Trans.Face->SetIntPoint(&ip);
@@ -4414,17 +4412,12 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
    for (int p = 0; p < ir->GetNPoints(); p++)
    {
       const IntegrationPoint &ip = ir->IntPoint(p);
-      IntegrationPoint eip1, eip2;
-      Trans.Loc1.Transform(ip, eip1);
-      Trans.Elem1->SetIntPoint(&eip1);
-      if (tr_ndof2 && te_ndof2)
-      {
-         Trans.Loc2.Transform(ip, eip2);
-         Trans.Elem2->SetIntPoint(&eip2);
-      }
-      trial_fe1.CalcPhysShape(*Trans.Elem1, tr_shape1);
+      Trans.SetAllIntPoints(&ip);
 
-      Trans.Face->SetIntPoint(&ip);
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      trial_fe1.CalcPhysShape(*Trans.Elem1, tr_shape1);
 
       if (dim == 1)
       {
@@ -4480,7 +4473,7 @@ void DGNormalStressIntegrator::AssembleFaceMatrix(const FiniteElement
       }
 
       auto kernel = [&elmat, &dim, &nor](const real_t w, const Vector &te_shape,
-                                         const Vector tr_shape, int ioff, int joff)
+                                         const Vector &tr_shape, int ioff, int joff)
       {
          const int tr_ndof = tr_shape.Size();
          const int te_ndof = te_shape.Size();
@@ -5312,7 +5305,7 @@ void NormalStressJumpIntegrator::AssembleFaceMatrix(
       test_fe1.CalcPhysShape(*Trans.Elem1, shape1);
 
       auto kernel = [&elmat, &dim, &nor](const real_t w, const Vector &te_shape,
-                                         const Vector tr_face_shape, int ioff)
+                                         const Vector &tr_face_shape, int ioff)
       {
          const int tr_face_ndof = tr_face_shape.Size();
          const int te_ndof = te_shape.Size();
