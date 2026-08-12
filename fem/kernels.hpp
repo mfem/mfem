@@ -83,7 +83,7 @@ using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 template <int DIM, int N>
 using regs2d_t = mfem::future::tensor<real_t, N, N, DIM>;
 
-template <int DIM, int VDIM, int N>
+template <int VDIM, int DIM, int N>
 using regs2d_vd_t = mfem::future::tensor<real_t, N, N, VDIM, DIM>;
 
 template <int N>
@@ -98,7 +98,7 @@ using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
 template <int DIM, int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
 
-template <int DIM, int VDIM, int N>
+template <int VDIM, int DIM, int N>
 using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 
 // on CPU, get next multiple of 4, allowing better alignments
