@@ -957,11 +957,6 @@ protected:
                    const FiniteElement &fe, ElementTransformation &Trans,
                    DenseMatrix &I) const;
 
-   // Rotated gradient = -ProjectCurl2D_RT
-   void ProjectRotGrad_RT(const real_t *nk, const Array<int> &d2n,
-                          const FiniteElement &fe, ElementTransformation &Trans,
-                          DenseMatrix &grad) const;
-
    // Input is a scalar representing the Z (out of plane) component, Output is
    // the X-Y (in-plane) RT curl
    void ProjectCurl2D_RT(const real_t *nk, const Array<int> &d2n,
