@@ -72,18 +72,22 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
          [[maybe_unused]] constexpr auto t2d_1_1 = t2d(1,1); // 4.0
       }
       {
-         tensor<real_t,3,2> t2d{};
+         // [[maybe_unused]] for nvcc:
+         [[maybe_unused]] tensor<real_t,3,2> t2d{};
          static_assert(t2d.rank() == 2);
          static_assert(t2d.size(0) == 3);
          static_assert(t2d.size(1) == 2);
       }
       // 2-D tensor with 0 size(s):
       {
-         tensor<real_t,0,3> t2d_0{};
+         // [[maybe_unused]] for nvcc:
+         [[maybe_unused]] tensor<real_t,0,3> t2d_0{};
          [[maybe_unused]] auto sizeof_t2d_0 = sizeof(t2d_0);
-         tensor<real_t,3,0> t2d_1{};
+         // [[maybe_unused]] for nvcc:
+         [[maybe_unused]] tensor<real_t,3,0> t2d_1{};
          [[maybe_unused]] auto sizeof_t2d_1 = sizeof(t2d_1);
-         tensor<real_t,0,0> t2d_2{};
+         // [[maybe_unused]] for nvcc:
+         [[maybe_unused]] tensor<real_t,0,0> t2d_2{};
          [[maybe_unused]] auto sizeof_t2d_2 = sizeof(t2d_2);
       }
       // det(), inv(), sqnorm()
