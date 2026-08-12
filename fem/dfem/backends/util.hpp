@@ -720,7 +720,7 @@ namespace enzyme_detail
 {
 
 template <auto wrapper_fn, typename qf_return_t, typename... AccArgs>
-__attribute__((always_inline)) inline void
+MFEM_FUTURE_ALWAYS_INLINE inline void
 do_enzyme_call(AccArgs... acc)
 {
    __enzyme_fwddiff<qf_return_t>(wrapper_fn, acc..., enzyme_runtime_activity);
@@ -730,7 +730,7 @@ template <auto wrapper_fn, typename qf_return_t,
           size_t CurO, size_t NO,
           typename primals_t, typename derivs_t,
           typename... AccArgs>
-__attribute__((always_inline)) inline void
+MFEM_FUTURE_ALWAYS_INLINE inline void
 process_outputs(primals_t &primals, derivs_t &derivs, AccArgs... acc)
 {
    if constexpr (CurO == NO)
@@ -753,7 +753,7 @@ template <auto wrapper_fn, typename qf_return_t,
           typename inputs_t, typename shadows_t,
           typename primals_t, typename derivs_t,
           typename... AccArgs>
-__attribute__((always_inline)) inline void
+MFEM_FUTURE_ALWAYS_INLINE inline void
 process_inputs(inputs_t &inputs, shadows_t &shadows,
                primals_t &primals, derivs_t &derivs,
                AccArgs... acc)
@@ -1156,14 +1156,161 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
 }
 
 template <typename qfunc_t, typename... Args>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void enzyme_fwddiff_wrapper(qfunc_t *qf, Args &...args)
 {
    (*qf)(args...);
 }
 
+#ifdef MFEM_USE_ENZYME
+/// Machinery for a pointwise forward-mode call whose per-argument activity is
+/// known at compile time: inactive arguments are marked `enzyme_const` instead
+/// of being `enzyme_dup`'d with a zero tangent, so Enzyme does not emit (nor
+/// the qfunction pay for) the tangent of everything they feed. For a matrix-free
+/// Jacobian action this is the difference between differentiating only the
+/// trial field and differentiating the whole geometry chain as well.
+namespace pointwise_enzyme_detail
+{
+
+/// The activity markers have to appear literally in the __enzyme_fwddiff
+/// argument list - Enzyme cannot trace a marker that arrived through a function
+/// parameter of a call it did not inline. The list is therefore accumulated by
+/// always_inline recursion (the always-inliner runs even at -O0) and is only
+/// spelled out in the leaf below.
+///
+/// Phase 2: after `enzyme_interleave`, the shadow of every dup'd argument, in
+/// argument order.
+template <auto fn, std::size_t Cur, std::size_t N, bool... Dup,
+          typename shadow_t, typename... Acc>
+MFEM_FUTURE_ALWAYS_INLINE
+MFEM_HOST_DEVICE static void append_shadows(shadow_t &shadow_args, Acc... acc)
+{
+   if constexpr (Cur == N)
+   {
+      // No enzyme_runtime_activity: every argument's activity is already fixed
+      // at compile time by the mask, so the runtime shadow-aliasing checks it
+      // would emit are dead weight - and on device they cost registers and
+      // branches inside the innermost quadrature-point loop.
+      __enzyme_fwddiff<void>(fn, acc...);
+   }
+   else if constexpr (std::array<bool, sizeof...(Dup)> {Dup...} [Cur])
+   {
+      append_shadows<fn, Cur + 1, N, Dup...>(
+         shadow_args, acc..., &get<int(Cur)>(shadow_args));
+   }
+   else
+   {
+      append_shadows<fn, Cur + 1, N, Dup...>(shadow_args, acc...);
+   }
+}
+
+/// Phase 1: one activity marker per primal argument. Markers are emitted per
+/// argument rather than as sticky groups so that the mask can alternate freely
+/// without reordering the qfunction's parameters.
+template <auto fn, bool Scratch, std::size_t Cur, std::size_t N, bool... Dup,
+          typename qfunc_shadow_t, typename primal_t, typename shadow_t,
+          typename... Acc>
+MFEM_FUTURE_ALWAYS_INLINE
+MFEM_HOST_DEVICE static void append_primals(qfunc_shadow_t *qfunc_shadow,
+                                            primal_t &primal_args,
+                                            shadow_t &shadow_args,
+                                            Acc... acc)
+{
+   if constexpr (Cur == N)
+   {
+      // The qfunction's own shadow, when it has one, leads the shadow list
+      // because its primal leads the primal list.
+      if constexpr (Scratch)
+      {
+         append_shadows<fn, 0, N, Dup...>(
+            shadow_args, acc..., enzyme_interleave, qfunc_shadow);
+      }
+      else
+      {
+         append_shadows<fn, 0, N, Dup...>(
+            shadow_args, acc..., enzyme_interleave);
+      }
+   }
+   else if constexpr (std::array<bool, sizeof...(Dup)> {Dup...} [Cur])
+   {
+      append_primals<fn, Scratch, Cur + 1, N, Dup...>(
+         qfunc_shadow, primal_args, shadow_args,
+         acc..., enzyme_dup, &get<int(Cur)>(primal_args));
+   }
+   else
+   {
+      append_primals<fn, Scratch, Cur + 1, N, Dup...>(
+         qfunc_shadow, primal_args, shadow_args,
+         acc..., enzyme_const, &get<int(Cur)>(primal_args));
+   }
+}
+
+} // namespace pointwise_enzyme_detail
+
+template <bool... Dup, typename qfunc_t, typename qfunc_shadow_t,
+          typename primal_t, typename shadow_t, int... Is>
+MFEM_FUTURE_ALWAYS_INLINE
+MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active_impl(
+   qfunc_t &qfunc,
+   qfunc_shadow_t &qfunc_shadow,
+   primal_t &primal_args,
+   shadow_t &shadow_args,
+   std::integer_sequence<int, Is...>)
+{
+   constexpr std::size_t nargs = sizeof...(Is);
+   static_assert(sizeof...(Dup) == nargs,
+                 "activity mask must cover every q-function parameter");
+
+   constexpr auto fn = &enzyme_fwddiff_wrapper<
+                       qfunc_t, std::remove_reference_t<decltype(get<Is>(primal_args))>...>;
+
+   constexpr bool scratch = detail::qfunc_uses_scratch_v<qfunc_t>;
+   if constexpr (scratch)
+   {
+      pointwise_enzyme_detail::append_primals<fn, true, 0, nargs, Dup...>(
+         &qfunc_shadow, primal_args, shadow_args, enzyme_dup, &qfunc);
+   }
+   else
+   {
+      pointwise_enzyme_detail::append_primals<fn, false, 0, nargs, Dup...>(
+         &qfunc_shadow, primal_args, shadow_args, enzyme_const, &qfunc);
+   }
+}
+
+/// Forward-mode q-function call with a compile-time activity mask covering all
+/// `nargs` q-function parameters (inputs and outputs). Only the arguments whose
+/// mask entry is true are differentiated; the shadow slots of the others are
+/// never read, so callers need not zero them.
+template <bool... Dup, typename qfunc_t, typename qfunc_shadow_t,
+          typename primal_t, typename shadow_t>
+MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active(
+   qfunc_t &qfunc,
+   qfunc_shadow_t &qfunc_shadow,
+   primal_t &primal_args,
+   shadow_t &shadow_args)
+{
+   constexpr int nargs = static_cast<int>(tuple_size<primal_t>::value);
+   call_enzyme_fwddiff_active_impl<Dup...>(
+      qfunc, qfunc_shadow, primal_args, shadow_args,
+      std::make_integer_sequence<int, nargs> {});
+}
+
+template <bool... Dup, typename qfunc_t, typename primal_t, typename shadow_t>
+MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active(
+   qfunc_t &qfunc,
+   primal_t &primal_args,
+   shadow_t &shadow_args)
+{
+   static_assert(!detail::qfunc_uses_scratch_v<qfunc_t>,
+                 "Should not be reaching this specialization for qfuncs that use scratch!");
+   detail::unused_qfunc_shadow qfunc_shadow;
+   call_enzyme_fwddiff_active<Dup...>(qfunc, qfunc_shadow, primal_args,
+                                      shadow_args);
+}
+#endif // MFEM_USE_ENZYME
+
 template <typename qfunc_t, typename qfunc_shadow_t, typename args_t, int... Is>
-__attribute__((always_inline))
+MFEM_FUTURE_ALWAYS_INLINE
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    qfunc_t &qfunc,
    qfunc_shadow_t &qfunc_shadow,

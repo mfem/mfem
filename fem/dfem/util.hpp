@@ -42,6 +42,12 @@
 #include "parameterspace.hpp"
 #include "tuple.hpp"
 
+#if defined(__GNUC__) || defined(__clang__)
+#define MFEM_FUTURE_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define MFEM_FUTURE_ALWAYS_INLINE
+#endif
+
 namespace mfem::future
 {
 
@@ -70,6 +76,36 @@ constexpr auto to_array(const std::tuple<Ts...>& tuple)
 namespace detail
 {
 
+inline void SyncLVectorAliasMemory(
+   const MultiVector &x,
+   const std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      if (x_l[i] != nullptr && x_l[i]->Size() == x[i].Size())
+      {
+         x[i].SyncMemory(*x_l[i]);
+      }
+   }
+}
+
+inline void SyncLVectorAliasMemory(
+   const BlockVector &x,
+   const std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      if (x_l[i] != nullptr && x_l[i]->Size() == x.GetBlock(i).Size())
+      {
+         x.GetBlock(i).SyncMemory(*x_l[i]);
+      }
+   }
+}
+
 // Delete each owned Vector pointer at most once, then clear the slots.
 inline void DeleteOwnedVectorPointersImpl(std::vector<Vector *> &deleted,
                                           std::vector<Vector *> &vectors)
@@ -95,17 +131,19 @@ inline void DeleteOwnedVectorPointers(vector_groups_t &... vector_groups)
 }
 
 template <typename lambda, std::size_t... i>
-constexpr void for_constexpr(lambda&& f,
-                             std::integral_constant<std::size_t, i>... Is)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integral_constant<std::size_t, i>... Is)
 {
    f(Is...);
 }
 
 
 template <std::size_t... n, typename lambda, typename... arg_types>
-constexpr void for_constexpr(lambda&& f,
-                             std::integer_sequence<std::size_t, n...>,
-                             arg_types... args)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integer_sequence<std::size_t, n...>,
+              arg_types... args)
 {
    (detail::for_constexpr(f, args...,
                           std::integral_constant<std::size_t,n> {}), ...);
@@ -114,31 +152,35 @@ constexpr void for_constexpr(lambda&& f,
 }  // namespace detail
 
 template <typename lambda, std::size_t... i>
-constexpr void for_constexpr(lambda&& f,
-                             std::integer_sequence<std::size_t, i ... >)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integer_sequence<std::size_t, i ... >)
 {
    (f(std::integral_constant<std::size_t, i> {}), ...);
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
-constexpr void for_constexpr(lambda&& f)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void for_constexpr(
+   lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&&, arg_t&&,
-                                      std::integer_sequence<std::size_t>)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&&, arg_t&&, std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
 }
 
 template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<std::size_t, i, Is...>)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+                       std::integer_sequence<std::size_t, i, Is...>)
 {
    f(std::integral_constant<std::size_t, i> {}, get<i>(arg));
    for_constexpr_with_arg(f, std::forward<arg_t>(arg),
@@ -146,7 +188,8 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
+MFEM_FUTURE_ALWAYS_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
       std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
@@ -219,15 +262,34 @@ auto make_dependency_map(tuple<input_ts...> inputs)
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
 
-// @brief Compile-time dependency tuple for derivative input index DerIdx.
+// @brief True if any input in InputsTuple is attached to field ID FieldId.
+template <int FieldId, typename InputsTuple, size_t... Js>
+constexpr bool any_input_has_field_id_impl(std::index_sequence<Js...>)
+{
+   return ((std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() ==
+            FieldId) || ...);
+}
+
+template <int FieldId, typename InputsTuple>
+constexpr bool any_input_has_field_id()
+{
+   return any_input_has_field_id_impl<FieldId, InputsTuple>(
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
+// @brief Compile-time dependency tuple for the derivative w.r.t. field ID
+// DerFieldId.
 //
-// Returns std::tuple<..., N> where entry j is Active iff input j shares
-// the same field ID as input DerIdx, otherwise Const.
-template <size_t DerIdx, typename InputsTuple, size_t... Js>
+// Returns tuple<..., N> where entry j is Active iff input j is attached to
+// field ID DerFieldId, otherwise Const.
+//
+// @note DerFieldId is a field ID, not a position in InputsTuple. The same
+// field can appear in several inputs (e.g. Value<U> and Gradient<U>), and its
+// ID is unrelated to where those inputs sit in the tuple.
+template <size_t DerFieldId, typename InputsTuple, size_t... Js>
 constexpr auto make_dependency_tuple_ct_impl(std::index_sequence<Js...>)
 {
-   constexpr int field_id =
-      std::decay_t<std::tuple_element_t<DerIdx, InputsTuple>>::GetFieldId();
+   constexpr int field_id = static_cast<int>(DerFieldId);
 
    return tuple<
           std::conditional_t<
@@ -238,10 +300,15 @@ constexpr auto make_dependency_tuple_ct_impl(std::index_sequence<Js...>)
           > {};
 }
 
-template <size_t DerIdx, typename InputsTuple>
+template <size_t DerFieldId, typename InputsTuple>
 constexpr auto make_dependency_tuple_ct()
 {
-   return make_dependency_tuple_ct_impl<DerIdx, InputsTuple>(
+   static_assert(
+      any_input_has_field_id<static_cast<int>(DerFieldId), InputsTuple>(),
+      "no quadrature function input is attached to the requested derivative "
+      "field ID; the derivative would be identically zero");
+
+   return make_dependency_tuple_ct_impl<DerFieldId, InputsTuple>(
              std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
 }
 
@@ -269,11 +336,19 @@ struct tuple_cat_type<tuple<Ts...>, tuple<Us...>, Rest...>
 template <typename... Tuples>
 using tuple_cat_type_t = typename tuple_cat_type<Tuples...>::type;
 
-template <size_t DerIdx, typename InputsTuple, size_t... Js>
+// @brief Outputs of the first derivative of a functional w.r.t. field ID
+// DerFieldId.
+//
+// Every input attached to DerFieldId contributes one output, which is
+// integrated against the basis functions of that FieldOperator. For example,
+// differentiating w.r.t. a field entering as both Value<U> and Gradient<U>
+// yields tuple<Value<U>, Gradient<U>>.
+//
+// @note DerFieldId is a field ID, not a position in InputsTuple.
+template <size_t DerFieldId, typename InputsTuple, size_t... Js>
 constexpr auto make_first_derivative_outputs_impl(std::index_sequence<Js...>)
 {
-   constexpr int field_id =
-      std::decay_t<std::tuple_element_t<DerIdx, InputsTuple>>::GetFieldId();
+   constexpr int field_id = static_cast<int>(DerFieldId);
 
    using outputs_t = tuple_cat_type_t<
                      std::conditional_t<
@@ -286,10 +361,15 @@ constexpr auto make_first_derivative_outputs_impl(std::index_sequence<Js...>)
    return outputs_t {};
 }
 
-template <size_t DerIdx, typename InputsTuple>
+template <size_t DerFieldId, typename InputsTuple>
 constexpr auto make_first_derivative_outputs()
 {
-   return make_first_derivative_outputs_impl<DerIdx, InputsTuple>(
+   static_assert(
+      any_input_has_field_id<static_cast<int>(DerFieldId), InputsTuple>(),
+      "no quadrature function input is attached to the requested derivative "
+      "field ID; the derivative would be identically zero");
+
+   return make_first_derivative_outputs_impl<DerFieldId, InputsTuple>(
              std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
 }
 
@@ -617,6 +697,87 @@ using Outputs = tuple<Ops...>;
 template <size_t... FieldIds>
 using Derivatives = std::integer_sequence<size_t, FieldIds...>;
 
+// A single second derivative (Hessian) block of a functional f, obtained by
+// differentiating the gradient grad_G f in the direction of the field D, i.e.
+// DerivativePair<G, D> denotes d/dD (grad_G f). The two ids play different
+// roles: G has to be one of the requested first derivatives, while D only has
+// to be an input field of the quadrature function.
+template <size_t GradientFieldId, size_t DirectionFieldId>
+struct DerivativePair
+{
+   static constexpr size_t gradient_id = GradientFieldId;
+   static constexpr size_t direction_id = DirectionFieldId;
+};
+
+// The second derivative blocks to be made available for a functional f, given
+// to AddDomainIntegrator() or AddBoundaryIntegrator() right after the first
+// derivatives:
+//
+//    dop->AddDomainIntegrator<LocalQFBackend>(
+//       functional, inputs, outputs, ir, all_domain_attr,
+//       Derivatives<X, Y> {}, second_derivatives);
+//
+// With the first derivatives grad_X f and grad_Y f requested as above,
+// second_derivatives is one of:
+//
+// - SecondDerivatives<Pairs::None> {}
+//      No second derivatives at all, i.e. the default.
+//
+// - SecondDerivatives<Pairs::All> {}
+//      All four blocks d/dX (grad_X f), d/dY (grad_X f), d/dX (grad_Y f) and
+//      d/dY (grad_Y f).
+//
+// - SecondDerivatives<Pairs::Diagonal> {}
+//      Only d/dX (grad_X f) and d/dY (grad_Y f), i.e. no mixed derivatives.
+//
+// - SecondDerivatives<DerivativePair<X, X>, DerivativePair<X, Y>> {}
+//      Only the two listed blocks d/dX (grad_X f) and d/dY (grad_X f). This one
+//      never differentiates grad_Y f, so Derivatives<X> {} would do as well.
+//
+// Blocks that are not requested here are not available from
+// DifferentiableOperator::GetSecondDerivative(). Requesting anything but
+// Pairs::None from an integrator that is not a functional is a compile time
+// error, and so is a DerivativePair whose gradient id is missing from the first
+// derivatives, since such a block could never be registered.
+template <typename... Pairs>
+using SecondDerivatives = tuple<Pairs...>;
+
+// Markers selecting a set of blocks from the requested first derivatives
+// instead of listing them one by one. They never reach a field that is not
+// itself a requested first derivative, e.g. with Derivatives<X, Y> {} none of
+// them expresses d/dZ (grad_X f), which needs a DerivativePair<X, Z>.
+struct Pairs
+{
+   // No second derivatives at all, i.e. the default.
+   struct None {};
+
+   // Every block that can be formed from the requested first derivatives.
+   struct All {};
+
+   // Only the diagonal blocks d/dX (grad_X f), i.e. no mixed derivatives.
+   struct Diagonal {};
+};
+
+template <size_t... FieldIds>
+constexpr bool contains_field_id(size_t field_id,
+                                 std::integer_sequence<size_t, FieldIds...>)
+{
+   return ((field_id == FieldIds) || ...);
+}
+
+// True if the gradient id of every requested block is also a requested first
+// derivative. The direction ids are unconstrained, they only have to be input
+// fields of the quadrature function.
+template <typename... Pairs, size_t... FieldIds>
+constexpr bool second_derivative_gradients_available(
+   SecondDerivatives<Pairs...>,
+   std::integer_sequence<size_t, FieldIds...> derivative_ids)
+{
+   return (contains_field_id(Pairs::gradient_id, derivative_ids) && ...);
+}
+
+
+
 template <typename T>
 constexpr int GetFieldId()
 {
@@ -759,8 +920,15 @@ struct ThreadBlocks
 };
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+#define MFEM_DFEM_GRID_CONSTANT __grid_constant__
+#else
+#define MFEM_DFEM_GRID_CONSTANT
+#endif
+
 template <typename func_t>
-__global__ void forall_kernel_shmem(func_t f, int n)
+__global__ void forall_kernel_shmem(MFEM_DFEM_GRID_CONSTANT const func_t f,
+                                    int n)
 {
    int i = blockIdx.x;
    extern __shared__ real_t shmem[];
@@ -771,7 +939,8 @@ __global__ void forall_kernel_shmem(func_t f, int n)
 }
 
 template <typename func_t>
-__global__ void forall_kernel_static_smem(func_t f, int n)
+__global__ void forall_kernel_static_smem(
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n)
 {
    int i = blockIdx.x;
    if (i >= n) { return; }
@@ -781,7 +950,8 @@ __global__ void forall_kernel_static_smem(func_t f, int n)
 template <int MAX_THREADS_PER_BLOCK, typename func_t>
 __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
-static void forall_kernel_static_smem_launch_bounds(func_t f, int n)
+static void forall_kernel_static_smem_launch_bounds(
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n)
 {
    // Every launch site uses <<<n, block_size>>>, i.e. one block per item, so
    // this is deliberately not a grid-stride loop.
@@ -933,6 +1103,9 @@ void forall(func_t f,
 #if defined(MFEM_USE_CUDA_OR_HIP)
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
+      // A zero grid dim is a valid no-op, but CUDA reports it as
+      // cudaErrorInvalidConfiguration, so screen it out here.
+      if (N <= 0) { return; }
       if constexpr (MAX_THREADS_PER_BLOCK > 0)
       {
          assert(num_bytes == 0);
@@ -966,6 +1139,73 @@ void forall(func_t f,
       for (int i = 0; i < N; i++)
       {
          f(i, shmem);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("no compute backend available");
+   }
+}
+
+/// @cond Suppress_Doxygen_warnings
+
+#if defined(MFEM_USE_CUDA_OR_HIP)
+template <typename data_t, typename body_t>
+__global__ void forall_data_kernel(MFEM_DFEM_GRID_CONSTANT const data_t data,
+                                   int n)
+{
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   body_t::run(data, i);
+}
+
+template <int MAX_THREADS_PER_BLOCK, typename data_t, typename body_t>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void forall_data_kernel_launch_bounds(
+   MFEM_DFEM_GRID_CONSTANT const data_t data, int n)
+{
+   int i = blockIdx.x;
+   if (i >= n) { return; }
+   body_t::run(data, i);
+}
+
+#undef MFEM_DFEM_GRID_CONSTANT
+#endif
+
+/// @endcond
+
+template <int MAX_THREADS_PER_BLOCK = 0, typename body_t, typename data_t>
+void forall_data(data_t data,
+                 const int &N,
+                 [[maybe_unused]] const ThreadBlocks &blocks)
+{
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
+   {
+#if defined(MFEM_USE_CUDA_OR_HIP)
+      dim3 block_size(blocks.x, blocks.y, blocks.z);
+      if constexpr (MAX_THREADS_PER_BLOCK > 0)
+      {
+         forall_data_kernel_launch_bounds
+         <MAX_THREADS_PER_BLOCK, data_t, body_t><<<N, block_size>>>(data, N);
+      }
+      else
+      {
+         forall_data_kernel<data_t, body_t><<<N, block_size>>>(data, N);
+      }
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+#endif
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
+   {
+      for (int i = 0; i < N; i++)
+      {
+         body_t::run(data, i);
       }
    }
    else
@@ -1739,16 +1979,23 @@ void prolongation(
    for (int i = 0; i < x.NumBlocks(); i++)
    {
       const auto P = get_prolongation(fields[i]);
+      const auto alias_lvector_block = [&]
+      {
+         const Vector &xi = x.GetBlock(i);
+         x_l[i]->NewMemoryAndSize(xi.GetMemory(), xi.Size(), false);
+         x_l[i]->UseDevice(xi.UseDevice());
+         x_l[i]->SyncMemory(xi);
+      };
 
       // If nullptr, assume Identity.
       if (P == nullptr)
       {
-         *x_l[i] = x.GetBlock(i);
+         alias_lvector_block();
       }
       // Check if input is already L-vector sized (skip prolongation if so)
       else if (is_lvector && x.GetBlock(i).Size() == P->Height())
       {
-         *x_l[i] = x.GetBlock(i);
+         alias_lvector_block();
       }
       else
       {
@@ -1790,6 +2037,8 @@ void prolongation(
       if (is_lvector)
       {
          x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
+         x_l[i]->UseDevice(x[i].UseDevice());
+         x_l[i]->SyncMemory(x[i]);
          continue;
       }
       const auto P = get_prolongation(fields[i]);
@@ -1885,6 +2134,8 @@ void prolongation_transpose(
       if (is_lvector)
       {
          x[i].NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+         x[i].UseDevice(x_l[i]->UseDevice());
+         x[i].SyncMemory(*x_l[i]);
          continue;
       }
 
@@ -1940,6 +2191,8 @@ void restriction(
       if (cache.IsPassthrough(i))
       {
          x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
+         x_e[i]->UseDevice(x_l[i]->UseDevice());
+         x_e[i]->SyncMemory(*x_l[i]);
       }
       else
       {
@@ -1998,7 +2251,7 @@ void restriction_transpose(
       // If there is no restriction, assume Identity and alias the E-vector.
       // This is decided before allocating, so nothing is allocated only to be
       // freed again on the same call.
-      if (R == nullptr)
+      if (R == nullptr || cache.IsPassthrough(i))
       {
          if (x_l[i] != nullptr && x_l[i] != x_e[i]) { delete x_l[i]; }
          x_l[i] = x_e[i];
@@ -2008,6 +2261,10 @@ void restriction_transpose(
       const int s = cache.Width(i);
 
       // TODO
+      if (x_l[i] == x_e[i])
+      {
+         x_l[i] = nullptr;
+      }
       if (x_l[i] == nullptr)
       {
          x_l[i] = new Vector(s);

@@ -15,6 +15,8 @@
 
 #ifdef MFEM_USE_ENZYME
 
+#include "../linalg/test_same_matrices.hpp"
+
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../fem/dfem/backends/local_qf/revdiff_transformer.hpp"
@@ -222,12 +224,12 @@ public:
          functional_dop = std::make_unique<DifferentiableOperator>(in, out, mesh);
          MinimalSurfaceEnergyFunctional<real_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         auto second_derivatives = std::integer_sequence<size_t, U> {};
+         auto second_derivatives = SecondDerivatives<DerivativePair<U, U>> {}; // Or equivalently: SecondDerivatives<Pairs::All> {};
          functional_dop->AddDomainIntegrator<LocalQFBackend>(
             energy,
             Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Q>> {}, /* Value<U>, Gradient<U> */
-            ir, all_domain_attr, derivatives /* , second_derivatives */);
+            ir, all_domain_attr, derivatives, second_derivatives);
       }
 
       // Manually computed residual
@@ -317,6 +319,14 @@ public:
       functional_dop->GetDerivative(U)->Mult(X, Y);
    }
 
+   // Gradient assembled into a Vector from the state captured by
+   // GetDerivative, the functional counterpart of Assemble(SparseMatrix *&).
+   void gradient_assembled(const Vector &u, Vector &g) const
+   {
+      MultiVector X{u, coords};
+      functional_dop->GetDerivative(U, X)->Assemble(g);
+   }
+
    // Hessian-vector product H(u) v with the hand-coded second derivative.
    void hvp_exact(const Vector &u, const Vector &v, Vector &Hv) const
    {
@@ -402,6 +412,15 @@ void second_derivative(const char *filename, int p)
    functional.gradient(u, g);
 
    Vector diff(g);
+   diff -= exact_g;
+   REQUIRE(diff.Norml2() < 1e-12);
+
+   // The functional derivative assembled into a Vector.
+   Vector assembled_g;
+   functional.gradient_assembled(u, assembled_g);
+   REQUIRE(assembled_g.Size() == fes.GetTrueVSize());
+
+   diff = assembled_g;
    diff -= exact_g;
    REQUIRE(diff.Norml2() < 1e-12);
 
@@ -540,9 +559,23 @@ void mixed_second_derivative(const char *filename, int p)
       Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
       Outputs<FunctionalValue<Q>> {},
       ir, all_domain_attr,
-      Derivatives<U, Rho> {});
+      Derivatives<U, Rho> {},
+      SecondDerivatives<Pairs::All> {});
 
    MultiVector X{u, rho, coords};
+
+   // Every Hessian block of f = \int (rho u^2 + 0.5 rho^2) is a mass matrix,
+   // so each one can be assembled with plain MFEM as a reference:
+   //
+   //    d^2f/du^2      -> 2 rho      d^2f/(du drho) -> 2 u
+   //    d^2f/(drho du) -> 2 u        d^2f/drho^2    -> 1
+   //
+   // The coefficients read the projected grid functions, not the analytic
+   // FunctionCoefficients, to match what dFEM evaluates at the quadrature
+   // points.
+   GridFunctionCoefficient u_gf_coeff(&u_gf), rho_gf_coeff(&rho_gf);
+   ProductCoefficient two_u(2.0, u_gf_coeff), two_rho(2.0, rho_gf_coeff);
+   ConstantCoefficient one(1.0);
 
    auto check_block = [&](auto gradient_id,
                           auto direction_id,
@@ -552,7 +585,8 @@ void mixed_second_derivative(const char *filename, int p)
                           auto exact_outputs,
                           const std::vector<FieldDescriptor> &exact_in,
                           const std::vector<FieldDescriptor> &exact_out,
-                          MultiVector exact_x)
+                          MultiVector exact_x,
+                          Coefficient &hessian_coeff)
    {
       Vector actual(tvsize);
       MultiVector Actual{actual};
@@ -569,6 +603,31 @@ void mixed_second_derivative(const char *filename, int p)
       Vector diff(actual);
       diff -= expected;
       REQUIRE(MFEM_Approx(diff.Norml2()) == 0.0);
+
+      HypreParMatrix *actual_mat = nullptr;
+      functional_dop.GetSecondDerivative(gradient_id, direction_id, X)->Assemble(
+         actual_mat);
+      REQUIRE(actual_mat != nullptr);
+
+      // Reference matrix MFEM assembly for the same block
+      ParBilinearForm blf(&fes);
+      blf.AddDomainIntegrator(new MassIntegrator(hessian_coeff, &ir));
+      blf.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf.Assemble();
+      blf.Finalize();
+      HypreParMatrix *expected_mat = blf.ParallelAssemble();
+      REQUIRE(expected_mat != nullptr);
+
+      // TestSameMatrices only walks the first matrix' sparsity pattern and
+      // reads a missing entry of the second as 0, so compare both ways to
+      // cover the union of the two patterns. A structurally deficient
+      // actual_mat is only visible from the reference side.
+      REQUIRE(actual_mat->Width() == expected_mat->Width());
+      TestSameMatrices(*actual_mat, *expected_mat);
+      TestSameMatrices(*expected_mat, *actual_mat);
+
+      delete actual_mat;
+      delete expected_mat;
    };
 
    check_block(U, U, du,
@@ -579,7 +638,8 @@ void mixed_second_derivative(const char *filename, int p)
                            FieldDescriptor{Rho, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{U, &fes}},
-               MultiVector{du, rho, coords});
+               MultiVector{du, rho, coords},
+               two_rho);
 
    check_block(U, Rho, drho,
                MixedFunctionalURhoAction<real_t, DIM> {},
@@ -589,7 +649,8 @@ void mixed_second_derivative(const char *filename, int p)
                            FieldDescriptor{U, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{U, &fes}},
-               MultiVector{drho, u, coords});
+               MultiVector{drho, u, coords},
+               two_u);
 
    check_block(Rho, U, du,
                MixedFunctionalRhoUAction<real_t, DIM> {},
@@ -599,7 +660,8 @@ void mixed_second_derivative(const char *filename, int p)
                            FieldDescriptor{U, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{Rho, &fes}},
-               MultiVector{du, u, coords});
+               MultiVector{du, u, coords},
+               two_u);
 
    check_block(Rho, Rho, drho,
                MixedFunctionalRhoRhoAction<real_t, DIM> {},
@@ -608,13 +670,103 @@ void mixed_second_derivative(const char *filename, int p)
                std::vector{FieldDescriptor{DRho, &fes},
                            FieldDescriptor{Coords, mfes}},
                std::vector{FieldDescriptor{Rho, &fes}},
-               MultiVector{drho, coords});
+               MultiVector{drho, coords},
+               one);
+}
+
+// Registers the mixed functional with the given second derivative request and
+// reports which of the four Hessian blocks became available, in the order
+// (U,U), (U,Rho), (Rho,U), (Rho,Rho).
+template <typename second_derivatives_t>
+std::array<bool, 4> registered_blocks(second_derivatives_t second_derivatives)
+{
+   static constexpr int DIM = 2;
+   static constexpr int U = 0, Rho = 1, Coords = 2, Q = 3;
+
+   Mesh smesh("../../data/inline-quad.mesh");
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+
+   H1_FECollection fec(1, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const IntegrationRule &ir =
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), 2);
+
+   Array<int> all_domain_attr;
+   if (pmesh.attributes.Size() > 0)
+   {
+      all_domain_attr.SetSize(pmesh.attributes.Max());
+      all_domain_attr = 1;
+   }
+
+   QuadratureSpace qspace(pmesh, ir);
+   VectorQuadratureSpace qspace_vec(qspace, 1);
+
+   DifferentiableOperator dop(
+      std::vector{FieldDescriptor{U, &fes},
+                  FieldDescriptor{Rho, &fes},
+                  FieldDescriptor{Coords, mfes}},
+      std::vector{FieldDescriptor{Q, &qspace_vec}}, pmesh);
+
+   MixedFunctional<real_t, DIM> functional;
+   dop.AddDomainIntegrator<LocalQFBackend>(
+      functional,
+      Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
+      Outputs<FunctionalValue<Q>> {},
+      ir, all_domain_attr,
+      Derivatives<U, Rho> {},
+      second_derivatives);
+
+   return
+   {
+      dop.HasSecondDerivative(U, U), dop.HasSecondDerivative(U, Rho),
+      dop.HasSecondDerivative(Rho, U), dop.HasSecondDerivative(Rho, Rho)
+   };
 }
 
 } // namespace second_derivative_test
 
-TEST_CASE("dFEM functional second derivative action matches mfem",
+TEST_CASE("dFEM functional second derivative registration",
           "[Parallel][dFEM][second-derivative]")
+{
+   using namespace second_derivative_test;
+   static constexpr int U = 0, Rho = 1;
+
+   // (U,U), (U,Rho), (Rho,U), (Rho,Rho)
+   using blocks_t = std::array<bool, 4>;
+
+   SECTION("none")
+   {
+      REQUIRE(registered_blocks(SecondDerivatives<Pairs::None> {}) ==
+              blocks_t{false, false, false, false});
+   }
+
+   SECTION("all")
+   {
+      REQUIRE(registered_blocks(SecondDerivatives<Pairs::All> {}) ==
+              blocks_t{true, true, true, true});
+   }
+
+   SECTION("diagonal")
+   {
+      REQUIRE(registered_blocks(SecondDerivatives<Pairs::Diagonal> {}) ==
+              blocks_t{true, false, false, true});
+   }
+
+   SECTION("custom")
+   {
+      // One Hessian block and one mixed block.
+      REQUIRE(registered_blocks(
+                 SecondDerivatives<DerivativePair<U, U>,
+                 DerivativePair<Rho, U>> {}) ==
+              blocks_t{true, false, true, false});
+   }
+}
+
+TEST_CASE("dFEM functional second derivative action matches mfem",
+          "[Parallel][dFEM][second-derivative][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);
@@ -646,7 +798,7 @@ TEST_CASE("dFEM functional second derivative action matches mfem",
 }
 
 TEST_CASE("dFEM functional mixed second derivative action matches exact action",
-          "[Parallel][dFEM][second-derivative]")
+          "[Parallel][dFEM][second-derivative][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
    const auto p = !all_tests ? 1 : GENERATE(1, 2, 3);

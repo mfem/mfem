@@ -439,13 +439,11 @@ int ElementRestriction::FillI(SparseMatrix &mat,
    MFEM_VERIFY(ne == trial_restr.ne,
                "ElementRestriction::FillI: test/trial NE mismatch");
    const int test_all_dofs = ndofs;
-   const int trial_all_dofs = trial_restr.ndofs;
    const int test_vd = vdim;
    const int trial_vd = trial_restr.vdim;
    const int test_elt_dofs = dof;
    const int trial_elt_dofs = trial_restr.dof;
    const bool test_byvdim = byvdim;
-   const bool trial_byvdim = trial_restr.byvdim;
    auto I = mat.ReadWriteI();
    auto test_offsets = offsets.Read();
    auto test_indices = indices.Read();

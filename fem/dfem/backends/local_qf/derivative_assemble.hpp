@@ -706,11 +706,12 @@ public:
       MFEM_ASSERT(total_trial_op_dim > 0,
                   "LocalQFBackend: no dependent inputs found");
 
-      inputs_trial_op_dim.SetSize(n_inputs);
       inputs_trial_op_dim.UseDevice(true);
+      inputs_trial_op_dim.SetSize(n_inputs);
+      auto inputs_trial_op_dim_host = inputs_trial_op_dim.HostWrite();
       for_constexpr<n_inputs>([&](auto i)
       {
-         inputs_trial_op_dim[i] =
+         inputs_trial_op_dim_host[i] =
             input_is_dependent[i]
             ? get<i>(inputs).size_on_qp / get<i>(inputs).vdim
             : 0;
@@ -718,7 +719,7 @@ public:
 
       const int elem_mat_size =
          num_test_dof * test_vdim * num_trial_dof * trial_vdim;
-      Ae_mem.SetSize(elem_mat_size * ne);
+      Ae_mem.SetSize(elem_mat_size * ne, Device::GetDeviceMemoryType());
       Ae_mem.UseDevice(true);
       Ae_mem = 0.0;
    }

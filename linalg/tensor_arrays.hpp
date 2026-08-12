@@ -284,6 +284,8 @@ public:
       else { return get_accessor(is...); }
    }
 
+   /// @cond Suppress_Doxygen_warnings
+
    /** @brief Helper class facilitating the reading/writing of local tensor
        objects to the global data array of the tensor_ndarray. */
    class tensor_accessor
@@ -332,7 +334,7 @@ public:
           scalar reference so that @c array(i) can be passed to functions
           expecting a @c scalar_t& in/out parameter. */
       template <bool Enable = (sizeof...(tensor_sizes) == 0),
-                std::enable_if_t<Enable, int> = 0>
+                typename = std::enable_if_t<Enable>>
       MFEM_HOST_DEVICE
       operator scalar_t &()
       {
@@ -358,6 +360,8 @@ public:
       static_assert(sizeof...(is) == rank(), "invalid number of indices!");
       return get_accessor(std::array<std::size_t,rank()> {std::size_t(is)...});
    }
+
+   /// @endcond
 };
 
 

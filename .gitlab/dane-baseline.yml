@@ -102,12 +102,14 @@ report_baseline:
         mkdir -p ${MACHINE_NAME}
         rundir="${MACHINE_NAME}/$(date +%Y-%m-%d)-gitlab-${BASELINE_TEST}-${CI_COMMIT_REF_SLUG}"
         rundir=$(${CI_PROJECT_DIR}/.gitlab/scripts/safe_create_rundir ${rundir})
-        cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir}
+        status=0
+        cp ${CI_PROJECT_DIR}/${ARTIFACTS_DIR}/* ${rundir} || { status=1; }
         printf "%s\n" "" "Pipeline URL:" "$CI_PIPELINE_URL" \
           >> ${rundir}/pipeline.txt
         # We create an autotest-email.html file, because that's how we signal
         # that there was an error / diff (temporary).
-        if [[ -f ${rundir}/${BASELINE_TEST}.err ]] || \
+        if [[ $status -ne 0 ]] || \
+           [[ -f ${rundir}/${BASELINE_TEST}.err ]] || \
            [[ -f ${rundir}/${BASELINE_TEST}-${MACHINE_NAME}.diff ]]; then
           cp ${rundir}/pipeline.txt ${rundir}/autotest-email.html
         fi

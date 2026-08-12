@@ -12,11 +12,11 @@
 
 #include "action.hpp"
 #include "derivative_action.hpp"
-#include "derivative_apply.hpp"
 #include "derivative_setup.hpp"
 
 #include "derivative_apply_transpose.hpp"
 
+#include "../local_qf/derivative_apply.hpp"
 #include "../local_qf/derivative_assemble.hpp"
 #include "../local_qf/derivative_assemble_diagonal.hpp"
 
@@ -24,6 +24,51 @@
 
 namespace mfem::future
 {
+
+namespace detail
+{
+
+template <typename T>
+struct LocalQFShapeArg
+{
+   using type = std::remove_const_t<T>&;
+};
+
+template <typename scalar_t, int ndims, int... tensor_sizes>
+struct LocalQFShapeArg<tensor_ndarray<scalar_t, ndims, tensor_sizes...>>
+{
+   using scalar_type = std::remove_const_t<scalar_t>;
+   using type = std::conditional_t<
+                sizeof...(tensor_sizes) == 0,
+                scalar_type,
+                tensor<scalar_type, tensor_sizes...>>&;
+};
+
+template <typename scalar_t, int... tensor_sizes>
+struct LocalQFShapeArg<tensor<scalar_t, tensor_sizes...>>
+{
+   using scalar_type = std::remove_const_t<scalar_t>;
+   using type = std::conditional_t<
+                sizeof...(tensor_sizes) == 0,
+                scalar_type,
+                tensor<scalar_type, tensor_sizes...>>&;
+};
+
+template <typename qf_param_ts>
+struct LocalQFShapeFunction;
+
+template <typename... qf_param_ts>
+struct LocalQFShapeFunction<tuple<qf_param_ts...>>
+{
+   void operator()(
+      typename LocalQFShapeArg<qf_param_decay_t<qf_param_ts>>::type...) const;
+};
+
+template <typename qfunc_t>
+using LocalQFShapeFunctionFor = LocalQFShapeFunction<
+                                typename get_function_signature<qfunc_t>::type::parameter_ts>;
+
+} // namespace detail
 
 struct GlobalQFBackend
 {
@@ -108,9 +153,15 @@ struct GlobalQFBackend
       outputs_t outputs,
       const Vector &qp_cache)
    {
-      return GlobalQFImpl::DerivativeApply<
-             derivative_id, inputs_t, outputs_t>(
-                ctx, inputs, outputs, qp_cache);
+      return LocalQFImpl::DerivativeApply<
+             derivative_id,
+             detail::LocalQFShapeFunctionFor<qfunc_t>,
+             inputs_t,
+             outputs_t>(ctx,
+                        detail::LocalQFShapeFunctionFor<qfunc_t> {},
+                        inputs,
+                        outputs,
+                        qp_cache);
    }
 
    template<

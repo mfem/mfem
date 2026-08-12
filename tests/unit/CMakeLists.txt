@@ -44,6 +44,7 @@ set(UNIT_TESTS_SRCS
   enzyme/test_enzyme_reverse_tape.cpp
   dfem/test_hyperelasticity.cpp
   dfem/test_functional.cpp
+  dfem/test_functional_gradient.cpp
   dfem/test_jvp_vjp.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
@@ -95,6 +96,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_face_orientations.cpp
   mesh/test_fms.cpp
   mesh/test_geometric_factors.cpp
+  mesh/test_ho_rw.cpp
   mesh/test_mesh.cpp
   mesh/test_ncmesh.cpp
   mesh/test_nurbs.cpp
@@ -152,6 +154,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lor_batched.cpp
   fem/test_lor_dg.cpp
   fem/test_lor.cpp
+  fem/test_mixedsesqform.cpp
   fem/test_nonlinearform.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
@@ -160,6 +163,8 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_grad.cpp
   fem/test_pa_idinterp.cpp
   fem/test_pa_kernels.cpp
+  fem/test_pa_nlvc.cpp
+  fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
@@ -178,6 +183,20 @@ set(UNIT_TESTS_SRCS
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
+  fem/specializations/test_diffusion_integ.cpp
+  fem/specializations/test_mass_integ.cpp
+  fem/specializations/test_convection_integ.cpp
+  fem/specializations/test_vecmass_integ.cpp
+  fem/specializations/test_curlcurl_integ.cpp
+  fem/specializations/test_vecdiffusion_integ.cpp
+  fem/specializations/test_dgtrace_integ.cpp
+  fem/specializations/test_dgdiffusion_integ.cpp
+  fem/specializations/test_dgmassinv.cpp
+  fem/specializations/test_qinterp_det.cpp
+  fem/specializations/test_qinterp_eval.cpp
+  fem/specializations/test_qinterp_grad.cpp
+  fem/specializations/test_qinterp_tensoreval.cpp
+  fem/specializations/test_qinterp_eval_hdiv.cpp
   enzyme/compatibility.cpp
   dfem/test_tensor_functions.cpp
   # The following are tested separately (keep the comment as a reminder).

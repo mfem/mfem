@@ -2031,18 +2031,20 @@ std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF() const
    return detgf;
 }
 
-void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering,
+                           int pyrtype)
 {
    DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
    {
-      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto);
+      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto,
+                                 FiniteElement::VALUE, pyrtype);
    }
    else
    {
-      nfec = new H1_FECollection(order, Dim);
+      nfec = new H1_FECollection(order, Dim, BasisType::GaussLobatto, pyrtype);
    }
    ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
                                                            ordering);
@@ -4861,6 +4863,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (NURBSext)
    {
       Printer(os, "", comments); // does not print shared boundary
+      return;
+   }
+
+   if (pncmesh && pncmesh->using_scaling)
+   {
+      // For nodes scaling, we write the file in the format MFEM NC mesh v1.1.
+      Printer(os, "", comments);
       return;
    }
 

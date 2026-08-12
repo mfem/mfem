@@ -197,8 +197,8 @@ struct DerivativeSetup
                         j_cur * total_trial_op_dim_local +
                         m_global;
                      cache_d[q + num_qp_local *
-                                 (cache_idx + residual_size_local * entity)] =
-                        yq_d[c_out + yq_out_size * gq];
+                               (cache_idx + residual_size_local * entity)] =
+                                yq_d[c_out + yq_out_size * gq];
                   });
                   out_offset += yq_out_size;
                });

@@ -158,13 +158,19 @@ struct RevDiff
    using signature = decltype(signature_impl(std::make_index_sequence<num_inputs> {},
                                              std::make_index_sequence<num_active_inputs> {}));
 
-   // Plain function with the qfunction's exact (reference) signature so it can
-   // be handed to Enzyme as a function pointer.
+   Func func {};
+
+   RevDiff() = default;
+   MFEM_HOST_DEVICE explicit RevDiff(const Func &func_) : func(func_) { }
+
+   // Plain function with the qfunction's exact (reference) signature, plus the
+   // configured qfunction instance, so it can be handed to Enzyme as a function
+   // pointer without default-constructing away runtime qfunction state.
    template <size_t... Is>
-   MFEM_HOST_DEVICE static __attribute__((always_inline)) void
-   static_call(tuple_element_t<Is, args_tuple>... args)
+   MFEM_HOST_DEVICE static MFEM_FUTURE_ALWAYS_INLINE void
+   static_call(Func *func, tuple_element_t<Is, args_tuple>... args)
    {
-      Func{}(args...);
+      (*func)(args...);
    }
 
    template <size_t... Is>
@@ -176,13 +182,14 @@ struct RevDiff
 
    // Recursive builder of the per-argument reverse-mode enzyme call.
    template <size_t I = 0, typename AllPtrs, typename... Built>
-   MFEM_HOST_DEVICE static __attribute__((always_inline)) void
+   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void
    call_enzyme_rev(AllPtrs &ptrs, output_view &scratch, output_view &adjoint,
-                   Built... built)
+                   Built... built) const
    {
       if constexpr (I == arity)
       {
-         __enzyme_autodiff<void>(fn, built...);
+         __enzyme_autodiff<void>(fn, enzyme_const, const_cast<Func *>(&func),
+                                 built...);
       }
       else if constexpr (I == active_output)
       {
@@ -209,7 +216,7 @@ struct RevDiff
    // Zero all gradient outputs before the enzyme call (Enzyme accumulates).
    template <typename AllPtrs, size_t... Ss>
    MFEM_HOST_DEVICE static
-   __attribute__((always_inline)) void zero_grads(
+   MFEM_FUTURE_ALWAYS_INLINE void zero_grads(
       AllPtrs &ptrs,
       std::index_sequence<Ss...>)
    {
@@ -226,7 +233,7 @@ struct RevDiff
    // scratch (enzyme_dupnoneed). A single __enzyme_autodiff call yields all
    // gradient blocks simultaneously.
    template <typename... Args>
-   MFEM_HOST_DEVICE __attribute__((always_inline)) void operator()(
+   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void operator()(
       Args &&...args) const
    {
       static_assert(sizeof...(Args) == num_inputs + num_active_inputs,
@@ -239,9 +246,9 @@ struct RevDiff
       call_enzyme_rev(ptrs, out_scratch, out_adjoint);
    }
 
-   static __attribute__((always_inline)) void print() { print_impl(std::make_index_sequence<arity> {}); }
+   static MFEM_FUTURE_ALWAYS_INLINE void print() { print_impl(std::make_index_sequence<arity> {}); }
 
-   template <size_t... Is> static __attribute__((always_inline)) void print_impl(
+   template <size_t... Is> static MFEM_FUTURE_ALWAYS_INLINE void print_impl(
       std::index_sequence<Is...>)
    {
       mfem::out << "__enzyme_autodiff<void>(fptr";

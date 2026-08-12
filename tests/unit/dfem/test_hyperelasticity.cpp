@@ -25,7 +25,7 @@ using dscalar_t = real_t;
 #else
 using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
-#endif
+#endif // MFEM_USE_MPI
 
 
 constexpr int dim = 3;
@@ -131,6 +131,7 @@ public:
       }
 
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
+      auto second_derivatives = SecondDerivatives<Pairs::All> {};
       if (use_energy)
       {
          NeoHookeanEnergy<dscalar_t> energy;
@@ -138,7 +139,7 @@ public:
             energy,
             Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Energy>> {},
-            ir, all_domain_attr, derivatives);
+            ir, all_domain_attr, derivatives, second_derivatives);
       }
       else
       {
@@ -268,6 +269,8 @@ struct HyperelasticityTestContext
 };
 
 
+#ifdef MFEM_USE_ENZYME
+
 TEST_CASE("dfem neo-hookean energy and stress agree",
           "[Parallel][dFEM][GPU][Hyperelasticity]")
 {
@@ -308,5 +311,7 @@ TEST_CASE("dfem neo-hookean energy and stress agree",
    REQUIRE(energy_action.Norml2() > 0.0);
    REQUIRE(stress_action.Norml2() > 0.0);
 }
+
+#endif // MFEM_USE_ENZYME
 
 #endif

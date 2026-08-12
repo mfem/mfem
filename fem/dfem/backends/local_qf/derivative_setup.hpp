@@ -420,7 +420,7 @@ public:
                         if constexpr (qf_param_uses_dual_v<DT>)
                         {
                            qarg = backend_t::template identity_qp_pull_dual<DT>(
-                                     false, XE, XE, qx, qy, qz, e);
+                              false, XE, XE, qx, qy, qz, e);
                         }
                         else
                         {
