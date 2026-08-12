@@ -641,7 +641,7 @@ void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       const int intorder = 2 * el.GetOrder();  // <----------
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
+      ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
    }
 
    elvect = 0.0;
@@ -751,7 +751,7 @@ void VectorBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       const int intorder = 2 * el.GetOrder();  // <----------
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
+      ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
    }
 
    elvect = 0.0;
@@ -838,7 +838,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleRHSElementVect(
    if (ir == NULL)
    {
       int intorder = oa * el.GetOrder() + ob;  // <----------
-      ir = &IntRules.Get(el.GetGeomType(), intorder);
+      ir = &IntRules.Get(Tr.GetGeometryType(), intorder);
    }
 
    for (int i = 0; i < ir->GetNPoints(); i++)
