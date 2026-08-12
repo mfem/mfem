@@ -331,6 +331,9 @@ DarcyFluxReduction::DarcyFluxReduction(FiniteElementSpace *fes_u_,
    : DarcyReduction(fes_u_, fes_p_, bsym_)
 {
    width = height = fes_p.GetVSize();
+   MFEM_ASSERT(fes_u.FEColl()->GetContType() ==
+               FiniteElementCollection::DISCONTINUOUS,
+               "The flux space is not discontinuous!");
 }
 
 DarcyFluxReduction::~DarcyFluxReduction()
@@ -874,7 +877,7 @@ void DarcyFluxReduction::ComputeSolution(const BlockVector &b,
       fes_p.GetProlongationMatrix()->Mult(sol_tr, sol_r);
    }
 
-   p = sol_r;
+   p = sol_tr;
 
    Vector bu;
    if (Bf_face_data.Size())
@@ -938,6 +941,9 @@ DarcyPotentialReduction::DarcyPotentialReduction(FiniteElementSpace *fes_u_,
    : DarcyReduction(fes_u_, fes_p_, bsym_)
 {
    width = height = fes_u.GetVSize();
+   MFEM_ASSERT(fes_p.FEColl()->GetContType() ==
+               FiniteElementCollection::DISCONTINUOUS,
+               "The potential space is not discontinuous!");
 }
 
 DarcyPotentialReduction::~DarcyPotentialReduction()

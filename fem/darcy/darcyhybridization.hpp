@@ -515,8 +515,8 @@ public:
    { MFEM_ABORT("Use BlockVector version instead"); }
 
    /// Hybridize r.h.s. of the mixed system.
-   /** @param b      r.h.s. of the mixed system
-       @param b_r    r.h.s of the hybridized system
+   /** @param b      r.h.s. of the mixed system (VDOFs)
+       @param b_r    r.h.s of the hybridized system (TDOFs)
     */
    void ReduceRHS(const BlockVector &b, Vector &b_r) const;
 
@@ -525,8 +525,8 @@ public:
        which may not be consistent with the implicit definition in the
        hybridized system. Therefore, the values should serve only as an
        approximation or an initial guess.
-       @param sol    solution of the mixed system
-       @param sol_r  solution of the hybridized system
+       @param sol    solution of the mixed system (VDOFs)
+       @param sol_r  solution of the hybridized system (VDOFs)
     */
    void ProjectSolution(const BlockVector &sol, Vector &sol_r) const;
 
@@ -537,9 +537,9 @@ public:
    { MFEM_ABORT("Use BlockVector version instead"); }
 
    /// Compute solution of the mixed system.
-   /** @param b      r.h.s. of the mixed system
-       @param sol_r  solution of the hybridized system
-       @param sol    solution of the mixed system
+   /** @param b      r.h.s. of the mixed system (VDOFs)
+       @param sol_r  solution of the hybridized system (TDOFs)
+       @param sol    solution of the mixed system (TDOFs)
     */
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
                         BlockVector &sol) const;

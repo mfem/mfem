@@ -197,15 +197,15 @@ public:
 #endif
 
    /// Reduce r.h.s. of the mixed system.
-   /** @param b      r.h.s. of the mixed system
-       @param b_r    r.h.s of the reduced system
+   /** @param b      r.h.s. of the mixed system (VDOFs)
+       @param b_r    r.h.s of the reduced system (TDOFs)
     */
    virtual void ReduceRHS(const BlockVector &b, Vector &b_r) const = 0;
 
    /// Compute solution of the mixed system.
-   /** @param b      r.h.s. of the mixed system
-       @param sol_r  solution of the reduced system
-       @param sol    solution of the mixed system
+   /** @param b      r.h.s. of the mixed system (VDOFs)
+       @param sol_r  solution of the reduced system (TDOFs)
+       @param sol    solution of the mixed system (TDOFs)
     */
    virtual void ComputeSolution(const BlockVector &b, const Vector &sol_r,
                                 BlockVector &sol) const = 0;
