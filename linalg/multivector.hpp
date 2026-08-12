@@ -29,16 +29,20 @@ namespace mfem
     - this class does not inherit from class Vector (as a consequence of the
       first bullet).
 
-    Internally, each Vector block is represented as either:
+    Internally, each Vector block is represented as one of the following
+    three options:
     - (default) a Vector object constructed and owned by this class; this
       object, in turn, as any Vector object, can own its Memory allocation or
       refer to a sub-Memory of another Memory object; or
     - a pointer to an externally allocated Vector or classes derived from
-      Vector. */
+      Vector.
+    - a pointer to an externally allocated const Vector or classes derived from
+      Vector. This option is helpful for wrapping const Vector objects as a
+      MultiVector that will be then used as a const MultiVector. */
 class MultiVector
 {
 private:
-   std::vector<std::variant<Vector,Vector*>> blocks;
+   std::vector<std::variant<Vector,Vector*,const Vector*>> blocks;
 
 public:
    /// Create an empty MultiVector with zero blocks.
@@ -87,6 +91,16 @@ public:
                    std::is_convertible<VectorTypes&,Vector&>...>, bool> = true>
    MultiVector(VectorTypes &...vs) { MakeRef(vs...); }
 
+   /** @brief Construct a MultiVector referencing multiple const Vectors given
+       as arguments. Individual blocks are read-only; non-const operator[]
+       will generate an error. */
+   template <typename... VectorTypes,
+             std::enable_if_t<
+                std::conjunction_v<
+                   std::is_convertible<const VectorTypes&,const Vector&>...>,
+                bool> = true>
+   MultiVector(const VectorTypes &...vs) { MakeRef(vs...); }
+
    /// Return the number of Vectors in the MultiVector.
    int NumBlocks() const { return blocks.size(); }
 
@@ -95,7 +109,8 @@ public:
        initialized, i.e. they all have size zero. */
    void SetNumBlocks(int num_blocks) { blocks.resize(num_blocks); }
 
-   /// Read-write access to the i-th Vector.
+   /** @brief Read-write access to the i-th Vector. Generates an error if the
+       i-th block is read-only, i.e. it is a pointer to a const Vector. */
    inline Vector &operator[](int i);
 
    /// Read-only access to the i-th Vector.
@@ -152,6 +167,16 @@ public:
                    std::is_convertible<VectorTypes&,Vector&>...>, bool> = true>
    inline void MakeRef(VectorTypes &...vs);
 
+   /** @brief Update the MultiVector to reference multiple const Vectors given
+       as arguments. Individual blocks are read-only; non-const operator[]
+       will generate an error. */
+   template <typename... VectorTypes,
+             std::enable_if_t<
+                std::conjunction_v<
+                   std::is_convertible<const VectorTypes&,const Vector&>...>,
+                bool> = true>
+   inline void MakeRef(const VectorTypes &...vs);
+
    /** @brief Update the @a i-th MultiVector block to reference the given
        Vector @a v.
 
@@ -160,6 +185,10 @@ public:
        to synchronize the Memory flags of @a v and the ones of the @a i-th
        Vector blocks when data is moved between host and device. */
    inline void MakeRef(int i, Vector &v) { blocks[i] = &v; }
+
+   /** @brief Update the @a i-th MultiVector block to reference the given
+       const Vector @a v. The block becomes read-only. */
+   inline void MakeRef(int i, const Vector &v) { blocks[i] = &v; }
 };
 
 // Inline and template methods
@@ -167,13 +196,19 @@ public:
 inline Vector &MultiVector::operator[](int i)
 {
    auto &bi = blocks[i];
-   return (bi.index() == 0) ? std::get<0>(bi) : *std::get<1>(bi);
+   const auto idx = bi.index();
+   if (idx == 0) { return std::get<0>(bi); }
+   if (idx == 1) { return *std::get<1>(bi); }
+   MFEM_ABORT("Non-const access to a const Vector block!");
 }
 
 inline const Vector &MultiVector::operator[](int i) const
 {
    auto &bi = blocks[i];
-   return (bi.index() == 0) ? std::get<0>(bi) : *std::get<1>(bi);
+   const auto idx = bi.index();
+   return (idx == 0) ? std::get<0>(bi) :
+          (idx == 1) ? *std::get<1>(bi) :
+          /**/         *std::get<2>(bi);
 }
 
 template <typename... VectorTypes,
@@ -186,6 +221,24 @@ inline void MultiVector::MakeRef(VectorTypes &...vs)
    if constexpr (sizeof...(vs) > 0)
    {
       const std::array vs_p{&static_cast<Vector&>(vs)...};
+      for (std::size_t i = 0; i < sizeof...(vs); i++)
+      {
+         blocks[i] = vs_p[i];
+      }
+   }
+}
+
+template <typename... VectorTypes,
+          std::enable_if_t<
+             std::conjunction_v<
+                std::is_convertible<const VectorTypes&,const Vector&>...>,
+             bool>>
+inline void MultiVector::MakeRef(const VectorTypes &...vs)
+{
+   blocks.resize(sizeof...(vs));
+   if constexpr (sizeof...(vs) > 0)
+   {
+      const std::array vs_p{&static_cast<const Vector&>(vs)...};
       for (std::size_t i = 0; i < sizeof...(vs); i++)
       {
          blocks[i] = vs_p[i];
