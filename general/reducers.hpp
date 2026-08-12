@@ -550,10 +550,10 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       int num_mp = Device::NumMultiprocessors(Device::GetId());
 #if defined(MFEM_USE_CUDA)
-      // good value of mp_sat found experimentally on Lassen
+      // good value of mp_sat found experimentally on Lassen (V100)
       constexpr int mp_sat = 8;
 #elif defined(MFEM_USE_HIP)
-      // good value of mp_sat found experimentally on Tuolumne
+      // good value of mp_sat found experimentally on Tuolumne (MI300A)
       constexpr int mp_sat = 4;
 #else
       num_mp = 1;
