@@ -950,9 +950,9 @@ void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
 {
    using DBODY_BASE = std::remove_reference_t<DBODY>;
    // Taking the address forces instantiation/emission of the registration
-   // global for this lambda type so Enzyme can find the custom derivative for
-   // CuWrap1DStruct<..., DBODY_BASE>::Call before trying to differentiate the
-   // CUDA runtime launch inside it.
+   // global for this lambda type so Enzyme can find the custom
+   // derivative before trying to differentiate the CUDA runtime launch
+   // inside it.
    [[maybe_unused]] auto *enzyme_registration =
       &CuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_CuWrap1D;
    MFEM_CONTRACT_VAR(enzyme_registration);
