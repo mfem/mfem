@@ -225,10 +225,6 @@ TEST_CASE("LOR AMS", "[LOR][BatchedLOR][AMS][Parallel][GPU]")
    grad.Assemble();
    grad.Finalize();
    std::unique_ptr<HypreParMatrix> G(grad.ParallelAssemble());
-   if (space_type == RT)
-   {
-      *G *= -1_r;
-   }
 
    Vector X_vert;
    BatchedLORAssembly::FormLORVertexCoordinates(fespace, X_vert);
