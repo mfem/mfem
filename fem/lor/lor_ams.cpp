@@ -95,7 +95,7 @@ void BatchedLOR_AMS::Form2DEdgeToVertex_RT(Array<int> &edge2vert)
          const int iv1 = ix1 + iy1*op1;
 
          // 2D curl (dy, -dx), so flip the sign for the second
-         // component (c == 0).
+         // component (c == 1).
          e2v(0, iedge) = (c == 0) ? iv0 : iv1;
          e2v(1, iedge) = (c == 0) ? iv1 : iv0;
       }
