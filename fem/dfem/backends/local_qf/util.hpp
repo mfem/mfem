@@ -66,10 +66,12 @@ template <typename T>
 struct qf_param_uses_nested_dual : std::false_type {};
 
 template <typename S, int... Is>
-struct qf_param_uses_nested_dual<tensor<S, Is...>> : is_nested_dual_number<S> {};
+struct qf_param_uses_nested_dual<tensor<S, Is...>> :
+                                                   is_nested_dual_number<S> {};
 
 template <typename V, typename G>
-struct qf_param_uses_nested_dual<dual<V, G>> : is_nested_dual_number<dual<V, G>> {};
+struct qf_param_uses_nested_dual<dual<V, G>> :
+                                             is_nested_dual_number<dual<V, G>> {};
 
 template <typename T>
 constexpr bool qf_param_uses_nested_dual_v =
@@ -84,8 +86,8 @@ constexpr bool active_qparams_use_dual_impl(std::index_sequence<Is...>)
 {
    return ((qf_param_is_active_v<activity_tuple_t, Is> &&
             qf_param_uses_dual_v<
-               std::remove_cv_t<
-                  std::remove_reference_t<tuple_element_t<Is, param_tuple_t>>>>) || ...);
+            std::remove_cv_t<
+            std::remove_reference_t<tuple_element_t<Is, param_tuple_t>>>>) || ...);
 }
 
 template <typename param_tuple_t, typename activity_tuple_t>
@@ -114,7 +116,7 @@ struct qf_tensor_base { using type = void; };
 
 template <typename T>
 struct qf_tensor_base<
-   T, std::void_t<decltype(qf_tensor_base_of(std::declval<const T &>()))>>
+T, std::void_t<decltype(qf_tensor_base_of(std::declval<const T &>()))>>
 {
    using type = decltype(qf_tensor_base_of(std::declval<const T &>()));
 };

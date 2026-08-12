@@ -271,7 +271,7 @@ public:
                  tuple<Active, Const, Const>,
                  tuple<Active>,
                  RevDiffDualMode::Derivative>
-         fd;
+                 fd;
 
          auto derivatives = std::integer_sequence<size_t, U> {};
          dfunctional_dop->AddDomainIntegrator<LocalQFBackend>(

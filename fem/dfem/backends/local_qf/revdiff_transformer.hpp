@@ -132,11 +132,11 @@ template <template <typename, auto...> class qfunc_template_t,
           typename nested_scalar_t>
 struct rebind_qfunc_scalar<qfunc_template_t<old_scalar_t, Params...>,
           nested_scalar_t,
-          std::enable_if_t<(sizeof...(Params) > 0)>>
-{
-   static constexpr bool supported = true;
-   using type = qfunc_template_t<nested_scalar_t, Params...>;
-};
+       std::enable_if_t<(sizeof...(Params) > 0)>>
+       {
+          static constexpr bool supported = true;
+          using type = qfunc_template_t<nested_scalar_t, Params...>;
+       };
 
 template <typename qfunc_t, typename nested_scalar_t>
 using rebind_qfunc_scalar_t =
@@ -542,7 +542,7 @@ struct RevDiff
       auto ptrs = mfem::future::make_tuple(&args...);
       zero_grads(ptrs, std::make_index_sequence<num_active_inputs> {});
 #ifdef MFEM_USE_ENZYME
-      output_view out_scratch{};
+      output_view out_scratch {};
       output_view out_adjoint{1.0}; // seed: d(output)/d(output) = 1
       call_enzyme_rev(ptrs, out_scratch, out_adjoint);
 #else

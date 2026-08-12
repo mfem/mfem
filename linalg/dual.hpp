@@ -69,14 +69,16 @@ struct is_dual_number<dual<value_type, gradient_type> >
 template <typename T>
 struct is_nested_dual_number
 {
-   static constexpr bool value = false;  ///< whether or not type T is a nested dual number
+   static constexpr bool value =
+      false;  ///< whether or not type T is a nested dual number
 };
 
 template <typename value_type, typename gradient_type>
 struct is_nested_dual_number<dual<dual<value_type, gradient_type>,
-                                  dual<value_type, gradient_type> > >
+          dual<value_type, gradient_type> > >
 {
-   static constexpr bool value = true;  ///< whether or not type T is a nested dual number
+   static constexpr bool value =
+      true;  ///< whether or not type T is a nested dual number
 };
 
 template <typename V, typename G>
