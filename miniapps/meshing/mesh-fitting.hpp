@@ -34,6 +34,13 @@ real_t circle_level_set(const Vector &x)
    }
 }
 
+real_t sphere_level_set(const Vector &x)
+{
+   const real_t xc = x(0) - 0.5, yc = x(1) - 0.5, zc = x(2) - 0.5;
+   const real_t r = sqrt(xc*xc + yc*yc + zc*zc);
+   return r-0.25;
+}
+
 real_t squircle_level_set(const Vector &x)
 {
    const int dim = x.Size();

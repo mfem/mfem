@@ -432,6 +432,8 @@ public:
 
    std::unique_ptr<Operator> HessianOperator(const Vector &x) const
    {
+      // Cache quadrature-point Hessian data once per Newton state and reuse it
+      // for the repeated operator applications in the Krylov solve.
       if (!exact_action)
       {
          MFEM_VERIFY(frozen_target_updater != nullptr,
@@ -439,12 +441,13 @@ public:
          frozen_target_updater(*this, x);
          MultiVector Xmv{x, target_w};
          return std::make_unique<SingleOutputDerivativeOperator>(
-                   frozen_target_energy_dop->GetSecondDerivative(X, Xmv), fes);
+                   frozen_target_energy_dop->GetSecondDerivative(X, Xmv, true),
+                   fes);
       }
 
       MultiVector Xmv{x, reference_nodes, target_w, limit_qdata};
       return std::make_unique<SingleOutputDerivativeOperator>(
-                energy_dop->GetSecondDerivative(X, Xmv), fes);
+                energy_dop->GetSecondDerivative(X, Xmv, true), fes);
    }
 
 private:

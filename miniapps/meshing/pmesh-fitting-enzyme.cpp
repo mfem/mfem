@@ -22,15 +22,19 @@
 // Sample runs and corresponding pmesh-fitting runs:
 // The third command in each case evaluates the level set directly with Enzyme
 // and performs no initial- or background-mesh interpolation.
-//   Initial-mesh interpolation versus direct analytic evaluation:
+//   Initial-mesh interpolation versus direct analytic evaluation (2D):
 //     mpirun -np 4 pmesh-fitting         -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -ae 1
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -dls -dder 1
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -als
 // Use -dder 2 instead for element-local discrete derivatives.
-//   Background-mesh interpolation versus direct analytic evaluation:
+//   Background-mesh interpolation versus direct analytic evaluation (2D):
 //     mpirun -np 4 pmesh-fitting         -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -rtol 1e-6 -ae 1 -sbgmesh
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -rtol 1e-6 -dls -sbgmesh
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -rtol 1e-6 -als
+//   Spherical level-set fitting (3D):
+//     mpirun -np 4 pmesh-fitting         -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -ae 1 -slstype 4
+//     mpirun -np 4 pmesh-fitting-enzyme  -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -dls -slstype 4 -dder 1
+//     mpirun -np 4 pmesh-fitting-enzyme  -m cube.mesh -rs 2 -o 2 -mid 303 -tid 1 -vl 1 -sfc 5e3 -rtol 1e-5 -als -slstype 4
 
 #include "mfem.hpp"
 
@@ -70,13 +74,19 @@ namespace pmesh_fitting_enzyme
 
 static constexpr int X = 0;
 static constexpr int Q = 1;
-static constexpr int TARGET_W = 2;
-static constexpr int SURFACE_FIT_DATA = 3;
-// coefficient, value, gradient[2], Hessian[2][2]
-static constexpr int SURFACE_FIT_DATA_SIZE = 1 + 1 + 2 + 4;
-static constexpr int SURFACE_FIT_VALUE = 1;
-static constexpr int SURFACE_FIT_GRAD = SURFACE_FIT_VALUE + 1;
-static constexpr int SURFACE_FIT_HESS = SURFACE_FIT_GRAD + 2;
+static constexpr int TARGET_W_INV = 2;
+static constexpr int TARGET_DET_W = 3;
+static constexpr int SURFACE_FIT_DATA = 4;
+
+template <int dim>
+struct SurfaceFitDataLayout
+{
+   static constexpr int COEFFICIENT = 0;
+   static constexpr int VALUE = 1;
+   static constexpr int GRADIENT = VALUE + 1;
+   static constexpr int HESSIAN = GRADIENT + dim;
+   static constexpr int SIZE = HESSIAN + dim * dim;
+};
 
 /// Compute the MPI-global Euclidean norm of a distributed vector.
 real_t GlobalVectorNorm(MPI_Comm comm, const Vector &x)
@@ -88,50 +98,58 @@ real_t GlobalVectorNorm(MPI_Comm comm, const Vector &x)
    return std::sqrt(global_norm2);
 }
 
-/// Evaluate the selected two-dimensional TMOP quality metric.
-template <typename scalar_t, int metric_id>
+/// Evaluate the selected TMOP quality metric.
+template <typename scalar_t, int dim, int metric_id>
 MFEM_HOST_DEVICE inline
-scalar_t EvaluateTMOPMetric(const tensor<scalar_t, 2, 2> &T)
+scalar_t EvaluateTMOPMetric(const tensor<scalar_t, dim, dim> &T)
 {
    const auto tau = det(T);
    const auto norm2 = sqnorm(T);
 
-   if constexpr (metric_id == 2)
+   if constexpr (dim == 2 && metric_id == 2)
    {
       return 0.5_r * norm2 / tau - 1.0_r;
    }
-   else if constexpr (metric_id == 58)
+   else if constexpr (dim == 2 && metric_id == 58)
    {
       const auto i1b = norm2 / tau;
       return i1b * (i1b - 2.0_r);
    }
-   else if constexpr (metric_id == 80)
+   else if constexpr (dim == 2 && metric_id == 80)
    {
       const auto mu2 = 0.5_r * norm2 / tau - 1.0_r;
       const auto tau2 = tau * tau;
       const auto mu77 = 0.5_r * (tau2 + 1.0_r / tau2) - 1.0_r;
       return 0.5_r * (mu2 + mu77);
    }
+   else if constexpr (dim == 3 && metric_id == 303)
+   {
+      // mu_303 = |J|^2 / 3 / tau^(2/3) - 1
+      return norm2 / (3.0_r * pow(tau, 2.0_r/3.0_r)) - 1.0_r;
+   }
    else
    {
-      static_assert(metric_id == 2 || metric_id == 58 || metric_id == 80,
-                    "Unsupported metric id");
+      static_assert((dim == 2 &&
+                     (metric_id == 2 || metric_id == 58 || metric_id == 80)) ||
+                    (dim == 3 && metric_id == 303),
+                    "Unsupported TMOP metric/dimension combination");
       return 0.0_r;
    }
 }
 
-template <typename scalar_t, int metric_id>
+template <typename scalar_t, int dim, int metric_id>
 struct TMOPEnergy
 {
    /// Evaluate the weighted TMOP energy at one quadrature point.
    MFEM_HOST_DEVICE inline
-   void operator()(const tensor<scalar_t, 2, 2> &dxdr,
-                   const tensor<real_t, 2, 2> &W,
+   void operator()(const tensor<scalar_t, dim, dim> &dxdr,
+                   const tensor<real_t, dim, dim> &W_inv,
+                   const real_t &det_W,
                    const real_t &w_q,
                    real_t &f) const
    {
-      const auto T = dxdr * inv(W);
-      f = EvaluateTMOPMetric<scalar_t, metric_id>(T) * det(W) * w_q;
+      const auto T = dxdr * W_inv;
+      f = EvaluateTMOPMetric<scalar_t, dim, metric_id>(T) * det_W * w_q;
    }
 };
 
@@ -146,7 +164,8 @@ struct SurfaceFittingOptions
    enum AnalyticLevelSet
    {
       CIRCLE = 1,
-      SQUIRCLE = 3
+      SQUIRCLE = 3,
+      SPHERE = 4
    };
 
    enum DiscreteDerivativeMode
@@ -164,15 +183,15 @@ struct SurfaceFittingOptions
    real_t coefficient = 0.0;
 };
 
-/// Return the sampled level-set value while retaining x as an active argument.
-MFEM_HOST_DEVICE __attribute__((noinline))
-void get_sigma(const real_t *x, const real_t *data, real_t *sigma)
+template <int dim>
+MFEM_HOST_DEVICE inline
+void get_sigma_impl(const real_t *x, const real_t *data, real_t *sigma)
 {
    // The volatile zero keeps Enzyme from classifying x as unused before it
    // encounters the custom derivative, without changing the sampled value.
    volatile real_t active_x = x[0];
    const real_t zero = active_x - active_x;
-   *sigma = data[SURFACE_FIT_VALUE] + zero;
+   *sigma = data[SurfaceFitDataLayout<dim>::VALUE] + zero;
 }
 
 /// Return a primal value while contributing no derivative to Enzyme.
@@ -183,73 +202,142 @@ real_t StopGradient(real_t value)
    return value;
 }
 
-/// Evaluate the augmented primal used by the custom reverse rule.
-MFEM_HOST_DEVICE __attribute__((noinline))
-void *get_sigma_aug(const real_t *x, real_t *dx,
-                    const real_t *data, real_t *ddata,
-                    real_t *sigma, real_t *dsigma)
+template <int dim>
+MFEM_HOST_DEVICE inline
+void *get_sigma_aug_impl(const real_t *x, real_t *dx,
+                         const real_t *data, real_t *ddata,
+                         real_t *sigma, real_t *dsigma)
 {
    // These differences are identically zero in the primal. When this rule is
    // forward-differentiated for the Hessian, their tangents are dx.
-   const real_t delta0 = x[0] - StopGradient(x[0]);
-   const real_t delta1 = x[1] - StopGradient(x[1]);
-   *sigma = data[SURFACE_FIT_VALUE] +
-            data[SURFACE_FIT_GRAD] * delta0 +
-            data[SURFACE_FIT_GRAD + 1] * delta1;
+   *sigma = data[SurfaceFitDataLayout<dim>::VALUE];
+   for (int d = 0; d < dim; d++)
+   {
+      const real_t delta = x[d] - StopGradient(x[d]);
+      *sigma += data[SurfaceFitDataLayout<dim>::GRADIENT + d] * delta;
+   }
    return nullptr;
 }
 
-/// Apply the prescribed level-set VJP and expose its Hessian to nested AD.
-MFEM_HOST_DEVICE __attribute__((noinline))
-void get_sigma_rev(const real_t *x, real_t *dx,
-                   const real_t *data, real_t *ddata,
-                   const real_t *sigma, const real_t *dsigma,
-                   void *tape)
+template <int dim>
+MFEM_HOST_DEVICE inline
+void get_sigma_rev_impl(const real_t *x, real_t *dx,
+                        const real_t *data, real_t *ddata,
+                        const real_t *sigma, const real_t *dsigma,
+                        void *tape)
 {
-   // The primal differences vanish, so grad0/grad1 are exactly the sampled
-   // gradient. Their forward derivatives are the sampled Hessian action.
-   const real_t delta0 = x[0] - StopGradient(x[0]);
-   const real_t delta1 = x[1] - StopGradient(x[1]);
-   // Classic TMOP uses the (y,x) entry for the lower triangle and mirrors it.
-   const real_t cross_hess = data[SURFACE_FIT_HESS + 1];
-   const real_t grad0 = data[SURFACE_FIT_GRAD] +
-                        data[SURFACE_FIT_HESS] * delta0 +
-                        cross_hess * delta1;
-   const real_t grad1 = data[SURFACE_FIT_GRAD + 1] +
-                        cross_hess * delta0 +
-                        data[SURFACE_FIT_HESS + 3] * delta1;
-   dx[0] += *dsigma * grad0;
-   dx[1] += *dsigma * grad1;
+   // The primal differences vanish, so grad is exactly the sampled gradient.
+   // Nested forward differentiation exposes the symmetric Hessian action.
+   real_t delta[dim];
+   for (int d = 0; d < dim; d++)
+   {
+      delta[d] = x[d] - StopGradient(x[d]);
+   }
+   for (int i = 0; i < dim; i++)
+   {
+      real_t grad = data[SurfaceFitDataLayout<dim>::GRADIENT + i];
+      for (int j = 0; j < dim; j++)
+      {
+         // Match classic TMOP by mirroring the stored upper triangle.
+         const int row = i < j ? i : j;
+         const int col = i < j ? j : i;
+         grad += data[SurfaceFitDataLayout<dim>::HESSIAN + row * dim + col] *
+                 delta[j];
+      }
+      dx[i] += *dsigma * grad;
+   }
 }
 
-template <typename scalar_t>
+/// Dimension-specific custom-rule entry points must not be inlined before
+/// Enzyme discovers their registrations.
+MFEM_HOST_DEVICE __attribute__((noinline))
+void get_sigma_2d(const real_t *x, const real_t *data, real_t *sigma)
+{
+   get_sigma_impl<2>(x, data, sigma);
+}
+
+MFEM_HOST_DEVICE __attribute__((noinline))
+void *get_sigma_2d_aug(const real_t *x, real_t *dx,
+                       const real_t *data, real_t *ddata,
+                       real_t *sigma, real_t *dsigma)
+{
+   return get_sigma_aug_impl<2>(x, dx, data, ddata, sigma, dsigma);
+}
+
+MFEM_HOST_DEVICE __attribute__((noinline))
+void get_sigma_2d_rev(const real_t *x, real_t *dx,
+                      const real_t *data, real_t *ddata,
+                      const real_t *sigma, const real_t *dsigma,
+                      void *tape)
+{
+   get_sigma_rev_impl<2>(x, dx, data, ddata, sigma, dsigma, tape);
+}
+
+MFEM_HOST_DEVICE __attribute__((noinline))
+void get_sigma_3d(const real_t *x, const real_t *data, real_t *sigma)
+{
+   get_sigma_impl<3>(x, data, sigma);
+}
+
+MFEM_HOST_DEVICE __attribute__((noinline))
+void *get_sigma_3d_aug(const real_t *x, real_t *dx,
+                       const real_t *data, real_t *ddata,
+                       real_t *sigma, real_t *dsigma)
+{
+   return get_sigma_aug_impl<3>(x, dx, data, ddata, sigma, dsigma);
+}
+
+MFEM_HOST_DEVICE __attribute__((noinline))
+void get_sigma_3d_rev(const real_t *x, real_t *dx,
+                      const real_t *data, real_t *ddata,
+                      const real_t *sigma, const real_t *dsigma,
+                      void *tape)
+{
+   get_sigma_rev_impl<3>(x, dx, data, ddata, sigma, dsigma, tape);
+}
+
+template <typename scalar_t, int dim>
 struct DiscreteSurfaceFittingEnergy
 {
    /// Evaluate the fitting penalty from the sampled level-set value.
    MFEM_HOST_DEVICE inline
-   void operator()(const tensor<scalar_t, 2> &x,
-                   const tensor<scalar_t, SURFACE_FIT_DATA_SIZE> &data,
+   void operator()(const tensor<scalar_t, dim> &x,
+                   const tensor<scalar_t, SurfaceFitDataLayout<dim>::SIZE> &data,
                    real_t &f) const
    {
       scalar_t sigma;
-      get_sigma(&x[0], &data[0], &sigma);
-      f = data(0) * sigma * sigma;
+      if constexpr (dim == 2)
+      {
+         get_sigma_2d(&x[0], &data[0], &sigma);
+      }
+      else
+      {
+         get_sigma_3d(&x[0], &data[0], &sigma);
+      }
+      f = data(SurfaceFitDataLayout<dim>::COEFFICIENT) * sigma * sigma;
    }
 };
 
-void *__enzyme_register_gradient_get_sigma[3] =
+void *__enzyme_register_gradient_get_sigma_2d[3] =
 {
-   (void *)&get_sigma,
-   (void *)&get_sigma_aug,
-   (void *)&get_sigma_rev
+   (void *)&get_sigma_2d,
+   (void *)&get_sigma_2d_aug,
+   (void *)&get_sigma_2d_rev
 };
 
-template <typename scalar_t, int level_set>
+void *__enzyme_register_gradient_get_sigma_3d[3] =
+{
+   (void *)&get_sigma_3d,
+   (void *)&get_sigma_3d_aug,
+   (void *)&get_sigma_3d_rev
+};
+
+template <typename scalar_t, int level_set, int dim>
 struct AnalyticSurfaceFittingEnergy
 {
    /// Evaluate the analytic fitting penalty for Enzyme differentiation.
    MFEM_HOST_DEVICE inline
-   void operator()(const tensor<scalar_t, 2> &x,
+   void operator()(const tensor<scalar_t, dim> &x,
                    const scalar_t &coeff,
                    real_t &f) const
    {
@@ -265,7 +353,15 @@ struct AnalyticSurfaceFittingEnergy
       scalar_t sigma;
       if constexpr (level_set == SurfaceFittingOptions::CIRCLE)
       {
+         static_assert(dim == 2, "The analytic circle is two-dimensional");
          const scalar_t r = sqrt(xc * xc + yc * yc + 1e-12_r);
+         sigma = r - 0.25_r;
+      }
+      else if constexpr (level_set == SurfaceFittingOptions::SPHERE)
+      {
+         static_assert(dim == 3, "The analytic sphere is three-dimensional");
+         const scalar_t zc = x(2) - 0.5_r;
+         const scalar_t r = sqrt(xc * xc + yc * yc + zc * zc + 1e-12_r);
          sigma = r - 0.25_r;
       }
       else
@@ -281,6 +377,7 @@ struct AnalyticSurfaceFittingEnergy
    }
 };
 
+template <int dim>
 class SurfaceFittingData
 {
 public:
@@ -291,7 +388,7 @@ public:
       : mesh(pmesh),
         order(GetH1Order(mesh_fes)),
         basis(GetH1BasisType(mesh_fes)),
-        current_fec(order, 2, basis),
+        current_fec(order, dim, basis),
         current_fes(&pmesh, &current_fec),
         current_sigma(&current_fes),
         marker(*options.marker),
@@ -301,8 +398,8 @@ public:
         discrete_derivative_mode(options.discrete_derivative_mode),
         discrete_from_background(options.discrete_from_background)
    {
-      MFEM_VERIFY(pmesh.Dimension() == 2,
-                  "Surface fitting is currently implemented only in 2D.");
+      MFEM_VERIFY(pmesh.Dimension() == dim,
+                  "Surface-fitting template dimension does not match mesh.");
       MFEM_VERIFY(options.marker != nullptr,
                   "Surface fitting requires a DOF marker.");
       MFEM_VERIFY(coefficient > 0.0,
@@ -313,6 +410,17 @@ public:
 
       ParGridFunction counter(&current_fes);
       counter.CountElementsPerVDof(dof_count);
+
+      // Cache marked DOF indices for efficient selective interpolation
+      const int ndofs = current_fes.GetVSize();
+      marked_dof_indices.Reserve(ndofs);
+      for (int i = 0; i < ndofs; i++)
+      {
+         if (marker[i])
+         {
+            marked_dof_indices.Append(i);
+         }
+      }
 
       if (source == SurfaceFittingOptions::DISCRETE)
       {
@@ -373,7 +481,7 @@ public:
             const int local_dof = lex_to_native ? (*lex_to_native)[q] : q;
             const int dof = dofs[local_dof];
             real_t *data =
-               qdata_ptr + (offset + q) * SURFACE_FIT_DATA_SIZE;
+               qdata_ptr + (offset + q) * SurfaceFitDataLayout<dim>::SIZE;
             FillNodeData(dof, data);
             if (use_element_derivatives)
             {
@@ -394,10 +502,10 @@ public:
       *mesh_nodes = nodes;
       mesh.NodesUpdated();
       mesh.ExchangeFaceNbrData();
-      MFEM_VERIFY(nodes.Size() == mesh.Dimension() * current_fes.GetVSize(),
+      MFEM_VERIFY(nodes.Size() == dim * current_fes.GetVSize(),
                   "Mesh and level-set nodal spaces must have the same order.");
       current_node_pos = nodes;
-      Ordering::Reorder(current_node_pos, mesh.Dimension(),
+      Ordering::Reorder(current_node_pos, dim,
                         nodes.ParFESpace()->GetOrdering(),
                         Ordering::byNODES);
    }
@@ -475,7 +583,7 @@ private:
 
       source_mesh = std::make_unique<ParMesh>(*level_fes->GetParMesh(), true);
       source_fec = std::make_unique<H1_FECollection>(
-                      level_fec->GetOrder(), 2, level_fec->GetBasisType());
+                      level_fec->GetOrder(), dim, level_fec->GetBasisType());
       source_fes = std::make_unique<ParFiniteElementSpace>(
                       source_mesh.get(), source_fec.get());
       MFEM_VERIFY(level_set.Size() == source_fes->GetVSize(),
@@ -489,10 +597,10 @@ private:
           SurfaceFittingOptions::INTERPOLATED_SOURCE)
       {
          source_grad_fes = std::make_unique<ParFiniteElementSpace>(
-                              source_mesh.get(), source_fec.get(), 2,
+                              source_mesh.get(), source_fec.get(), dim,
                               Ordering::byNODES);
          source_hess_fes = std::make_unique<ParFiniteElementSpace>(
-                              source_mesh.get(), source_fec.get(), 4,
+                              source_mesh.get(), source_fec.get(), dim * dim,
                               Ordering::byNODES);
          source_grad =
             std::make_unique<ParGridFunction>(source_grad_fes.get());
@@ -517,7 +625,7 @@ private:
                                   ParFiniteElementSpace &scalar_fes)
    {
       const int scalar_size = sigma.Size();
-      for (int d = 0; d < 2; d++)
+      for (int d = 0; d < dim; d++)
       {
          ParGridFunction grad_comp(
             &scalar_fes, gradient.GetData() + d * scalar_size);
@@ -525,11 +633,11 @@ private:
       }
 
       int id = 0;
-      for (int d = 0; d < 2; d++)
+      for (int d = 0; d < dim; d++)
       {
          ParGridFunction grad_comp(
             &scalar_fes, gradient.GetData() + d * scalar_size);
-         for (int idir = 0; idir < 2; idir++)
+         for (int idir = 0; idir < dim; idir++)
          {
             ParGridFunction hess_comp(
                &scalar_fes, hessian.GetData() + id * scalar_size);
@@ -556,29 +664,96 @@ private:
 
       DenseMatrix grad_phys;
       fe.ProjectGrad(fe, trans, grad_phys);
-      gradient.SetSize(dof, 2);
-      Vector gradient_data(gradient.GetData(), dof * 2);
+      gradient.SetSize(dof, dim);
+      Vector gradient_data(gradient.GetData(), dof * dim);
       grad_phys.Mult(sigma_e, gradient_data);
 
       // This reshape reproduces TMOP's element-local second application of
-      // ProjectGrad: columns are (xx, xy, yx, yy) after the final reshape.
-      hessian.SetSize(dof * 2, 2);
+      // ProjectGrad; the final columns store the dim-by-dim Hessian.
+      hessian.SetSize(dof * dim, dim);
       Mult(grad_phys, gradient, hessian);
-      hessian.SetSize(dof, 4);
+      hessian.SetSize(dof, dim * dim);
    }
 
    /// Sample discrete fitting data at the current physical node positions.
    void UpdateDiscreteSamples() const
    {
 #ifdef MFEM_USE_GSLIB
-      finder->FindPoints(current_node_pos, Ordering::byNODES);
-      finder->Interpolate(*source_sigma, sigma_samples, Ordering::byNODES);
+      const int ndofs = current_fes.GetVSize();
+      const int marked_count = marked_dof_indices.Size();
+
+      // If no marked DOFs, nothing to interpolate
+      if (marked_count == 0)
+      {
+         sigma_samples.SetSize(ndofs);
+         sigma_samples = 0.0;
+         if (discrete_from_background ||
+             discrete_derivative_mode ==
+             SurfaceFittingOptions::INTERPOLATED_SOURCE)
+         {
+            grad_samples.SetSize(ndofs * dim);
+            grad_samples = 0.0;
+            hess_samples.SetSize(ndofs * dim * dim);
+            hess_samples = 0.0;
+         }
+         return;
+      }
+
+      // Pack marked DOF positions into contiguous array (byNODES ordering)
+      Vector marked_positions(marked_count * dim);
+      for (int d = 0; d < dim; d++)
+      {
+         for (int i = 0; i < marked_count; i++)
+         {
+            marked_positions(i + d * marked_count) =
+               current_node_pos(marked_dof_indices[i] + d * ndofs);
+         }
+      }
+
+      // Interpolate at marked positions only
+      Vector marked_sigma, marked_grad, marked_hess;
+      finder->FindPoints(marked_positions, Ordering::byNODES);
+      finder->Interpolate(*source_sigma, marked_sigma, Ordering::byNODES);
+
+      // Unpack sigma values
+      sigma_samples.SetSize(ndofs);
+      sigma_samples = 0.0;  // Initialize unmarked DOFs to zero
+      for (int i = 0; i < marked_count; i++)
+      {
+         sigma_samples(marked_dof_indices[i]) = marked_sigma(i);
+      }
+
       if (discrete_from_background ||
           discrete_derivative_mode ==
           SurfaceFittingOptions::INTERPOLATED_SOURCE)
       {
-         finder->Interpolate(*source_grad, grad_samples, Ordering::byNODES);
-         finder->Interpolate(*source_hess, hess_samples, Ordering::byNODES);
+         finder->Interpolate(*source_grad, marked_grad, Ordering::byNODES);
+         finder->Interpolate(*source_hess, marked_hess, Ordering::byNODES);
+
+         // Unpack gradient values
+         grad_samples.SetSize(ndofs * dim);
+         grad_samples = 0.0;
+         for (int d = 0; d < dim; d++)
+         {
+            for (int i = 0; i < marked_count; i++)
+            {
+               grad_samples(marked_dof_indices[i] + d * ndofs) =
+                  marked_grad(i + d * marked_count);
+            }
+         }
+
+         // Unpack Hessian values
+         const int hess_dim = dim * dim;
+         hess_samples.SetSize(ndofs * hess_dim);
+         hess_samples = 0.0;
+         for (int h = 0; h < hess_dim; h++)
+         {
+            for (int i = 0; i < marked_count; i++)
+            {
+               hess_samples(marked_dof_indices[i] + h * ndofs) =
+                  marked_hess(i + h * marked_count);
+            }
+         }
       }
       else
       {
@@ -603,8 +778,22 @@ private:
          if (analytic_level_set == SurfaceFittingOptions::SQUIRCLE)
          {
             const real_t radius = 0.24;
-            sigma_samples(i) = std::pow(xc, 4.0) + std::pow(yc, 4.0) -
-                               std::pow(radius, 4.0);
+            sigma_samples(i) = std::pow(xc, 4.0) + std::pow(yc, 4.0);
+            if constexpr (dim == 3)
+            {
+               const real_t zc = current_node_pos(i + 2 * ndofs) - 0.5;
+               sigma_samples(i) += std::pow(zc, 4.0);
+            }
+            sigma_samples(i) -= std::pow(radius, 4.0);
+         }
+         else if (analytic_level_set == SurfaceFittingOptions::SPHERE)
+         {
+            if constexpr (dim == 3)
+            {
+               const real_t zc = current_node_pos(i + 2 * ndofs) - 0.5;
+               const real_t r = std::sqrt(xc * xc + yc * yc + zc * zc);
+               sigma_samples(i) = r - 0.25;
+            }
          }
          else
          {
@@ -617,21 +806,29 @@ private:
    /// Pack one scalar DOF's sampled value and derivatives into quadrature data.
    void FillNodeData(int dof, real_t *data) const
    {
-      for (int j = 0; j < SURFACE_FIT_DATA_SIZE; j++) { data[j] = 0.0; }
-      data[0] = marker[dof] ? coefficient / dof_count[dof] : 0.0;
+      for (int j = 0; j < SurfaceFitDataLayout<dim>::SIZE; j++)
+      {
+         data[j] = 0.0;
+      }
+      data[SurfaceFitDataLayout<dim>::COEFFICIENT] =
+         marker[dof] ? coefficient / dof_count[dof] : 0.0;
       if (source == SurfaceFittingOptions::ANALYTIC) { return; }
 
       const int ndofs = current_fes.GetVSize();
-      data[SURFACE_FIT_VALUE] = sigma_samples(dof);
+      data[SurfaceFitDataLayout<dim>::VALUE] = sigma_samples(dof);
       if (discrete_from_background ||
           discrete_derivative_mode ==
           SurfaceFittingOptions::INTERPOLATED_SOURCE)
       {
-         data[SURFACE_FIT_GRAD] = grad_samples(dof);
-         data[SURFACE_FIT_GRAD + 1] = grad_samples(dof + ndofs);
-         for (int j = 0; j < 4; j++)
+         for (int d = 0; d < dim; d++)
          {
-            data[SURFACE_FIT_HESS + j] = hess_samples(dof + j * ndofs);
+            data[SurfaceFitDataLayout<dim>::GRADIENT + d] =
+               grad_samples(dof + d * ndofs);
+         }
+         for (int j = 0; j < dim * dim; j++)
+         {
+            data[SurfaceFitDataLayout<dim>::HESSIAN + j] =
+               hess_samples(dof + j * ndofs);
          }
       }
    }
@@ -642,11 +839,15 @@ private:
                                          const DenseMatrix &hessian,
                                          real_t *data)
    {
-      data[SURFACE_FIT_GRAD] = gradient(local_dof, 0);
-      data[SURFACE_FIT_GRAD + 1] = gradient(local_dof, 1);
-      for (int j = 0; j < 4; j++)
+      for (int d = 0; d < dim; d++)
       {
-         data[SURFACE_FIT_HESS + j] = hessian(local_dof, j);
+         data[SurfaceFitDataLayout<dim>::GRADIENT + d] =
+            gradient(local_dof, d);
+      }
+      for (int j = 0; j < dim * dim; j++)
+      {
+         data[SurfaceFitDataLayout<dim>::HESSIAN + j] =
+            hessian(local_dof, j);
       }
    }
 
@@ -658,6 +859,7 @@ private:
    mutable ParGridFunction current_sigma;
    Array<bool> marker;
    Array<int> dof_count;
+   Array<int> marked_dof_indices;  // Cached indices of marked DOFs
    real_t coefficient;
    SurfaceFittingOptions::LevelSetSource source;
    SurfaceFittingOptions::AnalyticLevelSet analytic_level_set;
@@ -698,6 +900,7 @@ IntegrationRule MakeTensorNodalIntegrationRule(const FiniteElement &fe)
    return lex_nodes;
 }
 
+template <int dim>
 class SurfaceFittingStateManager
 {
 public:
@@ -712,11 +915,12 @@ public:
         surface_coeff_qdata(surface_coeff_qspace),
         surface_data_qspace(is_analytic ? nullptr :
                            new VectorQuadratureSpace(
-                              surface_qspace, SURFACE_FIT_DATA_SIZE)),
+                              surface_qspace,
+                              SurfaceFitDataLayout<dim>::SIZE)),
         surface_qdata(is_analytic ? nullptr :
                      new QuadratureFunction(*surface_data_qspace)),
         current_nodes(new ParGridFunction(&fes_)),
-        surface_data(new SurfaceFittingData(mesh_, fes_, options))
+        surface_data(new SurfaceFittingData<dim>(mesh_, fes_, options))
    {
       // Fill coefficient data once (doesn't change during optimization)
       FillCoefficientData(fes_, options);
@@ -787,7 +991,7 @@ private:
       // Build coefficient data: marker[i] ? coefficient / dof_count[i] : 0
       H1_FECollection current_fec(
          dynamic_cast<const H1_FECollection*>(fes.FEColl())->GetOrder(),
-         2,
+         dim,
          dynamic_cast<const H1_FECollection*>(fes.FEColl())->GetBasisType());
       ParFiniteElementSpace current_fes(fes.GetParMesh(), &current_fec);
 
@@ -826,7 +1030,7 @@ private:
    VectorQuadratureSpace *surface_data_qspace;
    QuadratureFunction *surface_qdata;
    ParGridFunction *current_nodes;
-   SurfaceFittingData *surface_data;
+   SurfaceFittingData<dim> *surface_data;
 };
 
 class SingleOutputDerivativeOperator : public Operator
@@ -891,6 +1095,7 @@ private:
    mutable Vector work;
 };
 
+template <int dim>
 class EnzymeFittingFunctional
 {
 public:
@@ -905,9 +1110,10 @@ public:
         fes(fes_),
         metric_qspace(mesh_, ir),
         surface_node_ir(MakeTensorNodalIntegrationRule(*fes_.GetTypicalFE())),
-        target_qspace(metric_qspace, 4),
-        target_w(target_qspace),
+        target_qspace(metric_qspace, dim * dim),
+        target_w_inv(target_qspace),
         metric_scalar_qspace(metric_qspace, 1),
+        target_det_w(metric_scalar_qspace),
         metric_values(metric_scalar_qspace),
         surface_state_mgr(mesh_, fes_, surface_node_ir, surface_options),
         surface_scalar_qspace(surface_state_mgr.GetSurfaceQuadratureSpace(), 1),
@@ -920,7 +1126,7 @@ public:
          all_domain_attr = 1;
       }
       SetTargetData();
-      SetupMetricOperator(ir, all_domain_attr, metric_id);
+      SetupMetricOperatorDispatch(ir, all_domain_attr, metric_id);
       SetupSurfaceOperator(all_domain_attr, surface_options);
    }
 
@@ -928,7 +1134,7 @@ public:
    real_t MetricEnergy(const Vector &x) const
    {
       metric_values = 0.0;
-      MultiVector input{x, target_w};
+      MultiVector input{x, target_w_inv, target_det_w};
       MultiVector output{metric_values};
       metric_operator->Mult(input, output);
       return GlobalSum(metric_values.Sum());
@@ -954,30 +1160,36 @@ public:
    void Gradient(const Vector &x, Vector &gradient) const
    {
       gradient = 0.0;
-      MultiVector metric_input{x, target_w};
-      MultiVector metric_output{gradient};
-      metric_operator->GetDerivative(X)->Mult(metric_input, metric_output);
+      {
+         MultiVector metric_input{x, target_w_inv, target_det_w};
+         MultiVector metric_output{gradient};
+         metric_operator->GetDerivative(X)->Mult(metric_input, metric_output);
+      }
 
       surface_gradient.SetSize(gradient.Size());
       surface_gradient = 0.0;
-      MultiVector surface_input{x, surface_state_mgr.GetSurfaceQuadratureData()};
-      MultiVector surface_output{surface_gradient};
-      surface_operator->GetDerivative(X)->Mult(surface_input, surface_output);
+      {
+         MultiVector surface_input{x, surface_state_mgr.GetSurfaceQuadratureData()};
+         MultiVector surface_output{surface_gradient};
+         surface_operator->GetDerivative(X)->Mult(surface_input, surface_output);
+      }
       gradient += surface_gradient;
    }
 
    /// Construct the summed Enzyme-generated Hessian at the current state.
    std::unique_ptr<Operator> HessianOperator(const Vector &x) const
    {
-      MultiVector metric_input{x, target_w};
+      // Cache quadrature-point Hessian data once per Newton state and reuse it
+      // for the repeated operator applications in the Krylov solve.
+      MultiVector metric_input{x, target_w_inv, target_det_w};
       auto metric_hessian = std::make_unique<SingleOutputDerivativeOperator>(
                                metric_operator->GetSecondDerivative(
-                                  X, metric_input), fes);
+                                  X, metric_input, true), fes);
 
       MultiVector surface_input{x, surface_state_mgr.GetSurfaceQuadratureData()};
       auto surface_hessian =
          std::make_unique<SingleOutputDerivativeOperator>(
-            surface_operator->GetSecondDerivative(X, surface_input), fes);
+            surface_operator->GetSecondDerivative(X, surface_input, true), fes);
       return std::make_unique<SumWithDiagonalOperator>(
                 std::move(metric_hessian), std::move(surface_hessian));
    }
@@ -989,7 +1201,7 @@ public:
    }
 
    /// Expose state updates to the nonlinear solver callback.
-   SurfaceFittingStateManager& GetSurfaceStateManager()
+   SurfaceFittingStateManager<dim>& GetSurfaceStateManager()
    {
       return surface_state_mgr;
    }
@@ -1005,17 +1217,39 @@ private:
    }
 
    /// Dispatch construction of the selected compile-time TMOP metric.
-   void SetupMetricOperator(const IntegrationRule &ir,
-                            const Array<int> &all_domain_attr,
-                            int metric_id)
+   void SetupMetricOperatorDispatch(const IntegrationRule &ir,
+                                    const Array<int> &all_domain_attr,
+                                    int metric_id)
    {
       switch (metric_id)
       {
-         case 2: return SetupMetricOperator<2>(ir, all_domain_attr);
-         case 58: return SetupMetricOperator<58>(ir, all_domain_attr);
-         case 80: return SetupMetricOperator<80>(ir, all_domain_attr);
-         default: MFEM_ABORT("Unsupported metric id: " << metric_id);
+         case 2:
+            if constexpr (dim == 2)
+            {
+               return SetupMetricOperator<2>(ir, all_domain_attr);
+            }
+            break;
+         case 58:
+            if constexpr (dim == 2)
+            {
+               return SetupMetricOperator<58>(ir, all_domain_attr);
+            }
+            break;
+         case 80:
+            if constexpr (dim == 2)
+            {
+               return SetupMetricOperator<80>(ir, all_domain_attr);
+            }
+            break;
+         case 303:
+            if constexpr (dim == 3)
+            {
+               return SetupMetricOperator<303>(ir, all_domain_attr);
+            }
+            break;
       }
+      MFEM_ABORT("Metric id " << metric_id << " is incompatible with "
+                 << dim << "D meshes.");
    }
 
    /// Construct the differentiable operator for one TMOP metric.
@@ -1026,7 +1260,8 @@ private:
       const std::vector<FieldDescriptor> input
       {
          FieldDescriptor{X, &fes},
-         FieldDescriptor{TARGET_W, &target_qspace}
+         FieldDescriptor{TARGET_W_INV, &target_qspace},
+         FieldDescriptor{TARGET_DET_W, &metric_scalar_qspace}
       };
       const std::vector<FieldDescriptor> output
       {
@@ -1034,11 +1269,13 @@ private:
       };
       metric_operator =
          std::make_unique<DifferentiableOperator>(input, output, mesh);
-      TMOPEnergy<real_t, metric_id> energy;
       auto derivatives = std::integer_sequence<size_t, X> {};
+
+      TMOPEnergy<real_t, dim, metric_id> energy;
       metric_operator->AddDomainIntegrator<LocalQFBackend>(
          energy,
-         future::tuple{future::Gradient<X>{}, Identity<TARGET_W>{}, Weight{}},
+         future::tuple{future::Gradient<X>{}, Identity<TARGET_W_INV>{},
+                       Identity<TARGET_DET_W>{}, Weight{}},
          future::tuple{FunctionalValue<Q>{}},
          ir, all_domain_attr, derivatives);
    }
@@ -1051,18 +1288,32 @@ private:
       {
          SetupDiscreteSurfaceOperator(all_domain_attr);
       }
-      else if (options.analytic_level_set == SurfaceFittingOptions::CIRCLE)
-      {
-         SetupAnalyticSurfaceOperator<SurfaceFittingOptions::CIRCLE>(
-            all_domain_attr);
-      }
       else
       {
-         MFEM_VERIFY(options.analytic_level_set ==
-                     SurfaceFittingOptions::SQUIRCLE,
-                     "Unsupported analytic level set.");
-         SetupAnalyticSurfaceOperator<SurfaceFittingOptions::SQUIRCLE>(
-            all_domain_attr);
+         if constexpr (dim == 2)
+         {
+            if (options.analytic_level_set == SurfaceFittingOptions::CIRCLE)
+            {
+               SetupAnalyticSurfaceOperator<SurfaceFittingOptions::CIRCLE>(
+                  all_domain_attr);
+            }
+            else
+            {
+               MFEM_VERIFY(options.analytic_level_set ==
+                           SurfaceFittingOptions::SQUIRCLE,
+                           "Unsupported analytic 2D level set.");
+               SetupAnalyticSurfaceOperator<SurfaceFittingOptions::SQUIRCLE>(
+                  all_domain_attr);
+            }
+         }
+         else
+         {
+            MFEM_VERIFY(options.analytic_level_set ==
+                        SurfaceFittingOptions::SPHERE,
+                        "Unsupported analytic 3D level set.");
+            SetupAnalyticSurfaceOperator<SurfaceFittingOptions::SPHERE>(
+               all_domain_attr);
+         }
       }
    }
 
@@ -1082,7 +1333,7 @@ private:
       surface_operator =
          std::make_unique<DifferentiableOperator>(input, output, mesh);
       auto derivatives = std::integer_sequence<size_t, X> {};
-      AnalyticSurfaceFittingEnergy<real_t, level_set> energy;
+      AnalyticSurfaceFittingEnergy<real_t, level_set, dim> energy;
       surface_operator->AddDomainIntegrator<LocalQFBackend>(
          energy,
          future::tuple{Value<X>{}, Identity<Q>{}},
@@ -1106,7 +1357,7 @@ private:
       surface_operator =
          std::make_unique<DifferentiableOperator>(input, output, mesh);
       auto derivatives = std::integer_sequence<size_t, X> {};
-      DiscreteSurfaceFittingEnergy<real_t> energy;
+      DiscreteSurfaceFittingEnergy<real_t, dim> energy;
       surface_operator->AddDomainIntegrator<LocalQFBackend>(
          energy,
          future::tuple{Value<X>{}, Identity<SURFACE_FIT_DATA>{}},
@@ -1117,22 +1368,31 @@ private:
    /// Fill ideal target Jacobians at all metric quadrature points.
    void SetTargetData()
    {
-      real_t *data = target_w.HostWrite();
+      constexpr int vdim = dim * dim;
+      real_t *inverse_data = target_w_inv.HostWrite();
+      real_t *determinant_data = target_det_w.HostWrite();
       for (int e = 0; e < metric_qspace.GetNE(); e++)
       {
          const DenseMatrix &W =
             Geometries.GetGeomToPerfGeomJac(metric_qspace.GetGeometry(e));
-         MFEM_VERIFY(W.Height() == 2 && W.Width() == 2,
+         MFEM_VERIFY(W.Height() == dim && W.Width() == dim,
                      "Unexpected target matrix dimension.");
+         DenseMatrix W_inv(dim);
+         CalcInverse(W, W_inv);
+         const real_t det_W = W.Det();
          const int offset = metric_qspace.Offset(e);
          const int nq = metric_qspace.GetIntRule(e).GetNPoints();
          for (int q = 0; q < nq; q++)
          {
-            real_t *Wq = data + 4 * (offset + q);
-            for (int i = 0; i < 2; i++)
+            real_t *Wq_inv = inverse_data + vdim * (offset + q);
+            for (int i = 0; i < dim; i++)
             {
-               for (int j = 0; j < 2; j++) { Wq[2 * i + j] = W(i, j); }
+               for (int j = 0; j < dim; j++)
+               {
+                  Wq_inv[dim * i + j] = W_inv(i, j);
+               }
             }
+            determinant_data[offset + q] = det_W;
          }
       }
    }
@@ -1143,10 +1403,11 @@ private:
    QuadratureSpace metric_qspace;
    IntegrationRule surface_node_ir;
    VectorQuadratureSpace target_qspace;
-   QuadratureFunction target_w;
+   QuadratureFunction target_w_inv;
    VectorQuadratureSpace metric_scalar_qspace;
+   QuadratureFunction target_det_w;
    mutable QuadratureFunction metric_values;
-   SurfaceFittingStateManager surface_state_mgr;
+   SurfaceFittingStateManager<dim> surface_state_mgr;
    VectorQuadratureSpace surface_scalar_qspace;
    mutable QuadratureFunction surface_values;
    std::unique_ptr<DifferentiableOperator> metric_operator;
@@ -1154,12 +1415,13 @@ private:
    mutable Vector surface_gradient;
 };
 
+template <int dim>
 class EnzymeFittingNonlinearForm : public ParNonlinearForm
 {
 public:
    /// Adapt the absolute-coordinate functional to MFEM's displacement form.
    EnzymeFittingNonlinearForm(ParFiniteElementSpace &fes,
-                              EnzymeFittingFunctional &functional_)
+                              EnzymeFittingFunctional<dim> &functional_)
       : ParNonlinearForm(&fes),
         functional(functional_),
         absolute_state(fes.GetTrueVSize())
@@ -1210,20 +1472,21 @@ public:
    }
 
 private:
-   EnzymeFittingFunctional &functional;
+   EnzymeFittingFunctional<dim> &functional;
    Vector reference_state;
    mutable Vector absolute_state;
    mutable std::unique_ptr<Operator> hessian;
    mutable std::unique_ptr<ConstrainedOperator> constrained_hessian;
 };
 
+template <int dim>
 class EnzymeFittingNewtonSolver : public TMOPNewtonSolver
 {
 public:
    /// Attach the fitting nonlinear form to the TMOP Newton solver.
    EnzymeFittingNewtonSolver(MPI_Comm comm,
                              const IntegrationRule &ir,
-                             EnzymeFittingNonlinearForm &nlf_)
+                             EnzymeFittingNonlinearForm<dim> &nlf_)
       : TMOPNewtonSolver(comm, ir, 0),
         enzyme_nlf(nlf_) { }
 
@@ -1239,7 +1502,7 @@ public:
    }
 
 private:
-   EnzymeFittingNonlinearForm &enzyme_nlf;
+   EnzymeFittingNonlinearForm<dim> &enzyme_nlf;
 };
 
 /// Compute the communicator-wide minimum element Jacobian determinant.
@@ -1364,6 +1627,7 @@ void MarkSurfaceFittingDofs(ParMesh &pmesh,
 }
 
 /// Determine coordinate constraints imposed by the boundary-motion policy.
+template <int dim>
 void GetMeshOptimizerEssentialTrueDofs(const ParFiniteElementSpace &fes,
                                        bool move_bnd,
                                        Array<int> &ess_tdofs)
@@ -1384,10 +1648,9 @@ void GetMeshOptimizerEssentialTrueDofs(const ParFiniteElementSpace &fes,
    {
       const int ndofs = fes.GetBE(i)->GetDof();
       const int attr = pmesh->GetBdrElement(i)->GetAttribute();
-      MFEM_VERIFY(attr != 3,
-                  "Boundary attribute 3 is valid only for 3D meshes.");
-      if (attr == 1 || attr == 2) { count += ndofs; }
-      if (attr == 4) { count += 2 * ndofs; }
+      // Attributes 1/2/3 fix x/y/z; attribute 4 fixes every component.
+      if (attr >= 1 && attr <= dim) { count += ndofs; }
+      else if (attr == 4) { count += dim * ndofs; }
    }
 
    Array<int> vdofs, ess_vdofs(count);
@@ -1397,15 +1660,12 @@ void GetMeshOptimizerEssentialTrueDofs(const ParFiniteElementSpace &fes,
       const int ndofs = fes.GetBE(i)->GetDof();
       const int attr = pmesh->GetBdrElement(i)->GetAttribute();
       fes.GetBdrElementVDofs(i, vdofs);
-      if (attr == 1)
+      if (attr >= 1 && attr <= dim)
       {
-         for (int j = 0; j < ndofs; j++) { ess_vdofs[count++] = vdofs[j]; }
-      }
-      else if (attr == 2)
-      {
+         const int component = attr - 1;
          for (int j = 0; j < ndofs; j++)
          {
-            ess_vdofs[count++] = vdofs[j + ndofs];
+            ess_vdofs[count++] = vdofs[j + component * ndofs];
          }
       }
       else if (attr == 4)
@@ -1426,6 +1686,7 @@ void GetMeshOptimizerEssentialTrueDofs(const ParFiniteElementSpace &fes,
 }
 
 /// Determine essential true DOFs while leaving the fitted boundary movable.
+template <int dim>
 void GetFittingEssentialTrueDofs(const ParFiniteElementSpace &pfes,
                                  bool move_bnd,
                                  int marking_type,
@@ -1433,7 +1694,7 @@ void GetFittingEssentialTrueDofs(const ParFiniteElementSpace &pfes,
 {
    if (move_bnd || marking_type == 0)
    {
-      GetMeshOptimizerEssentialTrueDofs(pfes, move_bnd, ess_tdofs);
+      GetMeshOptimizerEssentialTrueDofs<dim>(pfes, move_bnd, ess_tdofs);
       return;
    }
 
@@ -1454,6 +1715,7 @@ void GetFittingEssentialTrueDofs(const ParFiniteElementSpace &pfes,
 }
 
 /// Configure and run Newton optimization, then report final fitting metrics.
+template <int dim>
 int RunOptimizer(ParMesh &pmesh,
                  ParFiniteElementSpace &fes,
                  ParGridFunction &nodes,
@@ -1477,8 +1739,8 @@ int RunOptimizer(ParMesh &pmesh,
    nodes.GetTrueDofs(true_nodes);
    const IntegrationRule &ir =
       irules.Get(pmesh.GetTypicalElementGeometry(), quad_order);
-   EnzymeFittingFunctional functional(fes, pmesh, ir, metric_id,
-                                      surface_options);
+   EnzymeFittingFunctional<dim> functional(fes, pmesh, ir, metric_id,
+                                           surface_options);
    functional.GetSurfaceStateManager().UpdateAfterMeshPositionChange(
       true_nodes);
 
@@ -1518,7 +1780,7 @@ int RunOptimizer(ParMesh &pmesh,
       }
    }
 
-   EnzymeFittingNonlinearForm nonlinear_form(fes, functional);
+   EnzymeFittingNonlinearForm<dim> nonlinear_form(fes, functional);
    nonlinear_form.SetEssentialTrueDofs(ess_tdofs);
    nonlinear_form.SetReference(true_nodes);
 
@@ -1542,7 +1804,7 @@ int RunOptimizer(ParMesh &pmesh,
       linear_solver.SetPreconditioner(jacobi);
    }
 
-   EnzymeFittingNewtonSolver solver(fes.GetComm(), ir, nonlinear_form);
+   EnzymeFittingNewtonSolver<dim> solver(fes.GetComm(), ir, nonlinear_form);
    solver.SetIntegrationRules(irules, quad_order);
    solver.SetMinDetPtr(&min_detJ);
    solver.SetOperator(nonlinear_form);
@@ -1770,8 +2032,9 @@ int main(int argc, char *argv[])
                "pmesh-optimizer-enzyme for optimization without fitting.");
    MFEM_VERIFY(target_id == 1,
                "pmesh-fitting-enzyme currently supports target id 1 only.");
-   MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 80,
-               "pmesh-fitting-enzyme supports metric ids 2, 58, and 80.");
+   MFEM_VERIFY(metric_id == 2 || metric_id == 58 || metric_id == 80 ||
+               metric_id == 303,
+               "pmesh-fitting-enzyme supports metric ids 2, 58, 80 (2D) and 303 (3D).");
    MFEM_VERIFY(solver_type == 0,
                "pmesh-fitting-enzyme currently supports Newton (-st 0) only.");
    MFEM_VERIFY(lin_solver == 2 || lin_solver == 3,
@@ -1781,9 +2044,10 @@ int main(int argc, char *argv[])
                << solver_art_type);
    MFEM_VERIFY(surf_ls_type == SurfaceFittingOptions::CIRCLE ||
                surf_ls_type == 2 ||
-               surf_ls_type == SurfaceFittingOptions::SQUIRCLE,
-               "Supported level sets are 1 (circle), 2 (reactor), and "
-               "3 (squircle).");
+               surf_ls_type == SurfaceFittingOptions::SQUIRCLE ||
+               surf_ls_type == SurfaceFittingOptions::SPHERE,
+               "Supported level sets are 1 (circle), 2 (reactor), "
+               "3 (squircle), and 4 (sphere).");
    MFEM_VERIFY(!analytic_level_set || surf_ls_type != 2,
                "The reactor level set is available only as a discrete "
                "level set (-dls).");
@@ -1823,8 +2087,17 @@ int main(int argc, char *argv[])
    Mesh mesh(mesh_file, 1, 1, false);
    for (int lev = 0; lev < rs_levels; lev++) { mesh.UniformRefinement(); }
    const int dim = mesh.Dimension();
-   MFEM_VERIFY(dim == 2,
-               "pmesh-fitting-enzyme currently supports only 2D meshes.");
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "pmesh-fitting-enzyme supports 2D and 3D meshes.");
+   MFEM_VERIFY((dim == 2 &&
+                (metric_id == 2 || metric_id == 58 || metric_id == 80)) ||
+               (dim == 3 && metric_id == 303),
+               "Metric id " << metric_id << " is incompatible with "
+               << dim << "D meshes.");
+   MFEM_VERIFY((dim == 2 && surf_ls_type != SurfaceFittingOptions::SPHERE) ||
+               (dim == 3 && surf_ls_type == SurfaceFittingOptions::SPHERE),
+               "Use circle/reactor/squircle level sets in 2D and the sphere "
+               "level set in 3D.");
    if (mesh_poly_deg <= 0) { mesh_poly_deg = 2; }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
@@ -1861,6 +2134,10 @@ int main(int argc, char *argv[])
    {
       level_set_coeff = std::make_unique<FunctionCoefficient>(reactor);
    }
+   else if (surf_ls_type == SurfaceFittingOptions::SPHERE)
+   {
+      level_set_coeff = std::make_unique<FunctionCoefficient>(sphere_level_set);
+   }
    else
    {
       level_set_coeff =
@@ -1878,8 +2155,11 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParGridFunction> surface_bg_level_set;
    if (surf_bg_mesh)
    {
-      Mesh serial_bg(
-         Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true));
+      Mesh serial_bg = dim == 2 ?
+                        Mesh::MakeCartesian2D(
+                           4, 4, Element::QUADRILATERAL, true) :
+                        Mesh::MakeCartesian3D(
+                           4, 4, 4, Element::HEXAHEDRON, true);
       serial_bg.EnsureNCMesh();
       surface_bg_mesh =
          std::make_unique<ParMesh>(MPI_COMM_WORLD, serial_bg);
@@ -1936,7 +2216,9 @@ int main(int argc, char *argv[])
                             SurfaceFittingOptions::DISCRETE;
    surface_options.analytic_level_set =
       surf_ls_type == SurfaceFittingOptions::SQUIRCLE ?
-      SurfaceFittingOptions::SQUIRCLE : SurfaceFittingOptions::CIRCLE;
+      SurfaceFittingOptions::SQUIRCLE :
+      (surf_ls_type == SurfaceFittingOptions::SPHERE ?
+       SurfaceFittingOptions::SPHERE : SurfaceFittingOptions::CIRCLE);
    surface_options.discrete_derivative_mode =
       static_cast<SurfaceFittingOptions::DiscreteDerivativeMode>(
          discrete_derivative_mode);
@@ -2000,7 +2282,10 @@ int main(int argc, char *argv[])
                "pmesh-optimizer-enzyme first.");
 
    Array<int> ess_tdofs;
-   GetFittingEssentialTrueDofs(pfes, move_bnd, marking_type, ess_tdofs);
+   const auto get_essential_tdofs = dim == 2 ?
+                                    &GetFittingEssentialTrueDofs<2> :
+                                    &GetFittingEssentialTrueDofs<3>;
+   get_essential_tdofs(pfes, move_bnd, marking_type, ess_tdofs);
    if (Mpi::Root())
    {
       std::cout << "Fixed true dofs: " << ess_tdofs.Size() << '\n';
@@ -2008,7 +2293,8 @@ int main(int argc, char *argv[])
 
    const real_t fitting_tolerance =
       conv_residual ? -1.0 : surface_fit_threshold;
-   const int result = RunOptimizer(
+   const auto run_optimizer = dim == 2 ? &RunOptimizer<2> : &RunOptimizer<3>;
+   const int result = run_optimizer(
                          pmesh, pfes, x, irules, quad_order, ess_tdofs,
                          min_detJ, solver_iter, solver_rtol, solver_atol,
                          lin_solver, solver_art_type, max_lin_iter,
