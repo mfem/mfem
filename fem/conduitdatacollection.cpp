@@ -1650,7 +1650,8 @@ ConduitDataCollection::BlueprintMeshToMesh(const Node &n_mesh,
       const_cast<int*>(bndry_atts),
       num_bndry_ele,
       ndims, // dim
-      ndims); // space dim
+      ndims, // space dim
+      false); // generate_bdr
 
    // Attach Nodes Grid Function, if it exists
    if (n_mesh_topo.has_child("grid_function"))

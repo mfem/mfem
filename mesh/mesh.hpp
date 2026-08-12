@@ -782,6 +782,14 @@ public:
         int *boundary_attributes, int num_boundary_elements,
         int dimension, int space_dimension = -1);
 
+   /// Construct a Mesh from primary data with boundary generation control.
+   Mesh(real_t *vertices, int num_vertices,
+        int *element_indices, Geometry::Type element_type,
+        int *element_attributes, int num_elements,
+        int *boundary_indices, Geometry::Type boundary_type,
+        int *boundary_attributes, int num_boundary_elements,
+        int dimension, int space_dimension, bool generate_bdr);
+
    /** @anchor mfem_Mesh_init_ctor
        @brief _Init_ constructor: begin the construction of a Mesh object.
 

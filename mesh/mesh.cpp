@@ -4894,6 +4894,21 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
            int *boundary_indices, Geometry::Type boundary_type,
            int *boundary_attributes, int num_boundary_elements,
            int dimension, int space_dimension)
+   : Mesh(vertices_, num_vertices,
+          element_indices, element_type,
+          element_attributes, num_elements,
+          boundary_indices, boundary_type,
+          boundary_attributes, num_boundary_elements,
+          dimension, space_dimension, true /*generate_bdr*/)
+{
+}
+
+Mesh::Mesh(real_t *vertices_, int num_vertices,
+           int *element_indices, Geometry::Type element_type,
+           int *element_attributes, int num_elements,
+           int *boundary_indices, Geometry::Type boundary_type,
+           int *boundary_attributes, int num_boundary_elements,
+           int dimension, int space_dimension, bool generate_bdr)
    : attribute_sets(attributes), bdr_attribute_sets(bdr_attributes)
 {
    if (space_dimension == -1)
@@ -4929,9 +4944,6 @@ Mesh::Mesh(real_t *vertices_, int num_vertices,
    }
    NumOfBdrElements = num_boundary_elements;
 
-   // If we passed in boundary elements then we've created them above. If we did
-   // not pass them in, it must have been a domain that does not have any.
-   const bool generate_bdr = false;
    FinalizeTopology(generate_bdr);
 }
 
