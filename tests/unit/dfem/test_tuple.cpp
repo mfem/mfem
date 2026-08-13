@@ -11,6 +11,9 @@
 
 #include "../unit_tests.hpp"
 #include "mfem.hpp"
+#ifndef MFEM_USE_MPI
+#include "../../../fem/dfem/tuple.hpp"
+#endif
 
 using namespace mfem;
 using namespace mfem::future;
@@ -240,9 +243,9 @@ TEST_CASE("dFEM tuple arithmetic", "[dFEM]")
 // back on the device.
 TEST_CASE("dFEM tuple on device", "[dFEM][GPU]")
 {
-   Vector out(4);
-   out.UseDevice(true);
-   auto d_out = out.Write();
+   Vector res(4);
+   res.UseDevice(true);
+   auto d_res = res.Write();
 
    forall(1, [=] MFEM_HOST_DEVICE (int)
    {
@@ -254,15 +257,15 @@ TEST_CASE("dFEM tuple on device", "[dFEM][GPU]")
       tuple2 u {get<0>(t), get<2>(t)};
       u += tuple2 {1.0, vec3{{1.0, 1.0, 1.0}}};
 
-      d_out[0] = get<0>(u);
-      d_out[1] = get<1>(u)(0);
-      d_out[2] = get<1>(u)(1);
-      d_out[3] = static_cast<real_t>(get<1>(t));
+      d_res[0] = get<0>(u);
+      d_res[1] = get<1>(u)(0);
+      d_res[2] = get<1>(u)(1);
+      d_res[3] = static_cast<real_t>(get<1>(t));
    });
 
-   out.HostRead();
-   REQUIRE(out(0) == 4.0_r);
-   REQUIRE(out(1) == 4.0_r);
-   REQUIRE(out(2) == 5.0_r);
-   REQUIRE(out(3) == 2.0_r);
+   res.HostRead();
+   REQUIRE(res(0) == 4.0_r);
+   REQUIRE(res(1) == 4.0_r);
+   REQUIRE(res(2) == 5.0_r);
+   REQUIRE(res(3) == 2.0_r);
 }

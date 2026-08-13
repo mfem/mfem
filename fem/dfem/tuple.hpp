@@ -134,7 +134,7 @@ struct is_elementwise_constructible<tuple<T...>, U...>
 template <typename Tuple, typename... U>
 using enable_elementwise_t =
    std::enable_if_t<is_elementwise_constructible<Tuple, U...>::value>;
-}
+}  // namespace detail
 
 /**
  * @tparam T the types stored in the tuple
@@ -219,10 +219,8 @@ template <class... Types>
 struct tuple_size;
 
 template <class... Types>
-struct tuple_size<tuple<Types...>> :
-                                std::integral_constant<std::size_t, sizeof...(Types)>
-{
-};
+struct tuple_size<tuple<Types...> >
+: std::integral_constant<std::size_t, sizeof...(Types)> {};
 
 /**
  * @brief a struct used to determine the type at index I of a tuple
@@ -238,10 +236,8 @@ struct tuple_element;
 // recursive case
 /// @overload
 template <size_t I, class Head, class... Tail>
-struct tuple_element<I, tuple<Head, Tail...>> : tuple_element<I - 1,
-                                              tuple<Tail...>>
-{
-};
+struct tuple_element<I, tuple<Head, Tail...> >
+   : tuple_element<I - 1, tuple<Tail...>> {};
 
 // base case
 /// @overload
@@ -362,9 +358,11 @@ MFEM_HOST_DEVICE constexpr const auto&& get(const tuple<T...>&& t)
 }
 
 /**
- * @brief a function intended to be used for extracting the ith type from a tuple.
+ * @brief a function intended to be used for extracting the ith type from a
+ * tuple.
  *
- * @note type<i>(my_tuple) returns a value, whereas get<i>(my_tuple) returns a reference
+ * @note type<i>(my_tuple) returns a value, whereas get<i>(my_tuple) returns a
+ * reference
  *
  * @tparam I the index of the tuple to query
  * @tparam T the types stored in the tuple
