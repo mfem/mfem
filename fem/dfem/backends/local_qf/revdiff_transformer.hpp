@@ -245,7 +245,7 @@ struct RevDiff
 
    static constexpr auto active_inputs =
       collect_active_inputs<activity, num_inputs, num_active_inputs>(
-         std::make_index_sequence<arity> {});
+   std::make_index_sequence<arity> {});
 
    // Slot index of argument I in the active_inputs array (compile-time).
    template <size_t I>
