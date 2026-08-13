@@ -13,13 +13,14 @@
 
 #include "mfem.hpp"
 
+#ifdef MFEM_USE_MPI
+
 #include "../linalg/test_same_matrices.hpp"
 
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../fem/dfem/backends/local_qf/revdiff_transformer.hpp"
 
-#ifdef MFEM_USE_MPI
 
 using namespace mfem;
 using namespace mfem::future;
