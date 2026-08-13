@@ -195,6 +195,32 @@ enum class RevDiffDualMode
    Derivative
 };
 
+// Number of Active inputs and their argument indices, in ascending order.
+// A qfunction may have several Active inputs at once: e.g. a field's value
+// u and its gradient dudx both feed the output and both must be
+// differentiated (the chain-rule contraction with the value/gradient shape
+// functions then happens at the FE-operator level). We produce one gradient
+// block, d(output)/d(input), per Active input — each computed with the other
+// Active inputs frozen, so they come out as isolated partials.
+template <typename activity_t, size_t num_inputs, size_t... Is>
+constexpr size_t count_active_inputs(std::index_sequence<Is...>)
+{
+   return ((Is < num_inputs && qf_param_is_active_v<activity_t, Is>
+            ? size_t{1} : size_t{0}) + ...);
+}
+
+template <typename activity_t, size_t num_inputs, size_t num_active,
+          size_t... Is>
+constexpr std::array<size_t, num_active>
+collect_active_inputs(std::index_sequence<Is...>)
+{
+   std::array<size_t, num_active> idx{};
+   size_t j = 0;
+   (((Is < num_inputs && qf_param_is_active_v<activity_t, Is>)
+     ? (idx[j++] = Is) : size_t{0}), ...);
+   return idx;
+}
+
 template <typename Func, typename InputActivityTuple,
           typename OutputActivityTuple,
           RevDiffDualMode mode = RevDiffDualMode::Eval>
@@ -213,34 +239,13 @@ struct RevDiff
                  "Number of input and output activity tags must match function "
                  "arity");
 
-   // Number of Active inputs and their argument indices, in ascending order.
-   // A qfunction may have several Active inputs at once: e.g. a field's value
-   // u and its gradient dudx both feed the output and both must be
-   // differentiated (the chain-rule contraction with the value/gradient shape
-   // functions then happens at the FE-operator level). We produce one gradient
-   // block, d(output)/d(input), per Active input — each computed with the other
-   // Active inputs frozen, so they come out as isolated partials.
-   template <size_t... Is>
-   static constexpr size_t count_active_inputs(std::index_sequence<Is...>)
-   {
-      return ((Is < num_inputs && qf_param_is_active_v<activity, Is>
-               ? size_t{1} : size_t{0}) + ...);
-   }
    static constexpr size_t num_active_inputs =
-      count_active_inputs(std::make_index_sequence<arity> {});
+      count_active_inputs<activity, num_inputs>(
+         std::make_index_sequence<arity> {});
 
-   template <size_t... Is>
-   static constexpr std::array<size_t, num_active_inputs>
-   collect_active_inputs(std::index_sequence<Is...>)
-   {
-      std::array<size_t, num_active_inputs> idx{};
-      size_t j = 0;
-      (((Is < num_inputs && qf_param_is_active_v<activity, Is>)
-        ? (idx[j++] = Is) : size_t{0}), ...);
-      return idx;
-   }
    static constexpr auto active_inputs =
-   collect_active_inputs(std::make_index_sequence<arity> {});
+      collect_active_inputs<activity, num_inputs, num_active_inputs>(
+         std::make_index_sequence<arity> {});
 
    // Slot index of argument I in the active_inputs array (compile-time).
    template <size_t I>
@@ -344,7 +349,10 @@ struct RevDiff
    {
       return &static_call<Is...>;
    }
-   static constexpr auto fn = fn_ptr(std::make_index_sequence<arity> {});
+   static constexpr auto fn()
+   {
+      return fn_ptr(std::make_index_sequence<arity> {});
+   }
 
    // Load primal inputs from the pointer tuple into a local qargs copy. Dual
    // gradient parts are implicitly zero because qargs is value-initialized.
@@ -489,7 +497,7 @@ struct RevDiff
    {
       if constexpr (I == arity)
       {
-         __enzyme_autodiff<void>(fn, enzyme_const, const_cast<Func *>(&func),
+         __enzyme_autodiff<void>(fn(), enzyme_const, const_cast<Func *>(&func),
                                  built...);
       }
       else if constexpr (I == active_output)

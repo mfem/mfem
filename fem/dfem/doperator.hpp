@@ -1542,9 +1542,11 @@ void DifferentiableOperator::AddIntegrator(
          functional_derivative_ids.insert(idx);
 
          // Check dependencies of the quadrature function inputs for the derivative
-         constexpr auto darr =
-            make_dependency_tuple_ct<idx, input_t>();
-         using dqfunc_t = RevDiff<qfunc_t, std::decay_t<decltype(darr)>, tuple<Active>>;
+         // Make darr type unambiguously a tuple
+         constexpr auto darr = make_dependency_tuple_ct<idx, input_t>();
+         using derivative_activity_t = std::decay_t<decltype(darr)>;
+
+         using dqfunc_t = RevDiff<qfunc_t, derivative_activity_t, tuple<Active>>;
 
          // The second derivative differentiates dqfunc again. With Enzyme that
          // is another reverse-mode call and this type is the same as dqfunc_t;
@@ -1552,7 +1554,7 @@ void DifferentiableOperator::AddIntegrator(
          // so the inner seeding does not overwrite the direction carried by the
          // outer dual pair.
          using second_dqfunc_t = RevDiff<qfunc_t,
-               std::decay_t<decltype(darr)>,
+               derivative_activity_t,
                tuple<Active>,
                RevDiffDualMode::Derivative>;
 
