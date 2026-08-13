@@ -213,9 +213,6 @@ struct RevDiff
                  "Number of input and output activity tags must match function "
                  "arity");
 
-   template <size_t I>
-   static constexpr bool is_active = qf_param_is_active_v<activity, I>;
-
    // Number of Active inputs and their argument indices, in ascending order.
    // A qfunction may have several Active inputs at once: e.g. a field's value
    // u and its gradient dudx both feed the output and both must be
@@ -226,7 +223,8 @@ struct RevDiff
    template <size_t... Is>
    static constexpr size_t count_active_inputs(std::index_sequence<Is...>)
    {
-      return ((Is < num_inputs && is_active<Is> ? size_t{1} : size_t{0}) + ...);
+      return ((Is < num_inputs && qf_param_is_active_v<activity, Is>
+               ? size_t{1} : size_t{0}) + ...);
    }
    static constexpr size_t num_active_inputs =
       count_active_inputs(std::make_index_sequence<arity> {});
@@ -237,7 +235,8 @@ struct RevDiff
    {
       std::array<size_t, num_active_inputs> idx{};
       size_t j = 0;
-      (((Is < num_inputs && is_active<Is>) ? (idx[j++] = Is) : size_t{0}), ...);
+      (((Is < num_inputs && qf_param_is_active_v<activity, Is>)
+        ? (idx[j++] = Is) : size_t{0}), ...);
       return idx;
    }
    static constexpr auto active_inputs =
@@ -245,12 +244,12 @@ struct RevDiff
 
    // Slot index of argument I in the active_inputs array (compile-time).
    template <size_t I>
-   static constexpr size_t slot_of = []() constexpr -> size_t
+   static constexpr size_t slot_of()
    {
       for (size_t s = 0; s < num_active_inputs; s++)
          if (active_inputs[s] == I) { return s; }
       return num_active_inputs;
-   }();
+   }
 
    static constexpr size_t active_output =
       find_single_active_qparam<activity, num_inputs, arity>();
@@ -288,7 +287,8 @@ struct RevDiff
    // carrying the outer direction, so they must be dual-typed.
    template <size_t I>
    using derivative_arg_t =
-      std::conditional_t<use_native_dual_derivative && is_active<I>,
+      std::conditional_t<use_native_dual_derivative &&
+      qf_param_is_active_v<activity, I>,
       typename qp_traits<std::decay_t<tuple_element_t<I, args_tuple>>>::dual_type,
       primal_arg_t<I>>;
 
@@ -297,16 +297,18 @@ struct RevDiff
       std::decay_t<tuple_element_t<active_inputs[S], args_tuple>>;
 
    template <size_t S>
-   static constexpr bool active_arg_uses_dual =
-      native_dual_backend &&
-      (is_dual_number<active_arg_decay_t<S>>::value ||
-       qf_param_uses_dual_v<active_arg_decay_t<S>>);
+   static constexpr bool active_arg_uses_dual()
+   {
+      return native_dual_backend &&
+             (is_dual_number<active_arg_decay_t<S>>::value ||
+              qf_param_uses_dual_v<active_arg_decay_t<S>>);
+   }
 
    // A gradient block mirrors its active input's shape. It needs a dual scalar
    // whenever the fallback has to return a value and a tangent through it.
    template <size_t S>
    using grad_arg_t =
-      std::conditional_t<use_native_dual_derivative || active_arg_uses_dual<S>,
+      std::conditional_t<use_native_dual_derivative || active_arg_uses_dual<S>(),
       typename qp_traits<active_arg_decay_t<S>>::dual_type,
       typename qp_traits<active_arg_decay_t<S>>::view_type>
       &;
@@ -496,13 +498,13 @@ struct RevDiff
          call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
                                 enzyme_dupnoneed, &scratch, &adjoint);
       }
-      else if constexpr (is_active<I>)
+      else if constexpr (qf_param_is_active_v<activity, I>)
       {
          // Active input: gradient accumulates into its grad-output slot.
          call_enzyme_rev<I + 1>(
             ptrs, scratch, adjoint, built..., enzyme_dup,
             mfem::future::get<int(I)>(ptrs),
-            mfem::future::get<int(num_inputs + slot_of<I>)>(ptrs));
+            mfem::future::get<int(num_inputs + slot_of<I>())>(ptrs));
       }
       else
       {
@@ -561,7 +563,7 @@ struct RevDiff
          auto name = get_type_name<tuple_element_t<Is, args_tuple>>();
          if constexpr (Is == active_output)
             mfem::out << ", enzyme_dupnoneed, " << name << ", adjoint=1";
-         else if constexpr (is_active<Is>)
+         else if constexpr (qf_param_is_active_v<activity, Is>)
             mfem::out << ", enzyme_dup, " << name << ", grad out";
          else
          {

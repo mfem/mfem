@@ -40,7 +40,7 @@ namespace second_derivative_test
 template <typename dscalar_t, int dim>
 struct MinimalSurfaceEnergyFunctional
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const dscalar_t &u,
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
@@ -59,7 +59,7 @@ struct MinimalSurfaceEnergyFunctional
 template <typename dscalar_t, int dim>
 struct MinimalSurfaceEnergy
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
@@ -76,7 +76,7 @@ struct MinimalSurfaceEnergy
 template <typename dscalar_t, int dim>
 struct MinimalSurfaceResidual
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,
@@ -94,7 +94,7 @@ struct MinimalSurfaceResidual
 template <typename dscalar_t, int dim>
 struct MinimalSurfaceHessianAction
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const tensor<real_t, dim> &ddelta_udxi,
                    const tensor<dscalar_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,
@@ -118,7 +118,7 @@ struct MinimalSurfaceHessianAction
 template <typename dscalar_t, int dim>
 struct MixedFunctional
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const dscalar_t &u,
                    const dscalar_t &rho,
                    const tensor<real_t, dim, dim> &J,
@@ -132,7 +132,7 @@ struct MixedFunctional
 template <typename dscalar_t, int dim>
 struct MixedFunctionalUUAction
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const real_t &du,
                    const dscalar_t &rho,
                    const tensor<real_t, dim, dim> &J,
@@ -146,7 +146,7 @@ struct MixedFunctionalUUAction
 template <typename dscalar_t, int dim>
 struct MixedFunctionalURhoAction
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const real_t &drho,
                    const dscalar_t &u,
                    const tensor<real_t, dim, dim> &J,
@@ -160,7 +160,7 @@ struct MixedFunctionalURhoAction
 template <typename dscalar_t, int dim>
 struct MixedFunctionalRhoUAction
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const real_t &du,
                    const dscalar_t &u,
                    const tensor<real_t, dim, dim> &J,
@@ -174,7 +174,7 @@ struct MixedFunctionalRhoUAction
 template <typename dscalar_t, int dim>
 struct MixedFunctionalRhoRhoAction
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const real_t &drho,
                    const tensor<real_t, dim, dim> &J,
                    const real_t &w,

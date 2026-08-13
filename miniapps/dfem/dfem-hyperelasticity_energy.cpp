@@ -31,17 +31,6 @@
 #include "../../fem/dfem/doperator.hpp"
 #include "../../fem/dfem/backends/local_qf/prelude.hpp"
 
-// Utils for output folder handling
-#if __cplusplus >= 201703L
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __cplusplus >= 201402L
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "C++14 or later is required for filesystem support."
-#endif
-
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
@@ -623,12 +612,8 @@ int main(int argc, char *argv[])
 
    if (paraview)
    {
-      if (Mpi::Root())
-      {
-         fs::create_directories(outfolder);
-      }
-
-      // Create a ParaView data collection
+      // Create a ParaView data collection. Save() creates the output directory
+      // tree under the prefix path itself, with the ranks synchronized.
       ParaViewDataCollection pd("dfem-hyperelasticity", &pmesh);
       pd.SetPrefixPath(outfolder);
       pd.RegisterField("displacement", &U_gf);
