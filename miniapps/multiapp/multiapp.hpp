@@ -156,12 +156,6 @@ public:
     /// @brief Get the operator associated with this collection
     const Operator* GetOperator() const { return oper; }
 
-    /// @brief Get the field associated with the given name, or nullptr if not found
-    Field* GetField(const std::string &field_name) const
-    {
-        return fields.Get(field_name);
-    }
-
     /// @brief Add a field to the collection with a given name and ownership flag
     void AddField(const std::string &field_name, Field *field, bool own = false)
     {
@@ -379,15 +373,15 @@ public:
     int ID() const { return id; }
 
     FieldCollection::FieldMap& Fields() { return field_collection.Fields(); }
-    Field* Fields(const std::string &f) { return field_collection.GetField(f); }
+    Field* Fields(const std::string &f)  { return Fields().Get(f); }
 
     FieldCollection::FieldMap Fields() const { return field_collection.Fields(); }
-    Field* Fields(const std::string &f) const { return field_collection.GetField(f); }
+    Field* Fields(const std::string &f) const { return Fields().Get(f); }
 
     Array<Field*>& InputFields() const { return field_collection.InputFields(); }
     Array<Field*>& OutputFields() const { return field_collection.OutputFields(); }
-    Field* InputField(int i) const { return field_collection.InputField(i); }
-    Field* OutputField(int i) const { return field_collection.OutputField(i); }
+    Field* InputField(int i) const { return InputFields()[i]; }
+    Field* OutputField(int i) const { return OutputFields()[i]; }
 
 
     virtual void AddInput(const std::string &field_name,
@@ -422,39 +416,6 @@ public:
         ((AddOutput(std::forward<Args>(args), OwnOutputs)), ...);
     }
 
-    virtual void Save (std::ostream &out) const
-    {
-        out << "\"Node-" << id << "\" : " << std::endl;
-        out << "{\n";
-        out << "\"Name\": \"" << name << "\",\n";
-        field_collection.Save(out);
-        out << "}";
-    }
-
-    virtual void Mult(const Vector &x, Vector &y) const override
-    {
-        MFEM_ABORT("This method is not overridden for this class!");
-    }
-
-    virtual void MultMV(const MultiVector &x, MultiVector &y) const override
-    {
-        MFEM_ABORT("This method is not overridden for this class!");
-    }
-
-    using Operator::GetGradient;
-
-    virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
-    {
-        MFEM_ABORT("This method is not overridden for this class!");
-        GetGradientMV(x).MultMV(dx, dy);
-    }
-
-    virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
-    {
-        MFEM_ABORT("This method is not overridden for this class!");
-        GetGradientMV(x).MultTransposeMV(dx, dy); // Not yet implemented
-    }
-
     /// @brief Return the input offsets for block starts.
     Array<int>& InputOffsets() { return input_offsets; }
 
@@ -470,6 +431,39 @@ public:
     const Array<int>& OutputOffsets() const { return output_offsets; }
 
     void SetOutputOffsets(const Array<int> &offsets) { output_offsets = offsets; }
+
+    virtual void MultMV(const MultiVector &x, MultiVector &y) const
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+        // Include a default implementation that calls Mult() with Vector arguments
+    }
+
+    virtual void MultTransposeMV(const MultiVector &x, MultiVector &y) const
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+        // Include a default implementation that calls MultTranspose() with Vector arguments
+    }
+
+    virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+        GetGradientMV(x).MultMV(dx, dy);
+    }
+
+    virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+        GetGradientMV(x).MultTransposeMV(dx, dy); // Not yet implemented
+    }
+
+    virtual void Save (std::ostream &out) const
+    {
+        out << "\"Node-" << id << "\" : " << std::endl;
+        out << "{\n";
+        out << "\"Name\": \"" << name << "\",\n";
+        field_collection.Save(out);
+        out << "}";
+    }
 
     virtual ~GraphNode() = default;
 };
