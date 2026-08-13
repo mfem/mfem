@@ -554,7 +554,7 @@ SparseMatrix AdaptiveSmoother(Operator &op, SparseMatrix &A, Array<int> block_si
    smoother *= w;
 
    // Smooth the columns of B.
-   // real_t tol = 1.03;
+   real_t tol = 1.03;
    int num_B_cols = B.Width();
    int num_B_rows = B.Height();
    for(int j = 0; j < num_B_cols; j++)
@@ -564,8 +564,8 @@ SparseMatrix AdaptiveSmoother(Operator &op, SparseMatrix &A, Array<int> block_si
       Vector Ab(num_B_rows);
       B.GetColumn(j, b);
 
-      // real_t norm_prev = b.Norml2();
-      // real_t ratio;
+      real_t norm_prev = b.Norml2();
+      real_t ratio;
       int it = 0;
       do
       {
@@ -574,12 +574,12 @@ SparseMatrix AdaptiveSmoother(Operator &op, SparseMatrix &A, Array<int> block_si
          smoother.Mult(Ab, b);
          b *= -1.0;
          b += b_prev;
-         // real_t norm = b.Norml2();
-         // ratio = norm_prev / norm;
-         // norm_prev = norm;
+         real_t norm = b.Norml2();
+         ratio = norm_prev / norm;
+         norm_prev = norm;
          it += 1;
       }
-      while(it < 80);
+      while(it < 80 && tol < ratio);
 
       for(int i = 0; i < num_B_rows; i++){B(i, j) = b(i);}
    }
@@ -601,20 +601,6 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    // Create the mesh hierarchy.
    auto E = Agglomerate(*fes.GetMesh(), ncoarse, num_levels);
    std::cout << "num agglomerated levels " << E.size() <<  std::endl;
-
-   // Initialize B
-   int num_samp = ncoarse*ncoarse; // 16 if 2-dimensional, 64 if 3-dimensional.
-   DenseMatrix B(nnodes, num_samp); 
-   std::random_device rd;
-   std::mt19937 gen(rd()); 
-   std::normal_distribution<double> dist(0.0, 1.0);
-   for (int i = 0; i < B.Height(); i++)
-   {
-      for (int j = 0; j < B.Width(); j++)
-      {
-         B(i,j) = dist(gen);
-      }
-   }
 
    // Populate the arrays: operators, smoothers, ownedOperators, ownedSmoothers
    // from the MultigridBase class. (All smoothers are owned, all operators
@@ -655,7 +641,19 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
    for (int k = num_levels - 2; k >= 0; --k)
    {
       SparseMatrix &A_prev = static_cast<SparseMatrix&>(*operators[k + 1]);
-
+      // Initialize B
+      int num_samp = ncoarse*ncoarse; // 16 if 2-dimensional, 64 if 3-dimensional.
+      DenseMatrix B(A_prev.Height(), num_samp); 
+      std::random_device rd;
+      std::mt19937 gen(rd()); 
+      std::normal_distribution<double> dist(0.0, 1.0);
+      for (int i = 0; i < B.Height(); i++)
+      {
+         for (int j = 0; j < B.Width(); j++)
+         {
+            B(i,j) = dist(gen);
+         }
+      }
       // Generate a random vector, x, to initialize power iteration.
       Vector x_random(A_prev.Height());
       for (int i = 0; i < x_random.Size(); i++){x_random(i) = dist(gen);}
@@ -726,6 +724,10 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       }
       P->OverrideSize(prev_dof_idx.Last(), curr_dof_idx.Last());
       P->Finalize();
+      std::string file_name = "Atil.mtx";
+      std::ofstream ofs1(file_name);
+      A_tilde_inv.PrintMM(ofs1); 
+      ofs1.close();
 
       // Construct the prolongation matrix, T, by computing T= (I - \tilde{A}^{-1} A)P
       std::unique_ptr<SparseMatrix> A_til_inv_A_mat_ptr(mfem::Mult(A_tilde_inv, A_prev));
@@ -750,9 +752,9 @@ SmoothedAggregationGMG::SmoothedAggregationGMG(FiniteElementSpace &fes, SparseMa
       // to smoothers[k+1]. So, I created a "dummy" solver object BlockJacobi which takes in A_tilde_inv and essentially
       // performs the action of multiplying with A_tilde_inv.
       smoothers[k+1] = new BlockJacobi(*operators[k+1], A_tilde_inv);
-      DenseMatrix *B_new = mfem::Mult(*Pt, B); // Initialize B for next level 
-      B = *B_new;
-      delete B_new;
+      // DenseMatrix *B_new = mfem::Mult(*Pt, B); // Initialize B for next level 
+      // B = *B_new;
+      // delete B_new;
       prev_dof_idx = curr_dof_idx; // set prev_dof_idx for next level 
    }
    SparseMatrix &Ac = static_cast<SparseMatrix&>(*operators[0]);
