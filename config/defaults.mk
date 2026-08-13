@@ -28,11 +28,8 @@ MPICXX = mpicxx
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 
-# Shadow warnings for clang only; GCC's -Wshadow flags more.
-SHADOW_WARNING_FLAG = $(if $(findstring clang,\
- $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
-WARNING_FLAGS = -pedantic -Wall $(SHADOW_WARNING_FLAG)
-
+# The variable WARNING_FLAGS depends on which compiler is used, and is defined
+# later in this file.
 DEBUG_FLAGS = $(strip -g $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
@@ -382,7 +379,7 @@ CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
 CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
 CUDSS_LIB         = \
  $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
-# The cuDSS communication and threading libraries. 
+# The cuDSS communication and threading libraries.
 MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
    $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
 MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
@@ -665,3 +662,15 @@ VERBOSE = NO
 
 # Optional build tag
 MFEM_BUILD_TAG = $(shell uname -snm)
+
+# Enable -pedantic flag only for gcc or clang. nvcc complains with -pedantic
+# because of line directives.
+PEDANTIC_FLAG = $(if \
+   $(findstring NVIDIA,$(shell $(MFEM_CXX) --version 2>&1)),, \
+   $(if $(or \
+      $(findstring gcc version,$(shell $(MFEM_CXX) -v 2>&1)), \
+      $(findstring clang version,$(shell $(MFEM_CXX) -v 2>&1))),-pedantic,))
+# Enable shadow warnings for clang only; GCC's -Wshadow flags more.
+SHADOW_WARNING_FLAG = $(if $(findstring clang,\
+ $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
+WARNING_FLAGS = $(PEDANTIC_FLAG) -Wall $(SHADOW_WARNING_FLAG)

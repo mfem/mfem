@@ -697,17 +697,18 @@ void DifferentiableOperator::AddIntegrator(
 
    // The explicit captures are necessary to avoid dependency on
    // the specific instance of this class (this pointer).
-   restriction_callback =
-      [=, solutions = this->solutions, parameters = this->parameters]
-      (std::vector<Vector> &sol,
-       const std::vector<Vector> &par,
-       std::vector<Vector> &f)
+   restriction_callback = [element_dof_ordering,
+                           solutions_ = this->solutions,
+                           parameters_ = this->parameters]
+   (std::vector<Vector> &sol,
+    const std::vector<Vector> &par,
+    std::vector<Vector> &f)
    {
-      restriction<entity_t>(solutions, sol, f,
+      restriction<entity_t>(solutions_, sol, f,
                             element_dof_ordering);
-      restriction<entity_t>(parameters, par, f,
+      restriction<entity_t>(parameters_, par, f,
                             element_dof_ordering,
-                            solutions.size());
+                            solutions_.size());
    };
 
    prolongation_transpose = get_prolongation_transpose(
@@ -835,19 +836,19 @@ void DifferentiableOperator::AddIntegrator(
 
          // capture by ref:
          &restriction_cb = this->restriction_callback,
-         &fields_e = this->fields_e,
-         &residual_e = this->residual_e,
-         &output_restriction_transpose = this->output_restriction_transpose
+         &fields_e_ = this->fields_e,
+         &residual_e_ = this->residual_e,
+         &output_restriction_transpose_ = this->output_restriction_transpose
       ]
       (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
       mutable // mutable: needed to modify 'shmem_cache'
    {
-      restriction_cb(sol, par, fields_e);
+      restriction_cb(sol, par, fields_e_);
 
-      residual_e = 0.0;
-      auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
+      residual_e_ = 0.0;
+      auto ye = Reshape(residual_e_.ReadWrite(), test_vdim, num_test_dof, num_entities);
 
-      auto wrapped_fields_e = wrap_fields(fields_e,
+      auto wrapped_fields_e = wrap_fields(fields_e_,
                                           action_shmem_info.field_sizes,
                                           num_entities);
 
@@ -878,7 +879,7 @@ void DifferentiableOperator::AddIntegrator(
             y, fhat, output_fop, output_dtq_shmem[0],
             scratch_shmem, dimension, use_sum_factorization);
       }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
-      output_restriction_transpose(residual_e, res);
+      output_restriction_transpose_(residual_e_, res);
    });
 
    // Without this compile-time check, some valid instantiations of this method
@@ -1193,7 +1194,7 @@ void DifferentiableOperator::AddIntegrator(
 
                // capture by ref:
                &qpdc_mem = derivative_qp_caches_ref,
-               &fields = fields_ref
+               &fields_ = fields_ref
             ](std::vector<Vector> &f_e, SparseMatrix *&A) mutable
          {
             auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
@@ -1241,14 +1242,14 @@ void DifferentiableOperator::AddIntegrator(
             {
                if (input_is_dependent[s])
                {
-                  trial_field = &fields[input_to_field[s]];
+                  trial_field = &fields_[input_to_field[s]];
                }
             }
 
             auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
                              (&trial_field->data);
             auto test_fes = *std::get_if<const ParFiniteElementSpace *>
-                            (&fields[output_to_field[0]].data);
+                            (&fields_[output_to_field[0]].data);
 
             A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
 
@@ -1334,7 +1335,7 @@ void DifferentiableOperator::AddIntegrator(
                input_to_field,
                output_to_field,
                &spmatcb = assemble_derivative_sparsematrix_callbacks_ref,
-               &fields = fields_ref
+               &fields_ = fields_ref
             ](std::vector<Vector> &f_e, HypreParMatrix *&A) mutable
          {
             SparseMatrix *spmat = nullptr;
@@ -1366,14 +1367,14 @@ void DifferentiableOperator::AddIntegrator(
             {
                if (input_is_dependent[s])
                {
-                  trial_field = &fields[input_to_field[s]];
+                  trial_field = &fields_[input_to_field[s]];
                }
             }
 
             auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
                              (&trial_field->data);
             auto test_fes = *std::get_if<const ParFiniteElementSpace *>
-                            (&fields[output_to_field[0]].data);
+                            (&fields_[output_to_field[0]].data);
 
             if (same_test_and_trial)
             {
