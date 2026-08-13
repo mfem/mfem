@@ -320,6 +320,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
    if (Q) { coeff.Project(*Q); }
    else if (DQ) { coeff.Project(*DQ); }
+   else if (MQ) { MFEM_ABORT("Not implemented."); }
    else { coeff.SetConstant(1.0); }
 
    if (trialType == mfem::FiniteElement::CURL && dim == 3)
