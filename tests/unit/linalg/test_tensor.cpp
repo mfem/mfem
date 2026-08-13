@@ -99,7 +99,14 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
          constexpr auto I2d = IdentityMatrix<3>();
          constexpr auto err2d = I2d - t2d * t2d_inv;
          constexpr auto err2d_sqnorm = sqnorm(err2d);
-         static_assert(err2d_sqnorm < 4e-28);
+#ifdef MFEM_USE_DOUBLE
+         constexpr real_t tol = 2e-14;
+#elif defined(MFEM_USE_SINGLE)
+         constexpr real_t tol = 7e-6f;
+#else
+         constexpr real_t tol = 0_r;
+#endif
+         static_assert(err2d_sqnorm < tol*tol);
       }
    });
    errors.HostRead();
