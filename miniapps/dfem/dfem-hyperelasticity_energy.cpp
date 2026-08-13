@@ -321,11 +321,9 @@ public:
                         MaterialType material) :
       Operator(fes.GetTrueVSize()),
       fes(fes),
-      ir(ir),
       qspace(*fes.GetParMesh(), ir),
       qspace_vec(qspace, 1),
-      q(qspace_vec),
-      material(material)
+      q(qspace_vec)
    {
       auto &mesh_nodes =
          *static_cast<ParGridFunction *>(fes.GetParMesh()->GetNodes());
@@ -452,11 +450,9 @@ public:
 private:
    ParFiniteElementSpace &fes;
    ParFiniteElementSpace *mesh_nodes_fes = nullptr;
-   const IntegrationRule &ir;
    QuadratureSpace qspace;
    VectorQuadratureSpace qspace_vec;
    QuadratureFunction q;
-   MaterialType material;
    Vector mesh_nodes_tdofs;
    Array<int> ess_tdofs;
    Array<int> prescribed_tdofs;
@@ -619,7 +615,8 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank()
+               << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << U_gf << std::flush;
    }
