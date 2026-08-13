@@ -156,7 +156,7 @@ TEST_CASE("dFEM tuple construction", "[dFEM]")
 
    SECTION("direct initialization and CTAD")
    {
-      tuple c {1, 2.0, vec3{{1.0, 2.0, 3.0}}};
+      tuple c {1, 2.0_r, vec3{{1.0, 2.0, 3.0}}};
       static_assert(std::is_same<decltype(c), tuple<int, real_t, vec3>>::value,
                     "CTAD must decay the arguments");
       REQUIRE(get<1>(c) == 2.0_r);
@@ -164,7 +164,7 @@ TEST_CASE("dFEM tuple construction", "[dFEM]")
 
    SECTION("make_tuple")
    {
-      const auto d = make_tuple(1, 2.0);
+      const auto d = make_tuple(1, 2.0_r);
       static_assert(std::is_same<decltype(d), const tuple<int, real_t>>::value, "");
       REQUIRE(get<0>(d) == 1);
    }
