@@ -475,8 +475,6 @@ private:
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
-   const int num_procs = Mpi::WorldSize();
-   const int myid = Mpi::WorldRank();
    Hypre::Init();
 
 #ifndef MFEM_USE_ENZYME
