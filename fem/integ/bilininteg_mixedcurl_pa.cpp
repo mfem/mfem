@@ -1106,7 +1106,7 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
             const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                                   Device::GetDeviceMemoryType() : pa_mt;
             auto geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
-            internal::PAHcurlL2Setup2DInt(quad1D, ne, ir->GetWeights(), coeff,
+            internal::PAHcurlL2IntSetup2D(quad1D, ne, ir->GetWeights(), coeff,
                                           geom->detJ, pa_data);
          } break;
          default:
