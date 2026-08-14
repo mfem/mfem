@@ -1261,10 +1261,6 @@ void DarcyForm::Update()
    reconstruction.reset();
 }
 
-DarcyForm::~DarcyForm()
-{
-}
-
 void DarcyForm::AssembleDivLDGFaces(int skip_zeros)
 {
    Mesh *mesh = fes_p->GetMesh();

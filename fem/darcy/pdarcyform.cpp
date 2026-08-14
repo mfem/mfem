@@ -577,10 +577,6 @@ void ParDarcyForm::Update()
    UpdateTOffsets();
 }
 
-ParDarcyForm::~ParDarcyForm()
-{
-}
-
 void ParDarcyForm::AllocBlockOp()
 {
    bool noblock = reduction || hybridization;

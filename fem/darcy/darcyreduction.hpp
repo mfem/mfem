@@ -127,7 +127,7 @@ public:
                   bool bsymmetrize = true);
 
    /// Destructor
-   virtual ~DarcyReduction();
+   virtual ~DarcyReduction() = default;
 
    /// Prepare the DarcyReduction object for assembly
    /** @param ess_flux_tdof_list    essential true DOFs of the flux */

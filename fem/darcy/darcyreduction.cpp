@@ -27,10 +27,6 @@ DarcyReduction::DarcyReduction(FiniteElementSpace *fes_u_,
 #endif //MFEM_USE_MPI
 }
 
-DarcyReduction::~DarcyReduction()
-{
-}
-
 void DarcyReduction::InitA()
 {
    const int NE = fes_u.GetNE();

@@ -260,9 +260,6 @@ public:
    /** @brief Update the ParFiniteElementSpace%s and delete all data associated
        with the old ones. */
    void Update() override;
-
-   /// Destroys the form.
-   virtual ~ParDarcyForm();
 };
 
 }
