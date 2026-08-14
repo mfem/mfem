@@ -2471,9 +2471,28 @@ L2_FECollection::~L2_FECollection()
    }
 }
 
+RT_FECollection::RT_FECollection(
+   const int p, const int dim, const int cb_type, const int ob_type)
+   : RT_FECollection(p, dim, true, cb_type, ob_type)
+{
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(rt_name, 32, "RT_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(rt_name, 32, "RT@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+}
 
+// This is a general protected constructor used by both, RT_FECollection
+// and BrokenRT_FECollection
 RT_FECollection::RT_FECollection(const int order, const int dim,
-                                 const int cb_type, const int ob_type)
+                                 const bool faces, const int cb_type,
+                                 const int ob_type)
    : FiniteElementCollection(order + 1)
    , dim(dim)
    , cb_type(cb_type)
@@ -2496,18 +2515,7 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       MFEM_ABORT("unknown open BasisType: " << ob_name);
    }
 
-   InitFaces(p, dim, FiniteElement::INTEGRAL, true);
-
-   if (cb_type == BasisType::GaussLobatto &&
-       ob_type == BasisType::GaussLegendre)
-   {
-      snprintf(rt_name, 32, "RT_%dD_P%d", dim, p);
-   }
-   else
-   {
-      snprintf(rt_name, 32, "RT@%c%c_%dD_P%d", (int)BasisType::GetChar(cb_type),
-               (int)BasisType::GetChar(ob_type), dim, p);
-   }
+   InitFaces(p, dim, FiniteElement::INTEGRAL, true, faces);
 
    const int pp1 = p + 1;
    if (dim == 2)
@@ -2561,8 +2569,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
 }
 
 void RT_FECollection::InitFaces(const int p, const int dim_,
-                                const int map_type,
-                                const bool signs)
+                                const int map_type, const bool signs,
+                                const bool faces)
 {
    int op_type = BasisType::GetQuadrature1D(ob_type);
 
@@ -2589,6 +2597,8 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
    {
       QuadDofOrd[i] = NULL;
    }
+
+   if (!faces) { return; }
 
    if (dim_ == 2)
    {
@@ -2732,103 +2742,39 @@ RT_FECollection::~RT_FECollection()
 }
 
 BrokenRT_FECollection::BrokenRT_FECollection(
-   const int order, const int dim, const int cb_type, const int ob_type)
-   : FiniteElementCollection(order + 1)
-   , dim(dim)
-   , cb_type(cb_type)
-   , ob_type(ob_type)
+   const int p, const int dim, const int cb_type, const int ob_type)
+   : RT_FECollection(p, dim, false, cb_type, ob_type)
 {
-   int p = order;
-   MFEM_VERIFY(p >= 0, "BrokenRT_FECollection requires order >= 0.");
-
-   int cp_type = BasisType::GetQuadrature1D(cb_type);
-   int op_type = BasisType::GetQuadrature1D(ob_type);
-
-   if (Quadrature1D::CheckClosed(cp_type) == Quadrature1D::Invalid)
-   {
-      const char *cb_name = BasisType::Name(cb_type); // this may abort
-      MFEM_ABORT("unknown closed BasisType: " << cb_name);
-   }
-   if (Quadrature1D::CheckOpen(op_type) == Quadrature1D::Invalid &&
-       ob_type != BasisType::IntegratedGLL)
-   {
-      const char *ob_name = BasisType::Name(ob_type); // this may abort
-      MFEM_ABORT("unknown open BasisType: " << ob_name);
-   }
-
    if (cb_type == BasisType::GaussLobatto &&
        ob_type == BasisType::GaussLegendre)
    {
-      snprintf(fec_name, 32, "BRT_%dD_P%d", dim, p);
+      snprintf(rt_name, 32, "BRT_%dD_P%d", dim, p);
    }
    else
    {
-      snprintf(fec_name, 32, "BRT@%c%c_%dD_P%d",
+      snprintf(rt_name, 32, "BRT@%c%c_%dD_P%d",
                (int)BasisType::GetChar(cb_type),
                (int)BasisType::GetChar(ob_type), dim, p);
    }
-
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      RT_Elements[g] = nullptr;
-   }
-
-   if (dim == 2)
-   {
-      // TODO: cb_type, ob_type for triangles
-      RT_Elements[Geometry::TRIANGLE] = new RT_TriangleElement(p);
-
-      RT_Elements[Geometry::SQUARE] = new RT_QuadrilateralElement(p, cb_type,
-                                                                  ob_type);
-   }
-   else if (dim == 3)
-   {
-      // TODO: cb_type, ob_type for tets
-      RT_Elements[Geometry::TETRAHEDRON] = new RT_TetrahedronElement(p);
-
-      RT_Elements[Geometry::CUBE] = new RT_HexahedronElement(p, cb_type, ob_type);
-
-      RT_Elements[Geometry::PRISM] = new RT_WedgeElement(p);
-
-      RT_Elements[Geometry::PYRAMID] = new RT_FuentesPyramidElement(p);
-   }
-   else
-   {
-      MFEM_ABORT("invalid dim = " << dim);
-   }
 }
 
-const FiniteElement *
-BrokenRT_FECollection::FiniteElementForGeometry(Geometry::Type GeomType) const
+
+FiniteElementCollection *BrokenRT_FECollection::GetTraceCollection() const
 {
-   if (GeomType != Geometry::PYRAMID || this->GetOrder() == 1)
+   int tr_dim, tr_p;
+   if (!strncmp(rt_name, "BRT_", 4))
    {
-      return RT_Elements[GeomType];
+      tr_dim = atoi(rt_name + 4);
+      tr_p = atoi(rt_name + 8);
    }
-   else
+   else // rt_name = BRT@.._.D_P*
    {
-      if (error_mode == RETURN_NULL) { return nullptr; }
-      MFEM_ABORT("RT Pyramid basis functions are not yet supported "
-                 "for order > 0.");
-      return NULL;
+      tr_dim = atoi(rt_name + 7);
+      tr_p = atoi(rt_name + 11);
    }
+   return new RT_Trace_FECollection(tr_p, tr_dim, FiniteElement::INTEGRAL,
+                                    ob_type);
 }
-
-const int *BrokenRT_FECollection::DofOrderForOrientation(
-   Geometry::Type GeomType,
-   int Or) const
-{
-   return NULL;
-}
-
-BrokenRT_FECollection::~BrokenRT_FECollection()
-{
-   for (int g = 0; g < Geometry::NumGeom; g++)
-   {
-      delete RT_Elements[g];
-   }
-}
-
 
 RT_Trace_FECollection::RT_Trace_FECollection(const int p, const int dim,
                                              const int map_type,

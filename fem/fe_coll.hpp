@@ -419,43 +419,6 @@ public:
    virtual ~L2_FECollection();
 };
 
-/// Broken H(div) collection (RT elements, no continuity)
-class BrokenRT_FECollection : public FiniteElementCollection
-{
-private:
-   int dim;
-   int cb_type; // closed BasisType
-   int ob_type; // open BasisType
-   char fec_name[32];
-   FiniteElement *RT_Elements[Geometry::NumGeom];
-
-public:
-   BrokenRT_FECollection(const int p, const int dim,
-                         const int cb_type = BasisType::GaussLobatto,
-                         const int ob_type = BasisType::GaussLegendre);
-
-   const FiniteElement *
-   FiniteElementForGeometry(Geometry::Type GeomType) const override;
-
-   int DofForGeometry(Geometry::Type GeomType) const override
-   { return (RT_Elements[GeomType])?(RT_Elements[GeomType]->GetDof()):(0); }
-
-   const int *DofOrderForOrientation(Geometry::Type GeomType,
-                                     int Or) const override;
-
-   const char *Name() const override { return fec_name; }
-
-   int GetContType() const override { return DISCONTINUOUS; }
-
-   int GetClosedBasisType() const { return cb_type; }
-   int GetOpenBasisType() const { return ob_type; }
-
-   FiniteElementCollection *Clone(int p) const override
-   { return new BrokenRT_FECollection(p, dim, cb_type, ob_type); }
-
-   virtual ~BrokenRT_FECollection();
-};
-
 /// Declare an alternative name for L2_FECollection = DG_FECollection
 typedef L2_FECollection DG_FECollection;
 
@@ -473,7 +436,13 @@ protected:
 
    // Initialize only the face elements
    void InitFaces(const int p, const int dim, const int map_type,
-                  const bool signs);
+                  const bool signs, const bool faces = true);
+
+   // Generalized constructor of the RT_FECollection and BrokenRT_FECollection
+   // classes with optional construction of face elements
+   RT_FECollection(const int p, const int dim, const bool faces,
+                   const int cb_type = BasisType::GaussLobatto,
+                   const int ob_type = BasisType::GaussLegendre);
 
    // Constructor used by the constructor of the RT_Trace_FECollection and
    // DG_Interface_FECollection classes
@@ -517,6 +486,25 @@ public:
    { return base_p-1; }
 
    virtual ~RT_FECollection();
+};
+
+/// Broken H(div) collection (RT elements, no continuity)
+class BrokenRT_FECollection : public RT_FECollection
+{
+public:
+   BrokenRT_FECollection(const int p, const int dim,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   int DofForGeometry(Geometry::Type GeomType) const override
+   { return (RT_Elements[GeomType])?(RT_Elements[GeomType]->GetDof()):(0); }
+
+   int GetContType() const override { return DISCONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new BrokenRT_FECollection(p, dim, cb_type, ob_type); }
 };
 
 /** @brief Arbitrary order "H^{-1/2}-conforming" face finite elements defined on
