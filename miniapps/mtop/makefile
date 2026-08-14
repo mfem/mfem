@@ -26,10 +26,10 @@ MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = elasticity_pa_regression
 PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
-ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS = $(SEQ_MINIAPPS)
-else
+ifeq ($(MFEM_USE_MPI),YES)
    MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
+else
+   MINIAPPS = $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:

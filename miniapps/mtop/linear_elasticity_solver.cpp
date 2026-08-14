@@ -17,36 +17,48 @@ bool GlobalBooleanOr(MPI_Comm comm, bool value)
    return global != 0;
 }
 
-/// Keep an assembled auxiliary preconditioner attached to its own operator
-/// when the outer iterative solver changes its high-order operator.
-class FixedOperatorPreconditioner : public Solver
+/// Apply a fixed auxiliary solver through a vector-ordering permutation.
+class ReorderedFixedPreconditioner : public Solver
 {
 public:
-   /// Take ownership of an already configured auxiliary solver.
-   explicit FixedOperatorPreconditioner(std::unique_ptr<Solver> solver)
-      : Solver(solver->Height(), solver->Width()), solver_(std::move(solver))
+   /// Take ownership of @a solver and define its input/output orderings.
+   ReorderedFixedPreconditioner(std::unique_ptr<Solver> solver, int vdim,
+                                Ordering::Type outer_ordering,
+                                Ordering::Type inner_ordering)
+      : Solver(solver->Height(), solver->Width()), solver_(std::move(solver)),
+        vdim_(vdim), outer_ordering_(outer_ordering),
+        inner_ordering_(inner_ordering)
    {
    }
 
    /// Ignore changes to the outer high-order operator.
    void SetOperator(const Operator &) override { }
 
-   /// Apply the fixed auxiliary preconditioner.
+   /// Reorder, apply the auxiliary solver, and reorder the result back.
    void Mult(const Vector &x, Vector &y) const override
    {
+      inner_x_ = x;
+      Ordering::Reorder(inner_x_, vdim_, outer_ordering_, inner_ordering_);
+      inner_y_.SetSize(Height());
       solver_->iterative_mode = iterative_mode;
-      solver_->Mult(x, y);
+      solver_->Mult(inner_x_, inner_y_);
+      y = inner_y_;
+      Ordering::Reorder(y, vdim_, inner_ordering_, outer_ordering_);
    }
 
-   /// Apply the transpose of the fixed auxiliary preconditioner.
+   /// Apply the symmetric auxiliary preconditioner transpose.
    void MultTranspose(const Vector &x, Vector &y) const override
    {
-      solver_->iterative_mode = iterative_mode;
-      solver_->MultTranspose(x, y);
+      Mult(x, y);
    }
 
 private:
    std::unique_ptr<Solver> solver_;
+   int vdim_;
+   Ordering::Type outer_ordering_;
+   Ordering::Type inner_ordering_;
+   mutable Vector inner_x_;
+   mutable Vector inner_y_;
 };
 }
 
@@ -278,6 +290,12 @@ void LinearElasticitySolver::SetPreconditionerType(PreconditionerType type)
    SetNeedsAssembly();
 }
 
+void LinearElasticitySolver::SetMonolithicLOROrdering(Ordering::Type ordering)
+{
+   monolithic_lor_ordering_ = ordering;
+   SetNeedsAssembly();
+}
+
 int LinearElasticitySolver::GetNumIterations() const
 {
    Assemble();
@@ -346,6 +364,8 @@ void LinearElasticitySolver::BuildComponentBoundaryMarker(
 
 void LinearElasticitySolver::BuildLORDiagonalAMG() const
 {
+   MFEM_VERIFY(fespace_.GetOrdering() == Ordering::byNODES,
+               "Diagonal LOR/AMG requires Ordering::byNODES.");
    const int dim = fespace_.GetVDim();
    lor_disc_.reset(new ParLORDiscretization(fespace_));
    ParFiniteElementSpace &lor_space = lor_disc_->GetParFESpace();
@@ -400,19 +420,68 @@ void LinearElasticitySolver::BuildLORDiagonalAMG() const
 
 void LinearElasticitySolver::BuildLORMonolithicAMG() const
 {
-   lor_disc_.reset(new ParLORDiscretization(*form_, ess_tdofs_));
+   lor_disc_.reset(new ParLORDiscretization(fespace_));
+   ParFiniteElementSpace &base_lor_space = lor_disc_->GetParFESpace();
+   ParMesh &lor_mesh = *base_lor_space.GetParMesh();
+   lor_monolithic_fespace_.reset(new ParFiniteElementSpace(
+      &lor_mesh, base_lor_space.FEColl(), fespace_.GetVDim(),
+      monolithic_lor_ordering_));
+
+   Array<int> lor_ess_tdofs, marker;
+   marker.SetSize(lor_mesh.bdr_attributes.Size() ?
+                  lor_mesh.bdr_attributes.Max() : 0);
+   marker = 0;
+   for (const int id : boundary_ids_) { marker[id - 1] = 1; }
+   for (const auto &entry : vector_displacement_bcs_)
+   {
+      marker[entry.first - 1] = 1;
+   }
+   lor_monolithic_fespace_->GetEssentialTrueDofs(marker, lor_ess_tdofs);
+   for (const auto &entry : displacement_bcs_)
+   {
+      marker = 0;
+      marker[entry.first.first - 1] = 1;
+      Array<int> component_tdofs;
+      lor_monolithic_fespace_->GetEssentialTrueDofs(
+         marker, component_tdofs, entry.first.second);
+      lor_ess_tdofs.Append(component_tdofs);
+   }
+   lor_ess_tdofs.Sort();
+   lor_ess_tdofs.Unique();
+
+   lor_monolithic_form_.reset(new ParBilinearForm(
+                                lor_monolithic_fespace_.get()));
+   lor_monolithic_form_->AddDomainIntegrator(
+      new ElasticityIntegrator(*lambda_, *mu_));
+   lor_monolithic_form_->Assemble();
+   lor_monolithic_form_->Finalize();
+   lor_monolithic_matrix_.reset(lor_monolithic_form_->ParallelAssemble());
+   lor_monolithic_matrix_->EliminateBC(
+      lor_ess_tdofs, Operator::DiagonalPolicy::DIAG_ONE);
+
    std::unique_ptr<HypreBoomerAMG> amg(
-      new HypreBoomerAMG(lor_disc_->GetAssembledMatrix()));
-   amg->SetSystemsOptions(fespace_.GetVDim(), true);
+      new HypreBoomerAMG(*lor_monolithic_matrix_));
+   if (monolithic_lor_ordering_ == Ordering::byVDIM)
+   {
+      amg->SetElasticityOptions(lor_monolithic_fespace_.get());
+   }
+   else
+   {
+      amg->SetSystemsOptions(fespace_.GetVDim(), true);
+   }
    amg->SetPrintLevel(print_level_ > 1 ? 1 : 0);
-   preconditioner_.reset(
-      new FixedOperatorPreconditioner(std::move(amg)));
+   preconditioner_.reset(new ReorderedFixedPreconditioner(
+      std::move(amg), fespace_.GetVDim(), fespace_.GetOrdering(),
+      monolithic_lor_ordering_));
 }
 
 void LinearElasticitySolver::BuildPreconditioner() const
 {
    preconditioner_.reset();
    lor_amg_blocks_.clear();
+   lor_monolithic_matrix_.reset();
+   lor_monolithic_form_.reset();
+   lor_monolithic_fespace_.reset();
    lor_blocks_.clear();
    lor_forms_.clear();
    lor_integrator_.reset();
@@ -539,6 +608,13 @@ void LinearElasticitySolver::Mult(const Vector &rhs, Vector &solution) const
 void LinearElasticitySolver::MultAssembled(const Vector &rhs,
                                            Vector &solution) const
 {
+   SolveForward(rhs, solution, iterative_mode);
+}
+
+void LinearElasticitySolver::SolveForward(const Vector &rhs,
+                                          Vector &solution,
+                                          bool use_initial_guess) const
+{
    MFEM_VERIFY(cg_ != nullptr, "LinearElasticitySolver is not assembled.");
    MFEM_VERIFY(rhs.Size() == Width(), "RHS has incompatible size.");
    BuildBoundaryTrueVector(boundary_true_values_);
@@ -550,12 +626,17 @@ void LinearElasticitySolver::MultAssembled(const Vector &rhs,
    constrained->EliminateRHS(boundary_true_values_, solve_rhs_);
 
    solution.SetSize(Height());
-   if (!iterative_mode) { solution = 0.0; }
-   cg_->iterative_mode = iterative_mode;
-   cg_->Mult(solve_rhs_, solution);
+   if (!use_initial_guess) { solution = 0.0; }
    const int *indices = ess_tdofs_.HostRead();
    const real_t *boundary = boundary_true_values_.HostRead();
    real_t *data = solution.HostReadWrite();
+   for (int i = 0; i < ess_tdofs_.Size(); ++i)
+   {
+      data[indices[i]] = boundary[indices[i]];
+   }
+   cg_->iterative_mode = use_initial_guess;
+   cg_->Mult(solve_rhs_, solution);
+   data = solution.HostReadWrite();
    for (int i = 0; i < ess_tdofs_.Size(); ++i)
    {
       data[indices[i]] = boundary[indices[i]];
@@ -613,9 +694,14 @@ void LinearElasticitySolver::Solve(ParGridFunction &solution) const
    loads.Assemble();
    Vector true_rhs(fespace_.GetTrueVSize());
    loads.ParallelAssemble(true_rhs);
-   Vector true_solution;
-   Mult(true_rhs, true_solution);
-   solution.SetFromTrueDofs(true_solution);
+   if (!has_previous_solution_)
+   {
+      previous_solution_.SetSize(fespace_.GetTrueVSize());
+      previous_solution_ = 0.0;
+   }
+   SolveForward(true_rhs, previous_solution_, has_previous_solution_);
+   has_previous_solution_ = true;
+   solution.SetFromTrueDofs(previous_solution_);
 }
 
 void LinearElasticitySolver::SetOperator(const Operator &op)

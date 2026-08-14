@@ -123,7 +123,15 @@ public:
    void SetPrintLevel(int print_level);
 
    /// Select the preconditioner and mark the solver dirty.
+   ///
+   /// Diagonal LOR/AMG requires Ordering::byNODES. Monolithic LOR/AMG supports
+   /// either ordering and enables rigid-body near-nullspace vectors when the
+   /// supplied space uses Ordering::byVDIM.
    void SetPreconditionerType(PreconditionerType type);
+
+   /// Select the monolithic LOR vector ordering and mark the solver dirty.
+   /// Ordering::byVDIM enables BoomerAMG rigid-body near-nullspace vectors.
+   void SetMonolithicLOROrdering(Ordering::Type ordering);
 
    /// Return the CG relative tolerance.
    real_t GetRelTol() const { return rel_tol_; }
@@ -140,6 +148,10 @@ public:
    /// Return the selected preconditioner type.
    PreconditionerType GetPreconditionerType() const
    { return preconditioner_type_; }
+
+   /// Return the selected monolithic LOR vector ordering.
+   Ordering::Type GetMonolithicLOROrdering() const
+   { return monolithic_lor_ordering_; }
 
    /// Return the iteration count from the most recent CG solve.
    int GetNumIterations() const;
@@ -165,7 +177,8 @@ public:
    /// Apply MultTranspose() without performing the lazy assembly check.
    void MultTransposeAssembled(const Vector &rhs, Vector &solution) const;
 
-   /// Assemble configured volume/boundary loads and solve for @a solution.
+   /// Assemble configured loads and solve, reusing the previous state as a
+   /// warm start when available.
    void Solve(ParGridFunction &solution) const;
 
    /// Check that an externally supplied operator has compatible dimensions.
@@ -226,6 +239,10 @@ private:
    /// Set every constrained entry of @a vector to zero.
    void ZeroConstrainedDofs(Vector &vector) const;
 
+   /// Apply the forward solve with optional reuse of @a solution as a guess.
+   void SolveForward(const Vector &rhs, Vector &solution,
+                     bool use_initial_guess) const;
+
    /// Validate an attribute ID and vector coefficient dimension.
    void ValidateVectorCoefficient(int id,
                                   VectorCoefficient &coefficient) const;
@@ -236,7 +253,7 @@ private:
    std::shared_ptr<Coefficient> mu_;
    std::set<int> boundary_ids_;
    std::map<std::pair<int, int>, std::shared_ptr<Coefficient> >
-   displacement_bcs_;
+      displacement_bcs_;
    std::map<int, std::shared_ptr<VectorCoefficient> > vector_displacement_bcs_;
    std::map<int, std::shared_ptr<VectorCoefficient> > volume_loads_;
    std::map<int, std::shared_ptr<VectorCoefficient> > boundary_loads_;
@@ -247,6 +264,7 @@ private:
    int max_iter_ = 500;
    int print_level_ = -1;
    PreconditionerType preconditioner_type_ = PreconditionerType::Jacobi;
+   Ordering::Type monolithic_lor_ordering_ = Ordering::byNODES;
 
    mutable Array<int> ess_tdofs_;
    mutable std::unique_ptr<ParBilinearForm> form_;
@@ -258,11 +276,16 @@ private:
    mutable std::vector<std::unique_ptr<ParBilinearForm> > lor_forms_;
    mutable std::vector<std::unique_ptr<HypreParMatrix> > lor_blocks_;
    mutable std::vector<std::unique_ptr<HypreBoomerAMG> > lor_amg_blocks_;
+   mutable std::unique_ptr<ParFiniteElementSpace> lor_monolithic_fespace_;
+   mutable std::unique_ptr<ParBilinearForm> lor_monolithic_form_;
+   mutable std::unique_ptr<HypreParMatrix> lor_monolithic_matrix_;
    mutable Array<int> lor_block_offsets_;
    mutable std::unique_ptr<Solver> preconditioner_;
    mutable std::unique_ptr<CGSolver> cg_;
    mutable Vector boundary_true_values_;
    mutable Vector solve_rhs_;
+   mutable Vector previous_solution_;
+   mutable bool has_previous_solution_ = false;
    mutable double assembly_time_ = 0.0;
    mutable double prec_assembly_time_ = 0.0;
 };

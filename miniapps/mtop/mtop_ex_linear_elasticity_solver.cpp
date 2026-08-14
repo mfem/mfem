@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
    int serial_refinements = 0;
    int parallel_refinements = 1;
    bool paraview = false;
+   bool use_by_vdim = false;
    const char *preconditioner = "jacobi";
 
    OptionsParser args(argc, argv);
@@ -40,6 +41,8 @@ int main(int argc, char *argv[])
                   "Number of parallel refinements.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview", "Write the solution for ParaView.");
+   args.AddOption(&use_by_vdim, "-vdim", "--by-vdim", "-nodes",
+                  "--by-nodes", "Use byVDIM instead of byNODES ordering.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
                   "Preconditioner: jacobi, lor-diagonal, or lor-monolithic.");
    args.ParseCheck();
@@ -79,8 +82,8 @@ int main(int argc, char *argv[])
       pmesh.UniformRefinement();
    }
 
-   // 3. Construct the vector H1 space. Elasticity PA uses one H1 component per
-   // spatial dimension and byNODES ordering in this driver.
+   // 3. Construct the high-order vector H1 space. Elasticity PA requires
+   // byNODES. The ordering option controls the auxiliary monolithic LOR space.
    H1_FECollection fec(order, pmesh.Dimension());
    ParFiniteElementSpace fes(&pmesh, &fec, pmesh.Dimension(),
                              Ordering::byNODES);
@@ -92,6 +95,8 @@ int main(int argc, char *argv[])
       std::cout << "Total elements: " << total_elements << std::endl;
       std::cout << "Total nodes: " << total_nodes << std::endl;
       std::cout << "Total DOFs: " << total_dofs << std::endl;
+      std::cout << "Monolithic LOR ordering: "
+                << (use_by_vdim ? "byVDIM" : "byNODES") << std::endl;
       std::cout << "Preconditioner: " << preconditioner << std::endl;
    }
 
@@ -99,6 +104,8 @@ int main(int argc, char *argv[])
    // homogeneous displacement constraints on every boundary attribute.
    LinearElasticitySolver solver(fes);
    solver.SetPreconditionerType(preconditioner_type);
+   solver.SetMonolithicLOROrdering(use_by_vdim ? Ordering::byVDIM :
+                                  Ordering::byNODES);
    solver.SetLambda(2.0);
    solver.SetMu(3.0);
    solver.SetRelTol(1.0e-13);
