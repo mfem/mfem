@@ -76,7 +76,7 @@ real_t ExpectedProjectedValue(int rank, int ntasks, bool top)
 
 }
 
-TEST_CASE("DeviceSharedDofCommunicator", "[Parallel]")
+TEST_CASE("DeviceSharedDofCommunicator", "[Parallel][GPU]")
 {
    const int ntasks = Mpi::WorldSize();
    const int rank = Mpi::WorldRank();

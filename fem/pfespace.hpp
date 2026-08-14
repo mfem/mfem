@@ -28,6 +28,7 @@ namespace mfem
 
 struct ParDerefineMatrixOp;
 class DeviceSharedDofCommunicator;
+namespace internal { class DeviceNeighborDofComm; }
 
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
@@ -622,13 +623,8 @@ class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
 {
 protected:
-   bool mpi_gpu_aware;
-   Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
-   Memory<int> shr_buf_offsets, ext_buf_offsets;
-   Array<int> ltdof_ldof, unq_ltdof;
-   Array<int> unq_shr_i, unq_shr_j;
-   MPI_Request *requests;
+   std::unique_ptr<internal::DeviceNeighborDofComm> nbr_comm;
 
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
@@ -691,14 +687,8 @@ public:
    enum class Op { Sum, Min, Max };
 
 protected:
-   const GroupCommunicator &gc;
-   bool mpi_gpu_aware;
-   Array<int> shr_ltdof, ext_ldof;
    mutable Array<real_t> shr_buf, ext_buf, true_buf;
-   Memory<int> shr_buf_offsets, ext_buf_offsets;
-   Array<int> ltdof_ldof, unq_ltdof;
-   Array<int> unq_shr_i, unq_shr_j;
-   mutable std::vector<MPI_Request> requests;
+   std::unique_ptr<internal::DeviceNeighborDofComm> nbr_comm;
 
    // Pack external local dof values into the neighbor send buffer.
    template <typename T>
