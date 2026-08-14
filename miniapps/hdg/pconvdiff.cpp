@@ -136,13 +136,13 @@ int main(int argc, char *argv[])
 
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   //int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
+   //const int num_procs = Mpi::WorldSize();
+   const int myid = Mpi::WorldRank();
    Hypre::Init();
-   bool verbose = (myid == 0);
+   const bool root = (myid == 0);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "";
+   string mesh_file = "";
    int nx = 0;
    int ny = 0;
    int serial_ref_levels = -1;
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
    // 4. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   if (verbose) { device.Print(); }
+   if (root) { device.Print(); }
 
    // 5. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh;
-   if (strlen(mesh_file) > 0)
+   if (!mesh_file.empty())
    {
       mesh = Mesh(mesh_file, 1, 1);
    }
@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
-   if (strlen(mesh_file) > 0)
+   if (!mesh_file.empty())
    {
       int ref_levels = (serial_ref_levels >= 0)?(serial_ref_levels):
                        (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
@@ -830,7 +830,7 @@ int main(int argc, char *argv[])
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
       chrono.Stop();
-      if (verbose) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
+      if (root) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
    }
    else if (reduction)
    {
@@ -853,7 +853,7 @@ int main(int argc, char *argv[])
       }
 
       chrono.Stop();
-      if (verbose) { cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
+      if (root) { cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -863,28 +863,19 @@ int main(int argc, char *argv[])
    //     of the dimensions of each block.
    const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
-   if (verbose)
+   if (root)
    {
       cout << "***********************************************************\n";
-      if (!reduction || (reduction && !dg && !brt))
+      cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+      cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+      if (hybridization)
       {
-         cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+         cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+         cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
       }
-      if (!reduction || (reduction && (dg || brt)))
+      else
       {
-         cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-      }
-      if (!reduction)
-      {
-         if (hybridization)
-         {
-            cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
-            cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
-         }
-         else
-         {
-            cout << "dim(V+W) = " << block_offsets.Last() << "\n";
-         }
+         cout << "dim(V+W) = " << block_offsets.Last() << "\n";
       }
       cout << "***********************************************************\n";
    }
@@ -1076,7 +1067,7 @@ int main(int argc, char *argv[])
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeGlobalLpNorm(2., tcoeff, pmesh, irs);
 
-      if (verbose)
+      if (root)
       {
          if (btime)
          {
@@ -1100,7 +1091,7 @@ int main(int argc, char *argv[])
          real_t norm_qt = ComputeGlobalLpNorm(2., qtcoeff, pmesh, irs);
          real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
          real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
-         if (verbose)
+         if (root)
          {
             cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
             cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
@@ -1222,27 +1213,27 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          static socketstream q_sock, t_sock;
-         VisualizeField(q_sock, q_vh, "Heat flux", ti, verbose);
-         VisualizeField(t_sock, t_h, "Temperature", ti, verbose);
+         VisualizeField(q_sock, q_vh, "Heat flux", ti, root);
+         VisualizeField(t_sock, t_h, "Temperature", ti, root);
          if (reconstruct)
          {
             static socketstream qt_sock, qs_sock, ts_sock;
-            VisualizeField(qt_sock, qt_h, "Total flux", ti, verbose);
-            VisualizeField(qs_sock, q_hs, "Recon. flux", ti, verbose);
-            VisualizeField(ts_sock, t_hs, "Recon. temperature", ti, verbose);
+            VisualizeField(qt_sock, qt_h, "Total flux", ti, root);
+            VisualizeField(qs_sock, q_hs, "Recon. flux", ti, root);
+            VisualizeField(ts_sock, t_hs, "Recon. temperature", ti, root);
          }
          if (analytic)
          {
             static socketstream qa_sock, qta_sock, ta_sock, c_sock;
-            VisualizeField(qa_sock, q_a, "Heat flux analytic", ti, verbose);
+            VisualizeField(qa_sock, q_a, "Heat flux analytic", ti, root);
             if (bconv || bnlconv)
             {
-               VisualizeField(qa_sock, qt_a, "Total heat flux analytic", ti, verbose);
+               VisualizeField(qa_sock, qt_a, "Total heat flux analytic", ti, root);
             }
-            VisualizeField(ta_sock, t_a, "Temperature analytic", ti, verbose);
+            VisualizeField(ta_sock, t_a, "Temperature analytic", ti, root);
             if (bconv)
             {
-               VisualizeField(c_sock, c_gf, "Velocity", ti, verbose);
+               VisualizeField(c_sock, c_gf, "Velocity", ti, root);
             }
          }
       }
