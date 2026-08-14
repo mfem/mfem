@@ -26,23 +26,11 @@ MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = elasticity_pa_regression
 PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
-# Determine MPI support from the generated configuration header. This is more
-# reliable than MFEM_USE_MPI when a parent invocation carries stale or
-# externally overridden make variables.
-MFEM_CONFIG_HEADER := $(firstword \
-   $(wildcard $(MFEM_BUILD_DIR)/config/_config.hpp) \
-   $(wildcard ../../config/_config.hpp))
-MFEM_MPI_ENABLED := $(shell grep -c '^\#define MFEM_USE_MPI' \
-   $(MFEM_CONFIG_HEADER) 2>/dev/null)
-ifeq ($(MFEM_MPI_ENABLED),1)
-   MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
-else
-   MINIAPPS = $(SEQ_MINIAPPS)
-endif
+MINIAPPS = $(SEQ_MINIAPPS)
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all clean clean-build clean-exec
+.PHONY: all parallel clean clean-build clean-exec
 
 # Remove built-in rules
 %: %.cpp
@@ -58,6 +46,11 @@ $(SEQ_MINIAPPS): %: %.o
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+# The mtop solver drivers require an MPI-enabled MFEM build. Keep them out of
+# the default target so a stale external make configuration cannot select them
+# while linking against a serial MFEM library.
+parallel: $(PAR_MINIAPPS)
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
