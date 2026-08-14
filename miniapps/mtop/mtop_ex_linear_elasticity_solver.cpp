@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC.
 //
 // Driver coverage:
 //   1. PA elasticity solve and inverse-operator consistency.

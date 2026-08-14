@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC.
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC.
 
 #ifndef MFEM_MTOP_LINEAR_ELASTICITY_SOLVER_HPP
 #define MFEM_MTOP_LINEAR_ELASTICITY_SOLVER_HPP
