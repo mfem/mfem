@@ -25,7 +25,7 @@ MTOP_COMMON_SRC = mtop_solvers.cpp linear_elasticity_solver.cpp
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = elasticity_pa_regression
-PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
+MTOP_MPI_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
 MINIAPPS = $(SEQ_MINIAPPS)
 
 .SUFFIXES:
@@ -36,7 +36,7 @@ MINIAPPS = $(SEQ_MINIAPPS)
 %: %.cpp
 %.o: %.cpp
 
-$(PAR_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
+$(MTOP_MPI_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 $(SEQ_MINIAPPS): %: %.o
@@ -50,7 +50,7 @@ all: $(MINIAPPS)
 # The mtop solver drivers require an MPI-enabled MFEM build. Keep them out of
 # the default target so a stale external make configuration cannot select them
 # while linking against a serial MFEM library.
-parallel: $(PAR_MINIAPPS)
+parallel: $(MTOP_MPI_MINIAPPS)
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -72,7 +72,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(MTOP_MPI_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
