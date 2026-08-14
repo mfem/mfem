@@ -345,15 +345,12 @@ void SAMRAICouplingManager::DerefineMesh(const std::vector<PatchLevelBounds>& gl
             bool derefine = true;
             for (const auto& bounds : global_patch_bounds[level_num])
             {
-               //if (bounds.first <= index && index <= bounds.second + 1)
                if (bounds.first <= index && index <= bounds.second)
                {
                   derefine = false;
                   break;
                }
             }
-            //if (element_ind >= 1766 && element_ind <= 1769)
-            //   std::cout << element_ind << ": " << center[0] << " " << center[1] << std::endl;
             if (derefine)
             {
                pseudo_error[element_ind] = 0.0;

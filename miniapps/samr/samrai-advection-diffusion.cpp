@@ -1,3 +1,39 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+//
+// Compile with: make samrai-advection-diffusion
+//
+// Sample runs:
+//
+//   2D advection-diffusion equation using 3 levels of 2:1 refinement with the
+//   coupling manager updating the MFEM mesh at each timestep:
+//     mpirun -np 4 samrai-advection-diffusion
+//
+//   2D advection-diffusion equation using 3 levels of 2:1 refinement with the
+//   coupling manager creating a new MFEM mesh at each timestep:
+//     mpirun -np 4 samrai-advection-diffusion -new-mesh
+//
+//   2D advection-diffusion equation using 5 levels of 2:1 refinement with the
+//   coupling manager updating the MFEM mesh at each timestep:
+//     mpirun -np 4 samrai-advection-diffusion -i linadv_input_5levs.2d
+//
+//   2D advection-diffusion equation using 5 levels of 2:1 refinement with the
+//   coupling manager creating a new MFEM mesh at each timestep:
+//     mpirun -np 4 samrai-advection-diffusion -i linadv_input_5levs.2d -new-mesh
+//
+//   2D advection-diffusion equation using 3 levels of 3:1 refinement with the
+//   coupling manager creating a new MFEM mesh at each timestep:
+//     mpirun -np 4 samrai-advection-diffusion -i linadv_input_3to1.2d -new-mesh
+
+
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
@@ -201,7 +237,7 @@ int main(int argc, char *argv[])
    Vector u_dofs;
    if (Mpi::Root())
    {
-      std::cout << "Number of temperature unknowns: "
+      std::cout << "Number of initial MFEM temperature unknowns: "
                 << u_fespace->GlobalTrueVSize() << std::endl;
    }
    reconstructH1Field(*uavg_gf, *u_gf);
@@ -296,7 +332,9 @@ int main(int argc, char *argv[])
       if (last_step || (ti % vis_steps) == 0)
       {
          if (Mpi::Root())
-            std::cout << "step " << ti << ", t = " << time << std::endl;
+            std::cout << "step " << ti << ", t = " << time
+                      << ", MFEM unknowns: " << u_fespace->GlobalTrueVSize()
+                      << std::endl;
 
          if (visualization)
          {

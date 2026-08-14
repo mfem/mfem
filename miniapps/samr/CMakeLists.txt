@@ -32,5 +32,7 @@ if (MFEM_USE_SAMRAI)
   target_include_directories(samrai-advection-diffusion PUBLIC ${SAMRAI_INCLUDE_DIRS})
   # Copy SAMRAI input files to build directory
   configure_file(samrai/linadv_input.2d linadv_input.2d COPYONLY)
+  configure_file(samrai/linadv_input_5levs.2d linadv_input_5levs.2d COPYONLY)
+  configure_file(samrai/linadv_input_3to1.2d linadv_input_3to1.2d COPYONLY)
   configure_file(samrai/linadv_input.3d linadv_input.3d COPYONLY)
 endif()
