@@ -473,7 +473,8 @@ public:
 
 /** $ (f, v \cdot n)_{\partial\Omega} $ for test decomposed stress function $v$
     (scalar and symmetric gradient parts) where all components are in the same
-    scalar FE space and $f$ is a vector function. */
+    scalar FE space and $f$ is a vector function, typically representing the
+    boundary displacement. */
 class DGBdrDisplacementLFIntegrator : public LinearFormIntegrator
 {
 private:

@@ -252,7 +252,7 @@ void BoundaryTangentialLFIntegrator::AssembleRHSElementVect(
 
    if (dim != 2)
    {
-      mfem_error("These methods make sense only in 2D problems.");
+      MFEM_ABORT("These methods make sense only in 2D problems.");
    }
 
    const IntegrationRule *ir = IntRule;
@@ -617,7 +617,7 @@ void VectorFEDomainLFDivIntegrator::AssembleDeltaElementVect(
 void DGBdrDisplacementLFIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("DGBdrDisplacementLFIntegrator::AssembleRHSElementVect\n"
+   MFEM_ABORT("DGBdrDisplacementLFIntegrator::AssembleRHSElementVect\n"
               "  is not implemented as boundary integrator!\n"
               "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
               "  LinearForm::AddBoundaryIntegrator.");
@@ -966,7 +966,7 @@ void VectorFEBoundaryTangentLFIntegrator::AssembleRHSElementVect(
 void BoundaryFlowIntegrator::AssembleRHSElementVect(
    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   mfem_error("BoundaryFlowIntegrator::AssembleRHSElementVect\n"
+   MFEM_ABORT("BoundaryFlowIntegrator::AssembleRHSElementVect\n"
               "  is not implemented as boundary integrator!\n"
               "  Use LinearForm::AddBdrFaceIntegrator instead of\n"
               "  LinearForm::AddBoundaryIntegrator.");
