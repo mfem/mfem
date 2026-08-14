@@ -64,21 +64,6 @@ public:
    void ImplicitSolve(const real_t dt, const Vector &u, Vector &k) override;
 };
 
-template<class FiniteElementCollectionType>
-std::tuple<std::unique_ptr<FiniteElementCollectionType>,
-           std::unique_ptr<ParFiniteElementSpace>,
-           std::unique_ptr<ParGridFunction>>
-   createFiniteElementField(MeshOps& mesh_ops, const int order)
-{
-   auto fe_collection = std::make_unique<FiniteElementCollectionType>(
-      order, mesh_ops.GetMesh().Dimension());
-   std::unique_ptr<ParFiniteElementSpace> fe_space =
-      mesh_ops.CreateFESpace(*fe_collection);
-   auto gridfunction = std::make_unique<ParGridFunction>(fe_space.get());
-   return std::make_tuple(std::move(fe_collection), std::move(fe_space),
-      std::move(gridfunction));
-}
-
 std::tuple<std::unique_ptr<ConductionOperator>,
            std::unique_ptr<ODESolver>>
    createConductionODESolver(ParFiniteElementSpace* fespace, const real_t kappa,
@@ -112,7 +97,6 @@ int main(int argc, char *argv[])
    real_t kappa = 1.0;
 
    bool visualization = true;
-   bool visit = false;
    int vis_steps = 5;
    bool solve_implicit_state = false;
 
@@ -133,16 +117,13 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
-                  "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&samrai_input_file, "-i", "--samrai-input",
                   "SAMRAI input file.");
-   args.AddOption(&use_new_mesh, "-recreate", "--use-recreated-mesh",
-                  "-update", "--use-updated-mesh",
-                  "Whether to recreate or update MFEM mesh each timestep");
+   args.AddOption(&use_new_mesh, "-new-mesh", "--use-new-mesh",
+                  "-updated-mesh", "--use-updated-mesh",
+                  "Whether to use a new or updated MFEM mesh at each timestep");
    args.Parse();
    if (!args.Good())
    {
@@ -198,15 +179,14 @@ int main(int argc, char *argv[])
    /************************** Create MFEM objects ****************************/
 
    // Create coupling manager with SAMRAI hierarchy
-   auto coupling_manager = std::make_unique<SAMRAICouplingManager>(
-      samrai_time_integrator->getPatchHierarchy());
+   SAMRAICouplingManager coupling_manager(samrai_time_integrator->getPatchHierarchy());
 
    // Transfer initial SAMRAI state (cell averages) to an MFEM grid function
    // (piecewise-constant representation)
    std::unique_ptr<ParGridFunction> uavg_gf;
    {
       std::vector<std::unique_ptr<ParGridFunction>> gfs =
-         coupling_manager->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
+         coupling_manager.TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
       uavg_gf = std::move(gfs[0]);
    }
 
@@ -214,13 +194,11 @@ int main(int argc, char *argv[])
    // projecting the piecewise-constant representation onto the higher-order
    // finite element space
    const int order = 1;
-   using FECType = H1_FECollection;
-   std::unique_ptr<FECType> u_fecollection;
-   std::unique_ptr<ParFiniteElementSpace> u_fespace;
-   std::unique_ptr<ParGridFunction> u_gf;
-   Vector u;
-   std::tie(u_fecollection, u_fespace, u_gf) =
-      createFiniteElementField<FECType>(*coupling_manager, order);
+   H1_FECollection u_fecollection(order, coupling_manager.GetMesh().Dimension());
+   std::unique_ptr<ParFiniteElementSpace> u_fespace =
+      coupling_manager.CreateFESpace(&u_fecollection);
+   auto u_gf = std::make_unique<ParGridFunction>(u_fespace.get());
+   Vector u_dofs;
    if (Mpi::Root())
    {
       std::cout << "Number of temperature unknowns: "
@@ -238,21 +216,10 @@ int main(int argc, char *argv[])
    {
       std::ofstream omesh("ex16.mesh");
       omesh.precision(precision);
-      coupling_manager->GetMesh().Print(omesh);
+      coupling_manager.GetMesh().Print(omesh);
       std::ofstream osol("ex16-init.gf");
       osol.precision(precision);
       u_gf->Save(osol);
-   }
-
-   // Optionally, create the VisIt output object and save the initial condition
-   std::unique_ptr<VisItDataCollection> visit_dc;
-   if (visit)
-   {
-      //visit_dc = std::make_unique<VisItDataCollection>("Example16", &mesh);
-      visit_dc->RegisterField("temperature", u_gf.get());
-      visit_dc->SetCycle(0);
-      visit_dc->SetTime(0.0);
-      visit_dc->Save();
    }
 
    // Optionally, create the visualization stream and visualize initial condition
@@ -275,9 +242,9 @@ int main(int argc, char *argv[])
       else
       {
          sout.precision(precision);
-         sout << "parallel " << coupling_manager->GetMesh().GetNRanks() << " "
-                             << coupling_manager->GetMesh().GetMyRank() << "\n";
-         sout << "solution\n" << coupling_manager->GetMesh() << *u_gf;
+         sout << "parallel " << coupling_manager.GetMesh().GetNRanks() << " "
+                             << coupling_manager.GetMesh().GetMyRank() << "\n";
+         sout << "solution\n" << coupling_manager.GetMesh() << *u_gf;
          sout << "pause\n";
          sout << std::flush;
          if (Mpi::Root())
@@ -305,26 +272,26 @@ int main(int argc, char *argv[])
       const double dt_new = samrai_time_integrator->advanceHierarchy(dt);
 
       // Transfer SAMRAI values to MFEM mesh
-      coupling_manager->SynchronizeMeshToHierarchy(use_new_mesh);
+      coupling_manager.SynchronizeMeshToHierarchy(use_new_mesh);
+      u_fespace = coupling_manager.CreateFESpace(&u_fecollection);
+      u_gf = std::make_unique<ParGridFunction>(u_fespace.get());
       {
          std::vector<std::unique_ptr<ParGridFunction>> gfs =
-            coupling_manager->TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
+            coupling_manager.TransferToMFEM(samrai_position_id, {}, {samrai_state_id});
          uavg_gf = std::move(gfs[0]);
       }
-      std::tie(u_fecollection, u_fespace, u_gf) =
-         createFiniteElementField<FECType>(*mesh_ops, order);
       reconstructH1Field(*uavg_gf, *u_gf);
       std::tie(conduction, mfem_ode_solver) =
          createConductionODESolver(u_fespace.get(), kappa, ode_solver_type, solve_implicit_state);
 
       // MFEM heat equation step
-      u_gf->GetTrueDofs(u);
-      mfem_ode_solver->Step(u, time, dt);
-      u_gf->SetFromTrueDofs(u);
+      u_gf->GetTrueDofs(u_dofs);
+      mfem_ode_solver->Step(u_dofs, time, dt);
+      u_gf->SetFromTrueDofs(u_dofs);
 
       // Transfer MFEM values back to SAMRAI grid
       std::pair<int, ParGridFunction&> u_fields = {samrai_state_id, *u_gf};
-      coupling_method->TransferToSAMRAI({}, {u_fields});
+      coupling_manager.TransferToSAMRAI({}, {u_fields});
 
       if (last_step || (ti % vis_steps) == 0)
       {
@@ -333,16 +300,9 @@ int main(int argc, char *argv[])
 
          if (visualization)
          {
-            sout << "parallel " << coupling_manager->GetMesh().GetNRanks() << " "
-                                << coupling_manager->GetMesh().GetMyRank() << "\n";
-            sout << "solution\n" << coupling_manager->GetMesh() << *u_gf << std::flush;
-         }
-
-         if (visit)
-         {
-            visit_dc->SetCycle(ti);
-            visit_dc->SetTime(time);
-            visit_dc->Save();
+            sout << "parallel " << coupling_manager.GetMesh().GetNRanks() << " "
+                                << coupling_manager.GetMesh().GetMyRank() << "\n";
+            sout << "solution\n" << coupling_manager.GetMesh() << *u_gf << std::flush;
          }
       }
 

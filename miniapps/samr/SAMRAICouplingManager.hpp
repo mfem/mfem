@@ -24,11 +24,11 @@ public:
 
    // create an "unmanaged" finite element space on the managed MFEM mesh, which
    // can be used for MFEM-only fields **the space becomes invalid after call to
-   // SynchronizeToHierarchy**.
+   // SynchronizeMeshToHierarchy**.
    std::unique_ptr<ParFiniteElementSpace> CreateFESpace(
-      FiniteElementCollection& fe_collection, int dim=1)
+      FiniteElementCollection* fe_collection, int dim=1)
    {
-      return std::make_unique<ParFiniteElementSpace>(mesh.get(), &fe_collection, dim);
+      return std::make_unique<ParFiniteElementSpace>(mesh.get(), fe_collection, dim);
    }
 
    // specify the MFEM mesh topology by an externally provided grid function
@@ -43,7 +43,7 @@ public:
    // existing MFEM mesh or creating a new mesh, with all "managed" finite
    // element spaces updated in either case (**"unmanaged" spaces created by
    // CreateFESpace become invalid)**
-   void SynchronizeMeshToHierarchy(const bool build_new_mesh=false);
+   void SynchronizeMeshToHierarchy(bool create_new_mesh=false);
 
    // transfer SAMRAI node positions and specified node and cell values to the
    // MFEM mesh nodes and specified grid function. This method assumes the

@@ -16,7 +16,7 @@ SAMRAICouplingManager::SAMRAICouplingManager(
    SynchronizeMeshToHierarchy(true);
 }
 
-void SAMRAICouplingManager::SynchronizeMeshToHierarchy(const bool build_new_mesh)
+void SAMRAICouplingManager::SynchronizeMeshToHierarchy(bool create_new_mesh)
 {
    // update global patch info and obtain corresponding patch bounds
    std::vector<PatchLevelBounds> global_patch_bounds;
@@ -24,7 +24,7 @@ void SAMRAICouplingManager::SynchronizeMeshToHierarchy(const bool build_new_mesh
    AddNewPatchesToGlobalPatchInfo();
    GetGlobalPatchBounds(global_patch_bounds);
 
-   if (build_new_mesh)
+   if (create_new_mesh)
    {
       // clear any existing mesh and related finite element spaces objects
       if (mesh)
