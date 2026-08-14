@@ -16,8 +16,6 @@
 
 #ifdef MFEM_USE_MPI
 
-#include <vector>
-
 #include "../linalg/hypre.hpp"
 #include "../mesh/pmesh.hpp"
 #include "../mesh/nurbs.hpp"
