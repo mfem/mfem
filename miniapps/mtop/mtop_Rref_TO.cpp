@@ -47,54 +47,6 @@ constexpr auto MESH_QUAD = MFEM_SOURCE_DIR "/miniapps/mtop/sq_2D_9_quad.mesh";
    }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// \brief The QFunction struct defining the linear elasticity operator at
-/// integration points which is valid in 2D and 3D
-template <int DIM> struct QFunction
-{
-   using matd_t = mfem::future::tensor<real_t, DIM, DIM>;
-   using vecd_t = mfem::future::tensor<real_t, DIM>;
-
-   struct Elasticity
-   {
-      MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi,
-                                              const real_t &L, const real_t &M,
-                                              const matd_t &J,
-                                              const real_t &w, matd_t &out) const
-      {
-         const matd_t JxW = transpose(inv(J)) * det(J) * w;
-         constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
-         const auto eps = mfem::future::sym(dudxi * mfem::future::inv(J));
-         out = (L * tr(eps) * I + 2.0 * M * eps) * JxW;
-
-      }
-   };
-
-   struct Elasticity_dDdrho
-   {
-      MFEM_HOST_DEVICE inline auto operator()(const matd_t &dudxi, const matd_t &dadjdxi, const real_t &rho,
-                                              const real_t &L, const real_t &M,
-                                              const matd_t &J, const real_t &w, real_t &out) const
-      {
-         constexpr real_t exponent = 3.0;
-         constexpr real_t rho_min = 1e-3;
-         const auto val = -exponent * mfem::future::pow(rho, exponent-1.0) * (1-rho_min);
-
-
-         const auto JxW = det(J) * w;
-
-         const auto Jinv =  mfem::future::inv(J);
-         constexpr auto I = mfem::future::IsotropicIdentity<DIM>();
-                  const auto eps_1 = dadjdxi * mfem::future::inv(J);
-         const auto eps = mfem::future::sym(dudxi * Jinv);
-         const auto eps_adj = mfem::future::sym(dadjdxi * Jinv);
-         const auto density = mfem::future::inner(transpose(eps_adj),
-                                                  (L * tr(eps) * I + 2.0 * M * eps));
-
-         out = val * density * JxW;
-      }
-   };
-};
-
   template <int DIM>
   struct InternalComplianceQF
   {
@@ -169,6 +121,23 @@ template <int DIM>
         const auto sigma_u = L * tr(eps_u) * I + 2.0 * M * eps_u;
 
         q = mfem::future::inner(eps_adj, sigma_u) * det(J) * w;
+     }
+  };
+
+   template <int DIM>
+  struct TMOPMetric002QF
+  {
+     using matd_t = mfem::future::tensor<real_t, DIM, DIM>;
+
+     MFEM_HOST_DEVICE inline void operator()(const matd_t &Jpr,
+                                             const matd_t &Winv,
+                                             const real_t &detW,
+                                             const real_t &w,
+                                             real_t &q) const
+     {
+        const auto Jpt = Jpr * Winv;
+        q = (0.5 * mfem::future::inner(Jpt, Jpt) / det(Jpt) - 1.0)
+            * detW * w;
      }
   };
 
@@ -742,7 +711,7 @@ int main(int argc, char *argv[])
 
          FilterSolver->SetRHSCoefficient(rhs_cf);
          FilterSolver->Solve();
-         w_filter = *FilterSolver->GetFEMSolution();
+         w_filter = *FilterSolver`->GetFEMSolution();
 
 
          delete rhs_cf;
@@ -932,17 +901,12 @@ int main(int argc, char *argv[])
          elsolver_morph.FSolve();
          elsolver_morph.GetSol(u_morph);
     
-         TMOP_QualityMetric *metric = new TMOP_Metric_001;
-         TargetConstructor *target_c2 = new TargetConstructor(TargetConstructor::IDEAL_SHAPE_UNIT_SIZE, MPI_COMM_WORLD);
-         NodeAwareTMOPQuality MeshQualityEvaluator(&pmesh, order, metric, target_c2);
-
-         double meshQualityVal = MeshQualityEvaluator.EvalQoI();
-         MeshQualityEvaluator.EvalQoIGrad();
-         ParLinearForm * dMeshQdxExpl = MeshQualityEvaluator.GetDQDx();
-
          real_t ObjVal = 0.0;
+         real_t dfem_mesh_quality = 0.0;
          Vector dfem_dQdu(state_fes.GetTrueVSize());
          Vector dfem_dQdx(coord_fes.GetTrueVSize());
+
+         ParLinearForm dMeshQdxExpl(&coord_fes); dMeshQdxExpl = 0.0;
          dfem_dQdu = 0.0;
          dfem_dQdx = 0.0;
 
@@ -1033,7 +997,111 @@ int main(int argc, char *argv[])
             compliance_dop.GetDerivative(coordsDFEM, compliance_x)->Assemble(dfem_dQdx);
          }
 
-         double val = weight_1 * ObjVal+ weight_tmop * meshQualityVal;
+         {
+            static constexpr int coordsT = 0, winvT = 1, detWT = 2, qT = 3;
+
+            Array<int> all_domain_attr;
+            if (pmesh.attributes.Size() > 0)
+            {
+               all_domain_attr.SetSize(pmesh.attributes.Max());
+               all_domain_attr = 1;
+            }
+
+            mfem::QuadratureSpace tmop_qspace(pmesh, ir);
+            mfem::VectorQuadratureSpace winv_qspace(tmop_qspace, DIM * DIM);
+            mfem::VectorQuadratureSpace detW_qspace(tmop_qspace, 1);
+            mfem::VectorQuadratureSpace q_qspace(tmop_qspace, 1);
+
+            QuadratureFunction winv_q(winv_qspace);
+            QuadratureFunction detW_q(detW_qspace);
+            QuadratureFunction tmop_q(q_qspace);
+
+            winv_q = 0.0;
+            detW_q = 0.0;
+            for (int e = 0; e < tmop_qspace.GetNE(); e++)
+            {
+               const DenseMatrix &Wideal =
+                  Geometries.GetGeomToPerfGeomJac(pmesh.GetElementBaseGeometry(e));
+               DenseMatrix Winv(DIM);
+               CalcInverse(Wideal, Winv);
+               const real_t detW = Wideal.Det();
+               const IntegrationRule &el_ir = tmop_qspace.GetElementIntRule(e);
+               const int offset = tmop_qspace.Offset(e);
+
+               for (int q = 0; q < el_ir.GetNPoints(); q++)
+               {
+                  const int qidx = offset + q;
+                  detW_q[qidx] = detW;
+                  for (int i = 0; i < DIM; i++)
+                  {
+                     for (int j = 0; j < DIM; j++)
+                     {
+                        winv_q[qidx * DIM * DIM + i * DIM + j] = Winv(i, j);
+                     }
+                  }
+               }
+            }
+
+            ParGridFunction current_coords(&coord_fes);
+            Vector current_nodes;
+            pmesh.GetNodes(current_nodes);
+            current_coords = current_nodes;
+
+            mfem::future::DifferentiableOperator tmop_dop(
+               std::vector<mfem::future::FieldDescriptor>
+            {
+               { coordsT, &coord_fes },
+               { winvT, &winv_qspace },
+               { detWT, &detW_qspace }
+            },
+            std::vector<mfem::future::FieldDescriptor>
+            {
+               { qT, &q_qspace }
+            },
+            pmesh);
+
+            const auto tmop_inputs = mfem::future::tuple
+            {
+               mfem::future::Gradient<coordsT>{},
+               mfem::future::Identity<winvT>{},
+               mfem::future::Identity<detWT>{},
+               mfem::future::Weight{}
+            };
+            const auto tmop_outputs = mfem::future::tuple
+            {
+               mfem::future::FunctionalValue<qT>{}
+            };
+            const auto tmop_derivatives =
+               std::integer_sequence<size_t, coordsT>{};
+
+            if (2 == DIM)
+            {
+               TMOPMetric002QF<2> qf;
+               tmop_dop.AddDomainIntegrator<mfem::future::LocalQFBackend>(
+                  qf, tmop_inputs, tmop_outputs, ir, all_domain_attr,
+                  tmop_derivatives);
+            }
+            else { MFEM_ABORT("TMOP_Metric_002 is implemented here only in 2D"); }
+
+            mfem::MultiVector tmop_x { current_coords, winv_q, detW_q };
+            mfem::MultiVector tmop_y { tmop_q };
+
+            tmop_dop.Mult(tmop_x, tmop_y);
+            dfem_mesh_quality = tmop_q.Sum();
+            MPI_Allreduce(MPI_IN_PLACE, &dfem_mesh_quality, 1,
+                          MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                          pmesh.GetComm());
+
+            Vector true_dMeshQdx_dfem(coord_fes.GetTrueVSize());
+            true_dMeshQdx_dfem = 0.0;
+            tmop_dop.GetDerivative(coordsT, tmop_x)->Assemble(true_dMeshQdx_dfem);
+
+            ParLinearForm dMeshQdx_dfem(&coord_fes);
+            dMeshQdx_dfem = 0.0;
+            coord_fes.GetRestrictionTransposeOperator()->Mult(true_dMeshQdx_dfem, dMeshQdxExpl);
+         }
+
+         double val = weight_1 * ObjVal+ weight_tmop * dfem_mesh_quality;
 
          elsolver_morph.ASolve( dfem_dQdu );
          mfem::ParGridFunction adj_sol_dfem = elsolver_morph.GetADisplacements();
@@ -1137,7 +1205,7 @@ int main(int argc, char *argv[])
 
          dQdx_filtered.Add(weight_1, dfem_dQdx);
          dQdx_filtered.Add(weight_1, dQdxImpl_dfem);
-         dQdx_filtered.Add(weight_tmop, *dMeshQdxExpl);
+         dQdx_filtered.Add(weight_tmop, dMeshQdxExpl);
 
          paraview_dc_morph.SetCycle(i+1);
          paraview_dc_morph.SetTime(i+1);
@@ -1145,18 +1213,14 @@ int main(int argc, char *argv[])
 
          MFEM_VERIFY( !static_cast<bool>(dQdx_filtered.CheckFinite()), "dQdx before filter is NAN.");
 
-
          filterSolver.ASolve(dQdx_filtered, true);
-                           std::cout<<"a filter"<<std::endl;
          ParLinearForm * dQdxImplfilter = filterSolver.GetImplicitDqDx();
 
          ParLinearForm dQdx(&coord_fes); dQdx = 0.0;
          dQdx.Add(1.0, *dQdxImplfilter);
 
          HypreParVector *truedQdx = dQdx.ParallelAssemble();
-
          objgrad = *truedQdx;
-
          objgrad *= 1e-0;
 
       double epsilon = 1e-8;
@@ -1202,11 +1266,6 @@ int main(int argc, char *argv[])
         }
       }
 
-//       Vector Xi = x0;
-//       Xi += filteredDesign;
-//       PMesh->SetNodes(Xi);
-//       PMesh->DeleteGeometricFactors();
-
       double localGradNormSquared = std::pow(objgrad.Norml2(), 2);
       double globGradNorm;
 #ifdef MFEM_USE_MPI
@@ -1214,19 +1273,13 @@ int main(int argc, char *argv[])
 #endif
       globGradNorm = std::sqrt(globGradNorm);
 
-      std::cout<<"grad norm = "<<globGradNorm<<" obj val: "<<ObjVal <<" | meshQualityVal: "<<meshQualityVal<<" | totalObj: "<<val<<std::endl;
+      std::cout<<"grad norm = "<<globGradNorm<<" obj val: "<<ObjVal <<" | meshQualityVal: "<<dfem_mesh_quality<<" | totalObj: "<<val<<std::endl;
 
 
       mfem::Vector conDummy(1);  conDummy= -0.1;
       mma->Update( objgrad, conDummy, volgrad, xxmin,xxmax, trueOptvar);
 
-      //trueOptvar.Print();
-
       gridfuncOptVar.SetFromTrueVector();
-
-      // mfem::mfem_error("aaa");
-
-
 
       }
 //       isConverged = false;
