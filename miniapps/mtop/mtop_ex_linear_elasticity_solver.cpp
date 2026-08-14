@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
    LinearElasticitySolver solver(fes);
    solver.SetPreconditionerType(preconditioner_type);
    solver.SetMonolithicLOROrdering(use_by_vdim ? Ordering::byVDIM :
-                                  Ordering::byNODES);
+                                   Ordering::byNODES);
    solver.SetLambda(2.0);
    solver.SetMu(3.0);
    solver.SetRelTol(1.0e-13);

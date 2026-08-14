@@ -424,8 +424,8 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
    ParFiniteElementSpace &base_lor_space = lor_disc_->GetParFESpace();
    ParMesh &lor_mesh = *base_lor_space.GetParMesh();
    lor_monolithic_fespace_.reset(new ParFiniteElementSpace(
-      &lor_mesh, base_lor_space.FEColl(), fespace_.GetVDim(),
-      monolithic_lor_ordering_));
+                                    &lor_mesh, base_lor_space.FEColl(), fespace_.GetVDim(),
+                                    monolithic_lor_ordering_));
 
    Array<int> lor_ess_tdofs, marker;
    marker.SetSize(lor_mesh.bdr_attributes.Size() ?
@@ -450,7 +450,7 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
    lor_ess_tdofs.Unique();
 
    lor_monolithic_form_.reset(new ParBilinearForm(
-                                lor_monolithic_fespace_.get()));
+                                 lor_monolithic_fespace_.get()));
    lor_monolithic_form_->AddDomainIntegrator(
       new ElasticityIntegrator(*lambda_, *mu_));
    lor_monolithic_form_->Assemble();
@@ -471,8 +471,8 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
    }
    amg->SetPrintLevel(print_level_ > 1 ? 1 : 0);
    preconditioner_.reset(new ReorderedFixedPreconditioner(
-      std::move(amg), fespace_.GetVDim(), fespace_.GetOrdering(),
-      monolithic_lor_ordering_));
+                            std::move(amg), fespace_.GetVDim(), fespace_.GetOrdering(),
+                            monolithic_lor_ordering_));
 }
 
 void LinearElasticitySolver::BuildPreconditioner() const

@@ -253,7 +253,7 @@ private:
    std::shared_ptr<Coefficient> mu_;
    std::set<int> boundary_ids_;
    std::map<std::pair<int, int>, std::shared_ptr<Coefficient> >
-      displacement_bcs_;
+   displacement_bcs_;
    std::map<int, std::shared_ptr<VectorCoefficient> > vector_displacement_bcs_;
    std::map<int, std::shared_ptr<VectorCoefficient> > volume_loads_;
    std::map<int, std::shared_ptr<VectorCoefficient> > boundary_loads_;
