@@ -27,6 +27,7 @@ public:
    enum class PreconditionerType
    {
       Jacobi,
+      AMG,
       LORDiagonalAMG,
       LORMonolithicAMG
    };
@@ -124,13 +125,14 @@ public:
 
    /// Select the preconditioner and mark the solver dirty.
    ///
-   /// Diagonal LOR/AMG requires Ordering::byNODES. Monolithic LOR/AMG supports
-   /// either ordering and enables rigid-body near-nullspace vectors when the
-   /// supplied space uses Ordering::byVDIM.
+   /// Diagonal LOR/AMG requires Ordering::byNODES. Plain AMG and monolithic
+   /// LOR/AMG support either auxiliary ordering and enable rigid-body
+   /// near-nullspace vectors only for Ordering::byVDIM.
    void SetPreconditionerType(PreconditionerType type);
 
-   /// Select the monolithic LOR vector ordering and mark the solver dirty.
-   /// Ordering::byVDIM enables BoomerAMG rigid-body near-nullspace vectors.
+   /// Select the vector ordering for plain AMG and monolithic LOR/AMG.
+   /// Ordering::byVDIM enables BoomerAMG rigid-body near-nullspace vectors;
+   /// Ordering::byNODES uses generic systems AMG without rigid-body modes.
    void SetMonolithicLOROrdering(Ordering::Type ordering);
 
    /// Return the CG relative tolerance.
@@ -149,7 +151,7 @@ public:
    PreconditionerType GetPreconditionerType() const
    { return preconditioner_type_; }
 
-   /// Return the selected monolithic LOR vector ordering.
+   /// Return the selected plain or monolithic auxiliary AMG ordering.
    Ordering::Type GetMonolithicLOROrdering() const
    { return monolithic_lor_ordering_; }
 
@@ -161,8 +163,8 @@ public:
 
    /// Return seconds spent building the selected preconditioner.
    ///
-   /// For Jacobi this is diagonal assembly and inversion; for an LOR option it
-   /// includes LOR matrix assembly and AMG construction.
+   /// For Jacobi this is diagonal assembly and inversion; for an AMG option it
+   /// includes auxiliary matrix assembly and AMG construction.
    double GetPrecAssemblyTime() const { return prec_assembly_time_; }
 
    /// Solve a true-dof load vector while applying prescribed displacements.
@@ -221,8 +223,15 @@ private:
    /// Build a boundary marker for one displacement component.
    void BuildComponentBoundaryMarker(int component, Array<int> &marker) const;
 
-   /// Build the selected PA or LOR preconditioner.
+   /// Build the selected Jacobi, assembled AMG, or LOR/AMG preconditioner.
    void BuildPreconditioner() const;
+
+   /// Build AMG on a fully assembled high-order auxiliary elasticity matrix.
+   void BuildAMG() const;
+
+   /// Build essential true dofs on an auxiliary vector space.
+   void BuildAuxiliaryEssentialTrueDofs(ParFiniteElementSpace &space,
+                                        Array<int> &ess_tdofs) const;
 
    /// Build independent scalar LOR/AMG blocks for displacement components.
    void BuildLORDiagonalAMG() const;
@@ -271,6 +280,9 @@ private:
    mutable OperatorHandle system_operator_;
 
    mutable std::unique_ptr<ParLORDiscretization> lor_disc_;
+   mutable std::unique_ptr<ParFiniteElementSpace> amg_fespace_;
+   mutable std::unique_ptr<ParBilinearForm> amg_form_;
+   mutable std::unique_ptr<HypreParMatrix> amg_matrix_;
    mutable std::unique_ptr<ParFiniteElementSpace> lor_scalar_fespace_;
    mutable std::unique_ptr<ElasticityIntegrator> lor_integrator_;
    mutable std::vector<std::unique_ptr<ParBilinearForm> > lor_forms_;

@@ -61,7 +61,7 @@ TEST_NAME := MTop miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
+	@$(call mfem-test,$<,, $(TEST_NAME),,NO_VIS_OPTION)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

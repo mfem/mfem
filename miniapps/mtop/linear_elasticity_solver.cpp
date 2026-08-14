@@ -292,6 +292,9 @@ void LinearElasticitySolver::SetPreconditionerType(PreconditionerType type)
 
 void LinearElasticitySolver::SetMonolithicLOROrdering(Ordering::Type ordering)
 {
+   MFEM_VERIFY(ordering == Ordering::byNODES ||
+               ordering == Ordering::byVDIM,
+               "AMG ordering must be byNODES or byVDIM.");
    monolithic_lor_ordering_ = ordering;
    SetNeedsAssembly();
 }
@@ -418,6 +421,63 @@ void LinearElasticitySolver::BuildLORDiagonalAMG() const
    preconditioner_ = std::move(block_prec);
 }
 
+void LinearElasticitySolver::BuildAuxiliaryEssentialTrueDofs(
+   ParFiniteElementSpace &space, Array<int> &ess_tdofs) const
+{
+   ParMesh &mesh = *space.GetParMesh();
+   Array<int> marker(mesh.bdr_attributes.Size() ?
+                     mesh.bdr_attributes.Max() : 0);
+   marker = 0;
+   for (const int id : boundary_ids_) { marker[id - 1] = 1; }
+   for (const auto &entry : vector_displacement_bcs_)
+   {
+      marker[entry.first - 1] = 1;
+   }
+   space.GetEssentialTrueDofs(marker, ess_tdofs);
+   for (const auto &entry : displacement_bcs_)
+   {
+      marker = 0;
+      marker[entry.first.first - 1] = 1;
+      Array<int> component_tdofs;
+      space.GetEssentialTrueDofs(marker, component_tdofs,
+                                 entry.first.second);
+      ess_tdofs.Append(component_tdofs);
+   }
+   ess_tdofs.Sort();
+   ess_tdofs.Unique();
+}
+
+void LinearElasticitySolver::BuildAMG() const
+{
+   amg_fespace_.reset(new ParFiniteElementSpace(
+      fespace_.GetParMesh(), fespace_.FEColl(), fespace_.GetVDim(),
+      monolithic_lor_ordering_));
+   Array<int> auxiliary_ess_tdofs;
+   BuildAuxiliaryEssentialTrueDofs(*amg_fespace_, auxiliary_ess_tdofs);
+
+   amg_form_.reset(new ParBilinearForm(amg_fespace_.get()));
+   amg_form_->AddDomainIntegrator(new ElasticityIntegrator(*lambda_, *mu_));
+   amg_form_->Assemble();
+   amg_form_->Finalize();
+   amg_matrix_.reset(amg_form_->ParallelAssemble());
+   amg_matrix_->EliminateBC(auxiliary_ess_tdofs,
+                            Operator::DiagonalPolicy::DIAG_ONE);
+
+   std::unique_ptr<HypreBoomerAMG> amg(new HypreBoomerAMG(*amg_matrix_));
+   if (monolithic_lor_ordering_ == Ordering::byVDIM)
+   {
+      amg->SetElasticityOptions(amg_fespace_.get());
+   }
+   else
+   {
+      amg->SetSystemsOptions(fespace_.GetVDim(), true);
+   }
+   amg->SetPrintLevel(print_level_ > 1 ? 1 : 0);
+   preconditioner_.reset(new ReorderedFixedPreconditioner(
+      std::move(amg), fespace_.GetVDim(), fespace_.GetOrdering(),
+      monolithic_lor_ordering_));
+}
+
 void LinearElasticitySolver::BuildLORMonolithicAMG() const
 {
    lor_disc_.reset(new ParLORDiscretization(fespace_));
@@ -427,27 +487,8 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
                                     &lor_mesh, base_lor_space.FEColl(), fespace_.GetVDim(),
                                     monolithic_lor_ordering_));
 
-   Array<int> lor_ess_tdofs, marker;
-   marker.SetSize(lor_mesh.bdr_attributes.Size() ?
-                  lor_mesh.bdr_attributes.Max() : 0);
-   marker = 0;
-   for (const int id : boundary_ids_) { marker[id - 1] = 1; }
-   for (const auto &entry : vector_displacement_bcs_)
-   {
-      marker[entry.first - 1] = 1;
-   }
-   lor_monolithic_fespace_->GetEssentialTrueDofs(marker, lor_ess_tdofs);
-   for (const auto &entry : displacement_bcs_)
-   {
-      marker = 0;
-      marker[entry.first.first - 1] = 1;
-      Array<int> component_tdofs;
-      lor_monolithic_fespace_->GetEssentialTrueDofs(
-         marker, component_tdofs, entry.first.second);
-      lor_ess_tdofs.Append(component_tdofs);
-   }
-   lor_ess_tdofs.Sort();
-   lor_ess_tdofs.Unique();
+   Array<int> lor_ess_tdofs;
+   BuildAuxiliaryEssentialTrueDofs(*lor_monolithic_fespace_, lor_ess_tdofs);
 
    lor_monolithic_form_.reset(new ParBilinearForm(
                                  lor_monolithic_fespace_.get()));
@@ -478,6 +519,9 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
 void LinearElasticitySolver::BuildPreconditioner() const
 {
    preconditioner_.reset();
+   amg_matrix_.reset();
+   amg_form_.reset();
+   amg_fespace_.reset();
    lor_amg_blocks_.clear();
    lor_monolithic_matrix_.reset();
    lor_monolithic_form_.reset();
@@ -492,6 +536,10 @@ void LinearElasticitySolver::BuildPreconditioner() const
    {
       preconditioner_.reset(
          new OperatorJacobiSmoother(*form_, ess_tdofs_));
+   }
+   else if (preconditioner_type_ == PreconditionerType::AMG)
+   {
+      BuildAMG();
    }
    else if (preconditioner_type_ == PreconditionerType::LORDiagonalAMG)
    {

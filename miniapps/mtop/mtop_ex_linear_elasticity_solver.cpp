@@ -42,9 +42,11 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview", "Write the solution for ParaView.");
    args.AddOption(&use_by_vdim, "-vdim", "--by-vdim", "-nodes",
-                  "--by-nodes", "Use byVDIM instead of byNODES ordering.");
+                  "--by-nodes", "Use byVDIM instead of byNODES for plain "
+                  "and monolithic auxiliary AMG.");
    args.AddOption(&preconditioner, "-pc", "--preconditioner",
-                  "Preconditioner: jacobi, lor-diagonal, or lor-monolithic.");
+                  "Preconditioner: jacobi, amg, lor-diagonal, or "
+                  "lor-monolithic.");
    args.ParseCheck();
 
    LinearElasticitySolver::PreconditionerType preconditioner_type;
@@ -52,6 +54,11 @@ int main(int argc, char *argv[])
    {
       preconditioner_type =
          LinearElasticitySolver::PreconditionerType::Jacobi;
+   }
+   else if (std::string(preconditioner) == "amg")
+   {
+      preconditioner_type =
+         LinearElasticitySolver::PreconditionerType::AMG;
    }
    else if (std::string(preconditioner) == "lor-diagonal")
    {
@@ -83,7 +90,8 @@ int main(int argc, char *argv[])
    }
 
    // 3. Construct the high-order vector H1 space. Elasticity PA requires
-   // byNODES. The ordering option controls the auxiliary monolithic LOR space.
+   // byNODES. The ordering option controls the auxiliary space used by plain
+   // AMG and monolithic LOR/AMG.
    H1_FECollection fec(order, pmesh.Dimension());
    ParFiniteElementSpace fes(&pmesh, &fec, pmesh.Dimension(),
                              Ordering::byNODES);
@@ -95,7 +103,7 @@ int main(int argc, char *argv[])
       std::cout << "Total elements: " << total_elements << std::endl;
       std::cout << "Total nodes: " << total_nodes << std::endl;
       std::cout << "Total DOFs: " << total_dofs << std::endl;
-      std::cout << "Monolithic LOR ordering: "
+      std::cout << "Auxiliary AMG ordering: "
                 << (use_by_vdim ? "byVDIM" : "byNODES") << std::endl;
       std::cout << "Preconditioner: " << preconditioner << std::endl;
    }
