@@ -28,6 +28,10 @@ SEQ_MINIAPPS = elasticity_pa_regression
 MTOP_MPI_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
 MINIAPPS = $(SEQ_MINIAPPS)
 
+# The first explicit rule below is for an MPI executable. Ensure an invocation
+# without a target still selects the serial-safe aggregate target.
+.DEFAULT_GOAL := all
+
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all parallel clean clean-build clean-exec
