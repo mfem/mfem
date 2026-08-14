@@ -73,16 +73,11 @@ public:
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override
    { Project_RT(nk, dof2nk, fe, Trans, I); }
-   // Gradient + rotation = Curl: H1 -> H(div)
-   void ProjectGrad(const FiniteElement &fe,
-                    ElementTransformation &Trans,
-                    DenseMatrix &grad) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
    // Curl = Gradient + rotation: H1 -> H(div)
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl2D_RT(nk, dof2nk, fe, Trans, curl); }
 
    void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 
@@ -148,7 +143,7 @@ public:
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 
    /// @brief Return the mapping from lexicographically ordered face DOFs to
    /// lexicographically ordered element DOFs corresponding to local face
@@ -210,16 +205,11 @@ public:
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override
    { Project_RT(nk, dof2nk, fe, Trans, I); }
-   // Gradient + rotation = Curl: H1 -> H(div)
-   void ProjectGrad(const FiniteElement &fe,
-                    ElementTransformation &Trans,
-                    DenseMatrix &grad) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, grad); }
    // Curl = Gradient + rotation: H1 -> H(div)
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectGrad_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl2D_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 
@@ -274,7 +264,7 @@ public:
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 class RT_WedgeElement : public VectorFiniteElement
@@ -332,7 +322,7 @@ public:
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 };
 
 /** Arbitrary order H(Div) basis functions defined on pyramid-shaped elements
@@ -428,7 +418,7 @@ public:
    virtual void ProjectCurl(const FiniteElement &fe,
                             ElementTransformation &Trans,
                             DenseMatrix &curl) const
-   { ProjectCurl_RT(nk, dof2nk, fe, Trans, curl); }
+   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
 
    void CalcRawVShape(const IntegrationPoint &ip,
                       DenseMatrix &shape) const;
