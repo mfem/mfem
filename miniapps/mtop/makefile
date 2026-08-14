@@ -26,7 +26,15 @@ MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = elasticity_pa_regression
 PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
-ifeq ($(MFEM_USE_MPI),YES)
+# Determine MPI support from the generated configuration header. This is more
+# reliable than MFEM_USE_MPI when a parent invocation carries stale or
+# externally overridden make variables.
+MFEM_CONFIG_HEADER := $(firstword \
+   $(wildcard $(MFEM_BUILD_DIR)/config/_config.hpp) \
+   $(wildcard ../../config/_config.hpp))
+MFEM_MPI_ENABLED := $(shell grep -c '^\#define MFEM_USE_MPI' \
+   $(MFEM_CONFIG_HEADER) 2>/dev/null)
+ifeq ($(MFEM_MPI_ENABLED),1)
    MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 else
    MINIAPPS = $(SEQ_MINIAPPS)
