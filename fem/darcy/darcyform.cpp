@@ -738,10 +738,10 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
          for (BilinearFormIntegrator *dbfi : dbfis)
          {
             auto *ci = dynamic_cast<ConvectionIntegrator*>(dbfi);
-            if (ci) { vel = ci->GetVelocity(); break; }
+            if (ci) { vel = &ci->GetVelocity(); break; }
 
             auto *cci = dynamic_cast<ConservativeConvectionIntegrator*>(dbfi);
-            if (cci) { vel = cci->GetVelocity(); break; }
+            if (cci) { vel = &cci->GetVelocity(); break; }
          }
       }
    }

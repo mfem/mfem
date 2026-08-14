@@ -2951,7 +2951,7 @@ public:
    ConvectionIntegrator(VectorCoefficient &q, real_t a = 1.0);
 
    /// Get the velocity coefficient $Q$
-   VectorCoefficient *GetVelocity() const { return Q; }
+   VectorCoefficient& GetVelocity() const { return *Q; }
 
    void AssembleElementMatrix(const FiniteElement &,
                               ElementTransformation &,
@@ -3027,7 +3027,7 @@ public:
       : TransposeIntegrator(new ConvectionIntegrator(q, -a)) { }
 
    /// Get the velocity coefficient $q$
-   VectorCoefficient *GetVelocity() const
+   VectorCoefficient& GetVelocity() const
    { return static_cast<ConvectionIntegrator*>(bfi)->GetVelocity(); }
 };
 
