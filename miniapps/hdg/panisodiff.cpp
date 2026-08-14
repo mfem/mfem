@@ -264,19 +264,7 @@ int main(int argc, char *argv[])
                   "--serial-format",
                   "Format to use when saving the results for VisIt.");
 
-   args.Parse();
-   if (!args.Good())
-   {
-      if (verbose)
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (verbose)
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
    // 3. Set the problem options
    pars.prob = (Problem)iproblem;

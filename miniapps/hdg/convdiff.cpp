@@ -230,13 +230,7 @@ int main(int argc, char *argv[])
                   "--no-analytic",
                   "Enable or disable analytic solution.");
 
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // 2. Set the problem options
    pars.prob = (Problem)iproblem;
