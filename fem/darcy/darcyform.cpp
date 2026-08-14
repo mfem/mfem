@@ -19,6 +19,7 @@ DarcyForm::DarcyForm(FiniteElementSpace *fes_u_, FiniteElementSpace *fes_p_,
                      bool bsym_)
    : fes_u(fes_u_), fes_p(fes_p_), bsym(bsym_)
 {
+   sequence = fes_u->GetSequence();
    UpdateOffsetsAndSize();
 }
 
@@ -1679,6 +1680,12 @@ const BlockOperator &DarcyForm::Gradient::BlockMatrices() const
 
 void DarcyForm::Update()
 {
+   // Check for different size (e.g. assembled form on non-conforming space)
+   // or different sequence number.
+   const bool full_update = (fes_u->GetVSize() != offsets[1] - offsets[0]
+                             || fes_p->GetVSize() != offsets[2] - offsets[1]
+                             || sequence < fes_u->GetSequence());
+
    UpdateOffsetsAndSize();
 
    if (M_u) { M_u->Update(); }
@@ -1692,8 +1699,17 @@ void DarcyForm::Update()
 
    opBt.Clear();
 
-   if (reduction) { reduction->Reset(); }
-   if (hybridization) { hybridization->Reset(); }
+   if (full_update)
+   {
+      reduction.reset();
+      hybridization.reset();
+      sequence = fes_u->GetSequence();
+   }
+   else
+   {
+      if (reduction) { reduction->Reset(); }
+      if (hybridization) { hybridization->Reset(); }
+   }
    reconstruction.reset();
 }
 

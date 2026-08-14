@@ -115,6 +115,9 @@ protected:
    std::unique_ptr<DarcyReduction> reduction;           ///< reduction
    std::unique_ptr<DarcyHybridization> hybridization;   ///< hybridization
 
+   /// Indicates the Mesh::sequence corresponding to the current state
+   long sequence = -1;
+
    /// The DarcyForm of the reconstructed super-convergent system
    mutable std::unique_ptr<DarcyForm> reconstruction;
    mutable std::unique_ptr<MixedBilinearForm> M_p_src;
