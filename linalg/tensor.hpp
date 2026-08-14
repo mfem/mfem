@@ -36,7 +36,7 @@ struct tensor<T>
 {
    using type = T;
    static constexpr int rank() { return 0; }
-   static constexpr auto sizes_array() { return std::array<T,0> {}; }
+   static constexpr auto sizes_array() { return std::array<int,0> {}; }
    static constexpr int size(int) { return 1; }
 
    MFEM_HOST_DEVICE constexpr T& operator[](int) { return value; }
