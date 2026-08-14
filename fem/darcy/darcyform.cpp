@@ -55,19 +55,31 @@ void DarcyForm::UpdateTOffsetsAndSize()
 
 BilinearForm* DarcyForm::GetFluxMassForm()
 {
-   if (!M_u) { M_u.reset(new BilinearForm(fes_u)); }
+   if (!M_u)
+   {
+      M_u.reset(new BilinearForm(fes_u));
+      M_u->SetAssemblyLevel(assembly);
+   }
    return M_u.get();
 }
 
 BilinearForm* DarcyForm::GetPotentialMassForm()
 {
-   if (!M_p) { M_p.reset(new BilinearForm(fes_p)); }
+   if (!M_p)
+   {
+      M_p.reset(new BilinearForm(fes_p));
+      M_p->SetAssemblyLevel(assembly);
+   }
    return M_p.get();
 }
 
 MixedBilinearForm* DarcyForm::GetFluxDivForm()
 {
-   if (!B) { B.reset(new MixedBilinearForm(fes_u, fes_p)); }
+   if (!B)
+   {
+      B.reset(new MixedBilinearForm(fes_u, fes_p));
+      B->SetAssemblyLevel(assembly);
+   }
    return B.get();
 }
 

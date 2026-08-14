@@ -36,19 +36,31 @@ void ParDarcyForm::UpdateTOffsets()
 
 BilinearForm *ParDarcyForm::GetFluxMassForm()
 {
-   if (!pM_u) { M_u.reset(pM_u = new ParBilinearForm(&pfes_u)); }
+   if (!pM_u)
+   {
+      M_u.reset(pM_u = new ParBilinearForm(&pfes_u));
+      pM_u->SetAssemblyLevel(assembly);
+   }
    return pM_u;
 }
 
 BilinearForm *ParDarcyForm::GetPotentialMassForm()
 {
-   if (!pM_p) { M_p.reset(pM_p = new ParBilinearForm(&pfes_p)); }
+   if (!pM_p)
+   {
+      M_p.reset(pM_p = new ParBilinearForm(&pfes_p));
+      pM_p->SetAssemblyLevel(assembly);
+   }
    return pM_p;
 }
 
 MixedBilinearForm *ParDarcyForm::GetFluxDivForm()
 {
-   if (!pB) { B.reset(pB = new ParMixedBilinearForm(&pfes_u, &pfes_p)); }
+   if (!pB)
+   {
+      B.reset(pB = new ParMixedBilinearForm(&pfes_u, &pfes_p));
+      pB->SetAssemblyLevel(assembly);
+   }
    return pB;
 }
 
