@@ -181,13 +181,7 @@ int main(int argc, char *argv[])
    args.AddOption(&vis_iters, "-vis-its", "--visualization-iters",
                   "Set step for GLVis visualization of the solver iterations (<0=off).");
 
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.

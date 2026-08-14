@@ -117,19 +117,7 @@ int main(int argc, char *argv[])
    args.AddOption(&adios2, "-adios2", "--adios2-streams", "-no-adios2",
                   "--no-adios2-streams",
                   "Save data using adios2 streams.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (verbose)
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (verbose)
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
 
    if (pa && (hybridization || reduction))

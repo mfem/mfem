@@ -122,13 +122,7 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
-      return 1;
-   }
-   if (Mpi::Root()) { args.PrintOptions(cout); }
+   args.ParseCheck();
 
    // 2. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);

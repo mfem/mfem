@@ -94,19 +94,7 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
-   args.Parse();
-   if (!args.Good())
-   {
-      if (Mpi::Root())
-      {
-         args.PrintUsage(cout);
-      }
-      return 1;
-   }
-   if (Mpi::Root())
-   {
-      args.PrintOptions(cout);
-   }
+   args.ParseCheck();
 
    if (pa && (hybridization || reduction))
    {
