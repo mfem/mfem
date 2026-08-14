@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "";
+   string mesh_file = "";
    int nx = 0;
    int ny = 0;
    int ref_levels = -1;
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh;
-   if (strlen(mesh_file) > 0)
+   if (!mesh_file.empty())
    {
       mesh = Mesh(mesh_file, 1, 1);
    }
@@ -340,7 +340,7 @@ int main(int argc, char *argv[])
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
-   if (strlen(mesh_file) > 0)
+   if (!mesh_file.empty())
    {
       if (ref_levels < 0)
       {
@@ -633,25 +633,16 @@ int main(int argc, char *argv[])
    const Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
    cout << "***********************************************************\n";
-   if (!reduction || (reduction && !dg && !brt))
+   cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+   cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+   if (hybridization)
    {
-      cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+      cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+      cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
    }
-   if (!reduction || (reduction && (dg || brt)))
+   else
    {
-      cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-   }
-   if (!reduction)
-   {
-      if (hybridization)
-      {
-         cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
-         cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
-      }
-      else
-      {
-         cout << "dim(V+W) = " << block_offsets.Last() << "\n";
-      }
+      cout << "dim(V+W) = " << block_offsets.Last() << "\n";
    }
    cout << "***********************************************************\n";
 

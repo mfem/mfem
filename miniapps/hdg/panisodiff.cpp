@@ -134,13 +134,13 @@ int main(int argc, char *argv[])
 
    // 1. Initialize MPI and HYPRE.
    Mpi::Init(argc, argv);
-   //int num_procs = Mpi::WorldSize();
-   int myid = Mpi::WorldRank();
+   //const int num_procs = Mpi::WorldSize();
+   const int myid = Mpi::WorldRank();
    Hypre::Init();
-   bool verbose = (myid == 0);
+   const bool root = (myid == 0);
 
    // 2. Parse command-line options.
-   const char *mesh_file = "";
+   string mesh_file = "";
    int nx = 0;
    int ny = 0;
    int serial_ref_levels = -1;
@@ -269,23 +269,6 @@ int main(int argc, char *argv[])
    // 3. Set the problem options
    pars.prob = (Problem)iproblem;
    const Problem &problem = pars.prob;
-   switch (problem)
-   {
-      case Problem::SineDiffusion:
-      case Problem::DiffusionRing:
-      case Problem::DiffusionRingGauss:
-      case Problem::DiffusionRingSine:
-      case Problem::BoundaryLayer:
-      case Problem::SteadyPeak:
-      case Problem::SteadyVaryingAngle:
-      case Problem::Sovinec:
-      case Problem::SingleNull:
-      case Problem::DoubleNull:
-         break;
-      default:
-         cerr << "Unknown problem" << endl;
-         return 1;
-   }
 
    if (trace_ess_bc && !dg && !brt)
    {
@@ -296,7 +279,7 @@ int main(int argc, char *argv[])
    // 4. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
    Device device(device_config);
-   if (verbose) { device.Print(); }
+   if (root) { device.Print(); }
 
    // 5. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
@@ -307,7 +290,7 @@ int main(int argc, char *argv[])
    }
 
    Mesh mesh;
-   if (strlen(mesh_file) > 0)
+   if (!mesh_file.empty())
    {
       mesh = Mesh(mesh_file, 1, 1);
 
@@ -358,13 +341,16 @@ int main(int argc, char *argv[])
       case Problem::SteadyVaryingAngle:
          bdr_is_dirichlet = -1;
          break;
+      default:
+         cerr << "Unknown problem" << endl;
+         return 1;
    }
 
    // 7. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 10,000
    //    elements.
-   if (strlen(mesh_file) > 0)
+   if (!mesh_file.empty())
    {
       int ref_levels = (serial_ref_levels >= 0)?(serial_ref_levels):
                        (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
@@ -567,7 +553,7 @@ int main(int argc, char *argv[])
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
       chrono.Stop();
-      if (verbose) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
+      if (root) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
    }
    else if (reduction)
    {
@@ -585,12 +571,12 @@ int main(int argc, char *argv[])
       }
       else
       {
-         if (verbose) { cerr << "No possible reduction!" << endl; }
+         if (root) { cerr << "No possible reduction!" << endl; }
          return 1;
       }
 
       chrono.Stop();
-      if (verbose) { cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
+      if (root) { cout << "Reduction init took " << chrono.RealTime() << "s.\n"; }
    }
 
    if (pa) { darcy->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
@@ -600,28 +586,19 @@ int main(int argc, char *argv[])
    //     of the dimensions of each block.
    Array<int> block_offsets(DarcyOperator::ConstructOffsets(*darcy));
 
-   if (verbose)
+   if (root)
    {
       cout << "***********************************************************\n";
-      if (!reduction || (reduction && !dg && !brt))
+      cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+      cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
+      if (hybridization)
       {
-         cout << "dim(V) = " << block_offsets[1] - block_offsets[0] << "\n";
+         cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
+         cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
       }
-      if (!reduction || (reduction && (dg || brt)))
+      else
       {
-         cout << "dim(W) = " << block_offsets[2] - block_offsets[1] << "\n";
-      }
-      if (!reduction)
-      {
-         if (hybridization)
-         {
-            cout << "dim(M) = " << block_offsets[3] - block_offsets[2] << "\n";
-            cout << "dim(V+W+M) = " << block_offsets.Last() << "\n";
-         }
-         else
-         {
-            cout << "dim(V+W) = " << block_offsets.Last() << "\n";
-         }
+         cout << "dim(V+W) = " << block_offsets.Last() << "\n";
       }
       cout << "***********************************************************\n";
    }
@@ -771,7 +748,7 @@ int main(int argc, char *argv[])
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeGlobalLpNorm(2., tcoeff, pmesh, irs);
 
-      if (verbose)
+      if (root)
       {
          if (amr_nrefs > 0)
          {
@@ -794,7 +771,7 @@ int main(int argc, char *argv[])
          real_t norm_qt = ComputeGlobalLpNorm(2., qcoeff, pmesh, irs);
          real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
          real_t err_ts = t_hs.ComputeL2Error(tcoeff, irs);
-         if (verbose)
+         if (root)
          {
             cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
             cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
@@ -905,20 +882,20 @@ int main(int argc, char *argv[])
       if (visualization)
       {
          static socketstream q_sock, t_sock;
-         VisualizeField(q_sock, q_vh, "Heat flux", amr_it, verbose);
-         VisualizeField(t_sock, t_h, "Temperature", amr_it, verbose);
+         VisualizeField(q_sock, q_vh, "Heat flux", amr_it, root);
+         VisualizeField(t_sock, t_h, "Temperature", amr_it, root);
          if (reconstruct)
          {
             static socketstream qt_sock, qs_sock, ts_sock;
-            VisualizeField(qt_sock, qt_h, "Total flux", amr_it, verbose);
-            VisualizeField(qs_sock, q_hs, "Recon. flux", amr_it, verbose);
-            VisualizeField(ts_sock, t_hs, "Recon. temperature", amr_it, verbose);
+            VisualizeField(qt_sock, qt_h, "Total flux", amr_it, root);
+            VisualizeField(qs_sock, q_hs, "Recon. flux", amr_it, root);
+            VisualizeField(ts_sock, t_hs, "Recon. temperature", amr_it, root);
          }
          if (analytic)
          {
             static socketstream qa_sock, qta_sock, ta_sock, c_sock;
-            VisualizeField(qa_sock, q_a, "Heat flux analytic", amr_it, verbose);
-            VisualizeField(ta_sock, t_a, "Temperature analytic", amr_it, verbose);
+            VisualizeField(qa_sock, q_a, "Heat flux analytic", amr_it, root);
+            VisualizeField(ta_sock, t_a, "Temperature analytic", amr_it, root);
          }
       }
 
