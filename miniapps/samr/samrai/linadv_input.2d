@@ -145,7 +145,7 @@ HyperbolicLevelIntegrator {
 // Time refinement integrator
 TimeRefinementIntegrator {
    start_time           = 0.e0
-   end_time             = 100.e0
+   end_time             = 50.e0
    grow_dt              = 1.1e0
    max_integrator_steps = 25
 }
