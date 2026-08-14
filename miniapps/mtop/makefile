@@ -24,13 +24,12 @@ MTOP_COMMON_SRC = mtop_solvers.cpp linear_elasticity_solver.cpp
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS =
+SEQ_MINIAPPS = elasticity_pa_regression
 PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
 ifeq ($(MFEM_USE_MPI),NO)
-#   MINIAPPS = $(SEQ_MINIAPPS)
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(PAR_MINIAPPS)
-   # $(SEQ_MINIAPPS)
+   MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -41,7 +40,10 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-%: %.o $(MTOP_COMMON_OBJ)
+$(PAR_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+$(SEQ_MINIAPPS): %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)

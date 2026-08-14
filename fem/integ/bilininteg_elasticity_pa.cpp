@@ -123,7 +123,7 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
    internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *maps, *IntRule,
-                                           pa_data, diag);
+                                          pa_data, diag);
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
@@ -150,7 +150,7 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 #endif
 
    internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *maps, pa_data,
-                                  x, *q_vec, y);
+                                 x, *q_vec, y);
 }
 
 void ElasticityIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
@@ -218,7 +218,7 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
 }
 
 void ElasticityComponentIntegrator::AddMultPA(const Vector &x,
-                                                   Vector &y) const
+                                              Vector &y) const
 {
    internal::ElasticityComponentAddMultPA(
       parent.vdim, parent.ndofs, *fespace, *maps, parent.pa_data,

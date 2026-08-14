@@ -88,7 +88,7 @@ std::shared_ptr<Coefficient> LinearElasticitySolver::ShareCoefficient(
    Coefficient &coefficient, bool transfer_ownership)
 {
    return transfer_ownership ? std::shared_ptr<Coefficient>(&coefficient) :
-          std::shared_ptr<Coefficient>(&coefficient, [](Coefficient *) { });
+   std::shared_ptr<Coefficient>(&coefficient, [](Coefficient *) { });
 }
 
 std::shared_ptr<VectorCoefficient>
@@ -98,7 +98,7 @@ LinearElasticitySolver::ShareVectorCoefficient(
    return transfer_ownership ?
           std::shared_ptr<VectorCoefficient>(&coefficient) :
           std::shared_ptr<VectorCoefficient>(&coefficient,
-                                             [](VectorCoefficient *) { });
+   [](VectorCoefficient *) { });
 }
 
 void LinearElasticitySolver::ValidateVectorCoefficient(
@@ -351,8 +351,8 @@ void LinearElasticitySolver::BuildLORDiagonalAMG() const
    ParFiniteElementSpace &lor_space = lor_disc_->GetParFESpace();
    ParMesh &lor_mesh = *lor_space.GetParMesh();
    lor_scalar_fespace_.reset(new ParFiniteElementSpace(
-                               &lor_mesh, lor_space.FEColl(), 1,
-                               Ordering::byNODES));
+                                &lor_mesh, lor_space.FEColl(), 1,
+                                Ordering::byNODES));
    lor_integrator_.reset(new ElasticityIntegrator(*lambda_, *mu_));
    lor_integrator_->AssemblePA(lor_space);
 
@@ -361,7 +361,7 @@ void LinearElasticitySolver::BuildLORDiagonalAMG() const
    for (int component = 0; component < dim; ++component)
    {
       lor_forms_.emplace_back(new ParBilinearForm(
-                                lor_scalar_fespace_.get()));
+                                 lor_scalar_fespace_.get()));
       lor_forms_.back()->SetAssemblyLevel(AssemblyLevel::FULL);
       lor_forms_.back()->EnableSparseMatrixSorting(Device::IsEnabled());
       lor_forms_.back()->AddDomainIntegrator(

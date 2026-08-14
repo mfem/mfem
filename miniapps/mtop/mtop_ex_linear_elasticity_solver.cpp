@@ -246,9 +246,9 @@ int main(int argc, char *argv[])
       if (step == 0) { initial_second_remainder = second_remainder; }
       final_second_remainder = second_remainder;
       const real_t first_rate = step ?
-         std::log(previous_first/first_remainder)/std::log(10.0) : 0.0;
+                                std::log(previous_first/first_remainder)/std::log(10.0) : 0.0;
       const real_t second_rate = step ?
-         std::log(previous_second/second_remainder)/std::log(10.0) : 0.0;
+                                 std::log(previous_second/second_remainder)/std::log(10.0) : 0.0;
       if (Mpi::Root())
       {
          std::cout << std::scientific << std::setprecision(6)
