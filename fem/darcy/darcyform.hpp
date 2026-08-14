@@ -478,7 +478,7 @@ public:
    virtual void Update();
 
    /// Destroys the form.
-   virtual ~DarcyForm();
+   virtual ~DarcyForm() = default;
 };
 
 }
