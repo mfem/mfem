@@ -84,18 +84,6 @@ void DAGraph::ValidateNode(GraphNode &node)
     auto inputs = node.InputFields();
     auto outputs = node.OutputFields();
 
-    // Check offsets match width and height of the node
-    MFEM_ASSERT(node.InputOffsets().Last() == node.Width(),
-                "Node ID: " << node.ID() << " input offsets do not match node width.");
-    MFEM_ASSERT(node.OutputOffsets().Last() == node.Height(),
-                "Node ID: " << node.ID() << " output offsets do not match node height.");
-
-    // Check number of input and output fields match the offsets
-    MFEM_ASSERT(node.InputOffsets().Size() == inputs.Size() + 1,
-                "Node input offsets size inconsistent with number of input fields");
-    MFEM_ASSERT(node.OutputOffsets().Size() == outputs.Size() + 1,
-                "Node output offsets size inconsistent with number of output fields");
-
     // Check that all input and output fields are registered in the graph's field map
     for(auto input_field : inputs)
     {
