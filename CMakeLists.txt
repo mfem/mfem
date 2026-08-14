@@ -175,6 +175,45 @@ if (MFEM_USE_CUDA)
    set(CMAKE_CUDA_EXTENSIONS OFF CACHE BOOL "Enable CUDA standard extensions.")
    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${CUDA_FLAGS}")
    find_package(CUDAToolkit REQUIRED)
+   if(CMAKE_CUDA_COMPILER_ID STREQUAL "Clang")
+     set(_real_fatbinary "${CMAKE_CUDA_FATBINARY}")
+     set(_fatbinary_wrapper
+       "${CMAKE_BINARY_DIR}/cmake-fatbinary-cuda13")
+
+     file(WRITE "${_fatbinary_wrapper}"
+"#!/usr/bin/env bash
+real_fatbinary=\"${_real_fatbinary}\"
+"
+[=[
+translated=()
+
+for argument in "$@"; do
+  case "$argument" in
+    -im=profile=sm_*,file=*)
+      value=${argument#-im=profile=sm_}
+      architecture=${value%%,*}
+      filename=${value#*,file=}
+      translated+=(
+        "--image3=kind=elf,sm=${architecture},file=${filename}"
+      )
+      ;;
+    *)
+      translated+=("$argument")
+      ;;
+  esac
+done
+
+exec "$real_fatbinary" "${translated[@]}"
+]=])
+
+    file(CHMOD "${_fatbinary_wrapper}"
+    PERMISSIONS
+      OWNER_READ OWNER_WRITE OWNER_EXECUTE
+      GROUP_READ GROUP_EXECUTE
+      WORLD_READ WORLD_EXECUTE)
+
+    set(CMAKE_CUDA_FATBINARY "${_fatbinary_wrapper}")
+endif()
    set(CUSPARSE_FOUND TRUE)
    set(CUBLAS_FOUND TRUE)
    # Initialize CUSPARSE_LIBRARIES and CUBLAS_LIBRARIES:
@@ -599,6 +638,13 @@ if (MFEM_USE_ENZYME)
     set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
+if (MFEM_USE_PROTEUS)
+    enable_language(C)
+    find_package(proteus REQUIRED PATHS "${PROTEUS_DIR}")
+    message(STATUS "${PROTEUS_DIR}/include")
+    include_directories("${PROTEUS_DIR}/include")
+endif()
+
 # MFEM_TIMER_TYPE
 if (NOT DEFINED MFEM_TIMER_TYPE)
   if (APPLE)
@@ -735,6 +781,16 @@ mfem_add_library(mfem ${SOURCES} ${HEADERS} ${MASTER_HEADERS})
 target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 # message(STATUS "TPL_LIBRARIES = ${TPL_LIBRARIES}")
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
+
+if (MFEM_USE_PROTEUS)
+    add_library(ClangProteusFlags INTERFACE IMPORTED)
+    set_target_properties(ClangProteusFlags PROPERTIES
+        INTERFACE_COMPILE_OPTIONS "-fpass-plugin=$<TARGET_FILE:ProteusPass>"
+    )
+    target_link_libraries(mfem PUBLIC ClangProteusFlags)
+    target_link_libraries(mfem PUBLIC proteus)
+endif()
+
 if (TPL_TARGETS)
   add_dependencies(mfem ${TPL_TARGETS})
 endif()
@@ -742,7 +798,7 @@ if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
 if (MSVC)
-  target_compile_options(mfem PUBLIC "/wd4819")
+  target_compile_options(mfem PUBLIC "/wd4819" "/bigobj")
 endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
@@ -771,7 +827,7 @@ set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 # If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
 # inside the build directory.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
-  target_compile_definitions(mfem PRIVATE
+  target_compile_definitions(mfem PUBLIC
     "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
 endif()
 
@@ -831,16 +887,15 @@ if (MFEM_ENABLE_TESTING)
   add_mfem_target(${MFEM_ALL_TESTS_TARGET_NAME} OFF)
   add_subdirectory(tests EXCLUDE_FROM_ALL)
 
-  if (MFEM_USE_BENCHMARK)
-    # Create a target for all benchmarks and, optionally, enable it.
-    set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
-    add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
-                    ${MFEM_ENABLE_BENCHMARKS})
-    if (MFEM_ENABLE_BENCHMARKS)
-      add_subdirectory(tests/benchmarks) #install benchmarks if enabled
-    else()
-      add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
-    endif()
+  # Create a target for all benchmarks and, optionally, enable it. Some simple
+  # timer-based benchmarks in tests/benchmarks do not require Google Benchmark.
+  set(MFEM_ALL_BENCHMARKS_TARGET_NAME benchmarks)
+  add_mfem_target(${MFEM_ALL_BENCHMARKS_TARGET_NAME}
+                  ${MFEM_ENABLE_BENCHMARKS})
+  if (MFEM_ENABLE_BENCHMARKS)
+    add_subdirectory(tests/benchmarks) #install benchmarks if enabled
+  else()
+    add_subdirectory(tests/benchmarks EXCLUDE_FROM_ALL)
   endif()
 endif()
 
@@ -1019,6 +1074,7 @@ install(EXPORT ${PROJECT_NAME_UC}Targets
 # Install the data directory if present, i.e. if the copy_data target is built
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/data
   DESTINATION ${MFEM_INSTALL_DIR} OPTIONAL)
+
 
 #-------------------------------------------------------------------------------
 # Create 'config.mk' from 'config.mk.in' for the build and install locations and

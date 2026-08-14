@@ -8,11 +8,21 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
-#include "../config/config.hpp"
-
 #ifndef MFEM_ENZYME_HPP
 #define MFEM_ENZYME_HPP
+
+#include "../config/config.hpp" // IWYU pragma: keep
+
+namespace mfem
+{
+inline constexpr bool UseEnzyme =
+#ifdef MFEM_USE_ENZYME
+   true
+#else
+   false
+#endif
+   ;
+} // namespace mfem
 
 #ifdef MFEM_USE_ENZYME
 /*
@@ -27,6 +37,7 @@ extern int enzyme_dupnoneed;
 extern int enzyme_out;
 extern int enzyme_const;
 extern int enzyme_interleave;
+extern int enzyme_runtime_activity;
 
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
 #define MFEM_DEVICE_EXTERN_STMT(name) extern __device__ int name;
@@ -39,6 +50,7 @@ MFEM_DEVICE_EXTERN_STMT(enzyme_dupnoneed)
 MFEM_DEVICE_EXTERN_STMT(enzyme_out)
 MFEM_DEVICE_EXTERN_STMT(enzyme_const)
 MFEM_DEVICE_EXTERN_STMT(enzyme_interleave)
+MFEM_DEVICE_EXTERN_STMT(enzyme_runtime_activity)
 
 // warning: if inlined, triggers function '__enzyme_autodiff' is not defined
 template <typename return_type, typename... Args>
@@ -54,13 +66,15 @@ return_type __enzyme_fwddiff(Args...);
 #define MFEM_ENZYME_INACTIVE   __attribute__((enzyme_inactive))
 #define MFEM_ENZYME_FN_LIKE(x)   __attribute__((enzyme_function_like(#x)))
 
-#else
+#else // MFEM_USE_ENZYME
+
 #define MFEM_ENZYME_INACTIVENOFREE
 #define MFEM_ENZYME_INACTIVE
 #define MFEM_ENZYME_FN_LIKE(x)
-#endif
+
+#endif // MFEM_USE_ENZYME
 
 #define MFEM_ENZYME_FN_LIKE_FREE MFEM_ENZYME_FN_LIKE(free)
 #define MFEM_ENZYME_FN_LIKE_DYNCAST MFEM_ENZYME_FN_LIKE(__dynamic_cast)
 
-#endif
+#endif // MFEM_ENZYME_HPP

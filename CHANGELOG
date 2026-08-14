@@ -44,6 +44,9 @@ Discretization improvements
 - Added methods to estimate function extremum using piecewise linear bounds plus
   recursive subdivision.
 
+- Added class VectorQuadratureSpace that represents a vector (multi-component)
+  version of the scalar (single-component) class QuadratureSpaceBase.
+
 - Extend FindPointsGSLIB to support surface meshes.
 
 - Added support for complex-valued mixed bilinear forms via the new classes

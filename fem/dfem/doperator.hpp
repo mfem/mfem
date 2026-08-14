@@ -10,51 +10,300 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include <type_traits>
-#include <utility>
-
-#include "../../config/config.hpp"
+#include "../../config/config.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_MPI
-#include "../fespace.hpp"
+#include <memory>
+#include <set>
+#include <utility>
+
+#include "../../linalg/multivector.hpp"
 
 #include "util.hpp"
-#include "interpolate.hpp"
-#include "integrate.hpp"
-#include "qfunction_apply.hpp"
-#include "assemble.hpp"
+#include "integrator_ctx.hpp"
+#include "backends/util.hpp"
+
+#include "backends/global_qf/prelude.hpp"
+#include "backends/local_qf/prelude.hpp" // IWYU pragma: keep
+#include "backends/local_qf/revdiff_transformer.hpp"
 
 namespace mfem::future
 {
 
 /// @brief Type alias for a function that computes the action of an operator
 using action_t =
-   std::function<void(std::vector<Vector> &, const std::vector<Vector> &, Vector &)>;
+   std::function<void(const std::vector<Vector *> &, std::vector<Vector *> &)>;
 
 /// @brief Type alias for a function that computes the cache for the action of a derivative
-using derivative_setup_t =
-   std::function<void(std::vector<Vector> &, const Vector &)>;
+// Transitioned from type erased std::function to a struct with std::function members to allow retrieval
+// of the qfunction and shadow qfunction pointers (to manage scratch variables) for the derivative action.
+struct derivative_setup_t
+{
+   using apply_t = std::function<void(const std::vector<Vector *> &)>;
+
+   derivative_setup_t() = default;
+
+   template <typename func_t,
+             typename = std::enable_if_t<!std::is_same_v<
+                                            std::decay_t<func_t>, derivative_setup_t>>>
+                                         derivative_setup_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
+
+   void operator()(const std::vector<Vector *> &xe) const { apply(xe); }
+
+   template <typename qfunc_t>
+   qfunc_t *GetQFunction() const
+   {
+      return qfunc ? static_cast<qfunc_t *>(qfunc()) : nullptr;
+   }
+
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetShadowQFunction() const
+   {
+      return qfunc_shadow ? static_cast<detail::qfunc_shadow_t<qfunc_t> *>(
+         qfunc_shadow()) : nullptr;
+   }
+
+   apply_t apply;
+   std::function<void *()> qfunc;
+   std::function<void *()> qfunc_shadow;
+};
 
 /// @brief Type alias for a function that computes the action of a derivative
-using derivative_action_t =
-   std::function<void(std::vector<Vector> &, const Vector &, Vector &)>;
+// Transitioned from type erased std::function to a struct with std::function members to allow retrieval
+// of the qfunction and shadow qfunction pointers (to manage scratch variables) for the derivative action.
+struct derivative_action_t
+{
+   using apply_t = std::function<void(const std::vector<Vector *> &,
+                                      const Vector *,
+                                      std::vector<Vector *> &)>;
+
+   derivative_action_t() = default;
+
+   template <typename func_t,
+             typename = std::enable_if_t<!std::is_same_v<
+                                            std::decay_t<func_t>, derivative_action_t>>>
+                                         derivative_action_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
+
+   void operator()(const std::vector<Vector *> &xe,
+                   const Vector *de,
+                   std::vector<Vector *> &ye) const
+   {
+      apply(xe, de, ye);
+   }
+
+   template <typename qfunc_t>
+   qfunc_t *GetQFunction() const
+   {
+      return qfunc ? static_cast<qfunc_t *>(qfunc()) : nullptr;
+   }
+
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetShadowQFunction() const
+   {
+      return qfunc_shadow ? static_cast<detail::qfunc_shadow_t<qfunc_t> *>(
+         qfunc_shadow()) : nullptr;
+   }
+
+   apply_t apply;
+   std::function<void *()> qfunc;
+   std::function<void *()> qfunc_shadow;
+};
 
 /// @brief Type alias for a function that assembles the SparseMatrix of a
 /// derivative operator
 using assemble_derivative_sparsematrix_callback_t =
-   std::function<void(std::vector<Vector> &, SparseMatrix *&)>;
+   std::function<void(SparseMatrix *&)>;
 
 /// @brief Type alias for a function that assembles the HypreParMatrix of a
 /// derivative operator
 using assemble_derivative_hypreparmatrix_callback_t =
-   std::function<void(std::vector<Vector> &, HypreParMatrix *&)>;
+   std::function<void(HypreParMatrix *&)>;
+
+/// @brief Type alias for a function that assembles the diagonal of a derivative
+/// operator into an E-vector
+using assemble_diagonal_callback_t = std::function<void(Vector &)>;
 
 /// @brief Type alias for a function that applies the appropriate restriction to
 /// the solution and parameters
 using restriction_callback_t =
-   std::function<void(std::vector<Vector> &,
-                      const std::vector<Vector> &,
-                      std::vector<Vector> &)>;
+   std::function<void(std::vector<Vector> &, std::vector<Vector> &)>;
+
+/// @brief Type alias for key type for second derivatives, which is a pair of field IDs (gradient, direction)
+using second_derivative_key_t = std::pair<size_t, size_t>;
+
+/// @brief Type alias for a map from a derivative key to the entries registered
+/// for it, one per integrator. Used for callbacks or field descriptors.
+///
+/// @a key_t is size_t for first derivatives, holding the ID of the field being
+/// differentiated, and second_derivative_key_t for second derivatives, holding
+/// the (gradient, direction) pair of field IDs.
+template <typename key_t, typename entry_t>
+using DerivativeMap = std::map<key_t, std::vector<entry_t>>;
+
+/// @name Derivative maps keyed by the ID of the field being differentiated.
+///@{
+using DerivativeActionMap = DerivativeMap<size_t, derivative_action_t>;
+using DerivativeSetupMap = DerivativeMap<size_t, derivative_setup_t>;
+using DerivativeFieldMap = DerivativeMap<size_t, FieldDescriptor>;
+using SparseAssemblyMap =
+   DerivativeMap<size_t, assemble_derivative_sparsematrix_callback_t>;
+using HypreAssemblyMap =
+   DerivativeMap<size_t, assemble_derivative_hypreparmatrix_callback_t>;
+using DiagonalAssemblyMap = DerivativeMap<size_t, assemble_diagonal_callback_t>;
+///@}
+
+/// @name Derivative maps keyed by the (gradient, direction) pair of field IDs.
+///@{
+using SecondDerivativeActionMap =
+   DerivativeMap<second_derivative_key_t, derivative_action_t>;
+using SecondDerivativeSetupMap =
+   DerivativeMap<second_derivative_key_t, derivative_setup_t>;
+using SecondDerivativeFieldMap =
+   DerivativeMap<second_derivative_key_t, FieldDescriptor>;
+using SecondSparseAssemblyMap =
+   DerivativeMap<second_derivative_key_t,
+   assemble_derivative_sparsematrix_callback_t>;
+using SecondHypreAssemblyMap =
+   DerivativeMap<second_derivative_key_t,
+   assemble_derivative_hypreparmatrix_callback_t>;
+using SecondDiagonalAssemblyMap =
+   DerivativeMap<second_derivative_key_t, assemble_diagonal_callback_t>;
+///@}
+
+namespace detail
+{
+template <typename T, typename = void>
+struct has_qfunc_member : std::false_type { };
+
+template <typename T>
+struct has_qfunc_member<T, std::void_t<decltype(std::declval<T &>().qfunc)>>
+: std::true_type { };
+
+template <typename T, typename = void>
+struct has_qfunc_shadow_member : std::false_type { };
+
+template <typename T>
+struct has_qfunc_shadow_member<T,
+                               std::void_t<decltype(std::declval<T &>().qfunc_shadow)>>
+: std::true_type { };
+}
+
+template <typename derivative_action_impl_t>
+derivative_action_t MakeDerivativeActionCallback(
+   derivative_action_impl_t &&impl)
+{
+   using impl_t = std::decay_t<derivative_action_impl_t>;
+   auto action = std::make_shared<impl_t>(
+                    std::forward<derivative_action_impl_t>(impl));
+   derivative_action_t callback;
+   callback.apply = [action](const std::vector<Vector *> &xe,
+                             const Vector *de,
+                             std::vector<Vector *> &ye)
+   {
+      (*action)(xe, de, ye);
+   };
+   if constexpr (detail::has_qfunc_member<impl_t>::value)
+   {
+      callback.qfunc = [action]() -> void * { return &action->qfunc; };
+   }
+   if constexpr (detail::has_qfunc_shadow_member<impl_t>::value)
+   {
+      callback.qfunc_shadow = [action]() -> void *
+      {
+         return &action->qfunc_shadow;
+      };
+   }
+   return callback;
+}
+
+template <typename derivative_setup_impl_t>
+derivative_setup_t MakeDerivativeSetupCallback(
+   derivative_setup_impl_t &&impl)
+{
+   using impl_t = std::decay_t<derivative_setup_impl_t>;
+   auto setup = std::make_shared<impl_t>(
+                   std::forward<derivative_setup_impl_t>(impl));
+   derivative_setup_t callback;
+   callback.apply = [setup](const std::vector<Vector *> &xe)
+   {
+      (*setup)(xe);
+   };
+   if constexpr (detail::has_qfunc_member<impl_t>::value)
+   {
+      callback.qfunc = [setup]() -> void * { return &setup->qfunc; };
+   }
+   if constexpr (detail::has_qfunc_shadow_member<impl_t>::value)
+   {
+      callback.qfunc_shadow = [setup]() -> void *
+      {
+         return &setup->qfunc_shadow;
+      };
+   }
+   return callback;
+}
+
+inline assemble_derivative_hypreparmatrix_callback_t
+MakeDerivativeHypreParMatrixAssemble(
+   const size_t derivative_idx,
+   std::vector<assemble_derivative_sparsematrix_callback_t> &sparse_callbacks,
+   const IntegratorContext &ctx)
+{
+   return [derivative_idx, &sparse_callbacks, ctx](HypreParMatrix *&A)
+   {
+      MFEM_VERIFY(ctx.outfds.size() == 1,
+                  "HypreParMatrix assembly requires a single output field");
+
+      const size_t trial_field_idx = FindIdx(derivative_idx, ctx.unionfds);
+      MFEM_VERIFY(trial_field_idx != SIZE_MAX,
+                  "derivative field not found for HypreParMatrix assembly");
+
+      const auto *test_fes_ptr =
+         std::get_if<const ParFiniteElementSpace *>(&ctx.outfds[0].data);
+      const auto *trial_fes_ptr =
+         std::get_if<const ParFiniteElementSpace *>(
+            &ctx.unionfds[trial_field_idx].data);
+      MFEM_VERIFY(test_fes_ptr && *test_fes_ptr,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "output field");
+      MFEM_VERIFY(trial_fes_ptr && *trial_fes_ptr,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "derivative field");
+
+      const ParFiniteElementSpace *test_fes = *test_fes_ptr;
+      const ParFiniteElementSpace *trial_fes = *trial_fes_ptr;
+      MFEM_VERIFY(test_fes->GetComm() == trial_fes->GetComm(),
+                  "test and trial spaces must use the same MPI communicator");
+
+      SparseMatrix *spmat = nullptr;
+      for (const auto &f : sparse_callbacks)
+      {
+         f(spmat);
+      }
+
+      MFEM_VERIFY(spmat != nullptr,
+                  "internal error: sparse derivative assembly returned NULL");
+      MFEM_VERIFY(spmat->Finalized(),
+                  "local derivative matrix must be finalized");
+
+      if (test_fes == trial_fes)
+      {
+         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                           test_fes->GetDofOffsets(), spmat);
+         A = RAP(&dA, test_fes->Dof_TrueDof_Matrix());
+      }
+      else
+      {
+         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                           trial_fes->GlobalVSize(),
+                           test_fes->GetDofOffsets(),
+                           trial_fes->GetDofOffsets(), spmat);
+         A = RAP(test_fes->Dof_TrueDof_Matrix(), &dA,
+                 trial_fes->Dof_TrueDof_Matrix());
+      }
+
+      delete spmat;
+   };
+}
 
 /// Class representing the derivative (Jacobian) operator of a
 /// DifferentiableOperator.
@@ -78,70 +327,167 @@ public:
    /// This is usually not called directly from a user. A DifferentiableOperator
    /// calls this constructor when using
    /// DifferentiableOperator::GetDerivative().
+   template <typename vector_t>
    DerivativeOperator(
       const int &height,
       const int &width,
       const std::vector<derivative_action_t> &derivative_actions,
-      const FieldDescriptor &direction,
-      const int &daction_l_size,
       const std::vector<derivative_action_t> &derivative_actions_transpose,
-      const FieldDescriptor &transpose_direction,
-      const int &daction_transpose_l_size,
-      const std::vector<Vector *> &solutions_l,
-      const std::vector<Vector *> &parameters_l,
-      const restriction_callback_t &restriction_callback,
-      const std::function<void(Vector &, Vector &)> &prolongation_transpose,
+      const FieldDescriptor &direction,
+      const vector_t &x,
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds,
       const std::vector<assemble_derivative_sparsematrix_callback_t>
-      &assemble_derivative_sparsematrix_callbacks,
+      &assemble_sparsematrix_callbacks = {},
       const std::vector<assemble_derivative_hypreparmatrix_callback_t>
-      &assemble_derivative_hypreparmatrix_callbacks) :
+      &assemble_hypreparmatrix_callbacks = {},
+      const std::vector<assemble_diagonal_callback_t>
+      &assemble_diagonal_callbacks = {},
+      const std::vector<derivative_setup_t> &derivative_setup_callbacks = {},
+      const bool lvector_mode = false,
+      const bool functional_gradient = false) :
       Operator(height, width),
       derivative_actions(derivative_actions),
+      infds(infds),
+      outfds(outfds),
       direction(direction),
-      daction_l(daction_l_size),
-      daction_l_size(daction_l_size),
       derivative_actions_transpose(derivative_actions_transpose),
-      transpose_direction(transpose_direction),
-      prolongation_transpose(prolongation_transpose),
-      assemble_derivative_sparsematrix_callbacks(
-         assemble_derivative_sparsematrix_callbacks),
-      assemble_derivative_hypreparmatrix_callbacks(
-         assemble_derivative_hypreparmatrix_callbacks)
+      assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
+      assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
+      assemble_diagonal_callbacks(assemble_diagonal_callbacks),
+      derivative_setup_callbacks(derivative_setup_callbacks),
+      lvector_mode(lvector_mode),
+      functional_gradient(functional_gradient)
    {
-      std::vector<Vector> s_l(solutions_l.size());
-      for (size_t i = 0; i < s_l.size(); i++)
+      daction_l.resize(outfds.size());
+      daction_e.resize(outfds.size());
+      infields_e.resize(infds.size());
+      infields_l.resize(infds.size());
+      for (size_t i = 0; i < infds.size(); i++)
       {
-         s_l[i] = *solutions_l[i];
+         infields_l[i] = new Vector(GetVSize(infds[i]));
       }
 
-      std::vector<Vector> p_l(parameters_l.size());
-      for (size_t i = 0; i < p_l.size(); i++)
+      // Pre-allocate transpose workspace.
+      int total_out_l_size = 0;
+      for (size_t i = 0; i < outfds.size(); i++)
       {
-         p_l[i] = *parameters_l[i];
+         total_out_l_size += GetVSize(outfds[i]);
       }
+      transpose_direction_l.SetSize(total_out_l_size);
+      transpose_direction_l.UseDevice(true);
+      transpose_direction_l.Write();
 
-      fields_e.resize(solutions_l.size() + parameters_l.size());
-      restriction_callback(s_l, p_l, fields_e);
+      // Null-initialised: restriction_transpose / prepare_residual allocate on
+      // first use and resize on subsequent calls.
+      transpose_result_l.resize(infds.size(), nullptr);
+      transpose_result_e.resize(infds.size(), nullptr);
+
+      // Prolong from T-vector to L-vector
+      if constexpr (std::is_same_v<vector_t, Vector>)
+      {
+         MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
+                     "x needs to be a BlockVector");
+         const auto &bx = static_cast<const BlockVector &>(x);
+         prolongation(infds, bx, infields_l, lvector_mode);
+      }
+      else if constexpr (std::is_same_v<vector_t, MultiVector>)
+      {
+         prolongation(infds, x, infields_l, lvector_mode);
+      }
    }
+
+   /// Stateless constructor for first-derivative (gradient) operators.
+   ///
+   /// Unlike the stateful constructor, this does not capture an input state.
+   /// The full input state is supplied at apply time through
+   /// Mult(const MultiVector &, MultiVector &). This is used for the first
+   /// derivative (gradient) of a functional, which is a nonlinear function of
+   /// the state and therefore needs no direction.
+   DerivativeOperator(
+      const int &height,
+      const int &width,
+      const std::vector<derivative_action_t> &derivative_actions,
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds) :
+      Operator(height, width),
+      derivative_actions(derivative_actions),
+      infds(infds),
+      outfds(outfds)
+   {
+      daction_l.resize(outfds.size());
+      daction_e.resize(outfds.size());
+      infields_e.resize(infds.size());
+      infields_l.resize(infds.size());
+      for (size_t i = 0; i < infds.size(); i++)
+      {
+         infields_l[i] = new Vector(GetVSize(infds[i]));
+      }
+   }
+
+   ~DerivativeOperator() override
+   {
+      detail::DeleteOwnedVectorPointers(infields_l, infields_e);
+      detail::DeleteOwnedVectorPointers(daction_l, daction_e);
+      detail::DeleteOwnedVectorPointers(transpose_result_l, transpose_result_e);
+   }
+
+   DerivativeOperator(const DerivativeOperator &) = delete;
+   DerivativeOperator &operator=(const DerivativeOperator &) = delete;
 
    /// @brief Compute the action of the derivative operator on a given vector.
    ///
-   /// @param direction_t The direction vector in which to compute the
-   /// derivative. This has to be a T-dof vector.
-   /// @param result_t Result vector of the action of the derivative on
-   /// direction_t on T-dofs.
-   void Mult(const Vector &direction_t, Vector &result_t) const override
+   /// @param x The direction vector in which to compute the derivative.
+   //  This has to be a T-dof vector.
+   /// @param y Result vector of the action of the derivative on x on T-dofs.
+   void Mult(const Vector &x, Vector &y) const override
    {
-      daction_l.SetSize(daction_l_size);
-      daction_l = 0.0;
+      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
+                  "y needs to be a BlockVector");
+      auto &by = static_cast<BlockVector &>(y);
+      Mult(x, by);
+   };
 
-      prolongation(direction, direction_t, direction_l);
+   template <typename vector_t>
+   void Mult(const Vector &x, vector_t &y) const
+   {
+      EnsureQpCache();
+      prolongation(direction, x, direction_l, lvector_mode);
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
       {
-         f(fields_e, direction_l, daction_l);
+         f(infields_e, &direction_l, daction_e);
       }
-      prolongation_transpose(daction_l, result_t);
-   };
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      prolongation_transpose(outfds, daction_l, y, lvector_mode);
+   }
+
+   /// @brief Apply the derivative operator to a full input state.
+   ///
+   /// Unlike Mult(const Vector &, ...), which captures the state at
+   /// construction and treats its argument as a direction, this overload takes
+   /// the full input state @a x (all input fields) and writes the result to
+   /// @a y. It is used for the first derivative (gradient) of a functional,
+   /// which is a nonlinear function of the state and requires no direction.
+   ///
+   /// @param x The full input state (one block per input field) as T-dofs.
+   /// @param y Result of the gradient action on T-dofs in the output space.
+   void Mult(const MultiVector &x, MultiVector &y) const
+   {
+      prolongation(infds, x, infields_l);
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
+      for (const auto &f : derivative_actions)
+      {
+         // The first-derivative (gradient) action ignores the direction.
+         f(infields_e, nullptr, daction_e);
+      }
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      prolongation_transpose(outfds, daction_l, y);
+   }
 
    /// @brief Compute the transpose of the derivative operator on a given
    /// vector.
@@ -151,24 +497,71 @@ public:
    /// action. It does not use reverse mode automatic differentiation.
    ///
    /// @param direction_t The direction vector in which to compute the
-   /// derivative. This has to be a T-dof vector.
+   /// transpose. This has to be a T-dof vector in the output space.
    /// @param result_t Result vector of the transpose action of the derivative on
-   /// direction_t on T-dofs.
+   /// direction_t on T-dofs in the input space (the "direction" field).
    void MultTranspose(const Vector &direction_t, Vector &result_t) const override
    {
+      MFEM_ASSERT(dynamic_cast<const BlockVector*>(&direction_t),
+                  "direction_t needs to be a BlockVector");
+      const auto &bdir = static_cast<const BlockVector &>(direction_t);
+      MultTranspose(bdir, result_t);
+   }
+
+   template <typename direction_t, typename result_t>
+   void MultTranspose(const direction_t &direction_mv, result_t &result_mv) const
+   {
       MFEM_ASSERT(!derivative_actions_transpose.empty(),
-                  "derivative can't be used to be multiplied in transpose mode");
+                  "derivative can't be used in transpose mode");
+      EnsureQpCache();
 
-      daction_l.SetSize(width);
-      daction_l = 0.0;
+      // Prolong each output field from T-space to L-space into the
+      // pre-allocated concat buffer.
+      {
+         int offset = 0;
+         for (size_t i = 0; i < outfds.size(); i++)
+         {
+            const int l_size = GetVSize(outfds[i]);
+            Vector dir_l_i(transpose_direction_l, offset, l_size);
+            dir_l_i.UseDevice(true);
+            if constexpr (std::is_same_v<direction_t, MultiVector>)
+            {
+               prolongation(outfds[i], direction_mv[i], dir_l_i);
+            }
+            else
+            {
+               const auto &bdir = static_cast<const BlockVector &>(direction_mv);
+               prolongation(outfds[i], bdir.GetBlock(i), dir_l_i);
+            }
+            offset += l_size;
+         }
+      }
 
-      prolongation(transpose_direction, direction_t, direction_l);
+      restriction(infds, in_rcache, infields_l, infields_e);
+
+      prepare_residual(infds, in_rcache, transpose_result_e);
+      for (auto *v : transpose_result_e) { *v = 0.0; }
+
       for (const auto &f : derivative_actions_transpose)
       {
-         f(fields_e, direction_l, daction_l);
+         f(infields_e, &transpose_direction_l, transpose_result_e);
       }
-      prolongation_transpose(daction_l, result_t);
-   };
+
+      restriction_transpose(infds, in_rcache, transpose_result_e,
+                            transpose_result_l);
+
+      const size_t deriv_idx = FindIdx(direction.id, infds);
+      if constexpr (std::is_same_v<result_t, MultiVector>)
+      {
+         prolongation_transpose(direction, *transpose_result_l[deriv_idx],
+                                result_mv[0]);
+      }
+      else
+      {
+         prolongation_transpose(direction, *transpose_result_l[deriv_idx],
+                                result_mv);
+      }
+   }
 
    /// @brief Assemble the derivative operator into a SparseMatrix.
    ///
@@ -178,10 +571,11 @@ public:
    {
       MFEM_ASSERT(!assemble_derivative_sparsematrix_callbacks.empty(),
                   "derivative can't be assembled into a SparseMatrix");
+      EnsureQpCache();
 
       for (const auto &f : assemble_derivative_sparsematrix_callbacks)
       {
-         f(fields_e, A);
+         f(A);
       }
    }
 
@@ -193,11 +587,80 @@ public:
    {
       MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
                   "derivative can't be assembled into a HypreParMatrix");
+      EnsureQpCache();
 
       for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
       {
-         f(fields_e, A);
+         f(A);
       }
+   }
+
+   /// @brief Assemble the derivative of a functional into a Vector.
+   ///
+   /// The derivative of a functional (an integrator whose outputs are all
+   /// FunctionalValue FieldOperators) with respect to one of its input fields
+   /// is a linear form, so it assembles into a vector instead of a matrix. The
+   /// state at which the derivative is evaluated is the one captured by
+   /// DifferentiableOperator::GetDerivative(). This is the counterpart of
+   /// Assemble(SparseMatrix *&) for functionals.
+   ///
+   /// @param g The vector to receive the gradient. It is resized to the T-dof
+   /// size of the derivative output field.
+   void Assemble(Vector &g) const
+   {
+      MFEM_VERIFY(functional_gradient,
+                  "derivative can't be assembled into a Vector, only "
+                  "derivatives of functionals (FunctionalValue outputs) can");
+      MFEM_VERIFY(outfds.size() == 1,
+                  "assembling a functional derivative into a Vector requires a "
+                  "single derivative output field");
+      EnsureQpCache();
+
+      restriction(infds, in_rcache, infields_l, infields_e);
+      prepare_residual(outfds, out_rcache, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
+      for (const auto &f : derivative_actions)
+      {
+         // The first-derivative (gradient) action ignores the direction.
+         f(infields_e, nullptr, daction_e);
+      }
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      if (lvector_mode)
+      {
+         g = *daction_l[0];
+      }
+      else
+      {
+         prolongation_transpose(outfds[0], *daction_l[0], g);
+      }
+   }
+
+   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   ///
+   /// @param diag The vector to receive the diagonal (must be T-dof sized).
+   void AssembleDiagonal(Vector &diag) const override
+   {
+      MFEM_ASSERT(!assemble_diagonal_callbacks.empty(),
+                  "derivative can't assemble diagonal");
+      EnsureQpCache();
+      MFEM_ASSERT(outfds.size() == 1,
+                  "AssembleDiagonal currently requires a single output field");
+
+      const auto *test_pf =
+         std::get_if<const ParFiniteElementSpace *>(&outfds[0].data);
+      MFEM_VERIFY(test_pf && *test_pf,
+                  "AssembleDiagonal: test field must be a ParFiniteElementSpace");
+
+      prepare_residual(outfds, out_rcache, daction_e);
+      for (auto *v : daction_e) { *v = 0.0; }
+
+      for (const auto &f : assemble_diagonal_callbacks)
+      {
+         f(*daction_e[0]);
+      }
+
+      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      prolongation_transpose(outfds[0], *daction_l[0], diag);
    }
 
 private:
@@ -206,11 +669,22 @@ private:
    /// actions of derivatives of the forward operator.
    std::vector<derivative_action_t> derivative_actions;
 
+   const std::vector<FieldDescriptor> infds;
+   const std::vector<FieldDescriptor> outfds;
+
+   mutable std::vector<Vector *> infields_l;
+   mutable std::vector<Vector *> infields_e;
+
+   /// Restrictions of infds/outfds, resolved on first use.
+   mutable RestrictionCache<Entity::Element> in_rcache;
+   mutable RestrictionCache<Entity::Element> out_rcache;
+
    FieldDescriptor direction;
 
-   mutable Vector daction_l;
+   mutable std::vector<Vector *> daction_l;
+   mutable std::vector<Vector *> daction_e;
 
-   const int daction_l_size;
+   // const int daction_l_size;
 
    /// Transpose Derivative action callbacks. Depending on the requested
    /// derivatives in DifferentiableOperator the callbacks represent certain
@@ -223,7 +697,10 @@ private:
 
    mutable Vector direction_l;
 
-   std::function<void(Vector &, Vector &)> prolongation_transpose;
+   // Pre-allocated workspace for MultTranspose (avoids per-call heap traffic).
+   mutable Vector transpose_direction_l;
+   mutable std::vector<Vector *> transpose_result_l;
+   mutable std::vector<Vector *> transpose_result_e;
 
    /// Callbacks that assemble derivatives into a SparseMatrix.
    std::vector<assemble_derivative_sparsematrix_callback_t>
@@ -232,6 +709,35 @@ private:
    /// Callbacks that assemble derivatives into a HypreParMatrix.
    std::vector<assemble_derivative_hypreparmatrix_callback_t>
    assemble_derivative_hypreparmatrix_callbacks;
+
+   /// Callbacks that assemble the diagonal of derivatives into an L-vector.
+   std::vector<assemble_diagonal_callback_t> assemble_diagonal_callbacks;
+
+   /// Callbacks per-integrator qp caches
+   std::vector<derivative_setup_t> derivative_setup_callbacks;
+   bool lvector_mode = false;
+
+   /// Whether this operator is the first derivative (gradient) of a functional.
+   /// Only then the derivative can be assembled into a Vector.
+   bool functional_gradient = false;
+
+   mutable bool qp_cache_filled = false;
+
+   /// @brief Ensure the qp cache is filled.
+   ///
+   /// This function ensures the qp cache is filled by calling the derivative
+   /// setup callbacks.
+   void EnsureQpCache() const
+   {
+      if (qp_cache_filled || derivative_setup_callbacks.empty()) { return; }
+
+      restriction(infds, in_rcache, infields_l, infields_e);
+      for (const auto &setup_callback : derivative_setup_callbacks)
+      {
+         setup_callback(infields_e);
+      }
+      qp_cache_filled = true;
+   }
 };
 
 /// Class representing a differentiable operator which acts on solution and
@@ -256,13 +762,22 @@ class DifferentiableOperator : public Operator
 public:
    /// Constructor for the DifferentiableOperator class.
    ///
-   /// @param solutions The solution fields that the operator will act on.
-   /// @param parameters The parameter fields that define coefficients.
+   /// @param infds The input fields the operator will act on.
+   /// @param outfds The output fields the operator will produce.
    /// @param mesh The mesh on which the operator is defined.
    DifferentiableOperator(
-      const std::vector<FieldDescriptor> &solutions,
-      const std::vector<FieldDescriptor> &parameters,
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds,
       const ParMesh &mesh);
+
+   ~DifferentiableOperator() override
+   {
+      detail::DeleteOwnedVectorPointers(infields_l, infields_e);
+      detail::DeleteOwnedVectorPointers(residual_l, residual_e);
+   }
+
+   DifferentiableOperator(const DifferentiableOperator &) = delete;
+   DifferentiableOperator &operator=(const DifferentiableOperator &) = delete;
 
    /// MultLevel enum to indicate if the T->L Operators are used in the
    /// Mult method.
@@ -272,62 +787,90 @@ public:
       LVECTOR
    };
 
+   void SetQLayouts(std::initializer_list<QLayoutEntry> in,
+                    std::initializer_list<QLayoutEntry> out)
+   {
+      if (action_callbacks.size() > 0)
+      {
+         MFEM_ABORT("trying to set the quadrature point layouts for an operator "
+                    "that already has layouts set");
+      }
+      in_qlayouts.clear();
+      out_qlayouts.clear();
+      ExtractQLayouts(in, in_qlayouts);
+      ExtractQLayouts(out, out_qlayouts);
+   }
+
    /// @brief Set the MultLevel mode for the DifferentiableOperator.
    /// The default is TVECTOR, which means that the Operator will use
    /// T->L before Mult and L->T Operators after.
-   void SetMultLevel(MultLevel level)
-   {
-      mult_level = level;
-   }
+   void SetMultLevel(MultLevel level);
 
    /// @brief Compute the action of the operator on a given vector.
    ///
-   /// @param solutions_in The solution vector in which to compute the action.
+   /// @param x The solution vector in which to compute the action.
    /// This has to be a T-dof vector if MultLevel is set to TVECTOR, or L-dof
    /// Vector if MultLevel is set to LVECTOR.
-   /// @param result_in Result vector of the action of the operator on
+   /// @param y Result vector of the action of the operator on
    /// solutions. The result is a T-dof vector or L-dof vector depending on
    /// the MultLevel.
-   void Mult(const Vector &solutions_in, Vector &result_in) const override
-   {
-      MFEM_ASSERT(!action_callbacks.empty(), "no integrators have been set");
+   void Mult(const Vector &x, Vector &y) const override;
 
-      if (mult_level == MultLevel::LVECTOR)
+   template <typename x_t, typename y_t>
+   void Mult(const x_t &x, y_t &y) const
+   {
+      // TODO: Do we want those extensive checks here?
+      static_assert(
+         (std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, MultiVector>) ||
+         (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, MultiVector>) ||
+         (std::is_same_v<x_t, MultiVector> && std::is_same_v<y_t, BlockVector>) ||
+         (std::is_same_v<x_t, BlockVector> && std::is_same_v<y_t, BlockVector>),
+         "input and output vector types are incompatible");
+
+      if constexpr (std::is_same_v<y_t, MultiVector>)
       {
-         get_lvectors(solutions, solutions_in, solutions_l);
-         result_in = 0.0;
-         for (auto &action : action_callbacks)
-         {
-            action(solutions_l, parameters_l, result_in);
-         }
+         MFEM_ASSERT(static_cast<int>(outfds.size()) == y.NumBlocks(),
+                     "output MultiVector block count must match the number of "
+                     "output FieldDescriptors passed to the DifferentiableOperator. "
+                     "The number of FieldOperators in the qfunc output tuple does "
+                     "not determine the number of output blocks.");
       }
-      else
+
+      const bool is_lvector = (mult_level == MultLevel::LVECTOR);
+      prolongation(infds, x, infields_l, is_lvector);
+      restriction(infds, in_rcache, infields_l, infields_e);
+      if (is_lvector)
       {
-         prolongation(solutions, solutions_in, solutions_l);
-         residual_l = 0.0;
-         for (auto &action : action_callbacks)
-         {
-            action(solutions_l, parameters_l, residual_l);
-         }
-         prolongation_transpose(residual_l, result_in);
+         detail::SyncLVectorAliasMemory(x, infields_l);
       }
+      prepare_residual(outfds, out_rcache, residual_e);
+      for (auto *v : residual_e) { *v = 0.0; }
+      for (size_t i = 0; i < action_callbacks.size(); i++)
+      {
+         action_callbacks[i](infields_e, residual_e);
+      }
+      restriction_transpose(outfds, out_rcache, residual_e, residual_l);
+      prolongation_transpose(outfds, residual_l, y, is_lvector);
    }
 
    /// @brief Add an integrator to the operator.
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
+      typename backend_t = LocalQFBackend,
       typename entity_t,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t>
+      typename derivative_ids_t,
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &attributes,
-      derivative_ids_t derivative_ids);
+      derivative_ids_t derivative_ids,
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Add a domain integrator to the operator.
    ///
@@ -341,18 +884,27 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
+   /// @param second_derivative_ids Second derivative (Hessian) blocks to be
+   /// made available for this integrator, only supported for functional
+   /// integrators. Use the Pairs::None selector for none of them (the default),
+   /// Pairs::All for every block that can be formed from @a derivative_ids,
+   /// Pairs::Diagonal for the diagonal blocks only, or an explicit list of
+   /// DerivativePair entries.
    template <
+      typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddDomainIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &domain_attributes,
-      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Add a boundary integrator to the operator.
    ///
@@ -366,27 +918,23 @@ public:
    /// which attributes this integrator will integrate over.
    /// @param derivative_ids Derivatives to be made available for this
    /// integrator.
+   /// @param second_derivative_ids Second derivative (Hessian) blocks to be
+   /// made available for this integrator, see AddDomainIntegrator().
    template <
+      typename backend_t = GlobalQFBackend,
       typename qfunc_t,
       typename input_t,
       typename output_t,
-      typename derivative_ids_t = decltype(std::make_index_sequence<0> {})>
+      typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
    void AddBoundaryIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
       output_t outputs,
       const IntegrationRule &integration_rule,
       const Array<int> &boundary_attributes,
-      derivative_ids_t derivative_ids = std::make_index_sequence<0> {});
-
-   /// @brief Set the parameters for the operator.
-   ///
-   /// This has to be called before using Mult() or MultTranspose().
-   ///
-   /// @param p The parameters to be set. This should be a vector of pointers to
-   /// the parameter vectors. The vectors have to be L-vectors (e.g.
-   /// GridFunctions).
-   void SetParameters(std::vector<Vector *> p) const;
+      derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
+      second_derivative_ids_t second_derivative_ids = {});
 
    /// @brief Disable the use of tensor product structure.
    ///
@@ -396,181 +944,315 @@ public:
    /// functionality is not implemented for these performant algorithms but only
    /// for generic assembly. Therefore the user can decide to use fallback
    /// methods.
-   void DisableTensorProductStructure(bool disable = true)
+   void DisableTensorProductStructure(bool disable = true);
+
+   /// @brief Create a derivative operator for a given derivative ID.
+   ///
+   /// Returns a DerivativeOperator representing the derivative of this
+   /// operator for the given derivative ID. The current state @a x is
+   /// captured by the returned
+   /// operator and used to initialize the input field data needed for future
+   /// derivative applications and assembly operations.
+   ///
+   /// This overload accepts the state as a T-vector BlockVector. When cached
+   /// derivative-apply callbacks are available, they are preferred over the
+   /// uncached callbacks.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state as a BlockVector stored through the Vector
+   /// interface.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetDerivative(
+      size_t derivative_id, const Vector &x);
+
+   /// @brief Create a derivative operator for a given derivative ID.
+   ///
+   /// This overload accepts the state as a MultiVector. The current state
+   /// @a x is captured by the returned operator and used to initialize the
+   /// input field data needed for derivative applications and assembly.
+   ///
+   /// When @a use_cached_setup is true and cached derivative-apply callbacks
+   /// are available, the returned operator uses them; otherwise it falls back
+   /// to the direct derivative-action callbacks.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state stored in a MultiVector.
+   /// @param use_cached_setup Whether to prefer cached derivative-apply
+   /// callbacks over direct derivative actions.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetDerivative(
+      size_t derivative_id, const MultiVector &x,
+      const bool use_cached_setup = true);
+
+   /// @brief Create a first-derivative (gradient) operator for a functional.
+   ///
+   /// Returns a DerivativeOperator representing the first derivative (gradient)
+   /// of a functional with respect to @a derivative_id. Unlike the stateful
+   /// overloads, no state is captured here; the full input state is supplied at
+   /// apply time through DerivativeOperator::Mult(const MultiVector &,
+   /// MultiVector &).
+   ///
+   /// Available only for integrators that are declared as functional.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetDerivative(size_t derivative_id);
+
+   /// @brief Whether @a derivative_id belongs to a functional integrator.
+   ///
+   /// Derivatives of functionals are linear forms and are therefore assembled
+   /// into a Vector with DerivativeOperator::Assemble(Vector &) instead of a
+   /// matrix.
+   bool IsFunctionalDerivative(size_t derivative_id) const
    {
-      use_tensor_product_structure = !disable;
+      return functional_derivative_ids.count(derivative_id) > 0;
    }
 
-   /// @brief Get the derivative operator for a given derivative ID.
+   /// @brief Create a second derivative operator for a functional.
    ///
-   /// This function returns a shared pointer to a DerivativeOperator that
-   /// computes the derivative of the operator with respect to the given
-   /// derivative ID. The derivative ID is used to identify the specific
-   /// derivative action to be performed.
+   /// Returns the derivative of grad_{gradient_id} f in the direction of
+   /// @a direction_id. For example, GetSecondDerivative(U, Rho, x) applies
+   /// d/dRho(grad_U f) = d^2 f / dU dRho to the current state @a x.
    ///
-   /// @param derivative_id The ID of the derivative to be computed.
-   /// @param sol_l The solution vectors to be used for the derivative
-   /// computation. This should be a vector of pointers to the solution
-   /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
-   /// @param par_l The parameter vectors to be used for the derivative
-   /// computation. This should be a vector of pointers to the parameter
-   /// vectors. The vectors have to be L-vectors (e.g. GridFunctions).
-   /// @return A shared pointer to the DerivativeOperator.
-   std::shared_ptr<DerivativeOperator> GetDerivative(
-      size_t derivative_id, std::vector<Vector *> sol_l, std::vector<Vector *> par_l)
+   /// This overload accepts the state as a T-vector BlockVector and uses direct
+   /// derivative-action callbacks.
+   ///
+   /// @param gradient_id The derivative ID of the gradient to be differentiated.
+   /// @param direction_id The derivative ID of the direction in which to differentiate the gradient.
+   /// @param x Current state as a BlockVector stored through the Vector
+   /// interface.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetSecondDerivative(
+      size_t gradient_id, size_t direction_id, const Vector &x);
+
+   /// @brief Create a second derivative operator for a functional.
+   ///        Shorthand of the above, expands to GetSecondDerivative(derivative_id, derivative_id, x).
+   ///
+   /// Returns a DerivativeOperator representing the second derivative of a
+   /// functional with respect to the given derivative ID. This is available for
+   /// integrators that are declared as a functional.
+   ///
+   /// This overload accepts the state as a T-vector BlockVector and uses direct
+   /// derivative-action callbacks.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state as a BlockVector stored through the Vector
+   /// interface.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetSecondDerivative(
+      size_t derivative_id, const Vector &x);
+
+   /// @brief Create a second derivative operator for a functional.
+   ///
+   /// This overload accepts the state as a MultiVector. The returned operator
+   /// uses direct derivative-action callbacks by default. When
+   /// @a use_cached_setup is true and cached derivative-apply callbacks are
+   /// available, the returned operator uses them instead.
+   ///
+   /// @param derivative_id The derivative ID to be computed.
+   /// @param x Current state stored in a MultiVector.
+   /// @param use_cached_setup Whether to prefer cached derivative-apply
+   /// callbacks over direct derivative actions.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetSecondDerivative(
+      size_t derivative_id, const MultiVector &x,
+      const bool use_cached_setup = false);
+
+   /// @brief Create a mixed second derivative operator for a functional.
+   ///
+   /// This overload accepts the state as a MultiVector.
+   ///
+   /// @param gradient_id The derivative ID of the gradient to be differentiated.
+   /// @param direction_id The derivative ID of the direction in which to differentiate the gradient.
+   /// @param x Current state as a BlockVector stored through the Vector
+   /// interface.
+   /// @param use_cached_setup Whether to prefer cached derivative-apply
+   /// callbacks over direct derivative actions.
+   /// @return A shared pointer to the configured DerivativeOperator.
+   std::shared_ptr<DerivativeOperator> GetSecondDerivative(
+      size_t gradient_id, size_t direction_id, const MultiVector &x,
+      const bool use_cached_setup = false);
+
+   /// @brief Returns true if the second derivative block
+   /// d/d(direction_id) grad_(gradient_id) has been registered, i.e. if it was
+   /// requested through the SecondDerivatives of one of the integrators.
+   bool HasSecondDerivative(size_t gradient_id, size_t direction_id) const;
+
+   template <typename qfunc_t>
+   qfunc_t *GetDerivativeActionQFunction(size_t derivative_id,
+                                         size_t integrator = 0)
    {
-      MFEM_ASSERT(derivative_action_callbacks.find(derivative_id) !=
-                  derivative_action_callbacks.end(),
-                  "no derivative action has been found for ID " << derivative_id);
+      auto it = derivative_action_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_action_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative action callback not found");
+      return it->second[integrator].template GetQFunction<qfunc_t>();
+   }
 
-      MFEM_ASSERT(sol_l.size() == solutions.size(),
-                  "wrong number of solutions");
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetDerivativeActionShadowQFunction(
+      size_t derivative_id, size_t integrator = 0)
+   {
+      auto it = derivative_action_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_action_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative action callback not found");
+      return it->second[integrator].template GetShadowQFunction<qfunc_t>();
+   }
 
-      MFEM_ASSERT(par_l.size() == parameters.size(),
-                  "wrong number of parameters");
+   template <typename qfunc_t>
+   qfunc_t *GetDerivativeSetupQFunction(size_t derivative_id,
+                                        size_t integrator = 0)
+   {
+      auto it = derivative_setup_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_setup_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative setup callback not found");
+      return it->second[integrator].template GetQFunction<qfunc_t>();
+   }
 
-      const size_t derivative_idx = FindIdx(derivative_id, fields);
-
-      std::vector<Vector> s_l(solutions_l.size());
-      for (size_t i = 0; i < s_l.size(); i++)
-      {
-         s_l[i] = *sol_l[i];
-      }
-
-      std::vector<Vector> p_l(parameters_l.size());
-      for (size_t i = 0; i < p_l.size(); i++)
-      {
-         p_l[i] = *par_l[i];
-      }
-
-      fields_e.resize(solutions_l.size() + parameters_l.size());
-      restriction_callback(s_l, p_l, fields_e);
-
-      // Dummy
-      Vector dir_l;
-      if (derivative_idx > s_l.size())
-      {
-         dir_l = p_l[derivative_idx - s_l.size()];
-      }
-      else
-      {
-         dir_l = s_l[derivative_idx];
-      }
-
-      derivative_setup_callbacks[derivative_id][0](fields_e, dir_l);
-
-      return std::make_shared<DerivativeOperator>(
-                height,
-                GetTrueVSize(fields[derivative_idx]),
-                derivative_action_callbacks[derivative_id],
-                fields[derivative_idx],
-                residual_l.Size(),
-                daction_transpose_callbacks[derivative_id],
-                fields[test_space_field_idx],
-                GetVSize(fields[test_space_field_idx]),
-                sol_l,
-                par_l,
-                restriction_callback,
-                prolongation_transpose,
-                assemble_derivative_sparsematrix_callbacks[derivative_id],
-                assemble_derivative_hypreparmatrix_callbacks[derivative_id]);
+   template <typename qfunc_t>
+   detail::qfunc_shadow_t<qfunc_t> *GetDerivativeSetupShadowQFunction(
+      size_t derivative_id, size_t integrator = 0)
+   {
+      auto it = derivative_setup_callbacks.find(derivative_id);
+      MFEM_VERIFY(it != derivative_setup_callbacks.end() &&
+                  integrator < it->second.size(),
+                  "derivative setup callback not found");
+      return it->second[integrator].template GetShadowQFunction<qfunc_t>();
    }
 
 private:
+   bool HasFunctionalIntegrator() const
+   {
+      return has_functional_integrator;
+   }
+
    const ParMesh &mesh;
 
    MultLevel mult_level = TVECTOR;
 
+   std::unordered_map<std::type_index, std::vector<int>> in_qlayouts;
+   std::unordered_map<std::type_index, std::vector<int>> out_qlayouts;
+
    std::vector<action_t> action_callbacks;
-   std::map<size_t, std::vector<derivative_setup_t>> derivative_setup_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> derivative_action_callbacks;
-   std::map<size_t,
-       std::vector<derivative_action_t>> daction_transpose_callbacks;
-   std::map<size_t,
-       std::vector<assemble_derivative_sparsematrix_callback_t>>
-       assemble_derivative_sparsematrix_callbacks;
-   std::map<size_t,
-       std::vector<assemble_derivative_hypreparmatrix_callback_t>>
-       assemble_derivative_hypreparmatrix_callbacks;
 
-   std::vector<FieldDescriptor> solutions;
-   std::vector<FieldDescriptor> parameters;
-   // solutions and parameters
-   std::vector<FieldDescriptor> fields;
+   DerivativeSetupMap derivative_setup_callbacks;
+   DerivativeActionMap derivative_action_callbacks;
+   DerivativeActionMap derivative_apply_callbacks;
+   DerivativeActionMap daction_transpose_callbacks;
+   DerivativeFieldMap derivative_outfds;
+   DerivativeFieldMap derivative_unionfds;
+   SparseAssemblyMap assemble_derivative_sparsematrix_callbacks;
+   HypreAssemblyMap assemble_derivative_hypreparmatrix_callbacks;
+   DiagonalAssemblyMap assemble_diagonal_callbacks;
 
-   mutable std::vector<Vector> solutions_l;
-   mutable std::vector<Vector> parameters_l;
-   mutable Vector residual_l;
+   SecondDerivativeSetupMap second_derivative_setup_callbacks;
+   SecondDerivativeActionMap second_derivative_action_callbacks;
+   SecondDerivativeActionMap second_derivative_apply_callbacks;
+   SecondDerivativeActionMap second_daction_transpose_callbacks;
+   SecondDerivativeFieldMap second_derivative_outfds;
+   SecondDerivativeFieldMap second_derivative_unionfds;
+   SecondSparseAssemblyMap assemble_second_derivative_sparsematrix_callbacks;
+   SecondHypreAssemblyMap assemble_second_derivative_hypreparmatrix_callbacks;
+   SecondDiagonalAssemblyMap assemble_second_derivative_diagonal_callbacks;
 
-   mutable std::vector<Vector> fields_e;
-   mutable Vector residual_e;
+   /// Derivative IDs whose integrator has FunctionalValue outputs. Their first
+   /// derivative is a linear form which assembles into a Vector.
+   std::set<size_t> functional_derivative_ids;
 
-   std::function<void(Vector &, Vector &)> prolongation_transpose;
+   std::vector<FieldDescriptor> infds;
+   std::vector<FieldDescriptor> outfds;
+   std::vector<FieldDescriptor> unionfds;
+
+   mutable std::vector<Vector *> infields_l;
+   mutable std::vector<Vector *> infields_e;
+
+   mutable std::vector<Vector *> residual_l;
+   mutable std::vector<Vector *> residual_e;
+
+   /// Restrictions of infds/outfds, resolved on first use.
+   mutable RestrictionCache<Entity::Element> in_rcache;
+   mutable RestrictionCache<Entity::Element> out_rcache;
+
+   // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
-   std::map<size_t, Vector> derivative_qp_caches;
+   // One qp_cache per integrator, useful to support multiple
+   // split integrators that register the same derivative field.
+   std::vector<std::unique_ptr<Vector>> integrator_qp_caches;
 
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
+   bool has_functional_integrator = false;
 
    size_t test_space_field_idx = SIZE_MAX;
 };
 
 template <
+   typename backend_t,
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &domain_attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   second_derivative_ids_t second_derivative_ids)
 {
-   AddIntegrator<Entity::Element>(
-      qfunc, inputs, outputs, integration_rule, domain_attributes, derivative_ids);
+   AddIntegrator<backend_t, Entity::Element>(
+      qfunc, inputs, outputs, integration_rule, domain_attributes,
+      derivative_ids, second_derivative_ids);
 }
 
 template <
+   typename backend_t,
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddBoundaryIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &boundary_attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   second_derivative_ids_t second_derivative_ids)
 {
-
    if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
-   AddIntegrator<Entity::BoundaryElement>(
-      qfunc, inputs, outputs, integration_rule, boundary_attributes, derivative_ids);
+   AddIntegrator<backend_t, Entity::BoundaryElement>(
+      qfunc, inputs, outputs, integration_rule, boundary_attributes,
+      derivative_ids, second_derivative_ids);
 }
 
 template <
+   typename backend_t,
    typename entity_t,
    typename qfunc_t,
    typename input_t,
    typename output_t,
-   typename derivative_ids_t>
+   typename derivative_ids_t,
+   typename second_derivative_ids_t>
 void DifferentiableOperator::AddIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
    output_t outputs,
    const IntegrationRule &integration_rule,
    const Array<int> &attributes,
-   derivative_ids_t derivative_ids)
+   derivative_ids_t derivative_ids,
+   [[maybe_unused]] second_derivative_ids_t second_derivative_ids)
 {
    if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
                    std::is_same_v<entity_t, Entity::BoundaryElement>))
@@ -579,57 +1261,73 @@ void DifferentiableOperator::AddIntegrator(
                     "entity type not supported in AddIntegrator");
    }
 
-   static constexpr size_t num_inputs =
-      tuple_size<decltype(inputs)>::value;
+   static constexpr size_t num_inputs = tuple_size<input_t>::value;
+   static constexpr size_t num_outputs = tuple_size<output_t>::value;
 
-   static constexpr size_t num_outputs =
-      tuple_size<decltype(outputs)>::value;
-
-   using qf_signature =
-      typename create_function_signature<decltype(&qfunc_t::operator())>::type;
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
    using qf_output_t = typename qf_signature::return_t;
 
    // Consistency checks
-   if constexpr (num_outputs > 1)
-   {
-      static_assert(dfem::always_false<qfunc_t>,
-                    "more than one output per quadrature functions is not supported right now");
-   }
+   constexpr size_t num_qfparams = tuple_size<qf_param_ts>::value;
+   static_assert(num_qfparams == num_inputs + num_outputs,
+                 "quadrature function must take "
+                 "num_inputs + num_outputs parameters");
 
-   if constexpr (std::is_same_v<qf_output_t, void>)
-   {
-      static_assert(dfem::always_false<qfunc_t>,
-                    "quadrature function has no return value");
-   }
-
-   constexpr size_t num_qfinputs = tuple_size<qf_param_ts>::value;
-   static_assert(num_qfinputs == num_inputs,
-                 "quadrature function inputs and descriptor inputs have to match");
-
-   constexpr size_t num_qf_outputs = tuple_size<qf_output_t>::value;
-   static_assert(num_qf_outputs == num_outputs,
-                 "quadrature function outputs and descriptor outputs have to match");
+   static_assert(std::is_same_v<qf_output_t, void>,
+                 "quadrature function must return void");
 
    constexpr auto inout_tuple =
-      merge_mfem_tuples_as_empty_std_tuple(inputs, outputs);
+      merge_mfem_tuples_as_empty_std_tuple(input_t{}, output_t{});
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
+
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
 
-   MFEM_ASSERT(num_fields == solutions.size() + parameters.size(),
-               "Total number of fields doesn't match sum of solutions and parameters."
-               " This indicates that some fields are not used in the integrator,"
-               " which currently is not supported.");
+   MFEM_VERIFY(num_fields == unionfds.size(),
+               "Total number of fields (" +
+               std::to_string(num_fields) + ") "
+               "in the Q-function doesn't match "
+               "the union of FieldDescriptors (" +
+               std::to_string(unionfds.size()) + ")");
 
-   auto dependency_map = make_dependency_map(inputs);
+   // The requested second derivative blocks are either selected by one of the
+   // Pairs markers or listed explicitly as DerivativePairs.
+   static constexpr bool no_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::None>>;
+   static constexpr bool all_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::All>>;
+   static constexpr bool diagonal_second_derivatives =
+      std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
 
-   // pretty_print(dependency_map);
+   // Second derivatives checks:
+   // - Second derivatives are only available for functional integrators.
+   // - If they are listed explicitly, every second derivative block has to
+   //   refer to a gradient field id that is also present in the requested
+   //   derivatives. The markers pick their blocks from those ids to begin with
+   //   and carry no ids of their own to check.
+   if constexpr (!no_second_derivatives)
+   {
+      static_assert(check_if_functional_v<output_t>,
+                    "second derivatives are only available for functional "
+                    "integrators");
 
-   auto input_to_field =
-      create_descriptors_to_fields_map<entity_t>(fields, inputs);
-   auto output_to_field =
-      create_descriptors_to_fields_map<entity_t>(fields, outputs);
+      if constexpr (!all_second_derivatives && !diagonal_second_derivatives)
+      {
+         // If custom second derivative blocks are requested, check that they refer to
+         // gradient field ids that are also present in the requested derivatives.
+         static_assert(
+            second_derivative_gradients_available(second_derivative_ids_t {},
+                                                  derivative_ids_t {}),
+            "every second derivative block has to refer to a gradient field id "
+            "that is also present in the requested derivatives");
+      }
+   }
+
+   [[maybe_unused]] auto input_to_field =
+      create_descriptors_to_fields_map<entity_t>(infds, inputs);
+   [[maybe_unused]] auto output_to_field =
+      create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
@@ -649,756 +1347,315 @@ void DifferentiableOperator::AddIntegrator(
    }
 
    const auto output_fop = get<0>(outputs);
-   test_space_field_idx = FindIdx(output_fop.GetFieldId(), fields);
+   test_space_field_idx = FindIdx(output_fop.GetFieldId(), outfds);
 
-   bool use_sum_factorization = false;
-   Element::Type entity_element_type;
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      entity_element_type =
-         Element::TypeFromGeometry(mesh.GetTypicalElementGeometry());
-
-      if ((entity_element_type == Element::QUADRILATERAL ||
-           entity_element_type == Element::HEXAHEDRON) &&
-          use_tensor_product_structure == true)
-      {
-         use_sum_factorization = true;
-      }
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      entity_element_type =
-         Element::TypeFromGeometry(mesh.GetTypicalFaceGeometry());
-
-      if ((entity_element_type == Element::SEGMENT ||
-           entity_element_type == Element::QUADRILATERAL) &&
-          use_tensor_product_structure == true)
-      {
-         use_sum_factorization = true;
-      }
-   }
-
-   ElementDofOrdering element_dof_ordering = ElementDofOrdering::NATIVE;
-   DofToQuad::Mode doftoquad_mode = DofToQuad::Mode::FULL;
-   if (use_sum_factorization)
-   {
-      element_dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
-      doftoquad_mode = DofToQuad::Mode::TENSOR;
-   }
-
-   auto [output_rt,
-         output_e_sz] = get_restriction_transpose<entity_t>
-                        (fields[test_space_field_idx],
-                         element_dof_ordering, output_fop);
-   auto &output_e_size = output_e_sz;
-
-   output_restriction_transpose = output_rt;
-   residual_e.SetSize(output_e_size);
-
-   // The explicit captures are necessary to avoid dependency on
-   // the specific instance of this class (this pointer).
-   restriction_callback =
-      [=, solutions = this->solutions, parameters = this->parameters]
-      (std::vector<Vector> &sol,
-       const std::vector<Vector> &par,
-       std::vector<Vector> &f)
-   {
-      restriction<entity_t>(solutions, sol, f,
-                            element_dof_ordering);
-      restriction<entity_t>(parameters, par, f,
-                            element_dof_ordering,
-                            solutions.size());
-   };
-
-   prolongation_transpose = get_prolongation_transpose(
-                               fields[test_space_field_idx], output_fop, mesh.GetComm());
-
-   int dimension;
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      dimension = mesh.Dimension();
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      dimension = mesh.Dimension() - 1;
-   }
-
-   [[maybe_unused]] const int num_elements = GetNumEntities<entity_t>(mesh);
    const int num_entities = GetNumEntities<entity_t>(mesh);
-   const int num_qp = integration_rule.GetNPoints();
 
-   if constexpr (is_sum_fop<decltype(output_fop)>::value)
-   {
-      residual_l.SetSize(1);
-      height = 1;
-   }
-   else
-   {
-      const int residual_lsize = GetVSize(fields[test_space_field_idx]);
-      residual_l.SetSize(residual_lsize);
-      height = GetTrueVSize(fields[test_space_field_idx]);
-   }
+   residual_e.resize(outfds.size());
+   residual_l.resize(outfds.size());
 
    // TODO: Is this a hack?
-   width = GetTrueVSize(fields[0]);
+   width = GetTrueVSize(infds[0]);
 
-   std::vector<const DofToQuad*> dtq;
-   for (const auto &field : fields)
+   IntegratorContext ctx
    {
-      dtq.emplace_back(GetDofToQuad<entity_t>(
-                          field,
-                          integration_rule,
-                          doftoquad_mode));
-   }
-   const int q1d = (int)floor(std::pow(num_qp, 1.0/dimension) + 0.5);
+      mesh, elem_attributes, attributes, num_entities,
+      infds, outfds, unionfds, integration_rule,
+      in_qlayouts, out_qlayouts
+   };
 
-   const int residual_size_on_qp =
-      GetSizeOnQP<entity_t>(output_fop,
-                            fields[test_space_field_idx]);
+   action_callbacks.push_back(backend_t::MakeAction(ctx, qfunc, inputs, outputs));
 
-   auto input_dtq_maps = create_dtq_maps<entity_t>(inputs, dtq, input_to_field);
-   auto output_dtq_maps = create_dtq_maps<entity_t>(outputs, dtq, output_to_field);
-
-   const int test_vdim = output_fop.vdim;
-   const int test_op_dim = output_fop.size_on_qp / output_fop.vdim;
-   const int num_test_dof =
-      num_entities ? (output_e_size / output_fop.vdim / num_entities) : 0;
-
-   auto ir_weights = Reshape(integration_rule.GetWeights().Read(), num_qp);
-
-   auto input_size_on_qp =
-      get_input_size_on_qp(inputs, std::make_index_sequence<num_inputs> {});
-
-   auto action_shmem_info =
-      get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>
-      (input_dtq_maps, output_dtq_maps, fields, num_entities, inputs, num_qp,
-       input_size_on_qp, residual_size_on_qp, element_dof_ordering);
-
-   Vector shmem_cache(action_shmem_info.total_size);
-
-   // print_shared_memory_info(action_shmem_info);
-
-   ThreadBlocks thread_blocks;
-   if (dimension == 3)
+   [[maybe_unused]] auto make_field_descriptors = [&](auto fops)
    {
-      if (use_sum_factorization)
+      using fops_t = std::decay_t<decltype(fops)>;
+      std::vector<FieldDescriptor> fds;
+      for_constexpr<tuple_size<fops_t>::value>([&](auto i)
       {
-         thread_blocks.x = q1d;
-         thread_blocks.y = q1d;
-         thread_blocks.z = q1d;
-      }
-   }
-   else if (dimension == 2)
-   {
-      if (use_sum_factorization)
-      {
-         thread_blocks.x = q1d;
-         thread_blocks.y = q1d;
-         thread_blocks.z = 1;
-      }
-   }
-   else if (dimension == 1)
-   {
-      thread_blocks.x = q1d;
-      thread_blocks.y = 1;
-      thread_blocks.z = 1;
-   }
-
-   action_callbacks.push_back(
-      // Explicitly capture everything we need, so we can make explicit choice
-      // how to capture every variable, by copy or by ref.
-      [
-         // capture by copy:
-         dimension,             // int
-         num_entities,          // int
-         num_test_dof,          // int
-         num_qp,                // int
-         q1d,                   // int
-         residual_size_on_qp,   // int
-         test_vdim,             // int (= output_fop.vdim)
-         test_op_dim,           // int (derived from output_fop)
-         inputs,                // mfem::future::tuple
-         attributes,            // Array<int>
-         ir_weights,            // DeviceTensor
-         use_sum_factorization, // bool
-         input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
-         output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-         input_to_field,        // std::array<int, s>
-         output_fop,            // class derived from FieldOperator
-         qfunc,                 // qfunc_t
-         thread_blocks,         // ThreadBlocks
-         shmem_cache,           // Vector (local)
-         action_shmem_info,     // SharedMemoryInfo
-         // TODO: make this Array<int> a member of the DifferentiableOperator
-         //       and capture it by ref.
-         elem_attributes,       // Array<int>
-
-         // capture by ref:
-         &restriction_cb = this->restriction_callback,
-         &fields_e = this->fields_e,
-         &residual_e = this->residual_e,
-         &output_restriction_transpose = this->output_restriction_transpose
-      ]
-      (std::vector<Vector> &sol, const std::vector<Vector> &par, Vector &res)
-      mutable // mutable: needed to modify 'shmem_cache'
-   {
-      restriction_cb(sol, par, fields_e);
-
-      residual_e = 0.0;
-      auto ye = Reshape(residual_e.ReadWrite(), test_vdim, num_test_dof, num_entities);
-
-      auto wrapped_fields_e = wrap_fields(fields_e,
-                                          action_shmem_info.field_sizes,
-                                          num_entities);
-
-      const bool has_attr = attributes.Size() > 0;
-      const auto d_attr = attributes.Read();
-      const auto d_elem_attr = elem_attributes->Read();
-
-      forall([=] MFEM_HOST_DEVICE (int e, void *shmem)
-      {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-         auto [input_dtq_shmem, output_dtq_shmem, fields_shmem, input_shmem,
-                                residual_shmem, scratch_shmem] =
-                  unpack_shmem(shmem, action_shmem_info, input_dtq_maps, output_dtq_maps,
-                               wrapped_fields_e, num_qp, e);
-
-         map_fields_to_quadrature_data(
-            input_shmem, fields_shmem, input_dtq_shmem, input_to_field, inputs, ir_weights,
-            scratch_shmem, dimension, use_sum_factorization);
-
-         call_qfunction<qf_param_ts>(
-            qfunc, input_shmem, residual_shmem,
-            residual_size_on_qp, num_qp, q1d, dimension, use_sum_factorization);
-
-         auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-         auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-         map_quadrature_data_to_fields(
-            y, fhat, output_fop, output_dtq_shmem[0],
-            scratch_shmem, dimension, use_sum_factorization);
-      }, num_entities, thread_blocks, action_shmem_info.total_size, shmem_cache.ReadWrite());
-      output_restriction_transpose(residual_e, res);
-   });
-
-   // Without this compile-time check, some valid instantiations of this method
-   // will fail.
-   if constexpr (derivative_ids_t::size() != 0)
-   {
-      // Create the action of the derivatives
-      for_constexpr([&, &or_transpose =
-                        this->output_restriction_transpose](const std::size_t derivative_id)
-      {
-         const size_t d_field_idx = FindIdx(derivative_id, fields);
-         const auto direction = fields[d_field_idx];
-         const int da_size_on_qp =
-            GetSizeOnQP<entity_t>(output_fop, fields[test_space_field_idx]);
-
-         auto shmem_info =
-            get_shmem_info<entity_t, num_fields, num_inputs, num_outputs>(
-               input_dtq_maps, output_dtq_maps, fields, num_entities, inputs,
-               num_qp, input_size_on_qp, residual_size_on_qp,
-               element_dof_ordering, d_field_idx);
-
-         Vector shmem_cache(shmem_info.total_size);
-
-         // print_shared_memory_info(shmem_info);
-
-         Vector direction_e(get_restriction<entity_t>(fields[d_field_idx],
-                                                      element_dof_ordering)->Height());
-         Vector derivative_action_e(output_e_size);
-         derivative_action_e = 0.0;
-
-         // Lookup the derivative_id key in the dependency map
-         auto it = dependency_map.find(derivative_id);
-         if (it == dependency_map.end())
+         constexpr size_t idx = decltype(i)::value;
+         using fop_t = tuple_element_t<idx, fops_t>;
+         constexpr int field_id = fop_t::GetFieldId();
+         if constexpr (field_id != -1)
          {
-            MFEM_ABORT("Derivative ID not found in dependency map");
-         }
-         const auto input_is_dependent = it->second;
-
-         // Trial operator dimension for each input.
-         // The trial operator dimension is set for each input that is
-         // dependent and if it is independent the dimension is 0.
-         Vector inputs_trial_op_dim(num_inputs);
-         int total_trial_op_dim = 0;
-         {
-            auto itod = Reshape(inputs_trial_op_dim.HostReadWrite(), num_inputs);
-            int idx = 0;
-            for_constexpr<num_inputs>([&](auto s)
+            if (FindIdx(field_id, fds) == SIZE_MAX)
             {
-               if (!input_is_dependent[s])
-               {
-                  itod(idx) = 0;
-               }
-               else
-               {
-                  // TODO: BUG! Make this a general function that works for all kinds of inputs.
-                  itod(idx) = input_size_on_qp[s] / get<s>(inputs).vdim;
-               }
-               total_trial_op_dim += static_cast<int>(itod(idx));
-               idx++;
-            });
+               const size_t src = FindIdx(field_id, unionfds);
+               MFEM_VERIFY(src != SIZE_MAX,
+                           "field descriptor not found for derivative output");
+               fds.push_back(unionfds[src]);
+            }
+         }
+      });
+      return fds;
+   };
+
+   [[maybe_unused]] auto make_union_fds =
+      [](const std::vector<FieldDescriptor> &a,
+         const std::vector<FieldDescriptor> &b)
+   {
+      std::vector<FieldDescriptor> fds;
+      fds.insert(fds.end(), a.begin(), a.end());
+      fds.insert(fds.end(), b.begin(), b.end());
+      std::sort(fds.begin(), fds.end());
+      auto last = std::unique(fds.begin(), fds.end());
+      fds.erase(last, fds.end());
+      return fds;
+   };
+
+   [[maybe_unused]] auto set_second_derivative_fds =
+      [&](second_derivative_key_t derivative_key,
+          const std::vector<FieldDescriptor> &out,
+          const std::vector<FieldDescriptor> &all)
+      -> IntegratorContext
+   {
+      auto &stored_out = second_derivative_outfds[derivative_key];
+      stored_out = stored_out.empty() ? out : stored_out;
+      MFEM_VERIFY(stored_out == out,
+                  "inconsistent second derivative output FieldDescriptors");
+      auto &stored_union = second_derivative_unionfds[derivative_key];
+      stored_union = stored_union.empty() ? all : stored_union;
+      MFEM_VERIFY(stored_union == all,
+                  "inconsistent second derivative union FieldDescriptors");
+
+      return IntegratorContext
+      {
+         mesh, elem_attributes, attributes, num_entities,
+         infds, stored_out, stored_union, integration_rule,
+         in_qlayouts, out_qlayouts
+      };
+   };
+
+   [[maybe_unused]] auto set_functional_derivative_fds =
+      [&](size_t derivative_id,
+          const std::vector<FieldDescriptor> &out,
+          const std::vector<FieldDescriptor> &all)
+      -> IntegratorContext
+   {
+      auto &stored_out = derivative_outfds[derivative_id];
+      if (stored_out.empty())
+      {
+         stored_out = out;
+      }
+      else
+      {
+         MFEM_VERIFY(stored_out == out,
+                     "inconsistent first derivative output FieldDescriptors");
+      }
+
+      auto &stored_union = derivative_unionfds[derivative_id];
+      if (stored_union.empty())
+      {
+         stored_union = all;
+      }
+      else
+      {
+         MFEM_VERIFY(stored_union == all,
+                     "inconsistent first derivative union FieldDescriptors");
+      }
+
+      return IntegratorContext
+      {
+         mesh, elem_attributes, attributes, num_entities,
+         infds, stored_out, stored_union, integration_rule,
+         in_qlayouts, out_qlayouts
+      };
+   };
+
+   for_constexpr([&](auto i)
+   {
+      auto create_callbacks = [&](auto derivative_id,
+                                  auto callback_key,
+                                  auto &setup_callbacks,
+                                  auto &apply_callbacks,
+                                  auto &transpose_callbacks,
+                                  auto &assemble_sparsematrix_callbacks,
+                                  auto &assemble_hypreparmatrix_callbacks,
+                                  auto &assemble_diagonal_cbs,
+                                  auto &action_cbs,
+                                  Vector &callback_qp_cache,
+                                  const IntegratorContext &callback_ctx,
+                                  auto &qf, auto outputs)
+      {
+         constexpr size_t derivative_idx = decltype(derivative_id)::value;
+         using callback_outputs_t = std::decay_t<decltype(outputs)>;
+
+         bool disable_assemble = false;
+         for_constexpr([&](auto j)
+         {
+            using output_fop_t = tuple_element_t<j, callback_outputs_t>;
+            if constexpr (is_identity_fop_v<std::decay_t<output_fop_t>>)
+            {
+               disable_assemble = true;
+            }
+         }, std::make_index_sequence<tuple_size<callback_outputs_t>::value> {});
+
+         // Setup the qp cache for the derivative
+         setup_callbacks[callback_key].push_back(
+            MakeDerivativeSetupCallback(
+               backend_t::template MakeDerivativeSetup<derivative_idx>(
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+
+         // Apply the derivative to the qp cache
+         apply_callbacks[callback_key].push_back(
+            derivative_action_t(
+               backend_t::template MakeDerivativeApply<derivative_idx>(
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+
+         // Apply the transpose of the derivative to the qp cache
+         transpose_callbacks[callback_key].push_back(
+            derivative_action_t(
+               backend_t::template MakeDerivativeApplyTranspose<derivative_idx>(
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+
+         if (!disable_assemble)
+         {
+            // Assemble the derivative into a SparseMatrix
+            assemble_sparsematrix_callbacks[callback_key].push_back(
+               backend_t::template MakeDerivativeAssemble<derivative_idx>(
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache));
+
+            // Assemble the derivative into a HypreParMatrix
+            assemble_hypreparmatrix_callbacks[callback_key].push_back(
+               MakeDerivativeHypreParMatrixAssemble(
+                  derivative_idx,
+                  assemble_sparsematrix_callbacks[callback_key],
+                  callback_ctx));
+
+            // Assemble the diagonal of the derivative into an L-vector
+            assemble_diagonal_cbs[callback_key].push_back(
+               backend_t::template MakeDerivativeAssembleDiagonal<derivative_idx>(
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache));
          }
 
-         // First Input index of the derivative
-         const size_t d_input_idx = [d_field_idx, &input_to_field]
+         // Apply the derivative
+         action_cbs[callback_key].push_back(
+            MakeDerivativeActionCallback(
+               backend_t::template MakeDerivativeAction<derivative_idx>(
+                  callback_ctx, qf, inputs, outputs)));
+      };
+
+      constexpr size_t idx = decltype(i)::value;
+
+      if constexpr (check_if_functional_v<output_t>)
+      {
+         has_functional_integrator = true;
+         functional_derivative_ids.insert(idx);
+
+         // Check dependencies of the quadrature function inputs for the derivative
+         // Make darr type unambiguously a tuple
+         constexpr auto darr = make_dependency_tuple_ct<idx, input_t>();
+         using derivative_activity_t = std::decay_t<decltype(darr)>;
+
+         // For every dependent input, we have to create an output that will
+         // get integrated with it's appropriate basis function. Inputs stay the same.
+         auto first_derivative_outputs =
+            make_first_derivative_outputs<idx, input_t>();
+         const auto derivative_outputs_fds =
+            make_field_descriptors(first_derivative_outputs);
+         create_descriptors_to_fields_map<entity_t>(derivative_outputs_fds,
+                                                    first_derivative_outputs);
+         //mfem::out << first_derivative_outputs << "\n";
+
+         //mfem::out << get_type_name<output_t>() << "\n";
+         //mfem::out << get_type_name<input_t>() << "\n";
+
+         auto dqfunc = make_revdiff<derivative_activity_t>(qfunc);
+
+         // The second derivative differentiates dqfunc again. With Enzyme that
+         // is another reverse-mode call and this type is the same as dqfunc's;
+         // on the native dual backend it has to run on nested ("hyper") duals,
+         // so the inner seeding does not overwrite the direction carried by the
+         // outer dual pair.
+         auto second_dqfunc =
+            make_revdiff<derivative_activity_t, RevDiffDualMode::Derivative>(qfunc);
+
+         const auto derivative_all_fds =
+            make_union_fds(infds, derivative_outputs_fds);
+         const auto first_derivative_ctx =
+            set_functional_derivative_fds(idx, derivative_outputs_fds,
+                                          derivative_all_fds);
+         // Register the second derivative d/d(direction) grad_idx J.
+         auto create_second_derivative_callbacks = [&](auto j)
          {
-            for (size_t i = 0; i < input_to_field.size(); i++)
+            constexpr size_t direction_idx = decltype(j)::value;
+            integrator_qp_caches.emplace_back(std::make_unique<Vector>());
+            Vector &second_qp_cache = *integrator_qp_caches.back();
+            const second_derivative_key_t derivative_key{idx, direction_idx};
+            const auto derivative_ctx =
+               set_second_derivative_fds(derivative_key, derivative_outputs_fds,
+                                         derivative_all_fds);
+
+            create_callbacks(j, derivative_key,
+                             second_derivative_setup_callbacks,
+                             second_derivative_apply_callbacks,
+                             second_daction_transpose_callbacks,
+                             assemble_second_derivative_sparsematrix_callbacks,
+                             assemble_second_derivative_hypreparmatrix_callbacks,
+                             assemble_second_derivative_diagonal_callbacks,
+                             second_derivative_action_callbacks,
+                             second_qp_cache,
+                             derivative_ctx, second_dqfunc,
+                             first_derivative_outputs);
+         };
+
+         if constexpr (all_second_derivatives)
+         {
+            // Every block formed from the requested derivatives.
+            for_constexpr(create_second_derivative_callbacks, derivative_ids);
+         }
+         else if constexpr (diagonal_second_derivatives)
+         {
+            // Only d/d(idx) grad_idx J, no mixed derivatives.
+            create_second_derivative_callbacks(i);
+         }
+         else if constexpr (!no_second_derivatives)
+         {
+            for_constexpr_with_arg([&](auto, auto pair)
             {
-               if (input_to_field[i] == d_field_idx)
+               using pair_t = decltype(pair);
+               if constexpr (pair_t::gradient_id == decltype(i)::value)
                {
-                  return i;
+                  create_second_derivative_callbacks(
+                     std::integral_constant<size_t, pair_t::direction_id> {});
                }
-            }
-            return size_t(SIZE_MAX);
-         }();
+            }, second_derivative_ids);
+         }
 
-         const int trial_vdim = GetVDim(fields[d_field_idx]);
-         const int num_trial_dof =
-            get_restriction<entity_t>(fields[d_field_idx], element_dof_ordering)->Height() /
-            inputs_vdim[d_input_idx] / num_entities;
-         const int num_trial_dof_1d =
-            input_dtq_maps[d_input_idx].B.GetShape()[DofToQuadMap::Index::DOF];
-
-         Vector Ae_mem(num_test_dof * test_vdim * num_trial_dof * trial_vdim *
-                       num_entities);
-         Ae_mem = 0.0;
-
-         // Quadrature point local derivative cache for each element, with data
-         // layout:
-         // [test_vdim, test_op_dim, trial_vdim, trial_op_dim, qp, num_entities].
-         derivative_qp_caches[derivative_id] = Vector(test_vdim * test_op_dim *
-                                                      trial_vdim *
-                                                      total_trial_op_dim * num_qp * num_entities);
-         // Create local references for MSVC lambda capture compatibility
-         auto& fields_ref = this->fields;
-         auto& derivative_qp_caches_ref = this->derivative_qp_caches[derivative_id];
-
-         // In each of the callbacks we're saving the derivatives in the quadrature point
-         // caches. This trades memory with computational effort but also minimizes
-         // data movement on each multiplication of the gradient with a directional
-         // vector.
-         derivative_setup_callbacks[derivative_id].push_back(
-            [
-               // capture by copy:
-               dimension,             // int
-               num_entities,          // int
-               num_qp,                // int
-               q1d,                   // int
-               test_vdim,             // int (= output_fop.vdim)
-               test_op_dim,           // int (derived from output_fop)
-               inputs,                // mfem::future::tuple
-               attributes,     // Array<int>
-               ir_weights,            // DeviceTensor
-               use_sum_factorization, // bool
-               input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
-               output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-               input_to_field,        // std::array<int, s>
-               qfunc,                 // qfunc_t
-               thread_blocks,         // ThreadBlocks
-               shmem_cache,           // Vector (local)
-               shmem_info,            // SharedMemoryInfo
-               // TODO: make this Array<int> a member of the DifferentiableOperator
-               //       and capture it by ref.
-               elem_attributes,       // Array<int>
-               element_dof_ordering,  // ElementDofOrdering
-
-               direction,             // FieldDescriptor
-               direction_e,           // Vector
-               da_size_on_qp,         // int
-
-               total_trial_op_dim,
-               trial_vdim,
-               inputs_trial_op_dim,
-
-               // capture by ref:
-               &qpdc_mem = derivative_qp_caches_ref
-            ](std::vector<Vector> &f_e, const Vector &dir_l) mutable
+         // The first derivative (gradient) of the functional is the plain
+         // action of the reverse-mode-differentiated energy dqfunc. Register
+         // it so GetDerivative(idx) returns the gradient operator. The
+         // DerivativeOperator passes a direction to its action callbacks; the
+         // gradient is a function of the captured state only, so the direction
+         // is ignored here.
+         auto grad_action =
+            backend_t::MakeAction(first_derivative_ctx, dqfunc, inputs,
+                                  first_derivative_outputs);
+         derivative_action_callbacks[idx].push_back(
+            [grad_action](const std::vector<Vector *> &xe,
+                          const Vector * /*direction*/,
+                          std::vector<Vector *> &ye)
          {
-            restriction<entity_t>(direction, dir_l, direction_e,
-                                  element_dof_ordering);
-            auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
-                                                num_entities);
-            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                               shmem_info.direction_size,
-                                               num_entities);
-
-            auto qpdc = Reshape(qpdc_mem.ReadWrite(), test_vdim, test_op_dim,
-                                trial_vdim, total_trial_op_dim, num_qp, num_entities);
-
-            auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
-
-            const auto d_elem_attr = elem_attributes->Read();
-            const bool has_attr = attributes.Size() > 0;
-            const auto d_domain_attr = attributes.Read();
-
-            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
-            {
-               if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
-
-               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                                      direction_shmem, input_shmem,
-                                      shadow_shmem_, residual_shmem,
-                                      scratch_shmem] =
-                        unpack_shmem(shmem, shmem_info, input_dtq_maps, output_dtq_maps,
-                                     wrapped_fields_e, wrapped_direction_e, num_qp, e);
-               auto &shadow_shmem = shadow_shmem_;
-
-               map_fields_to_quadrature_data(
-                  input_shmem, fields_shmem, input_dtq_shmem, input_to_field,
-                  inputs, ir_weights, scratch_shmem, dimension,
-                  use_sum_factorization);
-
-               set_zero(shadow_shmem);
-
-               auto qpdc_e = Reshape(&qpdc(0, 0, 0, 0, 0, e), test_vdim, test_op_dim,
-                                     trial_vdim, total_trial_op_dim, num_qp);
-               call_qfunction_derivative<qf_param_ts>(
-                  qfunc, input_shmem, shadow_shmem, residual_shmem, qpdc_e, itod, da_size_on_qp,
-                  q1d, dimension, use_sum_factorization);
-            }, num_entities, thread_blocks, shmem_info.total_size,
-            shmem_cache.ReadWrite());
+            grad_action(xe, ye);
          });
-
-         // The derivative action only uses the quadrature point caches and applies
-         // them to an input vector before integrating with the desired trial operator.
-         derivative_action_callbacks[derivative_id].push_back(
-            [
-               // capture by copy:
-               dimension,             // int
-               num_entities,          // int
-               num_test_dof,          // int
-               num_qp,                // int
-               q1d,                   // int
-               test_vdim,             // int (= output_fop.vdim)
-               test_op_dim,           // int (derived from output_fop)
-               inputs,                // mfem::future::tuple
-               attributes,            // Array<int>
-               ir_weights,            // DeviceTensor
-               use_sum_factorization, // bool
-               input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
-               output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-               output_fop,            // class derived from FieldOperator
-               thread_blocks,         // ThreadBlocks
-               shmem_cache,           // Vector (local)
-               shmem_info,            // SharedMemoryInfo
-               // TODO: make this Array<int> a member of the DifferentiableOperator
-               //       and capture it by ref.
-               elem_attributes,       // Array<int>
-
-               input_is_dependent,    // std::array<bool, num_inputs>
-               direction,             // FieldDescriptor
-               direction_e,           // Vector
-               derivative_action_e,   // Vector
-               element_dof_ordering,  // ElementDofOrdering
-               inputs_trial_op_dim,
-               total_trial_op_dim,
-               trial_vdim,
-               // capture by ref:
-               &qpdc_mem = derivative_qp_caches_ref,
-               &or_transpose
-            ](
-               std::vector<Vector> &f_e, const Vector &dir_l,
-               Vector &der_action_l) mutable
-         {
-            restriction<entity_t>(direction, dir_l, direction_e,
-                                  element_dof_ordering);
-            auto ye = Reshape(derivative_action_e.ReadWrite(), num_test_dof,
-                              test_vdim, num_entities);
-            auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
-                                                num_entities);
-            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                               shmem_info.direction_size,
-                                               num_entities);
-
-            auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
-                                trial_vdim, total_trial_op_dim, num_qp, num_entities);
-
-            auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
-
-            const bool has_attr = attributes.Size() > 0;
-            const auto d_attr = attributes.Read();
-            const auto d_elem_attr = elem_attributes->Read();
-
-            derivative_action_e = 0.0;
-            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
-            {
-               if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
-
-               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                                      direction_shmem, input_shmem,
-                                      shadow_shmem_, residual_shmem,
-                                      scratch_shmem] =
-                        unpack_shmem(shmem, shmem_info, input_dtq_maps, output_dtq_maps,
-                                     wrapped_fields_e, wrapped_direction_e, num_qp, e);
-               auto &shadow_shmem = shadow_shmem_;
-
-               map_direction_to_quadrature_data_conditional(
-                  shadow_shmem, direction_shmem, input_dtq_shmem, inputs,
-                  ir_weights, scratch_shmem, input_is_dependent, dimension,
-                  use_sum_factorization);
-
-               auto fhat = Reshape(&residual_shmem(0, 0), test_vdim,
-                                   test_op_dim, num_qp);
-
-               auto qpdce = Reshape(&qpdc(0, 0, 0, 0, 0, e), test_vdim, test_op_dim,
-                                    trial_vdim, total_trial_op_dim, num_qp);
-
-               apply_qpdc(fhat, shadow_shmem, qpdce, itod, q1d, dimension,
-                          use_sum_factorization);
-
-               auto y = Reshape(&ye(0, 0, e), num_test_dof, test_vdim);
-               map_quadrature_data_to_fields(
-                  y, fhat, output_fop, output_dtq_shmem[0],
-                  scratch_shmem, dimension, use_sum_factorization);
-            }, num_entities, thread_blocks, shmem_info.total_size,
-            shmem_cache.ReadWrite());
-            or_transpose(derivative_action_e, der_action_l);
-         });
-
-         assemble_derivative_sparsematrix_callbacks[derivative_id].push_back(
-            [
-               // capture by copy:
-               dimension,             // int
-               num_entities,          // int
-               num_test_dof,          // int
-               num_qp,                // int
-               q1d,                   // int
-               test_vdim,             // int (= output_fop.vdim)
-               test_op_dim,           // int (derived from output_fop)
-               inputs,                // mfem::future::tuple
-               attributes,     // Array<int>
-               use_sum_factorization, // bool
-               input_dtq_maps,        // std::array<DofToQuadMap, num_fields>
-               output_dtq_maps,       // std::array<DofToQuadMap, num_fields>
-               input_to_field,        // std::array<int, s>
-               output_fop,            // class derived from FieldOperator
-               thread_blocks,         // ThreadBlocks
-               shmem_cache,           // Vector (local)
-               shmem_info,            // SharedMemoryInfo
-               // TODO: make this Array<int> a member of the DifferentiableOperator
-               //       and capture it by ref.
-               elem_attributes,       // Array<int>
-
-               input_is_dependent,    // std::array<bool, num_inputs>
-               direction_e,           // Vector
-               total_trial_op_dim,
-               trial_vdim,
-               num_trial_dof,
-               num_trial_dof_1d,
-               inputs_trial_op_dim,
-               Ae_mem,
-               output_to_field,
-
-               // capture by ref:
-               &qpdc_mem = derivative_qp_caches_ref,
-               &fields = fields_ref
-            ](std::vector<Vector> &f_e, SparseMatrix *&A) mutable
-         {
-            auto wrapped_fields_e = wrap_fields(f_e, shmem_info.field_sizes,
-                                                num_entities);
-            auto wrapped_direction_e = Reshape(direction_e.ReadWrite(),
-                                               shmem_info.direction_size,
-                                               num_entities);
-
-            auto qpdc = Reshape(qpdc_mem.Read(), test_vdim, test_op_dim,
-                                trial_vdim, total_trial_op_dim, num_qp, num_entities);
-
-            auto itod = Reshape(inputs_trial_op_dim.Read(), num_inputs);
-
-            auto Ae = Reshape(Ae_mem.ReadWrite(), num_test_dof, test_vdim, num_trial_dof,
-                              trial_vdim, num_entities);
-
-            const auto d_elem_attr = elem_attributes->Read();
-            const bool has_attr = attributes.Size() > 0;
-            const auto d_domain_attr = attributes.Read();
-
-            forall([=] MFEM_HOST_DEVICE (int e, real_t *shmem)
-            {
-               if (has_attr && !d_domain_attr[d_elem_attr[e] - 1]) { return; }
-
-               auto [input_dtq_shmem, output_dtq_shmem, fields_shmem,
-                                      direction_shmem, input_shmem,
-                                      shadow_shmem_, residual_shmem,
-                                      scratch_shmem] =
-                        unpack_shmem(shmem, shmem_info, input_dtq_maps, output_dtq_maps,
-                                     wrapped_fields_e, wrapped_direction_e, num_qp, e);
-
-               auto fhat = Reshape(&residual_shmem(0, 0), test_vdim, test_op_dim, num_qp);
-               auto Aee = Reshape(&Ae(0, 0, 0, 0, e), num_test_dof, test_vdim, num_trial_dof,
-                                  trial_vdim);
-               auto qpdce = Reshape(&qpdc(0, 0, 0, 0, 0, e), test_vdim, test_op_dim,
-                                    trial_vdim, total_trial_op_dim, num_qp);
-               assemble_element_mat_naive(Aee, fhat, qpdce, itod, inputs, output_fop,
-                                          input_dtq_shmem, output_dtq_shmem[0], scratch_shmem, dimension, q1d,
-                                          num_trial_dof_1d, use_sum_factorization);
-            }, num_entities, thread_blocks, shmem_info.total_size,
-            shmem_cache.ReadWrite());
-
-            FieldDescriptor *trial_field = nullptr;
-            for (size_t s = 0; s < num_inputs; s++)
-            {
-               if (input_is_dependent[s])
-               {
-                  trial_field = &fields[input_to_field[s]];
-               }
-            }
-
-            auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
-                             (&trial_field->data);
-            auto test_fes = *std::get_if<const ParFiniteElementSpace *>
-                            (&fields[output_to_field[0]].data);
-
-            A = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
-
-            auto tmp = Reshape(Ae_mem.HostReadWrite(), num_test_dof * test_vdim,
-                               num_trial_dof * trial_vdim, num_entities);
-            for (int e = 0; e < num_entities; e++)
-            {
-               DenseMatrix Aee(&tmp(0, 0, e), num_test_dof * test_vdim,
-                               num_trial_dof * trial_vdim);
-
-               Array<int> test_vdofs, trial_vdofs;
-               test_fes->GetElementVDofs(e, test_vdofs);
-               trial_fes->GetElementVDofs(e, trial_vdofs);
-
-               if (use_sum_factorization)
-               {
-                  Array<int> test_vdofs_mapped(test_vdofs.Size());
-
-                  const Array<int> &test_dofmap =
-                     dynamic_cast<const TensorBasisElement&>(*test_fes->GetFE(0)).GetDofMap();
-
-                  if (test_dofmap.Size() == 0)
-                  {
-                     test_vdofs_mapped = test_vdofs;
-                  }
-                  else
-                  {
-                     MFEM_ASSERT(test_dofmap.Size() == num_test_dof,
-                                 "internal error: dof map of the test space does not "
-                                 "match previously determined number of test space dofs");
-
-                     for (int vd = 0; vd < test_vdim; vd++)
-                     {
-                        for (int i = 0; i < num_test_dof; i++)
-                        {
-                           test_vdofs_mapped[i + vd * num_test_dof] =
-                              test_vdofs[test_dofmap[i] + vd * num_test_dof];
-                        }
-                     }
-                  }
-
-                  Array<int> trial_vdofs_mapped(trial_vdofs.Size());
-                  const Array<int> &trial_dofmap =
-                     dynamic_cast<const TensorBasisElement&>(*trial_fes->GetFE(0)).GetDofMap();
-
-                  if (trial_dofmap.Size() == 0)
-                  {
-                     trial_vdofs_mapped = trial_vdofs;
-                  }
-                  else
-                  {
-                     MFEM_ASSERT(trial_dofmap.Size() == num_trial_dof,
-                                 "internal error: dof map of the test space does not "
-                                 "match previously determined number of test space dofs");
-
-                     for (int vd = 0; vd < trial_vdim; vd++)
-                     {
-                        for (int i = 0; i < num_trial_dof; i++)
-                        {
-                           trial_vdofs_mapped[i + vd * num_trial_dof] =
-                              trial_vdofs[trial_dofmap[i] + vd * num_trial_dof];
-                        }
-                     }
-                  }
-
-                  A->AddSubMatrix(test_vdofs_mapped, trial_vdofs_mapped, Aee, 1);
-               }
-               else
-               {
-                  A->AddSubMatrix(test_vdofs, trial_vdofs, Aee, 1);
-               }
-            }
-            A->Finalize();
-         });
-
-         // Create local references for MSVC lambda capture compatibility
-         auto& assemble_derivative_sparsematrix_callbacks_ref =
-            this->assemble_derivative_sparsematrix_callbacks[derivative_id];
-
-         assemble_derivative_hypreparmatrix_callbacks[derivative_id].push_back(
-            [
-               input_is_dependent,
-               input_to_field,
-               output_to_field,
-               &spmatcb = assemble_derivative_sparsematrix_callbacks_ref,
-               &fields = fields_ref
-            ](std::vector<Vector> &f_e, HypreParMatrix *&A) mutable
-         {
-            SparseMatrix *spmat = nullptr;
-            for (const auto &f : spmatcb)
-            {
-               f(f_e, spmat);
-            }
-
-            if (spmat == nullptr)
-            {
-               MFEM_ABORT("internal error");
-            }
-
-            bool same_test_and_trial = false;
-            for (size_t s = 0; s < num_inputs; s++)
-            {
-               if (input_is_dependent[s])
-               {
-                  if (output_to_field[0] == input_to_field[s])
-                  {
-                     same_test_and_trial = true;
-                     break;
-                  }
-               }
-            }
-
-            FieldDescriptor *trial_field = nullptr;
-            for (size_t s = 0; s < num_inputs; s++)
-            {
-               if (input_is_dependent[s])
-               {
-                  trial_field = &fields[input_to_field[s]];
-               }
-            }
-
-            auto trial_fes = *std::get_if<const ParFiniteElementSpace *>
-                             (&trial_field->data);
-            auto test_fes = *std::get_if<const ParFiniteElementSpace *>
-                            (&fields[output_to_field[0]].data);
-
-            if (same_test_and_trial)
-            {
-               HypreParMatrix tmp(test_fes->GetComm(),
-                                  test_fes->GlobalVSize(),
-                                  test_fes->GetDofOffsets(),
-                                  spmat);
-               A = RAP(&tmp, test_fes->Dof_TrueDof_Matrix());
-            }
-            else
-            {
-               HypreParMatrix tmp(test_fes->GetComm(),
-                                  test_fes->GlobalVSize(),
-                                  trial_fes->GlobalVSize(),
-                                  test_fes->GetDofOffsets(),
-                                  trial_fes->GetDofOffsets(),
-                                  spmat);
-               A = RAP(test_fes->Dof_TrueDof_Matrix(), &tmp,
-                       trial_fes->Dof_TrueDof_Matrix());
-            }
-            delete spmat;
-         });
-      }, derivative_ids);
-   }
+      }
+      else
+      {
+         integrator_qp_caches.emplace_back(std::make_unique<Vector>());
+         Vector &qp_cache = *integrator_qp_caches.back();
+         create_callbacks(i, idx,
+                          derivative_setup_callbacks,
+                          derivative_apply_callbacks,
+                          daction_transpose_callbacks,
+                          assemble_derivative_sparsematrix_callbacks,
+                          assemble_derivative_hypreparmatrix_callbacks,
+                          assemble_diagonal_callbacks,
+                          derivative_action_callbacks,
+                          qp_cache,
+                          ctx, qfunc, outputs);
+      }
+   }, derivative_ids);
 }
 
 } // namespace mfem::future
-#endif
+
+#endif // MFEM_USE_MPI

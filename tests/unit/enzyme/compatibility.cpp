@@ -59,4 +59,66 @@ TEST_CASE("AD Vector implementation", "[Enzyme]")
    run_test<std::vector<double>>();
 }
 
+namespace enzyme_test
+{
+
+template <int N>
+void f(const double *x, double *y, double *a)
+{
+   mfem::forall<mfem::UseEnzyme>(N, [=] MFEM_HOST_DEVICE(int q)
+   {
+      y[q] = a[q] * x[q] * x[q];
+   });
+}
+
+} // namespace enzyme_test
+
+TEST_CASE("AD Global qfunction with GPU", "[Enzyme][GPU]")
+{
+   constexpr int N = 10;
+   mfem::Vector x(N), xd(N), y(N), yd(N), a(N), ad(N);
+
+   auto x_w = x.HostWrite();
+   auto xd_w = xd.HostWrite();
+   auto y_w = y.HostWrite();
+   auto yd_w = yd.HostWrite();
+   auto a_w = a.HostWrite();
+   auto ad_w = ad.HostWrite();
+
+   for (int i = 0; i < N; i++)
+   {
+      x_w[i] = i;
+      xd_w[i] = 1.0;
+      y_w[i] = 0.0;
+      yd_w[i] = 0.0;
+      a_w[i] = 2.0;
+      ad_w[i] = 0.0;
+   }
+
+   auto x_d = x.Read();
+   auto xd_d = xd.ReadWrite();
+   auto y_d = y.ReadWrite();
+   auto yd_d = yd.ReadWrite();
+   auto a_d = a.Read();
+
+   __enzyme_fwddiff<void>((void *)enzyme_test::f<N>, enzyme_dup, x_d, xd_d,
+                          enzyme_dup, y_d,
+                          yd_d, enzyme_const, a_d, enzyme_runtime_activity);
+
+   const mfem::real_t *yd_h = yd.HostRead();
+   const mfem::real_t *x_h = x.HostRead();
+   const mfem::real_t *a_h = a.HostRead();
+   bool ok = true;
+   for (int q = 0; q < N; q++)
+   {
+      mfem::real_t exact = 2.0 * a_h[q] * x_h[q];
+      if (yd_h[q] != exact)
+      {
+         ok = false;
+         break;
+      }
+   }
+   REQUIRE(ok);
+}
+
 #endif

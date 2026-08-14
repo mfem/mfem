@@ -15,6 +15,7 @@
 // Linear algebra header file
 
 #include "vector.hpp"
+#include "multivector.hpp"
 #include "operator.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
@@ -37,6 +38,7 @@
 #include "batched/gpu_blas.hpp"
 #include "batched/solver.hpp"
 #include "tensor.hpp"
+#include "tensor_arrays.hpp"
 #include "filteredsolver.hpp"
 #include "ordering.hpp"
 #include "particlevector.hpp"

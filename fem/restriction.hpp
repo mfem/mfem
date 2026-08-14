@@ -87,12 +87,25 @@ public:
    /// Fill a Sparse Matrix with Element Matrices.
    void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
 
+   /** Fill a SparseMatrix with element matrices for this (test) restriction and
+       the given trial restriction. The element matrix layout is
+       test_dof x test_vdim x trial_dof x trial_vdim x ne. */
+   void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat,
+                         const ElementRestriction &trial_restr) const;
+
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    int FillI(SparseMatrix &mat) const;
+   /** Fill the I array for this (test) and the given trial restriction. */
+   int FillI(SparseMatrix &mat, const ElementRestriction &trial_restr) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this ElementRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
+   /** Fill the J and Data arrays for this (test) and the given trial
+       restriction, using element matrix layout
+       test_dof x test_vdim x trial_dof x trial_vdim x ne. */
+   void FillJAndData(const Vector &ea_data, SparseMatrix &mat,
+                     const ElementRestriction &trial_restr) const;
    /// @private Not part of the public interface (device kernel limitation).
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the

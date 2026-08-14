@@ -13,6 +13,7 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "multivector.hpp"
 
 namespace mfem
 {
