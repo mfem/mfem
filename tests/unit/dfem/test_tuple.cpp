@@ -244,7 +244,6 @@ TEST_CASE("dFEM tuple arithmetic", "[dFEM]")
 TEST_CASE("dFEM tuple on device", "[dFEM][GPU]")
 {
    Vector res(4);
-   res.UseDevice(true);
    auto d_res = res.Write();
 
    forall(1, [=] MFEM_HOST_DEVICE (int)
@@ -261,11 +260,15 @@ TEST_CASE("dFEM tuple on device", "[dFEM][GPU]")
       d_res[1] = get<1>(u)(0);
       d_res[2] = get<1>(u)(1);
       d_res[3] = static_cast<real_t>(get<1>(t));
+
+      tuple2 v1{0_r, vec3{0_r, 0_r, 0_r}};
+      tuple2 v2{0_r, vec3{0_r, 0_r, 0_r}};
+      [[maybe_unused]] auto v = v1 + v2;
    });
 
    res.HostRead();
-   REQUIRE(res(0) == 4.0_r);
-   REQUIRE(res(1) == 4.0_r);
-   REQUIRE(res(2) == 5.0_r);
-   REQUIRE(res(3) == 2.0_r);
+   REQUIRE(std::as_const(res)(0) == 4.0_r);
+   REQUIRE(std::as_const(res)(1) == 4.0_r);
+   REQUIRE(std::as_const(res)(2) == 5.0_r);
+   REQUIRE(std::as_const(res)(3) == 2.0_r);
 }
