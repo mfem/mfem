@@ -450,8 +450,8 @@ void LinearElasticitySolver::BuildAuxiliaryEssentialTrueDofs(
 void LinearElasticitySolver::BuildAMG() const
 {
    amg_fespace_.reset(new ParFiniteElementSpace(
-      fespace_.GetParMesh(), fespace_.FEColl(), fespace_.GetVDim(),
-      monolithic_lor_ordering_));
+                         fespace_.GetParMesh(), fespace_.FEColl(), fespace_.GetVDim(),
+                         monolithic_lor_ordering_));
    Array<int> auxiliary_ess_tdofs;
    BuildAuxiliaryEssentialTrueDofs(*amg_fespace_, auxiliary_ess_tdofs);
 
@@ -474,8 +474,8 @@ void LinearElasticitySolver::BuildAMG() const
    }
    amg->SetPrintLevel(print_level_ > 1 ? 1 : 0);
    preconditioner_.reset(new ReorderedFixedPreconditioner(
-      std::move(amg), fespace_.GetVDim(), fespace_.GetOrdering(),
-      monolithic_lor_ordering_));
+                            std::move(amg), fespace_.GetVDim(), fespace_.GetOrdering(),
+                            monolithic_lor_ordering_));
 }
 
 void LinearElasticitySolver::BuildLORMonolithicAMG() const
