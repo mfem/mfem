@@ -5627,7 +5627,8 @@ void DeviceConformingProlongationOperator::Mult(const Vector &x,
    }
 }
 
-DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator() = default;
+DeviceConformingProlongationOperator::
+~DeviceConformingProlongationOperator() = default;
 
 void DeviceConformingProlongationOperator::ReduceBeginCopy(
    const Vector &x) const
