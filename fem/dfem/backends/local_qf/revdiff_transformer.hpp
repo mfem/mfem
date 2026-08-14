@@ -592,4 +592,15 @@ struct create_function_signature<RevDiff<Func, InputActivityTuple,
                 RevDiff<Func, InputActivityTuple, OutputActivityTuple, mode>::signature;
 };
 
+/// Builds the reverse-mode transform of @a f, differentiating the inputs marked
+/// Active in @a activity_t.
+///
+/// A factory rather than a plain declaration of a RevDiff variable for compatibility with MSVC.
+template <typename activity_t, RevDiffDualMode mode = RevDiffDualMode::Eval,
+          typename func_t>
+auto make_revdiff(const func_t &f)
+{
+   return RevDiff<func_t, activity_t, tuple<Active>, mode>(f);
+}
+
 } // namespace mfem::future

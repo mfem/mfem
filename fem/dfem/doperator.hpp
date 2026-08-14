@@ -1293,11 +1293,11 @@ void DifferentiableOperator::AddIntegrator(
 
    // The requested second derivative blocks are either selected by one of the
    // Pairs markers or listed explicitly as DerivativePairs.
-   constexpr bool no_second_derivatives =
+   static constexpr bool no_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::None>>;
-   constexpr bool all_second_derivatives =
+   static constexpr bool all_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::All>>;
-   constexpr bool diagonal_second_derivatives =
+   static constexpr bool diagonal_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
 
    // Second derivatives checks:
@@ -1546,21 +1546,6 @@ void DifferentiableOperator::AddIntegrator(
          constexpr auto darr = make_dependency_tuple_ct<idx, input_t>();
          using derivative_activity_t = std::decay_t<decltype(darr)>;
 
-         using dqfunc_t = RevDiff<qfunc_t, derivative_activity_t, tuple<Active>>;
-
-         // The second derivative differentiates dqfunc again. With Enzyme that
-         // is another reverse-mode call and this type is the same as dqfunc_t;
-         // on the native dual backend it has to run on nested ("hyper") duals,
-         // so the inner seeding does not overwrite the direction carried by the
-         // outer dual pair.
-         using second_dqfunc_t = RevDiff<qfunc_t,
-               derivative_activity_t,
-               tuple<Active>,
-               RevDiffDualMode::Derivative>;
-
-         //mfem::out << darr << "\n";
-         // dqfunc_t::print();
-
          // For every dependent input, we have to create an output that will
          // get integrated with it's appropriate basis function. Inputs stay the same.
          auto first_derivative_outputs =
@@ -1574,8 +1559,15 @@ void DifferentiableOperator::AddIntegrator(
          //mfem::out << get_type_name<output_t>() << "\n";
          //mfem::out << get_type_name<input_t>() << "\n";
 
-         dqfunc_t dqfunc(qfunc);
-         second_dqfunc_t second_dqfunc(qfunc);
+         auto dqfunc = make_revdiff<derivative_activity_t>(qfunc);
+
+         // The second derivative differentiates dqfunc again. With Enzyme that
+         // is another reverse-mode call and this type is the same as dqfunc's;
+         // on the native dual backend it has to run on nested ("hyper") duals,
+         // so the inner seeding does not overwrite the direction carried by the
+         // outer dual pair.
+         auto second_dqfunc =
+            make_revdiff<derivative_activity_t, RevDiffDualMode::Derivative>(qfunc);
 
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
@@ -1621,7 +1613,7 @@ void DifferentiableOperator::AddIntegrator(
             for_constexpr_with_arg([&](auto, auto pair)
             {
                using pair_t = decltype(pair);
-               if constexpr (pair_t::gradient_id == idx)
+               if constexpr (pair_t::gradient_id == decltype(i)::value)
                {
                   create_second_derivative_callbacks(
                      std::integral_constant<size_t, pair_t::direction_id> {});
