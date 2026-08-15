@@ -22,7 +22,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
                                        FiniteElementSpace *fes_c_,
                                        bool bsymmetrize)
-   : Hybridization(fes_u_, fes_c_), Operator(c_fes.GetVSize()),
+   : Hybridization(fes_u_, fes_c_),
      fes_p(*fes_p_), bsym(bsymmetrize)
 {
 #ifdef MFEM_USE_MPI
@@ -1300,18 +1300,6 @@ void DarcyHybridization::GetGFaceMatrix(
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
       G.Reset(G_data + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
    }
-}
-
-void DarcyHybridization::Mult(const Vector &x, Vector &y) const
-{
-   MFEM_VERIFY(H, "DarcyHybridization must be finalized");
-   H->Mult(x, y);
-}
-
-Operator &DarcyHybridization::GetGradient(const Vector &x) const
-{
-   MFEM_VERIFY(H, "DarcyHybridization must be finalized");
-   return *H;
 }
 
 void DarcyHybridization::Finalize()

@@ -59,7 +59,7 @@ namespace mfem
 
     Hybridization can also be viewed as a discretization method for imposing
     (weak) continuity constraints between neighboring elements. */
-class Hybridization
+class Hybridization : public Operator
 {
    friend class HybridizationExtension;
 protected:
@@ -203,6 +203,13 @@ public:
    /// @brief Perform the reduction of the given right-hand side @a b to a
    /// right-hand side vector @a b_r for the hybridized system.
    virtual void ReduceRHS(const Vector &b, Vector &b_r) const;
+
+   /// Apply the hybridized operator.
+   /** @note The Hybridization object must be finalized by Finalize(). */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /// Evaluate the gradient operator at the point @a x.
+   Operator &GetGradient(const Vector &x) const override;
 
    /// @brief Reconstruct the solution of the original system @a sol from
    /// solution of the hybridized system @a sol_r and the original right-hand
