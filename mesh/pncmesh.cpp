@@ -41,6 +41,106 @@ static bool SameSplitScale(real_t a, real_t b)
           std::max(real_t(1.0), std::max(std::abs(a), std::abs(b)));
 }
 
+using ElementPath = std::vector<int>;
+using RefinementKey = std::pair<ElementPath, char>;
+using PendingRefinements = std::map<RefinementKey, Refinement>;
+
+struct PathRefinement
+{
+   ElementPath path;
+   int type;
+   real_t scale[3];
+};
+
+static bool GatherRefinements(MPI_Comm comm, int nranks,
+                              const PendingRefinements &local,
+                              std::vector<PathRefinement> &gathered)
+{
+   gathered.clear();
+   const int local_count = static_cast<int>(local.size());
+   std::vector<int> ref_counts(nranks);
+   MPI_Allgather(&local_count, 1, MPI_INT, ref_counts.data(), 1, MPI_INT,
+                 comm);
+
+   std::vector<int> ref_displs(nranks);
+   int total_refs = 0;
+   for (int i = 0; i < nranks; i++)
+   {
+      ref_displs[i] = total_refs;
+      total_refs += ref_counts[i];
+   }
+   if (!total_refs) { return false; }
+
+   std::vector<int> local_paths;
+   std::vector<real_t> local_scales;
+   local_scales.reserve(3*local_count);
+   for (const auto &entry : local)
+   {
+      const ElementPath &path = entry.first.first;
+      const Refinement &ref = entry.second;
+      local_paths.push_back(static_cast<int>(path.size()));
+      local_paths.insert(local_paths.end(), path.begin(), path.end());
+      local_paths.push_back(ref.GetType());
+      local_scales.insert(local_scales.end(), ref.s, ref.s + 3);
+   }
+
+   const int local_path_size = static_cast<int>(local_paths.size());
+   std::vector<int> path_sizes(nranks), path_displs(nranks);
+   MPI_Allgather(&local_path_size, 1, MPI_INT, path_sizes.data(), 1, MPI_INT,
+                 comm);
+
+   int total_path_size = 0;
+   for (int i = 0; i < nranks; i++)
+   {
+      path_displs[i] = total_path_size;
+      total_path_size += path_sizes[i];
+   }
+
+   std::vector<int> paths(total_path_size);
+   MPI_Allgatherv(local_paths.data(), local_path_size, MPI_INT,
+                  paths.data(), path_sizes.data(), path_displs.data(), MPI_INT,
+                  comm);
+
+   std::vector<int> scale_counts(nranks), scale_displs(nranks);
+   for (int i = 0; i < nranks; i++)
+   {
+      scale_counts[i] = 3*ref_counts[i];
+      scale_displs[i] = 3*ref_displs[i];
+   }
+   std::vector<real_t> scales(3*total_refs);
+   MPI_Allgatherv(local_scales.data(), 3*local_count, MFEM_MPI_REAL_T,
+                  scales.data(), scale_counts.data(), scale_displs.data(),
+                  MFEM_MPI_REAL_T, comm);
+
+   gathered.reserve(total_refs);
+   for (int rank = 0; rank < nranks; rank++)
+   {
+      int path_pos = path_displs[rank];
+      for (int i = 0; i < ref_counts[rank]; i++)
+      {
+         const int path_size = paths[path_pos++];
+         MFEM_ASSERT(path_size > 0 &&
+                     path_pos + path_size <
+                     path_displs[rank] + path_sizes[rank],
+                     "Invalid refinement path");
+
+         PathRefinement ref;
+         ref.path.assign(paths.begin() + path_pos,
+                         paths.begin() + path_pos + path_size);
+         path_pos += path_size;
+         ref.type = paths[path_pos++];
+         for (int d = 0; d < 3; d++)
+         {
+            ref.scale[d] = scales[3*(ref_displs[rank] + i) + d];
+         }
+         gathered.push_back(std::move(ref));
+      }
+      MFEM_ASSERT(path_pos == path_displs[rank] + path_sizes[rank],
+                  "Invalid refinement path data");
+   }
+   return true;
+}
+
 static real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
                                    int v0, int v1)
 {
@@ -2088,16 +2188,42 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 
    for (int i = 0; i < refinements.Size() && Iso; i++)
    {
-      const Refinement &ref = refinements[i];
-      if (ref.GetType() != Refinement::XYZ)
+      if (refinements[i].GetType() != Refinement::XYZ)
       {
          Iso = false;
       }
    }
 
-   NeighborRefinementMessage::Map send_ref;
+   if (NeedsGlobalRefinementSync(refinements))
+   {
+      RefineWithGlobalSync(refinements);
+   }
+   else
+   {
+      RefineWithNeighbors(refinements);
+   }
+}
 
-   // create refinement messages to all neighbors (NOTE: some may be empty)
+bool ParNCMesh::NeedsGlobalRefinementSync(
+   const Array<Refinement> &refinements)
+{
+   if (Dim != 3) { return false; }
+
+   if (Geoms == (1 << Geometry::CUBE))
+   {
+      std::set<int> conflicts;
+      return AnisotropicConflict(refinements, conflicts);
+   }
+
+   bool global_iso = false;
+   MPI_Allreduce(&Iso, &global_iso, 1, MFEM_MPI_CXX_BOOL, MPI_LAND, MyComm);
+   return !global_iso;
+}
+
+void ParNCMesh::RefineWithNeighbors(
+   const Array<Refinement> &refinements)
+{
+   NeighborRefinementMessage::Map send_ref;
    Array<int> neighbors;
    NeighborProcessors(neighbors);
    for (int i = 0; i < neighbors.Size(); i++)
@@ -2105,15 +2231,12 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       send_ref[neighbors[i]].SetNCMesh(this);
    }
 
-   // populate messages: all refinements that occur next to the processor
-   // boundary need to be sent to the adjoining neighbors so they can keep
-   // their ghost layer up to date
    Array<int> ranks;
    ranks.Reserve(64);
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
-      MFEM_ASSERT(ref.index < NElements, "");
+      MFEM_ASSERT(ref.index < NElements, "Invalid local element index");
       const int elem = leaf_elements[ref.index];
       ElementNeighborProcessors(elem, ranks);
       for (int j = 0; j < ranks.Size(); j++)
@@ -2121,19 +2244,15 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
          send_ref[ranks[j]].AddRefinement(elem, ref);
       }
    }
-
-   // send the messages (overlap with local refinements)
    NeighborRefinementMessage::IsendAll(send_ref, MyComm);
 
-   // do local refinements
    for (int i = 0; i < refinements.Size(); i++)
    {
-      Refinement ref_i = refinements[i];
-      ref_i.index = leaf_elements[refinements[i].index];
-      NCMesh::RefineElement(ref_i);
+      Refinement ref = refinements[i];
+      ref.index = leaf_elements[ref.index];
+      NCMesh::RefineElement(ref);
    }
 
-   // receive (ghost layer) refinements from all neighbors
    for (int j = 0; j < neighbors.Size(); j++)
    {
       int rank, size;
@@ -2143,7 +2262,6 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       msg.SetNCMesh(this);
       msg.Recv(rank, size, MyComm);
 
-      // do the ghost refinements
       for (int i = 0; i < msg.Size(); i++)
       {
          Refinement ghost_ref(msg.elements[i], msg.values[i].ref_type);
@@ -2152,10 +2270,169 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       }
    }
 
+   MFEM_VERIFY(ref_stack.Size() == 0,
+               "Unexpected forced parallel refinement");
    Update();
-
-   // make sure we can delete the send buffers
    NeighborRefinementMessage::WaitAllSent(send_ref);
+}
+
+void ParNCMesh::RefineWithGlobalSync(
+   const Array<Refinement> &refinements)
+{
+   // A forced refinement can propagate beyond the original processor
+   // neighborhood. Synchronize processor-independent root-to-child paths in
+   // global rounds until no rank schedules another refinement.
+   auto GetElementPath = [this](int elem)
+   {
+      ElementPath path;
+      int parent;
+      while ((parent = elements[elem].parent) >= 0)
+      {
+         const Element &parent_el = elements[parent];
+         int child = -1;
+         for (int i = 0; i < MaxElemChildren; i++)
+         {
+            if (parent_el.child[i] == elem)
+            {
+               child = i;
+               break;
+            }
+         }
+         MFEM_ASSERT(child >= 0, "Element is not a child of its parent");
+         path.push_back(child);
+         elem = parent;
+      }
+      path.push_back(elem);
+      std::reverse(path.begin(), path.end());
+      return path;
+   };
+
+   auto AddPending = [&](PendingRefinements &pending,
+                         const Refinement &ref)
+   {
+      for (int d = 0; d < 3; d++)
+      {
+         MFEM_VERIFY(ref.s[d] <= 0.0 || SameSplitScale(ref.s[d], 0.5),
+                     "Parallel anisotropic refinement conflicts currently "
+                     "require midpoint splits");
+      }
+      const ElementPath path = GetElementPath(ref.index);
+      const RefinementKey key(path, ref.GetType());
+      auto inserted = pending.emplace(key, ref);
+      if (inserted.second) { return; }
+
+      Refinement &combined = inserted.first->second;
+      MFEM_ASSERT(combined.index == ref.index,
+                  "Inconsistent local refinement paths");
+      for (int d = 0; d < 3; d++)
+      {
+         if (ref.s[d] <= 0.0) { continue; }
+         MFEM_VERIFY(combined.s[d] <= 0.0 ||
+                     SameSplitScale(combined.s[d], ref.s[d]),
+                     "Conflicting refinement scales are not supported");
+         combined.s[d] = ref.s[d];
+      }
+   };
+
+   auto FindElementPath = [this](const ElementPath &path)
+   {
+      if (path.empty() || path[0] < 0 || path[0] >= root_state.Size())
+      {
+         return -1;
+      }
+
+      int elem = path[0];
+      for (std::size_t i = 1; i < path.size(); i++)
+      {
+         const int child = path[i];
+         if (!elements[elem].ref_type || child < 0 ||
+             child >= MaxElemChildren || elements[elem].child[child] < 0)
+         {
+            return -1;
+         }
+         elem = elements[elem].child[child];
+      }
+      return elem;
+   };
+
+   auto GetIndexedAncestor = [this](int elem)
+   {
+      while (elem >= 0 && elements[elem].index < 0)
+      {
+         elem = elements[elem].parent;
+      }
+      return elem;
+   };
+
+   auto ApplyPending = [&](const PendingRefinements &pending,
+                           PendingRefinements &forced)
+   {
+      allow_parallel_forced_refinements = true;
+      for (const auto &entry : pending)
+      {
+         NCMesh::RefineElement(entry.second);
+         for (int i = 0; i < ref_stack.Size(); i++)
+         {
+            // A forced refinement outside the current ghost layer is also
+            // generated by a rank that stores the affected interface. Let
+            // that rank propagate it to avoid acting on an incomplete tree.
+            if (GetIndexedAncestor(ref_stack[i].index) >= 0)
+            {
+               AddPending(forced, ref_stack[i]);
+            }
+         }
+         ref_stack.DeleteAll();
+      }
+      allow_parallel_forced_refinements = false;
+   };
+
+   auto SynchronizeRefinements = [&](const PendingRefinements &local,
+                                     PendingRefinements &synchronized)
+   {
+      std::vector<PathRefinement> gathered;
+      if (!GatherRefinements(MyComm, NRanks, local, gathered))
+      {
+         synchronized.clear();
+         return false;
+      }
+
+      synchronized.clear();
+      for (const PathRefinement &path_ref : gathered)
+      {
+         const int elem = FindElementPath(path_ref.path);
+         if (elem >= 0 && GetIndexedAncestor(elem) >= 0)
+         {
+            Refinement ref(elem, path_ref.type);
+            ref.SetScaleForType(path_ref.scale);
+            AddPending(synchronized, ref);
+         }
+      }
+      return true;
+   };
+
+   PendingRefinements pending;
+   for (int i = 0; i < refinements.Size(); i++)
+   {
+      const Refinement &ref = refinements[i];
+      MFEM_ASSERT(ref.index < NElements, "Invalid local element index");
+      Refinement local_ref = ref;
+      local_ref.index = leaf_elements[ref.index];
+      AddPending(pending, local_ref);
+   }
+
+   ref_stack.DeleteAll();
+   shadow.DeleteAll();
+
+   PendingRefinements synchronized;
+   while (SynchronizeRefinements(pending, synchronized))
+   {
+      pending.clear();
+      ApplyPending(synchronized, pending);
+   }
+
+   ref_stack.DeleteAll();
+   shadow.DeleteAll();
+   Update();
 }
 
 

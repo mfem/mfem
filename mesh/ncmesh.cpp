@@ -827,7 +827,8 @@ void NCMesh::ForceRefinement(int vn1, int vn2, int vn3, int vn4)
    Face* face = faces.Find(vn1, vn2, vn3, vn4);
    if (!face) { return; }
 
-   MFEM_VERIFY(!IsParallel(), "ForceRefinement is supported only in serial");
+   MFEM_VERIFY(!IsParallel() || allow_parallel_forced_refinements,
+               "Forced parallel refinement is not synchronized");
 
    const int elem = face->GetSingleElement();
    Element &el = elements[elem];
