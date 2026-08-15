@@ -531,26 +531,36 @@ protected: // implementation
       typedef std::map<int, NeighborDerefinementMessage> Map;
    };
 
-   /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
-    *  the ghost layer.
+   struct ElementRankAndAttribute
+   {
+      int rank;
+      int attribute;
+   };
+
+   /** Used in RedistributeElements() to synchronize new rank assignments and
+    *  element attributes in the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false,
+   class NeighborElementRankMessage :
+      public ElementValueMessage<ElementRankAndAttribute, false,
       VarMessageTag::NEIGHBOR_ELEMENT_RANK_VM>
    {
    public:
-      void AddElementRank(int elem, int rank) { Add(elem, rank); }
+      void AddElement(int elem, int rank, int attribute)
+      { Add(elem, {rank, attribute}); }
       typedef std::map<int, NeighborElementRankMessage> Map;
    };
 
-   /** Used by Rebalance() to send elements and their ranks. Note that
+   /** Used by Rebalance() to send elements, ranks, and attributes. Note that
     *  RefTypes == true which means the refinement hierarchy will be recreated
     *  on the receiving side.
     */
-   class RebalanceMessage : public ElementValueMessage<int, true,
+   class RebalanceMessage :
+      public ElementValueMessage<ElementRankAndAttribute, true,
       VarMessageTag::REBALANCE_VM>
    {
    public:
-      void AddElementRank(int elem, int rank) { Add(elem, rank); }
+      void AddElement(int elem, int rank, int attribute)
+      { Add(elem, {rank, attribute}); }
       typedef std::map<int, RebalanceMessage> Map;
    };
 
