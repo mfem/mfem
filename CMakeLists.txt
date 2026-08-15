@@ -88,18 +88,9 @@ if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# Ginkgo requires C++17:
-if ((MFEM_USE_GINKGO) AND ("${CMAKE_CXX_STANDARD}" LESS "17"))
-  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use." FORCE)
-# Google Benchmark, SUNDIALS, STRUMPACK, Tribol, RAJA and Umpire require C++14:
-elseif ((MFEM_USE_BENCHMARK OR
-         MFEM_USE_SUNDIALS OR
-         MFEM_USE_STRUMPACK OR
-         MFEM_USE_TRIBOL OR
-         MFEM_USE_RAJA OR
-         MFEM_USE_UMPIRE) AND
-    ("${CMAKE_CXX_STANDARD}" LESS "14"))
-  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to use." FORCE)
+# RAJA requires C++20:
+if (MFEM_USE_RAJA AND ("${CMAKE_CXX_STANDARD}" LESS "20"))
+  set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to use." FORCE)
 endif()
 
 # Include xSDK default CMake file.
