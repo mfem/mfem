@@ -33,99 +33,64 @@ void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int
 
 
 /// A functional diffusion coefficient (i.e., k(T))
-class FunctionalCoefficient : public Coefficient
+class LambdaCoefficient : public Coefficient
 {
 public:
    enum Mode { FUNC = 0, GRAD = 1};
 
 protected:
-   ParGridFunction *T_gf = nullptr;
-   real_t kref = 1.0;
-   real_t a0 = 0.0, a1 = 0.0, a2 = 0.0;
-   int findex = 0;
+   ParGridFunction *gf = nullptr;
+   std::function<real_t(real_t, bool)> func;
    Mode mode = Mode::FUNC; // otherwise, grad
 
 public:
-   FunctionalCoefficient(ParGridFunction *T_gf, real_t kref): 
-                         T_gf(T_gf), kref(kref) { }
-
-   FunctionalCoefficient(ParGridFunction *T_gf, real_t kref, real_t a0):
-                         T_gf(T_gf), kref(kref), a0(a0) { findex = 1; }
-
-   FunctionalCoefficient(ParGridFunction *T_gf, real_t kref,
-                         real_t a0, real_t a1, real_t a2): T_gf(T_gf),
-                         kref(kref), a0(a0), a1(a1), a2(a2) { findex = 2; }
-
-    real_t Exponential(real_t x, bool eval_f) const
-    { 
-      real_t f = kref*exp(a0*x);
-      return (eval_f ? f : a0*f);
-    }
-    real_t Polynomial(real_t x, bool eval_f) const
-    { 
-      return (eval_f ? kref*(a0 + a1*x + a2*x*x) : kref*(a1 + 2*a2*x));
-    }
+   LambdaCoefficient(ParGridFunction *gf, std::function<real_t(real_t, bool)> func) :
+                     gf(gf), func(func) { }
 
     void SetMode(Mode mode) { this->mode = mode; }
     Mode GetMode() const { return mode; }
-    
-    void UpdateGridFunction(ParGridFunction *gf) { T_gf = gf; }
-
-    real_t Eval(real_t x, bool eval_f) const
-    {
-        switch (findex)
-        {
-        case 1:
-         return Exponential(x, eval_f);
-        case 2:
-         return Polynomial(x, eval_f);
-        default:
-         return kref;
-        }
-    }
 
     real_t Eval(ElementTransformation &Tr,
               const IntegrationPoint &ip) override
     {
-        real_t T = T_gf ? T_gf->GetValue(Tr, ip) : 0.0;
+        real_t x = gf ? gf->GetValue(Tr, ip) : 0.0;
         bool eval_f = (mode == Mode::FUNC);
-        return Eval(T, eval_f);
+        return func(x, eval_f);
     }
 };
 
 
-/// A coefficient defined by the product of grid functions, e.g. k(T) = prod_i x_i
-class GridFunctionProductCoefficient : public Coefficient
+/// A coefficient defined by the product over the ndim gridfunctions (i.e., prod_i x_i)
+class VectorProductCoefficient : public Coefficient
 {
 protected:
-   std::vector<ParGridFunction*> &x;
+   ParGridFunction &gf;
+   Vector values;
 
 public:
-   GridFunctionProductCoefficient(std::vector<ParGridFunction*> &x) : x(x) { }
+   VectorProductCoefficient(ParGridFunction &gf) : gf(gf) { }
 
    real_t Eval(ElementTransformation &Tr, const IntegrationPoint &ip) override
    {
       real_t prod = 1.0;
-      for(size_t i = 0; i < x.size(); i++)
+      gf.GetVectorValue(Tr, ip, values);
+      for(int i = 0; i < values.Size(); i++)
       {
-         real_t val = x[i]->GetValue(Tr, ip);
-         prod *= val;
+         prod *= values[i];
       }
       return prod;
    }
 };
 
+
 class CoefficientIntegrator : public NonlinearFormIntegrator
 {
 protected:
-   FunctionalCoefficient *func = nullptr;
+   std::function<real_t(real_t, bool)> func;
    Vector shape;
 
 public:
-   CoefficientIntegrator(FunctionalCoefficient *func) : func(func) { }
-
-
-   void SetCoefficient(FunctionalCoefficient *f) { func = f; }
+   CoefficientIntegrator(std::function<real_t(real_t, bool)> func) : func(func) { }
 
    void AssembleElementVector(const FiniteElement &el,
                               ElementTransformation &Tr,
@@ -143,11 +108,11 @@ public:
          const IntegrationPoint &ip = ir->IntPoint(i);
          el.CalcShape(ip, shape);
          Tr.SetIntPoint(&ip);
-         real_t x = elfun * shape; // Evaluate the function at the integration point
-         real_t fval = func->Eval(x, true);
+         real_t x = elfun * shape; // Evaluate the state at the integration point
+         real_t f = func(x, true); // Evaluate the function value
          for (int j = 0; j < dof; j++)
          {
-            elvect(j) += fval * shape(j);
+            elvect(j) += f * shape(j);
          }
       }
    }
@@ -167,8 +132,8 @@ public:
          const IntegrationPoint &ip = ir->IntPoint(i);
          el.CalcShape(ip, shape);
          Tr.SetIntPoint(&ip);
-         real_t x = elfun * shape; // Evaluate the function at the integration point
-         real_t dfdx = func->Eval(x, false); // Evaluate the derivative of the function at the integration point
+         real_t x = elfun * shape; // Evaluate the state at the integration point
+         real_t dfdx = func(x, false); // Evaluate the derivative value
          for (int j = 0; j < dof; j++)
          {
             elmat(j,j) += dfdx * shape(j); // Diagonal contribution to the Jacobian
@@ -281,35 +246,21 @@ public:
 };
 
 /// An application that takes an input field T, and computes an output field k(T)
-// represented by the FunctionalCoefficient class.
 class DiffusionCoefficient : public GraphNode
 {
-public:
-   using Mode = FunctionalCoefficient::Mode;
-
 protected:
    ParFiniteElementSpace &fes;
-   mutable ParGridFunction T, k;
-   mutable FunctionalCoefficient *kc;
-   // mutable Vector tdof, kdof, dk_dof, dT_dof;
-   mutable Mode mode = Mode::FUNC;
-
    mutable ParNonlinearForm Nform;
    mutable Operator *J = nullptr; // Jacobian for the nonlinear form
 
    CoefficientIntegrator *coeff_integrator = nullptr;
 
 public:
-   DiffusionCoefficient(ParFiniteElementSpace &fes) :
-                        GraphNode(fes.GetTrueVSize()), fes(fes), T(&fes), k(&fes),
-                        kc(new FunctionalCoefficient(&T, 1.0, 5.0e-2)),
-                        Nform(&fes),
-                        coeff_integrator(new CoefficientIntegrator(kc))
+   DiffusionCoefficient(ParFiniteElementSpace &fes, 
+                        std::function<real_t(real_t, bool)> func) :
+                        GraphNode(fes.GetTrueVSize()), fes(fes),
+                        Nform(&fes), coeff_integrator(new CoefficientIntegrator(func))
    {
-      k = 0.0;
-      T = 0.0;
-      k.ProjectCoefficient(*kc);
-
       // Testing with the nonlinear form framework to compute k(T) and dk/dT
       Nform.AddDomainIntegrator(coeff_integrator); // Transfer ownership
       Nform.SetGradientType(Operator::Type::Hypre_ParCSR);
@@ -317,19 +268,6 @@ public:
 
       SetInputOffsets(Array<int>({0, fes.GetTrueVSize()}));
       SetOutputOffsets(Array<int>({0, fes.GetTrueVSize()}));
-   }
-
-   void SetMode(Mode mode) { this->mode = mode; }
-
-   FunctionalCoefficient* GetCoefficient() { return kc; }
-
-   void SetCoefficient(FunctionalCoefficient *fc)
-   {
-      if(kc) delete kc;
-      kc = fc;
-      kc->SetMode(mode);
-      kc->UpdateGridFunction(&T);
-      coeff_integrator->SetCoefficient(kc);
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -378,40 +316,36 @@ public:
    }
 
    ~DiffusionCoefficient() override
-   {
-      if(kc) delete kc;
-   }
+   { }
 };
 
 /// An application that takes n input fields x_i, and computes an output 
 /// field prod(x) := y = prod_i x_i.
-/// Also provides the derivative dy/dx_i = prod_{j!=i} x_j * dx_i/dx for i = 0,...,n-1.
-class ProductGridFunctions : public GraphNode
+class FieldProduct : public GraphNode
 {
 protected:
-
-   ParFiniteElementSpace &fes;
-   mutable std::vector<ParGridFunction*> x_gf;
-   mutable Vector dfdx;
+   int ninputs;
+   ParFiniteElementSpace *nd_fes;
+   mutable Vector dfdx, xdof;
+   mutable ParGridFunction x_gf;
    mutable ParGridFunction y_gf;
-   mutable GridFunctionProductCoefficient prod_coeff;
+   mutable VectorProductCoefficient prod_coeff;
 
 public:
-   ProductGridFunctions(ParFiniteElementSpace &fes, int n) :
-                     //   GraphNode(fes.GetTrueVSize()),
-                       GraphNode(fes.GetTrueVSize(), fes.GetTrueVSize() * n),
-                       fes(fes), x_gf(n),
-                       y_gf(&fes), prod_coeff(x_gf)
+   FieldProduct(ParFiniteElementSpace &fes, int n) :
+                GraphNode(fes.GetTrueVSize(), fes.GetTrueVSize() * n), ninputs(n),
+                nd_fes(new ParFiniteElementSpace(fes.GetParMesh(), fes.FEColl(), n)),
+                x_gf(nd_fes), y_gf(&fes), prod_coeff(x_gf)
    {
       Array<int> offsets(n+1);
       offsets[0] = 0;
       for (int i = 0; i < n; i++)
       {
-         x_gf[i]  = new ParGridFunction(&fes);
-         *x_gf[i] = 0.0;
          offsets[i+1] = offsets[i] + fes.GetTrueVSize();
       }
+      x_gf = 0.0;
       y_gf = 0.0;
+      x_gf.GetTrueDofs(xdof);
       y_gf.ProjectCoefficient(prod_coeff);
 
       SetInputOffsets(offsets);
@@ -420,28 +354,23 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      BlockVector xb(x.GetData(), InputOffsets());
       BlockVector yb(y.GetData(), OutputOffsets());
 
-      MultiVector xmv(x_gf.size()), ymv(1);
-      for (size_t i = 0; i < x_gf.size(); i++)
-      {
-         xmv.MakeRef(i, xb.GetBlock(i));
-      }
-      ymv.MakeRef(0, yb.GetBlock(0));
-      MultMV(xmv, ymv);
+      x_gf.SetFromTrueDofs(x);
+      y_gf.ProjectCoefficient(prod_coeff);
+      y_gf.GetTrueDofs(yb.GetBlock(0));
    }
 
    void MultMV(const MultiVector &x, MultiVector &y) const override
    {
-      for (size_t i = 0; i < x_gf.size(); i++)
+      auto offsets = InputOffsets();
+      for (int i = 0; i < ninputs; i++)
       {
-         const Vector &x_dof = x[i];
-         x_gf[i]->SetFromTrueDofs(x_dof);
+         xdof.SetVector(x[i], offsets[i]);
       }
 
-      Field *out_field = OutputField(0);
       Vector &y_dof = y[0];
+      x_gf.SetFromTrueDofs(xdof);
       y_gf.ProjectCoefficient(prod_coeff);
       y_gf.GetTrueDofs(y_dof);
    }
@@ -450,33 +379,28 @@ public:
    {
       // Jacobian vector product for y = prod_i x_i is:
       // dy/dx = sum_i (prod_{j!=i} x_j * dx_i/dx)
-      for (size_t i = 0; i < x_gf.size(); i++)
+      auto offsets = InputOffsets();
+      for (int i = 0; i < ninputs; i++)
       {
-         const Vector &x_dof = x[i];
-         x_gf[i]->SetFromTrueDofs(x_dof); // Set all x_i
+         xdof.SetVector(x[i], offsets[i]); // Set all x_i
       }
 
       Vector &jvp = dy[0];
       jvp = 0.0;
-      for (size_t i = 0; i < x_gf.size(); i++)
+      for (int i = 0; i < ninputs; i++)
       {
-         const Vector &x_dof = x[i];
-         const Vector &dx_dof = dx[i]; // Get dx_i/dx
-
-         x_gf[i]->SetFromTrueDofs(dx_dof); // Set x_i = dx_i/dx for i-th term in the product
+         xdof.SetVector(dx[i], offsets[i]); // Set x_i = dx_i/dx for i-th term in the product
+         x_gf.SetFromTrueDofs(xdof);
          y_gf.ProjectCoefficient(prod_coeff); // Recompute product with x_i replaced by dx_i/dx
          y_gf.GetTrueDofs(dfdx); // Get prod_{j!=i} x_j * dx_i/dx for i-th term
          jvp += dfdx; // Accumulate contribution from i-th term
-         x_gf[i]->SetFromTrueDofs(x_dof); // reset to original value for next iteration
+         xdof.SetVector(x[i], offsets[i]); // Reset x_i to original value
       }
    }
 
-   ~ProductGridFunctions() override
+   ~FieldProduct() override
    {
-      for (size_t i = 0; i < x_gf.size(); i++)
-      {
-         if(x_gf[i]) delete x_gf[i];
-      }
+      if(nd_fes) delete nd_fes;
    }
 };
 
@@ -503,7 +427,6 @@ public:
 
    ConstantCoefficient zero_coeff, one_coeff;
 
-   mutable FunctionalCoefficient *kc = nullptr;
    mutable HypreParMatrix *dfdk_mat = nullptr, *dfdT_mat = nullptr;
 
 public:
@@ -532,8 +455,6 @@ public:
       SetInputOffsets(Array<int>({0, fes.GetTrueVSize(), 2*fes.GetTrueVSize()}));
       SetOutputOffsets(Array<int>({0, fes.GetTrueVSize()}));
    }
-
-   void SetCoefficient(FunctionalCoefficient *fc) { kc = fc; }
 
    void Assemble()
    {
@@ -671,26 +592,30 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes(&pmesh, &fec);
 
    // Build all operator nodes
-   DiffusionCoefficient diff_coeff_1(fes);
+   auto exp_func = [kref=1.0, a = 3.5e-2](real_t x, bool eval_f) -> real_t
+   {
+      real_t k = kref * exp(a*x);
+      real_t dk = a * k;
+      return eval_f ? k : dk;
+   };
+   DiffusionCoefficient diff_coeff_1(fes, exp_func);
    diff_coeff_1.SetName("k(T1)");
-   diff_coeff_1.SetCoefficient(new FunctionalCoefficient(nullptr, 1.0, 3.5e-2));
-   // diff_coeff_1.SetCoefficient(new FunctionalCoefficient(nullptr, 1.0, 1.0, 0.1, 0.0));
 
-   DiffusionCoefficient diff_coeff_2(fes);
+   auto poly_func = [kref=1.0, a0=1.0, a1=2.0, a2=0.0](real_t x, bool eval_f) -> real_t
+   {
+      return eval_f ? kref * (a0 + a1*x + a2*x*x) : kref * (a1 + 2*a2*x);
+   };
+   DiffusionCoefficient diff_coeff_2(fes, poly_func);
    diff_coeff_2.SetName("k(T2)");
-   diff_coeff_2.SetCoefficient(new FunctionalCoefficient(nullptr, 1.0, 1.0, 2.0, 0.0));
-   // diff_coeff_2.SetCoefficient(new FunctionalCoefficient(nullptr, 1.5, 2.5e-2));
 
-   ProductGridFunctions prod_coeff(fes, 2);
+   FieldProduct prod_coeff(fes, 2);
    prod_coeff.SetName("k(T1,T2)");
 
    DiffusionOperator diff_op1(fes);
    diff_op1.SetName("Div(k(T1,T2) grad(T1))");
-   diff_op1.SetCoefficient(diff_coeff_1.GetCoefficient());
 
    DiffusionOperator diff_op2(fes);
    diff_op2.SetName("Div(k(T1,T2) grad(T2))");
-   diff_op2.SetCoefficient(diff_coeff_2.GetCoefficient());
 
 
    // Build the DAG in any order, and then sort it to ensure the correct execution order
