@@ -22,7 +22,7 @@ DarcyHybridization::DarcyHybridization(FiniteElementSpace *fes_u_,
                                        FiniteElementSpace *fes_p_,
                                        FiniteElementSpace *fes_c_,
                                        bool bsymmetrize)
-   : Hybridization(fes_u_, fes_c_), Operator(c_fes.GetVSize()),
+   : Hybridization(fes_u_, fes_c_),
      fes_p(*fes_p_), bsym(bsymmetrize)
 {
 #ifdef MFEM_USE_MPI

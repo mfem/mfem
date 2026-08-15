@@ -167,7 +167,7 @@ namespace mfem
     economical, sharing the nodal DOFs between adjacent faces, at the expense
     of local conservation properties and conditioning of the local problem.
  */
-class DarcyHybridization : public Hybridization, public Operator
+class DarcyHybridization : public Hybridization
 {
 public:
    enum class LSsolveType
@@ -759,13 +759,6 @@ public:
    /// Assemble the boundary element matrix A into the hybridized system matrix.
    //void AssembleBdrMatrix(int bdr_el, const DenseMatrix &A);
 
-   /// Apply the hybridized operator.
-   /** @note The DarcyHybridization object must be finalized by Finalize(). */
-   void Mult(const Vector &x, Vector &y) const override;
-
-   /// Evaluate the gradient operator at the point @a x.
-   Operator &GetGradient(const Vector &x) const override;
-
    /// Finalize the construction of the hybridized matrix.
    void Finalize() override;
 
@@ -844,6 +837,13 @@ public:
        @param sol_r  solution of the hybridized system (VDOFs)
     */
    void ProjectSolution(const BlockVector &sol, Vector &sol_r) const;
+
+   /// Apply the hybridized operator.
+   /** @note The DarcyHybridization object must be finalized by Finalize(). */
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /// Evaluate the gradient operator at the point @a x.
+   Operator &GetGradient(const Vector &x) const override;
 
    /** @brief Not available, use ComputeSolution(const BlockVector &,
        const Vector &, BlockVector &) instead. */
