@@ -38,6 +38,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -102,33 +103,33 @@ int main(int argc, char *argv[])
 
    // 5. Define a finite element space on the mesh. The polynomial order is
    //    one (linear) by default, but this can be changed on the command line.
-   FiniteElementCollection *R_coll;
+   unique_ptr<FiniteElementCollection> R_coll;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      R_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      R_coll = new BrokenRT_FECollection(order, dim);
+      R_coll = make_unique<BrokenRT_FECollection>(order, dim);
    }
    else
    {
-      R_coll = new RT_FECollection(order, dim);
+      R_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
+   auto W_coll = make_unique<L2_FECollection>(order, dim);
 
-   FiniteElementSpace *R_space = new FiniteElementSpace(&mesh, R_coll,
-                                                        (dg)?(dim):(1));
-   FiniteElementSpace *W_space = new FiniteElementSpace(&mesh, W_coll);
+   auto R_space = make_unique<FiniteElementSpace>(&mesh, R_coll.get(),
+                                                  (dg)?(dim):(1));
+   auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
    // 6. As in Example 1, we set up bilinear and linear forms corresponding to
    //    the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //    problem yet, this will be done in the main loop.
 
-   DarcyForm darcy(R_space, W_space);
+   DarcyForm darcy(R_space.get(), W_space.get());
 
    ConstantCoefficient one(1.0), negone(-1.0);
 
@@ -162,19 +163,19 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
 
    if (trace_h1)
    {
-      trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+      trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
    }
    else
    {
-      trace_coll = new DG_Interface_FECollection(order, dim);
+      trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
    }
-   trace_space = new FiniteElementSpace(&mesh, trace_coll);
-   darcy.EnableHybridization(trace_space,
+   trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
+   darcy.EnableHybridization(trace_space.get(),
                              new NormalTraceJumpIntegrator(),
                              ess_flux_tdofs_list);
 
@@ -185,7 +186,7 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    GridFunction u_h, uhat_h;
-   u_h.MakeRef(W_space, x.GetBlock(1), 0);
+   u_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
    // 8. Connect to GLVis.
    char vishost[] = "localhost";
@@ -251,7 +252,7 @@ int main(int argc, char *argv[])
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       darcy.RecoverFEMSolution(X, x);
-      uhat_h.MakeTRef(trace_space, X, 0);
+      uhat_h.MakeTRef(trace_space.get(), X, 0);
       uhat_h.SetFromTrueVector();
 
       // 16. Send solution by socket to the GLVis server.
@@ -295,18 +296,12 @@ int main(int argc, char *argv[])
       x.Update(darcy.GetOffsets(), mt);
 
       x = 0.;
-      u_h.MakeRef(W_space, x.GetBlock(1), 0);
+      u_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
-      darcy.EnableHybridization(trace_space,
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
    }
 
-   delete W_space;
-   delete R_space;
-   delete trace_space;
-   delete W_coll;
-   delete R_coll;
-   delete trace_coll;
    return 0;
 }

@@ -35,6 +35,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -189,19 +190,19 @@ int main(int argc, char *argv[])
 
    // 8. Initialize hybridization.
 
-   FiniteElementCollection *trace_coll;
-   FiniteElementSpace *trace_space;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
 
    if (trace_h1)
    {
-      trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+      trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
    }
    else
    {
-      trace_coll = new DG_Interface_FECollection(order, dim);
+      trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
    }
-   trace_space = new FiniteElementSpace(&mesh, trace_coll, dim);
-   darcy.EnableHybridization(trace_space,
+   trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get(), dim);
+   darcy.EnableHybridization(trace_space.get(),
                              new NormalStressJumpIntegrator(-1.),
                              ess_stress_tdofs_list);
 
@@ -285,7 +286,7 @@ int main(int argc, char *argv[])
       //     finite element GridFunction. Constrained nodes are interpolated
       //     from true DOFs (it may therefore happen that x.Size() >= X.Size()).
       darcy.RecoverFEMSolution(X, x);
-      uhat.MakeTRef(trace_space, X, 0);
+      uhat.MakeTRef(trace_space.get(), X, 0);
       uhat.SetFromTrueVector();
 
       // 18. Send solution by socket to the GLVis server.
@@ -342,7 +343,7 @@ int main(int argc, char *argv[])
 
       // 22. Reinitialize the hybridization to recompute the constraints on the
       //     new mesh.
-      darcy.EnableHybridization(trace_space,
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalStressJumpIntegrator(-1.),
                                 ess_stress_tdofs_list);
    }
@@ -366,10 +367,6 @@ int main(int argc, char *argv[])
       u_out.precision(16);
       u.Save(u_out);
    }
-
-   // clean-up
-   delete trace_space;
-   delete trace_coll;
 
    return 0;
 }

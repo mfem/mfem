@@ -44,6 +44,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -147,8 +148,8 @@ int main(int argc, char *argv[])
    // 4. Read the (serial) mesh from the given mesh file on all processors.  We
    //    can handle triangular, quadrilateral, tetrahedral, hexahedral, surface
    //    and volume meshes with the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 5. Refine the serial mesh on all processors to increase the resolution. In
    //    this example we do 'ref_levels' of uniform refinement. We choose
@@ -157,55 +158,55 @@ int main(int argc, char *argv[])
    {
       if (ref_levels == -1)
       {
-         ref_levels = (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         ref_levels = (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       }
 
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
    // 6. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
-   delete mesh;
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
    {
       int par_ref_levels = 2;
       for (int l = 0; l < par_ref_levels; l++)
       {
-         pmesh->UniformRefinement();
+         pmesh.UniformRefinement();
       }
    }
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
    //    the specified order.
-   FiniteElementCollection *R_coll, *R_coll_dg = NULL;
+   unique_ptr<FiniteElementCollection> R_coll, R_coll_dg;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      R_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      R_coll = new BrokenRT_FECollection(order, dim);
-      R_coll_dg = new L2_FECollection(order+1, dim);
+      R_coll = make_unique<BrokenRT_FECollection>(order, dim);
+      R_coll_dg = make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
-      R_coll = new RT_FECollection(order, dim);
+      R_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
+   auto W_coll = make_unique<L2_FECollection>(order, dim);
 
-   ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, R_coll,
-                                                              (dg)?(dim):(1));
-   ParFiniteElementSpace *R_space_dg = (R_coll_dg)?(new ParFiniteElementSpace(
-                                                       pmesh, R_coll_dg, dim)):(NULL);
-   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
+   auto R_space = make_unique<ParFiniteElementSpace>(&pmesh, R_coll.get(),
+                                                     (dg)?(dim):(1));
+   auto R_space_dg = (R_coll_dg)?(make_unique<ParFiniteElementSpace>(
+                                     &pmesh, R_coll_dg.get(), dim)):(nullptr);
+   auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
    HYPRE_BigInt dimR = R_space->GlobalTrueVSize();
    HYPRE_BigInt dimW = W_space->GlobalTrueVSize();
@@ -224,7 +225,7 @@ int main(int argc, char *argv[])
    //    block_trueOffsets is used for Vector based on true dof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
    //    here are local to the processor.
-   ParDarcyForm *darcy = new ParDarcyForm(R_space, W_space);
+   auto darcy = make_unique<ParDarcyForm>(R_space.get(), W_space.get());
    const Array<int> &block_offsets = darcy->GetOffsets();
    const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
@@ -322,8 +323,8 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   ParFiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<ParFiniteElementSpace> trace_space;
    Vector X;
 
    chrono.Clear();
@@ -333,25 +334,25 @@ int main(int argc, char *argv[])
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
+      trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
+      darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
       // Set essential BC
-      if (trace_ess_bc && pmesh->bdr_attributes.Size() > 0)
+      if (trace_ess_bc && pmesh.bdr_attributes.Size() > 0)
       {
          X.SetSize(trace_space->GetTrueVSize());
          // Project essential BC
-         Array<int> bdr_is_ess(pmesh->bdr_attributes.Max());
+         Array<int> bdr_is_ess(pmesh.bdr_attributes.Max());
          bdr_is_ess = 1;
          ParGridFunction phat;
-         phat.MakeTRef(trace_space, X, 0);
+         phat.MakeTRef(trace_space.get(), X, 0);
          phat = 0.;
          phat.ProjectBdrCoefficient(pcoeff, bdr_is_ess);
          phat.SetTrueVector();
@@ -533,16 +534,16 @@ int main(int argc, char *argv[])
    ParGridFunction u, p;
    if (R_space_dg)
    {
-      ParGridFunction u_broken(R_space, x.GetBlock(0), 0);
+      ParGridFunction u_broken(R_space.get(), x.GetBlock(0), 0);
       VectorGridFunctionCoefficient coeff(&u_broken);
-      u.SetSpace(R_space_dg);
+      u.SetSpace(R_space_dg.get());
       u.ProjectCoefficient(coeff);
    }
    else
    {
-      u.MakeRef(R_space, x.GetBlock(0), 0);
+      u.MakeRef(R_space.get(), x.GetBlock(0), 0);
    }
-   p.MakeRef(W_space, x.GetBlock(1), 0);
+   p.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -552,9 +553,9 @@ int main(int argc, char *argv[])
    }
 
    real_t err_u  = u.ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeGlobalLpNorm(2., ucoeff, *pmesh, irs);
+   real_t norm_u = ComputeGlobalLpNorm(2., ucoeff, pmesh, irs);
    real_t err_p  = p.ComputeL2Error(pcoeff, irs);
-   real_t norm_p = ComputeGlobalLpNorm(2., pcoeff, *pmesh, irs);
+   real_t norm_p = ComputeGlobalLpNorm(2., pcoeff, pmesh, irs);
 
    if (verbose)
    {
@@ -572,7 +573,7 @@ int main(int argc, char *argv[])
 
       ofstream mesh_ofs(mesh_name.str().c_str());
       mesh_ofs.precision(8);
-      pmesh->Print(mesh_ofs);
+      pmesh.Print(mesh_ofs);
 
       ofstream u_ofs(u_name.str().c_str());
       u_ofs.precision(8);
@@ -584,7 +585,7 @@ int main(int argc, char *argv[])
    }
 
    // 16. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5-Parallel", pmesh);
+   VisItDataCollection visit_dc("Example5-Parallel", &pmesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
    visit_dc.SetFormat(!par_format ?
@@ -593,7 +594,7 @@ int main(int argc, char *argv[])
    visit_dc.Save();
 
    // 17. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5P", pmesh);
+   ParaViewDataCollection paraview_dc("Example5P", &pmesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetDataFormat(VTKFormat::BINARY);
@@ -614,7 +615,7 @@ int main(int argc, char *argv[])
       postfix += "_o" + std::to_string(order);
       const std::string collection_name = "ex5-p-" + postfix + ".bp";
 
-      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, pmesh);
+      ADIOS2DataCollection adios2_dc(MPI_COMM_WORLD, collection_name, &pmesh);
       adios2_dc.SetLevelsOfDetail(1);
       adios2_dc.SetCycle(1);
       adios2_dc.SetTime(0.0);
@@ -632,29 +633,17 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << u << "window_title 'Velocity'"
+      u_sock << "solution\n" << pmesh << u << "window_title 'Velocity'"
              << endl;
       // Make sure all ranks have sent their 'u' solution before initiating
       // another set of GLVis connections (one from each rank):
-      MPI_Barrier(pmesh->GetComm());
+      MPI_Barrier(pmesh.GetComm());
       socketstream p_sock(vishost, visport);
       p_sock << "parallel " << num_procs << " " << myid << "\n";
       p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << p << "window_title 'Pressure'"
+      p_sock << "solution\n" << pmesh << p << "window_title 'Pressure'"
              << endl;
    }
-
-   // 20. Free the used memory.
-   delete darcy;
-   delete W_space;
-   delete R_space;
-   delete R_space_dg;
-   delete trace_space;
-   delete W_coll;
-   delete R_coll;
-   delete R_coll_dg;
-   delete trace_coll;
-   delete pmesh;
 
    return 0;
 }

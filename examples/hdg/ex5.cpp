@@ -42,6 +42,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -121,8 +122,8 @@ int main(int argc, char *argv[])
    // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral, hexahedral, surface and volume meshes with
    //    the same code.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
+   Mesh mesh(mesh_file, 1, 1);
+   int dim = mesh.Dimension();
 
    // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
@@ -130,45 +131,45 @@ int main(int argc, char *argv[])
    //    elements.
    {
       int ref_levels =
-         (int)floor(log(10000./mesh->GetNE())/log(2.)/dim);
+         (int)floor(log(10000./mesh.GetNE())/log(2.)/dim);
       for (int l = 0; l < ref_levels; l++)
       {
-         mesh->UniformRefinement();
+         mesh.UniformRefinement();
       }
    }
 
    // 5. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
    //    the specified order.
-   FiniteElementCollection *R_coll, *R_coll_dg = NULL;
+   unique_ptr<FiniteElementCollection> R_coll, R_coll_dg;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      R_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      R_coll = new BrokenRT_FECollection(order, dim);
-      R_coll_dg = new L2_FECollection(order+1, dim);
+      R_coll = make_unique<BrokenRT_FECollection>(order, dim);
+      R_coll_dg = make_unique<L2_FECollection>(order+1, dim);
    }
    else
    {
-      R_coll = new RT_FECollection(order, dim);
+      R_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
+   auto W_coll = make_unique<L2_FECollection>(order, dim);
 
-   FiniteElementSpace *R_space = new FiniteElementSpace(mesh, R_coll,
-                                                        (dg)?(dim):(1));
-   FiniteElementSpace *R_space_dg = (R_coll_dg)?(new FiniteElementSpace(
-                                                    mesh, R_coll_dg, dim)):(NULL);
-   FiniteElementSpace *W_space = new FiniteElementSpace(mesh, W_coll);
+   auto R_space = make_unique<FiniteElementSpace>(&mesh, R_coll.get(),
+                                                  (dg)?(dim):(1));
+   auto R_space_dg = (R_coll_dg)?(make_unique<FiniteElementSpace>(
+                                     &mesh, R_coll_dg.get(), dim)):(nullptr);
+   auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
    // 6. Define the block structure of the problem, i.e. define the array of
    //    offsets for each variable. The last component of the Array is the sum
    //    of the dimensions of each block.
-   DarcyForm *darcy = new DarcyForm(R_space, W_space);
+   auto darcy = make_unique<DarcyForm>(R_space.get(), W_space.get());
    const Array<int> &block_offsets = darcy->GetOffsets();
    const Array<int> &block_trueOffsets = darcy->GetTrueOffsets();
 
@@ -275,8 +276,8 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
    Vector X;
 
    chrono.Clear();
@@ -286,25 +287,25 @@ int main(int argc, char *argv[])
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new FiniteElementSpace(mesh, trace_coll);
-      darcy->EnableHybridization(trace_space,
+      trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
+      darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
       // Set essential BC
-      if (trace_ess_bc && mesh->bdr_attributes.Size() > 0)
+      if (trace_ess_bc && mesh.bdr_attributes.Size() > 0)
       {
          X.SetSize(trace_space->GetTrueVSize());
          // Project essential BC
-         Array<int> bdr_is_ess(mesh->bdr_attributes.Max());
+         Array<int> bdr_is_ess(mesh.bdr_attributes.Max());
          bdr_is_ess = 1;
          GridFunction phat;
-         phat.MakeTRef(trace_space, X, 0);
+         phat.MakeTRef(trace_space.get(), X, 0);
          phat = 0.;
          phat.ProjectBdrCoefficient(pcoeff, bdr_is_ess);
          phat.SetTrueVector();
@@ -485,16 +486,16 @@ int main(int argc, char *argv[])
    GridFunction u, p;
    if (R_space_dg)
    {
-      GridFunction u_broken(R_space, x.GetBlock(0), 0);
+      GridFunction u_broken(R_space.get(), x.GetBlock(0), 0);
       VectorGridFunctionCoefficient coeff(&u_broken);
-      u.SetSpace(R_space_dg);
+      u.SetSpace(R_space_dg.get());
       u.ProjectCoefficient(coeff);
    }
    else
    {
-      u.MakeRef(R_space, x.GetBlock(0), 0);
+      u.MakeRef(R_space.get(), x.GetBlock(0), 0);
    }
-   p.MakeRef(W_space, x.GetBlock(1), 0);
+   p.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
    int order_quad = max(2, 2*order+1);
    const IntegrationRule *irs[Geometry::NumGeom];
@@ -504,9 +505,9 @@ int main(int argc, char *argv[])
    }
 
    real_t err_u  = u.ComputeL2Error(ucoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., ucoeff, *mesh, irs);
+   real_t norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
    real_t err_p  = p.ComputeL2Error(pcoeff, irs);
-   real_t norm_p = ComputeLpNorm(2., pcoeff, *mesh, irs);
+   real_t norm_p = ComputeLpNorm(2., pcoeff, mesh, irs);
 
    std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
    std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
@@ -517,7 +518,7 @@ int main(int argc, char *argv[])
    {
       ofstream mesh_ofs("ex5.mesh");
       mesh_ofs.precision(8);
-      mesh->Print(mesh_ofs);
+      mesh.Print(mesh_ofs);
 
       ofstream u_ofs("sol_u.gf");
       u_ofs.precision(8);
@@ -529,13 +530,13 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example5", mesh);
+   VisItDataCollection visit_dc("Example5", &mesh);
    visit_dc.RegisterField("velocity", &u);
    visit_dc.RegisterField("pressure", &p);
    visit_dc.Save();
 
    // 15. Save data in the ParaView format
-   ParaViewDataCollection paraview_dc("Example5", mesh);
+   ParaViewDataCollection paraview_dc("Example5", &mesh);
    paraview_dc.SetPrefixPath("ParaView");
    paraview_dc.SetLevelsOfDetail(order);
    paraview_dc.SetCycle(0);
@@ -553,23 +554,11 @@ int main(int argc, char *argv[])
       int  visport   = 19916;
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
-      u_sock << "solution\n" << *mesh << u << "window_title 'Velocity'" << endl;
+      u_sock << "solution\n" << mesh << u << "window_title 'Velocity'" << endl;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
-      p_sock << "solution\n" << *mesh << p << "window_title 'Pressure'" << endl;
+      p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
    }
-
-   // 17. Free the used memory.
-   delete darcy;
-   delete W_space;
-   delete R_space;
-   delete R_space_dg;
-   delete trace_space;
-   delete W_coll;
-   delete R_coll;
-   delete R_coll_dg;
-   delete trace_coll;
-   delete mesh;
 
    return 0;
 }
