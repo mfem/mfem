@@ -672,6 +672,8 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    const NodalTensorFiniteElement *trial_el =
       dynamic_cast<const NodalTensorFiniteElement*>(trial_fel);
    MFEM_VERIFY(trial_el != NULL, "Only NodalTensorFiniteElement is supported!");
+   MFEM_VERIFY(trial_el->GetMapType() == FiniteElement::VALUE,
+               "Only value map type is supported!");
 
    const VectorTensorFiniteElement *test_el =
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);

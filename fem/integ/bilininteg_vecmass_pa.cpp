@@ -22,6 +22,8 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
+   MFEM_VERIFY(el.GetMapType() == FiniteElement::VALUE,
+               "Only value map type supported");
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const auto *ir = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, Trans);
 
