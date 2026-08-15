@@ -2041,7 +2041,14 @@ void DarcyForm::AllocRHS()
 
 const Operator *DarcyForm::ConstructBT(const MixedBilinearForm *B_) const
 {
-   opBt.Reset(Transpose(B_->SpMat()));
+   if (B_->HasSpMat())
+   {
+      opBt.Reset(Transpose(B_->SpMat()));
+   }
+   else
+   {
+      opBt.Reset(new TransposeOperator(B_));
+   }
    return opBt.Ptr();
 }
 
