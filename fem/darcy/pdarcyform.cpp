@@ -659,24 +659,7 @@ void ParDarcyForm::ParallelEliminateTDofsInRHS(const Array<int> &tdofs_flux,
 
 void ParDarcyForm::Mult(const Vector &x, Vector &y) const
 {
-   const BlockVector xb(const_cast<Vector&>(x), offsets);
-   BlockVector yb(y, offsets);
-
-   if (pM_u) { pM_u->Mult(xb.GetBlock(0), yb.GetBlock(0)); }
-   else { yb.GetBlock(0) = 0.; }
-
-   if (pM_p)
-   {
-      pM_p->Mult(xb.GetBlock(1), yb.GetBlock(1));
-      if (bsym) { yb.GetBlock(1).Neg(); }
-   }
-   else { yb.GetBlock(1) = 0.; }
-
-   if (pB)
-   {
-      pB->AddMult(xb.GetBlock(1), yb.GetBlock(0), (bsym)?(-1.):(+1.));
-      pB->AddMultTranspose(xb.GetBlock(0), yb.GetBlock(1), (bsym)?(-1.):(+1.));
-   }
+   NonblockMult(x, y);
 }
 
 void ParDarcyForm::ParOperator::Mult(const Vector &x, Vector &y) const

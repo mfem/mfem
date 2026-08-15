@@ -136,6 +136,8 @@ protected:
    const Operator* ConstructBT(const MixedBilinearForm *B) const;
    const Operator* ConstructBT(const OperatorHandle &B) const;
 
+   void NonblockMult(const Vector &x, Vector &y) const;
+
    void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
                               const GridFunction &ut, GridFunction &u, GridFunction &p,
                               GridFunction &tr, MixedBilinearForm *D = NULL) const;
@@ -284,12 +286,13 @@ public:
 
    /// Assembles the form i.e. sums over all integrators
    /** All bilinear forms are assembled internally, including the right-hand-
-       side linear forms (if they are used). However, DarcyForm must be
-       finalized (see Finalize()) before Mult() can be used. */
+       side linear forms (if they are used). */
    void Assemble(int skip_zeros = 1);
 
    /// Finalizes the form
-   /** All bilinear forms are finalized, enabling to perform Mult(). */
+   /** All bilinear forms are finalized and the internal block operator is
+       constructed for Mult() or GetGradient() methods, or the sparse matrix is
+       assembled in the case of hybridization or reduction. */
    void Finalize(int skip_zeros = 1);
 
    /** @brief Form the linear system A X = B, corresponding to this bilinear
@@ -461,6 +464,8 @@ public:
    void Mult (const Vector & x, Vector & y) const override;
 
    /// Evaluate the gradient operator at the point @a x.
+   /** Can be used only after Finalize() without enabled hybridization or
+       reduction. */
    Operator &GetGradient(const Vector &x) const override;
 
    /// Return the associated flux FE space.

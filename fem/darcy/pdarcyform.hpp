@@ -217,12 +217,12 @@ public:
 
    /// Assembles the form i.e. sums over all integrators
    /** All bilinear forms are assembled internally, including the right-hand-
-       side linear forms (if they are used). However, ParDarcyForm must be
-       finalized (see Finalize()) before Mult() can be used. */
+       side linear forms (if they are used). */
    void Assemble(int skip_zeros = 1);
 
    /// Finalizes the form
-   /** All bilinear forms are finalized, enabling to call Mult(). */
+   /** All bilinear forms are finalized, or the sparse matrix is assembled in
+       the case of hybridization or reduction. */
    void Finalize(int skip_zeros = 1);
 
    using DarcyForm::FormLinearSystem;
