@@ -359,11 +359,12 @@ TEST_CASE("GetFaceOrder on L2 Spaces",
 
     mfem::Mesh mesh(mesh_file);
     auto dim = mesh.Dimension();
-    auto sdim = mesh.SpaceDimension();
 
     mfem::L2_FECollection flux_fec(order, dim);
     mfem::FiniteElementSpace fespace(&mesh, &flux_fec);
-    std::cout << fespace.GetFaceOrder(0) << std::endl; // Crashes
+
+    //TODO: find some way to expect an exception
+    fespace.GetFaceOrder(0);
 };
 
 #ifdef MFEM_USE_MPI
