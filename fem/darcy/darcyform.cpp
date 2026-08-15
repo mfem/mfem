@@ -1221,11 +1221,41 @@ void DarcyForm::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
 
 void DarcyForm::Mult(const Vector &x, Vector &y) const
 {
-   block_op->Mult(x, y);
+   if (!block_op)
+   {
+      NonblockMult(x, y);
+   }
+   else
+   {
+      block_op->Mult(x, y);
+   }
+}
+
+void DarcyForm::NonblockMult(const Vector &x, Vector &y) const
+{
+   const BlockVector xb(const_cast<Vector&>(x), offsets);
+   BlockVector yb(y, offsets);
+
+   if (M_u) { M_u->Mult(xb.GetBlock(0), yb.GetBlock(0)); }
+   else { yb.GetBlock(0) = 0.; }
+
+   if (M_p)
+   {
+      M_p->Mult(xb.GetBlock(1), yb.GetBlock(1));
+      if (bsym) { yb.GetBlock(1).Neg(); }
+   }
+   else { yb.GetBlock(1) = 0.; }
+
+   if (B)
+   {
+      B->AddMult(xb.GetBlock(0), yb.GetBlock(1), (bsym)?(-1.):(+1.));
+      B->AddMultTranspose(xb.GetBlock(1), yb.GetBlock(0), (bsym)?(-1.):(+1.));
+   }
 }
 
 Operator &DarcyForm::GetGradient(const Vector &) const
 {
+   MFEM_VERIFY(block_op, "DarcyForm must be finalized!");
    return *block_op;
 }
 
