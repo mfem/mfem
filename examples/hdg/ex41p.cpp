@@ -31,6 +31,7 @@
 //               iterations count and number of DOFs can be assessed.
 
 #include "mfem.hpp"
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -469,38 +470,38 @@ int main(int argc, char *argv[])
    // 6. Define the parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, *mesh);
+   ParMesh pmesh(MPI_COMM_WORLD, *mesh);
    delete mesh;
    for (int lev = 0; lev < par_ref_levels; lev++)
    {
-      pmesh->UniformRefinement();
+      pmesh.UniformRefinement();
    }
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
    //    the specified order.
-   FiniteElementCollection *V_coll;
+   unique_ptr<FiniteElementCollection> V_coll;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      V_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      V_coll = new BrokenRT_FECollection(order, dim);
+      V_coll = make_unique<BrokenRT_FECollection>(order, dim);
    }
    else
    {
-      V_coll = new RT_FECollection(order, dim);
+      V_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim,
-                                                         BasisType::GaussLobatto);
+   auto W_coll = make_unique<L2_FECollection>(order, dim,
+                                              BasisType::GaussLobatto);
 
-   ParFiniteElementSpace *V_space = new ParFiniteElementSpace(pmesh, V_coll,
-                                                              (dg)?(dim):(1));
-   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
+   auto V_space = make_unique<ParFiniteElementSpace>(&pmesh, V_coll.get(),
+                                                     (dg)?(dim):(1));
+   auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
    HYPRE_BigInt global_V_vSize = V_space->GlobalTrueVSize();
    HYPRE_BigInt global_W_vSize = W_space->GlobalTrueVSize();
@@ -535,7 +536,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient inv_diff_coeff(1./diffusion_term);
 
-   ParDarcyForm darcy(V_space, W_space);
+   ParDarcyForm darcy(V_space.get(), W_space.get());
    ParBilinearForm *mq = darcy.GetParFluxMassForm();
    ParMixedBilinearForm *divq = darcy.GetParFluxDivForm();
    ParBilinearForm *mp = (dg)?(darcy.GetParPotentialMassForm()):(NULL);
@@ -564,12 +565,12 @@ int main(int argc, char *argv[])
 
    // Mass term
 
-   ParBilinearForm m(W_space);
+   ParBilinearForm m(W_space.get());
    m.AddDomainIntegrator(new MassIntegrator);
 
    // Convective part
 
-   ParBilinearForm k(W_space);
+   ParBilinearForm k(W_space.get());
    constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
 
@@ -581,21 +582,21 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   ParFiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<ParFiniteElementSpace> trace_space;
 
    if (hybridization)
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
-      darcy.EnableHybridization(trace_space,
+      trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
    }
@@ -643,7 +644,7 @@ int main(int argc, char *argv[])
    {
       u0.reset(new FunctionCoefficient(u0_function<3>));
    }
-   ParGridFunction *u = new ParGridFunction(W_space);
+   ParGridFunction *u = new ParGridFunction(W_space.get());
    u->ProjectCoefficient(*u0);
    HypreParVector *U = u->GetTrueDofs();
 
@@ -653,14 +654,14 @@ int main(int argc, char *argv[])
       if (binary)
       {
 #ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example41-Parallel", pmesh);
+         dc = new SidreDataCollection("Example41-Parallel", &pmesh);
 #else
          MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
 #endif
       }
       else
       {
-         dc = new VisItDataCollection("Example41-Parallel", pmesh);
+         dc = new VisItDataCollection("Example41-Parallel", &pmesh);
          dc->SetPrecision(precision);
          // To save the mesh using MFEM's parallel mesh format:
          // dc->SetFormat(DataCollection::PARALLEL_FORMAT);
@@ -673,7 +674,7 @@ int main(int argc, char *argv[])
    ParaViewDataCollection *pd = NULL;
    if (paraview)
    {
-      pd = new ParaViewDataCollection("Example41P", pmesh);
+      pd = new ParaViewDataCollection("Example41P", &pmesh);
       pd->SetPrefixPath("ParaView");
       pd->RegisterField("solution", u);
       pd->SetLevelsOfDetail(order);
@@ -706,7 +707,7 @@ int main(int argc, char *argv[])
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
          sout.precision(precision);
-         sout << "solution\n" << *pmesh << *u;
+         sout << "solution\n" << pmesh << *u;
          sout << "pause\n";
          sout << flush;
          if (Mpi::Root())
@@ -725,7 +726,7 @@ int main(int argc, char *argv[])
       postfix += "_o" + std::to_string(order);
       const std::string collection_name = "ex41-p-" + postfix + ".bp";
 
-      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, pmesh);
+      adios2_dc = new ADIOS2DataCollection(MPI_COMM_WORLD, collection_name, &pmesh);
       // output data substreams are half the number of mpi processes
       adios2_dc->SetParameter("SubStreams", std::to_string(num_procs/2) );
       // adios2_dc->SetLevelsOfDetail(2);
@@ -765,7 +766,7 @@ int main(int argc, char *argv[])
          if (visualization)
          {
             sout << "parallel " << num_procs << " " << myid << "\n";
-            sout << "solution\n" << *pmesh << *u << flush;
+            sout << "solution\n" << pmesh << *u << flush;
          }
          if (visit)
          {
@@ -795,13 +796,6 @@ int main(int argc, char *argv[])
    delete pd;
    delete U;
    delete u;
-   delete V_space;
-   delete W_space;
-   delete trace_space;
-   delete V_coll;
-   delete W_coll;
-   delete trace_coll;
-   delete pmesh;
    delete dc;
 
    return 0;

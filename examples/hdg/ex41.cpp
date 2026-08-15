@@ -33,6 +33,7 @@
 //               iterations count and number of DOFs can be assessed.
 
 #include "mfem.hpp"
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -442,28 +443,28 @@ int main(int argc, char *argv[])
    // 5. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
    //    the specified order.
-   FiniteElementCollection *V_coll;
+   unique_ptr<FiniteElementCollection> V_coll;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      V_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      V_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      V_coll = new BrokenRT_FECollection(order, dim);
+      V_coll = make_unique<BrokenRT_FECollection>(order, dim);
    }
    else
    {
-      V_coll = new RT_FECollection(order, dim);
+      V_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim,
-                                                         BasisType::GaussLobatto);
+   auto W_coll = make_unique<L2_FECollection>(order, dim,
+                                              BasisType::GaussLobatto);
 
-   FiniteElementSpace *V_space = new FiniteElementSpace(&mesh, V_coll,
-                                                        (dg)?(dim):(1));
-   FiniteElementSpace *W_space = new FiniteElementSpace(&mesh, W_coll);
+   auto V_space = make_unique<FiniteElementSpace>(&mesh, V_coll.get(),
+                                                  (dg)?(dim):(1));
+   auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
    cout << "Number of flux unknowns: " << V_space->GetVSize() << endl;
    cout << "Number of potential unknowns: " << W_space->GetVSize() << endl;
@@ -493,7 +494,7 @@ int main(int argc, char *argv[])
    ConstantCoefficient diff_coeff(diffusion_term);
    ConstantCoefficient inv_diff_coeff(1./diffusion_term);
 
-   DarcyForm darcy(V_space, W_space);
+   DarcyForm darcy(V_space.get(), W_space.get());
    BilinearForm *mq = darcy.GetFluxMassForm();
    MixedBilinearForm *divq = darcy.GetFluxDivForm();
    BilinearForm *mp = (dg)?(darcy.GetPotentialMassForm()):(NULL);
@@ -522,12 +523,12 @@ int main(int argc, char *argv[])
 
    // Mass term
 
-   BilinearForm m(W_space);
+   BilinearForm m(W_space.get());
    m.AddDomainIntegrator(new MassIntegrator);
 
    // Convective part
 
-   BilinearForm k(W_space);
+   BilinearForm k(W_space.get());
    constexpr real_t alpha = -1.0;
    k.AddDomainIntegrator(new ConvectionIntegrator(*velocity, alpha));
 
@@ -539,21 +540,21 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
 
    if (hybridization)
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new FiniteElementSpace(&mesh, trace_coll);
-      darcy.EnableHybridization(trace_space,
+      trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
    }
@@ -602,7 +603,7 @@ int main(int argc, char *argv[])
       u0.reset(new FunctionCoefficient(u0_function<3>));
    }
 
-   GridFunction u(W_space);
+   GridFunction u(W_space.get());
    u.ProjectCoefficient(*u0);
 
    // 10. Create data collection for solution output: either VisItDataCollection
@@ -708,15 +709,6 @@ int main(int argc, char *argv[])
 
       }
    }
-
-   // 13. Free the used memory.
-
-   delete V_space;
-   delete W_space;
-   delete trace_space;
-   delete V_coll;
-   delete W_coll;
-   delete trace_coll;
 
    return 0;
 }

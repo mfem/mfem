@@ -40,6 +40,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -149,27 +150,27 @@ int main(int argc, char *argv[])
    // 6. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas or discontinuous Galerkin finite elements of
    //    the specified order >= 0.
-   FiniteElementCollection *R_coll;
+   unique_ptr<FiniteElementCollection> R_coll;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      R_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      R_coll = new BrokenRT_FECollection(order, dim);
+      R_coll = make_unique<BrokenRT_FECollection>(order, dim);
    }
    else
    {
-      R_coll = new RT_FECollection(order, dim);
+      R_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
+   auto W_coll = make_unique<L2_FECollection>(order, dim);
 
-   ParFiniteElementSpace *R_space = new ParFiniteElementSpace(&pmesh, R_coll,
-                                                              (dg)?(dim):(1));
-   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(&pmesh, W_coll);
+   auto R_space = make_unique<ParFiniteElementSpace>(&pmesh, R_coll.get(),
+                                                     (dg)?(dim):(1));
+   auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
 
    HYPRE_BigInt q_size = R_space->GlobalTrueVSize();
@@ -183,7 +184,7 @@ int main(int argc, char *argv[])
    // 7. Set up the parallel linear form b(.) which corresponds to the
    //    right-hand side of the FEM linear system.
 
-   ParDarcyForm darcy(R_space, W_space);
+   ParDarcyForm darcy(R_space.get(), W_space.get());
    const Array<int> &block_offsets = darcy.GetOffsets();
    const Array<int> &block_trueOffsets = darcy.GetTrueOffsets();
 
@@ -231,21 +232,21 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   ParFiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<ParFiniteElementSpace> trace_space;
 
    if (hybridization)
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new ParFiniteElementSpace(&pmesh, trace_coll);
-      darcy.EnableHybridization(trace_space,
+      trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
    }
@@ -373,7 +374,7 @@ int main(int argc, char *argv[])
    // 13. Save the refined mesh and the solution in parallel. This output can
    //     be viewed later using GLVis: "glvis -np <np> -m mesh -g sol".
 
-   ParGridFunction u(W_space, x.GetBlock(1), 0);
+   ParGridFunction u(W_space.get(), x.GetBlock(1), 0);
 
    {
       ostringstream mesh_name, sol_name;
@@ -399,13 +400,6 @@ int main(int argc, char *argv[])
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << u << flush;
    }
-
-   delete W_space;
-   delete R_space;
-   delete trace_space;
-   delete W_coll;
-   delete R_coll;
-   delete trace_coll;
 
    return 0;
 }

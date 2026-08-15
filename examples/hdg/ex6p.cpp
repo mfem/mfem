@@ -41,6 +41,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -106,7 +107,7 @@ int main(int argc, char *argv[])
    Device device(device_config);
    if (myid == 0) { device.Print(); }
 
-   ParMesh *pmesh;
+   ParMesh pmesh;
    if (!restart)
    {
       // 4. Read the (serial) mesh from the given mesh file on all processors.
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
 
       // 8. Define a parallel mesh by partitioning the serial mesh.
       //    Once the parallel mesh is defined, the serial mesh can be deleted.
-      pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+      pmesh = ParMesh(MPI_COMM_WORLD, mesh);
    }
    else
    {
@@ -161,39 +162,39 @@ int main(int argc, char *argv[])
       string fname(MakeParFilename("ex6p-checkpoint.", myid));
       ifstream ifs(fname);
       MFEM_VERIFY(ifs.good(), "Checkpoint file " << fname << " not found.");
-      pmesh = new ParMesh(MPI_COMM_WORLD, ifs);
+      pmesh = ParMesh(MPI_COMM_WORLD, ifs);
    }
 
-   int dim = pmesh->Dimension();
+   int dim = pmesh.Dimension();
 
    // 10. Define a finite element space on the mesh. The polynomial order is
    //     one (linear) by default, but this can be changed on the command line.
-   FiniteElementCollection *R_coll;
+   unique_ptr<FiniteElementCollection> R_coll;
    if (dg)
    {
       // In the case of LDG formulation, we chose a closed basis as it
       // is customary for HDG to match trace DOFs, but an open basis can
       // be used instead.
-      R_coll = new L2_FECollection(order, dim, BasisType::GaussLobatto);
+      R_coll = make_unique<L2_FECollection>(order, dim, BasisType::GaussLobatto);
    }
    else if (brt)
    {
-      R_coll = new BrokenRT_FECollection(order, dim);
+      R_coll = make_unique<BrokenRT_FECollection>(order, dim);
    }
    else
    {
-      R_coll = new RT_FECollection(order, dim);
+      R_coll = make_unique<RT_FECollection>(order, dim);
    }
-   FiniteElementCollection *W_coll = new L2_FECollection(order, dim);
+   auto W_coll = make_unique<L2_FECollection>(order, dim);
 
-   ParFiniteElementSpace *R_space = new ParFiniteElementSpace(pmesh, R_coll,
-                                                              (dg)?(dim):(1));
-   ParFiniteElementSpace *W_space = new ParFiniteElementSpace(pmesh, W_coll);
+   auto R_space = make_unique<ParFiniteElementSpace>(&pmesh, R_coll.get(),
+                                                     (dg)?(dim):(1));
+   auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
 
    // 11. As in Example 1p, we set up bilinear and linear forms corresponding to
    //     the Poisson problem -\Delta u = 1. We don't assemble the discrete
    //     problem yet, this will be done in the main loop.
-   ParDarcyForm darcy(R_space, W_space);
+   ParDarcyForm darcy(R_space.get(), W_space.get());
 
    ConstantCoefficient one(1.0), negone(-1.0);
 
@@ -227,19 +228,19 @@ int main(int argc, char *argv[])
 
    Array<int> ess_flux_tdofs_list;
 
-   FiniteElementCollection *trace_coll = NULL;
-   ParFiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<ParFiniteElementSpace> trace_space;
 
    if (trace_h1)
    {
-      trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+      trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
    }
    else
    {
-      trace_coll = new DG_Interface_FECollection(order, dim);
+      trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
    }
-   trace_space = new ParFiniteElementSpace(pmesh, trace_coll);
-   darcy.EnableHybridization(trace_space,
+   trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
+   darcy.EnableHybridization(trace_space.get(),
                              new NormalTraceJumpIntegrator(),
                              ess_flux_tdofs_list);
 
@@ -250,7 +251,7 @@ int main(int argc, char *argv[])
    x = 0.0;
 
    ParGridFunction u_h, uhat_h;
-   u_h.MakeRef(W_space, x.GetBlock(1), 0);
+   u_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
    // 13. Connect to GLVis.
    char vishost[] = "localhost";
@@ -335,14 +336,14 @@ int main(int argc, char *argv[])
       //     corresponding to the finite element approximation X. This is the
       //     local solution on each processor.
       darcy.RecoverFEMSolution(X, x);
-      uhat_h.MakeTRef(trace_space, X, 0);
+      uhat_h.MakeTRef(trace_space.get(), X, 0);
       uhat_h.SetFromTrueVector();
 
       // 21. Send the solution by socket to a GLVis server.
       if (visualization)
       {
          sout << "parallel " << num_procs << " " << myid << "\n";
-         sout << "solution\n" << *pmesh << u_h << flush;
+         sout << "solution\n" << pmesh << u_h << flush;
       }
 
       if (u_dofs >= max_dofs)
@@ -358,7 +359,7 @@ int main(int argc, char *argv[])
       //     estimator to obtain element errors, then it selects elements to be
       //     refined and finally it modifies the mesh. The Stop() method can be
       //     used to determine if a stopping criterion was met.
-      refiner.Apply(*pmesh);
+      refiner.Apply(pmesh);
       if (refiner.Stop())
       {
          if (myid == 0)
@@ -379,9 +380,9 @@ int main(int argc, char *argv[])
 
       // 24. Load balance the mesh, and update the space and solution. Currently
       //     available only for nonconforming meshes.
-      if (pmesh->Nonconforming() && rebalance)
+      if (pmesh.Nonconforming() && rebalance)
       {
-         pmesh->Rebalance();
+         pmesh.Rebalance();
 
          // Update the space and the GridFunction. This time the update matrix
          // redistributes the GridFunction among the processors.
@@ -396,9 +397,9 @@ int main(int argc, char *argv[])
       x.Update(darcy.GetOffsets(), mt);
 
       x = 0.;
-      u_h.MakeRef(W_space, x.GetBlock(1), 0);
+      u_h.MakeRef(W_space.get(), x.GetBlock(1), 0);
 
-      darcy.EnableHybridization(trace_space,
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs_list);
 
@@ -410,7 +411,7 @@ int main(int argc, char *argv[])
       {
          ofstream ofs(MakeParFilename("ex6p-checkpoint.", myid));
          ofs.precision(8);
-         pmesh->ParPrint(ofs);
+         pmesh.ParPrint(ofs);
 
          if (myid == 0)
          {
@@ -418,14 +419,6 @@ int main(int argc, char *argv[])
          }
       }
    }
-
-   delete W_space;
-   delete R_space;
-   delete trace_space;
-   delete W_coll;
-   delete R_coll;
-   delete trace_coll;
-   delete pmesh;
 
    return 0;
 }

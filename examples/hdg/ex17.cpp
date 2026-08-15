@@ -47,6 +47,7 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -268,22 +269,22 @@ int main(int argc, char *argv[])
 
    // Set hybridization / reduction / assembly level
 
-   FiniteElementCollection *trace_coll = NULL;
-   FiniteElementSpace *trace_space = NULL;
+   unique_ptr<FiniteElementCollection> trace_coll;
+   unique_ptr<FiniteElementSpace> trace_space;
    Vector X;
 
    if (hybridization)
    {
       if (trace_h1)
       {
-         trace_coll = new H1_Trace_FECollection(max(order, 1), dim);
+         trace_coll = make_unique<H1_Trace_FECollection>(max(order, 1), dim);
       }
       else
       {
-         trace_coll = new DG_Interface_FECollection(order, dim);
+         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
-      trace_space = new FiniteElementSpace(&mesh, trace_coll, dim);
-      darcy.EnableHybridization(trace_space,
+      trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get(), dim);
+      darcy.EnableHybridization(trace_space.get(),
                                 new NormalStressJumpIntegrator(-1.),
                                 ess_stress_tdofs_list);
       // Set essential BC
@@ -292,7 +293,7 @@ int main(int argc, char *argv[])
          X.SetSize(trace_space->GetTrueVSize());
          // Project essential BC
          GridFunction uhat;
-         uhat.MakeTRef(trace_space, X, 0);
+         uhat.MakeTRef(trace_space.get(), X, 0);
          uhat = 0.;
          uhat.ProjectBdrCoefficient(init_u, dir_bdr);
          uhat.SetTrueVector();
@@ -480,10 +481,6 @@ int main(int argc, char *argv[])
          }
       }
    }
-
-   // clean-up
-   delete trace_space;
-   delete trace_coll;
 
    return 0;
 }
