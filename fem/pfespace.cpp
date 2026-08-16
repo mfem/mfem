@@ -1140,7 +1140,9 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
 const DeviceSharedDofCommunicator *
 ParFiniteElementSpace::GetDeviceSharedDofCommunicator() const
 {
-   MFEM_VERIFY(Conforming(), "Shared-dof communicator requires conforming space.");
+   MFEM_VERIFY(UseDeviceSharedDofComm(),
+               "Shared-dof communicator requires a conforming space with "
+               "1-1 shared dof correspondence.");
    if (!DofComm)
    {
       Dof_TrueDof_Matrix(); // ensure R is built

@@ -520,6 +520,8 @@ public:
    bool Nonconforming() const { return pmesh->pncmesh != NULL || nonconf_P; }
 
    bool SharedNDTriangleDofs() const { return nd_strias; }
+   bool UseDeviceSharedDofComm() const
+   { return Conforming() && !SharedNDTriangleDofs(); }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the

@@ -741,7 +741,7 @@ void ParGridFunction::ProjectDiscCoefficient(
    // global maximal element attribute for each dof
    Array<int> gdof_attr;
    ldof_attr.Copy(gdof_attr);
-   if (pfes->Conforming())
+   if (pfes->UseDeviceSharedDofComm())
    {
       const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(gdof_attr, DeviceSharedDofCommunicator::Op::Max);
@@ -771,7 +771,7 @@ void ParGridFunction::ProjectDiscCoefficient(
 
    // parallel averaging plus interpolation to determine final values
    HypreParVector *tv = pfes->NewTrueDofVector();
-   if (pfes->Conforming())
+   if (pfes->UseDeviceSharedDofComm())
    {
       const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(gdof_attr, DeviceSharedDofCommunicator::Op::Sum);
@@ -807,7 +807,7 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
    // Count the zones globally.
-   if (pfes->Conforming())
+   if (pfes->UseDeviceSharedDofComm())
    {
       const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(zones_per_vdof, DeviceSharedDofCommunicator::Op::Sum);
@@ -842,7 +842,7 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    AccumulateAndCountZones(vcoeff, type, zones_per_vdof);
 
    // Count the zones globally.
-   if (pfes->Conforming())
+   if (pfes->UseDeviceSharedDofComm())
    {
       const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(zones_per_vdof, DeviceSharedDofCommunicator::Op::Sum);
