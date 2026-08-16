@@ -18,6 +18,7 @@
 #pragma once
 
 #include "dual.hpp"
+#include "../fem/dfem/tuple.hpp"
 #include <limits>
 #include <utility>
 #include <type_traits> // for std::false_type
@@ -1530,7 +1531,7 @@ tensor<int, 3> argsort(const tensor<T, 3>& v)
  * eigenvector in the second element.
  */
 template <typename T> MFEM_HOST_DEVICE
-std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
+tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
 {
    return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
 }
@@ -1546,7 +1547,7 @@ std::tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
  *
  */
 MFEM_HOST_DEVICE
-inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
+inline tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
    const tensor<real_t, 2, 2> &A)
 {
    tensor<real_t, 2> e;
@@ -1601,7 +1602,7 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
       v(1, 1) = -s;
    }
 
-   return {e, v};
+   return tuple{e, v};
 }
 
 /** Eigendecomposition for a symmetric 3x3 matrix
@@ -1617,7 +1618,7 @@ inline std::tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
  * eigenvectors of 3x3 symmetric matrices", by Scherzinger & Dohrmann
  */
 MFEM_HOST_DEVICE
-inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(
+inline tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(
    const tensor<real_t, 3, 3>& A)
 {
    tensor<real_t, 3> eta{};
@@ -1738,7 +1739,7 @@ inline std::tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(
                                  {Q[2][order[0]], Q[2][order[1]], Q[2][order[2]]}}};
    // *INDENT-ON*
 
-   return {eigvals, eigvecs};
+   return tuple{eigvals, eigvecs};
 }
 
 template <typename T> MFEM_HOST_DEVICE
