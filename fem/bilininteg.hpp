@@ -3955,7 +3955,7 @@ class DiscreteInterpolator : public BilinearFormIntegrator { };
 
 
 /** Class for constructing the gradient as a DiscreteLinearOperator from an
-    $H^1$-conforming space to an $H(curl$-conforming space. The range space can be
+    $H^1$-conforming space to an $H(curl)$-conforming space. The range space can be
     vector $L_2$ space as well. */
 class GradientInterpolator : public DiscreteInterpolator
 {
@@ -4064,12 +4064,62 @@ public:
     discrete curl matrix. */
 class CurlInterpolator : public DiscreteInterpolator
 {
+   // members only required for partial assembly
+   /// 1D finite elements that generate and own the 1D DofToQuad maps below
+   std::unique_ptr<FiniteElement> closed_dofquad_fe;
+   std::unique_ptr<FiniteElement> open_dofquad_fe;
+   const DofToQuad *maps_C_C =
+      nullptr; // one-d map with Lobatto rows, Lobatto columns
+   const DofToQuad *maps_O_C =
+      nullptr; // one-d map with Legendre rows, Lobatto columns
+   const DofToQuad *maps_O_O =
+      nullptr; // one-d map with Legendre rows, Legendre columns
+
+   int dim, ne;
+   // "dof" are the domain fespace dof counts
+   int ndof_o;
+   // "quads" are the range fespace dof counts
+   int nquad_o;
+   int c_dofs1D = 0;
+   int o_dofs1D = 0;
+   int pa_mode_2d = 0;
+
+   Vector pa_data;
+
 public:
+   CurlInterpolator();
+
    void AssembleElementMatrix2(const FiniteElement &dom_fe,
                                const FiniteElement &ran_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override
    { ran_fe.ProjectCurl(dom_fe, Trans, elmat); }
+
+   void AssemblePA(const FiniteElementSpace &dom_fes,
+                   const FiniteElementSpace &ran_fes) override;
+   void AssemblePA(const FiniteElementSpace &fes) override
+   {
+      AssemblePA(fes, fes);
+   }
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   using ApplyKernelType = void (*)(const int ne, const int ndof_o,
+                                    const int nquad_o, const Vector &pa,
+                                    const Vector &x, Vector &y);
+
+   /// arguments: DIM, ndof_o, nquad_o
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   /// arguments: DIM, ndof_o, nquad_o
+   MFEM_REGISTER_KERNELS(ApplyTPAKernels, ApplyKernelType, (int, int, int));
+
+   template <int DIM, int NDOF_O, int NQUAD_O> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, NDOF_O, NQUAD_O>::Add();
+      ApplyTPAKernels::Specialization<DIM, NDOF_O, NQUAD_O>::Add();
+   }
+
+   struct Kernels { Kernels(); };
 };
 
 
