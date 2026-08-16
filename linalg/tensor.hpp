@@ -1548,7 +1548,7 @@ tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
  */
 MFEM_HOST_DEVICE
 inline tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
-   const tensor<real_t, 2, 2> &A)
+                                                      const tensor<real_t, 2, 2> &A)
 {
    tensor<real_t, 2> e;
    tensor<real_t, 2, 2> v;
@@ -1619,7 +1619,7 @@ inline tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
  */
 MFEM_HOST_DEVICE
 inline tuple<tensor<real_t, 3>, tensor<real_t, 3, 3>> eig_symm(
-   const tensor<real_t, 3, 3>& A)
+                                                      const tensor<real_t, 3, 3>& A)
 {
    tensor<real_t, 3> eta{};
    tensor<real_t, 3, 3> Q = IdentityMatrix<3>();
