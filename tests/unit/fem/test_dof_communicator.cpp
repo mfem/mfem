@@ -106,6 +106,7 @@ TEST_CASE("DeviceSharedDofCommunicator", "[Parallel][GPU]")
 
       const auto *dof_comm = pfes.GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(x, op);
+      x.HostRead();
 
       // Order 1 H1 scalar dofs coincide with mesh vertices.
       Array<int> vdofs;
@@ -138,7 +139,7 @@ TEST_CASE("DeviceSharedDofCommunicator", "[Parallel][GPU]")
    }
 }
 
-TEST_CASE("ProjectDiscCoefficient Row Partition", "[Parallel]")
+TEST_CASE("ProjectDiscCoefficient Row Partition", "[Parallel][GPU]")
 {
    const int ntasks = Mpi::WorldSize();
    const int rank = Mpi::WorldRank();

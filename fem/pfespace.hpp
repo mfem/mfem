@@ -671,8 +671,7 @@ public:
 /** @brief Auxiliary device-aware communicator for shared scalar dof
     reductions on conforming ParFiniteElementSpaces.
 
-    This class mirrors the neighbor-buffer communication pattern used by
-    DeviceConformingProlongationOperator, but it applies reduction operations
+    This class uses DeviceNeighborDofComm and applies reduction operations
     such as sum, min, and max over shared dofs instead of a linear operator.
 
     Communication uses device buffers when GPU-aware MPI is enabled. Otherwise,
