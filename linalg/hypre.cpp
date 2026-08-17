@@ -5842,6 +5842,10 @@ void HypreAMS::MakeGradientAndInterpolation(
    {
       grad->AddTraceFaceInterpolator(new GradientInterpolator);
    }
+   else if (dynamic_cast<const RT_FECollection *>(edge_fec))
+   {
+      grad->AddDomainInterpolator(new CurlInterpolator);
+   }
    else
    {
       grad->AddDomainInterpolator(new GradientInterpolator);
