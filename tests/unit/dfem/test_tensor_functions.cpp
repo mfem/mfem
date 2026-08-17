@@ -23,7 +23,7 @@ using namespace mfem::future;
 // anonymous namespace for file-scope helper functions
 namespace
 {
-tensor<real_t, 2, 2> Orthogonal2x2Matrix()
+[[maybe_unused]] tensor<real_t, 2, 2> Orthogonal2x2Matrix()
 {
    // Orthogonal tensor that was generated externally and written out to 17 decimal places
    // *INDENT-OFF*
@@ -32,7 +32,7 @@ tensor<real_t, 2, 2> Orthogonal2x2Matrix()
    // *INDENT-ON*
 }
 
-tensor<real_t, 3, 3> Orthogonal3x3Matrix()
+[[maybe_unused]] tensor<real_t, 3, 3> Orthogonal3x3Matrix()
 {
    // Orthogonal tensor that was generated externally and written out to 17 decimal places
    // *INDENT-OFF*
