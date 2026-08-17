@@ -181,7 +181,6 @@ void CheckSmoothMaxEigenvalueVJP(const tensor<real_t, n, n>& A, real_t beta)
                                              enzyme_out, beta);
 
    real_t a = smooth_max_eigenvalue_symm(A, beta);
-   tensor<real_t, n, n> da_dA;
    tensor<real_t, n, n> A_p;
    tensor<real_t, n, n> da_dA_h{};
    real_t h = 10*std::sqrt(std::numeric_limits<real_t>::epsilon());
