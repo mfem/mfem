@@ -142,8 +142,6 @@ static MFEM_HOST_DEVICE int GetAndIncrementNnzIndex(const int i_L, int* I)
 
 int BatchedLORAssembly::FillI(SparseMatrix &A) const
 {
-   static constexpr int Max = 16;
-
    const int nvdof = fes_ho.GetVSize();
 
    const int ndof_per_el = fes_ho.GetTypicalFE()->GetDof();
@@ -165,6 +163,8 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
    const auto K = dof_glob2loc_offsets_.Read();
    const auto map = Reshape(sparse_mapping.Read(), nnz_per_row, ndof_per_el);
 
+   Array<int> ij_elts(dof_glob2loc_.Size() * 2);
+   auto d_ij_elts = Reshape(ij_elts.Write(), dof_glob2loc_.Size(), 2);
 
    auto I = A.WriteI();
 
@@ -176,10 +176,10 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
       const int sii = el_dof_lex(ii_el, iel_ho);
       const int ii = (sii >= 0) ? sii : -1 -sii;
       // Get number and list of elements containing this DOF
-      int i_elts[Max];
       const int i_offset = K[ii];
       const int i_next_offset = K[ii+1];
       const int i_ne = i_next_offset - i_offset;
+      int *i_elts = &d_ij_elts(i_offset, 0);
       for (int e_i = 0; e_i < i_ne; ++e_i)
       {
          const int si_E = dof_glob2loc[i_offset+e_i]; // signed
@@ -202,7 +202,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
          }
          else // assembly required
          {
-            int j_elts[Max];
+            int *j_elts = &d_ij_elts(j_offset, 1);
             for (int e_j = 0; e_j < j_ne; ++e_j)
             {
                const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
@@ -269,7 +269,8 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
       mfem::forall(nvdof + 1, [=] MFEM_HOST_DEVICE (int i) { I[i] = I2[i]; });
    }
 
-   static constexpr int Max = 16;
+   Array<int> ij_B_el(dof_glob2loc_.Size() * 4);
+   auto d_ij_B_el = Reshape(ij_B_el.Write(), dof_glob2loc_.Size(), 4);
 
    mfem::forall(ndof_per_el*nel_ho, [=] MFEM_HOST_DEVICE (int i)
    {
@@ -279,11 +280,13 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
       const int sii = el_dof_lex(ii_el, iel_ho); // signed
       const int ii = (sii >= 0) ? sii : -1 - sii;
       // Get number and list of elements containing this DOF
-      int i_elts[Max];
-      int i_B[Max];
       const int i_offset = K[ii];
       const int i_next_offset = K[ii+1];
       const int i_ne = i_next_offset - i_offset;
+
+      int *i_elts = &d_ij_B_el(i_offset, 0);
+      int *i_B = &d_ij_B_el(i_offset, 1);
+
       for (int e_i = 0; e_i < i_ne; ++e_i)
       {
          const int si_E = dof_glob2loc[i_offset+e_i]; // signed
@@ -312,8 +315,8 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
          }
          else // assembly required
          {
-            int j_elts[Max];
-            int j_B[Max];
+            int *j_elts = &d_ij_B_el(j_offset, 2);
+            int *j_B = &d_ij_B_el(j_offset, 3);
             for (int e_j = 0; e_j < j_ne; ++e_j)
             {
                const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
