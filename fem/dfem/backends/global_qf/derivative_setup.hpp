@@ -167,7 +167,6 @@ struct DerivativeSetup
                      std::make_index_sequence<noutputs> {});
                }
 
-               yq.SyncToBlocks();
                real_t *cache_d = qp_cache.ReadWrite();
 
                // Write yq into the cache column

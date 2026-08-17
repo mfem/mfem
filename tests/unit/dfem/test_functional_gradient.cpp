@@ -34,7 +34,7 @@ namespace functional_gradient_test
 template <int dim>
 struct EnergyFunctional
 {
-   MFEM_HOST_DEVICE inline __attribute__((always_inline))
+   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
    auto operator()(const real_t &u,
                    const tensor<real_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,

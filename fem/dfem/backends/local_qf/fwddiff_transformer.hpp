@@ -139,7 +139,10 @@ struct FwdDiff
    {
       return &static_call<Is...>;
    }
-   static constexpr auto fn = fn_ptr(std::make_index_sequence<arity> {});
+   static constexpr auto fn()
+   {
+      return fn_ptr(std::make_index_sequence<arity> {});
+   }
 
    // Writable, zero-initialized scratch with the shape of argument I, used
    // as its enzyme shadow.
@@ -202,7 +205,7 @@ struct FwdDiff
                                             ShadowPtrs &shadow_ptrs,
                                             std::index_sequence<Is...>)
    {
-      __enzyme_fwddiff<void>(fn, enzyme_dup,
+      __enzyme_fwddiff<void>(fn(), enzyme_dup,
                              mfem::future::get<int(Is)>(primal_ptrs)...,
                              enzyme_interleave,
                              mfem::future::get<int(Is)>(shadow_ptrs)...,

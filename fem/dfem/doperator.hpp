@@ -1125,11 +1125,7 @@ public:
 private:
    bool HasFunctionalIntegrator() const
    {
-#ifdef MFEM_USE_ENZYME
       return has_functional_integrator;
-#else
-      return false;
-#endif
    }
 
    const ParMesh &mesh;
@@ -1190,9 +1186,7 @@ private:
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
-#ifdef MFEM_USE_ENZYME
    bool has_functional_integrator = false;
-#endif
 
    size_t test_space_field_idx = SIZE_MAX;
 };
@@ -1299,11 +1293,11 @@ void DifferentiableOperator::AddIntegrator(
 
    // The requested second derivative blocks are either selected by one of the
    // Pairs markers or listed explicitly as DerivativePairs.
-   constexpr bool no_second_derivatives =
+   static constexpr bool no_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::None>>;
-   constexpr bool all_second_derivatives =
+   static constexpr bool all_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::All>>;
-   constexpr bool diagonal_second_derivatives =
+   static constexpr bool diagonal_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
 
    // Second derivatives checks:
@@ -1544,17 +1538,13 @@ void DifferentiableOperator::AddIntegrator(
 
       if constexpr (check_if_functional_v<output_t>)
       {
-#ifdef MFEM_USE_ENZYME
          has_functional_integrator = true;
          functional_derivative_ids.insert(idx);
 
          // Check dependencies of the quadrature function inputs for the derivative
-         constexpr auto darr =
-            make_dependency_tuple_ct<idx, input_t>();
-         using dqfunc_t = RevDiff<qfunc_t, std::decay_t<decltype(darr)>, tuple<Active>>;
-
-         //mfem::out << darr << "\n";
-         // dqfunc_t::print();
+         // Make darr type unambiguously a tuple
+         constexpr auto darr = make_dependency_tuple_ct<idx, input_t>();
+         using derivative_activity_t = std::decay_t<decltype(darr)>;
 
          // For every dependent input, we have to create an output that will
          // get integrated with it's appropriate basis function. Inputs stay the same.
@@ -1569,7 +1559,15 @@ void DifferentiableOperator::AddIntegrator(
          //mfem::out << get_type_name<output_t>() << "\n";
          //mfem::out << get_type_name<input_t>() << "\n";
 
-         dqfunc_t dqfunc(qfunc);
+         auto dqfunc = make_revdiff<derivative_activity_t>(qfunc);
+
+         // The second derivative differentiates dqfunc again. With Enzyme that
+         // is another reverse-mode call and this type is the same as dqfunc's;
+         // on the native dual backend it has to run on nested ("hyper") duals,
+         // so the inner seeding does not overwrite the direction carried by the
+         // outer dual pair.
+         auto second_dqfunc =
+            make_revdiff<derivative_activity_t, RevDiffDualMode::Derivative>(qfunc);
 
          const auto derivative_all_fds =
             make_union_fds(infds, derivative_outputs_fds);
@@ -1596,7 +1594,8 @@ void DifferentiableOperator::AddIntegrator(
                              assemble_second_derivative_diagonal_callbacks,
                              second_derivative_action_callbacks,
                              second_qp_cache,
-                             derivative_ctx, dqfunc, first_derivative_outputs);
+                             derivative_ctx, second_dqfunc,
+                             first_derivative_outputs);
          };
 
          if constexpr (all_second_derivatives)
@@ -1614,7 +1613,7 @@ void DifferentiableOperator::AddIntegrator(
             for_constexpr_with_arg([&](auto, auto pair)
             {
                using pair_t = decltype(pair);
-               if constexpr (pair_t::gradient_id == idx)
+               if constexpr (pair_t::gradient_id == decltype(i)::value)
                {
                   create_second_derivative_callbacks(
                      std::integral_constant<size_t, pair_t::direction_id> {});
@@ -1638,10 +1637,6 @@ void DifferentiableOperator::AddIntegrator(
          {
             grad_action(xe, ye);
          });
-
-#else
-         MFEM_ABORT("functional integrators require Enzyme support to compute derivatives");
-#endif
       }
       else
       {

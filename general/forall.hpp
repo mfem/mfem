@@ -813,9 +813,11 @@ void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
 }
 
 #ifdef MFEM_USE_ENZYME
+/// \cond DO_NOT_DOCUMENT
 template <const int BLCK, typename DBODY>
 void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
                                                        DBODY &&d_body);
+/// \endcond
 #endif
 
 template <int Dim, int MAX_THREADS_PER_BLOCK> struct CuWrap;
@@ -877,6 +879,7 @@ struct CuWrap<3, MAX_THREADS_PER_BLOCK>
 };
 
 #ifdef MFEM_USE_ENZYME
+/// \cond DO_NOT_DOCUMENT
 template <typename BODY> struct DerivativeKernelWrapperStruct
 {
    MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY *body, const int k)
@@ -958,6 +961,7 @@ void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
    MFEM_CONTRACT_VAR(enzyme_registration);
    CuWrap1DStruct<BLCK, DBODY_BASE>::Call(N, &d_body);
 }
+/// \endcond
 #endif
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
