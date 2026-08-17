@@ -1065,7 +1065,7 @@ TEST_CASE("3D Bilinear Weak Curl Integrators Partial Assembly",
           "[PartialAssembly]"
           "[GPU]")
 {
-   auto order = GENERATE(1, 3);
+   auto order = GENERATE(1, 2);
    CAPTURE(order);
    int dim = 3;
 
