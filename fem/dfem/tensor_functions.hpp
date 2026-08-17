@@ -38,9 +38,9 @@ namespace future
  * @brief Differentiable approximation of maximum eigenvale of a symmetric tensor
  *
  * Estimates the maximum eigenvalue using
- * \f[
+ * $$
  *     smooth_max_eigenvalue(A) = \frac{1}{\beta} \log\Big( \mathrm{tr}\big(\exp(\beta A) \big) \Big)
- * \f]
+ * $$
  * which is equivalent to using the log-sum-exp function on the eigenvalues of A.
  *
  * @param A The input tensor
@@ -64,9 +64,9 @@ real_t smooth_max_eigenvalue_symm(const tensor<real_t, n, n>& A, real_t beta)
  * @brief Differentiable approximation of minimum eigenvale of a symmetric tensor
  *
  * Estimates the minimum eigenvalue using
- * \f[
+ * $$
  *     smooth_min_eigenvalue(A) = -\frac{1}{\beta} \log\Big( \mathrm{tr}\big(\exp(-\beta A) \big) \Big)
- * \f]
+ * $$
  * which is equivalent to using the negated log-sum-exp function on the eigenvalues of -A.
  *
  * @param A The input tensor
