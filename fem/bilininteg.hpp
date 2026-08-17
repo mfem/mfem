@@ -2013,7 +2013,8 @@ private:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, dofs1D, quad1D;
-   FiniteElement::DerivType test_fetype = mfem::FiniteElement::NONE; ///< Derivative type of the vector test space.
+   FiniteElement::DerivType test_fetype =
+      mfem::FiniteElement::NONE; ///< Derivative type of the vector test space.
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \mathrm{curl}(u), v)$ in 3D and

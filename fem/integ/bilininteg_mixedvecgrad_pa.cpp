@@ -1705,12 +1705,14 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    {
       if (dim == 3)
       {
-         internal::PAMixedVectorGradientSetupHdiv3D(quad1D, coeffDim, ne, ir->GetWeights(),
+         internal::PAMixedVectorGradientSetupHdiv3D(quad1D, coeffDim, ne,
+                                                    ir->GetWeights(),
                                                     geom->J, coeff, pa_data);
       }
       else if (dim == 2)
       {
-         internal::PAMixedVectorGradientSetupHdiv2D(quad1D, coeffDim, ne, ir->GetWeights(),
+         internal::PAMixedVectorGradientSetupHdiv2D(quad1D, coeffDim, ne,
+                                                    ir->GetWeights(),
                                                     geom->J, coeff, pa_data);
       }
       else
@@ -1728,11 +1730,13 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (dim == 2)
       {
-         MFEM_VERIFY(op_entries == 3 || op_entries == 4, "Unsupported 2D PA operator storage.");
+         MFEM_VERIFY(op_entries == 3 ||
+                     op_entries == 4, "Unsupported 2D PA operator storage.");
       }
       else if (dim == 3)
       {
-         MFEM_VERIFY(op_entries == 6 || op_entries == 9, "Unsupported 3D PA operator storage.");
+         MFEM_VERIFY(op_entries == 6 ||
+                     op_entries == 9, "Unsupported 3D PA operator storage.");
       }
       else
       {
@@ -1807,11 +1811,13 @@ void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
    {
       if (dim == 2)
       {
-         MFEM_VERIFY(op_entries == 3 || op_entries == 4, "Unsupported 2D PA operator storage.");
+         MFEM_VERIFY(op_entries == 3 ||
+                     op_entries == 4, "Unsupported 2D PA operator storage.");
       }
       else if (dim == 3)
       {
-         MFEM_VERIFY(op_entries == 6 || op_entries == 9, "Unsupported 3D PA operator storage.");
+         MFEM_VERIFY(op_entries == 6 ||
+                     op_entries == 9, "Unsupported 3D PA operator storage.");
       }
       else
       {
