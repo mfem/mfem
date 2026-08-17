@@ -20,7 +20,7 @@
 #include "dual.hpp"
 #include "../fem/dfem/tuple.hpp"
 #include <limits>
-#include <utility>
+#include <cmath>
 #include <type_traits> // for std::false_type
 
 // Force-inline every tensor operation under clang
