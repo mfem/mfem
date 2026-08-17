@@ -82,6 +82,7 @@ public:
     Operator* GetOperator() const { return oper; }
 
     ///@brief Set the internally stored data pointer
+    virtual void SetDataAndAdjoint(Vector *field, Vector *adj) { data = field; adjoint = adj; }
     virtual void SetData(Vector *field) { data = field; }
     virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
     virtual void SetOperator(Operator *op) { oper = op; }
@@ -118,14 +119,16 @@ protected:
 class FieldCollection
 {
 public:
-    using FieldMap = GenericFieldMap<std::string, Field*>;
-    using IndexMap = GenericFieldMap<std::string, int>;
+    using FieldMap = GenericFieldMap<int, Field*>; // ID -> Field
+    using StrToInt = GenericFieldMap<std::string, int>; // Name -> ID
+    using IntToBool = GenericFieldMap<int, bool>; // ID -> Ownership
 
 private:
     std::string name; /// Name of the collection
     Operator *oper = nullptr; /// Operator associated with this collection (not owned)
-    FieldMap fields; /// Map from field name to Field pointer
-    IndexMap index_map; /// Map from field name to index in input/output vectors
+    FieldMap fields;  /// Map from field ID to Field pointer
+    StrToInt named_map; /// Map from field name to IDs
+    IntToBool ownership_map; /// Map from field ID to ownership flag
 
     Array<Field*> input_fields;  // Input fields for this node
     Array<Field*> output_fields; // Output fields for this node
@@ -156,52 +159,58 @@ public:
     /// @brief Get the operator associated with this collection
     const Operator* GetOperator() const { return oper; }
 
-    /// @brief Add a field to the collection with a given name and ownership flag
-    void AddField(const std::string &field_name, Field *field, bool own = false)
+    /// @brief Add a field and ownership flag to the collection
+    void AddField(Field *field, bool own = false)
     {
-        if(fields.Has(field_name))
+        if(fields.Has(field->ID()))
         {
-            MFEM_WARNING("FieldCollection::AddField: Field with name "
-                         << field_name << " already exists. Replacing existing field.");
+            MFEM_ABORT("FieldCollection::AddField: Field with ID "
+                       << field->ID() << " already exists.");
         }
-        fields.Register(field_name, field, own);
+        fields.Register(field->ID(), field, own);
+        ownership_map.Register(field->ID(), own);
     }
 
+    /// @brief Add a field to the collection with a given name and ownership flag
+    void AddField(const std::string &field_name,
+                  Field *field, bool own = false)
+    {
+        AddField(field, own);
+        named_map.Register(field_name, field->ID());
+    }
+
+    void SetFieldOwnership(int field_id, bool own)
+    {
+        if(!fields.Has(field_id))
+        {
+            MFEM_ABORT("FieldCollection::SetFieldOwnership: Field with ID "
+                       << field_id << " does not exist.");
+        }
+        ownership_map.Register(field_id, own);
+    }
+
+    void AddInput(Field *field, bool own = false)
+    {
+        AddField(field, own);
+        input_fields.push_back(field);
+    }
     void AddInput(const std::string &field_name,
                   Field *field, bool own = false)
     {
-        bool has_field = fields.Has(field_name);
-        bool has_index = index_map.Has(field_name);
-        if(has_field && has_index)
-        {
-            int i = index_map.Get(field_name);
-            input_fields[i] = field;
-        }
-        else
-        {
-            input_fields.push_back(field);
-            index_map.Register(field_name, input_fields.Size() - 1);
-        }
         AddField(field_name, field, own);
+        input_fields.push_back(field);
     }
 
+    void AddOutput(Field *field, bool own = false)
+    {
+        AddField(field, own);
+        output_fields.push_back(field);
+    }
     void AddOutput(const std::string &field_name,
                    Field *field, bool own = false)
     {
-        bool has_field = fields.Has(field_name);
-        bool has_index = index_map.Has(field_name);
-        if(has_field && has_index)
-        {
-            int i = index_map.Get(field_name);
-            output_fields[i] = field;
-        }
-        else
-        {
-            output_fields.push_back(field);
-            index_map.Register(field_name, output_fields.Size() - 1);
-        }
-
         AddField(field_name, field, own);
+        output_fields.push_back(field);
         if(field->GetOperator() == nullptr)
         {
             field->SetOperator(oper);
@@ -214,37 +223,13 @@ public:
     Field* InputField(int i) const { return input_fields[i]; }
     Field *InputField(const std::string &field_name) const
     {
-        bool has_index = index_map.Has(field_name);
-        if(!has_index)
-        {
-            MFEM_WARNING("FieldCollection::InputField: Field with name "
-                         << field_name << " does not exist in the collection.");
-            return nullptr;
-        }
-
-        int index = index_map.Get(field_name);
-        MFEM_VERIFY(index >= 0 && index < input_fields.Size(),
-                    "FieldCollection::InputField: Invalid index for field name: "
-                    << field_name << ".");
-        return input_fields[index];
+        return fields.Get(named_map.Get(field_name));
     }
 
     Field* OutputField(int i) const { return output_fields[i]; }
     Field *OutputField(const std::string &field_name) const
     {
-        bool has_index = index_map.Has(field_name);
-        if(!has_index)
-        {
-            MFEM_WARNING("FieldCollection::OutputField: Field with name "
-                         << field_name << " does not exist in the collection.");
-            return nullptr;
-        }
-
-        int index = index_map.Get(field_name);
-        MFEM_VERIFY(index >= 0 && index < output_fields.Size(),
-                    "FieldCollection::OutputField: Invalid index for field name: "
-                    << field_name << ".");
-        return output_fields[index];
+        return fields.Get(named_map.Get(field_name));
     }
 
     FieldMap &Fields() { return fields; }
@@ -256,7 +241,7 @@ public:
         out << "{\n";
         for (auto f = fields.begin(); f != fields.end(); ++f)
         {
-            std::string f_name = f->first;
+            std::string f_name = f->second->Name();
             Field *f_obj = f->second;
             // out << "  " << f_name << ": ID " << f_obj->ID() << ",\n";
             // out << f_obj->ID() << ": " << f_name << ",\n";
@@ -303,25 +288,50 @@ public:
 
     Field* HasField(const std::string &field_name) const
     {
-        return fields.Get(field_name);
+        return named_map.Has(field_name) ? fields.Get(named_map.Get(field_name)) : nullptr;
     }
 
     Field* HasField(const int id) const
     {
-        for (auto f = fields.begin(); f != fields.end(); ++f)
-        {
-            if(f->second->ID() == id)
-            {
-                return f->second;
-            }
-        }
-        return nullptr;
+        return fields.Get(id);
     }
 
-    ~FieldCollection(){}
+    void Clear()
+    {
+        for (auto f = fields.begin(); f != fields.end(); ++f)
+        {
+            int id = f->second->ID();
+            if(ownership_map.Has(id) && ownership_map.Get(id))
+            {
+                delete f->second;
+            }
+        }
+        fields.clear();
+        named_map.clear();
+        ownership_map.clear();
+        input_fields.SetSize(0);
+        output_fields.SetSize(0);
+    }
+
+    virtual ~FieldCollection()
+    {
+        Clear();
+    }
 
 };
 
+// TODO: Should move these to a util namespace or a util file. 
+template <typename T, std::size_t... I>
+auto ArrayToTuple_Helper( const Array<T>& v, std::index_sequence<I...>)
+{
+    return std::make_tuple(v[I]...);
+}
+
+template <int N, typename T>
+auto ArrayToTuple(const Array<T>& v)
+{
+    return ArrayToTuple_Helper(v,std::make_index_sequence<N>{});
+}
 
 class GraphNode : public Operator
 {
@@ -372,11 +382,8 @@ public:
     void SetID(int id_) { id = id_; }
     int ID() const { return id; }
 
-    FieldCollection::FieldMap& Fields() { return field_collection.Fields(); }
-    Field* Fields(const std::string &f)  { return Fields().Get(f); }
-
-    FieldCollection::FieldMap Fields() const { return field_collection.Fields(); }
-    Field* Fields(const std::string &f) const { return Fields().Get(f); }
+    FieldCollection& Fields() { return field_collection; }
+    const FieldCollection& Fields() const { return field_collection; }
 
     Array<Field*>& InputFields() const { return field_collection.InputFields(); }
     Array<Field*>& OutputFields() const { return field_collection.OutputFields(); }
@@ -465,7 +472,58 @@ public:
         out << "}";
     }
 
-    virtual ~GraphNode() = default;
+    // Variadic template that takes in an arbitrary number of Fields as inputs and returns a tuple of the N output fields
+    template<int N = 1, // Number of output fields
+             bool OwnInputs = false,  // Whether to own the input fields
+             bool OwnOutputs = false, // Whether to own the output fields
+             typename... Args, // Parameter pack for input fields
+             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
+             typename std::enable_if<AreFields, bool>::type = true >
+    constexpr auto operator()(Args... args)
+    {
+        // Add the input fields to the node
+        (AddInput(std::forward<Args>(args), OwnInputs), ...);
+        // (AddInput(args), ...);
+
+        if(OutputFields().Size() == 0)
+        {
+            // Add 'N' number of output fields to the node if none exist
+            for(int i = 0; i < N; ++i)
+            {
+                AddOutput(new Field(nullptr, nullptr, Field::Type::OUTPUT), OwnOutputs);
+            }
+        }
+        else
+        {
+            MFEM_ASSERT(OutputFields().Size() == N,
+                        "Number of output fields " << OutputFields().Size()
+                        << " does not match the specified number of outputs " << N);
+
+            // Set output ownership for the output fields if existing fields are used
+            auto outputs = OutputFields();
+            for(int i = 0; i < N; ++i)
+            {
+                field_collection.SetFieldOwnership(outputs[i]->ID(), OwnOutputs);
+            }
+        }
+
+        if constexpr (N == 1)
+        {
+            return OutputField(0);
+        }
+        else if constexpr (N > 1)
+        {
+            // Build and return a tuple of pointer to output fields
+            return ArrayToTuple<N>(OutputFields());
+        }
+    }
+
+
+    virtual ~GraphNode()
+    {
+        // Clear collection of fields associated with this node
+        field_collection.Clear();
+    }
 };
 
 
@@ -692,6 +750,7 @@ public:
     void CollectFieldMaps();
 
     using GraphNode::AddInput;
+    /* TODO: Remove in favour of AddInput(s) and SetInputOffsets
     void AddInput(Field *field, int sz, bool own = false)
     {
         if(input_offsets.Size() == 0)
@@ -701,8 +760,10 @@ public:
         input_offsets.Append(input_offsets.Last() + sz);
         AddInput(field, own);
     }
+    */
 
     using GraphNode::AddOutput;
+    /* TODO: Remove in favour of AddOutput(s) and SetOutputOffsets
     void AddOutput(Field *field, int sz, bool own = false)
     {
         if(output_offsets.Size() == 0)
@@ -712,6 +773,7 @@ public:
         output_offsets.Append(output_offsets.Last() + sz);
         AddOutput(field, own);
     }
+    */
 
     /// @brief Set the gradient mode for the coupled operator
     void SetGradientMode(GradMode mode)

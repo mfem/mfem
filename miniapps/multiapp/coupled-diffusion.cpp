@@ -635,53 +635,87 @@ int main(int argc, char *argv[])
    // Vector kpadj(fes.GetTrueVSize()); kpadj = 0.0;
 
    // Input fields get data from 'x' in DAGraph::Mult(x, y)
-   Field T1_field(nullptr, nullptr);
-   Field T2_field(nullptr, nullptr);
+   Field *T1_field = new Field(nullptr, nullptr);
+   Field *T2_field = new Field(nullptr, nullptr);
 
-   // Write space for data and adjoint only needed
-   // for the intermediate fields k1, k2, and k_prod
-   Field k1_field(&k1vec, &k1adj);
-   Field k2_field(&k2vec, &k2adj);
-   Field kp_field(&kpvec, &kpvec); // can use same space for data & adjoint
+   // Intermediate fields for the diffusion coefficients
+   Field *k1_field = nullptr;
+   Field *k2_field = nullptr;
+   Field *kp_field = nullptr;
 
-   // Output fields get data from 'y' in DAGraph::Mult(x, y)
-   Field f1_field(nullptr, nullptr);
-   Field f2_field(nullptr, nullptr);
-
-
-   // Add input and output to the DAG
-   int sz = fes.GetTrueVSize();
-   dag.AddInput(&T1_field, sz);
-   dag.AddInput(&T2_field, sz);
-   dag.AddOutput(&f1_field, sz);
-   dag.AddOutput(&f2_field, sz);
+   // Output fields
+   Field *f1_field = nullptr;
+   Field *f2_field = nullptr;
 
    // Form connections between the nodes in the DAG
-   diff_coeff_1.AddInput(&T1_field);
-   diff_coeff_1.AddOutput(&k1_field);
-
-   diff_coeff_2.AddInput(&T2_field);
-   diff_coeff_2.AddOutput(&k2_field);
-
-   prod_coeff.AddInputs(&k1_field, &k2_field);
-   prod_coeff.AddOutput(&kp_field);
-
-   diff_op1.AddInput(&T1_field);
-   diff_op1.AddOutput(&f1_field);
-
-   diff_op2.AddInput(&T2_field);
-   diff_op2.AddOutput(&f2_field);
-
-   if(ctx.coupled)
+   bool construct_dag_manually = false;
+   if(construct_dag_manually)
    {
-      diff_op1.AddInput(&kp_field); // kp_field
-      diff_op2.AddInput(prod_coeff.OutputField(0)); // Can also use kp_field directly
+      // Write space for data and adjoint only needed
+      // for the intermediate fields k1, k2, and k_prod
+      k1_field = new Field(&k1vec, &k1adj);
+      k2_field = new Field(&k2vec, &k2adj);
+
+      // Output fields get data from 'y' in DAGraph::Mult(x, y)
+      f1_field = new Field(nullptr, nullptr);
+      f2_field = new Field(nullptr, nullptr);
+
+      diff_coeff_1.AddInput(T1_field);
+      diff_coeff_1.AddOutput(k1_field);
+
+      diff_coeff_2.AddInput(T2_field);
+      diff_coeff_2.AddOutput(k2_field);
+
+      diff_op1.AddInput(T1_field);
+      diff_op1.AddOutput(f1_field);
+
+      diff_op2.AddInput(T2_field);
+      diff_op2.AddOutput(f2_field);
+
+      if(ctx.coupled)
+      {
+         kp_field = new Field(&kpvec, &kpvec); // can use same space for data & adjoint
+         prod_coeff.AddInputs(k1_field, k2_field);
+         prod_coeff.AddOutput(kp_field);
+
+         diff_op1.AddInput(kp_field);
+         diff_op2.AddInput(kp_field);
+      }
+      else
+      {
+         diff_op1.AddInput(k1_field);
+         diff_op2.AddInput(k2_field);
+      }
    }
    else
    {
-      diff_op1.AddInput(&k1_field); // Can also use diff_coeff_1.OutputField(0)
-      diff_op2.AddInput(&k2_field); // Can also use diff_coeff_2.OutputField(0)
+      k1_field = diff_coeff_1(T1_field);
+      k1_field->SetDataAndAdjoint(&k1vec, &k1adj);
+
+      k2_field = diff_coeff_2(T2_field);
+      k2_field->SetDataAndAdjoint(&k2vec, &k2adj);
+
+      if(ctx.coupled)
+      {
+         kp_field = prod_coeff(k1_field, k2_field);
+         kp_field->SetDataAndAdjoint(&kpvec, &kpvec);
+
+         f1_field = diff_op1(T1_field, kp_field);
+         f2_field = diff_op2(T2_field, kp_field);
+         // auto [out1, out2, out3] = app1<3>(in1, in2); // if multple outputs
+      }
+      else
+      {
+         f1_field = diff_op1(T1_field, k1_field);
+         f2_field = diff_op2(T2_field, k2_field);
+      }
    }
+   // Add input and output to the DAG
+   int sz = fes.GetTrueVSize();
+   dag.AddInputs(T1_field, T2_field);
+   dag.AddOutputs(f1_field, f2_field);
+   dag.SetInputOffsets(Array<int>({0, sz, 2*sz}));
+   dag.SetOutputOffsets(Array<int>({0, sz, 2*sz}));
 
    // Assemble DAG: topological sort, validate nodes, etc.
    dag.Assemble();
@@ -755,6 +789,15 @@ int main(int argc, char *argv[])
       pv->Save();
       delete pv;
    }
+
+   // Delete fields
+   if(T1_field) delete T1_field;
+   if(T2_field) delete T2_field;
+   if(k1_field) delete k1_field;
+   if(k2_field) delete k2_field;
+   if(kp_field) delete kp_field;
+   if(f1_field) delete f1_field;
+   if(f2_field) delete f2_field;
 
    std::cout << "Finished solving the coupled diffusion problem." << std::endl;
    return 0;
