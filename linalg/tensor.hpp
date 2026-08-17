@@ -17,13 +17,17 @@
 
 #pragma once
 
-// Defines _USE_MATH_DEFINES on Windows, needed to get M_PI etc. from <cmath>.
-#include "../config/config.hpp"
 #include "dual.hpp"
 #include "../fem/dfem/tuple.hpp"
 #include <limits>
 #include <cmath>
 #include <type_traits> // for std::false_type
+#ifdef _MSC_VER
+// <cmath> only provides M_PI _USE_MATH_DEFINES is defined before
+// the first inclusion of <math.h> in the translation unit, which we cannot
+// guarantee here. This header defines them unconditionally.
+#include <corecrt_math_defines.h>
+#endif
 
 // Force-inline every tensor operation under clang
 #if defined(__clang__)
