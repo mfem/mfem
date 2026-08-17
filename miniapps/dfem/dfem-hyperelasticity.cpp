@@ -18,6 +18,7 @@
 // Sample runs:  mpirun -np 4 dfem-hyperelasticity -o 1 -rs 0 -no-vis
 //               mpirun -np 4 dfem-hyperelasticity -mat linear-elastic -no-vis
 //               mpirun -np 4 dfem-hyperelasticity -mat mooney-rivlin -no-vis
+//               mpirun -np 4 dfem-hyperelasticity -o 2 -rs 1 -pc 2 -no-vis
 //
 // Description:  This miniapp solves a quasistatic solid mechanics problem on
 //               the 3D beam used by the Hooke miniapp. The material response is
@@ -25,6 +26,9 @@
 //               residual is obtained with DifferentiableOperator::GetDerivative
 //               and Newton's Hessian-vector products are obtained with the new
 //               DifferentiableOperator::GetSecondDerivative functionality.
+//               The same second derivative can also be assembled into a
+//               HypreParMatrix, which -pc 2 uses to build a BoomerAMG
+//               preconditioner for the matrix-free Newton tangent.
 
 #include "mfem.hpp"
 #include "../../fem/dfem/doperator.hpp"
@@ -70,7 +74,8 @@ enum class MaterialType
 enum class PreconditionerType
 {
    None,
-   Diagonal
+   Diagonal,
+   AMG
 };
 
 MaterialType ParseMaterial(const char *material)
@@ -195,6 +200,7 @@ struct MooneyRivlinEnergy :
 
 class HyperelasticOperator : public Operator
 {
+public:
    // Matrix-free Hessian-vector product used by Newton's method. This wraps the
    // functional second-derivative interface and applies the same essential-dof
    // treatment as the Hooke elasticity Jacobian operator.
@@ -244,6 +250,17 @@ class HyperelasticOperator : public Operator
          {
             d_diag[d_dofs[i]] = 1.0;
          });
+      }
+
+      // Matrix counterpart of AssembleDiagonal, for preconditioners that need
+      // a real matrix. @a A can be uninitialized; it is allocated by dFEM and
+      // ownership is passed to the caller. Eliminating the essential rows and
+      // columns puts 1.0 on their diagonal, matching Mult above.
+      void AssembleHessian(HypreParMatrix *&A) const
+      {
+         hessian->Assemble(A);
+         auto Ae = A->EliminateRowsCols(oper.ess_tdofs);
+         delete Ae;
       }
 
    private:
@@ -399,6 +416,69 @@ private:
    mutable std::shared_ptr<HessianOperator> hessian;
 };
 
+// BoomerAMG preconditioner for the matrix-free Hessian. HypreBoomerAMG needs a
+// real HypreParMatrix, so on every SetOperator we let dFEM assemble the second
+// derivative and setup AMG.
+class HessianAMG : public Solver
+{
+public:
+   HessianAMG(ParFiniteElementSpace *fes_) : fes(fes_)
+   {
+      amg.SetPrintLevel(0);
+   }
+
+   void SetOperator(const Operator &op) override
+   {
+      const auto *H =
+         dynamic_cast<const HyperelasticOperator::HessianOperator *>(&op);
+      MFEM_VERIFY(H, "HessianAMG requires a HessianOperator");
+      height = width = op.Height();
+
+      delete A;
+      A = nullptr;
+      H->AssembleHessian(A);
+      amg.SetOperator(*A);
+      // Tell BoomerAMG this is a dim-component displacement system rather than
+      // a scalar one. order_bynodes MUST be true: the state space is built as
+      // ParFiniteElementSpace(&pmesh, &fec, dim, Ordering::byNODES), while
+      // hypre's default assumes byVDIM. Getting this flag wrong hands hypre a
+      // bogus dof -> function map and converges *worse* than passing no systems
+      // options at all. Must follow SetOperator: the dof map is sized from
+      // height, which SetOperator establishes.
+      amg.SetSystemsOptions(fes->GetVDim(), /*order_bynodes=*/true);
+   }
+
+   void Mult(const Vector &x, Vector &y) const override { amg.Mult(x, y); }
+
+   ~HessianAMG() { delete A; }
+
+private:
+   ParFiniteElementSpace *fes;
+   HypreParMatrix *A = nullptr;
+   HypreBoomerAMG amg;
+};
+
+// Build the preconditioner selected by -pc. Newton hands the current tangent to
+// the Krylov solver on every iteration, and IterativeSolver::SetOperator
+// forwards it to the preconditioner, so the AMG hierarchy is rebuilt from the
+// freshly assembled Hessian at each Newton step.
+std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type,
+                                           ParFiniteElementSpace *fes)
+{
+   switch (type)
+   {
+      case PreconditionerType::None:
+         return nullptr;
+      case PreconditionerType::Diagonal:
+         return std::make_unique<OperatorJacobiSmoother>();
+      case PreconditionerType::AMG:
+         return std::make_unique<HessianAMG>(fes);
+      default:
+         MFEM_ABORT("Unknown preconditioner type: " << static_cast<int>(type));
+   }
+   return nullptr;
+}
+
 #endif // MFEM_USE_ENZYME
 
 int main(int argc, char *argv[])
@@ -437,7 +517,7 @@ int main(int argc, char *argv[])
    args.AddOption(&material_name, "-mat", "--material",
                   "Material: neo-hookean, linear-elastic, mooney-rivlin.");
    args.AddOption(&prec_type, "-pc", "--preconditioner",
-                  "Preconditioner: 0=none, 1=diagonal.");
+                  "Preconditioner: 0 = none, 1 = diagonal/Jacobi, 2 = AMG.");
    args.AddOption(&cg_tol, "-tol", "--cg-tol",
                   "Relative tolerance for the CG solver.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
@@ -515,18 +595,9 @@ int main(int argc, char *argv[])
    cg.SetMaxIter(10000);
    cg.SetPrintLevel(2);
 
-   std::unique_ptr<Solver> pc;
-   switch (static_cast<PreconditionerType>(prec_type))
-   {
-      case PreconditionerType::None:
-         break;
-      case PreconditionerType::Diagonal:
-         pc = std::make_unique<OperatorJacobiSmoother>();
-         cg.SetPreconditioner(*pc);
-         break;
-      default:
-         MFEM_ABORT("Unknown preconditioner type: " << prec_type);
-   }
+   std::unique_ptr<Solver> pc =
+      MakePreconditioner(static_cast<PreconditionerType>(prec_type), &fes);
+   if (pc) { cg.SetPreconditioner(*pc); }
 
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
