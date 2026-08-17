@@ -18,7 +18,6 @@
 // Sample runs:  mpirun -np 4 dfem-hyperelasticity -o 1 -rs 0 -no-vis
 //               mpirun -np 4 dfem-hyperelasticity -mat linear-elastic -no-vis
 //               mpirun -np 4 dfem-hyperelasticity -mat mooney-rivlin -no-vis
-//               mpirun -np 4 dfem-hyperelasticity -mat holzapfel -no-vis
 //
 // Description:  This miniapp solves a quasistatic solid mechanics problem on
 //               the 3D beam used by the Hooke miniapp. The material response is
@@ -30,6 +29,17 @@
 #include "mfem.hpp"
 #include "../../fem/dfem/doperator.hpp"
 #include "../../fem/dfem/backends/local_qf/prelude.hpp"
+
+// Utils for output folder handling
+#if __cplusplus >= 201703L
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __cplusplus >= 201402L
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "C++14 or later is required for filesystem support."
+#endif
 
 using namespace mfem;
 using namespace mfem::future;
@@ -55,7 +65,6 @@ enum class MaterialType
    NeoHookean,
    LinearElastic,
    MooneyRivlin,
-   Holzapfel
 };
 
 enum class PreconditionerType
@@ -79,13 +88,8 @@ MaterialType ParseMaterial(const char *material)
    {
       return MaterialType::MooneyRivlin;
    }
-   if (name == "holzapfel" || name == "fiber" || name == "fiber-reinforced")
-   {
-      return MaterialType::Holzapfel;
-   }
    MFEM_ABORT("Unknown material '" << name
-              << "'. Available materials: neo-hookean, linear-elastic, "
-              << "mooney-rivlin, holzapfel.");
+              << "'. Available materials: neo-hookean, linear-elastic, mooney-rivlin.");
    return MaterialType::NeoHookean;
 }
 
@@ -187,57 +191,6 @@ struct MooneyRivlinEnergy :
    }
 };
 
-template <typename dscalar_t>
-struct HolzapfelEnergy :
-   HyperelasticEnergyQFunction<HolzapfelEnergy<dscalar_t>, dscalar_t>
-{
-   real_t c = 50.0;
-   real_t kappa = 100.0;
-   real_t k1 = 10.0;
-   real_t k2 = 20.0;
-   //tensor<real_t, dim> a0 = {1.0, 0.0, 0.0};
-   tensor<real_t, dim> a0 = {0.7071067811865475, 0.7071067811865475, 0.0}; // Normalized fiber direction in the x-y plane at 45 degrees a = (1, 1, 0) / sqrt(2)
-   tensor<real_t, dim, dim> A = make_tensor<dim, dim>(
-   [&](int i, int j) { return a0(i) * a0(j); });
-
-   // Holzapfel-type transversely reinforced model with one fiber family a0:
-   // Ψ(F) = c/2 (Ī₁ - dim) + κ/2 log(J)^2
-   //      + k1/(2 k2) (exp(k2 (Ī₄ - 1)^2) - 1),
-   // where Ī₁ = J^(-2/3) tr(C), I₄ = A : C = a0.C.a0
-   // A = a0 ⊗ a0 is the fiber direction tensor.
-   // We use the full I4 invariant, to avoid auxetic behavior
-   //
-   // In this case we assume that the fiber direction is oriented 45 degrees in the x-y plane, i.e. a0 = (1, 1, 0)/sqrt(2).
-   // For a more general case one could start from an external fiber "field", and provide it as an input
-   // to the q-function, and then compute A = a0 ⊗ a0 at each quadrature point.
-   // This would require a different q-function signature including the fiber direction as well.
-   MFEM_HOST_DEVICE inline
-   dscalar_t psi(const tensor<dscalar_t, dim, dim> &F,
-                 const tensor<dscalar_t, dim, dim> & /* dudx */) const
-   {
-      // Kinematic quantities
-      const auto C = transpose(F) * F;
-      const auto J = det(F);
-      const auto Jm23 = pow(J, -2.0_r / 3.0_r);
-
-      // Strain invariants
-      const auto I1_bar = Jm23 * tr(C);
-      const auto I4 = ddot(C, A);
-      const auto fiber_strain = I4 - 1.0_r;
-      const auto log_J = log(J);
-
-      // Strain energy density components
-      const auto psi_vol = 0.5_r * kappa * log_J * log_J;
-      const auto psi_iso = 0.5_r * c * (I1_bar - real_t(dim));
-      const auto psi_aniso = (k1 / (2.0_r * k2)) * (exp(k2 * fiber_strain *
-                                                        fiber_strain) - 1.0_r);
-      // NOTE: in practice the anisotropic term should contribute only in tension, i.e. when I4 > 1, or fiber_strain > 0.
-      // mathematically this would introduce a non-smoothness in the energy functional that needs to taken care of.
-
-      return psi_vol + psi_iso + psi_aniso;
-   }
-};
-
 
 
 class HyperelasticOperator : public Operator
@@ -310,9 +263,11 @@ public:
                         MaterialType material) :
       Operator(fes.GetTrueVSize()),
       fes(fes),
+      ir(ir),
       qspace(*fes.GetParMesh(), ir),
       qspace_vec(qspace, 1),
-      q(qspace_vec)
+      q(qspace_vec),
+      material(material)
    {
       auto &mesh_nodes =
          *static_cast<ParGridFunction *>(fes.GetParMesh()->GetNodes());
@@ -380,19 +335,6 @@ public:
                ir, all_domain_attr, derivatives, second_derivatives);
             break;
          }
-         case MaterialType::Holzapfel:
-         {
-            // Fiber-reinforced Holzapfel-type material with fibers aligned to
-            // the beam axis. The functional registration lets dFEM derive both
-            // the residual and the Hessian-vector product from the energy.
-            HolzapfelEnergy<dscalar_t> energy;
-            internal_energy_dop->AddDomainIntegrator<LocalQFBackend>(
-               energy,
-               Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
-               Outputs<FunctionalValue<Energy>> {},
-               ir, all_domain_attr, derivatives, second_derivatives);
-            break;
-         }
       }
 
       // The first variation of a functional is exposed as a stateless
@@ -439,9 +381,11 @@ public:
 private:
    ParFiniteElementSpace &fes;
    ParFiniteElementSpace *mesh_nodes_fes = nullptr;
+   const IntegrationRule &ir;
    QuadratureSpace qspace;
    VectorQuadratureSpace qspace_vec;
    QuadratureFunction q;
+   MaterialType material;
    Vector mesh_nodes_tdofs;
    Array<int> ess_tdofs;
    Array<int> prescribed_tdofs;
@@ -460,6 +404,8 @@ private:
 int main(int argc, char *argv[])
 {
    Mpi::Init(argc, argv);
+   const int num_procs = Mpi::WorldSize();
+   const int myid = Mpi::WorldRank();
    Hypre::Init();
 
 #ifndef MFEM_USE_ENZYME
@@ -489,7 +435,7 @@ int main(int argc, char *argv[])
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
    args.AddOption(&material_name, "-mat", "--material",
-                  "Material: neo-hookean, linear-elastic, mooney-rivlin, or holzapfel.");
+                  "Material: neo-hookean, linear-elastic, mooney-rivlin.");
    args.AddOption(&prec_type, "-pc", "--preconditioner",
                   "Preconditioner: 0=none, 1=diagonal.");
    args.AddOption(&cg_tol, "-tol", "--cg-tol",
@@ -604,16 +550,19 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       socketstream sol_sock(vishost, visport);
-      sol_sock << "parallel " << Mpi::WorldSize() << " " << Mpi::WorldRank()
-               << "\n";
+      sol_sock << "parallel " << num_procs << " " << myid << "\n";
       sol_sock.precision(8);
       sol_sock << "solution\n" << pmesh << U_gf << std::flush;
    }
 
    if (paraview)
    {
-      // Create a ParaView data collection. Save() creates the output directory
-      // tree under the prefix path itself, with the ranks synchronized.
+      if (Mpi::Root())
+      {
+         fs::create_directories(outfolder);
+      }
+
+      // Create a ParaView data collection
       ParaViewDataCollection pd("dfem-hyperelasticity", &pmesh);
       pd.SetPrefixPath(outfolder);
       pd.RegisterField("displacement", &U_gf);
