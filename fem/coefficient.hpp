@@ -1055,7 +1055,25 @@ public:
 
 typedef VectorCoefficient DiagonalMatrixCoefficient;
 
-/// Base class for Matrix Coefficients that optionally depend on time and space.
+/** Base class for matrix-valued coefficients that optionally depend on time
+    and space.
+
+    A `MatrixCoefficient` represents a linear map from a vector of length
+    `width` to a vector of length `height`. The matrix entries returned by
+    `Eval()` follow the usual row/column convention:
+
+       y(i) = sum_j K(i,j) x(j)
+
+    so row `i` corresponds to output component `i` and column `j` corresponds
+    to input component `j`.
+
+    In bilinear forms this means that, for a matrix coefficient `M`, MFEM uses
+    the evaluated matrix in the natural way, e.g. `test . (M trial)`. For mixed
+    forms, `height` should therefore match the vector dimension of the test
+    space and `width` should match the vector dimension of the trial space.
+
+    Example: to represent the 3D cross product `v x u`, `Eval()` should fill
+    `K` so that `K * u` equals `v x u`. */
 class MatrixCoefficient
 {
 protected:
@@ -1091,7 +1109,9 @@ public:
    bool IsSymmetric() const { return symmetric; }
 
    /** @brief Evaluate the matrix coefficient in the element described by @a T
-       at the point @a ip, storing the result in @a K. */
+       at the point @a ip, storing the result in @a K.
+       @note The returned matrix should satisfy `y = K x` with entries
+       `y(i) = sum_j K(i,j) x(j)`. */
    /** @note When this method is called, the caller must make sure that the
        IntegrationPoint associated with @a T is the same as @a ip. This can be
        achieved by calling T.SetIntPoint(&ip). */
@@ -1101,6 +1121,9 @@ public:
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
+   ///
+   /// The stored entries use the same row/column convention as `Eval()`,
+   /// unless `transpose == true`, in which case `K^T` is stored instead.
    ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
