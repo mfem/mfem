@@ -17,6 +17,8 @@
 
 #pragma once
 
+// Defines _USE_MATH_DEFINES on Windows, needed to get M_PI etc. from <cmath>.
+#include "../config/config.hpp"
 #include "dual.hpp"
 #include "../fem/dfem/tuple.hpp"
 #include <limits>
