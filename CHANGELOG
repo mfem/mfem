@@ -79,6 +79,10 @@ Linear and nonlinear solvers
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).
 
+- Added interface to MUMPS direct solver for complex-valued problems.
+  Its usage is demonstrated in ex25p. See http://mumps.enseeiht.fr/ for more details.
+  Supported versions >= 5.1.1.
+
 GPU computing
 -------------
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
