@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
    //    quadrilateral, or mixed meshes with the same code.
    Mesh mesh(mesh_file, 1, 1);
    dim = mesh.Dimension();
+   int spaceDim = mesh.SpaceDimension();
 
    // 3. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement (2 by default, or specified on
@@ -176,6 +177,7 @@ int main(int argc, char *argv[])
    a.RecoverFEMSolution(X, b, sol);
 
    // 13. Compute and print the H(Curl) norm of the error.
+   if (dim == spaceDim)
    {
       real_t error = sol.ComputeHCurlError(&E, &CurlE);
       cout << "\n|| E_h - E ||_{H(Curl)} = " << error << '\n' << endl;
@@ -265,69 +267,21 @@ int main(int argc, char *argv[])
                  << "window_geometry 806 375 400 350 "
                  << "window_title 'Z component of Curl'" << endl;
       }
-      else if (dim == 2)
-      {
-         socketstream xy_sock(vishost, visport);
-         socketstream z_sock(vishost, visport);
-         socketstream dxy_sock(vishost, visport);
-         socketstream dz_sock(vishost, visport);
-
-         DenseMatrix xyMat(2,3); xyMat = 0.0;
-         xyMat(0,0) = 1.0; xyMat(1,1) = 1.0;
-         MatrixConstantCoefficient xyMatCoef(xyMat);
-         Vector zVec(3); zVec = 0.0; zVec(2) = 1;
-         VectorConstantCoefficient zVecCoef(zVec);
-
-         MatrixVectorProductCoefficient xyCoef(xyMatCoef, solCoef);
-         InnerProductCoefficient zCoef(zVecCoef, solCoef);
-
-         H1_FECollection fec_h1(order, dim);
-         ND_FECollection fec_nd(order, dim);
-         RT_FECollection fec_rt(order-1, dim);
-         L2_FECollection fec_l2(order-1, dim);
-
-         FiniteElementSpace fes_h1(&mesh, &fec_h1);
-         FiniteElementSpace fes_nd(&mesh, &fec_nd);
-         FiniteElementSpace fes_rt(&mesh, &fec_rt);
-         FiniteElementSpace fes_l2(&mesh, &fec_l2);
-
-         GridFunction xyComp(&fes_nd);
-         GridFunction zComp(&fes_h1);
-
-         GridFunction dxyComp(&fes_rt);
-         GridFunction dzComp(&fes_l2);
-
-         xyComp.ProjectCoefficient(xyCoef);
-         zComp.ProjectCoefficient(zCoef);
-
-         xy_sock.precision(8);
-         xy_sock << "solution\n" << mesh << xyComp
-                 << "window_title 'XY components'\n" << flush;
-         z_sock << "solution\n" << mesh << zComp << flush
-                << "window_geometry 403 0 400 350 "
-                << "window_title 'Z component'" << endl;
-
-         MatrixVectorProductCoefficient dxyCoef(xyMatCoef, dsolCoef);
-         InnerProductCoefficient dzCoef(zVecCoef, dsolCoef);
-
-         dxyComp.ProjectCoefficient(dxyCoef);
-         dzComp.ProjectCoefficient(dzCoef);
-
-         dxy_sock << "solution\n" << mesh << dxyComp << flush
-                  << "window_geometry 0 375 400 350 "
-                  << "window_title 'XY components of Curl'" << endl;
-         dz_sock << "solution\n" << mesh << dzComp << flush
-                 << "window_geometry 403 375 400 350 "
-                 << "window_title 'Z component of Curl'" << endl;
-      }
       else
       {
          socketstream sol_sock(vishost, visport);
          socketstream dsol_sock(vishost, visport);
 
-         RT_FECollection fec_rt(order-1, dim);
-
-         FiniteElementSpace fes_rt(&mesh, &fec_rt);
+         FiniteElementCollection *fec_rt = NULL;
+         if (dim == 2)
+         {
+            fec_rt = new RT_R2D_FECollection(order-1, dim);
+         }
+         else
+         {
+            fec_rt = new RT_FECollection(order-1, dim);
+         }
+         FiniteElementSpace fes_rt(&mesh, fec_rt);
 
          GridFunction dsol(&fes_rt);
 
@@ -335,10 +289,12 @@ int main(int argc, char *argv[])
 
          sol_sock.precision(8);
          sol_sock << "solution\n" << mesh << sol
-                  << "window_title 'Solution'" << flush << endl;
+                  << "window_title 'Solution' keys vvv" << flush << endl;
          dsol_sock << "solution\n" << mesh << dsol << flush
                    << "window_geometry 0 375 400 350 "
-                   << "window_title 'Curl of solution'" << endl;
+                   << "window_title 'Curl of solution' keys vvv" << endl;
+
+         delete fec_rt;
       }
    }
 
