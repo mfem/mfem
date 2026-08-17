@@ -214,7 +214,7 @@ miniapps/adjoint/adjoint_advection_diffusion
 
 miniapps/dfem/dfem-minimal-surface
 miniapps/dfem/dfem-minimal-surface-output
-miniapps/dfem/dfem-hyperelasticity_energy
+miniapps/dfem/dfem-hyperelasticity
 
 miniapps/electromagnetics/volta
 miniapps/electromagnetics/tesla
