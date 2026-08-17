@@ -28,7 +28,7 @@ TEST_CASE("Basic tensor operations", "[Tensor]")
    CHECK(u.first_dim == 3);
    CHECK(v.first_dim == 4);
 
-   tensor<real_t, 3, 3> A = make_tensor<3, 3>([](int i, int j) { return i + 2.0 * j; });
+   tensor<real_t, 3, 3> A = make_tensor<3, 3>([](int i, int j) { return i + 2.0_r * j; });
    CHECK(A.first_dim == 3);
 
    real_t squared_normA = 111.0;
@@ -160,9 +160,9 @@ TEST_CASE("Eigenvalues 2x2 distinct and unsorted", "[Tensor]")
 TEST_CASE("Eigenvalues 2x2 with small eigenvalue", "[Tensor]")
 {
    real_t eps = std::numeric_limits<real_t>::epsilon();
-   tensor<real_t, 2, 2> A{{{2.0, 2.0 - eps}, {2.0 - eps, 2.0}}};
+   tensor<real_t, 2, 2> A{{{2.0_r, 2.0_r - eps}, {2.0_r - eps, 2.0_r}}};
    auto [eigenvals, eigenvecs] = eig_symm(A);
-   real_t lambda_exact[2] {eps, 4.0 - eps};
+   real_t lambda_exact[2] {eps, 4.0_r - eps};
    CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda_exact[0], 2));
    CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda_exact[1], 2));
 
