@@ -667,9 +667,84 @@ void Mesh::GetEdgeTransformation(int EdgeNo,
          }
          EdTr->SetFE(edge_el);
       }
-      else
+      else // L2 Nodes (e.g., periodic mesh), go through the face containing the edge
       {
-         MFEM_ABORT("Not implemented.");
+         // Search for a face that contains this edge
+         GetEdgeFaceTable();
+
+         Array<int> faces_e;
+         edge_face->GetRow(EdgeNo, faces_e);
+
+         MFEM_VERIFY(faces_e.Size() > 0, "Edge not found in any face!");
+         const int face_no = faces_e[0];
+
+         // Get edge local index and orientation
+         Array<int> edges_f, oris_f;
+         GetFaceEdges(face_no, edges_f, oris_f);
+         const int local_idx = edges_f.Find(EdgeNo);
+         MFEM_ASSERT(local_idx >= 0, "Edge not found on the face!");
+         const int edge_ori = oris_f[local_idx] > 0 ? 0 : 1;
+
+         // Get face information
+         const FaceInfo &face_info = faces_info[face_no];
+
+         // Get transformation from face to edge
+         IntegrationPointTransformation LocEdge;
+         int edge_info = EncodeFaceInfo(local_idx, edge_ori);
+         Element::Type face_type = GetFaceElementType(face_no);
+
+         switch (face_type)
+         {
+            case Element::TRIANGLE:
+               GetLocalSegToTriTransformation(LocEdge.Transf, edge_info);
+               break;
+            case Element::QUADRILATERAL:
+               GetLocalSegToQuadTransformation(LocEdge.Transf, edge_info);
+               break;
+            default:
+               MFEM_ABORT("Unsupported face type for edge transformation!");
+         }
+
+         // Get edge element
+         const int order = Nodes->FESpace()->GetElementOrder(face_info.Elem1No);
+         const L2_FECollection *l2_fec = dynamic_cast<const L2_FECollection*>
+                                         (Nodes->FESpace()->FEColl());
+         if (l2_fec)
+         {
+            // L2 elements do not have a defined trace space
+            if (!EdgeTransfElement || EdgeTransfElement->GetOrder() != order
+                || EdgeTransfElement->GetBasisType() != l2_fec->GetBasisType())
+            {
+               EdgeTransfElement = make_unique<L2_SegmentElement>(
+                                      order, l2_fec->GetBasisType());
+            }
+            edge_el = EdgeTransfElement.get();
+         }
+         else
+         {
+            MFEM_ABORT("Unsupported finite element collection.");
+         }
+
+         // Map edge nodes to face reference space
+         IntegrationRule face_ir(edge_el->GetDof());
+         LocEdge.Transform(edge_el->GetNodes(), face_ir);
+
+         // Then, map from face to element
+         IntegrationPointTransformation Loc1;
+         GetLocalFaceTransformation(face_type,
+                                    GetElementType(face_info.Elem1No),
+                                    Loc1.Transf, face_info.Elem1Inf);
+
+         IntegrationRule elem_ir(edge_el->GetDof());
+         Loc1.Transf.ElementNo = face_info.Elem1No;
+         Loc1.Transf.ElementType = ElementTransformation::ELEMENT;
+         Loc1.Transf.mesh = this;
+         Loc1.Transform(face_ir, elem_ir);
+
+         // Finally, get the physical coordinates
+         Nodes->GetVectorValues(Loc1.Transf, elem_ir, pm);
+
+         EdTr->SetFE(edge_el);
       }
    }
 }
@@ -1824,8 +1899,8 @@ void Mesh::Init()
 
 void Mesh::InitTables()
 {
-   el_to_edge =
-      el_to_face = el_to_el = bel_to_edge = face_edge = edge_vertex = NULL;
+   el_to_edge = el_to_face = el_to_el = bel_to_edge = NULL;
+   face_edge = edge_face = edge_vertex = NULL;
    face_to_elem = NULL;
 }
 
@@ -1848,6 +1923,7 @@ void Mesh::DestroyTables()
    }
 
    delete face_edge;
+   delete edge_face;
    delete edge_vertex;
 
    delete face_to_elem;
@@ -1921,6 +1997,7 @@ void Mesh::ResetLazyData()
 {
    delete el_to_el;     el_to_el = NULL;
    delete face_edge;    face_edge = NULL;
+   delete edge_face;    edge_face = NULL;
    delete face_to_elem;    face_to_elem = NULL;
    delete edge_vertex;  edge_vertex = NULL;
    DeleteGeometricFactors();
@@ -2845,6 +2922,7 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
    //                 boundary element ordering
    // - el_to_el    - no need to rebuild
    // - face_edge   - no need to rebuild
+   // - edge_face   - no need to rebuild
    // - edge_vertex - no need to rebuild
    // - geom_factors - no need to rebuild
 
@@ -4598,8 +4676,9 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Do NOT copy the element-to-element Table, el_to_el
    el_to_el = NULL;
 
-   // Do NOT copy the face-to-edge Table, face_edge
+   // Do NOT copy the face-to-edge Table, face_edge and edge_face
    face_edge = NULL;
+   edge_face = NULL;
    face_to_elem = NULL;
 
    // Copy the edge-to-vertex Table, edge_vertex
@@ -8094,6 +8173,22 @@ Table *Mesh::GetFaceEdgeTable() const
    return (face_edge);
 }
 
+Table *Mesh::GetEdgeFaceTable() const
+{
+   if (edge_face)
+   {
+      return edge_face;
+   }
+
+   if (Dim != 3)
+   {
+      return NULL;
+   }
+
+   edge_face = Transpose(*GetFaceEdgeTable());
+   return edge_face;
+}
+
 Table *Mesh::GetEdgeVertexTable() const
 {
    if (edge_vertex)
@@ -11452,6 +11547,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
    mfem::Swap(bel_to_edge, other.bel_to_edge);
    mfem::Swap(be_to_face, other.be_to_face);
    mfem::Swap(face_edge, other.face_edge);
+   mfem::Swap(edge_face, other.edge_face);
    mfem::Swap(face_to_elem, other.face_to_elem);
    mfem::Swap(edge_vertex, other.edge_vertex);
 
