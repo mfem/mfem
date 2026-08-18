@@ -525,10 +525,8 @@ protected:
                                                       std::declval<Vector&>()));
 
         template<class T>
-        using MultPtr = decltype(std::declval<T&>().Mult(std::declval<const int>(),
-                                                         std::declval<const real_t*>(),
-                                                         std::declval<const int>(),
-                                                         std::declval<real_t*>()));
+        using MultMV = decltype(std::declval<T&>().MultMV(std::declval<const MultiVector&>(),
+                                                          std::declval<MultiVector&>()));
         // ---------------------------------------------------------------------
         
         template <typename T, template<typename> typename Func, typename R>
@@ -539,19 +537,18 @@ protected:
 
         // --- Check for the existence of the member functions
         typedef decltype(Check<C,Mult,void>(0)) Has_Mult;
-        typedef decltype(Check<C,MultPtr,void>(0)) Has_MultPtr;
+        typedef decltype(Check<C,MultMV,void>(0)) Has_MultMV;
     public:
-        static constexpr bool HasMult  = Has_Mult::value;
-        static constexpr bool HasMultPtr  = Has_MultPtr::value;
+        static constexpr bool HasMult = Has_Mult::value;
+        static constexpr bool HasMultMV = Has_MultMV::value;
     };
 
     OpType *op;  ///< Pointer to the operator
 
 public:
 
-    constexpr bool HasExecute(){return CheckMember<OpType>::HasStep;}
+    constexpr bool HasMultMV(){return CheckMember<OpType>::HasMultMV;}
     constexpr bool HasMult(){return CheckMember<OpType>::HasMult;}
-
 
     /// @brief Constructor for the type-erased AbstractOperator class
     AbstractOperator(OpType *op_, int h, int w) : GraphNode(h,w), op(op_)
@@ -569,15 +566,27 @@ public:
         {
             op->Mult(x,y);
         }
-        else if constexpr (CheckMember<OpType>::HasMultPtr)
-        {
-            op->Mult(x.Size(), x.GetData(), y.Size(), y.GetData());
-        }
         else
         {
             MFEM_ABORT("The AbstractOperator does not have the function, "
                        "Mult(const Vector&, Vector&) or "
                        "Mult(int, double*, int, double*).");
+        }
+    }
+
+    /**
+       @brief Perform MultMV operation with the stored operator, if it exists.
+     */
+    void MultMV(const MultiVector &x, MultiVector &y) const override
+    {
+        if constexpr (CheckMember<OpType>::HasMultMV)
+        {
+            op->MultMV(x,y);
+        }
+        else
+        {
+            MFEM_ABORT("The AbstractOperator does not have the function, "
+                       "MultMV(const MultiVector&, MultiVector&).");
         }
     }
 };
