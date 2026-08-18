@@ -18,6 +18,10 @@ if (MFEM_USE_MPI)
         MAIN dfem-hyperelasticity.cpp
         LIBRARIES mfem)
 
+    add_mfem_miniapp(dfem-nonlinear-poisson
+        MAIN dfem-nonlinear-poisson.cpp
+        LIBRARIES mfem)
+
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
         add_test(NAME dfem-minimal-surface=${MFEM_MPI_NP}
@@ -28,6 +32,18 @@ if (MFEM_USE_MPI)
         add_test(NAME dfem-hyperelasticity=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-hyperelasticity> -o 1 -rs 0 -no-vis
+        ${MPIEXEC_POSTFLAGS})
+
+        add_test(NAME dfem-nonlinear-poisson=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-nonlinear-poisson>
+        -k grad -f energy -o 1 -r 2 -no-vis
+        ${MPIEXEC_POSTFLAGS})
+
+        add_test(NAME dfem-nonlinear-poisson-residual=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-nonlinear-poisson>
+        -k sol -f residual -o 1 -r 2 -no-vis
         ${MPIEXEC_POSTFLAGS})
     endif()
 endif()
