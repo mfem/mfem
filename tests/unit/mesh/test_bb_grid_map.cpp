@@ -152,7 +152,7 @@ TEST_CASE("GlobalBBoxTensorGridMap Parallel",
    std::map<int, std::vector<int>> pt_to_procs;
    map.MapPointsToProcs(centers, 1, pt_to_procs);
 
-   REQUIRE(pt_to_procs.size() == nel + 1);
+   REQUIRE(pt_to_procs.size() == (unsigned)nel + 1);
    for (int i = 0; i < nel; i++)
    {
       std::vector<int> procs = pt_to_procs[i];

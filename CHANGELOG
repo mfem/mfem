@@ -92,6 +92,12 @@ GPU computing
 
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
+- Added support for device partial assembly CurlInterpolator.
+  This supports 2D and 3D variants:
+    2D H1 (out-of-plane) to RT (in-plane)
+    2D ND (in-plane) to Integral L2 (out-of-plane)
+    3D ND to RT
+
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
@@ -117,6 +123,12 @@ Miscellaneous
   saving via SaveAsOne(). Simplified the process of applying the DOF signs by
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
+
+API changes
+-----------
+- Removed ProjectGrad from 2D RT elements. Users should use ProjectCurl instead.
+  This also fixes a bug where ProjectCurl was returning the negative curl,
+  identical to ProjectGrad.
 
 
 - Added support for (Par)MixedBilinearForm assembly over test and trial FE spaces 
