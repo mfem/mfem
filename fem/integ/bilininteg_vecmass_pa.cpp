@@ -205,157 +205,40 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 }
 
-template <const int T_D1D = 0, const int T_Q1D = 0>
-static void PAVectorMassAssembleDiagonal2D(const int NE,
-                                           const Array<real_t> &b,
-                                           const Vector &pa_data, Vector &diag,
-                                           const int d1d = 0, const int q1d = 0)
-{
-   constexpr int VDIM = 2;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   const auto B = Reshape(b.Read(), Q1D, D1D);
-   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, NE);
-   auto Y = Reshape(diag.ReadWrite(), D1D, D1D, VDIM, NE);
-
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
-      real_t temp[max_Q1D][max_D1D];
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            temp[qx][dy] = 0.0;
-            for (int qy = 0; qy < Q1D; ++qy)
-            {
-               temp[qx][dy] += B(qy, dy) * B(qy, dy) * D(qx, qy, e);
-            }
-         }
-      }
-      for (int dy = 0; dy < D1D; ++dy)
-      {
-         for (int dx = 0; dx < D1D; ++dx)
-         {
-            real_t temp1 = 0.0;
-            for (int qx = 0; qx < Q1D; ++qx)
-            {
-               temp1 += B(qx, dx) * B(qx, dx) * temp[qx][dy];
-            }
-            Y(dx, dy, 0, e) = temp1;
-            Y(dx, dy, 1, e) = temp1;
-         }
-      }
-   });
-}
-
-template <const int T_D1D = 0, const int T_Q1D = 0>
-static void PAVectorMassAssembleDiagonal3D(const int NE,
-                                           const Array<real_t> &B_,
-                                           const Vector &pa_data, Vector &diag,
-                                           const int d1d = 0, const int q1d = 0)
-{
-   constexpr int VDIM = 3;
-   const int D1D = T_D1D ? T_D1D : d1d;
-   const int Q1D = T_Q1D ? T_Q1D : q1d;
-   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
-   const auto B = Reshape(B_.Read(), Q1D, D1D);
-   MFEM_VERIFY(pa_data.Size() == Q1D * Q1D * Q1D * NE, "pa_data size error");
-   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, NE);
-   auto Y = Reshape(diag.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      // the following variables are evaluated at compile time
-      constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
-      constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
-
-      real_t temp[max_Q1D][max_Q1D][max_D1D];
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int qy = 0; qy < Q1D; ++qy)
-         {
-            for (int dz = 0; dz < D1D; ++dz)
-            {
-               temp[qx][qy][dz] = 0.0;
-               for (int qz = 0; qz < Q1D; ++qz)
-               {
-                  temp[qx][qy][dz] +=
-                     B(qz, dz) * B(qz, dz) * D(qx, qy, qz, e);
-               }
-            }
-         }
-      }
-      real_t temp2[max_Q1D][max_D1D][max_D1D];
-      for (int qx = 0; qx < Q1D; ++qx)
-      {
-         for (int dz = 0; dz < D1D; ++dz)
-         {
-            for (int dy = 0; dy < D1D; ++dy)
-            {
-               temp2[qx][dy][dz] = 0.0;
-               for (int qy = 0; qy < Q1D; ++qy)
-               {
-                  temp2[qx][dy][dz] +=
-                     B(qy, dy) * B(qy, dy) * temp[qx][qy][dz];
-               }
-            }
-         }
-      }
-      for (int dz = 0; dz < D1D; ++dz)
-      {
-         for (int dy = 0; dy < D1D; ++dy)
-         {
-            for (int dx = 0; dx < D1D; ++dx)
-            {
-               real_t temp3 = 0.0;
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  temp3 += B(qx, dx) * B(qx, dx) * temp2[qx][dy][dz];
-               }
-               Y(dx, dy, dz, 0, e) = temp3;
-               Y(dx, dy, dz, 1, e) = temp3;
-               Y(dx, dy, dz, 2, e) = temp3;
-            }
-         }
-      }
-   });
-}
-
-static void PAVectorMassAssembleDiagonal(const int dim, const int D1D,
-                                         const int Q1D, const int NE,
-                                         const Array<real_t> &B,
-                                         const Vector &pa_data,
-                                         Vector &diag)
-{
-   if (dim == 2)
-   {
-      return PAVectorMassAssembleDiagonal2D(NE, B, pa_data, diag, D1D, Q1D);
-   }
-   else if (dim == 3)
-   {
-      return PAVectorMassAssembleDiagonal3D(NE, B, pa_data, diag, D1D, Q1D);
-   }
-   MFEM_ABORT("Dimension not implemented.");
-}
-
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (DeviceCanUseCeed()) { ceedOp->GetDiagonal(diag); }
-   else
-   {
-      MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");
-      MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported");
-      PAVectorMassAssembleDiagonal(dim, dofs1D, quad1D, ne, maps->B, pa_data, diag);
-   }
+   if (DeviceCanUseCeed()) { return ceedOp->GetDiagonal(diag); }
+
+   MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");
+   MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported");
+
+   // Add the VectorMassAssembleDiagonalPA specializations
+   static const auto vector_mass_assemble_diagonal_kernel_specializations =
+      ( // 2D
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 2>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 3>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 4>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 5>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 6>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 7>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<2, 8>::Add(),
+         // 3D
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 2>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 3>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 4>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 5>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 6>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 7>::Add(),
+         VectorMassIntegrator::VectorMassAssembleDiagonalPA::Specialization<3, 8>::Add(),
+         true);
+   MFEM_CONTRACT_VAR(vector_mass_assemble_diagonal_kernel_specializations);
+
+   VectorMassAssembleDiagonalPA::Run(dim, quad1D, // templated arguments
+                                     ne, dofs1D, quad1D,
+                                     maps->B.Read(),
+                                     pa_data.Read(),
+                                     diag.ReadWrite());
+
 }
 
 } // namespace mfem

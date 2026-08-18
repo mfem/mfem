@@ -46,8 +46,19 @@ Discretization improvements
 
 - Extend FindPointsGSLIB to support surface meshes.
 
+- Added support for complex-valued mixed bilinear forms via the new classes
+  MixedSesquilinearForm and ParMixedSesquilinearForm, mirroring the existing
+  SesquilinearForm classes. Rectangular complex operators are now also
+  handled correctly by ComplexSparseMatrix::GetSystemMatrix and
+  ComplexHypreParMatrix::GetSystemMatrix, which previously assumed equal
+  trial and test spaces.
+
 Meshing improvements
 --------------------
+- Added support for nonuniform anisotropic mesh refinement on parallel quad/hex
+  meshes with arbitrary spacing in each direction. This enables in particular
+  3:1 refinement in parallel, as demonstrated in the new meshing miniapp pref321.
+
 - Added option to guarantee mesh validity during TMOP-based r-adaptivity, using
   bounds on the determinant of the mesh transformation Jacobian.
 
@@ -70,13 +81,34 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Improved partial assembly for VectorDivergenceIntegrator with shared-memory
+  kernels, kernel registration, and transpose support.
+
+- Improved partial-assembly diagonal kernels for VectorMassIntegrator (shared-
+  memory specializations) and ElasticityIntegrator (no scratch Q-vector).
+
+- Added PA gradient and diagonal support for VectorConvectionNLFIntegrator
+ (AssembleGradPA, AddMultGradPA, AssembleGradDiagonalPA).
+
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
+
+- Added support for device partial assembly CurlInterpolator.
+  This supports 2D and 3D variants:
+    2D H1 (out-of-plane) to RT (in-plane)
+    2D ND (in-plane) to Integral L2 (out-of-plane)
+    3D ND to RT
 
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
 
 - Allow specifying GPU kernel launch bounds for native and RAJA GPU backends.
+
+- Changed VectorFEMassIntegrator to use kernel specialization dispatch for
+  partial assembly.
+
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  QuadratureInterpolator.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -91,6 +123,12 @@ Miscellaneous
   saving via SaveAsOne(). Simplified the process of applying the DOF signs by
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
+
+API changes
+-----------
+- Removed ProjectGrad from 2D RT elements. Users should use ProjectCurl instead.
+  This also fixes a bug where ProjectCurl was returning the negative curl,
+  identical to ProjectGrad.
 
 
 Version 4.9, released on Dec 11, 2025
