@@ -247,6 +247,11 @@ static void PAHcurlH1Apply2D(const int D1D,
                              const Vector &x,
                              Vector &y)
 {
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
+
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
    auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
@@ -385,6 +390,10 @@ static void PAHcurlH1ApplyTranspose2D(const int D1D,
                                       const Vector &x,
                                       Vector &y)
 {
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bt = Reshape(bct.Read(), D1D, Q1D);
@@ -525,6 +534,11 @@ static void PAHdivH1Apply2D(const int D1D,
                             const Vector &x,
                             Vector &y)
 {
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
+
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
    auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
@@ -651,6 +665,11 @@ static void PAHdivH1ApplyTranspose2D(const int D1D,
                                      const Vector &x,
                                      Vector &y)
 {
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > MAX_Q1D");
+
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bt = Reshape(bct.Read(), D1D, Q1D);
@@ -1659,13 +1678,13 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    // entries in row-major order, i.e. they effectively see the transpose.
    // Projecting the transpose here ensures the kernels operate on the
    // intended matrix coefficient.
-   if (MQ) { coeff.Project(*MQ, true); }
+   if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (DQ) { coeff.Project(*DQ); }
    else if (Q) { coeff.Project(*Q); }
    else { coeff.SetConstant(1.0); }
 
    const int coeffDim = coeff.GetVDim();
-   int op_entries = 0;
+   op_entries = 0;
    if (test_fetype == mfem::FiniteElement::CURL)
    {
       op_entries = (dim == 2 ? (coeffDim == 4 ? 4 : 3) : (coeffDim == 9 ? 9 : 6));
@@ -1724,44 +1743,6 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
 
 void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   const int nq = (dim == 3) ? quad1D * quad1D * quad1D : quad1D * quad1D;
-   const int op_entries = (nq > 0 && ne > 0) ? pa_data.Size() / (nq * ne) : 0;
-   if (test_fetype == mfem::FiniteElement::CURL)
-   {
-      if (dim == 2)
-      {
-         MFEM_VERIFY(op_entries == 3 ||
-                     op_entries == 4, "Unsupported 2D PA operator storage.");
-      }
-      else if (dim == 3)
-      {
-         MFEM_VERIFY(op_entries == 6 ||
-                     op_entries == 9, "Unsupported 3D PA operator storage.");
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported dimension!");
-      }
-   }
-   else if (test_fetype == mfem::FiniteElement::DIV)
-   {
-      if (dim == 2)
-      {
-         MFEM_VERIFY(op_entries == 4, "Unsupported 2D PA operator storage.");
-      }
-      else if (dim == 3)
-      {
-         MFEM_VERIFY(op_entries == 9, "Unsupported 3D PA operator storage.");
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported dimension!");
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported test space derivative type!");
-   }
    if (test_fetype == mfem::FiniteElement::CURL)
    {
       if (dim == 3)
@@ -1805,44 +1786,6 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
                                                        Vector &y) const
 {
-   const int nq = (dim == 3) ? quad1D * quad1D * quad1D : quad1D * quad1D;
-   const int op_entries = (nq > 0 && ne > 0) ? pa_data.Size() / (nq * ne) : 0;
-   if (test_fetype == mfem::FiniteElement::CURL)
-   {
-      if (dim == 2)
-      {
-         MFEM_VERIFY(op_entries == 3 ||
-                     op_entries == 4, "Unsupported 2D PA operator storage.");
-      }
-      else if (dim == 3)
-      {
-         MFEM_VERIFY(op_entries == 6 ||
-                     op_entries == 9, "Unsupported 3D PA operator storage.");
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported dimension!");
-      }
-   }
-   else if (test_fetype == mfem::FiniteElement::DIV)
-   {
-      if (dim == 2)
-      {
-         MFEM_VERIFY(op_entries == 4, "Unsupported 2D PA operator storage.");
-      }
-      else if (dim == 3)
-      {
-         MFEM_VERIFY(op_entries == 9, "Unsupported 3D PA operator storage.");
-      }
-      else
-      {
-         MFEM_ABORT("Unsupported dimension!");
-      }
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported test space derivative type!");
-   }
    if (test_fetype == mfem::FiniteElement::CURL)
    {
       if (dim == 3)

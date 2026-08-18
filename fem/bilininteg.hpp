@@ -2013,6 +2013,7 @@ private:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, dofs1D, quad1D;
+   int op_entries;
    FiniteElement::DerivType test_fetype =
       mfem::FiniteElement::NONE; ///< Derivative type of the vector test space.
 };
