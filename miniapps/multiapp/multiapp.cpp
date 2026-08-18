@@ -268,9 +268,8 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     // This multivector contains all input, output, and intermediate fields in the graph
     for (auto const& [id, idx] : index_map)
     {
-        if (field_set.HasField(id))
+        if(Field* field = field_set.Get(id))
         {
-            auto field = field_set.Get(id);
             ymv.MakeRef(idx, *field->Data());
         }
         else
@@ -488,9 +487,8 @@ void GraphGradient::MultMV(const MultiVector &x, MultiVector &y) const
     // This multivector contains all input, output, and intermediate fields in the graph
     for (auto const& [id, idx] : index_map)
     {
-        if (field_set.HasField(id))
+        if(Field* field = field_set.Get(id))
         {
-            auto field = field_set.Get(id);
             ymv.MakeRef(idx, *field->Adjoint());
         }
         else
@@ -567,9 +565,8 @@ void GraphGradient::MultTransposeMV(const MultiVector &x, MultiVector &y) const
 
     for(auto const& [id, idx] : index_map)
     {
-        if (field_set.HasField(id))
+        if(Field* field = field_set.Get(id))
         {
-            auto field = field_set.Get(id);
             ymv.MakeRef(idx, *field->Adjoint());
         }
         else
