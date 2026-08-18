@@ -34,17 +34,6 @@
 #include "../../fem/dfem/doperator.hpp"
 #include "../../fem/dfem/backends/local_qf/prelude.hpp"
 
-// Utils for output folder handling
-#if __cplusplus >= 201703L
-#include <filesystem>
-namespace fs = std::filesystem;
-#elif __cplusplus >= 201402L
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#error "C++14 or later is required for filesystem support."
-#endif
-
 using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
@@ -55,9 +44,6 @@ using dscalar_t = real_t;
 using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
-
-#ifdef MFEM_USE_ENZYME
-
 
 constexpr int dim = 3;
 constexpr int Displacement = 0;
@@ -649,5 +635,4 @@ int main(int argc, char *argv[])
    }
 
    return 0;
-#endif // MFEM_USE_ENZYME
 }
