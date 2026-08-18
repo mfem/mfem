@@ -79,6 +79,11 @@ Linear and nonlinear solvers
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).
 
+- Added new class MultiVector: an array of Vectors of different sizes where each
+  Vector can be allocated independently. Also, added associated methods in class
+  Operator: MultMV, MultTransposeMV, and GetGradientMV, that use MultiVector
+  objects for input and/or output parameters. [PR #5249]
+
 GPU computing
 -------------
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
