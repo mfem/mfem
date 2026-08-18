@@ -625,7 +625,6 @@ protected:
     mutable Operator *grad = nullptr; ///< Gradient operator
     mutable MultiVector xmv_node, ymv_node; ///< Temporary multivectors for evaluating nodes
 
-    IntToFieldMap fid_to_field; ///< Map from Field ID to Field pointer
     IntToIntMap fid_to_index; ///< Map from ID to index in an array; needed since ordering is not unique
 
     friend class GraphGradient;
@@ -698,9 +697,6 @@ public:
 
     IntToIntMap &GetFieldIdToIndexMap() { return fid_to_index; }
     IntToIntMap GetFieldIdToIndexMap() const { return fid_to_index; }
-
-    IntToFieldMap &GetFieldIdToFieldMap() { return fid_to_field; }
-    IntToFieldMap GetFieldIdToFieldMap() const { return fid_to_field; }
 
     /// @brief Get the operator at index @a i
     GraphNode* GetNode(const int i)

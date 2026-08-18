@@ -180,13 +180,16 @@ void DAGraph::CollectFieldMaps()
     MFEM_ASSERT(sorted, "DAGraph must be topologically sorted before collecting fields");
 
     fid_to_index.clear();
-    fid_to_field.clear();
+    FieldCollection& field_set = Fields();
 
     int nfields = 0;
     for (auto f : InputFields())
     {
         fid_to_index.Register(f->ID(), nfields++);
-        fid_to_field.Register(f->ID(), f);
+        if(!field_set.HasField(f->ID())) // Inputs would have already been added with AddInput
+        {
+            field_set.AddField(f, false); // If not, Add input field to collection
+        }
     }
 
     for (auto &node : nodes)
@@ -197,15 +200,12 @@ void DAGraph::CollectFieldMaps()
             {
                 fid_to_index.Register(f->ID(), nfields++);
             }
-            if (!fid_to_field.Has(f->ID()))
+            if(!field_set.HasField(f->ID()))
             {
-                fid_to_field.Register(f->ID(), f);
-                // TODO: Add these fields to the graph's field collection
+                field_set.AddField(f, false); // Add output field to graph's field collection
             }
         }
     }
-    // TODO: Possibly add all intermediate fields from nodes to the graph's FieldCollection
-    // Then we could replace GetFieldIdToFieldMap with field_collection.Get() and Has()
 }
 
 void DAGraph::Mult(const Vector &x, Vector &y) const
@@ -260,7 +260,7 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     }
 
     auto index_map = GetFieldIdToIndexMap();
-    auto fld_map = GetFieldIdToFieldMap();
+    auto field_set = Fields();
     int nfields = index_map.NumFields();
     MultiVector ymv(nfields); // TODO: Should this be a member function?
 
@@ -268,9 +268,9 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     // This multivector contains all input, output, and intermediate fields in the graph
     for (auto const& [id, idx] : index_map)
     {
-        if (fld_map.Has(id))
+        if (field_set.HasField(id))
         {
-            auto field = fld_map.Get(id);
+            auto field = field_set.Get(id);
             ymv.MakeRef(idx, *field->Data());
         }
         else
@@ -382,10 +382,7 @@ GraphGradient::GraphGradient(DAGraph &dag) : Operator(dag.Height(), dag.Width())
     MFEM_ASSERT(graph->IsSorted(), "GraphGradient requires a topologically sorted DAGraph.");
 
     auto index_map = graph->GetFieldIdToIndexMap();
-    auto field_map = graph->GetFieldIdToFieldMap();
-
-    MFEM_ASSERT(index_map.NumFields() == field_map.NumFields(),
-                "Mismatch in number of fields between index_map and field_map");
+    FieldCollection& field_set = graph->Fields();
 
     x_arr.DeleteAll(); // Clear any existing pointers
     x_arr.SetSize(index_map.NumFields());
@@ -395,7 +392,7 @@ GraphGradient::GraphGradient(DAGraph &dag) : Operator(dag.Height(), dag.Width())
     for (auto const& [id, idx] : index_map)
     {
         MFEM_ASSERT(idx >= 0 && idx < x_arr.Size(), "Index out of bounds for field ID: " << id);
-        MFEM_ASSERT(field_map.Has(id), "Field ID not found in field_map: " << id);
+        MFEM_ASSERT(field_set.HasField(id), "Field ID not found in field_set: " << id);
 
         if(x_arr[idx] == nullptr)
         {
@@ -483,7 +480,7 @@ void GraphGradient::MultMV(const MultiVector &x, MultiVector &y) const
     }
 
     auto index_map = graph->GetFieldIdToIndexMap();
-    auto fld_map = graph->GetFieldIdToFieldMap();
+    FieldCollection& field_set = graph->Fields();
     int nfields = index_map.NumFields();
     MultiVector ymv(nfields); // TODO: Should this be a class member?
 
@@ -491,9 +488,9 @@ void GraphGradient::MultMV(const MultiVector &x, MultiVector &y) const
     // This multivector contains all input, output, and intermediate fields in the graph
     for (auto const& [id, idx] : index_map)
     {
-        if (fld_map.Has(id))
+        if (field_set.HasField(id))
         {
-            auto field = fld_map.Get(id);
+            auto field = field_set.Get(id);
             ymv.MakeRef(idx, *field->Adjoint());
         }
         else
@@ -564,15 +561,15 @@ void GraphGradient::MultTransposeMV(const MultiVector &x, MultiVector &y) const
     }
 
     auto index_map = graph->GetFieldIdToIndexMap();
-    auto fld_map = graph->GetFieldIdToFieldMap();
+    FieldCollection& field_set = graph->Fields();
     int nfields = index_map.NumFields();
     MultiVector ymv(nfields); // TODO: Should this be a class member?
 
     for(auto const& [id, idx] : index_map)
     {
-        if (fld_map.Has(id))
+        if (field_set.HasField(id))
         {
-            auto field = fld_map.Get(id);
+            auto field = field_set.Get(id);
             ymv.MakeRef(idx, *field->Adjoint());
         }
         else
@@ -600,7 +597,6 @@ void GraphGradient::Forward(const MultiVector &x, MultiVector &y) const
                 << ") must match number of input fields (" << graph->InputFields().Size() << ")");
     
     auto index_map  = graph->GetFieldIdToIndexMap();
-    auto field_map = graph->GetFieldIdToFieldMap();
 
     MFEM_ASSERT(y.NumBlocks() == index_map.NumFields(),
                 "Number of output blocks (" << y.NumBlocks()
@@ -647,7 +643,6 @@ void GraphGradient::Reverse(const MultiVector &x, MultiVector &y) const
                 << ") must match number of output fields (" << graph->OutputFields().Size() << ")");
 
     auto index_map  = graph->GetFieldIdToIndexMap();
-    auto field_map = graph->GetFieldIdToFieldMap();
     int nnodes  = graph->Size();
 
     MFEM_ASSERT(y.NumBlocks() == index_map.NumFields(),
