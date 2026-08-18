@@ -145,7 +145,7 @@ public:
       set_layout(default_perm);
    }
 
-   /// Access the underlting global data array.
+   /// Access the underlying global data array.
    MFEM_HOST_DEVICE scalar_t *data() const { return m_data; }
 
    /// Number of dynamic array dimensions.
@@ -183,7 +183,7 @@ public:
    /** The entries of @a perm are numbers identifying either a dynamic or a
        tensor (static) dimension. Values in the range [0,rank()) identify the
        dynamic dimensions and values in the range [rank(),rank()+tensor_rank())
-       identify the tensor dymensions. The first entry in @a perm determines
+       identify the tensor dimensions. The first entry in @a perm determines
        which dynamic or tensor dimension will have stride 1. The k-th entry of
        @a perm determines which dimension will use the next stride which is
        defined as the product of the sizes of all k-1 previous dimensions from
@@ -206,7 +206,7 @@ public:
       }
    }
 
-   /** @brief Comute the dynamic offset for a given dynamic multi-index @a is.
+   /** @brief Compute the dynamic offset for a given dynamic multi-index @a is.
        The total offset in the global data array is the sum of the dynamic and
        static (tensor) offsets. */
    MFEM_HOST_DEVICE
@@ -221,7 +221,7 @@ public:
       return dynamic_offset;
    }
 
-   /** @brief Comute the static (tensor) offset for a given tensor multi-index
+   /** @brief Compute the static (tensor) offset for a given tensor multi-index
        @a js. The total offset in the global data array is the sum of the
        dynamic and static (tensor) offsets. */
    MFEM_HOST_DEVICE
