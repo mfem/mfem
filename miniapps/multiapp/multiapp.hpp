@@ -298,7 +298,7 @@ public:
 
 // TODO: Should move these to a util namespace or a util file. 
 template <typename T, std::size_t... I>
-auto ArrayToTuple_Helper( const Array<T>& v, std::index_sequence<I...>)
+auto ArrayToTuple_impl( const Array<T>& v, std::index_sequence<I...>)
 {
     return std::make_tuple(v[I]...);
 }
@@ -306,7 +306,7 @@ auto ArrayToTuple_Helper( const Array<T>& v, std::index_sequence<I...>)
 template <int N, typename T>
 auto ArrayToTuple(const Array<T>& v)
 {
-    return ArrayToTuple_Helper(v,std::make_index_sequence<N>{});
+    return ArrayToTuple_impl(v,std::make_index_sequence<N>{});
 }
 
 class GraphNode : public Operator
@@ -734,32 +734,6 @@ public:
 
     void CollectFieldMaps();
 
-    using GraphNode::AddInput;
-    /* TODO: Remove in favour of AddInput(s) and SetInputOffsets
-    void AddInput(Field *field, int sz, bool own = false)
-    {
-        if(input_offsets.Size() == 0)
-        {   // First entry
-            input_offsets.Append(0);
-        }
-        input_offsets.Append(input_offsets.Last() + sz);
-        AddInput(field, own);
-    }
-    */
-
-    using GraphNode::AddOutput;
-    /* TODO: Remove in favour of AddOutput(s) and SetOutputOffsets
-    void AddOutput(Field *field, int sz, bool own = false)
-    {
-        if(output_offsets.Size() == 0)
-        {   // First entry
-            output_offsets.Append(0);
-        }
-        output_offsets.Append(output_offsets.Last() + sz);
-        AddOutput(field, own);
-    }
-    */
-
     /// @brief Set the gradient mode for the coupled operator
     void SetGradientMode(GradMode mode)
     {
@@ -810,8 +784,8 @@ class GraphGradient : public Operator
 {
 protected:
     mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
-    Array<Vector*> x_work; ///< Array to store linearization point (intermediate fields)
-    mutable MultiVector xlin;
+    Array<Vector*> x_arr; ///< Array to store linearization point (intermediate fields)
+    mutable MultiVector xlin; ///< Reference to Vectors in x_arr
     mutable MultiVector x0_mv, dx_mv, dy_mv;
 
 public:
@@ -835,11 +809,11 @@ public:
 
     ~GraphGradient()
     {
-        for (auto &v : x_work)
+        for (auto &v : x_arr)
         {
             if(v) { delete v; v = nullptr; }
         }
-        x_work.DeleteAll();
+        x_arr.DeleteAll();
     }
 };
 

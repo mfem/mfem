@@ -387,21 +387,21 @@ GraphGradient::GraphGradient(DAGraph &dag) : Operator(dag.Height(), dag.Width())
     MFEM_ASSERT(index_map.NumFields() == field_map.NumFields(),
                 "Mismatch in number of fields between index_map and field_map");
 
-    x_work.DeleteAll(); // Clear any existing pointers
-    x_work.SetSize(index_map.NumFields());
-    x_work = nullptr; // Initialize all pointers to nullptr
+    x_arr.DeleteAll(); // Clear any existing pointers
+    x_arr.SetSize(index_map.NumFields());
+    x_arr = nullptr; // Initialize all pointers to nullptr
     xlin.SetNumBlocks(index_map.NumFields());
 
     for (auto const& [id, idx] : index_map)
     {
-        MFEM_ASSERT(idx >= 0 && idx < x_work.Size(), "Index out of bounds for field ID: " << id);
+        MFEM_ASSERT(idx >= 0 && idx < x_arr.Size(), "Index out of bounds for field ID: " << id);
         MFEM_ASSERT(field_map.Has(id), "Field ID not found in field_map: " << id);
 
-        if(x_work[idx] == nullptr)
+        if(x_arr[idx] == nullptr)
         {
-            x_work[idx] = new Vector(); // Allocate a new Vector for this field
+            x_arr[idx] = new Vector(); // Allocate a new Vector for this field
         }
-        xlin.MakeRef(idx, *x_work[idx]); // Make xlin refer to the allocated Vector
+        xlin.MakeRef(idx, *x_arr[idx]); // Make xlin refer to the allocated Vector
     }
 
 }
