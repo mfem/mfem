@@ -137,6 +137,9 @@ NCMesh::NCMesh(const Mesh *mesh)
    attribute_sets = &mesh->attribute_sets;
    bdr_attribute_sets = &mesh->bdr_attribute_sets;
 
+   temp_attr_sets = NULL;
+   temp_bdr_attr_sets = NULL;
+
    // create the NCMesh::Element struct for each Mesh element
    for (int i = 0; i < mesh->GetNE(); i++)
    {
@@ -243,6 +246,8 @@ NCMesh::NCMesh(const NCMesh &other)
    , Legacy(other.Legacy)
    , attribute_sets(other.attribute_sets)
    , bdr_attribute_sets(other.bdr_attribute_sets)
+   , temp_attr_sets(NULL)
+   , temp_bdr_attr_sets(NULL)
    , nodes(other.nodes)
    , faces(other.faces)
    , using_scaling(other.using_scaling)
@@ -6553,6 +6558,8 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
+     attribute_sets(NULL), bdr_attribute_sets(NULL),
+     temp_attr_sets(NULL), temp_bdr_attr_sets(NULL),
      using_scaling(version == 11 || version == 13)
 {
    is_nc = 1;
