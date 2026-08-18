@@ -179,6 +179,18 @@ public:
         named_map.Register(field_name, field->ID());
     }
 
+    Field* Get(int id) const { return fields.Get(id); }
+
+    Field* Get(const std::string &field_name) const
+    {
+        if(!named_map.Has(field_name))
+        {
+            MFEM_ABORT("FieldCollection::Get: Field with name "
+                       << field_name << " does not exist.");
+        }
+        return fields.Get(named_map.Get(field_name));
+    }
+
     void SetFieldOwnership(int field_id, bool own)
     {
         if(!fields.Has(field_id))
@@ -231,9 +243,6 @@ public:
     {
         return fields.Get(named_map.Get(field_name));
     }
-
-    FieldMap &Fields() { return fields; }
-    FieldMap Fields() const { return fields; }
 
     virtual void Save (std::ostream &out) const
     {
