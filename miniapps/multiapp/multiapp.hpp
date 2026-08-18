@@ -31,17 +31,9 @@ class GraphGradient;
 class Field
 {
 public:
-    enum Type ///< Not used for now, but could be used to distinguish between input/output fields
-    {
-        INPUT , ///< Input field
-        OUTPUT, ///< Output field
-        DEFAULT ///< Any field
-    };
-
     friend class GraphNode;
 
 private:
-    Type type = Type::DEFAULT;
     inline static int next_id = 0;
 
 protected:
@@ -60,21 +52,13 @@ protected:
 public:
 
     ///@brief Constructor for a Field of type Type with optional ID
-    Field(Vector *field, Vector *adjoint, Type type, int id_ = -1) :
-          type(type), data(field), adjoint(adjoint), id(GetValidID(id_)),
+    Field(Vector *field, Vector *adjoint, int id_ = -1) :
+          data(field), adjoint(adjoint), id(GetValidID(id_)),
           name("Field_" + std::to_string(id)) { }
-
-    ///@brief Constructor for a Field of Default type with optional ID
-    Field(Vector *field, Vector *adjoint, int id_ = -1) : 
-          Field(field, adjoint, Type::DEFAULT, id_) { }
 
     ///@brief Constructor for an input field
     Field(Vector *field, int id_ = -1) :
-          Field(field, nullptr, Type::DEFAULT, id_) { }
-
-    ///@brief Constructor for a Field of type Type
-    Field(Vector *field, Type type, int id_ = -1) :
-          Field(field, nullptr, type, id_) { }
+          Field(field, nullptr, id_) { }
 
     ///@brief Get the stored internally stored data pointer
     Vector* Data() const { return data; }
@@ -100,19 +84,7 @@ public:
         id = i;
     }
 
-    bool IsInput() const {return (type == Type::INPUT);}
-    bool IsOutput() const {return (type == Type::OUTPUT);}
-    bool IsDefault() const {return (type == Type::DEFAULT);}
-
     virtual ~Field() = default;
-
-protected:
-
-    ///@brief Set the type of the field (prevents changing type of input/output fields)
-    void SetType(Type t)
-    {
-        type = t;
-    }
 };
 
 /// @brief A collection of Fields, each identified by a name
@@ -252,8 +224,6 @@ public:
         {
             std::string f_name = f->second->Name();
             Field *f_obj = f->second;
-            // out << "  " << f_name << ": ID " << f_obj->ID() << ",\n";
-            // out << f_obj->ID() << ": " << f_name << ",\n";
             out << '\"' << f_obj->ID() << "\": \"" << f_name << "\"";
             if(f != std::prev(fields.end())) out << ",";
             out << "\n";
@@ -300,10 +270,7 @@ public:
         return named_map.Has(field_name) ? fields.Get(named_map.Get(field_name)) : nullptr;
     }
 
-    Field* HasField(const int id) const
-    {
-        return fields.Get(id);
-    }
+    Field* HasField(const int id) const { return fields.Get(id); }
 
     void Clear()
     {
@@ -499,7 +466,7 @@ public:
             // Add 'N' number of output fields to the node if none exist
             for(int i = 0; i < N; ++i)
             {
-                AddOutput(new Field(nullptr, nullptr, Field::Type::OUTPUT), OwnOutputs);
+                AddOutput(new Field(nullptr, nullptr), OwnOutputs);
             }
         }
         else
