@@ -1008,50 +1008,6 @@ tensor<decltype(S {} * T{}), m, n>
    return AB;
 }
 
-// /**
-//  * @brief Dot product of a vector . vector and vector . tensor
-//  *
-//  * @tparam S the underlying type of the tensor (lefthand) argument
-//  * @tparam T the underlying type of the tensor (righthand) argument
-//  * @tparam m the dimension of the first tensor
-//  * @tparam n the parameter pack of dimensions of the second tensor
-//  * @param A The lefthand tensor
-//  * @param B The righthand tensor
-//  * @return The computed dot product
-//  */
-// template <typename S, typename T, int m, int... n>
-// auto dot(const tensor<S, m>& A, const tensor<T, m, n...>& B)
-// {
-//    // this dot product function includes the vector * vector implementation and
-//    // the vector * tensor one, since clang emits an error about ambiguous
-//    // overloads if they are separate functions. The `if constexpr` expression avoids
-//    // using an `else` because that confuses nvcc (11.2) into thinking there's not
-//    // a return statement
-//    if constexpr (sizeof...(n) == 0)
-//    {
-//       decltype(S{} * T{}) AB{};
-//       for (int i = 0; i < m; i++)
-//       {
-//          AB += A[i] * B[i];
-//       }
-//       return AB;
-//    }
-
-//    if constexpr (sizeof...(n) > 0)
-//    {
-//       constexpr int                     dimensions[] = {n...};
-//       tensor<decltype(S{} * T{}), n...> AB{};
-//       for (int i = 0; i < dimensions[0]; i++)
-//       {
-//          for (int j = 0; j < m; j++)
-//          {
-//             AB[i] = AB[i] + A[j] * B[j][i];
-//          }
-//       }
-//       return AB;
-//    }
-// }
-
 template <typename S, typename T, int m> MFEM_HOST_DEVICE
 constexpr auto dot(const tensor<S, m>& A, const tensor<T, m>& B) ->
 decltype(S {} * T{})
