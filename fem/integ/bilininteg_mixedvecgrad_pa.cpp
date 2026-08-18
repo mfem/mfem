@@ -1227,7 +1227,7 @@ static void PAHdivH1Apply3D(const int D1D,
    auto Bct = Reshape(bct.Read(), D1D, Q1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, op_entries, NE);
    auto X = Reshape(x.Read(), D1D, D1D, D1D, NE);
-   auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
+   auto Y = Reshape(y.ReadWrite(), 3*D1D*(D1D-1)*(D1D-1), NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -1428,7 +1428,7 @@ static void PAHdivH1ApplyTranspose3D(const int D1D,
    auto Bt = Reshape(bct.Read(), D1D, Q1D);
    auto Gt = Reshape(gct.Read(), D1D, Q1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, op_entries, NE);
-   auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
+   auto X = Reshape(x.Read(), 3*(D1D-1)*(D1D-1)*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, NE);
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)

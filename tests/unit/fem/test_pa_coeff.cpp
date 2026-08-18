@@ -762,7 +762,7 @@ TEST_CASE("Hcurl/Hdiv MixedVectorGradientPA",
    auto vFEType = GENERATE(0, 1);
    CAPTURE(dimension, coeffType, order, vFEType);
 
-   const int ne = 1;
+   const int ne = 3;
    Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
    H1_FECollection scalar_fec(order, dimension);
