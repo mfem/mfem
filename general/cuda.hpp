@@ -18,14 +18,8 @@
 // CUDA block size used by MFEM.
 #define MFEM_CUDA_BLOCKS 256
 
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+#if defined(MFEM_USE_CUDA)
 #define MFEM_USE_CUDA_OR_HIP
-constexpr bool mfem_use_gpu = true;
-#define MFEM_DEVICE __device__
-#define MFEM_HOST __host__
-#define MFEM_LAMBDA __host__
-#define MFEM_LAUNCH_BOUNDS __launch_bounds__
-// #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 #define MFEM_DEVICE_SYNC MFEM_GPU_CHECK(cudaDeviceSynchronize())
 #define MFEM_STREAM_SYNC MFEM_GPU_CHECK(cudaStreamSynchronize(0))
 // Define a CUDA error check macro, MFEM_GPU_CHECK(x), where x returns/is of
@@ -39,6 +33,15 @@ constexpr bool mfem_use_gpu = true;
                               __FILE__, __LINE__);                             \
     }                                                                          \
   } while (0)
+
+// Macros defined only when compiling with CUDA language
+#if defined(__CUDACC__)
+#define MFEM_USE_CUDA_OR_HIP_LANG
+#define MFEM_DEVICE __device__
+#define MFEM_HOST __host__
+#define MFEM_LAMBDA __host__
+#define MFEM_LAUNCH_BOUNDS __launch_bounds__
+// #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
 
 // Define the MFEM inner threading macros
 #if defined(__CUDA_ARCH__)
@@ -67,12 +70,13 @@ constexpr bool mfem_use_gpu = true;
    if (int ix = threadIdx.k % (OX), iy = threadIdx.k / (OX), iz = iy / (OY);   \
        (ix < (SX)) && ((iy %= (OY)) < (SY)) && (iz < (SZ)))
 #endif // defined(__CUDA_ARCH__)
-#endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+#endif // defined(__CUDACC__)
+#endif // defined(MFEM_USE_CUDA)
 
 namespace mfem
 {
 
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+#if defined(MFEM_USE_CUDA)
 // Function used by the macro MFEM_GPU_CHECK.
 void mfem_cuda_error(cudaError_t err, const char *expr, const char *func,
                      const char *file, int line);

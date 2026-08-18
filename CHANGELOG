@@ -79,6 +79,11 @@ Linear and nonlinear solvers
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).
 
+- Added new class MultiVector: an array of Vectors of different sizes where each
+  Vector can be allocated independently. Also, added associated methods in class
+  Operator: MultMV, MultTransposeMV, and GetGradientMV, that use MultiVector
+  objects for input and/or output parameters. [PR #5249]
+
 GPU computing
 -------------
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
@@ -92,6 +97,20 @@ GPU computing
 
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
 
+- Added partial assembly support for MixedScalarWeakGradientIntegrator.
+
+- Added partial assembly support for MixedDotProductIntegrator.
+
+- Added partial assembly support for MixedScalarCrossProductIntegrator.
+
+- Added partial assembly support for MixedScalarWeakCrossProductIntegrator.
+
+- Added support for device partial assembly CurlInterpolator.
+  This supports 2D and 3D variants:
+    2D H1 (out-of-plane) to RT (in-plane)
+    2D ND (in-plane) to Integral L2 (out-of-plane)
+    3D ND to RT
+
 - Added NVIDIA cuDSS library interface. Implementation examples have been
   added to ex1 and ex1p. See https://developer.nvidia.com/cudss for more
   details. Supported versions >= 0.6.0.
@@ -103,6 +122,9 @@ GPU computing
 
 - Added support for FiniteElement::MapType::INTEGRAL spaces to
   QuadratureInterpolator.
+
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  MixedScalarCurlIntegrator.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -122,6 +144,12 @@ Miscellaneous
   L2ProjectionGridTransfer. The transfer conserves the weighted mass, for
   example when transferring velocity while conserving density-weighted momentum.
   This is illustrated in the lor-transfer and plor-transfer miniapps.
+
+API changes
+-----------
+- Removed ProjectGrad from 2D RT elements. Users should use ProjectCurl instead.
+  This also fixes a bug where ProjectCurl was returning the negative curl,
+  identical to ProjectGrad.
 
 
 Version 4.9, released on Dec 11, 2025

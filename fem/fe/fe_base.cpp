@@ -1316,13 +1316,14 @@ void VectorFiniteElement::Project_RT(
    }
 }
 
-void VectorFiniteElement::ProjectGrad_RT(
+void VectorFiniteElement::ProjectCurl2D_RT(
    const real_t *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &grad) const
 {
+   // 2D "ProjectCurl_RT"
    if (dim != 2)
    {
-      mfem_error("VectorFiniteElement::ProjectGrad_RT works only in 2D!");
+      mfem_error("VectorFiniteElement::ProjectCurl2D_RT works only in 2D!");
    }
 
    DenseMatrix dshape(fe.GetDof(), fe.GetDim());
@@ -1333,8 +1334,8 @@ void VectorFiniteElement::ProjectGrad_RT(
    for (int k = 0; k < dof; k++)
    {
       fe.CalcDShape(Nodes.IntPoint(k), dshape);
-      tk[0] = nk[d2n[k]*dim+1];
-      tk[1] = -nk[d2n[k]*dim];
+      tk[0] = -nk[d2n[k]*dim+1];
+      tk[1] = nk[d2n[k]*dim];
       dshape.Mult(tk, grad_k);
       for (int j = 0; j < grad_k.Size(); j++)
       {
@@ -1381,7 +1382,7 @@ void VectorFiniteElement::ProjectCurl_ND(
    }
 }
 
-void VectorFiniteElement::ProjectCurl_RT(
+void VectorFiniteElement::ProjectCurl3D_RT(
    const real_t *nk, const Array<int> &d2n, const FiniteElement &fe,
    ElementTransformation &Trans, DenseMatrix &curl) const
 {
