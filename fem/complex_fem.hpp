@@ -392,6 +392,9 @@ private:
    bool RealInteg();
    bool ImagInteg();
 
+   void BuildComplexOperator(OperatorHandle &A_r, OperatorHandle &A_i,
+                             OperatorHandle &A) const;
+
 public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
@@ -985,6 +988,12 @@ private:
       empty */
    bool RealInteg();
    bool ImagInteg();
+
+   void SetImaginaryEssentialDiagonalToZero(
+      const Array<int> &ess_tdof_list, OperatorHandle &A);
+
+   void BuildComplexOperator(OperatorHandle &A_r, OperatorHandle &A_i,
+                             OperatorHandle &A) const;
 
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
