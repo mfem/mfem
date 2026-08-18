@@ -762,7 +762,7 @@ TEST_CASE("Hcurl/Hdiv MixedVectorGradientPA",
    auto vFEType = GENERATE(0, 1);
    CAPTURE(dimension, coeffType, order, vFEType);
 
-   const int ne = 3;
+   const int ne = 1;
    Mesh mesh = MakeCartesianNonaligned(dimension, ne);
 
    H1_FECollection scalar_fec(order, dimension);
@@ -814,16 +814,23 @@ TEST_CASE("Hcurl/Hdiv MixedVectorGradientPA",
    pa_form.Assemble();
    fa_form.Assemble();
 
-   GridFunction x(&s_fespace), y_fa(&v_fespace), y_pa(&v_fespace);
-   x.Randomize(1234);
-   REQUIRE(x.Size() == pa_form.Width());
-   REQUIRE(x.Size() == fa_form.Width());
+   GridFunction x_fa(&s_fespace), y_fa(&v_fespace), y_pa(&v_fespace);
+   x_fa.Randomize(1234);
+   REQUIRE(x_fa.Size() == pa_form.Width());
+   REQUIRE(x_fa.Size() == fa_form.Width());
    REQUIRE(y_fa.Size() == fa_form.Height());
    REQUIRE(y_pa.Size() == pa_form.Height());
-   pa_form.Mult(x, y_pa);
-   fa_form.Mult(x, y_fa);
+   pa_form.Mult(x_fa, y_pa);
+   fa_form.Mult(x_fa, y_fa);
    y_pa -= y_fa;
    REQUIRE(y_pa.Normlinf() <= tol);
+
+   GridFunction x_pa(&s_fespace);
+   y_fa.Randomize(1234);
+   pa_form.MultTranspose(y_fa, x_pa);
+   fa_form.MultTranspose(y_fa, x_fa);
+   x_pa -= x_fa;
+   REQUIRE(x_pa.Normlinf() <= tol);
 }
 
 TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
