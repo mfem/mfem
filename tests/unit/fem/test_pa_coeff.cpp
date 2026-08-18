@@ -750,6 +750,82 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
    }
 }
 
+TEST_CASE("Hcurl/Hdiv MixedVectorGradientPA",
+          "[GPU][PartialAssembly][Coefficient]")
+{
+   constexpr real_t tol = 4e-12;
+   dimension = GENERATE(2, 3);
+   // no coeff, scalar coeff, diagonal matrix coeff, full matrix coeff
+   auto coeffType = GENERATE(0, 1, 2, 3);
+   auto order = GENERATE(1, 2, 3);
+   // RT, ND
+   auto vFEType = GENERATE(0, 1);
+   CAPTURE(dimension, coeffType, order, vFEType);
+
+   const int ne = 3;
+   Mesh mesh = MakeCartesianNonaligned(dimension, ne);
+
+   H1_FECollection scalar_fec(order, dimension);
+   FiniteElementSpace s_fespace(&mesh, &scalar_fec);
+
+   std::unique_ptr<FiniteElementCollection> vector_fec;
+
+   switch (vFEType)
+   {
+      case 0:
+         vector_fec.reset(new RT_FECollection(order - 1, dimension));
+         break;
+      case 1:
+         vector_fec.reset(new ND_FECollection(order, dimension));
+         break;
+   }
+   FiniteElementSpace v_fespace(&mesh, vector_fec.get());
+
+   MixedBilinearForm pa_form(&s_fespace, &v_fespace);
+   pa_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   MixedBilinearForm fa_form(&s_fespace, &v_fespace);
+
+   std::unique_ptr<Coefficient> coeff;
+   std::unique_ptr<DiagonalMatrixCoefficient> dq_coeff;
+   std::unique_ptr<MatrixCoefficient> mq_coeff;
+   switch (coeffType)
+   {
+      case 0:
+         pa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator);
+         fa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator);
+         break;
+      case 1:
+         coeff.reset(new FunctionCoefficient(&coeffFunction));
+         pa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
+         fa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator(*coeff));
+         break;
+      case 2:
+         dq_coeff.reset(new VectorFunctionCoefficient(dimension, &vectorCoeffFunction));
+         pa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator(*dq_coeff));
+         fa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator(*dq_coeff));
+         break;
+      case 3:
+         mq_coeff.reset(new MatrixFunctionCoefficient(
+                           dimension, &asymmetricMatrixCoeffFunction));
+         pa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator(*mq_coeff));
+         fa_form.AddDomainIntegrator(new MixedVectorGradientIntegrator(*mq_coeff));
+         break;
+   }
+   pa_form.Assemble();
+   fa_form.Assemble();
+
+   GridFunction x(&s_fespace), y_fa(&v_fespace), y_pa(&v_fespace);
+   x.Randomize(1234);
+   REQUIRE(x.Size() == pa_form.Width());
+   REQUIRE(x.Size() == fa_form.Width());
+   REQUIRE(y_fa.Size() == fa_form.Height());
+   REQUIRE(y_pa.Size() == pa_form.Height());
+   pa_form.Mult(x, y_pa);
+   fa_form.Mult(x, y_fa);
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() <= tol);
+}
+
 TEST_CASE("3D Bilinear VectorFE Integrators PartialAssembly",
           "[BilinearFormIntegrator]"
           "[PartialAssembly]"
