@@ -200,10 +200,12 @@ void DAGraph::CollectFieldMaps()
             if (!fid_to_field.Has(f->ID()))
             {
                 fid_to_field.Register(f->ID(), f);
+                // TODO: Add these fields to the graph's field collection
             }
         }
     }
     // TODO: Possibly add all intermediate fields from nodes to the graph's FieldCollection
+    // Then we could replace GetFieldIdToFieldMap with field_collection.Get() and Has()
 }
 
 void DAGraph::Mult(const Vector &x, Vector &y) const
@@ -287,6 +289,8 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     {
         f->SetData(nullptr);
     }
+
+    // TODO: Handle case where execution mode is GRADIENT_MODE to update grad
 }
 
 void DAGraph::Execute(const MultiVector &x, MultiVector &y) const
