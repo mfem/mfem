@@ -396,7 +396,7 @@ public:
     { field_collection.AddInput(field_name, field, own); }
 
     virtual void AddInput(Field *field, bool own = false)
-    { AddInput(field->Name(), field, own); }
+    { field_collection.AddInput(field, own); }
 
     template<bool OwnInputs = false,
              typename... Args,
@@ -412,7 +412,7 @@ public:
     { field_collection.AddOutput(field_name, field, own); }
 
     virtual void AddOutput(Field *field, bool own = false)
-    { AddOutput(field->Name(), field, own); }
+    { field_collection.AddOutput(field, own); }
 
     template<bool OwnOutputs = false,
              typename... Args,
