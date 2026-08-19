@@ -151,6 +151,60 @@ DeviceNeighborDofComm::~DeviceNeighborDofComm()
    shr_buf_offsets.Delete();
 }
 
+template <typename T, typename SendBuffer, typename RecvBuffer>
+int DeviceNeighborDofComm::Exchange(const SendBuffer &send_buf,
+                                    const Memory<int> &send_offsets,
+                                    RecvBuffer &recv_buf,
+                                    const Memory<int> &recv_offsets,
+                                    int tag) const
+{
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+   int req_counter = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   {
+      const int send_offset = send_offsets[nbr];
+      const int send_size = send_offsets[nbr+1] - send_offset;
+      if (send_size > 0)
+      {
+         auto send_ptr = mpi_gpu_aware ? send_buf.Read() : send_buf.HostRead();
+         MPI_Isend(send_ptr + send_offset, send_size, MPITypeMap<T>::mpi_type,
+                   gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
+                   &requests[req_counter++]);
+      }
+      const int recv_offset = recv_offsets[nbr];
+      const int recv_size = recv_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0)
+      {
+         auto recv_ptr = mpi_gpu_aware ? recv_buf.Write() : recv_buf.HostWrite();
+         MPI_Irecv(recv_ptr + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
+                   gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
+                   &requests[req_counter++]);
+      }
+   }
+   return req_counter;
+}
+
+template <typename T, typename SendBuffer, typename RecvBuffer>
+int DeviceNeighborDofComm::ExchangeSharedToExternal(const SendBuffer &shr_buf,
+                                                    RecvBuffer &ext_buf,
+                                                    int tag) const
+{
+   return Exchange<T>(shr_buf, shr_buf_offsets, ext_buf, ext_buf_offsets, tag);
+}
+
+template <typename T, typename SendBuffer, typename RecvBuffer>
+int DeviceNeighborDofComm::ExchangeExternalToShared(const SendBuffer &ext_buf,
+                                                    RecvBuffer &shr_buf,
+                                                    int tag) const
+{
+   return Exchange<T>(ext_buf, ext_buf_offsets, shr_buf, shr_buf_offsets, tag);
+}
+
+void DeviceNeighborDofComm::WaitAll(int req_counter) const
+{
+   MPI_Waitall(req_counter, requests.GetData(), MPI_STATUSES_IGNORE);
+}
+
 template <typename T>
 void DeviceSharedDofApplyReduction(const Array<int> &unique_dst_indices,
                                    const Array<int> &unique_to_src_offsets,
@@ -1015,6 +1069,13 @@ void DeviceSharedDofCommunicator::Bcast<real_t>(Array<real_t> &x_ldof) const
 }
 
 template <class T>
+void GroupCommunicator::Bcast(T *ldata, int layout) const
+{
+   BcastBegin(ldata, layout);
+   BcastEnd(ldata, layout);
+}
+
+template <class T>
 void GroupCommunicator::Bcast(T *ldata) const
 {
    if (ldata == NULL)
@@ -1045,6 +1106,14 @@ void GroupCommunicator::Bcast(T *ldata) const
    }
 
    Bcast<T>(ldata, 0);
+}
+
+template <class T>
+void GroupCommunicator::Bcast(Array<T> &ldata) const
+{
+   const bool on_dev =
+      ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
+   Bcast<T>(ldata.ReadWrite(on_dev));
 }
 
 template <class T>
@@ -1104,6 +1173,15 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>)) const
 
    ReduceBegin(ldata);
    ReduceEnd(ldata, 0, Op);
+}
+
+template <class T>
+void GroupCommunicator::Reduce(Array<T> &ldata,
+                               void (*Op)(OpData<T>)) const
+{
+   const bool on_dev =
+      ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
+   Reduce<T>(ldata.ReadWrite(on_dev), Op);
 }
 
 template <class T>
@@ -1808,32 +1886,59 @@ GroupCommunicator::~GroupCommunicator()
 // @cond DOXYGEN_SKIP
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
+template void GroupCommunicator::Bcast<int>(int *, int) const;
 template void GroupCommunicator::Bcast<int>(int *) const;
+template void GroupCommunicator::Bcast<int>(Array<int> &) const;
 template void GroupCommunicator::BcastBegin<int>(int *, int) const;
 template void GroupCommunicator::BcastEnd<int>(int *, int) const;
 template void GroupCommunicator::Reduce<int>(
    int *, void (*)(OpData<int>)) const;
+template void GroupCommunicator::Reduce<int>(
+   Array<int> &, void (*)(OpData<int>)) const;
 template void GroupCommunicator::ReduceBegin<int>(const int *) const;
 template void GroupCommunicator::ReduceEnd<int>(
    int *, int, void (*)(OpData<int>)) const;
 
+template void GroupCommunicator::Bcast<double>(double *, int) const;
 template void GroupCommunicator::Bcast<double>(double *) const;
+template void GroupCommunicator::Bcast<double>(Array<double> &) const;
 template void GroupCommunicator::BcastBegin<double>(double *, int) const;
 template void GroupCommunicator::BcastEnd<double>(double *, int) const;
 template void GroupCommunicator::Reduce<double>(
    double *, void (*)(OpData<double>)) const;
+template void GroupCommunicator::Reduce<double>(
+   Array<double> &, void (*)(OpData<double>)) const;
 template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
 
+template void GroupCommunicator::Bcast<float>(float *, int) const;
 template void GroupCommunicator::Bcast<float>(float *) const;
+template void GroupCommunicator::Bcast<float>(Array<float> &) const;
 template void GroupCommunicator::BcastBegin<float>(float *, int) const;
 template void GroupCommunicator::BcastEnd<float>(float *, int) const;
 template void GroupCommunicator::Reduce<float>(
    float *, void (*)(OpData<float>)) const;
+template void GroupCommunicator::Reduce<float>(
+   Array<float> &, void (*)(OpData<float>)) const;
 template void GroupCommunicator::ReduceBegin<float>(const float *) const;
 template void GroupCommunicator::ReduceEnd<float>(
    float *, int, void (*)(OpData<float>)) const;
+
+template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<int,
+   Array<int>, Array<int>>(const Array<int> &, Array<int> &, int) const;
+template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<int,
+   Array<int>, Array<int>>(const Array<int> &, Array<int> &, int) const;
+template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<real_t,
+   Array<real_t>, Array<real_t>>(const Array<real_t> &,
+                                 Array<real_t> &, int) const;
+template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<real_t,
+   Array<real_t>, Array<real_t>>(const Array<real_t> &,
+                                 Array<real_t> &, int) const;
+template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<real_t,
+   Vector, Vector>(const Vector &, Vector &, int) const;
+template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<real_t,
+   Vector, Vector>(const Vector &, Vector &, int) const;
 
 template void DeviceSharedDofCommunicator::ReduceBeginCopy<int>(
    const Array<int> &, Array<int> &) const;

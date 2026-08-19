@@ -381,21 +381,12 @@ public:
        The data @a layout can be either 0 or 1.
 
        For a description of @a layout, see CopyGroupToBuffer(). */
-   template <class T> void Bcast(T *ldata, int layout) const
-   {
-      BcastBegin(ldata, layout);
-      BcastEnd(ldata, layout);
-   }
+   template <class T> void Bcast(T *ldata, int layout) const;
 
    /// Broadcast within each group where the master is the root.
    template <class T> void Bcast(T *ldata) const;
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(Array<T> &ldata) const
-   {
-      const bool on_dev =
-         ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
-      Bcast<T>(ldata.ReadWrite(on_dev));
-   }
+   template <class T> void Bcast(Array<T> &ldata) const;
 
    /** @brief Begin reduction operation within each group where the master is
        the root. */
@@ -429,12 +420,7 @@ public:
    template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const;
 
    /// Reduce within each group where the master is the root.
-   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
-   {
-      const bool on_dev =
-         ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
-      Reduce<T>(ldata.ReadWrite(on_dev), Op);
-   }
+   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const;
 
    /// Reduce operation Sum, instantiated for int and double
    template <class T> static void Sum(OpData<T>);
@@ -474,57 +460,20 @@ public:
    template <typename T, typename SendBuffer, typename RecvBuffer>
    int ExchangeSharedToExternal(const SendBuffer &shr_buf,
                                 RecvBuffer &ext_buf,
-                                int tag) const
-   {
-      return Exchange<T>(shr_buf, shr_buf_offsets, ext_buf, ext_buf_offsets,
-                         tag);
-   }
+                                int tag) const;
 
    template <typename T, typename SendBuffer, typename RecvBuffer>
    int ExchangeExternalToShared(const SendBuffer &ext_buf,
                                 RecvBuffer &shr_buf,
-                                int tag) const
-   {
-      return Exchange<T>(ext_buf, ext_buf_offsets, shr_buf, shr_buf_offsets,
-                         tag);
-   }
+                                int tag) const;
 
-   void WaitAll(int req_counter) const
-   {
-      MPI_Waitall(req_counter, requests.GetData(), MPI_STATUSES_IGNORE);
-   }
+   void WaitAll(int req_counter) const;
 
 private:
    template <typename T, typename SendBuffer, typename RecvBuffer>
    int Exchange(const SendBuffer &send_buf, const Memory<int> &send_offsets,
                 RecvBuffer &recv_buf, const Memory<int> &recv_offsets,
-                int tag) const
-   {
-      const GroupTopology &gtopo = gc.GetGroupTopology();
-      int req_counter = 0;
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-      {
-         const int send_offset = send_offsets[nbr];
-         const int send_size = send_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_ptr = mpi_gpu_aware ? send_buf.Read() : send_buf.HostRead();
-            MPI_Isend(send_ptr + send_offset, send_size, MPITypeMap<T>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
-                      &requests[req_counter++]);
-         }
-         const int recv_offset = recv_offsets[nbr];
-         const int recv_size = recv_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_ptr = mpi_gpu_aware ? recv_buf.Write() : recv_buf.HostWrite();
-            MPI_Irecv(recv_ptr + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
-                      &requests[req_counter++]);
-         }
-      }
-      return req_counter;
-   }
+                int tag) const;
 
    const GroupCommunicator &gc;
    bool mpi_gpu_aware;
