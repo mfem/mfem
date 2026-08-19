@@ -323,7 +323,6 @@ void L2ProjectionGridTransfer::L2Projection::ElemMixedEvaluation(
          B_H(i, j) = shape_ho(j);
       }
    }
-
 }
 
 void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
