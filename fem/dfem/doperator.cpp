@@ -99,4 +99,19 @@ void FDJacobian::Mult(const Vector &v, Vector &y) const
    }
 }
 
+Operator& FDJacobian::GetGradient(const Vector &x0) const
+{
+   x = x0;
+   f.UseDevice(x.UseDevice());
+   xpev.UseDevice(x.UseDevice());
+
+   op.Mult(x, f);
+   const real_t xnorm_local = x.Norml2();
+   MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                  MPI_COMM_WORLD);
+
+   return const_cast<FDJacobian&>(*this);
+}
+
+
 #endif // MFEM_USE_MPI
