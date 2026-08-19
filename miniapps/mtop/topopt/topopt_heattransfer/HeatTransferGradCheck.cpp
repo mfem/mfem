@@ -7,20 +7,20 @@
 
 using namespace std;
 using namespace mfem;
-
+ 
 static std::string fmtRate(double v);
 
 void velocity_function(const Vector &x, Vector &v)
 {
    int dim = x.Size();
-   v(0) = 0.0;
+   v(0) = 0.0;  
    v(1) = 1.0;   
 } 
 
 real_t q0_function(const Vector &x)
 {
    int dim = x.Size(); 
-   return sin(M_PI*x(0)) * cos(M_PI*x(1));  
+   return sin(M_PI*x(0)) * cos(M_PI*x(1));   
    // return x(0)*x(0) + x(1)*x(1); 
    // return 2.0;  
 } 
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../../../data/inline-quad.mesh";      
    int ser_ref_levels = 1;
    int par_ref_levels = 1;    
-   int order = 2; 
+   int order = 1; 
    bool pv_vis = false; 
    int ode_solver_type = 4; // 1 - Forward Backward Euler  
    real_t t_final = 0.1;           
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
    ParGridFunction one_gf(fes);
    ConstantCoefficient one_cf(1.0);
    one_gf.ProjectCoefficient(one_cf);     
-   TerminalTargetObjective obj_func(fes, indicator, one_gf, comm);           
+   TimeIntegratedL2TargetObjective obj_func(fes, indicator, one_gf, comm);           
    int n_steps = (int)ceil(t_final / dt);   
   
    const int n = control_fes.GetTrueVSize();      
