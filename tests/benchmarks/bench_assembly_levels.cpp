@@ -113,6 +113,8 @@ struct Problem: public BakeOff
    Array<int> ess_tdof_list;
    Array<int> ess_bdr;
    LinearForm b;
+   Vector uvec;
+   VectorConstantCoefficient unit_vec;
    OperatorPtr A;
    Vector B, X;
    CGSolver cg;
@@ -120,13 +122,29 @@ struct Problem: public BakeOff
    Problem(AssemblyLevel assembly, int order, int N):
       BakeOff(assembly,order,N,VDIM,GLL),
       ess_bdr(mesh.bdr_attributes.Max()),
-      b(&fes)
+      b(&fes),
+      uvec(VDIM),
+      unit_vec((uvec = 1.0, uvec))
    {
       if (is_runnable())
       {
+         // Initialize the solution: 'x' holds the essential boundary values used
+         // by FormLinearSystem below and it also makes the number of CG
+         // iterations, hence the measured work, reproducible.
+         x = 0.0;
+
          ess_bdr = 1;
          fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
-         b.AddDomainIntegrator(new DomainLFIntegrator(one));
+         // The scalar DomainLFIntegrator can only be used with a scalar space:
+         // for vector spaces (VDIM > 1) the vector version is required.
+         if (VDIM == 1)
+         {
+            b.AddDomainIntegrator(new DomainLFIntegrator(one));
+         }
+         else
+         {
+            b.AddDomainIntegrator(new VectorDomainLFIntegrator(unit_vec));
+         }
          b.Assemble();
 
          a.SetAssemblyLevel(assembly);
@@ -169,7 +187,7 @@ static void SetupBP##i##assembly(bm::State &state){\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
    ker.setup();\
-   while (state.KeepRunning()) { ker.benchmark_setup(); }\
+   for (auto _ : state) { ker.benchmark_setup(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);\
@@ -186,7 +204,7 @@ static void BP##i##assembly(bm::State &state){\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Problem<Kernel##Integrator,VDIM,p_eq_q> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
-   while (state.KeepRunning()) { ker.benchmark_action(); }\
+   for (auto _ : state) { ker.benchmark_action(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);\
@@ -296,7 +314,7 @@ static void BK##i##assembly(bm::State &state){\
    const int N = pow(target_dofs / elem_dofs, 1.0/dim) + 1;\
    Kernel<KER##Integrator,VDIM,GLL> ker(AssemblyLevel::assembly, p, N);\
    if ( !ker.is_runnable() ) { state.SkipWithError("MAX_MEM"); }\
-   while (state.KeepRunning()) { ker.benchmark_action(); }\
+   for (auto _ : state) { ker.benchmark_action(); }\
    state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), bm::Counter::kIsRate);\
    state.counters["Dofs"] = bm::Counter(ker.dofs, bm::Counter::kDefaults);\
    state.counters["Order"] = bm::Counter(ker.p);\

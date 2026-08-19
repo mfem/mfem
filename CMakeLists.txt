@@ -549,7 +549,16 @@ endif()
 
 # GOOGLE-BENCHMARK
 if (MFEM_USE_BENCHMARK)
-   find_package(Benchmark REQUIRED)
+   # When CODSPEED_MODE is set to something else than "off", Google Benchmark is
+   # provided by CodSpeed's compatibility layer, which is fetched from
+   # tests/benchmarks/CMakeLists.txt. Otherwise, an existing Google Benchmark
+   # installation is required.
+   if (CODSPEED_MODE AND NOT (CODSPEED_MODE STREQUAL "off"))
+      set(MFEM_BENCHMARK_USE_CODSPEED ON)
+      message(STATUS "Google Benchmark: using CodSpeed (mode: ${CODSPEED_MODE})")
+   else()
+      find_package(Benchmark REQUIRED)
+   endif()
 endif()
 
 # Caliper
