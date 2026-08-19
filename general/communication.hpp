@@ -595,7 +595,16 @@ class DeviceSharedDofCommunicator
 public:
    enum class Op { Sum, Min, Max };
 
-protected:
+   explicit DeviceSharedDofCommunicator(const GroupCommunicator &gc);
+   ~DeviceSharedDofCommunicator();
+
+   template <typename T>
+   void Reduce(Array<T> &x_ldof, Op op) const;
+
+   template <typename T>
+   void Bcast(Array<T> &x_ldof) const;
+
+private:
    mutable Array<real_t> shr_buf, ext_buf, true_buf;
    internal::DeviceNeighborDofComm *nbr_comm;
 
@@ -614,22 +623,11 @@ protected:
    template <typename T>
    void BcastEndCopy(const Array<T> &ext_buf_t, Array<T> &x_ldof) const;
 
-public:
-   explicit DeviceSharedDofCommunicator(const GroupCommunicator &gc);
-   ~DeviceSharedDofCommunicator();
-
    template <typename T>
    void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
-   template <typename T>
-   void Reduce(Array<T> &x_ldof, Op op) const;
 
    template <typename T>
    void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
-   template <typename T>
-   void Bcast(Array<T> &x_ldof) const;
-
-   template <typename T>
-   void ReduceAndBcast(Array<T> &x_ldof, Op op) const;
 };
 
 /// General MPI message tags used by MFEM

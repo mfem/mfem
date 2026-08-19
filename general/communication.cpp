@@ -1004,23 +1004,6 @@ void DeviceSharedDofCommunicator::Bcast<real_t>(Array<real_t> &x_ldof) const
    Bcast(true_buf, x_ldof);
 }
 
-template <typename T>
-void DeviceSharedDofCommunicator::ReduceAndBcast(Array<T> &x_ldof, Op op) const
-{
-   Array<T> x_tdof(nbr_comm->LocalTDofToLDof().Size());
-   x_tdof.GetMemory().UseDevice(true);
-   Reduce(x_ldof, x_tdof, op);
-   Bcast(x_tdof, x_ldof);
-}
-
-template <>
-void DeviceSharedDofCommunicator::ReduceAndBcast<real_t>(Array<real_t> &x_ldof,
-                                                         Op op) const
-{
-   Reduce(x_ldof, true_buf, op);
-   Bcast(true_buf, x_ldof);
-}
-
 template <class T>
 void GroupCommunicator::Bcast(T *ldata) const
 {
@@ -1862,8 +1845,6 @@ template void DeviceSharedDofCommunicator::Bcast<int>(
    const Array<int> &, Array<int> &) const;
 template void DeviceSharedDofCommunicator::Bcast<int>(
    Array<int> &) const;
-template void DeviceSharedDofCommunicator::ReduceAndBcast<int>(
-   Array<int> &, Op) const;
 
 template void DeviceSharedDofCommunicator::ReduceBeginCopy<real_t>(
    const Array<real_t> &, Array<real_t> &) const;
