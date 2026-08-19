@@ -205,6 +205,58 @@ void DeviceNeighborDofComm::WaitAll(int req_counter) const
    MPI_Waitall(req_counter, requests.GetData(), MPI_STATUSES_IGNORE);
 }
 
+template <typename InBuffer, typename OutBuffer>
+void DeviceNeighborDofExtract(const Array<int> &indices,
+                              const InBuffer &xin,
+                              OutBuffer &xout)
+{
+   MFEM_ASSERT(indices.Size() == xout.Size(), "incompatible sizes!");
+   auto y = xout.Write();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   });
+}
+
+template <typename InBuffer, typename OutBuffer>
+void DeviceNeighborDofSet(const Array<int> &indices,
+                          const InBuffer &xin,
+                          OutBuffer &xout)
+{
+   MFEM_ASSERT(indices.Size() == xin.Size(), "incompatible sizes!");
+   auto y = xout.ReadWrite();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
+}
+
+template <typename SrcBuffer, typename DstBuffer>
+void DeviceNeighborDofAdd(const Array<int> &unique_dst_indices,
+                          const Array<int> &unique_to_src_offsets,
+                          const Array<int> &unique_to_src_indices,
+                          const SrcBuffer &src,
+                          DstBuffer &dst)
+{
+   auto y = dst.ReadWrite();
+   const auto x = src.Read();
+   const auto DST_I = unique_dst_indices.Read();
+   const auto SRC_O = unique_to_src_offsets.Read();
+   const auto SRC_I = unique_to_src_indices.Read();
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int dst_idx = DST_I[i];
+      real_t sum = y[dst_idx];
+      const int end = SRC_O[i+1];
+      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
+      y[dst_idx] = sum;
+   });
+}
+
 template <typename T>
 void DeviceSharedDofApplyReduction(const Array<int> &unique_dst_indices,
                                    const Array<int> &unique_to_src_offsets,
@@ -1939,6 +1991,21 @@ template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<real_t,
    Vector, Vector>(const Vector &, Vector &, int) const;
 template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<real_t,
    Vector, Vector>(const Vector &, Vector &, int) const;
+template void internal::DeviceNeighborDofExtract<Array<int>, Array<int>>(
+   const Array<int> &, const Array<int> &, Array<int> &);
+template void internal::DeviceNeighborDofExtract<Array<real_t>, Array<real_t>>(
+   const Array<int> &, const Array<real_t> &, Array<real_t> &);
+template void internal::DeviceNeighborDofExtract<Vector, Vector>(
+   const Array<int> &, const Vector &, Vector &);
+template void internal::DeviceNeighborDofSet<Array<int>, Array<int>>(
+   const Array<int> &, const Array<int> &, Array<int> &);
+template void internal::DeviceNeighborDofSet<Array<real_t>, Array<real_t>>(
+   const Array<int> &, const Array<real_t> &, Array<real_t> &);
+template void internal::DeviceNeighborDofSet<Vector, Vector>(
+   const Array<int> &, const Vector &, Vector &);
+template void internal::DeviceNeighborDofAdd<Vector, Vector>(
+   const Array<int> &, const Array<int> &, const Array<int> &,
+   const Vector &, Vector &);
 
 template void DeviceSharedDofCommunicator::ReduceBeginCopy<int>(
    const Array<int> &, Array<int> &) const;

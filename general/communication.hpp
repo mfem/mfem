@@ -17,7 +17,6 @@
 #ifdef MFEM_USE_MPI
 
 #include "array.hpp"
-#include "forall.hpp"
 #include "table.hpp"
 #include "sets.hpp"
 #include "globals.hpp"
@@ -487,54 +486,19 @@ private:
 template <typename InBuffer, typename OutBuffer>
 void DeviceNeighborDofExtract(const Array<int> &indices,
                               const InBuffer &xin,
-                              OutBuffer &xout)
-{
-   MFEM_ASSERT(indices.Size() == xout.Size(), "incompatible sizes!");
-   auto y = xout.Write();
-   const auto x = xin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[i] = x[I[i]];
-   });
-}
+                              OutBuffer &xout);
 
 template <typename InBuffer, typename OutBuffer>
 void DeviceNeighborDofSet(const Array<int> &indices,
                           const InBuffer &xin,
-                          OutBuffer &xout)
-{
-   MFEM_ASSERT(indices.Size() == xin.Size(), "incompatible sizes!");
-   auto y = xout.ReadWrite();
-   const auto x = xin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[I[i]] = x[i];
-   });
-}
+                          OutBuffer &xout);
 
 template <typename SrcBuffer, typename DstBuffer>
 void DeviceNeighborDofAdd(const Array<int> &unique_dst_indices,
                           const Array<int> &unique_to_src_offsets,
                           const Array<int> &unique_to_src_indices,
                           const SrcBuffer &src,
-                          DstBuffer &dst)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      real_t sum = y[dst_idx];
-      const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
-      y[dst_idx] = sum;
-   });
-}
+                          DstBuffer &dst);
 
 } // namespace internal
 
