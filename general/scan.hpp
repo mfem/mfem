@@ -50,7 +50,7 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items)
       if (bytes)
       {
          auto error = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveSum(
-                       workspace.Write(), bytes, d_in, d_out, num_items);
+                         workspace.Write(), bytes, d_in, d_out, num_items);
 #if defined(MFEM_USE_CUDA)
          if (error == cudaSuccess)
          {
@@ -114,7 +114,7 @@ void InclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       if (bytes)
       {
          auto error = MFEM_CUB_NAMESPACE::DeviceScan::InclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, num_items);
+                         workspace.Write(), bytes, d_in, d_out, scan_op, num_items);
 #if defined(MFEM_USE_CUDA)
          if (error == cudaSuccess)
          {
@@ -177,8 +177,8 @@ void ExclusiveScan(bool use_dev, InputIt d_in, OutputIt d_out, size_t num_items,
       if (bytes)
       {
          auto error = MFEM_CUB_NAMESPACE::DeviceScan::ExclusiveScan(
-                       workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
-                       num_items);
+                         workspace.Write(), bytes, d_in, d_out, scan_op, init_value,
+                         num_items);
 #if defined(MFEM_USE_CUDA)
          if (error == cudaSuccess)
          {
@@ -251,8 +251,8 @@ void CopyFlagged(bool use_dev, InputIt d_in, FlagIt d_flags, OutputIt d_out,
       if (bytes)
       {
          auto error = MFEM_CUB_NAMESPACE::DeviceSelect::Flagged(
-                       workspace.Write(), bytes, d_in, d_flags, d_out, d_num_selected_out,
-                       num_items);
+                         workspace.Write(), bytes, d_in, d_flags, d_out, d_num_selected_out,
+                         num_items);
 #if defined(MFEM_USE_CUDA)
          if (error == cudaSuccess)
          {
@@ -319,8 +319,8 @@ void CopyIf(bool use_dev, InputIt d_in, OutputIt d_out,
       if (bytes)
       {
          auto error = MFEM_CUB_NAMESPACE::DeviceSelect::If(
-                       workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                       num_items, select_op);
+                         workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
+                         num_items, select_op);
 #if defined(MFEM_USE_CUDA)
          if (error == cudaSuccess)
          {
@@ -378,8 +378,8 @@ void CopyUnique(bool use_dev, InputIt d_in, OutputIt d_out,
       if (bytes)
       {
          auto error = MFEM_CUB_NAMESPACE::DeviceSelect::Unique(
-                       workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
-                       num_items);
+                         workspace.Write(), bytes, d_in, d_out, d_num_selected_out,
+                         num_items);
 #if defined(MFEM_USE_CUDA)
          if (error == cudaSuccess)
          {
