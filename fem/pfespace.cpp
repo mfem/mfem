@@ -1136,15 +1136,6 @@ GroupCommunicator *ParFiniteElementSpace::ScalarGroupComm()
    return gc;
 }
 
-const DeviceSharedDofCommunicator *
-ParFiniteElementSpace::GetDeviceSharedDofCommunicator() const
-{
-   MFEM_VERIFY(UseDeviceSharedDofComm(),
-               "Shared-dof communicator requires a conforming space with "
-               "1-1 shared dof correspondence.");
-   return gcomm->GetDeviceSharedDofCommunicator();
-}
-
 void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
 {
    // For non-conforming mesh, synchronization is performed on the cut (aka

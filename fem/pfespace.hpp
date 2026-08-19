@@ -426,14 +426,6 @@ public:
    /** @note The returned pointer must be deleted by the caller. */
    GroupCommunicator *ScalarGroupComm();
 
-   /** @brief Return a device-friendly communicator for shared scalar dof
-       reductions on conforming spaces.
-
-       The returned object is owned by the internal GroupCommunicator and
-       remains valid until the space is updated or destroyed.
-   */
-   const DeviceSharedDofCommunicator *GetDeviceSharedDofCommunicator() const;
-
    /** @brief Given an integer array on the local degrees of freedom, perform
        a bitwise OR between the shared dofs. */
    /** For non-conforming mesh, synchronization is performed on the cut (aka
@@ -516,8 +508,6 @@ public:
    bool Nonconforming() const { return pmesh->pncmesh != NULL || nonconf_P; }
 
    bool SharedNDTriangleDofs() const { return nd_strias; }
-   bool UseDeviceSharedDofComm() const
-   { return Conforming() && !SharedNDTriangleDofs(); }
 
    // Transfer parallel true-dof data from coarse_fes, defined on a coarse mesh,
    // to this FE space, defined on a refined mesh. See full documentation in the

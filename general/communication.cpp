@@ -909,7 +909,7 @@ void MakeTypedBufferView(Array<real_t> &storage, int size, Array<T> &view)
    MFEM_ASSERT(sizeof(real_t) >= sizeof(T),
                "internal buffer type is too small for this view");
    const int capacity = storage.Size() * int(sizeof(real_t) / sizeof(T));
-   MFEM_ASSERT(size <= capacity, "internal buffer view exceeds capacity");
+   MFEM_VERIFY(size <= capacity, "internal buffer view exceeds capacity");
    real_t *ptr = storage.ReadWrite();
    view.MakeRef(reinterpret_cast<T*>(ptr), size, Device::QueryMemoryType(ptr),
                 false);
