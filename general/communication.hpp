@@ -622,17 +622,14 @@ public:
    void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
    template <typename T>
    void Reduce(Array<T> &x_ldof, Op op) const;
-   void Reduce(const Vector &x_ldof, Vector &x_tdof, Op op) const;
 
    template <typename T>
    void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
    template <typename T>
    void Bcast(Array<T> &x_ldof) const;
-   void Bcast(const Vector &x_tdof, Vector &x_ldof) const;
 
    template <typename T>
    void ReduceAndBcast(Array<T> &x_ldof, Op op) const;
-   void ReduceAndBcast(Vector &x_ldof, Op op) const;
 };
 
 /// General MPI message tags used by MFEM

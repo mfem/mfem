@@ -937,18 +937,6 @@ void DeviceSharedDofCommunicator::Reduce<real_t>(const Array<real_t> &x_ldof,
    ReduceEndAssemble(shr_buf, x_tdof, op);
 }
 
-void DeviceSharedDofCommunicator::Reduce(const Vector &x_ldof,
-                                         Vector &x_tdof,
-                                         Op op) const
-{
-   Array<real_t> x_ldof_view, x_tdof_view;
-   x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
-                       x_ldof.Size());
-   x_tdof_view.MakeRef(const_cast<Memory<real_t>&>(x_tdof.GetMemory()), 0,
-                       x_tdof.Size());
-   Reduce(x_ldof_view, x_tdof_view, op);
-}
-
 template <typename T>
 void DeviceSharedDofCommunicator::Reduce(Array<T> &x_ldof, Op op) const
 {
@@ -1000,17 +988,6 @@ void DeviceSharedDofCommunicator::Bcast<real_t>(const Array<real_t> &x_tdof,
    BcastEndCopy(ext_buf, x_ldof);
 }
 
-void DeviceSharedDofCommunicator::Bcast(const Vector &x_tdof,
-                                        Vector &x_ldof) const
-{
-   Array<real_t> x_tdof_view, x_ldof_view;
-   x_tdof_view.MakeRef(const_cast<Memory<real_t>&>(x_tdof.GetMemory()), 0,
-                       x_tdof.Size());
-   x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
-                       x_ldof.Size());
-   Bcast(x_tdof_view, x_ldof_view);
-}
-
 template <typename T>
 void DeviceSharedDofCommunicator::Bcast(Array<T> &x_ldof) const
 {
@@ -1042,14 +1019,6 @@ void DeviceSharedDofCommunicator::ReduceAndBcast<real_t>(Array<real_t> &x_ldof,
 {
    Reduce(x_ldof, true_buf, op);
    Bcast(true_buf, x_ldof);
-}
-
-void DeviceSharedDofCommunicator::ReduceAndBcast(Vector &x_ldof, Op op) const
-{
-   Array<real_t> x_ldof_view;
-   x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
-                       x_ldof.Size());
-   ReduceAndBcast(x_ldof_view, op);
 }
 
 template <class T>
