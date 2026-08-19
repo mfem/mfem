@@ -9,12 +9,14 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../bilininteg.hpp"
-#include "mma/mma.hpp"
-#include "bilininteg_diffusion_pa_simplices_mma.hpp"
+#include "../../bilininteg.hpp"
+#include "mma.hpp"
+#include "diffusion.hpp"
+#include "form/register.hpp"
 
 namespace mfem
 {
+
 
 namespace internal
 {
@@ -280,77 +282,24 @@ void DiffusionIntegrator::AssembleSimplexMmaPA(const FiniteElementSpace &fes)
 
 void DiffusionIntegrator::RegisterSimplexMmaKernels()
 {
-   // MMA specializations (separate lists per integrator — see fem/integ/mma/README.md).
-   // Order: DIM, D1D, QND. Unregistered → Fallback runtime shell.
-   // 2D
-   AddSimplexMmaSpecialization<2,2,1>();
-   AddSimplexMmaSpecialization<2,2,4>();
-   AddSimplexMmaSpecialization<2,2,9>();
-   AddSimplexMmaSpecialization<2,2,12>();
-   AddSimplexMmaSpecialization<2,2,16>();
-   AddSimplexMmaSpecialization<2,2,25>();
-   AddSimplexMmaSpecialization<2,2,33>();
-
-   AddSimplexMmaSpecialization<2,3,3>();
-   AddSimplexMmaSpecialization<2,3,9>();
-   AddSimplexMmaSpecialization<2,3,16>();
-   AddSimplexMmaSpecialization<2,3,25>();
-   AddSimplexMmaSpecialization<2,3,33>();
-   AddSimplexMmaSpecialization<2,3,36>();
-   AddSimplexMmaSpecialization<2,3,42>();
-
-   AddSimplexMmaSpecialization<2,4,6>();
-   AddSimplexMmaSpecialization<2,4,16>();
-   AddSimplexMmaSpecialization<2,4,25>();
-
-   AddSimplexMmaSpecialization<2,5,12>();
-   AddSimplexMmaSpecialization<2,5,33>();
-
-   AddSimplexMmaSpecialization<2,6,16>();
-   AddSimplexMmaSpecialization<2,6,36>();
-   AddSimplexMmaSpecialization<2,6,42>();
-   AddSimplexMmaSpecialization<2,6,49>();
-   AddSimplexMmaSpecialization<2,6,55>();
-   AddSimplexMmaSpecialization<2,6,64>();
-   AddSimplexMmaSpecialization<2,6,67>();
-   AddSimplexMmaSpecialization<2,6,79>();
-   AddSimplexMmaSpecialization<2,6,81>();
-
-   AddSimplexMmaSpecialization<2,7,25>();
-   AddSimplexMmaSpecialization<2,7,49>();
-   AddSimplexMmaSpecialization<2,7,55>();
-   AddSimplexMmaSpecialization<2,7,64>();
-   AddSimplexMmaSpecialization<2,7,67>();
-   AddSimplexMmaSpecialization<2,7,79>();
-   AddSimplexMmaSpecialization<2,7,81>();
-   AddSimplexMmaSpecialization<2,7,100>();
-   AddSimplexMmaSpecialization<2,7,126>();
-
-   AddSimplexMmaSpecialization<2,8,33>();
-
-   // 3D
-   AddSimplexMmaSpecialization<3,2,1>();
-   AddSimplexMmaSpecialization<3,2,8>();
-   AddSimplexMmaSpecialization<3,2,24>();
-
-   AddSimplexMmaSpecialization<3,3,4>();
-   AddSimplexMmaSpecialization<3,3,27>();
-   AddSimplexMmaSpecialization<3,3,46>();
-
-   AddSimplexMmaSpecialization<3,4,14>();
-   AddSimplexMmaSpecialization<3,4,81>();
-
-   AddSimplexMmaSpecialization<3,5,24>();
-   AddSimplexMmaSpecialization<3,5,123>();
-
-   AddSimplexMmaSpecialization<3,6,46>();
-   AddSimplexMmaSpecialization<3,6,175>();
-   AddSimplexMmaSpecialization<3,6,216>();
-
-   AddSimplexMmaSpecialization<3,7,81>();
-   AddSimplexMmaSpecialization<3,7,248>();
-
-   AddSimplexMmaSpecialization<3,8,123>();
+   // Shared with VectorDiffusion — see form/register.hpp. Unregistered → Fallback.
+   internal::mma::RegisterDiffusionSimplexMmaSpecializations<DiffusionIntegrator>();
 }
+
+void DiffusionIntegrator::RegisterTensorsMmaKernels()
+{
+   // Shared tensor list (p = 3..7) — see form/register.hpp.
+   internal::mma::RegisterTensorsMmaSpecializations<DiffusionIntegrator>();
+}
+
+DiffusionIntegrator::ApplyTensorsMmaKernelType
+DiffusionIntegrator::ApplyTensorsMmaPAKernels::Fallback(int dim, int, int)
+{
+   if (dim == 2) { return internal::MmaDiffusionApplyTensors2D; }
+   if (dim == 3) { return internal::MmaDiffusionApplyTensors3D; }
+   MFEM_ABORT("Tensors MMA diffusion PA is only implemented for dim 2 or 3");
+   return nullptr;
+}
+
 
 } // namespace mfem

@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "common.hpp"
+#include "common.hpp" // IWYU pragma: export
 
 // ======================================================================
 // HIP (mfma) — Gemm + SUMF
@@ -631,24 +631,7 @@ MFEM_HOST_DEVICE inline void GradY(const int m, const int n,
    Sumf<false, false>(m, n, k, A[1], BG[0], C[2], nd); // A1*B
 }
 
-template<int MD1, int MQ1, int BUF>
-MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
-                                   const int k,
-                                   const real_t (&BG)[2][MQ1*MD1],
-                                   const real_t (*A)[BUF],
-                                   real_t (*C)[BUF],
-                                   int gIdx)
-{
-   SumfNullD nd;
-   for (int d = 0; d < 3; d++)
-   {
-      const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
-      Sumf<false, false>(m, n, k, A[d], B1d, C[d], nd);
-   }
-}
-
-/// Transposed Grad strip-mine shared by GradZt (gIdx=0) and GradYt (gIdx=1).
-/// BG is BGt layout (Q,D); A[d] viewed as (k,m); C[d] as (m,n).
+/// Grad strip-mine shared by GradZ / GradZt / GradYt (gIdx selects G vs B).
 template<int MD1, int MQ1, int BUF>
 MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
                                         const int k, const int gIdx,
@@ -662,6 +645,17 @@ MFEM_HOST_DEVICE inline void GradZtLike(const int m, const int n,
       const real_t *B1d = (d == gIdx) ? BG[1] : BG[0];
       Sumf<false, false>(m, n, k, A[d], B1d, C[d], nd);
    }
+}
+
+template<int MD1, int MQ1, int BUF>
+MFEM_HOST_DEVICE inline void GradZ(const int m, const int n,
+                                   const int k,
+                                   const real_t (&BG)[2][MQ1*MD1],
+                                   const real_t (*A)[BUF],
+                                   real_t (*C)[BUF],
+                                   int gIdx)
+{
+   GradZtLike<MD1, MQ1, BUF>(m, n, k, gIdx, BG, A, C);
 }
 
 /** Mass interp core: strip-mined 1-comp B·A → C.

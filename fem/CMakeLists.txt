@@ -77,8 +77,6 @@ set(SRCS
   integ/bilininteg_diffusion_kernels.cpp
   integ/bilininteg_diffusion_mf.cpp
   integ/bilininteg_diffusion_pa.cpp
-  integ/bilininteg_diffusion_pa_simplices_mma.cpp
-  integ/bilininteg_diffusion_pa_tensors_mma.cpp
   integ/bilininteg_diffusion_patch.cpp
   integ/bilininteg_divdiv_pa.cpp
   integ/bilininteg_elasticity_ea.cpp
@@ -94,11 +92,14 @@ set(SRCS
   integ/bilininteg_mass_kernels.cpp
   integ/bilininteg_mass_mf.cpp
   integ/bilininteg_mass_pa.cpp
-  integ/bilininteg_mass_pa_simplices_mma.cpp
-  integ/bilininteg_mass_pa_tensors_mma.cpp
   integ/bilininteg_mixedcurl_pa.cpp
   integ/bilininteg_mixedvecgrad_pa.cpp
   integ/mma/mma.cpp
+  integ/mma/mass.cpp
+  integ/mma/vecmass.cpp
+  integ/mma/diffusion.cpp
+  integ/mma/vecdiffusion.cpp
+  integ/mma/domain_lf.cpp
   integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
@@ -112,7 +113,6 @@ set(SRCS
   integ/lininteg_boundary_flux.cpp
   integ/lininteg_domain.cpp
   integ/lininteg_domain_grad.cpp
-  integ/lininteg_domain_simplices_mma.cpp
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   integ/nonlininteg_vecconvection_pa.cpp
@@ -259,28 +259,32 @@ set(HDRS
   integ/bilininteg_dgtrace_kernels.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_diffusion_pa_simplices.hpp
-  integ/bilininteg_diffusion_pa_simplices_mma.hpp
-  integ/bilininteg_diffusion_pa_tensors_mma.hpp
   integ/bilininteg_elasticity_kernels.hpp
   integ/bilininteg_hcurl_kernels.hpp
   integ/bilininteg_hcurlhdiv_kernels.hpp
   integ/bilininteg_hdiv_kernels.hpp
   integ/bilininteg_mass_kernels.hpp
   integ/bilininteg_mass_pa_simplices.hpp
-  integ/bilininteg_mass_pa_simplices_mma.hpp
-  integ/bilininteg_mass_pa_tensors_mma.hpp
   integ/mma/mma.hpp
-  integ/mma/blas.hpp
-  integ/mma/common.hpp
-  integ/mma/dispatch.hpp
-  integ/mma/dmma.hpp
-  integ/mma/lapack.hpp
-  integ/mma/mfma.hpp
+  integ/mma/mass.hpp
+  integ/mma/diffusion.hpp
+  integ/mma/domain_lf.hpp
+  integ/mma/mode/batch.hpp
+  integ/mma/mode/blas.hpp
+  integ/mma/mode/common.hpp
+  integ/mma/mode/dispatch.hpp
+  integ/mma/mode/dmma.hpp
+  integ/mma/mode/lapack.hpp
+  integ/mma/mode/mfma.hpp
+  integ/mma/form/form.hpp
+  integ/mma/form/fields.hpp
+  integ/mma/form/plan.hpp
+  integ/mma/form/simplex.hpp
+  integ/mma/form/tensors.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
   integ/lininteg_domain_kernels.hpp
-  integ/lininteg_domain_simplices_mma.hpp
   integ/nonlininteg_vecconvection_pa.hpp
   integ/nonlininteg_vecconvection_pa_diag.hpp
   integ/nonlininteg_vecconvection_pa_grad.hpp

@@ -293,4 +293,229 @@ TEST_CASE("PA Simplices Positive force MMA", "[PartialAssembly][MMA][GPU]")
    REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
 }
 
+/** Vector Mass/Diffusion simplex MMA PA vs full assembly (FA). */
+void test_pa_vec_simplices_mma_fa(Mesh &mesh, int p, bool positive,
+                                  int ir_order = -1)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, positive, ir_order, mesh.GetNE());
+   MFEM_VERIFY(mesh.SpaceDimension() == dim, "");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "");
+
+   const int btype = positive ? BasisType::Positive : BasisType::GaussLobatto;
+   H1_FECollection fec(p, dim, btype);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+
+   if (positive)
+   {
+      MMAForce on(true);
+      if (!UsesSimplexMMA(fes)) { return; }
+   }
+   else if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = (ir_order < 0)
+                     ? (2 * fe.GetOrder() + Tr.OrderW() + (positive ? 0 : 4))
+                     : ir_order;
+   const IntegrationRule *ir = positive
+                               ? &StroudIntRules.Get(fe.GetGeomType(), order)
+                               : &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (dim == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   GridFunction x(&fes), y_mma(&fes), y_fa(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_fa = y_mma;
+
+   BilinearForm pa(&fes), fa(&fes);
+   auto add_vec = [&](BilinearForm &a)
+   {
+      auto *vm0 = new VectorMassIntegrator;
+      auto *vm1 = new VectorMassIntegrator(const_coeff, ir);
+      auto *vm2 = new VectorMassIntegrator(funct_coeff, ir);
+      vm0->SetIntRule(ir);
+      a.AddDomainIntegrator(vm0);
+      a.AddDomainIntegrator(vm1);
+      a.AddDomainIntegrator(vm2);
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(const_coeff, ir));
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(funct_coeff, ir));
+   };
+   add_vec(pa);
+   add_vec(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // Legacy FA (FULL/EA not implemented for VectorMass/Diffusion).
+
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+   fa.Assemble();
+   fa.Finalize();
+
+   pa.Mult(x, y_mma);
+   fa.Mult(x, y_fa);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+TEST_CASE("PA Simplices MMA VectorMass/Diffusion vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5) : GENERATE(1, 2, 3, 4, 5);
+
+   SECTION("GLL 2D")
+   {
+      auto meshs = { "../../data/ref-triangle.mesh",
+                     "../../data/inline-tri.mesh"
+                   };
+      Mesh mesh(GENERATE_REF(from_range(meshs)));
+      test_pa_vec_simplices_mma_fa(mesh, p, false);
+   }
+   SECTION("GLL 3D")
+   {
+      auto meshs = { "../../data/ref-tetrahedron.mesh",
+                     "../../data/inline-tet.mesh"
+                   };
+      Mesh mesh(GENERATE_REF(from_range(meshs)));
+      test_pa_vec_simplices_mma_fa(mesh, p, false);
+   }
+   SECTION("Positive 2D")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_simplices_mma_fa(mesh, p, true);
+   }
+   SECTION("Positive 3D")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_simplices_mma_fa(mesh, p, true);
+   }
+   SECTION("Fallback GLL triangle")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_simplices_mma_fa(mesh, 1, false, 5);
+   }
+}
+
+/** Simplex VectorMass/Diffusion VQ or MQ MMA vs FA (smoke). */
+void test_pa_vec_coeff_simplices_mma_fa(Mesh &mesh, int p, bool diffusion,
+                                        bool mq)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, diffusion, mq, mesh.GetNE());
+
+   H1_FECollection fec(p, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+
+   VectorFunctionCoefficient vq(dim, [](const Vector &pt, Vector &v)
+   {
+      for (int i = 0; i < v.Size(); ++i) { v(i) = M_1_PI + pt[0] + real_t(i); }
+   });
+   MatrixFunctionCoefficient mq_coeff(dim, [](const Vector &pt, DenseMatrix &m)
+   {
+      m = 0.0;
+      for (int i = 0; i < m.Height(); ++i)
+      {
+         m(i, i) = 1.0 + M_1_PI * pt[0] + real_t(i);
+         for (int j = 0; j < i; ++j)
+         {
+            m(i, j) = m(j, i) = 0.1 * (pt[0] + real_t(i + j));
+         }
+      }
+   });
+
+   GridFunction x(&fes), y_mma(&fes), y_fa(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_fa = y_mma;
+
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      BilinearFormIntegrator *integ = nullptr;
+      if (diffusion)
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                    new VectorDiffusionIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorDiffusionIntegrator(vq));
+      }
+      else
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                    new VectorMassIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorMassIntegrator(vq));
+      }
+      integ->SetIntRule(ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+   fa.Assemble();
+   fa.Finalize();
+
+   pa.Mult(x, y_mma);
+   fa.Mult(x, y_fa);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+TEST_CASE("PA Simplices MMA Vector VQ/MQ vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   SECTION("2D VQ Mass")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, false);
+   }
+   SECTION("2D MQ Mass")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, true);
+   }
+   SECTION("2D VQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, false);
+   }
+   SECTION("2D MQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+   SECTION("3D VQ Mass")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, false);
+   }
+   SECTION("3D MQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+}
+
 } // namespace pa_simplices_mma

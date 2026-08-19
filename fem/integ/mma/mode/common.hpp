@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../../general/forall.hpp"
+#include "../../../../general/forall.hpp"
 #include <vector>
 
 /// \cond DO_NOT_DOCUMENT
@@ -651,6 +651,15 @@ inline int ThreadsForMTilesRuntime(int D1D, int Q1D, int tile,
 /** Tensor cost: Light = scalar field; heavy = multi-comp smem. */
 constexpr int kTensorCostLight = 1;
 constexpr int kTensorCostHeavy = 2;
+
+/** 3D scalar Eval element batch — match stock mass::NBZ3D(Q1D).
+    Serial multi-elem NB (e.g. 8) is slower than 1-elem/block on H100 for BP1. */
+MFEM_HOST_DEVICE constexpr int TensorEvalNB3D(int Q1D)
+{
+   const int q3 = Q1D * Q1D * Q1D;
+   const int n = (128 + q3 - 1) / q3;
+   return n < 64 ? n : 64;
+}
 
 template <int D1D, int Q1D>
 MFEM_HOST_DEVICE constexpr int NB2D()

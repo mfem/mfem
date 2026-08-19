@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 #pragma once
 
-#include "../../../linalg/lapack.hpp" // IWYU pragma: keep
+#include "../../../../linalg/lapack.hpp" // IWYU pragma: keep
 
 #ifdef MFEM_USE_LAPACK
 
@@ -21,31 +21,18 @@
 namespace mfem::internal::mma::lapack
 {
 
-/** Relative cost per element for PreferMultiRhs (not operator names).
-    1 ≈ mass / DomainLF (fwd+T multi-RHS); 2 ≈ diffusion (more GEMMs + Q-fn). */
-constexpr int kMultiRhsCostLight = 1;
-constexpr int kMultiRhsCostHeavy = 2;
-
-/** Shared size gate: large locals always; mid-size when NE clears bars.
-    Tuned for OpenBLAS/MKL/Accelerate. */
-inline bool PreferSized(int nq, int ndof, int NE,
-                        long long work_mid, int mx_mid)
+/** Prefer vendor multi-RHS GEMM over hand dense on host.
+    Size-only gate (no per-operator cost weight): large locals always; mid-size
+    when NE is large enough. Tuned for OpenBLAS/MKL/Accelerate. */
+inline bool PreferMultiRhs(int nq, int ndof, int NE)
 {
    const int mx = (nq > ndof) ? nq : ndof;
    const long long work = static_cast<long long>(nq) * ndof;
    // Large locals: ~ tet p>=4 (nq*ndof ≳ 1600) and larger.
    if (mx >= 24 && work >= 1600) { return true; }
-   if (NE >= 64 && work >= work_mid && mx >= mx_mid) { return true; }
+   // Mid-size: need enough elements for multi-RHS amortization.
+   if (NE >= 64 && work >= 180 && mx >= 8) { return true; }
    return false;
-}
-
-/** Prefer vendor multi-RHS GEMM over hand dense on host.
-    @param cost  relative apply cost (kMultiRhsCostLight / Heavy). Scales mid
-    bars: cost=1 → (180,8); cost=2 → (360,16) ≈ former diffusion bar (400,16). */
-inline bool PreferMultiRhs(int nq, int ndof, int NE, int cost = kMultiRhsCostLight)
-{
-   const int c = (cost < 1) ? 1 : cost;
-   return PreferSized(nq, ndof, NE, 180LL * c, 8 * c);
 }
 
 /** Multi-RHS tile width for the lapack path (mass / diffusion / linear form). */

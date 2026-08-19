@@ -452,7 +452,7 @@ DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
        fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem \
 	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools \
-	   fem/integ/mma
+	   fem/integ/mma fem/integ/mma/form fem/integ/mma/mode
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)
@@ -811,6 +811,7 @@ MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners \
    hooke/materials hooke/kernels
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
+FORMAT_FILES += tests/unit/fem/specializations/*.?pp
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
 FORMAT_FILES += config/cmake/config.hpp.in config/config.hpp.in mfem*.hpp
 FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
