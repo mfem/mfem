@@ -151,6 +151,9 @@ Miscellaneous
   example when transferring velocity while conserving density-weighted momentum.
   This is illustrated in the lor-transfer and plor-transfer miniapps.
 
+- Added support for saving DataCollection output on the node-local storage,
+  instead of requiring that the filesystem is shared among all the ranks.
+
 API changes
 -----------
 - Removed ProjectGrad from 2D RT elements. Users should use ProjectCurl instead.
