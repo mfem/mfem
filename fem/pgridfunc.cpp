@@ -743,7 +743,7 @@ void ParGridFunction::ProjectDiscCoefficient(
    ldof_attr.Copy(gdof_attr);
    if (pfes->UseDeviceSharedDofComm())
    {
-      const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
+      const auto *dof_comm = pfes->GroupComm().GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(gdof_attr, DeviceSharedDofCommunicator::Op::Max);
       gdof_attr.HostReadWrite();
    }
@@ -773,7 +773,7 @@ void ParGridFunction::ProjectDiscCoefficient(
    HypreParVector *tv = pfes->NewTrueDofVector();
    if (pfes->UseDeviceSharedDofComm())
    {
-      const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
+      const auto *dof_comm = pfes->GroupComm().GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(gdof_attr, DeviceSharedDofCommunicator::Op::Sum);
       gdof_attr.HostRead();
       HostReadWrite();
@@ -809,7 +809,7 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    // Count the zones globally.
    if (pfes->UseDeviceSharedDofComm())
    {
-      const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
+      const auto *dof_comm = pfes->GroupComm().GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(zones_per_vdof, DeviceSharedDofCommunicator::Op::Sum);
       dof_comm->ReduceAndBcast(*this, DeviceSharedDofCommunicator::Op::Sum);
       zones_per_vdof.HostRead();
@@ -844,7 +844,7 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    // Count the zones globally.
    if (pfes->UseDeviceSharedDofComm())
    {
-      const auto *dof_comm = pfes->GetDeviceSharedDofCommunicator();
+      const auto *dof_comm = pfes->GroupComm().GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(zones_per_vdof, DeviceSharedDofCommunicator::Op::Sum);
       dof_comm->ReduceAndBcast(*this, DeviceSharedDofCommunicator::Op::Sum);
       zones_per_vdof.HostRead();

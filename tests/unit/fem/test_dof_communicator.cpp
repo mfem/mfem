@@ -104,7 +104,7 @@ TEST_CASE("DeviceSharedDofCommunicator", "[Parallel][GPU]")
       Vector x(pfes.GetVSize());
       x = real_t(rank);
 
-      const auto *dof_comm = pfes.GetDeviceSharedDofCommunicator();
+      const auto *dof_comm = pfes.GroupComm().GetDeviceSharedDofCommunicator();
       dof_comm->ReduceAndBcast(x, op);
       x.HostRead();
 

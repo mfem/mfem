@@ -25,8 +25,6 @@ namespace mfem
 {
 
 struct ParDerefineMatrixOp;
-class DeviceSharedDofCommunicator;
-namespace internal { class DeviceNeighborDofComm; }
 
 /// Abstract parallel finite element space.
 class ParFiniteElementSpace : public FiniteElementSpace
@@ -107,8 +105,6 @@ private:
    mutable SparseMatrix *R;
    /// Optimized action-only restriction operator for conforming meshes. Owned.
    mutable Operator *Rconf;
-   /// Optimized device shared-DOF communicator for conforming meshes. Owned.
-   mutable std::unique_ptr<DeviceSharedDofCommunicator> DofComm;
 
    /// Flag indicating the existence of shared triangles with interior ND dofs
    bool nd_strias;
@@ -433,8 +429,8 @@ public:
    /** @brief Return a device-friendly communicator for shared scalar dof
        reductions on conforming spaces.
 
-       The returned object is owned by the ParFiniteElementSpace and remains
-       valid until the space is updated or destroyed.
+       The returned object is owned by the internal GroupCommunicator and
+       remains valid until the space is updated or destroyed.
    */
    const DeviceSharedDofCommunicator *GetDeviceSharedDofCommunicator() const;
 
@@ -652,7 +648,7 @@ protected:
 
 public:
    DeviceConformingProlongationOperator(
-      const GroupCommunicator &gc_, const SparseMatrix *R, bool local_=false);
+      int lsize, const GroupCommunicator &gc_, bool local_=false);
 
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
                                         bool local_=false);
@@ -668,82 +664,6 @@ public:
 
    void AbsMultTranspose(const Vector &x, Vector &y) const override
    { MultTranspose(x,y); }
-};
-
-/** @brief Auxiliary device-aware communicator for shared scalar dof
-    reductions on conforming ParFiniteElementSpaces.
-
-    This class uses DeviceNeighborDofComm and applies reduction operations
-    such as sum, min, and max over shared dofs instead of a linear operator.
-
-    Communication uses device buffers when GPU-aware MPI is enabled. Otherwise,
-    only the compact send/receive buffers are staged through host memory while
-    packing, local reduction, and scattering remain device-friendly. */
-class DeviceSharedDofCommunicator
-{
-public:
-   /// Reduction operation applied to shared dof values.
-   enum class Op { Sum, Min, Max };
-
-protected:
-   mutable Array<real_t> shr_buf, ext_buf, true_buf;
-   std::unique_ptr<internal::DeviceNeighborDofComm> nbr_comm;
-
-   // Pack external local dof values into the neighbor send buffer.
-   template <typename T>
-   void ReduceBeginCopy(const Array<T> &x_ldof, Array<T> &ext_buf_t) const;
-   // Copy owned local dof values into the true-dof output vector.
-   template <typename T>
-   void ReduceLocalCopy(const Array<T> &x_ldof, Array<T> &x_tdof) const;
-   // Combine received shared values into the true-dof output vector.
-   template <typename T>
-   void ReduceEndAssemble(const Array<T> &shr_buf_t,
-                          Array<T> &x_tdof, Op op) const;
-
-   // Pack owned shared true dofs into the neighbor send buffer.
-   template <typename T>
-   void BcastBeginCopy(const Array<T> &x_tdof, Array<T> &shr_buf_t) const;
-   // Scatter the owned true dofs to their local copies before MPI receives.
-   template <typename T>
-   void BcastLocalCopy(const Array<T> &x_tdof, Array<T> &x_ldof) const;
-   // Scatter received neighbor values to external local dof entries.
-   template <typename T>
-   void BcastEndCopy(const Array<T> &ext_buf_t, Array<T> &x_ldof) const;
-
-public:
-   /// Construct from a conforming parallel finite element space.
-   DeviceSharedDofCommunicator(const ParFiniteElementSpace &pfes);
-
-   ~DeviceSharedDofCommunicator();
-
-   /** @brief Reduce local dof values to the owning true/shared dof entries.
-
-       The input @a x_ldof is a local dof array and the result is written to
-       @a x_tdof, which must be sized on the true dofs of the associated
-       space. */
-   template <typename T>
-   void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
-   /// Convenience version for Vectors.
-   void Reduce(const Vector &x_ldof, Vector &x_tdof, Op op) const;
-
-   /** @brief Broadcast true/shared dof values to all local dof copies.
-
-       The input @a x_tdof is a true dof array and the result is written to
-       @a x_ldof, which must be sized on the local dofs of the associated
-       space. */
-   template <typename T>
-   void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
-   /// Convenience version for Vectors.
-   void Bcast(const Vector &x_tdof, Vector &x_ldof) const;
-
-   /** @brief In-place shared-dof reduction followed by broadcast.
-
-       This operation replaces each shared local dof value in @a x_ldof with
-       the reduced value over all of its copies. */
-   template <typename T>
-   void ReduceAndBcast(Array<T> &x_ldof, Op op) const;
-   /// Convenience version for Vectors.
-   void ReduceAndBcast(Vector &x_ldof, Op op) const;
 };
 
 }

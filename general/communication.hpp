@@ -17,6 +17,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "array.hpp"
+#include "forall.hpp"
 #include "table.hpp"
 #include "sets.hpp"
 #include "globals.hpp"
@@ -33,6 +34,15 @@
 
 namespace mfem
 {
+
+class Vector;
+class DeviceSharedDofCommunicator;
+template <typename Type> struct MPITypeMap;
+
+namespace internal
+{
+class DeviceNeighborDofComm;
+}
 
 /** @brief A simple singleton class that calls MPI_Init() at construction and
     MPI_Finalize() at destruction. It also provides easy access to
@@ -231,6 +241,8 @@ public:
     GroupTopology with arbitrary-size data associated with each group. */
 class GroupCommunicator
 {
+   friend class internal::DeviceNeighborDofComm;
+
 public:
    /// Communication mode.
    enum Mode
@@ -255,6 +267,10 @@ protected:
    int *request_marker;
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
+   Array<int> ltdof_ldof;
+   mutable DeviceSharedDofCommunicator *device_shared_dof_comm;
+   bool device_shared_dof_comm_enabled;
+   bool have_ltdof_ldof;
 
 public:
    /// Construct a GroupCommunicator object.
@@ -284,6 +300,12 @@ public:
    /** This method must be called before performing operations that use local
        data layout 2, see CopyGroupToBuffer() for layout descriptions. */
    void SetLTDofTable(const Array<int> &ldof_ltdof);
+
+   /// Enable or disable the device shared-dof communicator path.
+   void SetDeviceSharedDofSupport(bool enable);
+
+   /// Return a cached device-friendly communicator for shared dof reductions.
+   const DeviceSharedDofCommunicator *GetDeviceSharedDofCommunicator() const;
 
    /// Get a reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() { return gtopo; }
@@ -423,6 +445,183 @@ public:
    /** @brief Destroy a GroupCommunicator object, deallocating internal data
        structures and buffers. */
    ~GroupCommunicator();
+};
+
+namespace internal
+{
+
+class DeviceNeighborDofComm
+{
+public:
+   explicit DeviceNeighborDofComm(const GroupCommunicator &gc_);
+   ~DeviceNeighborDofComm();
+
+   bool MpiGpuAware() const { return mpi_gpu_aware; }
+
+   const Array<int> &SharedLTDof() const { return shr_ltdof; }
+   const Array<int> &ExternalLDof() const { return ext_ldof; }
+   const Array<int> &LocalTDofToLDof() const { return ltdof_ldof; }
+   const Array<int> &UniqueLTDof() const { return unq_ltdof; }
+   const Array<int> &UniqueSharedOffsets() const { return unq_shr_i; }
+   const Array<int> &UniqueSharedIndices() const { return unq_shr_j; }
+
+   template <typename T, typename SendBuffer, typename RecvBuffer>
+   int ExchangeSharedToExternal(const SendBuffer &shr_buf,
+                                RecvBuffer &ext_buf,
+                                int tag) const
+   {
+      return Exchange<T>(shr_buf, shr_buf_offsets, ext_buf, ext_buf_offsets,
+                         tag);
+   }
+
+   template <typename T, typename SendBuffer, typename RecvBuffer>
+   int ExchangeExternalToShared(const SendBuffer &ext_buf,
+                                RecvBuffer &shr_buf,
+                                int tag) const
+   {
+      return Exchange<T>(ext_buf, ext_buf_offsets, shr_buf, shr_buf_offsets,
+                         tag);
+   }
+
+   void WaitAll(int req_counter) const
+   {
+      MPI_Waitall(req_counter, requests.GetData(), MPI_STATUSES_IGNORE);
+   }
+
+private:
+   template <typename T, typename SendBuffer, typename RecvBuffer>
+   int Exchange(const SendBuffer &send_buf, const Memory<int> &send_offsets,
+                RecvBuffer &recv_buf, const Memory<int> &recv_offsets,
+                int tag) const
+   {
+      const GroupTopology &gtopo = gc.GetGroupTopology();
+      int req_counter = 0;
+      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+      {
+         const int send_offset = send_offsets[nbr];
+         const int send_size = send_offsets[nbr+1] - send_offset;
+         if (send_size > 0)
+         {
+            auto send_ptr = mpi_gpu_aware ? send_buf.Read() : send_buf.HostRead();
+            MPI_Isend(send_ptr + send_offset, send_size, MPITypeMap<T>::mpi_type,
+                      gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
+                      &requests[req_counter++]);
+         }
+         const int recv_offset = recv_offsets[nbr];
+         const int recv_size = recv_offsets[nbr+1] - recv_offset;
+         if (recv_size > 0)
+         {
+            auto recv_ptr = mpi_gpu_aware ? recv_buf.Write() : recv_buf.HostWrite();
+            MPI_Irecv(recv_ptr + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
+                      gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
+                      &requests[req_counter++]);
+         }
+      }
+      return req_counter;
+   }
+
+   const GroupCommunicator &gc;
+   bool mpi_gpu_aware;
+   Array<int> shr_ltdof, ext_ldof;
+   Memory<int> shr_buf_offsets, ext_buf_offsets;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
+   mutable Array<MPI_Request> requests;
+};
+
+template <typename InBuffer, typename OutBuffer>
+void DeviceNeighborDofExtract(const Array<int> &indices,
+                              const InBuffer &xin,
+                              OutBuffer &xout)
+{
+   MFEM_ASSERT(indices.Size() == xout.Size(), "incompatible sizes!");
+   auto y = xout.Write();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   });
+}
+
+template <typename InBuffer, typename OutBuffer>
+void DeviceNeighborDofSet(const Array<int> &indices,
+                          const InBuffer &xin,
+                          OutBuffer &xout)
+{
+   MFEM_ASSERT(indices.Size() == xin.Size(), "incompatible sizes!");
+   auto y = xout.ReadWrite();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
+}
+
+template <typename SrcBuffer, typename DstBuffer>
+void DeviceNeighborDofAdd(const Array<int> &unique_dst_indices,
+                          const Array<int> &unique_to_src_offsets,
+                          const Array<int> &unique_to_src_indices,
+                          const SrcBuffer &src,
+                          DstBuffer &dst)
+{
+   auto y = dst.ReadWrite();
+   const auto x = src.Read();
+   const auto DST_I = unique_dst_indices.Read();
+   const auto SRC_O = unique_to_src_offsets.Read();
+   const auto SRC_I = unique_to_src_indices.Read();
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int dst_idx = DST_I[i];
+      real_t sum = y[dst_idx];
+      const int end = SRC_O[i+1];
+      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
+      y[dst_idx] = sum;
+   });
+}
+
+} // namespace internal
+
+class DeviceSharedDofCommunicator
+{
+public:
+   enum class Op { Sum, Min, Max };
+
+protected:
+   mutable Array<real_t> shr_buf, ext_buf, true_buf;
+   internal::DeviceNeighborDofComm *nbr_comm;
+
+   template <typename T>
+   void ReduceBeginCopy(const Array<T> &x_ldof, Array<T> &ext_buf_t) const;
+   template <typename T>
+   void ReduceLocalCopy(const Array<T> &x_ldof, Array<T> &x_tdof) const;
+   template <typename T>
+   void ReduceEndAssemble(const Array<T> &shr_buf_t,
+                          Array<T> &x_tdof, Op op) const;
+
+   template <typename T>
+   void BcastBeginCopy(const Array<T> &x_tdof, Array<T> &shr_buf_t) const;
+   template <typename T>
+   void BcastLocalCopy(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+   template <typename T>
+   void BcastEndCopy(const Array<T> &ext_buf_t, Array<T> &x_ldof) const;
+
+public:
+   explicit DeviceSharedDofCommunicator(const GroupCommunicator &gc);
+   ~DeviceSharedDofCommunicator();
+
+   template <typename T>
+   void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
+   void Reduce(const Vector &x_ldof, Vector &x_tdof, Op op) const;
+
+   template <typename T>
+   void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+   void Bcast(const Vector &x_tdof, Vector &x_ldof) const;
+
+   template <typename T>
+   void ReduceAndBcast(Array<T> &x_ldof, Op op) const;
+   void ReduceAndBcast(Vector &x_ldof, Op op) const;
 };
 
 /// General MPI message tags used by MFEM
