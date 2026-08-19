@@ -1044,6 +1044,8 @@ inline void ForallWrap(const bool use_dev, const int N,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
+   internal::RequireKernelCompilation();
+
    MFEM_CONTRACT_VAR(X);
    MFEM_CONTRACT_VAR(Y);
    MFEM_CONTRACT_VAR(Z);
@@ -1276,12 +1278,16 @@ inline void hypre_forall_cpu(int N, lambda &&body)
 template<typename lambda>
 inline void hypre_forall_gpu(int N, lambda &&body)
 {
+   internal::RequireKernelCompilation();
+
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
 #if defined(HYPRE_USING_CUDA)
    CuWrap1D(N, body);
 #elif defined(HYPRE_USING_HIP)
    HipWrap1D(N, body);
 #else
 #error Unknown HYPRE GPU backend!
+#endif
 #endif
 }
 #endif
