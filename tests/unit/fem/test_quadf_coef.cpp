@@ -361,3 +361,57 @@ TEST_CASE("QuadratureFunction::ProjectGridFunction",
       compare_qf_to_coeff(qf, coeff);
    }
 }
+
+TEST_CASE("QuadratureFunction::ProjectGridFunction Integral",
+          "[Coefficient][QuadratureFunction]")
+{
+   const int order = GENERATE(1, 2);
+   const auto mesh_fname =
+      GENERATE("../../data/star.mesh", "../../data/star-mixed.mesh",
+               "../../data/fichera.mesh", "../../data/fichera-mixed.mesh",
+               "../../data/inline-tri.mesh", "../../data/inline-tet.mesh",
+               "../../data/inline-wedge.mesh", "../../data/inline-pyramid.mesh",
+               "../../data/ball-nurbs.mesh");
+   CAPTURE(order, mesh_fname);
+
+   Mesh mesh(mesh_fname);
+   if (mesh.NURBSext)
+   {
+      mesh.UniformRefinement();
+      mesh.SetCurvature(2);
+   }
+   L2_FECollection fec(order, mesh.Dimension(), BasisType::GaussLegendre,
+                       FiniteElement::INTEGRAL);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   GridFunction gf(&fes);
+   gf.Randomize(1);
+   GridFunctionCoefficient coeff(&gf);
+
+   auto compare_qf_to_coeff = [](QuadratureFunction &qf, Coefficient &coeff)
+   {
+      auto &qs = *qf.GetSpace();
+      for (int i = 0; i < qs.GetNE(); ++i)
+      {
+         const IntegrationRule &ir = qs.GetIntRule(i);
+         ElementTransformation &T = *qs.GetTransformation(i);
+         Vector values;
+         qf.GetValues(i, values);
+         for (int iq = 0; iq < ir.Size(); ++iq)
+         {
+            const int iq_p = qs.GetPermutedIndex(i, iq);
+            const IntegrationPoint &ip = ir[iq];
+            T.SetIntPoint(&ip);
+            REQUIRE(coeff.Eval(T, ip) == MFEM_Approx(values[iq_p]));
+         }
+      }
+   };
+
+   SECTION("QuadratureSpace")
+   {
+      QuadratureSpace qs(&mesh, order + 1);
+      QuadratureFunction qf(qs);
+      coeff.Project(qf);
+      compare_qf_to_coeff(qf, coeff);
+   }
+}
