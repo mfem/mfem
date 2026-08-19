@@ -442,16 +442,15 @@ real_t compute_mass(ParGridFunction &gf, real_t oldmass, string prefix,
 {
    ParFiniteElementSpace &fes = *gf.ParFESpace();
    Mesh &mesh = *fes.GetMesh();
-   const int order = 2*fes.GetMaxElementOrder()
-                     + mesh.GetTypicalElementTransformation()->OrderW()
-                     + mass_coeff.order;
+
+   // Integration order is a * (element order) + b.
+   const int a = 2;
+   const int b = mesh.GetTypicalElementTransformation()->OrderW() +
+                 mass_coeff.order;
 
    ConstantCoefficient one(1.0);
-   DomainLFIntegrator *integ = mass_coeff
-                               ? new DomainLFIntegrator(*mass_coeff.coeff)
-                               : new DomainLFIntegrator(one);
-   integ->SetIntegrationRule(
-      IntRules.Get(mesh.GetTypicalElementGeometry(), order));
+   Coefficient &coeff = mass_coeff ? *mass_coeff.coeff : one;
+   DomainLFIntegrator *integ = new DomainLFIntegrator(coeff, a, b);
 
    ParLinearForm lf(&fes);
    lf.AddDomainIntegrator(integ);
