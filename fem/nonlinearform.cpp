@@ -53,6 +53,22 @@ void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
    }
 }
 
+void NonlinearForm::SetEssentialBC(const Array<int> &bdr_attr_is_ess,
+                                   const Array2D<bool> &bdr_component,
+                                   Vector *rhs)
+{
+   // virtual call, works in parallel too
+   fes->GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list, bdr_component);
+
+   if (rhs)
+   {
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         (*rhs)(ess_tdof_list[i]) = 0.0;
+      }
+   }
+}
+
 void NonlinearForm::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
 {
    if (!P)
