@@ -35,9 +35,13 @@ template <typename T>
 struct tensor<T>
 {
    using type = T;
+   using c_array_type = T;
    static constexpr int rank() { return 0; }
    static constexpr auto sizes_array() { return std::array<int,0> {}; }
    static constexpr int size(int) { return 1; }
+
+   constexpr tensor() = default;
+   constexpr tensor(const T &val) : value(val) { }
 
    MFEM_HOST_DEVICE constexpr T& operator[](int) { return value; }
    MFEM_HOST_DEVICE constexpr const T& operator[](int) const { return value; }
@@ -58,8 +62,13 @@ struct tensor<T, N0, Ns...>
    static_assert(N0 >= 0);
 
    using type = T;
-   using sub_tensor_type =
-      std::conditional_t<(sizeof...(Ns) > 0), tensor<T, Ns...>, T>;
+   using sub_tensor_type = std::conditional_t<
+                           (sizeof...(Ns) > 0), tensor<T, Ns...>, T>;
+   using c_subarray_type = std::conditional_t<
+                           (sizeof...(Ns) > 0),
+                           typename tensor<T, Ns...>::c_array_type,
+                           T>;
+   using c_array_type = c_subarray_type[N0 ? N0 : 1];
 
    static constexpr int rank() { return 1 + sizeof...(Ns); }
 
@@ -69,6 +78,14 @@ struct tensor<T, N0, Ns...>
    }
 
    static constexpr int size(int k) { return sizes_array()[k]; }
+
+   constexpr tensor() = default;
+
+   constexpr tensor(const c_array_type &a)
+      : tensor(a, std::make_index_sequence<N0> {}) { }
+
+   constexpr tensor(std::initializer_list<c_subarray_type> ilist)
+      : tensor(ilist, std::make_index_sequence<N0> {}) { }
 
    MFEM_HOST_DEVICE constexpr auto& operator[](int i) { return values[i]; }
 
@@ -97,6 +114,18 @@ struct tensor<T, N0, Ns...>
 
    // Use std::array to support N0 = 0.
    std::array<sub_tensor_type, N0> values;
+
+private:
+   // Helper constructor from c_array_type
+   template <std::size_t... Is>
+   constexpr tensor(const c_array_type &a, std::index_sequence<Is...>)
+      : values{a[Is]...} { }
+
+   // Helper constructor from std::initializer_list<c_subarray_type>
+   template <std::size_t... Is>
+   constexpr tensor(std::initializer_list<c_subarray_type> a,
+                    std::index_sequence<Is...>)
+      : values{a.begin()[Is]...} { }
 };
 
 
