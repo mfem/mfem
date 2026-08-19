@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
    FunctionCoefficient q0(q0_function); 
    real_t dt_diffusion_term = dt*diffusion_term; 
    
-   // 11. Construct the Objective Function 
+   // 11. Construct the Objective Function  
    RectangularIndicator indicator(0, 1, 0, 1); 
    ParGridFunction one_gf(fes);
    ConstantCoefficient one_cf(1.0);

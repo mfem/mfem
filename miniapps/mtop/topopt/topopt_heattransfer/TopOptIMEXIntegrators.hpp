@@ -16,7 +16,7 @@ namespace mfem
 class TopOptRKIMEXSolver : public ODESolver
 {
 protected:
-    IMEXAdvectionDiffusionSolver *f;
+    TopOptTimeDependentOperator *f;
     int num_stages;
     mfem::Array2D<real_t> A_ex; // A_ex must be num_stages+1 x num_stages + 1
     mfem::Array2D<real_t> A_imp;
@@ -35,7 +35,7 @@ protected:
     Vector y, yd, yl; // helpers
 public:
     void SetButcherTable(mfem::Array2D<real_t> &A_ex_, mfem::Array2D<real_t> &A_imp_, Vector &b_ex_, Vector &b_imp_);
-    void Init(IMEXAdvectionDiffusionSolver &f_);
+    void Init(TopOptTimeDependentOperator &f_);
     void AdjointStep(Vector &lam, Vector &x,Vector &dJdrho_tilde, real_t &t, real_t &dt);
     Vector ComboAdjointMult(real_t a1, real_t a2, real_t dt, Vector &x, real_t t, real_t ce, real_t ci, real_t bi);
 
@@ -162,7 +162,7 @@ void TopOptRKIMEXSolver::ComputeAdjointStage(Vector &v, int idx, real_t dt, real
 
 
 
-void TopOptRKIMEXSolver::Init(IMEXAdvectionDiffusionSolver &f_)
+void TopOptRKIMEXSolver::Init(TopOptTimeDependentOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
@@ -303,23 +303,6 @@ void TopOptRKIMEXSolver::AdjointStep(Vector &lam, Vector &x, Vector &dJdrho_tild
       ComputeAdjointStage(imp_l, stage+1, dt, t, y_adj);
       lam.Add(dt*b_imp(stage+1), y_adj);
       y_adj = 0.0;
-
-
-      // // adjoint
-      // f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
-      // f->SetTime(t + c_imp(stage+1)*dt);
-      // f->AdjointImplicitSolve(dt, y_adj, k);
-      // lks_imp.push_back(k);
-      // // y.Add(dt*A_imp(stage, stage), ks_imp[stage]);
-      // f->SetTime(t + c_ex(stage+1)*dt);
-      // f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
-      // f->AdjointMult(y_adj, k);
-      // lks_ex.push_back(k);
-      // lam.Add(dt*b_ex(stage+1), lks_ex[stage+1]);
-      // lam.Add(dt*b_imp(stage+1), lks_imp[stage+1]);
-      // f->SetTime(t);
-
-
 
       // state
       f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);

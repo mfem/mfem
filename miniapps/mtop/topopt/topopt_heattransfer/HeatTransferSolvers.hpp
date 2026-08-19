@@ -148,6 +148,20 @@ public:
 };
 
 
+class TopOptTimeDependentOperator : public TimeDependentOperator
+{
+   public:
+   TopOptTimeDependentOperator(int n);
+   virtual void AdjointMult(const Vector &lam, Vector &lam_rhs) const = 0;
+   virtual void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) = 0;  
+   virtual void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) = 0;
+   virtual void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) = 0; 
+};
+
+TopOptTimeDependentOperator::TopOptTimeDependentOperator(int n) : TimeDependentOperator(n)
+{}
+
+
 
 
 /** A time-dependent operator for the right-hand side of the ODE. The DG weak
@@ -155,7 +169,7 @@ public:
     , where M and K are the mass and advection matrices, and b describes the
     flow on the boundary. In the case of IMEX evolution, the diffusion term is
     treated implicitly, and the advection term is treated explicitly.  */
-class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
+class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
 {
     protected:
     // Finite Element Spaces, Operators, and Solvers
@@ -164,7 +178,6 @@ class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
     ParBilinearForm *M, *K, *S, *A; 
     mutable ParBilinearForm *Kd;
     std::unique_ptr<HypreParMatrix> M_mat, S_mat, K_mat;
-    mutable std::unique_ptr<HypreParMatrix> Kd_mat;
     mutable ParLinearForm *b;
     mutable std::unique_ptr<HypreParVector> b_vec;
     Solver *M_prec;
@@ -203,7 +216,6 @@ class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
     // misc
     int true_size;
     MPI_Comm comm;
-    bool adjoint;
 
     // Helpers
     mutable Vector z;
@@ -231,8 +243,8 @@ class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
     void Mult1(const Vector &x, Vector &y) const;
     void ImplicitSolve2(const real_t dt, const Vector &x, Vector &k);
     void JacobianMult1Transpose(const Vector &lam, Vector &lam_rhs) const;
-    void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde);
-    void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde); 
+    void ExplicitMultDesignGradient(const real_t dt, Vector &dual_vector, Vector &x, Vector &dgdrho_tilde) override;
+    void ImplicitSolveDesignGradient(const real_t dt_pass, const real_t a, Vector &dual_vector, Vector &x, Vector &dfdrho_tilde) override; 
     void AdjointImplicitSolve2(const real_t dt, const Vector &lam, Vector &k);
     void Mult(const Vector &x, Vector &y) const override
     {
@@ -242,11 +254,11 @@ class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
     {
         ImplicitSolve2(dt_pass,x,k);
     }
-    void AdjointMult(const Vector &lam, Vector &lam_rhs) const
+    void AdjointMult(const Vector &lam, Vector &lam_rhs) const override
     {
         JacobianMult1Transpose(lam, lam_rhs);
     }
-    void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) 
+    void AdjointImplicitSolve(const real_t dt_pass, const Vector &lam, Vector &k) override
     {
         AdjointImplicitSolve2(dt_pass,lam,k);
     }
@@ -268,8 +280,6 @@ class IMEXAdvectionDiffusionSolver : public TimeDependentOperator
         
 
     void SetTrajectory(ForwardTrajectoryStorage *traj) { trajectory = traj; }
-
-    void TakeAdjoint(){ adjoint = true; }
 
     // void SetObjective(HeatTransferObjectiveFunction obj) { objective = obj; }
 
@@ -330,7 +340,7 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
         Array<int> &inflow_bdr_attr_,
         Array<int> &ess_bdr_attr_, 
         HeatTransferObjectiveFunction *obj = nullptr)
-   : TimeDependentOperator(fes_.GetTrueVSize()), 
+   : TopOptTimeDependentOperator(fes_.GetTrueVSize()), 
    fespace(&fes_), 
    dt_diff_term(dt_diff_term_),
    q0(q0_),
@@ -348,7 +358,6 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
    dt(dt_),
    SIMP_cf(SIMP_cf_)
 {
-   adjoint = false;
    int order = fespace->GetOrder(0);
    kappa = (order + 1)*(order + 1);
    int myid = Mpi::WorldRank();

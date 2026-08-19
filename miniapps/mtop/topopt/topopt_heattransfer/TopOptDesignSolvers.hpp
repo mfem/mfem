@@ -203,7 +203,6 @@ namespace mfem
       lam_vec *= -1.0;
       lam_gf.SetFromTrueDofs(lam_vec);
       oper->SetStep(nsteps);
-      oper->TakeAdjoint();
       ode_solver->Init(*oper);
       ParaViewDataCollection *pd_adj = NULL;
       if (paraview_vis)
