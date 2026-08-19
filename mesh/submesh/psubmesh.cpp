@@ -14,7 +14,6 @@
 #ifdef MFEM_USE_MPI
 
 #include <iostream>
-#include <unordered_set>
 #include <algorithm>
 #include "psubmesh.hpp"
 #include "pncsubmesh.hpp"
@@ -27,18 +26,34 @@ namespace mfem
 ParSubMesh ParSubMesh::CreateFromDomain(const ParMesh &parent,
                                         const Array<int> &domain_attributes)
 {
-   return ParSubMesh(parent, SubMesh::From::Domain, domain_attributes);
+   return ParSubMesh(parent, From::Domain, domain_attributes);
+}
+
+ParSubMesh ParSubMesh::CreateFromElements(const ParMesh &parent,
+                                          const Array<int> &element_list)
+{
+   return ParSubMesh(parent, From::Domain, {}, element_list);
 }
 
 ParSubMesh ParSubMesh::CreateFromBoundary(const ParMesh &parent,
                                           const Array<int> &boundary_attributes)
 {
-   return ParSubMesh(parent, SubMesh::From::Boundary, boundary_attributes);
+   return ParSubMesh(parent, From::Boundary, boundary_attributes);
 }
 
-ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
-                       const Array<int> &attributes) : parent_(parent), from_(from),
-   attributes_(attributes)
+ParSubMesh ParSubMesh::CreateFromBdrElements(const ParMesh &parent,
+                                             const Array<int> &element_list)
+{
+   return ParSubMesh(parent, From::Boundary, {}, element_list);
+}
+
+ParSubMesh::ParSubMesh(const ParMesh &parent, From from,
+                       const Array<int> &attributes,
+                       const Array<int> &element_list) :
+   parent_(parent),
+   from_(from),
+   attributes_(attributes),
+   element_list_(element_list)
 {
    MyComm = parent.GetComm();
    NRanks = parent.GetNRanks();
@@ -54,17 +69,17 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    {
       InitMesh(parent.Dimension(), parent.SpaceDimension(), 0, 0, 0);
 
-      std::tie(parent_vertex_ids_,
-               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent_, *this,
-                                                                      attributes_);
+      std::tie(parent_vertex_ids_, parent_element_ids_) =
+         SubMeshUtils::AddElementsToMesh(
+            parent_, *this, attributes_, element_list_, false);
    }
    else if (from == SubMesh::From::Boundary)
    {
       InitMesh(parent.Dimension() - 1, parent.SpaceDimension(), 0, 0, 0);
 
-      std::tie(parent_vertex_ids_,
-               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent_, *this,
-                                                                      attributes_, true);
+      std::tie(parent_vertex_ids_, parent_element_ids_) =
+         SubMeshUtils::AddElementsToMesh(
+            parent_, *this, attributes_, element_list_, true);
    }
 
    parent_to_submesh_vertex_ids_.SetSize(parent_.GetNV());
