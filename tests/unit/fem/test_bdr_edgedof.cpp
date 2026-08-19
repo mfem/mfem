@@ -189,9 +189,9 @@ real_t ComputeBoundaryLoopLength(ParMesh* pmesh, const Array<int>& dof_edges)
       const real_t* v1 = pmesh->GetVertex(edge_verts[1]);
 
       real_t edge_length = 0.0;
-      for (int i = 0; i < pmesh->SpaceDimension(); i++)
+      for (int d = 0; d < pmesh->SpaceDimension(); d++)
       {
-         real_t diff = v1[i] - v0[i];
+         real_t diff = v1[d] - v0[d];
          edge_length += diff * diff;
       }
       local_length += sqrt(edge_length);
