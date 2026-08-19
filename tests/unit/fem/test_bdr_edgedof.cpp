@@ -656,4 +656,48 @@ TEST_CASE("GroupCommunicatorReduceMarkedByGroupStride",
                                     real_t(2.0) * real_t(nranks)));
 }
 
+TEST_CASE("GroupCommunicatorMaxAbs", "[Parallel][GroupCommunicator]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nranks = Mpi::WorldSize();
+   if (nranks < 2) { return; }
+
+   ListOfIntegerSets groups;
+
+   IntegerSet local_group(1);
+   local_group[0] = rank;
+   groups.Insert(local_group);
+
+   IntegerSet shared_group(nranks);
+   for (int r = 0; r < nranks; r++)
+   {
+      shared_group[r] = r;
+   }
+   groups.Insert(shared_group);
+
+   GroupTopology topology(MPI_COMM_WORLD);
+   topology.Create(groups, 4983);
+
+   GroupCommunicator comm(topology, GroupCommunicator::byGroup);
+   Array<int> ldof_group(2);
+   ldof_group = 1;
+   comm.Create(ldof_group);
+
+   // The group master (rank 0) reduces the peers' contributions into its own.
+   Array<real_t> values(2);
+   // DOF 0: equal magnitude across ranks with opposite signs, with the negative
+   // value held by the master, so the opposite-sign tie must still resolve
+   // deterministically to the positive value.
+   values[0] = (rank == 0) ? real_t(-5.0) : real_t(5.0);
+   // DOF 1: the largest magnitude is negative and held by a peer, so it must
+   // win over the master's smaller positive value and keep its sign.
+   values[1] = (rank == nranks - 1) ? real_t(-10.0) : real_t(5.0);
+
+   comm.Reduce<real_t>(values.GetData(), GroupCommunicator::MaxAbs<real_t>);
+   comm.Bcast(values);
+
+   REQUIRE(values[0] == MFEM_Approx(real_t(5.0)));
+   REQUIRE(values[1] == MFEM_Approx(real_t(-10.0)));
+}
+
 #endif // MFEM_USE_MPI

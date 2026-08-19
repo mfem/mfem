@@ -419,9 +419,9 @@ public:
    template <class T> static void BitOR(OpData<T>);
    /// Reduce operation selecting the signed value with the largest absolute
    /// value, instantiated for int, double and float. The result keeps its sign;
-   /// it is not the non-negative absolute value. Ties are broken deterministically
-   /// via a strict "greater magnitude" test: equal-magnitude contributions keep
-   /// the value already accumulated at the master (first in reduction order).
+   /// it is not the non-negative absolute value. Equal-magnitude ties are
+   /// broken deterministically toward the more positive value, so opposite-sign
+   /// ties resolve to the positive one regardless of accumulation order.
    template <class T> static void MaxAbs(OpData<T>);
 
    /** @brief Finalize reduction operation started with ReduceBegin(), but only apply

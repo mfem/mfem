@@ -1317,7 +1317,9 @@ void GroupCommunicator::MaxAbs(OpData<T> opd)
          T b = opd.buf[j*opd.nldofs+i];
          T abs_b = std::abs(b);
 
-         if (abs_data < abs_b)
+         // On an equal-magnitude tie keep the more positive value, so
+         // opposite-sign ties resolve deterministically to the positive one.
+         if (abs_data < abs_b || (abs_data == abs_b && data < b))
          {
             data = b;
             abs_data = abs_b;

@@ -59,6 +59,10 @@ Discretization improvements
   result is partition invariant. This is useful for imposing boundary conditions
   on boundary edge DOFs.
 
+- Added a MaxAbs reduction to GroupCommunicator that selects the signed value of
+  largest magnitude across a group, keeping its sign. Equal-magnitude ties
+  resolve deterministically to the positive value.
+
 Meshing improvements
 --------------------
 - Added support for nonuniform anisotropic mesh refinement on parallel quad/hex
