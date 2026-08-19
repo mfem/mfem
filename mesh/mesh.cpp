@@ -1984,6 +1984,8 @@ void Mesh::Destroy()
    bdr_face_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
+   attribute_sets.attr_sets.DeleteAll();
+   bdr_attribute_sets.attr_sets.DeleteAll();
 
    face_indices[0].DeleteAll();
    face_indices[1].DeleteAll();
