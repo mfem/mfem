@@ -680,6 +680,62 @@ public:
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
+/** Boundary linear form integrator for imposing non-zero Dirichlet boundary
+    conditions, in a Nitsche elasticity formulation. Specifically, the linear
+    form is given by
+    $$
+    \begin{split}
+    b(v) &:= \alpha \int_\Gamma (\lambda\, \mathrm{div}(v)\, I + \mu (\nabla v
+    + \nabla v^{\mathrm{T}}))\, n \cdot \tilde{n}\, g\, dS + \kappa \int_\Gamma
+    h^{-1} (\lambda + 2\mu) (v \cdot \tilde{n})\, g\, dS
+    \end{split}
+    $$
+    where $g$ is the given Dirichlet data, $n$ is the unit normal, $\tilde{n}$ is
+    a unit vector field, and $\alpha = \pm 1$, $\kappa > 0$ are the Nitsche
+    parameters. The parameters $\lambda$ and $\mu$ should match the parameters
+    with the same names used in the bilinear form integrator,
+    SlidingElasticityIntegrator.
+ */
+class SlidingElasticityLFIntegrator : public LinearFormIntegrator
+{
+protected:
+   Coefficient *g;
+   VectorCoefficient *nt;
+   Coefficient *lambda, *mu;
+   real_t alpha, kappa;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape;
+   DenseMatrix adjJ;
+   DenseMatrix dshape_ps;
+   Vector nor;
+   Vector dshape_dn;
+   Vector dshape_du;
+   real_t g_val;
+   Vector nt_val;
+#endif
+
+public:
+   SlidingElasticityLFIntegrator(Coefficient &g_,
+                                 Coefficient &lambda_, Coefficient &mu_,
+                                 real_t kappa_)
+      : g(&g_), nt(NULL), lambda(&lambda_), mu(&mu_), alpha(-1.0), kappa(kappa_) {}
+
+   SlidingElasticityLFIntegrator(Coefficient &g_, VectorCoefficient &nt_,
+                                 Coefficient &lambda_, Coefficient &mu_,
+                                 real_t alpha_, real_t kappa_)
+      : g(&g_), nt(&nt_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) {}
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
 /** Class for spatial white Gaussian noise integration.
 
