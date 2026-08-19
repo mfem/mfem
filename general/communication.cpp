@@ -904,16 +904,27 @@ DeviceSharedDofCommunicator::~DeviceSharedDofCommunicator()
 }
 
 template <typename T>
+void MakeTypedBufferView(Array<real_t> &storage, int size, Array<T> &view)
+{
+   MFEM_ASSERT(sizeof(real_t) >= sizeof(T),
+               "internal buffer type is too small for this view");
+   const int capacity = storage.Size() * int(sizeof(real_t) / sizeof(T));
+   MFEM_ASSERT(size <= capacity, "internal buffer view exceeds capacity");
+   real_t *ptr = storage.ReadWrite();
+   view.MakeRef(reinterpret_cast<T*>(ptr), size, Device::QueryMemoryType(ptr),
+                false);
+}
+
+template <typename T>
 void DeviceSharedDofCommunicator::Reduce(const Array<T> &x_ldof,
                                          Array<T> &x_tdof,
                                          Op op) const
 {
    MFEM_ASSERT(x_tdof.Size() == nbr_comm->LocalTDofToLDof().Size(),
                "incompatible sizes!");
-   Array<T> ext_buf_t(nbr_comm->ExternalLDof().Size());
-   Array<T> shr_buf_t(nbr_comm->SharedLTDof().Size());
-   ext_buf_t.GetMemory().UseDevice(true);
-   shr_buf_t.GetMemory().UseDevice(true);
+   Array<T> ext_buf_t, shr_buf_t;
+   MakeTypedBufferView(ext_buf, nbr_comm->ExternalLDof().Size(), ext_buf_t);
+   MakeTypedBufferView(shr_buf, nbr_comm->SharedLTDof().Size(), shr_buf_t);
    ReduceBeginCopy(x_ldof, ext_buf_t);
    const int req_counter =
       nbr_comm->ExchangeExternalToShared<T>(ext_buf_t, shr_buf_t, 41827);
@@ -940,8 +951,8 @@ void DeviceSharedDofCommunicator::Reduce<real_t>(const Array<real_t> &x_ldof,
 template <typename T>
 void DeviceSharedDofCommunicator::Reduce(Array<T> &x_ldof, Op op) const
 {
-   Array<T> x_tdof(nbr_comm->LocalTDofToLDof().Size());
-   x_tdof.GetMemory().UseDevice(true);
+   Array<T> x_tdof;
+   MakeTypedBufferView(true_buf, nbr_comm->LocalTDofToLDof().Size(), x_tdof);
    Reduce(x_ldof, x_tdof, op);
    BcastLocalCopy(x_tdof, x_ldof);
 }
@@ -960,10 +971,9 @@ void DeviceSharedDofCommunicator::Bcast(const Array<T> &x_tdof,
 {
    MFEM_ASSERT(x_tdof.Size() == nbr_comm->LocalTDofToLDof().Size(),
                "incompatible sizes!");
-   Array<T> ext_buf_t(nbr_comm->ExternalLDof().Size());
-   Array<T> shr_buf_t(nbr_comm->SharedLTDof().Size());
-   ext_buf_t.GetMemory().UseDevice(true);
-   shr_buf_t.GetMemory().UseDevice(true);
+   Array<T> ext_buf_t, shr_buf_t;
+   MakeTypedBufferView(ext_buf, nbr_comm->ExternalLDof().Size(), ext_buf_t);
+   MakeTypedBufferView(shr_buf, nbr_comm->SharedLTDof().Size(), shr_buf_t);
    x_ldof.Write();
    BcastBeginCopy(x_tdof, shr_buf_t);
    const int req_counter =
@@ -991,8 +1001,8 @@ void DeviceSharedDofCommunicator::Bcast<real_t>(const Array<real_t> &x_tdof,
 template <typename T>
 void DeviceSharedDofCommunicator::Bcast(Array<T> &x_ldof) const
 {
-   Array<T> x_tdof(nbr_comm->LocalTDofToLDof().Size());
-   x_tdof.GetMemory().UseDevice(true);
+   Array<T> x_tdof;
+   MakeTypedBufferView(true_buf, nbr_comm->LocalTDofToLDof().Size(), x_tdof);
    ReduceLocalCopy(x_ldof, x_tdof);
    Bcast(x_tdof, x_ldof);
 }
