@@ -572,6 +572,7 @@ public:
 protected: // non-public interface for the Mesh class
 
    friend class Mesh;
+   friend class ParMesh;
 
    /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
    void GetMeshComponents(Mesh &mesh) const;
