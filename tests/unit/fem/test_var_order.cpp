@@ -346,31 +346,31 @@ TEST_CASE("Variable Order FiniteElementSpace",
 }
 
 TEST_CASE("GetFaceOrder on L2 Spaces",
-    "[FiniteElementSpace]"
-    "[L2_FECollection]"
-    "[NCMesh]")
+          "[FiniteElementSpace]"
+          "[L2_FECollection]"
+          "[NCMesh]")
 {
-    // Path relative to the directory tests/unit
-    const char* mesh_file = "data/star-hilbert.mesh";
-    int order = GENERATE_COPY(range(1, 11));
+   // Path relative to the directory tests/unit
+   const char* mesh_file = "data/star-hilbert.mesh";
+   int order = GENERATE_COPY(range(1, 11));
 
 
-    mfem::Mesh mesh(mesh_file);
-    auto dim = mesh.Dimension();
+   mfem::Mesh mesh(mesh_file);
+   auto dim = mesh.Dimension();
 
-    mfem::L2_FECollection flux_fec(order, dim);
-    mfem::FiniteElementSpace fespace(&mesh, &flux_fec);
+   mfem::L2_FECollection flux_fec(order, dim);
+   mfem::FiniteElementSpace fespace(&mesh, &flux_fec);
 
 #ifdef MFEM_USE_EXCEPTIONS
-    // When MFEM is built with exceptions, MFEM_ABORT throws mfem::ErrorException
-    mfem::ErrorAction prev = mfem::get_error_action();
-    mfem::set_error_action(mfem::MFEM_ERROR_THROW);
-    REQUIRE_THROWS_AS(fespace.GetFaceOrder(0), mfem::ErrorException);
-    mfem::set_error_action(prev);
+   // When MFEM is built with exceptions, MFEM_ABORT throws mfem::ErrorException
+   mfem::ErrorAction prev = mfem::get_error_action();
+   mfem::set_error_action(mfem::MFEM_ERROR_THROW);
+   REQUIRE_THROWS_AS(fespace.GetFaceOrder(0), mfem::ErrorException);
+   mfem::set_error_action(prev);
 #else
-    // Without exceptions MFEM_ABORT calls std::abort() (or MPI_Abort) and cannot
-    // be caught in-process. Skip the expectation in non-exception builds.
-    SUCCEED("MFEM built without exceptions; cannot assert MFEM_ABORT as exception");
+   // Without exceptions MFEM_ABORT calls std::abort() (or MPI_Abort) and cannot
+   // be caught in-process. Skip the expectation in non-exception builds.
+   SUCCEED("MFEM built without exceptions; cannot assert MFEM_ABORT as exception");
 #endif
 };
 

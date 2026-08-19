@@ -3392,28 +3392,29 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 
 int FiniteElementSpace::GetFaceOrder(int face, int variant) const
 {
-    if (!IsVariableOrder())
-    {
-        const int dim = mesh->Dimension();
+   if (!IsVariableOrder())
+   {
+      const int dim = mesh->Dimension();
 
-        Geometry::Type geom = mesh->GetFaceGeometry(face);
-        const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
-        if (fe == nullptr) {
-            MFEM_ABORT("GetFaceOrder is not defined for mesh dimention " << dim);
-        }
-        return fe->GetOrder();
-    }
+      Geometry::Type geom = mesh->GetFaceGeometry(face);
+      const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
+      if (fe == nullptr)
+      {
+         MFEM_ABORT("GetFaceOrder is not defined for mesh dimention " << dim);
+      }
+      return fe->GetOrder();
+   }
 
-    if (face >= var_face_dofs.Size())
-    {
-        return ghost_face_orders[face - var_face_dofs.Size()];
-    }
+   if (face >= var_face_dofs.Size())
+   {
+      return ghost_face_orders[face - var_face_dofs.Size()];
+   }
 
-    const int* beg = var_face_dofs.GetRow(face);
-    const int* end = var_face_dofs.GetRow(face + 1);
-    if (variant >= end - beg) { return -1; } // past last variant
+   const int* beg = var_face_dofs.GetRow(face);
+   const int* end = var_face_dofs.GetRow(face + 1);
+   if (variant >= end - beg) { return -1; } // past last variant
 
-    return var_face_orders[var_face_dofs.GetI()[face] + variant];
+   return var_face_orders[var_face_dofs.GetI()[face] + variant];
 }
 
 int FiniteElementSpace::GetNVariants(int entity, int index) const
