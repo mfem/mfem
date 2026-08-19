@@ -14,6 +14,7 @@
 #include "../mesh/mesh_test_utils.hpp"
 
 #include <set>
+#include <unordered_set>
 #include <vector>
 
 using namespace mfem;
@@ -78,8 +79,7 @@ TEST_CASE("BoundaryEdgeDOFsPartitionInvariant",
       // Extract boundary edge DOFs
       Array<int> ess_tdof_list;
       Array<int> boundary_edge_ldofs;
-      Array<int> ldof_marker;
-      std::unordered_map<int, Array<int>> attr_to_elements;
+      std::vector<Array<int>> attr_to_elements;
 
       // Select the shared face to be the tested boundary
       int bdr_attr = pmesh.bdr_attributes.Max();
@@ -87,12 +87,12 @@ TEST_CASE("BoundaryEdgeDOFsPartitionInvariant",
       bdr_attrs[0] = bdr_attr;
 
       fespace.GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
-      Array<int> boundary_elements = attr_to_elements[bdr_attr];
+      Array<int> boundary_elements = attr_to_elements[0];
 
       Array<int> dof_edges, dof_boundary_elements, ess_edge_list;
 
-      fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
-                                      boundary_edge_ldofs, &dof_edges,
+      fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list,
+                                      boundary_edge_ldofs, nullptr, &dof_edges,
                                       &dof_boundary_elements, &ess_edge_list);
 
       // Collect total boundary edge DOFs
@@ -141,7 +141,7 @@ TEST_CASE("BoundaryEdgeDOFsBasicFunctionality",
    Array<int> ess_tdof_list;
    Array<int> boundary_edge_ldofs;
    Array<int> ldof_marker;
-   std::unordered_map<int, Array<int>> attr_to_elements;
+   std::vector<Array<int>> attr_to_elements;
 
    // Get boundary elements for the shared face
    int bdr_attr = pmesh.bdr_attributes.Max();
@@ -149,12 +149,12 @@ TEST_CASE("BoundaryEdgeDOFsBasicFunctionality",
    bdr_attrs[0] = bdr_attr;
 
    fespace.GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
-   Array<int> boundary_elements = attr_to_elements[bdr_attr];
+   Array<int> boundary_elements = attr_to_elements[0];
 
    Array<int> dof_edges, dof_boundary_elements, ess_edge_list;
 
-   fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
-                                   boundary_edge_ldofs, &dof_edges,
+   fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list,
+                                   boundary_edge_ldofs, &ldof_marker, &dof_edges,
                                    &dof_boundary_elements, &ess_edge_list);
 
    // Basic validation
@@ -243,25 +243,20 @@ TEST_CASE("BoundaryEdgeDOFsNestedCubes",
    {
       CAPTURE(test.name, test.attr_value, order, num_procs);
 
-      std::unordered_map<int, Array<int>> attr_to_elements;
+      std::vector<Array<int>> attr_to_elements;
       Array<int> bdr_attrs(1);
       bdr_attrs[0] = test.attr_value;
 
       fespace.GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
-      if (attr_to_elements.find(test.attr_value) == attr_to_elements.end())
-      {
-         continue;
-      }
-
-      Array<int> boundary_elements = attr_to_elements[test.attr_value];
+      Array<int> boundary_elements = attr_to_elements[0];
 
       Array<int> ess_tdof_list;
       Array<int> ldof_marker;
       Array<int> boundary_edge_ldofs;
       Array<int> dof_edges, dof_boundary_elements, ess_edge_list;
 
-      fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list, ldof_marker,
-                                      boundary_edge_ldofs, &dof_edges,
+      fespace.GetBoundaryLoopEdgeDofs(boundary_elements, ess_tdof_list,
+                                      boundary_edge_ldofs, &ldof_marker, &dof_edges,
                                       &dof_boundary_elements, &ess_edge_list);
 
       Array<int> dof_orientations;
@@ -386,24 +381,19 @@ TEST_CASE("BoundaryEdgeDOFs2DSquareInSquare",
          ParFiniteElementSpace fespace(&pmesh, &fec);
 
          // Find boundary elements with the inner attribute
-         std::unordered_map<int, Array<int>> attr_to_elements;
+         std::vector<Array<int>> attr_to_elements;
          Array<int> inner_attrs(1);
          inner_attrs[0] = inner_attr;
          fespace.GetBoundaryElementsByAttribute(inner_attrs, attr_to_elements);
 
-         Array<int> inner_boundary_elements;
-         if (attr_to_elements.find(inner_attr) != attr_to_elements.end())
-         {
-            inner_boundary_elements = attr_to_elements[inner_attr];
-         }
+         Array<int> inner_boundary_elements = attr_to_elements[0];
 
          Array<int> ess_tdofs, ess_edges;
-         Array<int> ldof_marker;
          Array<int> boundary_dofs;
          Array<int> dof_edges, dof_boundary_elements;
 
-         fespace.GetBoundaryLoopEdgeDofs(inner_boundary_elements, ess_tdofs, ldof_marker,
-                                         boundary_dofs, &dof_edges,
+         fespace.GetBoundaryLoopEdgeDofs(inner_boundary_elements, ess_tdofs,
+                                         boundary_dofs, nullptr, &dof_edges,
                                          &dof_boundary_elements, &ess_edges);
 
          // The output arrays share one indexing, so their sizes must match.
@@ -473,14 +463,13 @@ TEST_CASE("BoundaryEdgeDOFsSharedDOFsAreOwnedBySomeRank",
          const int bdr_attr = pmesh.bdr_attributes.Max();
          Array<int> bdr_attrs(1);
          bdr_attrs[0] = bdr_attr;
-         std::unordered_map<int, Array<int>> attr_to_elements;
+         std::vector<Array<int>> attr_to_elements;
          fes.GetBoundaryElementsByAttribute(bdr_attrs, attr_to_elements);
-         Array<int> bdr_elements = attr_to_elements[bdr_attr];
+         Array<int> bdr_elements = attr_to_elements[0];
 
-         Array<int> ess_tdofs, ldof_marker;
+         Array<int> ess_tdofs;
          Array<int> boundary_dofs;
-         fes.GetBoundaryLoopEdgeDofs(bdr_elements, ess_tdofs, ldof_marker,
-                                     boundary_dofs);
+         fes.GetBoundaryLoopEdgeDofs(bdr_elements, ess_tdofs, boundary_dofs);
 
          // Identify DOFs by global true DOF number, which is agreed upon by all
          // ranks sharing the DOF, then compare the set selected anywhere with
@@ -599,9 +588,9 @@ TEST_CASE("BoundaryEdgeDOFs2DLoopVertexDOFsPartitionInvariant",
          local_bdr_elements[i] = i;
       }
 
-      Array<int> ess_tdofs, ldof_marker;
+      Array<int> ess_tdofs;
       Array<int> local_boundary_dofs;
-      pfes.GetBoundaryLoopEdgeDofs(local_bdr_elements, ess_tdofs, ldof_marker,
+      pfes.GetBoundaryLoopEdgeDofs(local_bdr_elements, ess_tdofs,
                                    local_boundary_dofs);
 
       // The true DOFs are owned by exactly one rank each, so summing the local

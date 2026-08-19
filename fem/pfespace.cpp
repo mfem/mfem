@@ -26,6 +26,8 @@
 
 #include <limits>
 #include <list>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace mfem
 {
@@ -1288,8 +1290,8 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
 void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    const Array<int> &boundary_element_indices,
    Array<int> &ess_tdof_list,
-   Array<int> &ldof_marker,
    Array<int> &boundary_edge_dofs_out,
+   Array<int> *ldof_marker,
    Array<int> *dof_edges,
    Array<int> *dof_boundary_elements,
    Array<int> *ess_edge_list)
@@ -1509,13 +1511,15 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
       ess_edge_list->SetSize(0);
       ess_edge_list->Reserve(boundary_edge_dofs.size());
    }
-   // initialize ldof_marker
-   ldof_marker.SetSize(GetVSize());
-   ldof_marker = 0;
+   // Marker of the boundary edge DOFs. Always computed locally because the
+   // parallel reconciliation below needs it; only copied to the caller's output
+   // if requested (see the ldof_marker parameter).
+   Array<int> local_ldof_marker(GetVSize());
+   local_ldof_marker = 0;
 
    for (int dof : boundary_edge_dofs)
    {
-      ldof_marker[dof] = 1; // Mark all boundary edge dofs
+      local_ldof_marker[dof] = 1; // Mark all boundary edge dofs
    }
 
    // Make sure that a selected shared DOF is marked on every rank of its
@@ -1524,7 +1528,7 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    // without this the true DOF would be emitted by no rank at all: the
    // non-master ranks get -1 from GetLocalTDofNumber(), while the master may
    // not have selected the DOF locally.
-   Synchronize(ldof_marker);
+   Synchronize(local_ldof_marker);
 
    // A DOF marked only through the synchronization above has no local
    // dof_to_edge_map entry, but the shared edge carrying it is still present in
@@ -1552,9 +1556,9 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
    std::vector<std::pair<int, int>> tdof_edge_pairs;
    tdof_edge_pairs.reserve(boundary_edge_dofs.size());
 
-   for (int dof = 0; dof < ldof_marker.Size(); dof++)
+   for (int dof = 0; dof < local_ldof_marker.Size(); dof++)
    {
-      if (!ldof_marker[dof]) { continue; }
+      if (!local_ldof_marker[dof]) { continue; }
 
       const int tdof = GetLocalTDofNumber(dof);
       if (tdof < 0) { continue; } // tdof == -1 means not owned by this rank
@@ -1615,6 +1619,8 @@ void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
          dof_boundary_elements->Append(dof_to_boundary_element[dof]);
       }
    }
+
+   if (ldof_marker) { ldof_marker->Swap(local_ldof_marker); }
 }
 
 void ParFiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,

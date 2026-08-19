@@ -22,7 +22,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
-#include <unordered_set>
 #include <unordered_map>
 
 using namespace std;
@@ -4623,22 +4622,27 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
 
 void FiniteElementSpace::GetBoundaryElementsByAttribute(
    const Array<int> &bdr_attrs,
-   std::unordered_map<int, Array<int>> &attr_to_elements)
+   std::vector<Array<int>> &attr_to_elements)
 {
-   // Initialize arrays for each attribute
+   // One (initially empty) list of boundary elements per requested attribute,
+   // indexed to match bdr_attrs.
+   attr_to_elements.assign(bdr_attrs.Size(), Array<int>());
+
+   // Map attribute value -> position in bdr_attrs for quick lookup.
+   std::unordered_map<int, int> attr_to_index;
    for (int i = 0; i < bdr_attrs.Size(); ++i)
    {
-      attr_to_elements[bdr_attrs[i]] = Array<int>();
+      attr_to_index[bdr_attrs[i]] = i;
    }
 
-   // Find boundary elements for each attribute
+   // Bucket boundary elements by their attribute.
    for (int i = 0; i < mesh->GetNBE(); ++i)
    {
       int attr = mesh->GetBdrElement(i)->GetAttribute();
-      auto it = attr_to_elements.find(attr);
-      if (it != attr_to_elements.end())
+      auto it = attr_to_index.find(attr);
+      if (it != attr_to_index.end())
       {
-         it->second.Append(i);
+         attr_to_elements[it->second].Append(i);
       }
    }
 }

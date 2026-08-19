@@ -20,8 +20,6 @@
 #include "../mesh/pmesh.hpp"
 #include "../mesh/nurbs.hpp"
 #include "fespace.hpp"
-#include <unordered_map>
-#include <unordered_set>
 
 namespace mfem
 {
@@ -477,8 +475,9 @@ public:
        - Mesh dimension must be >= 2
        @param[in]  boundary_element_indices Array of boundary element indices.
        @param[out] ess_tdof_list Essential true DOF indices, sorted ascending.
-       @param[out] ldof_marker Marks which local DOFs are boundary edge DOFs.
        @param[out] boundary_edge_dofs_out Local boundary-loop DOF indices.
+       @param[out] ldof_marker Optional; marker of the boundary edge DOFs,
+                   derivable from @a boundary_edge_dofs_out via ListToMarker().
        @param[out] dof_edges Optional; local edge index of each DOF.
        @param[out] dof_boundary_elements Optional; a boundary element containing
                    each DOF.
@@ -490,8 +489,8 @@ public:
                                  boundary elements are all on other ranks. */
    void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
                                 Array<int> &ess_tdof_list,
-                                Array<int> &ldof_marker,
                                 Array<int> &boundary_edge_dofs_out,
+                                Array<int> *ldof_marker = nullptr,
                                 Array<int> *dof_edges = nullptr,
                                 Array<int> *dof_boundary_elements = nullptr,
                                 Array<int> *ess_edge_list = nullptr);

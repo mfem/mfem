@@ -22,7 +22,7 @@
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
-#include <unordered_set>
+#include <vector>
 
 namespace mfem
 {
@@ -1430,11 +1430,15 @@ public:
                                 Array<int> *dof_edges = nullptr,
                                 Array<int> *dof_boundary_elements = nullptr) const;
 
-   /** @brief Get boundary elements grouped by attribute, finding all boundary
-       elements with the specified attributes. */
+   /** @brief Get boundary elements grouped by attribute.
+
+       For each attribute in @a bdr_attrs, collect the indices of all boundary
+       elements carrying that attribute. The result is indexed to match
+       @a bdr_attrs: @a attr_to_elements[i] holds the boundary elements with
+       attribute @a bdr_attrs[i]. */
    void GetBoundaryElementsByAttribute(
       const Array<int> &bdr_attrs,
-      std::unordered_map<int, Array<int>> &attr_to_elements);
+      std::vector<Array<int>> &attr_to_elements);
 
    /** @brief Get all boundary elements with a specific attribute. */
    void GetBoundaryElementsByAttribute(int bdr_attr,
