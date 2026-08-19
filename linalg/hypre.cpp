@@ -4463,7 +4463,7 @@ HypreParVector HyprePCG::GetResiduals() const
 void HyprePCG::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4532,7 +4532,7 @@ HypreParVector HypreGMRES::GetResiduals() const
 void HypreGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
@@ -4880,7 +4880,7 @@ void HypreFGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm,
                                           real_t p) const
 {
    auto r = GetResiduals();
-   ParNormlp(r, p, r.GetComm());
+   final_res_norm = ParNormlp(r, p, r.GetComm());
 }
 #endif
 
