@@ -1710,6 +1710,9 @@ void MixedScalarWeakCrossProductIntegrator::AssemblePA(
    pa_data.SetSize(dim * nq * ne, Device::GetMemoryType());
    PAHcurlDotSetup2D(quad1D, ne, trial_map_integral, ir->GetWeights(),
                      geom->J, coeff, pa_data);
+   // Match the extra sign introduced by the legacy assembled path's
+   // MixedScalarWeakCrossProductIntegrator::CalcShape().
+   pa_data *= -1.0;
 }
 
 void MixedScalarWeakCrossProductIntegrator::AddMultPA(const Vector &x,
