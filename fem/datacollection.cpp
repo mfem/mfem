@@ -38,7 +38,7 @@ int DataCollection::create_directory(const std::string &dir_name,
    // create directories recursively
    const char path_delim = '/';
    std::string::size_type pos = 0;
-   int err_flag;
+   int err_flag = 0;
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
    // In addition to the global root, let the lowest rank on each shared-memory
@@ -67,7 +67,7 @@ int DataCollection::create_directory(const std::string &dir_name,
       err_flag = mkdir(subdir.c_str(), 0777);
       err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
 #else
-      if (myid == 0 || node_root || pmesh == NULL)
+      if (node_root || pmesh == NULL)
       {
          err_flag = mkdir(subdir.c_str(), 0777);
          err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
@@ -79,7 +79,8 @@ int DataCollection::create_directory(const std::string &dir_name,
 #ifdef MFEM_USE_MPI
    if (pmesh)
    {
-      MPI_Bcast(&err_flag, 1, MPI_INT, 0, pmesh->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &err_flag, 1, MPI_INT, MPI_MAX,
+                    pmesh->GetComm());
    }
 #endif
 
