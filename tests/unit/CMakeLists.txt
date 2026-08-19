@@ -85,6 +85,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_geometric_factors.cpp
   mesh/test_ho_rw.cpp
   mesh/test_mesh.cpp
+  mesh/test_meshpartitioner.cpp
   mesh/test_ncmesh.cpp
   mesh/test_nurbs.cpp
   mesh/test_periodic_mesh.cpp
