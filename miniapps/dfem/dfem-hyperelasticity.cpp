@@ -465,7 +465,6 @@ std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type,
    return nullptr;
 }
 
-#endif // MFEM_USE_ENZYME
 
 int main(int argc, char *argv[])
 {
@@ -474,14 +473,7 @@ int main(int argc, char *argv[])
    const int myid = Mpi::WorldRank();
    Hypre::Init();
 
-#ifndef MFEM_USE_ENZYME
-   if (Mpi::Root())
-   {
-      mfem::out << "This miniapp requires MFEM_USE_ENZYME=YES because it uses "
-                << "dFEM functional second derivatives.\n";
-   }
-   return 0;
-#else
+
    int order = 1;
    const char *device_config = "cpu";
    int serial_refinement_levels = 0;
@@ -491,7 +483,6 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool paraview = false;
    int visport = 19916;
-   const char *outfolder = "./Output";
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -513,8 +504,6 @@ int main(int argc, char *argv[])
                   "--no-paraview",
                   "Enable or disable ParaView DataCollection output.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
-   args.AddOption(&outfolder, "-of", "--output-folder",
-                  "Output folder for ParaView DataCollection files.");
    args.ParseCheck();
 
    const MaterialType material = ParseMaterial(material_name);
@@ -614,14 +603,8 @@ int main(int argc, char *argv[])
 
    if (paraview)
    {
-      if (Mpi::Root())
-      {
-         fs::create_directories(outfolder);
-      }
-
       // Create a ParaView data collection
-      ParaViewDataCollection pd("dfem-hyperelasticity", &pmesh);
-      pd.SetPrefixPath(outfolder);
+      ParaViewDataCollection pd("dfem-hyperelasticity-output", &pmesh);
       pd.RegisterField("displacement", &U_gf);
       pd.SetDataFormat(VTKFormat::BINARY);
       if (order > 1)
