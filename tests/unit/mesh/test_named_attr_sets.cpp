@@ -107,6 +107,55 @@ TEST_CASE("Named Attribute Sets in Mesh",
    REQUIRE(bdr_attr_sets.attr_sets == ncmesh_copy.bdr_attribute_sets.attr_sets);
 }
 
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Named Attribute Sets in ParMesh",
+          "[Parallel]""[ParMesh]"
+          "[ParNCMesh]")
+{
+   Mesh mesh = CreateMesh();
+
+   // Define named sets in serial (or parallel)
+   bool def_ser = GENERATE(false, true);
+
+   if (def_ser)
+   {
+      // Define named attribute sets
+      CreateNamedSets(mesh);
+   }
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+
+   if (!def_ser)
+   {
+      // Define named attribute sets
+      CreateNamedSets(pmesh);
+   }
+
+   AttributeSets &attr_sets = pmesh.attribute_sets;
+   AttributeSets &bdr_attr_sets = pmesh.bdr_attribute_sets;
+
+   // Copy the mesh and confirm that the sets copied correctly
+   ParMesh pmesh_copy(pmesh);
+
+   REQUIRE(attr_sets.attr_sets == pmesh_copy.attribute_sets.attr_sets);
+   REQUIRE(bdr_attr_sets.attr_sets == pmesh_copy.bdr_attribute_sets.attr_sets);
+
+   // Save/Load the mesh and confirm the sets copied correctly
+   std::ostringstream oss;
+   pmesh.ParPrint(oss);
+
+   std::istringstream iss(oss.str());
+   ParMesh pmesh_load(MPI_COMM_WORLD, iss);
+
+   REQUIRE(attr_sets.attr_sets == pmesh_load.attribute_sets.attr_sets);
+   REQUIRE(bdr_attr_sets.attr_sets ==
+           pmesh_load.bdr_attribute_sets.attr_sets);
+}
+
+#endif // MFEM_USE_MPI
+
 TEST_CASE("Named Attribute Sets in NCMesh",
           "[NCMesh]")
 {
@@ -135,5 +184,55 @@ TEST_CASE("Named Attribute Sets in NCMesh",
    REQUIRE(bdr_attr_sets.attr_sets ==
            ncmesh_load.bdr_attribute_sets.attr_sets);
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Named Attribute Sets in ParNCMesh",
+          "[Parallel]"
+          "[ParNCMesh]")
+{
+   Mesh ncmesh = CreateNCMesh();
+
+   // Define named sets in serial (or parallel)
+   bool def_ser = GENERATE(false, true);
+
+   if (def_ser)
+   {
+      // Define named attribute sets
+      CreateNamedSets(ncmesh);
+   }
+
+   ParMesh pncmesh(MPI_COMM_WORLD, ncmesh);
+   ncmesh.Clear();
+
+   if (!def_ser)
+   {
+      // Define named attribute sets
+      CreateNamedSets(pncmesh);
+   }
+
+   AttributeSets &attr_sets = pncmesh.attribute_sets;
+   AttributeSets &bdr_attr_sets = pncmesh.bdr_attribute_sets;
+
+   // Copy the ncmesh and confirm that the sets copied correctly
+   ParMesh pncmesh_copy(pncmesh);
+
+   REQUIRE(attr_sets.attr_sets == pncmesh_copy.attribute_sets.attr_sets);
+   REQUIRE(bdr_attr_sets.attr_sets ==
+           pncmesh_copy.bdr_attribute_sets.attr_sets);
+
+   // Save/Load the ncmesh and confirm the sets copied correctly
+   std::ostringstream oss;
+   pncmesh.ParPrint(oss);
+
+   std::istringstream iss(oss.str());
+   ParMesh pncmesh_load(MPI_COMM_WORLD, iss);
+
+   REQUIRE(attr_sets.attr_sets == pncmesh_load.attribute_sets.attr_sets);
+   REQUIRE(bdr_attr_sets.attr_sets ==
+           pncmesh_load.bdr_attribute_sets.attr_sets);
+}
+
+#endif // MFEM_USE_MPI
 
 } // namespace mfem
