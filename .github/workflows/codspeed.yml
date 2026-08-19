@@ -65,7 +65,7 @@ jobs:
           # Hash absolute paths relative to the workspace.
           echo "CCACHE_BASEDIR=${{ github.workspace }}" >> $GITHUB_ENV
 
-      # 'CODSPEED_MODE' makes the build use CodSpeed's Google Benchmark
+      # 'MFEM_USE_CODSPEED' makes the build use CodSpeed's Google Benchmark
       # compatibility layer, which is fetched by tests/benchmarks/CMakeLists.txt.
       # 'RelWithDebInfo' is used to get optimized benchmarks with the debug
       # symbols needed by the CodSpeed reports.
@@ -76,7 +76,7 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DMFEM_USE_BENCHMARK=YES \
             -DMFEM_ENABLE_TESTING=YES \
-            -DCODSPEED_MODE=simulation
+            -DMFEM_USE_CODSPEED=YES
 
       - name: build benchmarks
         run: cmake --build build --target benchmarks -j $(nproc)

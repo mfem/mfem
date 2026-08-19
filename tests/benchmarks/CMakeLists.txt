@@ -19,7 +19,7 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 # Include the Google Benchmark include directory
 include_directories(BEFORE ${BENCHMARK_INCLUDE_DIRS})
 
-# When benchmarking with CodSpeed (CODSPEED_MODE is set by the user), Google
+# When benchmarking with CodSpeed (MFEM_USE_CODSPEED is set by the user), Google
 # Benchmark is replaced by CodSpeed's compatibility layer: it is fetched here and
 # the benchmarks are linked against the 'benchmark::benchmark' target, which
 # takes care of the include directories and the compile definitions.

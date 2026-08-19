@@ -548,14 +548,16 @@ if (MFEM_USE_RAJA)
 endif()
 
 # GOOGLE-BENCHMARK
+if (MFEM_USE_CODSPEED AND NOT MFEM_USE_BENCHMARK)
+   message(FATAL_ERROR "MFEM_USE_CODSPEED requires MFEM_USE_BENCHMARK=YES")
+endif()
 if (MFEM_USE_BENCHMARK)
-   # When CODSPEED_MODE is set to something else than "off", Google Benchmark is
-   # provided by CodSpeed's compatibility layer, which is fetched from
-   # tests/benchmarks/CMakeLists.txt. Otherwise, an existing Google Benchmark
-   # installation is required.
-   if (CODSPEED_MODE AND NOT (CODSPEED_MODE STREQUAL "off"))
+   # With MFEM_USE_CODSPEED, Google Benchmark is provided by CodSpeed's
+   # compatibility layer, which is fetched from tests/benchmarks/CMakeLists.txt.
+   # Otherwise, an existing Google Benchmark installation is required.
+   if (MFEM_USE_CODSPEED)
       set(MFEM_BENCHMARK_USE_CODSPEED ON)
-      message(STATUS "Google Benchmark: using CodSpeed (mode: ${CODSPEED_MODE})")
+      message(STATUS "Google Benchmark: using CodSpeed's fork")
    else()
       find_package(Benchmark REQUIRED)
    endif()
