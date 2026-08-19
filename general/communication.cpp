@@ -1977,20 +1977,25 @@ template void GroupCommunicator::ReduceBegin<float>(const float *) const;
 template void GroupCommunicator::ReduceEnd<float>(
    float *, int, void (*)(OpData<float>)) const;
 
-template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<int,
-   Array<int>, Array<int>>(const Array<int> &, Array<int> &, int) const;
-template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<int,
-   Array<int>, Array<int>>(const Array<int> &, Array<int> &, int) const;
-template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<real_t,
-   Array<real_t>, Array<real_t>>(const Array<real_t> &,
-                                 Array<real_t> &, int) const;
-template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<real_t,
-   Array<real_t>, Array<real_t>>(const Array<real_t> &,
-                                 Array<real_t> &, int) const;
-template int internal::DeviceNeighborDofComm::ExchangeSharedToExternal<real_t,
-   Vector, Vector>(const Vector &, Vector &, int) const;
-template int internal::DeviceNeighborDofComm::ExchangeExternalToShared<real_t,
-   Vector, Vector>(const Vector &, Vector &, int) const;
+template int internal::DeviceNeighborDofComm::
+ExchangeSharedToExternal<int,Array<int>, Array<int>>(
+   const Array<int> &, Array<int> &, int) const;
+template int internal::DeviceNeighborDofComm::
+ExchangeExternalToShared<int,Array<int>, Array<int>>(
+   const Array<int> &, Array<int> &, int) const;
+template int internal::DeviceNeighborDofComm::
+ExchangeSharedToExternal<real_t,Array<real_t>, Array<real_t>>(
+   const Array<real_t> &,Array<real_t> &, int) const;
+template int internal::DeviceNeighborDofComm::
+ExchangeExternalToShared<real_t,Array<real_t>, Array<real_t>>(
+   const Array<real_t> &,Array<real_t> &, int) const;
+template int internal::DeviceNeighborDofComm::
+ExchangeSharedToExternal<real_t, Vector, Vector>(
+   const Vector &, Vector &, int) const;
+template int internal::DeviceNeighborDofComm::
+ExchangeExternalToShared<real_t,Vector, Vector>(
+   const Vector &, Vector &, int) const;
+
 template void internal::DeviceNeighborDofExtract<Array<int>, Array<int>>(
    const Array<int> &, const Array<int> &, Array<int> &);
 template void internal::DeviceNeighborDofExtract<Array<real_t>, Array<real_t>>(
@@ -2027,7 +2032,6 @@ template void DeviceSharedDofCommunicator::Bcast<int>(
    const Array<int> &, Array<int> &) const;
 template void DeviceSharedDofCommunicator::Bcast<int>(
    Array<int> &) const;
-
 template void DeviceSharedDofCommunicator::ReduceBeginCopy<real_t>(
    const Array<real_t> &, Array<real_t> &) const;
 template void DeviceSharedDofCommunicator::ReduceLocalCopy<real_t>(
