@@ -268,9 +268,12 @@ protected:
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
    Array<int> ltdof_ldof;
+   int ldof_size;
    mutable DeviceSharedDofCommunicator *device_shared_dof_comm;
    bool device_shared_dof_comm_enabled;
    bool have_ltdof_ldof;
+
+   bool UseDeviceSharedDofComm(const void *ptr) const;
 
 public:
    /// Construct a GroupCommunicator object.
@@ -386,10 +389,14 @@ public:
    }
 
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(T *ldata) const { Bcast<T>(ldata, 0); }
+   template <class T> void Bcast(T *ldata) const;
    /// Broadcast within each group where the master is the root.
    template <class T> void Bcast(Array<T> &ldata) const
-   { Bcast<T>((T *)ldata); }
+   {
+      const bool on_dev =
+         ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
+      Bcast<T>(ldata.ReadWrite(on_dev));
+   }
 
    /** @brief Begin reduction operation within each group where the master is
        the root. */
@@ -420,15 +427,15 @@ public:
 
        The reduce operation is given by the second argument (see below for list
        of the supported operations.) */
-   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const
-   {
-      ReduceBegin(ldata);
-      ReduceEnd(ldata, 0, Op);
-   }
+   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const;
 
    /// Reduce within each group where the master is the root.
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
-   { Reduce<T>((T *)ldata, Op); }
+   {
+      const bool on_dev =
+         ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
+      Reduce<T>(ldata.ReadWrite(on_dev), Op);
+   }
 
    /// Reduce operation Sum, instantiated for int and double
    template <class T> static void Sum(OpData<T>);
@@ -613,10 +620,14 @@ public:
 
    template <typename T>
    void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
+   template <typename T>
+   void Reduce(Array<T> &x_ldof, Op op) const;
    void Reduce(const Vector &x_ldof, Vector &x_tdof, Op op) const;
 
    template <typename T>
    void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+   template <typename T>
+   void Bcast(Array<T> &x_ldof) const;
    void Bcast(const Vector &x_tdof, Vector &x_ldof) const;
 
    template <typename T>

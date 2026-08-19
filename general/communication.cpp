@@ -525,6 +525,7 @@ GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
    num_requests = 0;
    request_marker = NULL;
    buf_offsets = NULL;
+   ldof_size = 0;
    device_shared_dof_comm = NULL;
    device_shared_dof_comm_enabled = true;
    have_ltdof_ldof = false;
@@ -696,6 +697,7 @@ void GroupCommunicator::SetLTDofTable(const Array<int> &ldof_ltdof)
    group_ltdof.ShiftUpI();
 
    int ltdof_size = 0;
+   ldof_size = ldof_ltdof.Size();
    for (int ldof = 0; ldof < ldof_ltdof.Size(); ldof++)
    {
       if (ldof_ltdof[ldof] >= 0)
@@ -737,6 +739,18 @@ GroupCommunicator::GetDeviceSharedDofCommunicator() const
       device_shared_dof_comm = new DeviceSharedDofCommunicator(*this);
    }
    return device_shared_dof_comm;
+}
+
+bool GroupCommunicator::UseDeviceSharedDofComm(const void *ptr) const
+{
+   if (!device_shared_dof_comm_enabled || !have_ltdof_ldof || ptr == NULL)
+   {
+      return false;
+   }
+   if (mode != byNeighbor || group_buf_size == 0) { return false; }
+   if (!Device::Allows(Backend::DEVICE_MASK)) { return false; }
+   const MemoryType mt = Device::QueryMemoryType(ptr);
+   return IsDeviceMemory(mt) || mt == MemoryType::MANAGED;
 }
 
 void GroupCommunicator::GetNeighborLTDofTable(Table &nbr_ltdof) const
@@ -936,6 +950,23 @@ void DeviceSharedDofCommunicator::Reduce(const Vector &x_ldof,
 }
 
 template <typename T>
+void DeviceSharedDofCommunicator::Reduce(Array<T> &x_ldof, Op op) const
+{
+   Array<T> x_tdof(nbr_comm->LocalTDofToLDof().Size());
+   x_tdof.GetMemory().UseDevice(true);
+   Reduce(x_ldof, x_tdof, op);
+   BcastLocalCopy(x_tdof, x_ldof);
+}
+
+template <>
+void DeviceSharedDofCommunicator::Reduce<real_t>(Array<real_t> &x_ldof,
+                                                 Op op) const
+{
+   Reduce(x_ldof, true_buf, op);
+   BcastLocalCopy(true_buf, x_ldof);
+}
+
+template <typename T>
 void DeviceSharedDofCommunicator::Bcast(const Array<T> &x_tdof,
                                         Array<T> &x_ldof) const
 {
@@ -981,6 +1012,22 @@ void DeviceSharedDofCommunicator::Bcast(const Vector &x_tdof,
 }
 
 template <typename T>
+void DeviceSharedDofCommunicator::Bcast(Array<T> &x_ldof) const
+{
+   Array<T> x_tdof(nbr_comm->LocalTDofToLDof().Size());
+   x_tdof.GetMemory().UseDevice(true);
+   ReduceLocalCopy(x_ldof, x_tdof);
+   Bcast(x_tdof, x_ldof);
+}
+
+template <>
+void DeviceSharedDofCommunicator::Bcast<real_t>(Array<real_t> &x_ldof) const
+{
+   ReduceLocalCopy(x_ldof, true_buf);
+   Bcast(true_buf, x_ldof);
+}
+
+template <typename T>
 void DeviceSharedDofCommunicator::ReduceAndBcast(Array<T> &x_ldof, Op op) const
 {
    Array<T> x_tdof(nbr_comm->LocalTDofToLDof().Size());
@@ -1003,6 +1050,98 @@ void DeviceSharedDofCommunicator::ReduceAndBcast(Vector &x_ldof, Op op) const
    x_ldof_view.MakeRef(const_cast<Memory<real_t>&>(x_ldof.GetMemory()), 0,
                        x_ldof.Size());
    ReduceAndBcast(x_ldof_view, op);
+}
+
+template <class T>
+void GroupCommunicator::Bcast(T *ldata) const
+{
+   if (ldata == NULL)
+   {
+      Bcast<T>(ldata, 0);
+      return;
+   }
+   const MemoryType mt = Device::QueryMemoryType(ldata);
+
+   // Use the shared-dof device path when it is available.
+   if (UseDeviceSharedDofComm(ldata))
+   {
+      Array<T> ldata_view;
+      ldata_view.MakeRef(ldata, ldof_size, mt, false);
+      GetDeviceSharedDofCommunicator()->Bcast(ldata_view);
+      return;
+   }
+
+   // Go back to host when the shared-dof device path is not available.
+   if (IsDeviceMemory(mt))
+   {
+      Array<T> device_view, host_data(ldof_size);
+      device_view.MakeRef(ldata, ldof_size, mt, false);
+      host_data = device_view;
+      Bcast<T>(host_data.HostReadWrite(), 0);
+      device_view = host_data;
+      return;
+   }
+
+   Bcast<T>(ldata, 0);
+}
+
+template <class T>
+void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>)) const
+{
+   if (ldata == NULL)
+   {
+      ReduceBegin(ldata);
+      ReduceEnd(ldata, 0, Op);
+      return;
+   }
+   const MemoryType mt = Device::QueryMemoryType(ldata);
+
+   // Use the shared-dof device path when it is available.
+   if (UseDeviceSharedDofComm(ldata))
+   {
+      DeviceSharedDofCommunicator::Op device_op;
+      if (Op == GroupCommunicator::Sum<T>)
+      {
+         device_op = DeviceSharedDofCommunicator::Op::Sum;
+      }
+      else if (Op == GroupCommunicator::Min<T>)
+      {
+         device_op = DeviceSharedDofCommunicator::Op::Min;
+      }
+      else if (Op == GroupCommunicator::Max<T>)
+      {
+         device_op = DeviceSharedDofCommunicator::Op::Max;
+      }
+      else
+      {
+         device_op = DeviceSharedDofCommunicator::Op::Sum;
+      }
+
+      if (Op == GroupCommunicator::Sum<T> ||
+          Op == GroupCommunicator::Min<T> ||
+          Op == GroupCommunicator::Max<T>)
+      {
+         Array<T> ldata_view;
+         ldata_view.MakeRef(ldata, ldof_size, mt, false);
+         GetDeviceSharedDofCommunicator()->Reduce(ldata_view, device_op);
+         return;
+      }
+   }
+
+   // Go back to host when the shared-dof device path is not available.
+   if (IsDeviceMemory(mt))
+   {
+      Array<T> device_view, host_data(ldof_size);
+      device_view.MakeRef(ldata, ldof_size, mt, false);
+      host_data = device_view;
+      ReduceBegin(host_data.HostRead());
+      ReduceEnd(host_data.HostReadWrite(), 0, Op);
+      device_view = host_data;
+      return;
+   }
+
+   ReduceBegin(ldata);
+   ReduceEnd(ldata, 0, Op);
 }
 
 template <class T>
@@ -1707,20 +1846,29 @@ GroupCommunicator::~GroupCommunicator()
 // @cond DOXYGEN_SKIP
 
 // instantiate GroupCommunicator::Bcast and Reduce for int and double
+template void GroupCommunicator::Bcast<int>(int *) const;
 template void GroupCommunicator::BcastBegin<int>(int *, int) const;
 template void GroupCommunicator::BcastEnd<int>(int *, int) const;
+template void GroupCommunicator::Reduce<int>(
+   int *, void (*)(OpData<int>)) const;
 template void GroupCommunicator::ReduceBegin<int>(const int *) const;
 template void GroupCommunicator::ReduceEnd<int>(
    int *, int, void (*)(OpData<int>)) const;
 
+template void GroupCommunicator::Bcast<double>(double *) const;
 template void GroupCommunicator::BcastBegin<double>(double *, int) const;
 template void GroupCommunicator::BcastEnd<double>(double *, int) const;
+template void GroupCommunicator::Reduce<double>(
+   double *, void (*)(OpData<double>)) const;
 template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
 
+template void GroupCommunicator::Bcast<float>(float *) const;
 template void GroupCommunicator::BcastBegin<float>(float *, int) const;
 template void GroupCommunicator::BcastEnd<float>(float *, int) const;
+template void GroupCommunicator::Reduce<float>(
+   float *, void (*)(OpData<float>)) const;
 template void GroupCommunicator::ReduceBegin<float>(const float *) const;
 template void GroupCommunicator::ReduceEnd<float>(
    float *, int, void (*)(OpData<float>)) const;
@@ -1739,8 +1887,12 @@ template void DeviceSharedDofCommunicator::BcastEndCopy<int>(
    const Array<int> &, Array<int> &) const;
 template void DeviceSharedDofCommunicator::Reduce<int>(
    const Array<int> &, Array<int> &, Op) const;
+template void DeviceSharedDofCommunicator::Reduce<int>(
+   Array<int> &, Op) const;
 template void DeviceSharedDofCommunicator::Bcast<int>(
    const Array<int> &, Array<int> &) const;
+template void DeviceSharedDofCommunicator::Bcast<int>(
+   Array<int> &) const;
 template void DeviceSharedDofCommunicator::ReduceAndBcast<int>(
    Array<int> &, Op) const;
 
