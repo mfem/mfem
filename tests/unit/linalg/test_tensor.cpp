@@ -61,8 +61,9 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
       static_assert(std::is_same_v<tensor<real_t,0>::c_array_type,real_t[1]>);
       static_assert(sizeof(tensor<real_t,3>) ==
                     sizeof(tensor<real_t,3>::c_array_type));
-      static_assert(sizeof(tensor<real_t,0>) ==
-                    sizeof(tensor<real_t,0>::c_array_type));
+      // the following is true only for some implementations of std::array<T,0>
+      // static_assert(sizeof(tensor<real_t,0>) ==
+      //               sizeof(tensor<real_t,0>::c_array_type));
       static_assert(std::is_trivial_v<tensor<real_t,5>>);
       static_assert(std::is_trivial_v<tensor<real_t,0>>);
       tensor<real_t,3> t1d{1_r, 2_r, 3_r};
