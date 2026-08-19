@@ -10,26 +10,30 @@
 # CONTRIBUTING.md for details.
 
 # Use the MFEM build directory
-MFEM_DIR ?= ../..
-MFEM_BUILD_DIR ?= ../..
-MFEM_INSTALL_DIR ?= ../../mfem
-SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/mtop/,)
+MFEM_DIR ?= ../../../..
+MFEM_BUILD_DIR ?= ../../../..
+MFEM_INSTALL_DIR ?= ../../../../mfem
+SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/mtop/topopt/topopt_maxlen/,)
 CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
    $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-MTOP_COMMON_SRC = mtop_solvers.cpp linear_elasticity_solver.cpp
+# Shared source lives in the parent topopt/ dir; compiled into a LOCAL object
+# (MMA_MFEM.o) so the link rule below doesn't reference a ../ object, which make
+# cannot build with a pattern rule.
+COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o diffusion_mass_solver.o pseudo_transient_solver.o\
+ linear_elasticity_solver.o
 
-MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
-
-SEQ_MINIAPPS = elasticity_pa_regression
-PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
-ifeq ($(MFEM_USE_MPI),YES)
-   MINIAPPS = $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
+SEQ_MINIAPPS = 
+PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv ElastTopOpt_ct\
+ ElastTopOpt_std ElastTopOpt_pnorm ElastTopOpt_ctpnorm DiffuTopOpt
+ifeq ($(MFEM_USE_MPI),NO)
+#   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(SEQ_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS)
+   # $(SEQ_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -40,10 +44,7 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-$(PAR_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
-
-$(SEQ_MINIAPPS): %: %.o
+%: %.o $(COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
@@ -51,12 +52,29 @@ $(SEQ_MINIAPPS): %: %.o
 
 all: $(MINIAPPS)
 
+# Shared object compiled from the parent topopt/ dir.
+MMA_MFEM.o: $(SRC)../../mma/MMA_MFEM.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+# Elasticity solver lives in the mtop/ dir (two levels up).
+mtop_solvers.o: $(SRC)../../mtop_solvers.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+linear_elasticity_solver.o: $(SRC)../../linear_elasticity_solver.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+pde_filter.o: $(SRC)../../pde_filter.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
+diffusion_mass_solver.o: $(SRC)../../diffusion_mass_solver.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := MTop miniapp
+TEST_NAME := miniapp
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %
