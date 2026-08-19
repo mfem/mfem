@@ -3399,7 +3399,6 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
         Geometry::Type geom = mesh->GetFaceGeometry(face);
         const FiniteElement* fe = fec->FiniteElementForGeometry(geom);
         if (fe == nullptr) {
-            //TODO: either find a good way to catch in the test or a different abort mechanism (exception?)
             MFEM_ABORT("GetFaceOrder is not defined for mesh dimention " << dim);
         }
         return fe->GetOrder();

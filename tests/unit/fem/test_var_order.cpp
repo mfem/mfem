@@ -354,7 +354,7 @@ TEST_CASE("GetFaceOrder on L2 Spaces",
 {
     // Path relative to the directory tests/unit
     const char* mesh_file = "data/star-hilbert.mesh";
-    int order = 1; //TODO: parametrize
+    int order = GENERATE_COPY(range(1, 11));
 
 
     mfem::Mesh mesh(mesh_file);
@@ -363,8 +363,17 @@ TEST_CASE("GetFaceOrder on L2 Spaces",
     mfem::L2_FECollection flux_fec(order, dim);
     mfem::FiniteElementSpace fespace(&mesh, &flux_fec);
 
-    //TODO: find some way to expect an exception
-    fespace.GetFaceOrder(0);
+#ifdef MFEM_USE_EXCEPTIONS
+    // When MFEM is built with exceptions, MFEM_ABORT throws mfem::ErrorException
+    mfem::ErrorAction prev = mfem::get_error_action();
+    mfem::set_error_action(mfem::MFEM_ERROR_THROW);
+    REQUIRE_THROWS_AS(fespace.GetFaceOrder(0), mfem::ErrorException);
+    mfem::set_error_action(prev);
+#else
+    // Without exceptions MFEM_ABORT calls std::abort() (or MPI_Abort) and cannot
+    // be caught in-process. Skip the expectation in non-exception builds.
+    SUCCEED("MFEM built without exceptions; cannot assert MFEM_ABORT as exception");
+#endif
 };
 
 #ifdef MFEM_USE_MPI
