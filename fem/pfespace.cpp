@@ -107,6 +107,7 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    Rconf = nullptr;
    R = nullptr;
    num_face_nbr_dofs = -1;
+   nd_strias = false;
 
    if (NURBSext && !pNURBSext())
    {
@@ -132,6 +133,8 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
 
    // Check for shared triangular faces with interior Nedelec DoFs
    CheckNDSTriaDofs();
+   // Enable the device shared-dof path only for spaces where it is supported.
+   gcomm->SetDeviceSharedDofSupport(Conforming() && !SharedNDTriangleDofs());
 }
 
 void ParFiniteElementSpace::CommunicateGhostOrder()
@@ -1873,7 +1876,6 @@ void ParFiniteElementSpace::ConstructTrueDofs()
       }
    }
    gcomm->SetLTDofTable(ldof_ltdof);
-   gcomm->SetDeviceSharedDofSupport(Conforming() && !SharedNDTriangleDofs());
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
@@ -1921,7 +1923,6 @@ void ParFiniteElementSpace::ConstructTrueNURBSDofs()
       }
    }
    gcomm->SetLTDofTable(ldof_ltdof);
-   gcomm->SetDeviceSharedDofSupport(Conforming() && !SharedNDTriangleDofs());
 
    // have the group masters broadcast their ltdofs to the rest of the group
    gcomm->Bcast(ldof_ltdof);
@@ -4946,6 +4947,7 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    Destroy();  // Does not clear elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
+   nd_strias = false;
 
    // In the variable-order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
@@ -4953,6 +4955,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    FiniteElementSpace::Construct();
    Construct();
+   CheckNDSTriaDofs();
+   // Enable the device shared-dof path only for spaces where it is supported.
+   gcomm->SetDeviceSharedDofSupport(Conforming() && !SharedNDTriangleDofs());
 
    BuildElementToDofTable();
 
