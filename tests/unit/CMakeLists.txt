@@ -41,6 +41,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_mass.cpp
   dfem/test_tuple.cpp
   general/test_array.cpp
+  general/test_backends.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_error.cpp
