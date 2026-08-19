@@ -53,6 +53,12 @@ Discretization improvements
   ComplexHypreParMatrix::GetSystemMatrix, which previously assumed equal
   trial and test spaces.
 
+- Added FiniteElementSpace::GetBoundaryLoopEdgeDofs to extract the edge DOFs on
+  the perimeter loop of a set of boundary elements, with a ParFiniteElementSpace
+  overload that reconciles the selection across processor boundaries so the
+  result is partition invariant. This is useful for imposing boundary conditions
+  on boundary edge DOFs.
+
 Meshing improvements
 --------------------
 - Added support for nonuniform anisotropic mesh refinement on parallel quad/hex

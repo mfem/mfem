@@ -4531,138 +4531,93 @@ void FiniteElementSpace
 
 void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
    const Array<int> &boundary_element_indices,
-   std::unordered_set<int> &boundary_edge_dofs,
-   std::unordered_map<int, int> &dof_to_edge,
-   std::unordered_map<int, int> &dof_to_boundary_element,
-   std::unordered_map<int, int> &dof_to_edge_orientation) const
+   Array<int> &boundary_edge_dofs,
+   Array<int> *dof_edges,
+   Array<int> *dof_boundary_elements) const
 {
    MFEM_VERIFY(mesh->Dimension() >= 2,
                "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find edge objects");
 
-   // Clear output containers
-   boundary_edge_dofs.clear();
-   dof_to_edge.clear();
-   dof_to_boundary_element.clear();
-   dof_to_edge_orientation.clear();
+   boundary_edge_dofs.SetSize(0);
+   if (dof_edges) { dof_edges->SetSize(0); }
+   if (dof_boundary_elements) { dof_boundary_elements->SetSize(0); }
 
-   Array<int> edge_dofs;
+   // A DOF that appears in exactly one selected boundary element lies on the
+   // bounding loop; one appearing in two or more is interior to the boundary
+   // region and is dropped. Count occurrences of each DOF (using scratch maps,
+   // exposed only as parallel-indexed Array<int> below) and record, on first
+   // sight, the local edge and boundary element carrying it.
+   //
+   // The count is over GetEdgeDofs, which returns endpoint vertex DOFs as well
+   // as edge-interior DOFs (relevant for collections such as ND_R2D that carry
+   // vertex DOFs). Edge-interior DOFs occur once per edge, so the count mainly
+   // resolves vertex DOFs: a vertex shared by several elements is interior and
+   // dropped, while a genuine loop-corner (open-curve endpoint) vertex is kept.
+   // This is why we count GetEdgeDofs rather than collecting GetEdgeInteriorDofs,
+   // which would omit the endpoint vertex DOFs the method is documented to keep.
+   // The 3D removal criterion (any edge in two or more faces) matches the
+   // parallel version rather than a parity toggle.
+   std::unordered_map<int, int> dof_count, dof_edge, dof_belem;
+   Array<int> edge_dofs, edges, edge_orientations;
 
-   if (mesh->Dimension() == 3)
+   const int dim = mesh->Dimension();
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
    {
-      // 3D case: boundary elements are 2D faces, extract their 1D edges.
-      // An edge interior to the boundary surface is shared by two (or, at a
-      // non-manifold junction, more) of the selected faces, whereas an edge on
-      // the boundary loop belongs to exactly one selected face. Count how many
-      // selected faces contain each edge DOF and keep only those seen in a
-      // single face. This matches the parallel version, which removes any edge
-      // appearing in two or more faces rather than toggling on parity.
-      // Note that GetEdgeDofs returns the endpoint vertex DOFs in addition to
-      // the edge-interior DOFs (relevant for collections such as ND_R2D that
-      // carry vertex DOFs), so the count also distinguishes a vertex shared by
-      // several faces from a genuine loop-corner vertex. This is why we count
-      // occurrences of GetEdgeDofs rather than simply collecting
-      // GetEdgeInteriorDofs, which omits the vertex DOFs entirely.
-      Array<int> edges, edge_orientations;
-      std::unordered_map<int, int> dof_face_count;
-      for (int i = 0; i < boundary_element_indices.Size(); ++i)
+      const int boundary_element_idx = boundary_element_indices[i];
+
+      if (dim == 3)
       {
-         const int boundary_element_idx = boundary_element_indices[i];
+         // Boundary elements are 2D faces; extract their 1D edges.
          int face_index, face_orientation;
          mesh->GetBdrElementFace(boundary_element_idx, &face_index,
                                  &face_orientation);
          mesh->GetFaceEdges(face_index, edges, edge_orientations);
-
-         for (int j = 0; j < edges.Size(); ++j)
-         {
-            GetEdgeDofs(edges[j], edge_dofs);
-            for (int k = 0; k < edge_dofs.Size(); ++k)
-            {
-               const int dof = edge_dofs[k];
-               // Record metadata the first time this DOF is seen.
-               if (dof_face_count[dof]++ == 0)
-               {
-                  dof_to_edge[dof] = edges[j];
-                  dof_to_boundary_element[dof] = boundary_element_idx;
-                  dof_to_edge_orientation[dof] = edge_orientations[j];
-               }
-            }
-         }
       }
-
-      // Keep only DOFs that lie in exactly one selected face; a DOF appearing
-      // in more than one face is interior to the boundary surface.
-      for (const auto &[dof, count] : dof_face_count)
+      else
       {
-         if (count == 1)
-         {
-            boundary_edge_dofs.insert(dof);
-         }
-         else
-         {
-            dof_to_edge.erase(dof);
-            dof_to_boundary_element.erase(dof);
-            dof_to_edge_orientation.erase(dof);
-         }
-      }
-   }
-   else if (mesh->Dimension() == 2)
-   {
-      // 2D case: boundary elements are 1D segments, each being a single edge.
-      // A DOF interior to a segment (a genuine edge DOF) belongs to exactly one
-      // segment. Adjacent segments only share their common vertex, so a vertex
-      // DOF (present for collections such as ND_R2D) is shared by the two
-      // segments meeting there and is interior to the boundary curve. As in the
-      // 3D case, count how many selected segments contain each DOF and keep only
-      // those seen in a single segment.
-      // The count is over GetEdgeDofs, which returns endpoint vertex DOFs as
-      // well as edge-interior DOFs. Edge-interior DOFs always occur once (a
-      // segment is a single edge), so for those the count is trivially one; the
-      // counting exists to resolve the vertex DOFs, dropping a vertex shared by
-      // two segments while keeping an open-curve endpoint vertex. Collecting
-      // GetEdgeInteriorDofs instead would drop all vertex DOFs, including the
-      // endpoints this method is documented to keep.
-      Array<int> edges, edge_orientations;
-      std::unordered_map<int, int> dof_segment_count;
-      for (int i = 0; i < boundary_element_indices.Size(); ++i)
-      {
-         const int boundary_element_idx = boundary_element_indices[i];
+         // Boundary elements are 1D segments, each being a single edge.
          mesh->GetBdrElementEdges(boundary_element_idx, edges, edge_orientations);
-
-         // In 2D, each boundary element should have exactly one edge
          MFEM_VERIFY(edges.Size() == 1,
                      "2D boundary element should have exactly one edge");
+      }
 
-         int edge_index = edges[0];
-         int edge_orientation = edge_orientations[0];
-
-         GetEdgeDofs(edge_index, edge_dofs);
+      for (int j = 0; j < edges.Size(); ++j)
+      {
+         GetEdgeDofs(edges[j], edge_dofs);
          for (int k = 0; k < edge_dofs.Size(); ++k)
          {
             const int dof = edge_dofs[k];
             // Record metadata the first time this DOF is seen.
-            if (dof_segment_count[dof]++ == 0)
+            if (dof_count[dof]++ == 0)
             {
-               dof_to_edge[dof] = edge_index;
-               dof_to_boundary_element[dof] = boundary_element_idx;
-               dof_to_edge_orientation[dof] = edge_orientation;
+               dof_edge[dof] = edges[j];
+               dof_belem[dof] = boundary_element_idx;
             }
          }
       }
+   }
 
-      // Keep only DOFs that lie in exactly one selected segment.
-      for (const auto &[dof, count] : dof_segment_count)
-      {
-         if (count == 1)
-         {
-            boundary_edge_dofs.insert(dof);
-         }
-         else
-         {
-            dof_to_edge.erase(dof);
-            dof_to_boundary_element.erase(dof);
-            dof_to_edge_orientation.erase(dof);
-         }
-      }
+   // Emit the DOFs seen in exactly one selected boundary element, in a
+   // deterministic (increasing DOF index) order shared by all output arrays.
+   std::vector<int> kept;
+   kept.reserve(dof_count.size());
+   for (const auto &[dof, count] : dof_count)
+   {
+      if (count == 1) { kept.push_back(dof); }
+   }
+   std::sort(kept.begin(), kept.end());
+
+   boundary_edge_dofs.Reserve(static_cast<int>(kept.size()));
+   if (dof_edges) { dof_edges->Reserve(static_cast<int>(kept.size())); }
+   if (dof_boundary_elements)
+   {
+      dof_boundary_elements->Reserve(static_cast<int>(kept.size()));
+   }
+   for (int dof : kept)
+   {
+      boundary_edge_dofs.Append(dof);
+      if (dof_edges) { dof_edges->Append(dof_edge[dof]); }
+      if (dof_boundary_elements) { dof_boundary_elements->Append(dof_belem[dof]); }
    }
 }
 
@@ -4703,21 +4658,23 @@ void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
 }
 
 void FiniteElementSpace::ComputeLoopEdgeOrientations(
-   const std::unordered_map<int, int>& dof_to_edge,
-   const std::unordered_map<int, int>& dof_to_boundary_element,
-   const Vector& loop_normal,
-   std::unordered_map<int, int>& edge_loop_orientations)
+   const Array<int> &dof_edges,
+   const Array<int> &dof_boundary_elements,
+   const Vector &loop_normal,
+   Array<int> &dof_orientations) const
 {
+   MFEM_VERIFY(dof_edges.Size() == dof_boundary_elements.Size(),
+               "dof_edges and dof_boundary_elements must be parallel-indexed");
+
+   const int ndof = dof_edges.Size();
+   dof_orientations.SetSize(ndof);
+
    Array<int> edge_verts, bdr_elem_verts;
    Vector edge_vec(3), to_edge_vec(3), cross_product(3);
-   // Process each edge locally
-   for (const auto& [dof, bdr_elem_idx] : dof_to_boundary_element)
+   for (int i = 0; i < ndof; i++)
    {
-      // Check if this DOF has a corresponding edge
-      auto edge_it = dof_to_edge.find(dof);
-      if (edge_it == dof_to_edge.end()) { continue; }
-
-      int edge_id = edge_it->second;
+      const int edge_id = dof_edges[i];
+      const int bdr_elem_idx = dof_boundary_elements[i];
 
       // Get edge vertices
       mesh->GetEdgeVertices(edge_id, edge_verts);
@@ -4730,9 +4687,9 @@ void FiniteElementSpace::ComputeLoopEdgeOrientations(
 
       // Find the third vertex (not part of the edge)
       int third_vertex = -1;
-      for (int i = 0; i < bdr_elem_verts.Size(); i++)
+      for (int j = 0; j < bdr_elem_verts.Size(); j++)
       {
-         int v = bdr_elem_verts[i];
+         int v = bdr_elem_verts[j];
          if (v != edge_verts[0] && v != edge_verts[1])
          {
             third_vertex = v;
@@ -4749,13 +4706,13 @@ void FiniteElementSpace::ComputeLoopEdgeOrientations(
       const real_t *v2 = mesh->GetVertex(third_vertex);
 
       // Edge vector
-      for (int i = 0; i < 3; i++) { edge_vec[i] = v1[i] - v0[i]; }
+      for (int j = 0; j < 3; j++) { edge_vec[j] = v1[j] - v0[j]; }
 
       // Vector from third vertex to edge (use edge midpoint)
-      for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 3; j++)
       {
-         real_t edge_midpoint = (v0[i] + v1[i]) * 0.5;
-         to_edge_vec[i] = edge_midpoint - v2[i];
+         real_t edge_midpoint = (v0[j] + v1[j]) * 0.5;
+         to_edge_vec[j] = edge_midpoint - v2[j];
       }
 
       // Cross product: to_edge × edge
@@ -4763,7 +4720,7 @@ void FiniteElementSpace::ComputeLoopEdgeOrientations(
 
       // Check alignment with loop normal
       real_t dot_product = cross_product * loop_normal;
-      edge_loop_orientations[edge_id] = (dot_product > 0) ? 1 : -1;
+      dof_orientations[i] = (dot_product > 0) ? 1 : -1;
    }
 }
 

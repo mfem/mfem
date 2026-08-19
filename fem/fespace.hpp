@@ -1390,30 +1390,34 @@ public:
    virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
                                     int component = -1) const;
 
-   /** @brief Extract edge degrees of freedom from specified boundary elements.
-       This method identifies all edge-based degrees of freedom that lie on the
-       boundary edges of the specified boundary elements.
-       @param[in] boundary_element_indices Array of all boundary element indices
-       on a certain boundary surface (3D) or boundary curve (2D)
-       @param[out] boundary_edge_dofs Set of local DOF indices on boundary edges
-       @param[out] dof_to_edge Map from boundary edge DOF index to local edge index
-       @param[out] dof_to_boundary_element Map from DOF index to a boundary element
-       containing it
-       @param[out] dof_to_edge_orientation Map from DOF index to edge orientation
-       (+1 or -1)
+   /** @brief Extract the edge degrees of freedom of a boundary "loop".
 
-       @note In 3D: Extracts edge DOFs from the 1D edges of 2D boundary elements
-       (faces).
-       @note In 2D: Extracts edge DOFs directly from 1D boundary elements
-       (segments). In 2D, dof_to_edge and dof_to_boundary_element contain
-       identical edge indices.
-       @note A DOF that lies in more than one of the selected boundary elements is
-       interior to the boundary surface/curve and is excluded from the result.
+       Here a "loop" is the set of boundary edges bounding the region covered by
+       @a boundary_element_indices: in 3D the outer edges of a patch of boundary
+       faces, in 2D the boundary segments themselves. An edge that is shared by
+       two (or more) of the selected boundary elements is interior to that region
+       rather than on its bounding loop, so its DOFs are excluded from the result.
+       This exclusion of interior DOFs is the defining feature of the method.
+
+       The three output arrays share a single indexing: for each valid index @a i,
+       @a dof_edges[i] and @a dof_boundary_elements[i] describe the DOF
+       @a boundary_edge_dofs[i].
+
+       @param[in]  boundary_element_indices Boundary element indices spanning a
+                   boundary surface (3D) or curve (2D).
+       @param[out] boundary_edge_dofs Local DOF indices on the boundary loop.
+       @param[out] dof_edges Optional; local edge index carrying each DOF.
+       @param[out] dof_boundary_elements Optional; a boundary element containing
+                   each DOF.
+
+       @note In 3D the edge DOFs are extracted from the 1D edges of the 2D
+       boundary faces; in 2D they come directly from the 1D boundary segments, so
+       @a dof_edges then holds the boundary element (segment) edge indices.
        @note This method uses GetEdgeDofs internally, which returns both vertex and
-       edge DOFs. For standard Nédélec elements (ND_FECollection) there are no
-       vertex DOFs, so only actual edge DOFs are included. However, for specialized
-       collections like ND_R2D_FECollection that have vertex DOFs, those will be
-       included for loop endpoints.
+       edge DOFs. Standard Nédélec elements (ND_FECollection) have no vertex DOFs,
+       so only genuine edge DOFs appear. Collections that carry vertex DOFs (e.g.
+       ND_R2D_FECollection) additionally contribute the vertex DOFs at loop
+       endpoints.
        @note This is the serial version. For parallel meshes, use the parallel
        version in ParFiniteElementSpace which handles processor boundaries
        correctly.
@@ -1422,33 +1426,39 @@ public:
        @note Only supports conforming meshes; non-conforming meshes are not
        supported. */
    void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
-                                std::unordered_set<int> &boundary_edge_dofs,
-                                std::unordered_map<int, int> &dof_to_edge,
-                                std::unordered_map<int, int> &dof_to_boundary_element,
-                                std::unordered_map<int, int> &dof_to_edge_orientation) const;
+                                Array<int> &boundary_edge_dofs,
+                                Array<int> *dof_edges = nullptr,
+                                Array<int> *dof_boundary_elements = nullptr) const;
 
-   /** @brief Get boundary elements grouped by attribute.
-       Serial version that finds all boundary elements with specified attributes. */
-   virtual void GetBoundaryElementsByAttribute(
+   /** @brief Get boundary elements grouped by attribute, finding all boundary
+       elements with the specified attributes. */
+   void GetBoundaryElementsByAttribute(
       const Array<int> &bdr_attrs,
       std::unordered_map<int, Array<int>> &attr_to_elements);
 
-   /** @brief Get boundary elements with a specific attribute.
-       Serial version that finds all boundary elements with the given attribute. */
-   virtual void GetBoundaryElementsByAttribute(int bdr_attr,
-                                               Array<int> &boundary_elements);
+   /** @brief Get all boundary elements with a specific attribute. */
+   void GetBoundaryElementsByAttribute(int bdr_attr,
+                                       Array<int> &boundary_elements);
 
-   /** @brief Compute edge orientations for loop traversal.
-       Here, a "loop" refers to a connected sequence of boundary edges that together
-       form a closed or open path along the boundary of a surface.
-       This is the serial version that determines edge orientations relative to a
-       loop normal and is intended for 3D meshes only.
-        */
-   virtual void ComputeLoopEdgeOrientations(
-      const std::unordered_map<int, int>& dof_to_edge,
-      const std::unordered_map<int, int>& dof_to_boundary_element,
-      const Vector& loop_normal,
-      std::unordered_map<int, int>& edge_loop_orientations);
+   /** @brief Compute edge orientations relative to a boundary loop direction.
+
+       For each boundary-loop DOF described by @a dof_edges and
+       @a dof_boundary_elements (see GetBoundaryLoopEdgeDofs), determine whether
+       the carrying edge is
+       traversed in the direction consistent with @a loop_normal, following the
+       right-hand rule. Intended for 3D meshes.
+
+       @param[in]  dof_edges Local edge index of each DOF (parallel-indexed with
+                   the boundary_edge_dofs output of GetBoundaryLoopEdgeDofs).
+       @param[in]  dof_boundary_elements A boundary element containing each DOF,
+                   using the same indexing as @a dof_edges.
+       @param[in]  loop_normal Normal vector defining the loop orientation.
+       @param[out] dof_orientations Orientation (+1 or -1) for each DOF, using the
+                   same indexing as @a dof_edges. */
+   void ComputeLoopEdgeOrientations(const Array<int> &dof_edges,
+                                    const Array<int> &dof_boundary_elements,
+                                    const Vector &loop_normal,
+                                    Array<int> &dof_orientations) const;
 
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);

@@ -1291,6 +1291,8 @@ void GroupCommunicator::Max(OpData<T> opd)
 template <class T>
 void GroupCommunicator::BitOR(OpData<T> opd)
 {
+   static_assert(std::is_integral<T>::value,
+                 "BitOR reduction requires an integral type.");
    for (int i = 0; i < opd.nldofs; i++)
    {
       T data = opd.ldata[opd.ldofs[i]];
