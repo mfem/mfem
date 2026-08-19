@@ -36,6 +36,7 @@ list(APPEND SRCS
   sparsesmoothers.cpp
   symmat.cpp
   tripack.cpp
+  tripack_magma.cpp
   vector.cpp
   )
 
@@ -73,6 +74,7 @@ list(APPEND HDRS
   sparsesmoothers.hpp
   symmat.hpp
   tripack.hpp
+  tripack_magma.hpp
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp

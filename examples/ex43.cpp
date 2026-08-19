@@ -187,6 +187,127 @@ void SolveMagmaPackedCholeskyLowerInPlace(
                "MAGMA packed Cholesky solve failed.");
 }
 
+void ComputeMagmaPackedInverseLower(
+   const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+   TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
+   Array<real_t *> &inverse_ptrs,
+   const magma_queue_t queue)
+{
+   const int n = packed_lower.GetNumRows();
+   const int batch_size = packed_lower.GetNumMatrices();
+   const int packed_size = packed_lower.GetPackedSize();
+
+   MFEM_VERIFY(n <= 64, "MAGMA packed inverse supports n <= 64.");
+
+   lower_inverse.SetSize(n, batch_size);
+   lower_inverse.UseDevice(true);
+
+   if (batch_size == 0) { return; }
+
+   lower_inverse.Data() = packed_lower.Data();
+
+   real_t *inv_data = lower_inverse.Data().ReadWrite();
+   real_t **d_inv_ptrs =
+      SetMagmaPackedPointerArray(inverse_ptrs, inv_data, packed_size,
+                                 batch_size, queue);
+
+   Array<magma_int_t> info_array(batch_size, Device::GetDeviceMemoryType());
+   magma_int_t *d_info = info_array.Write();
+   magma_memset(d_info, 0, batch_size*sizeof(magma_int_t));
+
+   // MAGMA currently expects a valid pointer for device_lwork even when the
+   // required workspace is 0 bytes.
+   int64_t device_lwork[1] = {0};
+   const magma_int_t status =
+      MFEM_EX43_MAGMA_PREFIX(ppinv_batched)(
+         MagmaLower, n, d_inv_ptrs,
+         /*device_work*/ nullptr, device_lwork,
+         d_info, batch_size, queue);
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA packed inverse failed.");
+
+   magma_queue_sync(queue);
+
+   const magma_int_t *info = info_array.HostRead();
+   for (int e = 0; e < batch_size; ++e)
+   {
+      MFEM_VERIFY(info[e] == 0,
+                  "MAGMA packed inverse failed on matrix " << e << '.');
+   }
+}
+
+void ApplyPackedInverseLowerInPlace(
+   const TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
+   const Array<real_t *> &inverse_ptrs,
+   Array<real_t *> &rhs_ptrs,
+   Vector &work,
+   Vector &rhs_sol,
+   const magma_queue_t queue)
+{
+   const int n = lower_inverse.GetNumRows();
+   const int batch_size = lower_inverse.GetNumMatrices();
+   const int packed_size = lower_inverse.GetPackedSize();
+
+   if (batch_size == 0)
+   {
+      rhs_sol.SetSize(0);
+      return;
+   }
+
+   MFEM_VERIFY(rhs_sol.Size() == batch_size*n,
+               "Right-hand side has the wrong size.");
+
+   // Prefer MAGMA's tuned packed-symmetric matvec when available (n <= 32).
+   // Fall back to an MFEM device kernel for larger n.
+   if (n <= 32)
+   {
+      MFEM_VERIFY(inverse_ptrs.Size() == batch_size,
+                  "Inverse pointer array has the wrong size.");
+
+      real_t *rhs_data = rhs_sol.ReadWrite();
+      real_t **d_inv_ptrs = const_cast<real_t **>(inverse_ptrs.Read());
+      real_t **d_rhs_ptrs =
+         SetMagmaPackedPointerArray(rhs_ptrs, rhs_data, n, batch_size, queue);
+
+      // Note: MAGMA's symv_packed_inplace_batched_small returns void; it will
+      // report argument errors via magma_xerbla.
+      MFEM_EX43_MAGMA_PREFIX(symv_packed_inplace_batched_small)(
+         MagmaLower, n, d_inv_ptrs, d_rhs_ptrs, n, batch_size, queue);
+      return;
+   }
+
+   work.SetSize(batch_size*n);
+   work.UseDevice(true);
+
+   const real_t *AP = lower_inverse.Data().Read();
+   const real_t *X = rhs_sol.Read();
+   real_t *Y = work.Write();
+
+   mfem::forall(batch_size*n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int i = idx % n;
+      const int e = idx / n;
+      const real_t *APe = AP + e*packed_size;
+      const real_t *Xe = X + e*n;
+      real_t sum = 0.0;
+      for (int j = 0; j < n; ++j)
+      {
+         const real_t aij =
+            (i >= j) ?
+            APe[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] :
+            APe[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(j, i, n)];
+         sum += aij * Xe[j];
+      }
+      Y[idx] = sum;
+   });
+
+   const real_t *Y_in = work.Read();
+   real_t *X_out = rhs_sol.Write();
+   mfem::forall(batch_size*n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      X_out[idx] = Y_in[idx];
+   });
+}
+
 #undef MFEM_EX43_MAGMA_SET_POINTER
 #undef MFEM_EX43_MAGMA_PREFIX
 #endif
@@ -360,6 +481,35 @@ double TimeMagmaSolve(
    sw.Stop();
    return 1000.0*sw.RealTime()/reps;
 }
+
+double TimeMagmaInverseApply(
+   const TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
+   const Array<real_t *> &inverse_ptrs,
+   const Vector &rhs,
+   const int reps,
+   Vector &x,
+   Vector &work,
+   const magma_queue_t queue)
+{
+   StopWatch sw;
+   Array<real_t *> rhs_ptrs;
+
+   // Dry run to remove first-use MAGMA and RHS pointer-array setup costs.
+   x = rhs;
+   ApplyPackedInverseLowerInPlace(lower_inverse, inverse_ptrs, rhs_ptrs,
+                                  work, x, queue);
+   MFEM_DEVICE_SYNC;
+   sw.Start();
+   for (int r = 0; r < reps; ++r)
+   {
+      x = rhs;
+      ApplyPackedInverseLowerInPlace(lower_inverse, inverse_ptrs, rhs_ptrs,
+                                     work, x, queue);
+   }
+   MFEM_DEVICE_SYNC;
+   sw.Stop();
+   return 1000.0*sw.RealTime()/reps;
+}
 #endif
 
 } // namespace
@@ -467,6 +617,12 @@ int main(int argc, char *argv[])
    TriPackMatrix<TriangularPart::LOWER> magma_factor;
    Array<real_t *> magma_factor_ptrs;
    double magma_factor_ms = 0.0;
+
+   TriPackMatrix<TriangularPart::LOWER> magma_inverse;
+   Array<real_t *> magma_inverse_ptrs;
+   double magma_inverse_ms = 0.0;
+   bool magma_ppinv_enabled = false;
+
    if (use_magma)
    {
       // Dry run setup before timing steady-state setup work.
@@ -484,6 +640,29 @@ int main(int argc, char *argv[])
       MFEM_DEVICE_SYNC;
       sw.Stop();
       magma_factor_ms = 1000.0*sw.RealTime()/setup_reps;
+
+      // Benchmark packed inverse (ppinv) only for sizes supported by MAGMA's
+      // current packed-inverse apply kernel.
+      if (elem_dofs <= 64)
+      {
+         magma_ppinv_enabled = true;
+
+         // Dry run setup before timing steady-state setup work.
+         ComputeMagmaPackedInverseLower(lower_ea, magma_inverse,
+                                        magma_inverse_ptrs, magma_queue);
+         MFEM_DEVICE_SYNC;
+
+         sw.Clear();
+         sw.Start();
+         for (int r = 0; r < setup_reps; ++r)
+         {
+            ComputeMagmaPackedInverseLower(lower_ea, magma_inverse,
+                                           magma_inverse_ptrs, magma_queue);
+         }
+         MFEM_DEVICE_SYNC;
+         sw.Stop();
+         magma_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
+      }
    }
 #endif
 
@@ -518,6 +697,24 @@ int main(int argc, char *argv[])
                                  magma_res_l2, magma_rel_res_l2,
                                  magma_res_max, magma_rel_res_max);
    }
+
+   double magma_ppinv_apply_ms = 0.0;
+   double magma_ppinv_res_l2 = 0.0, magma_ppinv_rel_res_l2 = 0.0;
+   real_t magma_ppinv_res_max = 0.0, magma_ppinv_rel_res_max = 0.0;
+   Vector magma_ppinv_x;
+   Vector magma_ppinv_work;
+   if (use_magma && magma_ppinv_enabled)
+   {
+      magma_ppinv_x.SetSize(rhs.Size());
+      magma_ppinv_x.UseDevice(true);
+      magma_ppinv_apply_ms =
+         TimeMagmaInverseApply(magma_inverse, magma_inverse_ptrs, rhs, reps,
+                               magma_ppinv_x, magma_ppinv_work, magma_queue);
+      ComputeLowerPackedResidual(lower_ea, magma_ppinv_x, rhs,
+                                 magma_ppinv_res_l2, magma_ppinv_rel_res_l2,
+                                 magma_ppinv_res_max,
+                                 magma_ppinv_rel_res_max);
+   }
 #endif
 
    cout << fixed << setprecision(6);
@@ -541,6 +738,16 @@ int main(int argc, char *argv[])
    {
       cout << "Setup MAGMA lower packed Cholesky factor (ms): "
            << magma_factor_ms << '\n';
+      if (magma_ppinv_enabled)
+      {
+         cout << "Setup MAGMA lower packed inverse (ppinv) (ms): "
+              << magma_inverse_ms << '\n';
+      }
+      else
+      {
+         cout << "Setup MAGMA lower packed inverse (ppinv) (ms): skipped "
+              << "(requires element dofs <= 64)\n";
+      }
    }
 #endif
    cout << '\n';
@@ -554,6 +761,19 @@ int main(int argc, char *argv[])
            << magma_solve_ms << '\n';
       cout << "MAGMA solve / eq-iter upper packed inverse apply: "
            << magma_solve_ms/upper_inverse_apply_ms << '\n';
+
+      if (magma_ppinv_enabled)
+      {
+         cout << "Apply MAGMA lower packed inverse (ppinv) (ms/apply): "
+              << magma_ppinv_apply_ms << '\n';
+         cout << "MAGMA ppinv apply / eq-iter upper packed inverse apply: "
+              << magma_ppinv_apply_ms/upper_inverse_apply_ms << '\n';
+      }
+      else
+      {
+         cout << "Apply MAGMA lower packed inverse (ppinv) (ms/apply): skipped "
+              << "(requires element dofs <= 64)\n";
+      }
 
       const double eq_fixed_ms = upper_assemble_ms + upper_inverse_setup_ms;
       const double magma_fixed_ms = lower_assemble_ms + magma_factor_ms;
@@ -570,6 +790,17 @@ int main(int argc, char *argv[])
            << '\n';
       PrintMagmaFasterCondition(eq_fixed_ms, upper_inverse_apply_ms,
                                 magma_fixed_ms, magma_solve_ms);
+
+      if (magma_ppinv_enabled)
+      {
+         const double magma_ppinv_fixed_ms =
+            lower_assemble_ms + magma_inverse_ms;
+         const double magma_ppinv_total_ms =
+            magma_ppinv_fixed_ms + reps*magma_ppinv_apply_ms;
+         cout << "Total MAGMA lower packed inverse (ppinv) for current "
+              << "repetitions (assembly+setup+applies, ms): "
+              << magma_ppinv_total_ms << '\n';
+      }
    }
 #endif
    cout << '\n';
@@ -588,6 +819,14 @@ int main(int argc, char *argv[])
            << magma_rel_res_max << "), L2: "
            << magma_res_l2 << " (relative "
            << magma_rel_res_l2 << ")\n";
+      if (magma_ppinv_enabled)
+      {
+         cout << "Residual, MAGMA lower packed inverse (ppinv), max: "
+              << magma_ppinv_res_max << " (relative "
+              << magma_ppinv_rel_res_max << "), L2: "
+              << magma_ppinv_res_l2 << " (relative "
+              << magma_ppinv_rel_res_l2 << ")\n";
+      }
    }
 #endif
 
