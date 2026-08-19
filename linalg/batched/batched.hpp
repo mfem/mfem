@@ -141,6 +141,9 @@ public:
    virtual ~BatchedLinAlgBase() { }
 };
 
+/// Check that all batched LU info values are zero.
+void VerifyBatchedLUInfo(const Array<int> &info_array, const char *message);
+
 } // namespace mfem
 
 #endif

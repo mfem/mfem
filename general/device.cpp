@@ -581,7 +581,9 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA) || Allows(Backend::RAJA_HIP))
-   { RajaDeviceSetup(dev, ngpu); }
+   {
+      RajaDeviceSetup(dev, ngpu);
+   }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_MASK))

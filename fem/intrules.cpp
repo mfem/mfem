@@ -236,6 +236,23 @@ IntegrationRule::ApplyToKnotIntervals(KnotVector const& kv) const
    return kvir;
 }
 
+IntegrationRule IntegrationRule::Reorder(const Array<int> &ordering) const
+{
+   const int np = GetNPoints();
+   MFEM_VERIFY(np == ordering.Size(), "Invalid permutation size");
+   IntegrationRule ir(np);
+   ir.SetOrder(GetOrder());
+
+   for (int i = 0; i < np; i++)
+   {
+      IntegrationPoint &ip_new = ir.IntPoint(i);
+      const IntegrationPoint &ip_old = IntPoint(ordering[i]);
+      ip_new.Set(ip_old.x, ip_old.y, ip_old.z, ip_old.weight);
+   }
+
+   return ir;
+}
+
 IntegrationRule DuffyTrans(const IntegrationRule &ir, int dim)
 {
    IntegrationRule ir_mapped(ir.GetNPoints());
@@ -525,7 +542,10 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
          return;
    }
 
-#ifndef MFEM_USE_MPFR
+#ifdef MFEM_USE_MPFR
+   MFEM_WARNING("MPFR implementation of Gauss-Jacobi quadrature not implemented yet. Falling "
+                "back to double precision implementation...");
+#endif
 
    const int n = np;
    // common constants for Jacobi polynomials
@@ -594,13 +614,6 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
                                                 ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
       // map nodes and weights to the interval [0,1]
    }
-
-#else // MFEM_USE_MPFR is defined
-
-   MFEM_ABORT("MPFR implementation of Gauss-Jacobi quadrature not defined yet");
-
-#endif // MFEM_USE_MPFR
-
 }
 
 

@@ -307,6 +307,506 @@ DomainLFIntegrator::AssembleKernels::Kernel()
    MFEM_ABORT("");
 }
 
+template <int T_D1D = 0, int T_Q1D = 0>
+static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
+                              const Vector &jac, const Array<real_t> &weights,
+                              const Array<real_t> &testBO,
+                              const Array<real_t> &testBC, const Vector &coeff,
+                              Vector &y, const int d, const int q)
+{
+   MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Problem size too large.");
+   MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Problem size too large.");
+   MFEM_VERIFY(y.Size() == 2 * (d - 1) * d * ne, "");
+
+   constexpr int vdim = 2;
+   const auto F = coeff.Read();
+   const auto M = markers.Read();
+   const auto BO = Reshape(testBO.Read(), q, d-1);
+   const auto BC = Reshape(testBC.Read(), q, d);
+   const auto J = Reshape(jac.Read(), q, q, vdim, vdim, ne);
+   const auto W = Reshape(weights.Read(), q, q);
+   const bool cst = coeff.Size() == vdim;
+   const auto C = cst ? Reshape(F,vdim,1,1,1) : Reshape(F,vdim,q,q,ne);
+   auto Y = y.ReadWrite();
+
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int vdim = 2;
+      if (M[e] == 0) { return; } // ignore
+
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
+
+      MFEM_SHARED real_t sBot[Q*D];
+      MFEM_SHARED real_t sBct[Q*D];
+      MFEM_SHARED real_t sQQ[vdim*Q*Q];
+      MFEM_SHARED real_t sQD[vdim*Q*D];
+
+      // Bo and Bc into shared memory
+      const DeviceMatrix Bot(sBot, d-1, q);
+      kernels::internal::LoadB<D,Q>(d-1, q, BO, sBot);
+      const DeviceMatrix Bct(sBct, d, q);
+      kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
+
+      const DeviceCube QQ(sQQ, q, q, vdim);
+      const DeviceCube QD(sQD, q, d, vdim);
+
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const real_t cst_val_0 = C(0,0,0,0);
+         const real_t cst_val_1 = C(1,0,0,0);
+         MFEM_FOREACH_THREAD(y,y,q)
+         {
+            MFEM_FOREACH_THREAD(x,x,q)
+            {
+               const real_t J0 = J(x,y,0,vd,e);
+               const real_t J1 = J(x,y,1,vd,e);
+               const real_t C0 = cst ? cst_val_0 : C(0,x,y,e);
+               const real_t C1 = cst ? cst_val_1 : C(1,x,y,e);
+               QQ(x,y,vd) = W(x,y)*(J0*C0 + J1*C1);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d : d-1;
+         DeviceMatrix Btx = (vd == 0) ? Bct : Bot;
+         MFEM_FOREACH_THREAD(qy,y,q)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t qd = 0.0;
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  qd += QQ(qx,qy,vd) * Btx(dx,qx);
+               }
+               QD(dx,qy,vd) = qd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d : d-1;
+         const int ny = (vd == 1) ? d : d-1;
+         DeviceMatrix Bty = (vd == 1) ? Bct : Bot;
+         DeviceTensor<4> Yxy(Y, nx, ny, vdim, ne);
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t dd = 0.0;
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  dd += QD(dx,qy,vd) * Bty(dy,qy);
+               }
+               Yxy(dx,dy,vd,e) += dd;
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+template <int T_D1D = 0, int T_Q1D = 0>
+static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
+                              const Vector &jac, const Array<real_t> &weights,
+                              const Array<real_t> &testBO,
+                              const Array<real_t> &testBC, const Vector &coeff,
+                              Vector &y, const int d, const int q)
+{
+   MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Problem size too large.");
+   MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Problem size too large.");
+   MFEM_VERIFY(y.Size() == 3 * (d - 1) * (d - 1) * d * ne, "y wrong length");
+
+   constexpr int vdim = 3;
+   const auto F = coeff.Read();
+   const auto M = markers.Read();
+   const auto BO = Reshape(testBO.Read(), q, d-1);
+   const auto BC = Reshape(testBC.Read(), q, d);
+   const auto J = Reshape(jac.Read(), q, q, q, vdim, vdim, ne);
+   const auto W = Reshape(weights.Read(), q, q, q);
+   const bool cst = coeff.Size() == vdim;
+   const auto C = cst ? Reshape(F,vdim,1,1,1,1) : Reshape(F,vdim,q,q,q,ne);
+   auto Y = y.ReadWrite();
+
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int vdim = 3;
+      if (M[e] == 0) { return; } // ignore
+
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HDIV_MAX_D1D;
+
+      MFEM_SHARED real_t sBot[Q*D];
+      MFEM_SHARED real_t sBct[Q*D];
+
+      // Bo and Bc into shared memory
+      const DeviceMatrix Bot(sBot, d-1, q);
+      kernels::internal::LoadB<D,Q>(d-1, q, BO, sBot);
+      const DeviceMatrix Bct(sBct, d, q);
+      kernels::internal::LoadB<D,Q>(d, q, BC, sBct);
+
+      MFEM_SHARED real_t sm0[vdim*Q*Q*Q];
+      MFEM_SHARED real_t sm1[vdim*Q*Q*Q];
+      DeviceTensor<4> QQQ(sm1, q, q, q, vdim);
+      DeviceTensor<4> DQQ(sm0, d, q, q, vdim);
+      DeviceTensor<4> DDQ(sm1, d, d, q, vdim);
+
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const real_t cst_val_0 = C(0,0,0,0,0);
+         const real_t cst_val_1 = C(1,0,0,0,0);
+         const real_t cst_val_2 = C(2,0,0,0,0);
+         MFEM_FOREACH_THREAD(y,y,q)
+         {
+            MFEM_FOREACH_THREAD(x,x,q)
+            {
+               for (int z = 0; z < q; ++z)
+               {
+                  const real_t J0 = J(x,y,z,0,vd,e);
+                  const real_t J1 = J(x,y,z,1,vd,e);
+                  const real_t J2 = J(x,y,z,2,vd,e);
+                  const real_t C0 = cst ? cst_val_0 : C(0,x,y,z,e);
+                  const real_t C1 = cst ? cst_val_1 : C(1,x,y,z,e);
+                  const real_t C2 = cst ? cst_val_2 : C(2,x,y,z,e);
+                  QQQ(x,y,z,vd) = W(x,y,z)*(J0*C0 + J1*C1 + J2*C2);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d : d-1;
+         DeviceMatrix Btx = (vd == 0) ? Bct : Bot;
+         MFEM_FOREACH_THREAD(qy,y,q)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t u[Q];
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(Q)
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  MFEM_UNROLL(Q)
+                  for (int qz = 0; qz < q; ++qz)
+                  {
+                     u[qz] += QQQ(qx,qy,qz,vd) * Btx(dx,qx);
+                  }
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz) { DQQ(dx,qy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d : d-1;
+         const int ny = (vd == 1) ? d : d-1;
+         DeviceMatrix Bty = (vd == 1) ? Bct : Bot;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t u[Q];
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz) { u[qz] = 0.0; }
+               MFEM_UNROLL(Q)
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  MFEM_UNROLL(Q)
+                  for (int qz = 0; qz < q; ++qz)
+                  {
+                     u[qz] += DQQ(dx,qy,qz,vd) * Bty(dy,qy);
+                  }
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz) { DDQ(dx,dy,qz,vd) = u[qz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd,z,vdim)
+      {
+         const int nx = (vd == 0) ? d : d-1;
+         const int ny = (vd == 1) ? d : d-1;
+         const int nz = (vd == 2) ? d : d-1;
+         DeviceTensor<5> Yxyz(Y, nx, ny, nz, vdim, ne);
+         DeviceMatrix Btz = (vd == 2) ? Bct : Bot;
+         MFEM_FOREACH_THREAD(dy,y,ny)
+         {
+            MFEM_FOREACH_THREAD(dx,x,nx)
+            {
+               real_t u[D];
+               MFEM_UNROLL(D)
+               for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  MFEM_UNROLL(D)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz);
+                  }
+               }
+               MFEM_UNROLL(D)
+               for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+/// @param ne number of elements
+/// @param markers array where entry markers[e] == 0 to skip assembly over
+/// element e element
+/// @param jac Spatial Jacobians evaluated at all quadrature points
+/// @param weights 1D quadrature weights
+/// @param testBO 1D open basis test functions
+/// @param testBC 1D closed basis test functions
+/// @param coeff coefficient values evaluated at quadrature points, possibly
+/// compressed.
+/// @param d number of 1D closed dofs
+/// @param q number of 1D quadrature points
+/// @tparam T_D1D maximum number of dofs along any direction, or 0
+/// @tparam T_Q1D maximum number of quadrature points along any direction, or 0
+template <int T_D1D = 0, int T_Q1D = 0>
+static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
+                               const Vector &jac, const Array<real_t> &weights,
+                               const Array<real_t> &testBO,
+                               const Array<real_t> &testBC, const Vector &coeff,
+                               Vector &y, const int d, const int q)
+{
+   MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
+               "Problem size too large.");
+   MFEM_VERIFY(T_Q1D || q <= DeviceDofQuadLimits::Get().HCURL_MAX_Q1D,
+               "Problem size too large.");
+   MFEM_VERIFY(y.Size() == 3 * (d - 1) * d * d * ne, "y wrong length");
+
+   constexpr int vdim = 3;
+   const auto F = coeff.Read();
+   const auto M = markers.Read();
+   const auto BO = Reshape(testBO.Read(), q, d-1);
+   const auto BC = Reshape(testBC.Read(), q, d);
+   const auto J = Reshape(jac.Read(), q, q, q, vdim, vdim, ne);
+   const auto W = Reshape(weights.Read(), q, q, q);
+   const bool cst = coeff.Size() == vdim;
+   const auto C = cst ? Reshape(F,vdim,1,1,1,1) : Reshape(F,vdim,q,q,q,ne);
+   auto Y = y.ReadWrite();
+
+   mfem::forall_3D(ne, q, q, vdim, [=] MFEM_HOST_DEVICE(int e)
+   {
+      if (M[e] == 0)
+      {
+         // ignore
+         return;
+      }
+
+      constexpr int vdim = 3;
+      constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::HCURL_MAX_Q1D;
+      constexpr int D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
+
+      MFEM_SHARED real_t sBot[Q * D];
+      MFEM_SHARED real_t sBct[Q * D];
+
+      // Bo and Bc into shared memory
+      const DeviceMatrix Bot(sBot, d - 1, q);
+      kernels::internal::LoadB<D, Q>(d - 1, q, BO, sBot);
+      const DeviceMatrix Bct(sBct, d, q);
+      kernels::internal::LoadB<D, Q>(d, q, BC, sBct);
+
+      MFEM_SHARED real_t sm0[vdim * Q * Q * Q];
+      MFEM_SHARED real_t sm1[vdim * Q * Q * Q];
+      DeviceTensor<4> QQQ(sm1, q, q, q, vdim);
+      DeviceTensor<4> DQQ(sm0, d, q, q, vdim);
+      DeviceTensor<4> DDQ(sm1, d, d, q, vdim);
+
+      const real_t cst_val_0 = C(0, 0, 0, 0, 0);
+      const real_t cst_val_1 = C(1, 0, 0, 0, 0);
+      const real_t cst_val_2 = C(2, 0, 0, 0, 0);
+
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         MFEM_FOREACH_THREAD(y, y, q)
+         {
+            MFEM_FOREACH_THREAD(x, x, q)
+            {
+               for (int z = 0; z < q; ++z)
+               {
+                  real_t curr[3];
+                  curr[0] = cst ? cst_val_0 : C(0, x, y, z, e);
+                  curr[1] = cst ? cst_val_1 : C(1, x, y, z, e);
+                  curr[2] = cst ? cst_val_2 : C(2, x, y, z, e);
+
+                  const real_t J11 = J(x, y, z, 0, 0, e);
+                  const real_t J21 = J(x, y, z, 1, 0, e);
+                  const real_t J31 = J(x, y, z, 2, 0, e);
+                  const real_t J12 = J(x, y, z, 0, 1, e);
+                  const real_t J22 = J(x, y, z, 1, 1, e);
+                  const real_t J32 = J(x, y, z, 2, 1, e);
+                  const real_t J13 = J(x, y, z, 0, 2, e);
+                  const real_t J23 = J(x, y, z, 1, 2, e);
+                  const real_t J33 = J(x, y, z, 2, 2, e);
+                  // adj(J)
+                  const real_t A11 = (J22 * J33) - (J23 * J32);
+                  const real_t A12 = (J32 * J13) - (J12 * J33);
+                  const real_t A13 = (J12 * J23) - (J22 * J13);
+                  const real_t A21 = (J31 * J23) - (J21 * J33);
+                  const real_t A22 = (J11 * J33) - (J13 * J31);
+                  const real_t A23 = (J21 * J13) - (J11 * J23);
+                  const real_t A31 = (J21 * J32) - (J31 * J22);
+                  const real_t A32 = (J31 * J12) - (J11 * J32);
+                  const real_t A33 = (J11 * J22) - (J12 * J21);
+                  const real_t A[9] = {A11, A12, A13, A21, A22,
+                                       A23, A31, A32, A33
+                                      };
+                  QQQ(x, y, z, vd) = W(x, y, z) * (A[vd * vdim] * curr[0] +
+                                                   A[vd * vdim + 1] * curr[1] +
+                                                   A[vd * vdim + 2] * curr[2]);
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      // Apply Bt operator
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         const int nx = (vd == 0) ? d - 1 : d;
+         DeviceMatrix Btx = (vd == 0) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(qy, y, q)
+         {
+            MFEM_FOREACH_THREAD(dx, x, nx)
+            {
+               real_t u[Q];
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  u[qz] = 0.0;
+               }
+               MFEM_UNROLL(Q)
+               for (int qx = 0; qx < q; ++qx)
+               {
+                  MFEM_UNROLL(Q)
+                  for (int qz = 0; qz < q; ++qz)
+                  {
+                     u[qz] += QQQ(qx, qy, qz, vd) * Btx(dx, qx);
+                  }
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  DQQ(dx, qy, qz, vd) = u[qz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         const int nx = (vd == 0) ? d - 1 : d;
+         const int ny = (vd == 1) ? d - 1 : d;
+         DeviceMatrix Bty = (vd == 1) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(dy, y, ny)
+         {
+            MFEM_FOREACH_THREAD(dx, x, nx)
+            {
+               real_t u[Q];
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  u[qz] = 0.0;
+               }
+               MFEM_UNROLL(Q)
+               for (int qy = 0; qy < q; ++qy)
+               {
+                  MFEM_UNROLL(Q)
+                  for (int qz = 0; qz < q; ++qz)
+                  {
+                     u[qz] += DQQ(dx, qy, qz, vd) * Bty(dy, qy);
+                  }
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  DDQ(dx, dy, qz, vd) = u[qz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(vd, z, vdim)
+      {
+         const int nx = (vd == 0) ? d - 1 : d;
+         const int ny = (vd == 1) ? d - 1 : d;
+         const int nz = (vd == 2) ? d - 1 : d;
+         DeviceTensor<5> Yxyz(Y, nx, ny, nz, vdim, ne);
+         DeviceMatrix Btz = (vd == 2) ? Bot : Bct;
+         MFEM_FOREACH_THREAD(dy, y, ny)
+         {
+            MFEM_FOREACH_THREAD(dx, x, nx)
+            {
+               real_t u[D];
+               MFEM_UNROLL(D)
+               for (int dz = 0; dz < nz; ++dz)
+               {
+                  u[dz] = 0.0;
+               }
+               MFEM_UNROLL(Q)
+               for (int qz = 0; qz < q; ++qz)
+               {
+                  MFEM_UNROLL(D)
+                  for (int dz = 0; dz < nz; ++dz)
+                  {
+                     u[dz] += DDQ(dx, dy, qz, vd) * Btz(dz, qz);
+                  }
+               }
+               MFEM_UNROLL(D)
+               for (int dz = 0; dz < nz; ++dz)
+               {
+                  Yxyz(dx, dy, dz, vd, e) += u[dz];
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+   });
+}
+
+template <FiniteElement::DerivType TestType, int DIM, int TEST_D1D, int Q1D>
+VectorFEDomainLFIntegrator::AssembleKernelType
+VectorFEDomainLFIntegrator::AssembleKernels::Kernel()
+{
+   if constexpr (TestType == FiniteElement::DIV)
+   {
+      if constexpr (DIM == 2)
+      {
+         return HdivDLFAssemble2D<TEST_D1D, Q1D>;
+      }
+      if constexpr (DIM == 3)
+      {
+         return HdivDLFAssemble3D<TEST_D1D, Q1D>;
+      }
+   }
+   if constexpr (TestType == FiniteElement::CURL)
+   {
+      if constexpr (DIM == 3)
+      {
+         return HcurlDLFAssemble3D<TEST_D1D, Q1D>;
+      }
+   }
+   MFEM_ABORT("");
+}
+
 /// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

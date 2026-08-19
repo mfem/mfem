@@ -19,18 +19,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/config
+        with:
+          NO_FLAGS: true
       - name: Cache
         id: cache
         uses: actions/cache@v5
         with:
           path: ${{env.METIS_DIR}}
-          key: ${{runner.os}}-build-${{env.METIS_DIR}}-v2.5
+          key: ${{runner.os}}-build-${{env.METIS_DIR}}-${{env.MFEM_ACTIONS_VERSION}}
       - name: Setup
         if: steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/sanitize/mpi
+        with:
+          NO_FLAGS: true
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-metis@v2.6
+        uses: mfem/github-actions/build-metis@v2.7
         with:
           archive: ${{env.METIS_TGZ}}
           dir: ${{env.METIS_DIR}}

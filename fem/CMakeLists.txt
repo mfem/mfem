@@ -57,6 +57,8 @@ set(SRCS
   integ/lininteg_domain_grad.cpp
   integ/lininteg_domain_vectorfe.cpp
   integ/nonlininteg_vecconvection_pa.cpp
+  integ/nonlininteg_vecconvection_pa_diag.cpp
+  integ/nonlininteg_vecconvection_pa_grad.cpp
   integ/nonlininteg_vecconvection_mf.cpp
   coefficient.cpp
   complex_fem.cpp
@@ -133,7 +135,7 @@ set(SRCS
   tmop/assemble/diag2.cpp
   tmop/assemble/grad2_limit.cpp
   tmop/assemble/grad2.cpp
-  tmop/assemble/diag3_limit.cpp  
+  tmop/assemble/diag3_limit.cpp
   tmop/assemble/diag3.cpp
   tmop/assemble/grad3_limit.cpp
   tmop/assemble/grad3.cpp
@@ -204,7 +206,11 @@ set(HDRS
   integ/bilininteg_mass_kernels.hpp
   integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
+  integ/bilininteg_vecdiv_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
+  integ/nonlininteg_vecconvection_pa.hpp
+  integ/nonlininteg_vecconvection_pa_diag.hpp
+  integ/nonlininteg_vecconvection_pa_grad.hpp
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
@@ -311,6 +317,7 @@ set(HDRS
   tmop_tools.hpp
   tmop_amr.hpp
   gslib.hpp
+  gslib/gslib_kernel_helpers.hpp
   transfer.hpp
   hyperbolic.hpp
   integrator.hpp
