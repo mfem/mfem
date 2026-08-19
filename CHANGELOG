@@ -105,6 +105,8 @@ GPU computing
 
 - Added partial assembly support for MixedScalarWeakCrossProductIntegrator.
 
+- Added partial assembly support for MixedVectorGradientIntegrator for H1->RT.
+
 - Added support for device partial assembly CurlInterpolator.
   This supports 2D and 3D variants:
     2D H1 (out-of-plane) to RT (in-plane)
