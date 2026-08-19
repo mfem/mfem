@@ -31,9 +31,9 @@
 //               on the unit cube (set the compile-time constant dim to 2 for
 //               the unit square), starting from a Gaussian hot spot at rest.
 //               The relaxation term tau d^2T/dt^2 turns the parabolic heat
-//               equation into a damped wave equation to comply with the 
-//               finite speed sqrt(k/tau) of heat propagation. 
-//               Small tau recovers diffusive behavior (Fourier's law), 
+//               equation into a damped wave equation to comply with the
+//               finite speed sqrt(k/tau) of heat propagation.
+//               Small tau recovers diffusive behavior (Fourier's law),
 //               large tau a wave-like behavior.
 //
 //               The conductivity k(T) = k0 (1 + beta T^2) is the only
@@ -43,7 +43,7 @@
 //                 F(T) = int k(T) grad T . grad w dx
 //
 //               and its tangent J_F(T) come from the same pointwise
-//               description; nothing here differentiates k(T) by hand. 
+//               description; nothing here differentiates k(T) by hand.
 //
 //               We recommend viewing examples 16 and 23, and dfem miniapps
 //               before viewing this example.
@@ -100,7 +100,7 @@ static AssemblyLevel ParseAssemblyLevel(const char *name)
 // ----------------------------------------------------------------------------
 
 /// Quadrature point kernel for F(T) = int k(T) grad T . grad w dx with the
-/// temperature dependent conductivity k(T) = k0 (1 + beta T^2). 
+/// temperature dependent conductivity k(T) = k0 (1 + beta T^2).
 template <int DIM>
 struct NonlinearDiffusionQFunction
 {
@@ -122,7 +122,7 @@ struct NonlinearDiffusionQFunction
 };
 
 /// dFEM wrapper for the nonlinear diffusion residual F(T) and its tangent
-/// J_F(T). 
+/// J_F(T).
 ///
 /// Neither F nor J_F applies any essential-dof treatment. That belongs to the
 /// operator that assembles the full residual, since the boundary condition
@@ -131,8 +131,9 @@ template <int DIM>
 class NonlinearDiffusionOperator
 {
 public:
-   NonlinearDiffusionOperator(ParFiniteElementSpace &fes, const IntegrationRule &ir,
-                      real_t k0, real_t beta)
+   NonlinearDiffusionOperator(ParFiniteElementSpace &fes,
+                              const IntegrationRule &ir,
+                              real_t k0, real_t beta)
    {
       auto &mesh_nodes =
          *static_cast<ParGridFunction *>(fes.GetParMesh()->GetNodes());
@@ -457,12 +458,13 @@ HyperbolicHeatOperator::HyperbolicHeatOperator(ParFiniteElementSpace &fes,
 {
    fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   /// Setup the mass operators for the acceleration and velocity terms. 
+   /// Setup the mass operators for the acceleration and velocity terms.
    SetupMass(m_tau, tau_coeff, ir, assembly, M_tau);
    SetupMass(m_rhoc, rhoc_coeff, ir, assembly, M_rhoc);
 
-   /// Create the nonlinear diffusion operator as a dFEM operator 
-   diffusion = std::make_unique<NonlinearDiffusionOperator<dim>>(fes, ir, k0, beta);
+   /// Create the nonlinear diffusion operator as a dFEM operator
+   diffusion = std::make_unique<NonlinearDiffusionOperator<dim>>(fes, ir, k0,
+                                                                 beta);
 
    /// The source term is a constant coefficient, so we can assemble it once and for all.
    ConstantCoefficient source_coeff(source);
@@ -480,11 +482,11 @@ HyperbolicHeatOperator::HyperbolicHeatOperator(ParFiniteElementSpace &fes,
    M_solver.SetPreconditioner(M_prec);
    M_solver.SetOperator(*M_tau);
 
-   /// Set up the nonlinear residual operator used by the Newton solver. 
+   /// Set up the nonlinear residual operator used by the Newton solver.
    residual_op = std::make_unique<ResidualOperator>(*M_tau, *M_rhoc, *diffusion,
                                                     ess_tdof_list);
 
-   /// Set up the Newton solver and Krylov solver for linearized systems. 
+   /// Set up the Newton solver and Krylov solver for linearized systems.
    if (beta == 0.0)
    {
       krylov = std::make_unique<CGSolver>(fes.GetComm());
@@ -699,9 +701,9 @@ int main(int argc, char *argv[])
    //    k(T) grad(T).grad(w). For k(T) = k0 (1 + beta T^2), its
    //    polynomial degree on affine elements is up to 4*p - 2.
    const int integration_order =
-       (beta == 0.0) ? 2 * order : 4 * order - 2;
+      (beta == 0.0) ? 2 * order : 4 * order - 2;
    const IntegrationRule &ir =
-       IntRules.Get(pmesh.GetTypicalElementGeometry(), integration_order);
+      IntRules.Get(pmesh.GetTypicalElementGeometry(), integration_order);
 
    // 9. Set the initial conditions. We assume a gaussian hot spot at rest.
    ParGridFunction T_gf(&fes), dTdt_gf(&fes);

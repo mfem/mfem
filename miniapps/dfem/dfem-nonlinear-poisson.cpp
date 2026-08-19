@@ -315,7 +315,7 @@ public:
                   inputs, outputs, *fes.GetParMesh());
 
          const auto in = Inputs < Value<Solution>, Gradient<Solution>,
-               Gradient<Coords>, Weight > {};
+                    Gradient<Coords>, Weight > {};
          const auto out = Outputs<Gradient<Solution>> {};
 
          if (kappa == KappaType::GradientDependent)
@@ -417,7 +417,8 @@ std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type)
    switch (type)
    {
       case PreconditionerType::None:     return nullptr;
-      case PreconditionerType::Diagonal: return std::make_unique<OperatorJacobiSmoother>();
+      case PreconditionerType::Diagonal: return
+            std::make_unique<OperatorJacobiSmoother>();
       case PreconditionerType::AMG:      return std::make_unique<JacobianAMG<DIM>>();
       default:
          MFEM_ABORT("Unknown preconditioner type: " << static_cast<int>(type));
