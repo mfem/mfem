@@ -1997,7 +1997,11 @@ void PADiscreteLinearOperatorExtension::Assemble()
    }
    else
    {
-      mfem_error("A real ElementRestriction is required in this setting!");
+      const L2ElementRestriction* l2_elem_restrict =
+         dynamic_cast<const L2ElementRestriction*>(elem_restrict_test);
+      MFEM_VERIFY(l2_elem_restrict,
+                  "A real ElementRestriction is required in this setting!");
+      test_multiplicity = 1.0;
    }
 
    auto tm = test_multiplicity.ReadWrite();
@@ -2036,7 +2040,13 @@ void PADiscreteLinearOperatorExtension::AddMult(
    }
    else
    {
-      mfem_error("In this setting you need a real ElementRestriction!");
+      const L2ElementRestriction* l2_elem_restrict =
+         dynamic_cast<const L2ElementRestriction*>(elem_restrict_test);
+      MFEM_VERIFY(l2_elem_restrict,
+                  "In this setting you need a real ElementRestriction!");
+      tempY.SetSize(y.Size());
+      l2_elem_restrict->MultTranspose(localTest, tempY);
+      y += tempY;
    }
 }
 

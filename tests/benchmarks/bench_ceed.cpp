@@ -47,7 +47,11 @@ static int SnapMmaElementsPerDir(int n) noexcept
 
 static void CustomArguments(bm::Benchmark *benchmark) noexcept
 {
-   constexpr int MAX_NDOFS = 12 * 1024 * (mfem_use_gpu ? 1024 : 32);
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   constexpr int MAX_NDOFS = 16 * 1024 * 1024;
+#else
+   constexpr int MAX_NDOFS = 16 * 1024 * 8;
+#endif
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
