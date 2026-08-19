@@ -368,6 +368,8 @@ void HybridizationExtension::ConstructH()
 
    CAhatInvCt = 0.0;
 
+   // Fill the face-to-face adjacency array. Two faces are adjacent if they are
+   // incident to a common element.
    mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
    {
       const int begin_f = d_face_face_offsets[fi];
@@ -403,6 +405,12 @@ void HybridizationExtension::ConstructH()
             }
          }
       }
+      // Fill unused entries with -1 to indicate invalid
+      const int end_f = d_face_face_offsets[fi + 1];
+      for (int i = begin_f + idx; i < end_f; ++i)
+      {
+         d_face_to_face[i] = -1;
+      }
    });
 
    mfem::forall(nf, [=] MFEM_HOST_DEVICE (int fi)
@@ -412,6 +420,7 @@ void HybridizationExtension::ConstructH()
       for (int idx_j = begin; idx_j < end; ++idx_j)
       {
          const int fj = d_face_to_face[idx_j];
+         if (fj < 0) { break; }
          for (int ei = 0; ei < 2; ++ei)
          {
             const int e = d_face_to_el(0, ei, fi);
