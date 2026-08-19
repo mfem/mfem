@@ -377,6 +377,52 @@ public:
    int NumCheckpoints() const { return num_checkpoints_; }
    size_t SnapshotBytes() const { return snapshot_bytes_; }
 
+   /// Return the exact number of primal steps that this REVOLVE schedule will
+   /// recompute during the reverse sweep.  This simulates controller actions
+   /// only; it performs no state allocation, storage, or primal work.
+   long long CountRecomputedPrimalSteps() const
+   {
+      if (num_steps_ <= 1) { return 0; }
+
+      RevolveController sim = ctrl_init_;
+      int work_time = num_steps_ - 1;
+      int adjoint_steps = 0;
+      long long recomputed_steps = 0;
+
+      while (adjoint_steps < num_steps_)
+      {
+         const RevolveAction action = sim.Next();
+         switch (action)
+         {
+            case RevolveAction::takeshot:
+               break;
+            case RevolveAction::restore:
+               work_time = sim.Capo();
+               break;
+            case RevolveAction::advance:
+            {
+               const int target = sim.Capo();
+               MFEM_VERIFY(target >= work_time,
+                           "REVOLVE estimate: advance target precedes work state");
+               recomputed_steps += target - work_time;
+               work_time = target;
+               break;
+            }
+            case RevolveAction::firsturn:
+            case RevolveAction::youturn:
+               MFEM_VERIFY(sim.Fine() == sim.Capo() &&
+                           sim.Fine() == work_time,
+                           "REVOLVE estimate: invalid adjoint turn state");
+               adjoint_steps++;
+               break;
+            case RevolveAction::terminate:
+               MFEM_ABORT("REVOLVE estimate terminated before all adjoint steps");
+         }
+      }
+
+      return recomputed_steps;
+   }
+
    // ForwardStep: called for i=0..num_steps-1
    template <typename State, typename PrimalStep, typename MakeSnapshot>
    void ForwardStep(int i,

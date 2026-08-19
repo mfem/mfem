@@ -15,10 +15,17 @@ MTOP_OBJ = mtop_solvers.o pde_filter.o ascii.o
 MMA_OBJ = MMA_MFEM.o
 MMA_LIBS ?= -llapack -lblas
 TRANSIENT_HEADERS = ElastodynamicsSolver.hpp ObjectiveFunctional.hpp \
-                    ProblemSpecification.hpp OptimizationCheckpoint.hpp
+                    BoundaryTraceHistory.hpp ReferenceBoundaryData.hpp \
+                    ProblemSpecification.hpp OptimizationCheckpoint.hpp \
+                    TrajectoryCheckpointing.hpp \
+                    mtop-chkpt/chpt/revolve_checkpointing.hpp
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = ForwardElastodynamics TopOptTransient ElastTopOpt_static test_adjoint_verification
+PAR_MINIAPPS = ForwardElastodynamics TopOptTransient ElastTopOpt_static \
+               test_adjoint_verification test_continuous_temporal_refinement \
+               test_continuous_forward_finer test_rk4_stage_adjoint \
+               test_rk4_stage_sensitive_oscillator \
+               test_boundary_displacement_tracking
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -42,6 +49,21 @@ TopOptTransient: TopOptTransient.o pde_filter.o $(MMA_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(MMA_LIBS)
 
 test_adjoint_verification: test_adjoint_verification.o pde_filter.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+test_continuous_temporal_refinement: test_continuous_temporal_refinement.o pde_filter.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+test_continuous_forward_finer: test_continuous_forward_finer.o pde_filter.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+test_rk4_stage_adjoint: test_rk4_stage_adjoint.o pde_filter.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+test_rk4_stage_sensitive_oscillator: test_rk4_stage_sensitive_oscillator.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+test_boundary_displacement_tracking: test_boundary_displacement_tracking.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 # Static topology optimization uses the mtop helpers and MMA

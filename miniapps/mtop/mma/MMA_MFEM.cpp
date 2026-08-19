@@ -1106,15 +1106,21 @@ static void UpdateAsymptotes(
 // For the objective (i = −1, stored in p0/q0):
 //   p0_j = (U_j−x_j)² · ( max(∂f₀/∂xⱼ, 0)  +  rh_j )
 //   q0_j = (x_j−L_j)² · ( max(−∂f₀/∂xⱼ, 0) +  rh_j )
-//   rh_j  = 0.001·|∂f₀/∂xⱼ| + (ρ₀ + ρfloor) / (xmax_j−xmin_j)
+//   rh_j  = 0.001·|∂f₀/∂xⱼ| + (ρ₀ + ρfloor,0) / (xmax_j−xmin_j)
 //
 // For each constraint i:
 //   pᵢⱼ = (U_j−x_j)² · ( max(∂fᵢ/∂xⱼ, 0)  +  rhc_j )
 //   qᵢⱼ = (x_j−L_j)² · ( max(−∂fᵢ/∂xⱼ, 0) +  rhc_j )
-//   rhc_j = 0.001·|∂fᵢ/∂xⱼ| + (ρᵢ + ρfloor) / (xmax_j−xmin_j)
+//   rhc_j = 0.001·|∂fᵢ/∂xⱼ| + (ρᵢ + ρfloor,i) / (xmax_j−xmin_j)
 //
 // The regularisation terms rh/rhc (proportional to ρ) are the GCMMA
 // curvature parameters; rho = nullptr means ρ = 0 (plain MMA, no curvature).
+// The strictly-positive numerical floor is relative to each function's global
+// mean |df_j|*(xmax_j-xmin_j).  Unlike an absolute constant, this preserves
+// invariance under function rescaling and under uniform FE-mesh refinement
+// (where an integral derivative and its associated cell volume both shrink).
+// A tiny absolute fallback is retained solely to keep p/q positive when an
+// entire gradient is exactly zero.
 //
 // The b vector, b_i = Σⱼ[pᵢⱼ/(U−x) + qᵢⱼ/(x−L)] − fᵢ(x^k), is the
 // constant term in the dual.  It is computed here (device sum) and reduced
@@ -1125,7 +1131,7 @@ static void UpdateAsymptotes(
 // flag from the caller.
 //
 static void BuildCoeffs(
-    int n_loc, int m, bool use_dev,
+    MPI_Comm comm, int n_loc, long long n_global, int m, bool use_dev,
     const mfem::real_t* x,
     const mfem::real_t* L, const mfem::real_t* U,
     const mfem::real_t* xmin, const mfem::real_t* xmax,
@@ -1137,8 +1143,43 @@ static void BuildCoeffs(
     const double* rho,                        // m+1, host (rho[0]=obj, rho[i+1]=cstr)
     std::vector<double>& b_loc)
 {
-    const double rho0 = 1e-5;
+    // Scale the p/q positivity floor with the corresponding function.  Use one
+    // collective for all m+1 fields so every MPI rank builds the same model.
+    // Multiplication by the variable range gives this scale the same units as
+    // the explicit GCMMA rho parameters.
+    constexpr double relative_floor = 1e-5;
+    constexpr double zero_gradient_floor = 1e-30;
+    mfem::Vector scale_tmp(n_loc);
+    scale_tmp.UseDevice(use_dev);
+    std::vector<double> scale_loc(m+1, 0.0), scale_global(m+1, 0.0);
+
+    auto GradientScale = [&](const mfem::real_t* df) {
+        auto* tmp = scale_tmp.Write();
+        mfem::forall_switch(use_dev, n_loc, [=] MFEM_HOST_DEVICE (int j) {
+            double xmi = double(xmax[j])-double(xmin[j]);
+            xmi = xmi > 1e-5 ? xmi : 1e-5;
+            double d = double(df[j]);
+            tmp[j] = (d < 0.0 ? -d : d) * xmi;
+        });
+        return double(scale_tmp.Sum());
+    };
+
+    scale_loc[0] = GradientScale(df0);
+    for (int i=0; i<m; ++i) { scale_loc[i+1] = GradientScale(dfi[i]); }
+    mma_Allreduce(scale_loc.data(), scale_global.data(), m+1, comm);
+
+    const double inv_n_global =
+        1.0 / double(n_global > 0 ? n_global : 1);
+    std::vector<double> function_floor(m+1);
+    for (int i=0; i<=m; ++i)
+    {
+        function_floor[i] =
+            std::max(zero_gradient_floor,
+                     relative_floor * scale_global[i] * inv_n_global);
+    }
+
     double rho_obj = rho ? rho[0] : 0.0;
+    const double floor_obj = function_floor[0];
     // Build p0, q0
     {
         auto* p0w = p0_v.Write();
@@ -1151,7 +1192,7 @@ static void BuildCoeffs(
             double df = double(df0[j]);
             double pp = df > 0 ? df : 0.0;
             double pm = df < 0 ?-df : 0.0;
-            double rh = 0.001*(df>0?df:-df) + (rho_obj+rho0)/xmi;
+            double rh = 0.001*(df>0?df:-df) + (rho_obj+floor_obj)/xmi;
             p0w[j] = dUx*dUx*(pp+rh);
             q0w[j] = dxL*dxL*(pm+rh);
         });
@@ -1159,6 +1200,7 @@ static void BuildCoeffs(
     // Build pij, qij for each constraint
     for (int i=0;i<m;++i){
         double rho_i = rho ? rho[i+1] : 0.0;
+        double floor_i = function_floor[i+1];
         const auto* dfi_i = dfi[i];
         auto* piw = pij_v[i].Write();
         auto* qiw = qij_v[i].Write();
@@ -1170,7 +1212,7 @@ static void BuildCoeffs(
             double dg = double(dfi_i[j]);
             double dp = dg > 0 ? dg : 0.0;
             double dm = dg < 0 ?-dg : 0.0;
-            double rhc = 0.001*(dg>0?dg:-dg) + (rho_i+rho0)/xmi;
+            double rhc = 0.001*(dg>0?dg:-dg) + (rho_i+floor_i)/xmi;
             piw[j] = dUx*dUx*(dp+rhc);
             qiw[j] = dxL*dxL*(dm+rhc);
         });
@@ -1266,7 +1308,7 @@ void MMAOptimizer::BuildSubproblem_(
     // null ptr sentinel for rho (plain MMA uses rho=0)
     static const double zero_rho[1]={0.0};
     std::vector<double> rho_zero(m_+1,0.0);
-    BuildCoeffs(n_,m_,ud,
+    BuildCoeffs(MMA_SERIAL_COMM,n_,n_,m_,ud,
         x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
         df0dx.Read(),pij_,qij_,p0_,q0_,
         dfi.data(),rho_zero.data(),b_);
@@ -1283,7 +1325,7 @@ void MMAOptimizer::BuildSubproblemRho_(
     bool ud = x.UseDevice();
     std::vector<const mfem::real_t*> dfi(m_);
     for (int i=0;i<m_;++i) dfi[i]=dfidx[i].Read();
-    BuildCoeffs(n_,m_,ud,
+    BuildCoeffs(MMA_SERIAL_COMM,n_,n_,m_,ud,
         x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
         df0dx.Read(),pij_,qij_,p0_,q0_,
         dfi.data(),rho.data(),b_);
@@ -1672,7 +1714,7 @@ void MMAOptimizerParallel::BuildSubproblem_(
     for (int i=0;i<m_;++i) dfi[i]=dfidx[i].Read();
     std::vector<double> rho_zero(m_+1,0.0);
     std::vector<double> b_loc(m_);
-    BuildCoeffs(n_local_,m_,ud,
+    BuildCoeffs(comm_,n_local_,n_global_,m_,ud,
         x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
         df0dx.Read(),pij_,qij_,p0_,q0_,
         dfi.data(),rho_zero.data(),b_loc);
@@ -1691,7 +1733,7 @@ void MMAOptimizerParallel::BuildSubproblemRho_(
     std::vector<const mfem::real_t*> dfi(m_);
     for (int i=0;i<m_;++i) dfi[i]=dfidx[i].Read();
     std::vector<double> b_loc(m_);
-    BuildCoeffs(n_local_,m_,ud,
+    BuildCoeffs(comm_,n_local_,n_global_,m_,ud,
         x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
         df0dx.Read(),pij_,qij_,p0_,q0_,
         dfi.data(),rho.data(),b_loc);
@@ -2096,7 +2138,8 @@ void SQOptimizer::BuildSubproblem_(
     for(int i=0;i<m_;++i) dfi[i]=dfidx?dfidx[i].Read():nullptr;
     std::vector<double> rho_use(m_+1, 0.0);
     if(rho_override) for(int k=0;k<=m_;++k) rho_use[k]=rho_override[k];
-    BuildCoeffs(n_,m_,ud, x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
+    BuildCoeffs(MMA_SERIAL_COMM,n_,n_,m_,ud,
+        x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
         df0dx.Read(),pij_,qij_,p0_,q0_, dfi.data(),rho_use.data(),b_);
     for(int i=0;i<m_;++i) b_[i]-=double(fival(i));
 }
@@ -2365,7 +2408,8 @@ void SQOptimizerParallel::BuildSubproblem_(
     std::vector<double> rho_use(m_+1,0.0);
     if(rho_override) for(int k=0;k<=m_;++k) rho_use[k]=rho_override[k];
     std::vector<double> b_loc(m_,0.0);
-    BuildCoeffs(n_local_,m_,ud, x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
+    BuildCoeffs(comm_,n_local_,n_global_,m_,ud,
+        x.Read(),L_.Read(),U_.Read(),xmin.Read(),xmax.Read(),
         df0dx.Read(),pij_,qij_,p0_,q0_, dfi.data(),rho_use.data(),b_loc);
     MPI_Allreduce(b_loc.data(),b_.data(),m_,MPI_DOUBLE,MPI_SUM,comm_);
     for(int i=0;i<m_;++i) b_[i]-=double(fival(i));

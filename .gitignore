@@ -53,6 +53,49 @@ doc/warnings.log
 # Totalview breakpoint files
 *.TVD.*breakpoints
 
+# ------------------------------------------------------------------------------
+# Local mtop/topopt research artifacts. Source files remain eligible for Git,
+# while generated meshes, results, logs, checkpoints, figures, installations,
+# archives, and compiled outputs remain local.
+# ------------------------------------------------------------------------------
+miniapps/mtop/**/*.o
+miniapps/mtop/**/*.a
+miniapps/mtop/**/*.so
+miniapps/mtop/**/*.dylib
+miniapps/mtop/**/__pycache__/
+miniapps/mtop/**/*.pyc
+miniapps/mtop/**/*.msh
+miniapps/mtop/**/*.mesh
+miniapps/mtop/**/*.geo
+miniapps/mtop/**/*.gf
+miniapps/mtop/**/*.f5
+miniapps/mtop/**/*.h5
+miniapps/mtop/**/*.vtk
+miniapps/mtop/**/*.vtu
+miniapps/mtop/**/*.pvtu
+miniapps/mtop/**/*.csv
+miniapps/mtop/**/*.dat
+miniapps/mtop/**/*.out
+miniapps/mtop/**/*.err
+miniapps/mtop/**/*.log
+miniapps/mtop/**/*.pdf
+miniapps/mtop/**/*.png
+miniapps/mtop/**/*.jpg
+miniapps/mtop/**/*.jpeg
+miniapps/mtop/**/*.svg
+miniapps/mtop/**/*.tar
+miniapps/mtop/**/*.tar.gz
+miniapps/mtop/**/*.tgz
+miniapps/mtop/**/runs/
+miniapps/mtop/**/studies/
+miniapps/mtop/**/jobs/
+miniapps/mtop/**/logs/
+miniapps/mtop/**/figures/
+miniapps/mtop/**/results/
+miniapps/mtop/**/gmsh/
+miniapps/mtop/**/gmsh-*/
+miniapps/mtop/topopt/topopt_transient/6a0d1d2ed0a8576233e59255/
+
 # OS-specific: Mac
 *.dSYM
 .DS_Store

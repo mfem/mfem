@@ -14,8 +14,10 @@
 // the rank renames mixes two consecutive designs - harmless, since the
 // payload is only an initial guess.)
 //
-// Constraints (validated on load): same MPI rank count, same mesh refinement
-// and FE order as the run that wrote the checkpoint.
+// Constraints (validated on load): same MPI rank count, same mesh refinement,
+// and same design/filter FE order. The state (forward/adjoint) FE order is
+// informational: raw rho can seed a new physics discretization when its own
+// L2 control layout is unchanged.
 //
 // DISTINCT FROM trajectory checkpointing (TrajectoryCheckpointing.hpp), which
 // handles RK4 states inside one forward/adjoint sweep.
@@ -26,6 +28,7 @@
 #define OPTIMIZATION_CHECKPOINT_HPP
 
 #include "mfem.hpp"
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
@@ -39,12 +42,21 @@ namespace mfem
 
 struct OptimizationCheckpointMetadata
 {
-   int iteration = 0;             // Last completed MMA iteration
-   real_t objective = 0.0;        // J at that iteration (informational)
-   real_t volume_fraction = 0.0;  // Volume fraction at that iteration
+   // Version 2 gives the payload an unambiguous design index: rho^K has
+   // design_iteration=K after K completed MMA updates. Version 1 metadata used
+   // a zero-based update index and attached pre-update objective data to the
+   // post-update density; the loader translates that legacy convention.
+   int format_version = 2;
+   int design_iteration = 0;
+   bool objective_valid_for_design = false;
+   real_t objective = 0.0;
+   real_t volume_fraction = 0.0;  // Always evaluated on the saved density
    int n_mpi_ranks = 1;           // Must match on restart
    int refinement_level = 0;      // Must match on restart
-   int fe_order = 1;              // Must match on restart
+   int fe_order = 1;              // State H1 order (informational on restart)
+   // H1 order of rho_tilde. rho uses paired L2 degree max(0, p_d - 1).
+   // -1 marks legacy metadata predating independent design order.
+   int design_fe_order = -1;
 };
 
 class OptimizationCheckpoint
@@ -93,6 +105,21 @@ private:
       return glob == 1;
    }
 
+   static bool MetadataIsFinite(const OptimizationCheckpointMetadata &meta)
+   {
+      return std::isfinite(meta.objective) &&
+             std::isfinite(meta.volume_fraction);
+   }
+
+   static bool DesignIsFinite(const Vector &rho_tv)
+   {
+      for (int i = 0; i < rho_tv.Size(); i++)
+      {
+         if (!std::isfinite(rho_tv[i])) { return false; }
+      }
+      return true;
+   }
+
 public:
    OptimizationCheckpoint(const std::string &dir, MPI_Comm comm)
       : dir_(dir), comm_(comm)
@@ -101,10 +128,31 @@ public:
    }
 
    /// Save the local control-density true-dof vector + metadata.
-   /// Call at the end of each completed MMA iteration; overwrites in place
-   /// (atomic per file, metadata last).
+   /// Save rho^K with design_iteration=K; overwrites in place (atomic per
+   /// file, metadata last). objective_valid_for_design states whether the
+   /// objective field was evaluated on this exact payload.
    bool Save(const OptimizationCheckpointMetadata &meta, const Vector &rho_tv)
    {
+      // Validate collectively before touching the existing checkpoint. Every
+      // rank participates in both reductions so a bad local design cannot leave
+      // other ranks waiting in the subsequent file-write collectives.
+      const bool metadata_finite = AllOk(
+         meta.format_version == 2 && meta.design_iteration >= 0 &&
+         MetadataIsFinite(meta));
+      const bool design_finite = AllOk(DesignIsFinite(rho_tv));
+      if (!metadata_finite || !design_finite)
+      {
+         if (myid_ == 0)
+         {
+            std::cerr << "Checkpoint: refusing to save invalid or non-finite "
+                      << (!metadata_finite && !design_finite ?
+                          "metadata and design." :
+                          (!metadata_finite ? "metadata." : "design."))
+                      << std::endl;
+         }
+         return false;
+      }
+
       if (!CreateDirectoryIfNeeded()) { return false; }
 
       // 1. Every rank: write its design piece to .tmp and rename.
@@ -119,8 +167,8 @@ public:
          {
             ofs.write(reinterpret_cast<const char *>(&design_magic_),
                       sizeof(design_magic_));
-            ofs.write(reinterpret_cast<const char *>(&meta.iteration),
-                      sizeof(meta.iteration));
+            ofs.write(reinterpret_cast<const char *>(&meta.design_iteration),
+                      sizeof(meta.design_iteration));
             ofs.write(reinterpret_cast<const char *>(&n), sizeof(n));
             ofs.write(reinterpret_cast<const char *>(rho_tv.GetData()),
                       n * sizeof(real_t));
@@ -149,12 +197,16 @@ public:
          meta_ok = ofs.good();
          if (meta_ok)
          {
-            ofs << "iteration " << meta.iteration << "\n"
+            ofs << "format_version " << meta.format_version << "\n"
+                << "design_iteration " << meta.design_iteration << "\n"
+                << "objective_valid_for_design "
+                << (meta.objective_valid_for_design ? 1 : 0) << "\n"
                 << "objective " << std::setprecision(17) << meta.objective << "\n"
                 << "volume_fraction " << meta.volume_fraction << "\n"
                 << "n_mpi_ranks " << nranks << "\n"
                 << "refinement_level " << meta.refinement_level << "\n"
-                << "fe_order " << meta.fe_order << "\n";
+                << "fe_order " << meta.fe_order << "\n"
+                << "design_fe_order " << meta.design_fe_order << "\n";
             ofs.close();
             meta_ok = ofs.good() &&
                       (std::rename(tmp.c_str(), MetadataPath().c_str()) == 0);
@@ -180,29 +232,88 @@ public:
       return exists;
    }
 
-   /// Read + broadcast the metadata and check it matches this run.
-   bool ValidateCompatibility(int expected_ref_level, int expected_order,
+   /// Read + broadcast the metadata and check the raw-control layout matches
+   /// this run. State order intentionally need not match: only rho is loaded.
+   bool ValidateCompatibility(int expected_ref_level, int expected_design_order,
                               OptimizationCheckpointMetadata &meta) const
    {
       bool read_ok = true;
+      bool metadata_finite = true;
       if (myid_ == 0)
       {
          std::ifstream ifs(MetadataPath());
          read_ok = ifs.good();
+         int legacy_iteration = -1;
+         int objective_valid = 0;
+         bool saw_format_version = false;
+         bool saw_design_iteration = false;
+         bool saw_objective_valid = false;
          std::string key;
          while (read_ok && ifs >> key)
          {
-            if (key == "iteration")             { ifs >> meta.iteration; }
+            if (key == "format_version")
+            {
+               ifs >> meta.format_version;
+               saw_format_version = true;
+            }
+            else if (key == "design_iteration")
+            {
+               ifs >> meta.design_iteration;
+               saw_design_iteration = true;
+            }
+            else if (key == "objective_valid_for_design")
+            {
+               ifs >> objective_valid;
+               saw_objective_valid = true;
+            }
+            else if (key == "iteration")        { ifs >> legacy_iteration; }
             else if (key == "objective")        { ifs >> meta.objective; }
             else if (key == "volume_fraction")  { ifs >> meta.volume_fraction; }
             else if (key == "n_mpi_ranks")      { ifs >> meta.n_mpi_ranks; }
             else if (key == "refinement_level") { ifs >> meta.refinement_level; }
             else if (key == "fe_order")         { ifs >> meta.fe_order; }
+            else if (key == "design_fe_order")  { ifs >> meta.design_fe_order; }
             else { std::string skip; ifs >> skip; }
             read_ok = !ifs.fail();
          }
+         if (read_ok && !saw_format_version)
+         {
+            meta.format_version = 1;
+            read_ok = legacy_iteration >= 0;
+            if (read_ok)
+            {
+               meta.design_iteration = legacy_iteration + 1;
+               meta.objective_valid_for_design = false;
+               std::cout
+                  << "Checkpoint: legacy iteration metadata; interpreting "
+                  << "the payload as rho^" << meta.design_iteration
+                  << " and marking its stored objective as pre-update.\n";
+            }
+         }
+         else if (read_ok)
+         {
+            read_ok = meta.format_version == 2 && saw_design_iteration &&
+                      saw_objective_valid &&
+                      meta.design_iteration >= 0 &&
+                      (objective_valid == 0 || objective_valid == 1);
+            meta.objective_valid_for_design = objective_valid == 1;
+         }
+         // Legacy checkpoints coupled filter order to fe_order, with the
+         // paired L2 control degree. Infer that design space when the field is
+         // absent so existing checkpoints remain restartable.
+         if (read_ok && meta.design_fe_order < 0)
+         {
+            meta.design_fe_order = meta.fe_order;
+            std::cout << "Checkpoint: legacy metadata; inferring design FE order "
+                      << meta.design_fe_order << " from fe_order.\n";
+         }
+         if (read_ok)
+         {
+            metadata_finite = MetadataIsFinite(meta);
+         }
       }
       MPI_Bcast(&read_ok, 1, MPI_C_BOOL, 0, comm_);
+      MPI_Bcast(&metadata_finite, 1, MPI_C_BOOL, 0, comm_);
       if (!read_ok)
       {
          if (myid_ == 0)
@@ -212,12 +323,24 @@ public:
          }
          return false;
       }
-      MPI_Bcast(&meta.iteration, 1, MPI_INT, 0, comm_);
+      if (!metadata_finite)
+      {
+         if (myid_ == 0)
+         {
+            std::cerr << "Checkpoint: metadata contains a non-finite objective "
+                      << "or volume fraction; refusing restart." << std::endl;
+         }
+         return false;
+      }
+      MPI_Bcast(&meta.format_version, 1, MPI_INT, 0, comm_);
+      MPI_Bcast(&meta.design_iteration, 1, MPI_INT, 0, comm_);
+      MPI_Bcast(&meta.objective_valid_for_design, 1, MPI_C_BOOL, 0, comm_);
       MPI_Bcast(&meta.objective, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
       MPI_Bcast(&meta.volume_fraction, 1, MPITypeMap<real_t>::mpi_type, 0, comm_);
       MPI_Bcast(&meta.n_mpi_ranks, 1, MPI_INT, 0, comm_);
       MPI_Bcast(&meta.refinement_level, 1, MPI_INT, 0, comm_);
       MPI_Bcast(&meta.fe_order, 1, MPI_INT, 0, comm_);
+      MPI_Bcast(&meta.design_fe_order, 1, MPI_INT, 0, comm_);
 
       int nranks = 1;
       MPI_Comm_size(comm_, &nranks);
@@ -242,12 +365,13 @@ public:
          }
          compatible = false;
       }
-      if (meta.fe_order != expected_order)
+      if (meta.design_fe_order != expected_design_order)
       {
          if (myid_ == 0)
          {
-            std::cerr << "Checkpoint incompatible: FE order "
-                      << meta.fe_order << " vs " << expected_order << ".\n";
+            std::cerr << "Checkpoint incompatible: design FE order "
+                      << meta.design_fe_order << " vs "
+                      << expected_design_order << ".\n";
          }
          compatible = false;
       }
@@ -256,36 +380,56 @@ public:
 
    /// Load this rank's design piece into rho_tv (must be pre-sized to the
    /// local control true-dof count). Call after ValidateCompatibility.
-   bool Load(Vector &rho_tv) const
+   bool Load(Vector &rho_tv,
+             const OptimizationCheckpointMetadata *meta = nullptr) const
    {
-      bool ok = true;
+      bool io_ok = true;
       {
          std::ifstream ifs(DesignPath(myid_), std::ios::binary);
-         ok = ifs.good();
+         io_ok = ifs.good();
          int32_t magic = 0;
-         int iteration = 0;
+         int embedded_design_index = 0;
          int64_t n = 0;
-         if (ok)
+         if (io_ok)
          {
             ifs.read(reinterpret_cast<char *>(&magic), sizeof(magic));
-            ifs.read(reinterpret_cast<char *>(&iteration), sizeof(iteration));
+            ifs.read(reinterpret_cast<char *>(&embedded_design_index),
+                     sizeof(embedded_design_index));
             ifs.read(reinterpret_cast<char *>(&n), sizeof(n));
-            ok = ifs.good() && magic == design_magic_ && n == rho_tv.Size();
+            io_ok = ifs.good() && magic == design_magic_ && n == rho_tv.Size();
+            if (io_ok && meta)
+            {
+               const int expected_embedded_index =
+                  meta->format_version >= 2 ? meta->design_iteration :
+                  meta->design_iteration - 1;
+               io_ok = embedded_design_index == expected_embedded_index;
+            }
          }
-         if (ok)
+         if (io_ok)
          {
             ifs.read(reinterpret_cast<char *>(rho_tv.GetData()),
                      n * sizeof(real_t));
-            ok = ifs.good();
-         }
-         if (!ok)
-         {
-            std::cerr << "Checkpoint: rank " << myid_
-                      << " failed to load " << DesignPath(myid_)
-                      << " (magic/size mismatch or read error)." << std::endl;
+            io_ok = ifs.good();
          }
       }
-      return AllOk(ok);
+
+      // Keep both reductions unconditional: all ranks must reach them even when
+      // one rank encountered an I/O error or a non-finite payload.
+      const bool design_finite = io_ok ? DesignIsFinite(rho_tv) : true;
+      const bool global_io_ok = AllOk(io_ok);
+      const bool global_design_finite = AllOk(design_finite);
+      if (myid_ == 0 && !global_io_ok)
+      {
+         std::cerr << "Checkpoint: a rank failed to load its design piece "
+                   << "(magic/size/design-index mismatch or read error)."
+                   << std::endl;
+      }
+      if (myid_ == 0 && !global_design_finite)
+      {
+         std::cerr << "Checkpoint: design contains non-finite values; "
+                   << "refusing restart." << std::endl;
+      }
+      return global_io_ok && global_design_finite;
    }
 };
 

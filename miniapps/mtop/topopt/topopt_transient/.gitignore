@@ -1,21 +1,66 @@
 # Built executables and objects
 *.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.pyc
+*.pyo
 TopOptTransient
 test_adjoint_verification
+test_continuous_temporal_refinement
+test_continuous_forward_finer
+test_rk4_stage_adjoint
+test_rk4_stage_sensitive_oscillator
 ForwardElastodynamics
 ElastTopOpt_static
 
 # Generated meshes - regenerate from the .geo sources:
 #   gmsh -3 -format msh2 <name>.geo -o <name>.msh
 *.msh
+*.mesh
+*.gf
+*.f5
+*.h5
+*.vtk
+*.vtu
+*.pvtu
+*.visit
+*.bp
+*.e
+*.exo
 
 # Run outputs
 ParaView/
 optimization_history.txt
 optimization_checkpoint/
+results/
+figures/
+*.csv
+*.dat
+*.out
+*.err
+*.log
+*.txt
+!requirements.txt
+
+# Local scripts, meshes, and installations are useful for experiments but
+# should not enter the public MFEM history.
+scripts/
+meshes/
+gmsh/
+gmsh-*/
+*.geo
+*.sh
+*.sbatch
+*.tar
+*.tar.gz
+*.tgz
 [0-9]*_job*/
 *.out
 *.err
+__pycache__/
+studies/
 
 # SLURM logs / jobs
 logs/*
@@ -23,5 +68,16 @@ logs/*
 jobs/*
 !jobs/.gitkeep
 
-# Paper working copy (separate git repository)
+# Research notes and generated study material stay local. Keep README files
+# available for source-tree documentation.
+*.md
+!README.md
+studies/**/runs/
+archive/*.md
+archive/**/*.md
+mtop-chkpt/**/runs/
+mtop-chkpt/**/logs/
+mtop-chkpt/**/*.tar*
 6a0d1d2ed0a8576233e59255/
+
+# Paper working copy (separate git repository)

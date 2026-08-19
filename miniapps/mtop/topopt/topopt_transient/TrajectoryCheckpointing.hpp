@@ -30,8 +30,12 @@
 
 #include "mfem.hpp"
 #include "mtop-chkpt/chpt/revolve_checkpointing.hpp"
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <vector>
 #include <cstring>
+#include <utility>
 
 namespace mfem
 {
@@ -56,6 +60,30 @@ struct RK4Snapshot
    {
       u.SetSize(state_size / 2);
       v.SetSize(state_size / 2);
+   }
+
+   void CopyFromState(const Vector &state)
+   {
+      MFEM_VERIFY(state.Size() % 2 == 0,
+                  "RK4Snapshot::CopyFromState: state size must be even");
+      SetSize(state.Size());
+      const int half_size = state.Size() / 2;
+      std::memcpy(u.GetData(), state.GetData(),
+                  half_size * sizeof(real_t));
+      std::memcpy(v.GetData(), state.GetData() + half_size,
+                  half_size * sizeof(real_t));
+   }
+
+   void CopyToState(Vector &state) const
+   {
+      const int state_size = u.Size() + v.Size();
+      MFEM_VERIFY(u.Size() == v.Size(),
+                  "RK4Snapshot::CopyToState: u/v size mismatch");
+      state.SetSize(state_size);
+      std::memcpy(state.GetData(), u.GetData(),
+                  u.Size() * sizeof(real_t));
+      std::memcpy(state.GetData() + u.Size(), v.GetData(),
+                  v.Size() * sizeof(real_t));
    }
 
    // Pack/unpack for REVOLVE binary storage
@@ -130,18 +158,53 @@ private:
    int num_checkpoints_;       // REVOLVE "snaps" (user-specified)
    int state_size_;            // Size of [u, v] concatenated
    size_t snapshot_bytes_;     // Bytes per checkpoint
+   real_t start_time_;         // Physical time of state index 0
+   real_t time_step_;          // Physical time between coarse state indices
+   int reverse_work_index_;    // State index currently held by reverse scratch
 
    StorageT storage_;
    std::unique_ptr<FixedStepRevolveCheckpointing<StorageT>> revolve_;
 
    RK4Snapshot work_snapshot_; // Scratch space for serialization
 
+   real_t PhysicalTime(int state_index) const
+   {
+      return start_time_ + state_index * time_step_;
+   }
+
+   bool TimeMatchesIndex(real_t time, int state_index) const
+   {
+      if (!std::isfinite(time)) { return false; }
+      const real_t expected_time = PhysicalTime(state_index);
+      real_t time_scale = std::max(real_t(1.0), std::abs(expected_time));
+      time_scale = std::max(time_scale, std::abs(time));
+      const real_t time_tolerance =
+         real_t(64.0) * std::numeric_limits<real_t>::epsilon() * time_scale;
+      return std::abs(time - expected_time) <= time_tolerance;
+   }
+
+   void VerifyRestoredMetadata() const
+   {
+      const int state_index = work_snapshot_.step_index;
+      MFEM_VERIFY(state_index >= 0 && state_index < num_steps_,
+                  "Restored checkpoint has an invalid state index.");
+      MFEM_VERIFY(TimeMatchesIndex(work_snapshot_.time, state_index),
+                  "Restored checkpoint physical time is inconsistent with "
+                  "its state index.");
+   }
+
 public:
-   TrajectoryCheckpointing(int num_steps, int num_checkpoints, int state_size)
+   TrajectoryCheckpointing(int num_steps, int num_checkpoints, int state_size,
+                           real_t start_time = 0.0,
+                           real_t time_step = -1.0)
       : num_steps_(num_steps),
         num_checkpoints_(num_checkpoints),
         state_size_(state_size),
         snapshot_bytes_(RK4Snapshot::ByteSize(state_size)),
+        start_time_(start_time),
+        time_step_(time_step > 0.0 ? time_step :
+                   (num_steps > 0 ? real_t(1.0) / num_steps : real_t(1.0))),
+        reverse_work_index_(-1),
         storage_(num_checkpoints, snapshot_bytes_),
         work_snapshot_(state_size)
    {
@@ -151,6 +214,9 @@ public:
       MFEM_VERIFY(state_size > 0, "TrajectoryCheckpointing: state_size must be > 0");
       MFEM_VERIFY(state_size % 2 == 0,
                   "TrajectoryCheckpointing: state_size must be even (u+v)");
+      MFEM_VERIFY(std::isfinite(start_time_) &&
+                  std::isfinite(time_step_) && time_step_ > 0.0,
+                  "TrajectoryCheckpointing: invalid physical time grid");
 
       revolve_ = std::make_unique<FixedStepRevolveCheckpointing<StorageT>>(
          num_steps_, num_checkpoints_, snapshot_bytes_, storage_);
@@ -164,6 +230,7 @@ public:
    void Reset()
    {
       revolve_->Reset();
+      reverse_work_index_ = -1;
    }
 
    // =========================================================================
@@ -190,15 +257,17 @@ public:
    {
       MFEM_VERIFY(x.Size() == state_size_,
                   "ForwardStep: state size mismatch");
+      MFEM_VERIFY(i >= 0 && i < num_steps_,
+                  "ForwardStep: state index is outside the time grid.");
+      MFEM_VERIFY(TimeMatchesIndex(t, i),
+                  "ForwardStep: physical time is inconsistent with its "
+                  "state index.");
 
       // Lambda to serialize state into buffer
       auto make_snapshot = [&](Vector &state, uint8_t *buffer, size_t buffer_size)
       {
-         work_snapshot_.SetSize(state_size_);
-         const int half = state_size_ / 2;
-         work_snapshot_.u.SetDataAndSize(state.GetData(), half);
-         work_snapshot_.v.SetDataAndSize(state.GetData() + half, half);
-         work_snapshot_.time = t;
+         work_snapshot_.CopyFromState(state);
+         work_snapshot_.time = PhysicalTime(i);
          work_snapshot_.step_index = i;
          work_snapshot_.Serialize(buffer, buffer_size);
       };
@@ -246,12 +315,12 @@ public:
       // Lambda to serialize state into buffer
       auto make_snapshot = [&](Vector &state, uint8_t *buffer, size_t buffer_size)
       {
-         work_snapshot_.SetSize(state_size_);
-         const int half = state_size_ / 2;
-         work_snapshot_.u.SetDataAndSize(state.GetData(), half);
-         work_snapshot_.v.SetDataAndSize(state.GetData() + half, half);
-         work_snapshot_.time = i * (1.0 / num_steps_); // placeholder (REVOLVE doesn't use time in backward)
-         work_snapshot_.step_index = i;
+         work_snapshot_.CopyFromState(state);
+         MFEM_VERIFY(reverse_work_index_ >= 0,
+                     "Backward snapshot has no tracked state index.");
+         work_snapshot_.time =
+            start_time_ + reverse_work_index_ * time_step_;
+         work_snapshot_.step_index = reverse_work_index_;
          work_snapshot_.Serialize(buffer, buffer_size);
       };
 
@@ -261,18 +330,49 @@ public:
       {
          work_snapshot_.SetSize(state_size_);
          work_snapshot_.Deserialize(buffer, buffer_size);
-         const int half = state_size_ / 2;
-         std::memcpy(state.GetData(), work_snapshot_.u.GetData(),
-                     half * sizeof(real_t));
-         std::memcpy(state.GetData() + half, work_snapshot_.v.GetData(),
-                     half * sizeof(real_t));
+         VerifyRestoredMetadata();
+         reverse_work_index_ = work_snapshot_.step_index;
+         work_snapshot_.CopyToState(state);
       };
+
+      // Track the actual scratch-state index across arbitrary REVOLVE
+      // restore/advance/takeshot actions. The outer BackwardStep index is the
+      // next adjoint interval, not necessarily the state currently being
+      // checkpointed by the controller.
+      auto tracked_primal_step = [&](int step, Vector &state)
+      {
+         MFEM_VERIFY(reverse_work_index_ == step,
+                     "REVOLVE primal replay state index is inconsistent.");
+         primal_step(step, state);
+         reverse_work_index_ = step + 1;
+      };
+      auto tracked_adjoint_step =
+         [&](int step, const Vector &state, Vector &adjoint)
+         {
+            MFEM_VERIFY(reverse_work_index_ == step,
+                        "REVOLVE adjoint consumer state index is inconsistent.");
+            adjoint_step(step, state, adjoint);
+         };
 
       // REVOLVE orchestrates restore/recompute/adjoint
       revolve_->BackwardStep(i, lambda, u_work,
-                             std::forward<PrimalStep>(primal_step),
-                             std::forward<AdjointStep>(adjoint_step),
+                             tracked_primal_step, tracked_adjoint_step,
                              make_snapshot, restore_snapshot);
+   }
+
+   // Semantic alias for multirate reverse work. REVOLVE still schedules one
+   // coarse forward interval; consume_reverse_interval may perform any number
+   // of fine adjoint substeps without changing the checkpoint schedule.
+   template <typename ReplayForwardInterval, typename ConsumeReverseInterval>
+   void BackwardInterval(
+      int i, Vector &adjoint, Vector &forward_work,
+      ReplayForwardInterval &&replay_forward_interval,
+      ConsumeReverseInterval &&consume_reverse_interval)
+   {
+      BackwardStep(
+         i, adjoint, forward_work,
+         std::forward<ReplayForwardInterval>(replay_forward_interval),
+         std::forward<ConsumeReverseInterval>(consume_reverse_interval));
    }
 
    // =========================================================================
@@ -291,15 +391,12 @@ public:
    // =========================================================================
    // REVOLVE STATISTICS
    // =========================================================================
-   // Estimate forward re-evaluations during adjoint sweep
-   // (REVOLVE minimizes this, typically ~2-3× forward cost)
-   int EstimateRecomputations() const
+   // Exact forward re-evaluations during the adjoint sweep.  The underlying
+   // method simulates only REVOLVE controller actions, so this is cheap even
+   // for production step counts.
+   long long EstimateRecomputations() const
    {
-      // Rough estimate: num_steps * log(num_steps / num_checkpoints)
-      // Exact value depends on REVOLVE schedule (binomial recursion)
-      if (num_checkpoints_ >= num_steps_) { return 0; }
-      const real_t ratio = static_cast<real_t>(num_steps_) / num_checkpoints_;
-      return static_cast<int>(num_steps_ * std::log(ratio));
+      return revolve_->CountRecomputedPrimalSteps();
    }
 
    void PrintInfo(MPI_Comm comm = MPI_COMM_WORLD) const
@@ -315,7 +412,7 @@ public:
                    << "                              ║\n"
                    << "║  State size:         " << std::setw(10) << state_size_
                    << " DOFs                        ║\n"
-                   << "║  Snapshot size:      " << std::setw(10)
+                   << "║  Checkpoint storage: " << std::setw(10)
                    << std::fixed << std::setprecision(2) << MemoryFootprintMB()
                    << " MB                          ║\n"
                    << "║  Est. recompute:     " << std::setw(10)
