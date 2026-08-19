@@ -79,6 +79,11 @@ Linear and nonlinear solvers
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).
 
+- Added new class MultiVector: an array of Vectors of different sizes where each
+  Vector can be allocated independently. Also, added associated methods in class
+  Operator: MultMV, MultTransposeMV, and GetGradientMV, that use MultiVector
+  objects for input and/or output parameters. [PR #5249]
+
 GPU computing
 -------------
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
@@ -91,6 +96,16 @@ GPU computing
  (AssembleGradPA, AddMultGradPA, AssembleGradDiagonalPA).
 
 - Added device assembly support for 3D H(curl) VectorFEDomainLFIntegrator.
+
+- Added partial assembly support for MixedScalarWeakGradientIntegrator.
+
+- Added partial assembly support for MixedDotProductIntegrator.
+
+- Added partial assembly support for MixedScalarCrossProductIntegrator.
+
+- Added partial assembly support for MixedScalarWeakCrossProductIntegrator.
+
+- Added partial assembly support for MixedVectorGradientIntegrator for H1->RT.
 
 - Added support for device partial assembly CurlInterpolator.
   This supports 2D and 3D variants:
@@ -109,6 +124,9 @@ GPU computing
 
 - Added support for FiniteElement::MapType::INTEGRAL spaces to
   QuadratureInterpolator.
+
+- Added support for FiniteElement::MapType::INTEGRAL spaces to
+  MixedScalarCurlIntegrator.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -130,6 +148,9 @@ Miscellaneous
   saving via SaveAsOne(). Simplified the process of applying the DOF signs by
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
+
+- Added support for saving DataCollection output on the node-local storage,
+  instead of requiring that the filesystem is shared among all the ranks.
 
 API changes
 -----------
