@@ -26,6 +26,8 @@
 
 #include <limits>
 #include <list>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace mfem
 {
@@ -1298,6 +1300,342 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
    // Make sure that processors without boundary elements mark
    // their boundary dofs (if they have any).
    Synchronize(ext_dofs);
+}
+
+void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
+   const Array<int> &boundary_element_indices,
+   Array<int> &ess_tdof_list,
+   Array<int> &boundary_edge_dofs_out,
+   Array<int> *ldof_marker,
+   Array<int> *dof_edges,
+   Array<int> *dof_boundary_elements,
+   Array<int> *ess_edge_list)
+{
+   MFEM_VERIFY(!pmesh->Nonconforming(),
+               "GetBoundaryLoopEdgeDofs does not support nonconforming meshes");
+   MFEM_VERIFY(pmesh->Dimension() >= 2,
+               "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find 1D edge objects");
+
+   // Call the serial version, then rebuild scratch maps/set from the returned
+   // arrays for the O(1) lookups the parallel reconciliation below needs.
+   Array<int> loc_dofs, loc_edges, loc_belems;
+   FiniteElementSpace::GetBoundaryLoopEdgeDofs(boundary_element_indices, loc_dofs,
+                                               &loc_edges, &loc_belems);
+
+   std::unordered_set<int> boundary_edge_dofs;
+   std::unordered_map<int, int> dof_to_edge_map;
+   std::unordered_map<int, int> dof_to_boundary_element;
+   boundary_edge_dofs.reserve(loc_dofs.Size());
+   dof_to_edge_map.reserve(loc_dofs.Size());
+   dof_to_boundary_element.reserve(loc_dofs.Size());
+   for (int i = 0; i < loc_dofs.Size(); i++)
+   {
+      const int dof = loc_dofs[i];
+      boundary_edge_dofs.insert(dof);
+      dof_to_edge_map[dof] = loc_edges[i];
+      dof_to_boundary_element[dof] = loc_belems[i];
+   }
+
+   // Parallel processing: Build edge sharing lookup table
+   std::unordered_map<int, int> edge_to_group_size;
+   int num_groups = pmesh->GetNGroups();
+
+   int total_shared_edges = 0;
+   for (int group = 1; group < num_groups; group++)
+   {
+      total_shared_edges += pmesh->GroupNEdges(group);
+   }
+   edge_to_group_size.reserve(total_shared_edges);
+
+   for (int group = 1; group < num_groups; group++)
+   {
+      int group_size = pmesh->gtopo.GetGroupSize(group);
+      int num_edges_in_group = pmesh->GroupNEdges(group);
+
+      for (int i = 0; i < num_edges_in_group; i++)
+      {
+         edge_to_group_size.emplace(pmesh->GroupEdge(group, i), group_size);
+      }
+   }
+
+   // Get global indices
+   Array<HYPRE_BigInt> global_edge_indices;
+   pmesh->GetGlobalEdgeIndices(global_edge_indices);
+
+   // Handle dimension-specific boundary element relationships
+   Array<HYPRE_BigInt> global_face_indices;
+   std::unordered_map<int, int> boundary_element_to_companion;
+   std::unordered_set<int> dofs_to_remove;
+
+   const int dim = pmesh->Dimension();
+   if (dim == 3)
+   {
+      // In 3D: boundary elements are faces, we track which face each boundary element is
+      pmesh->GetGlobalFaceIndices(global_face_indices);
+      for (int boundary_element_idx : boundary_element_indices)
+      {
+         int face_index, face_orientation;
+         pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+         boundary_element_to_companion[boundary_element_idx] = face_index;
+      }
+
+      std::vector<HYPRE_BigInt> local_data;
+      local_data.reserve(boundary_edge_dofs.size() * 2);
+
+      std::unordered_set<int> processed_edges;
+      processed_edges.reserve(boundary_edge_dofs.size());
+
+      for (const auto& [dof, local_edge] : dof_to_edge_map)
+      {
+         // Skip if already processed this edge
+         if (!processed_edges.insert(local_edge).second) { continue; }
+
+         // Check if edge is shared (fast lookup)
+         auto it = edge_to_group_size.find(local_edge);
+         if (it != edge_to_group_size.end() && it->second > 1)
+         {
+            // Get boundary element and companion index directly from pre-computed map
+            int boundary_element_idx = dof_to_boundary_element[dof];
+            int companion_index = boundary_element_to_companion[boundary_element_idx];
+
+            // Store edge-face pair for 3D artificial boundary detection
+            local_data.push_back(global_edge_indices[local_edge]);
+            local_data.push_back(global_face_indices[companion_index]);
+         }
+      }
+
+      // MPI communication for 3D artificial boundary detection
+      int num_procs = pmesh->GetNRanks();
+      int local_size = local_data.size();
+
+      std::vector<int> mpi_arrays(num_procs * 4);
+      int* all_sizes = mpi_arrays.data();
+      int* displs = all_sizes + num_procs;
+      int* byte_sizes = displs + num_procs;
+      int* byte_displs = byte_sizes + num_procs;
+
+      MPI_Allgather(&local_size, 1, MPI_INT, all_sizes, 1, MPI_INT, pmesh->GetComm());
+
+      int total_size = 0;
+      constexpr int hypre_size = sizeof(HYPRE_BigInt);
+      for (int i = 0; i < num_procs; i++)
+      {
+         displs[i] = total_size;
+         byte_displs[i] = total_size * hypre_size;
+         total_size += all_sizes[i];
+         byte_sizes[i] = all_sizes[i] * hypre_size;
+      }
+
+      if (total_size > 0)
+      {
+         std::vector<HYPRE_BigInt> all_data(total_size);
+         MPI_Allgatherv(local_data.data(), local_size * hypre_size, MPI_BYTE,
+                        all_data.data(), byte_sizes, byte_displs, MPI_BYTE, pmesh->GetComm());
+
+         // Build global-to-local edge mapping
+         std::unordered_map<HYPRE_BigInt, int> global_to_local_edge;
+         global_to_local_edge.reserve(global_edge_indices.Size());
+         for (int i = 0; i < global_edge_indices.Size(); ++i)
+         {
+            global_to_local_edge[global_edge_indices[i]] = i;
+         }
+
+         // Process collected data to find edges in multiple faces (artificial boundaries)
+         std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>edge_to_faces;
+         edge_to_faces.reserve(total_size / 2);
+
+         for (size_t i = 0; i < all_data.size(); i += 2)
+         {
+            edge_to_faces[all_data[i]].insert(all_data[i + 1]);
+         }
+
+         // Mark DOFs from artificial edges for removal
+         dofs_to_remove.reserve(local_data.size() / 4);
+
+         for (size_t i = 0; i < local_data.size(); i += 2)
+         {
+            HYPRE_BigInt global_edge_id = local_data[i];
+
+            // If this edge appears in 2+ distinct faces, it's artificial
+            if (edge_to_faces[global_edge_id].size() >= 2)
+            {
+               int local_edge = global_to_local_edge[global_edge_id];
+               Array<int> local_edge_dofs;
+               GetEdgeDofs(local_edge, local_edge_dofs);
+
+               // Mark boundary DOFs of this edge for removal
+               for (int k = 0; k < local_edge_dofs.Size(); ++k)
+               {
+                  int dof = local_edge_dofs[k];
+                  if (boundary_edge_dofs.count(dof))
+                  {
+                     dofs_to_remove.insert(dof);
+                  }
+               }
+            }
+         }
+      }
+   }
+   else if (dim == 2)
+   {
+      // In 2D the boundary elements are themselves the edges, so there are no
+      // artificial boundary edges to detect. However, for collections with
+      // vertex DOFs (e.g. ND_R2D), a vertex shared by two boundary segments is
+      // interior to the boundary curve and must be dropped. The serial code
+      // does this by erasing a DOF on its second occurrence, which only sees
+      // the occurrences local to this rank. When the two segments meeting at a
+      // vertex live on different ranks, each rank sees a single occurrence and
+      // wrongly keeps the DOF. Reconcile the occurrence parity across each
+      // sharing group: membership in boundary_edge_dofs is the local parity,
+      // and the parities sum (mod 2) to the global occurrence parity.
+      Array<int> boundary_dof_count(GetVSize());
+      boundary_dof_count = 0;
+      for (const int dof : boundary_edge_dofs)
+      {
+         boundary_dof_count[dof] = 1;
+      }
+
+      // implement allreduce(+) as reduce(+) + broadcast
+      gcomm->Reduce<int>(boundary_dof_count, GroupCommunicator::Sum);
+      gcomm->Bcast(boundary_dof_count);
+
+      for (const int dof : boundary_edge_dofs)
+      {
+         if (boundary_dof_count[dof] % 2 == 0)
+         {
+            dofs_to_remove.insert(dof);
+         }
+      }
+   }
+
+   // Remove artificial DOFs
+   for (int dof : dofs_to_remove)
+   {
+      boundary_edge_dofs.erase(dof);
+      dof_to_edge_map.erase(dof);
+      dof_to_boundary_element.erase(dof);
+   }
+
+   // Convert to true DOFs and output
+   ess_tdof_list.SetSize(0);
+   ess_tdof_list.Reserve(boundary_edge_dofs.size());
+   if (ess_edge_list)
+   {
+      // Reset as well, so that it stays in correspondence with ess_tdof_list
+      // when the same output array is reused across calls.
+      ess_edge_list->SetSize(0);
+      ess_edge_list->Reserve(boundary_edge_dofs.size());
+   }
+   // Marker of the boundary edge DOFs. Always computed locally because the
+   // parallel reconciliation below needs it; only copied to the caller's output
+   // if requested (see the ldof_marker parameter).
+   Array<int> local_ldof_marker(GetVSize());
+   local_ldof_marker = 0;
+
+   for (int dof : boundary_edge_dofs)
+   {
+      local_ldof_marker[dof] = 1; // Mark all boundary edge dofs
+   }
+
+   // Make sure that a selected shared DOF is marked on every rank of its
+   // sharing group, including ranks holding none of the selected boundary
+   // elements. Only the group master owns the corresponding true DOF, so
+   // without this the true DOF would be emitted by no rank at all: the
+   // non-master ranks get -1 from GetLocalTDofNumber(), while the master may
+   // not have selected the DOF locally.
+   Synchronize(local_ldof_marker);
+
+   // A DOF marked only through the synchronization above has no local
+   // dof_to_edge_map entry, but the shared edge carrying it is still present in
+   // the local mesh. Build the missing DOF -> edge entries from the shared
+   // edges of the groups, so that ess_edge_list stays in correspondence with
+   // ess_tdof_list. Note that a vertex DOF is not associated with a unique
+   // edge, so it is only resolved when it is an interior DOF of an edge.
+   std::unordered_map<int, int> shared_dof_to_edge;
+   Array<int> shared_edge_dofs;
+   for (int group = 1; group < num_groups; group++)
+   {
+      const int num_edges_in_group = pmesh->GroupNEdges(group);
+      for (int i = 0; i < num_edges_in_group; i++)
+      {
+         const int edge = pmesh->GroupEdge(group, i);
+         GetEdgeInteriorDofs(edge, shared_edge_dofs);
+         for (int k = 0; k < shared_edge_dofs.Size(); k++)
+         {
+            shared_dof_to_edge.emplace(shared_edge_dofs[k], edge);
+         }
+      }
+   }
+
+   // Build parallel arrays for DOFs and corresponding edges
+   std::vector<std::pair<int, int>> tdof_edge_pairs;
+   tdof_edge_pairs.reserve(boundary_edge_dofs.size());
+
+   for (int dof = 0; dof < local_ldof_marker.Size(); dof++)
+   {
+      if (!local_ldof_marker[dof]) { continue; }
+
+      const int tdof = GetLocalTDofNumber(dof);
+      if (tdof < 0) { continue; } // tdof == -1 means not owned by this rank
+
+      int edge = -1;
+      auto it = dof_to_edge_map.find(dof);
+      if (it != dof_to_edge_map.end())
+      {
+         edge = it->second;
+      }
+      else
+      {
+         auto shared_it = shared_dof_to_edge.find(dof);
+         if (shared_it != shared_dof_to_edge.end())
+         {
+            edge = shared_it->second;
+         }
+      }
+      tdof_edge_pairs.push_back({tdof, edge});
+   }
+
+   // Sort by true DOF index to maintain consistent ordering
+   std::sort(tdof_edge_pairs.begin(), tdof_edge_pairs.end());
+
+   // Extract sorted true DOFs and edges
+   for (const auto& pair : tdof_edge_pairs)
+   {
+      ess_tdof_list.Append(pair.first);
+      if (ess_edge_list)
+      {
+         ess_edge_list->Append(pair.second);
+      }
+   }
+
+   // Emit the local boundary-loop DOFs in a deterministic (increasing DOF
+   // index) order shared by all output arrays.
+   std::vector<int> kept(boundary_edge_dofs.begin(), boundary_edge_dofs.end());
+   std::sort(kept.begin(), kept.end());
+
+   boundary_edge_dofs_out.SetSize(0);
+   boundary_edge_dofs_out.Reserve(static_cast<int>(kept.size()));
+   if (dof_edges)
+   {
+      dof_edges->SetSize(0);
+      dof_edges->Reserve(static_cast<int>(kept.size()));
+   }
+   if (dof_boundary_elements)
+   {
+      dof_boundary_elements->SetSize(0);
+      dof_boundary_elements->Reserve(static_cast<int>(kept.size()));
+   }
+   for (int dof : kept)
+   {
+      boundary_edge_dofs_out.Append(dof);
+      if (dof_edges) { dof_edges->Append(dof_to_edge_map[dof]); }
+      if (dof_boundary_elements)
+      {
+         dof_boundary_elements->Append(dof_to_boundary_element[dof]);
+      }
+   }
+
+   if (ldof_marker) { ldof_marker->Swap(local_ldof_marker); }
 }
 
 void ParFiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
