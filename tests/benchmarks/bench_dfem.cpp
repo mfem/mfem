@@ -13,8 +13,14 @@
 
 #ifdef MFEM_USE_BENCHMARK
 
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <iomanip>
 #include <memory>
-#include <type_traits>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include "fem/qinterp/det.hpp" // IWYU pragma: keep
 #include "fem/qinterp/grad.hpp" // IWYU pragma: keep
@@ -36,10 +42,6 @@ using future::tuple;
 #include "linalg/tensor.hpp"
 #include "linalg/tensor_arrays.hpp"
 
-#include "fem/kernels.hpp"
-namespace ker = kernels::internal;
-
-
 #if defined(__HIP__)
 #include "../usr/src/array/tensor_std_array.hpp"
 #endif
@@ -58,35 +60,22 @@ using future::Value;
 using future::Weight;
 using future::Identity;
 
-/// info //////////////////////////////////////////////////////////////////////
+// info
 void info()
 {
    mfem::out << "\x1b[33m";
-   // MFEM versions
-   mfem::out << "version  0: 🟢 PA std" << std::endl;
-   mfem::out << "version  1: 🟠 MF HO reg" << std::endl;
-   mfem::out << "version  2: 🟢 PA HO reg" << std::endl;
-   // dFEM global QF versions
-   mfem::out << "version  3: 🟠 MF global default" << std::endl;
-   mfem::out << "version  4: 🟢 PA global default" << std::endl;
-   // dFEM local QF versions
-   mfem::out << "version  5: 🟠 MF local default" << std::endl;
-   mfem::out << "version  6: 🟢 PA local default" << std::endl;
-   // dFEM GetDerivative versions
-   mfem::out << "version  7: 🟠 MF global GetDerivative" << std::endl;
-   mfem::out << "version  8: 🟠 MF local GetDerivative" << std::endl;
-   mfem::out << "version  9: 🟠 MF global GetDerivative cached" << std::endl;
-   mfem::out << "version 10: 🟠 MF local GetDerivative cached" << std::endl;
+   mfem::out << "name: BP<n>/B<m>D<c|q>[.ad]/S<f|gk>/<impl>/<order>/<dofs per side>"
+             << std::endl;
+   mfem::out << "expression: parentheses mark fused launch/stage boundaries"
+             << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
-// Version ////////////////////////////////////////////////////////////////////
+// Version
 enum class Version
 {
    // MFEM versions
    PA_mfem_std,
-   MF_mfem_ker,
-   PA_mfem_ker,
    // dFEM global QF versions
    MF_dfem_global,
    PA_dfem_global,
@@ -100,12 +89,341 @@ enum class Version
    MF_dfem_local_get_derivative_cached,
 };
 
-constexpr int version_int(Version v) noexcept
+// Benchmark naming spec
+// BP3/B2Dc.ad/Sg3/dfem/4/160
+//  |      |      |    |    |
+//  |      |      |    |    +-- args (order, dofs per side), appended by gbench
+//  |      |      |    +-- implementation under test
+//  |      |      +-- structure: Sf = fused, Sg<k> = staged over global qp arrays,
+//  |      |          with k parenthesized expression groups
+//  |      +-- class: B<n> = total number of B/G applications in the operator
+//  |          action, including transposes; Dc = cached q-data, Dq = q-data
+//  |          evaluated at quadrature points, .ad = obtained via get_derivative
+//  |          (provenance only)
+//  +-- problem
+//
+// Expression notation:
+//   Parentheses mark fused launch/stage boundaries.
+//   Square brackets group block quadrature inputs, not staging.
+//   Dq evaluates geometry/parameter data and therefore shows (G x); Dc uses
+//   cached data and omits (G x).
+//
+// Expression column examples:
+//   BP1/{B2Dc,B2Dc.ad}/Sf/*  -> (Bᵀ Dc B u)
+//   BP1/B4Dq.ad/Sg5/*        -> (Bᵀ (Dq [(B u); (G x); (B p)]))
+//   BP3/{B2Dc,B2Dc.ad}/Sf/*  -> (Gᵀ Dc G u)
+//   BP3/B4Dq.ad/Sg5/*        -> (Gᵀ (Dq [(G u); (G x); (G p)]))
+
+template <int BFI, Version VER>
+constexpr const char *BenchmarkPath() noexcept
 {
-   return static_cast<int>(static_cast<std::underlying_type_t<Version>>(v));
+   if constexpr (BFI == 1)
+   {
+      if constexpr (VER == Version::PA_mfem_std)
+      {
+         return "BP1/B2Dc/Sf/mfem_std";
+      }
+      else if constexpr (VER == Version::MF_dfem_global)
+      {
+         return "BP1/B3Dq/Sg4/dfem";
+      }
+      else if constexpr (VER == Version::PA_dfem_global)
+      {
+         return "BP1/B2Dc/Sg2/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_local)
+      {
+         return "BP1/B3Dq/Sf/dfem";
+      }
+      else if constexpr (VER == Version::PA_dfem_local)
+      {
+         return "BP1/B2Dc/Sf/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative)
+      {
+         return "BP1/B4Dq.ad/Sg5/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative)
+      {
+         return "BP1/B4Dq.ad/Sf/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
+      {
+         return "BP1/B2Dc.ad/Sg2/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
+      {
+         return "BP1/B2Dc.ad/Sf/dfem";
+      }
+   }
+   else if constexpr (BFI == 3)
+   {
+      if constexpr (VER == Version::PA_mfem_std)
+      {
+         return "BP3/B2Dc/Sf/mfem_std";
+      }
+      else if constexpr (VER == Version::MF_dfem_global)
+      {
+         return "BP3/B3Dq/Sg4/dfem";
+      }
+      else if constexpr (VER == Version::PA_dfem_global)
+      {
+         return "BP3/B2Dc/Sg2/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_local)
+      {
+         return "BP3/B3Dq/Sf/dfem";
+      }
+      else if constexpr (VER == Version::PA_dfem_local)
+      {
+         return "BP3/B2Dc/Sf/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative)
+      {
+         return "BP3/B4Dq.ad/Sg5/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative)
+      {
+         return "BP3/B4Dq.ad/Sf/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
+      {
+         return "BP3/B2Dc.ad/Sg2/dfem";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
+      {
+         return "BP3/B2Dc.ad/Sf/dfem";
+      }
+   }
+   return "invalid";
 }
 
-// Custom benchmark arguments generator ///////////////////////////////////////
+template <int BFI, Version VER>
+constexpr const char *BenchmarkExpression() noexcept
+{
+   if constexpr (BFI == 1)
+   {
+      if constexpr (VER == Version::PA_mfem_std ||
+                    VER == Version::PA_dfem_local ||
+                    VER == Version::MF_dfem_local_get_derivative_cached)
+      {
+         return "(Bᵀ Dc B u)";
+      }
+      else if constexpr (VER == Version::MF_dfem_local)
+      {
+         return "(Bᵀ Dq [B u; G x])";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative)
+      {
+         return "(Bᵀ Dq [B u; G x; B p])";
+      }
+      else if constexpr (VER == Version::PA_dfem_global ||
+                         VER == Version::MF_dfem_global_get_derivative_cached)
+      {
+         return "(Bᵀ (Dc B p))";
+      }
+      else if constexpr (VER == Version::MF_dfem_global)
+      {
+         return "(Bᵀ (Dq [(B u); (G x)]))";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative)
+      {
+         return "(Bᵀ (Dq [(B u); (G x); (B p)]))";
+      }
+   }
+   else if constexpr (BFI == 3)
+   {
+      if constexpr (VER == Version::PA_mfem_std ||
+                    VER == Version::PA_dfem_local ||
+                    VER == Version::MF_dfem_local_get_derivative_cached)
+      {
+         return "(Gᵀ Dc G u)";
+      }
+      else if constexpr (VER == Version::MF_dfem_local)
+      {
+         return "(Gᵀ Dq [(G u); (G x)])";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative)
+      {
+         return "(Gᵀ Dq [G u; G x; G p])";
+      }
+      else if constexpr (VER == Version::PA_dfem_global ||
+                         VER == Version::MF_dfem_global_get_derivative_cached)
+      {
+         return "(Gᵀ (Dc G p))";
+      }
+      else if constexpr (VER == Version::MF_dfem_global)
+      {
+         return "(Gᵀ (Dq [(G u); (G x)]))";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative)
+      {
+         return "(Gᵀ (Dq [(G u); (G x); (G p)]))";
+      }
+   }
+   return "";
+}
+
+// Console reporter with a string expression column
+class ExpressionReporter : public bm::BenchmarkReporter
+{
+   static constexpr int expression_width = 20;
+   std::size_t name_field_width = 0;
+   bm::UserCounters prev_counters;
+   bool printed_header = false;
+
+   static std::string FormatTime(double time)
+   {
+      char buffer[32];
+      if (time < 1.0)
+      {
+         std::snprintf(buffer, sizeof(buffer), "%10.3f", time);
+      }
+      else if (time < 10.0)
+      {
+         std::snprintf(buffer, sizeof(buffer), "%10.2f", time);
+      }
+      else if (time < 100.0)
+      {
+         std::snprintf(buffer, sizeof(buffer), "%10.1f", time);
+      }
+      else if (time > 9999999999.0)
+      {
+         std::snprintf(buffer, sizeof(buffer), "%1.4e", time);
+      }
+      else
+      {
+         std::snprintf(buffer, sizeof(buffer), "%10.0f", time);
+      }
+      return buffer;
+   }
+
+   static std::string HumanReadableNumber(double value, bm::Counter::OneK oneK)
+   {
+      static constexpr const char *suffixes[] = {"", "k", "M", "G", "T"};
+      double scaled = value;
+      int suffix = 0;
+      const double base = static_cast<double>(oneK);
+      while (std::abs(scaled) >= base && suffix < 4)
+      {
+         scaled /= base;
+         suffix++;
+      }
+      std::ostringstream os;
+      os << std::setprecision(6) << scaled << suffixes[suffix];
+      return os.str();
+   }
+
+   static std::string CounterValue(const bm::BenchmarkReporter::Run &run,
+                                   const bm::UserCounters::value_type &counter,
+                                   std::string &unit)
+   {
+      if (run.run_type == Run::RT_Aggregate &&
+          run.aggregate_unit == bm::StatisticUnit::kPercentage)
+      {
+         std::ostringstream os;
+         os << std::fixed << std::setprecision(2)
+            << 100.0 * counter.second.value;
+         unit = "%";
+         return os.str();
+      }
+      unit = (counter.second.flags & bm::Counter::kIsRate) != 0 ?
+             ((counter.second.flags & bm::Counter::kInvert) != 0 ? "s" : "/s") :
+             "";
+      return HumanReadableNumber(counter.second.value, counter.second.oneK);
+   }
+
+   void PrintHeader(const Run &run)
+   {
+      std::ostringstream os;
+      os << std::left << std::setw(static_cast<int>(name_field_width))
+         << "Benchmark" << " "
+         << std::right << std::setw(13) << "Time" << " "
+         << std::setw(15) << "CPU" << " "
+         << std::setw(12) << "Iterations";
+      for (const auto &counter : run.counters)
+      {
+         const auto width = std::max<std::size_t>(10, counter.first.length());
+         os << " " << std::setw(static_cast<int>(width)) << counter.first;
+      }
+      os << " " << std::left << std::setw(expression_width) << "expression";
+
+      const auto header = os.str();
+      GetOutputStream() << std::string(header.length(), '-') << "\n"
+                        << header << "\n"
+                        << std::string(header.length(), '-') << "\n";
+   }
+
+   void PrintRunData(const Run &run)
+   {
+      auto &out = GetOutputStream();
+      out << std::left << std::setw(static_cast<int>(name_field_width))
+          << run.benchmark_name() << " ";
+
+      if (run.skipped != bmi::NotSkipped)
+      {
+         out << (run.skipped == bmi::SkippedWithError ? "ERROR: " : "SKIPPED: ")
+             << run.skip_message << "\n";
+         return;
+      }
+
+      const char *time_unit = bm::GetTimeUnitString(run.time_unit);
+      out << std::right << FormatTime(run.GetAdjustedRealTime()) << " "
+          << std::left << std::setw(4) << time_unit
+          << std::right << FormatTime(run.GetAdjustedCPUTime()) << " "
+          << std::left << std::setw(4) << time_unit;
+
+      if (run.run_type != Run::RT_Aggregate ||
+          run.aggregate_unit == bm::StatisticUnit::kTime)
+      {
+         out << std::right << std::setw(10) << run.iterations;
+      }
+      else
+      {
+         out << std::right << std::setw(10) << "";
+      }
+
+      for (const auto &counter : run.counters)
+      {
+         std::string unit;
+         const std::string value = CounterValue(run, counter, unit);
+         const auto width = std::max<std::size_t>(10, counter.first.length());
+         const auto value_width = std::max<int>(1, static_cast<int>(width - unit.length()));
+         out << " " << std::right << std::setw(value_width) << value << unit;
+      }
+
+      out << " " << std::left << std::setw(expression_width)
+          << run.report_label << "\n";
+   }
+
+public:
+   bool ReportContext(const Context &context) override
+   {
+      name_field_width = std::max<std::size_t>(context.name_field_width, 9);
+      printed_header = false;
+      prev_counters.clear();
+      PrintBasicContext(&mfem::err, context);
+      return true;
+   }
+
+   void ReportRuns(const std::vector<Run> &reports) override
+   {
+      for (const auto &run : reports)
+      {
+         const bool print_header = !printed_header ||
+                                   !bmi::SameNames(run.counters, prev_counters);
+         if (print_header)
+         {
+            printed_header = true;
+            prev_counters = run.counters;
+            PrintHeader(run);
+         }
+         PrintRunData(run);
+      }
+   }
+};
+
+// Custom benchmark arguments generator
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
@@ -131,7 +449,7 @@ static void CustomArguments(bm::Benchmark *b) noexcept
    }
 }
 
-// Register kernel specializations used in the benchmarks /////////////////////
+// Register kernel specializations used in the benchmarks
 static void AddKernelSpecializations()
 {
 #ifndef MFEM_DEBUG
@@ -183,10 +501,10 @@ static void AddKernelSpecializations()
 #endif // MFEM_DEBUG
 }
 
-/// Globals ///////////////////////////////////////////////////////////////////
+// Globals
 Device *device_ptr = nullptr;
 
-/// GLOBAL Mass Q-Functions ///////////////////////////////////////////////////
+// GLOBAL Mass Q-Functions
 template<int DIM>
 struct MF_Mass_global_qf
 {
@@ -230,7 +548,7 @@ struct PA_Mass_Apply_global_qf
    }
 };
 
-/// LOCAL Mass Q-Functions ////////////////////////////////////////////////////
+// LOCAL Mass Q-Functions
 template<int DIM>
 struct MF_Mass_local_qf
 {
@@ -286,7 +604,7 @@ std::conditional_t<mass_qf<qfunction_t, DIM>, Value<U>, Gradient<U>>
    else { return Gradient<U> {}; }
 };
 
-/// Add dFEM local QFunction action specializations ///////////////////////////
+// Add dFEM local QFunction action specializations
 template<typename backend_t, int DIM, typename QT, typename IT, typename OT>
 void AddLocalQFActionSpecializations()
 {
@@ -312,7 +630,7 @@ void AddLocalQFDerivativeSpecializations()
    }
 }
 
-/// GLOBAL Diffusion Q-Functions //////////////////////////////////////////////
+// GLOBAL Diffusion Q-Functions
 template<int DIM>
 struct MF_Diffusion_global_qf
 {
@@ -359,7 +677,7 @@ struct PA_Diffusion_Apply_global_qf
    }
 };
 
-/// LOCAL Diffusion Q-Functions ///////////////////////////////////////////////
+// LOCAL Diffusion Q-Functions
 template<int DIM>
 struct MF_Diffusion_local_qf
 {
@@ -399,500 +717,11 @@ struct PA_Diffusion_Apply_local_qf
    };
 };
 
-/// MF StiffnessIntegrator ///////////////////////////////////////////////////////
-struct MFStiffnessIntegrator : public BilinearFormIntegrator
-{
-   const FiniteElementSpace *fes;
-   Vector NE;
-   int ne, p, d1d, q, q1d, d1n;
-   Geometry::Type geom_type;
-   const IntegrationRule *ir;
-   const DofToQuad *maps;
-   const real_t *B, *G;
-   const real_t *Bn, *Gn;
-
-public:
-   MFStiffnessIntegrator()
-   {
-#ifndef MFEM_DEBUG
-      MFStiffnessKernels::Specialization<2, 3, 2>::Add();
-      MFStiffnessKernels::Specialization<3, 4, 2>::Add();
-      MFStiffnessKernels::Specialization<4, 5, 2>::Add();
-      MFStiffnessKernels::Specialization<5, 6, 2>::Add();
-      MFStiffnessKernels::Specialization<6, 7, 2>::Add();
-      MFStiffnessKernels::Specialization<7, 8, 2>::Add();
-      MFStiffnessKernels::Specialization<9, 10, 2>::Add();
-#endif // MFEM_DEBUG
-   }
-
-   using BilinearFormIntegrator::AssemblePA;
-   void AssemblePA(const FiniteElementSpace &fespace) override
-   {
-      fes = &fespace;
-      auto *mesh = fes->GetMesh();
-      ne = mesh->GetNE();
-      p = fes->GetFE(0)->GetOrder();
-      d1d = p + 1;
-      q = 2 * p + mesh->GetElementTransformation(0)->OrderW();
-      geom_type = mesh->GetElementBaseGeometry(0);
-      ir = &IntRules.Get(geom_type, q);
-      q1d = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-      maps = &fes->GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
-      B = maps->B.Read(), G = maps->G.Read();
-
-      const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
-      const auto nfes = nodes->FESpace();
-      assert(nfes->GetVDim() == 3);
-      constexpr auto LEX = ElementDofOrdering::LEXICOGRAPHIC;
-      const Operator *nRop = nfes->GetElementRestriction(LEX);
-      auto nR = dynamic_cast<const ElementRestriction*>(nRop);
-      NE.SetSize(nR->Height());
-
-      d1n = nfes->GetFE(0)->GetOrder() + 1;
-      nR->Mult(*nodes, (NE.UseDevice(true), NE));
-      MFEM_VERIFY(NE.Size() == ne * d1n * d1n * d1n * 3, "Invalid NE size");
-      const auto nfe = nfes->GetTypicalFE();
-      const auto &nmaps = nfe->GetDofToQuad(*ir, DofToQuad::TENSOR);
-      Bn = nmaps.B.Read(), Gn = nmaps.G.Read();
-   }
-
-   template <int T_D1D = 0, int T_Q1D = 0, int T_D1N = 0>
-   static void MFStiffnessMult(const int ne,
-                               const real_t *nodes_e,
-                               const IntegrationRule *ir,
-                               const real_t *b, const real_t *g,
-                               const real_t *bn, const real_t *gn,
-                               const real_t *xe, real_t *ye,
-                               const int d1d, const int q1d, const int d1n)
-   {
-      constexpr int DIM = 3;
-
-      const auto w_r = ir->GetWeights().Read();
-      const auto W = Reshape(w_r, q1d, q1d, q1d);
-
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int D1N = T_D1N ? T_D1N : d1n;
-
-      const auto XE = Reshape(xe, D1D, D1D, D1D, 1, ne);
-      const auto NE = Reshape(nodes_e, D1N, D1N, D1N, 3, ne);
-      auto YE = Reshape(ye, D1D, D1D, D1D, 1, ne);
-
-      mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D,
-                                   [=] MFEM_HOST_DEVICE(int e)
-      {
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
-
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-
-         ker::vd_regs3d_t<1, DIM, MQ1> r0, r1;
-         ker::vd_regs3d_t<3, DIM, MQ1> g0, g1;
-
-         ker::LoadMatrix(D1N, Q1D, bn, sB);
-         ker::LoadMatrix(D1N, Q1D, gn, sG);
-         ker::LoadDofs3d(e, D1N, NE, g0);
-         ker::Grad3d(D1N, Q1D, smem, sB, sG, g0, g1); // g1 = grad(NE) = ∇Ξ
-
-         ker::LoadMatrix(D1D, Q1D, b, sB);
-         ker::LoadMatrix(D1D, Q1D, g, sG);
-         ker::LoadDofs3d(e, D1D, XE, r0);
-         ker::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1); // r1 = grad(XE) = ∇u
-
-         for (int qz = 0; qz < Q1D; qz++)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  real_t Ju[3] =
-                  {
-                     r1[0][0][qz][qy][qx],
-                     r1[0][1][qz][qy][qx],
-                     r1[0][2][qz][qy][qx]
-                  };
-                  const real_t Jn[9] =
-                  {
-                     g1(0, 0, qz, qy, qx), g1(1, 0, qz, qy, qx), g1(2, 0, qz, qy, qx),
-                     g1(0, 1, qz, qy, qx), g1(1, 1, qz, qy, qx), g1(2, 1, qz, qy, qx),
-                     g1(0, 2, qz, qy, qx), g1(1, 2, qz, qy, qx), g1(2, 2, qz, qy, qx)
-                  };
-
-                  real_t Jv[3], invJn[9];
-                  kernels::CalcInverse<3>(Jn, invJn);
-                  kernels::Mult(3, 3, invJn, Ju, Jv);
-                  kernels::MultTranspose(3, 3, invJn, Jv, Ju);
-
-                  const real_t w = W(qx, qy, qz);
-                  const real_t detJn = kernels::Det<3>(Jn);
-                  r0[0][0][qz][qy][qx] = w * detJn * Ju[0];
-                  r0[0][1][qz][qy][qx] = w * detJn * Ju[1];
-                  r0[0][2][qz][qy][qx] = w * detJn * Ju[2];
-               }
-            }
-         }
-         // re-use sB sG
-         ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
-         ker::WriteDofs3d(e, D1D, r1, YE);
-      });
-   }
-
-   using MFStiffnessKernelType = decltype(&MFStiffnessMult<>);
-   MFEM_REGISTER_KERNELS(MFStiffnessKernels, MFStiffnessKernelType, (int, int,
-                                                                     int));
-
-   void AddMultPA(const Vector &xe, Vector &ye) const override
-   {
-      MFStiffnessKernels::Run(d1d, q1d, d1n,
-                              ne, NE.Read(),
-                              ir, B, G, Bn, Gn,
-                              xe.Read(), ye.ReadWrite(),
-                              d1d, q1d, d1n);
-   }
-};
-
-template <int D1D, int Q1D, int D1N>
-MFStiffnessIntegrator::MFStiffnessKernelType
-MFStiffnessIntegrator::MFStiffnessKernels::Kernel()
-{
-   return MFStiffnessMult<D1D, Q1D, D1N>;
-}
-
-MFStiffnessIntegrator::MFStiffnessKernelType
-MFStiffnessIntegrator::MFStiffnessKernels::Fallback(int d1, int q1, int n1)
-{
-   MFEM_CONTRACT_VAR(d1);
-   MFEM_CONTRACT_VAR(q1);
-   MFEM_CONTRACT_VAR(n1);
-   return MFStiffnessMult;
-}
-
-/// MF MassIntegrator ///////////////////////////////////////////////////////
-struct MFMassIntegrator : public BilinearFormIntegrator
-{
-   const FiniteElementSpace *fes;
-   Vector NE;
-   int ne, p, d1d, q, q1d, d1n;
-   Geometry::Type geom_type;
-   const IntegrationRule *ir;
-   const DofToQuad *maps;
-   const real_t *B, *G;
-   const real_t *Bn, *Gn;
-
-public:
-   MFMassIntegrator()
-   {
-#ifndef MFEM_DEBUG
-      MFMassKernels::Specialization<2, 3, 2>::Add();
-      MFMassKernels::Specialization<3, 4, 2>::Add();
-      MFMassKernels::Specialization<4, 5, 2>::Add();
-      MFMassKernels::Specialization<5, 6, 2>::Add();
-      MFMassKernels::Specialization<6, 7, 2>::Add();
-      MFMassKernels::Specialization<7, 8, 2>::Add();
-      MFMassKernels::Specialization<9, 10, 2>::Add();
-#endif // MFEM_DEBUG
-   }
-
-   using BilinearFormIntegrator::AssemblePA;
-   void AssemblePA(const FiniteElementSpace &fespace) override
-   {
-      fes = &fespace;
-      auto *mesh = fes->GetMesh();
-      ne = mesh->GetNE();
-      p = fes->GetFE(0)->GetOrder();
-      d1d = p + 1;
-      q = 2 * p + mesh->GetElementTransformation(0)->OrderW();
-      geom_type = mesh->GetElementBaseGeometry(0);
-      ir = &IntRules.Get(geom_type, q);
-      q1d = IntRules.Get(Geometry::SEGMENT, ir->GetOrder()).GetNPoints();
-      maps = &fes->GetFE(0)->GetDofToQuad(*ir, DofToQuad::TENSOR);
-      B = maps->B.Read(), G = maps->G.Read();
-
-      const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
-      const auto nfes = nodes->FESpace();
-      assert(nfes->GetVDim() == 3);
-      constexpr auto LEX = ElementDofOrdering::LEXICOGRAPHIC;
-      const Operator *nRop = nfes->GetElementRestriction(LEX);
-      auto nR = dynamic_cast<const ElementRestriction*>(nRop);
-      NE.SetSize(nR->Height());
-
-      d1n = nfes->GetFE(0)->GetOrder() + 1;
-      nR->Mult(*nodes, (NE.UseDevice(true), NE));
-      MFEM_VERIFY(NE.Size() == ne * d1n * d1n * d1n * 3, "Invalid NE size");
-      const auto nfe = nfes->GetTypicalFE();
-      const auto &nmaps = nfe->GetDofToQuad(*ir, DofToQuad::TENSOR);
-      Bn = nmaps.B.Read(), Gn = nmaps.G.Read();
-   }
-
-   template <int T_D1D = 0, int T_Q1D = 0, int T_D1N = 0>
-   static void MFMassMult(const int ne,
-                          const real_t *nodes_e,
-                          const IntegrationRule *ir,
-                          const real_t *b,
-                          const real_t *bn, const real_t *gn,
-                          const real_t *xe, real_t *ye,
-                          const int d1d, const int q1d, const int d1n)
-   {
-      constexpr int DIM = 3;
-
-      const auto w_r = ir->GetWeights().Read();
-      const auto W = Reshape(w_r, q1d, q1d, q1d);
-
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int D1N = T_D1N ? T_D1N : d1n;
-
-      const auto XE = Reshape(xe, D1D, D1D, D1D, 1, ne);
-      const auto NE = Reshape(nodes_e, D1N, D1N, D1N, 3, ne);
-      auto YE = Reshape(ye, D1D, D1D, D1D, 1, ne);
-
-      mfem::forall_2D<T_Q1D*T_Q1D>(ne, Q1D, Q1D,
-                                   [=] MFEM_HOST_DEVICE(int e)
-      {
-         constexpr int MD1 = T_D1D > 0 ? T_D1D : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? T_Q1D : 32;
-
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-
-         ker::v_regs3d_t<1, MQ1> r0, r1;
-         ker::vd_regs3d_t<3, DIM, MQ1> g0, g1;
-
-         ker::LoadMatrix(D1N, Q1D, bn, sB);
-         ker::LoadMatrix(D1N, Q1D, gn, sG);
-         ker::LoadDofs3d(e, D1N, NE, g0);
-         ker::Grad3d(D1N, Q1D, smem, sB, sG, g0, g1); // g1 = grad(NE) = ∇Ξ
-
-         ker::LoadMatrix(D1D, Q1D, b, sB);
-         ker::LoadDofs3d(e, D1D, XE, r0);
-         ker::Eval3d(D1D, Q1D, smem, sB, r0, r1); // r1 = Eval(XE) = u
-
-         for (int qz = 0; qz < Q1D; qz++)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  const real_t u = r1[0][qz][qy][qx];
-                  const real_t Jn[9] =
-                  {
-                     g1(0, 0, qz, qy, qx), g1(1, 0, qz, qy, qx), g1(2, 0, qz, qy, qx),
-                     g1(0, 1, qz, qy, qx), g1(1, 1, qz, qy, qx), g1(2, 1, qz, qy, qx),
-                     g1(0, 2, qz, qy, qx), g1(1, 2, qz, qy, qx), g1(2, 2, qz, qy, qx)
-                  };
-
-                  const real_t w = W(qx, qy, qz);
-                  const real_t detJn = kernels::Det<3>(Jn);
-                  r0[0][qz][qy][qx] = w * detJn * u;
-               }
-            }
-         }
-         // re-use sB
-         ker::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
-         ker::WriteDofs3d(e, D1D, r1, YE);
-      });
-   }
-
-   using MFMassKernelType = decltype(&MFMassMult<>);
-   MFEM_REGISTER_KERNELS(MFMassKernels, MFMassKernelType, (int, int,
-                                                           int));
-
-   void AddMultPA(const Vector &xe, Vector &ye) const override
-   {
-      MFMassKernels::Run(d1d, q1d, d1n,
-                         ne, NE.Read(),
-                         ir, B, Bn, Gn,
-                         xe.Read(), ye.ReadWrite(),
-                         d1d, q1d, d1n);
-   }
-};
-
-template <int D1D, int Q1D, int D1N>
-MFMassIntegrator::MFMassKernelType
-MFMassIntegrator::MFMassKernels::Kernel()
-{
-   return MFMassMult<D1D, Q1D, D1N>;
-}
-
-MFMassIntegrator::MFMassKernelType
-MFMassIntegrator::MFMassKernels::Fallback(int, int, int)
-{
-   return MFMassMult;
-}
-
-/// PA MassIntegrator ///////////////////////////////////////////////////////
-struct PAStiffnessIntegrator : public BilinearFormIntegrator
-{
-   const FiniteElementSpace *fes;
-   const real_t *B, *G, *DX;
-   int ne, d1d, q1d;
-   Vector J0, dx;
-   Vector &qdata;
-
-public:
-   PAStiffnessIntegrator(Vector &qdata): qdata(qdata)
-   {
-#ifndef MFEM_DEBUG
-      StiffnessKernels::Specialization<2, 3>::Add();
-      StiffnessKernels::Specialization<3, 4>::Add();
-      StiffnessKernels::Specialization<4, 5>::Add();
-      StiffnessKernels::Specialization<5, 6>::Add();
-      StiffnessKernels::Specialization<6, 7>::Add();
-      StiffnessKernels::Specialization<7, 8>::Add();
-      StiffnessKernels::Specialization<9, 10>::Add();
-#endif // MFEM_DEBUG
-   }
-
-   using BilinearFormIntegrator::AssemblePA;
-   void AssemblePA(const FiniteElementSpace &fespace) override
-   {
-      fes = &fespace;
-      auto *mesh = fes->GetMesh();
-      const int DIM = mesh->Dimension();
-      ne = mesh->GetNE();
-      const auto p = fes->GetFE(0)->GetOrder();
-      const auto q = 2 * p + mesh->GetElementTransformation(0)->OrderW();
-      const auto type = mesh->GetElementBaseGeometry(0);
-      const IntegrationRule &ir = IntRules.Get(type, q);
-      const int NQPT = ir.GetNPoints();
-      d1d = p + 1;
-      q1d = IntRules.Get(Geometry::SEGMENT, ir.GetOrder()).GetNPoints();
-      MFEM_VERIFY(NQPT == q1d * q1d * q1d, "");
-      const DofToQuad *maps =
-         &fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
-      const GridFunction *nodes = (mesh->EnsureNodes(), mesh->GetNodes());
-      const FiniteElementSpace *nfes = nodes->FESpace();
-      const int nVDIM = nfes->GetVDim();
-      dx.SetSize(nVDIM * DIM * NQPT * ne, Device::GetDeviceMemoryType());
-      J0.SetSize(nVDIM * DIM * NQPT * ne, Device::GetDeviceMemoryType());
-      dx.UseDevice(true), J0.UseDevice(true);
-      B = maps->B.Read(), G = maps->G.Read(), DX = dx.Read();
-
-      const Operator *NR =
-         nfes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-      const QuadratureInterpolator *nqi = nfes->GetQuadratureInterpolator(ir);
-      nqi->SetOutputLayout(QVectorLayout::byVDIM);
-      const int nd = nfes->GetFE(0)->GetDof();
-      Vector xe(nVDIM * nd * ne, Device::GetDeviceMemoryType());
-      NR->Mult(*nodes, (xe.UseDevice(true), xe));
-      nqi->Derivatives(xe, J0);
-
-      const int Q1D = q1d;
-      const auto w_r = ir.GetWeights().Read();
-      const auto W = Reshape(w_r, q1d, q1d, q1d);
-      const auto J = Reshape(J0.Read(), 3, 3, q1d, q1d, q1d, ne);
-      auto DX_w = Reshape(dx.Write(), 3, 3, q1d, q1d, q1d, ne);
-
-      mfem::forall_3D(ne, Q1D, Q1D, Q1D,[=] MFEM_HOST_DEVICE(int e)
-      {
-         MFEM_FOREACH_THREAD_DIRECT(qz, z, Q1D)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  const real_t w = W(qx, qy, qz);
-                  const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-                  const real_t detJ = kernels::Det<3>(Jtr);
-                  const real_t wd = w * detJ;
-                  const real_t D[9] = { wd, 0.0, 0.0,
-                                        0.0, wd, 0.0,
-                                        0.0, 0.0, wd
-                                      };
-                  real_t Jrt[9], A[9];
-                  kernels::CalcInverse<3>(Jtr, Jrt);
-                  kernels::MultABt(3, 3, 3, D, Jrt, A);
-                  kernels::Mult(3, 3, 3, A, Jrt, &DX_w(0, 0, qx, qy, qz, e));
-               }
-            }
-         }
-         MFEM_SYNC_THREAD;
-      });
-      qdata = dx;
-   }
-
-   template <int T_D1D = 0, int T_Q1D = 0>
-   static void StiffnessMult(const int NE, const real_t *b, const real_t *g,
-                             const real_t *dx, const real_t *xe, real_t *ye,
-                             const int d1d, const int q1d)
-   {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-      constexpr int DIM = 3, VDIM = 1;
-      const auto XE = Reshape(xe, D1D, D1D, D1D, VDIM, NE);
-      const auto DX = Reshape(dx, 3, 3, Q1D, Q1D, Q1D, NE);
-      auto YE = Reshape(ye, D1D, D1D, D1D, VDIM, NE);
-
-      mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
-      {
-         constexpr int MD1 = T_D1D > 0 ? kernels::internal::SetMaxOf(T_D1D) : 32;
-         constexpr int MQ1 = T_Q1D > 0 ? kernels::internal::SetMaxOf(T_Q1D) : 32;
-
-         MFEM_SHARED real_t smem[MQ1][MQ1];
-         MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-         ker::vd_regs3d_t<VDIM, DIM, MQ1> r0, r1;
-
-         ker::LoadMatrix(D1D, Q1D, b, sB);
-         ker::LoadMatrix(D1D, Q1D, g, sG);
-
-         ker::LoadDofs3d(e, D1D, XE, r0);
-         ker::Grad3d(D1D, Q1D, smem, sB, sG, r0, r1);
-
-         for (int qz = 0; qz < Q1D; qz++)
-         {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
-            {
-               MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
-               {
-                  real_t v[3], u[3] = { r1[0][0][qz][qy][qx],
-                                        r1[0][1][qz][qy][qx],
-                                        r1[0][2][qz][qy][qx]
-                                      };
-                  const real_t *dx = &DX(0, 0, qx, qy, qz, e);
-                  kernels::Mult(3, 3, dx, u, v);
-                  r0[0][0][qz][qy][qx] = v[0];
-                  r0[0][1][qz][qy][qx] = v[1];
-                  r0[0][2][qz][qy][qx] = v[2];
-               }
-            }
-         }
-         ker::GradTranspose3d(D1D, Q1D, smem, sB, sG, r0, r1);
-         ker::WriteDofs3d(e, D1D, r1, YE);
-      });
-   }
-
-   using StiffnessKernelType = decltype(&StiffnessMult<0, 0>);
-   MFEM_REGISTER_KERNELS(StiffnessKernels, StiffnessKernelType, (int, int));
-
-   void AddMultPA(const Vector &x, Vector &y) const override
-   {
-      StiffnessKernels::Run(d1d, q1d,
-                            ne, B, G, DX, x.Read(), y.ReadWrite(),
-                            d1d, q1d);
-   }
-};
-
-template <int D1D, int Q1D>
-PAStiffnessIntegrator::StiffnessKernelType
-PAStiffnessIntegrator::StiffnessKernels::Kernel()
-{
-   return StiffnessMult<D1D, Q1D>;
-}
-
-PAStiffnessIntegrator::StiffnessKernelType
-PAStiffnessIntegrator::StiffnessKernels::Fallback(int d1d, int q1d)
-{
-   MFEM_CONTRACT_VAR(d1d);
-   MFEM_CONTRACT_VAR(q1d);
-   return StiffnessMult;
-}
-
-/// BakeOff ///////////////////////////////////////////////////////////////////
+// BakeOff
 template <int BFI, Version VER, int VDIM, bool GLL>
 struct BakeOff
 {
+   static constexpr int bfi = BFI;
    static constexpr Version version = VER;
    static constexpr int DIM = 3;
    const int p, c, q, n, nx, ny, nz;
@@ -1021,7 +850,7 @@ struct BakeOff
          dwop->FormLinearSystem(ess_tdof_list, x, b, A_ptr, X, B);
          A.Reset(A_ptr);
       };
-      // PA MFEM Setup ////////////////////////////////////
+      // PA MFEM Setup
       const auto mPASetup = [&] (auto integrator)
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -1029,7 +858,7 @@ struct BakeOff
          a.Assemble();
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       };
-      // MF ∂FEM setup ////////////////////////////////////
+      // MF ∂FEM setup
       const auto dMFSetup = [&] (auto backend, auto qfunction)
       {
          using backend_t = decltype(backend);
@@ -1049,7 +878,7 @@ struct BakeOff
          AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>();
          formLinearSystem(nodes);
       };
-      // MF ∂FEM GetDerivative setup //////////////////////////
+      // MF ∂FEM GetDerivative setup
       const auto dMFGetDerivativeSetup = [&] (auto backend, auto qfunction,
                                               bool use_cached_setup)
       {
@@ -1073,7 +902,7 @@ struct BakeOff
          ddop = dop->GetDerivative(U, state, use_cached_setup);
          formLinearSystemDerivative();
       };
-      // PA ∂FEM setup ////////////////////////////////////
+      // PA ∂FEM setup
       const auto dPASetup = [&] (auto backend, auto setup_qf, auto apply_qf)
       {
          using backend_t = decltype(backend);
@@ -1115,11 +944,7 @@ struct BakeOff
          {
             mPASetup(new MassIntegrator(/*ir*/));
          }
-         else if constexpr (VER == Version::MF_mfem_ker)
-         {
-            mPASetup(new MFMassIntegrator());
-         }
-         /// dFEM Global versions /////////////////////////////////////////////
+         // dFEM Global versions
          else if constexpr (VER == Version::MF_dfem_global)
          {
             dMFSetup(global_backend{}, MF_Mass_global_qf<DIM> {});
@@ -1138,7 +963,7 @@ struct BakeOff
                      PA_Mass_Setup_global_qf<DIM> {},
                      PA_Mass_Apply_global_qf<DIM> {});
          }
-         /// dFEM Local versions //////////////////////////////////////////////
+         // dFEM Local versions
          else if constexpr (VER == Version::MF_dfem_local)
          {
             dMFSetup(local_backend{}, MF_Mass_local_qf<DIM> {});
@@ -1165,20 +990,12 @@ struct BakeOff
       }
       else if constexpr (BFI == 3 || BFI == 5)
       {
-         /// MFEM PA versions /////////////////////////////////////////////////
+         // MFEM PA versions
          if constexpr (VER == Version::PA_mfem_std)
          {
             mPASetup(new DiffusionIntegrator(/*ir*/));
          }
-         else if constexpr (VER == Version::MF_mfem_ker)
-         {
-            mPASetup(new MFStiffnessIntegrator());
-         }
-         else if constexpr (VER == Version::PA_mfem_ker)
-         {
-            mPASetup(new PAStiffnessIntegrator(qfct));
-         }
-         /// dFEM Global versions /////////////////////////////////////////////
+         // dFEM Global versions
          else if constexpr (VER == Version::MF_dfem_global)
          {
             dMFSetup(global_backend{}, MF_Diffusion_global_qf<DIM> {});
@@ -1197,7 +1014,7 @@ struct BakeOff
                      PA_Diffusion_Setup_global_qf<DIM> {},
                      PA_Diffusion_Apply_global_qf<DIM> {});
          }
-         /// dFEM Local versions //////////////////////////////////////////////
+         // dFEM Local versions
          else if constexpr (VER == Version::MF_dfem_local)
          {
             dMFSetup(local_backend{}, MF_Diffusion_local_qf<DIM> {});
@@ -1236,7 +1053,7 @@ struct BakeOff
 
 };
 
-/// Bake-off Problems (BPs) ///////////////////////////////////////////////////
+// Bake-off Problems (BPs)
 template <int BFI, Version VER, int VDIM=1, bool GLL=false>
 struct BP : public BakeOff<BFI, VER, VDIM, GLL>
 {
@@ -1284,55 +1101,78 @@ struct BP : public BakeOff<BFI, VER, VDIM, GLL>
    }
 };
 
-/// Benchmarks Registration ///////////////////////////////////////////////////
+// Benchmarks Registration
 template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
-   T run(state.range(0), state.range(1));
-   while (state.KeepRunning()) { run.benchmark(); }
-   state.counters["Dofs"] = bm::Counter(run.dofs);
-   state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
+   std::unique_ptr<T> run;
+   for ([[maybe_unused]] auto _ : state)
+   {
+      if (!run)
+      {
+         state.PauseTiming();
+         run = std::make_unique<T>(state.range(0), state.range(1));
+         state.ResumeTiming();
+      }
+      run->benchmark();
+   }
+   state.counters["Dofs"] = bm::Counter(run->dofs);
+   state.counters["MDof/s"] = bm::Counter(run->SumMdofs(), bm::Counter::kIsRate);
    state.counters["p"] = bm::Counter(state.range(0));
-   state.counters["version"] = bm::Counter(version_int(T::version));
+   state.SetLabel(BenchmarkExpression<T::bfi, T::version>());
 }
 #define REGISTER(PK, BFI, VER) \
    BENCHMARK_TEMPLATE(Benchmark, PK<BFI, Version::VER>) \
-   ->Name(#PK #BFI "_" #VER)->Apply(CustomArguments)->Unit(bm::kMillisecond)
+   ->Name(BenchmarkPath<BFI, Version::VER>())->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
-/// BP1 /////////////////////////////////////////////////////////////////////
+// BP1: (Bᵀ Dc B u)
 REGISTER(BP, 1, PA_mfem_std);
-
-REGISTER(BP, 1, MF_dfem_global);
-REGISTER(BP, 1, MF_dfem_global_get_derivative);
-REGISTER(BP, 1, MF_dfem_global_get_derivative_cached);
-REGISTER(BP, 1, PA_dfem_global);
-
-REGISTER(BP, 1, MF_dfem_local);
-REGISTER(BP, 1, MF_dfem_local_get_derivative);
 REGISTER(BP, 1, MF_dfem_local_get_derivative_cached);
 REGISTER(BP, 1, PA_dfem_local);
 
-/// BP3 /////////////////////////////////////////////////////////////////////
+// BP1: (Bᵀ (Dc B p))
+REGISTER(BP, 1, MF_dfem_global_get_derivative_cached);
+REGISTER(BP, 1, PA_dfem_global);
+
+// BP1: (Bᵀ Dq [(B u); (G x)])
+REGISTER(BP, 1, MF_dfem_local);
+
+// BP1: (Bᵀ Dq [(B u); (G x); (B p)])
+REGISTER(BP, 1, MF_dfem_local_get_derivative);
+
+// BP1: (Bᵀ (Dq [(B u); (G x)]))
+REGISTER(BP, 1, MF_dfem_global);
+
+// BP1: (Bᵀ (Dq [(B u); (G x); (B p)]))
+REGISTER(BP, 1, MF_dfem_global_get_derivative);
+
+// BP3: (Gᵀ Dc G u)
 REGISTER(BP, 3, PA_mfem_std);
-REGISTER(BP, 3, MF_mfem_ker);
-REGISTER(BP, 3, PA_mfem_ker);
-
-REGISTER(BP, 3, MF_dfem_global);
-REGISTER(BP, 3, MF_dfem_global_get_derivative);
-REGISTER(BP, 3, MF_dfem_global_get_derivative_cached);
-REGISTER(BP, 3, PA_dfem_global);
-
-REGISTER(BP, 3, MF_dfem_local);
-REGISTER(BP, 3, MF_dfem_local_get_derivative);
 REGISTER(BP, 3, MF_dfem_local_get_derivative_cached);
 REGISTER(BP, 3, PA_dfem_local);
 
-/// main //////////////////////////////////////////////////////////////////////
+// BP3: (Gᵀ (Dc G p))
+REGISTER(BP, 3, MF_dfem_global_get_derivative_cached);
+REGISTER(BP, 3, PA_dfem_global);
+
+// BP3: (Gᵀ Dq [(G u); (G x)])
+REGISTER(BP, 3, MF_dfem_local);
+
+// BP3: (Gᵀ Dq [(G u); (G x); (G p)])
+REGISTER(BP, 3, MF_dfem_local_get_derivative);
+
+// BP3: (Gᵀ (Dq [(G u); (G x)]))
+REGISTER(BP, 3, MF_dfem_global);
+
+// BP3: (Gᵀ (Dq [(G u); (G x); (G p)]))
+REGISTER(BP, 3, MF_dfem_global_get_derivative);
+
+// main
 int main(int argc, char *argv[])
 {
    static mfem::MPI_Session mpi(argc, argv);
 
-   bm::ConsoleReporter CR;
+   ExpressionReporter CR;
    bm::Initialize(&argc, argv);
 
    AddKernelSpecializations();
