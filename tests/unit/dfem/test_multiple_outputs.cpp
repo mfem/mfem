@@ -556,6 +556,9 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             {COORDINATES, nodes->ParFESpace()},
          };
 
+         // The test field is named V even though it is the same space as the
+         // trial field U, which is the usual "V is the test function" idiom.
+         // The diagonal of dR_V/dU is then named explicitly.
          const std::vector<FieldDescriptor> out_fds
          {
             {V, &fes},
@@ -592,7 +595,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          SECTION("Multiple Outputs Assemble Diagonal")
          {
             Vector diag(fes.GetTrueVSize()), diag_ref_l(fes.GetVSize());
-            dRdU->AssembleDiagonal(diag);
+            dRdU->AssembleDiagonal(V, diag);
             blf_fa.SpMat().GetDiag(diag_ref_l);
 
             Vector diag_ref(fes.GetTrueVSize());
@@ -612,17 +615,17 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
       // block assembles into its own matrix.
       // This would look smth like:
       //
-      // dR/dU = [ dR_V/dU; dR_P/dU ]
+      // dR/dU = [ dR_P/dU; dR_U/dU ]
       //
       {
          static constexpr int P = 5;
 
-         ParBilinearForm blf_v(&fes);
-         blf_v.AddDomainIntegrator(new MassIntegrator(ir));
-         blf_v.AddDomainIntegrator(new DiffusionIntegrator(ir));
-         blf_v.SetAssemblyLevel(AssemblyLevel::LEGACY);
-         blf_v.Assemble();
-         blf_v.Finalize();
+         ParBilinearForm blf_u(&fes);
+         blf_u.AddDomainIntegrator(new MassIntegrator(ir));
+         blf_u.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf_u.SetAssemblyLevel(AssemblyLevel::LEGACY);
+         blf_u.Assemble();
+         blf_u.Finalize();
 
          ConstantCoefficient kappa_coeff(kappa);
          ParBilinearForm blf_p(&fes);
@@ -637,10 +640,14 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             {COORDINATES, nodes->ParFESpace()},
          };
 
+         // U is deliberately *not* the first output field: A[f] and the
+         // blocks of Mult are indexed by position in out_fds, and
+         // AssembleDiagonal has to pick the block whose field is the
+         // differentiated one rather than simply the first.
          const std::vector<FieldDescriptor> out_fds
          {
-            {V, &fes},
             {P, &fes},
+            {U, &fes},
          };
 
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
@@ -649,7 +656,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          dop.AddDomainIntegrator<LocalQFBackend>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
-            tuple{Value<V>{}, Gradient<V>{}, Gradient<P>{}},
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<P>{}},
             *ir, all_domain_attr, Derivatives<U> {});
 
          Vector nodestv;
@@ -672,10 +679,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
             // TestSameMatrices only goes thru the first matrix' sparsity pattern,
             // so if we compare both ways we can catch entries missing from either side.
-            TestSameMatrices(*A[0], blf_v.SpMat());
-            TestSameMatrices(blf_v.SpMat(), *A[0]);
-            TestSameMatrices(*A[1], blf_p.SpMat());
-            TestSameMatrices(blf_p.SpMat(), *A[1]);
+            TestSameMatrices(*A[0], blf_p.SpMat());
+            TestSameMatrices(blf_p.SpMat(), *A[0]);
+            TestSameMatrices(*A[1], blf_u.SpMat());
+            TestSameMatrices(blf_u.SpMat(), *A[1]);
 
             delete A[0];
             delete A[1];
@@ -684,8 +691,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             // (what a Newton loop does every iteration) has to give the same
             // matrices instead of accumulating on top of the first ones.
             dRdU->Assemble(A);
-            TestSameMatrices(*A[0], blf_v.SpMat());
-            TestSameMatrices(*A[1], blf_p.SpMat());
+            TestSameMatrices(*A[0], blf_p.SpMat());
+            TestSameMatrices(*A[1], blf_u.SpMat());
 
             delete A[0];
             delete A[1];
@@ -701,7 +708,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             REQUIRE(A[0] != nullptr);
             REQUIRE(A[1] != nullptr);
 
-            std::unique_ptr<HypreParMatrix> ref_v(blf_v.ParallelAssemble());
+            std::unique_ptr<HypreParMatrix> ref_u(blf_u.ParallelAssemble());
             std::unique_ptr<HypreParMatrix> ref_p(blf_p.ParallelAssemble());
 
             // The assembled blocks have to agree with the matrix free action
@@ -709,8 +716,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             Vector dir(fes.GetTrueVSize());
             dir.Randomize(7);
 
-            Vector yv(fes.GetTrueVSize()), yp(fes.GetTrueVSize());
-            MultiVector Y{yv, yp};
+            Vector yp(fes.GetTrueVSize()), yu(fes.GetTrueVSize());
+            MultiVector Y{yp, yu};
             dRdU->Mult(dir, Y);
 
             Vector a(fes.GetTrueVSize());
@@ -721,7 +728,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
                           pmesh.GetComm());
             REQUIRE(norm_g == MFEM_Approx(0.0));
             Vector r(fes.GetTrueVSize());
-            ref_v->Mult(dir, r);
+            ref_p->Mult(dir, r);
             a = Y[0];
             a -= r;
             norm_l = a.Normlinf();
@@ -735,7 +742,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
                           pmesh.GetComm());
             REQUIRE(norm_g == MFEM_Approx(0.0));
-            ref_p->Mult(dir, r);
+            ref_u->Mult(dir, r);
             a = Y[1];
             a -= r;
             norm_l = a.Normlinf();
@@ -747,11 +754,116 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             delete A[1];
             MPI_Barrier(MPI_COMM_WORLD);
          }
+
+         SECTION("Multiple Fields Assemble Diagonal")
+         {
+            // Both row blocks are square here, since P and U share a space, so
+            // squareness alone cannot pick one. They carry different operators
+            // though, so reading the wrong row block cannot pass unnoticed.
+            const auto check_diag = [&](const Vector &diag,
+                                        ParBilinearForm &ref)
+            {
+               REQUIRE(diag.Size() == fes.GetTrueVSize());
+
+               Vector diag_ref_l(fes.GetVSize());
+               ref.SpMat().GetDiag(diag_ref_l);
+               Vector diag_ref(fes.GetTrueVSize());
+               fes.GetProlongationMatrix()->MultTranspose(diag_ref_l, diag_ref);
+
+               Vector d(diag);
+               d -= diag_ref;
+               real_t norm_l = d.Normlinf(), norm_g = norm_l;
+               MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
+                             pmesh.GetComm());
+               REQUIRE(norm_g == MFEM_Approx(0.0));
+            };
+
+            // Default: the row block of the differentiated field, dR_U/dU.
+            Vector diag_u;
+            dRdU->AssembleDiagonal(diag_u);
+            check_diag(diag_u, blf_u);
+
+            // Named: the other row block, dR_P/dU.
+            Vector diag_p;
+            dRdU->AssembleDiagonal(P, diag_p);
+            check_diag(diag_p, blf_p);
+
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+      }
+
+      // The same two field structure, but now the two output fields live on
+      // different spaces. That is what makes AssembleDiagonal's choice of row
+      // block observable at all: with both fields on one space, reading the
+      // wrong block still lands on an identically sized vector holding the
+      // same numbers, so the check above cannot tell the two apart.
+      {
+         static constexpr int P = 5;
+
+         H1_FECollection fec_p(p + 1, DIM);
+         ParFiniteElementSpace fes_p(&pmesh, &fec_p);
+
+         ParBilinearForm blf_u(&fes);
+         blf_u.AddDomainIntegrator(new MassIntegrator(ir));
+         blf_u.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf_u.SetAssemblyLevel(AssemblyLevel::LEGACY);
+         blf_u.Assemble();
+         blf_u.Finalize();
+
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+         };
+
+         // U is the second output field on purpose, and fes_p is a different
+         // space, so picking out_fds[0] would give a differently sized vector.
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {P, &fes_p},
+            {U, &fes},
+         };
+
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+         auto qf = two_field_local_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            qf,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<P>{}},
+            *ir, all_domain_attr, Derivatives<U> {});
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop.GetDerivative(U, X);
+
+         SECTION("Assemble Diagonal Picks The Square Block")
+         {
+            Vector diag;
+            dRdU->AssembleDiagonal(diag);
+
+            // Sized by U's space, not by the first output field's.
+            REQUIRE(diag.Size() == fes.GetTrueVSize());
+
+            Vector diag_ref_l(fes.GetVSize());
+            blf_u.SpMat().GetDiag(diag_ref_l);
+            Vector diag_ref(fes.GetTrueVSize());
+            fes.GetProlongationMatrix()->MultTranspose(diag_ref_l, diag_ref);
+
+            diag -= diag_ref;
+            real_t norm_l = diag.Normlinf(), norm_g = norm_l;
+            MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(norm_g == MFEM_Approx(0.0));
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
       }
 
       // One assemblable row block and one that is not: S lives on quadrature
       // points, so it has no basis to contract against and stays null, while
-      // the mass + diffusion block on V assembles as usual. 
+      // the mass + diffusion block on V assembles as usual.
       {
          ParBilinearForm blf_fa(&fes);
          blf_fa.AddDomainIntegrator(new MassIntegrator(ir));

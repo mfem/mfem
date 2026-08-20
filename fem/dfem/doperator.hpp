@@ -126,9 +126,12 @@ using assemble_derivative_sparsematrix_callback_t =
 using assemble_derivative_hypreparmatrix_callback_t =
    std::function<void(std::vector<HypreParMatrix *> &)>;
 
-/// @brief Type alias for a function that assembles the diagonal of a derivative
-/// operator into an E-vector
-using assemble_diagonal_callback_t = std::function<void(Vector &)>;
+/// @brief Type alias for a function that assembles the diagonal of one row
+/// block of a derivative operator into an E-vector
+///
+/// The first argument names the output (test) field whose row block is wanted;
+/// only a square block has a diagonal at all.
+using assemble_diagonal_callback_t = std::function<void(int, Vector &)>;
 
 /// @brief Type alias for a function that applies the appropriate restriction to
 /// the solution and parameters
@@ -701,34 +704,69 @@ public:
       }
    }
 
-   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   /// @brief Assemble the diagonal of one row block of the derivative
+   /// operator into a T-vector.
    ///
-   /// @param diag The vector to receive the diagonal (must be T-dof sized).
-   void AssembleDiagonal(Vector &diag) const override
+   /// The derivative is a block column, one row block per output field, all
+   /// sharing the trial space of the differentiated field. Only a block whose
+   /// test space *is* that trial space is square, and only a square block has a
+   /// diagonal. Squareness alone cannot pick the block when several output
+   /// fields live on the trial space, so the row is named rather than inferred.
+   /// Output field ids may differ from the differentiated field's id while
+   /// sharing its ParFiniteElementSpace, in which case several row blocks are
+   /// square at once. Naming the output field id resolves the ambiguity.
+   ///
+   /// @param out_field_id The output field whose row block is wanted.
+   /// @param diag The vector to receive the diagonal, resized to that field's
+   /// T-dof size.
+   void AssembleDiagonal(size_t out_field_id, Vector &diag) const
    {
       MFEM_VERIFY(!assemble_diagonal_callbacks.empty(),
                   "derivative can't assemble diagonal");
       EnsureQpCache();
-      // A diagonal only makes sense for a square block, so unlike Assemble this
-      // stays restricted to derivatives with a single output field.
-      MFEM_VERIFY(outfds.size() == 1,
-                  "AssembleDiagonal currently requires a single output field");
+
+      const size_t diagonal_idx = FindIdx(out_field_id, outfds);
+      MFEM_VERIFY(diagonal_idx != SIZE_MAX,
+                  "AssembleDiagonal: field " << out_field_id << " is not an "
+                  "output field of this operator");
 
       const auto *test_pf =
-         std::get_if<const ParFiniteElementSpace *>(&outfds[0].data);
+         std::get_if<const ParFiniteElementSpace *>(&outfds[diagonal_idx].data);
       MFEM_VERIFY(test_pf && *test_pf,
                   "AssembleDiagonal: test field must be a ParFiniteElementSpace");
+      const auto *trial_pf =
+         std::get_if<const ParFiniteElementSpace *>(&direction.data);
+      MFEM_VERIFY(trial_pf && *trial_pf,
+                  "AssembleDiagonal: the differentiated field must be a "
+                  "ParFiniteElementSpace");
+      MFEM_VERIFY(*test_pf == *trial_pf,
+                  "AssembleDiagonal: the requested row block is not square and "
+                  "so has no diagonal; its test space is not the trial space "
+                  "of the differentiated field");
 
       prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
 
       for (const auto &f : assemble_diagonal_callbacks)
       {
-         f(*daction_e[0]);
+         f(static_cast<int>(out_field_id), *daction_e[diagonal_idx]);
       }
 
       restriction_transpose(outfds, out_rcache, daction_e, daction_l);
-      prolongation_transpose(outfds[0], *daction_l[0], diag);
+      prolongation_transpose(outfds[diagonal_idx],
+                             *daction_l[diagonal_idx], diag);
+   }
+
+   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   ///
+   /// Uses the row block of the differentiated field, i.e. the usual diagonal
+   /// block dR_U/dU for GetDerivative(U). Call
+   /// AssembleDiagonal(size_t, Vector &) for any other row block.
+   ///
+   /// @param diag The vector to receive the diagonal.
+   void AssembleDiagonal(Vector &diag) const override
+   {
+      AssembleDiagonal(direction.id, diag);
    }
 
 private:
@@ -1567,37 +1605,19 @@ void DifferentiableOperator::AddIntegrator(
 
          // NOTE: before disable_assemble was looking for any identity outputs,
          // But this would silently disable assembly for other valid outputs across
-         // different fields.  
+         // different fields.
          bool any_assemblable_output = false;
-         bool has_identity_output = false;
-         bool single_output_field = true;
          for_constexpr([&](auto j)
          {
             using output_fop_t =
                std::decay_t<tuple_element_t<j, callback_outputs_t>>;
-            using first_output_fop_t =
-               std::decay_t<tuple_element_t<0, callback_outputs_t>>;
-            if constexpr (is_identity_fop_v<output_fop_t>)
-            {
-               has_identity_output = true;
-            }
-            else
+            if constexpr (!is_identity_fop_v<output_fop_t>)
             {
                any_assemblable_output = true;
-            }
-            if constexpr (output_fop_t::GetFieldId() !=
-                          first_output_fop_t::GetFieldId())
-            {
-               single_output_field = false;
             }
          }, std::make_index_sequence<tuple_size<callback_outputs_t>::value> {});
 
          const bool disable_assemble = !any_assemblable_output;
-         // The diagonal kernel folds every output into one test space and only
-         // makes sense for a square block, so it stays restricted to a single,
-         // basis-backed test field.
-         const bool disable_assemble_diagonal =
-            disable_assemble || has_identity_output || !single_output_field;
 
          // Setup the qp cache for the derivative
          setup_callbacks[callback_key].push_back(
@@ -1637,7 +1657,7 @@ void DifferentiableOperator::AddIntegrator(
             }
          }
 
-         if (!disable_assemble_diagonal)
+         if (!disable_assemble)
          {
             // Assemble the diagonal of the derivative into an L-vector
             assemble_diagonal_cbs[callback_key].push_back(
