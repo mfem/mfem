@@ -761,7 +761,7 @@ int main(int argc, char *argv[])
       if (visualize)
       {
          hcurlhdiv_dofTrueDof.Distribute(X, x);
-         MultiVector tmp(x.GetData(), 1, x.Size());
+         parelag::MultiVector tmp(x.GetData(), 1, x.Size());
          sequence[0]->show(jform, tmp);
       }
       post_timer.Stop();
