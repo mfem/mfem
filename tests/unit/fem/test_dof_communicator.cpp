@@ -76,7 +76,7 @@ real_t ExpectedProjectedValue(int rank, int ntasks, bool top)
 
 }
 
-TEST_CASE("DeviceSharedDofCommunicator", "[Parallel][GPU]")
+TEST_CASE("GroupCommunicator Shared Dof Reduction", "[Parallel][GPU]")
 {
    const int ntasks = Mpi::WorldSize();
    const int rank = Mpi::WorldRank();
@@ -102,10 +102,23 @@ TEST_CASE("DeviceSharedDofCommunicator", "[Parallel][GPU]")
    {
       // Start with the row number on every local dof copy.
       Vector x(pfes.GetVSize());
+      x.UseDevice(true);
       x = real_t(rank);
 
-      const auto *dof_comm = pfes.GetDeviceSharedDofCommunicator();
-      dof_comm->ReduceAndBcast(x, op);
+      real_t *x_ptr = x.ReadWrite();
+      switch (op)
+      {
+         case DeviceSharedDofCommunicator::Op::Min:
+            pfes.GroupComm().Reduce<real_t>(x_ptr, GroupCommunicator::Min);
+            break;
+         case DeviceSharedDofCommunicator::Op::Max:
+            pfes.GroupComm().Reduce<real_t>(x_ptr, GroupCommunicator::Max);
+            break;
+         case DeviceSharedDofCommunicator::Op::Sum:
+            pfes.GroupComm().Reduce<real_t>(x_ptr, GroupCommunicator::Sum);
+            break;
+      }
+      pfes.GroupComm().Bcast<real_t>(x_ptr);
       x.HostRead();
 
       // Order 1 H1 scalar dofs coincide with mesh vertices.

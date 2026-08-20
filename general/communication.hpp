@@ -35,6 +35,14 @@
 namespace mfem
 {
 
+class DeviceSharedDofCommunicator;
+template <typename Type> struct MPITypeMap;
+
+namespace internal
+{
+class DeviceNeighborDofComm;
+}
+
 /** @brief A simple singleton class that calls MPI_Init() at construction and
     MPI_Finalize() at destruction. It also provides easy access to
     MPI_COMM_WORLD's rank and size. */
@@ -232,6 +240,8 @@ public:
     GroupTopology with arbitrary-size data associated with each group. */
 class GroupCommunicator
 {
+   friend class internal::DeviceNeighborDofComm;
+
 public:
    /// Communication mode.
    enum Mode
@@ -256,6 +266,13 @@ protected:
    int *request_marker;
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
+   Array<int> ltdof_ldof;
+   int ldof_size;
+   mutable DeviceSharedDofCommunicator *device_shared_dof_comm;
+   bool device_shared_dof_comm_enabled;
+   bool have_ltdof_ldof;
+
+   bool UseDeviceSharedDofComm(const void *ptr) const;
 
 public:
    /// Construct a GroupCommunicator object.
@@ -285,6 +302,12 @@ public:
    /** This method must be called before performing operations that use local
        data layout 2, see CopyGroupToBuffer() for layout descriptions. */
    void SetLTDofTable(const Array<int> &ldof_ltdof);
+
+   /// Enable or disable the device shared-dof communicator path.
+   void SetDeviceSharedDofSupport(bool enable);
+
+   /// Return a cached device-friendly communicator for shared dof reductions.
+   const DeviceSharedDofCommunicator *GetDeviceSharedDofCommunicator() const;
 
    /// Get a reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() { return gtopo; }
@@ -358,17 +381,12 @@ public:
        The data @a layout can be either 0 or 1.
 
        For a description of @a layout, see CopyGroupToBuffer(). */
-   template <class T> void Bcast(T *ldata, int layout) const
-   {
-      BcastBegin(ldata, layout);
-      BcastEnd(ldata, layout);
-   }
+   template <class T> void Bcast(T *ldata, int layout) const;
 
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(T *ldata) const { Bcast<T>(ldata, 0); }
+   template <class T> void Bcast(T *ldata) const;
    /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(Array<T> &ldata) const
-   { Bcast<T>((T *)ldata); }
+   template <class T> void Bcast(Array<T> &ldata) const;
 
    /** @brief Begin reduction operation within each group where the master is
        the root. */
@@ -399,15 +417,10 @@ public:
 
        The reduce operation is given by the second argument (see below for list
        of the supported operations.) */
-   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const
-   {
-      ReduceBegin(ldata);
-      ReduceEnd(ldata, 0, Op);
-   }
+   template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const;
 
    /// Reduce within each group where the master is the root.
-   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
-   { Reduce<T>((T *)ldata, Op); }
+   template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const;
 
    /// Reduce operation Sum, instantiated for int, double and float
    template <class T> static void Sum(OpData<T>);
@@ -448,6 +461,110 @@ public:
    /** @brief Destroy a GroupCommunicator object, deallocating internal data
        structures and buffers. */
    ~GroupCommunicator();
+};
+
+namespace internal
+{
+
+class DeviceNeighborDofComm
+{
+public:
+   explicit DeviceNeighborDofComm(const GroupCommunicator &gc_);
+   ~DeviceNeighborDofComm();
+
+   bool MpiGpuAware() const { return mpi_gpu_aware; }
+
+   const Array<int> &SharedLTDof() const { return shr_ltdof; }
+   const Array<int> &ExternalLDof() const { return ext_ldof; }
+   const Array<int> &LocalTDofToLDof() const { return ltdof_ldof; }
+   const Array<int> &UniqueLTDof() const { return unq_ltdof; }
+   const Array<int> &UniqueSharedOffsets() const { return unq_shr_i; }
+   const Array<int> &UniqueSharedIndices() const { return unq_shr_j; }
+
+   template <typename T, typename SendBuffer, typename RecvBuffer>
+   int ExchangeSharedToExternal(const SendBuffer &shr_buf,
+                                RecvBuffer &ext_buf,
+                                int tag) const;
+
+   template <typename T, typename SendBuffer, typename RecvBuffer>
+   int ExchangeExternalToShared(const SendBuffer &ext_buf,
+                                RecvBuffer &shr_buf,
+                                int tag) const;
+
+   void WaitAll(int req_counter) const;
+
+private:
+   template <typename T, typename SendBuffer, typename RecvBuffer>
+   int Exchange(const SendBuffer &send_buf, const Memory<int> &send_offsets,
+                RecvBuffer &recv_buf, const Memory<int> &recv_offsets,
+                int tag) const;
+
+   const GroupCommunicator &gc;
+   bool mpi_gpu_aware;
+   Array<int> shr_ltdof, ext_ldof;
+   Memory<int> shr_buf_offsets, ext_buf_offsets;
+   Array<int> ltdof_ldof, unq_ltdof;
+   Array<int> unq_shr_i, unq_shr_j;
+   mutable Array<MPI_Request> requests;
+};
+
+template <typename InBuffer, typename OutBuffer>
+void DeviceNeighborDofExtract(const Array<int> &indices,
+                              const InBuffer &xin,
+                              OutBuffer &xout);
+
+template <typename InBuffer, typename OutBuffer>
+void DeviceNeighborDofSet(const Array<int> &indices,
+                          const InBuffer &xin,
+                          OutBuffer &xout);
+
+template <typename SrcBuffer, typename DstBuffer>
+void DeviceNeighborDofAdd(const Array<int> &unique_dst_indices,
+                          const Array<int> &unique_to_src_offsets,
+                          const Array<int> &unique_to_src_indices,
+                          const SrcBuffer &src,
+                          DstBuffer &dst);
+
+} // namespace internal
+
+class DeviceSharedDofCommunicator
+{
+public:
+   enum class Op { Sum, Min, Max };
+
+   explicit DeviceSharedDofCommunicator(const GroupCommunicator &gc);
+   ~DeviceSharedDofCommunicator();
+
+   template <typename T>
+   void Reduce(Array<T> &x_ldof, Op op) const;
+
+   template <typename T>
+   void Bcast(Array<T> &x_ldof) const;
+
+private:
+   mutable Array<real_t> shr_buf, ext_buf, true_buf;
+   internal::DeviceNeighborDofComm *nbr_comm;
+
+   template <typename T>
+   void ReduceBeginCopy(const Array<T> &x_ldof, Array<T> &ext_buf_t) const;
+   template <typename T>
+   void ReduceLocalCopy(const Array<T> &x_ldof, Array<T> &x_tdof) const;
+   template <typename T>
+   void ReduceEndAssemble(const Array<T> &shr_buf_t,
+                          Array<T> &x_tdof, Op op) const;
+
+   template <typename T>
+   void BcastBeginCopy(const Array<T> &x_tdof, Array<T> &shr_buf_t) const;
+   template <typename T>
+   void BcastLocalCopy(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+   template <typename T>
+   void BcastEndCopy(const Array<T> &ext_buf_t, Array<T> &x_ldof) const;
+
+   template <typename T>
+   void Reduce(const Array<T> &x_ldof, Array<T> &x_tdof, Op op) const;
+
+   template <typename T>
+   void Bcast(const Array<T> &x_tdof, Array<T> &x_ldof) const;
 };
 
 /// General MPI message tags used by MFEM
