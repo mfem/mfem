@@ -1984,6 +1984,8 @@ void Mesh::Destroy()
    bdr_face_attrs_cache.DeleteAll();
    attributes.DeleteAll();
    bdr_attributes.DeleteAll();
+   attribute_sets.attr_sets.DeleteAll();
+   bdr_attribute_sets.attr_sets.DeleteAll();
 
    face_indices[0].DeleteAll();
    face_indices[1].DeleteAll();
@@ -5129,6 +5131,8 @@ void Mesh::Loader(std::istream &input, int generate_edges,
    int mfem_nc_version = 0;
    if (mesh_type == "MFEM NC mesh v1.0") { mfem_nc_version = 10; }
    else if (mesh_type == "MFEM NC mesh v1.1") { mfem_nc_version = 11; }
+   else if (mesh_type == "MFEM NC mesh v1.2") { mfem_nc_version = 12; }
+   else if (mesh_type == "MFEM NC mesh v1.3") { mfem_nc_version = 13; }
    else if (mesh_type == "MFEM mesh v1.1") { mfem_nc_version = 1 /*legacy*/; }
 
    if (mfem_version)
@@ -11504,6 +11508,31 @@ void Mesh::InitFromNCMesh(const NCMesh &ncmesh_)
 #ifdef MFEM_DEBUG
    CheckBdrElementOrientation(false);
 #endif
+
+   if (ncmesh_.attribute_sets &&
+       ncmesh_.attribute_sets->SetsExist() &&
+       ncmesh_.attribute_sets != &attribute_sets)
+   {
+      // Copy named attribute sets if they exist
+      attribute_sets.attr_sets = ncmesh_.attribute_sets->attr_sets;
+   }
+   else if (ncmesh_.temp_attr_sets)
+   {
+      // Copy named attribute sets read from input file if present
+      attribute_sets.attr_sets = *ncmesh_.temp_attr_sets;
+   }
+   if (ncmesh_.bdr_attribute_sets &&
+       ncmesh_.bdr_attribute_sets->SetsExist() &&
+       ncmesh_.bdr_attribute_sets != &bdr_attribute_sets)
+   {
+      // Copy named boundary attribute sets if they exist
+      bdr_attribute_sets.attr_sets = ncmesh_.bdr_attribute_sets->attr_sets;
+   }
+   else if (ncmesh_.temp_bdr_attr_sets)
+   {
+      // Copy named boundary attribute sets read from input file if present
+      bdr_attribute_sets.attr_sets = *ncmesh_.temp_bdr_attr_sets;
+   }
 
    // NOTE: ncmesh->OnMeshUpdated() and GenerateNCFaceInfo() should be called
    // outside after this method.
