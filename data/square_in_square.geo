@@ -60,7 +60,7 @@ Physical Surface(2) = {2}; // Inner material (solid square)
 // Physical lines for boundary conditions
 // Outer square boundary edges
 Physical Line(1) = {1}; // outer bottom
-Physical Line(2) = {2}; // outer right  
+Physical Line(2) = {2}; // outer right
 Physical Line(3) = {3}; // outer top
 Physical Line(4) = {4}; // outer left
 

@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdarg>
 #include <unordered_map>
+#include <unordered_set>
 
 using namespace std;
 
@@ -4563,6 +4564,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
    for (int i = 0; i < boundary_element_indices.Size(); ++i)
    {
       const int boundary_element_idx = boundary_element_indices[i];
+      std::unordered_set<int> boundary_element_dofs;
 
       if (dim == 3)
       {
@@ -4586,8 +4588,11 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
          for (int k = 0; k < edge_dofs.Size(); ++k)
          {
             const int dof = edge_dofs[k];
-            // Record metadata the first time this DOF is seen.
-            if (dof_count[dof]++ == 0)
+            // Count each DOF once per boundary element and record metadata the
+            // first time it is seen, so H1 DOFs shared by multiple edges of the
+            // same element are not double counted.
+            if (boundary_element_dofs.insert(dof).second &&
+                dof_count[dof]++ == 0)
             {
                dof_edge[dof] = edges[j];
                dof_belem[dof] = boundary_element_idx;

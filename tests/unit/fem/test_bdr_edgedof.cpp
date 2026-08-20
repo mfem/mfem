@@ -303,9 +303,11 @@ TEST_CASE("BoundaryEdgeDOFsNestedCubes",
       real_t global_tdof_sum, total_length;
       MPI_Allreduce(&local_nonzero_tdofs, &global_nonzero_tdofs, 1, MPI_INT, MPI_SUM,
                     MPI_COMM_WORLD);
-      MPI_Allreduce(&local_tdof_sum, &global_tdof_sum, 1, MPI_DOUBLE, MPI_SUM,
+      MPI_Allreduce(&local_tdof_sum, &global_tdof_sum, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     MPI_COMM_WORLD);
-      MPI_Allreduce(&local_length, &total_length, 1, MPI_DOUBLE, MPI_SUM,
+      MPI_Allreduce(&local_length, &total_length, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     MPI_COMM_WORLD);
 
       // Verify processor-invariant results match expected values
