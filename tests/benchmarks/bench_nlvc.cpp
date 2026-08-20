@@ -192,7 +192,7 @@ struct VectorConvectionNLFBenchmark
       const auto order = static_cast<int>(state.range(0));           \
       const auto side = static_cast<int>(state.range(1));            \
       VectorConvectionNLFBenchmark<DIM> ker(order, side);            \
-      while (state.KeepRunning()) { ker.Benchmark(); }               \
+      for (auto _ : state) { ker.Benchmark(); }                      \
       bm::Counter::Flags flags = bm::Counter::kIsRate;               \
       state.counters["MDof/s"] = bm::Counter(ker.SumMdofs(), flags); \
       state.counters["Dofs"] = bm::Counter(ker.dofs);                \
