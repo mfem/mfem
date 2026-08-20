@@ -418,26 +418,14 @@ int main(int argc, char *argv[])
         rho_filter_lift_tv.SetSubVector(filter_ess_tdofs, real_t(0));
     }
 
-    // 6c. Advection solvers for the thickness measure, one per ray direction,
-    //     with the pseudo-transient time step set from the CFL condition.
+    // 6c. Advection solvers for the thickness measure, one per ray direction.
     vector<unique_ptr<MaterialThicknessSolver>> advect(n_dir);
     DGMassInverse minv(dgfes);
-
-    real_t cfl = 0.5;
-    real_t hmin = infinity();
-    for (int i = 0; i < pmesh.GetNE(); i++)
-    {
-        hmin = min(pmesh.GetElementSize(i, 1), hmin);
-    }
-    MPI_Allreduce(MPI_IN_PLACE, &hmin, 1,  MPITypeMap<real_t>::mpi_type, MPI_MIN,
-                    pmesh.GetComm());
-    real_t dt = cfl * hmin / (2 * order + 1);
 
     for (int r = 0; r < n_dir; r++)
     {
         advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r]);
         // advect[r]->SetMinv(minv);
-        // advect[r]->GetSolver().SetTimeStep(dt);      // pseudo-transient time step
         // advect[r]->GetSolver().SetTerminalTime(3);
         advect[r]->AssembleLinearSolver();
     }

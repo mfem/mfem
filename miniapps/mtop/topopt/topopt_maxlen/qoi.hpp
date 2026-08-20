@@ -294,8 +294,8 @@ private:
 
 public:
     AdvectThicknessResidual(ParSubMesh &submesh_, const ParGridFunction &rho_a_, ParGridFunction &alpha_)
-    : comm(alpha_.ParFESpace()->GetComm()), sub_fes(alpha_.ParFESpace()),
-        submesh(&submesh_), rho_a_full(&rho_a_),
+    : comm(alpha_.ParFESpace()->GetComm()), submesh(&submesh_),
+        sub_fes(alpha_.ParFESpace()), rho_a_full(&rho_a_),
         rho_a_sub(new ParGridFunction(sub_fes)), alpha(&alpha_)
     {
         Refresh();

@@ -13,6 +13,8 @@ add_mfem_miniapp(elasticity_pa_regression
 				 MAIN elasticity_pa_regression.cpp
 				 LIBRARIES mfem)
 
+add_subdirectory(topopt/topopt_maxlen)
+
 # Skip dFEM qfunction with floats
 if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 

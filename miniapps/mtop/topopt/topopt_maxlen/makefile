@@ -28,7 +28,7 @@ COMMON_OBJ = MMA_MFEM.o mtop_solvers.o pde_filter.o diffusion_mass_solver.o pseu
 
 SEQ_MINIAPPS = 
 PAR_MINIAPPS = ElastTopOpt_maxlen ElastTopOpt_maxthick ElastTopOpt_adv ElastTopOpt_ct\
- ElastTopOpt_std ElastTopOpt_pnorm ElastTopOpt_ctpnorm DiffuTopOpt
+ ElastTopOpt_std ElastTopOpt_pnorm ElastTopOpt_ctpnorm ElastTopOpt_3d DiffuTopOpt
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else

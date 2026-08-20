@@ -514,7 +514,7 @@ int main(int argc, char *argv[])
                     << scientific << setprecision(2) << setw(w) << iterationError << endl;
 
             vector<double> lam = mma.GetLambda();
-            for (int lam_id = 0; lam_id < lam.size(); lam_id++)
+            for (std::size_t lam_id = 0; lam_id < lam.size(); lam_id++)
                 mfem::out << "\nlambda: " << lam[lam_id] << endl;
 
 
