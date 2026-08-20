@@ -1593,8 +1593,9 @@ static bool IsSubMesh(const Mesh *sub, const Mesh *parent)
    return false;
 }
 
-static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteElementSpace &parent_fes,
-                                   Array<int> &sub_to_parent_vdof_map)
+static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes,
+                                    FiniteElementSpace &parent_fes,
+                                    Array<int> &sub_to_parent_vdof_map)
 {
    Mesh *sub = submesh_fes.GetMesh();
    Mesh *parent = parent_fes.GetMesh();
@@ -1617,7 +1618,7 @@ static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteEleme
                                        parent_fes,
                                        submesh->GetFrom(),
                                        submesh->GetParentElementIDMap(),
-                                       sub_to_parent_vdof_map);   
+                                       sub_to_parent_vdof_map);
       return true;
    }
 #endif
@@ -1657,8 +1658,8 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    if (is_trial_submesh)
    {
       restricted_fes.reset(new FiniteElementSpace(
-         submesh, test_fes->FEColl(), test_fes->GetVDim(),
-         test_fes->GetOrdering()));
+                              submesh, test_fes->FEColl(), test_fes->GetVDim(),
+                              test_fes->GetOrdering()));
       restricted_test_fes = restricted_fes.get();
       // In this case the intermediate rows belong to the restricted test
       // space and must be mapped back to the original test space.  Columns
@@ -1669,8 +1670,8 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    else
    {
       restricted_fes.reset(new FiniteElementSpace(
-         submesh, trial_fes->FEColl(), trial_fes->GetVDim(),
-         trial_fes->GetOrdering()));
+                              submesh, trial_fes->FEColl(), trial_fes->GetVDim(),
+                              trial_fes->GetOrdering()));
       restricted_trial_fes = restricted_fes.get();
       // In this case the intermediate columns belong to the restricted trial
       // space and must be mapped back to the original trial space.  Rows
@@ -1685,7 +1686,8 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    // ParMixedBilinearForm may have already allocated extra rows/columns for
    // face-neighbor data.  Preserve those dimensions when rebuilding the CSR
    // graph; the logical form dimensions above do not include neighbor dofs.
-   const int target_height = original_mat ? original_mat->Height() : original_height;
+   const int target_height = original_mat ? original_mat->Height() :
+                             original_height;
    const int target_width = original_mat ? original_mat->Width() : original_width;
    // Keep the target matrix open.  As with ordinary MixedBilinearForm
    // assembly, CSR conversion is deferred to the caller's Finalize() call.
@@ -1791,7 +1793,7 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
       // Mapping rows and columns can make an intermediate entry collide with
       // an existing entry.  Sort and combine each row before inserting it.
       std::sort(row.begin(), row.end(),
-                [](const auto &x, const auto &y) { return x.first < y.first; });
+      [](const auto &x, const auto &y) { return x.first < y.first; });
       int unique_size = 0;
       for (const auto &entry : row)
       {
