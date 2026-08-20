@@ -46,7 +46,7 @@ Uses the following GitHub Actions from <https://github.com/mfem/github-actions>:
 
 Builds the benchmarks of `tests/benchmarks` and measures a subset of them with [CodSpeed](https://app.codspeed.io/mfem/mfem), which reports the performance changes of the pull requests.
 
-The benchmarks are built by setting `CODSPEED_MODE=simulation` in the CMake configuration: Google Benchmark is then replaced by [CodSpeed's compatibility layer](https://github.com/CodSpeedHQ/codspeed-cpp), which is fetched automatically. The measured benchmarks are selected in `tests/benchmarks/codspeed.sh`.
+The benchmarks are built by setting `-DMFEM_USE_CODSPEED=YES` in the CMake configuration: Google Benchmark is then replaced by [CodSpeed's compatibility layer](https://github.com/CodSpeedHQ/codspeed-cpp), which is fetched automatically. The measured benchmarks are selected in `tests/benchmarks/codspeed.sh`.
 
 ## Sanitizer Workflow for MFEM Verification
 
