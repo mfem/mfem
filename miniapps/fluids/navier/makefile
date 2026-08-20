@@ -52,6 +52,8 @@ endif
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
 .PHONY: all lib-common clean clean-build clean-exec
+# Keeping the *.o files fixes an issue with the MacOS version of 'make'.
+.PRECIOUS: %.o
 
 # Remove built-in rules
 %: %.cpp
