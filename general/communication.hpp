@@ -22,6 +22,7 @@
 #include "globals.hpp"
 #include <mpi.h>
 #include <cstdint>
+#include <type_traits>
 
 // can't directly use MPI_CXX_BOOL because Microsoft's MPI implementation
 // doesn't include MPI_CXX_BOOL. Fallback to MPI_C_BOOL if unavailable.
@@ -408,14 +409,38 @@ public:
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
    { Reduce<T>((T *)ldata, Op); }
 
-   /// Reduce operation Sum, instantiated for int and double
+   /// Reduce operation Sum, instantiated for int, double and float
    template <class T> static void Sum(OpData<T>);
-   /// Reduce operation Min, instantiated for int and double
+   /// Reduce operation Min, instantiated for int, double and float
    template <class T> static void Min(OpData<T>);
-   /// Reduce operation Max, instantiated for int and double
+   /// Reduce operation Max, instantiated for int, double and float
    template <class T> static void Max(OpData<T>);
    /// Reduce operation bitwise OR, instantiated for int only
    template <class T> static void BitOR(OpData<T>);
+   /// Reduce operation selecting the signed value with the largest absolute
+   /// value, instantiated for int, double and float. The result keeps its sign;
+   /// it is not the non-negative absolute value. Equal-magnitude ties are
+   /// broken deterministically toward the more positive value, so opposite-sign
+   /// ties resolve to the positive one regardless of accumulation order.
+   template <class T> static void MaxAbs(OpData<T>);
+
+   /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
+       the reduction to DOFs marked in the marker array.
+
+       @note The reduction is carried out in the signed type @a T, so the result
+       is signed even for bitwise operations.
+   */
+   template <class T>
+   void ReduceMarked(T *ldata, const Array<int> &marker, int layout,
+                     void (*Op)(OpData<T>)) const;
+
+   /** @brief Reduce within each group where the master is the root, but only for marked DOFs. */
+   template <class T>
+   void Reduce(T *ldata, const Array<int> &marker, void (*Op)(OpData<T>)) const
+   {
+      ReduceBegin(ldata);
+      ReduceMarked(ldata, marker, 0, Op);
+   }
 
    /// Print information about the GroupCommunicator from all MPI ranks.
    void PrintInfo(std::ostream &out = mfem::out) const;
