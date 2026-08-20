@@ -33,6 +33,9 @@ if (MFEM_BENCHMARK_USE_CODSPEED)
    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
    set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+   # Build the fork in 'simulation' mode: this compiles in CodSpeed's CPU
+   # simulation (valgrind) instrument.
+   set(CODSPEED_MODE "simulation" CACHE STRING "" FORCE)
    FetchContent_Declare(google_benchmark
       GIT_REPOSITORY https://github.com/CodSpeedHQ/codspeed-cpp
       GIT_TAG v2.4.0
