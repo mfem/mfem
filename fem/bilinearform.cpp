@@ -20,6 +20,7 @@
 #endif
 #include "../mesh/nurbs.hpp"
 #include <cmath>
+#include <vector>
 
 namespace mfem
 {
@@ -1590,6 +1591,9 @@ static bool IsSubMesh(const Mesh *sub, const Mesh *parent)
 static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteElementSpace &parent_fes,
                                    Array<int> &sub_to_parent_vdof_map)
 {
+   Mesh *sub = submesh_fes.GetMesh();
+   Mesh *parent = parent_fes.GetMesh();
+
    if (SubMesh::IsSubMesh(sub, parent))
    {
       const SubMesh *submesh = static_cast<const SubMesh *>(sub);
@@ -1598,8 +1602,8 @@ static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteEleme
                                        submesh->GetFrom(),
                                        submesh->GetParentElementIDMap(),
                                        sub_to_parent_vdof_map);
-      root_gc_ = &parent_fes.GroupComm();
-      CommunicateIndicesSet(sub_to_parent_vdof_map, parent_fes.GetVSize());                                       
+      // root_gc_ = &parent_fes.GroupComm();
+      // CommunicateIndicesSet(sub_to_parent_vdof_map, parent_fes.GetVSize());
       return true;
    }
 #ifdef MFEM_USE_MPI
@@ -1619,51 +1623,119 @@ static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteEleme
 
 void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
 {
+   FiniteElementSpace *original_trial_fes = trial_fes;
+   FiniteElementSpace *original_test_fes = test_fes;
+
    Mesh *trial_mesh = trial_fes->GetMesh();
    Mesh *test_mesh = test_fes->GetMesh();
 
    const bool is_trial_submesh = IsSubMesh(trial_mesh, test_mesh);
    const bool is_test_submesh = IsSubMesh(test_mesh, trial_mesh);
 
-   const Array<int> *submesh_parent_element_ids = NULL;
-   Array<int> sub_to_parent_vdof_map;
-
    MFEM_VERIFY(is_trial_submesh || is_test_submesh,
                "MixedBilinearForm::Assemble requires trial and test spaces "
                "on the same mesh, or the trial space on a direct SubMesh "
                "of the test space");
 
-   FiniteElementSpace &submesh_fes = is_trial_submesh ? *trial_fes : *test_fes;
-   FiniteElementSpace &parent_fes  = is_test_submesh ? *trial_fes : *test_fes;
+   // Assemble a representation on the shared submesh.  The FE space which is
+   // already defined on the submesh can be used directly; restrict the other
+   // FE space by constructing it on the same mesh.
+   Mesh *submesh = is_trial_submesh ? trial_mesh : test_mesh;
+   FiniteElementSpace *restricted_trial_fes = trial_fes;
+   FiniteElementSpace *restricted_test_fes = test_fes;
+   std::unique_ptr<FiniteElementSpace> restricted_fes;
 
    if (is_trial_submesh)
    {
-      GetSubMeshParentIDMaps(trial_mesh, test_mesh,
-                              submesh_parent_element_ids);
+      restricted_fes.reset(new FiniteElementSpace(
+         submesh, test_fes->FEColl(), test_fes->GetVDim(),
+         test_fes->GetOrdering()));
+      restricted_test_fes = restricted_fes.get();
    }
-   if (is_test_submesh)
+   else
    {
-      GetSubMeshParentIDMaps(test_mesh, trial_mesh,
-                              submesh_parent_element_ids);
+      restricted_fes.reset(new FiniteElementSpace(
+         submesh, trial_fes->FEColl(), trial_fes->GetVDim(),
+         trial_fes->GetOrdering()));
+      restricted_trial_fes = restricted_fes.get();
    }
 
+   Array<int> sub_to_parent_vdof_map;
+   if (is_trial_submesh)
+   {
+      GetSubMeshParentVdofMap(*restricted_test_fes, *original_test_fes,
+                              sub_to_parent_vdof_map);
+   }
+   else
+   {
+      GetSubMeshParentVdofMap(*restricted_trial_fes, *original_trial_fes,
+                              sub_to_parent_vdof_map);
+   }
 
+   const int original_height = original_test_fes->GetVSize();
+   const int original_width = original_trial_fes->GetVSize();
+   Array<Array<int>*> original_bdr_markers = boundary_integs_marker;
+   std::vector<Array<int>> restricted_bdr_markers(boundary_integs_marker.Size());
+   const int submesh_bdr_attr_max = submesh->bdr_attributes.Size() ?
+                                    submesh->bdr_attributes.Max() : 0;
+   for (int k = 0; k < boundary_integs_marker.Size(); k++)
+   {
+      if (boundary_integs_marker[k] &&
+          boundary_integs_marker[k]->Size() != submesh_bdr_attr_max)
+      {
+         restricted_bdr_markers[k].SetSize(submesh_bdr_attr_max);
+         restricted_bdr_markers[k] = 0;
+         const int n = std::min(boundary_integs_marker[k]->Size(),
+                                submesh_bdr_attr_max);
+         for (int i = 0; i < n; i++)
+         {
+            restricted_bdr_markers[k][i] = (*boundary_integs_marker[k])[i];
+         }
+         boundary_integs_marker[k] = &restricted_bdr_markers[k];
+      }
+   }
+   trial_fes = restricted_trial_fes;
+   test_fes = restricted_test_fes;
+   height = test_fes->GetVSize();
+   width = trial_fes->GetVSize();
 
+   delete mat;
+   mat = NULL;
+   MixedBilinearForm::Assemble(skip_zeros);
+   mat->Finalize(skip_zeros);
+   boundary_integs_marker = original_bdr_markers;
 
+   trial_fes = original_trial_fes;
+   test_fes = original_test_fes;
+   height = original_height;
+   width = original_width;
 
-   // if i is submesh index
-   // j = sub_to_parent_vdof_map_[i]
-   // else
-   // i = sub_to_parent_vdof_map_[j]
-   
-      const int *d_ia = ReadI();
-      int *d_ja = ReadWriteJ();  
-   Array<int> sub_to_parent_vdof_map_;
-      SparseMatrix &spmat = a.SpMat();
-      const int height = spmat.Height();
-      const int nnz = spmat.NumNonZeroElems();   
-      REQUIRE(spmat.GetMemoryI().CompareHostAndDevice(height+1) == 0);
-      REQUIRE(spmat.GetMemoryJ().CompareHostAndDevice(nnz) == 0);  
+   // Expand and map the intermediate matrix into the original FE-space
+   // ordering.  Negative entries in the vdof map encode an orientation sign.
+   SparseMatrix *intermediate_mat = mat;
+   SparseMatrix *expanded_mat = new SparseMatrix(original_height,
+                                                 original_width);
+   Array<int> cols;
+   Vector row;
+   for (int i = 0; i < intermediate_mat->Height(); i++)
+   {
+      const int row_map = is_trial_submesh ? sub_to_parent_vdof_map[i] : i;
+      const int row_sign = row_map < 0 ? -1 : 1;
+      const int row_index = row_map < 0 ? -1-row_map : row_map;
+      intermediate_mat->GetRow(i, cols, row);
+      for (int j = 0; j < cols.Size(); j++)
+      {
+         const int col = cols[j];
+         const int col_map = is_test_submesh ? sub_to_parent_vdof_map[col] : col;
+         const int col_sign = col_map < 0 ? -1 : 1;
+         const int col_index = col_map < 0 ? -1-col_map : col_map;
+         expanded_mat->Add(row_index, col_index,
+                           row_sign * col_sign * row[j]);
+      }
+   }
+   expanded_mat->Finalize(skip_zeros);
+   delete intermediate_mat;
+   mat = expanded_mat;
 }
 
 void MixedBilinearForm::Assemble(int skip_zeros)
@@ -1676,7 +1748,8 @@ void MixedBilinearForm::Assemble(int skip_zeros)
 
    if (trial_fes->GetMesh() != test_fes->GetMesh())
    {
-      SubMeshTolerantAssemble(int skip_zeros);
+      SubMeshTolerantAssemble(skip_zeros);
+      return;
    }
 
    ElementTransformation *eltrans;
