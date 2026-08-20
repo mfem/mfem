@@ -86,7 +86,7 @@ struct tensor<T, N0, Ns...>
       : tensor(a, std::make_index_sequence<N0> {}) { }
 
    MFEM_HOST_DEVICE constexpr
-   tensor(std::initializer_list<c_sub_array_type> ilist)
+   tensor(std::initializer_list<sub_tensor_type> ilist)
       : tensor(ilist, std::make_index_sequence<N0> {}) { }
 
    MFEM_HOST_DEVICE constexpr auto& operator[](int i) { return values[i]; }
@@ -129,9 +129,9 @@ private:
    constexpr tensor(const c_array_type &a, std::index_sequence<Is...>)
       : values{a[Is]...} { }
 
-   // Helper constructor from std::initializer_list<c_sub_array_type>
+   // Helper constructor from std::initializer_list<sub_tensor_type>
    template <std::size_t... Is> MFEM_HOST_DEVICE
-   constexpr tensor(std::initializer_list<c_sub_array_type> a,
+   constexpr tensor(std::initializer_list<sub_tensor_type> a,
                     std::index_sequence<Is...>)
       : values{a.begin()[Is]...} { }
 };
