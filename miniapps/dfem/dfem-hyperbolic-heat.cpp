@@ -761,6 +761,7 @@ int main(int argc, char *argv[])
       }
    }
 
+   // Create a ParaView data collection
    ParaViewDataCollection pd("dfem-hyperbolic-heat-output", &pmesh);
    if (paraview)
    {

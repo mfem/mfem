@@ -21,7 +21,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES =
-PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity dfem-nonlinear-poisson
+PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity dfem-nonlinear-poisson \
+   dfem-hyperbolic-heat dfem-reaction-diffusion
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -64,4 +65,5 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
-	@rm -rf dfem-minimal-surface-output dfem-nonlinear-poisson-output Output
+	@rm -rf dfem-minimal-surface-output dfem-nonlinear-poisson-output \
+	   dfem-hyperbolic-heat-output dfem-reaction-diffusion-output Output

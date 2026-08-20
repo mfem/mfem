@@ -26,6 +26,10 @@ if (MFEM_USE_MPI)
         MAIN dfem-hyperbolic-heat.cpp
         LIBRARIES mfem)
 
+    add_mfem_miniapp(dfem-reaction-diffusion
+        MAIN dfem-reaction-diffusion.cpp
+        LIBRARIES mfem)
+
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
         add_test(NAME dfem-minimal-surface=${MFEM_MPI_NP}
@@ -50,16 +54,10 @@ if (MFEM_USE_MPI)
         -k sol -f residual -o 1 -r 2 -no-vis
         ${MPIEXEC_POSTFLAGS})
 
-        add_test(NAME dfem-reaction-diffusion-linear=${MFEM_MPI_NP}
-        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
-        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-reaction-diffusion>
-        -b 0 -check -o 1 -r 2 -no-vis
-        ${MPIEXEC_POSTFLAGS})
-
         add_test(NAME dfem-reaction-diffusion=${MFEM_MPI_NP}
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-reaction-diffusion>
-        -b 1 -o 1 -r 2 -no-vis
+        -b 1 -o 1 -r 2 -pc 2 -no-vis
         ${MPIEXEC_POSTFLAGS})
 
         foreach(AL partial legacy full)

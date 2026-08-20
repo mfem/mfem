@@ -605,9 +605,6 @@ int main(int argc, char *argv[])
    // 14. Save the solution in parallel using ParaView format
    if (paraview)
    {
-      // The collection name must differ from the executable name: it becomes a
-      // directory in the working directory, and creating it fails if a regular
-      // file of that name is already sitting there.
       ParaViewDataCollection pd("dfem-nonlinear-poisson-output", &pmesh);
       pd.RegisterField("solution", &u_gf);
       pd.SetDataFormat(VTKFormat::BINARY);
