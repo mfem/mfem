@@ -41,11 +41,11 @@ jobs:
       - name: checkout mfem
         uses: actions/checkout@v6
 
-      # Restore the compiler cache (ccache). The key embeds the run id, so new
-      # runs save a fresh snapshot; the restore-keys prefix warm-starts from the
-      # most recent prior run (incl. the base branch for PRs).
-      - name: cache ccache
-        uses: actions/cache@v5
+      # Restore the compiler cache (ccache). All runs restore, but only pushes
+      # save (see "save ccache"). PRs warm-start from the base branch via the
+      # restore-keys prefix without saving their own.
+      - name: restore ccache
+        uses: actions/cache/restore@v5
         with:
           path: .ccache
           key: ccache-codspeed-${{ github.run_id }}
@@ -83,6 +83,14 @@ jobs:
 
       - name: ccache stats
         run: ccache -s
+
+      # Only pushes (master/next) save; see "restore ccache" above.
+      - name: save ccache
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .ccache
+          key: ccache-codspeed-${{ github.run_id }}
 
       - name: run benchmarks
         uses: CodSpeedHQ/action@v5
