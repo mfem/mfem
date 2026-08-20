@@ -3436,7 +3436,7 @@ bool LUFactors::Factor(int m, real_t TOL)
                piv = j;
             }
          }
-         ipiv[i] = piv + 1;
+         ipiv[i] = piv + ipiv_base;
          if (piv != i)
          {
             // swap rows i and piv in both L and U parts
