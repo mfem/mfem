@@ -174,6 +174,56 @@ struct mass_diffusion_local_qf
    }
 };
 
+// Three outputs across two test fields: V carries mass + diffusion (two
+// outputs on one field), P carries a diffusion scaled by kappa. The
+// two blocks are different, so we should spot if the row blocks
+// get mismatched/corrupted inadvertedly
+constexpr real_t kappa = 2.0;
+
+struct two_field_local_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      const dscalar_t &u,
+      const tensor<dscalar_t, DIM> &dudxi,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      dscalar_t &out_v,
+      tensor<dscalar_t, DIM> &out_dv,
+      tensor<dscalar_t, DIM> &out_dp) const
+   {
+      const auto invJ = inv(J);
+      const auto detJ = det(J);
+      const auto grad = (dudxi * invJ) * transpose(invJ);
+      out_v = u * detJ * w;
+      out_dv = grad * (detJ * w);
+      out_dp = grad * (kappa * detJ * w);
+   }
+};
+
+// Mass + diffusion on an FE test field, plus quadrature point data on a
+// VectorQuadratureSpace. The second row block has no basis to contract against,
+// so it is not assemblable while the first one still is.
+struct mass_diffusion_qdata_local_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(
+      const dscalar_t &u,
+      const tensor<dscalar_t, DIM> &dudxi,
+      const tensor<real_t, DIM, DIM> &J,
+      const real_t &w,
+      dscalar_t &out1,
+      tensor<dscalar_t, DIM> &out2,
+      tensor<real_t, DIM, DIM> &out3) const
+   {
+      const auto invJ = inv(J);
+      const auto detJ = det(J);
+      out1 = u * detJ * w;
+      out2 = (dudxi * invJ) * transpose(invJ) * (detJ * w);
+      out3 = J;
+   }
+};
+
 TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 {
    const bool all_tests = launch_all_non_regression_tests;
@@ -496,7 +546,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          ParBilinearForm blf_fa(&fes);
          blf_fa.AddDomainIntegrator(new MassIntegrator(ir));
          blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-         blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
          blf_fa.Assemble();
          blf_fa.Finalize();
 
@@ -553,6 +603,203 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             MPI_Allreduce(&dnorm_l, &dnorm_g, 1, MPI_DOUBLE, MPI_MAX,
                           pmesh.GetComm());
             REQUIRE(dnorm_g == MFEM_Approx(0.0));
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+      }
+
+      // Outputs spanning two test fields. dR/dU is a block column, one row
+      // block per output field, all sharing the trial space of U, and each row
+      // block assembles into its own matrix.
+      // This would look smth like:
+      //
+      // dR/dU = [ dR_V/dU; dR_P/dU ]
+      //
+      {
+         static constexpr int P = 5;
+
+         ParBilinearForm blf_v(&fes);
+         blf_v.AddDomainIntegrator(new MassIntegrator(ir));
+         blf_v.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf_v.SetAssemblyLevel(AssemblyLevel::LEGACY);
+         blf_v.Assemble();
+         blf_v.Finalize();
+
+         ConstantCoefficient kappa_coeff(kappa);
+         ParBilinearForm blf_p(&fes);
+         blf_p.AddDomainIntegrator(new DiffusionIntegrator(kappa_coeff, ir));
+         blf_p.SetAssemblyLevel(AssemblyLevel::LEGACY);
+         blf_p.Assemble();
+         blf_p.Finalize();
+
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+         };
+
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {V, &fes},
+            {P, &fes},
+         };
+
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+         auto qf = two_field_local_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            qf,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<V>{}, Gradient<V>{}, Gradient<P>{}},
+            *ir, all_domain_attr, Derivatives<U> {});
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop.GetDerivative(U, X);
+
+         REQUIRE(dRdU->Height() == 2 * fes.GetTrueVSize());
+         REQUIRE(dRdU->Width() == fes.GetTrueVSize());
+
+         SECTION("Multiple Fields SparseMatrix")
+         {
+            std::vector<SparseMatrix *> A;
+            dRdU->Assemble(A);
+
+            REQUIRE(A.size() == 2);
+            REQUIRE(A[0] != nullptr);
+            REQUIRE(A[1] != nullptr);
+
+            // TestSameMatrices only goes thru the first matrix' sparsity pattern,
+            // so if we compare both ways we can catch entries missing from either side.
+            TestSameMatrices(*A[0], blf_v.SpMat());
+            TestSameMatrices(blf_v.SpMat(), *A[0]);
+            TestSameMatrices(*A[1], blf_p.SpMat());
+            TestSameMatrices(blf_p.SpMat(), *A[1]);
+
+            delete A[0];
+            delete A[1];
+
+            // The element matrix banks are reused, so assembling a second time
+            // (what a Newton loop does every iteration) has to give the same
+            // matrices instead of accumulating on top of the first ones.
+            dRdU->Assemble(A);
+            TestSameMatrices(*A[0], blf_v.SpMat());
+            TestSameMatrices(*A[1], blf_p.SpMat());
+
+            delete A[0];
+            delete A[1];
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+
+         SECTION("Multiple Fields HypreParMatrix")
+         {
+            std::vector<HypreParMatrix *> A;
+            dRdU->Assemble(A);
+
+            REQUIRE(A.size() == 2);
+            REQUIRE(A[0] != nullptr);
+            REQUIRE(A[1] != nullptr);
+
+            std::unique_ptr<HypreParMatrix> ref_v(blf_v.ParallelAssemble());
+            std::unique_ptr<HypreParMatrix> ref_p(blf_p.ParallelAssemble());
+
+            // The assembled blocks have to agree with the matrix free action
+            // block by block, which is also what pins A[f] to output field f.
+            Vector dir(fes.GetTrueVSize());
+            dir.Randomize(7);
+
+            Vector yv(fes.GetTrueVSize()), yp(fes.GetTrueVSize());
+            MultiVector Y{yv, yp};
+            dRdU->Mult(dir, Y);
+
+            Vector a(fes.GetTrueVSize());
+            A[0]->Mult(dir, a);
+            a -= Y[0];
+            real_t norm_l = a.Normlinf(), norm_g = norm_l;
+            MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(norm_g == MFEM_Approx(0.0));
+            Vector r(fes.GetTrueVSize());
+            ref_v->Mult(dir, r);
+            a = Y[0];
+            a -= r;
+            norm_l = a.Normlinf();
+            MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(norm_g == MFEM_Approx(0.0));
+
+            A[1]->Mult(dir, a);
+            a -= Y[1];
+            norm_l = a.Normlinf();
+            MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(norm_g == MFEM_Approx(0.0));
+            ref_p->Mult(dir, r);
+            a = Y[1];
+            a -= r;
+            norm_l = a.Normlinf();
+            MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(norm_g == MFEM_Approx(0.0));
+
+            delete A[0];
+            delete A[1];
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+      }
+
+      // One assemblable row block and one that is not: S lives on quadrature
+      // points, so it has no basis to contract against and stays null, while
+      // the mass + diffusion block on V assembles as usual. 
+      {
+         ParBilinearForm blf_fa(&fes);
+         blf_fa.AddDomainIntegrator(new MassIntegrator(ir));
+         blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         blf_fa.Assemble();
+         blf_fa.Finalize();
+
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+         };
+
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {V, &fes},
+            {S, &vqs},
+         };
+
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+         auto qf = mass_diffusion_qdata_local_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            qf,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},
+            *ir, all_domain_attr, Derivatives<U> {});
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop.GetDerivative(U, X);
+
+         SECTION("Partly Assemblable Outputs SparseMatrix")
+         {
+            std::vector<SparseMatrix *> A;
+            dRdU->Assemble(A);
+
+            REQUIRE(A.size() == 2);
+            REQUIRE(A[0] != nullptr);
+            REQUIRE(A[1] == nullptr);
+
+            TestSameMatrices(*A[0], blf_fa.SpMat());
+            TestSameMatrices(blf_fa.SpMat(), *A[0]);
+
+            delete A[0];
             MPI_Barrier(MPI_COMM_WORLD);
          }
       }
