@@ -986,6 +986,10 @@ public:
 
    void Assemble(int skip_zeros = 1);
 
+   /// Performs custom assembly when one of the test/trial FE spaces is defined on a SubMesh of the
+   /// other. Called by MixedBilinearForm::Assemble
+   void SubMeshTolerantAssemble(int skip_zeros = 1);
+
    /** @brief Assemble the diagonal of ADA^T into diag, where A is this mixed
        bilinear form and D is a diagonal. */
    void AssembleDiagonal_ADAt(const Vector &D, Vector &diag) const;
