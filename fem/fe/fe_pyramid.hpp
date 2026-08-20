@@ -17,6 +17,12 @@
 namespace mfem
 {
 
+struct ScalarPyramid
+{
+   // Default basis type for H1 and L2 pyramids
+   static inline int DefaultType = 1; // Bergot(0) or Fuentes(1)
+};
+
 /** Base class for arbitrary order basis functions on pyramid-shaped elements
 
   This base class provides a common class to store temporary vectors,

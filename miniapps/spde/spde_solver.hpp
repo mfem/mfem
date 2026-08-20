@@ -83,7 +83,7 @@ real_t IntegrateBC(const ParGridFunction &x, const Array<int> &bdr,
 /// where A is
 /// A = div ( Theta(x) grad + Id ) u(x)
 /// and alpha is given as
-/// alpha = (2 nu + dim) / 2.
+/// alpha = (2 nu + dim) / 4.
 /// Theta (anisotropy tensor) and nu (smoothness) can be specified in the
 /// constructor. Traditionally, the SPDE method requires the specification of
 /// a white noise right hands side. SPDESolver accepts arbitrary right hand
