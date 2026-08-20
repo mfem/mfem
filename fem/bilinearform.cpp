@@ -1607,8 +1607,6 @@ static bool GetSubMeshParentVdofMap(FiniteElementSpace &submesh_fes, FiniteEleme
                                        submesh->GetFrom(),
                                        submesh->GetParentElementIDMap(),
                                        sub_to_parent_vdof_map);
-      // root_gc_ = &parent_fes.GroupComm();
-      // CommunicateIndicesSet(sub_to_parent_vdof_map, parent_fes.GetVSize());
       return true;
    }
 #ifdef MFEM_USE_MPI
@@ -1655,24 +1653,13 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    FiniteElementSpace *restricted_test_fes = test_fes;
    std::unique_ptr<FiniteElementSpace> restricted_fes;
 
+   Array<int> sub_to_parent_vdof_map;
    if (is_trial_submesh)
    {
       restricted_fes.reset(new FiniteElementSpace(
          submesh, test_fes->FEColl(), test_fes->GetVDim(),
          test_fes->GetOrdering()));
       restricted_test_fes = restricted_fes.get();
-   }
-   else
-   {
-      restricted_fes.reset(new FiniteElementSpace(
-         submesh, trial_fes->FEColl(), trial_fes->GetVDim(),
-         trial_fes->GetOrdering()));
-      restricted_trial_fes = restricted_fes.get();
-   }
-
-   Array<int> sub_to_parent_vdof_map;
-   if (is_trial_submesh)
-   {
       // In this case the intermediate rows belong to the restricted test
       // space and must be mapped back to the original test space.  Columns
       // already use the original trial-space ordering on the submesh.
@@ -1681,6 +1668,10 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    }
    else
    {
+      restricted_fes.reset(new FiniteElementSpace(
+         submesh, trial_fes->FEColl(), trial_fes->GetVDim(),
+         trial_fes->GetOrdering()));
+      restricted_trial_fes = restricted_fes.get();
       // In this case the intermediate columns belong to the restricted trial
       // space and must be mapped back to the original trial space.  Rows
       // already use the original test-space ordering on the submesh.
@@ -1696,12 +1687,8 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    // graph; the logical form dimensions above do not include neighbor dofs.
    const int target_height = original_mat ? original_mat->Height() : original_height;
    const int target_width = original_mat ? original_mat->Width() : original_width;
-   if (original_mat)
-   {
-      // Read any existing contributions before replacing the CSR arrays.  This
-      // also makes repeated assembly additive, as in the same-mesh path.
-      original_mat->Finalize(skip_zeros);
-   }
+   // Keep the target matrix open.  As with ordinary MixedBilinearForm
+   // assembly, CSR conversion is deferred to the caller's Finalize() call.
    const int submesh_bdr_attr_max = submesh->bdr_attributes.Size() ?
                                     submesh->bdr_attributes.Max() : 0;
    // A domain submesh can introduce interface boundary attributes.  Marker
@@ -1751,7 +1738,6 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    SparseMatrix *assembly_mat = new SparseMatrix(height, width);
    mat = assembly_mat;
    MixedBilinearForm::Assemble(skip_zeros);
-   assembly_mat->Finalize(skip_zeros);
    boundary_integs_marker = original_bdr_markers;
    boundary_face_integs_marker = original_bdr_face_markers;
    boundary_trace_face_integs_marker = original_bdr_trace_face_markers;
@@ -1761,26 +1747,24 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    height = original_height;
    width = original_width;
 
-   // Expand and map the intermediate CSR matrix into the original FE-space
+   // Expand and map the intermediate matrix into the original FE-space
    // ordering.  A negative vdof-map entry encodes an orientation reversal as
    // -1-vdof; the row and column signs must both be applied to each value.
-   // Keep the original SparseMatrix object, replacing only its CSR arrays.
-   const int *intermediate_i = mat->HostReadI();
-   const int *intermediate_j = mat->HostReadJ();
-   const real_t *intermediate_a = mat->HostReadData();
+   // GetRow() works for both open and finalized matrices, so this method does
+   // not need to finalize either the intermediate or target matrix.
    std::vector<std::vector<std::pair<int, real_t>>> rows(target_height);
+   Array<int> cols;
+   Vector values;
    if (original_mat)
    {
       // Start with entries from a pre-existing matrix.  This includes the
       // empty/neighbor portion allocated by ParMixedBilinearForm.
-      const int *original_i = original_mat->HostReadI();
-      const int *original_j = original_mat->HostReadJ();
-      const real_t *original_a = original_mat->HostReadData();
       for (int i = 0; i < target_height; i++)
       {
-         for (int j = original_i[i]; j < original_i[i+1]; j++)
+         original_mat->GetRow(i, cols, values);
+         for (int j = 0; j < cols.Size(); j++)
          {
-            rows[i].emplace_back(original_j[j], original_a[j]);
+            rows[i].emplace_back(cols[j], values[j]);
          }
       }
    }
@@ -1790,23 +1774,22 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
       const int row_map = is_trial_submesh ? sub_to_parent_vdof_map[i] : i;
       const int row_sign = row_map < 0 ? -1 : 1;
       const int row_index = row_map < 0 ? -1-row_map : row_map;
-      for (int j = intermediate_i[i]; j < intermediate_i[i+1]; j++)
+      assembly_mat->GetRow(i, cols, values);
+      for (int j = 0; j < cols.Size(); j++)
       {
-         const int col = intermediate_j[j];
+         const int col = cols[j];
          const int col_map = is_test_submesh ? sub_to_parent_vdof_map[col] : col;
          const int col_sign = col_map < 0 ? -1 : 1;
          const int col_index = col_map < 0 ? -1-col_map : col_map;
          rows[row_index].emplace_back(
-            col_index, row_sign * col_sign * intermediate_a[j]);
+            col_index, row_sign * col_sign * values[j]);
       }
    }
 
-   int nnz = 0;
    for (auto &row : rows)
    {
       // Mapping rows and columns can make an intermediate entry collide with
-      // an existing entry.  Sort and combine each row before constructing the
-      // final CSR arrays.
+      // an existing entry.  Sort and combine each row before inserting it.
       std::sort(row.begin(), row.end(),
                 [](const auto &x, const auto &y) { return x.first < y.first; });
       int unique_size = 0;
@@ -1822,53 +1805,20 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
          }
       }
       row.resize(unique_size);
-      nnz += unique_size;
    }
 
-   // Build the final CSR arrays for the usual case.  The row-wise data above
-   // is also used to populate an open matrix when shared-face assembly must
-   // add entries after this method returns.
-   Memory<int> expanded_i(target_height + 1);
-   Memory<int> expanded_j(nnz);
-   Memory<real_t> expanded_a(nnz);
-   int pos = 0;
-   expanded_i[0] = 0;
+   SparseMatrix *target_mat = original_mat ? original_mat : assembly_mat;
+   // Replace the target's internal storage with a fresh open sparsity
+   // structure, then insert the merged entries.  The matrix object itself
+   // remains unchanged so callers' references stay valid.
+   SparseMatrix open_mat(target_height, target_width);
+   target_mat->Swap(open_mat);
    for (int i = 0; i < target_height; i++)
    {
       for (const auto &entry : rows[i])
       {
-         expanded_j[pos] = entry.first;
-         expanded_a[pos] = entry.second;
-         pos++;
+         target_mat->Add(i, entry.first, entry.second);
       }
-      expanded_i[i+1] = pos;
-   }
-
-   SparseMatrix *target_mat = original_mat ? original_mat : assembly_mat;
-   if (interior_face_integs.Size())
-   {
-      // ParMixedBilinearForm adds shared-face contributions after this method
-      // returns.  Keep the target matrix open so those contributions can add
-      // new neighbor columns/rows to its sparsity pattern.
-      SparseMatrix open_mat(target_height, target_width);
-      target_mat->Swap(open_mat);
-      for (int i = 0; i < target_height; i++)
-      {
-         for (const auto &entry : rows[i])
-         {
-            target_mat->Add(i, entry.first, entry.second);
-         }
-      }
-   }
-   else
-   {
-      // Swap the newly built arrays into the selected matrix.  Swapping
-      // Memory objects preserves MFEM's ownership/validity bookkeeping and
-      // avoids changing the SparseMatrix object observed by callers.
-      target_mat->GetMemoryI().Swap(expanded_i);
-      target_mat->GetMemoryJ().Swap(expanded_j);
-      target_mat->GetMemoryData().Swap(expanded_a);
-      target_mat->OverrideSize(target_height, target_width);
    }
    if (original_mat)
    {
@@ -1878,8 +1828,7 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
    }
    // Keep mat pointing to the original object when one was supplied.  This is
    // important for users holding a reference to SpMat() and for
-   // ParMixedBilinearForm's
-   // post-assembly shared-face step.
+   // ParMixedBilinearForm's post-assembly shared-face step.
    mat = target_mat;
 }
 
