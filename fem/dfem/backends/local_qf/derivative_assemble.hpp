@@ -16,8 +16,10 @@
 #include "kernels.hpp"
 #include "util.hpp"
 
+#include <algorithm>
 #include <array>
 #include <type_traits>
+#include <vector>
 
 namespace ker = mfem::kernels::internal;
 
@@ -276,27 +278,35 @@ template<int DIM,
          typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    const DeviceTensor<5, real_t> &Ae,
-   const DeviceTensor<6, const real_t> &qpdc,
+   const DeviceTensor<5, const real_t> &qpdc,
    const int e,
    const DeviceTensor<1, const real_t> &itod,
    const input_fop_ts &inputs,
    const output_fop_t &output,
    const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
    const DofToQuadMap &output_dtq,
+   const int row_offset,
+   const int test_vdim,
+   const int test_op_dim,
    const int q1d,
    const int num_trial_dof_1d,
+   real_t *fhat_storage,
    Shared &smem)
 {
    static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
-   // Slab must hold full (test_vdim, test_op_dim, nq) fhat
+   // Slab must hold full (test_vdim, test_op_dim, nq) fhat.
+   // It is allocated by the caller, and is shared by every output, so it must be
+   // Before, declaring it here allocated one slab per output and the device
+   // kernel ran out of shared memory once an integrator had more outputs.
    static constexpr int FHAT_SLAB_MAX = MQN * 4;
 
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
 
-   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, ne)
-   const int test_vdim = qpdc.GetShape()[4];
-   const int test_op_dim = qpdc.GetShape()[3];
+   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, output_size_on_qp, ne),
+   // where output_size_on_qp spans every output FieldOperator (multi-output mode).
+   // The rows of  one output start at @a row_offset and are laid out as
+   // i * test_op_dim + k, matching how DerivativeSetup writes the cache.
    const int trial_vdim = qpdc.GetShape()[2];
    const int num_test_dof = Ae.GetShape()[0];
    const int nq = qpdc.GetShape()[0];
@@ -308,8 +318,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    MFEM_VERIFY(test_op_dim * nq <= FHAT_SLAB_MAX,
                "DerivativeAssemble: fhat slab exceeds capacity");
 #endif
-
-   MFEM_SHARED real_t fhat_storage[FHAT_SLAB_MAX];
 
    const auto &inputs_ref = inputs;
 
@@ -371,7 +379,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
+                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -396,7 +404,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
+                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -475,7 +483,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(q, m + m_offset, j, k, i, e);
+                                       qpdc(q, m + m_offset, j, row_offset + i * test_op_dim + k, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -496,7 +504,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(q, m + m_offset, j, k, i, e);
+                                       qpdc(q, m + m_offset, j, row_offset + i * test_op_dim + k, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -586,12 +594,30 @@ class DerivativeAssemble
    const std::array<DofToQuadMap, n_outputs> output_dtq_maps;
    const std::array<bool, n_inputs> input_is_dependent;
    const size_t trial_field_uf;
-   const size_t test_field_uf;
-   const ParFiniteElementSpace *test_fes;
+   /// Column space of every row block. GetDerivative differentiates w.r.t. one
+   /// field, so there is exactly one trial space. Null when that field is not
+   /// an FE space, in which case nothing can be assembled.
    const ParFiniteElementSpace *trial_fes;
-   const int test_vdim;
-   const int test_op_dim;
-   const int num_test_dof;
+   /// Per-output row geometry of the quadrature point cache. DerivativeSetup
+   /// lays that cache out over every output FieldOperator, so reading it needs
+   /// all of them.
+   const std::array<int, n_outputs> out_vdim;
+   const std::array<int, n_outputs> out_op_dim;
+   const std::array<int, n_outputs> out_offsets;
+   const int output_size_on_qp;
+   /// Output field ids, in order of first appearance among @a outputs. Each one
+   /// is a row block of the derivative: see @ref compute_group_field_ids.
+   const std::vector<int> group_field_ids;
+   /// Output FieldOperator -> row block it contributes to.
+   const std::array<int, n_outputs> out_group;
+   /// Row block -> position in ctx.outfds (-1 if the field is not an output of
+   /// the operator, which should not happen).
+   const std::vector<int> group_outfd_idx;
+   /// Row block -> test space, null for spaces without a basis.
+   const std::vector<const ParFiniteElementSpace *> group_fes;
+   const std::vector<int> group_test_vdim;
+   const std::vector<int> group_num_test_dof;
+   const std::vector<bool> group_assemblable;
    const int trial_vdim;
    const int trial_op_dim;
    const int num_trial_dof;
@@ -599,7 +625,36 @@ class DerivativeAssemble
    const int num_trial_dof_1d;
    const int total_trial_op_dim;
    mutable Vector inputs_trial_op_dim;
-   mutable Vector Ae_mem;
+   /// One element matrix bank per row block. Outputs on the same test field
+   /// share a bank and accumulate into it; outputs on different test fields are
+   /// different row blocks and need banks of their own, because their element
+   /// matrices have different shapes and are filled through different
+   /// ElementRestrictions.
+   mutable std::vector<Vector> group_Ae_mem;
+
+   /// @brief Distinct output field ids, in order of first appearance.
+   ///
+   /// Outputs sharing a field id form one row block: they are summed into a
+   /// single element matrix and produce a single assembled matrix. This is the
+   /// multi-output case, e.g. Outputs<Value<U>, Gradient<U>> giving mass plus
+   /// diffusion. Outputs on different field ids are separate row blocks of
+   ///
+   ///     dR/dU = [ dR_U/dU ; dR_Y/dU ]
+   ///
+   /// and are assembled into one matrix each.
+   static std::vector<int> compute_group_field_ids(const outputs_t &outs)
+   {
+      std::vector<int> ids;
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         const int fid = get<o>(outs).GetFieldId();
+         if (std::find(ids.begin(), ids.end(), fid) == ids.end())
+         {
+            ids.push_back(fid);
+         }
+      });
+      return ids;
+   }
 
 public:
    DerivativeAssemble() = delete;
@@ -646,29 +701,118 @@ public:
                       ctx_in.ir)),
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
    trial_field_uf(find_union_field_index(ctx_in, derivative_id)),
-   test_field_uf(
-      find_union_field_index(ctx_in, get<0>(outputs).GetFieldId())),
-   test_fes(
-      [&]
-   {
-      const auto *fes = std::get_if<const ParFiniteElementSpace *>(
-         &ctx_in.unionfds[test_field_uf].data);
-      MFEM_ASSERT(fes != nullptr && *fes != nullptr,
-                  "LocalQFBackend: test space is not a ParFiniteElementSpace");
-      return *fes;
-   }()),
    trial_fes(
-      [&]
+      [&]() -> const ParFiniteElementSpace *
    {
+      // Not every field is an FE space: a derivative w.r.t. a ParameterSpace or
+      // a QuadratureSpace has no basis to assemble columns against. That is
+      // only an error if assembly is actually requested, so keep it null here
+      // and report it in operator() instead of aborting registration.
+      if (trial_field_uf >= ctx_in.unionfds.size()) { return nullptr; }
       const auto *fes = std::get_if<const ParFiniteElementSpace *>(
          &ctx_in.unionfds[trial_field_uf].data);
-      MFEM_ASSERT(fes != nullptr && *fes != nullptr,
-                  "LocalQFBackend: trial space is not a ParFiniteElementSpace");
-      return *fes;
+      return fes ? *fes : nullptr;
    }()),
-   test_vdim(get<0>(outputs).vdim),
-   test_op_dim(get<0>(outputs).size_on_qp / test_vdim),
-   num_test_dof(test_fes->GetFE(0)->GetDof()),
+   out_vdim(get_vdim(outputs)),
+   out_op_dim(compute_out_op_dim(outputs)),
+   out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
+   output_size_on_qp(
+      [&]
+   {
+      int s = 0;
+      for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
+      return s;
+   }()),
+   group_field_ids(compute_group_field_ids(outputs_in)),
+   out_group(
+      [&]
+   {
+      std::array<int, n_outputs> g {};
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         const int fid = get<o>(outputs_in).GetFieldId();
+         const auto &ids = group_field_ids;
+         g[o] = static_cast<int>(std::find(ids.begin(), ids.end(), fid)
+                                 - ids.begin());
+      });
+      return g;
+   }()),
+   group_outfd_idx(
+      [&]
+   {
+      std::vector<int> idx(group_field_ids.size(), -1);
+      for (size_t g = 0; g < group_field_ids.size(); g++)
+      {
+         for (size_t f = 0; f < ctx_in.outfds.size(); f++)
+         {
+            if (static_cast<int>(ctx_in.outfds[f].id) == group_field_ids[g])
+            {
+               idx[g] = static_cast<int>(f);
+               break;
+            }
+         }
+      }
+      return idx;
+   }()),
+   group_fes(
+      [&]
+   {
+      std::vector<const ParFiniteElementSpace *> v(group_field_ids.size(),
+                                                   nullptr);
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         if (group_outfd_idx[g] < 0) { continue; }
+         const auto *fes = std::get_if<const ParFiniteElementSpace *>(
+                              &ctx_in.outfds[group_outfd_idx[g]].data);
+         v[g] = fes ? *fes : nullptr;
+      }
+      return v;
+   }()),
+   group_test_vdim(
+      [&]
+   {
+      // Outputs in a group share a field, hence a vdim; only the operator
+      // dimension differs between them, and that lives in out_op_dim.
+      std::vector<int> v(group_field_ids.size(), 0);
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         v[out_group[o]] = get<o>(outputs_in).vdim;
+      });
+      return v;
+   }()),
+   group_num_test_dof(
+      [&]
+   {
+      std::vector<int> v(group_field_ids.size(), 0);
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         if (group_fes[g] == nullptr) { continue; }
+         v[g] = group_fes[g]->GetFE(0)->GetDof();
+      }
+      return v;
+   }()),
+   group_assemblable(
+      [&]
+   {
+      // A row block can only be assembled when both its trial and test fields are
+      // ParFiniteElementSpaces. Quadrature and parameter spaces have no element
+      // basis or ElementRestriction through which to form a SparseMatrix.
+      //
+      // Identity outputs are also excluded for now as it has no supported mapping from
+      // its pointwise quadrature rows into that FE row space.
+      std::vector<bool> v(group_field_ids.size(), false);
+      if (trial_fes == nullptr) { return v; }
+      for (size_t g = 0; g < v.size(); g++) { v[g] = group_fes[g] != nullptr; }
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
+         if constexpr (is_identity_fop_v<output_fop_t>)
+         {
+            v[out_group[o]] = false;
+         }
+      });
+      return v;
+   }()),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)), trial_op_dim(
       [&]
    {
@@ -682,7 +826,7 @@ public:
       });
       return top;
    }()),
-   num_trial_dof(trial_fes->GetFE(0)->GetDof()),
+   num_trial_dof(trial_fes ? trial_fes->GetFE(0)->GetDof() : 0),
    dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
    num_trial_dof_1d(tensor_1d_size(num_trial_dof, dim)), total_trial_op_dim(
@@ -693,14 +837,13 @@ public:
       return compute_total_trial_op_dim(
          inputs, input_is_dependent, in_qp_sizes);
    }()),
-   inputs_trial_op_dim(), Ae_mem()
+   inputs_trial_op_dim(), group_Ae_mem()
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
       MFEM_ASSERT(trial_field_uf != SIZE_MAX,
                   "DerivativeAssemble: trial field not found in unionfds");
-      MFEM_ASSERT(test_field_uf != SIZE_MAX,
-                  "DerivativeAssemble: test field not found in unionfds");
+
       MFEM_ASSERT(trial_vdim > 0,
                   "LocalQFBackend: could not determine trial vdim");
       MFEM_ASSERT(total_trial_op_dim > 0,
@@ -717,16 +860,35 @@ public:
             : 0;
       });
 
-      const int elem_mat_size =
-         num_test_dof * test_vdim * num_trial_dof * trial_vdim;
-      Ae_mem.SetSize(elem_mat_size * ne, Device::GetDeviceMemoryType());
-      Ae_mem.UseDevice(true);
-      Ae_mem = 0.0;
+      group_Ae_mem.resize(group_field_ids.size());
+      for (size_t g = 0; g < group_Ae_mem.size(); g++)
+      {
+         if (!group_assemblable[g]) { continue; }
+         const int elem_mat_size = group_num_test_dof[g] * group_test_vdim[g] *
+                                   num_trial_dof * trial_vdim;
+         group_Ae_mem[g].SetSize(elem_mat_size * ne,
+                                 Device::GetDeviceMemoryType());
+         group_Ae_mem[g].UseDevice(true);
+         group_Ae_mem[g] = 0.0;
+      }
    }
 
-   void operator()(SparseMatrix *&A) const
+   /// @brief Assemble one SparseMatrix per assemblable output field.
+   ///
+   /// @a A is indexed by position in ctx.outfds, so A[f] receives the row block
+   /// belonging to output field f. Slots this integrator writes nothing
+   /// assemblable to -- quadrature or parameter spaces, or fields it does not
+   /// touch at all -- are left alone, which lets several integrators fill
+   /// different row blocks of the same vector. Ownership of the matrices passes
+   /// to the caller.
+   void operator()(std::vector<SparseMatrix *> &A) const
    {
       if (ctx.attr.Size() == 0) { return; }
+
+      const bool any_assemblable =
+         std::find(group_assemblable.begin(), group_assemblable.end(), true) !=
+         group_assemblable.end();
+      if (!any_assemblable) { return; }
 
       if (!(use_sum_factorization && (dim == 2 || dim == 3)))
       {
@@ -734,40 +896,78 @@ public:
                     "for tensor-product 2D/3D elements only");
       }
 
-      DerivativeAssembleHO::Run(dim,
-                                q1d,
-                                ctx,
-                                qp_cache,
-                                Ae_mem,
-                                inputs,
-                                outputs,
-                                input_dtq_maps,
-                                output_dtq_maps[0],
-                                inputs_trial_op_dim,
-                                test_vdim,
-                                test_op_dim,
-                                num_test_dof,
-                                num_trial_dof,
-                                num_trial_dof_1d,
-                                trial_vdim,
-                                total_trial_op_dim,
-                                nq,
-                                ne,
-                                q1d,
-                                dim);
+      MFEM_VERIFY(trial_fes != nullptr,
+                  "DerivativeAssemble: the differentiated field is not a "
+                  "ParFiniteElementSpace, so the columns of the derivative "
+                  "have no basis to be assembled against");
 
-      A = new SparseMatrix;
-      A->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
-
-      const auto *test_restr = dynamic_cast<const ElementRestriction *>(
-                                  test_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
       const auto *trial_restr = dynamic_cast<const ElementRestriction *>(
-                                   trial_fes->GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
-      MFEM_VERIFY(test_restr != nullptr && trial_restr != nullptr,
+                                   trial_fes->GetElementRestriction(
+                                      ElementDofOrdering::LEXICOGRAPHIC));
+      MFEM_VERIFY(trial_restr != nullptr,
                   "DerivativeAssemble SparseMatrix assembly requires "
                   "H1/conforming ElementRestriction spaces");
 
-      test_restr->FillSparseMatrix(Ae_mem, *A, *trial_restr);
+      if (A.size() < ctx.outfds.size())
+      {
+         A.resize(ctx.outfds.size(), nullptr);
+      }
+
+      for (size_t g = 0; g < group_Ae_mem.size(); g++)
+      {
+         if (!group_assemblable[g]) { continue; }
+
+         // The kernel accumulates into Ae, so the bank has to start clean on
+         // every call: otherwise assembling twice (the next Newton step, say)
+         // would double every entry.
+         group_Ae_mem[g] = 0.0;
+
+         DerivativeAssembleHO::Run(dim,
+                                   q1d,
+                                   ctx,
+                                   qp_cache,
+                                   group_Ae_mem[g],
+                                   inputs,
+                                   outputs,
+                                   input_dtq_maps,
+                                   output_dtq_maps,
+                                   out_vdim,
+                                   out_op_dim,
+                                   out_offsets,
+                                   out_group,
+                                   static_cast<int>(g),
+                                   output_size_on_qp,
+                                   inputs_trial_op_dim,
+                                   group_test_vdim[g],
+                                   group_num_test_dof[g],
+                                   num_trial_dof,
+                                   num_trial_dof_1d,
+                                   trial_vdim,
+                                   total_trial_op_dim,
+                                   nq,
+                                   ne,
+                                   q1d,
+                                   dim);
+
+         const ParFiniteElementSpace *test_fes = group_fes[g];
+         const auto *test_restr = dynamic_cast<const ElementRestriction *>(
+                                     test_fes->GetElementRestriction(
+                                        ElementDofOrdering::LEXICOGRAPHIC));
+         MFEM_VERIFY(test_restr != nullptr,
+                     "DerivativeAssemble SparseMatrix assembly requires "
+                     "H1/conforming ElementRestriction spaces");
+
+         const int f = group_outfd_idx[g];
+         MFEM_VERIFY(A[f] == nullptr,
+                     "DerivativeAssemble: output field already carries an "
+                     "assembled matrix; two integrators contributing to the "
+                     "same row block cannot be assembled into one matrix");
+
+         auto *M = new SparseMatrix;
+         M->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
+         test_restr->FillSparseMatrix(group_Ae_mem[g], *M, *trial_restr);
+         A[f] = M;
+      }
    }
 
    template<typename backend_t = LocalQFHOBackend<3>, int T_Q1D = 0>
@@ -778,10 +978,15 @@ public:
       const inputs_t &inputs,
       const outputs_t &outputs,
       const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
-      const DofToQuadMap &output_dtq,
+      const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
+      const std::array<int, n_outputs> &out_vdim,
+      const std::array<int, n_outputs> &out_op_dim,
+      const std::array<int, n_outputs> &out_offsets,
+      const std::array<int, n_outputs> &out_group,
+      const int group,
+      const int output_size_on_qp,
       const Vector &inputs_trial_op_dim,
       const int test_vdim,
-      const int test_op_dim,
       const int num_test_dof,
       const int num_trial_dof,
       const int num_trial_dof_1d,
@@ -802,8 +1007,12 @@ public:
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MNQ,
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
-      MFEM_VERIFY(test_op_dim <= DIM,
-                  "DerivativeAssemble: test_op_dim exceeds spatial DIM");
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         if (out_group[o] != group) { return; }
+         MFEM_VERIFY(out_op_dim[o] <= DIM,
+                     "DerivativeAssemble: test_op_dim exceeds spatial DIM");
+      });
       if (ctx.attr.Size() == 0) { return; }
 
       const auto d_attr = ctx.attr.Read();
@@ -814,8 +1023,7 @@ public:
                                 nq,
                                 total_trial_op_dim,
                                 trial_vdim,
-                                test_op_dim,
-                                test_vdim,
+                                output_size_on_qp,
                                 ne);
       const auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
 
@@ -834,19 +1042,56 @@ public:
          static constexpr int DIM = backend_t::DIM;
          static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
 
-         MFEM_SHARED typename backend_t::Shared s;
+         static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
+         static constexpr int fhat_slab_size = MQN * 4;
 
-         detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
-                                                        qpdc,
-                                                        e,
-                                                        itod,
-                                                        inputs,
-                                                        get<0>(outputs),
-                                                        input_dtq_maps,
-                                                        output_dtq,
-                                                        q1d,
-                                                        num_trial_dof_1d,
-                                                        s);
+         MFEM_SHARED typename backend_t::Shared s;
+         // One slab shared by every output. Declaring it inside the templated
+         // per-output kernel allocates one per output instead, and static
+         // shared memory is summed across instantiations on device.
+         MFEM_SHARED real_t fhat_storage[fhat_slab_size];
+
+         // Each output contributes its own rows of the cache, contracted
+         // against its own test basis operation; map_quadrature_data_to_fields
+         // accumulates, so the element matrix is the sum over the outputs that
+         // belong to this row block. Outputs on other test fields are skipped
+         // here and picked up by their own launch, which has its own Ae.
+         //
+         // A launch only ever happens for an assemblable row block, and such a
+         // block contains no Identity output, so the is_identity_fop_v test
+         // below never rejects anything at run time. It is there to keep
+         // assemble_element_mat_sumfact from being instantiated for a fop it
+         // cannot handle.
+         for_constexpr<n_outputs>([&](auto o)
+         {
+            using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
+
+            if constexpr (!is_identity_fop_v<output_fop_t>)
+            {
+               // Uniform across the thread block, so returning early here
+               // cannot desynchronise the barriers below.
+               if (out_group[o] != group) { return; }
+
+               // The outputs share fhat_storage, so one has to be done with it
+               // before the next zeroes it.
+               MFEM_SYNC_THREAD;
+               detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
+                                                              qpdc,
+                                                              e,
+                                                              itod,
+                                                              inputs,
+                                                              get<o>(outputs),
+                                                              input_dtq_maps,
+                                                              output_dtq_maps[o],
+                                                              out_offsets[o],
+                                                              out_vdim[o],
+                                                              out_op_dim[o],
+                                                              q1d,
+                                                              num_trial_dof_1d,
+                                                              fhat_storage,
+                                                              s);
+            }
+         });
       },
       ne,
       backend_t::thread_blocks(q1d),

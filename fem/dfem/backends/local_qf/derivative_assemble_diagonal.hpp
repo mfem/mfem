@@ -15,12 +15,18 @@
 #include "kernels.hpp"
 #include "util.hpp"
 
+#include <algorithm>
 #include <array>
+#include <vector>
 
 namespace mfem::future::LocalQFImpl
 {
 
-// Assemble diagonal of cached Jacobian (square trial == test, tensor 2D/3D)
+// Assemble the diagonal of one row block of a cached Jacobian (tensor 2D/3D).
+//
+// The derivative is a block column, one row block per output field. Only a
+// block whose test space is the trial space is square, and only a square block
+// has a diagonal at all, so the row block is chosen per call and checked.
 
 template<int derivative_id,
          typename qfunc_t,
@@ -47,22 +53,47 @@ class DerivativeAssembleDiagonal
    const std::array<DofToQuadMap, n_outputs> output_dtq_maps;
    const std::array<bool, n_inputs> input_is_dependent;
    const size_t trial_field_uf;
-   const size_t test_field_uf;
-   const bool is_square;
-   const int test_vdim;
+   /// Column space of every row block; null when the differentiated field is
+   /// not an FE space, in which case no block has a diagonal.
+   const ParFiniteElementSpace *trial_fes;
    const std::array<int, n_outputs> out_vdim;
    const std::array<int, n_outputs> out_op_dim;
    const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
-   const int num_test_dof;
-   const int num_test_dof_1d;
+   /// Row blocks: the distinct output field ids, in order of first appearance.
+   /// Outputs sharing a field id are summed into one diagonal, which is how
+   /// Value<U> + Gradient<U> becomes mass plus diffusion.
+   const std::vector<int> group_field_ids;
+   const std::array<int, n_outputs> out_group;
+   const std::vector<const ParFiniteElementSpace *> group_fes;
+   const std::vector<int> group_test_vdim;
+   const std::vector<int> group_num_test_dof;
+   const std::vector<int> group_num_test_dof_1d;
+   /// Whether a row block has a diagonal: its test space has to be an FE space
+   /// and has to *be* the trial space, and no output on it may be an Identity.
+   const std::vector<bool> group_has_diagonal;
    const int trial_vdim;
    const int total_trial_op_dim;
    const int num_trial_dof_1d;
    const int residual_size_on_qp;
    const int dim, ne, nq, q1d;
    const std::array<int, n_inputs> inputs_trial_op_dim;
-   mutable Vector Ye_mem;
+   mutable std::vector<Vector> group_Ye_mem;
+
+   /// Distinct output field ids, in order of first appearance.
+   static std::vector<int> compute_group_field_ids(const outputs_t &outs)
+   {
+      std::vector<int> ids;
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         const int fid = get<o>(outs).GetFieldId();
+         if (std::find(ids.begin(), ids.end(), fid) == ids.end())
+         {
+            ids.push_back(fid);
+         }
+      });
+      return ids;
+   }
 
 public:
    DerivativeAssembleDiagonal() = delete;
@@ -109,19 +140,14 @@ public:
                       ctx_in.ir)),
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
    trial_field_uf(find_union_field_index(ctx_in, derivative_id)),
-   test_field_uf(
-      find_union_field_index(ctx_in, get<0>(outputs).GetFieldId())),
-   is_square(
-      [&]
+   trial_fes(
+      [&]() -> const ParFiniteElementSpace *
    {
-      const auto *test_fes = std::get_if<const ParFiniteElementSpace *>(
-         &ctx_in.unionfds[test_field_uf].data);
-      const auto *trial_fes = std::get_if<const ParFiniteElementSpace *>(
+      if (trial_field_uf >= ctx_in.unionfds.size()) { return nullptr; }
+      const auto *fes = std::get_if<const ParFiniteElementSpace *>(
          &ctx_in.unionfds[trial_field_uf].data);
-      return test_fes && trial_fes && *test_fes && *trial_fes &&
-      (*test_fes == *trial_fes);
+      return fes ? *fes : nullptr;
    }()),
-   test_vdim(get<0>(outputs).vdim),
    out_vdim(get_vdim(outputs_in)),
    out_op_dim(compute_out_op_dim(outputs_in)),
    out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
@@ -132,16 +158,96 @@ public:
       for_constexpr<n_outputs>([&](auto o)
       { s += get<o>(outputs_in).size_on_qp; });
       return s;
-   }()), num_test_dof(
+   }()),
+   group_field_ids(compute_group_field_ids(outputs_in)),
+   out_group(
       [&]
    {
-      const auto *test_fes = std::get_if<const ParFiniteElementSpace *>(
-         &ctx_in.unionfds[test_field_uf].data);
-      MFEM_ASSERT(test_fes != nullptr && *test_fes != nullptr,
-                  "LocalQFBackend: test space is not a ParFiniteElementSpace");
-      return (*test_fes)->GetFE(0)->GetDof();
+      std::array<int, n_outputs> g {};
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         const int fid = get<o>(outputs_in).GetFieldId();
+         const auto &ids = group_field_ids;
+         g[o] = static_cast<int>(std::find(ids.begin(), ids.end(), fid)
+                                 - ids.begin());
+      });
+      return g;
    }()),
-   num_test_dof_1d(tensor_1d_size(num_test_dof, ctx_in.mesh.Dimension())),
+   group_fes(
+      [&]
+   {
+      std::vector<const ParFiniteElementSpace *> v(group_field_ids.size(),
+                                                   nullptr);
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         const size_t uf = find_union_field_index(ctx_in, group_field_ids[g]);
+         if (uf >= ctx_in.unionfds.size()) { continue; }
+         const auto *fes = std::get_if<const ParFiniteElementSpace *>(
+                              &ctx_in.unionfds[uf].data);
+         v[g] = fes ? *fes : nullptr;
+      }
+      return v;
+   }()),
+   group_test_vdim(
+      [&]
+   {
+      std::vector<int> v(group_field_ids.size(), 0);
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         v[out_group[o]] = get<o>(outputs_in).vdim;
+      });
+      return v;
+   }()),
+   group_num_test_dof(
+      [&]
+   {
+      std::vector<int> v(group_field_ids.size(), 0);
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         if (group_fes[g] == nullptr) { continue; }
+         v[g] = group_fes[g]->GetFE(0)->GetDof();
+      }
+      return v;
+   }()),
+   group_num_test_dof_1d(
+      [&]
+   {
+      std::vector<int> v(group_field_ids.size(), 0);
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         if (group_num_test_dof[g] > 0)
+         {
+            v[g] = tensor_1d_size(group_num_test_dof[g],
+                                  ctx_in.mesh.Dimension());
+         }
+      }
+      return v;
+   }()),
+   group_has_diagonal(
+      [&]
+   {
+      // A diagonal needs row space == column space, so only a row block on the
+      // trial space qualifies. Squareness alone cannot pick a block when
+      // several output fields share that space, which is why the caller names
+      // the row. Identity outputs are quadrature point data and are excluded
+      // for the same reason as in DerivativeAssemble: they cannot be
+      // contracted, and every output on a field lands in the same block.
+      std::vector<bool> v(group_field_ids.size(), false);
+      if (trial_fes == nullptr) { return v; }
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         v[g] = (group_fes[g] != nullptr) && (group_fes[g] == trial_fes);
+      }
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
+         if constexpr (is_identity_fop_v<output_fop_t>)
+         {
+            v[out_group[o]] = false;
+         }
+      });
+      return v;
+   }()),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)), total_trial_op_dim(
       [&]
    {
@@ -151,15 +257,9 @@ public:
          inputs, input_is_dependent, input_size_on_qp);
    }()),
    num_trial_dof_1d(
-      [&]
-   {
-      const auto *trial_fes = std::get_if<const ParFiniteElementSpace *>(
-         &ctx_in.unionfds[trial_field_uf].data);
-      MFEM_ASSERT(trial_fes != nullptr && *trial_fes != nullptr,
-                  "LocalQFBackend: trial space is not a ParFiniteElementSpace");
-      const int num_trial_dof = (*trial_fes)->GetFE(0)->GetDof();
-      return tensor_1d_size(num_trial_dof, ctx_in.mesh.Dimension());
-   }()),
+      trial_fes ? tensor_1d_size(trial_fes->GetFE(0)->GetDof(),
+                                 ctx_in.mesh.Dimension())
+      : 0),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
@@ -175,53 +275,62 @@ public:
       });
       return itod;
    }()),
-   Ye_mem()
+   group_Ye_mem()
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
                   "LocalQFBackend: unionfds size mismatch");
       MFEM_ASSERT(
          trial_field_uf != SIZE_MAX,
          "DerivativeAssembleDiagonal: trial field not found in unionfds");
-      MFEM_ASSERT(
-         test_field_uf != SIZE_MAX,
-         "DerivativeAssembleDiagonal: test field not found in unionfds");
       MFEM_ASSERT(trial_vdim > 0,
                   "LocalQFBackend: could not determine trial vdim");
       MFEM_ASSERT(total_trial_op_dim > 0,
                   "LocalQFBackend: no dependent inputs found");
       for_constexpr<n_outputs>([&](auto o)
       {
-         MFEM_CONTRACT_VAR(o);
-         MFEM_ASSERT(out_vdim[o] == test_vdim,
-                     "DerivativeAssembleDiagonal: all outputs must share the "
-                     "test field vdim");
+         MFEM_ASSERT(out_vdim[o] == group_test_vdim[out_group[o]],
+                     "DerivativeAssembleDiagonal: outputs on one field must "
+                     "share its vdim");
       });
 
-      if (is_square)
+      group_Ye_mem.resize(group_field_ids.size());
+      for (size_t g = 0; g < group_Ye_mem.size(); g++)
       {
-         Ye_mem.SetSize(num_test_dof * test_vdim * ne);
-         Ye_mem.UseDevice(true);
+         if (!group_has_diagonal[g]) { continue; }
+         group_Ye_mem[g].SetSize(group_num_test_dof[g] * group_test_vdim[g] *
+                                 ne);
+         group_Ye_mem[g].UseDevice(true);
       }
    }
 
+   /// Index of the row block for output field @a field_id, or -1.
+   int FindGroup(int field_id) const
+   {
+      const auto &ids = group_field_ids;
+      const auto it = std::find(ids.begin(), ids.end(), field_id);
+      return (it == ids.end()) ? -1 : static_cast<int>(it - ids.begin());
+   }
+
    template<typename Backend>
-   void run_kernels() const
+   void run_kernels(const int g) const
    {
       Backend::Run(dim,
                    q1d,
                    ctx,
                    qp_cache,
-                   Ye_mem,
+                   group_Ye_mem[g],
                    inputs,
                    outputs,
                    output_dtq_maps,
                    input_dtq_maps,
-                   test_vdim,
+                   out_group,
+                   g,
+                   group_test_vdim[g],
                    out_op_dim,
                    out_offsets,
                    output_size_on_qp,
-                   num_test_dof,
-                   num_test_dof_1d,
+                   group_num_test_dof[g],
+                   group_num_test_dof_1d[g],
                    trial_vdim,
                    total_trial_op_dim,
                    residual_size_on_qp,
@@ -232,9 +341,14 @@ public:
                    dim);
    }
 
-   void operator()(Vector &diag_e) const
+   /// Add this integrator's contribution to the diagonal of the row block of
+   /// output field @a out_field_id. Adds nothing if the integrator writes no
+   /// square, basis-backed block for that field; the caller is responsible for
+   /// rejecting a row that no integrator can serve.
+   void operator()(const int out_field_id, Vector &diag_e) const
    {
-      if (!is_square) { return; }
+      const int g = FindGroup(out_field_id);
+      if (g < 0 || !group_has_diagonal[g]) { return; }
       if (ctx.attr.Size() == 0) { return; }
 
       if (!(use_sum_factorization && (dim == 2 || dim == 3)))
@@ -242,27 +356,28 @@ public:
          MFEM_ABORT("DerivativeAssembleDiagonal optimized path is implemented "
                     "for tensor-product 2D/3D elements only");
       }
-      MFEM_VERIFY(num_test_dof_1d == num_trial_dof_1d,
+      MFEM_VERIFY(group_num_test_dof_1d[g] == num_trial_dof_1d,
                   "DerivativeAssembleDiagonal requires matching tensor dofs");
-      MFEM_VERIFY(num_test_dof_1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
-      MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+      const auto &limits = DeviceDofQuadLimits::Get();
+      MFEM_VERIFY(group_num_test_dof_1d[g] <= limits.MAX_D1D, "");
+      MFEM_VERIFY(q1d <= limits.MAX_Q1D, "");
 
-      Ye_mem = 0.0;
+      group_Ye_mem[g] = 0.0;
 
       if (q1d <= LocalQFLOBackendMQ1())
       {
-         run_kernels<DerivativeAssembleDiagonalLO>();
+         run_kernels<DerivativeAssembleDiagonalLO>(g);
       }
       else if (q1d <= LocalQFHOBackendMQ1())
       {
-         run_kernels<DerivativeAssembleDiagonalHO>();
+         run_kernels<DerivativeAssembleDiagonalHO>(g);
       }
       else
       {
          MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
       }
 
-      diag_e += Ye_mem;
+      diag_e += group_Ye_mem[g];
    }
 
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
@@ -274,6 +389,8 @@ public:
       const outputs_t &outputs,
       const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
       const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
+      const std::array<int, n_outputs> &out_group,
+      const int row_group,
       const int test_vdim,
       const std::array<int, n_outputs> &out_op_dim,
       const std::array<int, n_outputs> &out_offsets,
@@ -339,85 +456,92 @@ public:
             }
             MFEM_SYNC_THREAD;
 
-            // Accumulate every (output o, test op k, dependent input s,
-            // trial op m) block of the cached Jacobian into the diagonal via
-            // the backend driver.
+            // Accumulate every output belonging to the requested row block.
+            // This sums multiple contributions, such as Value<U> +
+            // Gradient<U>, while skipping outputs on the other row blocks.
+            // The row is a run time choice, so unlike the field id it cannot
+            // gate the instantiation; is_identity_fop_v still does, since
+            // eval_test has no meaning for quadrature point data.
             for_constexpr<n_outputs>([&](auto o)
             {
                using test_fop_t = std::decay_t<decltype(get<o>(outputs))>;
-               const auto &out_dtq = output_dtq_maps[o];
-               const int test_op_dim = out_op_dim[static_cast<int>(o)];
-
-               // Test-basis factor along a spatial axis
-               const auto eval_test =
-                  [&](const int k, const int axis, const int q, const int d)
+               if constexpr (!is_identity_fop_v<test_fop_t>)
                {
-                  const auto &B = out_dtq.B;
-                  const auto &G = out_dtq.G;
-                  if constexpr (is_value_fop<test_fop_t>::value)
-                  {
-                     return (k == 0) ? B(q, 0, d) : 0.0;
-                  }
-                  else if constexpr (is_gradient_fop<test_fop_t>::value)
-                  {
-                     return (k == axis) ? G(q, 0, d) : B(q, 0, d);
-                  }
-                  else
-                  {
-                     return 0.0;
-                  }
-               };
+                  if (out_group[static_cast<int>(o)] != row_group) { return; }
+                  const auto &out_dtq = output_dtq_maps[o];
+                  const int test_op_dim = out_op_dim[static_cast<int>(o)];
 
-               for (int k = 0; k < test_op_dim; k++)
-               {
-                  const int row =
-                     out_offsets[static_cast<int>(o)] + vd * test_op_dim + k;
-                  int m_offset = 0;
-                  for_constexpr<n_inputs>([&](auto s)
+                  // Test-basis factor along a spatial axis
+                  const auto eval_test =
+                     [&](const int k, const int axis, const int q, const int d)
                   {
-                     using fop_t = std::decay_t<decltype(get<s>(inputs))>;
-                     const int trial_op_dim =
-                        inputs_trial_op_dim[static_cast<int>(s)];
-                     if (trial_op_dim == 0) { return; }
-
-                     const auto &in_dtq = input_dtq_maps[s];
-                     const auto eval_input =
-                        [&](const int m, const int axis, const int q,
-                            const int d)
+                     const auto &B = out_dtq.B;
+                     const auto &G = out_dtq.G;
+                     if constexpr (is_value_fop<test_fop_t>::value)
                      {
-                        if constexpr (is_value_fop<fop_t>::value)
-                        {
-                           return (m == 0) ? in_dtq.B(q, 0, d) : 0.0;
-                        }
-                        else if constexpr (is_gradient_fop<fop_t>::value)
-                        {
-                           return (m == axis) ? in_dtq.G(q, 0, d)
-                                  : in_dtq.B(q, 0, d);
-                        }
-                        else
-                        {
-                           return 0.0;
-                        }
-                     };
-
-                     for (int m = 0; m < trial_op_dim; m++)
-                     {
-                        const int col = m_offset + m;
-                        backend_t::DiagContract(
-                           s_diag,
-                           num_test_dof_1d,
-                           q1d,
-                           nz_dof,
-                           [&](int axis, int q, int d)
-                        { return eval_test(k, axis, q, d); },
-                        [&](int axis, int q, int d)
-                        { return eval_input(m, axis, q, d); },
-                        [&](int q) { return qpdc(q, col, vd, row); },
-                        [&](int dx, int dy, int dz, real_t u)
-                        { Y(dx, dy, dz) += u; });
+                        return (k == 0) ? B(q, 0, d) : 0.0;
                      }
-                     m_offset += trial_op_dim;
-                  });
+                     else if constexpr (is_gradient_fop<test_fop_t>::value)
+                     {
+                        return (k == axis) ? G(q, 0, d) : B(q, 0, d);
+                     }
+                     else
+                     {
+                        return 0.0;
+                     }
+                  };
+
+                  for (int k = 0; k < test_op_dim; k++)
+                  {
+                     const int row = out_offsets[static_cast<int>(o)] +
+                                     vd * test_op_dim + k;
+                     int m_offset = 0;
+                     for_constexpr<n_inputs>([&](auto s)
+                     {
+                        using fop_t = std::decay_t<decltype(get<s>(inputs))>;
+                        const int trial_op_dim =
+                           inputs_trial_op_dim[static_cast<int>(s)];
+                        if (trial_op_dim == 0) { return; }
+
+                        const auto &in_dtq = input_dtq_maps[s];
+                        const auto eval_input =
+                           [&](const int m, const int axis, const int q,
+                               const int d)
+                        {
+                           if constexpr (is_value_fop<fop_t>::value)
+                           {
+                              return (m == 0) ? in_dtq.B(q, 0, d) : 0.0;
+                           }
+                           else if constexpr (is_gradient_fop<fop_t>::value)
+                           {
+                              return (m == axis) ? in_dtq.G(q, 0, d)
+                                     : in_dtq.B(q, 0, d);
+                           }
+                           else
+                           {
+                              return 0.0;
+                           }
+                        };
+
+                        for (int m = 0; m < trial_op_dim; m++)
+                        {
+                           const int col = m_offset + m;
+                           backend_t::DiagContract(
+                              s_diag,
+                              num_test_dof_1d,
+                              q1d,
+                              nz_dof,
+                              [&](int axis, int q, int d)
+                           { return eval_test(k, axis, q, d); },
+                           [&](int axis, int q, int d)
+                           { return eval_input(m, axis, q, d); },
+                           [&](int q) { return qpdc(q, col, vd, row); },
+                           [&](int dx, int dy, int dz, real_t u)
+                           { Y(dx, dy, dz) += u; });
+                        }
+                        m_offset += trial_op_dim;
+                     });
+                  }
                }
             });
          }

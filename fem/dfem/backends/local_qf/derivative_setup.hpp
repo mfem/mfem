@@ -384,6 +384,8 @@ public:
                            for_constexpr<n_outputs>([&](auto oc)
                            {
                               constexpr size_t o = oc.value, ao = n_inputs + o;
+                              using out_fop_t =
+                                 std::decay_t<tuple_element_t<o, outputs_t>>;
                               const auto &tangent = get<ao>(shadow_args);
                               const int tv = out_vdim[o], to = out_op_dim[o];
                               for (int i = 0; i < tv; i++)
@@ -394,8 +396,26 @@ public:
                                     const int cache_idx =
                                        row * trial_vdim * total_trial_op_dim +
                                        j * total_trial_op_dim + col_m;
-                                    cache_tensor(q, cache_idx, e) =
-                                       qf_value_at(tangent, i, k);
+                                    // An Identity output is flat quadrature
+                                    // point data: its FieldOperator vdim counts
+                                    // components, not rows of the q-function
+                                    // argument's shape. The two index form
+                                    // assumes vdim == extents[0] and would run
+                                    // off the end of, say, a
+                                    // tensor<real_t, DIM, DIM> bound to a vdim
+                                    // DIM*DIM space, so read it flat with the
+                                    // same column major packing that
+                                    // identity_qp_write_value writes.
+                                    if constexpr (is_identity_fop_v<out_fop_t>)
+                                    {
+                                       cache_tensor(q, cache_idx, e) =
+                                          qf_flat_value(tangent, i * to + k);
+                                    }
+                                    else
+                                    {
+                                       cache_tensor(q, cache_idx, e) =
+                                          qf_value_at(tangent, i, k);
+                                    }
                                  }
                               }
                            });
