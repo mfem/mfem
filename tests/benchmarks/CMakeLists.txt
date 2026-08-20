@@ -19,6 +19,31 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 # Include the Google Benchmark include directory
 include_directories(BEFORE ${BENCHMARK_INCLUDE_DIRS})
 
+# When benchmarking with CodSpeed (MFEM_USE_CODSPEED is set by the user), Google
+# Benchmark is replaced by CodSpeed's compatibility layer: it is fetched here and
+# the benchmarks are linked against the 'benchmark::benchmark' target, which
+# takes care of the include directories and the compile definitions.
+set(MFEM_BENCHMARK_EXTRA_LIBS "")
+if (MFEM_BENCHMARK_USE_CODSPEED)
+   if (CMAKE_VERSION VERSION_LESS 3.18.0)
+      message(FATAL_ERROR "Benchmarking with CodSpeed requires CMake >= 3.18")
+   endif()
+   include(FetchContent)
+   set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+   set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+   set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+   # Build the fork in 'simulation' mode: this compiles in CodSpeed's CPU
+   # simulation (valgrind) instrument.
+   set(CODSPEED_MODE "simulation" CACHE STRING "" FORCE)
+   FetchContent_Declare(google_benchmark
+      GIT_REPOSITORY https://github.com/CodSpeedHQ/codspeed-cpp
+      GIT_TAG v2.4.0
+      SOURCE_SUBDIR google_benchmark)
+   FetchContent_MakeAvailable(google_benchmark)
+   set(MFEM_BENCHMARK_EXTRA_LIBS benchmark::benchmark)
+endif()
+
 #-------------------------------------------------------------------------------
 # Function to add one benchmark from the tests/benchmarks directory.
 #-------------------------------------------------------------------------------
@@ -32,7 +57,8 @@ function(add_benchmark name)
     endif(MFEM_USE_CUDA)
 
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
-    target_link_libraries(bench_${name} mfem pthread)
+    target_link_libraries(bench_${name} mfem pthread
+                          ${MFEM_BENCHMARK_EXTRA_LIBS})
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
     add_test(NAME bench_${name}_cpu
