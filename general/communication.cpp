@@ -1733,6 +1733,126 @@ void GroupCommunicator::ReduceEnd(T *ldata, int layout,
 }
 
 template <class T>
+void GroupCommunicator::ReduceMarked(T *ldata, const Array<int> &marker,
+                                     int layout,
+                                     void (*Op)(OpData<T>)) const
+{
+   if (comm_lock == 0) { return; }
+   // The above also handles the case (group_buf_size == 0).
+   MFEM_VERIFY(comm_lock == 2, "object is NOT locked for Reduce");
+
+   switch (mode)
+   {
+      case byGroup: // ***** Communication by groups *****
+      {
+         OpData<T> opd;
+         opd.ldata = ldata;
+         Array<int> group_num_req(group_ldof.Size());
+         for (int gr = 1; gr < group_ldof.Size(); gr++)
+         {
+            group_num_req[gr] =
+               gtopo.IAmMaster(gr) ? gtopo.GetGroupSize(gr)-1 : 0;
+         }
+         int idx;
+         while (MPI_Waitany(num_requests, requests, &idx, MPI_STATUS_IGNORE),
+                idx != MPI_UNDEFINED)
+         {
+            int gr = request_marker[idx];
+            if (gr == -1) { continue; } // skip send requests
+
+            // Delay the processing of a group until all receive requests, for
+            // that group, are done:
+            if ((--group_num_req[gr]) != 0) { continue; }
+
+            opd.nldofs = group_ldof.RowSize(gr);
+            // groups without dofs are skipped, so here nldofs > 0.
+
+            opd.buf = (T *)group_buf.GetData() + buf_offsets[gr];
+            opd.ldofs = (layout == 0) ?
+                        group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
+            opd.nb = gtopo.GetGroupSize(gr)-1;
+
+            // Apply operation only to marked DOFs. The receive buffer is
+            // neighbor-major with stride opd.nldofs, i.e. the contributions to
+            // DOF i are buf[j*opd.nldofs + i] for j = 0 ... opd.nb-1. Setting
+            // nldofs = 1 for a single DOF changes that stride to 1, so the
+            // strided values must first be gathered into a contiguous buffer.
+            Array<T> single_buf(opd.nb);
+            for (int i = 0; i < opd.nldofs; i++)
+            {
+               if (marker[opd.ldofs[i]])
+               {
+                  for (int j = 0; j < opd.nb; j++)
+                  {
+                     single_buf[j] = opd.buf[j*opd.nldofs + i];
+                  }
+
+                  // Create a temporary OpData with just this one DOF
+                  OpData<T> single_opd;
+                  single_opd.ldata = ldata;
+                  single_opd.buf = single_buf.GetData();
+                  single_opd.ldofs = opd.ldofs + i;
+                  single_opd.nldofs = 1;
+                  single_opd.nb = opd.nb;
+
+                  // Apply the operation
+                  Op(single_opd);
+               }
+            }
+         }
+         break;
+      }
+
+      case byNeighbor: // ***** Communication by neighbors *****
+      {
+         MPI_Waitall(num_requests, requests, MPI_STATUSES_IGNORE);
+
+         for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
+         {
+            // In Reduce operation: send_groups <--> recv_groups
+            const int num_recv_groups = nbr_send_groups.RowSize(nbr);
+            if (num_recv_groups > 0)
+            {
+               const int *grp_list = nbr_send_groups.GetRow(nbr);
+               const T *buf = (T*)group_buf.GetData() + buf_offsets[nbr];
+               for (int i = 0; i < num_recv_groups; i++)
+               {
+                  // Custom version of ReduceGroupFromBuffer that checks marker
+                  int gr = grp_list[i];
+                  const int *ldofs = (layout == 0) ?
+                                     group_ldof.GetRow(gr) : group_ltdof.GetRow(gr);
+                  const int nldofs = group_ldof.RowSize(gr);
+
+                  for (int j = 0; j < nldofs; j++)
+                  {
+                     if (marker[ldofs[j]])
+                     {
+                        // Create a temporary OpData with just this one DOF
+                        OpData<T> opd;
+                        opd.ldata = ldata;
+                        opd.buf = const_cast<T*>(buf) + j;
+                        opd.ldofs = ldofs + j;
+                        opd.nldofs = 1;
+                        opd.nb = 1;
+
+                        // Apply the operation
+                        Op(opd);
+                     }
+                  }
+
+                  buf += nldofs;
+               }
+            }
+         }
+         break;
+      }
+   }
+
+   comm_lock = 0; // 0 - no lock
+   num_requests = 0;
+}
+
+template <class T>
 void GroupCommunicator::Sum(OpData<T> opd)
 {
    if (opd.nb == 1)
@@ -1795,6 +1915,8 @@ void GroupCommunicator::Max(OpData<T> opd)
 template <class T>
 void GroupCommunicator::BitOR(OpData<T> opd)
 {
+   static_assert(std::is_integral<T>::value,
+                 "BitOR reduction requires an integral type.");
    for (int i = 0; i < opd.nldofs; i++)
    {
       T data = opd.ldata[opd.ldofs[i]];
@@ -1805,6 +1927,33 @@ void GroupCommunicator::BitOR(OpData<T> opd)
       opd.ldata[opd.ldofs[i]] = data;
    }
 }
+
+template <class T>
+void GroupCommunicator::MaxAbs(OpData<T> opd)
+{
+   for (int i = 0; i < opd.nldofs; i++)
+   {
+      T data = opd.ldata[opd.ldofs[i]];
+      T abs_data = std::abs(data);
+
+      for (int j = 0; j < opd.nb; j++)
+      {
+         T b = opd.buf[j*opd.nldofs+i];
+         T abs_b = std::abs(b);
+
+         // On an equal-magnitude tie keep the more positive value, so
+         // opposite-sign ties resolve deterministically to the positive one.
+         if (abs_data < abs_b || (abs_data == abs_b && data < b))
+         {
+            data = b;
+            abs_data = abs_b;
+         }
+      }
+
+      opd.ldata[opd.ldofs[i]] = data;
+   }
+}
+
 
 void GroupCommunicator::PrintInfo(std::ostream &os) const
 {
@@ -1950,6 +2099,8 @@ template void GroupCommunicator::Reduce<int>(
 template void GroupCommunicator::ReduceBegin<int>(const int *) const;
 template void GroupCommunicator::ReduceEnd<int>(
    int *, int, void (*)(OpData<int>)) const;
+template void GroupCommunicator::ReduceMarked<int>(
+   int*, const Array<int>&, int, void (*)(OpData<int>)) const;
 
 template void GroupCommunicator::Bcast<double>(double *, int) const;
 template void GroupCommunicator::Bcast<double>(double *) const;
@@ -1963,6 +2114,8 @@ template void GroupCommunicator::Reduce<double>(
 template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
+template void GroupCommunicator::ReduceMarked<double>(
+   double*, const Array<int>&, int, void (*)(OpData<double>)) const;
 
 template void GroupCommunicator::Bcast<float>(float *, int) const;
 template void GroupCommunicator::Bcast<float>(float *) const;
@@ -1976,6 +2129,8 @@ template void GroupCommunicator::Reduce<float>(
 template void GroupCommunicator::ReduceBegin<float>(const float *) const;
 template void GroupCommunicator::ReduceEnd<float>(
    float *, int, void (*)(OpData<float>)) const;
+template void GroupCommunicator::ReduceMarked<float>(
+   float*, const Array<int>&, int, void (*)(OpData<float>)) const;
 
 template int internal::DeviceNeighborDofComm::
 ExchangeSharedToExternal<int,Array<int>, Array<int>>(
@@ -2052,14 +2207,17 @@ template void GroupCommunicator::Sum<int>(OpData<int>);
 template void GroupCommunicator::Min<int>(OpData<int>);
 template void GroupCommunicator::Max<int>(OpData<int>);
 template void GroupCommunicator::BitOR<int>(OpData<int>);
+template void GroupCommunicator::MaxAbs<int>(OpData<int>);
 
 template void GroupCommunicator::Sum<double>(OpData<double>);
 template void GroupCommunicator::Min<double>(OpData<double>);
 template void GroupCommunicator::Max<double>(OpData<double>);
+template void GroupCommunicator::MaxAbs<double>(OpData<double>);
 
 template void GroupCommunicator::Sum<float>(OpData<float>);
 template void GroupCommunicator::Min<float>(OpData<float>);
 template void GroupCommunicator::Max<float>(OpData<float>);
+template void GroupCommunicator::MaxAbs<float>(OpData<float>);
 
 
 #ifdef __bgq__
