@@ -281,7 +281,7 @@ public:
     *
     * @return status set to true if successful, otherwise, false.
     */
-   bool Factor(int m, real_t tol = 0.0) override;
+   bool Factor(int m, real_t TOL = 0.0) override;
 
    /// Compute the matrix determinant from the factors.
    real_t Det(int m) const override;
@@ -318,7 +318,7 @@ public:
    BandMatrixInverse(const BandMatrix *mat);
 
    /// Get the bandwidth of the input matrix
-   int GetBandWidth() const { return bandwidth; } const
+   int GetBandWidth() const { return bandwidth; }
 
    /// Get the size of the inverse matrix
    int Size() const { return Width(); }
