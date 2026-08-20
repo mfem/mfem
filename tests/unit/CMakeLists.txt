@@ -305,8 +305,8 @@ function(add_serial_miniapp_test name test_uvm)
     mfem_add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
     # some of these meshes aren't actually used right now,
     # but add dependency just in case.
-    add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
-    add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
+    add_dependencies(${name}_tests_debug copy_miniapps_multidomain_data)
+    add_dependencies(${name}_tests_debug copy_miniapps_nurbs_data)
     add_dependencies(${name}_tests_debug copy_miniapps_meshing_data)
     add_dependencies(${name}_tests_debug ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
     target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
@@ -320,8 +320,8 @@ function(add_serial_miniapp_test name test_uvm)
         mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
         # some of these meshes aren't actually used right now,
         # but add dependency just in case.
-        add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
-        add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
+        add_dependencies(${name}_tests_gpu copy_miniapps_multidomain_data)
+        add_dependencies(${name}_tests_gpu copy_miniapps_nurbs_data)
         add_dependencies(${name}_tests_gpu copy_miniapps_meshing_data)
         add_dependencies(${name}_tests_gpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
         target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
@@ -335,8 +335,8 @@ function(add_serial_miniapp_test name test_uvm)
             mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
             # some of these meshes aren't actually used right now,
             # but add dependency just in case.
-            add_dependencies(gpu_unit_tests copy_miniapps_multidomain_data)
-            add_dependencies(gpu_unit_tests copy_miniapps_nurbs_data)
+            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_multidomain_data)
+            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_nurbs_data)
             add_dependencies(${name}_tests_gpu_uvm copy_miniapps_meshing_data)
             add_dependencies(${name}_tests_gpu_uvm ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
             target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
