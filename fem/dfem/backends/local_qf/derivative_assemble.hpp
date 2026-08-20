@@ -799,7 +799,7 @@ public:
       // basis or ElementRestriction through which to form a SparseMatrix.
       //
       // Identity outputs are also excluded for now as it has no supported mapping from
-      // its pointwise quadrature rows into that FE row space. 
+      // its pointwise quadrature rows into that FE row space.
       std::vector<bool> v(group_field_ids.size(), false);
       if (trial_fes == nullptr) { return v; }
       for (size_t g = 0; g < v.size(); g++) { v[g] = group_fes[g] != nullptr; }
