@@ -276,27 +276,35 @@ template<int DIM,
          typename output_fop_t>
 MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    const DeviceTensor<5, real_t> &Ae,
-   const DeviceTensor<6, const real_t> &qpdc,
+   const DeviceTensor<5, const real_t> &qpdc,
    const int e,
    const DeviceTensor<1, const real_t> &itod,
    const input_fop_ts &inputs,
    const output_fop_t &output,
    const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
    const DofToQuadMap &output_dtq,
+   const int row_offset,
+   const int test_vdim,
+   const int test_op_dim,
    const int q1d,
    const int num_trial_dof_1d,
+   real_t *fhat_storage,
    Shared &smem)
 {
    static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
-   // Slab must hold full (test_vdim, test_op_dim, nq) fhat
+   // Slab must hold full (test_vdim, test_op_dim, nq) fhat.
+   // It is allocated by the caller, and is shared by every output, so it must be
+   // Before, declaring it here allocated one slab per output and the device
+   // kernel ran out of shared memory once an integrator had more outputs.
    static constexpr int FHAT_SLAB_MAX = MQN * 4;
 
    static constexpr bool grad_out = is_gradient_fop_v<output_fop_t>;
    static constexpr bool ident_out = is_identity_fop_v<output_fop_t>;
 
-   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, test_op_dim, test_vdim, ne)
-   const int test_vdim = qpdc.GetShape()[4];
-   const int test_op_dim = qpdc.GetShape()[3];
+   // qpdc shape: (nq, total_trial_op_dim, trial_vdim, output_size_on_qp, ne),
+   // where output_size_on_qp spans every output FieldOperator (multi-output mode).
+   // The rows of  one output start at @a row_offset and are laid out as
+   // i * test_op_dim + k, matching how DerivativeSetup writes the cache.
    const int trial_vdim = qpdc.GetShape()[2];
    const int num_test_dof = Ae.GetShape()[0];
    const int nq = qpdc.GetShape()[0];
@@ -308,8 +316,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    MFEM_VERIFY(test_op_dim * nq <= FHAT_SLAB_MAX,
                "DerivativeAssemble: fhat slab exceeds capacity");
 #endif
-
-   MFEM_SHARED real_t fhat_storage[FHAT_SLAB_MAX];
 
    const auto &inputs_ref = inputs;
 
@@ -371,7 +377,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
+                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -396,7 +402,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                   for (int k = 0; k < test_op_dim; k++)
                   {
                      if (tod_only >= 0 && k != tod_only) { continue; }
-                     const real_t f = qpdc(q, m + m_offset, j, k, tv, e);
+                     const real_t f = qpdc(q, m + m_offset, j, row_offset + tv * test_op_dim + k, e);
                      if constexpr (grad_out && !ident_out)
                      {
                         fhat_storage[k * nq + q] += f * w;
@@ -475,7 +481,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(q, m + m_offset, j, k, i, e);
+                                       qpdc(q, m + m_offset, j, row_offset + i * test_op_dim + k, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -496,7 +502,7 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
                                  for (int k = 0; k < test_op_dim; k++)
                                  {
                                     const real_t f =
-                                       qpdc(q, m + m_offset, j, k, i, e);
+                                       qpdc(q, m + m_offset, j, row_offset + i * test_op_dim + k, e);
                                     fhat(i, k, q) += f * w;
                                  }
                               }
@@ -590,7 +596,13 @@ class DerivativeAssemble
    const ParFiniteElementSpace *test_fes;
    const ParFiniteElementSpace *trial_fes;
    const int test_vdim;
-   const int test_op_dim;
+   /// Per-output row geometry of the quadrature point cache. DerivativeSetup
+   /// lays that cache out over every output FieldOperator, so reading it needs
+   /// all of them.
+   const std::array<int, n_outputs> out_vdim;
+   const std::array<int, n_outputs> out_op_dim;
+   const std::array<int, n_outputs> out_offsets;
+   const int output_size_on_qp;
    const int num_test_dof;
    const int trial_vdim;
    const int trial_op_dim;
@@ -666,8 +678,19 @@ public:
                   "LocalQFBackend: trial space is not a ParFiniteElementSpace");
       return *fes;
    }()),
+   // All outputs are attached to the same test field, so vdim is common to
+   // them; only the operator dimension differs, and that lives in out_op_dim.
    test_vdim(get<0>(outputs).vdim),
-   test_op_dim(get<0>(outputs).size_on_qp / test_vdim),
+   out_vdim(get_vdim(outputs)),
+   out_op_dim(compute_out_op_dim(outputs)),
+   out_offsets(compute_out_offsets(out_vdim, out_op_dim)),
+   output_size_on_qp(
+      [&]
+   {
+      int s = 0;
+      for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
+      return s;
+   }()),
    num_test_dof(test_fes->GetFE(0)->GetDof()),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)), trial_op_dim(
       [&]
@@ -701,6 +724,7 @@ public:
                   "DerivativeAssemble: trial field not found in unionfds");
       MFEM_ASSERT(test_field_uf != SIZE_MAX,
                   "DerivativeAssemble: test field not found in unionfds");
+
       MFEM_ASSERT(trial_vdim > 0,
                   "LocalQFBackend: could not determine trial vdim");
       MFEM_ASSERT(total_trial_op_dim > 0,
@@ -726,6 +750,25 @@ public:
 
    void operator()(SparseMatrix *&A) const
    {
+      // Every output is contracted into one element matrix Ae, sized from the
+      // test space of get<0>(outputs), and filled through a single test
+      // ElementRestriction.
+      //
+      // WIP:
+      // This takes care of single-field, multiple-outputs case.
+      // For a multiple fields case, outputs on a second field would need a second
+      // matrix -- the derivative then eould be a block column with one row block per
+      // test space.
+      //
+      // For now we just add a check that all outputs are attached to the same test field, and abort if not.
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         MFEM_VERIFY(get<o>(outputs).GetFieldId() == get<0>(outputs).GetFieldId(),
+                     "DerivativeAssemble: every output FieldOperator has to be "
+                     "attached to the same test field; assembling outputs that "
+                     "span several fields is not supported");
+      });
+
       if (ctx.attr.Size() == 0) { return; }
 
       if (!(use_sum_factorization && (dim == 2 || dim == 3)))
@@ -742,10 +785,13 @@ public:
                                 inputs,
                                 outputs,
                                 input_dtq_maps,
-                                output_dtq_maps[0],
+                                output_dtq_maps,
+                                out_vdim,
+                                out_op_dim,
+                                out_offsets,
+                                output_size_on_qp,
                                 inputs_trial_op_dim,
                                 test_vdim,
-                                test_op_dim,
                                 num_test_dof,
                                 num_trial_dof,
                                 num_trial_dof_1d,
@@ -778,10 +824,13 @@ public:
       const inputs_t &inputs,
       const outputs_t &outputs,
       const std::array<DofToQuadMap, n_inputs> &input_dtq_maps,
-      const DofToQuadMap &output_dtq,
+      const std::array<DofToQuadMap, n_outputs> &output_dtq_maps,
+      const std::array<int, n_outputs> &out_vdim,
+      const std::array<int, n_outputs> &out_op_dim,
+      const std::array<int, n_outputs> &out_offsets,
+      const int output_size_on_qp,
       const Vector &inputs_trial_op_dim,
       const int test_vdim,
-      const int test_op_dim,
       const int num_test_dof,
       const int num_trial_dof,
       const int num_trial_dof_1d,
@@ -802,8 +851,11 @@ public:
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MNQ,
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
-      MFEM_VERIFY(test_op_dim <= DIM,
-                  "DerivativeAssemble: test_op_dim exceeds spatial DIM");
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         MFEM_VERIFY(out_op_dim[o] <= DIM,
+                     "DerivativeAssemble: test_op_dim exceeds spatial DIM");
+      });
       if (ctx.attr.Size() == 0) { return; }
 
       const auto d_attr = ctx.attr.Read();
@@ -814,8 +866,7 @@ public:
                                 nq,
                                 total_trial_op_dim,
                                 trial_vdim,
-                                test_op_dim,
-                                test_vdim,
+                                output_size_on_qp,
                                 ne);
       const auto itod = Reshape(inputs_trial_op_dim.Read(), n_inputs);
 
@@ -834,19 +885,45 @@ public:
          static constexpr int DIM = backend_t::DIM;
          static constexpr int MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
 
-         MFEM_SHARED typename backend_t::Shared s;
+         static constexpr int MQN = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
+         static constexpr int fhat_slab_size = MQN * 4;
 
-         detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
-                                                        qpdc,
-                                                        e,
-                                                        itod,
-                                                        inputs,
-                                                        get<0>(outputs),
-                                                        input_dtq_maps,
-                                                        output_dtq,
-                                                        q1d,
-                                                        num_trial_dof_1d,
-                                                        s);
+         MFEM_SHARED typename backend_t::Shared s;
+         // One slab shared by every output. Declaring it inside the templated
+         // per-output kernel allocates one per output instead, and static
+         // shared memory is summed across instantiations on device.
+         MFEM_SHARED real_t fhat_storage[fhat_slab_size];
+
+         // Each output contributes its own rows of the cache, contracted
+         // against its own test basis operation; map_quadrature_data_to_fields
+         // accumulates, so the element matrix is the sum over outputs for the
+         // same field.
+         for_constexpr<n_outputs>([&](auto o)
+         {
+            using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
+
+            if constexpr (!is_identity_fop_v<output_fop_t>)
+            {
+               // The outputs share fhat_storage, so one has to be done with it
+               // before the next zeroes it.
+               MFEM_SYNC_THREAD;
+               detail::assemble_element_mat_sumfact<DIM, MQ1>(Ae,
+                                                              qpdc,
+                                                              e,
+                                                              itod,
+                                                              inputs,
+                                                              get<o>(outputs),
+                                                              input_dtq_maps,
+                                                              output_dtq_maps[o],
+                                                              out_offsets[o],
+                                                              out_vdim[o],
+                                                              out_op_dim[o],
+                                                              q1d,
+                                                              num_trial_dof_1d,
+                                                              fhat_storage,
+                                                              s);
+            }
+         });
       },
       ne,
       backend_t::thread_blocks(q1d),

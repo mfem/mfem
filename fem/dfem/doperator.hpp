@@ -1293,8 +1293,6 @@ void DifferentiableOperator::AddIntegrator(
 
    // The requested second derivative blocks are either selected by one of the
    // Pairs markers or listed explicitly as DerivativePairs.
-   // static: MSVC does not treat a plain local constexpr as a constant
-   // expression inside the nested lambdas below.
    static constexpr bool no_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::None>>;
    static constexpr bool all_second_derivatives =
@@ -1548,8 +1546,6 @@ void DifferentiableOperator::AddIntegrator(
          constexpr auto darr = make_dependency_tuple_ct<idx, input_t>();
          using derivative_activity_t = std::decay_t<decltype(darr)>;
 
-         //mfem::out << darr << "\n";
-
          // For every dependent input, we have to create an output that will
          // get integrated with it's appropriate basis function. Inputs stay the same.
          auto first_derivative_outputs =
@@ -1617,8 +1613,6 @@ void DifferentiableOperator::AddIntegrator(
             for_constexpr_with_arg([&](auto, auto pair)
             {
                using pair_t = decltype(pair);
-               // decltype(i)::value instead of idx: MSVC does not accept the
-               // enclosing lambda's local constexpr as a constant here.
                if constexpr (pair_t::gradient_id == decltype(i)::value)
                {
                   create_second_derivative_callbacks(

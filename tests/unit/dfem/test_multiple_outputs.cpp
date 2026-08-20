@@ -20,6 +20,7 @@
 #include "../../../fem/dfem/doperator.hpp"
 #include "../../../fem/dfem/backends/local_qf/prelude.hpp"
 #include "../../../linalg/tensor_arrays.hpp"
+#include "../linalg/test_same_matrices.hpp"
 
 using namespace mfem;
 using namespace mfem::future;
@@ -159,12 +160,12 @@ struct mass_diffusion_local_qf
 {
    inline MFEM_HOST_DEVICE
    void operator()(
-      const real_t &u,
-      const tensor<real_t, DIM> &dudxi,
+      const dscalar_t &u,
+      const tensor<dscalar_t, DIM> &dudxi,
       const tensor<real_t, DIM, DIM> &J,
       const real_t &w,
-      real_t &out1,
-      tensor<real_t, DIM> &out2) const
+      dscalar_t &out1,
+      tensor<dscalar_t, DIM> &out2) const
    {
       const auto invJ = inv(J);
       const auto detJ = det(J);
@@ -488,6 +489,72 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
+      }
+
+      // Test for Assembly of dFEM with multiple outputs
+      {
+         ParBilinearForm blf_fa(&fes);
+         blf_fa.AddDomainIntegrator(new MassIntegrator(ir));
+         blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+         blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         blf_fa.Assemble();
+         blf_fa.Finalize();
+
+         const std::vector<FieldDescriptor> in_fds
+         {
+            {U, &fes},
+            {COORDINATES, nodes->ParFESpace()},
+         };
+
+         const std::vector<FieldDescriptor> out_fds
+         {
+            {V, &fes},
+         };
+
+         DifferentiableOperator dop(in_fds, out_fds, pmesh);
+
+         auto qf = mass_diffusion_local_qf{};
+         dop.AddDomainIntegrator<LocalQFBackend>(
+            qf,
+            tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
+            tuple{Value<V>{}, Gradient<V>{}},
+            *ir, all_domain_attr, Derivatives<U> {});
+
+         Vector nodestv;
+         nodes->GetTrueDofs(nodestv);
+         fes.GetRestrictionMatrix()->Mult(x, xtvec);
+         MultiVector X{xtvec, nodestv};
+         auto dRdU = dop.GetDerivative(U, X);
+
+         SECTION("Multiple Outputs SparseMatrix")
+         {
+            SparseMatrix *A = nullptr;
+            dRdU->Assemble(A);
+
+            // TestSameMatrices only walks the first matrix' sparsity pattern,
+            // so compare both ways to catch entries missing from either side.
+            TestSameMatrices(*A, blf_fa.SpMat());
+            TestSameMatrices(blf_fa.SpMat(), *A);
+            delete A;
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+
+         SECTION("Multiple Outputs Assemble Diagonal")
+         {
+            Vector diag(fes.GetTrueVSize()), diag_ref_l(fes.GetVSize());
+            dRdU->AssembleDiagonal(diag);
+            blf_fa.SpMat().GetDiag(diag_ref_l);
+
+            Vector diag_ref(fes.GetTrueVSize());
+            fes.GetProlongationMatrix()->MultTranspose(diag_ref_l, diag_ref);
+
+            diag -= diag_ref;
+            real_t dnorm_l = diag.Normlinf(), dnorm_g = dnorm_l;
+            MPI_Allreduce(&dnorm_l, &dnorm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(dnorm_g == MFEM_Approx(0.0));
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
       }
    }
 }

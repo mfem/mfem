@@ -595,11 +595,7 @@ struct create_function_signature<RevDiff<Func, InputActivityTuple,
 /// Builds the reverse-mode transform of @a f, differentiating the inputs marked
 /// Active in @a activity_t.
 ///
-/// A factory rather than a plain declaration of a RevDiff variable: MSVC
-/// completes the type of a variable declared in a discarded branch of a generic
-/// lambda, which is ill-formed as soon as the q-function is itself a RevDiff
-/// (its operator() is a template, so it has no member pointer). Naming the
-/// specialization inside a function template ties it to an actual call.
+/// A factory rather than a plain declaration of a RevDiff variable for compatibility with MSVC.
 template <typename activity_t, RevDiffDualMode mode = RevDiffDualMode::Eval,
           typename func_t>
 auto make_revdiff(const func_t &f)
