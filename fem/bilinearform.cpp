@@ -1712,30 +1712,55 @@ void MixedBilinearForm::SubMeshTolerantAssemble(int skip_zeros)
 
    // Expand and map the intermediate matrix into the original FE-space
    // ordering.  Negative entries in the vdof map encode an orientation sign.
-   SparseMatrix *intermediate_mat = mat;
-   SparseMatrix *expanded_mat = new SparseMatrix(original_height,
-                                                 original_width);
-   Array<int> cols;
-   Vector row;
-   for (int i = 0; i < intermediate_mat->Height(); i++)
+   // Keep the SparseMatrix object itself, replacing only its CSR arrays.
+   const int *intermediate_i = mat->HostReadI();
+   const int *intermediate_j = mat->HostReadJ();
+   const real_t *intermediate_a = mat->HostReadData();
+   std::vector<std::vector<std::pair<int, real_t>>> rows(original_height);
+   for (int i = 0; i < mat->Height(); i++)
    {
       const int row_map = is_trial_submesh ? sub_to_parent_vdof_map[i] : i;
       const int row_sign = row_map < 0 ? -1 : 1;
       const int row_index = row_map < 0 ? -1-row_map : row_map;
-      intermediate_mat->GetRow(i, cols, row);
-      for (int j = 0; j < cols.Size(); j++)
+      for (int j = intermediate_i[i]; j < intermediate_i[i+1]; j++)
       {
-         const int col = cols[j];
+         const int col = intermediate_j[j];
          const int col_map = is_test_submesh ? sub_to_parent_vdof_map[col] : col;
          const int col_sign = col_map < 0 ? -1 : 1;
          const int col_index = col_map < 0 ? -1-col_map : col_map;
-         expanded_mat->Add(row_index, col_index,
-                           row_sign * col_sign * row[j]);
+         rows[row_index].emplace_back(
+            col_index, row_sign * col_sign * intermediate_a[j]);
       }
    }
-   expanded_mat->Finalize(skip_zeros);
-   delete intermediate_mat;
-   mat = expanded_mat;
+
+   int nnz = 0;
+   for (auto &row : rows)
+   {
+      std::sort(row.begin(), row.end(),
+                [](const auto &x, const auto &y) { return x.first < y.first; });
+      nnz += row.size();
+   }
+
+   Memory<int> expanded_i(original_height + 1);
+   Memory<int> expanded_j(nnz);
+   Memory<real_t> expanded_a(nnz);
+   int pos = 0;
+   expanded_i[0] = 0;
+   for (int i = 0; i < original_height; i++)
+   {
+      for (const auto &entry : rows[i])
+      {
+         expanded_j[pos] = entry.first;
+         expanded_a[pos] = entry.second;
+         pos++;
+      }
+      expanded_i[i+1] = pos;
+   }
+
+   mat->GetMemoryI().Swap(expanded_i);
+   mat->GetMemoryJ().Swap(expanded_j);
+   mat->GetMemoryData().Swap(expanded_a);
+   mat->OverrideSize(original_height, original_width);
 }
 
 void MixedBilinearForm::Assemble(int skip_zeros)
