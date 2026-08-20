@@ -655,10 +655,10 @@ MemoryType Device::QueryMemoryType(const void* ptr)
 #elif defined(MFEM_USE_HIP)
    struct hipPointerAttribute_t attr;
 
-   hipError_t err = hipPointerGetAttributes(&attr, ptr);
-   if (err != hipSuccess)
+   hipError_t error = hipPointerGetAttributes(&attr, ptr);
+   if (error != hipSuccess)
    {
-      if (err == hipErrorInvalidValue)
+      if (error == hipErrorInvalidValue)
       {
          // host memory
          /* clear the error */
@@ -666,7 +666,7 @@ MemoryType Device::QueryMemoryType(const void* ptr)
       }
       else
       {
-         MFEM_GPU_CHECK(err);
+         MFEM_GPU_CHECK(error);
       }
    }
    else if (attr.isManaged)
