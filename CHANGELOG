@@ -99,6 +99,8 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Device support for GroupCommunicator::Reduce() and GroupCommunicator::Bcast().
+
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
   kernels, kernel registration, and transpose support.
 

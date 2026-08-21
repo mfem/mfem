@@ -1182,16 +1182,22 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>)) const
    // Use the shared-dof device path when it is available.
    if (UseDeviceSharedDofComm(ldata))
    {
+      // Materialize typed function pointers before comparison so stricter GPU
+      // toolchains do not have to resolve overloaded template names here.
+      using OpFunc = void (*)(OpData<T>);
+      const OpFunc sum_op = &GroupCommunicator::template Sum<T>;
+      const OpFunc min_op = &GroupCommunicator::template Min<T>;
+      const OpFunc max_op = &GroupCommunicator::template Max<T>;
       DeviceSharedDofCommunicator::Op device_op;
-      if (Op == GroupCommunicator::Sum<T>)
+      if (Op == sum_op)
       {
          device_op = DeviceSharedDofCommunicator::Op::Sum;
       }
-      else if (Op == GroupCommunicator::Min<T>)
+      else if (Op == min_op)
       {
          device_op = DeviceSharedDofCommunicator::Op::Min;
       }
-      else if (Op == GroupCommunicator::Max<T>)
+      else if (Op == max_op)
       {
          device_op = DeviceSharedDofCommunicator::Op::Max;
       }
@@ -1200,9 +1206,9 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>)) const
          device_op = DeviceSharedDofCommunicator::Op::Sum;
       }
 
-      if (Op == GroupCommunicator::Sum<T> ||
-          Op == GroupCommunicator::Min<T> ||
-          Op == GroupCommunicator::Max<T>)
+      // Only the operations with a direct DeviceSharedDofCommunicator mapping
+      // can stay on the device; the rest fall back to the legacy host path.
+      if (Op == sum_op || Op == min_op || Op == max_op)
       {
          Array<T> ldata_view;
          ldata_view.MakeRef(ldata, ldof_size, mt, false);
