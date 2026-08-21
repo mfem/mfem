@@ -277,7 +277,7 @@ public:
     * Factorize the current matrix of size (m x m) using LAPACK
     *
     * @param [in] m size of the square matrix
-    * @param [in] tol is unused -- present to match baseclass function signature
+    * @param [in] TOL is unused -- present to match baseclass function signature
     *
     * @return status set to true if successful, otherwise, false.
     */
