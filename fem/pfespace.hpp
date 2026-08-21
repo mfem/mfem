@@ -644,13 +644,8 @@ class DeviceConformingProlongationOperator: public
    ConformingProlongationOperator
 {
 protected:
-   bool mpi_gpu_aware;
-   Array<int> shr_ltdof, ext_ldof;
    mutable Vector shr_buf, ext_buf;
-   Memory<int> shr_buf_offsets, ext_buf_offsets;
-   Array<int> ltdof_ldof, unq_ltdof;
-   Array<int> unq_shr_i, unq_shr_j;
-   MPI_Request *requests;
+   std::unique_ptr<internal::DeviceNeighborDofComm> nbr_comm;
 
    // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
    //         shr_buf[i] = src[shr_ltdof[i]]
@@ -678,7 +673,7 @@ protected:
 
 public:
    DeviceConformingProlongationOperator(
-      const GroupCommunicator &gc_, const SparseMatrix *R, bool local_=false);
+      int lsize, const GroupCommunicator &gc_, bool local_=false);
 
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
                                         bool local_=false);

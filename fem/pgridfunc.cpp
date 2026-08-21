@@ -744,6 +744,7 @@ void ParGridFunction::ProjectDiscCoefficient(
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Max);
    gcomm.Bcast(gdof_attr);
+   gdof_attr.HostReadWrite();
 
    // set local value to zero if global maximal element attribute is larger than
    // the local one, and mark (in gdof_attr) if we have the correct value
@@ -764,6 +765,8 @@ void ParGridFunction::ProjectDiscCoefficient(
    HypreParVector *tv = pfes->NewTrueDofVector();
    gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Sum);
    gcomm.Bcast(gdof_attr);
+   gdof_attr.HostRead();
+   HostReadWrite();
    for (int i = 0; i < fes->GetVSize(); i++)
    {
       (*this)(i) /= gdof_attr[i];
@@ -792,8 +795,11 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data);
+   real_t *data_ptr = ReadWrite(GetMemory().DeviceIsValid());
+   gcomm.Reduce<real_t>(data_ptr, GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(data_ptr);
+   zones_per_vdof.HostRead();
+   HostReadWrite();
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -816,8 +822,11 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data);
+   real_t *data_ptr = ReadWrite(GetMemory().DeviceIsValid());
+   gcomm.Reduce<real_t>(data_ptr, GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(data_ptr);
+   zones_per_vdof.HostRead();
+   HostReadWrite();
 
    ComputeMeans(type, zones_per_vdof);
 }
