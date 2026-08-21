@@ -15,14 +15,13 @@
 
 namespace mfem
 {
-void ElasticityComponentIntegrator::AssembleEA(const FiniteElementSpace &fes,
-                                               Vector &emat,
-                                               const bool add)
+void ElasticityComponentIntegrator::AssembleEA(
+   const FiniteElementSpace &fes, Vector &emat, const bool add)
 {
    AssemblePA(fes);
    const auto &ir = parent.q_space->GetIntRule(0);
-   internal::ElasticityAssembleEA(parent.vdim, i_block, j_block, parent.ndofs, ir,
-                                  *parent.lambda_quad, *parent.mu_quad,
-                                  *geom, *maps, emat);
+   internal::ElasticityAssembleEA(parent.vdim, i_block, j_block,
+                                  parent.ndofs, ir, *maps, parent.pa_data,
+                                  emat, add);
 }
 }

@@ -23,7 +23,8 @@
  *
  *        DATA LAYOUT ASSUMPTIONS :
  *        Finite element space - Ordering::byNODES
- *        Finite element basis - ElementDofOrdering::NATIVE
+ *        Finite element basis - NATIVE for the generic fallback;
+ *                               LEXICOGRAPHIC for tensor kernels
  *        Quadrature functions - QVectorLayout::byNODES
  *        All elements in "fespace" are the same.
  */
@@ -43,381 +44,839 @@
 
 namespace mfem
 {
-
 namespace internal
 {
 
-/// @brief Elasticity kernel for AddMultPA.
-///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
-/// tensor basis, so it should work for any H1 element.
-///
-/// @param[in] dim 2 or 3
-/// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] fespace Vector-valued finite element space.
-/// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for second Lame param.
-/// @param[in] geom Geometric factors corresponding to fespace.
-/// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param[in] x Input vector. nDofs x dim x numEls.
-/// @param Q Scratch Q-Vector. nQuad x dim x dim x numEls.
-/// @param[in,out] y Ax gets added to this. nDofs x dim x numEls.
-void ElasticityAddMultPA(const int dim, const int nDofs,
-                         const FiniteElementSpace &fespace, const CoefficientVector &lambda,
-                         const CoefficientVector &mu, const GeometricFactors &geom,
-                         const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y);
+/// Precompute compact elasticity PA data at every element quadrature point.
+/// Layout: [invJ(0,0), ..., invJ(d-1,d-1), lambda*detJ*w,
+///          mu*detJ*w], with quadrature point as the fastest index.
+void ElasticitySetupPAData(const int dim, const IntegrationRule &ir,
+                           const CoefficientVector &lambda,
+                           const CoefficientVector &mu,
+                           const GeometricFactors &geom, Vector &pa_data);
 
-/// @brief Elasticity component kernel for AddMultPA.
-///
-/// Performs y += Ax. Implemented for byNODES ordering only, and does not use
-/// tensor basis, so it should work for any H1 element. i_block and j_block are
-/// the dimensional component that is integrated. They must both be
-/// non-negative.
-///
-/// Example: In 2D, A = [A_00  A_01],  x = [x_0],  y = [y_0]
-///                     [A_10  A_11]       [x_1]       [y_1].
-/// So i_block = 0, j_block = 1 implies only y_0 += A_01*x_1 is evaluated.
-///
-/// @param[in] dim 2 or 3
-/// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] fespace Scalar-valued finite element space.
-/// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for second Lame param.
-/// @param[in] geom Geometric factors corresponding to fespace.
-/// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param[in] x Input vector. nDofs x numEls.
-/// @param Q Scratch Q-Vector. nQuad x dim x numEls.
-/// @param[in,out] y Ax gets added to this. nDofs x numEls.
-/// @param[in] i_block The row dimensional component. <= dim - 1
-/// @param[in] j_block The column dimensional component. <= dim -1
+/// Generic reference-gradient fallback, valid for all supported H1 elements.
+void ElasticityAddMultPA(const int dim, const int nDofs,
+                         const FiniteElementSpace &fespace,
+                         const DofToQuad &maps, const Vector &pa_data,
+                         const Vector &x, QuadratureFunction &QVec, Vector &y);
+
+/// Fused sum-factorized quad/hex kernel. Returns false when the D1D/Q1D pair
+/// is not specialized so the caller can use ElasticityAddMultPA.
+bool ElasticityAddMultPATensor(const int dim, const int numEls,
+                               const DofToQuad &maps,
+                               const Vector &pa_data,
+                               const Vector &x, Vector &y);
+
 void ElasticityComponentAddMultPA(
    const int dim, const int nDofs, const FiniteElementSpace &fespace,
-   const CoefficientVector &lambda, const CoefficientVector &mu,
-   const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
-   QuadratureFunction &QVec, Vector &y, const int i_block, const int j_block);
+   const DofToQuad &maps, const Vector &pa_data, const Vector &x,
+   QuadratureFunction &QVec, Vector &y,
+   const int i_block, const int j_block);
 
-/// @brief Elasticity kernel for AssembleEA.
-///
-/// Assembles the E-Matrix for a single dimensional component. Does not require
-/// tensor product elements.
-///
-/// Example: In 2D, A = [A_00  A_01]
-///                     [A_10  A_11].
-/// So i_block = 0, j_block = 1 implies only A_01 is assembled.
-///
-/// Mainly intended to be used for order 1 elements on gpus to enable
-/// preconditioning with a LOR-AMG operator. It's expected behavior that higher
-/// orders may request too many resources.
-///
-/// @param[in] dim 2 or 3
-/// @param[in] i_block The row dimensional component. 0 <= i_block <= dim - 1
-/// @param[in] j_block The column dimensional component. 0 <= j_block<= dim -1
-/// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for second Lame param.
-/// @param[in] geom Geometric factors corresponding to fespace.
-/// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param[out] emat Resulting E-Matrix Vector. nDofs x nDofs x numEls.
-void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
-                          const int nDofs, const IntegrationRule &ir,
-                          const CoefficientVector &lambda,
-                          const CoefficientVector &mu, const GeometricFactors &geom,
-                          const DofToQuad &maps, Vector &emat);
-
-/// @brief Elasticity kernel for AssembleDiagonalPA.
-///
-/// @param[in] dim 2 or 3
-/// @param[in] nDofs Number of scalar dofs per element.
-/// @param[in] lambda Quadrature function for first Lame param.
-/// @param[in] mu Quadrature function for second Lame param.
-/// @param[in] geom Geometric factors corresponding to fespace.
-/// @param[in] maps DofToQuad maps for one element (assume elements all same).
-/// @param[in] ir Integration rule.
-/// @param[out] diag diagonal of A. nDofs x dim x numEls.
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
-                                  const CoefficientVector &lambda,
-                                  const CoefficientVector &mu, const GeometricFactors &geom,
-                                  const DofToQuad &maps, const IntegrationRule &ir, Vector &diag);
+                                  const DofToQuad &maps,
+                                  const IntegrationRule &ir,
+                                  const Vector &pa_data, Vector &diag);
 
-/// Templated implementation of ElasticityAddMultPA.
-template<int dim, int i_block = -1, int j_block = -1>
-void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
-                          const CoefficientVector &lambda, const CoefficientVector &mu,
-                          const GeometricFactors &geom, const DofToQuad &maps, const Vector &x,
-                          QuadratureFunction &QVec, Vector &y)
+void ElasticityAssembleEA(const int dim, const int i_block,
+                          const int j_block, const int nDofs,
+                          const IntegrationRule &ir,
+                          const DofToQuad &maps,
+                          const Vector &pa_data, Vector &emat,
+                          const bool add);
+
+
+template<int dim>
+void ElasticitySetupPAData_(const IntegrationRule &ir,
+                            const CoefficientVector &lambda,
+                            const CoefficientVector &mu,
+                            const GeometricFactors &geom,
+                            Vector &pa_data)
 {
-   using future::tensor;
-   using future::make_tensor;
-   using future::det;
    using future::inv;
+   using future::make_tensor;
+
+   static constexpr int d = dim;
+   static constexpr int entries = d*d + 2;
+   const int numPoints = ir.GetNPoints();
+   const int numEls = lambda.Size()/numPoints;
+
+   const auto lam = Reshape(lambda.Read(), numPoints, numEls);
+   const auto muv = Reshape(mu.Read(), numPoints, numEls);
+   const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
+   const auto detJ = Reshape(geom.detJ.Read(), numPoints, numEls);
+   auto D = Reshape(pa_data.Write(), numPoints, entries, numEls);
+   const real_t *weights = ir.GetWeights().Read();
+
+   mfem::forall_2D(numEls, numPoints, 1,
+                   [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_FOREACH_THREAD(p, x, numPoints)
+      {
+         const auto invJ = inv(make_tensor<d, d>(
+         [&](int i, int j) { return J(p, i, j, e); }));
+
+         for (int i = 0; i < d; ++i)
+         {
+            for (int j = 0; j < d; ++j)
+            {
+               D(p, i*d + j, e) = invJ(i, j);
+            }
+         }
+
+         const real_t JxW = detJ(p, e)*weights[p];
+         D(p, d*d, e) = lam(p, e)*JxW;
+         D(p, d*d + 1, e) = muv(p, e)*JxW;
+      }
+   });
+}
+
+
+template<int dim, int i_block = -1, int j_block = -1>
+void ElasticityAddMultPA_(const int nDofs,
+                          const FiniteElementSpace &fespace,
+                          const DofToQuad &maps,
+                          const Vector &pa_data,
+                          const Vector &x,
+                          QuadratureFunction &QVec,
+                          Vector &y)
+{
+   using future::make_tensor;
+   using future::tensor;
 
    static_assert((i_block < 0) == (j_block < 0),
-                 "i_block and j_block must both be non-negative or strictly negative.");
+                 "i_block and j_block must both be non-negative or negative.");
    static constexpr int d = dim;
-   static constexpr int qLower = (i_block < 0) ? 0 : i_block;
-   static constexpr int qUpper = (i_block < 0) ? d : i_block+1;
-   static constexpr int qSize = qUpper-qLower;
-   static constexpr int aLower = (j_block < 0) ? 0 : j_block;
-   static constexpr int aUpper = (j_block < 0) ? d : j_block+1;
-   static constexpr int aSize = aUpper-aLower;
-   static constexpr bool isComponent = (i_block >= 0);
+   static constexpr int qSize = i_block < 0 ? d : 1;
+   static constexpr bool component = i_block >= 0;
+   static constexpr int entries = d*d + 2;
 
-   // Assuming all elements are the same
    const auto &ir = QVec.GetIntRule(0);
-   const QuadratureInterpolator *E_To_Q_Map = fespace.GetQuadratureInterpolator(
-                                                 ir);
-   E_To_Q_Map->SetOutputLayout(QVectorLayout::byNODES);
-   // interpolate physical derivatives to quadrature points.
-   E_To_Q_Map->PhysDerivatives(x, QVec);
+   const QuadratureInterpolator *EToQ =
+      fespace.GetQuadratureInterpolator(ir);
+   EToQ->SetOutputLayout(QVectorLayout::byNODES);
+
+   // Reference derivatives avoid the geometric inverse performed by
+   // PhysDerivatives. The compact PA data supplies inv(J) below.
+   EToQ->Derivatives(x, QVec);
 
    const int numPoints = ir.GetNPoints();
    const int numEls = fespace.GetNE();
-   const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
-   const auto muDev = Reshape(mu.Read(), numPoints, numEls);
-   const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
-   auto Q = Reshape(QVec.ReadWrite(), numPoints, d, qSize, numEls);
-   const real_t *ipWeights = ir.GetWeights().Read();
-   mfem::forall_2D(numEls, numPoints, 1, [=] MFEM_HOST_DEVICE (int e)
+   auto Q = Reshape(QVec.ReadWrite(), numPoints, qSize, d, numEls);
+   const auto D = Reshape(pa_data.Read(), numPoints, entries, numEls);
+
+   mfem::forall_2D(numEls, numPoints, 1,
+                   [=] MFEM_HOST_DEVICE (int e)
    {
-      // for(int p = 0; p < numPoints, )
-      MFEM_FOREACH_THREAD(p, x,numPoints)
+      MFEM_FOREACH_THREAD(p, x, numPoints)
       {
-         auto invJ = inv(make_tensor<d, d>(
-         [&](int i, int j) { return J(p, i, j, e); }));
-         tensor<real_t, aSize, d> gradx;
-         // load grad(x) into gradx
-         if (isComponent)
+         const auto invJ = make_tensor<d, d>([&](int i, int j)
          {
-            for (int i = 0; i < d; i++)
+            return D(p, i*d + j, e);
+         });
+         const real_t alpha = D(p, d*d, e);
+         const real_t beta = D(p, d*d + 1, e);
+
+         if (component)
+         {
+            tensor<real_t, d> dudi;
+            tensor<real_t, d> grad;
+            for (int m = 0; m < d; ++m)
             {
-               gradx(0,i) = Q(p, i, 0, e);
+               dudi(m) = Q(p, 0, m, e);
+            }
+            for (int b = 0; b < d; ++b)
+            {
+               grad(b) = 0.0;
+               for (int m = 0; m < d; ++m)
+               {
+                  grad(b) += dudi(m)*invJ(m, b);
+               }
+            }
+
+            for (int m = 0; m < d; ++m)
+            {
+               real_t flux = alpha*invJ(m, i_block)*grad(j_block)
+                             + beta*invJ(m, j_block)*grad(i_block);
+               if (i_block == j_block)
+               {
+                  for (int b = 0; b < d; ++b)
+                  {
+                     flux += beta*invJ(m, b)*grad(b);
+                  }
+               }
+               Q(p, 0, m, e) = flux;
             }
          }
          else
          {
-            for (int j = 0; j < d; j++)
+            tensor<real_t, d, d> dudi;
+            tensor<real_t, d, d> grad;
+            tensor<real_t, d, d> sigma_w;
+
+            // Q is [component, reference direction]. Load all entries
+            // before overwriting it with reference-space flux data.
+            for (int a = 0; a < d; ++a)
             {
-               for (int i = 0; i < d; i++)
+               for (int m = 0; m < d; ++m)
                {
-                  gradx(i,j) = Q(p, i, j, e);
+                  dudi(a, m) = Q(p, a, m, e);
                }
             }
-         }
-         // compute divergence
-         real_t div = 0.;
-         for (int i = aLower; i < aUpper; i++)
-         {
-            // take size of gradx into account
-            const int iIndex = isComponent ? 0 : i;
-            div += gradx(iIndex,i);
-         }
-         const real_t w = ipWeights[p]/det(invJ);
-         for (int m = 0; m < d; m++)
-         {
-            for (int q = qLower; q < qUpper; q++)
+
+            for (int a = 0; a < d; ++a)
             {
-               // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-               // this contraction could be made slightly cheaper using Voigt
-               // notation, but repeated entries are summed for simplicity.
-               real_t contraction = 0.;
-               // not sure how to combine cases
-               if (isComponent)
+               for (int b = 0; b < d; ++b)
                {
-                  for (int a = 0; a < d; a++)
+                  grad(a, b) = 0.0;
+                  for (int m = 0; m < d; ++m)
                   {
-                     contraction += 2*((a == q)*invJ(m,j_block)
-                                       + (j_block==q)*invJ(m,a))*(gradx(0, a));
+                     grad(a, b) += dudi(a, m)*invJ(m, b);
                   }
                }
-               else
+            }
+
+            real_t div_u = 0.0;
+            for (int a = 0; a < d; ++a)
+            {
+               div_u += grad(a, a);
+            }
+
+            for (int a = 0; a < d; ++a)
+            {
+               for (int b = 0; b < d; ++b)
                {
-                  for (int a = 0; a < d; a++)
+                  sigma_w(a, b) = beta*(grad(a, b) + grad(b, a));
+                  if (a == b)
                   {
-                     for (int b = 0; b < d; b++)
-                     {
-                        contraction += ((a == q)*invJ(m,b) + (b == q)*invJ(m,a))
-                                       *(gradx(a,b) + gradx(b, a));
-                     }
+                     sigma_w(a, b) += alpha*div_u;
                   }
                }
-               // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
-               // contraction = 4*sym(grad(u))sym(grad(v))
-               const int qIndex = isComponent ? 0 : q;
-               Q(p,m,qIndex,e) = w*(lamDev(p, e)*invJ(m,q)*div
-                                    + 0.5*muDev(p, e)*contraction);
+            }
+
+            for (int m = 0; m < d; ++m)
+            {
+               for (int a = 0; a < d; ++a)
+               {
+                  real_t flux = 0.0;
+                  for (int b = 0; b < d; ++b)
+                  {
+                     flux += invJ(m, b)*sigma_w(a, b);
+                  }
+                  Q(p, a, m, e) = flux;
+               }
             }
          }
       }
    });
 
-   // Reduce quadrature function to an E-Vector
-   const auto QRead = Reshape(QVec.Read(), numPoints, d, qSize, numEls);
+   // Generic full-map transpose. Tensor-product elements normally bypass this
+   // reduction through ElasticityAddMultPATensor.
+   const auto QRead = Reshape(QVec.Read(), numPoints, qSize, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
-   auto yDev = Reshape(y.ReadWrite(), nDofs, qSize, numEls);
-   mfem::forall_2D(numEls, qSize, nDofs, [=] MFEM_HOST_DEVICE (int e)
+   auto Y = Reshape(y.ReadWrite(), nDofs, qSize, numEls);
+
+   mfem::forall_2D(numEls, qSize, nDofs,
+                   [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(i, y, nDofs)
       {
-         MFEM_FOREACH_THREAD(q, x, qSize)
+         MFEM_FOREACH_THREAD(a, x, qSize)
          {
-            const int qIndex = isComponent ? 0 : q;
-            real_t sum = 0.;
-            for (int m = 0; m < d; m++ )
+            real_t value = 0.0;
+            for (int m = 0; m < d; ++m)
             {
-               for (int p = 0; p < numPoints; p++ )
+               for (int p = 0; p < numPoints; ++p)
                {
-                  sum += QRead(p,m,qIndex,e)*G(p,m,i);
+                  value += QRead(p, a, m, e)*G(p, m, i);
                }
             }
-            yDev(i, qIndex, e) += sum;
+            Y(i, a, e) += value;
          }
       }
    });
 }
 
-/// Templated implementation of ElasticityAssembleDiagonalPA.
+
 template<int dim>
 void ElasticityAssembleDiagonalPA_(const int nDofs,
-                                   const CoefficientVector &lambda,
-                                   const CoefficientVector &mu,
-                                   const GeometricFactors &geom,
                                    const DofToQuad &maps,
                                    const IntegrationRule &ir,
+                                   const Vector &pa_data,
                                    Vector &diag)
 {
-   using future::det;
-   using future::inv;
    using future::make_tensor;
    using future::tensor;
 
-   // Assuming all elements are the same
    static constexpr int d = dim;
+   static constexpr int entries = d*d + 2;
    const int numPoints = ir.GetNPoints();
-   const int numEls = lambda.Size() / numPoints;
-
-   const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
-   const auto muDev = Reshape(mu.Read(), numPoints, numEls);
-   const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
-   const real_t *ipWeights = ir.GetWeights().Read();
+   const int numEls = pa_data.Size()/(entries*numPoints);
+   const auto D = Reshape(pa_data.Read(), numPoints, entries, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
-   auto diagDev = Reshape(diag.Write(), nDofs, d, numEls);
+   auto diagDev = Reshape(diag.ReadWrite(), nDofs, d, numEls);
 
-   mfem::forall_2D(numEls, d, nDofs, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(numEls, d, nDofs,
+                   [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD_DIRECT(i, y, nDofs)
+      MFEM_FOREACH_THREAD(i, y, nDofs)
       {
-         MFEM_FOREACH_THREAD_DIRECT(q, x, d)
+         MFEM_FOREACH_THREAD(a, x, d)
          {
             real_t sum = 0.0;
-            for (int p = 0; p < numPoints; p++)
+            for (int p = 0; p < numPoints; ++p)
             {
-               const auto invJ = inv(make_tensor<d, d>([&](int r, int c)
+               const auto invJ = make_tensor<d, d>([&](int r, int c)
                {
-                  return J(p, r, c, e);
-               }));
-               const real_t w = ipWeights[p] / det(invJ);
-
-               for (int n = 0; n < d; n++)
+                  return D(p, r*d + c, e);
+               });
+               tensor<real_t, d> grad;
+               for (int b = 0; b < d; ++b)
                {
-                  for (int m = 0; m < d; m++)
+                  grad(b) = 0.0;
+                  for (int m = 0; m < d; ++m)
                   {
-                     // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-                     // this contraction could be made slightly cheaper using Voigt
-                     // notation, but repeated entries are summed for simplicity.
-                     real_t contraction = 0.0;
-                     for (int a = 0; a < d; a++)
-                     {
-                        for (int b = 0; b < d; b++)
-                        {
-                           contraction +=
-                              ((a == q) * invJ(m, b) + (b == q) * invJ(m, a)) *
-                              ((a == q) * invJ(n, b) + (b == q) * invJ(n, a));
-                        }
-                     }
-                     // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
-                     // contraction = 4*sym(grad(u))sym(grad(v))
-                     const real_t Q =
-                        w * (lamDev(p, e) * invJ(m, q) * invJ(n, q)
-                             + 0.5 * muDev(p, e) * contraction);
-                     sum += Q * G(p, m, i) * G(p, n, i);
+                     grad(b) += G(p, m, i)*invJ(m, b);
                   }
                }
+
+               real_t norm2 = 0.0;
+               for (int b = 0; b < d; ++b)
+               {
+                  norm2 += grad(b)*grad(b);
+               }
+               const real_t alpha = D(p, d*d, e);
+               const real_t beta = D(p, d*d + 1, e);
+               sum += beta*norm2 + (alpha + beta)*grad(a)*grad(a);
             }
-            diagDev(i, q, e) = sum;
+            diagDev(i, a, e) += sum;
          }
       }
    });
 }
 
-// Templated implementation of ElasticityAssembleEA.
+
 template<int dim>
 void ElasticityAssembleEA_(const int i_block,
                            const int j_block,
                            const int nDofs,
                            const IntegrationRule &ir,
-                           const CoefficientVector &lambda,
-                           const CoefficientVector &mu,
-                           const GeometricFactors &geom,
                            const DofToQuad &maps,
-                           Vector &emat)
+                           const Vector &pa_data,
+                           Vector &emat,
+                           const bool add)
 {
-   using future::tensor;
    using future::make_tensor;
-   using future::det;
-   using future::inv;
+   using future::tensor;
 
-   // Assuming all elements are the same
    static constexpr int d = dim;
+   static constexpr int entries = d*d + 2;
    const int numPoints = ir.GetNPoints();
-   const int numEls = lambda.Size()/numPoints;
-   const auto lamDev = Reshape(lambda.Read(), numPoints, numEls);
-   const auto muDev = Reshape(mu.Read(), numPoints, numEls);
-   const auto J = Reshape(geom.J.Read(), numPoints, d, d, numEls);
+   const int numEls = pa_data.Size()/(entries*numPoints);
+   const auto D = Reshape(pa_data.Read(), numPoints, entries, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
-   auto ematDev = Reshape(emat.Write(), nDofs, nDofs, numEls);
-   const real_t *ipWeights = ir.GetWeights().Read();
-   mfem::forall_2D(numEls, nDofs, nDofs, [=] MFEM_HOST_DEVICE (int e)
+   auto E = Reshape(add ? emat.ReadWrite() : emat.Write(),
+                    nDofs, nDofs, numEls);
+
+   mfem::forall_2D(numEls, nDofs, nDofs,
+                   [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD(JDof, y, nDofs)
+      MFEM_FOREACH_THREAD(trial, y, nDofs)
       {
-         MFEM_FOREACH_THREAD(IDof, x, nDofs)
+         MFEM_FOREACH_THREAD(test, x, nDofs)
          {
-            real_t sum = 0;
-            for (int p = 0 ; p < numPoints; p++)
+            real_t sum = 0.0;
+            for (int p = 0; p < numPoints; ++p)
             {
-               auto invJ = inv(make_tensor<d, d>(
-               [&](int i, int j) { return J(p, i, j, e); }));
-               const real_t w = ipWeights[p] /det(invJ);
-               for (int n = 0; n < d; n++)
+               const auto invJ = make_tensor<d, d>([&](int r, int c)
                {
-                  for (int m = 0; m < d; m++)
+                  return D(p, r*d + c, e);
+               });
+               tensor<real_t, d> h;
+               tensor<real_t, d> g;
+               for (int b = 0; b < d; ++b)
+               {
+                  h(b) = 0.0;
+                  g(b) = 0.0;
+                  for (int m = 0; m < d; ++m)
                   {
-                     // compute contraction of 4*sym(grad(u))sym(grad(v)) term.
-                     real_t contraction = 0.;
-                     for (int a = 0; a < d; a++)
-                     {
-                        for (int b = 0; b < d; b++)
-                        {
-                           contraction += ((a == i_block)*invJ(m,b) + (b==i_block)*invJ(m,
-                                                                                        a))*((a == j_block)*invJ(n,
-                                                                                              b) + (b==j_block)*invJ(n,a));
-                        }
-                     }
-                     // lambda*div(u)*div(v) + 2*mu*sym(grad(u))*sym(grad(v))
-                     // contraction = 4*sym(grad(u))sym(grad(v))
-                     sum += w*(lamDev(p, e)*invJ(m,i_block)*invJ(n,j_block)
-                               + 0.5*muDev(p, e)*contraction)*G(p,m,IDof)*G(p,n,JDof);
+                     h(b) += G(p, m, test)*invJ(m, b);
+                     g(b) += G(p, m, trial)*invJ(m, b);
                   }
                }
+
+               real_t dot = 0.0;
+               for (int b = 0; b < d; ++b)
+               {
+                  dot += g(b)*h(b);
+               }
+               const real_t alpha = D(p, d*d, e);
+               const real_t beta = D(p, d*d + 1, e);
+               sum += alpha*g(j_block)*h(i_block)
+                      + beta*g(i_block)*h(j_block);
+               if (i_block == j_block)
+               {
+                  sum += beta*dot;
+               }
             }
-            ematDev(IDof, JDof, e) = sum;
+
+            // MFEM E-matrices use (trial dof, test dof, element).
+            if (add)
+            {
+               E(trial, test, e) += sum;
+            }
+            else
+            {
+               E(trial, test, e) = sum;
+            }
          }
       }
    });
 }
 
-} // namespace internal
 
+// ---------------------------------------------------------------------------
+// Fused tensor-product kernels
+// ---------------------------------------------------------------------------
+
+template<int D1D, int Q1D>
+void ElasticityAddMultPATensor2D_(const int numEls,
+                                  const DofToQuad &maps,
+                                  const Vector &pa_data,
+                                  const Vector &x,
+                                  Vector &y)
+{
+   using future::make_tensor;
+   using future::tensor;
+   static constexpr int d = 2;
+   static constexpr int entries = 6;
+
+   const auto b = Reshape(maps.B.Read(), Q1D, D1D);
+   const auto g = Reshape(maps.G.Read(), Q1D, D1D);
+
+   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, entries, numEls);
+   const auto X = Reshape(x.Read(), D1D, D1D, d, numEls);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, d, numEls);
+
+   mfem::forall_2D(numEls, Q1D, Q1D,
+                   [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_SHARED tensor<real_t, Q1D, D1D> B;
+      MFEM_SHARED tensor<real_t, Q1D, D1D> G;
+      MFEM_SHARED tensor<real_t, 2, Q1D, D1D> S;
+      MFEM_SHARED tensor<real_t, Q1D, Q1D, d, d> Q;
+
+      MFEM_FOREACH_THREAD(i, y, D1D)
+      {
+         MFEM_FOREACH_THREAD(q, x, Q1D)
+         {
+            B(q, i) = b(q, i);
+            G(q, i) = g(q, i);
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Reference gradients: sum factorization in x, then y.
+      for (int c = 0; c < d; ++c)
+      {
+         MFEM_FOREACH_THREAD(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            {
+               real_t value = 0.0;
+               real_t deriv = 0.0;
+               for (int dx = 0; dx < D1D; ++dx)
+               {
+                  const real_t u = X(dx, dy, c, e);
+                  value += B(qx, dx)*u;
+                  deriv += G(qx, dx)*u;
+               }
+               S(0, qx, dy) = value;
+               S(1, qx, dy) = deriv;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            {
+               real_t du0 = 0.0;
+               real_t du1 = 0.0;
+               for (int dy = 0; dy < D1D; ++dy)
+               {
+                  du0 += S(1, qx, dy)*B(qy, dy);
+                  du1 += S(0, qx, dy)*G(qy, dy);
+               }
+               Q(qx, qy, c, 0) = du0;
+               Q(qx, qy, c, 1) = du1;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      // Constitutive operation and Piola pullback, in place.
+      MFEM_FOREACH_THREAD(qy, y, Q1D)
+      {
+         MFEM_FOREACH_THREAD(qx, x, Q1D)
+         {
+            tensor<real_t, d, d> invJ;
+            tensor<real_t, d, d> dudi;
+            tensor<real_t, d, d> grad;
+            tensor<real_t, d, d> sigma_w;
+            for (int i = 0; i < d; ++i)
+            {
+               for (int j = 0; j < d; ++j)
+               {
+                  invJ(i, j) = D(qx, qy, i*d + j, e);
+                  dudi(i, j) = Q(qx, qy, i, j);
+               }
+            }
+            for (int a = 0; a < d; ++a)
+            {
+               for (int b = 0; b < d; ++b)
+               {
+                  grad(a, b) = 0.0;
+                  for (int m = 0; m < d; ++m)
+                  {
+                     grad(a, b) += dudi(a, m)*invJ(m, b);
+                  }
+               }
+            }
+            const real_t alpha = D(qx, qy, d*d, e);
+            const real_t beta = D(qx, qy, d*d + 1, e);
+            const real_t div_u = grad(0, 0) + grad(1, 1);
+            for (int a = 0; a < d; ++a)
+            {
+               for (int b = 0; b < d; ++b)
+               {
+                  sigma_w(a, b) = beta*(grad(a, b) + grad(b, a));
+                  if (a == b) { sigma_w(a, b) += alpha*div_u; }
+               }
+            }
+            for (int m = 0; m < d; ++m)
+            {
+               for (int a = 0; a < d; ++a)
+               {
+                  real_t flux = 0.0;
+                  for (int b = 0; b < d; ++b)
+                  {
+                     flux += invJ(m, b)*sigma_w(a, b);
+                  }
+                  Q(qx, qy, m, a) = flux;
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      // Transposed gradient: x contraction, then y contraction.
+      for (int c = 0; c < d; ++c)
+      {
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD(dx, x, D1D)
+            {
+               real_t r0 = 0.0;
+               real_t r1 = 0.0;
+               for (int qx = 0; qx < Q1D; ++qx)
+               {
+                  r0 += G(qx, dx)*Q(qx, qy, 0, c);
+                  r1 += B(qx, dx)*Q(qx, qy, 1, c);
+               }
+               S(0, qy, dx) = r0;
+               S(1, qy, dx) = r1;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(dy, y, D1D)
+         {
+            MFEM_FOREACH_THREAD(dx, x, D1D)
+            {
+               real_t value = 0.0;
+               for (int qy = 0; qy < Q1D; ++qy)
+               {
+                  value += B(qy, dy)*S(0, qy, dx)
+                           + G(qy, dy)*S(1, qy, dx);
+               }
+               Y(dx, dy, c, e) += value;
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+
+template<int D1D, int Q1D>
+void ElasticityAddMultPATensor3D_(const int numEls,
+                                  const DofToQuad &maps,
+                                  const Vector &pa_data,
+                                  const Vector &x,
+                                  Vector &y)
+{
+   using future::make_tensor;
+   using future::tensor;
+   static constexpr int d = 3;
+   static constexpr int entries = 11;
+
+   const auto b = Reshape(maps.B.Read(), Q1D, D1D);
+   const auto g = Reshape(maps.G.Read(), Q1D, D1D);
+
+   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, entries, numEls);
+   const auto X = Reshape(x.Read(), D1D, D1D, D1D, d, numEls);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, d, numEls);
+
+   mfem::forall_3D(numEls, Q1D, Q1D, Q1D,
+                   [=] MFEM_HOST_DEVICE (int e)
+   {
+      // Shared data consist of the one-dimensional basis maps, three Q1D^3
+      // work arrays, the 3x3 q-point gradient/flux tensor, and a
+      // 3*D1D^2*Q1D transpose scratch tensor. Dispatch is limited to Q1D <= 7
+      // to keep double-precision shared memory below common device limits
+      // (about 42 KiB at D1D=Q1D=7, including B and G).
+      MFEM_SHARED tensor<real_t, Q1D, D1D> B;
+      MFEM_SHARED tensor<real_t, Q1D, D1D> G;
+      MFEM_SHARED tensor<real_t, 3, Q1D, Q1D, Q1D> S;
+      MFEM_SHARED tensor<real_t, Q1D, Q1D, Q1D, d, d> Q;
+      MFEM_SHARED tensor<real_t, 3, D1D, D1D, Q1D> T;
+
+      if (MFEM_THREAD_ID(z) == 0)
+      {
+         MFEM_FOREACH_THREAD(i, y, D1D)
+         {
+            MFEM_FOREACH_THREAD(q, x, Q1D)
+            {
+               B(q, i) = b(q, i);
+               G(q, i) = g(q, i);
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int c = 0; c < d; ++c)
+      {
+         // x contraction: B and G.
+         MFEM_FOREACH_THREAD(dz, z, D1D)
+         {
+            MFEM_FOREACH_THREAD(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               {
+                  real_t value = 0.0;
+                  real_t deriv = 0.0;
+                  for (int dx = 0; dx < D1D; ++dx)
+                  {
+                     const real_t u = X(dx, dy, dz, c, e);
+                     value += B(qx, dx)*u;
+                     deriv += G(qx, dx)*u;
+                  }
+                  S(0, qx, dy, dz) = value;
+                  S(1, qx, dy, dz) = deriv;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // y contraction. Q temporarily stores data indexed by dz.
+         MFEM_FOREACH_THREAD(dz, z, D1D)
+         {
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               {
+                  real_t du0 = 0.0;
+                  real_t du1 = 0.0;
+                  real_t value = 0.0;
+                  for (int dy = 0; dy < D1D; ++dy)
+                  {
+                     du0 += S(1, qx, dy, dz)*B(qy, dy);
+                     du1 += S(0, qx, dy, dz)*G(qy, dy);
+                     value += S(0, qx, dy, dz)*B(qy, dy);
+                  }
+                  Q(qx, qy, dz, c, 0) = du0;
+                  Q(qx, qy, dz, c, 1) = du1;
+                  Q(qx, qy, dz, c, 2) = value;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // z contraction into S.
+         MFEM_FOREACH_THREAD(qz, z, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               {
+                  real_t du0 = 0.0;
+                  real_t du1 = 0.0;
+                  real_t du2 = 0.0;
+                  for (int dz = 0; dz < D1D; ++dz)
+                  {
+                     du0 += Q(qx, qy, dz, c, 0)*B(qz, dz);
+                     du1 += Q(qx, qy, dz, c, 1)*B(qz, dz);
+                     du2 += Q(qx, qy, dz, c, 2)*G(qz, dz);
+                  }
+                  S(0, qx, qy, qz) = du0;
+                  S(1, qx, qy, qz) = du1;
+                  S(2, qx, qy, qz) = du2;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qz, z, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx, x, Q1D)
+               {
+                  for (int m = 0; m < d; ++m)
+                  {
+                     Q(qx, qy, qz, c, m) = S(m, qx, qy, qz);
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+
+      // Constitutive operation and reference-space flux.
+      MFEM_FOREACH_THREAD(qz, z, Q1D)
+      {
+         MFEM_FOREACH_THREAD(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qx, x, Q1D)
+            {
+               tensor<real_t, d, d> invJ;
+               tensor<real_t, d, d> dudi;
+               tensor<real_t, d, d> grad;
+               tensor<real_t, d, d> sigma_w;
+               for (int i = 0; i < d; ++i)
+               {
+                  for (int j = 0; j < d; ++j)
+                  {
+                     invJ(i, j) = D(qx, qy, qz, i*d + j, e);
+                     dudi(i, j) = Q(qx, qy, qz, i, j);
+                  }
+               }
+               for (int a = 0; a < d; ++a)
+               {
+                  for (int b = 0; b < d; ++b)
+                  {
+                     grad(a, b) = 0.0;
+                     for (int m = 0; m < d; ++m)
+                     {
+                        grad(a, b) += dudi(a, m)*invJ(m, b);
+                     }
+                  }
+               }
+               const real_t alpha = D(qx, qy, qz, d*d, e);
+               const real_t beta = D(qx, qy, qz, d*d + 1, e);
+               const real_t div_u = grad(0, 0) + grad(1, 1) + grad(2, 2);
+               for (int a = 0; a < d; ++a)
+               {
+                  for (int b = 0; b < d; ++b)
+                  {
+                     sigma_w(a, b) = beta*(grad(a, b) + grad(b, a));
+                     if (a == b) { sigma_w(a, b) += alpha*div_u; }
+                  }
+               }
+               for (int m = 0; m < d; ++m)
+               {
+                  for (int a = 0; a < d; ++a)
+                  {
+                     real_t flux = 0.0;
+                     for (int b = 0; b < d; ++b)
+                     {
+                        flux += invJ(m, b)*sigma_w(a, b);
+                     }
+                     Q(qx, qy, qz, m, a) = flux;
+                  }
+               }
+            }
+         }
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int c = 0; c < d; ++c)
+      {
+         // x transpose.
+         MFEM_FOREACH_THREAD(qz, z, Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy, y, Q1D)
+            {
+               MFEM_FOREACH_THREAD(dx, x, D1D)
+               {
+                  real_t r0 = 0.0;
+                  real_t r1 = 0.0;
+                  real_t r2 = 0.0;
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     r0 += G(qx, dx)*Q(qx, qy, qz, 0, c);
+                     r1 += B(qx, dx)*Q(qx, qy, qz, 1, c);
+                     r2 += B(qx, dx)*Q(qx, qy, qz, 2, c);
+                  }
+                  S(0, dx, qy, qz) = r0;
+                  S(1, dx, qy, qz) = r1;
+                  S(2, dx, qy, qz) = r2;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // y transpose. Use dedicated scratch so that processing one output
+         // component cannot overwrite flux data needed by later components.
+         MFEM_FOREACH_THREAD(qz, z, Q1D)
+         {
+            MFEM_FOREACH_THREAD(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD(dx, x, D1D)
+               {
+                  real_t r0 = 0.0;
+                  real_t r1 = 0.0;
+                  real_t r2 = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     r0 += B(qy, dy)*S(0, dx, qy, qz);
+                     r1 += G(qy, dy)*S(1, dx, qy, qz);
+                     r2 += B(qy, dy)*S(2, dx, qy, qz);
+                  }
+                  T(0, dx, dy, qz) = r0;
+                  T(1, dx, dy, qz) = r1;
+                  T(2, dx, dy, qz) = r2;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // z transpose and accumulation.
+         MFEM_FOREACH_THREAD(dz, z, D1D)
+         {
+            MFEM_FOREACH_THREAD(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD(dx, x, D1D)
+               {
+                  real_t value = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     value += B(qz, dz)*T(0, dx, dy, qz)
+                              + B(qz, dz)*T(1, dx, dy, qz)
+                              + G(qz, dz)*T(2, dx, dy, qz);
+                  }
+                  Y(dx, dy, dz, c, e) += value;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+} // namespace internal
 } // namespace mfem
 
-#endif
+#endif // MFEM_BILININTEG_ELASTICITY_KERNELS_HPP
