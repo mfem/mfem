@@ -115,18 +115,22 @@ static void EADiffusionAssemble2D(const int NE,
                   {
                      for (int k2 = 0; k2 < Q1D; ++k2)
                      {
-                        real_t bgi = r_G[k1][i1] * r_B[k2][i2];
-                        real_t gbi = r_B[k1][i1] * r_G[k2][i2];
-                        real_t bgj = r_G[k1][j1] * r_B[k2][j2];
-                        real_t gbj = r_B[k1][j1] * r_G[k2][j2];
+                        // Notation notes. The "g0" in g0i means the partial derivative of the
+                        // tensor product is with respect to the 0th tensor product coordinate (e.g.
+                        // xi). And the 'i' means we are indexing the tensor product with the 'i'
+                        // shape function index (as opposed to 'j')
+                        real_t g0i = r_G[k1][i1] * r_B[k2][i2];
+                        real_t g1i = r_B[k1][i1] * r_G[k2][i2];
+                        real_t g0j = r_G[k1][j1] * r_B[k2][j2];
+                        real_t g1j = r_B[k1][j1] * r_G[k2][j2];
                         real_t D00 = D(k1,k2,0,e);
                         real_t D10 = D(k1,k2,1,e);
                         real_t D01 = D10;
                         real_t D11 = D(k1,k2,2,e);
-                        val += bgi * D00 * bgj
-                               + gbi * D01 * bgj
-                               + bgi * D10 * gbj
-                               + gbi * D11 * gbj;
+                        val += g0i * D00 * g0j
+                               + g1i * D10 * g0j
+                               + g0i * D01 * g1j
+                               + g1i * D11 * g1j;
                      }
                   }
                   if (add)
@@ -198,12 +202,12 @@ static void EADiffusionAssemble3D(const int NE,
                            {
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
-                                 real_t bbgi = r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3];
-                                 real_t bgbi = r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3];
-                                 real_t gbbi = r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3];
-                                 real_t bbgj = r_G[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
-                                 real_t bgbj = r_B[k1][j1] * r_G[k2][j2] * r_B[k3][j3];
-                                 real_t gbbj = r_B[k1][j1] * r_B[k2][j2] * r_G[k3][j3];
+                                 real_t g0i = r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3];
+                                 real_t g1i = r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3];
+                                 real_t g2i = r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3];
+                                 real_t g0j = r_G[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
+                                 real_t g1j = r_B[k1][j1] * r_G[k2][j2] * r_B[k3][j3];
+                                 real_t g2j = r_B[k1][j1] * r_B[k2][j2] * r_G[k3][j3];
                                  real_t D00 = D(k1,k2,k3,0,e);
                                  real_t D10 = D(k1,k2,k3,1,e);
                                  real_t D20 = D(k1,k2,k3,2,e);
@@ -213,15 +217,15 @@ static void EADiffusionAssemble3D(const int NE,
                                  real_t D02 = D20;
                                  real_t D12 = D21;
                                  real_t D22 = D(k1,k2,k3,5,e);
-                                 val += bbgi * D00 * bbgj
-                                        + bgbi * D10 * bbgj
-                                        + gbbi * D20 * bbgj
-                                        + bbgi * D01 * bgbj
-                                        + bgbi * D11 * bgbj
-                                        + gbbi * D21 * bgbj
-                                        + bbgi * D02 * gbbj
-                                        + bgbi * D12 * gbbj
-                                        + gbbi * D22 * gbbj;
+                                 val += g0i * D00 * g0j
+                                        + g1i * D10 * g0j
+                                        + g2i * D20 * g0j
+                                        + g0i * D01 * g1j
+                                        + g1i * D11 * g1j
+                                        + g2i * D21 * g1j
+                                        + g0i * D02 * g2j
+                                        + g1i * D12 * g2j
+                                        + g2i * D22 * g2j;
                               }
                            }
                         }
