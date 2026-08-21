@@ -13,7 +13,7 @@ if (MFEM_USE_MPI)
   add_mfem_miniapp(generate_random_field
     MAIN generate_random_field.cpp
     EXTRA_SOURCES material_metrics.cpp spde_solver.cpp util.cpp visualizer.cpp
-                  transformation.cpp
+                  transformation.cpp anisotropic_elasticity_integrator.cpp
     LIBRARIES mfem)
 
    add_mfem_miniapp(tst_rnd	
@@ -112,6 +112,18 @@ if (MFEM_USE_MPI)
      LIBRARIES mfem
    )
 
+   add_mfem_miniapp(tst_fractional_diffusion_mass_compare_neumann
+     MAIN tst_fractional_diffusion_mass_compare_neumann.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_fractional_diffusion_mass_compare_neumann_spde_coarse
+     MAIN tst_fractional_diffusion_mass_compare_neumann_spde_coarse.cpp
+     EXTRA_SOURCES diffusion_mass_solver.cpp frac_noise.cpp spde_solver.cpp
+     LIBRARIES mfem
+   )
+
    add_mfem_miniapp(tst_riesz_map
      MAIN tst_riesz_map.cpp
      EXTRA_SOURCES diffusion_mass_solver.cpp
@@ -121,6 +133,12 @@ if (MFEM_USE_MPI)
    add_mfem_miniapp(tst_frac_inv
      MAIN tst_frac_inv.cpp
      EXTRA_SOURCES polylib.cpp
+     LIBRARIES mfem
+   )
+
+   add_mfem_miniapp(tst_anisotropic_elasticity
+     MAIN tst_anisotropic_elasticity.cpp
+     EXTRA_SOURCES anisotropic_elasticity_integrator.cpp
      LIBRARIES mfem
    )
 

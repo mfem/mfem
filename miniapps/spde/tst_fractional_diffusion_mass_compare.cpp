@@ -16,7 +16,10 @@
 //
 // All methods are compared to the same exact periodic solution.  The
 // Balakrishnan solver is also directly compared with the SPDE and additive
-// multilevel results on the shared finest finite element space.
+// multilevel results that use its finest finite element space.  The
+// SPDE-coarse multilevel method owns an independently constructed, equivalent
+// hierarchy and is therefore compared through its error against the exact
+// coefficient rather than by subtracting grid functions from different spaces.
 
 #include "diffusion_mass_solver.hpp"
 #include "frac_noise.hpp"
@@ -66,14 +69,6 @@ static real_t L2Norm(ParGridFunction &x)
    return x.ComputeL2Error(zero);
 }
 
-static real_t L2Error(ParGridFunction &x, ParGridFunction &exact)
-{
-   ParGridFunction error(x.ParFESpace());
-   error = x;
-   error -= exact;
-   return L2Norm(error);
-}
-
 int main(int argc, char *argv[])
 {
    Mpi::Init();
@@ -85,7 +80,6 @@ int main(int argc, char *argv[])
    int ny = 8;
    int par_ref_levels = 2;
    int ser_ref_levels = 0;
-   int smoother_applications = 1;
    int print_level = -1;
    bool paraview = true;
    real_t s = 0.1;
@@ -113,9 +107,6 @@ int main(int argc, char *argv[])
                   "Number of parallel uniform refinements in the hierarchy.");
    args.AddOption(&ser_ref_levels, "-srl", "--ser-ref-levels",
                   "Number of serial uniform refinements before partitioning.");
-   args.AddOption(&smoother_applications, "-ns",
-                  "--num-smoother-applications",
-                  "Number of smoother applications on every MG level.");
    args.AddOption(&s, "-s", "--s",
                   "MG fractional parameter; compares exponent p=1-s.");
    args.AddOption(&quadrature_spacing, "-k", "--quadrature-spacing",
@@ -155,8 +146,8 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(order >= 1, "Expected finite element order >= 1.");
    MFEM_VERIFY(s > 0.0 && s < 0.5,
                "Expected s in (0,0.5); exponent p=1-s must satisfy 0<p<1.");
-   MFEM_VERIFY(smoother_applications >= 1,
-               "Expected at least one smoother application.");
+   MFEM_VERIFY(par_ref_levels >= 0 && ser_ref_levels >= 0,
+               "Expected nonnegative refinement counts.");
    MFEM_VERIFY(quadrature_spacing > 0.0,
                "Expected positive quadrature spacing.");
    MFEM_VERIFY(quadrature_scaling > 0.0,
@@ -173,21 +164,21 @@ int main(int argc, char *argv[])
       mesh.UniformRefinement();
    }
 
-   ParMesh *pmesh = new ParMesh(MPI_COMM_WORLD, mesh);
+   // Declare the parallel mesh before every object that refers to it so that
+   // normal reverse-order destruction keeps the mesh alive long enough.
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
 
-   const int dim = pmesh->Dimension();
+   const int dim = pmesh.Dimension();
    MFEM_VERIFY(dim == 2, "This comparison test is 2D only.");
 
    const real_t exponent = 1.0 - s;
    const real_t nu = 2.0*exponent - dim/2.0;
    const real_t corr_len = std::sqrt(2.0*nu);
 
-   FracRandomFieldGenerator multilevel(*pmesh, par_ref_levels, order, 1.0, s,
-                                       smoother_applications);
-   FracRandomFieldGeneratorSPDE multilevel_spde(*pmesh, par_ref_levels,
-                                                order, 1.0, s,
-                                                smoother_applications);
+   FracRandomFieldGenerator multilevel(pmesh, par_ref_levels, order, 1.0, s);
+   FracRandomFieldGeneratorSPDE multilevel_spde(pmesh, par_ref_levels,
+                                                order, 1.0, s);
 
    ParFiniteElementSpace &fes = multilevel.GetFinestFESpace();
 
@@ -197,7 +188,9 @@ int main(int argc, char *argv[])
 
    ParGridFunction exact(&fes);
    exact.ProjectCoefficient(exact_coeff);
-   const real_t exact_l2 = L2Norm(exact);
+   // The Fourier modes in U2D are mutually orthogonal on the unit square:
+   // ||u||_L2^2 = 3^2 + (1^2 + 2^2 + 0.5^2)/2 = 93/8.
+   const real_t exact_l2 = std::sqrt(93.0/8.0);
 
    ParLinearForm rhs_lf(&fes);
    rhs_lf.AddDomainIntegrator(new DomainLFIntegrator(rhs_coeff));
@@ -262,10 +255,10 @@ int main(int argc, char *argv[])
    bal_minus_mg = bal_sol;
    bal_minus_mg -= mg_sol;
 
-   const real_t bal_l2 = L2Error(bal_sol, exact);
-   const real_t spde_l2 = L2Error(spde_sol, exact);
-   const real_t mg_l2 = L2Error(mg_sol, exact);
-   const real_t mg_spde_l2 = L2Error(mg_spde_sol, exact_spde);
+   const real_t bal_l2 = bal_sol.ComputeL2Error(exact_coeff);
+   const real_t spde_l2 = spde_sol.ComputeL2Error(exact_coeff);
+   const real_t mg_l2 = mg_sol.ComputeL2Error(exact_coeff);
+   const real_t mg_spde_l2 = mg_spde_sol.ComputeL2Error(exact_coeff);
    const real_t bal_spde_l2 = L2Norm(bal_minus_spde);
    const real_t bal_mg_l2 = L2Norm(bal_minus_mg);
 
@@ -276,7 +269,6 @@ int main(int argc, char *argv[])
            << " s=" << s
            << " nu=" << nu
            << " l=" << corr_len
-           << " smoother_applications=" << smoother_applications
            << " k=" << quadrature_spacing
            << " sigma=" << quadrature_scaling
            << " m=" << (adaptive_quadrature ?
@@ -327,8 +319,22 @@ int main(int argc, char *argv[])
       pvdc.RegisterField("balakrishnan_minus_spde", &bal_minus_spde);
       pvdc.RegisterField("balakrishnan_minus_additive_mg", &bal_minus_mg);
       pvdc.Save();
+
+      // This method owns a separate (but equivalent) hierarchy, so write its
+      // fields through a data collection associated with that hierarchy.
+      ParaViewDataCollection pvdc_spde(
+         "fractional_diffusion_mass_compare_spde_coarse",
+         fes_spde.GetParMesh());
+      pvdc_spde.SetPrefixPath("ParaView");
+      pvdc_spde.SetLevelsOfDetail(order);
+      pvdc_spde.SetDataFormat(VTKFormat::BINARY);
+      pvdc_spde.SetHighOrderOutput(true);
+      pvdc_spde.SetCycle(0);
+      pvdc_spde.SetTime(0.0);
+      pvdc_spde.RegisterField("exact", &exact_spde);
+      pvdc_spde.RegisterField("additive_mg_spde_coarse", &mg_spde_sol);
+      pvdc_spde.Save();
    }
 
-   delete pmesh;
    return EXIT_SUCCESS;
 }

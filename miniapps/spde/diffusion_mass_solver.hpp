@@ -271,11 +271,12 @@ private:
 /// ParFiniteElementSpace:
 ///     -div(diffusion_coefficient grad u) + mass_coefficient u = rhs.
 ///
-/// The system operator is assembled with partial assembly.  Dirichlet boundary
-/// conditions are selected by boundary attribute IDs; if no IDs are added, the
-/// solver uses natural Neumann boundary conditions.  Coefficient and boundary
-/// changes are lazy: mutators only mark the solver dirty, and the next Solve(),
-/// Mult(), or explicit Assemble() rebuilds the operator/preconditioner.
+/// Tensor-product elements use partial assembly; simplex elements use full
+/// assembly. Dirichlet boundary conditions are selected by boundary attribute
+/// IDs; if no IDs are added, the solver uses natural Neumann boundary
+/// conditions. Coefficient and boundary changes are lazy: mutators only mark
+/// the solver dirty, and the next Solve(), Mult(), or explicit Assemble()
+/// rebuilds the operator/preconditioner.
 ///
 /// When ParGridFunction operator coefficients are used with an order > 1 space,
 /// the LOR AMG preconditioner transfers their true-dof values to persistent LOR
@@ -510,7 +511,8 @@ public:
    /// Return the domain integration rule used for a geometry type.
    const IntegrationRule &GetIntegrationRule(Geometry::Type geom) const;
 
-   /// Reassemble the partial-assembly operator and AMG preconditioner if dirty.
+   /// Reassemble the operator and AMG preconditioner if dirty. Tensor elements
+   /// use partial assembly; simplex elements use full assembly.
    void Assemble() const;
 
    /// Solve the already-eliminated true-dof linear system A x = rhs.  Stored

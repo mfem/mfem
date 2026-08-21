@@ -6,15 +6,10 @@ using namespace std;
 FracRandomFieldGenerator::FracRandomFieldGenerator(ParMesh &pmesh_,
                                                    const int par_ref_levels_,
                                                    const int order_,
-                                                   real_t sigma_, real_t s_,
-                                                   int smoother_applications_)
+                                                   real_t sigma_, real_t s_)
     : pmesh(pmesh_), par_ref_levels(par_ref_levels_),
-      order(order_), sigma(sigma_), s(s_),
-      smoother_applications(smoother_applications_)
+      order(order_), sigma(sigma_), s(s_)
 {
-    MFEM_VERIFY(smoother_applications >= 1,
-                "smoother_applications must be at least 1.");
-
     fec.reset(new H1_FECollection(order, pmesh.Dimension()));
     ParFiniteElementSpace *coarse_fespace = new ParFiniteElementSpace(&pmesh, fec.get());
 
@@ -59,7 +54,7 @@ FracRandomFieldGenerator::FracRandomFieldGenerator(ParMesh &pmesh_,
         Vector diag(fespace.GetTrueVSize());
         Vector tmp(fespace.GetTrueVSize());
         mat->GetDiag(diag);
-        if(false)
+        if(true)
         {
             tmp=1.0;
             mat->AbsMult(tmp, diag); // diag = |A|*1
@@ -97,60 +92,13 @@ real_t FracRandomFieldGenerator::GetLevelH(int level) const
     return h_max;
 }
 
-void FracRandomFieldGenerator::ApplySmootherRepeated(const Solver &smoother,
-                                                     const Vector &x,
-                                                     Vector &y) const
-{
-    y.SetSize(x.Size());
-    if(smoother_applications == 1)
-    {
-        smoother.Mult(x, y);
-        return;
-    }
-
-    Vector src(x);
-    Vector dst(y.Size());
-    for(int i = 0; i < smoother_applications; i++)
-    {
-        smoother.Mult(src, dst);
-        if(i + 1 < smoother_applications)
-        {
-            src = dst;
-        }
-    }
-    y = dst;
-}
-
-void FracRandomFieldGenerator::ApplySmootherTransposeRepeated(
-    const Solver &smoother, const Vector &x, Vector &y) const
-{
-    y.SetSize(x.Size());
-    if(smoother_applications == 1)
-    {
-        smoother.MultTranspose(x, y);
-        return;
-    }
-
-    Vector src(x);
-    Vector dst(y.Size());
-    for(int i = 0; i < smoother_applications; i++)
-    {
-        smoother.MultTranspose(src, dst);
-        if(i + 1 < smoother_applications)
-        {
-            src = dst;
-        }
-    }
-    y = dst;
-}
-
 void FracRandomFieldGenerator::SolveCoarseLevel(const Vector &rhs0,
                                                 Solver &smoother0,
                                                 Operator &operator0,
                                                 Vector &u0) const
 {
     SymmetrizedSmoother ms(&smoother0, &operator0);
-    ApplySmootherRepeated(ms, rhs0, u0);
+    ms.Mult(rhs0, u0);
 }
 
 void FracRandomFieldGenerator::ApplyCoarseLevel(const Vector &u0, real_t h0,
@@ -209,7 +157,7 @@ void FracRandomFieldGenerator::Mult(const Vector &x, Vector &y) const
     }
     else
     {
-        ApplySmootherRepeated(ms, x, *(u[nlevels -1]));
+        ms.Mult(x, *(u[nlevels -1]));
     }
 
     Vector  tva, tvb, tvc;
@@ -222,7 +170,7 @@ void FracRandomFieldGenerator::Mult(const Vector &x, Vector &y) const
          if(1==myrank)  {cout << "Level " << level <<
                 " size: " << fespaces->GetFESpaceAtLevel(level).GlobalTrueVSize() << endl;}
 
-        ApplySmootherRepeated(*smoothers[level+1], tva, tvb);
+        smoothers[level+1]->Mult(tva, tvb);
         operators[level+1]->Mult(tvb, tvc);
         add(-1.0, tvc, 1.0, tva, tvb);
         tva.SetSize(prolongations[level]->Width());
@@ -244,7 +192,7 @@ void FracRandomFieldGenerator::Mult(const Vector &x, Vector &y) const
             ms.SetSmoother(*smoothers[level]);
             ms.SetOperator(*operators[level]);
             //smoothing
-            ApplySmootherRepeated(ms, tva, *(u[level]));
+            ms.Mult(tva, *(u[level]));
         }
 
 
@@ -289,7 +237,7 @@ void FracRandomFieldGenerator::Mult(const Vector &x, Vector &y) const
 
         prolongations[level-1]->Mult(*(v[level-1]), tva );
         operators[level]->Mult(tva, tvb);
-        ApplySmootherTransposeRepeated(*smoothers[level], tvb, tvc);
+        smoothers[level]->MultTranspose(tvb, tvc);
         tva.Add(-1.0, tvc);
 
 
@@ -311,16 +259,17 @@ void FracRandomFieldGenerator::Mult(const Vector &x, Vector &y) const
 
 FracRandomFieldGeneratorSPDE::FracRandomFieldGeneratorSPDE(
     ParMesh &pmesh_, const int par_ref_levels_, const int order_,
-    real_t sigma_, real_t s_, int smoother_applications_)
-    : FracRandomFieldGenerator(pmesh_, par_ref_levels_, order_, sigma_, s_,
-                               smoother_applications_)
+    real_t sigma_, real_t s_)
+    : FracRandomFieldGenerator(pmesh_, par_ref_levels_, order_, sigma_, s_)
 {
+    MFEM_VERIFY(sigma > 0.0,
+                "Coarse SPDE solve requires a positive mass scale sigma.");
     const int dim = GetCoarsestFESpace()->GetParMesh()->Dimension();
     const real_t exponent = 1.0 - s;
     const real_t nu = 2.0*exponent - dim/2.0;
     MFEM_VERIFY(nu > 0.0, "Coarse SPDE solve requires positive nu.");
 
-    const real_t corr_len = sigma > 0.0 ? sqrt(2.0*nu)/sigma : sqrt(2.0*nu);
+    const real_t corr_len = sqrt(2.0*nu)/sigma;
     coarse_spde_solver.reset(
         new spde::SPDESolver(nu, coarse_bc, GetCoarsestFESpace(),
                              corr_len, corr_len, corr_len));
@@ -354,12 +303,22 @@ void FracRandomFieldGeneratorSPDE::SolveCoarseLevel(const Vector &rhs0,
     coarse_solution = 0.0;
     coarse_spde_solver->Solve(rhs, coarse_solution);
     coarse_solution.GetTrueDofs(u0);
+
+    // The SPDE operator is
+    //   M + sigma^{-2} K = sigma^{-2} (K + sigma^2 M).
+    // Its inverse power therefore includes sigma^{2(1-s)} relative to the
+    // operator used by the MG hierarchy. Remove that factor before injecting
+    // the coarse result into the hierarchy.
+    const real_t exponent = 1.0 - s;
+    u0 *= pow(sigma*sigma, -exponent);
 }
 
 void FracRandomFieldGeneratorSPDE::ApplyCoarseLevel(const Vector &u0,
-                                                    real_t h0,
+                                                    real_t,
                                                     Vector &v0) const
 {
+    // SolveCoarseLevel already applies the inverse fractional coarse operator.
+    // Unlike the ordinary smoother-based coarse solve, it must not receive the
+    // additional scalar approximation pow(sigma^2 + h_0^{-2}, s).
     v0 = u0;
-    v0 *= pow(sigma*sigma + 1.0/(h0*h0), s);
 }

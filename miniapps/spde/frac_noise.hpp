@@ -68,8 +68,7 @@ public:
                              const int par_ref_levels_,
                              const int order_=1,
                              real_t sigma_=1.0,
-                             real_t s=0.0,
-                             int smoother_applications_=1);
+                             real_t s=0.0);
 
     virtual ~FracRandomFieldGenerator();
 
@@ -100,12 +99,6 @@ public:
 
 protected:
     real_t GetLevelH(int level) const;
-    void ApplySmootherRepeated(const Solver &smoother,
-                               const Vector &x,
-                               Vector &y) const;
-    void ApplySmootherTransposeRepeated(const Solver &smoother,
-                                        const Vector &x,
-                                        Vector &y) const;
     virtual void SolveCoarseLevel(const Vector &rhs0,
                                   Solver &smoother0,
                                   Operator &operator0,
@@ -117,7 +110,6 @@ protected:
     const int order;
     real_t sigma;
     real_t s;
-    int smoother_applications;
 
     std::unique_ptr<FiniteElementCollection> fec;
     std::unique_ptr<ParFiniteElementSpaceHierarchy> fespaces;
@@ -137,8 +129,7 @@ public:
                                  const int par_ref_levels_,
                                  const int order_=1,
                                  real_t sigma_=1.0,
-                                 real_t s_=0.0,
-                                 int smoother_applications_=1);
+                                 real_t s_=0.0);
 
 protected:
     void SolveCoarseLevel(const Vector &rhs0,

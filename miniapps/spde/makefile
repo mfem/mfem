@@ -20,8 +20,8 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SPDE_COMMON_SRC = material_metrics.cpp spde_solver.cpp transformation.cpp\
- util.cpp visualizer.cpp
+SPDE_COMMON_SRC = anisotropic_elasticity_integrator.cpp material_metrics.cpp\
+ spde_solver.cpp transformation.cpp util.cpp visualizer.cpp
 
 SPDE_COMMON_OBJ = $(SPDE_COMMON_SRC:.cpp=.o)
 

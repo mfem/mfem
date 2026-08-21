@@ -1085,9 +1085,10 @@ void QuadraturePDEFilter::MultTransposeAssembled(
 //   essential boundary IDs.  If boundary coefficients are present, constrained
 //   true dofs are set to their projected boundary values; otherwise they are
 //   treated as homogeneous constraints.
-// - The system operator is partial assembly.  AMG preconditioning uses an
-//   assembled operator on the original order-1 space or on an LOR space for
-//   higher-order tensor-product spaces.
+// - Tensor-product elements use a partial-assembly system operator.  Simplex
+//   elements use full assembly because the tensor DofToQuad kernels are not
+//   available.  AMG preconditioning uses an assembled operator on the original
+//   space or on an LOR space for higher-order tensor-product spaces.
 // - For ParGridFunction operator coefficients on order > 1 spaces, the LOR
 //   preconditioner copies the coefficient true-dof vector into a persistent LOR
 //   grid function and assembles AMG from that transferred coefficient.
@@ -1454,16 +1455,21 @@ void DiffusionMassSolver::Assemble() const
    BuildEssentialTrueDofs();
 
    form_.reset(new ParBilinearForm(&fespace_));
-   form_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   const Geometry::Type geom =
+      fespace_.GetParMesh()->GetElementGeometry(0);
+   const bool tensor_elements = Geometry::IsTensorProduct(geom);
+   if (tensor_elements)
+   {
+      form_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
    form_->AddDomainIntegrator(new DiffusionIntegrator(
                                  *diffusion_coefficient_,
-                                 &GetIntegrationRule(
-                                    fespace_.GetParMesh()->GetElementGeometry(0))));
+                                 &GetIntegrationRule(geom)));
    form_->AddDomainIntegrator(new MassIntegrator(
                                  *mass_coefficient_,
-                                 &GetIntegrationRule(
-                                    fespace_.GetParMesh()->GetElementGeometry(0))));
+                                 &GetIntegrationRule(geom)));
    form_->Assemble();
+   if (!tensor_elements) { form_->Finalize(); }
 
    system_operator_.SetType(Operator::ANY_TYPE);
    form_->FormSystemMatrix(ess_tdofs_, system_operator_);
@@ -1829,7 +1835,9 @@ void DiffusionMassSolver::BuildPreconditioner() const
    assembled_operator_.Clear();
    assembled_form_.reset();
 
-   if (fespace_.GetMaxElementOrder() > 1)
+   const bool tensor_elements = Geometry::IsTensorProduct(
+      fespace_.GetParMesh()->GetElementGeometry(0));
+   if (tensor_elements && fespace_.GetMaxElementOrder() > 1)
    {
       BuildLORAMGPreconditioner();
    }

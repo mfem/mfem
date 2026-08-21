@@ -52,7 +52,6 @@ int main(int argc, char *argv[])
    int ny = 8;
    int par_ref_levels = 2;
    int ser_ref_levels = 0;
-   int smoother_applications = 1;
    bool paraview = true;
    real_t s = 0.0;
 
@@ -69,9 +68,6 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&ser_ref_levels, "-srl", "--ser-ref-levels",
                   "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&smoother_applications, "-ns",
-                  "--num-smoother-applications",
-                  "Number of smoother applications on every level.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                   "Enable or disable ParaView output.");
    args.AddOption(&s, "-s", "--s",
@@ -81,8 +77,6 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(nx >= 3 && ny >= 3,
                "Fully periodic quadrilateral meshes require nx, ny >= 3.");
    MFEM_VERIFY(s >= 0.0 && s < 0.5, "Expected s in [0,0.5).");
-   MFEM_VERIFY(smoother_applications >= 1,
-               "Expected at least one smoother application.");
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
@@ -110,15 +104,12 @@ int main(int argc, char *argv[])
       cout << "  exponent=" << exponent
            << " frac_order=" << frac_order
            << " nu=" << nu
-           << " l=" << corr_len
-           << " smoother_applications=" << smoother_applications << endl;
+           << " l=" << corr_len << endl;
    }
 
-   FracRandomFieldGenerator multilevel(*pmesh, par_ref_levels, order, 1.0, s,
-                                       smoother_applications);
+   FracRandomFieldGenerator multilevel(*pmesh, par_ref_levels, order, 1.0, s);
    FracRandomFieldGeneratorSPDE multilevel_spde(*pmesh, par_ref_levels,
-                                                order, 1.0, s,
-                                                smoother_applications);
+                                                order, 1.0, s);
    ParFiniteElementSpace &fes = multilevel.GetFinestFESpace();
 
    FunctionCoefficient exact_coeff(periodic_fraclap::U2D);
