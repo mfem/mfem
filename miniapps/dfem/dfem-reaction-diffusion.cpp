@@ -27,9 +27,9 @@
 //                                                          u = 0   on dOmega
 //
 //               on the unit square (set the compile-time constant dim to 3 for
-//               the unit cube). 
+//               the unit cube).
 //
-//               This miniapp demonstrates the use of dFEM in multiple-output mode. 
+//               This miniapp demonstrates the use of dFEM in multiple-output mode.
 //               The q-function writes two outputs onto the same test field, e.g.:
 //
 //                   Outputs<Gradient<Solution>, Value<Solution>>
@@ -42,7 +42,7 @@
 //                       + int (alpha u + beta u^3 - f) phi_i dx
 //
 //               so the diffusion and the reaction term share one kernel and one
-//               restriction of u. 
+//               restriction of u.
 //
 
 #include "mfem.hpp"

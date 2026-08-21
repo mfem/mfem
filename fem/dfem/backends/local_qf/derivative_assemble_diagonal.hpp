@@ -168,8 +168,8 @@ public:
       if (trial_fes == nullptr) { return v; }
       for (size_t g = 0; g < v.size(); g++)
       {
-           v[g] = (output_groups->fes[g] != nullptr) &&
-              (output_groups->fes[g] == trial_fes);
+         v[g] = (output_groups->fes[g] != nullptr) &&
+         (output_groups->fes[g] == trial_fes);
       }
       for_constexpr<n_outputs>([&](auto o)
       {
@@ -224,8 +224,8 @@ public:
          MFEM_ASSERT(
             out_vdim[o] ==
             output_groups->test_vdim[output_groups->output_to_group[o]],
-                     "DerivativeAssembleDiagonal: outputs on one field must "
-                     "share its vdim");
+            "DerivativeAssembleDiagonal: outputs on one field must "
+            "share its vdim");
       });
 
       group_Ye_mem.resize(output_groups->field_ids.size());

@@ -962,7 +962,7 @@ inline size_t find_infd_index(const IntegratorContext &ctx, int field_id)
 /// @brief Metadata for grouping an integrator's output operators by field.
 /// @tparam outputs_t The type of the tuple containing the output operators.
 ///
-/// This is just a util used to compute the output-to-field mapping in case 
+/// This is just a util used to compute the output-to-field mapping in case
 /// of multiple outputs and multiple fields case, and use it in Assemble routines.
 ///
 /// For example, given:
@@ -996,7 +996,7 @@ struct OutputFieldGroups
 
    OutputFieldGroups(const IntegratorContext &ctx, outputs_t &outputs)
    {
-      // Reuse the existing output-index -> ctx.outfds-index mapping. 
+      // Reuse the existing output-index -> ctx.outfds-index mapping.
       const auto output_to_descriptor = create_output_vector_map(ctx, outputs);
       const auto &descriptors = ctx.outfds;
 
