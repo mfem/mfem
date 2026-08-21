@@ -250,16 +250,18 @@ protected:
    Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these three tables, only face_edge and
+   // deleted by the caller. Of these four tables, only face_edge, edge_face and
    // edge_vertex are returned by access functions.
    mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
    mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
+   mutable Table *edge_face;     // Returned by GetEdgeFaceTable().
    mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
    IsoparametricTransformation FaceTransformation, EdgeTransformation;
    FaceElementTransformations FaceElemTr;
+   mutable std::unique_ptr<L2_SegmentElement> EdgeTransfElement;
 
    // refinement embeddings for forward compatibility with NCMesh
    mutable CoarseFineTransformations CoarseFineTr;
@@ -1731,6 +1733,11 @@ public:
    /// @note The returned object should NOT be deleted by the caller.
    Table *GetFaceEdgeTable() const;
 
+   /// Returns the edge-to-face Table (3D)
+   ///
+   /// @note The returned object should NOT be deleted by the caller.
+   Table *GetEdgeFaceTable() const;
+
    /// Returns the edge-to-vertex Table (3D)
    ///
    /// @note The returned object should NOT be deleted by the caller.
@@ -2425,9 +2432,13 @@ public:
                                finite element space (continuous is default).
        @param[in]  space_dim   The space dimension (optional).
        @param[in]  ordering    The Ordering of the finite element space
-                               (Ordering::byVDIM is the default). */
-   virtual void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                             int ordering = 1);
+                               (Ordering::byVDIM is the default).
+       @param[in]  pyr_type    Select Bergot (pyr_type = 0) or Fuentes
+                               (pyr_type = 1) basis functions for pyramid
+                               shaped elements. */
+   virtual void SetCurvature(int order, bool discont = false,
+                             int space_dim = -1, int ordering = 1,
+                             int pyr_type = 1);
 
    /// @}
 
