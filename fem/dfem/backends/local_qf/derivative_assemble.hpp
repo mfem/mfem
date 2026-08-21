@@ -607,11 +607,15 @@ class DerivativeAssemble
    const int output_size_on_qp;
    /// Output field ids, in order of first appearance among @a outputs. Each one
    /// is a row block of the derivative: see @ref compute_group_field_ids.
+   // e.g. given Outputs<Value<Y>, Gradient<U>, Value<U>>, and outfds = {U, Y}  
+   // we'd get: group_field_ids = {Y, U}, out_group = {0, 0, 1}, 
+   //           group_outfd_idx = {1, 0, 0}, group_fes = {fes_Y, fes_U}
    const std::vector<int> group_field_ids;
    /// Output FieldOperator -> row block it contributes to.
    const std::array<int, n_outputs> out_group;
-   /// Row block -> position in ctx.outfds (-1 if the field is not an output of
-   /// the operator, which should not happen).
+   /// Row block -> position in ctx.outfds. This map is required because 
+   /// outfds provided in DifferentiableOperator, and the FieldOperators in
+   // AddIntegrator may not be in the same order.
    const std::vector<int> group_outfd_idx;
    /// Row block -> test space, null for spaces without a basis.
    const std::vector<const ParFiniteElementSpace *> group_fes;
