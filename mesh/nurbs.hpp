@@ -1187,11 +1187,8 @@ public:
        efficient, usually with a small loss of accuracy. The input tolerance is
        used for solver convergence. */
    void PhysicalSpacing(const GridFunction &Nodes, bool sweep1D = true,
-#ifdef MFEM_USE_SINGLE
-                        real_t tol = 1.0e-6);
-#else
-                        real_t tol = 1.0e-12);
-#endif
+                        real_t tol = 100 *
+                                     std::numeric_limits<mfem::real_t>::epsilon());
 
    /// Set the number of patches which should have coarse control point data.
    void SetNumCoarsePatches(int n);

@@ -16,6 +16,8 @@ using namespace mfem;
 
 void SetMinMax(real_t v, std::array<real_t, 2> &m)
 {
+   // This function is used for a positive radius, and a negative value indicates
+   // that the min/max values in `m` are not initialized.
    if (m[0] < 0.0)
    {
       m = {v, v}; // Initialize
@@ -446,6 +448,7 @@ TEST_CASE("NURBS NC-patch non-unit weights", "[NURBS]")
    mesh3D->NURBSUniformRefinement(1);
    CheckRadius(*mesh3D);
 
+   // Uncomment to print mesh.
    /*
    mesh3D->NURBSext->ConvertToPatches(*mesh3D->GetNodes());
    std::ofstream mesh_ofs("test.mesh");
