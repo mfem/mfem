@@ -621,8 +621,8 @@ int main(int argc, char *argv[])
    // Build the DAG in any order, and then sort it to ensure the correct execution order
    DAGraph dag(5);
    dag.AddOperator(&diff_coeff_1);
-   dag.AddOperator(&diff_op1, fes.GetTrueVSize());
-   dag.AddOperator(&diff_op2, fes.GetTrueVSize());
+   dag.AddOperator(&diff_op1);
+   dag.AddOperator(&diff_op2);
    dag.AddOperator(&diff_coeff_2);
    dag.AddOperator(&prod_coeff);
 
@@ -690,15 +690,15 @@ int main(int argc, char *argv[])
    else
    {
       k1_field = diff_coeff_1(T1_field);
-      k1_field->SetDataAndAdjoint(&k1vec, &k1adj);
+      k1_field->SetData(&k1vec, &k1adj);
 
       k2_field = diff_coeff_2(T2_field);
-      k2_field->SetDataAndAdjoint(&k2vec, &k2adj);
+      k2_field->SetData(&k2vec, &k2adj);
 
       if(ctx.coupled)
       {
          kp_field = prod_coeff(k1_field, k2_field);
-         kp_field->SetDataAndAdjoint(&kpvec, &kpvec);
+         kp_field->SetData(&kpvec, &kpvec);
 
          f1_field = diff_op1(T1_field, kp_field);
          f2_field = diff_op2(T2_field, kp_field);

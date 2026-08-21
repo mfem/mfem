@@ -66,8 +66,18 @@ public:
     Operator* GetOperator() const { return oper; }
 
     ///@brief Set the internally stored data pointer
-    virtual void SetDataAndAdjoint(Vector *field, Vector *adj) { data = field; adjoint = adj; }
-    virtual void SetData(Vector *field) { data = field; }
+    virtual void SetData(Vector *field, Vector *adj)
+    {
+        data = field;
+        adjoint = adj;
+    }
+
+    virtual void SetData(Vector *field)
+    {
+        data = field;
+        if(!adjoint) { adjoint = field; } // If not set, use the same as data
+    }
+
     virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
     virtual void SetOperator(Operator *op) { oper = op; }
 
