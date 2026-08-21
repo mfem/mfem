@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
    }
    // Since NURBS meshes do not support DG integrators, we convert them to
    // regular polynomial mesh of the specified (solution) order.
-   if (mesh.NURBSext) { mesh.SetCurvature(order); }
+   if (mesh.IsNURBS()) { mesh.SetCurvature(order); }
 
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();

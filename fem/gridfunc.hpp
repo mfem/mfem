@@ -140,8 +140,16 @@ public:
        Save(). The reconstructed FiniteElementSpace and FiniteElementCollection
        are owned by the GridFunction. */
    GridFunction(Mesh *m, std::istream &input);
+   GridFunction(Mesh *m, NURBSExtension *ext, std::istream &input);
+
+   void InitFromStream(Mesh *m, NURBSExtension *ext, std::istream &input);
 
    GridFunction(Mesh *m, GridFunction *gf_array[], int num_pieces);
+   GridFunction(Mesh *m, NURBSExtension *ext,
+                GridFunction *gf_array[], int num_pieces);
+
+   void InitFromGFArray(Mesh *m, NURBSExtension *ext,
+                        GridFunction *gf_array[], int num_pieces);
 
    /// Copy assignment. Only the data of the base class Vector is copied.
    /** It is assumed that this object and @a rhs use FiniteElementSpace%s that
