@@ -234,8 +234,21 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
         real_t t_final, 
         SIMPCoefficient SIMP_cf, 
         MPI_Comm comm, 
+        HeatTransferObjectiveFunction *obj);
+
+    IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes, 
+        FunctionCoefficient &raw_inflow, 
+        VectorFunctionCoefficient &v_base, 
+        real_t &dt_diff_term, 
+        real_t &raw_diff_term,  
+        GridFunctionCoefficient &q0, 
+        ParGridFunction &rho_tilde, 
+        real_t dt, 
+        real_t t_final, 
+        SIMPCoefficient SIMP_cf, 
+        MPI_Comm comm, 
+        Array<int> &ess_bdr_attr,
         Array<int> &inflow_bdr_attr,
-        Array<int> &ess_bdr_attr, 
         HeatTransferObjectiveFunction *obj);
     
     void InitializeInjectionProblem();
@@ -337,20 +350,16 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
         real_t t_final_, 
         SIMPCoefficient SIMP_cf_, 
         MPI_Comm comm_, 
-        Array<int> &inflow_bdr_attr_,
-        Array<int> &ess_bdr_attr_, 
         HeatTransferObjectiveFunction *obj = nullptr)
    : TopOptTimeDependentOperator(fes_.GetTrueVSize()), 
    fespace(&fes_), 
    dt_diff_term(dt_diff_term_),
    q0(q0_),
    objective(obj),
-   inflow_bdr_attr(inflow_bdr_attr_),
    comm(comm_),
    v_base(v_base_),
    z(fes_.GetTrueVSize()),
    w(fes_.GetTrueVSize()),
-   ess_bdr_attr(ess_bdr_attr_),
    rho_tilde(rho_tilde_),
    t_final(t_final_),
    raw_diff_term(raw_diff_term_),
@@ -361,7 +370,6 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
    int order = fespace->GetOrder(0);
    kappa = (order + 1)*(order + 1);
    int myid = Mpi::WorldRank();
-   fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);
    ParMesh *pmesh = fespace->GetParMesh();
 
    rho_tilde.ExchangeFaceNbrData();
@@ -376,7 +384,62 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
    design_gradient.SetSize(filter_fes->GetTrueVSize());
    design_gradient = 0.0;
 
+   int n_steps = (int)ceil(t_final / dt);
+   trajectory = new ForwardTrajectoryStorage(n_steps);
+   trajectory->EnableStorage();
+   Vector q_vec = q_gf;
+   trajectory->Store(0, q_vec);
+   problem_type = 0;
+}
 
+IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes_, 
+        FunctionCoefficient &raw_inflow_, 
+        VectorFunctionCoefficient &v_base_, 
+        real_t &dt_diff_term_, 
+        real_t &raw_diff_term_,  
+        GridFunctionCoefficient &q0_, 
+        ParGridFunction &rho_tilde_, 
+        real_t dt_, 
+        real_t t_final_, 
+        SIMPCoefficient SIMP_cf_, 
+        MPI_Comm comm_, 
+        Array<int> &ess_bdr_attr_,
+        Array<int> &inflow_bdr_attr_,
+        HeatTransferObjectiveFunction *obj = nullptr)
+        : TopOptTimeDependentOperator(fes_.GetTrueVSize()), 
+   fespace(&fes_), 
+   dt_diff_term(dt_diff_term_),
+   q0(q0_),
+   objective(obj),
+   comm(comm_),
+   v_base(v_base_),
+   z(fes_.GetTrueVSize()),
+   w(fes_.GetTrueVSize()),
+   rho_tilde(rho_tilde_),
+   t_final(t_final_),
+   raw_diff_term(raw_diff_term_),
+   raw_inflow(raw_inflow_),
+   dt(dt_),
+   SIMP_cf(SIMP_cf_),
+   ess_bdr_attr(ess_bdr_attr_),
+   inflow_bdr_attr(inflow_bdr_attr_)
+{
+   int order = fespace->GetOrder(0);
+   kappa = (order + 1)*(order + 1);
+   int myid = Mpi::WorldRank();
+   ParMesh *pmesh = fespace->GetParMesh();
+
+   rho_tilde.ExchangeFaceNbrData();
+   
+   t = 0.0;
+
+   q_gf.SetSpace(fespace);
+   q_gf.ProjectCoefficient(q0);
+   q_gf.ExchangeFaceNbrData();
+
+   filter_fes = rho_tilde.ParFESpace();
+   design_gradient.SetSize(filter_fes->GetTrueVSize());
+   design_gradient = 0.0;
 
    int n_steps = (int)ceil(t_final / dt);
    trajectory = new ForwardTrajectoryStorage(n_steps);
@@ -384,6 +447,10 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
    Vector q_vec = q_gf;
    trajectory->Store(0, q_vec);
    problem_type = 0;
+
+   fespace->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
+   fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);   
+
 }
 
 void IMEXAdvectionDiffusionSolver::InitializeInjectionProblem()
@@ -453,7 +520,22 @@ void IMEXAdvectionDiffusionSolver::InitializeInjectionProblem()
 }
 
 void IMEXAdvectionDiffusionSolver::InitializeFlowProblem()
-{   
+{ 
+   // Boundary Conditions   
+    if (ess_bdr_attr.Size() == 0)
+    {
+      ess_bdr_attr.SetSize(fespace->GetParMesh()->bdr_attributes.Max());   
+      ess_bdr_attr = 0;   
+      fespace->GetParMesh()->MarkExternalBoundaries(ess_bdr_attr);  
+      fespace->GetEssentialTrueDofs(ess_bdr_attr, ess_tdof_list);  
+    } 
+    if (inflow_bdr_attr.Size() == 0)
+    {
+      inflow_bdr_attr.SetSize(fespace->GetParMesh()->bdr_attributes.Max()); 
+      inflow_bdr_attr = 0;
+      inflow_bdr_attr[1] = 1;    
+    }
+     
     problem_type = 2;
     const real_t sigma = -1.0;
     M = new ParBilinearForm(fespace);

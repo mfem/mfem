@@ -12,7 +12,7 @@
 
 namespace mfem
 {
-    class DesignSolver
+class DesignSolver
 {
    private:
    // Finite Element Spaces
@@ -28,11 +28,6 @@ namespace mfem
    HeatTransferObjectiveFunction &objective;
    Vector dJ_drho_tilde;
    SIMPCoefficient SIMP_cf;
-
-   // Boundary Conditions
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr_attr;
-   Array<int> inflow_bdr;
 
    // PDE Coefficients
    VectorFunctionCoefficient v_base;
@@ -65,8 +60,6 @@ namespace mfem
                          ParFiniteElementSpace &filter_fes_,
                          ParFiniteElementSpace &control_fes_,
                          toopt::PDEFilter &filter_,
-                         Array<int> &ess_bdr_attr_,
-                         Array<int> &inflow_bdr_,
                          HeatTransferObjectiveFunction &objective_,
                          VectorFunctionCoefficient &v_base_,
                          real_t raw_diff_term_,
@@ -80,7 +73,6 @@ namespace mfem
                          int imex_integrator_, int vis_steps_, int problem_type_, MPI_Comm comm_)
       : state_fes(state_fes_), filter_fes(filter_fes_), control_fes(control_fes_),
         filter(filter_),
-        ess_bdr_attr(ess_bdr_attr_), inflow_bdr(inflow_bdr_),
         objective(objective_), 
         dt_diff_term(dt_diff_term_), raw_inflow(raw_inflow_), q0(q0_), raw_diff_term(raw_diff_term_),
         nsteps(nsteps_), dt(dt_), t_final(t_final_),
@@ -122,7 +114,7 @@ namespace mfem
          raw_diff_term, q0, 
          rho_tilde, dt, 
          t_final, SIMP_cf,
-         comm, inflow_bdr, ess_bdr_attr);
+         comm);
       if (problem_type == 1){oper->InitializeInjectionProblem();}
       else if (problem_type == 2){oper->InitializeFlowProblem();}
       else{MFEM_ABORT("Unknown Problem Type: " << problem_type );}
