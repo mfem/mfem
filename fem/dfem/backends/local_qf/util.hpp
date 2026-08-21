@@ -959,74 +959,91 @@ inline size_t find_infd_index(const IntegratorContext &ctx, int field_id)
    return SIZE_MAX;
 }
 
-/// Metadata for grouping an integrator's output operators by field.
+/// @brief Metadata for grouping an integrator's output operators by field.
+/// @tparam outputs_t The type of the tuple containing the output operators.
+///
+/// This is just a util used to compute the output-to-field mapping in case 
+/// of multiple outputs and multiple fields case, and use it in Assemble routines.
+///
+/// For example, given:
+///
+///     ctx.outfds = {X, Y}
+///     outputs    = {Value<Y>, Gradient<X>, Value<X>}
+///
+/// We can get:
+///
+///     output_to_group = {1, 0, 0}
+///     field_ids       = {X, Y}
+///     fes             = {fes_X, fes_Y}
+///     test_vdim       = {vdim_X, vdim_Y}
+///     num_test_dof    = {dof_X, dof_Y}
+///
 template<typename outputs_t>
 struct OutputFieldGroups
 {
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
-   std::vector<int> field_ids;
+   /// Output index -> group index.
    std::array<int, n_outputs> output_to_group {};
-   std::vector<int> descriptor_indices;
+   /// Group index -> FieldDescriptor::id, in ctx.outfds order.
+   std::vector<int> field_ids;
+   /// Group index -> finite element space, or null for a non-FE field.
    std::vector<const ParFiniteElementSpace *> fes;
+   /// Group index -> vector dimension of the output field.
    std::vector<int> test_vdim;
+   /// Group index -> number of element dofs, or zero for a non-FE field.
    std::vector<int> num_test_dof;
 
-   OutputFieldGroups(const outputs_t &outputs,
-                     const std::vector<FieldDescriptor> &descriptors)
+   OutputFieldGroups(const IntegratorContext &ctx, outputs_t &outputs)
    {
+      // Reuse the existing output-index -> ctx.outfds-index mapping. 
+      const auto output_to_descriptor = create_output_vector_map(ctx, outputs);
+      const auto &descriptors = ctx.outfds;
+
+      // Groups follow the operator-wide output field order.
+      field_ids.reserve(descriptors.size());
+      for (const auto &descriptor : descriptors)
+      {
+         field_ids.push_back(static_cast<int>(descriptor.id));
+      }
+
+      // Use the operator-wide output-field index as the group index.
       for_constexpr<n_outputs>([&](auto o)
       {
-         const int field_id = get<o>(outputs).GetFieldId();
-         auto it = std::find(field_ids.begin(), field_ids.end(), field_id);
-         if (it == field_ids.end())
-         {
-            field_ids.push_back(field_id);
-            it = field_ids.end() - 1;
-         }
-         output_to_group[o] = static_cast<int>(it - field_ids.begin());
+         output_to_group[o] = static_cast<int>(output_to_descriptor[o]);
       });
 
-      descriptor_indices.assign(field_ids.size(), -1);
+      // Allocate one metadata slot per operator-wide output field. Fields not
+      // referenced by this integrator retain their null/zero defaults.
       fes.assign(field_ids.size(), nullptr);
       test_vdim.assign(field_ids.size(), 0);
       num_test_dof.assign(field_ids.size(), 0);
 
-      for (size_t group = 0; group < field_ids.size(); group++)
-      {
-         for (size_t field = 0; field < descriptors.size(); field++)
-         {
-            if (static_cast<int>(descriptors[field].id) != field_ids[group])
-            {
-               continue;
-            }
-            descriptor_indices[group] = static_cast<int>(field);
-            const auto *group_fes =
-               std::get_if<const ParFiniteElementSpace *>(&descriptors[field].data);
-            fes[group] = group_fes ? *group_fes : nullptr;
-            break;
-         }
-      }
-
+      // Resolve metadata only for fields used by this integrator. Outputs with
+      // the same field write the same slot and necessarily share its vdim.
       for_constexpr<n_outputs>([&](auto o)
       {
-         test_vdim[output_to_group[o]] = get<o>(outputs).vdim;
-      });
-      for (size_t group = 0; group < field_ids.size(); group++)
-      {
+         const int group = output_to_group[o];
+         test_vdim[group] = get<o>(outputs).vdim;
+         const auto *group_fes = std::get_if<const ParFiniteElementSpace *>(
+                                    &descriptors[group].data);
+         fes[group] = group_fes ? *group_fes : nullptr;
          if (fes[group] != nullptr)
          {
             num_test_dof[group] = fes[group]->GetFE(0)->GetDof();
          }
-      }
+      });
    }
 
+   /// Return the group for @a field_id, or -1 if no output uses that field.
    int FindGroup(const int field_id) const
    {
-      const auto it = std::find(field_ids.begin(), field_ids.end(), field_id);
-      return (it == field_ids.end())
-             ? -1
-             : static_cast<int>(it - field_ids.begin());
+      const auto field = std::find(field_ids.begin(), field_ids.end(), field_id);
+      if (field == field_ids.end()) { return -1; }
+
+      const int group = static_cast<int>(field - field_ids.begin());
+      return std::find(output_to_group.begin(), output_to_group.end(), group) ==
+             output_to_group.end() ? -1 : group;
    }
 };
 

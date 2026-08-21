@@ -863,7 +863,7 @@ public:
                      "DerivativeAssemble SparseMatrix assembly requires "
                      "H1/conforming ElementRestriction spaces");
 
-         const int f = output_groups->descriptor_indices[g];
+         const size_t f = g;
          MFEM_VERIFY(A[f] == nullptr,
                      "DerivativeAssemble: output field already carries an "
                      "assembled matrix; two integrators contributing to the "

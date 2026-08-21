@@ -1641,7 +1641,7 @@ void DifferentiableOperator::AddIntegrator(
          {
             const auto output_groups =
                std::make_shared<const OutputFieldGroups<callback_outputs_t>>(
-                  outputs, callback_ctx.outfds);
+                  callback_ctx, outputs);
 
             // Assemble the derivative into a SparseMatrix
             assemble_sparsematrix_callbacks[callback_key].push_back(
