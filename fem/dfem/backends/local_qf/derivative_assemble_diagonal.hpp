@@ -60,14 +60,8 @@ class DerivativeAssembleDiagonal
    const std::array<int, n_outputs> out_op_dim;
    const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
-   /// Row blocks: the distinct output field ids, in order of first appearance.
-   /// Outputs sharing a field id are summed into one diagonal, which is how
-   /// Value<U> + Gradient<U> becomes mass plus diffusion.
-   const std::vector<int> group_field_ids;
-   const std::array<int, n_outputs> out_group;
-   const std::vector<const ParFiniteElementSpace *> group_fes;
-   const std::vector<int> group_test_vdim;
-   const std::vector<int> group_num_test_dof;
+   /// Output operators grouped by field in first-appearance order.
+   const std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups;
    const std::vector<int> group_num_test_dof_1d;
    /// Whether a row block has a diagonal: its test space has to be an FE space
    /// and has to *be* the trial space, and no output on it may be an Identity.
@@ -80,21 +74,6 @@ class DerivativeAssembleDiagonal
    const std::array<int, n_inputs> inputs_trial_op_dim;
    mutable std::vector<Vector> group_Ye_mem;
 
-   /// Distinct output field ids, in order of first appearance.
-   static std::vector<int> compute_group_field_ids(const outputs_t &outs)
-   {
-      std::vector<int> ids;
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         const int fid = get<o>(outs).GetFieldId();
-         if (std::find(ids.begin(), ids.end(), fid) == ids.end())
-         {
-            ids.push_back(fid);
-         }
-      });
-      return ids;
-   }
-
 public:
    DerivativeAssembleDiagonal() = delete;
 
@@ -102,7 +81,9 @@ public:
                               qfunc_t /*qfunc*/,
                               inputs_t inputs_in,
                               outputs_t outputs_in,
-                              const Vector &qp_cache_in):
+                              const Vector &qp_cache_in,
+                              std::shared_ptr<const OutputFieldGroups<outputs_t>>
+                              output_groups_in):
       ctx(ctx_in), qp_cache(qp_cache_in), inputs(inputs_in),
       outputs(outputs_in), use_sum_factorization(
          [&]
@@ -159,65 +140,16 @@ public:
       { s += get<o>(outputs_in).size_on_qp; });
       return s;
    }()),
-   group_field_ids(compute_group_field_ids(outputs_in)),
-   out_group(
-      [&]
-   {
-      std::array<int, n_outputs> g {};
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         const int fid = get<o>(outputs_in).GetFieldId();
-         const auto &ids = group_field_ids;
-         g[o] = static_cast<int>(std::find(ids.begin(), ids.end(), fid)
-                                 - ids.begin());
-      });
-      return g;
-   }()),
-   group_fes(
-      [&]
-   {
-      std::vector<const ParFiniteElementSpace *> v(group_field_ids.size(),
-                                                   nullptr);
-      for (size_t g = 0; g < v.size(); g++)
-      {
-         const size_t uf = find_union_field_index(ctx_in, group_field_ids[g]);
-         if (uf >= ctx_in.unionfds.size()) { continue; }
-         const auto *fes = std::get_if<const ParFiniteElementSpace *>(
-                              &ctx_in.unionfds[uf].data);
-         v[g] = fes ? *fes : nullptr;
-      }
-      return v;
-   }()),
-   group_test_vdim(
-      [&]
-   {
-      std::vector<int> v(group_field_ids.size(), 0);
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         v[out_group[o]] = get<o>(outputs_in).vdim;
-      });
-      return v;
-   }()),
-   group_num_test_dof(
-      [&]
-   {
-      std::vector<int> v(group_field_ids.size(), 0);
-      for (size_t g = 0; g < v.size(); g++)
-      {
-         if (group_fes[g] == nullptr) { continue; }
-         v[g] = group_fes[g]->GetFE(0)->GetDof();
-      }
-      return v;
-   }()),
+   output_groups(std::move(output_groups_in)),
    group_num_test_dof_1d(
       [&]
    {
-      std::vector<int> v(group_field_ids.size(), 0);
+      std::vector<int> v(output_groups->field_ids.size(), 0);
       for (size_t g = 0; g < v.size(); g++)
       {
-         if (group_num_test_dof[g] > 0)
+         if (output_groups->num_test_dof[g] > 0)
          {
-            v[g] = tensor_1d_size(group_num_test_dof[g],
+            v[g] = tensor_1d_size(output_groups->num_test_dof[g],
                                   ctx_in.mesh.Dimension());
          }
       }
@@ -232,18 +164,19 @@ public:
       // the row. Identity outputs are quadrature point data and are excluded
       // for the same reason as in DerivativeAssemble: they cannot be
       // contracted, and every output on a field lands in the same block.
-      std::vector<bool> v(group_field_ids.size(), false);
+      std::vector<bool> v(output_groups->field_ids.size(), false);
       if (trial_fes == nullptr) { return v; }
       for (size_t g = 0; g < v.size(); g++)
       {
-         v[g] = (group_fes[g] != nullptr) && (group_fes[g] == trial_fes);
+           v[g] = (output_groups->fes[g] != nullptr) &&
+              (output_groups->fes[g] == trial_fes);
       }
       for_constexpr<n_outputs>([&](auto o)
       {
          using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
          if constexpr (is_identity_fop_v<output_fop_t>)
          {
-            v[out_group[o]] = false;
+            v[output_groups->output_to_group[o]] = false;
          }
       });
       return v;
@@ -288,17 +221,19 @@ public:
                   "LocalQFBackend: no dependent inputs found");
       for_constexpr<n_outputs>([&](auto o)
       {
-         MFEM_ASSERT(out_vdim[o] == group_test_vdim[out_group[o]],
+         MFEM_ASSERT(
+            out_vdim[o] ==
+            output_groups->test_vdim[output_groups->output_to_group[o]],
                      "DerivativeAssembleDiagonal: outputs on one field must "
                      "share its vdim");
       });
 
-      group_Ye_mem.resize(group_field_ids.size());
+      group_Ye_mem.resize(output_groups->field_ids.size());
       for (size_t g = 0; g < group_Ye_mem.size(); g++)
       {
          if (!group_has_diagonal[g]) { continue; }
-         group_Ye_mem[g].SetSize(group_num_test_dof[g] * group_test_vdim[g] *
-                                 ne);
+         group_Ye_mem[g].SetSize(output_groups->num_test_dof[g] *
+                                 output_groups->test_vdim[g] * ne);
          group_Ye_mem[g].UseDevice(true);
       }
    }
@@ -306,9 +241,7 @@ public:
    /// Index of the row block for output field @a field_id, or -1.
    int FindGroup(int field_id) const
    {
-      const auto &ids = group_field_ids;
-      const auto it = std::find(ids.begin(), ids.end(), field_id);
-      return (it == ids.end()) ? -1 : static_cast<int>(it - ids.begin());
+      return output_groups->FindGroup(field_id);
    }
 
    template<typename Backend>
@@ -323,13 +256,13 @@ public:
                    outputs,
                    output_dtq_maps,
                    input_dtq_maps,
-                   out_group,
+                   output_groups->output_to_group,
                    g,
-                   group_test_vdim[g],
+                   output_groups->test_vdim[g],
                    out_op_dim,
                    out_offsets,
                    output_size_on_qp,
-                   group_num_test_dof[g],
+                   output_groups->num_test_dof[g],
                    group_num_test_dof_1d[g],
                    trial_vdim,
                    total_trial_op_dim,

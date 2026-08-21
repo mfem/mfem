@@ -1639,10 +1639,15 @@ void DifferentiableOperator::AddIntegrator(
 
          if (!disable_assemble)
          {
+            const auto output_groups =
+               std::make_shared<const OutputFieldGroups<callback_outputs_t>>(
+                  outputs, callback_ctx.outfds);
+
             // Assemble the derivative into a SparseMatrix
             assemble_sparsematrix_callbacks[callback_key].push_back(
                backend_t::template MakeDerivativeAssemble<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache));
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                  output_groups));
 
             // Assemble the derivative into a HypreParMatrix. This one runs
             // every sparse callback registered under the key, so it is
@@ -1655,14 +1660,12 @@ void DifferentiableOperator::AddIntegrator(
                      assemble_sparsematrix_callbacks[callback_key],
                      callback_ctx));
             }
-         }
 
-         if (!disable_assemble)
-         {
             // Assemble the diagonal of the derivative into an L-vector
             assemble_diagonal_cbs[callback_key].push_back(
                backend_t::template MakeDerivativeAssembleDiagonal<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache));
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                  output_groups));
          }
 
          // Apply the derivative

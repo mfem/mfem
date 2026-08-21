@@ -605,22 +605,9 @@ class DerivativeAssemble
    const std::array<int, n_outputs> out_op_dim;
    const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
-   /// Output field ids, in order of first appearance among @a outputs. Each one
-   /// is a row block of the derivative: see @ref compute_group_field_ids.
-   // e.g. given Outputs<Value<Y>, Gradient<U>, Value<U>>, and outfds = {U, Y}  
-   // we'd get: group_field_ids = {Y, U}, out_group = {0, 0, 1}, 
-   //           group_outfd_idx = {1, 0, 0}, group_fes = {fes_Y, fes_U}
-   const std::vector<int> group_field_ids;
-   /// Output FieldOperator -> row block it contributes to.
-   const std::array<int, n_outputs> out_group;
-   /// Row block -> position in ctx.outfds. This map is required because 
-   /// outfds provided in DifferentiableOperator, and the FieldOperators in
-   // AddIntegrator may not be in the same order.
-   const std::vector<int> group_outfd_idx;
-   /// Row block -> test space, null for spaces without a basis.
-   const std::vector<const ParFiniteElementSpace *> group_fes;
-   const std::vector<int> group_test_vdim;
-   const std::vector<int> group_num_test_dof;
+   /// Output operators grouped by field in first-appearance order. Descriptor
+   /// indices map those local groups back to the ordering of ctx.outfds.
+   const std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups;
    const std::vector<bool> group_assemblable;
    const int trial_vdim;
    const int trial_op_dim;
@@ -636,30 +623,6 @@ class DerivativeAssemble
    /// ElementRestrictions.
    mutable std::vector<Vector> group_Ae_mem;
 
-   /// @brief Distinct output field ids, in order of first appearance.
-   ///
-   /// Outputs sharing a field id form one row block: they are summed into a
-   /// single element matrix and produce a single assembled matrix. This is the
-   /// multi-output case, e.g. Outputs<Value<U>, Gradient<U>> giving mass plus
-   /// diffusion. Outputs on different field ids are separate row blocks of
-   ///
-   ///     dR/dU = [ dR_U/dU ; dR_Y/dU ]
-   ///
-   /// and are assembled into one matrix each.
-   static std::vector<int> compute_group_field_ids(const outputs_t &outs)
-   {
-      std::vector<int> ids;
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         const int fid = get<o>(outs).GetFieldId();
-         if (std::find(ids.begin(), ids.end(), fid) == ids.end())
-         {
-            ids.push_back(fid);
-         }
-      });
-      return ids;
-   }
-
 public:
    DerivativeAssemble() = delete;
 
@@ -667,7 +630,9 @@ public:
                       qfunc_t /*qfunc*/,
                       inputs_t inputs_in,
                       outputs_t outputs_in,
-                      const Vector &qp_cache_in):
+                      const Vector &qp_cache_in,
+                      std::shared_ptr<const OutputFieldGroups<outputs_t>>
+                      output_groups_in):
       ctx(ctx_in), qp_cache(qp_cache_in), inputs(inputs_in),
       outputs(outputs_in), use_sum_factorization(
          [&]
@@ -727,74 +692,7 @@ public:
       for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
-   group_field_ids(compute_group_field_ids(outputs_in)),
-   out_group(
-      [&]
-   {
-      std::array<int, n_outputs> g {};
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         const int fid = get<o>(outputs_in).GetFieldId();
-         const auto &ids = group_field_ids;
-         g[o] = static_cast<int>(std::find(ids.begin(), ids.end(), fid)
-                                 - ids.begin());
-      });
-      return g;
-   }()),
-   group_outfd_idx(
-      [&]
-   {
-      std::vector<int> idx(group_field_ids.size(), -1);
-      for (size_t g = 0; g < group_field_ids.size(); g++)
-      {
-         for (size_t f = 0; f < ctx_in.outfds.size(); f++)
-         {
-            if (static_cast<int>(ctx_in.outfds[f].id) == group_field_ids[g])
-            {
-               idx[g] = static_cast<int>(f);
-               break;
-            }
-         }
-      }
-      return idx;
-   }()),
-   group_fes(
-      [&]
-   {
-      std::vector<const ParFiniteElementSpace *> v(group_field_ids.size(),
-                                                   nullptr);
-      for (size_t g = 0; g < v.size(); g++)
-      {
-         if (group_outfd_idx[g] < 0) { continue; }
-         const auto *fes = std::get_if<const ParFiniteElementSpace *>(
-                              &ctx_in.outfds[group_outfd_idx[g]].data);
-         v[g] = fes ? *fes : nullptr;
-      }
-      return v;
-   }()),
-   group_test_vdim(
-      [&]
-   {
-      // Outputs in a group share a field, hence a vdim; only the operator
-      // dimension differs between them, and that lives in out_op_dim.
-      std::vector<int> v(group_field_ids.size(), 0);
-      for_constexpr<n_outputs>([&](auto o)
-      {
-         v[out_group[o]] = get<o>(outputs_in).vdim;
-      });
-      return v;
-   }()),
-   group_num_test_dof(
-      [&]
-   {
-      std::vector<int> v(group_field_ids.size(), 0);
-      for (size_t g = 0; g < v.size(); g++)
-      {
-         if (group_fes[g] == nullptr) { continue; }
-         v[g] = group_fes[g]->GetFE(0)->GetDof();
-      }
-      return v;
-   }()),
+   output_groups(std::move(output_groups_in)),
    group_assemblable(
       [&]
    {
@@ -804,15 +702,18 @@ public:
       //
       // Identity outputs are also excluded for now as it has no supported mapping from
       // its pointwise quadrature rows into that FE row space.
-      std::vector<bool> v(group_field_ids.size(), false);
+      std::vector<bool> v(output_groups->field_ids.size(), false);
       if (trial_fes == nullptr) { return v; }
-      for (size_t g = 0; g < v.size(); g++) { v[g] = group_fes[g] != nullptr; }
+      for (size_t g = 0; g < v.size(); g++)
+      {
+         v[g] = output_groups->fes[g] != nullptr;
+      }
       for_constexpr<n_outputs>([&](auto o)
       {
          using output_fop_t = std::decay_t<decltype(get<o>(outputs_in))>;
          if constexpr (is_identity_fop_v<output_fop_t>)
          {
-            v[out_group[o]] = false;
+            v[output_groups->output_to_group[o]] = false;
          }
       });
       return v;
@@ -864,12 +765,13 @@ public:
             : 0;
       });
 
-      group_Ae_mem.resize(group_field_ids.size());
+      group_Ae_mem.resize(output_groups->field_ids.size());
       for (size_t g = 0; g < group_Ae_mem.size(); g++)
       {
          if (!group_assemblable[g]) { continue; }
-         const int elem_mat_size = group_num_test_dof[g] * group_test_vdim[g] *
-                                   num_trial_dof * trial_vdim;
+         const int elem_mat_size = output_groups->num_test_dof[g] *
+                                   output_groups->test_vdim[g] * num_trial_dof *
+                                   trial_vdim;
          group_Ae_mem[g].SetSize(elem_mat_size * ne,
                                  Device::GetDeviceMemoryType());
          group_Ae_mem[g].UseDevice(true);
@@ -938,12 +840,12 @@ public:
                                    out_vdim,
                                    out_op_dim,
                                    out_offsets,
-                                   out_group,
+                                   output_groups->output_to_group,
                                    static_cast<int>(g),
                                    output_size_on_qp,
                                    inputs_trial_op_dim,
-                                   group_test_vdim[g],
-                                   group_num_test_dof[g],
+                                   output_groups->test_vdim[g],
+                                   output_groups->num_test_dof[g],
                                    num_trial_dof,
                                    num_trial_dof_1d,
                                    trial_vdim,
@@ -953,7 +855,7 @@ public:
                                    q1d,
                                    dim);
 
-         const ParFiniteElementSpace *test_fes = group_fes[g];
+         const ParFiniteElementSpace *test_fes = output_groups->fes[g];
          const auto *test_restr = dynamic_cast<const ElementRestriction *>(
                                      test_fes->GetElementRestriction(
                                         ElementDofOrdering::LEXICOGRAPHIC));
@@ -961,7 +863,7 @@ public:
                      "DerivativeAssemble SparseMatrix assembly requires "
                      "H1/conforming ElementRestriction spaces");
 
-         const int f = group_outfd_idx[g];
+         const int f = output_groups->descriptor_indices[g];
          MFEM_VERIFY(A[f] == nullptr,
                      "DerivativeAssemble: output field already carries an "
                      "assembled matrix; two integrators contributing to the "

@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace mfem::future
 {
@@ -957,6 +958,77 @@ inline size_t find_infd_index(const IntegratorContext &ctx, int field_id)
    }
    return SIZE_MAX;
 }
+
+/// Metadata for grouping an integrator's output operators by field.
+template<typename outputs_t>
+struct OutputFieldGroups
+{
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+
+   std::vector<int> field_ids;
+   std::array<int, n_outputs> output_to_group {};
+   std::vector<int> descriptor_indices;
+   std::vector<const ParFiniteElementSpace *> fes;
+   std::vector<int> test_vdim;
+   std::vector<int> num_test_dof;
+
+   OutputFieldGroups(const outputs_t &outputs,
+                     const std::vector<FieldDescriptor> &descriptors)
+   {
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         const int field_id = get<o>(outputs).GetFieldId();
+         auto it = std::find(field_ids.begin(), field_ids.end(), field_id);
+         if (it == field_ids.end())
+         {
+            field_ids.push_back(field_id);
+            it = field_ids.end() - 1;
+         }
+         output_to_group[o] = static_cast<int>(it - field_ids.begin());
+      });
+
+      descriptor_indices.assign(field_ids.size(), -1);
+      fes.assign(field_ids.size(), nullptr);
+      test_vdim.assign(field_ids.size(), 0);
+      num_test_dof.assign(field_ids.size(), 0);
+
+      for (size_t group = 0; group < field_ids.size(); group++)
+      {
+         for (size_t field = 0; field < descriptors.size(); field++)
+         {
+            if (static_cast<int>(descriptors[field].id) != field_ids[group])
+            {
+               continue;
+            }
+            descriptor_indices[group] = static_cast<int>(field);
+            const auto *group_fes =
+               std::get_if<const ParFiniteElementSpace *>(&descriptors[field].data);
+            fes[group] = group_fes ? *group_fes : nullptr;
+            break;
+         }
+      }
+
+      for_constexpr<n_outputs>([&](auto o)
+      {
+         test_vdim[output_to_group[o]] = get<o>(outputs).vdim;
+      });
+      for (size_t group = 0; group < field_ids.size(); group++)
+      {
+         if (fes[group] != nullptr)
+         {
+            num_test_dof[group] = fes[group]->GetFE(0)->GetDof();
+         }
+      }
+   }
+
+   int FindGroup(const int field_id) const
+   {
+      const auto it = std::find(field_ids.begin(), field_ids.end(), field_id);
+      return (it == field_ids.end())
+             ? -1
+             : static_cast<int>(it - field_ids.begin());
+   }
+};
 
 template<typename entity_t = Entity::Element>
 inline int compute_element_dof_sz(
