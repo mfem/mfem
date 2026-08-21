@@ -47,8 +47,6 @@ list(APPEND ALL_EXE_SRCS
   ex39.cpp
   ex40.cpp
   ex41.cpp
-  ex42.cpp
-  ex43.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -263,4 +261,9 @@ endif()
 
 if(MFEM_USE_MOONOLITH)
   add_subdirectory(moonolith)
+endif()
+
+# Include the examples/magma directory if MAGMA is enabled.
+if (MFEM_USE_MAGMA)
+  add_subdirectory(magma)
 endif()

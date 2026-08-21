@@ -65,7 +65,7 @@ void PackLower(const DenseMatrix &mat, real_t *packed)
    {
       for (int i = j; i < n; ++i)
       {
-         packed[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
+         packed[TriPackLowerMatrix::LowerIndex(i, j, n)] =
             mat(i, j);
       }
    }
@@ -86,7 +86,8 @@ real_t MaxResidual(const DenseMatrix &A, const Vector &x, const Vector &b)
 
 } // namespace
 
-TEST_CASE("MAGMA packed-lower Cholesky factor+solve", "[MAGMA][TriPackMatrix]")
+TEST_CASE("MAGMA packed-lower Cholesky factor+solve",
+          "[MAGMA][TriPackLowerMatrix]")
 {
    if (!HasGpuDevice())
    {
@@ -108,7 +109,7 @@ TEST_CASE("MAGMA packed-lower Cholesky factor+solve", "[MAGMA][TriPackMatrix]")
    constexpr int batch_size = 17;
    constexpr double tol = 5e-9;
 
-   TriPackMatrix<TriangularPart::LOWER> A_packed(n, batch_size);
+   TriPackLowerMatrix A_packed(n, batch_size);
    A_packed.UseDevice(true);
    A_packed = 0.0;
 
@@ -136,7 +137,7 @@ TEST_CASE("MAGMA packed-lower Cholesky factor+solve", "[MAGMA][TriPackMatrix]")
    b.UseDevice(true);
    x.UseDevice(true);
 
-   TriPackMatrix<TriangularPart::LOWER> L;
+   TriPackLowerMatrix L;
    MagmaPackedLowerCholesky ws;
    ws.Factor(A_packed, L);
 
@@ -157,7 +158,7 @@ TEST_CASE("MAGMA packed-lower Cholesky factor+solve", "[MAGMA][TriPackMatrix]")
 
 #else
 
-TEST_CASE("MAGMA packed-lower tests disabled", "[MAGMA][TriPackMatrix]")
+TEST_CASE("MAGMA packed-lower tests disabled", "[MAGMA][TriPackLowerMatrix]")
 {
    SUCCEED("MFEM was built without MAGMA+GPU support.");
 }

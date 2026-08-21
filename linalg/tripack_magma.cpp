@@ -13,6 +13,8 @@
 
 #ifdef MFEM_USE_MAGMA
 
+#include "../general/forall.hpp"
+
 namespace mfem
 {
 namespace
@@ -54,8 +56,8 @@ MagmaPackedLowerCholesky::MagmaPackedLowerCholesky()
 }
 
 void MagmaPackedLowerCholesky::Factor(
-   const TriPackMatrix<TriangularPart::LOWER> &A,
-   TriPackMatrix<TriangularPart::LOWER> &L)
+   const TriPackLowerMatrix &A,
+   TriPackLowerMatrix &L)
 {
    MFEM_VERIFY(queue != nullptr, "MAGMA queue is not set.");
 
@@ -101,7 +103,7 @@ void MagmaPackedLowerCholesky::Factor(
 }
 
 void MagmaPackedLowerCholesky::SolveInPlace(
-   const TriPackMatrix<TriangularPart::LOWER> &L,
+   const TriPackLowerMatrix &L,
    Vector &rhs_sol) const
 {
    MFEM_VERIFY(queue != nullptr, "MAGMA queue is not set.");
@@ -132,6 +134,129 @@ void MagmaPackedLowerCholesky::SolveInPlace(
 
    MFEM_VERIFY(status == MAGMA_SUCCESS,
                "MAGMA packed Cholesky solve failed.");
+}
+
+MagmaPackedLowerInverse::MagmaPackedLowerInverse()
+{
+   queue = Magma::Queue();
+}
+
+void MagmaPackedLowerInverse::Compute(
+   const TriPackLowerMatrix &A,
+   TriPackLowerMatrix &A_inv)
+{
+   MFEM_VERIFY(queue != nullptr, "MAGMA queue is not set.");
+
+   n = A.GetNumRows();
+   batch_size = A.GetNumMatrices();
+   packed_size = A.GetPackedSize();
+
+   MFEM_VERIFY(n <= 64, "MAGMA packed inverse supports n <= 64.");
+
+   A_inv.SetSize(n, batch_size);
+   A_inv.UseDevice(true);
+
+   if (batch_size == 0) { return; }
+
+   A_inv.Data() = A.Data();
+
+   real_t *inv_data = A_inv.Data().ReadWrite();
+   real_t **d_inv_ptrs =
+      SetPackedPointerArray(inv_ptrs, inv_data, packed_size, batch_size, queue);
+
+   info.SetSize(batch_size, Device::GetDeviceMemoryType());
+   magma_int_t *d_info = info.Write();
+   magma_memset(d_info, 0, batch_size*sizeof(magma_int_t));
+
+   // MAGMA currently expects a valid pointer for device_lwork even when the
+   // required workspace is 0 bytes.
+   int64_t device_lwork[1] = {0};
+   const magma_int_t status =
+      MFEM_TRIPACK_MAGMA_PREFIX(ppinv_batched)(
+         MagmaLower, n, d_inv_ptrs,
+         /*device_work*/ nullptr, device_lwork,
+         d_info, batch_size, queue);
+   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA packed inverse failed.");
+
+   magma_queue_sync(queue);
+
+   const magma_int_t *h_info = info.HostRead();
+   for (int e = 0; e < batch_size; ++e)
+   {
+      MFEM_VERIFY(h_info[e] == 0,
+                  "MAGMA packed inverse failed on matrix " << e << '.');
+   }
+}
+
+void MagmaPackedLowerInverse::ApplyInPlace(
+   const TriPackLowerMatrix &A_inv,
+   Vector &rhs_sol) const
+{
+   MFEM_VERIFY(queue != nullptr, "MAGMA queue is not set.");
+   MFEM_VERIFY(A_inv.GetNumRows() > 0 || A_inv.GetNumMatrices() == 0,
+               "Invalid inverse dimensions.");
+
+   const int apply_n = A_inv.GetNumRows();
+   const int apply_batch = A_inv.GetNumMatrices();
+   const int apply_packed = A_inv.GetPackedSize();
+
+   MFEM_VERIFY(rhs_sol.Size() == apply_batch*apply_n,
+               "Right-hand side has the wrong size.");
+
+   if (apply_batch == 0) { return; }
+
+   // Prefer MAGMA's tuned packed-symmetric matvec when available (n <= 32).
+   // Fall back to an MFEM device kernel for larger n.
+   if (apply_n <= 32)
+   {
+      real_t *inv_data = const_cast<real_t *>(A_inv.Data().Read());
+      real_t **d_inv_ptrs =
+         SetPackedPointerArray(inv_ptrs, inv_data, apply_packed, apply_batch,
+                               queue);
+
+      real_t *rhs_data = rhs_sol.ReadWrite();
+      real_t **d_rhs_ptrs =
+         SetPackedPointerArray(rhs_ptrs, rhs_data, apply_n, apply_batch, queue);
+
+      // Note: MAGMA's symv_packed_inplace_batched_small returns void; it will
+      // report argument errors via magma_xerbla.
+      MFEM_TRIPACK_MAGMA_PREFIX(symv_packed_inplace_batched_small)(
+         MagmaLower, apply_n, d_inv_ptrs, d_rhs_ptrs, apply_n, apply_batch,
+         queue);
+      return;
+   }
+
+   work.SetSize(apply_batch*apply_n);
+   work.UseDevice(true);
+
+   const real_t *AP = A_inv.Data().Read();
+   const real_t *X = rhs_sol.Read();
+   real_t *Y = work.Write();
+
+   mfem::forall(apply_batch*apply_n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int i = idx % apply_n;
+      const int e = idx / apply_n;
+      const real_t *APe = AP + e*apply_packed;
+      const real_t *Xe = X + e*apply_n;
+      real_t sum = 0.0;
+      for (int j = 0; j < apply_n; ++j)
+      {
+         const real_t aij =
+            (i >= j) ?
+            APe[TriPackLowerMatrix::LowerIndex(i, j, apply_n)] :
+            APe[TriPackLowerMatrix::LowerIndex(j, i, apply_n)];
+         sum += aij * Xe[j];
+      }
+      Y[idx] = sum;
+   });
+
+   const real_t *Y_in = work.Read();
+   real_t *X_out = rhs_sol.Write();
+   mfem::forall(apply_batch*apply_n, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      X_out[idx] = Y_in[idx];
+   });
 }
 
 #undef MFEM_TRIPACK_MAGMA_SET_POINTER

@@ -50,11 +50,50 @@ public:
    int GetPackedSize() const { return packed_size; }
 
    /// Factor packed-lower matrices A into L (in-place copy then factor).
-   void Factor(const TriPackMatrix<TriangularPart::LOWER> &A,
-               TriPackMatrix<TriangularPart::LOWER> &L);
+   void Factor(const TriPackLowerMatrix &A,
+               TriPackLowerMatrix &L);
 
    /// Solve A x = b using L from Factor(), overwriting rhs_sol with x.
-   void SolveInPlace(const TriPackMatrix<TriangularPart::LOWER> &L,
+   void SolveInPlace(const TriPackLowerMatrix &L,
+                     Vector &rhs_sol) const;
+};
+
+/// Workspace + operations for MAGMA packed-lower batched inverse and apply.
+///
+/// This class computes the inverse of a batch of SPD matrices stored in packed
+/// lower-triangular format (LAPACK/MAGMA column-major packed storage) using
+/// MAGMA's `ppinv_batched`. The resulting packed inverse can be applied to a
+/// batch of vectors using MAGMA's packed-symmetric batched matvec when
+/// available, falling back to an MFEM device kernel for larger sizes.
+class MagmaPackedLowerInverse
+{
+private:
+   int n = 0;
+   int batch_size = 0;
+   int packed_size = 0;
+
+   mutable Array<real_t *> inv_ptrs;
+   mutable Array<real_t *> rhs_ptrs;
+   mutable Vector work;
+   Array<magma_int_t> info;
+
+   magma_queue_t queue = nullptr;
+
+public:
+   MagmaPackedLowerInverse();
+
+   void SetQueue(magma_queue_t q) { queue = q; }
+
+   int GetNumRows() const { return n; }
+   int GetNumMatrices() const { return batch_size; }
+   int GetPackedSize() const { return packed_size; }
+
+   /// Compute packed inverse of A into A_inv (in-place copy then invert).
+   void Compute(const TriPackLowerMatrix &A,
+                TriPackLowerMatrix &A_inv);
+
+   /// Apply packed inverse to rhs_sol, overwriting rhs_sol with the result.
+   void ApplyInPlace(const TriPackLowerMatrix &A_inv,
                      Vector &rhs_sol) const;
 };
 
@@ -64,19 +103,35 @@ namespace magma
 {
 
 inline void ComputeCholeskyLower(
-   const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
-   TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+   const TriPackLowerMatrix &packed_lower,
+   TriPackLowerMatrix &lower_factor,
    MagmaPackedLowerCholesky &ws)
 {
    ws.Factor(packed_lower, lower_factor);
 }
 
 inline void SolveCholeskyLowerInPlace(
-   const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+   const TriPackLowerMatrix &lower_factor,
    Vector &rhs_sol,
    MagmaPackedLowerCholesky &ws)
 {
    ws.SolveInPlace(lower_factor, rhs_sol);
+}
+
+inline void ComputeInverseLower(
+   const TriPackLowerMatrix &packed_lower,
+   TriPackLowerMatrix &lower_inverse,
+   MagmaPackedLowerInverse &ws)
+{
+   ws.Compute(packed_lower, lower_inverse);
+}
+
+inline void ApplyInverseLowerInPlace(
+   const TriPackLowerMatrix &lower_inverse,
+   Vector &rhs_sol,
+   MagmaPackedLowerInverse &ws)
+{
+   ws.ApplyInPlace(lower_inverse, rhs_sol);
 }
 
 } // namespace magma

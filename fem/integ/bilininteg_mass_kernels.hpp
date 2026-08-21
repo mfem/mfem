@@ -1402,14 +1402,14 @@ inline void EAMassAssemble3D(const int NE,
    });
 }
 
-template <bool UPPER, int T_D1D = 0, int T_Q1D = 0>
-inline void EAMassAssembleTriangular1D(const int NE,
-                                       const Array<real_t> &basis,
-                                       const Vector &padata,
-                                       Vector &eadata,
-                                       const bool add,
-                                       const int d1d = 0,
-                                       const int q1d = 0)
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void EAMassAssembleTriangular1DLower(const int NE,
+                                            const Array<real_t> &basis,
+                                            const Vector &padata,
+                                            Vector &eadata,
+                                            const bool add,
+                                            const int d1d = 0,
+                                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1418,31 +1418,21 @@ inline void EAMassAssembleTriangular1D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackMatrix<TriangularPart::UPPER>::PackedSize(D1D), NE);
+                    TriPackLowerMatrix::PackedSize(D1D), NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       for (int i1 = 0; i1 < D1D; ++i1)
       {
-         const int j_begin = UPPER ? i1 : 0;
-         const int j_end = UPPER ? D1D : i1 + 1;
-         for (int j1 = j_begin; j1 < j_end; ++j1)
+         for (int j1 = 0; j1 <= i1; ++j1)
          {
             real_t val = 0.0;
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val += B(k1, i1) * B(k1, j1) * D(k1, e);
             }
-            int idx = 0;
-            if constexpr (UPPER)
-            {
-               idx = TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i1, j1, D1D);
-            }
-            else
-            {
-               idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i1, j1, D1D);
-            }
+            const int idx = TriPackLowerMatrix::LowerIndex(i1, j1, D1D);
             if (add)
             {
                M(idx, e) += val;
@@ -1456,24 +1446,14 @@ inline void EAMassAssembleTriangular1D(const int NE,
    });
 }
 
-template <int T_D1D, int T_Q1D, int T_COLB, int T_NT>
-inline void EAMassAssembleTriangular2D_UpperBlockCols(
-   const int NE,
-   const Array<real_t> &basis,
-   const Vector &padata,
-   Vector &eadata,
-   const bool add,
-   const int d1d = 0,
-   const int q1d = 0);
-
-template <bool UPPER, int T_D1D = 0, int T_Q1D = 0>
-inline void EAMassAssembleTriangular2D(const int NE,
-                                       const Array<real_t> &basis,
-                                       const Vector &padata,
-                                       Vector &eadata,
-                                       const bool add,
-                                       const int d1d = 0,
-                                       const int q1d = 0)
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void EAMassAssembleTriangular2DLower(const int NE,
+                                            const Array<real_t> &basis,
+                                            const Vector &padata,
+                                            Vector &eadata,
+                                            const bool add,
+                                            const int d1d = 0,
+                                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -1483,16 +1463,7 @@ inline void EAMassAssembleTriangular2D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackMatrix<TriangularPart::UPPER>::PackedSize(ndofs), NE);
-
-   if constexpr (UPPER && T_D1D > 0 && T_Q1D > 0)
-   {
-      if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
-      {
-         return EAMassAssembleTriangular2D_UpperBlockCols<T_D1D, T_Q1D, 4, 32>(
-                   NE, basis, padata, eadata, add, d1d, q1d);
-      }
-   }
+                    TriPackLowerMatrix::PackedSize(ndofs), NE);
 
    mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -1528,7 +1499,7 @@ inline void EAMassAssembleTriangular2D(const int NE,
                for (int j1 = 0; j1 < D1D; ++j1)
                {
                   const int col = j1 + D1D*j2;
-                  if ((UPPER && row > col) || (!UPPER && row < col))
+                  if (row < col)
                   {
                      continue;
                   }
@@ -1542,15 +1513,7 @@ inline void EAMassAssembleTriangular2D(const int NE,
                                * s_D[k1][k2];
                      }
                   }
-                  int idx = 0;
-                  if constexpr (UPPER)
-                  {
-                     idx = TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ndofs);
-                  }
-                  else
-                  {
-                     idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ndofs);
-                  }
+                  const int idx = TriPackLowerMatrix::LowerIndex(row, col, ndofs);
                   if (add)
                   {
                      M(idx, e) += val;
@@ -1566,357 +1529,6 @@ inline void EAMassAssembleTriangular2D(const int NE,
    });
 }
 
-template <int T_D1D, int T_Q1D, int T_COLB = 4, int T_NT = 32>
-inline void EAMassAssembleTriangular2D_UpperBlockCols(
-   const int NE,
-   const Array<real_t> &basis,
-   const Vector &padata,
-   Vector &eadata,
-   const bool add,
-   const int,
-   const int)
-{
-   static_assert(T_D1D > 0 && T_Q1D > 0, "");
-   // Specialized upper-packed quad mass assembly using block-column
-   // sum-factorization with MFEM's packed upper indexing.
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int COLB = T_COLB;
-   constexpr int NT = T_NT;
-   constexpr int ND = D1D*D1D;
-   constexpr int NQ = Q1D*Q1D;
-
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, Q1D, NE);
-   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackMatrix<TriangularPart::UPPER>::PackedSize(ND), NE);
-
-   mfem::forall_3D_grid(NE, NT, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const int tid = MFEM_THREAD_ID(x);
-
-      MFEM_SHARED real_t s_B[Q1D][D1D];
-      MFEM_SHARED real_t uW[NQ*COLB];
-      MFEM_SHARED real_t t1[D1D*Q1D*COLB];
-
-      for (int qb = tid; qb < Q1D*D1D; qb += NT)
-      {
-         const int q = qb % Q1D;
-         const int d = qb / Q1D;
-         s_B[q][d] = B(q, d);
-      }
-      MFEM_SYNC_THREAD;
-
-      for (int j0 = 0; j0 < ND; j0 += COLB)
-      {
-         const int b = (j0 + COLB <= ND) ? COLB : (ND - j0);
-         int j1[COLB], j2[COLB];
-         for (int c = 0; c < COLB; ++c)
-         {
-            if (c < b)
-            {
-               const int jj = j0 + c;
-               j1[c] = jj % D1D;
-               j2[c] = jj / D1D;
-            }
-         }
-
-         for (int q = tid; q < NQ; q += NT)
-         {
-            const int q1 = q % Q1D;
-            const int q2 = q / Q1D;
-            const real_t Dq = D(q1, q2, e);
-
-            for (int c = 0; c < b; ++c)
-            {
-               uW[q + NQ*c] = s_B[q1][j1[c]] * s_B[q2][j2[c]] * Dq;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         constexpr int T1S = D1D*Q1D;
-         for (int a = tid; a < T1S; a += NT)
-         {
-            const int i1 = a % D1D;
-            const int q2 = a / D1D;
-
-            for (int c = 0; c < b; ++c)
-            {
-               real_t sum = 0.0;
-               for (int q1 = 0; q1 < Q1D; ++q1)
-               {
-                  const int q = q1 + Q1D*q2;
-                  sum += s_B[q1][i1] * uW[q + NQ*c];
-               }
-               t1[a + T1S*c] = sum;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         for (int c = 0; c < b; ++c)
-         {
-            const int col = j0 + c;
-            const int jj1 = j1[c];
-            const int jj2 = j2[c];
-
-            for (int i2 = 0; i2 < jj2; ++i2)
-            {
-               for (int i1 = tid; i1 < D1D; i1 += NT)
-               {
-                  real_t sum = 0.0;
-                  for (int q2 = 0; q2 < Q1D; ++q2)
-                  {
-                     const int a1 = i1 + D1D*q2;
-                     sum += s_B[q2][i2] * t1[a1 + T1S*c];
-                  }
-                  const int row = i1 + D1D*i2;
-                  const int idx =
-                     TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ND);
-                  if (add) { M(idx, e) += sum; }
-                  else { M(idx, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-
-            {
-               const int i2 = jj2;
-               for (int i1 = tid; i1 <= jj1; i1 += NT)
-               {
-                  real_t sum = 0.0;
-                  for (int q2 = 0; q2 < Q1D; ++q2)
-                  {
-                     const int a1 = i1 + D1D*q2;
-                     sum += s_B[q2][i2] * t1[a1 + T1S*c];
-                  }
-                  const int row = i1 + D1D*i2;
-                  const int idx =
-                     TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ND);
-                  if (add) { M(idx, e) += sum; }
-                  else { M(idx, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      }
-   });
-}
-
-template <int T_D1D, int T_Q1D, int T_COLB, int T_NT = 32>
-inline void EAMassAssembleTriangular3D_UpperBlockCols_Impl(
-   const int NE,
-   const Array<real_t> &basis,
-   const Vector &padata,
-   Vector &eadata,
-   const bool add,
-   const int,
-   const int)
-{
-   static_assert(T_D1D > 0 && T_Q1D > 0, "");
-   // Specialized upper-packed hex mass assembly using block-column
-   // sum-factorization. This matches the structure of the standalone CUDA
-   // kernel, but stores entries with MFEM's packed upper indexing.
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int COLB = T_COLB;
-   constexpr int NT = T_NT;
-   constexpr int ND = D1D*D1D*D1D;
-   constexpr int NQ = Q1D*Q1D*Q1D;
-
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
-   auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackMatrix<TriangularPart::UPPER>::PackedSize(ND), NE);
-
-   mfem::forall_3D_grid(NE, NT, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const int tid = MFEM_THREAD_ID(x);
-
-      MFEM_SHARED real_t s_B[Q1D][D1D];
-      MFEM_SHARED real_t uW[NQ*COLB];
-      MFEM_SHARED real_t t1[D1D*Q1D*Q1D*COLB];
-      MFEM_SHARED real_t t2[D1D*D1D*Q1D*COLB];
-
-      for (int qb = tid; qb < Q1D*D1D; qb += NT)
-      {
-         const int q = qb % Q1D;
-         const int d = qb / Q1D;
-         s_B[q][d] = B(q, d);
-      }
-      MFEM_SYNC_THREAD;
-
-      for (int j0 = 0; j0 < ND; j0 += COLB)
-      {
-         const int b = (j0 + COLB <= ND) ? COLB : (ND - j0);
-         int j1[COLB], j2[COLB], j3[COLB];
-         for (int c = 0; c < COLB; ++c)
-         {
-            if (c < b)
-            {
-               const int jj = j0 + c;
-               j1[c] = jj % D1D;
-               const int tmp = jj / D1D;
-               j2[c] = tmp % D1D;
-               j3[c] = tmp / D1D;
-            }
-         }
-
-         for (int q = tid; q < NQ; q += NT)
-         {
-            const int q1 = q % Q1D;
-            const int tmp = q / Q1D;
-            const int q2 = tmp % Q1D;
-            const int q3 = tmp / Q1D;
-            const real_t Dq = D(q1, q2, q3, e);
-
-            for (int c = 0; c < b; ++c)
-            {
-               uW[q + NQ*c] = s_B[q1][j1[c]] * s_B[q2][j2[c]]
-                              * s_B[q3][j3[c]] * Dq;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         constexpr int T1S = D1D*Q1D*Q1D;
-         for (int a = tid; a < T1S; a += NT)
-         {
-            const int i1 = a % D1D;
-            const int tmp = a / D1D;
-            const int q2 = tmp % Q1D;
-            const int q3 = tmp / Q1D;
-
-            for (int c = 0; c < b; ++c)
-            {
-               real_t sum = 0.0;
-               for (int q1 = 0; q1 < Q1D; ++q1)
-               {
-                  const int q = q1 + Q1D*(q2 + Q1D*q3);
-                  sum += s_B[q1][i1] * uW[q + NQ*c];
-               }
-               t1[a + T1S*c] = sum;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         constexpr int T2S = D1D*D1D*Q1D;
-         for (int a = tid; a < T2S; a += NT)
-         {
-            const int i1 = a % D1D;
-            const int tmp = a / D1D;
-            const int i2 = tmp % D1D;
-            const int q3 = tmp / D1D;
-
-            for (int c = 0; c < b; ++c)
-            {
-               real_t sum = 0.0;
-               for (int q2 = 0; q2 < Q1D; ++q2)
-               {
-                  const int a1 = i1 + D1D*(q2 + Q1D*q3);
-                  sum += s_B[q2][i2] * t1[a1 + T1S*c];
-               }
-               t2[a + T2S*c] = sum;
-            }
-         }
-         MFEM_SYNC_THREAD;
-
-         for (int c = 0; c < b; ++c)
-         {
-            const int col = j0 + c;
-            const int jj1 = j1[c];
-            const int jj2 = j2[c];
-            const int jj3 = j3[c];
-
-            for (int i3 = 0; i3 < jj3; ++i3)
-            {
-               for (int a = tid; a < D1D*D1D; a += NT)
-               {
-                  const int i1 = a % D1D;
-                  const int i2 = a / D1D;
-                  real_t sum = 0.0;
-                  for (int q3 = 0; q3 < Q1D; ++q3)
-                  {
-                     const int a2 = i1 + D1D*(i2 + D1D*q3);
-                     sum += s_B[q3][i3] * t2[a2 + T2S*c];
-                  }
-                  const int row = i1 + D1D*(i2 + D1D*i3);
-                  const int idx =
-                     TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ND);
-                  if (add) { M(idx, e) += sum; }
-                  else { M(idx, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-
-            for (int i2 = 0; i2 < jj2; ++i2)
-            {
-               const int i3 = jj3;
-               for (int i1 = tid; i1 < D1D; i1 += NT)
-               {
-                  real_t sum = 0.0;
-                  for (int q3 = 0; q3 < Q1D; ++q3)
-                  {
-                     const int a2 = i1 + D1D*(i2 + D1D*q3);
-                     sum += s_B[q3][i3] * t2[a2 + T2S*c];
-                  }
-                  const int row = i1 + D1D*(i2 + D1D*i3);
-                  const int idx =
-                     TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ND);
-                  if (add) { M(idx, e) += sum; }
-                  else { M(idx, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-
-            {
-               const int i3 = jj3;
-               const int i2 = jj2;
-               for (int i1 = tid; i1 <= jj1; i1 += NT)
-               {
-                  real_t sum = 0.0;
-                  for (int q3 = 0; q3 < Q1D; ++q3)
-                  {
-                     const int a2 = i1 + D1D*(i2 + D1D*q3);
-                     sum += s_B[q3][i3] * t2[a2 + T2S*c];
-                  }
-                  const int row = i1 + D1D*(i2 + D1D*i3);
-                  const int idx =
-                     TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ND);
-                  if (add) { M(idx, e) += sum; }
-                  else { M(idx, e) = sum; }
-               }
-               MFEM_SYNC_THREAD;
-            }
-         }
-      }
-   });
-}
-
-template <int T_D1D, int T_Q1D, int T_NT = 32>
-inline void EAMassAssembleTriangular3D_UpperBlockCols(
-   const int NE,
-   const Array<real_t> &basis,
-   const Vector &padata,
-   Vector &eadata,
-   const bool add,
-   const int d1d = 0,
-   const int q1d = 0)
-{
-   static_assert(T_D1D > 0 && T_Q1D > 0, "");
-
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int NQ = Q1D*Q1D*Q1D;
-   constexpr int SharedBytesPerCol =
-      sizeof(real_t)*(NQ + D1D*Q1D*Q1D + D1D*D1D*Q1D);
-   constexpr int SharedBytesBase = sizeof(real_t)*(Q1D*D1D);
-   constexpr int MaxSharedBytes = 48*1024;
-   constexpr int COLB =
-      (SharedBytesBase + 4*SharedBytesPerCol <= MaxSharedBytes) ? 4 :
-      (SharedBytesBase + 2*SharedBytesPerCol <= MaxSharedBytes) ? 2 : 1;
-
-   return EAMassAssembleTriangular3D_UpperBlockCols_Impl<T_D1D, T_Q1D, COLB, T_NT>(
-             NE, basis, padata, eadata, add, d1d, q1d);
-}
-
 template <int T_D1D, int T_Q1D, int T_COLB, int T_NT = 32>
 inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
    const int NE,
@@ -1928,8 +1540,8 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
    const int)
 {
    static_assert(T_D1D > 0 && T_Q1D > 0, "");
-   // Specialized lower-packed hex mass assembly using the same block-column
-   // sum-factorization as the upper-packed path.
+   // Specialized packed lower-triangular hex mass assembly using block-column
+   // sum-factorization.
    constexpr int D1D = T_D1D;
    constexpr int Q1D = T_Q1D;
    constexpr int COLB = T_COLB;
@@ -1940,7 +1552,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackMatrix<TriangularPart::LOWER>::PackedSize(ND), NE);
+                    TriPackLowerMatrix::PackedSize(ND), NE);
 
    mfem::forall_3D_grid(NE, NT, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -2054,7 +1666,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
                   }
                   const int row = i1 + D1D*(i2 + D1D*i3);
                   const int idx =
-                     TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ND);
+                     TriPackLowerMatrix::LowerIndex(row, col, ND);
                   if (add) { M(idx, e) += sum; }
                   else { M(idx, e) = sum; }
                }
@@ -2074,7 +1686,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
                   }
                   const int row = i1 + D1D*(i2 + D1D*i3);
                   const int idx =
-                     TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ND);
+                     TriPackLowerMatrix::LowerIndex(row, col, ND);
                   if (add) { M(idx, e) += sum; }
                   else { M(idx, e) = sum; }
                }
@@ -2094,7 +1706,7 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
                   }
                   const int row = i1 + D1D*(i2 + D1D*i3);
                   const int idx =
-                     TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ND);
+                     TriPackLowerMatrix::LowerIndex(row, col, ND);
                   if (add) { M(idx, e) += sum; }
                   else { M(idx, e) = sum; }
                }
@@ -2132,14 +1744,14 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols(
              NE, basis, padata, eadata, add, d1d, q1d);
 }
 
-template <bool UPPER, int T_D1D = 0, int T_Q1D = 0>
-inline void EAMassAssembleTriangular3D(const int NE,
-                                       const Array<real_t> &basis,
-                                       const Vector &padata,
-                                       Vector &eadata,
-                                       const bool add,
-                                       const int d1d = 0,
-                                       const int q1d = 0)
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void EAMassAssembleTriangular3DLower(const int NE,
+                                            const Array<real_t> &basis,
+                                            const Vector &padata,
+                                            Vector &eadata,
+                                            const bool add,
+                                            const int d1d = 0,
+                                            const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -2149,22 +1761,14 @@ inline void EAMassAssembleTriangular3D(const int NE,
    auto B = Reshape(basis.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackMatrix<TriangularPart::UPPER>::PackedSize(ndofs), NE);
+                    TriPackLowerMatrix::PackedSize(ndofs), NE);
 
    if constexpr (T_D1D > 0 && T_Q1D > 0)
    {
       // Use the sum-factorized packed paths when the tensor dimensions are
       // known at compile time. The generic path below handles dynamic sizes.
-      if constexpr (UPPER)
-      {
-         return EAMassAssembleTriangular3D_UpperBlockCols<T_D1D, T_Q1D>(
-                   NE, basis, padata, eadata, add, d1d, q1d);
-      }
-      else
-      {
-         return EAMassAssembleTriangular3D_LowerBlockCols<T_D1D, T_Q1D>(
-                   NE, basis, padata, eadata, add, d1d, q1d);
-      }
+      return EAMassAssembleTriangular3D_LowerBlockCols<T_D1D, T_Q1D>(
+                NE, basis, padata, eadata, add, d1d, q1d);
    }
    mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
    {
@@ -2236,7 +1840,7 @@ inline void EAMassAssembleTriangular3D(const int NE,
                      for (int j1 = 0; j1 < D1D; ++j1)
                      {
                         const int col = j1 + D1D*(j2 + D1D*j3);
-                        if ((UPPER && row > col) || (!UPPER && row < col))
+                        if (row < col)
                         {
                            continue;
                         }
@@ -2254,15 +1858,7 @@ inline void EAMassAssembleTriangular3D(const int NE,
                               }
                            }
                         }
-                        int idx = 0;
-                        if constexpr (UPPER)
-                        {
-                           idx = TriPackMatrix<TriangularPart::UPPER>::UpperIndex(row, col, ndofs);
-                        }
-                        else
-                        {
-                           idx = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(row, col, ndofs);
-                        }
+                        const int idx = TriPackLowerMatrix::LowerIndex(row, col, ndofs);
                         if (add)
                         {
                            M(idx, e) += val;

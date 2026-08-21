@@ -18,17 +18,9 @@
 namespace mfem
 {
 
-/// Select the triangular portion stored in packed matrices.
-enum class TriangularPart
-{
-   LOWER,
-   UPPER
-};
-
-/// Packed storage for a batch of triangular matrices of fixed size.
-/// The packed layout follows the LAPACK/MAGMA column-major convention.
-template <TriangularPart PART>
-class TriPackMatrix
+/// Packed storage for a batch of symmetric matrices of fixed size.
+/// Storage is packed lower-triangular in LAPACK/MAGMA column-major convention.
+class TriPackLowerMatrix
 {
 private:
    Vector data;
@@ -36,11 +28,9 @@ private:
    int nmats = 0;
 
 public:
-   static constexpr TriangularPart Part = PART;
+   TriPackLowerMatrix() = default;
 
-   TriPackMatrix() = default;
-
-   TriPackMatrix(int n, int batch_size)
+   TriPackLowerMatrix(int n, int batch_size)
    {
       SetSize(n, batch_size);
    }
@@ -50,23 +40,16 @@ public:
       return n*(n + 1)/2;
    }
 
-   MFEM_HOST_DEVICE static int LowerIndex(const int i, const int j,
-                                          const int n)
+   /// Packed index for (i,j) in the lower triangle (requires i >= j).
+   MFEM_HOST_DEVICE static int LowerIndex(const int i, const int j, const int n)
    {
       return j*(2*n + 1 - j)/2 + (i - j);
    }
 
-   MFEM_HOST_DEVICE static int UpperIndex(const int i, const int j,
-                                          const int n)
+   /// Packed index for (i,j) in symmetric storage (maps to lower triangle).
+   MFEM_HOST_DEVICE static int Index(const int i, const int j, const int n)
    {
-      return j*(j + 1)/2 + i;
-   }
-
-   MFEM_HOST_DEVICE static int Index(const int i, const int j, const int n,
-                                     const TriangularPart p)
-   {
-      return (p == TriangularPart::LOWER) ?
-             LowerIndex(i, j, n) : UpperIndex(i, j, n);
+      return (i >= j) ? LowerIndex(i, j, n) : LowerIndex(j, i, n);
    }
 
    void SetSize(const int n, const int batch_size)
@@ -75,8 +58,6 @@ public:
       nmats = batch_size;
       data.SetSize(batch_size*PackedSize(n));
    }
-
-   static constexpr TriangularPart GetTriangularPart() { return PART; }
 
    int GetNumRows() const { return nrows; }
 
@@ -88,7 +69,7 @@ public:
 
    void UseDevice(bool use_dev) { data.UseDevice(use_dev); }
 
-   TriPackMatrix &operator=(real_t value)
+   TriPackLowerMatrix &operator=(real_t value)
    {
       data = value;
       return *this;
@@ -101,65 +82,36 @@ public:
 namespace tripack
 {
 
-template <TriangularPart PART>
-bool CompareWithFull(const TriPackMatrix<PART> &packed, const Vector &full,
+bool CompareWithFull(const TriPackLowerMatrix &packed, const Vector &full,
                      real_t tol = 0.0);
 
-template <TriangularPart PART>
-void Mult(const TriPackMatrix<PART> &packed, const Vector &x, Vector &y);
+void Mult(const TriPackLowerMatrix &packed, const Vector &x, Vector &y);
 
-void MultUUt(const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-             const Vector &x, Vector &y);
+void Lump(const TriPackLowerMatrix &packed, Vector &lump);
 
-template <TriangularPart PART>
-void Lump(const TriPackMatrix<PART> &packed, Vector &lump);
+void ComputeCholeskyLower(const TriPackLowerMatrix &packed_lower,
+                          TriPackLowerMatrix &lower_factor);
 
-   void ComputeJacobiScaledCholeskyUpper(
-      const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-      TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                                      bool do_scale = true);
+void SolveLower(const TriPackLowerMatrix &lower_factor,
+                const Vector &rhs,
+                Vector &sol);
 
-   void ComputeCholeskyLower(
-      const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
-      TriPackMatrix<TriangularPart::LOWER> &lower_factor);
-
-   void SolveUpper(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                   const Vector &rhs,
-                   Vector &sol);
-
-void SolveUpperTranspose(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
+void SolveLowerTranspose(const TriPackLowerMatrix &lower_factor,
                          const Vector &rhs,
                          Vector &sol);
 
-   void SolveCholesky(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                   const Vector &rhs,
-                   Vector &sol);
+void SolveCholeskyLower(const TriPackLowerMatrix &lower_factor,
+                        const Vector &rhs,
+                        Vector &sol);
 
-   void SolveLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
-                   const Vector &rhs,
-                   Vector &sol);
-
-   void SolveLowerTranspose(
-      const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
-      const Vector &rhs,
-      Vector &sol);
-
-   void SolveCholeskyLower(
-      const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
-      const Vector &rhs,
-      Vector &sol);
-
-   void ComputeJacobiScaledCholeskyUpperInverse(
-                                             const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-                                             TriPackMatrix<TriangularPart::UPPER> &upper_inverse,
-                                             bool do_scale = true,
-                                             bool do_refine = true);
-
-   void ComputeJacobiScaledCholeskyLowerInverse(
-                                             const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
-                                             TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
-                                             bool do_scale = true,
-                                             bool do_refine = true);
+/// Compute the inverse of the Cholesky lower factor for a batch of SPD matrices.
+///
+/// Given packed lower-triangular matrices A (SPD), this routine computes the
+/// packed lower-triangular matrices L^{-1}, where A = L L^T.
+///
+/// This is intended for fast inverse applications using (L^{-1})^T (L^{-1}).
+void ComputeCholeskyLowerInverse(const TriPackLowerMatrix &packed_lower,
+                                 TriPackLowerMatrix &lower_inverse);
 
 } // namespace tripack
 

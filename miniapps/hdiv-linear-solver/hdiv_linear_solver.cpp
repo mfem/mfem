@@ -55,7 +55,7 @@ private:
    Coefficient &coeff;
    const IntegrationRule &ir;
 
-   TriPackMatrix<TriangularPart::LOWER> L_factor;
+   TriPackLowerMatrix L_factor;
    mutable MagmaPackedLowerCholesky ws;
 
 public:
@@ -129,23 +129,23 @@ public:
       Update();
    }
 
-	   void Update()
-	   {
-	      MassIntegrator mass(coeff, &ir);
+   void Update()
+   {
+      MassIntegrator mass(coeff, &ir);
 
-	      n = fes.GetTypicalFE()->GetDof();
-	      batch_size = fes.GetMesh()->GetNE();
+      n = fes.GetTypicalFE()->GetDof();
+      batch_size = fes.GetMesh()->GetNE();
 
-	      // MassIntegrator::AssembleEA expects the output Vector to be sized by
-	      // the caller (unlike AssembleEATriangular which sizes its output).
-	      A_factor.SetSize(batch_size*n*n, Device::GetDeviceMemoryType());
-	      A_factor.UseDevice(true);
-	      mass.AssembleEA(fes, A_factor, false);
+      // MassIntegrator::AssembleEA expects the output Vector to be sized by
+      // the caller (unlike AssembleEATriangular which sizes its output).
+      A_factor.SetSize(batch_size*n*n, Device::GetDeviceMemoryType());
+      A_factor.UseDevice(true);
+      mass.AssembleEA(fes, A_factor, false);
 
-	      MFEM_VERIFY(A_factor.Size() == batch_size*n*n,
-	                  "Unexpected element matrix storage size.");
+      MFEM_VERIFY(A_factor.Size() == batch_size*n*n,
+                  "Unexpected element matrix storage size.");
 
-	      if (batch_size == 0) { return; }
+      if (batch_size == 0) { return; }
 
       real_t *A_data = A_factor.ReadWrite();
       real_t **dA =

@@ -21,50 +21,11 @@ namespace mfem
 namespace
 {
 
-template <TriangularPart PART>
 MFEM_HOST_DEVICE inline int SymmetricIndex(const int i,
                                            const int j,
                                            const int n)
 {
-   if constexpr (PART == TriangularPart::UPPER)
-   {
-      return (i <= j) ? TriPackMatrix<PART>::UpperIndex(i, j, n)
-                      : TriPackMatrix<PART>::UpperIndex(j, i, n);
-   }
-   return (i >= j) ? TriPackMatrix<PART>::LowerIndex(i, j, n)
-                   : TriPackMatrix<PART>::LowerIndex(j, i, n);
-}
-
-MFEM_HOST_DEVICE inline int UpperRowFromPackedIndex(const int t, const int n)
-{
-   int col = 0;
-   while (col + 1 < n &&
-          TriPackMatrix<TriangularPart::UPPER>::UpperIndex(col, col, n) < t)
-   {
-      ++col;
-   }
-   const int col_start = col*(col + 1)/2;
-   return t - col_start;
-}
-
-MFEM_HOST_DEVICE inline int UpperColFromPackedIndex(const int t, const int n)
-{
-   int col = 0;
-   while (col + 1 < n &&
-          TriPackMatrix<TriangularPart::UPPER>::UpperIndex(col, col, n) < t)
-   {
-      ++col;
-   }
-   return col;
-}
-
-template <TriangularPart PART>
-MFEM_HOST_DEVICE inline real_t TriPackGet(const real_t *data,
-                                          const int i,
-                                          const int j,
-                                          const int n)
-{
-   return data[SymmetricIndex<PART>(i, j, n)];
+   return TriPackLowerMatrix::Index(i, j, n);
 }
 
 MFEM_HOST_DEVICE inline bool TriPackIsFinite(const real_t val)
@@ -76,169 +37,53 @@ MFEM_HOST_DEVICE inline bool TriPackIsFinite(const real_t val)
 #endif
 }
 
-void ComputeScaledCholeskyFactors(
-                                  const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-                                  Vector &scaled_factor,
-                                  Vector &scaling,
-                                  bool do_scale)
-{
-   const int n = packed_upper.GetNumRows();
-   const int batch_size = packed_upper.GetNumMatrices();
-   const int packed_size = packed_upper.GetPackedSize();
-   const real_t nan = std::numeric_limits<real_t>::quiet_NaN();
-
-   scaled_factor.SetSize(batch_size*packed_size);
-   scaling.SetSize(batch_size*n);
-   scaled_factor.UseDevice(true);
-   scaling.UseDevice(true);
-
-   const real_t *A = packed_upper.Data().Read();
-   real_t *R = scaled_factor.Write();
-   real_t *D = scaling.Write();
-
-   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const int eoff = e*packed_size;
-      const int doff = e*n;
-      const real_t eps = std::numeric_limits<real_t>::epsilon();
-      bool bad = false;
-
-      for (int i = 0; i < n; ++i)
-      {
-         const real_t Aii = A[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, i, n)];
-         if (!(Aii > 0.0) || !TriPackIsFinite(Aii))
-         {
-            bad = true;
-            break;
-         }
-         D[doff + i] = do_scale ? 1.0/sqrt(Aii) : 1.0;
-      }
-
-      if (bad)
-      {
-         for (int i = 0; i < n; ++i) { D[doff + i] = nan; }
-         for (int t = 0; t < packed_size; ++t) { R[eoff + t] = nan; }
-         return;
-      }
-
-      for (int j = 0; j < n; ++j)
-      {
-         const real_t dj = D[doff + j];
-         for (int i = 0; i <= j; ++i)
-         {
-            const int t = TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n);
-            R[eoff + t] = A[eoff + t] * D[doff + i] * dj;
-         }
-      }
-
-      for (int k = 0; k < n; ++k)
-      {
-         const int kk = eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(k, k, n);
-         const real_t Akk0 = R[kk];
-         real_t Akk = Akk0;
-
-         for (int s = 0; s < k; ++s)
-         {
-            const real_t Usk = R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(s, k, n)];
-            Akk -= Usk*Usk;
-         }
-
-         const real_t tol = 64.0*eps*fabs(Akk0);
-         if (!TriPackIsFinite(Akk) || Akk < -tol)
-         {
-            bad = true;
-            break;
-         }
-
-         if (Akk < 0.0) { Akk = 0.0; }
-         R[kk] = sqrt(Akk);
-
-         const real_t Ukk = R[kk];
-         for (int j = k + 1; j < n; ++j)
-         {
-            const int kj = eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(k, j, n);
-            real_t Akj = R[kj];
-            for (int s = 0; s < k; ++s)
-            {
-               Akj -= R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(s, k, n)] *
-                      R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(s, j, n)];
-            }
-            R[kj] = Akj/Ukk;
-         }
-      }
-
-      if (bad)
-      {
-         for (int i = 0; i < n; ++i) { D[doff + i] = nan; }
-         for (int t = 0; t < packed_size; ++t) { R[eoff + t] = nan; }
-      }
-   });
-}
-
-void ComputeScaledCholeskyFactorsLower(
-   const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
-   Vector &scaled_factor,
-   Vector &scaling,
-   bool do_scale)
+void ComputeCholeskyFactorsLowerDevice(
+   const TriPackLowerMatrix &packed_lower,
+   Vector &factor)
 {
    const int n = packed_lower.GetNumRows();
    const int batch_size = packed_lower.GetNumMatrices();
    const int packed_size = packed_lower.GetPackedSize();
    const real_t nan = std::numeric_limits<real_t>::quiet_NaN();
 
-   scaled_factor.SetSize(batch_size*packed_size);
-   scaling.SetSize(batch_size*n);
-   scaled_factor.UseDevice(true);
-   scaling.UseDevice(true);
-
    const real_t *A = packed_lower.Data().Read();
-   real_t *L = scaled_factor.Write();
-   real_t *D = scaling.Write();
+   factor.SetSize(batch_size*packed_size);
+   factor.UseDevice(true);
+   real_t *L = factor.Write();
 
    mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
    {
       const int eoff = e*packed_size;
-      const int doff = e*n;
       const real_t eps = std::numeric_limits<real_t>::epsilon();
       bool bad = false;
 
-      for (int i = 0; i < n; ++i)
+      // Copy packed-lower input into factor storage (no scaling).
+      for (int j = 0; j < n; ++j)
       {
-         const real_t Aii = A[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
-         if (!(Aii > 0.0) || !TriPackIsFinite(Aii))
+         for (int i = j; i < n; ++i)
          {
-            bad = true;
-            break;
+            const int t = TriPackLowerMatrix::LowerIndex(i, j, n);
+            const real_t Aij = A[eoff + t];
+            if (!TriPackIsFinite(Aij)) { bad = true; }
+            L[eoff + t] = Aij;
          }
-         D[doff + i] = do_scale ? 1.0/sqrt(Aii) : 1.0;
       }
 
       if (bad)
       {
-         for (int i = 0; i < n; ++i) { D[doff + i] = nan; }
          for (int t = 0; t < packed_size; ++t) { L[eoff + t] = nan; }
          return;
       }
 
-      for (int j = 0; j < n; ++j)
-      {
-         const real_t dj = D[doff + j];
-         for (int i = j; i < n; ++i)
-         {
-            const int t = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n);
-            L[eoff + t] = A[eoff + t] * D[doff + i] * dj;
-         }
-      }
-
       for (int k = 0; k < n; ++k)
       {
-         const int kk = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, k, n);
+         const int kk = eoff + TriPackLowerMatrix::LowerIndex(k, k, n);
          const real_t Lkk0 = L[kk];
          real_t Lkk = Lkk0;
 
          for (int s = 0; s < k; ++s)
          {
-            const real_t Lks = L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+            const real_t Lks = L[eoff + TriPackLowerMatrix::LowerIndex(k, s, n)];
             Lkk -= Lks*Lks;
          }
 
@@ -255,12 +100,12 @@ void ComputeScaledCholeskyFactorsLower(
          const real_t Ldiag = L[kk];
          for (int i = k + 1; i < n; ++i)
          {
-            const int ik = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n);
+            const int ik = eoff + TriPackLowerMatrix::LowerIndex(i, k, n);
             real_t Aik = L[ik];
             for (int s = 0; s < k; ++s)
             {
-               Aik -= L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, s, n)] *
-                      L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+               Aik -= L[eoff + TriPackLowerMatrix::LowerIndex(i, s, n)] *
+                      L[eoff + TriPackLowerMatrix::LowerIndex(k, s, n)];
             }
             L[ik] = Aik/Ldiag;
          }
@@ -268,14 +113,13 @@ void ComputeScaledCholeskyFactorsLower(
 
       if (bad)
       {
-         for (int i = 0; i < n; ++i) { D[doff + i] = nan; }
          for (int t = 0; t < packed_size; ++t) { L[eoff + t] = nan; }
       }
    });
 }
 
 void ComputeCholeskyFactorsLower(
-   const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
+   const TriPackLowerMatrix &packed_lower,
    Vector &factor)
 {
    const int n = packed_lower.GetNumRows();
@@ -295,18 +139,18 @@ void ComputeCholeskyFactorsLower(
       {
          for (int i = j; i < n; ++i)
          {
-            L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
-               A[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)];
+            L[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)] =
+               A[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)];
          }
       }
 
       for (int k = 0; k < n; ++k)
       {
-         const int kk = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, k, n);
+         const int kk = eoff + TriPackLowerMatrix::LowerIndex(k, k, n);
          real_t Akk = L[kk];
          for (int s = 0; s < k; ++s)
          {
-            const real_t Lks = L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+            const real_t Lks = L[eoff + TriPackLowerMatrix::LowerIndex(k, s, n)];
             Akk -= Lks*Lks;
          }
          MFEM_VERIFY(Akk > 0.0, "Matrix is not SPD.");
@@ -315,13 +159,13 @@ void ComputeCholeskyFactorsLower(
          const real_t Lkk = L[kk];
          for (int i = k + 1; i < n; ++i)
          {
-            real_t Aik = L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)];
+            real_t Aik = L[eoff + TriPackLowerMatrix::LowerIndex(i, k, n)];
             for (int s = 0; s < k; ++s)
             {
-               Aik -= L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, s, n)] *
-                      L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, s, n)];
+               Aik -= L[eoff + TriPackLowerMatrix::LowerIndex(i, s, n)] *
+                      L[eoff + TriPackLowerMatrix::LowerIndex(k, s, n)];
             }
-            L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] = Aik / Lkk;
+            L[eoff + TriPackLowerMatrix::LowerIndex(i, k, n)] = Aik / Lkk;
          }
       }
    }
@@ -332,8 +176,7 @@ void ComputeCholeskyFactorsLower(
 namespace tripack
 {
 
-template <TriangularPart PART>
-bool CompareWithFull(const TriPackMatrix<PART> &packed, const Vector &full,
+bool CompareWithFull(const TriPackLowerMatrix &packed, const Vector &full,
                      real_t tol)
 {
    const int n = packed.GetNumRows();
@@ -360,7 +203,7 @@ bool CompareWithFull(const TriPackMatrix<PART> &packed, const Vector &full,
          for (int j = 0; j < n; ++j)
          {
             const real_t packed_val =
-               packed_data[packed_offset + SymmetricIndex<PART>(i, j, n)];
+               packed_data[packed_offset + SymmetricIndex(i, j, n)];
             const real_t full_val = full_data[full_offset + i + n*j];
             if (std::fabs(full_val - packed_val) > tol)
             {
@@ -385,8 +228,7 @@ bool CompareWithFull(const TriPackMatrix<PART> &packed, const Vector &full,
    return true;
 }
 
-template <TriangularPart PART>
-void Mult(const TriPackMatrix<PART> &packed, const Vector &x, Vector &y)
+void Mult(const TriPackLowerMatrix &packed, const Vector &x, Vector &y)
 {
    const int n = packed.GetNumRows();
    const int batch_size = packed.GetNumMatrices();
@@ -404,66 +246,18 @@ void Mult(const TriPackMatrix<PART> &packed, const Vector &x, Vector &y)
    {
       const int i = idx % n;
       const int e = idx / n;
-      const real_t *Ae = A + e*TriPackMatrix<PART>::PackedSize(n);
+      const real_t *Ae = A + e*TriPackLowerMatrix::PackedSize(n);
       const real_t *Xe = X + e*n;
       real_t sum = 0.0;
       for (int j = 0; j < n; ++j)
       {
-         sum += TriPackGet<PART>(Ae, i, j, n) * Xe[j];
+         sum += Ae[SymmetricIndex(i, j, n)] * Xe[j];
       }
       Y[idx] = sum;
    });
 }
 
-void MultUUt(const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-             const Vector &x, Vector &y)
-{
-   const int n = packed_upper.GetNumRows();
-   const int batch_size = packed_upper.GetNumMatrices();
-   MFEM_VERIFY(x.Size() == batch_size*n, "Input vector has the wrong size.");
-
-   Vector t(batch_size*n);
-   t.UseDevice(true);
-   y.SetSize(batch_size*n);
-   y.UseDevice(true);
-
-   const int packed_size = packed_upper.GetPackedSize();
-   const real_t *U = packed_upper.Data().Read();
-   const real_t *X = x.Read();
-   real_t *T = t.Write();
-   real_t *Y = y.Write();
-
-   mfem::forall(batch_size*n, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int r = idx % n;
-      const int e = idx / n;
-      const real_t *Ue = U + e*packed_size;
-      const real_t *Xe = X + e*n;
-      real_t sum = 0.0;
-      for (int j = 0; j <= r; ++j)
-      {
-         sum += Ue[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(j, r, n)] * Xe[j];
-      }
-      T[idx] = sum;
-   });
-
-   mfem::forall(batch_size*n, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int i = idx % n;
-      const int e = idx / n;
-      const real_t *Ue = U + e*packed_size;
-      const real_t *Te = T + e*n;
-      real_t sum = 0.0;
-      for (int j = i; j < n; ++j)
-      {
-         sum += Ue[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] * Te[j];
-      }
-      Y[idx] = sum;
-   });
-}
-
-template <TriangularPart PART>
-void Lump(const TriPackMatrix<PART> &packed, Vector &lump)
+void Lump(const TriPackLowerMatrix &packed, Vector &lump)
 {
    const int n = packed.GetNumRows();
    const int batch_size = packed.GetNumMatrices();
@@ -478,61 +272,24 @@ void Lump(const TriPackMatrix<PART> &packed, Vector &lump)
    {
       const int i = idx % n;
       const int e = idx / n;
-      const real_t *Ae = A + e*TriPackMatrix<PART>::PackedSize(n);
+      const real_t *Ae = A + e*TriPackLowerMatrix::PackedSize(n);
       real_t sum = 0.0;
       for (int j = 0; j < n; ++j)
       {
-         sum += TriPackGet<PART>(Ae, i, j, n);
+         sum += Ae[SymmetricIndex(i, j, n)];
       }
       L[idx] = sum;
    });
 }
 
-void ComputeJacobiScaledCholeskyUpper(
-                                      const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-                                      TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                                      bool do_scale)
-{
-   const int n = packed_upper.GetNumRows();
-   const int batch_size = packed_upper.GetNumMatrices();
-   const int packed_size = packed_upper.GetPackedSize();
-
-   MFEM_VERIFY(&packed_upper != &upper_factor,
-               "Input and output TriPackMatrix objects must be distinct.");
-   if (batch_size == 0)
-   {
-      upper_factor.SetSize(n, batch_size);
-      return;
-   }
-
-   Vector scaled_factor, scaling;
-   ComputeScaledCholeskyFactors(packed_upper, scaled_factor, scaling, do_scale);
-
-   upper_factor.SetSize(n, batch_size);
-   upper_factor.UseDevice(true);
-
-   const real_t *R = scaled_factor.Read();
-   const real_t *D = scaling.Read();
-   real_t *U = upper_factor.Data().Write();
-
-   mfem::forall(batch_size*packed_size, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int e = idx / packed_size;
-      const int t = idx % packed_size;
-      const int col = UpperColFromPackedIndex(t, n);
-
-      U[idx] = R[idx] / D[e*n + col];
-   });
-}
-
-void ComputeCholeskyLower(const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
-                          TriPackMatrix<TriangularPart::LOWER> &lower_factor)
+void ComputeCholeskyLower(const TriPackLowerMatrix &packed_lower,
+                          TriPackLowerMatrix &lower_factor)
 {
    const int n = packed_lower.GetNumRows();
    const int batch_size = packed_lower.GetNumMatrices();
 
    MFEM_VERIFY(&packed_lower != &lower_factor,
-               "Input and output TriPackMatrix objects must be distinct.");
+               "Input and output TriPackLowerMatrix objects must be distinct.");
    if (batch_size == 0)
    {
       lower_factor.SetSize(n, batch_size);
@@ -548,11 +305,8 @@ void ComputeCholeskyLower(const TriPackMatrix<TriangularPart::LOWER> &packed_low
    lower_factor.Data() = factored;
 }
 
-void ComputeJacobiScaledCholeskyLowerInverse(
-                                             const TriPackMatrix<TriangularPart::LOWER> &packed_lower,
-                                             TriPackMatrix<TriangularPart::LOWER> &lower_inverse,
-                                             bool do_scale,
-                                             bool do_refine)
+void ComputeCholeskyLowerInverse(const TriPackLowerMatrix &packed_lower,
+                                 TriPackLowerMatrix &lower_inverse)
 {
    const int n = packed_lower.GetNumRows();
    const int batch_size = packed_lower.GetNumMatrices();
@@ -560,7 +314,7 @@ void ComputeJacobiScaledCholeskyLowerInverse(
    const real_t nan = std::numeric_limits<real_t>::quiet_NaN();
 
    MFEM_VERIFY(&packed_lower != &lower_inverse,
-               "Input and output TriPackMatrix objects must be distinct.");
+               "Input and output TriPackLowerMatrix objects must be distinct.");
    if (batch_size == 0)
    {
       lower_inverse.SetSize(n, batch_size);
@@ -572,28 +326,17 @@ void ComputeJacobiScaledCholeskyLowerInverse(
 
    Vector factored;
    Vector work(batch_size*packed_size);
-   Vector scaling;
    work.UseDevice(true);
 
-   Vector refinement;
-   if (do_refine)
-   {
-      refinement.SetSize(batch_size*packed_size);
-      refinement.UseDevice(true);
-   }
-
-   ComputeScaledCholeskyFactorsLower(packed_lower, factored, scaling, do_scale);
+   ComputeCholeskyFactorsLowerDevice(packed_lower, factored);
 
    const real_t *L = factored.Read();
    real_t *X = work.Write();
-   const real_t *D = scaling.Read();
-   real_t *E = do_refine ? refinement.Write() : nullptr;
    real_t *Linv = lower_inverse.Data().Write();
 
    mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
    {
       const int eoff = e*packed_size;
-      const int doff = e*n;
       bool bad = false;
 
       for (int t = 0; t < packed_size; ++t)
@@ -613,9 +356,10 @@ void ComputeJacobiScaledCholeskyLowerInverse(
 
       for (int t = 0; t < packed_size; ++t) { X[eoff + t] = 0.0; }
 
+      // Compute X = L^{-1} (packed lower).
       for (int j = 0; j < n; ++j)
       {
-         const int jj = eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(j, j, n);
+         const int jj = eoff + TriPackLowerMatrix::LowerIndex(j, j, n);
          X[jj] = 1.0/L[jj];
 
          const real_t invLjj = X[jj];
@@ -624,152 +368,21 @@ void ComputeJacobiScaledCholeskyLowerInverse(
             real_t sum = 0.0;
             for (int k = j; k < i; ++k)
             {
-               sum += L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] *
-                      X[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, j, n)];
+               sum += L[eoff + TriPackLowerMatrix::LowerIndex(i, k, n)] *
+                      X[eoff + TriPackLowerMatrix::LowerIndex(k, j, n)];
             }
-            X[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] = -invLjj*sum;
+            X[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)] = -invLjj*sum;
          }
       }
 
-      if (do_refine)
+      for (int t = 0; t < packed_size; ++t)
       {
-         for (int i = 0; i < n; ++i)
-         {
-            for (int j = 0; j <= i; ++j)
-            {
-               real_t sum = 0.0;
-               for (int k = j; k <= i; ++k)
-               {
-                  sum += L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] *
-                         X[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, j, n)];
-               }
-               E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
-                  ((i == j) ? 1.0 : 0.0) - sum;
-            }
-         }
-
-         for (int i = 0; i < n; ++i)
-         {
-            const real_t invLii =
-               1.0/L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
-            E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)] *= invLii;
-
-            for (int j = 0; j < i; ++j)
-            {
-               real_t sum = 0.0;
-               for (int k = j; k < i; ++k)
-               {
-                  sum += L[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, k, n)] *
-                         E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(k, j, n)];
-               }
-               E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] =
-                  (E[eoff + TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] - sum) * invLii;
-            }
-         }
-
-         for (int t = 0; t < packed_size; ++t)
-         {
-            X[eoff + t] += E[eoff + t];
-         }
-      }
-
-      for (int j = 0; j < n; ++j)
-      {
-         for (int i = j; i < n; ++i)
-         {
-            const int t = TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n);
-            Linv[eoff + t] = X[eoff + t] * D[doff + j];
-         }
+         Linv[eoff + t] = X[eoff + t];
       }
    });
 }
 
-void SolveUpper(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                const Vector &rhs,
-                Vector &sol)
-{
-   const int n = upper_factor.GetNumRows();
-   const int batch_size = upper_factor.GetNumMatrices();
-   const int packed_size = upper_factor.GetPackedSize();
-
-   MFEM_VERIFY(rhs.Size() == batch_size*n, "Right-hand side has the wrong size.");
-
-   Vector out(batch_size*n);
-   out.UseDevice(true);
-
-   const real_t *U = upper_factor.Data().Read();
-   const real_t *B = rhs.Read();
-   real_t *X = out.Write();
-
-   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const real_t *Ue = U + e*packed_size;
-      const real_t *Be = B + e*n;
-      real_t *Xe = X + e*n;
-
-      for (int i = n - 1; i >= 0; --i)
-      {
-         real_t sum = Be[i];
-         for (int j = i + 1; j < n; ++j)
-         {
-            sum -= Ue[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] * Xe[j];
-         }
-         Xe[i] = sum / Ue[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, i, n)];
-      }
-   });
-
-   sol.SetSize(batch_size*n);
-   sol = out;
-}
-
-void SolveUpperTranspose(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                         const Vector &rhs,
-                         Vector &sol)
-{
-   const int n = upper_factor.GetNumRows();
-   const int batch_size = upper_factor.GetNumMatrices();
-   const int packed_size = upper_factor.GetPackedSize();
-
-   MFEM_VERIFY(rhs.Size() == batch_size*n, "Right-hand side has the wrong size.");
-
-   Vector out(batch_size*n);
-   out.UseDevice(true);
-
-   const real_t *U = upper_factor.Data().Read();
-   const real_t *B = rhs.Read();
-   real_t *X = out.Write();
-
-   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const real_t *Ue = U + e*packed_size;
-      const real_t *Be = B + e*n;
-      real_t *Xe = X + e*n;
-
-      for (int i = 0; i < n; ++i)
-      {
-         real_t sum = Be[i];
-         for (int j = 0; j < i; ++j)
-         {
-            sum -= Ue[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(j, i, n)] * Xe[j];
-         }
-         Xe[i] = sum / Ue[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, i, n)];
-      }
-   });
-
-   sol.SetSize(batch_size*n);
-   sol = out;
-}
-
-void SolveCholesky(const TriPackMatrix<TriangularPart::UPPER> &upper_factor,
-                   const Vector &rhs,
-                   Vector &sol)
-{
-   Vector tmp;
-   SolveUpperTranspose(upper_factor, rhs, tmp);
-   SolveUpper(upper_factor, tmp, sol);
-}
-
-void SolveLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+void SolveLower(const TriPackLowerMatrix &lower_factor,
                 const Vector &rhs,
                 Vector &sol)
 {
@@ -797,9 +410,9 @@ void SolveLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
          real_t sum = Be[i];
          for (int j = 0; j < i; ++j)
          {
-            sum -= Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] * Xe[j];
+            sum -= Le[TriPackLowerMatrix::LowerIndex(i, j, n)] * Xe[j];
          }
-         Xe[i] = sum / Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
+         Xe[i] = sum / Le[TriPackLowerMatrix::LowerIndex(i, i, n)];
       }
    });
 
@@ -807,7 +420,7 @@ void SolveLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
    sol = out;
 }
 
-void SolveLowerTranspose(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+void SolveLowerTranspose(const TriPackLowerMatrix &lower_factor,
                          const Vector &rhs,
                          Vector &sol)
 {
@@ -835,9 +448,9 @@ void SolveLowerTranspose(const TriPackMatrix<TriangularPart::LOWER> &lower_facto
          real_t sum = Be[i];
          for (int j = i + 1; j < n; ++j)
          {
-            sum -= Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(j, i, n)] * Xe[j];
+            sum -= Le[TriPackLowerMatrix::LowerIndex(j, i, n)] * Xe[j];
          }
-         Xe[i] = sum / Le[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, i, n)];
+         Xe[i] = sum / Le[TriPackLowerMatrix::LowerIndex(i, i, n)];
       }
    });
 
@@ -845,7 +458,7 @@ void SolveLowerTranspose(const TriPackMatrix<TriangularPart::LOWER> &lower_facto
    sol = out;
 }
 
-void SolveCholeskyLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor,
+void SolveCholeskyLower(const TriPackLowerMatrix &lower_factor,
                         const Vector &rhs,
                         Vector &sol)
 {
@@ -853,153 +466,6 @@ void SolveCholeskyLower(const TriPackMatrix<TriangularPart::LOWER> &lower_factor
    SolveLower(lower_factor, rhs, tmp);
    SolveLowerTranspose(lower_factor, tmp, sol);
 }
-
-void ComputeJacobiScaledCholeskyUpperInverse(
-                                             const TriPackMatrix<TriangularPart::UPPER> &packed_upper,
-                                             TriPackMatrix<TriangularPart::UPPER> &upper_inverse,
-                                             bool do_scale,
-                                             bool do_refine)
-{
-   const int n = packed_upper.GetNumRows();
-   const int batch_size = packed_upper.GetNumMatrices();
-   const int packed_size = packed_upper.GetPackedSize();
-   const real_t nan = std::numeric_limits<real_t>::quiet_NaN();
-
-   MFEM_VERIFY(&packed_upper != &upper_inverse,
-               "Input and output TriPackMatrix objects must be distinct.");
-   if (batch_size == 0) { return; }
-
-   upper_inverse.SetSize(n, batch_size);
-   upper_inverse.UseDevice(true);
-
-   Vector factored;
-   Vector work(batch_size*packed_size);
-   Vector scaling;
-   work.UseDevice(true);
-
-   Vector refinement;
-   if (do_refine)
-   {
-      refinement.SetSize(batch_size*packed_size);
-      refinement.UseDevice(true);
-   }
-
-   ComputeScaledCholeskyFactors(packed_upper, factored, scaling, do_scale);
-
-   const real_t *R = factored.Read();
-   real_t *X = work.Write();
-   const real_t *D = scaling.Read();
-   real_t *E = do_refine ? refinement.Write() : nullptr;
-   real_t *Uinv = upper_inverse.Data().Write();
-
-   mfem::forall(batch_size, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const int eoff = e*packed_size;
-      const int doff = e*n;
-      bool bad = false;
-
-      for (int t = 0; t < packed_size; ++t)
-      {
-         if (!TriPackIsFinite(R[eoff + t]))
-         {
-            bad = true;
-            break;
-         }
-      }
-
-      if (bad)
-      {
-         for (int t = 0; t < packed_size; ++t) { Uinv[eoff + t] = nan; }
-         return;
-      }
-
-      for (int t = 0; t < packed_size; ++t) { X[eoff + t] = 0.0; }
-
-      for (int i = n - 1; i >= 0; --i)
-      {
-         const int ii = eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, i, n);
-         X[ii] = 1.0/R[ii];
-
-         const real_t invUii = X[ii];
-         for (int j = i + 1; j < n; ++j)
-         {
-            real_t sum = 0.0;
-            for (int k = i + 1; k <= j; ++k)
-            {
-               sum += R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, k, n)] *
-                      X[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(k, j, n)];
-            }
-            X[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] = -invUii*sum;
-         }
-      }
-
-      if (do_refine)
-      {
-         for (int j = 0; j < n; ++j)
-         {
-            for (int i = 0; i <= j; ++i)
-            {
-               real_t sum = 0.0;
-               for (int k = i; k <= j; ++k)
-               {
-                  sum += R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, k, n)] *
-                         X[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(k, j, n)];
-               }
-               E[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] =
-                  ((i == j) ? 1.0 : 0.0) - sum;
-            }
-         }
-
-         for (int i = n - 1; i >= 0; --i)
-         {
-            const real_t invRii =
-               1.0/R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, i, n)];
-            E[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, i, n)] *= invRii;
-
-            for (int j = i + 1; j < n; ++j)
-            {
-               real_t sum = 0.0;
-               for (int k = i + 1; k <= j; ++k)
-               {
-                  sum += R[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, k, n)] *
-                         E[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(k, j, n)];
-               }
-               E[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] =
-                  (E[eoff + TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] - sum) * invRii;
-            }
-         }
-
-         for (int t = 0; t < packed_size; ++t)
-         {
-            X[eoff + t] += E[eoff + t];
-         }
-      }
-
-      for (int j = 0; j < n; ++j)
-      {
-         for (int i = 0; i <= j; ++i)
-         {
-            const int t = TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n);
-            Uinv[eoff + t] = X[eoff + t] * D[doff + i];
-         }
-      }
-   });
-}
-
-template bool CompareWithFull<TriangularPart::LOWER>(
-   const TriPackMatrix<TriangularPart::LOWER> &, const Vector &, real_t);
-template bool CompareWithFull<TriangularPart::UPPER>(
-   const TriPackMatrix<TriangularPart::UPPER> &, const Vector &, real_t);
-
-template void Mult<TriangularPart::LOWER>(
-   const TriPackMatrix<TriangularPart::LOWER> &, const Vector &, Vector &);
-template void Mult<TriangularPart::UPPER>(
-   const TriPackMatrix<TriangularPart::UPPER> &, const Vector &, Vector &);
-
-template void Lump<TriangularPart::LOWER>(
-   const TriPackMatrix<TriangularPart::LOWER> &, Vector &);
-template void Lump<TriangularPart::UPPER>(
-   const TriPackMatrix<TriangularPart::UPPER> &, Vector &);
 
 } // namespace tripack
 } // namespace mfem

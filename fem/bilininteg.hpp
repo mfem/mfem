@@ -2464,9 +2464,7 @@ protected:
    int dim, ne, nq, dofs1D, quad1D;
 
    void AssembleEA_(Vector &ea, const bool add);
-   void AssembleEATriangular_(TriPackMatrix<TriangularPart::LOWER> &ea,
-                              const bool add);
-   void AssembleEATriangular_(TriPackMatrix<TriangularPart::UPPER> &ea,
+   void AssembleEATriangular_(TriPackLowerMatrix &ea,
                               const bool add);
 
 public:
@@ -2521,16 +2519,12 @@ public:
                    const bool add) override;
 
    void AssembleEATriangular(const FiniteElementSpace &fes,
-                             TriPackMatrix<TriangularPart::LOWER> &emat,
-                             const bool add = false);
-
-   void AssembleEATriangular(const FiniteElementSpace &fes,
-                             TriPackMatrix<TriangularPart::UPPER> &emat,
+                             TriPackLowerMatrix &emat,
                              const bool add = false);
 
    void AssembleEABoundary(const FiniteElementSpace &fes, Vector &emat,
                            const bool add) override;
-                           
+
    void AssembleDiagonalPA(Vector &diag) override;
 
    void AssembleDiagonalMF(Vector &diag) override;

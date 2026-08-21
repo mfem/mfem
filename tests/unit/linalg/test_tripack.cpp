@@ -17,18 +17,6 @@ using namespace mfem;
 namespace
 {
 
-void PackUpper(const DenseMatrix &mat, real_t *packed)
-{
-   const int n = mat.Height();
-   for (int j = 0; j < n; ++j)
-   {
-      for (int i = 0; i <= j; ++i)
-      {
-         packed[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)] = mat(i, j);
-      }
-   }
-}
-
 void PackLower(const DenseMatrix &mat, real_t *packed)
 {
    const int n = mat.Height();
@@ -36,7 +24,7 @@ void PackLower(const DenseMatrix &mat, real_t *packed)
    {
       for (int i = j; i < n; ++i)
       {
-         packed[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)] = mat(i, j);
+         packed[TriPackLowerMatrix::LowerIndex(i, j, n)] = mat(i, j);
       }
    }
 }
@@ -53,23 +41,7 @@ void FillFullBatch(const DenseMatrix &mat, real_t *full)
    }
 }
 
-void BuildUpperDense(const TriPackMatrix<TriangularPart::UPPER> &packed,
-                     int e, DenseMatrix &mat)
-{
-   const int n = packed.GetNumRows();
-   mat.SetSize(n);
-   mat = 0.0;
-   const real_t *data = packed.Data().HostRead() + e*packed.GetPackedSize();
-   for (int j = 0; j < n; ++j)
-   {
-      for (int i = 0; i <= j; ++i)
-      {
-         mat(i, j) = data[TriPackMatrix<TriangularPart::UPPER>::UpperIndex(i, j, n)];
-      }
-   }
-}
-
-void BuildLowerDense(const TriPackMatrix<TriangularPart::LOWER> &packed,
+void BuildLowerDense(const TriPackLowerMatrix &packed,
                      int e, DenseMatrix &mat)
 {
    const int n = packed.GetNumRows();
@@ -80,14 +52,14 @@ void BuildLowerDense(const TriPackMatrix<TriangularPart::LOWER> &packed,
    {
       for (int i = j; i < n; ++i)
       {
-         mat(i, j) = data[TriPackMatrix<TriangularPart::LOWER>::LowerIndex(i, j, n)];
+         mat(i, j) = data[TriPackLowerMatrix::LowerIndex(i, j, n)];
       }
    }
 }
 
 }
 
-TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
+TEST_CASE("TriPackLowerMatrix operations", "[TriPackLowerMatrix]")
 {
    constexpr int n = 3;
    constexpr int batch_size = 2;
@@ -105,17 +77,11 @@ TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
    A1(1,0) = 2.0; A1(1,1) = 8.0; A1(1,2) = 2.0;
    A1(2,0) = 1.0; A1(2,1) = 2.0; A1(2,2) = 5.0;
 
-   TriPackMatrix<TriangularPart::UPPER> packed(n, batch_size);
+   TriPackLowerMatrix packed(n, batch_size);
    packed = 0.0;
    real_t *packed_data = packed.Data().HostWrite();
-   PackUpper(A0, packed_data);
-   PackUpper(A1, packed_data + packed.GetPackedSize());
-
-   TriPackMatrix<TriangularPart::LOWER> packed_lower(n, batch_size);
-   packed_lower = 0.0;
-   real_t *packed_lower_data = packed_lower.Data().HostWrite();
-   PackLower(A0, packed_lower_data);
-   PackLower(A1, packed_lower_data + packed_lower.GetPackedSize());
+   PackLower(A0, packed_data);
+   PackLower(A1, packed_data + packed.GetPackedSize());
 
    Vector full(batch_size*n*n);
    real_t *full_data = full.HostWrite();
@@ -165,91 +131,13 @@ TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
       }
    }
 
-   SECTION("Jacobi-scaled Cholesky upper inverse")
-   {
-      TriPackMatrix<TriangularPart::UPPER> uinv;
-      Vector rhs({1.0, -1.0, 2.0, 0.5, 1.5, -2.0});
-      Vector y;
-
-      tripack::ComputeJacobiScaledCholeskyUpperInverse(packed, uinv);
-      tripack::MultUUt(uinv, rhs, y);
-
-      Vector y_expected(batch_size*n);
-      const DenseMatrix *mats[batch_size] = { &A0, &A1 };
-      for (int e = 0; e < batch_size; ++e)
-      {
-         DenseMatrix inv(n);
-         CalcInverse(*mats[e], inv);
-         for (int i = 0; i < n; ++i)
-         {
-            real_t sum = 0.0;
-            for (int j = 0; j < n; ++j)
-            {
-               sum += inv(i, j) * rhs(e*n + j);
-            }
-            y_expected(e*n + i) = sum;
-         }
-      }
-
-      for (int i = 0; i < y.Size(); ++i)
-      {
-         REQUIRE(y(i) == MFEM_Approx(y_expected(i)).epsilon(tol));
-      }
-   }
-
-   SECTION("Jacobi-scaled Cholesky factor and solves")
-   {
-      TriPackMatrix<TriangularPart::UPPER> ufac;
-      Vector rhs({1.0, -1.0, 2.0, 0.5, 1.5, -2.0});
-      Vector y, t, x;
-
-      tripack::ComputeJacobiScaledCholeskyUpper(packed, ufac);
-      tripack::SolveUpperTranspose(ufac, rhs, t);
-      tripack::SolveUpper(ufac, t, x);
-      tripack::SolveCholesky(ufac, rhs, y);
-
-      const DenseMatrix *mats[batch_size] = { &A0, &A1 };
-      for (int e = 0; e < batch_size; ++e)
-      {
-         DenseMatrix U;
-         DenseMatrix recon(n);
-         BuildUpperDense(ufac, e, U);
-         MultAtB(U, U, recon);
-         recon -= *mats[e];
-         REQUIRE(recon.MaxMaxNorm() == MFEM_Approx(0.0, tol, tol));
-      }
-
-      Vector x_expected(batch_size*n);
-      const DenseMatrix *mats2[batch_size] = { &A0, &A1 };
-      for (int e = 0; e < batch_size; ++e)
-      {
-         DenseMatrix inv(n);
-         CalcInverse(*mats2[e], inv);
-         for (int i = 0; i < n; ++i)
-         {
-            real_t sum = 0.0;
-            for (int j = 0; j < n; ++j)
-            {
-               sum += inv(i, j) * rhs(e*n + j);
-            }
-            x_expected(e*n + i) = sum;
-         }
-      }
-
-      for (int i = 0; i < x.Size(); ++i)
-      {
-         REQUIRE(x(i) == MFEM_Approx(x_expected(i)).epsilon(tol));
-         REQUIRE(y(i) == MFEM_Approx(x_expected(i)).epsilon(tol));
-      }
-   }
-
    SECTION("Lower Cholesky factor and solves")
    {
-      TriPackMatrix<TriangularPart::LOWER> lfac;
+      TriPackLowerMatrix lfac;
       Vector rhs({1.0, -1.0, 2.0, 0.5, 1.5, -2.0});
       Vector y, t, x;
 
-      tripack::ComputeCholeskyLower(packed_lower, lfac);
+      tripack::ComputeCholeskyLower(packed, lfac);
       tripack::SolveLowerTranspose(lfac, rhs, t);
       tripack::SolveLower(lfac, t, x);
       tripack::SolveCholeskyLower(lfac, rhs, y);
@@ -288,29 +176,44 @@ TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
       }
    }
 
-   SECTION("Jacobi-scaled Cholesky lower inverse")
+   SECTION("Cholesky lower inverse")
    {
-      TriPackMatrix<TriangularPart::LOWER> linv;
+      TriPackLowerMatrix linv;
       Vector rhs({1.0, -1.0, 2.0, 0.5, 1.5, -2.0});
-      Vector y;
 
-      tripack::ComputeJacobiScaledCholeskyLowerInverse(packed_lower, linv);
+      tripack::ComputeCholeskyLowerInverse(packed, linv);
       const DenseMatrix *mats[batch_size] = { &A0, &A1 };
       for (int e = 0; e < batch_size; ++e)
       {
          DenseMatrix L, recon(n), inv(n);
          BuildLowerDense(linv, e, L);
-         MultABt(L, L, recon);
+         MultAtB(L, L, recon);
          CalcInverse(*mats[e], inv);
          recon -= inv;
          REQUIRE(recon.MaxMaxNorm() == MFEM_Approx(0.0, tol, tol));
       }
 
+      Vector y(batch_size*n);
       Vector y_expected(batch_size*n);
       for (int e = 0; e < batch_size; ++e)
       {
+         DenseMatrix Linv;
          DenseMatrix inv(n);
          CalcInverse(*mats[e], inv);
+
+         BuildLowerDense(linv, e, Linv);
+         Vector tmp(n);
+         tmp = 0.0;
+         for (int i = 0; i < n; ++i)
+         {
+            real_t sum = 0.0;
+            for (int j = 0; j <= i; ++j)
+            {
+               sum += Linv(i, j) * rhs(e*n + j);
+            }
+            tmp(i) = sum;
+         }
+
          for (int i = 0; i < n; ++i)
          {
             real_t sum = 0.0;
@@ -319,6 +222,16 @@ TEST_CASE("TriPackMatrix operations", "[TriPackMatrix]")
                sum += inv(i, j) * rhs(e*n + j);
             }
             y_expected(e*n + i) = sum;
+         }
+
+         for (int i = 0; i < n; ++i)
+         {
+            real_t sum = 0.0;
+            for (int j = i; j < n; ++j)
+            {
+               sum += Linv(j, i) * tmp(j);
+            }
+            y(e*n + i) = sum;
          }
       }
 

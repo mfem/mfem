@@ -80,10 +80,14 @@ void ReportUmpireAllocator(const char *label, const char *alloc_name)
    const unsigned long long hwm = alloc.getHighWatermark();
    unsigned long long cur_sum = 0, cur_max = 0;
    unsigned long long hwm_sum = 0, hwm_max = 0;
-   MPI_Reduce(&cur, &cur_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-   MPI_Reduce(&cur, &cur_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
-   MPI_Reduce(&hwm, &hwm_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-   MPI_Reduce(&hwm, &hwm_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+   MPI_Reduce(&cur, &cur_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&cur, &cur_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &hwm_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &hwm_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+              MPI_COMM_WORLD);
    if (Mpi::Root())
    {
       cout << label << " (Umpire '" << alloc_name << "'): "
@@ -96,7 +100,8 @@ void ReportUmpireMemory(const char *label)
 {
    if (Mpi::Root()) { cout << label << '\n'; }
    ReportUmpireAllocator("  host", MemoryManager::GetUmpireHostAllocatorName());
-   ReportUmpireAllocator("  device", MemoryManager::GetUmpireDeviceAllocatorName());
+   ReportUmpireAllocator("  device",
+                         MemoryManager::GetUmpireDeviceAllocatorName());
 }
 #else
 void ReportUmpireMemory(const char *) { }
