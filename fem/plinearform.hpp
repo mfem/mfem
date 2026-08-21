@@ -119,6 +119,22 @@ public:
        the assembly will be executed on the device. */
    void Assemble();
 
+protected:
+   /** @brief Sum marked containing-element counts across ranks. */
+   void SyncDeltaCounts(Array<int> &counts) override;
+
+   /** @brief Locate delta centers in this rank's local mesh.
+
+       See `LinearForm::FindDeltaCenters` for the argument contract. This
+       override intentionally calls the serial `Mesh::FindPoints` on the local
+       `ParMesh` partition so that each rank can assemble its local containing
+       elements before the split counts are summed across ranks. */
+   void FindDeltaCenters(DenseMatrix &centers, Array<int> &elem_ids,
+                         Array<IntegrationPoint> &ips,
+                         bool warn = false) override;
+
+public:
+
    /// Return true if assembly on device is supported, false otherwise.
    bool SupportsDevice() const override;
 

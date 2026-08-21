@@ -15,6 +15,10 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- DeltaCoefficient sources with center lying on a shared mesh entity are
+  distributed uniformly by element count across all containing elements, making
+  assembly independent of mesh ordering and parallel partitioning.
+
 - Improved FindPointsGSLIB surface mesh capability with support for simplices
   and an option to specify axis-aligned bounding box padding for near-surface
   point queries.
