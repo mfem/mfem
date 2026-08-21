@@ -1,0 +1,12 @@
+This directory contains an MFEM example focused on benchmarking MAGMA batched
+element-mass-matrix inverses/solves on GPU backends (CUDA/HIP).
+
+- `batched_mass_bench.cpp`: Assemble packed element mass matrices and compare:
+  - MFEM tripack inverse apply (packed lower-triangular)
+  - MAGMA packed Cholesky factor + solve
+  - MAGMA full (dense) batched Cholesky factor + solve
+
+Build and run from this directory (after building MFEM with MAGMA enabled):
+
+- `make batched_mass_bench`
+- `./batched_mass_bench -m ../../data/beam-hex.mesh -o 3 -r 2 -d hip -reps 100`

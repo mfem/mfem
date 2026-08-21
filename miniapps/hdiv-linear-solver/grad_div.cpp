@@ -32,8 +32,13 @@
 //    mpirun -np 4 grad_div -sp -ams -lor -hb -m ../../data/fichera-q2.mesh -rp 0
 
 #include "mfem.hpp"
+#include <cstring>
 #include <iostream>
 #include <memory>
+#ifdef MFEM_USE_UMPIRE
+#include <umpire/Allocator.hpp>
+#include <umpire/ResourceManager.hpp>
+#endif
 #include "hdiv_linear_solver.hpp"
 #include "../solvers/lor_mms.hpp"
 
@@ -42,6 +47,67 @@ using namespace mfem;
 
 ParMesh LoadParMesh(const char *mesh_file, int ser_ref = 0, int par_ref = 0);
 void SolveCG(Operator &A, Solver &P, const Vector &B, Vector &X);
+
+namespace
+{
+
+HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
+{
+   if (!name || strcmp(name, "cg") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::CG;
+   }
+   if (strcmp(name, "magma-packed") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED;
+   }
+   if (strcmp(name, "magma-full") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL;
+   }
+   MFEM_ABORT("Unknown -l2inv value: " << name
+              << " (expected: cg | magma-packed | magma-full)");
+   return HdivSaddlePointSolver::L2InverseType::CG;
+}
+
+#ifdef MFEM_USE_UMPIRE
+void ReportUmpireAllocator(const char *label, const char *alloc_name)
+{
+   auto &rm = umpire::ResourceManager::getInstance();
+   if (!rm.isAllocator(alloc_name)) { return; }
+   auto alloc = rm.getAllocator(alloc_name);
+   const unsigned long long cur = alloc.getCurrentSize();
+   const unsigned long long hwm = alloc.getHighWatermark();
+   unsigned long long cur_sum = 0, cur_max = 0;
+   unsigned long long hwm_sum = 0, hwm_max = 0;
+   MPI_Reduce(&cur, &cur_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&cur, &cur_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &hwm_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &hwm_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+              MPI_COMM_WORLD);
+   if (Mpi::Root())
+   {
+      cout << label << " (Umpire '" << alloc_name << "'): "
+           << "current(sum/max)=(" << cur_sum << "/" << cur_max << ") bytes, "
+           << "hwm(sum/max)=(" << hwm_sum << "/" << hwm_max << ") bytes\n";
+   }
+}
+
+void ReportUmpireMemory(const char *label)
+{
+   if (Mpi::Root()) { cout << label << '\n'; }
+   ReportUmpireAllocator("  host", MemoryManager::GetUmpireHostAllocatorName());
+   ReportUmpireAllocator("  device",
+                         MemoryManager::GetUmpireDeviceAllocatorName());
+}
+#else
+void ReportUmpireMemory(const char *) { }
+#endif
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -57,6 +123,9 @@ int main(int argc, char *argv[])
    bool use_ams = false;
    bool use_lor_ams = false;
    bool use_hybridization = false;
+   const char *l2inv = "cg";
+   bool use_umpire_pool = false;
+   bool report_umpire_mem = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -77,7 +146,26 @@ int main(int argc, char *argv[])
    args.AddOption(&use_hybridization,
                   "-hb", "--hybridization", "-no-hb", "--no-hybridization",
                   "Enable or disable hybridization solver.");
+   args.AddOption(&l2inv, "-l2inv", "--l2-inverse",
+                  "Local L2 mass inverse: cg | magma-packed | magma-full.");
+   args.AddOption(&use_umpire_pool, "-umpire-pool", "--umpire-pool",
+                  "-no-umpire-pool", "--no-umpire-pool",
+                  "Use Umpire QuickPool allocators for MFEM allocations.");
+   args.AddOption(&report_umpire_mem, "-mem", "--report-memory",
+                  "-no-mem", "--no-report-memory",
+                  "Report Umpire allocator memory usage.");
    args.ParseCheck();
+
+#ifdef MFEM_USE_UMPIRE
+   if (use_umpire_pool)
+   {
+      MemoryManager::SetUmpireHostAllocatorName("mfem_host_pool");
+      MemoryManager::SetUmpireDeviceAllocatorName("mfem_device_pool");
+   }
+#else
+   MFEM_VERIFY(!use_umpire_pool, "MFEM was built without Umpire support.");
+   MFEM_VERIFY(!report_umpire_mem, "MFEM was built without Umpire support.");
+#endif
 
    if (!use_saddle_point && !use_ams && !use_lor_ams && !use_hybridization)
    {
@@ -125,9 +213,11 @@ int main(int argc, char *argv[])
       L2_FECollection fec_l2(order-1, dim, b2, mt);
       ParFiniteElementSpace fes_l2(&mesh, &fec_l2);
 
+      const auto l2inv_type = ParseL2InverseType(l2inv);
       HdivSaddlePointSolver saddle_point_solver(
          mesh, fes_rt, fes_l2, alpha_coeff, beta_coeff, ess_rt_dofs,
-         HdivSaddlePointSolver::Mode::GRAD_DIV);
+         HdivSaddlePointSolver::Mode::GRAD_DIV, l2inv_type);
+      if (report_umpire_mem) { ReportUmpireMemory("After saddle-point setup"); }
 
       const Array<int> &offsets = saddle_point_solver.GetOffsets();
 

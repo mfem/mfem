@@ -33,6 +33,14 @@ public:
       GRAD_DIV, ///< Grad-div problem.
       DARCY     ///< Darcy/mixed Poisson problem.
    };
+
+   /// How to apply the local DG L2 mass inverse.
+   enum class L2InverseType
+   {
+      CG,           ///< DGMassInverse (default).
+      MAGMA_PACKED, ///< MAGMA packed-lower batched Cholesky+solve.
+      MAGMA_FULL    ///< MAGMA full dense batched Cholesky+solve.
+   };
 private:
    MINRESSolver minres;
 
@@ -63,7 +71,7 @@ private:
    // Components needed for the block operator
    OperatorHandle L, R, R_e; ///< Mass matrices.
    std::unique_ptr<HypreParMatrix> D, Dt, D_e; ///< Divergence matrices.
-   std::shared_ptr<DGMassInverse> L_inv; ///< Inverse of the DG mass matrix.
+   std::shared_ptr<Solver> L_inv; ///< Inverse of the DG mass matrix.
    std::shared_ptr<Operator> A_11; ///< (1,1)-block of the matrix
 
    /// Diagonals of the mass matrices
@@ -85,6 +93,7 @@ private:
    Coefficient &L_coeff, &R_coeff;
 
    const Mode mode;
+   const L2InverseType l2_inv_type;
    bool zero_l2_block = false;
    QuadratureSpace qs;
    QuadratureFunction W_coeff_qf, W_mix_coeff_qf;
@@ -135,7 +144,8 @@ public:
                          Coefficient &L_coeff_,
                          Coefficient &R_coeff_,
                          const Array<int> &ess_rt_dofs_,
-                         Mode mode_);
+                         Mode mode_,
+                         L2InverseType l2_inv_type_ = L2InverseType::CG);
 
    /// @brief Creates a linear solver for the case when the L2 diagonal block is
    /// zero (for Darcy problems).
@@ -146,7 +156,8 @@ public:
                          ParFiniteElementSpace &fes_rt_,
                          ParFiniteElementSpace &fes_l2_,
                          Coefficient &R_coeff_,
-                         const Array<int> &ess_rt_dofs_);
+                         const Array<int> &ess_rt_dofs_,
+                         L2InverseType l2_inv_type_ = L2InverseType::CG);
 
    /// @brief Build the linear operator and solver. Must be called when the
    /// coefficients change.
@@ -168,6 +179,12 @@ public:
    const Array<int> &GetOffsets() const { return offsets; }
    /// Returns the internal MINRES solver.
    MINRESSolver &GetMINRES() { return minres; }
+
+   /// Returns the internal L2 DG mass inverse operator.
+   const Solver &GetL2Inverse() const { return *L_inv; }
+
+   /// Returns the selected local L2 inverse method.
+   L2InverseType GetL2InverseType() const { return l2_inv_type; }
 };
 
 } // namespace mfem

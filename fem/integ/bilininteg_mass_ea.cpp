@@ -16,6 +16,71 @@
 
 namespace mfem
 {
+namespace
+{
+
+void AssembleEATriangularImpl(const int dim, const int ne,
+                              const int dofs1D, const int quad1D,
+                              const Array<real_t> &B,
+                              const Vector &pa_data,
+                              Vector &data,
+                              const bool add)
+{
+   using internal::EAMassAssembleTriangular1DLower;
+   using internal::EAMassAssembleTriangular2DLower;
+   using internal::EAMassAssembleTriangular3DLower;
+
+   if (dim == 1)
+   {
+      auto kernel = EAMassAssembleTriangular1DLower<0,0>;
+      switch ((dofs1D << 4 ) | quad1D)
+      {
+         case 0x22: kernel = EAMassAssembleTriangular1DLower<2,2>; break;
+         case 0x33: kernel = EAMassAssembleTriangular1DLower<3,3>; break;
+         case 0x44: kernel = EAMassAssembleTriangular1DLower<4,4>; break;
+         case 0x55: kernel = EAMassAssembleTriangular1DLower<5,5>; break;
+         case 0x66: kernel = EAMassAssembleTriangular1DLower<6,6>; break;
+         case 0x77: kernel = EAMassAssembleTriangular1DLower<7,7>; break;
+         case 0x88: kernel = EAMassAssembleTriangular1DLower<8,8>; break;
+         case 0x99: kernel = EAMassAssembleTriangular1DLower<9,9>; break;
+      }
+      return kernel(ne, B, pa_data, data, add, dofs1D, quad1D);
+   }
+   else if (dim == 2)
+   {
+      auto kernel = EAMassAssembleTriangular2DLower<0,0>;
+      switch ((dofs1D << 4 ) | quad1D)
+      {
+         case 0x22: kernel = EAMassAssembleTriangular2DLower<2,2>; break;
+         case 0x33: kernel = EAMassAssembleTriangular2DLower<3,3>; break;
+         case 0x44: kernel = EAMassAssembleTriangular2DLower<4,4>; break;
+         case 0x55: kernel = EAMassAssembleTriangular2DLower<5,5>; break;
+         case 0x66: kernel = EAMassAssembleTriangular2DLower<6,6>; break;
+         case 0x77: kernel = EAMassAssembleTriangular2DLower<7,7>; break;
+         case 0x88: kernel = EAMassAssembleTriangular2DLower<8,8>; break;
+         case 0x99: kernel = EAMassAssembleTriangular2DLower<9,9>; break;
+      }
+      return kernel(ne, B, pa_data, data, add, dofs1D, quad1D);
+   }
+   else if (dim == 3)
+   {
+      auto kernel = EAMassAssembleTriangular3DLower<0,0>;
+      switch ((dofs1D << 4 ) | quad1D)
+      {
+         case 0x23: kernel = EAMassAssembleTriangular3DLower<2,3>; break;
+         case 0x34: kernel = EAMassAssembleTriangular3DLower<3,4>; break;
+         case 0x45: kernel = EAMassAssembleTriangular3DLower<4,5>; break;
+         case 0x56: kernel = EAMassAssembleTriangular3DLower<5,6>; break;
+         case 0x67: kernel = EAMassAssembleTriangular3DLower<6,7>; break;
+         case 0x78: kernel = EAMassAssembleTriangular3DLower<7,8>; break;
+         case 0x89: kernel = EAMassAssembleTriangular3DLower<8,9>; break;
+      }
+      return kernel(ne, B, pa_data, data, add, dofs1D, quad1D);
+   }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+}
 
 void MassIntegrator::AssembleEA_(Vector &ea_data,
                                  const bool add)
@@ -75,12 +140,51 @@ void MassIntegrator::AssembleEA_(Vector &ea_data,
    MFEM_ABORT("Unknown kernel.");
 }
 
+void MassIntegrator::AssembleEATriangular_(
+   TriPackLowerMatrix &ea_data,
+   const bool add)
+{
+   Vector &data = ea_data.Data();
+   const Array<real_t> &B = maps->B;
+   return AssembleEATriangularImpl(dim, ne, dofs1D, quad1D, B, pa_data, data,
+                                   add);
+}
+
 void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                 Vector &ea_data,
                                 const bool add)
 {
    AssemblePA(fes);
    if (ne > 0) { AssembleEA_(ea_data, add); }
+}
+
+void MassIntegrator::AssembleEATriangular(const FiniteElementSpace &fes,
+                                          TriPackLowerMatrix &ea_data,
+                                          const bool add)
+{
+   AssemblePA(fes);
+   if (ne == 0) { return; }
+
+   int elem_dofs = 1;
+   for (int d = 0; d < dim; ++d)
+   {
+      elem_dofs *= dofs1D;
+   }
+
+   if (add)
+   {
+      MFEM_VERIFY(ea_data.GetNumRows() == elem_dofs,
+                  "Invalid triangular EA element size.");
+      MFEM_VERIFY(ea_data.GetNumMatrices() == ne,
+                  "Invalid triangular EA element count.");
+   }
+   else
+   {
+      ea_data.SetSize(elem_dofs, ne);
+      ea_data.UseDevice(true);
+   }
+
+   AssembleEATriangular_(ea_data, add);
 }
 
 void MassIntegrator::AssembleEABoundary(const FiniteElementSpace &fes,
