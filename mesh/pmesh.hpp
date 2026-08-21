@@ -744,7 +744,7 @@ public:
    void SetPrintShared(bool print) { print_shared = print; }
 
    /** @brief Enable Print() and PrintAsOne() to add material interfaces, i.e.
-       intefaces between different mesh element attributes, as boundary
+       interfaces between different mesh element attributes, as boundary
        (typically used for visualization purposes).
 
        The ParMesh object itself is not modified, this only affects file output

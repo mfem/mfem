@@ -664,7 +664,7 @@ void FieldSolver::DepositCharge(ParFiniteElementSpace* pfes,
                   "Particle " << p << " found in element owned by rank "
                   << proc[p] << " but current rank is " << curr_rank
                   << "." << endl
-                  << "You must call redistribute everytime before "
+                  << "You must call redistribute every time before "
                   "updating the density grid function.");
       const int e = elem[p];
 

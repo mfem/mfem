@@ -1490,7 +1490,7 @@ public:
 
    /// @}
 
-   /// @name Access information concerning individual mesh entites
+   /// @name Access information concerning individual mesh entities
    /// @{
 
    /// Return the attribute of element i.
@@ -1615,7 +1615,7 @@ public:
       { mesh.GetGeometries(dim, *this); }
    };
 
-   /// @name Access connectivity for individual mesh entites
+   /// @name Access connectivity for individual mesh entities
    /// @{
 
    /// Returns the indices of the vertices of element i.
@@ -2794,7 +2794,7 @@ std::ostream& operator<<(std::ostream &os, const Mesh::FaceInformation& info);
     meshes (in serial, i.e. on one processor) and save the parts in parallel
     MFEM mesh format.
 
-    Another potential futrure purpose of this class could be to facilitate
+    Another potential future purpose of this class could be to facilitate
     exchange of MeshParts between MPI ranks for repartitioning purposes. It can
     also potentially be used to implement parallel mesh I/O functions with
     partitionings that have number of parts different from the number of MPI
@@ -2854,7 +2854,7 @@ public:
 
       Note that 'entity_to_vertex' does NOT describe all "faces" in the mesh
       part (i.e. all 'dimension'-1 entities) but only the boundary elements.
-      Also, note that lower dimesional entities ('dimension'-2 and lower) are
+      Also, note that lower dimensional entities ('dimension'-2 and lower) are
       NOT described by the respective array, i.e. the array will be empty.
    */
    Array<int> entity_to_vertex[Geometry::NumGeom];

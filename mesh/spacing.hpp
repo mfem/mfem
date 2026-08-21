@@ -612,7 +612,7 @@ private:
 };
 
 /** @brief Piecewise spacing function, with spacing functions defining spacing
-    within arbitarily many fixed subintervals of the unit interval.
+    within arbitrarily many fixed subintervals of the unit interval.
 
     The number of elements in each piece (or subinterval) is determined by the
     constructor input @a relN, which is the relative number of intervals. For

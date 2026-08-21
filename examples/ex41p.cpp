@@ -178,7 +178,7 @@ public:
    {
       real_t ddt = dt-dt_;
 
-      // syncronize ddt across all processes
+      // synchronize ddt across all processes
       MPI_Comm comm = M.GetComm();
       int myrank;
       MPI_Comm_rank(comm, &myrank);

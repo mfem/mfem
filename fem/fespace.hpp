@@ -1098,7 +1098,7 @@ public:
    /// default value), then the number of Dofs is <determined by the
    /// FiniteElementSpace::GetNDofs().
    ///
-   /// @note The @a dofs array is overwritten and resized to accomodate the
+   /// @note The @a dofs array is overwritten and resized to accommodate the
    /// new values.
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 

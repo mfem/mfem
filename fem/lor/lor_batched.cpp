@@ -496,7 +496,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
          // qi is the face lexicographic index, obtained by taking the
-         // lexicographic index of the coordinates ommiting n_idx.
+         // lexicographic index of the coordinates omitting n_idx.
          int qi = 0;
          int stride = 1;
          for (int d = 0; d < dim; ++d)

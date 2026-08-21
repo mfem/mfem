@@ -356,9 +356,8 @@ void BBoxTensorGridMap::GetGridRange(const int d, const Array<int> &lh_n,
    // right/high side.
    int i0 = floor( (xmin - lh_bnd_min[d]) * lh_fac[d] );
    int i1 = ceil ( (xmax - lh_bnd_min[d]) * lh_fac[d] );
-   imin = i0 < 0 ? 0 : i0;
-   imax = i1 < lh_n[d] ? i1 : lh_n[d];
-   if (imax == imin) { ++imax; }
+   imin = std::clamp(i0, 0, lh_n[d] - 1);
+   imax = std::clamp(i1, imin + 1, lh_n[d]);
 }
 
 void BBoxTensorGridMap::SetGridFac(Vector &lh_fac, const Array<int> &nx,

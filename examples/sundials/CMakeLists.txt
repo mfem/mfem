@@ -37,7 +37,7 @@ add_custom_target(test_sundials
 set(PFX sundials_)
 add_mfem_examples(SUNDIALS_EXAMPLES_SRCS ${PFX} "" test_sundials)
 
-# Remove "sundials_" prefix from exectuable name for consistency with GNU build
+# Remove "sundials_" prefix from executable name for consistency with GNU build
 # system.
 foreach(SRC_FILE ${SUNDIALS_EXAMPLES_SRCS})
   get_filename_component(SRC_FILENAME ${SRC_FILE} NAME)

@@ -318,7 +318,7 @@ public:
       // on the reference coordinates of the FIELD_ID field to be interpolated
       // and translated to the pointwise function as the first and second input.
       // Other choices are possible, e.g. Value<FIELD_ID> to interpolate the
-      // pointwise funciton. `Weight` is a special field that translates the
+      // pointwise function. `Weight` is a special field that translates the
       // integration rule weights to the input of the pointwise function.
       auto input_operators = tuple
       {
@@ -361,7 +361,7 @@ public:
       // operator. Here, only the mesh node function is required. We do this
       // here once, because we know that the nodes won't change. If they do,
       // we'd have to call SetParameters before each call to Mult. This is done
-      // to be mathematically consistent with fixing paramaters.
+      // to be mathematically consistent with fixing parameters.
       res->SetParameters({&mesh_nodes});
 
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());

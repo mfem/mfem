@@ -108,7 +108,7 @@ public:
             isca=space->GetVDim();
          }
 
-         // intialize the bounding box
+         // initialize the bounding box
          const FiniteElement* el = space->GetTypicalFE();
          trans = mesh->GetTypicalElementTransformation();
          ir=&(el->GetNodes());

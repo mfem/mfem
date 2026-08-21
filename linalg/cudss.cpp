@@ -87,6 +87,9 @@ CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 
 CuDSSSolver::~CuDSSSolver()
 {
+   // Sync the stream to make sure any pending asynchronous operations have
+   // completed.
+   MFEM_STREAM_SYNC;
    // Destroy the system Matrix, RHS vector and solution vector
    if (Ac)
    {
@@ -98,7 +101,6 @@ CuDSSSolver::~CuDSSSolver()
    // Destroy the cuDSS handle, solver config and solver data
    MFEM_CUDSS_CHECK(cudssDataDestroy(handle, solverData));
    MFEM_CUDSS_CHECK(cudssConfigDestroy(solverConfig));
-
 
    MFEM_CUDSS_CHECK(cudssDestroy(handle));
    handle = nullptr;
@@ -124,6 +126,9 @@ void CuDSSSolver::InitCuDSS()
 {
    // Create the cuDSS handle
    MFEM_CUDSS_CHECK(cudssCreate(&handle));
+
+   // Set CuDSS to use MFEM's default stream of 0.
+   MFEM_CUDSS_CHECK(cudssSetStream(handle, 0));
 
 #ifdef MFEM_USE_OPENMP
    // NOTE: Set the threading layer library name to NULL so that cuDSS picks
@@ -251,11 +256,35 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
       Ac = std::make_unique<cudssMatrix_t>();
       // Create empty RHS and solution vectors
       SetNumRHS(1);
-      // Allocate device memory for csr values
-      CuMemAlloc(&csr_values_d, nnz * sizeof(real_t));
    }
 
+   if (cuDSSObjectInitialized && !reorder_reuse)
+   {
+      MFEM_STREAM_SYNC;
+      MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
+   }
+
+   // Allocate device memory for csr values. Unless reuse is specified, the
+   // nnz may be different, so we will free and reallocate.
+   if (csr_values_d == NULL || !reorder_reuse)
+   {
+      if (csr_values_d != NULL) { CuMemFree(csr_values_d); }
+      CuMemAlloc(&csr_values_d, nnz * sizeof(real_t));
+   }
    CuMemcpyDtoD(csr_values_d, csr_values, nnz * sizeof(real_t));
+
+   // We copy and store the I and J arrays, since the CuDSS matrix object
+   // technically needs these to be valid, so we protect against the caller
+   // destroying the original matrix.
+   if (!cuDSSObjectInitialized || !reorder_reuse)
+   {
+      if (csr_offsets_d != NULL) { CuMemFree(csr_offsets_d); }
+      CuMemAlloc(&csr_offsets_d, (n_loc + 1) * sizeof(int));
+      if (csr_columns_d != NULL) { CuMemFree(csr_columns_d); }
+      CuMemAlloc(&csr_columns_d, nnz * sizeof(int));
+      CuMemcpyDtoD(csr_offsets_d, csr_offsets, (n_loc + 1) * sizeof(int));
+      CuMemcpyDtoD(csr_columns_d, csr_columns, nnz * sizeof(int));
+   }
 
    // New cuDSS CSR matrix object and analysis or reuse the one from a previous
    // matrix
@@ -263,15 +292,6 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
    {
       if (reorder_reuse)  // !cuDSSObjectInitialized && reorder_reuse
       {
-         // NOTE: For CuDSS solver to reuse the reordering (skipping analysis
-         // phase), it needs to access the I and J arrays of the **initial**
-         // matrix. Therefore, we need to copy and keep I and J in device memory.
-         CuMemAlloc(&csr_offsets_d, (n_loc + 1) * sizeof(int));
-         CuMemAlloc(&csr_columns_d, nnz * sizeof(int));
-
-         CuMemcpyDtoD(csr_offsets_d, csr_offsets, (n_loc + 1) * sizeof(int));
-         CuMemcpyDtoD(csr_columns_d, csr_columns, nnz * sizeof(int));
-
 #if CUDSS_VERSION >= 800
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
@@ -288,21 +308,17 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
       }
       else    // !reorder_reuse
       {
-         if (cuDSSObjectInitialized)
-         {
-            MFEM_CUDSS_CHECK(cudssMatrixDestroy(*Ac));
-         }
 #if CUDSS_VERSION >= 800
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
-               Ac.get(), n_global, n_global, nnz, csr_offsets, NULL,
-               csr_columns, csr_values_d, CUDSS_INT_T, CUDSS_INT_T, CUDSS_REAL_T,
+               Ac.get(), n_global, n_global, nnz, csr_offsets_d, NULL,
+               csr_columns_d, csr_values_d, CUDSS_INT_T, CUDSS_INT_T, CUDSS_REAL_T,
                mat_type, mview, CUDSS_BASE_ZERO));
 #else
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
-               Ac.get(), n_global, n_global, nnz, csr_offsets, NULL,
-               csr_columns, csr_values_d, CUDSS_INT_T, CUDSS_REAL_T,
+               Ac.get(), n_global, n_global, nnz, csr_offsets_d, NULL,
+               csr_columns_d, csr_values_d, CUDSS_INT_T, CUDSS_REAL_T,
                mat_type, mview, CUDSS_BASE_ZERO));
 #endif
       }
@@ -326,6 +342,9 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
    // Factorization
    MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_FACTORIZATION, solverConfig,
                                  solverData, *Ac, yc, xc));
+
+   // In serial, the factorization can execute asynchronously.
+   MFEM_STREAM_SYNC;
 }
 
 void CuDSSSolver::SetOperator(const Operator &op)
@@ -360,6 +379,7 @@ void CuDSSSolver::SetNumRHS(int nrhs_) const
       if (nrhs > 0)
       {
          // Destroy the previous RHS vector and solution vector
+         MFEM_STREAM_SYNC;
          MFEM_CUDSS_CHECK(cudssMatrixDestroy(xc));
          MFEM_CUDSS_CHECK(cudssMatrixDestroy(yc));
       }
