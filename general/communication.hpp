@@ -36,7 +36,6 @@ namespace mfem
 {
 
 class DeviceSharedDofCommunicator;
-template <typename Type> struct MPITypeMap;
 
 namespace internal
 {

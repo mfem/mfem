@@ -1203,6 +1203,7 @@ void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>)) const
       }
       else
       {
+         // Just a placeholder - this case won't be executed on GPU.
          device_op = DeviceSharedDofCommunicator::Op::Sum;
       }
 
