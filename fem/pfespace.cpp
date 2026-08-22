@@ -1816,6 +1816,32 @@ const Operator *ParFiniteElementSpace::GetRestrictionOperator() const
    }
 }
 
+void ParFiniteElementSpace::ParallelRAP(SparseMatrix &loc_A,
+                                        OperatorHandle &A,
+                                        bool steal_loc_A) const
+{
+   // Create a block diagonal parallel matrix
+   OperatorHandle A_diag(Operator::Hypre_ParCSR);
+   A_diag.MakeSquareBlockDiag(GetComm(), GlobalVSize(), GetDofOffsets(), &loc_A);
+
+   // Parallel matrix assembly using P^t A P (if needed)
+   if (IsIdentityProlongation(GetProlongationMatrix()))
+   {
+      A_diag.SetOperatorOwner(false);
+      A.Reset(A_diag.As<HypreParMatrix>());
+      if (steal_loc_A)
+      {
+         HypreStealOwnership(*A.As<HypreParMatrix>(), loc_A);
+      }
+   }
+   else
+   {
+      OperatorHandle P_handle(Operator::Hypre_ParCSR);
+      P_handle.ConvertFrom(Dof_TrueDof_Matrix());
+      A.MakePtAP(A_diag, P_handle);
+   }
+}
+
 void ParFiniteElementSpace::ExchangeFaceNbrData()
 {
    if (num_face_nbr_dofs >= 0) { return; }
