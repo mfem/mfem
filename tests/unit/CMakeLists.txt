@@ -140,6 +140,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lin_interp.cpp
   fem/test_linear_fes.cpp
   fem/test_linearform_ext.cpp
+  fem/test_lininteg_boundary.cpp
   fem/test_lor_batched.cpp
   fem/test_lor_dg.cpp
   fem/test_lor.cpp
