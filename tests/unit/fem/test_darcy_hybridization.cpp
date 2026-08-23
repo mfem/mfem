@@ -223,3 +223,92 @@ TEST_CASE("Hybridized Darcy converges at the design order",
       mesh.UniformRefinement();
    }
 }
+
+TEST_CASE("Hybridized Darcy in three dimensions on hexahedra",
+          "[DarcyForm][DarcyHybridization]")
+{
+   using namespace darcy_hybridization;
+
+   // Nothing in fem/darcy has ever run in 3D: every HDG miniapp and example
+   // builds a 2D mesh, so DarcyHybridization's three-dimensional face handling
+   // is unexercised. Establish that before blaming anything on element type.
+   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
+                     : GENERATE(0, 1);
+
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0);
+
+   const Result mono = Solve(mesh, order, false);
+   const Result hyb  = Solve(mesh, order, true);
+
+   CAPTURE(order, mono.solved_size, hyb.solved_size);
+
+   REQUIRE(hyb.solved_size < mono.solved_size);
+
+   Vector du(hyb.u), dp(hyb.p);
+   du -= mono.u;
+   dp -= mono.p;
+
+   REQUIRE(du.Normlinf() < 1e-8 * std::max(mono.u.Normlinf(), real_t(1.0)));
+   REQUIRE(dp.Normlinf() < 1e-8 * std::max(mono.p.Normlinf(), real_t(1.0)));
+}
+
+TEST_CASE("Hybridized Darcy on wedges", "[DarcyForm][DarcyHybridization][Wedge]")
+{
+   using namespace darcy_hybridization;
+
+   // A wedge carries two triangular and three quadrilateral faces, so a single
+   // element has mixed face geometry -- the structural difference from every
+   // element this code has been run on, and the element the extruded velocity
+   // mesh of the application is made of.
+   //
+   // Order 2 in 3D is minutes rather than seconds, which is more than MFEM's
+   // suite budgets for, so it runs only under --all.
+   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
+                     : GENERATE(0, 1);
+
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::WEDGE, 1.0, 1.0, 1.0);
+   REQUIRE(mesh.GetElementType(0) == Element::WEDGE);
+
+   const Result mono = Solve(mesh, order, false);
+   const Result hyb  = Solve(mesh, order, true);
+
+   CAPTURE(order, mono.solved_size, hyb.solved_size);
+
+   REQUIRE(hyb.solved_size < mono.solved_size);
+
+   Vector du(hyb.u), dp(hyb.p);
+   du -= mono.u;
+   dp -= mono.p;
+
+   REQUIRE(du.Normlinf() < 1e-8 * std::max(mono.u.Normlinf(), real_t(1.0)));
+   REQUIRE(dp.Normlinf() < 1e-8 * std::max(mono.p.Normlinf(), real_t(1.0)));
+}
+
+TEST_CASE("Hybridized Darcy converges on wedges",
+          "[DarcyForm][DarcyHybridization][Wedge]")
+{
+   using namespace darcy_hybridization;
+
+   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
+                     : GENERATE(0, 1);
+
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::WEDGE, 1.0, 1.0, 1.0);
+
+   real_t prev_p = -1.0, prev_u = -1.0;
+   for (int ref = 0; ref < 3; ref++)
+   {
+      const Result r = Solve(mesh, order, true);
+      if (prev_p > 0.0)
+      {
+         const real_t rate_p = std::log2(prev_p / r.err_p);
+         const real_t rate_u = std::log2(prev_u / r.err_u);
+         CAPTURE(order, ref, rate_p, rate_u, r.err_p, r.err_u);
+         REQUIRE(rate_p > order + 0.7);
+         REQUIRE(rate_u > order + 0.7);
+      }
+      prev_p = r.err_p;
+      prev_u = r.err_u;
+      mesh.UniformRefinement();
+   }
+}
