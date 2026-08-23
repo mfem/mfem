@@ -140,6 +140,7 @@ set(UNIT_TESTS_SRCS
   fem/test_lor_dg.cpp
   fem/test_lor.cpp
   fem/test_nonlinearform.cpp
+  fem/test_nonlininteg_mixed.cpp
   fem/test_operatorjacobismoother.cpp
   fem/test_oscillation.cpp
   fem/test_pa_coeff.cpp

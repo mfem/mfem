@@ -29,7 +29,7 @@ real_t mfem::LinearDiffusionFlux::ComputeDualFlux(
       Vector ikappa(dim);
       vcoeff->Eval(ikappa, Tr, Tr.GetIntPoint());
       dualFlux = flux;
-      dualFlux.LeftScaling(ikappa);
+      dualFlux.RightScaling(ikappa);
       return ikappa.Normlinf();
    }
    else if (mcoeff)
@@ -91,7 +91,7 @@ real_t mfem::FunctionDiffusionFlux::ComputeDualFlux(
       Vector ikappa(dim);
       func_vec(x, u(0), ikappa);
       dualFlux = flux;
-      dualFlux.LeftScaling(ikappa);
+      dualFlux.RightScaling(ikappa);
       return ikappa.Normlinf();
    }
    else if (func_mat)
