@@ -74,3 +74,80 @@ TEST_CASE("Sparse Smoothers Transposed", "[DSmoother][GSSmoother]")
    TestTranspose(GSSmoother(A, 1, nit)); // forward
    TestTranspose(GSSmoother(A, 2, nit)); // backward
 }
+
+// Build a small nonsingular sparse matrix on the heap. The caller decides who
+// frees it, which is the point of these tests.
+static SparseMatrix *MakeSmootherMatrix()
+{
+   SparseMatrix *A = new SparseMatrix(3, 3);
+   for (int i = 0; i < 3; i++)
+   {
+      A->Add(i, i, 2.0);
+      if (i > 0) { A->Add(i, i-1, -1.0); }
+      if (i < 2) { A->Add(i, i+1, -1.0); }
+   }
+   A->Finalize();
+   return A;
+}
+
+TEST_CASE("Sparse smoother matrix ownership", "[DSmoother][GSSmoother]")
+{
+   SECTION("SparseSmoother does not take ownership by default")
+   {
+      SparseMatrix *A = MakeSmootherMatrix();
+      {
+         GSSmoother S(*A);
+         REQUIRE_FALSE(S.GetOwnership());
+      }
+      // S is gone; A must not be.
+      REQUIRE(A->Height() == 3);
+      REQUIRE(A->NumNonZeroElems() == 7);
+      delete A;
+   }
+
+   SECTION("GSSmoother takes ownership when asked")
+   {
+      SparseMatrix *A = MakeSmootherMatrix();
+      GSSmoother S(*A, GSSmoother::SYMMETRIC, 1, true);
+      REQUIRE(S.GetOwnership());
+      // S frees A on destruction, so A is deliberately not deleted here.
+   }
+
+   SECTION("DSmoother takes ownership when asked")
+   {
+      SparseMatrix *A = MakeSmootherMatrix();
+      DSmoother S(*A, 0, 1.0, 1, true);
+      REQUIRE(S.GetOwnership());
+   }
+
+   SECTION("SetOwnership overrides the constructor")
+   {
+      SparseMatrix *A = MakeSmootherMatrix();
+      {
+         GSSmoother S(*A, GSSmoother::SYMMETRIC, 1, true);
+         REQUIRE(S.GetOwnership());
+         S.SetOwnership(false);
+         REQUIRE_FALSE(S.GetOwnership());
+      }
+      REQUIRE(A->Height() == 3);
+      delete A;
+   }
+
+   SECTION("an owning smoother still smooths")
+   {
+      SparseMatrix *A = MakeSmootherMatrix();
+      Vector b(3), x(3);
+      b = 1.0;
+      x = 0.0;
+
+      GSSmoother S(*A, GSSmoother::SYMMETRIC, 1, true);
+      S.Mult(b, x);
+
+      // One symmetric sweep from a zero initial guess must reduce the
+      // residual; the exact iterate is not the point here, ownership is.
+      Vector r(3);
+      A->Mult(x, r);
+      r -= b;
+      REQUIRE(r.Norml2() < b.Norml2());
+   }
+}

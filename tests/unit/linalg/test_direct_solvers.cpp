@@ -357,3 +357,58 @@ TEST_CASE("Parallel Direct Solvers", "[Parallel], [GPU]")
 }
 
 #endif
+
+#ifdef MFEM_USE_SUITESPARSE
+
+TEST_CASE("UMFPack is above its dense-block threshold", "[UMFPack]")
+{
+   // UMFPACK switches to BLAS level-3 kernels once a frontal matrix is big
+   // enough, so a solver that is exact on a small system says nothing about a
+   // large one. This test is sized to cross that threshold deliberately.
+   //
+   // The failure this guards against is not an MFEM defect: if libblas.so.3
+   // resolves to a BLAS whose integer interface or threading layer does not
+   // match what UMFPACK was built against, the factorization is silently
+   // wrong -- exact below the threshold, nonsense above it. On a Debian or
+   // Ubuntu machine, check whether the BLAS alternative points at MKL:
+   //
+   //    ls -l /etc/alternatives/libblas.so.3-x86_64-linux-gnu
+   //
+   // and if so either repoint it or set MKL_THREADING_LAYER=GNU.
+   const int n = 2000;
+
+   SparseMatrix A(n, n);
+   for (int i = 0; i < n; i++)
+   {
+      A.Add(i, i, 4.0);
+      if (i > 0)     { A.Add(i, i-1, -1.0); }
+      if (i < n-1)   { A.Add(i, i+1, -1.0); }
+      // A wide band, so the frontal matrices are dense enough to reach BLAS.
+      if (i >= 32)   { A.Add(i, i-32, -0.5); }
+      if (i < n-32)  { A.Add(i, i+32, -0.5); }
+   }
+   A.Finalize();
+
+   Vector xex(n), b(n), x(n);
+   for (int i = 0; i < n; i++) { xex(i) = std::sin(real_t(i)); }
+   A.Mult(xex, b);
+   x = 0.0;
+
+   UMFPackSolver umf;
+   umf.SetOperator(A);
+   umf.Mult(b, x);
+
+   Vector r(n);
+   A.Mult(x, r);
+   r -= b;
+
+   INFO("UMFPack residual " << r.Norml2() << " on an n=" << n
+        << " banded system; a large value here usually means the BLAS behind "
+        "UMFPACK is mismatched, not that MFEM is wrong");
+   REQUIRE(r.Norml2() < 1e-10 * b.Norml2());
+
+   x -= xex;
+   REQUIRE(x.Normlinf() < 1e-10);
+}
+
+#endif

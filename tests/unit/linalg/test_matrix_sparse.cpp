@@ -290,4 +290,73 @@ TEST_CASE("SparseMatrix cuSPARSE Bug", "[SparseMatrix][GPU]")
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
 }
 
+
+TEST_CASE("SparseMatrix AddSubSparseMatrix", "[SparseMatrix]")
+{
+   // B is added into the (1,1) block of a larger matrix, scaled by a.
+   SparseMatrix B(2, 2);
+   B.Add(0, 0, 1.0);
+   B.Add(0, 1, 2.0);
+   B.Add(1, 1, 3.0);
+   B.Finalize();
+
+   const real_t a = -2.0;
+
+   SECTION("adds a scaled block at the given offsets")
+   {
+      SparseMatrix A(4, 4);
+      A.Add(0, 0, 5.0);   // an entry outside the sub-block must be untouched
+      A.AddSubSparseMatrix(a, B, 1, 1);
+      A.Finalize();
+
+      REQUIRE(A.NumNonZeroElems() == 4);
+      REQUIRE(A(0, 0) == MFEM_Approx(5.0));
+      REQUIRE(A(1, 1) == MFEM_Approx(a * 1.0));
+      REQUIRE(A(1, 2) == MFEM_Approx(a * 2.0));
+      REQUIRE(A(2, 2) == MFEM_Approx(a * 3.0));
+   }
+
+   SECTION("accumulates rather than overwrites")
+   {
+      SparseMatrix A(4, 4);
+      A.AddSubSparseMatrix(a, B, 1, 1);
+      A.AddSubSparseMatrix(1.0, B, 1, 1);
+      A.Finalize();
+
+      REQUIRE(A.NumNonZeroElems() == 3);
+      REQUIRE(A(1, 1) == MFEM_Approx((a + 1.0) * 1.0));
+      REQUIRE(A(1, 2) == MFEM_Approx((a + 1.0) * 2.0));
+      REQUIRE(A(2, 2) == MFEM_Approx((a + 1.0) * 3.0));
+   }
+
+   SECTION("a zero offset reproduces a plain scaled add")
+   {
+      SparseMatrix A(2, 2);
+      A.AddSubSparseMatrix(a, B, 0, 0);
+      A.Finalize();
+
+      REQUIRE(A(0, 0) == MFEM_Approx(a * 1.0));
+      REQUIRE(A(0, 1) == MFEM_Approx(a * 2.0));
+      REQUIRE(A(1, 1) == MFEM_Approx(a * 3.0));
+   }
+
+   SECTION("works with a non-finalized source matrix")
+   {
+      // B in linked-list form takes the other branch of the implementation.
+      SparseMatrix Bl(2, 2);
+      Bl.Add(0, 0, 1.0);
+      Bl.Add(0, 1, 2.0);
+      Bl.Add(1, 1, 3.0);
+
+      SparseMatrix A(4, 4);
+      A.AddSubSparseMatrix(a, Bl, 1, 1);
+      A.Finalize();
+
+      REQUIRE(A.NumNonZeroElems() == 3);
+      REQUIRE(A(1, 1) == MFEM_Approx(a * 1.0));
+      REQUIRE(A(1, 2) == MFEM_Approx(a * 2.0));
+      REQUIRE(A(2, 2) == MFEM_Approx(a * 3.0));
+   }
+}
+
 } // namespace mfem

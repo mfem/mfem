@@ -996,3 +996,131 @@ TEST_CASE("DenseTensor slice copy and move assign equivalency",
       }
    }
 }
+
+TEST_CASE("DenseMatrix Diag from a raw array and from a Vector",
+          "[DenseMatrix]")
+{
+   const real_t d[3] = {2.0, -1.5, 4.0};
+
+   DenseMatrix A;
+   A.Diag(d, 3);
+
+   REQUIRE(A.Height() == 3);
+   REQUIRE(A.Width() == 3);
+   for (int j = 0; j < 3; j++)
+   {
+      for (int i = 0; i < 3; i++)
+      {
+         REQUIRE(A(i, j) == MFEM_Approx((i == j) ? d[i] : 0.0));
+      }
+   }
+
+   // The Vector overload must agree with the raw-pointer one entry for entry.
+   Vector v(3);
+   for (int i = 0; i < 3; i++) { v(i) = d[i]; }
+   DenseMatrix B;
+   B.Diag(v);
+   B -= A;
+   REQUIRE(B.MaxMaxNorm() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("DenseMatrix MakeDataOwner", "[DenseMatrix]")
+{
+   real_t *ext = new real_t[4];
+   for (int i = 0; i < 4; i++) { ext[i] = i + 1; }
+
+   DenseMatrix A;
+   A.UseExternalData(ext, 2, 2);
+   REQUIRE_FALSE(A.GetMemory().OwnsHostPtr());
+
+   A.MakeDataOwner();
+   REQUIRE(A.GetMemory().OwnsHostPtr());
+
+   // The data must survive the transfer of ownership, and A must free it on
+   // destruction -- so 'ext' is deliberately not deleted here.
+   for (int i = 0; i < 4; i++)
+   {
+      REQUIRE(A.Data()[i] == MFEM_Approx(real_t(i + 1)));
+   }
+}
+
+TEST_CASE("DenseTensor arithmetic", "[DenseTensor]")
+{
+   const int ni = 2, nj = 3, nk = 2;
+   const int n = ni * nj * nk;
+
+   auto Fill = [=](DenseTensor &T, real_t s)
+   {
+      T.SetSize(ni, nj, nk);
+      for (int k = 0; k < nk; k++)
+         for (int j = 0; j < nj; j++)
+            for (int i = 0; i < ni; i++)
+            {
+               T(i, j, k) = s * (i + 10 * j + 100 * k + 1);
+            }
+   };
+
+   DenseTensor A, B;
+   Fill(A, 1.0);
+   Fill(B, 2.0);
+
+   SECTION("operator+= with a raw array")
+   {
+      DenseTensor C;
+      Fill(C, 1.0);
+      C += B.Data();
+      for (int m = 0; m < n; m++)
+      {
+         REQUIRE(C.Data()[m] == MFEM_Approx(A.Data()[m] + B.Data()[m]));
+      }
+   }
+
+   SECTION("operator+= with a DenseTensor")
+   {
+      DenseTensor C;
+      Fill(C, 1.0);
+      C += B;
+      for (int m = 0; m < n; m++)
+      {
+         REQUIRE(C.Data()[m] == MFEM_Approx(3.0 * A.Data()[m]));
+      }
+   }
+
+   SECTION("operator-=")
+   {
+      DenseTensor C;
+      Fill(C, 1.0);
+      C -= B;
+      for (int m = 0; m < n; m++)
+      {
+         REQUIRE(C.Data()[m] == MFEM_Approx(-A.Data()[m]));
+      }
+   }
+
+   SECTION("operator*=")
+   {
+      DenseTensor C;
+      Fill(C, 1.0);
+      C *= -0.5;
+      for (int m = 0; m < n; m++)
+      {
+         REQUIRE(C.Data()[m] == MFEM_Approx(-0.5 * A.Data()[m]));
+      }
+   }
+
+   SECTION("Neg")
+   {
+      DenseTensor C;
+      Fill(C, 1.0);
+      C.Neg();
+      for (int m = 0; m < n; m++)
+      {
+         REQUIRE(C.Data()[m] == MFEM_Approx(-A.Data()[m]));
+      }
+      C.Neg();
+      for (int m = 0; m < n; m++)
+      {
+         REQUIRE(C.Data()[m] == MFEM_Approx(A.Data()[m]));
+      }
+   }
+}
