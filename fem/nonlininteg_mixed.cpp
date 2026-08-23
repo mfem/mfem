@@ -158,22 +158,36 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
 {
-   const int ndof_u = el[0]->GetDof();
-   const int ndof_p = el[1]->GetDof();
-   const int sdim = Tr.GetSpaceDim();
-
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
+   const int ndof_u = fe_u.GetDof();
+   const int ndof_p = fe_p.GetDof();
+   const int sdim = Tr.GetSpaceDim();
+   const bool scalar_u = (fe_u.GetRangeType() == FiniteElement::SCALAR);
+
    const Vector &elfun_u = *elfun[0];
    const Vector &elfun_p = *elfun[1];
    Vector &elvect_u = *elvect[0];
+
+   // The number of equations comes from the flux function; the spaces must
+   // agree with it. Equation e occupies one contiguous block of each vector,
+   // which is the Ordering::byNODES layout of a space of vdim = neq (or of
+   // vdim = neq * sdim for a scalar-valued flux space).
+   const int neq = fluxFunction.num_equations;
+   const int nvdof_u = (scalar_u ? sdim : 1) * ndof_u;
+
+   MFEM_ASSERT(elfun_p.Size() == neq * ndof_p,
+               "The potential space must have vdim = " << neq << ".");
+   MFEM_ASSERT(elfun_u.Size() == neq * nvdof_u,
+               "The flux space must have vdim = " << neq * (scalar_u ? sdim : 1)
+               << ".");
 
    shape_p.SetSize(ndof_p);
 
    if (elvect[1]) { elvect[1]->SetSize(0); } // not used
 
-   Vector x(sdim), u(sdim), F(sdim), p(1);
-   DenseMatrix mu(u.GetData(), 1, sdim), mF(F.GetData(), 1, sdim);
+   Vector x(sdim), p(neq), ue(sdim), Fe(sdim);
+   DenseMatrix mu(neq, sdim), mF(neq, sdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -182,60 +196,70 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
       ir = &IntRules.Get(fe_u.GetGeomType(), order);
    }
 
-   if (fe_u.GetRangeType() == FiniteElement::SCALAR)
+   elvect_u.SetSize(neq * nvdof_u);
+   elvect_u = 0.0;
+
+   if (scalar_u) { shape_u.SetSize(ndof_u); }
+   else { vshape_u.SetSize(ndof_u, sdim); }
+
+   for (int q = 0; q < ir->Size(); q++)
    {
-      shape_u.SetSize(ndof_u);
-      elvect_u.SetSize(ndof_u * sdim);
-      elvect_u = 0.0;
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint(&ip);
+      Tr.Transform(ip, x);
 
-      DenseMatrix elfun_u_mat(elfun_u.GetData(), ndof_u, sdim);
-
-      for (int q = 0; q < ir->Size(); q++)
+      fe_p.CalcShape(ip, shape_p);
+      for (int e = 0; e < neq; e++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(q);
-         Tr.SetIntPoint(&ip);
-         Tr.Transform(ip, x);
+         const Vector p_e(elfun_p.GetData() + e*ndof_p, ndof_p);
+         p(e) = p_e * shape_p;
+      }
 
+      const real_t w = ip.weight * Tr.Weight();
+
+      if (scalar_u)
+      {
          fe_u.CalcShape(ip, shape_u);
-         fe_p.CalcShape(ip, shape_p);
-
-         p(0) = elfun_p * shape_p;
-         real_t w = ip.weight * Tr.Weight();
-
-         elfun_u_mat.MultTranspose(shape_u, u);
-
-         fluxFunction.ComputeDualFlux(p, mu, Tr, mF);
-
-         for (int d = 0; d < sdim; d++)
-            for (int i = 0; i < ndof_u; i++)
+         for (int e = 0; e < neq; e++)
+            for (int d = 0; d < sdim; d++)
             {
-               elvect_u(i+d*ndof_u) += w * shape_u(i) * F(d);
+               const Vector u_ed(elfun_u.GetData() + (e*sdim + d)*ndof_u,
+                                 ndof_u);
+               mu(e, d) = u_ed * shape_u;
             }
       }
-   }
-   else
-   {
-      vshape_u.SetSize(ndof_u, sdim);
-      elvect_u.SetSize(ndof_u);
-      elvect_u = 0.0;
-
-      for (int q = 0; q < ir->Size(); q++)
+      else
       {
-         const IntegrationPoint &ip = ir->IntPoint(q);
-         Tr.SetIntPoint(&ip);
-         Tr.Transform(ip, x);
-
          fe_u.CalcVShape(Tr, vshape_u);
-         fe_p.CalcShape(ip, shape_p);
+         for (int e = 0; e < neq; e++)
+         {
+            const Vector u_e(elfun_u.GetData() + e*ndof_u, ndof_u);
+            vshape_u.MultTranspose(u_e, ue);
+            for (int d = 0; d < sdim; d++) { mu(e, d) = ue(d); }
+         }
+      }
 
-         p(0) = elfun_p * shape_p;
-         real_t w = ip.weight * Tr.Weight();
+      fluxFunction.ComputeDualFlux(p, mu, Tr, mF);
+      MFEM_ASSERT(mF.Height() == neq && mF.Width() == sdim,
+                  "The dual flux must be num_equations by dim.");
 
-         vshape_u.MultTranspose(elfun_u, u);
-
-         fluxFunction.ComputeDualFlux(p, mu, Tr, mF);
-
-         vshape_u.AddMult_a(w, F, elvect_u);
+      if (scalar_u)
+      {
+         for (int e = 0; e < neq; e++)
+            for (int d = 0; d < sdim; d++)
+               for (int i = 0; i < ndof_u; i++)
+               {
+                  elvect_u((e*sdim + d)*ndof_u + i) += w * shape_u(i) * mF(e, d);
+               }
+      }
+      else
+      {
+         for (int e = 0; e < neq; e++)
+         {
+            for (int d = 0; d < sdim; d++) { Fe(d) = mF(e, d); }
+            Vector ev_e(elvect_u.GetData() + e*ndof_u, ndof_u);
+            vshape_u.AddMult_a(w, Fe, ev_e);
+         }
       }
    }
 }
@@ -246,6 +270,18 @@ void MixedConductionNLFIntegrator::AssembleFaceVector(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array<Vector *> &elvect)
 {
+   // The face terms are still single-equation. Generalizing them is not the
+   // index bookkeeping the element terms were: the HDG stabilization here is
+   // built from the inverse of the flux Jacobian contracted with the face
+   // normal, and what that should be for a system -- a matrix tau coupling the
+   // equations, or one scalar per equation -- is a question about the
+   // formulation rather than about the code. Refuse rather than assemble the
+   // first equation and silently ignore the rest.
+   MFEM_VERIFY(fluxFunction.num_equations == 1,
+               "MixedConductionNLFIntegrator face terms are implemented for a "
+               "single equation only; the element terms support "
+               << fluxFunction.num_equations << ".");
+
    const FiniteElement &el1_u = *el1[0];
    const FiniteElement &el2_u = *el2[0];
    const FiniteElement &el1_p = *el1[1];
@@ -390,30 +426,42 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    const int ndof_u = fe_u.GetDof();
    const int ndof_p = fe_p.GetDof();
    const int sdim = Tr.GetSpaceDim();
-   const int nvdof_u = ((fe_u.GetRangeType() == FiniteElement::SCALAR)?(sdim):
-                        (1)) * ndof_u;
+   const bool scalar_u = (fe_u.GetRangeType() == FiniteElement::SCALAR);
+   const int nvdof_u = (scalar_u ? sdim : 1) * ndof_u;
 
    const Vector &elfun_u = *elfun[0];
    const Vector &elfun_p = *elfun[1];
+
+   const int neq = fluxFunction.num_equations;
+
+   MFEM_ASSERT(elfun_p.Size() == neq * ndof_p,
+               "The potential space must have vdim = " << neq << ".");
+   MFEM_ASSERT(elfun_u.Size() == neq * nvdof_u,
+               "The flux space must have vdim = " << neq * (scalar_u ? sdim : 1)
+               << ".");
 
    shape_p.SetSize(ndof_p);
 
    if (elmats(1,1)) { elmats(1,1)->SetSize(0); } // not used
    if (elmats(0,0))
    {
-      elmats(0,0)->SetSize(nvdof_u);
+      elmats(0,0)->SetSize(neq * nvdof_u);
       *elmats(0,0) = 0.0;
    }
    if (elmats(0,1))
    {
-      elmats(0,1)->SetSize(nvdof_u, ndof_p);
+      elmats(0,1)->SetSize(neq * nvdof_u, neq * ndof_p);
       *elmats(0,1) = 0.0;
    }
    if (elmats(1,0)) { elmats(1,0)->SetSize(0); } // not used
 
-   DenseMatrix J_u(sdim, 1), J_F(sdim);
-   Vector x(sdim), u(sdim), p(1);
-   DenseMatrix mu(u.GetData(), 1, sdim);
+   // The dual flux is num_equations by dim, so its derivative with respect to
+   // the state is (neq*sdim) by neq and with respect to the flux is
+   // (neq*sdim) squared, both indexed equation-major: row e*sdim + d. For one
+   // equation this is the (sdim,1) and (sdim,sdim) pair it has always been.
+   DenseMatrix J_u(neq*sdim, neq), J_F(neq*sdim, neq*sdim);
+   Vector x(sdim), p(neq), ue(sdim);
+   DenseMatrix mu(neq, sdim);
 
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
@@ -422,86 +470,126 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
       ir = &IntRules.Get(fe_u.GetGeomType(), order);
    }
 
-   if (fe_u.GetRangeType() == FiniteElement::SCALAR)
+   if (scalar_u) { shape_u.SetSize(ndof_u); }
+   else { vshape_u.SetSize(ndof_u, sdim); }
+
+   // Scratch for the blocked H(div) form.
+   DenseMatrix J_Fb(sdim, sdim), vshapeJ_u(sdim, ndof_u), block(ndof_u, ndof_u);
+   Vector J_ub(sdim), vshapeJu(ndof_u);
+   DenseMatrix blockp(ndof_u, ndof_p);
+
+   for (int q = 0; q < ir->Size(); q++)
    {
-      shape_u.SetSize(ndof_u);
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Tr.SetIntPoint(&ip);
+      Tr.Transform(ip, x);
 
-      DenseMatrix elfun_u_mat(elfun_u.GetData(), ndof_u, sdim);
-
-      for (int q = 0; q < ir->Size(); q++)
+      fe_p.CalcShape(ip, shape_p);
+      for (int e = 0; e < neq; e++)
       {
-         const IntegrationPoint &ip = ir->IntPoint(q);
-         Tr.SetIntPoint(&ip);
-         Tr.Transform(ip, x);
+         const Vector p_e(elfun_p.GetData() + e*ndof_p, ndof_p);
+         p(e) = p_e * shape_p;
+      }
 
+      if (scalar_u)
+      {
          fe_u.CalcShape(ip, shape_u);
-         fe_p.CalcShape(ip, shape_p);
+         for (int e = 0; e < neq; e++)
+            for (int d = 0; d < sdim; d++)
+            {
+               const Vector u_ed(elfun_u.GetData() + (e*sdim + d)*ndof_u,
+                                 ndof_u);
+               mu(e, d) = u_ed * shape_u;
+            }
+      }
+      else
+      {
+         fe_u.CalcVShape(Tr, vshape_u);
+         for (int e = 0; e < neq; e++)
+         {
+            const Vector u_e(elfun_u.GetData() + e*ndof_u, ndof_u);
+            vshape_u.MultTranspose(u_e, ue);
+            for (int d = 0; d < sdim; d++) { mu(e, d) = ue(d); }
+         }
+      }
 
-         p(0) = elfun_p * shape_p;
-         elfun_u_mat.MultTranspose(shape_u, u);
+      fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J_u, J_F);
+      MFEM_ASSERT(J_F.Height() == neq*sdim && J_F.Width() == neq*sdim,
+                  "J_F must be (num_equations*dim) squared.");
+      MFEM_ASSERT(J_u.Height() == neq*sdim && J_u.Width() == neq,
+                  "J_u must be (num_equations*dim) by num_equations.");
 
-         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J_u, J_F);
+      const real_t w = ip.weight * Tr.Weight();
 
-         real_t w = ip.weight * Tr.Weight();
-
+      if (scalar_u)
+      {
          if (elmats(0,0))
          {
-            for (int d_j = 0; d_j < sdim; d_j++)
-               for (int d_i = 0; d_i < sdim; d_i++)
-                  for (int j = 0; j < ndof_u; j++)
-                     for (int i = 0; i < ndof_u; i++)
+            for (int e_j = 0; e_j < neq; e_j++)
+               for (int d_j = 0; d_j < sdim; d_j++)
+                  for (int e_i = 0; e_i < neq; e_i++)
+                     for (int d_i = 0; d_i < sdim; d_i++)
                      {
-                        (*elmats(0,0))(i+d_i*ndof_u, j+d_j*ndof_u)
-                        += w * J_F(d_i,d_j) * shape_u(i) * shape_u(j);
+                        const real_t a =
+                           w * J_F(e_i*sdim + d_i, e_j*sdim + d_j);
+                        if (a == 0.0) { continue; }
+                        for (int j = 0; j < ndof_u; j++)
+                           for (int i = 0; i < ndof_u; i++)
+                           {
+                              (*elmats(0,0))((e_i*sdim + d_i)*ndof_u + i,
+                                             (e_j*sdim + d_j)*ndof_u + j)
+                              += a * shape_u(i) * shape_u(j);
+                           }
                      }
          }
 
          if (elmats(0,1))
          {
-            for (int d_i = 0; d_i < sdim; d_i++)
-               for (int j = 0; j < ndof_p; j++)
-                  for (int i = 0; i < ndof_u; i++)
+            for (int e_j = 0; e_j < neq; e_j++)
+               for (int e_i = 0; e_i < neq; e_i++)
+                  for (int d_i = 0; d_i < sdim; d_i++)
                   {
-                     (*elmats(0,1))(i+d_i*ndof_u, j)
-                     += w * J_u(d_i,0) * shape_u(i) * shape_p(j);
+                     const real_t a = w * J_u(e_i*sdim + d_i, e_j);
+                     if (a == 0.0) { continue; }
+                     for (int j = 0; j < ndof_p; j++)
+                        for (int i = 0; i < ndof_u; i++)
+                        {
+                           (*elmats(0,1))((e_i*sdim + d_i)*ndof_u + i,
+                                          e_j*ndof_p + j)
+                           += a * shape_u(i) * shape_p(j);
+                        }
                   }
          }
       }
-   }
-   else
-   {
-      vshape_u.SetSize(ndof_u, sdim);
-
-      DenseMatrix vshapeJ_u(sdim, ndof_u);
-      Vector vshapeJu(ndof_u);
-      Vector J_uv(J_u.GetData(), sdim);
-
-      for (int q = 0; q < ir->Size(); q++)
+      else
       {
-         const IntegrationPoint &ip = ir->IntPoint(q);
-         Tr.SetIntPoint(&ip);
-         Tr.Transform(ip, x);
-
-         fe_u.CalcVShape(Tr, vshape_u);
-         fe_p.CalcShape(ip, shape_p);
-
-         p(0) = elfun_p * shape_p;
-         vshape_u.MultTranspose(elfun_u, u);
-
-         fluxFunction.ComputeDualFluxJacobian(p, mu, Tr, J_u, J_F);
-
-         real_t w = ip.weight * Tr.Weight();
-
          if (elmats(0,0))
          {
-            MultABt(J_F, vshape_u, vshapeJ_u);
-            AddMult_a(w, vshape_u, vshapeJ_u, *elmats(0,0));
+            for (int e_i = 0; e_i < neq; e_i++)
+               for (int e_j = 0; e_j < neq; e_j++)
+               {
+                  J_Fb.CopyMN(J_F, sdim, sdim, e_i*sdim, e_j*sdim);
+                  MultABt(J_Fb, vshape_u, vshapeJ_u);
+                  block = 0.0;
+                  AddMult_a(w, vshape_u, vshapeJ_u, block);
+                  elmats(0,0)->AddMatrix(1.0, block, e_i*ndof_u, e_j*ndof_u);
+               }
          }
 
          if (elmats(0,1))
          {
-            vshape_u.Mult(J_uv, vshapeJu);
-            AddMult_a_VWt(w, vshapeJu, shape_p, *elmats(0,1));
+            for (int e_i = 0; e_i < neq; e_i++)
+               for (int e_j = 0; e_j < neq; e_j++)
+               {
+                  for (int d = 0; d < sdim; d++)
+                  {
+                     J_ub(d) = J_u(e_i*sdim + d, e_j);
+                  }
+                  vshape_u.Mult(J_ub, vshapeJu);
+                  blockp = 0.0;
+                  AddMult_a_VWt(w, vshapeJu, shape_p, blockp);
+                  elmats(0,1)->AddMatrix(1.0, blockp, e_i*ndof_u, e_j*ndof_p);
+               }
          }
       }
    }
@@ -513,6 +601,18 @@ void MixedConductionNLFIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
+   // The face terms are still single-equation. Generalizing them is not the
+   // index bookkeeping the element terms were: the HDG stabilization here is
+   // built from the inverse of the flux Jacobian contracted with the face
+   // normal, and what that should be for a system -- a matrix tau coupling the
+   // equations, or one scalar per equation -- is a question about the
+   // formulation rather than about the code. Refuse rather than assemble the
+   // first equation and silently ignore the rest.
+   MFEM_VERIFY(fluxFunction.num_equations == 1,
+               "MixedConductionNLFIntegrator face terms are implemented for a "
+               "single equation only; the element terms support "
+               << fluxFunction.num_equations << ".");
+
    const FiniteElement &el1_u = *el1[0];
    const FiniteElement &el2_u = *el2[0];
    const FiniteElement &el1_p = *el1[1];
