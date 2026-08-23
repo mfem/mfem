@@ -140,3 +140,38 @@ TEST_CASE("BrokenRT_FECollection supplies a trace collection",
    delete rt_trace;
    delete trace;
 }
+
+TEST_CASE("BrokenRT_FECollection registers everything on the element",
+          "[FiniteElementCollection][BrokenRT]")
+{
+   // BrokenRT derives from the protected RT_FECollection constructor that
+   // registers no face DOFs, then reports the whole element instead. That
+   // constructor is not public, so what is checked here is the observable
+   // consequence: nothing on the faces, everything on the element.
+   const int dim = GENERATE(2, 3);
+   const int p = GENERATE(0, 1, 2);
+
+   CAPTURE(dim, p);
+
+   RT_FECollection rt(p, dim);
+   BrokenRT_FECollection broken(p, dim);
+
+   const Geometry::Type face_geom = (dim == 2) ? Geometry::SEGMENT
+                                    : Geometry::SQUARE;
+   const Geometry::Type el_geom = (dim == 2) ? Geometry::SQUARE
+                                  : Geometry::CUBE;
+
+   REQUIRE(rt.DofForGeometry(face_geom) > 0);
+   REQUIRE(broken.DofForGeometry(face_geom) == 0);
+
+   // Everything the RT element has, counted on the element itself: the
+   // interior DOFs plus the face DOFs the unbroken space would share.
+   Mesh mesh = (dim == 2)
+               ? Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL, false,
+                                       1.0, 1.0)
+               : Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON,
+                                       1.0, 1.0, 1.0);
+   FiniteElementSpace fes_rt(&mesh, &rt);
+   REQUIRE(broken.DofForGeometry(el_geom) == fes_rt.GetFE(0)->GetDof());
+   REQUIRE(broken.DofForGeometry(el_geom) > rt.DofForGeometry(el_geom));
+}
