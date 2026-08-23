@@ -96,6 +96,7 @@ set(UNIT_TESTS_SRCS
   fem/test_3d_bilininteg.cpp
   fem/test_assembly_levels.cpp
   fem/test_bilinearform.cpp
+  fem/test_bilininteg_hdg.cpp
   fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
   fem/test_build_dof_to_arrays.cpp
