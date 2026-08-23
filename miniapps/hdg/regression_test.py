@@ -29,10 +29,14 @@ if len(sys.argv) > 1:
 	else:
 		filenames = sys.argv[1:]
 
+# Resolve the reference directories against this script rather than against
+# the working directory, so the suite can be run from an out-of-source build
+# directory, where only the binaries are present.
+base = os.path.dirname(os.path.abspath(__file__))
 if parallel:
-	path = 'regress_test_par/'
+	path = os.path.join(base, 'regress_test_par') + '/'
 else:
-	path = 'regress_test/'
+	path = os.path.join(base, 'regress_test') + '/'
 
 if len(filenames) == 0:
 	filenames = os.listdir(path)

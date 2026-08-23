@@ -51,7 +51,7 @@ HDG_DEPS = darcyop
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(HDG_DEPS).o $(MFEM_LIBS)
 
 # Rules for compiling miniapp dependencies
-$(HDG_DEPS).o: $(HDG_DEPS).cpp $(HDG_DEPS).hpp $(CONFIG_MK)
+$(HDG_DEPS).o: $(SRC)$(HDG_DEPS).cpp $(SRC)$(HDG_DEPS).hpp $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 MFEM_TESTS = MINIAPPS
