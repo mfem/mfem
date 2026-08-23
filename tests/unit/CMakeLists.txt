@@ -99,6 +99,7 @@ set(UNIT_TESTS_SRCS
   fem/test_bilininteg_hdg.cpp
   fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
+  fem/test_brokenrt.cpp
   fem/test_build_dof_to_arrays.cpp
   fem/test_calccurlshape.cpp
   fem/test_calcdivshape.cpp
@@ -108,6 +109,8 @@ set(UNIT_TESTS_SRCS
   fem/test_calchessian.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
+  fem/test_darcy_hybridization.cpp
+  fem/test_darcy_reduction.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp
