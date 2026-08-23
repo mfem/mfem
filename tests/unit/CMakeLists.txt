@@ -111,6 +111,7 @@ set(UNIT_TESTS_SRCS
   fem/test_col_lag_der.cpp
   fem/test_darcy_degenerate.cpp
   fem/test_darcy_hybridization.cpp
+  fem/test_darcy_nonlinear.cpp
   fem/test_darcy_system.cpp
   fem/test_darcy_reduction.cpp
   fem/test_datacollection.cpp
