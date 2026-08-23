@@ -129,6 +129,7 @@ set(UNIT_TESTS_SRCS
   fem/test_fe.cpp
   fem/test_get_value.cpp
   fem/test_getderivative.cpp
+  fem/test_gridfunc_project.cpp
   fem/test_getgradient.cpp
   fem/test_getgradients.cpp
   fem/test_gslib.cpp
