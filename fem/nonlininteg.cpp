@@ -1217,9 +1217,14 @@ void SumBlockNLFIntegrator::AllocBlock(const Array<Vector *> &b,
       for (int i = 0; i < a.Size(); i++)
       {
          delete a[i];
-         a[i] = NULL;
       }
       a.SetSize(b.Size());
+      // Array::SetSize() does not initialize the entries it adds, and the
+      // loop below tests them, so they have to be nulled explicitly.
+      for (int i = 0; i < a.Size(); i++)
+      {
+         a[i] = NULL;
+      }
    }
    for (int i = 0; i < b.Size(); i++)
    {
@@ -1233,13 +1238,20 @@ void SumBlockNLFIntegrator::AllocBlock(const Array2D<DenseMatrix *> &b,
 {
    if (a.NumRows() != b.NumRows() || a.NumCols() != b.NumCols())
    {
-      for (int i = 0; i < b.NumRows(); i++)
-         for (int j = 0; j < b.NumCols(); j++)
+      // Iterate over a's own extents, not b's: on the first call a is empty
+      // and b is not, so indexing a by b's extents reads out of bounds.
+      for (int i = 0; i < a.NumRows(); i++)
+         for (int j = 0; j < a.NumCols(); j++)
          {
             delete a(i,j);
-            a(i,j) = NULL;
          }
       a.SetSize(b.NumRows(), b.NumCols());
+      // As above, the new entries are uninitialized until set here.
+      for (int i = 0; i < a.NumRows(); i++)
+         for (int j = 0; j < a.NumCols(); j++)
+         {
+            a(i,j) = NULL;
+         }
    }
    for (int i = 0; i < b.NumRows(); i++)
       for (int j = 0; j < b.NumCols(); j++)
