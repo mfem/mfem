@@ -1003,14 +1003,16 @@ restored in `fd028d151b`, so that machinery exists. What is new is an extra
 ### What would have to be built
 
 1. **A representative-cost profile.** See above. Stop here if the law is cheap.
-2. **The classic local postprocessing, general in `vdim`.** CCSZ's `𝔭^{k+1}` is
-   *not* the branch's `ReconstructFluxAndPot`. It is a small dense per-element
-   problem — `(∇u*, ∇z)_K = −(q_h, ∇z)_K` for `z ∈ [P^{k+1}(K)]^⊥` with the mean
-   matched to `u_h` — using only `q_h` and independent of the trace and of the
-   reconstruction plumbing entirely. Generalising *that* to `vdim` is a loop over
-   equations. This corrects what "What is still open" said: postprocessing for a
-   system is only hard if it has to be the branch's superconvergent
-   flux-and-potential reconstruction.
+2. **The classic local postprocessing, general in `vdim`.** CCSZ-I's `u*` is a
+   *different and much smaller object* than the branch's
+   `ReconstructFluxAndPot`; the next subsection sets the two side by side.
+   Generalising CCSZ-I's to `vdim` is a loop over equations. This corrects what
+   "What is still open" said: postprocessing for a system is only hard if it has
+   to be the branch's superconvergent flux-and-potential reconstruction.
+
+   (Do not confuse CCSZ-I's `u*`, built from `q_h`, with CCSZ-II's
+   `𝔭^{k+1}(u_h, û_h)` of §Optional B, built from the potential and its trace.
+   They are different operators serving different methods.)
 3. **An interpolatory variant of `MixedConductionNLFIntegrator`.** It needs a
    per-element cache of `T_{ijl}`, keyed on the element, invalidated on mesh
    change; the nodal `D_l` and `∂D_l/∂p`; and the contraction. `MixedFluxFunction`
@@ -1036,6 +1038,56 @@ So: the implementation transfers, the proof does not, and step 5 is not a
 formality. If rates degrade, CCSZ-I's own remedy — interpolate at `p*` rather
 than at `p_h` — is the first thing to try, and it is why step 2 is in the list
 at all.
+
+### The two postprocessings are not the same object
+
+Worth spelling out, because the branch's is the heavier of the two by a wide
+margin and the difference decides how much of step 2 is real work.
+
+**CCSZ-I (4a)–(4b)** — the classical local postprocessing. On each element,
+find the one scalar field `u* ∈ P^{k+1}(K)` with
+
+    (∇u*, ∇z)_K = −(q_h, ∇z)_K   for all z ∈ [P^{k+1}(K)]^⊥
+    (u*, w)_K   = (u_h, w)_K      for all w ∈ P^0(K)
+
+Its only data are `q_h|_K` and the element average of `u_h`. No trace, no
+enriched flux space, no constraint integrators, no coupling to neighbours. In
+the Lagrange-multiplier form (7a)–(7b) it is one dense solve of size
+`dim P^{k+1}(K) + 1` — ten by ten for a `k=1` quadrilateral. Its output is a
+superconvergent potential and nothing else.
+
+**The branch** follows **NPC-1** §4 instead — that is the paper
+`DarcyHybridization`'s header cites for it, the *linear* convection–diffusion
+one, not the nonlinear NPC-2 — and it is two passes:
+
+* `ReconstructTotalFlux` uses the constraint equation to project the total flux
+  onto the face restriction of an RT space, filling the interior degrees of
+  freedom by integral projection. Its output `q̂` is single-valued and in
+  H(div) — a first-class quantity, and the one §6 needs.
+* `ReconstructFluxAndPot` then re-solves the **whole local mixed problem** on
+  spaces one degree higher, with the total flux as the element source: the full
+  `[M_u −Bᵀ Cᵀ; B M_p E; C G H]` block over enriched flux, potential *and*
+  trace. For a `k=1` DG element in 2D that is `18 + 9 + 12 = 39` unknowns
+  against CCSZ-I's ten — of order sixty times the work per element, on top of
+  the first pass. It also needs the *linear* forms `M_u`, `B`, `M_p` and the
+  constraint integrators `c_bfi`, `c_bfi_p` to exist, which is exactly why it
+  had never been run against a nonlinear law and dereferenced a null pointer
+  when it was, and why it is entangled with `vdim`.
+
+**What the extra buys, measured.** §4's table gives `u_s` tracking `u_h` to
+within a few hundredths of an order in all six rows, and `u_t` likewise. The
+potential rate — the one thing CCSZ-I's ten-by-ten also delivers — is `k+2` in
+both. So on that problem the second pass's extra output, a flux in a richer
+space, is not converging any faster than the solved flux.
+
+**The caveat on that reading.** The manufactured problem is pure diffusion, so
+the total flux `qt = q + c·u` degenerates to `q` and the first pass is only
+projecting `q_h` into H(div) — for RT it returns `q_h` unchanged, which is why
+`u_t` and `u_h` agree to every digit in those rows. Nothing here exercises what
+`ReconstructTotalFlux` is *for*. The honest conclusion is narrower than it
+looks: for a superconvergent **potential**, CCSZ-I's postprocessing appears to
+be all that is needed and is a fraction of the cost; the branch's first pass
+remains the right machinery for §6 and should not be judged on this problem.
 
 ## Optional B. Superconvergence at `k = 0` — the HHO-inspired methods
 
@@ -1253,10 +1305,13 @@ Cited by the short labels used above. Full bibliographic detail is given only
 where this file recorded it at the time; the rest are identified by author and
 subject.
 
-* **NPC-1** — Nguyen, Peraire & Cockburn, on an HDG method for linear
-  convection–diffusion. §3.6 gives the stabilisation `s = s_d + s_c` with
-  `η_c = |c·n|` and `η_d = κ/ℓ`, `ℓ` a fixed problem length scale; Table 1 is the
-  convergence study §5 reproduces.
+* **NPC-1** — Nguyen, Peraire & Cockburn, *An implicit high-order hybridizable
+  discontinuous Galerkin method for linear convection–diffusion equations*,
+  J. Comput. Phys. **228** (2009) 3232–3254. §3.6 gives the stabilisation
+  `s = s_d + s_c` with `η_c = |c·n|` and `η_d = κ/ℓ`, `ℓ` a fixed problem length
+  scale; Table 1 is the convergence study §5 reproduces; **§4 is the two-pass
+  reconstruction the branch implements**, and is what `DarcyHybridization`'s
+  header cites.
 * **NPC-2** — Nguyen, Peraire & Cockburn, *An implicit high-order hybridizable
   discontinuous Galerkin method for nonlinear convection–diffusion equations*,
   J. Comput. Phys. **228** (2009) 8841–8855. Eq. (5) is the numerical flux with a
