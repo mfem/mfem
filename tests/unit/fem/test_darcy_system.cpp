@@ -399,6 +399,71 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1,
 
 } // namespace darcy_system
 
+TEST_CASE("An off-diagonal block integrator places exactly one block",
+          "[DarcyForm][System]")
+{
+   // VectorBlockDiagonalIntegrator can only replicate down the diagonal, so it
+   // cannot express a coupling between different fields of a system.
+   // VectorBlockIntegrator is the off-diagonal counterpart, and this pins what
+   // it does: the wrapped integrator's matrix in block (row, col) of a
+   // byNODES layout, zero everywhere else.
+   const int dim = 2;
+   const int order = GENERATE(0, 1, 2);
+   const int n_test = 3, n_trial = 4;
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   L2_FECollection tr_coll(order, dim), te_coll(order, dim);
+   FiniteElementSpace fes_tr(&mesh, &tr_coll), fes_te(&mesh, &te_coll);
+
+   const FiniteElement &trial_fe = *fes_tr.GetFE(0);
+   const FiniteElement &test_fe = *fes_te.GetFE(0);
+   ElementTransformation &Tr = *mesh.GetElementTransformation(0);
+
+   // A coefficient that is not symmetric in x and y, so a transposed or
+   // mirrored block cannot pass unnoticed.
+   FunctionCoefficient q([](const Vector &x)
+   {
+      return 1.0 + x(0) + 3.0 * x(1) * x(1);
+   });
+
+   DenseMatrix ref;
+   MassIntegrator plain(q);
+   plain.AssembleElementMatrix2(trial_fe, test_fe, Tr, ref);
+   const int h = ref.Height(), w = ref.Width();
+   REQUIRE(h > 0);
+   REQUIRE(w > 0);
+   REQUIRE(ref.MaxMaxNorm() > 0.0);
+
+   for (int row = 0; row < n_test; row++)
+      for (int col = 0; col < n_trial; col++)
+      {
+         CAPTURE(row, col);
+         DenseMatrix elmat;
+         VectorBlockIntegrator vb(n_test, n_trial, row, col,
+                                  new MassIntegrator(q));
+         vb.AssembleElementMatrix2(trial_fe, test_fe, Tr, elmat);
+
+         REQUIRE(elmat.Height() == n_test * h);
+         REQUIRE(elmat.Width() == n_trial * w);
+
+         for (int bi = 0; bi < n_test; bi++)
+            for (int bj = 0; bj < n_trial; bj++)
+            {
+               const bool wanted = (bi == row && bj == col);
+               for (int i = 0; i < h; i++)
+                  for (int j = 0; j < w; j++)
+                  {
+                     const real_t e = elmat(bi * h + i, bj * w + j);
+                     const real_t want = wanted ? ref(i, j) : 0.0;
+                     if (e != want) { CAPTURE(bi, bj, i, j, e, want); }
+                     REQUIRE(e == want);   // bit for bit, not merely close
+                  }
+            }
+      }
+}
+
 TEST_CASE("A block-diagonal Darcy system reproduces its equations one by one",
           "[DarcyForm][DarcyHybridization][System]")
 {

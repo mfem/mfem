@@ -875,6 +875,56 @@ public:
                                Vector *d_energy = NULL) override;
 };
 
+/** @brief Places one integrator's matrix into a single block of a blocked
+    vector layout, off the diagonal if asked.
+
+    The off-diagonal counterpart of VectorBlockDiagonalIntegrator, which can
+    only replicate down the diagonal and so cannot express a coupling between
+    different fields of a system. Given spaces of `Ordering::byNODES` with
+    @a n_test and @a n_trial components, the wrapped integrator's element
+    matrix is written into block (@a row, @a col) and everything else is zero.
+
+    The use it was written for is a first-order coupling between two fields of
+    a Darcy-like system -- one field's flux appearing in another field's
+    potential equation, and, through the transpose DarcyForm forms
+    automatically, that field's potential appearing in the first's flux
+    equation. Stokes needs exactly that pair: the incompressibility constraint
+    and the pressure gradient. */
+class VectorBlockIntegrator : public BilinearFormIntegrator
+{
+   int n_test, n_trial, row, col;
+   BilinearFormIntegrator *integ;
+   bool own_integ;
+   DenseMatrix block;
+
+public:
+   /** @brief Write @a integ_ into block (@a row_, @a col_) of an
+       @a n_test_ by @a n_trial_ blocked layout. Ownership of the integrator is
+       taken unless @a own is false. */
+   VectorBlockIntegrator(int n_test_, int n_trial_, int row_, int col_,
+                         BilinearFormIntegrator *integ_, bool own = true)
+      : n_test(n_test_), n_trial(n_trial_), row(row_), col(col_),
+        integ(integ_), own_integ(own)
+   {
+      MFEM_ASSERT(row >= 0 && row < n_test, "row out of range");
+      MFEM_ASSERT(col >= 0 && col < n_trial, "column out of range");
+   }
+
+   virtual ~VectorBlockIntegrator() { if (own_integ) { delete integ; } }
+
+   void AssembleElementMatrix2(const FiniteElement &trial_fe,
+                               const FiniteElement &test_fe,
+                               ElementTransformation &Trans,
+                               DenseMatrix &elmat) override
+   {
+      integ->AssembleElementMatrix2(trial_fe, test_fe, Trans, block);
+      const int h = block.Height(), w = block.Width();
+      elmat.SetSize(n_test * h, n_trial * w);
+      elmat = 0.0;
+      elmat.CopyMN(block, h, w, 0, 0, row * h, col * w);
+   }
+};
+
 template<typename FType, int N, int M, typename... Args>
 void VectorBlockDiagonalIntegrator::AssembleMat(
    FType f,
