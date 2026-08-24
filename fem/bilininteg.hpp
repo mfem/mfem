@@ -849,11 +849,22 @@ public:
                          FaceElementTransformations &, DenseMatrix &);
       face_fx fx = &BilinearFormIntegrator::AssembleHDGFaceMatrix;
       if (Trans.Elem2No >= 0)
+      {
          AssembleHDGFaceMat<>(fx, trace_el, el1, el2, elmat,
                               trace_el, el1, el2, Trans);
+      }
       else
-         AssembleFaceMat<>(fx, el1, trace_el, el1, trace_el,
-                           elmat, trace_el, el1, el2, Trans);
+      {
+         // A boundary face has no second element, so the block is the two-way
+         // {el1, trace} square rather than the interior's {el1, el2, trace}.
+         // This used to route through AssembleFaceMat as {el1,el1} x
+         // {trace,trace}, which is neither square nor the right shape: the
+         // caller checks the size, finds it wrong, and silently drops the
+         // contribution, so a boundary HDG face integrator wrapped in this
+         // class did nothing at all.
+         AssembleMat<face_fx, 2, 2>(fx, {&el1, &trace_el}, {&el1, &trace_el},
+                                    elmat, trace_el, el1, el2, Trans);
+      }
    }
 
    real_t ComputeHDGFaceEnergy(int side,

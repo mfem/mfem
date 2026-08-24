@@ -38,11 +38,11 @@
 //
 //                 k  ts   u      q      NPC says
 //                 0   0   0.91   0.88   both k+1, and k=0 works at ts=0
-//                 1   0   2.07   1.85   both k+1
-//                 2   0   2.98   2.87   both k+1
-//                 1  -1   2.03   0.95   u at k+1, gradient only k
-//                 2  -1   2.98   1.98   u at k+1, gradient only k
-//                 1  +1   1.09   1.11   u only k, gradient k+1
+//                 1   0   1.98   1.83   both k+1
+//                 2   0   2.97   2.87   both k+1
+//                 1  -1   2.01   1.00   u at k+1, gradient only k
+//                 2  -1   2.97   1.99   u at k+1, gradient only k
+//                 1  +1   1.01   1.05   u only k, gradient k+1
 //
 //               Five of the six reproduce the paper. The exception is the
 //               gradient at ts = +1, which settles at k rather than k+1 -- it
@@ -64,12 +64,13 @@
 //               boundary block. Perturbing the essential trace values wrecks
 //               the solution, which is the check that the datum is live.
 //
-//               The boundary stabilization below is, by contrast, inert:
-//               removing it entirely, or scaling it over six decades, leaves
-//               the answer bit for bit identical, even though the integrator
-//               is registered (NumBdrPotConstraintIntegrators() is one). It is
-//               kept because the method calls for it; that it does nothing is
-//               a defect, recorded in section 9 of the roadmap.
+//               The boundary stabilization below was inert when this was
+//               first written -- removing it entirely, or scaling it over six
+//               decades, left the answer bit for bit identical -- which turned
+//               out to be a defect in VectorBlockDiagonalIntegrator rather
+//               than anything here. It is live now, and the rates above are
+//               measured with it; they moved by less than a tenth of an order,
+//               so the comparison with the paper is unaffected either way.
 
 #include "mfem.hpp"
 #include <fstream>

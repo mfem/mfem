@@ -927,9 +927,9 @@ spaces differ.**
   then means the same thing everywhere. The estimator above needs exactly that,
   and so would an enriched potential space (§Optional B). It is joining the
   *divergence form* that matters: that is what registers the boundary flux
-  constraint and gives `C` its boundary block. §9 measures the stabilisation's
-  boundary contribution to be inert — removable entirely, with the answer bit
-  for bit unchanged — which is a defect in its own right.
+  constraint and gives `C` its boundary block. §9 found the stabilisation's boundary
+  contribution to be inert — a shape bug in `VectorBlockDiagonalIntegrator`,
+  since fixed.
 
 **What it cost in rates.** A different method, landing a little lower at the
 same orders. §4's nonlinear system study and its postprocessing table are both
@@ -1091,11 +1091,11 @@ finest of four meshes from 4×4:
 | `k` | `ts` | `u` | `q` | NPC |
 |---|---|---|---|---|
 | 0 | 0 | 0.91 | 0.88 | both `k+1`, and `k=0` works at `ts=0` |
-| 1 | 0 | 2.07 | 1.85 | both `k+1` |
-| 2 | 0 | 2.98 | 2.87 | both `k+1` |
-| 1 | −1 | 2.03 | 0.95 | `u` at `k+1`, gradient only `k` |
-| 2 | −1 | 2.98 | 1.98 | `u` at `k+1`, gradient only `k` |
-| 1 | +1 | 1.09 | 1.11 | `u` only `k`, gradient `k+1` |
+| 1 | 0 | 1.98 | 1.83 | both `k+1` |
+| 2 | 0 | 2.97 | 2.87 | both `k+1` |
+| 1 | −1 | 2.01 | 1.00 | `u` at `k+1`, gradient only `k` |
+| 2 | −1 | 2.97 | 1.99 | `u` at `k+1`, gradient only `k` |
+| 1 | +1 | 1.01 | 1.05 | `u` only `k`, gradient `k+1` |
 
 Five of six reproduce it, including the `ts = −1` trade in both directions and
 `k = 0` at `ts = 0`, which the paper singles out. **`ts = 0` — a stabilisation
@@ -1116,11 +1116,18 @@ two things worth more than the explanation:
   boundary block. §7's sweep said this could not be done; it is done
   automatically. Perturbing the essential trace values wrecks the solution,
   which is the check that the datum is live.
-* **The boundary stabilisation is inert.** Removing it entirely, or scaling it
-  over six decades, leaves the answer bit for bit identical — even though the
-  integrator is registered and `NumBdrPotConstraintIntegrators()` returns one.
-  That is a defect, and it means the DG boundary faces are currently
-  unstabilised whatever `τ` says.
+* **The boundary stabilisation was inert — a defect, now fixed.** Removing it
+  entirely, or scaling it over six decades, left the answer bit for bit
+  identical, even though the integrator was registered and
+  `NumBdrPotConstraintIntegrators()` returned one.
+  `VectorBlockDiagonalIntegrator::AssembleHDGFaceMatrix` built the wrong shape
+  on a boundary face — trial `{el1, el1}` against test `{trace, trace}`, where
+  the HDG block is the `{el1, trace}` square both ways — and the caller checks
+  the size, finds it wrong and **silently drops the contribution**. So any HDG
+  face integrator wrapped in that class did nothing on a boundary face. With it
+  fixed the rates above move by less than a tenth of an order, so nothing
+  recorded elsewhere changes, but the boundary faces are now actually
+  stabilised.
 
 The likeliest reason for the row is duller: **stage 1 is not Stokes.** With the
 pressure a known source these are `d` decoupled diffusion problems, and the
@@ -1554,14 +1561,11 @@ Kept with their answers rather than deleted, because the answers are the content
    reconstruction — is a loop over equations away from being general in `vdim`;
    §Optional A step 2. And §Optional B would remove the need entirely for the
    quantity that matters, since HDG (A) is superconvergent as solved.
-6. **The essential-trace route for RT, and the inert boundary stabilisation.**
-   Two loose ends from §9's measurements. `C` gets a boundary block from the
+6. **The essential-trace route for RT.** `C` gets a boundary block from the
    *divergence form's* boundary face markers, and the RT harnesses add no `B`
    face integrators, so nothing registers one — whether adding one is the fix
-   is untested. Separately, a boundary potential constraint integrator is
-   registered and contributes nothing: removing the boundary stabilisation
-   leaves the answer bit for bit identical. Both matter only where `λ` on a
-   boundary face is read.
+   is untested. Matters only where `λ` on a boundary face is read. The inert
+   boundary stabilisation that sat alongside this is fixed; see §9.
 7. **The miniapps still default to the weak route for DG, and are being left
    that way deliberately.** The sweep changed the unit-test harnesses, not the
    drivers. Moving `convdiff` and its siblings is the branch author's call,
