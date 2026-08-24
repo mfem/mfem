@@ -563,33 +563,56 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
       }
       else
       {
+         // One equation accumulates straight into the destination, as it
+         // always did. Going through a per-block temporary would be
+         // mathematically the same but sums the quadrature points in a
+         // different order, and the last-ulp difference is visible: it moved
+         // one LBFGS solve in the convdiff regression suite from 137
+         // iterations to 143, converging to the same answer.
          if (elmats(0,0))
          {
-            for (int e_i = 0; e_i < neq; e_i++)
-               for (int e_j = 0; e_j < neq; e_j++)
-               {
-                  J_Fb.CopyMN(J_F, sdim, sdim, e_i*sdim, e_j*sdim);
-                  MultABt(J_Fb, vshape_u, vshapeJ_u);
-                  block = 0.0;
-                  AddMult_a(w, vshape_u, vshapeJ_u, block);
-                  elmats(0,0)->AddMatrix(1.0, block, e_i*ndof_u, e_j*ndof_u);
-               }
+            if (neq == 1)
+            {
+               MultABt(J_F, vshape_u, vshapeJ_u);
+               AddMult_a(w, vshape_u, vshapeJ_u, *elmats(0,0));
+            }
+            else
+            {
+               for (int e_i = 0; e_i < neq; e_i++)
+                  for (int e_j = 0; e_j < neq; e_j++)
+                  {
+                     J_Fb.CopyMN(J_F, sdim, sdim, e_i*sdim, e_j*sdim);
+                     MultABt(J_Fb, vshape_u, vshapeJ_u);
+                     block = 0.0;
+                     AddMult_a(w, vshape_u, vshapeJ_u, block);
+                     elmats(0,0)->AddMatrix(1.0, block, e_i*ndof_u, e_j*ndof_u);
+                  }
+            }
          }
 
          if (elmats(0,1))
          {
-            for (int e_i = 0; e_i < neq; e_i++)
-               for (int e_j = 0; e_j < neq; e_j++)
-               {
-                  for (int d = 0; d < sdim; d++)
+            if (neq == 1)
+            {
+               const Vector J_uv(J_u.GetData(), sdim);
+               vshape_u.Mult(J_uv, vshapeJu);
+               AddMult_a_VWt(w, vshapeJu, shape_p, *elmats(0,1));
+            }
+            else
+            {
+               for (int e_i = 0; e_i < neq; e_i++)
+                  for (int e_j = 0; e_j < neq; e_j++)
                   {
-                     J_ub(d) = J_u(e_i*sdim + d, e_j);
+                     for (int d = 0; d < sdim; d++)
+                     {
+                        J_ub(d) = J_u(e_i*sdim + d, e_j);
+                     }
+                     vshape_u.Mult(J_ub, vshapeJu);
+                     blockp = 0.0;
+                     AddMult_a_VWt(w, vshapeJu, shape_p, blockp);
+                     elmats(0,1)->AddMatrix(1.0, blockp, e_i*ndof_u, e_j*ndof_p);
                   }
-                  vshape_u.Mult(J_ub, vshapeJu);
-                  blockp = 0.0;
-                  AddMult_a_VWt(w, vshapeJu, shape_p, blockp);
-                  elmats(0,1)->AddMatrix(1.0, blockp, e_i*ndof_u, e_j*ndof_p);
-               }
+            }
          }
       }
    }
