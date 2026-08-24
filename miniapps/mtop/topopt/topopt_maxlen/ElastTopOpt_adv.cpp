@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 
     int init_it  = 20;
     real_t decay     = 0.5;
-    real_t eps_floor = 1e-6;
+    real_t eps_floor = 1e-10;
     int decay_int    = 50;
 
     int beta_steps   = 50;          // Heaviside beta continuation steps
@@ -531,9 +531,7 @@ int main(int argc, char *argv[])
         dfidx[1] = dthick;                              // update constraint gradient
 
         // record max value of rho_a and alpha
-        real_t max_rho_a = advect.GetRhoA().Max();
-        MPI_Allreduce(MPI_IN_PLACE, &max_rho_a, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
-                    advect.GetRhoA().ParFESpace()->GetComm());
+        real_t max_rho_a = adv_res.GetMaxRohA();
 
         real_t max_alpha = alpha.Max();
         MPI_Allreduce(MPI_IN_PLACE, &max_alpha, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,

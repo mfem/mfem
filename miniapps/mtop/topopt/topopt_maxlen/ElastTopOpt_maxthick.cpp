@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     int init_it  = 20;
     real_t decay     = 0.5;
-    real_t eps_floor = -1e-6;
+    real_t eps_floor = 1e-10;
     int decay_int    = 50;
 
     int beta_steps   = 50;          // Heaviside beta continuation steps
