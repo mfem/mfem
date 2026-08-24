@@ -2,8 +2,8 @@
 //
 // Compile with: make batched_mass_bench
 //
-// Sample runs:  batched_mass_bench -m ../../data/beam-hex.mesh -o 3 -r 2 -d hip -reps 100
-//               batched_mass_bench -m ../../data/beam-hex.mesh -o 3 -r 3 -d cuda -reps 50
+// Sample runs:  batched_mass_bench -m ../../data/beam-hex.mesh -o 2 -r 2 -d hip -reps 100
+//               batched_mass_bench -m ../../data/beam-hex.mesh -o 2 -r 3 -d cuda -reps 50
 //
 // Description:  This example isolates the element mass-matrix
 //               inverse paths used by element matrix kernels. It
@@ -433,7 +433,7 @@ double TimeMagmaFullSolve(
 int main(int argc, char *argv[])
 {
    const char *mesh_file = "../../data/beam-hex.mesh";
-   int order = 3;
+   int order = 2;
    int ref_levels = 1;
    int reps = 100;
    int setup_reps = 10;
