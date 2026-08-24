@@ -450,6 +450,182 @@ Result Solve(Mesh &mesh, int order, Form form)
 
 } // namespace darcy_nl_mms
 
+namespace darcy_nl_mms
+{
+
+// Superconvergent postprocessing.
+//
+// The branch reconstructs the normally continuous total flux and then flux
+// and potential one order higher, which is much of the point of an HDG
+// method. It is implemented for a *scalar* field only:
+// DarcyForm::ReconstructFluxAndPot asserts fes_p->GetVDim() == 1, and the
+// kernel under it indexes the potential, trace and total-flux spaces without
+// vdim, builds those enriched spaces with no vdim argument, and reaches
+// DarcyHybridization::ReconstructTotalFlux whose callback takes a scalar
+// potential. So the system above cannot be postprocessed as the branch
+// stands. What can be measured is the same manufactured problem with one
+// field, which is what follows.
+//
+// One field means a scalar conductivity, and the existing
+// FunctionDiffusionFlux takes 1/k and its derivative directly.
+
+real_t Kone(real_t p) { return 1.0 + p * p; }
+real_t dKone(real_t p) { return 2.0 * p; }
+
+real_t pScalar(const Vector &x) { return Pex(0, x); }
+real_t pNatural1(const Vector &x) { return -Pex(0, x); }
+
+void uExact1(const Vector &x, Vector &u)
+{
+   const int dim = x.Size();
+   const real_t k = Kone(Pex(0, x));
+   u.SetSize(dim);
+   for (int d = 0; d < dim; d++) { u(d) = -k * dPex(0, x, d); }
+}
+
+/// g = -div u = sum_d [ k'(p) (d_d p)^2 + k(p) d_d d_d p ].
+real_t gExact1(const Vector &x)
+{
+   const real_t p = Pex(0, x);
+   real_t s = 0.0;
+   for (int d = 0; d < x.Size(); d++)
+   {
+      s += dKone(p) * dPex(0, x, d) * dPex(0, x, d) + Kone(p) * ddPex(0, x);
+   }
+   return s;
+}
+
+struct PostResult
+{
+   real_t err_p, err_u, err_ut, err_ps, err_us;
+   int newton_its;
+};
+
+/// Solve the single-field nonlinear problem hybridized, then postprocess.
+/** The stabilization goes on the potential mass form as HDGDiffusionIntegrator
+    rather than on the block nonlinear form, because the reconstruction needs a
+    linear potential constraint integrator to build its local system from. That
+    is also the arrangement convdiff uses for a hybridized nonlinear DG
+    problem, so this measures the branch's own configuration. */
+PostResult SolvePost(Mesh &mesh, int order, Form form)
+{
+   const int dim = mesh.Dimension();
+   const bool dg = (form == Form::DG);
+
+   std::unique_ptr<FiniteElementCollection> u_coll;
+   if (dg) { u_coll.reset(new L2_FECollection(order, dim)); }
+   else    { u_coll.reset(new RT_FECollection(order, dim)); }
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, u_coll.get(), dg ? dim : 1);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+   FiniteElementSpace fes_t(&mesh, &t_coll);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+
+   auto kinv  = [](const Vector &, real_t s) { return 1.0 / Kone(s); };
+   auto dkinv = [](const Vector &, real_t s)
+   {
+      return -dKone(s) / (Kone(s) * Kone(s));
+   };
+   FunctionDiffusionFlux flux(dim, kinv, dkinv);
+
+   darcy.GetBlockNonlinearForm()->AddDomainIntegrator(
+      new MixedConductionNLFIntegrator(flux));
+
+   MixedBilinearForm *Bform = darcy.GetFluxDivForm();
+   ConstantCoefficient one(1.0);
+   if (dg)
+   {
+      Bform->AddDomainIntegrator(new VectorDivergenceIntegrator);
+      Bform->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.)));
+      // tau = td kappa / h with the coefficient one, so td = TAU h is a fixed
+      // tau of TAU, as in the linear study.
+      const real_t td = TAU * mesh.GetElementSize(0);
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new HDGDiffusionIntegrator(one, td));
+   }
+   else
+   {
+      Bform->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
+   }
+
+   FunctionCoefficient natcoeff(pNatural1), gcoeff(gExact1);
+   if (dg)
+   {
+      darcy.GetFluxRHS()->AddBdrFaceIntegrator(
+         new VectorBoundaryFluxLFIntegrator(natcoeff));
+   }
+   else
+   {
+      darcy.GetFluxRHS()->AddBoundaryIntegrator(
+         new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   }
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+
+   Array<int> ess;
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator, ess);
+   darcy.Assemble();
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorPtr op;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, op, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-13);
+   lin.SetAbsTol(0.0);
+   lin.SetPreconditioner(prec);
+
+   NewtonSolver newton;
+   newton.SetSolver(lin);
+   newton.SetOperator(*op);
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-14);
+   newton.SetMaxIter(50);
+   newton.SetPrintLevel(-1);
+   newton.Mult(RHS, X);
+   REQUIRE(newton.GetConverged());
+
+   darcy.RecoverFEMSolution(X, x);
+
+   // Postprocess. The spaces are built by the reconstruction itself.
+   GridFunction ut, u_s, p_s, tr_s;
+   darcy.Reconstruct(x, X, ut, u_s, p_s, tr_s);
+
+   GridFunction u_h(&fes_u, x.GetBlock(0));
+   GridFunction p_h(&fes_p, x.GetBlock(1));
+
+   const int quad_order = 2 * order + 6;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   {
+      irs[i] = &(IntRules.Get(i, quad_order));
+   }
+
+   FunctionCoefficient pcoeff(pScalar);
+   VectorFunctionCoefficient ucoeff(dim, uExact1);
+
+   PostResult res;
+   res.err_p  = p_h.ComputeL2Error(pcoeff, irs);
+   res.err_u  = u_h.ComputeL2Error(ucoeff, irs);
+   res.err_ut = ut.ComputeL2Error(ucoeff, irs);
+   res.err_ps = p_s.ComputeL2Error(pcoeff, irs);
+   res.err_us = u_s.ComputeL2Error(ucoeff, irs);
+   res.newton_its = newton.GetNumIterations();
+   return res;
+}
+
+} // namespace darcy_nl_mms
+
 TEST_CASE("The manufactured coupled nonlinear solution is self-consistent",
           "[DarcyForm][NonlinearDarcy][System]")
 {
@@ -602,7 +778,7 @@ TEST_CASE("The hybridized gradient does not depend on being asked twice",
    //
    // DG only. The RT form has no nonlinear face integrator, so it never
    // reaches the overload at all.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    CAPTURE(order);
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
@@ -638,7 +814,7 @@ TEST_CASE("A coupled nonlinear Darcy system converges at the design order",
 {
    using namespace darcy_nl_mms;
 
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Form form = GENERATE(Form::RT, Form::DG);
    CAPTURE(order, int(form));
 
@@ -665,6 +841,95 @@ TEST_CASE("A coupled nonlinear Darcy system converges at the design order",
    CAPTURE(rate_p, rate_u, ep[n-1], eu[n-1], its);
    REQUIRE(rate_p > order + 0.7);
    REQUIRE(rate_u > order + 0.7);
+}
+
+TEST_CASE("Postprocessing lifts the potential a further order",
+          "[DarcyForm][DarcyHybridization][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_nl_mms;
+
+   // The postprocessed potential is the quantity HDG is advertised for: it
+   // should converge at k+2 where the solved one converges at k+1. Measured
+   // here on a nonlinear problem, which is new -- the reconstruction had never
+   // been run on one, and dereferenced a null flux mass form when asked to
+   // (convdiff -rec -nld segfaulted).
+   //
+   // One field, because the reconstruction is scalar-only; see the note above
+   // SolvePost.
+   const int order = GENERATE(0, 1, 2);
+   const Form form = GENERATE(Form::RT, Form::DG);
+   CAPTURE(order, int(form));
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   std::vector<real_t> ep, eu, et, eps, eus;
+   int its = 0;
+   for (int ref = 0; ref < 4; ref++)
+   {
+      const PostResult r = SolvePost(mesh, order, form);
+      ep.push_back(r.err_p);
+      eu.push_back(r.err_u);
+      et.push_back(r.err_ut);
+      eps.push_back(r.err_ps);
+      eus.push_back(r.err_us);
+      its = r.newton_its;
+      mesh.UniformRefinement();
+   }
+
+   const int n = ep.size();
+   auto rate = [&](const std::vector<real_t> &e)
+   {
+      return std::log2(e[n-2] / e[n-1]);
+   };
+   const real_t rate_p = rate(ep), rate_u = rate(eu), rate_ut = rate(et);
+   const real_t rate_ps = rate(eps), rate_us = rate(eus);
+   CAPTURE(rate_p, rate_u, rate_ut, rate_ps, rate_us, its);
+   CAPTURE(ep[n-1], eu[n-1], et[n-1], eps[n-1], eus[n-1]);
+
+   // The solved fields at the design order, ...
+   REQUIRE(rate_p > order + 0.7);
+   REQUIRE(rate_u > order + 0.7);
+
+   // ... and the postprocessed potential a full order better. Measured, over
+   // the 8x8 to 16x16 pair:
+   //
+   //     k  form   p     u     ut    p_s    u_s
+   //     0  RT     0.99  1.00  1.00  2.00   1.00
+   //     0  DG     1.00  0.88  0.86  1.01   0.86
+   //     1  RT     2.00  2.01  2.01  3.09   2.06
+   //     1  DG     1.95  1.87  1.86  2.92   1.85
+   //     2  RT     3.00  3.01  3.01  4.12   3.07
+   //     2  DG     2.99  2.91  2.90  3.94   2.91
+   //
+   // k+2 everywhere except the fully discontinuous form at k=0, which is the
+   // textbook restriction rather than a defect: the local postprocessing needs
+   // the solved potential to be superconvergent in its own element averages,
+   // and for an L2 flux that holds only from k=1. The hybridized mixed form
+   // has it at k=0 too, and shows 2.00.
+   if (order >= 1 || form == Form::RT)
+   {
+      REQUIRE(rate_ps > order + 1.5);
+   }
+   else
+   {
+      REQUIRE(rate_ps > order + 0.7);
+   }
+
+   // The postprocessed potential is also smaller in absolute terms, which a
+   // rate alone would not catch if the reconstruction were merely a rescaling.
+   REQUIRE(eps[n-1] < ep[n-1]);
+
+   // The flux is not superconvergent and is not claimed to be -- u_s tracks
+   // u_h to within a few hundredths of an order in every row above. What the
+   // reconstruction must not do is make it worse. This is also the answer to
+   // the question the system study left open: the DG form's flux lags its
+   // potential, and postprocessing is not what was missing. The lag is a
+   // property of the fully discontinuous form on this problem, not of the
+   // system -- the single field here lags by the same amount as the two
+   // equations do -- and it closes as tau grows.
+   REQUIRE(rate_ut > order + 0.7);
+   REQUIRE(rate_us > order + 0.7);
 }
 
 TEST_CASE("A source that ignores the conductivity's variation does not",

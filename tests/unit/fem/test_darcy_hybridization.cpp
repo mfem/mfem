@@ -242,7 +242,7 @@ TEST_CASE("Hybridized Darcy converges at the design order",
    // A rate, not a value: this catches a scheme that solves a nearby problem,
    // which comparison against the monolithic path cannot, since both would be
    // wrong together.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
@@ -273,8 +273,7 @@ TEST_CASE("Hybridized Darcy in three dimensions on hexahedra",
    // Nothing in fem/darcy has ever run in 3D: every HDG miniapp and example
    // builds a 2D mesh, so DarcyHybridization's three-dimensional face handling
    // is unexercised. Establish that before blaming anything on element type.
-   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
-                     : GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
 
    Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON,
                                      1.0, 1.0, 1.0);
@@ -332,8 +331,7 @@ TEST_CASE("Hybridized Darcy converges on wedges",
 {
    using namespace darcy_hybridization;
 
-   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
-                     : GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
 
    Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::WEDGE, 1.0, 1.0, 1.0);
 
@@ -464,8 +462,7 @@ TEST_CASE("HDG: the discontinuous formulation on wedges",
 
    // The element the application has chosen, in the formulation it will
    // actually use.
-   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
-                     : GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
 
    const DGRate r = DGRates(order, 1.0, true, 2, 2, Element::WEDGE);
    CAPTURE(order, r.p, r.u);

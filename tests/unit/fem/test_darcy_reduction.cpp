@@ -222,7 +222,7 @@ TEST_CASE("Flux reduction reproduces the monolithic broken-RT solve",
    // The mirror image of the potential reduction: with a broken flux space the
    // flux mass block is block-diagonal, so it is the flux that can be
    // eliminated locally. Same algebraic identity, other block.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Element::Type elem = GENERATE(Element::QUADRILATERAL,
                                        Element::TRIANGLE);
 

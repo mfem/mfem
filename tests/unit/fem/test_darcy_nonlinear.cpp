@@ -162,7 +162,7 @@ TEST_CASE("Nonlinear Darcy: the analytic Jacobian matches a differenced residual
    using namespace darcy_nonlinear;
 
    const int dim = GENERATE(2, 3);
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    CAPTURE(dim, order);
 
    Mesh mesh = (dim == 2)
@@ -298,7 +298,7 @@ TEST_CASE("A coupled two-equation nonlinear Darcy Jacobian",
    // the only way an unassembled Jacobian can be, against a difference of the
    // residual the same operator produces.
    const int dim = GENERATE(2, 3);
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    CAPTURE(dim, order);
 
    CoupledDiffusionFlux flux(dim);
@@ -876,7 +876,7 @@ TEST_CASE("A nonlinear DG system assembles and solves under hybridization",
    // dependence switched off the problem is linear, so one Newton step has to
    // land on the answer exactly -- which is the check that the whole path
    // assembles consistently for neq > 1.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    CAPTURE(order);
 
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,

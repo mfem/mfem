@@ -350,7 +350,7 @@ TEST_CASE("A block-diagonal Darcy system reproduces its equations one by one",
    // The first question about "systems of equations": does the vdim > 1 path
    // solve each equation as it would be solved alone? The conductivities and
    // amplitudes differ per equation, so a block mix-up cannot cancel.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Element::Type elem = GENERATE(Element::QUADRILATERAL,
                                        Element::TRIANGLE);
    const Form form = GENERATE(Form::RT, Form::DG);
@@ -393,7 +393,7 @@ TEST_CASE("A Darcy system hybridizes to the same solution as the block solve",
    // when it is off, so for a DG flux the two are not the same operator and
    // there is nothing here to compare. The equivalence is a property of the
    // hybridized mixed method, not of the branch's DG path.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
 
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
@@ -416,7 +416,7 @@ TEST_CASE("A Darcy system converges at the design order",
 {
    using namespace darcy_system;
 
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Form form = GENERATE(Form::RT, Form::DG);
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
@@ -451,7 +451,7 @@ TEST_CASE("A Darcy system with cross-equation coupling",
    // equations never speak to each other. This adds a dense neq x neq
    // zeroth-order block, which is the only linear cross-equation coupling the
    // branch can express, and is the shape the potential cascade needs.
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    coupled = true;
 
    SECTION("hybridization is still exact")

@@ -118,6 +118,13 @@ protected:
    /// Indicates the Mesh::sequence corresponding to the current state
    long sequence = -1;
 
+   /** @brief The flux mass of a solution-dependent law, linearised about the
+       computed potential, for the reconstruction below.
+
+       Declared before @a reconstruction so that it outlives the form whose
+       integrator refers to it. */
+   mutable std::unique_ptr<MatrixCoefficient> Mu_nl_coeff;
+
    /// The DarcyForm of the reconstructed super-convergent system
    mutable std::unique_ptr<DarcyForm> reconstruction;
    mutable std::unique_ptr<MixedBilinearForm> M_p_src;

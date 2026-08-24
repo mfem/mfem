@@ -383,8 +383,7 @@ TEST_CASE("Degenerate diffusion on wedges",
    // The point case puts the zero at a single mesh vertex; the line case puts
    // it on the whole face x_2 = 0, which in the application's coordinates is
    // the mu = 0 axis where the collision tensor degenerates.
-   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
-                     : GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Degeneracy d = GENERATE(Degeneracy::Point, Degeneracy::Line);
 
    real_t rate_p, rate_u, last_p;
@@ -406,8 +405,7 @@ TEST_CASE("Degenerate diffusion on hexahedra",
 
    // The same in 3D on hexahedra, so that a wedge-only failure above would be
    // attributable to the element rather than to the extra dimension.
-   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
-                     : GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Degeneracy d = GENERATE(Degeneracy::Point, Degeneracy::Line);
 
    real_t rate_p, rate_u, last_p;
@@ -538,7 +536,7 @@ TEST_CASE("HDG: degenerate diffusion on wedges",
 {
    using namespace darcy_degenerate;
 
-   const int order = GENERATE(0, 1);
+   const int order = GENERATE(0, 1, 2);
    const Degeneracy d = GENERATE(Degeneracy::Point, Degeneracy::Line);
 
    real_t rate_p, rate_u, last_p;

@@ -11,6 +11,7 @@
 
 #include "darcyform.hpp"
 #include "../hyperbolic.hpp"
+#include "../nonlininteg_mixed.hpp"
 
 namespace mfem
 {
@@ -1175,20 +1176,75 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       tr.MakeOwner(trs_coll);
    }
 
+   GridFunction pc(const_cast<FiniteElementSpace*>(fes_p),
+                   const_cast<Vector&>(sol.GetBlock(1)), 0);
+
+   // A solution-dependent flux law has no linear mass form to lift onto the
+   // enriched space, so one is built by freezing the law at the computed
+   // potential. That has to be redone every call, hence the form cannot be
+   // cached in that case.
+   const bool frozen_flux = !M_u && !(Mnl_u && Mnl_u->GetDNFI()->Size());
+
    // define reconstructed DarcyForm
-   if (!reconstruction || reconstruction->FluxFESpace() != u.FESpace() ||
+   if (frozen_flux || !reconstruction ||
+       reconstruction->FluxFESpace() != u.FESpace() ||
        reconstruction->PotentialFESpace() != p.FESpace())
    {
       reconstruction.reset(new DarcyForm(u.FESpace(), p.FESpace()));
       M_p_src.reset();
 
       BilinearForm *Mu_s = reconstruction->GetFluxMassForm();
-      auto Mu_dbfi = *M_u->GetDBFI();
-      for (BilinearFormIntegrator *bfi : Mu_dbfi)
+      if (M_u)
       {
-         Mu_s->AddDomainIntegrator(bfi);
+         auto Mu_dbfi = *M_u->GetDBFI();
+         for (BilinearFormIntegrator *bfi : Mu_dbfi)
+         {
+            Mu_s->AddDomainIntegrator(bfi);
+         }
+         Mu_s->UseExternalIntegrators();
       }
-      Mu_s->UseExternalIntegrators();
+      else if (!frozen_flux)
+      {
+         // A nonlinear flux form carrying linear integrators -- convdiff's
+         // -nlu -- can have its mass reused exactly as it stands.
+         for (NonlinearFormIntegrator *nlfi : *Mnl_u->GetDNFI())
+         {
+            auto *bfi = dynamic_cast<BilinearFormIntegrator*>(nlfi);
+            MFEM_VERIFY(bfi, "Reconstruction needs a flux mass that assembles "
+                        "as a bilinear form.");
+            Mu_s->AddDomainIntegrator(bfi);
+         }
+         Mu_s->UseExternalIntegrators();
+      }
+      else
+      {
+         const MixedFluxFunction *flux_fun = NULL;
+         if (Mnl)
+         {
+            for (BlockNonlinearFormIntegrator *bnlfi : Mnl->GetDomainIntegrators())
+            {
+               auto *mc = dynamic_cast<MixedConductionNLFIntegrator*>(bnlfi);
+               if (mc) { flux_fun = &mc->GetFluxFunction(); break; }
+            }
+         }
+         MFEM_VERIFY(flux_fun, "Reconstruction found no flux mass: neither a "
+                     "bilinear form nor a MixedConductionNLFIntegrator to "
+                     "linearise.");
+
+         // Linearise about the computed potential. Mu_s owns the integrator;
+         // the coefficient it points at is held by this DarcyForm, and is
+         // replaced only after the old form has been destroyed above.
+         Mu_nl_coeff.reset(new FrozenDualFluxCoefficient(*flux_fun, pc));
+         const FiniteElement *fe_u = u.FESpace()->GetFE(0);
+         if (fe_u->GetRangeType() == FiniteElement::VECTOR)
+         {
+            Mu_s->AddDomainIntegrator(new VectorFEMassIntegrator(*Mu_nl_coeff));
+         }
+         else
+         {
+            Mu_s->AddDomainIntegrator(new VectorMassIntegrator(*Mu_nl_coeff));
+         }
+      }
 
       MixedBilinearForm *B_s = reconstruction->GetFluxDivForm();
       auto B_dbfi = *B->GetDBFI();
@@ -1228,9 +1284,6 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
          Mp_s->UseExternalIntegrators();
       }
    }
-
-   GridFunction pc(const_cast<FiniteElementSpace*>(fes_p),
-                   const_cast<Vector&>(sol.GetBlock(1)), 0);
 
    reconstruction->ReconstructFluxAndPot(*hybridization, pc, ut, u, p, tr,
                                          M_p_src.get());

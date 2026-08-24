@@ -152,6 +152,9 @@ public:
        Only consulted when the flux function has more than one equation. */
    void SetVariableStabilization(const Vector &t) { tau_var = t; }
 
+   /// The constitutive law this integrator was constructed with.
+   const MixedFluxFunction &GetFluxFunction() const { return fluxFunction; }
+
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,
                               const Array<const Vector*> &elfun,
@@ -189,6 +192,36 @@ public:
                             const Vector &trfun,
                             const Array<const Vector *> &elfun,
                             const Array2D<DenseMatrix *> &elmats) override;
+};
+
+/** @brief The dual-flux Jacobian of a MixedFluxFunction, frozen at a given
+    potential, as a matrix coefficient.
+
+    Superconvergent postprocessing solves a *linear* local Darcy problem on
+    enriched spaces, so a solution-dependent constitutive law has to be
+    linearised somewhere, and the converged potential is the place: for a law
+    q = D(p) u this evaluates D(p_h(x)) exactly. The size is
+    num_equations * dim, which is what VectorMassIntegrator wants for an L2
+    flux space of that vdim, and plain dim for a single equation, which is what
+    VectorFEMassIntegrator wants for Raviart-Thomas.
+
+    The potential is held by value, so the coefficient outlives whatever
+    produced it. */
+class FrozenDualFluxCoefficient : public MatrixCoefficient
+{
+   const MixedFluxFunction &fun;
+   GridFunction pot;
+   mutable Vector state;
+   mutable DenseMatrix flux, J_u;
+
+public:
+   /// Freeze @a fun at the potential @a p, of which a copy is taken.
+   FrozenDualFluxCoefficient(const MixedFluxFunction &fun,
+                             const GridFunction &p)
+      : MatrixCoefficient(fun.num_equations * fun.dim), fun(fun), pot(p) { }
+
+   void Eval(DenseMatrix &K, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
 };
 
 }

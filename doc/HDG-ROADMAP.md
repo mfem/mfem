@@ -52,6 +52,11 @@ otherwise. The tests that hold them:
 | 5 `τ` and the stabilisation interface | `tests/unit/fem/test_bilininteg_hdg.cpp` |
 | 7 estimators | `tests/unit/fem/test_estimators_hdg.cpp` |
 
+The Darcy tests run polynomial orders 0, 1 and 2 by default. Order 2 used to
+sit behind `--all` in several of them; the one case still gated there is order
+2 in 3D, which is minutes rather than seconds. Widening the rest costs the
+Darcy set about fifty seconds.
+
 `miniapps/hdg/regression_test.py` is the miniapp-level regression suite;
 its baseline at the time of writing is 2 failed / 49 skipped of 129, and any
 change here should leave that untouched.
@@ -532,6 +537,61 @@ regression suite and the 98-case parallel one are byte-for-byte unmoved by both
 fixes, and it is the reason a convergence study was worth the effort: two live
 defects in code that every existing test walked past.
 
+### Postprocessing, and what it does and does not fix
+
+The branch reconstructs the normally continuous total flux and then flux and
+potential one order higher. Applied to the same manufactured problem — see
+below for why with one field rather than two — over the 8×8 to 16×16 pair:
+
+| `k` | form | `p` | `u` | `u_t` | `p_s` | `u_s` |
+|---|---|---|---|---|---|---|
+| 0 | RT | 0.99 | 1.00 | 1.00 | **2.00** | 1.00 |
+| 0 | DG | 1.00 | 0.88 | 0.86 | **1.01** | 0.86 |
+| 1 | RT | 2.00 | 2.01 | 2.01 | **3.09** | 2.06 |
+| 1 | DG | 1.95 | 1.87 | 1.86 | **2.92** | 1.85 |
+| 2 | RT | 3.00 | 3.01 | 3.01 | **4.12** | 3.07 |
+| 2 | DG | 2.99 | 2.91 | 2.90 | **3.94** | 2.91 |
+
+The postprocessed potential gains a full order everywhere except the fully
+discontinuous form at `k=0`, which is the textbook restriction and not a
+defect: the local postprocessing needs the solved potential to be
+superconvergent in its element averages, and for an L2 flux that holds from
+`k=1`. The hybridized mixed form has it at `k=0` as well, and shows 2.00.
+
+**This answers the question the convergence study left open.** The DG form's
+flux lags its potential, and postprocessing is not what was missing — `u_s`
+tracks `u_h` to within a few hundredths of an order in every row, as it should,
+since the reconstructed flux is not superconvergent and was never claimed to
+be. Two things narrow the lag down further. It is **not about systems**: the
+single field measured here lags by the same amount the two equations do, 0.88
+against 1.00 at `k=0` and 1.87 against 1.95 at `k=1`. And it **closes as `τ`
+grows** — 1.76, 1.84, 1.90, 1.96, 1.98 at `τ` = 0.5, 1, 2, 4, 8 for `k=1` —
+so it is the size of the stabilization relative to `κ`, not a defect, and the
+price of pushing `τ` up is `k=0` beginning to lock. That is a `τ` question,
+§5's, rather than an open question about the discretization.
+
+**Two limitations, one of them fixed here.**
+
+* `DarcyForm::ReconstructFluxAndPot` copied the integrators of the *linear*
+  flux mass form onto the enriched space, and dereferenced it unconditionally.
+  With a solution-dependent law there is no such form and it **segfaulted** —
+  reachable straight from the miniapp as `convdiff -rec -nld`. There is a
+  natural thing to do instead, and it is now done: linearise about the
+  converged potential, which for `q = D(p) u` means a flux mass with the
+  matrix coefficient `D(p_h)`. `FrozenDualFluxCoefficient` in
+  `fem/nonlininteg_mixed.hpp` is that coefficient. A nonlinear form carrying
+  linear integrators — `convdiff -nlu` — has its mass reused as it stands.
+* **Postprocessing remains scalar-only**, so the two-equation system cannot be
+  postprocessed and the table above is a single field. This is not one assert
+  to relax. `ReconstructFluxAndPot` builds the enriched potential, trace and
+  total-flux spaces with no `vdim` argument and indexes them with
+  `GetElementDofs` rather than `GetElementVDofs`;
+  `DarcyHybridization::ReconstructTotalFlux` takes a callback with a scalar
+  potential; the source term uses `DivergenceGridFunctionCoefficient`, which is
+  scalar; and a system whose stabilization is the nonlinear face integrator has
+  no linear potential constraint for the local problem to use. Listed in what
+  is still open.
+
 The requirement as originally stated:
 
 * **`N` coupled fields, each a Darcy-like problem of the §3 kind**, coupled
@@ -713,7 +773,11 @@ rate of change of the integral inside it" should hold **to round-off**, and is
 therefore the sharpest available test of the whole assembly. And superconvergent
 postprocessing, which the branch already advertises, is exactly what a functional
 of the solution benefits from — with goal-oriented adjoint error estimation as
-the natural next step, noted as a direction rather than a requirement.
+the natural next step, noted as a direction rather than a requirement. §4
+measures what it delivers: `k+2` for the potential wherever the theory offers
+it, and nothing extra for the flux, which is the expected answer and not a
+shortfall. It is scalar-only, which for a functional of a system's flux is the
+same limitation recorded there.
 
 ## 7. Adaptive refinement for a solution-dependent internal layer
 
@@ -899,13 +963,14 @@ Kept with their answers rather than deleted, because the answers are the content
 3. **§7's `hp`**, and §8 in its entirety.
 4. **Whether the degenerate order loss is asymptotic**, and whether the
    estimator's flat total error is intended — both recorded where they arise.
-5. **Why the DG form's flux lags its potential** in §4's nonlinear study —
-   0.89 against 1.05 at `k=0`, 1.87 against 1.95 at `k=1`, both still climbing
-   with `τ` at the point where `k=0` starts to lock. The RT form reaches
-   `k+1` in both variables and the linear DG study does too, so this is
-   specific to the nonlinear DG case and may simply be a `τ` that is right for
-   one variable and not the other. Postprocessing was never applied here, and
-   is the thing to try before concluding anything.
+5. **Postprocessing for a system.** The reconstruction is scalar-only, for the
+   several reasons §4 lists, so the two-equation study cannot be postprocessed
+   and the superconvergence table there is a single field. Making it general in
+   `vdim` needs the enriched spaces built with a `vdim`, `GetElementVDofs`
+   throughout the kernel, a vector `DivergenceGridFunctionCoefficient`, a
+   `vdim`-aware `DarcyHybridization::ReconstructTotalFlux` with a
+   vector-valued callback, and a linearised potential constraint for a system
+   stabilized by the nonlinear face integrator.
 
 ## References
 

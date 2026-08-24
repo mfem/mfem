@@ -154,6 +154,25 @@ void FunctionDiffusionFlux::ComputeDualFluxJacobian(
    }
 }
 
+void FrozenDualFluxCoefficient::Eval(DenseMatrix &K,
+                                     ElementTransformation &T,
+                                     const IntegrationPoint &ip)
+{
+   T.SetIntPoint(&ip);
+
+   const int neq = fun.num_equations;
+   state.SetSize(neq);
+   if (neq == 1) { state(0) = pot.GetValue(T, ip); }
+   else { pot.GetVectorValue(T, ip, state); }
+
+   // The Jacobian of q = D(p) u with respect to u, which for a law linear in
+   // the flux is D(p) itself and needs no flux value; a law that is not gets
+   // its Jacobian at zero flux, which is the best a frozen coefficient can do.
+   flux.SetSize(neq, fun.dim);
+   flux = 0.;
+   fun.ComputeDualFluxJacobian(state, flux, T, J_u, K);
+}
+
 void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
