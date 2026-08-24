@@ -697,3 +697,262 @@ TEST_CASE("HDG face terms with a velocity: the Jacobian matches its residual",
    INFO("relative ||J d - fd|| = " << rel << " (was 1, a factor of two)");
    REQUIRE(rel < 1e-8);
 }
+
+namespace darcy_nonlinear
+{
+
+int g_neq = 2;
+
+void gCoupled(const Vector &x, Vector &g)
+{
+   g.SetSize(g_neq);
+   real_t s = 1.0;
+   for (int d = 0; d < x.Size(); d++) { s *= std::sin(M_PI * x(d)); }
+   g(0) = s;
+   if (g_neq > 1) { g(1) = -0.7 * s; }
+}
+
+/// A diffusion matrix whose dependence on the potential is scaled by eps, so
+/// the nonlinearity can be turned down continuously to nothing while every
+/// other property of the problem is held fixed.
+class ScaledCoupledFlux : public MixedFluxFunction
+{
+   real_t eps;
+
+   void Entries(const Vector &u, real_t &a00, real_t &a11, real_t &a01) const
+   {
+      a00 = 1.0 + eps * 0.5 * u(0) * u(0);
+      a11 = 2.0 + eps * 0.5 * u(1) * u(1);
+      a01 = 0.25 + eps * 0.1 * u(0) * u(1);
+   }
+
+public:
+   ScaledCoupledFlux(int dim_, real_t e)
+      : MixedFluxFunction(2, dim_), eps(e) { }
+
+   real_t ComputeDualFlux(const Vector &u, const DenseMatrix &flux,
+                          ElementTransformation &, DenseMatrix &df) const override
+   {
+      real_t a00, a11, a01;
+      Entries(u, a00, a11, a01);
+      df.SetSize(2, dim);
+      for (int d = 0; d < dim; d++)
+      {
+         df(0, d) = a00 * flux(0, d) + a01 * flux(1, d);
+         df(1, d) = a01 * flux(0, d) + a11 * flux(1, d);
+      }
+      return std::max(a00, a11);
+   }
+
+   real_t ComputeFlux(const Vector &, ElementTransformation &,
+                      DenseMatrix &flux) const override
+   { flux = 0.0; return 0.0; }
+
+   void ComputeDualFluxJacobian(const Vector &u, const DenseMatrix &flux,
+                                ElementTransformation &,
+                                DenseMatrix &J_u, DenseMatrix &J_F) const override
+   {
+      real_t a00, a11, a01;
+      Entries(u, a00, a11, a01);
+      J_F.SetSize(2*dim, 2*dim);
+      J_F = 0.0;
+      J_u.SetSize(2*dim, 2);
+      J_u = 0.0;
+      for (int d = 0; d < dim; d++)
+      {
+         J_F(d, d)             = a00;
+         J_F(d, dim + d)       = a01;
+         J_F(dim + d, d)       = a01;
+         J_F(dim + d, dim + d) = a11;
+
+         J_u(d, 0)       = eps * (u(0)*flux(0,d) + 0.1*u(1)*flux(1,d));
+         J_u(d, 1)       = eps * (0.1*u(0)*flux(1,d));
+         J_u(dim + d, 0) = eps * (0.1*u(1)*flux(0,d));
+         J_u(dim + d, 1) = eps * (u(1)*flux(1,d) + 0.1*u(0)*flux(0,d));
+      }
+   }
+};
+
+/// One Newton step on a nonlinear DG system under hybridization, returning
+/// the residual before and after. One step is enough to see what the local
+/// Jacobian is worth, and avoids the drift a stalled Newton shows if it is
+/// allowed to keep iterating.
+void OneNewtonStep(Mesh &mesh, int order, MixedFluxFunction &flux,
+                   real_t &r0, real_t &r1, Vector *p_out = nullptr)
+{
+   const int dim = mesh.Dimension();
+   const int neq = flux.num_equations;
+
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, neq * dim, Ordering::byNODES);
+   FiniteElementSpace fes_p(&mesh, &p_coll, neq, Ordering::byNODES);
+   FiniteElementSpace fes_t(&mesh, &t_coll, neq, Ordering::byNODES);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+
+   BlockNonlinearForm *Mnl = darcy.GetBlockNonlinearForm();
+   Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(flux));
+
+   // tau = 1 for every variable, which is where the NPC papers say to start
+   // and what SetVariableStabilization defaults to.
+   auto *face = new MixedConductionNLFIntegrator(flux);
+   Vector taus(neq);
+   taus = 1.0;
+   face->SetVariableStabilization(taus);
+   Mnl->AddInteriorFaceIntegrator(face);
+
+   MixedBilinearForm *Bform = darcy.GetFluxDivForm();
+   Bform->AddDomainIntegrator(
+      new VectorBlockDiagonalIntegrator(neq, new VectorDivergenceIntegrator));
+   Bform->AddInteriorFaceIntegrator(
+      new VectorBlockDiagonalIntegrator(
+         neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+
+   g_neq = neq;
+   VectorFunctionCoefficient gcoeff(neq, gCoupled);
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new VectorDomainLFIntegrator(gcoeff));
+
+   Array<int> ess;
+   darcy.EnableHybridization(
+      &fes_t,
+      new VectorBlockDiagonalIntegrator(neq, new NormalTraceJumpIntegrator),
+      ess);
+
+   darcy.Assemble();
+
+   // The element-local solves are nonlinear too, and get their own Newton.
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorPtr op;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, op, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(2000);
+   lin.SetRelTol(1e-12);
+   lin.SetAbsTol(0.0);
+   lin.SetPreconditioner(prec);
+
+   NewtonSolver newton;
+   newton.SetSolver(lin);
+   newton.SetOperator(*op);
+   newton.SetRelTol(0.0);
+   newton.SetAbsTol(0.0);
+   newton.SetMaxIter(1);          // exactly one step
+   newton.SetPrintLevel(-1);
+   newton.Mult(RHS, X);
+
+   Vector res(X.Size());
+   op->Mult(X, res);
+   res -= RHS;
+
+   r0 = newton.GetInitialNorm();
+   r1 = res.Norml2();
+
+   if (p_out)
+   {
+      darcy.RecoverFEMSolution(X, x);
+      *p_out = x.GetBlock(1);
+   }
+}
+
+} // namespace darcy_nonlinear
+
+TEST_CASE("A nonlinear DG system assembles and solves under hybridization",
+          "[DarcyForm][NonlinearDarcy][System][HDG]")
+{
+   using namespace darcy_nonlinear;
+
+   // A two-equation nonlinear system, fully discontinuous, hybridized, with
+   // the per-variable stabilization at its default of one. With the state
+   // dependence switched off the problem is linear, so one Newton step has to
+   // land on the answer exactly -- which is the check that the whole path
+   // assembles consistently for neq > 1.
+   const int order = GENERATE(0, 1);
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   ScaledCoupledFlux linear(2, 0.0);
+   real_t r0 = 0., r1 = 0.;
+   Vector p;
+   OneNewtonStep(mesh, order, linear, r0, r1, &p);
+
+   CAPTURE(r0, r1);
+   REQUIRE(r0 > 1e-3);                 // the source really is in there
+   REQUIRE(r1 < 1e-11 * r0);           // and one step solves it
+   REQUIRE(p.Normlinf() > 1e-4);       // to something that is not zero
+}
+
+TEST_CASE("Hybridized Newton stalls at first order in a potential-dependent "
+          "diffusivity", "[DarcyForm][NonlinearDarcy][HDG][!mayfail]")
+{
+   using namespace darcy_nonlinear;
+
+   // A characterization test, not an approval.
+   //
+   // DarcyHybridization::ConstructGrad passes NULL for the off-diagonal
+   // element gradient blocks:
+   //
+   //     grad_arr(1,0) = NULL;
+   //     grad_arr(0,1) = NULL;
+   //
+   // Block (0,1) is d(flux residual)/dp, which for a flux law q = D(p) u is
+   // exactly the J_u the flux function supplies and MixedConductionNLFIntegrator
+   // is perfectly willing to assemble. Discarding it leaves the local Jacobian
+   // inconsistent with the local residual whenever the diffusivity depends on
+   // the potential, and Newton stalls one order into the nonlinearity instead
+   // of going quadratic.
+   //
+   // The signature is unmistakable: scale the state dependence by eps and the
+   // residual after one Newton step is proportional to eps over six decades.
+   // A Jacobian that included the block would give a residual quadratic in the
+   // step, independent of eps at this level.
+   //
+   // This is not specific to systems -- a single equation stalls identically,
+   // and it is the failure mode section 4 of HDG-REQUIREMENTS names as the
+   // reason to insist on exact Jacobians: in a hybridized method a wrong
+   // Jacobian gives no wrong answer, only slow Newton, and survives a passing
+   // regression suite indefinitely. It did.
+   //
+   // Tagged !mayfail so that fixing ConstructGrad reports here rather than
+   // breaking the build; the numbers below then need rewriting, which is the
+   // point.
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   std::vector<real_t> eps{1e-6, 1e-3, 1.0};
+   std::vector<real_t> res;
+   for (real_t e : eps)
+   {
+      ScaledCoupledFlux flux(2, e);
+      real_t r0 = 0., r1 = 0.;
+      OneNewtonStep(mesh, 1, flux, r0, r1);
+      res.push_back(r1);
+   }
+
+   INFO("residual after one Newton step: "
+        << res[0] << ", " << res[1] << ", " << res[2]
+        << " for eps = 1e-6, 1e-3, 1");
+
+   // Linear in eps to within a few percent, over six decades.
+   for (size_t i = 1; i < eps.size(); i++)
+   {
+      const real_t ratio = (res[i] / res[i-1]) / (eps[i] / eps[i-1]);
+      CAPTURE(i, ratio);
+      REQUIRE(ratio == MFEM_Approx(1.0, 0.05, 0.05));
+   }
+
+   // Which is to say: it does not converge. When the block is restored this
+   // is the assertion that should replace the two above.
+   REQUIRE_FALSE(res[2] < 1e-10 * res[0] / 1e-6);
+}

@@ -29,6 +29,29 @@ namespace darcy_system
 
 constexpr int NEQ = 2;
 
+/// Which mixed space the flux lives in. RT is the hybridized-mixed method;
+/// DG is the fully discontinuous one the NPC papers use, where the flux is an
+/// L2 vector field and the faces carry an explicit stabilization.
+enum class Form { RT, DG };
+
+/// The branch parameterizes the stabilization as tau = td * kappa / h, so a
+/// fixed td is not a fixed tau: it is tau growing like 1/h under refinement.
+/// NPC-1 section 3.6.3 asks instead for eta_d = kappa/l with l a *fixed*
+/// problem length scale, and the difference is not cosmetic. Measured on this
+/// problem, over the same 8x8 to 16x16 pair the tests use:
+///
+///        td fixed (tau ~ 1/h)      td = h (tau fixed)
+///   k=0  p 0.05,  u 0.02           p 1.10,  u 1.00
+///   k=1  p 2.18,  u 1.18           p 1.99,  u 1.99
+///
+/// At k=1 the growing tau costs the flux its order, which is the textbook
+/// result; at k=0 it stalls both variables, the scheme locking as tau runs
+/// away. So td is set to TAU * h / L below, giving tau = TAU * kappa / L with
+/// the domain size L = 1 -- the constant tau that CLAUDE.md recommends
+/// trying first.
+constexpr real_t TAU = 1.0;
+constexpr real_t LSCALE = 1.0;
+
 const real_t kk[NEQ]  = {1.0, 0.4};   // conductivities
 const real_t amp[NEQ] = {1.0, -0.6};  // solution amplitudes
 
@@ -115,29 +138,66 @@ struct Result
 
 /// Solve the neq-equation system. With neq = 1 this is the ordinary single
 /// field problem, which is what the per-equation comparison below leans on.
-Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1)
+Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1,
+             Form form = Form::RT)
 {
    const int dim = mesh.Dimension();
+   const bool dg = (form == Form::DG);
 
-   RT_FECollection u_coll(order, dim);
+   // The DG flux is an ordinary L2 vector field, so a system needs vdim
+   // neq*dim rather than neq: the equation index is outermost, and component
+   // eq*dim + d of the space is direction d of equation eq, which is the
+   // layout uExact already writes and the one VectorBlockDiagonalIntegrator
+   // produces when it replicates a dim-wide block down the diagonal.
+   std::unique_ptr<FiniteElementCollection> u_coll;
+   if (dg) { u_coll.reset(new L2_FECollection(order, dim)); }
+   else    { u_coll.reset(new RT_FECollection(order, dim)); }
    L2_FECollection p_coll(order, dim);
-   FiniteElementSpace fes_u(&mesh, &u_coll, neq, Ordering::byNODES);
+   FiniteElementSpace fes_u(&mesh, u_coll.get(), dg ? neq * dim : neq,
+                            Ordering::byNODES);
    FiniteElementSpace fes_p(&mesh, &p_coll, neq, Ordering::byNODES);
 
    DarcyForm darcy(&fes_u, &fes_p);
 
    std::vector<BilinearFormIntegrator *> mass(neq);
-   std::vector<Coefficient *> ik(neq);
+   std::vector<Coefficient *> ik(neq), kc(neq);
    for (int i = 0; i < neq; i++)
    {
       const int eq = (only >= 0) ? only : i;
       ik[i] = new ConstantCoefficient(1.0 / kk[eq]);
-      mass[i] = new VectorFEMassIntegrator(*ik[i]);
+      kc[i] = new ConstantCoefficient(kk[eq]);
+      mass[i] = dg ? (BilinearFormIntegrator *) new VectorMassIntegrator(*ik[i])
+                : (BilinearFormIntegrator *) new VectorFEMassIntegrator(*ik[i]);
    }
    darcy.GetFluxMassForm()->AddDomainIntegrator(
       new VectorBlockDiagonalIntegrator(mass));
-   darcy.GetFluxDivForm()->AddDomainIntegrator(
-      new VectorBlockDiagonalIntegrator(neq, new VectorFEDivergenceIntegrator));
+
+   MixedBilinearForm *Bform = darcy.GetFluxDivForm();
+   if (dg)
+   {
+      Bform->AddDomainIntegrator(
+         new VectorBlockDiagonalIntegrator(neq, new VectorDivergenceIntegrator));
+      Bform->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+
+      // The DG method has no inter-element continuity to lean on, so the
+      // faces carry the stabilization explicitly -- each equation its own,
+      // since the conductivities differ.
+      const real_t td = TAU * mesh.GetElementSize(0) / LSCALE;
+      std::vector<BilinearFormIntegrator *> stab(neq);
+      for (int i = 0; i < neq; i++)
+      {
+         stab[i] = new HDGDiffusionIntegrator(*kc[i], td);
+      }
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(stab));
+   }
+   else
+   {
+      Bform->AddDomainIntegrator(
+         new VectorBlockDiagonalIntegrator(neq, new VectorFEDivergenceIntegrator));
+   }
 
    // The coupling. VectorBlockDiagonalIntegrator cannot express this: it
    // replicates one integrator down the diagonal, and what is wanted here is a
@@ -177,8 +237,19 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1)
    };
    VectorFunctionCoefficient natcoeff(neq, nat), gcoeff(neq, src);
 
-   darcy.GetFluxRHS()->AddBoundaryIntegrator(
-      new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   if (dg)
+   {
+      // VectorBoundaryFluxLFIntegrator already takes a VectorCoefficient and
+      // lays the result out as (v*dim + k)*dof + j, which is the same
+      // equation-outermost layout, so no block wrapper is needed here.
+      darcy.GetFluxRHS()->AddBdrFaceIntegrator(
+         new VectorBoundaryFluxLFIntegrator(natcoeff));
+   }
+   else
+   {
+      darcy.GetFluxRHS()->AddBoundaryIntegrator(
+         new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   }
    darcy.GetPotentialRHS()->AddDomainIntegrator(
       new VectorDomainLFIntegrator(gcoeff));
 
@@ -265,7 +336,7 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1)
    res.err_u = u_h.ComputeL2Error(ucoeff, irs);
    res.u = x.GetBlock(0);
    res.p = x.GetBlock(1);
-   for (int i = 0; i < neq; i++) { delete ik[i]; }
+   for (int i = 0; i < neq; i++) { delete ik[i]; delete kc[i]; }
    return res;
 }
 
@@ -282,19 +353,20 @@ TEST_CASE("A block-diagonal Darcy system reproduces its equations one by one",
    const int order = GENERATE(0, 1);
    const Element::Type elem = GENERATE(Element::QUADRILATERAL,
                                        Element::TRIANGLE);
+   const Form form = GENERATE(Form::RT, Form::DG);
 
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, elem, false, 1.0, 1.0);
 
-   const Result sys = Solve(mesh, order, NEQ, true);
+   const Result sys = Solve(mesh, order, NEQ, true, -1, form);
 
-   CAPTURE(order, int(elem), sys.solved_size);
+   CAPTURE(order, int(elem), int(form), sys.solved_size);
 
    const int np = sys.p.Size() / NEQ;
    const int nu = sys.u.Size() / NEQ;
 
    for (int i = 0; i < NEQ; i++)
    {
-      const Result one = Solve(mesh, order, 1, true, i);
+      const Result one = Solve(mesh, order, 1, true, i, form);
       REQUIRE(one.p.Size() == np);
       REQUIRE(one.u.Size() == nu);
 
@@ -316,6 +388,11 @@ TEST_CASE("A Darcy system hybridizes to the same solution as the block solve",
 {
    using namespace darcy_system;
 
+   // RT only. DarcyForm::Assemble assembles the potential faces through
+   // AssemblePotHDGFaces when hybridization is on and AssemblePotLDGFaces
+   // when it is off, so for a DG flux the two are not the same operator and
+   // there is nothing here to compare. The equivalence is a property of the
+   // hybridized mixed method, not of the branch's DG path.
    const int order = GENERATE(0, 1);
 
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
@@ -340,26 +417,29 @@ TEST_CASE("A Darcy system converges at the design order",
    using namespace darcy_system;
 
    const int order = GENERATE(0, 1);
+   const Form form = GENERATE(Form::RT, Form::DG);
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
 
-   real_t prev_p = -1.0, prev_u = -1.0;
-   for (int ref = 0; ref < 3; ref++)
+   // Rates are taken between the two finest meshes. The coarsest pair here is
+   // 2x2 to 4x4, which for the DG form is still pre-asymptotic -- it reports
+   // about 1.6 where 2 is wanted, and reaches 2 on the next pair.
+   std::vector<real_t> ep, eu;
+   for (int ref = 0; ref < 4; ref++)
    {
-      const Result r = Solve(mesh, order, NEQ, true);
-      if (prev_p > 0.0)
-      {
-         const real_t rate_p = std::log2(prev_p / r.err_p);
-         const real_t rate_u = std::log2(prev_u / r.err_u);
-         CAPTURE(order, ref, rate_p, rate_u);
-         REQUIRE(rate_p > order + 0.7);
-         REQUIRE(rate_u > order + 0.7);
-      }
-      prev_p = r.err_p;
-      prev_u = r.err_u;
+      const Result r = Solve(mesh, order, NEQ, true, -1, form);
+      ep.push_back(r.err_p);
+      eu.push_back(r.err_u);
       mesh.UniformRefinement();
    }
+
+   const int n = ep.size();
+   const real_t rate_p = std::log2(ep[n-2] / ep[n-1]);
+   const real_t rate_u = std::log2(eu[n-2] / eu[n-1]);
+   CAPTURE(order, int(form), rate_p, rate_u, ep[n-1], eu[n-1]);
+   REQUIRE(rate_p > order + 0.7);
+   REQUIRE(rate_u > order + 0.7);
 }
 
 TEST_CASE("A Darcy system with cross-equation coupling",
@@ -392,24 +472,24 @@ TEST_CASE("A Darcy system with cross-equation coupling",
 
    SECTION("and the coupled system converges at the design order")
    {
+      const Form form = GENERATE(Form::RT, Form::DG);
       Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
                                         1.0, 1.0);
-      real_t prev_p = -1.0, prev_u = -1.0;
-      for (int ref = 0; ref < 3; ref++)
+      std::vector<real_t> ep, eu;
+      for (int ref = 0; ref < 4; ref++)
       {
-         const Result r = Solve(mesh, order, NEQ, true);
-         if (prev_p > 0.0)
-         {
-            const real_t rate_p = std::log2(prev_p / r.err_p);
-            const real_t rate_u = std::log2(prev_u / r.err_u);
-            CAPTURE(order, ref, rate_p, rate_u, r.err_p, r.err_u);
-            REQUIRE(rate_p > order + 0.7);
-            REQUIRE(rate_u > order + 0.7);
-         }
-         prev_p = r.err_p;
-         prev_u = r.err_u;
+         const Result r = Solve(mesh, order, NEQ, true, -1, form);
+         ep.push_back(r.err_p);
+         eu.push_back(r.err_u);
          mesh.UniformRefinement();
       }
+
+      const int n = ep.size();
+      const real_t rate_p = std::log2(ep[n-2] / ep[n-1]);
+      const real_t rate_u = std::log2(eu[n-2] / eu[n-1]);
+      CAPTURE(order, int(form), rate_p, rate_u, ep[n-1], eu[n-1]);
+      REQUIRE(rate_p > order + 0.7);
+      REQUIRE(rate_u > order + 0.7);
    }
 
    coupled = false;

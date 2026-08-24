@@ -2704,7 +2704,7 @@ void DarcyHybridization::AssembleHDGGrad(
 
    if (FTr->Elem1No != el) { type |= 1; }
 
-   Array2D<DenseMatrix*> elmats;
+   Array2D<DenseMatrix*> elmats(3, 3);
    DenseMatrix elmat_A, elmat_D, elmat_E, elmat_G, elmat_H;
    elmats = NULL;
    elmats(0,0) = &elmat_A;
