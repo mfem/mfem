@@ -478,8 +478,9 @@ order, form and mesh:
 
 | | RT `p` | RT `u` | DG `p` | DG `u` |
 |---|---|---|---|---|
-| `k=0` | 0.99 | 1.00 | 1.05 | 0.89 |
-| `k=1` | 2.00 | 2.01 | 1.95 | 1.87 |
+| `k=0` | 0.99 | 1.00 | 0.98 | 0.93 |
+| `k=1` | 2.00 | 2.01 | 1.89 | 1.83 |
+| `k=2` | 3.00 | 3.01 | 2.91 | 2.86 |
 
 The control is the same study with the terms that exist in the source *only*
 because `K` depends on `p` removed — differentiating as though the conductivity
@@ -546,11 +547,11 @@ below for why with one field rather than two — over the 8×8 to 16×16 pair:
 | `k` | form | `p` | `u` | `u_t` | `p_s` | `u_s` |
 |---|---|---|---|---|---|---|
 | 0 | RT | 0.99 | 1.00 | 1.00 | **2.00** | 1.00 |
-| 0 | DG | 1.00 | 0.88 | 0.86 | **1.01** | 0.86 |
+| 0 | DG | 0.98 | 0.92 | 0.90 | **0.98** | 0.90 |
 | 1 | RT | 2.00 | 2.01 | 2.01 | **3.09** | 2.06 |
-| 1 | DG | 1.95 | 1.87 | 1.86 | **2.92** | 1.85 |
+| 1 | DG | 1.89 | 1.83 | 1.82 | **2.83** | 1.80 |
 | 2 | RT | 3.00 | 3.01 | 3.01 | **4.12** | 3.07 |
-| 2 | DG | 2.99 | 2.91 | 2.90 | **3.94** | 2.91 |
+| 2 | DG | 2.91 | 2.86 | 2.85 | **3.89** | 2.87 |
 
 The postprocessed potential gains a full order everywhere except the fully
 discontinuous form at `k=0`, which is a known restriction and not a defect:
@@ -861,14 +862,65 @@ is documented rather than rediscovered.
 
 **This is the third thing to trip over the same boundary arrangement**, after
 §4's unconstrained traces in the Jacobian probe and §Optional B's local problem
-going singular the moment the potential space is enriched. The pattern is clear
-enough to state as a finding: **the branch's default DG boundary treatment —
-weak Dirichlet through the flux equation, no boundary-face stabilisation, no
-essential trace — is a liability rather than a convenience.** It happens to give
-the right answer for a plain equal-order solve, and it fails everything built on
-top: the estimator, an enriched potential space, and any diagnostic that reads
-the trace. The essential-trace route exists and works. It should be the default
-for anything beyond a bare solve.
+going singular the moment the potential space is enriched. The sweep that
+followed is below.
+
+### The boundary treatment, swept
+
+**Outcome: the fully discontinuous spaces now take the Dirichlet datum on an
+essential trace by default. Raviart–Thomas and broken RT are untouched.**
+
+**Why the traces were dead is one line.** `DarcyHybridization::ConstructC`
+loops over faces calling `GetInteriorFaceTransformations(f)` and skips anything
+that returns null, so **`C` is assembled on interior faces only** unless a
+boundary flux constraint integrator is registered. A boundary trace unknown
+therefore had no constraint row *and* no `Cᵀ` column: nothing determined it,
+and it influenced nothing.
+
+**Which route is available depends on where the datum can enter, and the two
+spaces differ.**
+
+* **RT and broken RT keep the weak route**, and should. The datum would have to
+  ride in on `Cᵀ`, `C` has no boundary block, and the integrator that would
+  give it one cannot be registered in time — `DarcyForm::EnableHybridization`
+  forwards only the *potential* boundary constraint integrators and then calls
+  `Init()`, which is what builds `C`. Measured, going through the motions
+  anyway leaves the datum nowhere and the potential comes out right up to a
+  constant, a fixed error of 0.26 at every order and every mesh. The weak route
+  is the classical hybridized mixed Dirichlet condition and there is nothing
+  wrong with it; the price is that `λ` on a boundary face is meaningless and
+  must not be read.
+* **DG takes the essential route**, and does not need `C` for it: the boundary
+  stabilisation couples `λ` to the potential directly through `E` and `G`. The
+  boundary faces join the divergence form and the stabilisation, the datum is
+  projected onto the trace, and `λ` then means the same thing everywhere. The
+  estimator above needs exactly that, and so would an enriched potential space
+  (§Optional B).
+
+**What it cost in rates.** A different method, landing a little lower at the
+same orders. §4's nonlinear system study and its postprocessing table are both
+recorded under the new default; the DG rows moved by three to six hundredths.
+`test_darcy_system.cpp`'s linear study did not move at all, and could not have:
+its manufactured solution is `A Π sin(π x_d)`, which **vanishes on the whole
+boundary of the unit square**, so both routes inject nothing there. That is
+worth remembering — a comparison of boundary treatments against homogeneous
+data is vacuous, which is why the estimator uses `eˣ sin y` and §4 an offset
+sine.
+
+**One library gap had to be closed first.**
+`DarcyHybridization::EliminateTraceTrueDofsInRHS` opened with
+`if (IsNonlinear()) { return; } // not implemented`, so `SetEssentialBC` was
+**silently ignored on the nonlinear path** — no warning, no error, just an
+unconstrained trace, which also means `convdiff -trbc` with any nonlinear
+option was quietly solving a different problem. The constraint is now carried
+the way `NonlinearForm` carries one: the values ride in `x`, `Mult` zeroes the
+residual on those rows, `GetGradient` puts a unit diagonal there, and the
+reduced right-hand side is zeroed to match, so Newton leaves them alone. Rows
+only, not rows and columns — the correction is zero on those dofs so their
+columns contribute nothing, and `EliminateRowCol` would demand a structurally
+symmetric matrix, which the reduced gradient is not. **The change is inert
+unless `SetEssentialBC` has been called, which no RT path does.** A test
+asserts the values come out of Newton bit-identical to what went in.
 
 **So the h-adaptive requirement, anisotropic included, is largely "verify and
 use", not "build".** What has to be checked: that nonconforming refinement of
@@ -1359,11 +1411,16 @@ Kept with their answers rather than deleted, because the answers are the content
    reconstruction — is a loop over equations away from being general in `vdim`;
    §Optional A step 2. And §Optional B would remove the need entirely for the
    quantity that matters, since HDG (A) is superconvergent as solved.
-6. **Whether the default DG boundary treatment should be replaced outright**
-   by the essential-trace route, as §7 argues. Three separate pieces of work
-   have now failed on it — the Jacobian probe's null space in §4, the enriched
-   potential space in §Optional B, and the estimator in §7. What is needed now
-   is a decision and a sweep, not another discovery.
+6. **A boundary flux constraint integrator that can be registered in time**, so
+   that RT could take the essential-trace route at all. `C` has no boundary
+   block and `EnableHybridization` builds it before anything can be added.
+   Needed only if something has to read `λ` on a boundary face of an RT
+   problem — §7's estimator on the mixed form is the case in view. The
+   discontinuous spaces do not need it; see §7's sweep.
+7. **`convdiff` and the miniapps still default to the weak route for DG.** The
+   sweep changed the unit-test harnesses, not the drivers. Whether the
+   miniapps should follow is a separate decision, and moving them would move
+   their regression references.
 
 ## References
 

@@ -237,18 +237,57 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1,
    };
    VectorFunctionCoefficient natcoeff(neq, nat), gcoeff(neq, src);
 
-   if (dg)
+   // The Dirichlet datum. The two spaces take it differently, and which one
+   // is used is not a free choice -- see the boundary treatment sweep in
+   // section 7 of doc/HDG-ROADMAP.md.
+   //
+   //   RT   weakly, through the flux equation's natural term. The datum would
+   //        otherwise have to arrive through C^T, and C is assembled on
+   //        interior faces only. This is the classical hybridized mixed
+   //        condition; the price is that lambda on a boundary face is
+   //        meaningless and must not be read.
+   //   DG   on the trace, which is essential and carries the projection of the
+   //        datum. The boundary faces join the divergence form and the
+   //        stabilization to make that couple. This is the default for the
+   //        fully discontinuous spaces because it leaves lambda meaning the
+   //        same thing everywhere, which is what the estimator and any
+   //        enriched-potential variant need.
+   Array<int> bdr_ess(mesh.bdr_attributes.Max());
+   bdr_ess = 1;
+   const bool ess_trace = dg && hybridize;
+
+   if (!ess_trace)
    {
       // VectorBoundaryFluxLFIntegrator already takes a VectorCoefficient and
       // lays the result out as (v*dim + k)*dof + j, which is the same
       // equation-outermost layout, so no block wrapper is needed here.
-      darcy.GetFluxRHS()->AddBdrFaceIntegrator(
-         new VectorBoundaryFluxLFIntegrator(natcoeff));
+      if (dg)
+      {
+         darcy.GetFluxRHS()->AddBdrFaceIntegrator(
+            new VectorBoundaryFluxLFIntegrator(natcoeff));
+      }
+      else
+      {
+         darcy.GetFluxRHS()->AddBoundaryIntegrator(
+            new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+      }
    }
    else
    {
-      darcy.GetFluxRHS()->AddBoundaryIntegrator(
-         new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+      // The factor two against the interior's one is convdiff's, and is there
+      // because only one side contributes on a boundary face.
+      Bform->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
+         bdr_ess);
+      const real_t td = TAU * mesh.GetElementSize(0) / LSCALE;
+      std::vector<BilinearFormIntegrator *> bstab(neq);
+      for (int i = 0; i < neq; i++)
+      {
+         bstab[i] = new HDGDiffusionIntegrator(*kc[i], td);
+      }
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(bstab), bdr_ess);
    }
    darcy.GetPotentialRHS()->AddDomainIntegrator(
       new VectorDomainLFIntegrator(gcoeff));
@@ -262,6 +301,7 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1,
          &fes_t,
          new VectorBlockDiagonalIntegrator(neq, new NormalTraceJumpIntegrator),
          ess_flux_tdofs);
+      if (ess_trace) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
    }
 
    darcy.Assemble();
@@ -271,6 +311,23 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1,
 
    OperatorPtr A;
    Vector X, B;
+   if (ess_trace)
+   {
+      // FormLinearSystem reads the essential trace values out of X, so it has
+      // to arrive sized and carrying them.
+      GridFunction tr0(&fes_t);
+      tr0 = 0.0;
+      auto pfun = [only](const Vector & x, Vector & v)
+      {
+         Vector all;
+         pExact(x, all);
+         if (only >= 0) { v.SetSize(1); v(0) = all(only); }
+         else { v = all; }
+      };
+      VectorFunctionCoefficient pc(neq, pfun);
+      tr0.ProjectBdrCoefficient(pc, bdr_ess);
+      X = tr0;
+   }
    darcy.FormLinearSystem(ess_flux_tdofs, x, A, X, B, true);
 
    Result res;

@@ -1581,6 +1581,14 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
    }
 
    MultNL(MultNlMode::Mult, darcy_rhs, x, y);
+
+   // Essential trace dofs. There is no assembled matrix on this path to move
+   // columns out of, so the constraint is carried the way NonlinearForm
+   // carries one: the values ride in @a x, the residual is zero on those rows,
+   // the gradient has a unit diagonal there, and Newton therefore leaves them
+   // alone. The reduced right-hand side is zeroed to match in
+   // EliminateTraceTrueDofsInRHS(). Inert unless SetEssentialBC() was called.
+   y.SetSubVector(ess_tdof_list, 0.);
 }
 
 Operator &DarcyHybridization::GetGradient(const Vector &x) const
@@ -1605,6 +1613,14 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    //assemble gradient matrix
    Grad.reset();
    ComputeH(ComputeHMode::Gradient, Grad);
+   // Rows only. The columns could be eliminated too, but they need not be --
+   // the correction is zero on these dofs, so their columns contribute
+   // nothing -- and EliminateRowCol() would demand a structurally symmetric
+   // matrix, which the reduced gradient is not.
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      Grad->EliminateRow(ess_tdof_list[i], Matrix::DIAG_ONE);
+   }
    return *Grad;
 #else
    //construct gradient operator
@@ -2266,7 +2282,15 @@ void DarcyHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
 void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
                                                      const Vector &x, Vector &b)
 {
-   if (IsNonlinear()) { return; } // not implemented
+   if (IsNonlinear())
+   {
+      // Nothing to eliminate -- the reduced operator is nonlinear and there is
+      // no assembled matrix to move columns out of. The essential values ride
+      // in @a x and the residual is masked on those rows by Mult(), so all
+      // that is needed here is a right-hand side that agrees.
+      b.SetSubVector(tdofs_, 0.);
+      return;
+   }
 
    if (!ParallelC())
    {
@@ -3537,6 +3561,8 @@ void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
    }
 
    dh.ParMultNL(MultNlMode::Mult, dh.darcy_rhs, x, y);
+
+   y.SetSubVector(dh.ess_tdof_list, 0.);   // see the serial Mult()
 }
 Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
 {
@@ -3561,6 +3587,13 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
    dh.Grad.reset();
    pGrad.SetType(dh.pH.Type());
    dh.ComputeParH(ComputeHMode::Gradient, dh.Grad, pGrad);
+   if (dh.ess_tdof_list.Size() > 0)
+   {
+      // Rows and columns here, hypre offering no rows-with-unit-diagonal; the
+      // extra column elimination is harmless for the same reason the serial
+      // path can skip it.
+      delete pGrad.As<HypreParMatrix>()->EliminateRowsCols(dh.ess_tdof_list);
+   }
 #else
    //construct gradient operator
    pGrad.Reset(new ParGradient(dh));

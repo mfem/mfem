@@ -45,16 +45,20 @@ struct Solution
 /// Solve the hybridized HDG problem and keep the potential and the trace,
 /// which is what the estimator consumes.
 ///
-/// @a ess_trace selects the boundary treatment. False is the branch's usual DG
-/// arrangement, copied from convdiff: the faces are stabilized on the interior
-/// only and the Dirichlet datum enters weakly through the flux equation, which
-/// leaves the boundary trace unknowns with an empty row and an empty column --
-/// dead, and left at zero. True is convdiff's -trbc route: the boundary traces
-/// are essential and carry the projected datum, so lambda is an approximation
-/// of p there and the trace jump means on a boundary face what it means
-/// everywhere else. The estimator is only usable in the second.
+/// @a ess_trace selects the boundary treatment, and **defaults to the
+/// essential one**, which is the standard for the fully discontinuous spaces
+/// on this branch. The boundary traces carry the projected datum, so lambda
+/// approximates p there and the trace jump means on a boundary face what it
+/// means everywhere else.
+///
+/// False is the older arrangement, copied from convdiff: the faces are
+/// stabilized on the interior only and the datum enters weakly through the
+/// flux equation, which leaves the boundary trace unknowns with an empty row
+/// and an empty column -- dead, and left at zero. It solves correctly and is
+/// still what the Raviart-Thomas path uses, having no alternative, but the
+/// estimator cannot be used with it: see the test below.
 void Solve(Solution &s, int n, int order, real_t T = 1.0,
-           bool ess_trace = false)
+           bool ess_trace = true)
 {
    s.mesh.reset(new Mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
                                                false, 1.0, 1.0)));
@@ -238,7 +242,7 @@ struct Estimate
    real_t lmax, total, err_p;
 };
 
-Estimate Measure(int n, int order, bool ess_trace)
+Estimate Measure(int n, int order, bool ess_trace = true)
 {
    Solution s;
    Solve(s, n, order, 1.0, ess_trace);

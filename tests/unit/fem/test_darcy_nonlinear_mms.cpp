@@ -72,6 +72,11 @@ enum class Form { RT, DG };
 /// test_darcy_system.cpp found. A per-variable tau tracking each equation's
 /// own conductivity, (1, 2) against the scalar 1, moved nothing measurably --
 /// the magnitude is what matters here, not the ratio.
+///
+/// That sweep was taken before the DG boundary treatment changed to the
+/// essential trace, so its numbers belong to the older arrangement. The choice
+/// of two survives the change: the rates it gives under the current default
+/// are recorded on the study below.
 constexpr real_t TAU = 2.0;
 
 // The exact potentials, p_e(x) = c_e + a_e prod_d sin(w_e x_d + f_e). The
@@ -318,6 +323,10 @@ class System
 
    const int dim, neq, order;
    const bool dg;
+   /// DG puts the Dirichlet datum on an essential trace, RT on the flux
+   /// equation's natural term; see the sweep in section 7 of the roadmap.
+   const bool ess_trace;
+   Array<int> bdr_ess;
    std::unique_ptr<FiniteElementCollection> u_coll;
    L2_FECollection p_coll;
    DG_Interface_FECollection t_coll;
@@ -339,10 +348,12 @@ public:
         fes_u(&mesh, u_coll.get(), dg ? neq * dim : neq, Ordering::byNODES),
         fes_p(&mesh, &p_coll, neq, Ordering::byNODES),
         fes_t(&mesh, &t_coll, neq, Ordering::byNODES),
+        ess_trace(dg), bdr_ess(mesh.bdr_attributes.Max()),
         flux(dim),
         natcoeff(neq, pNatural), gcoeff(neq, gExact),
         darcy(&fes_u, &fes_p)
    {
+      bdr_ess = 1;
       BlockNonlinearForm *Mnl = darcy.GetBlockNonlinearForm();
       Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(flux));
 
@@ -369,15 +380,25 @@ public:
             new VectorBlockDiagonalIntegrator(neq, new VectorFEDivergenceIntegrator));
       }
 
-      if (dg)
-      {
-         darcy.GetFluxRHS()->AddBdrFaceIntegrator(
-            new VectorBoundaryFluxLFIntegrator(natcoeff));
-      }
-      else
+      if (!ess_trace)
       {
          darcy.GetFluxRHS()->AddBoundaryIntegrator(
             new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+      }
+      else
+      {
+         // The boundary faces join the divergence form and the stabilization
+         // so that the essential trace couples to the potential. Two against
+         // the interior's one, because only one side contributes.
+         Bform->AddBdrFaceIntegrator(
+            new VectorBlockDiagonalIntegrator(
+               neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
+            bdr_ess);
+         auto *bface = new MixedConductionNLFIntegrator(flux, TAU);
+         Vector btaus(neq);
+         btaus = 1.0;
+         bface->SetVariableStabilization(btaus);
+         Mnl->AddBdrFaceIntegrator(bface, bdr_ess);
       }
       darcy.GetPotentialRHS()->AddDomainIntegrator(
          new VectorDomainLFIntegrator(gcoeff));
@@ -386,6 +407,7 @@ public:
          &fes_t,
          new VectorBlockDiagonalIntegrator(neq, new NormalTraceJumpIntegrator),
          ess);
+      if (ess_trace) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
 
       darcy.Assemble();
 
@@ -395,6 +417,14 @@ public:
 
       x.Update(darcy.GetOffsets());
       x = 0.0;
+      if (ess_trace)
+      {
+         GridFunction tr0(&fes_t);
+         tr0 = 0.0;
+         VectorFunctionCoefficient pc(neq, pExact);
+         tr0.ProjectBdrCoefficient(pc, bdr_ess);
+         X = tr0;
+      }
       darcy.FormLinearSystem(ess, x, op, X, RHS, true);
    }
 
@@ -511,6 +541,7 @@ PostResult SolvePost(Mesh &mesh, int order, Form form)
 {
    const int dim = mesh.Dimension();
    const bool dg = (form == Form::DG);
+   const bool ess_trace = dg;   // the default for the discontinuous spaces
 
    std::unique_ptr<FiniteElementCollection> u_coll;
    if (dg) { u_coll.reset(new L2_FECollection(order, dim)); }
@@ -551,21 +582,27 @@ PostResult SolvePost(Mesh &mesh, int order, Form form)
       Bform->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
    }
 
-   FunctionCoefficient natcoeff(pNatural1), gcoeff(gExact1);
-   if (dg)
-   {
-      darcy.GetFluxRHS()->AddBdrFaceIntegrator(
-         new VectorBoundaryFluxLFIntegrator(natcoeff));
-   }
-   else
+   FunctionCoefficient natcoeff(pNatural1), gcoeff(gExact1), pcoeff(pScalar);
+   Array<int> bdr_ess(mesh.bdr_attributes.Max());
+   bdr_ess = 1;
+
+   if (!ess_trace)
    {
       darcy.GetFluxRHS()->AddBoundaryIntegrator(
          new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   }
+   else
+   {
+      Bform->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.)), bdr_ess);
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new HDGDiffusionIntegrator(one, TAU * mesh.GetElementSize(0)), bdr_ess);
    }
    darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
 
    Array<int> ess;
    darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator, ess);
+   if (ess_trace) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
    darcy.Assemble();
    darcy.GetHybridization()->SetLocalNLSolver(
       DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
@@ -575,6 +612,13 @@ PostResult SolvePost(Mesh &mesh, int order, Form form)
 
    OperatorPtr op;
    Vector X, RHS;
+   if (ess_trace)
+   {
+      GridFunction tr0(&fes_t);
+      tr0 = 0.0;
+      tr0.ProjectBdrCoefficient(pcoeff, bdr_ess);
+      X = tr0;
+   }
    darcy.FormLinearSystem(ess, x, op, X, RHS, true);
 
    GSSmoother prec;
@@ -595,6 +639,29 @@ PostResult SolvePost(Mesh &mesh, int order, Form form)
    newton.Mult(RHS, X);
    REQUIRE(newton.GetConverged());
 
+   if (ess_trace)
+   {
+      // The essential trace values must come out of Newton exactly as they
+      // went in. DarcyHybridization ignored SetEssentialBC entirely on the
+      // nonlinear path until the boundary treatment sweep -- see section 7 of
+      // the roadmap -- so this is the check that the constraint is carried.
+      GridFunction tr1(&fes_t);
+      tr1 = 0.0;
+      tr1.ProjectBdrCoefficient(pcoeff, bdr_ess);
+      Array<int> el;
+      fes_t.GetEssentialTrueDofs(bdr_ess, el);
+      real_t drift = 0., mag = 0.;
+      for (int i = 0; i < el.Size(); i++)
+      {
+         drift = std::max(drift, std::abs(X(el[i]) - tr1(el[i])));
+         mag = std::max(mag, std::abs(tr1(el[i])));
+      }
+      INFO("essential trace dofs " << el.Size() << " of " << X.Size()
+           << ", magnitude " << mag);
+      REQUIRE(mag > 1e-2);          // the datum is not trivially zero
+      REQUIRE(drift == 0.0);        // and Newton did not move it
+   }
+
    darcy.RecoverFEMSolution(X, x);
 
    // Postprocess. The spaces are built by the reconstruction itself.
@@ -611,7 +678,6 @@ PostResult SolvePost(Mesh &mesh, int order, Form form)
       irs[i] = &(IntRules.Get(i, quad_order));
    }
 
-   FunctionCoefficient pcoeff(pScalar);
    VectorFunctionCoefficient ucoeff(dim, uExact1);
 
    PostResult res;
@@ -896,11 +962,15 @@ TEST_CASE("Postprocessing lifts the potential a further order",
    //
    //     k  form   p     u     ut    p_s    u_s
    //     0  RT     0.99  1.00  1.00  2.00   1.00
-   //     0  DG     1.00  0.88  0.86  1.01   0.86
+   //     0  DG     0.98  0.92  0.90  0.98   0.90
    //     1  RT     2.00  2.01  2.01  3.09   2.06
-   //     1  DG     1.95  1.87  1.86  2.92   1.85
+   //     1  DG     1.89  1.83  1.82  2.83   1.80
    //     2  RT     3.00  3.01  3.01  4.12   3.07
-   //     2  DG     2.99  2.91  2.90  3.94   2.91
+   //     2  DG     2.91  2.86  2.85  3.89   2.87
+   //
+   // RT takes the Dirichlet datum weakly and DG on an essential trace, which
+   // is the branch's arrangement rather than a choice made here; see the
+   // boundary treatment sweep in section 7 of the roadmap.
    //
    // k+2 everywhere except the fully discontinuous form at k=0, which is the
    // known restriction rather than a defect: the local postprocessing needs
