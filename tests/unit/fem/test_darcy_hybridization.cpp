@@ -127,7 +127,8 @@ Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
    }
    darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
 
-   Array<int> ess_flux_tdofs;   // the pressure enters naturally; none are essential
+   // The pressure enters naturally, so none of the flux dofs are essential.
+   Array<int> ess_flux_tdofs;
 
    // The trace space is only built when it is used, but it must outlive the
    // DarcyForm's hybridization, hence the scope of these two.
@@ -293,7 +294,8 @@ TEST_CASE("Hybridized Darcy in three dimensions on hexahedra",
    REQUIRE(dp.Normlinf() < 1e-8 * std::max(mono.p.Normlinf(), real_t(1.0)));
 }
 
-TEST_CASE("Hybridized Darcy on wedges", "[DarcyForm][DarcyHybridization][Wedge]")
+TEST_CASE("Hybridized Darcy on wedges",
+          "[DarcyForm][DarcyHybridization][Wedge]")
 {
    using namespace darcy_hybridization;
 

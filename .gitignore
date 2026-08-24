@@ -539,3 +539,6 @@ TAGS
 
 # vs code
 .vscode
+
+# vim swap files
+*.sw[a-p]

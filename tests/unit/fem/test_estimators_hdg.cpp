@@ -145,8 +145,11 @@ TEST_CASE("HDGErrorEstimator vanishes when the trace matches the element",
    ConstantCoefficient q(2.5);
    HDGDiffusionIntegrator integ(q);
 
-   for (auto type : {HDGErrorEstimator::Type::Energy,
-                     HDGErrorEstimator::Type::Residual})
+   for (auto type :
+        {
+           HDGErrorEstimator::Type::Energy,
+           HDGErrorEstimator::Type::Residual
+        })
    {
       HDGErrorEstimator est(integ, tr_h, p_h, type);
       const Vector &loc = est.GetLocalErrors();
