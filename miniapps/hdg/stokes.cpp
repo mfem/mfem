@@ -30,7 +30,9 @@
 //               with its own source correction, so Kovasznay stays the
 //               manufactured solution throughout.
 //
-//               What is built so far is recorded in Stage below.
+//               What is built so far is recorded in Stage below. Stage 1 is
+//               complete and validated; stage 2 assembles and solves but does
+//               not yet converge -- see the note on Stage::Stokes.
 //
 //               Validated against NPC's own convergence study, section 4.1,
 //               which sweeps the stabilization as nu*tau = h^ts. Rates over
@@ -87,6 +89,32 @@ enum class Stage
    /// source. d decoupled Darcy problems sharing one manufactured solution;
    /// this is the harness, not yet Stokes.
    Momentum = 1,
+   /// Stokes. The pressure is a potential field with no flux and no trace of
+   /// its own -- potential d+1, flux d*dim, trace d -- and it enters as the
+   /// isotropic part of the total stress, sigma_i = -nu grad u_i + p e_i,
+   /// which turns both of its couplings into blocks of B. DarcyForm forms the
+   /// transpose that pairs them, which is Stokes' own symmetry.
+   ///
+   /// **Incomplete.** It assembles, the trace system is the same size as
+   /// stage 1's -- 2176 against 2176 at n=16, so the pressure has genuinely
+   /// added no global unknowns -- and GMRES converges in 73 iterations against
+   /// stage 1's 55. But the answer does not converge under refinement: the
+   /// velocity, flux and mean-removed pressure errors all sit flat at 0.49,
+   /// 0.28 and 0.22.
+   ///
+   /// Settled so far. The rectangular arrangement itself is not the problem
+   /// the way the earlier dummy-flux one was; the sign of the potential mass
+   /// block that cancels the isotropic part must be positive, since the
+   /// negative one makes the local solve singular; and a bisection that drops
+   /// the coupling blocks proves nothing here, because the source -f_i
+   /// assumes the pressure gradient is in the operator.
+   ///
+   /// What to do next is the diagnostic this has twice been deferred in favour
+   /// of guessing: assemble monolithically, project the exact (sigma, w) into
+   /// the spaces, and look at the residual row by row. That separates a wrong
+   /// operator from a wrong solve, and in particular says directly whether the
+   /// pressure row really reduces to (div u, w) = 0.
+   Stokes = 2,
 };
 
 // ---------------------------------------------------------------------------
@@ -141,10 +169,15 @@ public:
 
    /// The flux of component i, q_i = -nu grad u_i, in the branch's sign
    /// convention -- note this is minus nu times NPC's gradient tensor L.
-   void Flux(const Vector &x, Vector &q) const
+   void Flux(const Vector &x, Vector &q, Stage stage) const
    {
       VelocityGrad(x, q);
       q *= -nu;
+      if (stage >= Stage::Stokes)
+      {
+         const real_t p = Pressure(x);
+         for (int i = 0; i < 2; i++) { q(i * 2 + i) += p; }
+      }
    }
 
    /// lap u, per component.
@@ -180,11 +213,32 @@ public:
    /// given stage. With the pressure a known source, g_i = nu lap u_i.
    void PotentialRHS(const Vector &x, Vector &g, Stage stage) const
    {
+      if (stage >= Stage::Stokes)
+      {
+         // div sigma_i = -nu lap u_i + d_i p = f_i, so g_i = -f_i, and the
+         // pressure's row is the constraint and has no source.
+         Vector f;
+         Momentum(x, f);
+         g.SetSize(3);
+         for (int i = 0; i < 2; i++) { g(i) = -f(i); }
+         g(2) = 0.0;
+         return;
+      }
       Vector l;
       VelocityLaplacian(x, l);
       g.SetSize(2);
       for (int i = 0; i < 2; i++) { g(i) = nu * l(i); }
-      MFEM_CONTRACT_VAR(stage);
+   }
+
+   /// The potential, carrying the pressure as its last component at stage 2.
+   void Potential(const Vector &x, Vector &w, Stage stage) const
+   {
+      Velocity(x, w);
+      if (stage >= Stage::Stokes)
+      {
+         w.SetSize(3);
+         w(2) = Pressure(x);
+      }
    }
 };
 
@@ -193,7 +247,8 @@ static const Kovasznay *kov = NULL;
 static Stage kov_stage = Stage::Momentum;
 
 static void uFun(const Vector &x, Vector &u) { kov->Velocity(x, u); }
-static void qFun(const Vector &x, Vector &q) { kov->Flux(x, q); }
+static void wFun(const Vector &x, Vector &w) { kov->Potential(x, w, kov_stage); }
+static void qFun(const Vector &x, Vector &q) { kov->Flux(x, q, kov_stage); }
 static void gFun(const Vector &x, Vector &g) { kov->PotentialRHS(x, g, kov_stage); }
 static real_t pFun(const Vector &x) { return kov->Pressure(x); }
 
@@ -280,7 +335,7 @@ real_t CheckData(const Kovasznay &k)
 /// the traces are essential and carry the projected velocity.
 struct Result
 {
-   real_t err_u, err_q;
+   real_t err_u, err_q, err_p;
    int    trace_size, iters;
 };
 
@@ -288,21 +343,25 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
              bool verbose)
 {
    const int dim = mesh.Dimension();
-   const int neq = dim;             // one Darcy problem per velocity component
-
+   const bool with_p = (stage >= Stage::Stokes);
+   const int nv = dim;                     // velocity components
+   const int np = with_p ? (nv + 1) : nv;  // potential fields
+   // Rectangular by construction: the pressure is a potential with no flux and
+   // no trace. Nothing here is padded to make the field counts agree.
    L2_FECollection q_coll(order, dim), u_coll(order, dim);
    DG_Interface_FECollection t_coll(order, dim);
-   FiniteElementSpace fes_q(&mesh, &q_coll, neq * dim, Ordering::byNODES);
-   FiniteElementSpace fes_u(&mesh, &u_coll, neq, Ordering::byNODES);
-   FiniteElementSpace fes_t(&mesh, &t_coll, neq, Ordering::byNODES);
+   FiniteElementSpace fes_q(&mesh, &q_coll, nv * dim, Ordering::byNODES);
+   FiniteElementSpace fes_u(&mesh, &u_coll, np, Ordering::byNODES);
+   FiniteElementSpace fes_t(&mesh, &t_coll, nv, Ordering::byNODES);
 
    DarcyForm darcy(&fes_q, &fes_u);
 
-   ConstantCoefficient inu(1.0 / kov->Viscosity()), one(1.0);
+   const real_t nu = kov->Viscosity();
+   ConstantCoefficient inu(1.0 / nu), one(1.0), dnu(real_t(dim) / nu);
 
-   // nu^-1 (q, v), replicated down the components.
-   std::vector<BilinearFormIntegrator *> mass(neq);
-   for (int i = 0; i < neq; i++) { mass[i] = new VectorMassIntegrator(inu); }
+   // nu^-1 (sigma, v), replicated down the momentum components.
+   std::vector<BilinearFormIntegrator *> mass(nv);
+   for (int i = 0; i < nv; i++) { mass[i] = new VectorMassIntegrator(inu); }
    darcy.GetFluxMassForm()->AddDomainIntegrator(
       new VectorBlockDiagonalIntegrator(mass));
 
@@ -310,15 +369,50 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
    bdr_ess = 1;
 
    MixedBilinearForm *B = darcy.GetFluxDivForm();
-   B->AddDomainIntegrator(
-      new VectorBlockDiagonalIntegrator(neq, new VectorDivergenceIntegrator));
-   B->AddInteriorFaceIntegrator(
-      new VectorBlockDiagonalIntegrator(
-         neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
-   B->AddBdrFaceIntegrator(
-      new VectorBlockDiagonalIntegrator(
-         neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
-      bdr_ess);
+   if (!with_p)
+   {
+      B->AddDomainIntegrator(
+         new VectorBlockDiagonalIntegrator(nv, new VectorDivergenceIntegrator));
+      B->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            nv, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+      B->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            nv, new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
+         bdr_ess);
+   }
+   else
+   {
+      // The same divergence, placed a block at a time because the potential
+      // space now has one more field than the flux space has flux fields.
+      for (int i = 0; i < nv; i++)
+      {
+         B->AddDomainIntegrator(
+            new VectorBlockIntegrator(np, nv * dim, i, i * dim,
+                                      new VectorDivergenceIntegrator));
+         B->AddInteriorFaceIntegrator(
+            new VectorBlockIntegrator(
+               np, nv * dim, i, i * dim,
+               new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+         B->AddBdrFaceIntegrator(
+            new VectorBlockIntegrator(
+               np, nv * dim, i, i * dim,
+               new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
+            bdr_ess);
+
+         // The coupling, one object read two ways. Forward it collects
+         // nu^-1 sum_i (sigma_i)_i into the pressure's row; since
+         // (sigma_i)_i = -nu d_i u_i + p that is -div u + (d/nu) p, and the
+         // potential mass block below cancels the second term. Transposed --
+         // and DarcyForm builds B^T itself -- the same block puts nu^-1 p into
+         // component i of the i-th flux equation, the pressure gradient.
+         B->AddDomainIntegrator(
+            new VectorBlockIntegrator(np, nv * dim, nv, i * dim + i,
+                                      new MassIntegrator(inu)));
+      }
+      darcy.GetPotentialMassForm()->AddDomainIntegrator(
+         new VectorBlockIntegrator(np, np, nv, nv, new MassIntegrator(dnu)));
+   }
 
    // The stabilization. HDGDiffusionIntegrator builds tau = td Q / h, so with
    // Q = 1 the penalty is td/h; passing td * h^(ts+1) makes it td * h^ts, and
@@ -332,26 +426,40 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
    // with the postprocessed velocity at k+2 for k >= 1 in the last two.
    const real_t h = mesh.GetElementSize(0);
    const real_t td_h = td * std::pow(h, ts + 1);
-   std::vector<BilinearFormIntegrator *> stab(neq), bstab(neq);
-   for (int i = 0; i < neq; i++)
+   std::vector<BilinearFormIntegrator *> stab(nv), bstab(nv);
+   for (int i = 0; i < nv; i++)
    {
       stab[i]  = new HDGDiffusionIntegrator(one, td_h);
       bstab[i] = new HDGDiffusionIntegrator(one, td_h);
    }
-   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
-      new VectorBlockDiagonalIntegrator(stab));
-   darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
-      new VectorBlockDiagonalIntegrator(bstab), bdr_ess);
+   if (!with_p)
+   {
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(stab));
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(bstab), bdr_ess);
+   }
+   else
+   {
+      // Only the velocities are stabilized, and there are more potential
+      // fields than trace fields, which is what the rectangular wrapper is
+      // for.
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalHDGIntegrator(np, nv, stab));
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalHDGIntegrator(np, nv, bstab), bdr_ess);
+   }
 
-   VectorFunctionCoefficient gcoeff(neq, gFun), ucoeff(neq, uFun);
-   VectorFunctionCoefficient qcoeff(neq * dim, qFun);
+   VectorFunctionCoefficient gcoeff(np, gFun), wcoeff(np, wFun);
+   VectorFunctionCoefficient ucoeff(nv, uFun);
+   VectorFunctionCoefficient qcoeff(nv * dim, qFun);
    darcy.GetPotentialRHS()->AddDomainIntegrator(
       new VectorDomainLFIntegrator(gcoeff));
 
    Array<int> ess_flux_tdofs;
    darcy.EnableHybridization(
       &fes_t,
-      new VectorBlockDiagonalIntegrator(neq, new NormalTraceJumpIntegrator),
+      new VectorBlockDiagonalIntegrator(nv, new NormalTraceJumpIntegrator),
       ess_flux_tdofs);
    darcy.GetHybridization()->SetEssentialBC(bdr_ess);
 
@@ -395,7 +503,40 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
    }
 
    Result r;
-   r.err_u = u_h.ComputeL2Error(ucoeff, irs);
+   r.err_p = 0.0;
+   if (with_p)
+   {
+      // The velocity alone, and the pressure alone. All-Dirichlet velocity
+      // leaves the pressure determined only up to a constant, so its error is
+      // measured after removing the mean of the difference -- which is the
+      // usual convention, and the only one that means anything here.
+      FiniteElementSpace fes_1(&mesh, &u_coll);
+      const int n1 = fes_1.GetVSize();
+      GridFunction p_h(&fes_1), p_ex(&fes_1);
+      for (int i = 0; i < n1; i++) { p_h(i) = x.GetBlock(1)(nv * n1 + i); }
+      FunctionCoefficient pc(pFun);
+      p_ex.ProjectCoefficient(pc);
+      GridFunction diff(p_h);
+      diff -= p_ex;
+      ConstantCoefficient zero(0.0);
+      LinearForm ones(&fes_1);
+      ConstantCoefficient one_c(1.0);
+      ones.AddDomainIntegrator(new DomainLFIntegrator(one_c));
+      ones.Assemble();
+      const real_t area = ones.Sum();
+      const real_t shift = (ones * diff) / area;
+      for (int i = 0; i < n1; i++) { p_h(i) -= shift; }
+      r.err_p = p_h.ComputeL2Error(pc, irs);
+
+      FiniteElementSpace fes_v(&mesh, &u_coll, nv, Ordering::byNODES);
+      GridFunction uh(&fes_v);
+      for (int i = 0; i < nv * n1; i++) { uh(i) = x.GetBlock(1)(i); }
+      r.err_u = uh.ComputeL2Error(ucoeff, irs);
+   }
+   else
+   {
+      r.err_u = u_h.ComputeL2Error(wcoeff, irs);
+   }
    r.err_q = q_h.ComputeL2Error(qcoeff, irs);
    r.trace_size = X.Size();
    r.iters = solver.GetNumIterations();
@@ -447,21 +588,31 @@ int main(int argc, char *argv[])
                                      2.0, 2.0);
    for (int i = 0; i < mesh.GetNV(); i++) { mesh.GetVertex(i)[1] -= 0.5; }
 
-   cout << "\n  n      dim(M)     ||u-u_h||    rate     ||q-q_h||    rate\n";
-   real_t prev_u = -1.0, prev_q = -1.0;
+   cout << "\n  n      dim(M)     ||u-u_h||    rate     ||q-q_h||    rate"
+        << ((kov_stage >= Stage::Stokes) ? "     ||p-p_h||    rate" : "")
+        << "\n";
+   real_t prev_u = -1.0, prev_q = -1.0, prev_p = -1.0;
    for (int l = 0; l <= ref_levels; l++)
    {
       const Result r = Solve(mesh, order, td, ts, kov_stage, verbose);
-      cout << setw(4) << (nx << l) << setw(11) << r.trace_size
+      cout << setw(4) << (nx << l) << setw(6) << r.iters << setw(9) << r.trace_size
            << setw(14) << scientific << setprecision(4) << r.err_u;
       if (prev_u > 0.0) { cout << setw(9) << fixed << setprecision(2) << std::log2(prev_u / r.err_u); }
       else { cout << setw(9) << "-"; }
       cout << setw(14) << scientific << setprecision(4) << r.err_q;
       if (prev_q > 0.0) { cout << setw(9) << fixed << setprecision(2) << std::log2(prev_q / r.err_q); }
       else { cout << setw(9) << "-"; }
+      if (kov_stage >= Stage::Stokes)
+      {
+         cout << setw(14) << scientific << setprecision(4) << r.err_p;
+         if (prev_p > 0.0)
+         { cout << setw(9) << fixed << setprecision(2) << std::log2(prev_p / r.err_p); }
+         else { cout << setw(9) << "-"; }
+      }
       cout << "\n";
       prev_u = r.err_u;
       prev_q = r.err_q;
+      prev_p = r.err_p;
       if (l < ref_levels) { mesh.UniformRefinement(); }
    }
    cout << endl;

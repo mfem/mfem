@@ -934,6 +934,52 @@ public:
       Place(test_fe.GetDof(), trial_fe.GetDof(), elmat);
    }
 
+   /// For a MixedBilinearForm face integrator. The layout is
+   /// [test1, test2] by [trial1, trial2], each group contiguous in its own
+   /// field index, and the wrapped block may span several components of
+   /// either -- a normal trace spans dim of the trial ones.
+   void AssembleFaceMatrix(const FiniteElement &trial_fe1,
+                           const FiniteElement &test_fe1,
+                           const FiniteElement &trial_fe2,
+                           const FiniteElement &test_fe2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      integ->AssembleFaceMatrix(trial_fe1, test_fe1, trial_fe2, test_fe2,
+                                Trans, block);
+
+      const bool two = (Trans.Elem2No >= 0);
+      const int wd[2] = { trial_fe1.GetDof(), two ? trial_fe2.GetDof() : 0 };
+      const int hd[2] = { test_fe1.GetDof(),  two ? test_fe2.GetDof()  : 0 };
+      const int wtot = wd[0] + wd[1], htot = hd[0] + hd[1];
+      MFEM_ASSERT(wtot > 0 && htot > 0, "empty face");
+      const int tr_vdim = block.Width() / wtot;
+      const int te_vdim = block.Height() / htot;
+
+      elmat.SetSize(n_test * htot, n_trial * wtot);
+      elmat = 0.0;
+
+      int soff_m = 0, goff_m = 0;
+      for (int m = 0; m < 2; m++)
+      {
+         const int h_m = hd[m] * te_vdim;
+         int soff_n = 0, goff_n = 0;
+         for (int n = 0; n < 2; n++)
+         {
+            const int w_n = wd[n] * tr_vdim;
+            if (h_m > 0 && w_n > 0)
+            {
+               elmat.CopyMN(block, h_m, w_n, soff_m, soff_n,
+                            goff_m + row * hd[m], goff_n + col * wd[n]);
+            }
+            soff_n += w_n;
+            goff_n += n_trial * wd[n];
+         }
+         soff_m += h_m;
+         goff_m += n_test * hd[m];
+      }
+   }
+
 private:
    void Place(int hu, int wu, DenseMatrix &elmat) const
    {

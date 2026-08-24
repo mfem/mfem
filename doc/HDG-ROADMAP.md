@@ -1180,14 +1180,36 @@ isotropic part, and an essential boundary condition on the pressure trace,
 which Stokes does not have and which was wrong to impose.
 
 **So the pressure is not a fourth Darcy field**, and the decision §9 deferred
-has been answered by measurement rather than argument. What remains are the two
-routes that do not pretend otherwise: a rectangular arrangement — potential
-`d+1`, flux `d·dim`, trace `d` — which needs the block wrappers generalised to
-unequal field counts including for the HDG face terms; or NPC's own, an
-element-mean pressure as a separate global unknown, which the trace-only
-reduced system cannot hold without the augmented-Lagrangian reduction of their
-§3.2, at the cost of an outer iteration. The wiring was reverted rather than
-committed broken; `VectorBlockIntegrator` stands, and either route uses it.
+has been answered by measurement rather than argument.
+
+**The rectangular route is now built, and is where the work stands.** Potential
+`d+1`, flux `d·dim`, trace `d`, nothing padded to make the counts agree. It
+needed two additions, both in the tree and both tested:
+`VectorBlockIntegrator`, which writes one integrator into a chosen block of a
+rectangular layout — element, mixed-element and face overloads — and
+`VectorBlockDiagonalHDGIntegrator`, which replicates an HDG face integrator
+down the diagonal of a system whose potential and trace spaces carry different
+numbers of fields. Neither could be expressed before;
+`VectorBlockDiagonalIntegrator` infers a single multiplicity for everything.
+
+**It assembles and solves, and does not yet converge.** The trace system is
+the same size as stage 1's — 2176 against 2176 at `n=16`, so the pressure has
+genuinely added no global unknowns, which is the point of the arrangement —
+and GMRES takes 73 iterations against 55. But the velocity, flux and
+mean-removed pressure errors sit flat at 0.49, 0.28 and 0.22.
+
+Settled: the arrangement is not broken the way the dummy-flux one was; the
+cancelling potential mass block's sign must be positive, the negative one
+making the local solve singular; and dropping the coupling blocks proves
+nothing, because the source `−f_i` assumes the pressure gradient is in the
+operator. **What is next is the diagnostic twice deferred in favour of
+guessing**: assemble monolithically, project the exact `(σ, w)`, and read the
+residual row by row, which separates a wrong operator from a wrong solve and
+says directly whether the pressure row reduces to `(∇·u, w) = 0`.
+
+The other route remains NPC's own — an element-mean pressure as a separate
+global unknown, which a trace-only reduced system cannot hold without the
+augmented-Lagrangian reduction of their §3.2 and its outer iteration.
 
 ## Optional A. Interpolatory evaluation of the nonlinear coefficient
 
