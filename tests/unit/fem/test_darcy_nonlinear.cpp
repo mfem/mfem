@@ -902,16 +902,21 @@ TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
    // used to set the local Jacobian's (0,1) block to +/-B^T, the transpose of
    // the linear divergence form, and never ask the integrator for
    // d(flux residual)/dp. For a flux law q = D(p) u that term is the J_u the
-   // flux function supplies, and leaving it out costs Newton convergence.
+   // flux function supplies, and leaving it out costs Newton convergence:
+   // convdiff's own p8_o1_hb_nld_newton went from nine iterations to four
+   // when it was restored.
    //
-   // Checked here by differencing the trace operator against its own
-   // gradient. That comparison is the thing to trust: an earlier attempt to
-   // infer the same defect from a Newton convergence history instead was
-   // wrong, because the harness it used had no boundary condition and so a
-   // null space, and the wandering that produced was read as a stall.
+   // The check is the trace operator differenced against its own gradient.
+   // An earlier attempt to infer the same defect from a Newton convergence
+   // history was wrong, because the harness it used had no boundary condition
+   // and therefore a null space -- the residual is identically zero on the
+   // unconstrained boundary traces while the gradient is not -- and the
+   // wandering that produced was read as a stall. Hence the boundary face
+   // penalty below: it constrains those traces, and without it a quarter of
+   // this comparison would be meaningless.
    //
    // With no state dependence the block is zero and the two agree trivially;
-   // the eps > 0 case is the one that fails if the block is dropped.
+   // eps > 0 is the case that fails if the block is dropped.
    const real_t eps = GENERATE(0.0, 1.0);
    CAPTURE(eps);
 
@@ -929,13 +934,21 @@ TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
 
    DarcyForm darcy(&fes_u, &fes_p);
 
-   BlockNonlinearForm *Mnl = darcy.GetBlockNonlinearForm();
-   Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(flux));
-   auto *face = new MixedConductionNLFIntegrator(flux);
    Vector taus(neq);
    taus = 1.0;
+
+   BlockNonlinearForm *Mnl = darcy.GetBlockNonlinearForm();
+   Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(flux));
+
+   auto *face = new MixedConductionNLFIntegrator(flux);
    face->SetVariableStabilization(taus);
    Mnl->AddInteriorFaceIntegrator(face);
+
+   // The boundary faces carry the same penalty, which is what pins the
+   // boundary traces and makes the operator nonsingular.
+   auto *bface = new MixedConductionNLFIntegrator(flux);
+   bface->SetVariableStabilization(taus);
+   Mnl->AddBdrFaceIntegrator(bface);
 
    MixedBilinearForm *Bform = darcy.GetFluxDivForm();
    Bform->AddDomainIntegrator(
@@ -964,10 +977,6 @@ TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
    Vector X, RHS;
    darcy.FormLinearSystem(ess, x, op, X, RHS, true);
 
-   // Only the dofs the residual actually sees. This harness leaves the
-   // boundary traces unconstrained, so they sit in the operator's null space:
-   // the residual is identically zero there while the gradient is not, and
-   // comparing them would measure the harness rather than the Jacobian.
    Vector X0(X.Size()), dy(X.Size());
    for (int i = 0; i < X0.Size(); i++)
    {
@@ -975,6 +984,7 @@ TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
       dy(i) = 0.01 * std::cos(0.9 * i + 1.1);
    }
 
+   // Residual first, gradient second, which is the order NewtonSolver uses.
    const real_t h = 1e-6;
    Vector xp(X0), xm(X0), rp(X.Size()), rm(X.Size());
    xp.Add(h, dy);
@@ -990,18 +1000,19 @@ TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
    Vector Jdy(X.Size());
    op->GetGradient(X0).Mult(dy, Jdy);
 
-   REQUIRE(fd.Normlinf() > 1e-6);
+   REQUIRE(fd.Normlinf() > 1e-6);          // the operator is not trivial
 
-   real_t worst = 0.;
-   int compared = 0;
-   for (int i = 0; i < fd.Size(); i++)
-   {
-      if (fd(i) == 0.0) { continue; }      // null-space dof, see above
-      compared++;
-      worst = std::max(worst, std::abs(Jdy(i) - fd(i)));
-   }
-   INFO("compared " << compared << " of " << fd.Size() << " trace dofs, "
-        "worst |J dy - fd| = " << worst);
-   REQUIRE(compared > fd.Size() / 4);
-   REQUIRE(worst < 1e-6 * fd.Normlinf() + 1e-8);
+   // No dof is exempt: with the boundary constrained there is no null space
+   // to excuse. The tolerance is set by the central difference, not by the
+   // Jacobian, which is why it is 1e-8 and not machine precision.
+   int nullish = 0;
+   for (int i = 0; i < fd.Size(); i++) { if (fd(i) == 0.0) { nullish++; } }
+   INFO("dofs with an identically zero residual: " << nullish);
+   REQUIRE(nullish == 0);
+
+   Vector d(Jdy);
+   d -= fd;
+   const real_t rel = d.Normlinf() / fd.Normlinf();
+   INFO("relative ||J dy - fd|| = " << rel);
+   REQUIRE(rel < 1e-7);
 }

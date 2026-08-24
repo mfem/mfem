@@ -403,6 +403,37 @@ Measured or built since:
   residual to be unchanged bit for bit, and the `convdiff` regression suite is
   unmoved.
 
+**The hybridized Jacobian is now complete.** `DarcyHybridization::ConstructGrad`
+and `LocalNLOperator::GetGradient` both set the local Jacobian's `(0,1)` block to
+`±Bᵀ`, the transpose of the linear divergence form, and never asked the
+integrator for `∂(flux residual)/∂p`. For a flux law `q = D(p) u` that term is
+exactly the `J_u` the flux function supplies, and
+`MixedConductionNLFIntegrator` assembles it on request. Both now ask, and
+`ComputeH` needs only one correction to `AiBt` — the Schur complement and the
+`C A⁻¹ Bᵀ + G` product are both built from it. On `convdiff`'s own nonlinear
+hybridized cases:
+
+| case | before | after |
+|---|---|---|
+| `p8_o1_hb_nld_newton` | 9 Newton iterations | 4 |
+| `p8_o1_dg_hb_nld_newton` | 8 | 4 |
+
+with the converged answers unchanged to six figures.
+
+This is the requirement below about exact Jacobians, met — and it is worth
+recording how nearly it was mis-diagnosed. The first evidence offered for the
+defect was a residual "exactly linear in `ε` over six decades", presented as
+proof that Newton stalled one order into the nonlinearity. It was worthless.
+The probe behind it had no boundary condition, so 71 of its 160 trace dofs sat
+in the operator's null space — the residual is identically zero there while the
+gradient is not — and Newton was wandering in that null space. And `r₁ ∝ ε` is
+not a stall signature at all: it is what *correct* quadratic convergence looks
+like when the nonlinear part of the residual carries a factor `ε`. **A nonlinear
+solver's convergence history says nothing about a Jacobian until the problem is
+known to be well posed.** Differencing the operator against its own gradient
+finds the null space in one step, and is the check to run first; it is what the
+test now does, with the boundary traces pinned so that no dof has to be excused.
+
 **The fully discontinuous formulation now carries the whole of the above.** The
 system harness runs in both, and the DG system converges at the design order in
 both variables:
@@ -779,58 +810,17 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. ~~**`DarcyHybridization` discards the off-diagonal element gradient
-   blocks.**~~ **Fixed, but the evidence first given for it was wrong and is
-   withdrawn.**
-
-   What was true: `ConstructGrad` and `LocalNLOperator::GetGradient` both set
-   the local Jacobian's `(0,1)` block to `±Bᵀ`, the transpose of the linear
-   divergence form, and neither asked the integrator for
-   `∂(flux residual)/∂p`. For a flux law `q = D(p) u` that term is exactly the
-   `J_u` the flux function supplies and `MixedConductionNLFIntegrator` will
-   assemble it on request. Both now do.
-
-   What was not true: this file previously reported a residual "exactly linear
-   in `ε` over six decades" as proof that Newton stalled one order into the
-   nonlinearity. Two things were wrong with it. The probe had **no boundary
-   condition at all**, so 71 of its 160 trace dofs were in the operator's null
-   space — a finite-difference check of the trace operator against its own
-   gradient shows the residual identically zero there while the gradient is
-   not — and Newton was wandering in that null space, which is what produced
-   the "converges then climbs" pattern. And `r₁ ∝ ε` is not a stall signature
-   at all: it is what *correct* quadratic convergence looks like when the
-   nonlinear part of the residual carries a factor `ε`.
-
-   Measured properly, on `convdiff`'s own nonlinear hybridized problems, which
-   are well posed and boundary-conditioned:
-
-   | case | before | after |
-   |---|---|---|
-   | `-p 8 -o 1 -dg -hb -nld -nls 3` | 4 Newton iterations | 3 |
-   | `-p 8 -o 1 -hb -nld -nls 3` | 4 | 3 |
-   | `-p 1 -o 2 -dg -hb -nl -nld -nls 3` | 1 | 1 |
-
-   A real improvement, and a modest one — not the qualitative failure the
-   withdrawn table implied. The converged answers are unchanged to six
-   figures; only iteration counts move, so the regression references for the
-   affected cases were regenerated.
-
-   The lesson worth keeping is the one that cost the most here: **a nonlinear
-   solver's convergence history says nothing about a Jacobian until the
-   problem is known to be well posed.** Differencing the operator against its
-   own gradient would have caught the null space immediately, and is the check
-   to run first.
-
-2. **A nonlinear DG system solved end to end.** Blocked by the above. The
-   nonlinear HDG face terms are general in `num_equations` and tested directly —
-   Jacobian against a differenced residual, block diagonality, `τ` honoured — and
-   the *linear* DG system is tested through the full hybridization stack,
-   including a two-equation one that one Newton step solves exactly.
-3. **§3(f)**, a source that is a derivative of another solved field, which is a
+1. **A nonlinear DG system solved end to end**, as a convergence study rather
+   than as the assembly and Jacobian checks §4 now has. The pieces are in place:
+   the nonlinear HDG face terms are general in `num_equations` and tested
+   directly, the hybridized Jacobian is complete, and the linear DG system
+   converges at the design order. What is missing is a manufactured solution for
+   a coupled nonlinear system to measure rates against.
+2. **§3(f)**, a source that is a derivative of another solved field, which is a
    coupling through the flux block rather than the potential block.
-4. **§1 and §2**, untouched.
-5. **§7's `hp`**, and §8 in its entirety.
-6. **Whether the degenerate order loss is asymptotic**, and whether the
+3. **§1 and §2**, untouched.
+4. **§7's `hp`**, and §8 in its entirety.
+5. **Whether the degenerate order loss is asymptotic**, and whether the
    estimator's flat total error is intended — both recorded where they arise.
 
 ## References
