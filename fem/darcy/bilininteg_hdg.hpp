@@ -111,6 +111,66 @@ public:
                               Vector &elvect) override;
 };
 
+/** @brief Stabilization function of the HDG numerical flux,
+    $$
+       \hat q_h + \hat F_h = q_h + F(\hat u_h)
+                            + s(u_h, \hat u_h)(u_h - \hat u_h) n .
+    $$
+
+    This is Eq. (5) of Nguyen, Peraire and Cockburn, J. Comput. Phys. 228
+    (2009) 8841-8855, in which $s$ is a function of the potential and of its
+    own trace rather than a coefficient. Their section 2.4 splits it as
+    $s = s_{diff} + s_{conv}(u_h, \hat u_h)$ with $s_{diff} = \kappa/\ell$
+    constant, and for a linear flux the positivity bound of their Eq. (7)
+    reduces $s_{conv}$ to a constant as well -- which is exactly the
+    stabilization HDGDiffusionIntegrator and HDGConvectionUpwindedIntegrator
+    already apply. The constant case is therefore not a special case bolted on
+    here; it is the specialization those integrators implement, and it keeps
+    its own assembly path.
+
+    A derived class that leaves IsConstant() true costs nothing at run time:
+    the integrators query it once per face, never per quadrature point.
+
+    A class that returns false makes the face term nonlinear in the unknowns
+    even for a linear equation, so it is only meaningful on the residual and
+    gradient assembly, which are the only paths that see the state. The
+    bilinear-form path refuses it rather than silently dropping the
+    dependence. */
+class HDGStabilization
+{
+public:
+   virtual ~HDGStabilization() { }
+
+   /** @brief True when $s$ depends on neither the potential nor its trace.
+       The default is the constant case. */
+   virtual bool IsConstant() const { return true; }
+
+   /** @brief The stabilization at one quadrature point.
+       @param s_diff the value the integrator forms on its own, that is the
+                     constant part built from the diffusion coefficient and the
+                     local element size, with any quadrature weight removed
+       @param un     the normal component of the convective velocity, unscaled
+       @param u      the potential at the point
+       @param uhat   the trace of the potential at the point
+       @param Tr     element transformation, with the integration point set */
+   virtual real_t Eval(real_t s_diff, real_t un, real_t u, real_t uhat,
+                       ElementTransformation &Tr) const
+   { return s_diff; }
+
+   /** @brief The derivatives of $s$ with respect to the potential and to its
+       trace, written $\partial_1 s$ and $\partial_2 s$ in Eq. (15) of the
+       reference. Called only when IsConstant() is false.
+
+       These are not optional refinements. In a hybridized method the Jacobian
+       is never assembled globally, so omitting them gives no wrong answer,
+       only slow Newton convergence -- a failure that survives a passing
+       regression suite. */
+   virtual void EvalGrad(real_t s_diff, real_t un, real_t u, real_t uhat,
+                         ElementTransformation &Tr,
+                         real_t &d1s, real_t &d2s) const
+   { d1s = 0.; d2s = 0.; }
+};
+
 /** Integrator for the H/LDG diffusion stabilization term
     The LDG stabilization takes the form
     $$
@@ -134,6 +194,23 @@ protected:
    Coefficient *Q;
    MatrixCoefficient *MQ;
    real_t alpha, beta;
+   const HDGStabilization *stab{};
+
+   /** @brief The weighted stabilization at one quadrature point.
+
+       With no user object this is the built-in expression, unchanged and with
+       no call. With one, the quadrature weight is divided out so that the
+       object sees s itself, and put back afterwards. @a u and @a uhat are only
+       meaningful where the state is available; the bilinear paths pass zero,
+       which is why they insist the object be constant. */
+   inline real_t StabValue(real_t wq, real_t ba, real_t un, real_t face_w,
+                           real_t u, real_t uhat,
+                           ElementTransformation &Tr) const
+   {
+      if (!stab) { return wq * ba; }
+      const real_t s_diff = (face_w != 0.) ? (wq * ba / face_w) : 0.;
+      return face_w * stab->Eval(s_diff, un, u, uhat, Tr);
+   }
 
    // these are not thread-safe!
    Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
@@ -167,6 +244,15 @@ public:
                           const real_t a = 0.5)
       : v(&v_), Q(NULL), MQ(&q), alpha(a), beta(0.5*a) { }
 
+   /** @brief Replace the stabilization with a user supplied one.
+
+       The object is referenced, not owned, and must outlive the integrator.
+       Leaving it unset keeps the built-in constant stabilization and the
+       assembly path that goes with it. */
+   void SetStabilization(const HDGStabilization &s) { stab = &s; }
+
+   const HDGStabilization *GetStabilization() const { return stab; }
+
    using BilinearFormIntegrator::AssembleFaceMatrix;
    void AssembleFaceMatrix(const FiniteElement &el1,
                            const FiniteElement &el2,
@@ -190,6 +276,18 @@ public:
                               FaceElementTransformations &Tr,
                               const Vector &trfun, const Vector &elfun,
                               Vector &elvect) override;
+
+   /** @brief The gradient of the face residual.
+
+       Overridden rather than inherited because the base class builds it from
+       AssembleHDGFaceMatrix(), which cannot see the state and so cannot carry
+       the derivatives of a solution dependent stabilization. */
+   void AssembleHDGFaceGrad(int type,
+                            const FiniteElement &trace_face_fe,
+                            const FiniteElement &fe,
+                            FaceElementTransformations &Tr,
+                            const Vector &trfun, const Vector &elfun,
+                            DenseMatrix &elmat) override;
 
    real_t ComputeHDGFaceEnergy(int side,
                                const FiniteElement &trace_face_fe,

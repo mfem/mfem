@@ -1019,6 +1019,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    DenseMatrix &elmat)
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+   MFEM_VERIFY(!stab || stab->IsConstant(),
+               "A state dependent stabilization makes the face term nonlinear; "
+               "assemble it through AssembleHDGFaceVector/Grad instead of as a "
+               "bilinear form.");
 
    const int dim = el1.GetDim();
    const int tr_ndof = trace_el.GetDof();
@@ -1151,6 +1155,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          wq2 = ni * nor;
       }
 
+      const real_t un_raw = un;
       real_t a, b;
       if (un != 0.)
       {
@@ -1163,9 +1168,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          a = 0.0;
          b = beta;
       }
+      const real_t face_w = ip.weight * nor.Norml2();
 
       // assemble side 1
-      real_t w = wq1 * (b+a);
+      real_t w = StabValue(wq1, b+a, un_raw, face_w, 0., 0., *Trans.Elem1);
       if (w != 0.0)
       {
          // assemble the element matrix
@@ -1193,7 +1199,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
       // assemble side 2
       if (ndof2)
       {
-         w = wq2 * (b-a);
+         w = StabValue(wq2, b-a, un_raw, face_w, 0., 0., *Trans.Elem2);
          if (w != 0.0)
          {
             // assemble the element matrix
@@ -1219,8 +1225,12 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          }
       }
 
-      w = wq1 * (b+a);
-      if (ndof2) { w += wq2 * (b-a); } //<-- single face integration
+      w = StabValue(wq1, b+a, un_raw, face_w, 0., 0., *Trans.Elem1);
+      //<-- single face integration
+      if (ndof2)
+      {
+         w += StabValue(wq2, b-a, un_raw, face_w, 0., 0., *Trans.Elem2);
+      }
       if (w != 0.0)
       {
          // assemble the trace matrix
@@ -1269,6 +1279,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    FaceElementTransformations &Trans, DenseMatrix &elmat)
 {
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+   MFEM_VERIFY(!stab || stab->IsConstant(),
+               "A state dependent stabilization makes the face term nonlinear; "
+               "assemble it through AssembleHDGFaceVector/Grad instead of as a "
+               "bilinear form.");
 
    const int dim = el.GetDim();
    const int tr_ndof = trace_el.GetDof();
@@ -1368,6 +1382,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
+      const real_t un_raw = un;
       real_t a, b;
       if (un != 0.)
       {
@@ -1381,7 +1396,8 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
          b = beta;
       }
 
-      real_t w = wq * (b+a);
+      const real_t face_w = ip.weight * nor.Norml2();
+      real_t w = StabValue(wq, b+a, un_raw, face_w, 0., 0., *ElTr);
       if (w != 0.0)
       {
          // assemble the element matrix
@@ -1553,6 +1569,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
+      const real_t un_raw = un;
       real_t a, b;
       if (un != 0.)
       {
@@ -1566,7 +1583,19 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
          b = beta;
       }
 
-      const real_t w = wq * (b+a);
+      // Here wq = (ip.weight |nor|)(Q/h), so face_w below is the physical
+      // measure at the point and the rest is the stabilization itself.
+      real_t w;
+      if (!stab)
+      {
+         w = wq * (b+a);
+      }
+      else
+      {
+         const real_t face_w = ip.weight * nor.Norml2();
+         w = StabValue(wq, b+a, un_raw, face_w, el_shape * elfun,
+                       tr_shape * trfun, *ElTr);
+      }
       if (w == 0.) { continue; }
 
       if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
@@ -1620,6 +1649,194 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
             }
          }
       }
+   }
+}
+
+void HDGDiffusionIntegrator::AssembleHDGFaceGrad(
+   int type, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
+   DenseMatrix &grad)
+{
+   if (!stab || stab->IsConstant())
+   {
+      // Nothing state dependent to carry, so the base class building the
+      // gradient out of the face matrix is exactly right. This is the path
+      // every existing caller takes and it is left untouched.
+      BilinearFormIntegrator::AssembleHDGFaceGrad(type, trace_el, el, Trans,
+                                                  trfun, elfun, grad);
+      return;
+   }
+
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   if (Trans.Elem2No < 0) { type &= ~1; }
+
+   const int dim = el.GetDim();
+   const int tr_ndof = trace_el.GetDof();
+   const int el_ndof = el.GetDof();
+
+   MFEM_VERIFY(elfun.Size() == el_ndof && trfun.Size() == tr_ndof,
+               "A state dependent stabilization is implemented for a single "
+               "equation; for a system s becomes a matrix over the equations, "
+               "which is a question about the formulation.");
+
+   vu.SetSize(dim);
+   nor.SetSize(dim);
+   nh.SetSize(dim);
+   ni.SetSize(dim);
+   if (MQ) { mq.SetSize(dim); }
+
+   tr_shape.SetSize(tr_ndof);
+   Vector &el_shape = shape1;
+   el_shape.SetSize(el_ndof);
+
+   // Accumulate the full one-sided matrix in the [element | trace] layout that
+   // AssembleHDGFaceMatrix() produces, so that the extraction at the end can
+   // follow the base class exactly.
+   DenseMatrix full(el_ndof + tr_ndof);
+   full = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      const int order = 2*el.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+      Trans.SetAllIntPoints(&ip);
+
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1) { nor(0) = 2*eip1.x - 1.0; }
+      else { CalcOrtho(Trans.Jacobian(), nor); }
+
+      if (type & 1) { nor.Neg(); }
+
+      trace_el.CalcShape(ip, tr_shape);
+
+      real_t un;
+      if (v)
+      {
+         v->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+      }
+      else
+      {
+         un = 0.0;
+      }
+
+      ElementTransformation *ElTr = (type & 1)?(Trans.Elem2):(Trans.Elem1);
+      const IntegrationPoint &eip = (type & 1)?(eip2):(eip1);
+
+      el.CalcPhysShape(*ElTr, el_shape);
+      real_t wn = ip.weight/ElTr->Weight();
+      if (!MQ)
+      {
+         if (Q) { wn *= Q->Eval(*ElTr, eip); }
+         ni.Set(wn, nor);
+      }
+      else
+      {
+         nh.Set(wn, nor);
+         MQ->Eval(mq, *ElTr, eip);
+         mq.MultTranspose(nh, ni);
+      }
+      const real_t wq = ni * nor;
+
+      const real_t un_raw = un;
+      real_t a, b;
+      if (un != 0.)
+      {
+         un /= fabs(un);
+         a = 0.5 * alpha * un;
+         b = beta * fabs(un);
+      }
+      else
+      {
+         a = 0.0;
+         b = beta;
+      }
+
+      const real_t face_w = ip.weight * nor.Norml2();
+      if (face_w == 0.) { continue; }
+      const real_t s_diff = wq * (b+a) / face_w;
+
+      const real_t u_q = el_shape * elfun;
+      const real_t t_q = tr_shape * trfun;
+
+      const real_t s = stab->Eval(s_diff, un_raw, u_q, t_q, *ElTr);
+      real_t d1s, d2s;
+      stab->EvalGrad(s_diff, un_raw, u_q, t_q, *ElTr, d1s, d2s);
+
+      // The residual contributes s(u,uhat)(u - uhat) against both test spaces,
+      // so its derivatives are s + d1s (u - uhat) with respect to the potential
+      // and -s + d2s (u - uhat) with respect to the trace. Those are the
+      // coefficients of the G, and of the E and H, blocks of Eq. (15) of
+      // Nguyen, Peraire and Cockburn, once the convective term F'(uhat).n
+      // carried by the convection integrators is set aside.
+      const real_t jump = u_q - t_q;
+      const real_t cu = face_w * ( s + d1s * jump);
+      const real_t ct = face_w * (-s + d2s * jump);
+
+      for (int i = 0; i < el_ndof; i++)
+      {
+         const real_t si = el_shape(i);
+         for (int j = 0; j < el_ndof; j++)
+         {
+            full(i, j) += cu * si * el_shape(j);
+         }
+         for (int j = 0; j < tr_ndof; j++)
+         {
+            full(i, el_ndof + j) += ct * si * tr_shape(j);
+         }
+      }
+      for (int i = 0; i < tr_ndof; i++)
+      {
+         const real_t si = tr_shape(i);
+         for (int j = 0; j < el_ndof; j++)
+         {
+            full(el_ndof + i, j) += cu * si * el_shape(j);
+         }
+         for (int j = 0; j < tr_ndof; j++)
+         {
+            full(el_ndof + i, el_ndof + j) += ct * si * tr_shape(j);
+         }
+      }
+   }
+
+   int h = 0, w = 0;
+   if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))  { h += el_ndof; }
+   if (type & (HDGFaceType::CONSTR | HDGFaceType::FACE)) { h += tr_ndof; }
+   if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR)) { w += el_ndof; }
+   if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))  { w += tr_ndof; }
+
+   grad.SetSize(h, w);
+   grad = 0.;
+
+   int ioff = 0, joff = 0;
+   if (type & HDGFaceType::ELEM)
+   {
+      grad.CopyMN(full, el_ndof, el_ndof, 0, 0, ioff, joff);
+   }
+   if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR)) { joff += el_ndof; }
+   if (type & HDGFaceType::TRACE)
+   {
+      grad.CopyMN(full, el_ndof, tr_ndof, 0, el_ndof, ioff, joff);
+   }
+   if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE)) { ioff += el_ndof; }
+   joff = 0;
+   if (type & HDGFaceType::CONSTR)
+   {
+      grad.CopyMN(full, tr_ndof, el_ndof, el_ndof, 0, ioff, joff);
+   }
+   if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR)) { joff += el_ndof; }
+   if (type & HDGFaceType::FACE)
+   {
+      grad.CopyMN(full, tr_ndof, tr_ndof, el_ndof, el_ndof, ioff, joff);
    }
 }
 

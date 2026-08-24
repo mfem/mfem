@@ -413,3 +413,222 @@ TEST_CASE("HDGDiffusionIntegrator face energy", "[HDGIntegrator]")
       REQUIRE(sum == MFEM_Approx(e, 1e-10, 1e-9));
    }
 }
+
+namespace bilininteg_hdg
+{
+
+/// Constant, and deliberately not the identity: it scales the built-in value.
+/// A user object that is ignored by an assembly path is the failure this
+/// guards against.
+class ScaledStabilization : public HDGStabilization
+{
+   real_t f;
+public:
+   ScaledStabilization(real_t f_) : f(f_) { }
+   real_t Eval(real_t s_diff, real_t, real_t, real_t,
+               ElementTransformation &) const override
+   { return f * s_diff; }
+};
+
+/// s = s_diff + c (u^2 + uhat^2) / 2, which depends on the state and on its
+/// trace separately, so both partials are needed and neither can be inferred
+/// from the other.
+class QuadraticStabilization : public HDGStabilization
+{
+   real_t c;
+public:
+   QuadraticStabilization(real_t c_) : c(c_) { }
+   bool IsConstant() const override { return false; }
+   real_t Eval(real_t s_diff, real_t, real_t u, real_t uhat,
+               ElementTransformation &) const override
+   { return s_diff + 0.5 * c * (u * u + uhat * uhat); }
+   void EvalGrad(real_t, real_t, real_t u, real_t uhat,
+                 ElementTransformation &, real_t &d1s, real_t &d2s) const override
+   { d1s = c * u; d2s = c * uhat; }
+};
+
+/// The control: claims a dependence but reports no derivatives.
+class LyingStabilization : public QuadraticStabilization
+{
+public:
+   LyingStabilization(real_t c_) : QuadraticStabilization(c_) { }
+   void EvalGrad(real_t, real_t, real_t, real_t,
+                 ElementTransformation &, real_t &d1s, real_t &d2s) const override
+   { d1s = 0.; d2s = 0.; }
+};
+
+} // namespace bilininteg_hdg
+
+TEST_CASE("A user stabilization reaches the bilinear assembly",
+          "[HDGIntegrator][Stabilization]")
+{
+   using namespace bilininteg_hdg;
+
+   // A constant stabilization must be honoured by the face matrix, not
+   // silently replaced by the built-in expression. Scaling it by a known
+   // factor makes an ignored object impossible to miss.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1);
+   const Element::Type type = (dim == 2) ? Element::QUADRILATERAL
+                              : Element::HEXAHEDRON;
+   CAPTURE(dim, order);
+
+   Faces fx(dim, order, type);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+   const FiniteElement &tr_fe = *fx.fes_tr.GetFaceElement(f);
+   const FiniteElement &el_fe = *fx.fes_el.GetFE(Tr->Elem1No);
+
+   ConstantCoefficient q(2.5);
+
+   DenseMatrix plain, doubled, unit;
+   {
+      HDGDiffusionIntegrator integ(q);
+      integ.AssembleHDGFaceMatrix(0, tr_fe, el_fe, *Tr, plain);
+   }
+   {
+      HDGDiffusionIntegrator integ(q);
+      ScaledStabilization s(1.0);
+      integ.SetStabilization(s);
+      integ.AssembleHDGFaceMatrix(0, tr_fe, el_fe, *Tr, unit);
+   }
+   {
+      HDGDiffusionIntegrator integ(q);
+      ScaledStabilization s(2.0);
+      integ.SetStabilization(s);
+      integ.AssembleHDGFaceMatrix(0, tr_fe, el_fe, *Tr, doubled);
+   }
+
+   REQUIRE(unit.Height() == plain.Height());
+   for (int i = 0; i < plain.Height(); i++)
+      for (int j = 0; j < plain.Width(); j++)
+      {
+         CAPTURE(i, j);
+         // Identity to round-off rather than bitwise: with an object set the
+         // weight is divided out and multiplied back.
+         REQUIRE(unit(i, j) == MFEM_Approx(plain(i, j), 1e-12, 1e-12));
+         REQUIRE(doubled(i, j) == MFEM_Approx(2.0 * plain(i, j), 1e-12, 1e-11));
+      }
+}
+
+TEST_CASE("A state-dependent stabilization has a matching gradient",
+          "[HDGIntegrator][Stabilization]")
+{
+   using namespace bilininteg_hdg;
+
+   // Nguyen, Peraire and Cockburn Eq. (5) makes s a function of the potential
+   // and of its trace, and Eq. (15) linearises it with both partials. Omit
+   // them and Newton slows down without the answer changing, so the only
+   // check that finds it is this one.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 2);
+   const int side = GENERATE(0, 1);
+   const Element::Type type = (dim == 2) ? Element::QUADRILATERAL
+                              : Element::HEXAHEDRON;
+   CAPTURE(dim, order, side);
+
+   Faces fx(dim, order, type);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+   const FiniteElement &tr_fe = *fx.fes_tr.GetFaceElement(f);
+   const int elno = (side == 0) ? Tr->Elem1No : Tr->Elem2No;
+   const FiniteElement &el_fe = *fx.fes_el.GetFE(elno);
+
+   const int ne = el_fe.GetDof(), nt = tr_fe.GetDof();
+
+   ConstantCoefficient q(2.5);
+   HDGDiffusionIntegrator integ(q);
+   QuadraticStabilization stab(0.7);
+   integ.SetStabilization(stab);
+
+   const int mask = NLFI::ELEM | NLFI::TRACE | NLFI::CONSTR | NLFI::FACE;
+   const int itype = mask | (side & 1);
+
+   Vector elfun(ne), trfun(nt);
+   FillVarying(elfun, 0.0);
+   FillVarying(trfun, 1.1);
+
+   DenseMatrix J;
+   integ.AssembleHDGFaceGrad(itype, tr_fe, el_fe, *Tr, trfun, elfun, J);
+   REQUIRE(J.Height() == ne + nt);
+   REQUIRE(J.Width() == ne + nt);
+
+   Vector dy(ne + nt);
+   FillVarying(dy, 2.4);
+
+   Vector Jdy(ne + nt);
+   J.Mult(dy, Jdy);
+
+   const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+
+   auto residual = [&](real_t eps, Vector & r)
+   {
+      Vector e(elfun), t(trfun);
+      for (int i = 0; i < ne; i++) { e(i) += eps * dy(i); }
+      for (int i = 0; i < nt; i++) { t(i) += eps * dy(ne + i); }
+      integ.AssembleHDGFaceVector(itype, tr_fe, el_fe, *Tr, t, e, r);
+   };
+
+   Vector rp, rm;
+   residual(h, rp);
+   residual(-h, rm);
+
+   Vector fd(rp);
+   fd -= rm;
+   fd /= (2.0 * h);
+
+   Vector diff(Jdy);
+   diff -= fd;
+   INFO("||J dy - fd||_inf = " << diff.Normlinf()
+        << " against ||fd||_inf = " << fd.Normlinf());
+   REQUIRE(diff.Normlinf() < 1e-6 * std::max(fd.Normlinf(), real_t(1.0)));
+}
+
+TEST_CASE("A stabilization that hides its derivatives is caught",
+          "[HDGIntegrator][Stabilization]")
+{
+   using namespace bilininteg_hdg;
+
+   Faces fx(2, 1, Element::QUADRILATERAL);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+   const FiniteElement &tr_fe = *fx.fes_tr.GetFaceElement(f);
+   const FiniteElement &el_fe = *fx.fes_el.GetFE(Tr->Elem1No);
+   const int ne = el_fe.GetDof(), nt = tr_fe.GetDof();
+
+   ConstantCoefficient q(2.5);
+   HDGDiffusionIntegrator integ(q);
+   LyingStabilization stab(0.7);
+   integ.SetStabilization(stab);
+
+   const int itype = NLFI::ELEM | NLFI::TRACE | NLFI::CONSTR | NLFI::FACE;
+
+   Vector elfun(ne), trfun(nt), dy(ne + nt);
+   FillVarying(elfun, 0.0);
+   FillVarying(trfun, 1.1);
+   FillVarying(dy, 2.4);
+
+   DenseMatrix J;
+   integ.AssembleHDGFaceGrad(itype, tr_fe, el_fe, *Tr, trfun, elfun, J);
+   Vector Jdy(ne + nt);
+   J.Mult(dy, Jdy);
+
+   const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+   Vector rp, rm, e(elfun), t(trfun);
+   for (int i = 0; i < ne; i++) { e(i) += h * dy(i); }
+   for (int i = 0; i < nt; i++) { t(i) += h * dy(ne + i); }
+   integ.AssembleHDGFaceVector(itype, tr_fe, el_fe, *Tr, t, e, rp);
+   e = elfun; t = trfun;
+   for (int i = 0; i < ne; i++) { e(i) -= h * dy(i); }
+   for (int i = 0; i < nt; i++) { t(i) -= h * dy(ne + i); }
+   integ.AssembleHDGFaceVector(itype, tr_fe, el_fe, *Tr, t, e, rm);
+
+   Vector fd(rp);
+   fd -= rm;
+   fd /= (2.0 * h);
+   Vector diff(Jdy);
+   diff -= fd;
+
+   INFO("dropping both partials shifts J dy by " << diff.Normlinf());
+   REQUIRE(diff.Normlinf() > 1e-4 * std::max(fd.Normlinf(), real_t(1.0)));
+}
