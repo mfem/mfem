@@ -912,16 +912,35 @@ public:
 
    virtual ~VectorBlockIntegrator() { if (own_integ) { delete integ; } }
 
+   /// For a BilinearForm: the wrapped integrator's square block at (row, col).
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Trans,
+                              DenseMatrix &elmat) override
+   {
+      integ->AssembleElementMatrix(el, Trans, block);
+      Place(el.GetDof(), el.GetDof(), elmat);
+   }
+
+   /// For a MixedBilinearForm. The block may span more than one component --
+   /// a divergence spans @a dim of the trial ones -- so the offsets are
+   /// counted in single-component units taken from the elements, not in the
+   /// block's own size.
    void AssembleElementMatrix2(const FiniteElement &trial_fe,
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override
    {
       integ->AssembleElementMatrix2(trial_fe, test_fe, Trans, block);
-      const int h = block.Height(), w = block.Width();
-      elmat.SetSize(n_test * h, n_trial * w);
+      Place(test_fe.GetDof(), trial_fe.GetDof(), elmat);
+   }
+
+private:
+   void Place(int hu, int wu, DenseMatrix &elmat) const
+   {
+      elmat.SetSize(n_test * hu, n_trial * wu);
       elmat = 0.0;
-      elmat.CopyMN(block, h, w, 0, 0, row * h, col * w);
+      elmat.CopyMN(block, block.Height(), block.Width(), 0, 0,
+                   row * hu, col * wu);
    }
 };
 

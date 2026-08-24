@@ -1160,11 +1160,34 @@ scalar coupling into a chosen *(row-field, column-field)* block of `B` — the
 off-diagonal sibling of `VectorBlockDiagonalIntegrator`. **That one integrator
 is §3(f)**, and the pressure is its first customer.
 
-Two things to settle when it is built: whether the pressure becomes a `d+1`-th
-potential field with a full trace, against NPC's cheaper element-mean pressure;
-and if not, whether the augmented-Lagrangian route of their §3.2 is acceptable,
-which reduces the global unknowns to the velocity trace alone at the cost of an
-outer iteration — the very thing §4's requirement says to avoid.
+**Attempted, and the obvious arrangement does not work.** The first try folded
+the pressure into the flux as the isotropic part of the total stress,
+`σ_i = −ν∇u_i + p e_i`, which does turn both couplings into `B` blocks and does
+get the transpose for free — that part is sound, and
+`VectorBlockIntegrator` was written for it and is in the tree. What fails is the
+*field arrangement*: making the pressure a `d+1`-th potential field, with a
+dummy flux so that the block-diagonal wrappers and the trace space stay square.
+The velocity then converges at 1.6 against stage 1's 2.0 and the flux not at
+all.
+
+**The bisection that matters: remove the two coupling blocks and keep the extra
+field, and the velocity is still wrong** — 0.52 against stage 1's 0.013 on the
+same mesh. So it is not the coupling. A potential field whose flux carries
+nothing has no divergence block, so its potential is under-determined; the
+solve is near-singular and the damage leaks into the fields that are fine.
+Ruled out along the way: both signs of the `M_p` block that cancels the
+isotropic part, and an essential boundary condition on the pressure trace,
+which Stokes does not have and which was wrong to impose.
+
+**So the pressure is not a fourth Darcy field**, and the decision §9 deferred
+has been answered by measurement rather than argument. What remains are the two
+routes that do not pretend otherwise: a rectangular arrangement — potential
+`d+1`, flux `d·dim`, trace `d` — which needs the block wrappers generalised to
+unequal field counts including for the HDG face terms; or NPC's own, an
+element-mean pressure as a separate global unknown, which the trace-only
+reduced system cannot hold without the augmented-Lagrangian reduction of their
+§3.2, at the cost of an outer iteration. The wiring was reverted rather than
+committed broken; `VectorBlockIntegrator` stands, and either route uses it.
 
 ## Optional A. Interpolatory evaluation of the nonlinear coefficient
 
