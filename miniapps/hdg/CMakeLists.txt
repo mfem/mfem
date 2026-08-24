@@ -37,6 +37,10 @@ add_mfem_miniapp(convdiff
     ${HDG_COMMON_FILES}
     LIBRARIES mfem)
 
+add_mfem_miniapp(stokes
+    MAIN stokes.cpp
+    LIBRARIES mfem)
+
 add_mfem_miniapp(mfem-logo
     MAIN mfem-logo.cpp
     ${HDG_COMMON_FILES}

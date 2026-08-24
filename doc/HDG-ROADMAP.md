@@ -57,6 +57,9 @@ sit behind `--all` in several of them; the one case still gated there is order
 2 in 3D, which is minutes rather than seconds. Widening the rest costs the
 Darcy set about fifty seconds.
 
+`miniapps/hdg/stokes.cpp` is the driver being grown to close §3 and §4; §9
+records what it covers and what is still to be added to it.
+
 `miniapps/hdg/regression_test.py` is the miniapp-level regression suite;
 its baseline at the time of writing is 2 failed / 49 skipped of 129, and any
 change here should leave that untouched.
@@ -1043,6 +1046,92 @@ the smallest object any iterative method would have to work on, and it is
 precisely the low-order-surrogate trick that makes a trace-space preconditioner
 cheap to form.
 
+## 9. The Stokes driver, and how §3 and §4 get closed by it
+
+**Where §3 and §4 actually stand.** §4's own machinery is complete and
+measured. §3's individual terms exist — `anisodiff` carries a varying tensor
+conductivity and a reaction, `convdiff` carries convection — but nothing
+composes them, nothing measures rates for (a) or (b), and (f) is untouched. The
+composition is what the requirement asks for, so **one driver that carries all
+of it is how §3 closes**, not a prelude to it.
+
+`miniapps/hdg/stokes.cpp` is that driver. It follows **NPC-Stokes**'s
+velocity–pressure–gradient formulation but arranges it as a *system of Darcy
+problems, one per velocity component*, which is the shape `DarcyForm` and
+`DarcyHybridization` already take:
+
+    ν⁻¹ q_i + ∇u_i = 0          (q_i = −ν ∇u_i, the branch's sign)
+    −∇·q_i + ∂_i p = f_i        momentum
+    ∇·u = 0                     incompressibility
+
+The exact solution is Kovasznay's, which solves steady Navier–Stokes, so used
+for Stokes it needs a momentum source — and that source is exactly the
+convective term Stokes drops. **Every term added later comes with its own
+source correction, so Kovasznay stays the manufactured solution throughout.**
+A self-check differences the analytic data before anything depends on it: that
+the flux is `−ν∇u`, that the velocity is divergence free, and that the source
+really is `−νΔu + ∇p`.
+
+### Validated against the paper's own table
+
+NPC-Stokes §4.1 sweeps the stabilisation as `ντ = h^{ts}`. Rates over the two
+finest of four meshes from 4×4:
+
+| `k` | `ts` | `u` | `q` | NPC |
+|---|---|---|---|---|
+| 0 | 0 | 0.91 | 0.88 | both `k+1`, and `k=0` works at `ts=0` |
+| 1 | 0 | 2.07 | 1.85 | both `k+1` |
+| 2 | 0 | 2.98 | 2.87 | both `k+1` |
+| 1 | −1 | 2.03 | 0.95 | `u` at `k+1`, gradient only `k` |
+| 2 | −1 | 2.98 | 1.98 | `u` at `k+1`, gradient only `k` |
+| 1 | +1 | 1.09 | 1.11 | `u` only `k`, gradient `k+1` |
+
+Five of six reproduce it, including the `ts = −1` trade in both directions and
+`k = 0` at `ts = 0`, which the paper singles out. **`ts = 0` — a stabilisation
+of order unity — is their recommendation and ours**, and it agrees with what §5
+found for diffusion by a different route.
+
+**The sixth row is the branch's doing, not the method's.** At `ts = +1` the
+gradient reads 1.11 where the paper has `k+1`. `ConstructC` assembles the flux
+constraint on interior faces only, so a DG boundary trace reaches the system
+solely through the boundary stabilisation's `E` and `G` blocks — **the strength
+with which the Dirichlet datum is imposed is tied to `τ`**, and as `τ` falls
+like `h` the boundary condition weakens with it. NPC's numerical trace carries
+the datum regardless of `τ`. Same root cause as everything else in §7's sweep,
+and the sharpest demonstration of it so far, since here it costs a convergence
+order.
+
+### What it covers, and what has to be added
+
+| | status |
+|---|---|
+| §4 `N` fields as one system | **done** — `d` velocity components, `vdim = d` |
+| §3 harness, manufactured solution, self-check | **done** |
+| §3(f) derivative source | **next** — the pressure |
+| §3(b) reaction | Brinkman `+αu` |
+| §3(c) convection | Oseen, with a given advecting field |
+| §3(a) varying tensor | anisotropic `ν` |
+| §4 nonlinear law, analytic Jacobian | generalised Newtonian `ν(\|L\|)` |
+
+Stage 1, the momentum equations with the pressure a known source, is built and
+converging. The stages are additive and each keeps Kovasznay exact.
+
+**The pressure is the crux, and the branch can host it.** Both Stokes couplings
+— `∂_i p` in the momentum equation and `∇·u = 0` — are `B`-block couplings,
+flux against potential, just off the diagonal in the field index:
+`∇·u = ν⁻¹ Σ_i (q_i)_i` is a flux-to-potential map, and the pressure gradient
+is its transpose, which `DarcyForm` builds automatically as `±Bᵀ`. That is
+exactly Stokes' own symmetry. What is missing is an integrator that writes a
+scalar coupling into a chosen *(row-field, column-field)* block of `B` — the
+off-diagonal sibling of `VectorBlockDiagonalIntegrator`. **That one integrator
+is §3(f)**, and the pressure is its first customer.
+
+Two things to settle when it is built: whether the pressure becomes a `d+1`-th
+potential field with a full trace, against NPC's cheaper element-mean pressure;
+and if not, whether the augmented-Lagrangian route of their §3.2 is acceptable,
+which reduces the global unknowns to the velocity trace alone at the cost of an
+outer iteration — the very thing §4's requirement says to avoid.
+
 ## Optional A. Interpolatory evaluation of the nonlinear coefficient
 
 **Not a requirement.** This and §Optional B are candidate work that came out of
@@ -1495,6 +1584,11 @@ subject.
   stabilisation `h^{-1}` acting on the projected trace. **Oikawa**, *A
   hybridized discontinuous Galerkin method with reduced stabilization*, J. Sci.
   Comput., is the same idea arrived at independently. Optional B.
+* **NPC-Stokes** — Nguyen, Peraire & Cockburn, *A hybridizable discontinuous
+  Galerkin method for Stokes flow*, Comput. Methods Appl. Mech. Engrg. **199**
+  (2010) 582–597. The velocity–pressure–gradient formulation §9 follows; §3.2
+  is the augmented-Lagrangian reduction to the velocity trace alone, §4.1 the
+  stabilisation sweep §9 reproduces.
 * **CS-Extensions** — Cockburn & Solano, on solving problems posed on curved
   domains by extension from a polyhedral subdomain, reducing the boundary
   treatment to line integrals along transferring paths. §1.
