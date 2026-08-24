@@ -1089,6 +1089,16 @@ looks: for a superconvergent **potential**, CCSZ-I's postprocessing appears to
 be all that is needed and is a fraction of the cost; the branch's first pass
 remains the right machinery for §6 and should not be judged on this problem.
 
+**Decision, taken: keep the branch's reconstruction and do not replace it.**
+The extra work it does is real but it is paid once per solve, not once per
+Newton step, and it produces the total flux §6 asks for as a by-product. There
+is no measured cost complaint against it — only the observation that a cheaper
+route to the same potential rate exists. Revisit only if one of two things
+happens: postprocessing turns up in a profile as a material share of a run, or
+a system needs a superconvergent potential and §Optional B has not been done,
+in which case CCSZ-I's ten-by-ten is the cheap way round the `vdim` problem.
+Until then this is recorded, not scheduled.
+
 ## Optional B. Superconvergence at `k = 0` — the HHO-inspired methods
 
 **Not a requirement**, and no test in the suite yet. §4 measured the
