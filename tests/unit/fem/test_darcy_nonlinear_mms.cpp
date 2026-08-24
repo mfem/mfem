@@ -903,10 +903,13 @@ TEST_CASE("Postprocessing lifts the potential a further order",
    //     2  DG     2.99  2.91  2.90  3.94   2.91
    //
    // k+2 everywhere except the fully discontinuous form at k=0, which is the
-   // textbook restriction rather than a defect: the local postprocessing needs
+   // known restriction rather than a defect: the local postprocessing needs
    // the solved potential to be superconvergent in its own element averages,
-   // and for an L2 flux that holds only from k=1. The hybridized mixed form
-   // has it at k=0 too, and shows 2.00.
+   // and for an L2 flux that holds only from k=1. Chen, Cockburn, Singler and
+   // Zhang, J. Sci. Comput. 81 (2019) 2188, Table 1, report 0.97 at k=0 and
+   // 3.01 at k=1 for the same HDG_k method, and their theorem carries the
+   // hypothesis k >= 1 explicitly. The hybridized mixed form has it at k=0
+   // too, and shows 2.00.
    if (order >= 1 || form == Form::RT)
    {
       REQUIRE(rate_ps > order + 1.5);

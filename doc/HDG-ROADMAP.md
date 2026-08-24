@@ -553,10 +553,13 @@ below for why with one field rather than two — over the 8×8 to 16×16 pair:
 | 2 | DG | 2.99 | 2.91 | 2.90 | **3.94** | 2.91 |
 
 The postprocessed potential gains a full order everywhere except the fully
-discontinuous form at `k=0`, which is the textbook restriction and not a
-defect: the local postprocessing needs the solved potential to be
-superconvergent in its element averages, and for an L2 flux that holds from
-`k=1`. The hybridized mixed form has it at `k=0` as well, and shows 2.00.
+discontinuous form at `k=0`, which is a known restriction and not a defect:
+the local postprocessing needs the solved potential to be superconvergent in
+its element averages, and for an L2 flux that holds from `k=1`. **CCSZ-I**
+Table 1 reports 0.97 at `k=0` and 3.01 at `k=1` for the same `HDG_k` method,
+and its Theorem 3.19 carries the hypothesis `k ≥ 1` explicitly. The hybridized
+mixed form has it at `k=0` as well, and shows 2.00 — the same split
+**CCSZ-II** draws between the `HDG_k` methods and the HHO-inspired ones.
 
 **This answers the question the convergence study left open.** The DG form's
 flux lags its potential, and postprocessing is not what was missing — `u_s`
@@ -987,6 +990,18 @@ subject.
   J. Comput. Phys. **228** (2009) 8841–8855. Eq. (5) is the numerical flux with a
   solution-dependent `s`; Eq. (7) the positivity bound; Eq. (15)–(16) the Newton
   linearisation and its block structure.
+* **CCSZ-I** — Chen, Cockburn, Singler & Zhang, *Superconvergent interpolatory
+  HDG methods for reaction diffusion equations I: an HDGk method*, J. Sci.
+  Comput. **81** (2019) 2188–2212. The nonlinear term is interpolated
+  elementwise and evaluated at the postprocessed solution, so the HDG matrices
+  assemble once; Table 1 is the convergence study §4 compares against, and
+  Theorem 3.19 the `k ≥ 1` hypothesis.
+* **CCSZ-II** — Chen, Cockburn, Singler & Zhang, *… II: HHO-inspired methods*,
+  Commun. Appl. Math. Comput. **4** (2022) 477–499. Table 1 there classifies
+  three variants: (A), the Lehrenfeld–Schöberl / HDG+ method with the scalar in
+  `P^{k+1}`, and (B), with an HHO stabilisation acting on the postprocessed
+  trace, both superconvergent from `k = 0`; (C) only from `k = 2`. All three
+  take `τ ~ 1/h`.
 * **CS-Extensions** — Cockburn & Solano, on solving problems posed on curved
   domains by extension from a polyhedral subdomain, reducing the boundary
   treatment to line integrals along transferring paths. §1.
