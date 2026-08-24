@@ -339,3 +339,361 @@ TEST_CASE("A coupled nonlinear Jacobian with a broken cross term is caught",
    INFO("dropping the cross block shifts J dy by " << err);
    REQUIRE(err > 1e-3);
 }
+
+namespace darcy_nonlinear
+{
+
+/// A face and the two elements meeting at it, with everything the HDG face
+/// methods of MixedConductionNLFIntegrator need to be called directly.
+struct FaceFixture
+{
+   Mesh mesh;
+   L2_FECollection p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace fes_p, fes_t;
+   FaceElementTransformations *Tr{};
+   const FiniteElement *fe_p{}, *fe_t{};
+   Array<const FiniteElement *> el;
+
+   FaceFixture(int dim, int order)
+      : mesh((dim == 2)
+             ? Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL, false, 1., 1.)
+             : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1., 1., 1.)),
+        p_coll(order, dim), t_coll(order, dim),
+        fes_p(&mesh, &p_coll), fes_t(&mesh, &t_coll), el(2)
+   {
+      int f = -1;
+      for (int i = 0; i < mesh.GetNumFaces(); i++)
+      {
+         if (mesh.FaceIsInterior(i)) { f = i; break; }
+      }
+      Tr = mesh.GetFaceElementTransformations(f);
+      fe_p = fes_p.GetFE(Tr->Elem1No);
+      fe_t = fes_t.GetFaceElement(f);
+      el[0] = fe_p;   // el_u is only read for its order and dimension
+      el[1] = fe_p;
+   }
+
+   int NP() const { return fe_p->GetDof(); }
+   int NT() const { return fe_t->GetDof(); }
+};
+
+const int kAllFaceTypes =
+   BlockNonlinearFormIntegrator::HDGFaceType::ELEM
+   | BlockNonlinearFormIntegrator::HDGFaceType::TRACE
+   | BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
+   | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
+
+/// Residual of the HDG face terms, potential and trace parts stacked.
+void HDGFaceResidual(MixedConductionNLFIntegrator &integ, FaceFixture &fx,
+                     const Vector &p, const Vector &tr, Vector &r)
+{
+   Vector vu, vp, vt;
+   Array<Vector *> out(3);
+   out[0] = &vu;
+   out[1] = &vp;
+   out[2] = &vt;
+   Array<const Vector *> in(2);
+   in[0] = &p;   // el_u's coefficients are not read by these terms
+   in[1] = &p;
+
+   integ.AssembleHDGFaceVector(kAllFaceTypes, *fx.fe_t, fx.el, *fx.Tr, tr, in,
+                               out);
+
+   r.SetSize(vp.Size() + vt.Size());
+   for (int i = 0; i < vp.Size(); i++) { r(i) = vp(i); }
+   for (int i = 0; i < vt.Size(); i++) { r(vp.Size() + i) = vt(i); }
+}
+
+} // namespace darcy_nonlinear
+
+TEST_CASE("HDG face terms of a system: the Jacobian matches a difference",
+          "[DarcyForm][NonlinearDarcy][System][HDG]")
+{
+   using namespace darcy_nonlinear;
+
+   // The face terms of MixedConductionNLFIntegrator were single-equation.
+   // What blocked generalizing them was not the indexing but a question about
+   // the formulation: for a system the stabilization could be a matrix over
+   // the variables. It need not be. The spatial directions are already the
+   // flux function's business, so the only structure a matrix could carry is
+   // over the variable index, and a scalar per variable is the natural
+   // choice. That leaves every face block diagonal in the variables.
+   //
+   // These are the terms hybridization actually calls -- AssembleFaceVector
+   // and AssembleFaceGrad are the LDG pair, used only without hybridization.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 2);
+   CAPTURE(dim, order);
+
+   FaceFixture fx(dim, order);
+   CoupledDiffusionFlux flux(dim);
+   const int neq = flux.num_equations;
+   const int np = fx.NP(), nt = fx.NT();
+
+   MixedConductionNLFIntegrator integ(flux);
+   Vector taus(neq);
+   taus(0) = 1.0;
+   taus(1) = 1.0;                    // tau = 1 for every variable
+   integ.SetVariableStabilization(taus);
+
+   Vector p(neq * np), tr(neq * nt);
+   FillVarying(p, 0.3);
+   FillVarying(tr, 1.7);
+
+   // The analytic Jacobian, as the four blocks the hybridization consumes.
+   DenseMatrix A, D, E, G, H;
+   Array2D<DenseMatrix *> mats(3, 3);
+   mats = nullptr;
+   mats(0, 0) = &A;
+   mats(1, 1) = &D;
+   mats(1, 2) = &E;
+   mats(2, 1) = &G;
+   mats(2, 2) = &H;
+
+   Array<const Vector *> in(2);
+   in[0] = &p;
+   in[1] = &p;
+   integ.AssembleHDGFaceGrad(kAllFaceTypes, *fx.fe_t, fx.el, *fx.Tr, tr, in,
+                             mats);
+
+   REQUIRE(D.Height() == neq * np);
+   REQUIRE(E.Width() == neq * nt);
+   REQUIRE(G.Height() == neq * nt);
+   REQUIRE(H.Height() == neq * nt);
+
+   // Its action on a direction in (p, tr) ...
+   Vector dp(neq * np), dt(neq * nt);
+   FillVarying(dp, 2.4, 0.5);
+   FillVarying(dt, 0.9, 0.5);
+
+   Vector Jd(neq * np + neq * nt);
+   Jd = 0.0;
+   {
+      Vector top(Jd.GetData(), neq * np), bot(Jd.GetData() + neq * np, neq * nt);
+      D.AddMult(dp, top);
+      E.AddMult(dt, top);
+      G.AddMult(dp, bot);
+      H.AddMult(dt, bot);
+   }
+
+   // ... against a central difference of the residual in the same direction.
+   const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+   Vector pp(p), pm(p), tp(tr), tm(tr), rp, rm;
+   pp.Add(h, dp);
+   pm.Add(-h, dp);
+   tp.Add(h, dt);
+   tm.Add(-h, dt);
+   HDGFaceResidual(integ, fx, pp, tp, rp);
+   HDGFaceResidual(integ, fx, pm, tm, rm);
+
+   Vector fd(rp);
+   fd -= rm;
+   fd /= (2.0 * h);
+
+   Vector diff(Jd);
+   diff -= fd;
+   const real_t rel = diff.Normlinf() / std::max(fd.Normlinf(), real_t(1.0));
+
+   INFO("relative ||J d - fd|| = " << rel);
+   REQUIRE(rel < 1e-8);
+}
+
+TEST_CASE("HDG face terms of a system are block diagonal in the variable",
+          "[DarcyForm][NonlinearDarcy][System][HDG]")
+{
+   using namespace darcy_nonlinear;
+
+   // The claim that makes a per-variable scalar tau sufficient: with one, no
+   // face block couples different variables. If any of these off-diagonal
+   // blocks were nonzero the scalar would be hiding a coupling it cannot
+   // represent, and a matrix tau would be the honest choice after all.
+   const int dim = GENERATE(2, 3);
+   CAPTURE(dim);
+
+   FaceFixture fx(dim, 1);
+   CoupledDiffusionFlux flux(dim);
+   const int neq = flux.num_equations;
+   const int np = fx.NP(), nt = fx.NT();
+
+   MixedConductionNLFIntegrator integ(flux);
+   Vector taus(neq);
+   taus(0) = 1.0;
+   taus(1) = 2.5;
+   integ.SetVariableStabilization(taus);
+
+   Vector p(neq * np), tr(neq * nt);
+   FillVarying(p, 0.3);
+   FillVarying(tr, 1.7);
+
+   DenseMatrix A, D, E, G, H;
+   Array2D<DenseMatrix *> mats(3, 3);
+   mats = nullptr;
+   mats(0, 0) = &A;
+   mats(1, 1) = &D;
+   mats(1, 2) = &E;
+   mats(2, 1) = &G;
+   mats(2, 2) = &H;
+   Array<const Vector *> in(2);
+   in[0] = &p;
+   in[1] = &p;
+   integ.AssembleHDGFaceGrad(kAllFaceTypes, *fx.fe_t, fx.el, *fx.Tr, tr, in,
+                             mats);
+
+   auto off_diagonal_norm = [](const DenseMatrix &M, int nr, int nc)
+   {
+      real_t m = 0.;
+      for (int bi = 0; bi < 2; bi++)
+         for (int bj = 0; bj < 2; bj++)
+         {
+            if (bi == bj) { continue; }
+            for (int i = 0; i < nr; i++)
+               for (int j = 0; j < nc; j++)
+               {
+                  m = std::max(m, std::abs(M(bi * nr + i, bj * nc + j)));
+               }
+         }
+      return m;
+   };
+
+   REQUIRE(off_diagonal_norm(D, np, np) == MFEM_Approx(0.0, 1e-14, 1e-14));
+   REQUIRE(off_diagonal_norm(E, np, nt) == MFEM_Approx(0.0, 1e-14, 1e-14));
+   REQUIRE(off_diagonal_norm(G, nt, np) == MFEM_Approx(0.0, 1e-14, 1e-14));
+   REQUIRE(off_diagonal_norm(H, nt, nt) == MFEM_Approx(0.0, 1e-14, 1e-14));
+
+   // And each diagonal block scales with its own tau, since the term is
+   // linear in it. Variable 1's blocks are 2.5x variable 0's.
+   for (int i = 0; i < np; i++)
+      for (int j = 0; j < np; j++)
+      {
+         CAPTURE(i, j);
+         REQUIRE(D(np + i, np + j) == MFEM_Approx(2.5 * D(i, j), 1e-12, 1e-13));
+      }
+   for (int i = 0; i < nt; i++)
+      for (int j = 0; j < nt; j++)
+      {
+         CAPTURE(i, j);
+         REQUIRE(H(nt + i, nt + j) == MFEM_Approx(2.5 * H(i, j), 1e-12, 1e-13));
+      }
+}
+
+TEST_CASE("A per-variable tau does not disturb the single-equation path",
+          "[DarcyForm][NonlinearDarcy][System][HDG]")
+{
+   using namespace darcy_nonlinear;
+
+   // One scalar equation has to keep going down exactly the route it went
+   // down before: the stabilization derived from the inverse flux Jacobian,
+   // with the tau vector ignored. Setting a wild one must change nothing.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 2);
+   CAPTURE(dim, order);
+
+   FaceFixture fx(dim, order);
+   ConstantCoefficient kappa(2.75);
+   LinearDiffusionFlux flux(dim, kappa);
+   REQUIRE(flux.num_equations == 1);
+
+   const int np = fx.NP(), nt = fx.NT();
+   Vector p(np), tr(nt);
+   FillVarying(p, 0.3);
+   FillVarying(tr, 1.7);
+
+   MixedConductionNLFIntegrator plain(flux);
+   Vector r_plain;
+   HDGFaceResidual(plain, fx, p, tr, r_plain);
+
+   MixedConductionNLFIntegrator stabilized(flux);
+   Vector taus(1);
+   taus(0) = 37.0;
+   stabilized.SetVariableStabilization(taus);
+   Vector r_stab;
+   HDGFaceResidual(stabilized, fx, p, tr, r_stab);
+
+   REQUIRE(r_plain.Size() == r_stab.Size());
+   for (int i = 0; i < r_plain.Size(); i++)
+   {
+      CAPTURE(i);
+      REQUIRE(r_plain(i) == r_stab(i));   // bit for bit, not merely close
+   }
+}
+
+TEST_CASE("HDG face terms with a velocity: the Jacobian matches its residual",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_nonlinear;
+
+   // AssembleHDGFaceGrad had a live upwinding branch whose counterpart in
+   // AssembleHDGFaceVector is commented out, so with a velocity coefficient
+   // the two disagreed: b + a came to beta + alpha/2 in the gradient against
+   // beta in the residual, which for this constructor (beta = alpha/2) is a
+   // clean factor of two, at every quadrature point and any velocity. It is
+   // reachable only through an upwinded nonlinear diffusion under
+   // hybridization, which convdiff.cpp never builds -- so nothing was wrong
+   // in any example, and Newton would simply have halved its steps.
+   const int dim = GENERATE(2, 3);
+   CAPTURE(dim);
+
+   FaceFixture fx(dim, 1);
+   ConstantCoefficient kappa(1.0);
+   LinearDiffusionFlux flux(dim, kappa);
+
+   Vector vel(dim);
+   vel = 1.0;
+   VectorConstantCoefficient vcoeff(vel);
+   MixedConductionNLFIntegrator integ(flux, vcoeff, 0.7);
+
+   const int np = fx.NP(), nt = fx.NT();
+   Vector p(np), tr(nt);
+   FillVarying(p, 0.3);
+   FillVarying(tr, 1.7);
+
+   DenseMatrix A, D, E, G, H;
+   Array2D<DenseMatrix *> mats(3, 3);
+   mats = nullptr;
+   mats(0, 0) = &A;
+   mats(1, 1) = &D;
+   mats(1, 2) = &E;
+   mats(2, 1) = &G;
+   mats(2, 2) = &H;
+   Array<const Vector *> in(2);
+   in[0] = &p;
+   in[1] = &p;
+   integ.AssembleHDGFaceGrad(kAllFaceTypes, *fx.fe_t, fx.el, *fx.Tr, tr, in,
+                             mats);
+
+   Vector dp(np), dt(nt);
+   FillVarying(dp, 2.4, 0.5);
+   FillVarying(dt, 0.9, 0.5);
+
+   Vector Jd(np + nt);
+   Jd = 0.0;
+   {
+      Vector top(Jd.GetData(), np), bot(Jd.GetData() + np, nt);
+      D.AddMult(dp, top);
+      E.AddMult(dt, top);
+      G.AddMult(dp, bot);
+      H.AddMult(dt, bot);
+   }
+
+   const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+   Vector pp(p), pm(p), tp(tr), tm(tr), rp, rm;
+   pp.Add(h, dp);
+   pm.Add(-h, dp);
+   tp.Add(h, dt);
+   tm.Add(-h, dt);
+   HDGFaceResidual(integ, fx, pp, tp, rp);
+   HDGFaceResidual(integ, fx, pm, tm, rm);
+
+   Vector fd(rp);
+   fd -= rm;
+   fd /= (2.0 * h);
+
+   REQUIRE(fd.Normlinf() > 1e-3);      // the terms are not simply absent
+
+   Vector diff(Jd);
+   diff -= fd;
+   const real_t rel = diff.Normlinf() / fd.Normlinf();
+   INFO("relative ||J d - fd|| = " << rel << " (was 1, a factor of two)");
+   REQUIRE(rel < 1e-8);
+}

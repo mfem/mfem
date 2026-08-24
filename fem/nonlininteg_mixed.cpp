@@ -801,6 +801,8 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
    shape_u.SetSize(ndof_u);
    shape_p.SetSize(ndof_p);
 
+   const int neq = fluxFunction.num_equations;
+
    Vector *elvect_u{}, *elvect_p{}, *elvect_tr{};
    if (type & (HDGFaceType::ELEM | HDGFaceType::TRACE))
    {
@@ -812,7 +814,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       elvect_p = elvect[1];
       if (elvect_p)
       {
-         elvect_p->SetSize(ndof_p);
+         elvect_p->SetSize(neq * ndof_p);
          *elvect_p = 0.;
       }
    }
@@ -821,7 +823,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       elvect_tr = elvect[2];
       if (elvect_tr)
       {
-         elvect_tr->SetSize(ndof_tr);
+         elvect_tr->SetSize(neq * ndof_tr);
          *elvect_tr = 0.;
       }
    }
@@ -830,7 +832,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      const int order = 2 * (el_u.GetOrder(), el_p.GetOrder());
+      // std::max, not the comma operator, which discarded the flux order
+      // and under-integrated whenever it exceeded the potential order.
+      const int order = 2 * std::max(el_u.GetOrder(), el_p.GetOrder());
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -872,14 +876,20 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       el_p.CalcPhysShape(*Trans.Elem1, shape_p);
       real_t w = ip.weight / Elem->Weight();
 
-      p(0) = elfun_p * shape_p;
+      real_t wq = 0.;
+      if (neq == 1)
+      {
+         // One equation: the stabilization is derived from the inverse flux
+         // Jacobian, exactly as before.
+         p(0) = elfun_p * shape_p;
 
-      nh.Set(w, nor);
-      fluxFunction.ComputeDualFluxJacobian(p, u, Trans, J_u, J_F);
-      J_Fi.Factor(J_F);
-      J_Fi.Mult(nh, ni);
+         nh.Set(w, nor);
+         fluxFunction.ComputeDualFluxJacobian(p, u, Trans, J_u, J_F);
+         J_Fi.Factor(J_F);
+         J_Fi.Mult(nh, ni);
 
-      real_t wq = ni * nor;
+         wq = ni * nor;
+      }
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -903,27 +913,44 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
          b = beta;
       }
 
-      w = wq * (b+a);
-      if (w == 0.) { continue; }
+      // For a system the stabilization is a scalar per variable, which makes
+      // the face term block diagonal in the variable index: the spatial
+      // directions are the flux function's business, so the only structure a
+      // matrix could carry here is over the variables.
+      const real_t face_w = ip.weight * nor.Norml2();
 
-      if (elvect_p)
+      for (int e = 0; e < neq; e++)
       {
-         real_t wp = 0.;
-         if (type & HDGFaceType::ELEM) { wp += p(0); }
-         if (type & HDGFaceType::TRACE) { wp -= tr; }
+         const real_t w_e = (neq == 1) ? (wq * (b+a))
+                            : (face_w * TauVar(e) * (b+a));
+         if (w_e == 0.) { continue; }
 
-         // assemble the element vector
-         elvect_p->Add(w * wp, shape_p);
-      }
+         const Vector p_e(elfun_p.GetData() + e*ndof_p, ndof_p);
+         const Vector tr_e(trfun.GetData() + e*ndof_tr, ndof_tr);
+         const real_t pv = p_e * shape_p;
+         const real_t tv = tr_e * shape_tr;
 
-      if (elvect_tr)
-      {
-         real_t wtr = 0.;
-         if (type & HDGFaceType::CONSTR) { wtr += p(0); }
-         if (type & HDGFaceType::FACE) { wtr -= tr; }
+         if (elvect_p)
+         {
+            real_t wp = 0.;
+            if (type & HDGFaceType::ELEM) { wp += pv; }
+            if (type & HDGFaceType::TRACE) { wp -= tv; }
 
-         // assemble the trace vector
-         elvect_tr->Add(w * wtr, shape_tr);
+            // assemble the element vector
+            Vector out(elvect_p->GetData() + e*ndof_p, ndof_p);
+            out.Add(w_e * wp, shape_p);
+         }
+
+         if (elvect_tr)
+         {
+            real_t wtr = 0.;
+            if (type & HDGFaceType::CONSTR) { wtr += pv; }
+            if (type & HDGFaceType::FACE) { wtr -= tv; }
+
+            // assemble the trace vector
+            Vector out(elvect_tr->GetData() + e*ndof_tr, ndof_tr);
+            out.Add(w_e * wtr, shape_tr);
+         }
       }
    }
 }
@@ -964,6 +991,8 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
    shape_u.SetSize(ndof_u);
    shape_p.SetSize(ndof_p);
 
+   const int neq = fluxFunction.num_equations;
+
    DenseMatrix *elmat_A{}, *elmat_D{}, *elmat_E{}, *elmat_G{}, *elmat_H{};
    if (type & (HDGFaceType::ELEM))
    {
@@ -975,7 +1004,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       elmat_D = elmats(1,1);
       if (elmat_D)
       {
-         elmat_D->SetSize(ndof_p);
+         elmat_D->SetSize(neq * ndof_p);
          *elmat_D = 0.;
       }
    }
@@ -984,7 +1013,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       elmat_E = elmats(1,2);
       if (elmat_E)
       {
-         elmat_E->SetSize(ndof_p, ndof_tr);
+         elmat_E->SetSize(neq * ndof_p, neq * ndof_tr);
          *elmat_E = 0.;
       }
    }
@@ -993,7 +1022,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       elmat_G = elmats(2,1);
       if (elmat_G)
       {
-         elmat_G->SetSize(ndof_tr, ndof_p);
+         elmat_G->SetSize(neq * ndof_tr, neq * ndof_p);
          *elmat_G = 0.;
       }
    }
@@ -1002,7 +1031,7 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       elmat_H = elmats(2,2);
       if (elmat_H)
       {
-         elmat_H->SetSize(ndof_tr);
+         elmat_H->SetSize(neq * ndof_tr);
          *elmat_H = 0.;
       }
    }
@@ -1011,7 +1040,8 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
    if (ir == NULL)
    {
       // a simple choice for the integration order; is this OK?
-      const int order = 2 * (el_u.GetOrder(), el_p.GetOrder());
+      // std::max, not the comma operator; see the face vector.
+      const int order = 2 * std::max(el_u.GetOrder(), el_p.GetOrder());
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -1052,14 +1082,18 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       el_p.CalcPhysShape(*Trans.Elem1, shape_p);
       real_t w = ip.weight / Elem->Weight();
 
-      p(0) = elfun_p * shape_p;
+      real_t wq = 0.;
+      if (neq == 1)
+      {
+         p(0) = elfun_p * shape_p;
 
-      nh.Set(w, nor);
-      fluxFunction.ComputeDualFluxJacobian(p, u, Trans, J_u, J_F);
-      J_Fi.Factor(J_F);
-      J_Fi.Mult(nh, ni);
+         nh.Set(w, nor);
+         fluxFunction.ComputeDualFluxJacobian(p, u, Trans, J_u, J_F);
+         J_Fi.Factor(J_F);
+         J_Fi.Mult(nh, ni);
 
-      real_t wq = ni * nor;
+         wq = ni * nor;
+      }
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -1071,40 +1105,71 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
-      if (un != 0.)
+      // Disabled to match the face vector, where the same block is commented
+      // out. With it live here the Jacobian was 2*beta where the residual's
+      // derivative is beta, for any velocity: the residual defines the
+      // operator, so the gradient is the one that has to follow. Re-enable
+      // both together or neither.
+      /*if (un != 0.)
       {
          un /= fabs(un);
          a = 0.5 * alpha * un;
          b = beta * fabs(un);
       }
-      else
+      else*/
       {
          a = 0.0;
          b = beta;
       }
 
-      w = wq * (b+a);
-      if (w == 0.) { continue; }
+      // A scalar stabilization per variable leaves every block diagonal in
+      // the variable index, so each is the single-equation rank-one update
+      // placed on its own diagonal block.
+      const real_t face_w = ip.weight * nor.Norml2();
 
-      if (elmat_D)
+      for (int e = 0; e < neq; e++)
       {
-         // assemble the element matrix
-         AddMult_a_VVt(+w, shape_p, *elmat_D);
-      }
-      if (elmat_E)
-      {
-         // assemble the trace matrix
-         AddMult_a_VWt(-w, shape_p, shape_tr, *elmat_E);
-      }
-      if (elmat_G)
-      {
-         // assemble the constraint matrix
-         AddMult_a_VWt(+w, shape_tr, shape_p, *elmat_G);
-      }
-      if (elmat_H)
-      {
-         // assemble the face matrix
-         AddMult_a_VVt(-w, shape_tr, *elmat_H);
+         w = (neq == 1) ? (wq * (b+a)) : (face_w * TauVar(e) * (b+a));
+         if (w == 0.) { continue; }
+
+         const int op = e * ndof_p, ot = e * ndof_tr;
+
+         if (elmat_D)
+         {
+            // assemble the element matrix
+            for (int i = 0; i < ndof_p; i++)
+               for (int j = 0; j < ndof_p; j++)
+               {
+                  (*elmat_D)(op + i, op + j) += w * shape_p(i) * shape_p(j);
+               }
+         }
+         if (elmat_E)
+         {
+            // assemble the trace matrix
+            for (int i = 0; i < ndof_p; i++)
+               for (int j = 0; j < ndof_tr; j++)
+               {
+                  (*elmat_E)(op + i, ot + j) -= w * shape_p(i) * shape_tr(j);
+               }
+         }
+         if (elmat_G)
+         {
+            // assemble the constraint matrix
+            for (int i = 0; i < ndof_tr; i++)
+               for (int j = 0; j < ndof_p; j++)
+               {
+                  (*elmat_G)(ot + i, op + j) += w * shape_tr(i) * shape_p(j);
+               }
+         }
+         if (elmat_H)
+         {
+            // assemble the face matrix
+            for (int i = 0; i < ndof_tr; i++)
+               for (int j = 0; j < ndof_tr; j++)
+               {
+                  (*elmat_H)(ot + i, ot + j) -= w * shape_tr(i) * shape_tr(j);
+               }
+         }
       }
    }
 }

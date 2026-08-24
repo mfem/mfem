@@ -116,6 +116,21 @@ class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
    DenseMatrix vshape_u;
    Vector shape_u, shape_p, shape1, shape2, shape_tr;
 
+   /** @brief Per-variable stabilization for the HDG face terms of a system.
+
+       For a system the stabilization could in principle be a full matrix over
+       the variable index -- the spatial directions are already handled by the
+       flux function -- but a scalar per variable is the natural first choice
+       and is what these terms implement. Empty means one for every variable.
+
+       For a single equation this is unused and the face terms keep deriving
+       the stabilization from the inverse flux Jacobian, so nothing changes. */
+   Vector tau_var;
+
+   /// The stabilization for variable @a e, defaulting to one.
+   real_t TauVar(int e) const
+   { return (tau_var.Size() > e) ? tau_var(e) : 1.0; }
+
 public:
    /// Construct integrator with $\alpha = 0$ and $\beta = a$.
    MixedConductionNLFIntegrator(
@@ -131,6 +146,11 @@ public:
       real_t a = 0.5,
       const IntegrationRule *ir = NULL)
       : fluxFunction(fluxFunction), v(&v_), alpha(a), beta(0.5*a), IntRule(ir) { }
+
+   /** @brief Set a scalar stabilization per variable for the HDG face terms.
+
+       Only consulted when the flux function has more than one equation. */
+   void SetVariableStabilization(const Vector &t) { tau_var = t; }
 
    void AssembleElementVector(const Array<const FiniteElement*> &el,
                               ElementTransformation &Tr,
