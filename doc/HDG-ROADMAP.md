@@ -915,6 +915,263 @@ the smallest object any iterative method would have to work on, and it is
 precisely the low-order-surrogate trick that makes a trace-space preconditioner
 cheap to form.
 
+## Optional A. Interpolatory evaluation of the nonlinear coefficient
+
+**Not a requirement.** This and §Optional B are candidate work that came out of
+§4's postprocessing measurements, written up so the decision can be taken on
+numbers rather than on impressions. Neither has any test in the suite yet.
+
+The reference is **CCSZ-I**, with **CCSZ-II** extending it. Both are for the
+scalar reaction-diffusion problem `∂ₜu − Δu + F(u) = f`, and the technique is
+older than HDG — it is the group finite element method, or interpolated
+coefficients, or product approximation, depending on who is writing.
+
+### What the method is
+
+Two pieces that separate cleanly.
+
+**(a) Interpolate the nonlinearity.** Replace `F(u_h)` by `I_h F(u_h)`, its
+elementwise Lagrange interpolant at the nodes of a polynomial space. Then
+
+    (I_h F(u_h), v_h)_K  =  A₉ · [F(γ₁), …, F(γ_N)]ᵀ
+
+with `A₉ = [(χ_j, φ_i)]` assembled **once**, and `γ` the nodal values. The
+Jacobian is `A₉ diag(F′(γ)) · (nodal evaluation map)` — also assembled once
+apart from a diagonal. No quadrature in the iteration loop, and the Jacobian is
+written down rather than assembled.
+
+**(b) Evaluate it at the postprocessed solution.** Use `I_h F(u*_h)` with
+`u*_h ∈ P^{k+1}` the elementwise postprocessing, not `u_h ∈ P^k`.
+
+**The point to hold on to is that (b) exists to repair damage (a) does.** The
+authors' earlier paper did (a) alone, kept optimal rates, and *lost*
+superconvergence. CCSZ-I adds (b) and proves it comes back. So the interpolatory
+approach is a **cost optimisation**, and CCSZ-I is the recipe for taking it
+without paying accuracy for it.
+
+That matters for us because §4 measured the branch's nonlinear problem
+postprocessing at `k+2` already — 3.09 and 2.92 at `k=1`, 4.12 and 3.94 at
+`k=2`. There is nothing to restore. What is on offer here is speed.
+
+### The mismatch, and what it costs
+
+Their nonlinearity is a **reaction term in the potential equation** with linear
+diffusion. Ours is a **coefficient in the flux equation**, `D(p) q`. The
+consequence is not cosmetic:
+
+* For them the whole matrix `A` is constant in time and only a small separate
+  block changes, so "assemble the HDG matrices once before the time
+  integration" is nearly total.
+* For us the nonlinearity is *inside* the flux mass block. The analogue is the
+  product approximation `I_h[D(p*)] q_h`: precompute, per element, the tensor
+  `T_{ijl} = (χ_l φ_j, φ_i)_K` and contract it with the nodal `D_l` each
+  iteration. Quadrature disappears from the loop, but the local block is still
+  rebuilt and refactorised every time.
+
+So the structural win is smaller for us than for them. The remaining win is real
+but narrower: **it is the constitutive law's own evaluation cost.**
+
+### Measured: how much redundant evaluation there is
+
+Counted on §4's own two-equation DG study at `k=1`, over three meshes:
+
+| | evaluations per element, per outer Newton step |
+|---|---|
+| as it stands — quadrature re-run for every residual and Jacobian assembly, including the element-local Newton | **82–89** |
+| interpolatory — one per node of `P^{k+1}`, doubled if value and derivative are separate calls | **9–18** |
+
+**Four to nine times fewer calls into the constitutive law.** Whether that is
+worth anything depends entirely on what the law costs. For the 2×2 matrix
+inverse in the unit test it is worth nothing — the local dense factorisation
+dominates. For a collision operator it plausibly dominates instead. **That
+measurement, against a representative coefficient, is the first task and the
+decision criterion; everything below is conditional on it.**
+
+### Does hybridization survive? Yes
+
+This is the part that could have killed it and does not. The postprocessing is
+elementwise: `u* = B₁₁ α + B₁₂ β` with `B₁₁`, `B₁₂` block diagonal and computed
+once. Evaluating the law at `p*` therefore keeps `LocalNLOperator` element
+local, and the element-local solve stays element local. CCSZ-I static-condense
+for the same reason.
+
+The Jacobian gains terms through the chain rule on `p*`, in **both** columns of
+the local Jacobian. The `(0,1)` column is the `Bnl_data` / `grad_Aup` path
+restored in `fd028d151b`, so that machinery exists. What is new is an extra
+`(0,0)` contribution from `∂p*/∂q`, which the branch has no hook for.
+
+### What would have to be built
+
+1. **A representative-cost profile.** See above. Stop here if the law is cheap.
+2. **The classic local postprocessing, general in `vdim`.** CCSZ's `𝔭^{k+1}` is
+   *not* the branch's `ReconstructFluxAndPot`. It is a small dense per-element
+   problem — `(∇u*, ∇z)_K = −(q_h, ∇z)_K` for `z ∈ [P^{k+1}(K)]^⊥` with the mean
+   matched to `u_h` — using only `q_h` and independent of the trace and of the
+   reconstruction plumbing entirely. Generalising *that* to `vdim` is a loop over
+   equations. This corrects what "What is still open" said: postprocessing for a
+   system is only hard if it has to be the branch's superconvergent
+   flux-and-potential reconstruction.
+3. **An interpolatory variant of `MixedConductionNLFIntegrator`.** It needs a
+   per-element cache of `T_{ijl}`, keyed on the element, invalidated on mesh
+   change; the nodal `D_l` and `∂D_l/∂p`; and the contraction. `MixedFluxFunction`
+   already exposes exactly what is required — `ComputeDualFlux` and
+   `ComputeDualFluxJacobian` — and `FrozenDualFluxCoefficient`, added for the
+   postprocessing, is the same evaluation in a different wrapper.
+4. **The `∂p*/∂q` hook in the local Jacobian**, alongside the existing `(0,1)`
+   one.
+5. **Re-run §4's study.** The manufactured solution and the control are already
+   there and are exactly the harness this needs: rates must not move.
+
+### The risk to state plainly
+
+**The theory does not cover our nonlinearity.** CCSZ-I and II prove their
+results for `F(u)` alone. CCSZ-II's own concluding paragraph says that
+"superconvergent HDG methods for equations with the more general nonlinear term
+`F(∇u, u)` constitutes a subject of ongoing work" — and a diffusion coefficient
+multiplying the flux is exactly that case. The authors elsewhere name the
+p-Laplacian and nonlinear elasticity as places the technique "can be applied",
+but do not do it.
+
+So: the implementation transfers, the proof does not, and step 5 is not a
+formality. If rates degrade, CCSZ-I's own remedy — interpolate at `p*` rather
+than at `p_h` — is the first thing to try, and it is why step 2 is in the list
+at all.
+
+## Optional B. Superconvergence at `k = 0` — the HHO-inspired methods
+
+**Not a requirement**, and no test in the suite yet. §4 measured the
+postprocessed potential at `k+2` for every case except the fully discontinuous
+form at `k=0`, where it reads 1.01. That is the known limit of the `HDG_k`
+method — **CCSZ-I** Table 1 reports 0.97 there and its Theorem 3.19 assumes
+`k ≥ 1`. **CCSZ-II** is the way out, and it is a different method rather than a
+tuning of this one.
+
+### The three methods
+
+All three keep `V_h = [P^k]^d` for the flux and `M_h = P^k` for the trace, and
+differ in the potential space `W_h = P^ℓ` and in what the stabilization
+penalises. Writing `𝔭^{k+1}(u_h, û_h)` for the HHO reconstruction — the element
+of `P^{k+1}(K)` with
+
+    (∇𝔭, ∇z)_K = −(u_h, Δz)_K + ⟨û_h, n·∇z⟩_∂K   for z ∈ [P^{k+1}_ℓ(K)]^⊥
+    (𝔭, w)_K   = (u_h, w)_K                        for w ∈ P^ℓ(K)
+
+— the numerical flux trace is
+
+    q̂·n = q·n + r*_∂K [ h_K^{-1} r_∂K(u_h − û_h) ],   r_∂K(u_h − û_h) = Π^∂_k u*_h − û_h
+
+with `u* = 𝔭^{k+1}(u_h, û_h)`, so the penalty acts on the **projected trace of
+the reconstruction** rather than on `u_h − û_h`, and `τ ~ 1/h`.
+
+| | `W_h` | `u*` | `τ` | `q` | `u*` |
+|---|---|---|---|---|---|
+| **(A)** Lehrenfeld–Schöberl / HDG+ | `P^{k+1}` | `u_h` itself | `1/h` | `k+1` | **`k+2`, `k ≥ 0`** |
+| **(B)** | `P^k` | `𝔭^{k+1}(u_h, û_h)` | `1/h` | `k+1` | **`k+2`, `k ≥ 0`** |
+| **(C)** | `P^{k−1}` | `𝔭^{k+1}(u_h, û_h)` | `1/h` | `k+1` | `k+2`, `k ≥ 2` |
+
+CCSZ-II Table 2 confirms each numerically. Note the `τ ~ 1/h` scaling, which is
+the *opposite* of what §5 and §4 settled on for the equal-order method — a
+reminder that `τ` is not separable from the choice of spaces.
+
+### (A) is the one to want, for a reason beyond `k = 0`
+
+For (A), `ℓ = k+1` forces `𝔭 = u_h` and the reconstruction is vacuous: **the
+potential is superconvergent as solved, and there is no postprocessing step at
+all.** For a system that is decisive. §4 records that the branch's
+reconstruction is scalar-only and lists five distinct pieces of work to widen
+it; (A) sidesteps the whole of it, because there is nothing to reconstruct.
+
+(B) is the more faithful HHO method but is structurally worse for this branch.
+Its `u*` depends on the element's potential **and on all of its face traces at
+once**, so the stabilization is an element-level operator coupling one element's
+potential dofs to every one of its traces. `DarcyHybridization` assembles HDG
+faces per (face, side) — `AssembleHDGFaceGrad` produces `D`, `E`, `G`, `H` for
+one face — and there is no element-level hook. (B) would need one. (A) needs
+none: with `u* = u_h`, the penalty is face-local in exactly the shape the
+existing hook produces.
+
+(C) buys nothing here: `k ≥ 2` only, and CCSZ-II notes that the `k=1` rate
+claimed for it in the earlier literature is wrong.
+
+### What (A) actually changes in the assembly
+
+Very little, and this is the encouraging part. Write `M_F = ⟨ψ_a, ψ_b⟩_F` for
+the trace mass on a face and `C = ⟨ψ_a, φ_i⟩_F` for the mixed trace–element
+mass. The existing penalty `τ⟨u_h − û_h, v_h − v̂_h⟩_F` assembles as
+
+    (el,el) τ⟨φ_i, φ_j⟩_F     (el,tr) −τ Cᵀ     (tr,el) −τ C     (tr,tr) τ M_F
+
+and (A)'s `h^{-1}⟨Π^∂_k u_h − û_h, Π^∂_k v_h − v̂_h⟩_F`, with `Π^∂_k u_h|_F =
+M_F^{-1} C u_el`, assembles as
+
+    (el,el) h^{-1} Cᵀ M_F^{-1} C   (el,tr) −h^{-1} Cᵀ   (tr,el) −h^{-1} C   (tr,tr) h^{-1} M_F
+
+**Only the `(el,el)` block differs**, and only by one face-mass inverse;
+everything else is what `HDGDiffusionIntegrator` already produces with a fixed
+`td`, which is precisely `τ = td·κ/h`. So (A) is: a potential space one degree
+up, a fixed `td`, and one changed block in one integrator.
+
+### Measured: how far the branch already gets
+
+Probed on the single-field nonlinear manufactured problem of §4, DG flux,
+hybridized, with the potential space raised one degree and the **plain**
+penalty at `τ ~ 1/h` — that is (A) without the `Π^∂_k` projection. Rates over
+the 16×16 to 32×32 pair:
+
+| | `p` | `u` |
+|---|---|---|
+| `k=1`, `W = P^k` (as now) | 2.12 | 1.12 |
+| `k=1`, `W = P^{k+1}` | **3.22** | **2.21** |
+| `k=0`, `W = P^k` | −0.12 | −0.03 |
+| `k=0`, `W = P^{k+1}` | 0.07 | 0.34 |
+
+At `k=1` the potential reaches `k+2 = 3` **as solved, with no postprocessing** —
+which is (A)'s claim, arrived at without the projection. At `k=0` it locks, and
+so does the equal-order method at this `τ`. That split is what one would expect
+if the projection is the essential ingredient: the plain penalty forces all of
+`u_h|_F ∈ P^{k+1}(F)` to match `û_h ∈ P^k(F)`, one constraint per face too many,
+and `Π^∂_k` is exactly the relaxation of it. Proportionally that over-constraint
+is worst at `k=0`, which is where it locks.
+
+**What the probe found that has to be dealt with first.** With the
+potential space raised, the local problem on a boundary element is
+under-determined and the solve diverges — from the coarsest mesh, and for the
+*linear* problem too, so it is not the nonlinear solver. Stabilizing the
+boundary faces fixes it outright. The branch's DG arrangement, copied from
+`convdiff`, stabilizes interior faces only and imposes Dirichlet data weakly
+through the flux equation, leaving the boundary traces dead — §4 records that.
+That arrangement does not survive a richer potential space, so **(A) needs its
+boundary condition rethought**, most likely as the essential-trace route
+`convdiff` already has behind `-trbc`.
+
+### What would have to be built
+
+1. **A boundary treatment that constrains the boundary traces** — probably
+   `DarcyHybridization::SetEssentialBC` with the trace projected from the
+   Dirichlet data, which exists and is exercised by `convdiff -trbc`. Needed
+   before anything else, and worth having on its own account.
+2. **A projected variant of `HDGDiffusionIntegrator`** — one block, as above,
+   plus the face mass factorisation. It is also the natural place to check the
+   claim that the projection is what unlocks `k=0`.
+3. **Unequal-order plumbing.** `DarcyForm` takes the two spaces separately and
+   the probe assembled and solved with them unequal, so the framework tolerates
+   it. What has *not* been checked is the rest: `MixedConductionNLFIntegrator`'s
+   HDG face methods set `ndof_u = el_p.GetDof()`, harmless today but an
+   equal-order assumption written down; the reconstruction; and the estimators.
+4. **A convergence study**, orders 0 to 2, both forms, against §4's manufactured
+   solution — the harness exists and already reports `p`, `u`, `u_t`, `p_s`,
+   `u_s`.
+
+### Why this may be worth more than Optional A
+
+(A) delivers `k+2` on the *solved* potential, for a system, with no
+postprocessing and therefore none of the scalar-only limitation §4 records. It
+does so by making the potential space richer, which costs local dofs but not
+global ones — the trace space, and hence the globally coupled system, is
+unchanged. Against that, it is a change to the discretisation rather than to the
+implementation of one, and every measurement in §4 and §5 would have to be
+re-taken against it, `τ` included.
+
 ## Dependencies, and a sensible order
 
 ```
@@ -931,6 +1188,15 @@ cheap to form.
 §3 is the critical path and the most likely to be partly there already. §2's
 biharmonic case is the one with no prior art and should be settled on paper
 early, since it may change what §1 has to supply.
+
+The two optional sections sit off this graph, and in one order if both are
+wanted: **Optional B before Optional A.** B changes the discretisation, so
+every calibration in §4 and §5 would have to be re-taken after it; A is an
+implementation of a fixed discretisation and would have to be re-measured
+against whichever one is settled on. B also makes A's hardest dependency — a
+`vdim`-general postprocessing — unnecessary, since HDG (A) has nothing to
+postprocess. Neither is on the critical path, and A is gated on a single
+measurement that may well close it.
 
 ## First questions to answer in the branch — answered
 
@@ -975,6 +1241,12 @@ Kept with their answers rather than deleted, because the answers are the content
    vector-valued callback, and a linearised potential constraint for a system
    stabilized by the nonlinear face integrator.
 
+   Two things qualify this. The *classic* local postprocessing — the small
+   per-element solve CCSZ use, not the branch's flux-and-potential
+   reconstruction — is a loop over equations away from being general in `vdim`;
+   §Optional A step 2. And §Optional B would remove the need entirely for the
+   quantity that matters, since HDG (A) is superconvergent as solved.
+
 ## References
 
 Cited by the short labels used above. Full bibliographic detail is given only
@@ -1002,6 +1274,19 @@ subject.
   `P^{k+1}`, and (B), with an HHO stabilisation acting on the postprocessed
   trace, both superconvergent from `k = 0`; (C) only from `k = 2`. All three
   take `τ ~ 1/h`.
+* **CSZ-Interpolatory** — Cockburn, Singler & Zhang, *Interpolatory HDG method
+  for parabolic semilinear PDEs*, J. Sci. Comput. **79** (2019) 1777–1800. The
+  interpolatory method without the postprocessed argument — optimal rates, no
+  superconvergence, which is the loss CCSZ-I repairs.
+* **CDE-Bridge** — Cockburn, Di Pietro & Ern, *Bridging the hybrid high-order
+  and hybridizable discontinuous Galerkin methods*, ESAIM Math. Model. Numer.
+  Anal. **50** (2016) 635–650. Defines the HDG (ABC) family and the
+  reconstruction `𝔭^{k+1}` that Optional B uses.
+* **Lehrenfeld–Schöberl** — the HDG+ method, the same object as CCSZ-II's
+  HDG (A): flux in `[P^k]^d`, potential in `P^{k+1}`, trace in `P^k`, and a
+  stabilisation `h^{-1}` acting on the projected trace. **Oikawa**, *A
+  hybridized discontinuous Galerkin method with reduced stabilization*, J. Sci.
+  Comput., is the same idea arrived at independently. Optional B.
 * **CS-Extensions** — Cockburn & Solano, on solving problems posed on curved
   domains by extension from a polyhedral subdomain, reducing the boundary
   treatment to line integrals along transferring paths. §1.
