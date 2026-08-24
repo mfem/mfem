@@ -64,7 +64,7 @@ inline magma_int_t MagmaPotrsBatched(magma_uplo_t uplo, magma_int_t n,
                                      magma_queue_t queue)
 {
    return magma_spotrs_batched(uplo, n, nrhs, dA, ldda, dB, lddb,
-                              batch_count, queue);
+                               batch_count, queue);
 }
 
 inline magma_int_t MagmaPotrsBatched(magma_uplo_t uplo, magma_int_t n,
@@ -74,7 +74,7 @@ inline magma_int_t MagmaPotrsBatched(magma_uplo_t uplo, magma_int_t n,
                                      magma_queue_t queue)
 {
    return magma_dpotrs_batched(uplo, n, nrhs, dA, ldda, dB, lddb,
-                              batch_count, queue);
+                               batch_count, queue);
 }
 
 void PrintMagmaFasterCondition(const double eq_fixed_ms,
@@ -129,8 +129,8 @@ void PrintMagmaFasterCondition(const double eq_fixed_ms,
       cout << "faster for N > " << crossover
            << " applies (positive integer N >= " << (long long)first_n
            << "); eq-iter is faster below that.\n";
-	   }
-	}
+   }
+}
 
 real_t **SetMagmaPackedPointerArray(Array<real_t *> &ptrs, real_t *data,
                                     const int stride,
@@ -255,8 +255,8 @@ void ComputeLowerPackedResidual(
          long double ax = 0.0;
          for (int j = 0; j < n; ++j)
          {
-         const real_t aij =
-            (i >= j) ?
+            const real_t aij =
+               (i >= j) ?
                Ae[TriPackLowerMatrix::LowerIndex(i, j, n)] :
                Ae[TriPackLowerMatrix::LowerIndex(j, i, n)];
             ax += (long double)aij * (long double)Xe[j];

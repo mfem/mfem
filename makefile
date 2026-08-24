@@ -808,6 +808,7 @@ TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
 UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme dfem
 MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners \
    hooke/materials hooke/kernels
+FORMAT_FILES += examples/*.?pp examples/*/*.?pp
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
 FORMAT_FILES += tests/unit/fem/specializations/*.?pp
