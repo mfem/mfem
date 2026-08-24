@@ -240,6 +240,32 @@ private:
    Array<int> Bf_offsets, Be_offsets;
    Array<real_t> Bf_data, Be_data;
 
+   /** @brief The solution-dependent part of the local gradient's (0,1) block,
+       d(flux residual)/dp.
+
+       For a flux law q = D(p) u the flux equation depends on the potential, so
+       the (0,1) block of the local Jacobian is not simply the transpose of the
+       linear divergence form: it is that plus the derivative the flux function
+       supplies as J_u. @a Bf_data holds the linear part and is assembled once;
+       this holds the part that changes with the solution and is rebuilt at
+       every Newton step.
+
+       Indexed by @a Bf_offsets, which gives each element the same number of
+       entries, but each block is read as a_dofs by d_dofs -- the transpose
+       orientation of @a Bf_data -- because that is the shape of a (0,1) block.
+
+       Left empty whenever no integrator contributes such a term, which covers
+       every linear problem and every nonlinear one whose coefficients do not
+       depend on the potential; @a Bnl_empty then short-circuits the extra
+       work. */
+   mutable Array<real_t> Bnl_data;
+   mutable bool Bnl_empty{true};
+
+   /** @brief Load the (0,1) gradient block of element @a el into @a Bnl.
+
+       Returns false, leaving @a Bnl untouched, when there is no such block. */
+   bool GetBnlMatrix(int el, DenseMatrix &Bnl) const;
+
    Array<int> Df_offsets, Df_f_offsets;
    mutable Array<real_t> Df_data, Df_lin_data;
    mutable Array<int> Df_ipiv;
@@ -330,6 +356,9 @@ private:
       const Array<int> offsets;
       mutable Vector Au, Dp, DpEx;
       mutable DenseMatrix grad_A, grad_D;
+      /** The (0,1) block and, when it is nonzero, the dense sum of it with
+          the linear +/-B^T that would otherwise stand there alone. */
+      mutable DenseMatrix grad_Aup, grad_Bt;
       mutable BlockOperator grad;
 
       void AddMultBlock(const Vector &u_l, const Vector &p_l, Vector &bu,

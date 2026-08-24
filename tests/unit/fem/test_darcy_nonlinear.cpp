@@ -893,66 +893,115 @@ TEST_CASE("A nonlinear DG system assembles and solves under hybridization",
    REQUIRE(p.Normlinf() > 1e-4);       // to something that is not zero
 }
 
-TEST_CASE("Hybridized Newton stalls at first order in a potential-dependent "
-          "diffusivity", "[DarcyForm][NonlinearDarcy][HDG][!mayfail]")
+TEST_CASE("The hybridized Jacobian carries d(flux residual)/dp",
+          "[DarcyForm][NonlinearDarcy][HDG]")
 {
    using namespace darcy_nonlinear;
 
-   // A characterization test, not an approval.
+   // DarcyHybridization::ConstructGrad and LocalNLOperator::GetGradient both
+   // used to set the local Jacobian's (0,1) block to +/-B^T, the transpose of
+   // the linear divergence form, and never ask the integrator for
+   // d(flux residual)/dp. For a flux law q = D(p) u that term is the J_u the
+   // flux function supplies, and leaving it out costs Newton convergence.
    //
-   // DarcyHybridization::ConstructGrad passes NULL for the off-diagonal
-   // element gradient blocks:
+   // Checked here by differencing the trace operator against its own
+   // gradient. That comparison is the thing to trust: an earlier attempt to
+   // infer the same defect from a Newton convergence history instead was
+   // wrong, because the harness it used had no boundary condition and so a
+   // null space, and the wandering that produced was read as a stall.
    //
-   //     grad_arr(1,0) = NULL;
-   //     grad_arr(0,1) = NULL;
-   //
-   // Block (0,1) is d(flux residual)/dp, which for a flux law q = D(p) u is
-   // exactly the J_u the flux function supplies and MixedConductionNLFIntegrator
-   // is perfectly willing to assemble. Discarding it leaves the local Jacobian
-   // inconsistent with the local residual whenever the diffusivity depends on
-   // the potential, and Newton stalls one order into the nonlinearity instead
-   // of going quadratic.
-   //
-   // The signature is unmistakable: scale the state dependence by eps and the
-   // residual after one Newton step is proportional to eps over six decades.
-   // A Jacobian that included the block would give a residual quadratic in the
-   // step, independent of eps at this level.
-   //
-   // This is not specific to systems -- a single equation stalls identically,
-   // and it is the failure mode section 4 of HDG-REQUIREMENTS names as the
-   // reason to insist on exact Jacobians: in a hybridized method a wrong
-   // Jacobian gives no wrong answer, only slow Newton, and survives a passing
-   // regression suite indefinitely. It did.
-   //
-   // Tagged !mayfail so that fixing ConstructGrad reports here rather than
-   // breaking the build; the numbers below then need rewriting, which is the
-   // point.
+   // With no state dependence the block is zero and the two agree trivially;
+   // the eps > 0 case is the one that fails if the block is dropped.
+   const real_t eps = GENERATE(0.0, 1.0);
+   CAPTURE(eps);
+
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
+   const int order = 1, dim = 2;
+   ScaledCoupledFlux flux(dim, eps);
+   const int neq = flux.num_equations;
 
-   std::vector<real_t> eps{1e-6, 1e-3, 1.0};
-   std::vector<real_t> res;
-   for (real_t e : eps)
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, neq * dim, Ordering::byNODES);
+   FiniteElementSpace fes_p(&mesh, &p_coll, neq, Ordering::byNODES);
+   FiniteElementSpace fes_t(&mesh, &t_coll, neq, Ordering::byNODES);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+
+   BlockNonlinearForm *Mnl = darcy.GetBlockNonlinearForm();
+   Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(flux));
+   auto *face = new MixedConductionNLFIntegrator(flux);
+   Vector taus(neq);
+   taus = 1.0;
+   face->SetVariableStabilization(taus);
+   Mnl->AddInteriorFaceIntegrator(face);
+
+   MixedBilinearForm *Bform = darcy.GetFluxDivForm();
+   Bform->AddDomainIntegrator(
+      new VectorBlockDiagonalIntegrator(neq, new VectorDivergenceIntegrator));
+   Bform->AddInteriorFaceIntegrator(
+      new VectorBlockDiagonalIntegrator(
+         neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+
+   g_neq = neq;
+   VectorFunctionCoefficient gcoeff(neq, gCoupled);
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new VectorDomainLFIntegrator(gcoeff));
+
+   Array<int> ess;
+   darcy.EnableHybridization(
+      &fes_t,
+      new VectorBlockDiagonalIntegrator(neq, new NormalTraceJumpIntegrator),
+      ess);
+   darcy.Assemble();
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-14, 1e-16, -1);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr op;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, op, X, RHS, true);
+
+   // Only the dofs the residual actually sees. This harness leaves the
+   // boundary traces unconstrained, so they sit in the operator's null space:
+   // the residual is identically zero there while the gradient is not, and
+   // comparing them would measure the harness rather than the Jacobian.
+   Vector X0(X.Size()), dy(X.Size());
+   for (int i = 0; i < X0.Size(); i++)
    {
-      ScaledCoupledFlux flux(2, e);
-      real_t r0 = 0., r1 = 0.;
-      OneNewtonStep(mesh, 1, flux, r0, r1);
-      res.push_back(r1);
+      X0(i) = 0.03 * std::sin(1.7 * i + 0.4);
+      dy(i) = 0.01 * std::cos(0.9 * i + 1.1);
    }
 
-   INFO("residual after one Newton step: "
-        << res[0] << ", " << res[1] << ", " << res[2]
-        << " for eps = 1e-6, 1e-3, 1");
+   const real_t h = 1e-6;
+   Vector xp(X0), xm(X0), rp(X.Size()), rm(X.Size());
+   xp.Add(h, dy);
+   xm.Add(-h, dy);
+   op->Mult(xp, rp);
+   op->Mult(xm, rm);
+   Vector fd(rp);
+   fd -= rm;
+   fd /= (2.0 * h);
 
-   // Linear in eps to within a few percent, over six decades.
-   for (size_t i = 1; i < eps.size(); i++)
+   Vector r0(X.Size());
+   op->Mult(X0, r0);
+   Vector Jdy(X.Size());
+   op->GetGradient(X0).Mult(dy, Jdy);
+
+   REQUIRE(fd.Normlinf() > 1e-6);
+
+   real_t worst = 0.;
+   int compared = 0;
+   for (int i = 0; i < fd.Size(); i++)
    {
-      const real_t ratio = (res[i] / res[i-1]) / (eps[i] / eps[i-1]);
-      CAPTURE(i, ratio);
-      REQUIRE(ratio == MFEM_Approx(1.0, 0.05, 0.05));
+      if (fd(i) == 0.0) { continue; }      // null-space dof, see above
+      compared++;
+      worst = std::max(worst, std::abs(Jdy(i) - fd(i)));
    }
-
-   // Which is to say: it does not converge. When the block is restored this
-   // is the assertion that should replace the two above.
-   REQUIRE_FALSE(res[2] < 1e-10 * res[0] / 1e-6);
+   INFO("compared " << compared << " of " << fd.Size() << " trace dofs, "
+        "worst |J dy - fd| = " << worst);
+   REQUIRE(compared > fd.Size() / 4);
+   REQUIRE(worst < 1e-6 * fd.Normlinf() + 1e-8);
 }

@@ -1238,6 +1238,17 @@ void DarcyHybridization::GetElementFaces(int el, Array<int> &faces) const
    }
 }
 
+bool DarcyHybridization::GetBnlMatrix(int el, DenseMatrix &Bnl) const
+{
+   if (Bnl_empty || Bnl_data.Size() != Bf_offsets.Last()) { return false; }
+
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+   Bnl.UseExternalData(const_cast<real_t*>(&Bnl_data[Bf_offsets[el]]),
+                       a_dofs_size, d_dofs_size);
+   return true;
+}
+
 void DarcyHybridization::ComputeH(ComputeHMode mode,
                                   std::unique_ptr<SparseMatrix> &H_) const
 {
@@ -1271,8 +1282,18 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       AiBt.SetSize(a_dofs_size, d_dofs_size);
 
+      // AiBt is A^-1 times the negated (0,1) block, which everything below
+      // -- the Schur complement and the C A^-1 B^T + G product -- is built
+      // from. The (0,1) block is -/+B^T from the linear divergence form plus,
+      // for a solution-dependent flux law, d(flux residual)/dp; subtracting
+      // the latter here is what puts it into both.
       AiBt.Transpose(B);
       if (!bsym) { AiBt.Neg(); }
+      DenseMatrix Bnl;
+      if (mode == ComputeHMode::Gradient && GetBnlMatrix(el, Bnl))
+      {
+         AiBt -= Bnl;
+      }
       LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
 
       LUFactors LU_S;
@@ -2493,19 +2514,47 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 
    if (m_nlfi)
    {
+      // Block (0,1) is d(flux residual)/dp. Discarding it -- which is what
+      // this did -- leaves the local Jacobian inconsistent with the local
+      // residual whenever the flux law depends on the potential, and Newton
+      // then converges only to first order in that dependence rather than
+      // quadratically. Block (1,0) stays NULL: the divergence form is linear,
+      // so B is already exact in Bf_data.
       Array<const FiniteElement*> fe_arr({fe_u, fe_p});
       Array<const Vector*> x_arr({&u_l, &p_l});
       Array2D<DenseMatrix*> grad_arr(2,2);
-      DenseMatrix grad_A, grad_D;
+      DenseMatrix grad_A, grad_D, grad_Aup;
       grad_arr(0,0) = &grad_A;
       grad_arr(1,0) = NULL;
-      grad_arr(0,1) = NULL;
+      grad_arr(0,1) = &grad_Aup;
       grad_arr(1,1) = &grad_D;
       m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
       if (grad_A.Height() != 0) { A = grad_A; }
       else { A = 0.; }
       if (grad_D.Height() != 0) { D = grad_D; }
       else { D = 0.; }
+
+      if (grad_Aup.Height() != 0)
+      {
+         MFEM_VERIFY(grad_Aup.Height() == a_dofs_size &&
+                     grad_Aup.Width() == d_dofs_size,
+                     "The (0,1) element gradient block is "
+                     << grad_Aup.Height() << "x" << grad_Aup.Width()
+                     << ", expected " << a_dofs_size << "x" << d_dofs_size);
+         if (Bnl_data.Size() != Bf_offsets.Last())
+         {
+            Bnl_data.SetSize(Bf_offsets.Last());
+            Bnl_data = 0.;
+         }
+         DenseMatrix Bnl(&Bnl_data[Bf_offsets[el]], a_dofs_size, d_dofs_size);
+         Bnl = grad_Aup;
+         Bnl_empty = false;
+      }
+      else if (!Bnl_empty)
+      {
+         DenseMatrix Bnl(&Bnl_data[Bf_offsets[el]], a_dofs_size, d_dofs_size);
+         Bnl = 0.;
+      }
    }
    else
    {
@@ -3752,16 +3801,29 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
    if (dh.m_nlfi)
    {
       //element contribution
-      DenseMatrix gA, gD;
+      DenseMatrix gA, gD, gAup;
       Array<const FiniteElement*> fe_arr({fe_u, fe_p});
       Array<const Vector*> x_arr({&u_l, &p_l});
       Array2D<DenseMatrix*> grad_arr(2,2);
       grad_arr = NULL;
       grad_arr(0,0) = &gA;
+      grad_arr(0,1) = &gAup;
       grad_arr(1,1) = &gD;
       dh.m_nlfi->AssembleElementGrad(fe_arr, *Tr, x_arr, grad_arr);
       if (gA.Height() != 0) { grad_A += gA; }
       if (gD.Height() != 0) { grad_D += gD; }
+      // d(flux residual)/dp. The element-local Newton needs it for the same
+      // reason the trace gradient does: without it the local Jacobian does
+      // not match the local residual and the inner solve stalls.
+      if (gAup.Height() != 0)
+      {
+         if (grad_Aup.Height() == 0)
+         {
+            grad_Aup.SetSize(a_dofs_size, d_dofs_size);
+            grad_Aup = 0.;
+         }
+         grad_Aup += gAup;
+      }
    }
 
    if (dh.c_nlfi)
@@ -3938,6 +4000,7 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    grad_D.SetSize(d_dofs_size);
    grad_A = 0.;
    grad_D = 0.;
+   grad_Aup.SetSize(0, 0);
 
    //block
    AddGradBlock(u_l, p_l, grad_A, grad_D);
@@ -3949,8 +4012,20 @@ Operator &DarcyHybridization::LocalNLOperator::GetGradient(
    //B
    grad.SetBlock(1, 0, &const_cast<DenseMatrix&>(B));
 
-   //B^T
-   grad.SetBlock(0, 1, &const_cast<TransposeOperator&>(Bt), (dh.bsym)?(-1.):(+1.));
+   //B^T, plus d(flux residual)/dp when the flux law supplies one
+   if (grad_Aup.Height() != 0)
+   {
+      grad_Bt.SetSize(a_dofs_size, d_dofs_size);
+      grad_Bt.Transpose(B);
+      if (dh.bsym) { grad_Bt.Neg(); }
+      grad_Bt += grad_Aup;
+      grad.SetBlock(0, 1, &grad_Bt);
+   }
+   else
+   {
+      grad.SetBlock(0, 1, &const_cast<TransposeOperator&>(Bt),
+                    (dh.bsym)?(-1.):(+1.));
+   }
 
    //D
    AddGradDE(p_l, grad_D);

@@ -779,42 +779,47 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. **`DarcyHybridization` discards the off-diagonal element gradient blocks.**
-   `ConstructGrad` passes `NULL` for `grad_arr(0,1)` and `grad_arr(1,0)`. Block
-   `(0,1)` is `∂(flux residual)/∂p` — for a flux law `q = D(p) u` it is exactly
-   the `J_u` the flux function supplies, and `MixedConductionNLFIntegrator` is
-   perfectly willing to assemble it. Throwing it away leaves the local Jacobian
-   inconsistent with the local residual whenever the diffusivity depends on the
-   potential, and Newton stalls one order into the nonlinearity instead of going
-   quadratic.
+1. ~~**`DarcyHybridization` discards the off-diagonal element gradient
+   blocks.**~~ **Fixed, but the evidence first given for it was wrong and is
+   withdrawn.**
 
-   Measured by scaling the state dependence by `ε` and taking one Newton step
-   from zero:
+   What was true: `ConstructGrad` and `LocalNLOperator::GetGradient` both set
+   the local Jacobian's `(0,1)` block to `±Bᵀ`, the transpose of the linear
+   divergence form, and neither asked the integrator for
+   `∂(flux residual)/∂p`. For a flux law `q = D(p) u` that term is exactly the
+   `J_u` the flux function supplies and `MixedConductionNLFIntegrator` will
+   assemble it on request. Both now do.
 
-   | `ε` | `‖r₁‖` |
-   |---|---|
-   | `1e-6` | `3.28e-11` |
-   | `1e-3` | `3.28e-08` |
-   | `1` | `3.28e-05` |
+   What was not true: this file previously reported a residual "exactly linear
+   in `ε` over six decades" as proof that Newton stalled one order into the
+   nonlinearity. Two things were wrong with it. The probe had **no boundary
+   condition at all**, so 71 of its 160 trace dofs were in the operator's null
+   space — a finite-difference check of the trace operator against its own
+   gradient shows the residual identically zero there while the gradient is
+   not — and Newton was wandering in that null space, which is what produced
+   the "converges then climbs" pattern. And `r₁ ∝ ε` is not a stall signature
+   at all: it is what *correct* quadratic convergence looks like when the
+   nonlinear part of the residual carries a factor `ε`.
 
-   Exactly linear in `ε` over six decades — the residual left behind is precisely
-   the term the Jacobian omits. **This is not specific to systems**: a single
-   equation with a scalar `κ(p)` stalls identically. It is the failure mode §4
-   names as the reason to insist on exact Jacobians, and it survived the
-   regression suite exactly as §4 predicts such a thing would, because the suite
-   compares final errors and *linear*-solver iteration counts, both of which a
-   stalled-but-converged-enough Newton reproduces.
+   Measured properly, on `convdiff`'s own nonlinear hybridized problems, which
+   are well posed and boundary-conditioned:
 
-   The fix is not a one-liner. With `MFEM_DARCY_HYBRIDIZATION_GRAD_MAT` defined —
-   the default — the local operator is assembled from `A`, the *linear* `Bf_data`,
-   `D`, `E`, `G`, `H`. The missing block belongs in the `Bᵀ` position, but
-   `Bf_data` holds the assembled divergence form and is reused across Newton
-   steps, so it needs a separate solution-dependent array threaded through
-   `ConstructGrad`, `ComputeH`, and the local solves.
+   | case | before | after |
+   |---|---|---|
+   | `-p 8 -o 1 -dg -hb -nld -nls 3` | 4 Newton iterations | 3 |
+   | `-p 8 -o 1 -hb -nld -nls 3` | 4 | 3 |
+   | `-p 1 -o 2 -dg -hb -nl -nld -nls 3` | 1 | 1 |
 
-   Recorded in the suite as a characterization test (`!mayfail`) asserting the
-   linear-in-`ε` signature, so that restoring the block reports rather than
-   breaks.
+   A real improvement, and a modest one — not the qualitative failure the
+   withdrawn table implied. The converged answers are unchanged to six
+   figures; only iteration counts move, so the regression references for the
+   affected cases were regenerated.
+
+   The lesson worth keeping is the one that cost the most here: **a nonlinear
+   solver's convergence history says nothing about a Jacobian until the
+   problem is known to be well posed.** Differencing the operator against its
+   own gradient would have caught the null space immediately, and is the check
+   to run first.
 
 2. **A nonlinear DG system solved end to end.** Blocked by the above. The
    nonlinear HDG face terms are general in `num_equations` and tested directly —
