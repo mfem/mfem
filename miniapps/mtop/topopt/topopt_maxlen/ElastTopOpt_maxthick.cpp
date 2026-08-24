@@ -395,6 +395,8 @@ int main(int argc, char *argv[])
     real_t iterationError = 1.0;
     real_t init_comp = 1.0;
 
+    const real_t ourflow_len = ray_type == 1 ? 3 : 1;
+
     // Track next iteration for epsilon decay and beta doubling
     int next_epsilon_decay = init_it;
     int next_beta_double = init_it + beta_steps;
@@ -453,6 +455,9 @@ int main(int argc, char *argv[])
         thickness_qoi.GetGradRHS(dthick_tilde);
         filter.MultTranspose(dthick_tilde, dthick.GetBlock(0));
         if (myid == 0) { thickness_qoi.GetGrad(dthick.GetBlock(1)); }
+
+        thickres *= ourflow_len;
+        dthick *= ourflow_len;          // normalization
 
         fival(1) = thickres - epsilon;             // update constraint value
         // dthick /= epsilon;
