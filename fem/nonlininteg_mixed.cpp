@@ -896,7 +896,12 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
       }
       if (type & 1) { un *= -1.; }
 
-      el_p.CalcPhysShape(*Trans.Elem1, shape_p);
+      // The element basis belongs to the side being assembled, so it must be
+      // evaluated at that side's integration point: Trans.Elem1 always gave
+      // element 1's, which is a different point on the reference element
+      // whenever the face is assembled from element 2. Constant shapes hid it
+      // at order zero.
+      el_p.CalcPhysShape(*Elem, shape_p);
       real_t w = ip.weight / Elem->Weight();
 
       real_t wq = 0.;
@@ -1102,7 +1107,12 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
       }
       if (type & 1) { un *= -1.; }
 
-      el_p.CalcPhysShape(*Trans.Elem1, shape_p);
+      // The element basis belongs to the side being assembled, so it must be
+      // evaluated at that side's integration point: Trans.Elem1 always gave
+      // element 1's, which is a different point on the reference element
+      // whenever the face is assembled from element 2. Constant shapes hid it
+      // at order zero.
+      el_p.CalcPhysShape(*Elem, shape_p);
       real_t w = ip.weight / Elem->Weight();
 
       real_t wq = 0.;

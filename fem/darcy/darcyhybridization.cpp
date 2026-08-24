@@ -2773,14 +2773,27 @@ void DarcyHybridization::AssembleHDGGrad(
    if (elmat_D.Height() != 0) { D += elmat_D; }
 
    // assemble E constraint
+   //
+   // E and G are written, not accumulated. Only H is reset between gradient
+   // evaluations -- it takes a contribution from each side of a face -- while
+   // E and G hold one block per face and side, and every other writer in this
+   // file overwrites them. Accumulating here made GetGradient depend on how
+   // many times it had been called: the second Newton step of a hybridized
+   // nonlinear system got a doubled E and G, and the iteration diverged.
    const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
    DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
-   if (elmat_E.Height() != 0) { E_f += elmat_E; }
+   if (elmat_E.Height() != 0)
+   {
+      E_f.CopyMN(elmat_E, d_dofs_size, c_dofs_size, 0, 0);
+   }
 
    // assemble G constraint
    const int G_off = E_off;
    DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
-   if (elmat_G.Height() != 0) { G_f += elmat_G; }
+   if (elmat_G.Height() != 0)
+   {
+      G_f.CopyMN(elmat_G, c_dofs_size, d_dofs_size, 0, 0);
+   }
 
    // assemble H matrix
    DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);

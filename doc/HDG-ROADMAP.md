@@ -48,6 +48,7 @@ otherwise. The tests that hold them:
 | 3(d) degenerate coefficients | `tests/unit/fem/test_darcy_degenerate.cpp` |
 | 4 systems | `tests/unit/fem/test_darcy_system.cpp` |
 | 4 nonlinear, Jacobians, per-variable `τ` | `tests/unit/fem/test_darcy_nonlinear.cpp` |
+| 4 nonlinear system, manufactured solution | `tests/unit/fem/test_darcy_nonlinear_mms.cpp` |
 | 5 `τ` and the stabilisation interface | `tests/unit/fem/test_bilininteg_hdg.cpp` |
 | 7 estimators | `tests/unit/fem/test_estimators_hdg.cpp` |
 
@@ -449,6 +450,88 @@ through `AssemblePotHDGFaces` when hybridization is on and `AssemblePotLDGFaces`
 when it is off, so for a DG flux those are not the same operator and the
 equivalence is a property of the hybridized mixed method only.
 
+### Solved end to end, against a manufactured solution
+
+Everything above is checked pointwise — a Jacobian against a difference of its
+own residual, one Newton step against an exact linear answer. None of it says
+the discretization converges to the right thing, because the Jacobian of a
+wrong residual is still its own Jacobian.
+`tests/unit/fem/test_darcy_nonlinear_mms.cpp` closes that: a two-equation
+nonlinear system with a known solution, hybridized, in both formulations.
+
+Constructing the solution needs one turn. `ComputeDualFlux` returns `D(p) u`
+and the flux equation is `D(p) u + ∇p = 0`, so `D` is a *resistivity*, and
+stating the solution against it would need `u = −D(p)⁻¹ ∇p` and the divergence
+of that. Choosing the **conductivity** `K(p)` instead and handing the solver
+`D = K⁻¹`, inverted analytically, makes `u = −K(p) ∇p` explicit and its
+divergence elementary. `K` is symmetric, nonlinear in both potentials, with
+both off-diagonal entries nonzero, and its determinant is positive for every
+`p`, so the law is uniformly elliptic and Newton cannot walk out of its domain.
+
+Rates over the 8×8 to 16×16 pair, `τ = 2`, five Newton iterations at every
+order, form and mesh:
+
+| | RT `p` | RT `u` | DG `p` | DG `u` |
+|---|---|---|---|---|
+| `k=0` | 0.99 | 1.00 | 1.05 | 0.89 |
+| `k=1` | 2.00 | 2.01 | 1.95 | 1.87 |
+
+The control is the same study with the terms that exist in the source *only*
+because `K` depends on `p` removed — differentiating as though the conductivity
+were locally frozen, which is the classic manufactured-solution mistake. It
+flattens the rate to 0.02. A separate test checks the manufactured solution
+itself, away from the mesh and the assembly: that the law handed to the solver
+inverts the `K` the exact flux was built from, that the source really is minus
+the divergence of that flux, and that the analytic flux Jacobian differentiates
+the law. A wrong source is the easiest thing here to get wrong and shows up as
+rate zero with nothing to say why.
+
+**`τ` for the DG form**, measured over 16×16 to 32×32:
+
+| `τ` | `k=0`: `p`, `u` | `k=1`: `p`, `u` |
+|---|---|---|
+| 0.5 | 1.00, 0.67 | 1.83, 1.76 |
+| 1 | 1.00, 0.83 | 1.91, 1.84 |
+| 2 | 1.01, 0.93 | 1.96, 1.90 |
+| 4 | 1.05, 0.94 | 1.98, 1.96 |
+| 8 | 0.91, 0.86 | 1.99, 1.98 |
+
+`τ` of the size of `κ`, which is NPC-1's `η_d = κ/ℓ` with `ℓ = 1` and `K`
+between 1 and about 2.5 — and the flux is what pays for getting it wrong in
+either direction, too small and it never reaches its order, too large and `k=0`
+begins to lock. That is the same trade the linear study found. A per-variable
+`τ` tracking each equation's own conductivity, `(1, 2)` against the scalar `1`,
+moved nothing measurably: on this problem the magnitude matters and the ratio
+does not.
+
+**Two defects, both found by this study and by nothing else.**
+
+* `MixedConductionNLFIntegrator`'s HDG face pair evaluated the element basis at
+  `Trans.Elem1`'s integration point whatever side it was assembling. Element 2's
+  basis at element 1's reference point is a different function; constant shapes
+  hid it at `k=0`, and at `k=1` the DG rate read **0.68 where 2 was wanted**.
+  `HDGDiffusionIntegrator`'s side-aware overload already does this correctly and
+  is what the fix follows.
+* `DarcyHybridization::AssembleHDGGrad`'s `BlockNonlinearFormIntegrator`
+  overload **accumulated** into `E` and `G`. Only `H` is reset between gradient
+  evaluations, because it takes a contribution from each side of a face; `E` and
+  `G` hold one block per face and side and every other writer in that file
+  overwrites its own. So `GetGradient` depended on how many times it had been
+  called. Newton calls it exactly once per step, which is precisely why no
+  Jacobian check finds this — every one of them evaluates the gradient once, and
+  the first one is correct. What it produced was a good first step and garbage
+  after it: **divergence from a 5% nonlinearity on a 2×2 mesh**. A test now
+  calls `GetGradient` twice at the same point and requires the same matrix.
+
+Neither is reachable from any example on the branch. Instrumenting both sites
+and running `convdiff`'s nonlinear hybridized DG cases shows neither is entered
+— with hybridization on, the miniapp supplies the stabilization as a linear
+`HDGDiffusionIntegrator` on the potential mass form and never calls the
+nonlinear integrator's HDG face methods at all. That is why the 129-case serial
+regression suite and the 98-case parallel one are byte-for-byte unmoved by both
+fixes, and it is the reason a convergence study was worth the effort: two live
+defects in code that every existing test walked past.
+
 The requirement as originally stated:
 
 * **`N` coupled fields, each a Darcy-like problem of the §3 kind**, coupled
@@ -810,18 +893,19 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. **A nonlinear DG system solved end to end**, as a convergence study rather
-   than as the assembly and Jacobian checks §4 now has. The pieces are in place:
-   the nonlinear HDG face terms are general in `num_equations` and tested
-   directly, the hybridized Jacobian is complete, and the linear DG system
-   converges at the design order. What is missing is a manufactured solution for
-   a coupled nonlinear system to measure rates against.
-2. **§3(f)**, a source that is a derivative of another solved field, which is a
+1. **§3(f)**, a source that is a derivative of another solved field, which is a
    coupling through the flux block rather than the potential block.
-3. **§1 and §2**, untouched.
-4. **§7's `hp`**, and §8 in its entirety.
-5. **Whether the degenerate order loss is asymptotic**, and whether the
+2. **§1 and §2**, untouched.
+3. **§7's `hp`**, and §8 in its entirety.
+4. **Whether the degenerate order loss is asymptotic**, and whether the
    estimator's flat total error is intended — both recorded where they arise.
+5. **Why the DG form's flux lags its potential** in §4's nonlinear study —
+   0.89 against 1.05 at `k=0`, 1.87 against 1.95 at `k=1`, both still climbing
+   with `τ` at the point where `k=0` starts to lock. The RT form reaches
+   `k+1` in both variables and the linear DG study does too, so this is
+   specific to the nonlinear DG case and may simply be a `τ` that is right for
+   one variable and not the other. Postprocessing was never applied here, and
+   is the thing to try before concluding anything.
 
 ## References
 
