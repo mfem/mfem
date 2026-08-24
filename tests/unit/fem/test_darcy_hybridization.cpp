@@ -47,6 +47,13 @@ real_t gExact(const Vector &x)
 
 real_t pNatural(const Vector &x) { return -pExact(x); }
 
+/// Which discretisation of the flux. DG is the Nguyen-Peraire-Cockburn
+/// setting -- both variables discontinuous, coupled only through the trace and
+/// a stabilisation tau. RT is the hybridized mixed method, kept as a control
+/// because hybridization of it is algebraically exact and carries no tau at
+/// all, which makes it a reference with nothing to tune.
+enum class Form { RT, DG };
+
 struct Result
 {
    Vector u, p;         ///< the recovered flux and potential
@@ -58,13 +65,23 @@ struct Result
 /// full block system or hybridized down to the traces. Everything except the
 /// call to EnableHybridization() is shared, so a difference between the two
 /// results is a property of the hybridization and of nothing else.
-Result Solve(Mesh &mesh, int order, bool hybridize)
+Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
+             real_t td = 0.5)
 {
    const int dim = mesh.Dimension();
 
-   RT_FECollection u_coll(order, dim);
+   std::unique_ptr<FiniteElementCollection> u_coll;
+   if (form == Form::DG)
+   {
+      u_coll.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto));
+   }
+   else
+   {
+      u_coll.reset(new RT_FECollection(order, dim));
+   }
    L2_FECollection p_coll(order, dim);
-   FiniteElementSpace fes_u(&mesh, &u_coll);
+   FiniteElementSpace fes_u(&mesh, u_coll.get(),
+                            (form == Form::DG) ? dim : 1);
    FiniteElementSpace fes_p(&mesh, &p_coll);
 
    ConstantCoefficient k(1.0);
@@ -77,14 +94,37 @@ Result Solve(Mesh &mesh, int order, bool hybridize)
    FunctionCoefficient pcoeff(pExact);
    VectorFunctionCoefficient ucoeff(dim, uExact);
 
+   RatioCoefficient ik(1.0, k);
+
    DarcyForm darcy(&fes_u, &fes_p);
 
-   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorFEMassIntegrator(k));
-   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorFEDivergenceIntegrator);
-
    LinearForm *fform = darcy.GetFluxRHS();
-   fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-   fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   if (form == Form::DG)
+   {
+      // Both variables discontinuous. The normal trace term on the divergence
+      // form and the stabilisation on the potential mass form are what replace
+      // the H(div) conformity that RT supplies for free.
+      darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(k));
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.)));
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new HDGDiffusionIntegrator(ik, td));
+
+      fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
+      fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(natcoeff));
+   }
+   else
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorFEMassIntegrator(k));
+      darcy.GetFluxDivForm()->AddDomainIntegrator(
+         new VectorFEDivergenceIntegrator);
+
+      fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
+      fform->AddBoundaryIntegrator(
+         new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   }
    darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
 
    Array<int> ess_flux_tdofs;   // the pressure enters naturally; none are essential
@@ -311,4 +351,122 @@ TEST_CASE("Hybridized Darcy converges on wedges",
       prev_u = r.err_u;
       mesh.UniformRefinement();
    }
+}
+
+// HDGDiffusionIntegrator does not take tau. Its parameter enters as
+//
+//     tau = td * kappa / h,     1/h = |nor|/det(J)
+//
+// which the integrator's own source comment states. So holding td fixed while
+// refining makes tau grow like 1/h, and a sweep over td at fixed mesh sequence
+// measures the coefficient of a 1/h-scaled stabilization rather than tau.
+//
+// Nguyen, Peraire and Cockburn take eta_d = kappa/ell with ell a fixed length
+// of the problem (NPC-1 section 3.6.3), so their tau is O(1). To hold tau at T
+// here, pass td = T*h; the meshes are uniform on the unit square, so h = 1/n.
+//
+// The two scalings are different methods, both legitimate:
+//
+//     tau fixed (NPC)   flux k+1, scalar k+1
+//     td fixed          flux k,   scalar about k+1.5   (scalar superconverges)
+//
+// measured below and cross-checked against convdiff -p 2 -dg -hb, which
+// reproduces NPC-1 Table 1 to within 0.15 of an order when tau is held fixed.
+
+namespace darcy_hybridization
+{
+
+struct DGRate { real_t p, u; };
+
+/// Solve on a sequence of meshes and return the rates between the two finest.
+/// With @a fixed_tau the stabilization is held at T under refinement, which is
+/// the NPC scaling; otherwise td is held at T and tau grows like 1/h.
+DGRate DGRates(int order, real_t T, bool fixed_tau = true, int nref = 3,
+               int n0 = 2, Element::Type elem = Element::QUADRILATERAL)
+{
+   Mesh mesh = (elem == Element::WEDGE)
+               ? Mesh::MakeCartesian3D(n0, n0, n0, elem, 1.0, 1.0, 1.0)
+               : Mesh::MakeCartesian2D(n0, n0, elem, false, 1.0, 1.0);
+
+   real_t prev_p = -1.0, prev_u = -1.0;
+   DGRate out{0.0, 0.0};
+   int n = n0;
+   for (int r = 0; r <= nref; r++)
+   {
+      const real_t td = fixed_tau ? (T / n) : T;
+      const Result res = Solve(mesh, order, true, Form::DG, td);
+      if (prev_p > 0.0)
+      {
+         out.p = std::log2(prev_p / res.err_p);
+         out.u = std::log2(prev_u / res.err_u);
+      }
+      prev_p = res.err_p;
+      prev_u = res.err_u;
+      if (r < nref) { mesh.UniformRefinement(); n *= 2; }
+   }
+   return out;
+}
+
+} // namespace darcy_hybridization
+
+TEST_CASE("HDG converges at k+1 in both variables for a fixed tau",
+          "[DarcyForm][DarcyHybridization][HDG]")
+{
+   using namespace darcy_hybridization;
+
+   // The Nguyen-Peraire-Cockburn result: with tau held fixed, both the scalar
+   // and the flux converge at the design order.
+   //
+   // At k = 0 the flux needs tau to be large enough -- measured rates 0.49,
+   // 0.67, 0.89, 1.10 at tau = 0.5, 1, 2, 4 -- so the sweep starts at 2 there.
+   // That is the opposite of a degradation with large tau, and it is consistent
+   // with NPC-1 Example 1, whose stabilization is |c.n| + kappa/ell and so is
+   // itself of order 2 for that problem. At k >= 1 the whole range is optimal.
+   const int order = GENERATE(0, 1, 2);
+   const real_t T = (order == 0) ? GENERATE(2.0, 4.0)
+                    : GENERATE(0.5, 1.0, 2.0, 4.0);
+
+   const DGRate r = DGRates(order, T, true);
+   CAPTURE(order, T, r.p, r.u);
+
+   REQUIRE(r.p > order + 0.7);
+   REQUIRE(r.u > order + 0.7);
+}
+
+TEST_CASE("HDG: the 1/h scaling trades flux order for scalar superconvergence",
+          "[DarcyForm][HDG]")
+{
+   using namespace darcy_hybridization;
+
+   // Holding td fixed instead is a different method, and this pins what it
+   // does rather than calling it a degradation: the flux drops to k while the
+   // scalar gains about half an order over k+1. Both are real, and confusing
+   // this with the NPC scaling is what produced a wrong entry in
+   // HDG-REQUIREMENTS section 5, since at a single resolution the two are
+   // indistinguishable.
+   const int order = GENERATE(1, 2);
+
+   const DGRate fixed_tau = DGRates(order, 1.0, true);
+   const DGRate fixed_td  = DGRates(order, 1.0, false);
+   CAPTURE(order, fixed_tau.p, fixed_tau.u, fixed_td.p, fixed_td.u);
+
+   REQUIRE(fixed_tau.u > order + 0.7);        // optimal
+   REQUIRE(fixed_td.u  < fixed_tau.u - 0.5);  // and the 1/h flux is lower
+   REQUIRE(fixed_td.p  > fixed_tau.p);        // while its scalar is higher
+}
+
+TEST_CASE("HDG: the discontinuous formulation on wedges",
+          "[DarcyForm][DarcyHybridization][HDG][Wedge]")
+{
+   using namespace darcy_hybridization;
+
+   // The element the application has chosen, in the formulation it will
+   // actually use.
+   const int order = launch_all_non_regression_tests ? GENERATE(0, 1, 2)
+                     : GENERATE(0, 1);
+
+   const DGRate r = DGRates(order, 1.0, true, 2, 2, Element::WEDGE);
+   CAPTURE(order, r.p, r.u);
+
+   REQUIRE(r.p > order + 0.7);
 }
