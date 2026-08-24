@@ -2046,8 +2046,10 @@ real_t IsothermalFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
       const real_t &mom2_d = momentum2(d);
       FAvgU(0, d) = 0.5 * (mom1_d + mom2_d); // ρu
 
-      // ρuuᵀ
-      Vector FAvgU_mom(FAvgU.GetData() + 1 + d*(2+dim), dim);
+      // ρuuᵀ. Index rather than arithmetic on the raw pointer: the column
+      // stride is num_equations, which differs between this flux and Euler,
+      // and getting it wrong writes past the end of the matrix.
+      Vector FAvgU_mom(&FAvgU(1, d), dim);
 #ifdef HYPERBOLIC_ISOTHERMAL_FLUX_DYNAMIC_PRESSURE
       const real_t vel1_d = mom1_d / density;
       const real_t vel2_d = mom2_d / density;
@@ -2379,8 +2381,10 @@ real_t EulerFlux::ComputeAvgFlux(const Vector &U1, const Vector &U2,
       const real_t &mom2_d = momentum2(d);
       FAvgU(0, d) = 0.5 * (mom1_d + mom2_d); // ρu
 
-      // ρuuᵀ
-      Vector FAvgU_mom(FAvgU.GetData() + 1 + d*(2+dim), dim);
+      // ρuuᵀ. Index rather than arithmetic on the raw pointer: the column
+      // stride is num_equations, which differs between this flux and Euler,
+      // and getting it wrong writes past the end of the matrix.
+      Vector FAvgU_mom(&FAvgU(1, d), dim);
       const real_t vel1_d = mom1_d / density;
       const real_t vel2_d = mom2_d / density;
       CalcAvgFlux(density1, density2, momentum1, momentum2, vel1_d, vel2_d,
