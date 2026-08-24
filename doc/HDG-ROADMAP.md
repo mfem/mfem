@@ -50,7 +50,9 @@ otherwise. The tests that hold them:
 | 4 nonlinear, Jacobians, per-variable `τ` | `tests/unit/fem/test_darcy_nonlinear.cpp` |
 | 4 nonlinear system, manufactured solution | `tests/unit/fem/test_darcy_nonlinear_mms.cpp` |
 | 5 `τ` and the stabilisation interface | `tests/unit/fem/test_bilininteg_hdg.cpp` |
+| 3(f) cross-field block placement | `tests/unit/fem/test_darcy_system.cpp` |
 | 7 estimators | `tests/unit/fem/test_estimators_hdg.cpp` |
+| 9 the driver | `miniapps/hdg/stokes.cpp` |
 
 The Darcy tests run polynomial orders 0, 1 and 2 by default. Order 2 used to
 sit behind `--all` in several of them; the one case still gated there is order
@@ -300,6 +302,7 @@ The nav table above used to credit them to
 | (b) reaction | yes | `anisodiff` | constant `a`, equivalence only | **none** |
 | (c) convection | yes | `convdiff`, scalar `κ` | — | `convdiff` |
 | (a)+(b)+(c) together | — | **nothing** | **none** | **none** |
+| (f) derivative source | **yes** | `stokes` | `test_darcy_system.cpp` | §9 |
 
 So the gap is not the individual terms — `anisodiff` carries a
 `MatrixFunctionCoefficient` conductivity and a `MassIntegrator` reaction, and
@@ -380,10 +383,26 @@ nothing measures rates for (a) or (b) at all.
   singular one, and look for a change of variable before asking the
   discretisation to cope.** If that search succeeds, this requirement reduces to
   (c) plus (d) and nothing exotic is needed.
-* **(f) Sources that are derivatives of another solved field.** The right-hand
-  side of one problem is a derivative of the solution of another, so the fields
-  must be assembled in a fixed order and the derivative taken in a way consistent
-  with the space it came from.
+* **(f) Sources that are derivatives of another solved field — built, and
+  demonstrated end to end.** The requirement was stated as a sequencing problem:
+  the fields must be assembled in a fixed order and the derivative taken
+  consistently with the space it came from. That framing was wrong, and the
+  right one is better. A derivative of another field is a **first-order
+  cross-field coupling**, and the place for it is the `B` block, which couples
+  flux to potential — not a source computed after the fact. `DarcyForm` forms
+  `±Bᵀ` itself, so placing one such coupling delivers its adjoint for free.
+  Nothing has to be assembled in a particular order and no derivative of a
+  discontinuous field is ever taken.
+
+  What was missing was an integrator that writes into a chosen *(row-field,
+  column-field)* block, since `VectorBlockDiagonalIntegrator` can only
+  replicate down the diagonal. `VectorBlockIntegrator` does that, with element,
+  mixed-element and face overloads, and
+  `VectorBlockDiagonalHDGIntegrator` handles the HDG face terms of a system
+  whose potential and trace spaces carry different numbers of fields. §9 is the
+  demonstration: Stokes' pressure gradient and incompressibility constraint are
+  one such coupling and its transpose, and converge at `k+1` in all three
+  variables.
 
 ## 4. Systems of coupled nonlinear Darcy-like problems, with exact Jacobians
 
@@ -1571,6 +1590,17 @@ re-taken against it, `τ` included.
 biharmonic case is the one with no prior art and should be settled on paper
 early, since it may change what §1 has to supply.
 
+**Where the implementation actually stands, as against the testing.** Every
+operator term §3 asks for exists — a full varying tensor and a reaction in
+`anisodiff`, convection in `convdiff`, a floored `τ` through
+`HDGStabilization::SetStabilization`, and now (f) through the block placement
+integrators. §4 is complete. What §3 still lacks is a driver that *composes*
+(a), (b) and (c) and measures rates against them, which is work in the
+miniapp rather than in the library. **Nothing in §3 or §4 is a prerequisite for
+§1**, which sits on the other branch of the graph above; the remaining
+implementation items — a `vdim`-general postprocessing, §6's flux functional,
+`hp`, §8 — are each independent of it, and of each other.
+
 The two optional sections sit off this graph, and in one order if both are
 wanted: **Optional B before Optional A.** B changes the discretisation, so
 every calibration in §4 and §5 would have to be re-taken after it; A is an
@@ -1608,15 +1638,14 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. **§3(f)**, a source that is a derivative of another solved field, which is a
-   coupling through the flux block rather than the potential block.
-2. **§1 and §2**, untouched.
-3. **§7's `hp`**, and §8 in its entirety.
-4. **Whether the degenerate order loss is asymptotic** — recorded in §3(d),
+1. **§1 and §2**, untouched. Nothing in §3 or §4 blocks them: they sit on their
+   own branch of the dependency graph.
+2. **§7's `hp`**, and §8 in its entirety.
+3. **Whether the degenerate order loss is asymptotic** — recorded in §3(d),
    where the practical answer is already known: floor the stabilisation. The
    estimator's flat total, which used to sit here, is settled in §7 — it was
    the boundary arrangement, not the estimator.
-5. **Postprocessing for a system.** The reconstruction is scalar-only, for the
+4. **Postprocessing for a system.** The reconstruction is scalar-only, for the
    several reasons §4 lists, so the two-equation study cannot be postprocessed
    and the superconvergence table there is a single field. Making it general in
    `vdim` needs the enriched spaces built with a `vdim`, `GetElementVDofs`
@@ -1630,18 +1659,29 @@ Kept with their answers rather than deleted, because the answers are the content
    reconstruction — is a loop over equations away from being general in `vdim`;
    §Optional A step 2. And §Optional B would remove the need entirely for the
    quantity that matters, since HDG (A) is superconvergent as solved.
-6. **The essential-trace route for RT.** `C` gets a boundary block from the
+5. **The essential-trace route for RT.** `C` gets a boundary block from the
    *divergence form's* boundary face markers, and the RT harnesses add no `B`
    face integrators, so nothing registers one — whether adding one is the fix
    is untested. Matters only where `λ` on a boundary face is read. The inert
    boundary stabilisation that sat alongside this is fixed; see §9.
-7. **The miniapps still default to the weak route for DG, and are being left
+6. **The miniapps still default to the weak route for DG, and are being left
    that way deliberately.** The sweep changed the unit-test harnesses, not the
    drivers. Moving `convdiff` and its siblings is the branch author's call,
    not ours, and it would move their regression references; it is being raised
    with them rather than done here. The same goes for the `-trbc` gap above,
    which the library fix has already closed but which nothing in the suite
    exercises.
+7. **Essential traces alongside a first-order cross-field coupling.** With the
+   pressure coupled in, §9's reduced matrix comes out structurally asymmetric
+   and `SparseMatrix::EliminateRowCol` refuses it, so the essential-trace
+   default §7 settled on is unavailable there and the datum has to be taken
+   weakly. This is not particular to Stokes — it will meet any such coupling —
+   and it is the one item here that will block building further on §3(f).
+8. **A pressure-like null space needs pinning properly.** §9 pins it with a
+   small multiple of the pressure mass, which works but leaves the system
+   nearly singular: at `k=2` the finest mesh takes 2449 GMRES iterations and
+   the rate collapses. A mean-zero constraint, or a preconditioner that knows
+   about the mode, is the real answer.
 
 ## References
 
