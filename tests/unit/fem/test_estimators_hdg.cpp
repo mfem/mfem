@@ -44,7 +44,17 @@ struct Solution
 
 /// Solve the hybridized HDG problem and keep the potential and the trace,
 /// which is what the estimator consumes.
-void Solve(Solution &s, int n, int order, real_t T = 1.0)
+///
+/// @a ess_trace selects the boundary treatment. False is the branch's usual DG
+/// arrangement, copied from convdiff: the faces are stabilized on the interior
+/// only and the Dirichlet datum enters weakly through the flux equation, which
+/// leaves the boundary trace unknowns with an empty row and an empty column --
+/// dead, and left at zero. True is convdiff's -trbc route: the boundary traces
+/// are essential and carry the projected datum, so lambda is an approximation
+/// of p there and the trace jump means on a boundary face what it means
+/// everywhere else. The estimator is only usable in the second.
+void Solve(Solution &s, int n, int order, real_t T = 1.0,
+           bool ess_trace = false)
 {
    s.mesh.reset(new Mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
                                                false, 1.0, 1.0)));
@@ -77,18 +87,45 @@ void Solve(Solution &s, int n, int order, real_t T = 1.0)
 
    LinearForm *fform = darcy.GetFluxRHS();
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-   fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(natcoeff));
    darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+
+   Array<int> bdr_ess(s.mesh->bdr_attributes.Max());
+   bdr_ess = 1;
+
+   if (ess_trace)
+   {
+      // The boundary faces join in, and the datum rides on the trace instead
+      // of on the flux equation. The factor two against the interior's one is
+      // convdiff's, and is there because only one side contributes.
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.)), bdr_ess);
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new HDGDiffusionIntegrator(ik, td), bdr_ess);
+   }
+   else
+   {
+      fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(natcoeff));
+   }
 
    Array<int> ess;
    darcy.EnableHybridization(s.fes_t.get(), new NormalTraceJumpIntegrator(),
                              ess);
+   if (ess_trace) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
    darcy.Assemble();
 
    BlockVector x(darcy.GetOffsets());
    x = 0.0;
    OperatorPtr A;
    Vector X, Bv;
+   if (ess_trace)
+   {
+      // FormLinearSystem takes the essential trace values from X, so it has to
+      // arrive sized and carrying them.
+      GridFunction tr0(s.fes_t.get());
+      tr0 = 0.0;
+      tr0.ProjectBdrCoefficient(pcoeff, bdr_ess);
+      X = tr0;
+   }
    darcy.FormLinearSystem(ess, x, A, X, Bv, true);
 
    GSSmoother prec;
@@ -192,73 +229,142 @@ TEST_CASE("HDGErrorEstimator aggregates its local values",
    REQUIRE(est.GetTotalError() == MFEM_Approx(std::sqrt(sum2), 1e-10, 1e-9));
 }
 
-TEST_CASE("HDGErrorEstimator: local values fall, the total does not",
+namespace estimators_hdg
+{
+
+/// The estimator's local values and total on one mesh.
+struct Estimate
+{
+   real_t lmax, total, err_p;
+};
+
+Estimate Measure(int n, int order, bool ess_trace)
+{
+   Solution s;
+   Solve(s, n, order, 1.0, ess_trace);
+
+   ConstantCoefficient k(1.0);
+   RatioCoefficient ik(1.0, k);
+   HDGDiffusionIntegrator integ(ik, 1.0 / n);
+   HDGErrorEstimator est(integ, *s.tr_h, *s.p_h,
+                         HDGErrorEstimator::Type::Energy);
+
+   // GetTotalError() returns a cached value and does not itself trigger the
+   // computation; only GetLocalErrors() and GetAnisotropicFlags() do, so
+   // asking for the total first gives zero. That is the convention across all
+   // of MFEM's estimators, not something particular to this one.
+   const Vector &loc = est.GetLocalErrors();
+   return { loc.Normlinf(), est.GetTotalError(), s.err_p };
+}
+
+} // namespace estimators_hdg
+
+TEST_CASE("HDGErrorEstimator on unconstrained boundary traces measures p, not the error",
           "[HDGErrorEstimator]")
 {
    using namespace estimators_hdg;
 
-   // Measured, on a smooth manufactured solution with tau held fixed:
+   // The trap, pinned. With the branch's usual DG boundary arrangement the
+   // boundary trace unknowns are dead -- empty row, empty column, left at zero
+   // -- so on a boundary face the jump the estimator integrates is p_h itself,
+   // which does not converge to anything. The indicator is then not an error
+   // measure at all there.
    //
-   //     n     max local     total     true L2 error
-   //     4      1.454        2.1339      5.77e-3
-   //     8      1.085        2.1330      1.53e-3
-   //    16      0.788        2.1329      3.84e-4
+   // The arithmetic is exact enough to assert. The energy is
+   // sum_F integral_F tau (p - lambda)^2, tau is one here, and lambda is zero
+   // on the boundary, so the total tends to the boundary norm of the exact
+   // solution:
    //
-   // The per-element value falls, at about h^0.45 here, and the total does not
-   // move at all, because the element count grows faster than the per-element
-   // value shrinks. For marking -- which is what an estimator is usually for,
-   // and where only the relative sizes matter -- that is harmless. For
-   // GetTotalError() as a stopping criterion it is not, and section 7 of
-   // HDG-REQUIREMENTS should not assume otherwise without checking.
+   //     ||p||_{L2(dOmega)}^2 = 0.272675 + 2.014766 + 0 + 2.261961 = 4.549402
    //
-   // Whether the flat total is intended is not established here. What is
-   // asserted is only what was measured.
+   // for p = exp(x) sin(y) on the unit square, whose root is 2.132933.
    const int order = GENERATE(1, 2);
    CAPTURE(order);
 
-   real_t prev_loc = -1.0, prev_err = -1.0;
-   real_t first_total = -1.0, last_total = -1.0;
+   //     k=1   n     max local     total      true L2 error
+   //            4      1.4542       2.133883     5.77e-3
+   //            8      1.0855       2.133017     1.53e-3
+   //           16      0.7880       2.132926     3.84e-4
+   //     k=2   16      0.7881       2.132902     1.70e-6
+   //
+   // The total agrees with the closed form to six figures and does not care
+   // what the polynomial degree is, which on its own settles that it is not
+   // measuring a discretization error. The local values fall at h^0.45 -- the
+   // square root of h, out of the face measure -- while the true error falls
+   // at h^{k+1}, so the boundary elements outweigh the interior ones by
+   // h^{-(k+1)} and grow to dominate. Marking on this would refine the
+   // boundary and nothing else, which is a worse failure than the stopping
+   // criterion this test used to be about.
+   const real_t bdr_norm = 2.132933;
 
+   real_t first_loc = -1.0, last_loc = -1.0, first_err = -1.0, last_err = -1.0;
    for (int n = 4; n <= 16; n *= 2)
    {
-      Solution s;
-      Solve(s, n, order);
-
-      ConstantCoefficient k(1.0);
-      RatioCoefficient ik(1.0, k);
-      HDGDiffusionIntegrator integ(ik, 1.0 / n);
-      HDGErrorEstimator est(integ, *s.tr_h, *s.p_h,
-                            HDGErrorEstimator::Type::Energy);
-
-      // GetTotalError() returns a cached value and does not itself trigger the
-      // computation; only GetLocalErrors() and GetAnisotropicFlags() do, so
-      // asking for the total first gives zero. That is the convention across
-      // all of MFEM's estimators, not something particular to this one.
-      const Vector &loc = est.GetLocalErrors();
-      const real_t lmax = loc.Normlinf();
-      const real_t total = est.GetTotalError();
-
-      CAPTURE(n, lmax, total, s.err_p);
-      REQUIRE(lmax > 0.0);
-      REQUIRE(total > 0.0);
-
-      if (prev_loc > 0.0)
-      {
-         // The local values shrink, which is what marking needs.
-         REQUIRE(lmax < prev_loc);
-         // ... and the true error shrinks faster, which is why the total
-         // cannot be read as a proxy for it.
-         REQUIRE(s.err_p < prev_err);
-      }
-      if (first_total < 0.0) { first_total = total; }
-      last_total = total;
-
-      prev_loc = lmax;
-      prev_err = s.err_p;
+      const Estimate e = Measure(n, order, false);
+      CAPTURE(n, e.lmax, e.total, e.err_p);
+      // Not merely flat: flat at the boundary norm of p.
+      REQUIRE(e.total == MFEM_Approx(bdr_norm, 2e-3, 2e-3));
+      if (first_loc < 0.0) { first_loc = e.lmax; first_err = e.err_p; }
+      last_loc = e.lmax;
+      last_err = e.err_p;
    }
 
-   INFO("total went from " << first_total << " to " << last_total);
-   REQUIRE(last_total == MFEM_Approx(first_total, 1e-2, 1e-2));
+   const real_t r_loc = std::log2(first_loc / last_loc) / 2.0;
+   const real_t r_err = std::log2(first_err / last_err) / 2.0;
+   CAPTURE(r_loc, r_err);
+   REQUIRE(r_loc < 0.6);                 // the square root of h, not h^{k+1}
+   REQUIRE(r_err > order + 0.7);         // while the solution is converging
+}
+
+TEST_CASE("HDGErrorEstimator falls once the boundary traces are constrained",
+          "[HDGErrorEstimator]")
+{
+   using namespace estimators_hdg;
+
+   const int order = GENERATE(1, 2);
+   CAPTURE(order);
+
+   std::vector<real_t> lm, tot, err;
+   for (int n = 4; n <= 16; n *= 2)
+   {
+      const Estimate e = Measure(n, order, true);
+      lm.push_back(e.lmax);
+      tot.push_back(e.total);
+      err.push_back(e.err_p);
+   }
+
+   const int m = tot.size();
+   auto rate = [&](const std::vector<real_t> &v)
+   {
+      return std::log2(v[m-2] / v[m-1]);
+   };
+   const real_t r_loc = rate(lm), r_tot = rate(tot), r_err = rate(err);
+   CAPTURE(r_loc, r_tot, r_err, lm[m-1], tot[m-1], err[m-1]);
+
+   // Constrain the boundary traces and the indicator behaves as an energy-norm
+   // indicator should. Measured over 8x8 to 16x16, against what the scaling
+   // predicts -- the energy is sum_F integral_F tau (p - lambda)^2, so with a
+   // fixed tau a local value carries one power of the face measure that the
+   // pointwise jump does not:
+   //
+   //       k    local        total        true L2
+   //            pred  meas   pred  meas   pred  meas
+   //       1    2.5   2.42   1.5   1.41   2     1.90
+   //       2    3.5   3.41   2.5   2.46   3     2.96
+   //
+   // The total falls half an order slower than the L2 error, which is not a
+   // defect: it is an energy-norm quantity and a different norm. What matters
+   // is that it falls at all, and that the local values fall faster than the
+   // error rather than slower, which is what makes marking meaningful.
+   REQUIRE(r_loc > order + 1.2);
+   REQUIRE(r_tot > order + 0.2);
+   REQUIRE(r_err > order + 0.7);
+
+   // And real reduction over the three meshes, so that a rate taken between
+   // two of them cannot flatter a stagnant sequence. Two refinements at the
+   // measured 1.41 is a factor of 6.9 at k=1, and far more at k=2; four is the
+   // floor.
+   REQUIRE(tot[m-1] < 0.25 * tot[0]);
 }
 
 TEST_CASE("HDGErrorEstimator produces anisotropic flags",

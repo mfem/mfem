@@ -821,6 +821,55 @@ or a Z split along the extrusion axis. Under the mesh constraint above that is
 exactly two independent directions, so **the estimator's anisotropic flags have a
 consumer**.
 
+**Measured, and there is a precondition on using the estimator at all.** The
+indicator is `η_K² = Σ_F ∫_F τ (p̂ − λ)²`, the stabilisation energy, which is
+what the header claims. Run against the branch's usual DG boundary
+arrangement — faces stabilised on the interior only, the Dirichlet datum
+entering weakly through the flux equation — it does not converge:
+
+| `n` | max local | total | true L² error |
+|---|---|---|---|
+| 4 | 1.4542 | 2.133883 | 5.77e-3 |
+| 8 | 1.0855 | 2.133017 | 1.53e-3 |
+| 16 | 0.7880 | 2.132926 | 3.84e-4 |
+
+**And the reason is arithmetic, not the estimator.** That arrangement leaves the
+boundary trace unknowns dead — empty row, empty column, left at zero, as §4
+records — so on a boundary face the jump being integrated is `p_h` itself. With
+`τ = 1` the total is then `‖p‖_{L²(∂Ω)}`, which for `p = eˣ sin y` on the unit
+square is `√4.549402 = 2.132933`: **the measured value to six figures**, and
+unchanged at `k = 2`, which on its own settles that it is not measuring a
+discretisation error.
+
+The consequence is worse than a stopping criterion that does not work. Boundary
+elements carry `η ~ √h` and interior ones `η ~ h^{k+1.5}`, so the ratio diverges
+like `h^{-(k+1)}` — **marking would select boundary elements and nothing else.**
+
+**Constrain the boundary traces and it behaves.** With the essential-trace route
+(`SetEssentialBC` and the datum projected onto the trace, which is what
+`convdiff -trbc` does), against what the scaling predicts:
+
+| `k` | local pred | local meas | total pred | total meas | L² pred | L² meas |
+|---|---|---|---|---|---|---|
+| 1 | 2.5 | 2.42 | 1.5 | 1.41 | 2 | 1.90 |
+| 2 | 3.5 | 3.41 | 2.5 | 2.46 | 3 | 2.96 |
+
+The total falls half an order slower than the L² error, which is not a defect —
+it is an energy-norm quantity and a different norm. Both cases are now pinned in
+`tests/unit/fem/test_estimators_hdg.cpp`, the broken one included, so the trap
+is documented rather than rediscovered.
+
+**This is the third thing to trip over the same boundary arrangement**, after
+§4's unconstrained traces in the Jacobian probe and §Optional B's local problem
+going singular the moment the potential space is enriched. The pattern is clear
+enough to state as a finding: **the branch's default DG boundary treatment —
+weak Dirichlet through the flux equation, no boundary-face stabilisation, no
+essential trace — is a liability rather than a convenience.** It happens to give
+the right answer for a plain equal-order solve, and it fails everything built on
+top: the estimator, an enriched potential space, and any diagnostic that reads
+the trace. The essential-trace route exists and works. It should be the default
+for anything beyond a bare solve.
+
 **So the h-adaptive requirement, anisotropic included, is largely "verify and
 use", not "build".** What has to be checked: that nonconforming refinement of
 *prisms* composes with `DarcyHybridization`'s NC handling end to end, since its
@@ -1292,8 +1341,10 @@ Kept with their answers rather than deleted, because the answers are the content
    coupling through the flux block rather than the potential block.
 2. **§1 and §2**, untouched.
 3. **§7's `hp`**, and §8 in its entirety.
-4. **Whether the degenerate order loss is asymptotic**, and whether the
-   estimator's flat total error is intended — both recorded where they arise.
+4. **Whether the degenerate order loss is asymptotic** — recorded in §3(d),
+   where the practical answer is already known: floor the stabilisation. The
+   estimator's flat total, which used to sit here, is settled in §7 — it was
+   the boundary arrangement, not the estimator.
 5. **Postprocessing for a system.** The reconstruction is scalar-only, for the
    several reasons §4 lists, so the two-equation study cannot be postprocessed
    and the superconvergence table there is a single field. Making it general in
@@ -1308,6 +1359,11 @@ Kept with their answers rather than deleted, because the answers are the content
    reconstruction — is a loop over equations away from being general in `vdim`;
    §Optional A step 2. And §Optional B would remove the need entirely for the
    quantity that matters, since HDG (A) is superconvergent as solved.
+6. **Whether the default DG boundary treatment should be replaced outright**
+   by the essential-trace route, as §7 argues. Three separate pieces of work
+   have now failed on it — the Jacobian probe's null space in §4, the enriched
+   potential space in §Optional B, and the estimator in §7. What is needed now
+   is a decision and a sweep, not another discovery.
 
 ## References
 
