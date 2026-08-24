@@ -944,6 +944,113 @@ private:
    }
 };
 
+/** @brief Replicates an HDG face integrator down the diagonal of a system whose
+    potential and trace spaces carry different numbers of fields.
+
+    VectorBlockDiagonalIntegrator infers a single multiplicity for every space
+    it touches, so it cannot describe a system whose potential space has more
+    fields than its trace space. Stokes is the case in view: the pressure is a
+    potential with no trace of its own, and it is not stabilized. This class is
+    told both counts, and takes one integrator per *trace* field -- a null
+    entry leaves that field alone.
+
+    The layout produced is the one DarcyHybridization slices into D, E, G and
+    H: element 1's fields, then element 2's, then the trace's, each group
+    contiguous in its own field index. A boundary face is the same with the
+    second group empty, which this gets right by construction. */
+class VectorBlockDiagonalHDGIntegrator : public BilinearFormIntegrator
+{
+   int n_pot, n_tr;
+   std::vector<BilinearFormIntegrator*> integs;
+   bool own_integs;
+   DenseMatrix blk;
+
+   /// Size @a elmat for the given group dof counts and multiplicities.
+   static int Setup(const int *dofs, const int *mult, int ng,
+                    DenseMatrix &elmat)
+   {
+      int tot = 0;
+      for (int g = 0; g < ng; g++) { tot += mult[g] * dofs[g]; }
+      elmat.SetSize(tot);
+      elmat = 0.0;
+      return tot;
+   }
+
+   /// Copy the scalar block held in @a blk into field @a i of every group.
+   void PlaceOne(int i, const int *dofs, const int *mult, int ng,
+                 DenseMatrix &elmat) const
+   {
+      int goff[3] = {0, 0, 0}, soff[3] = {0, 0, 0};
+      for (int g = 1; g < ng; g++)
+      {
+         goff[g] = goff[g-1] + mult[g-1] * dofs[g-1];
+         soff[g] = soff[g-1] + dofs[g-1];
+      }
+      for (int a = 0; a < ng; a++)
+         for (int b = 0; b < ng; b++)
+         {
+            if (dofs[a] == 0 || dofs[b] == 0) { continue; }
+            elmat.CopyMN(blk, dofs[a], dofs[b], soff[a], soff[b],
+                         goff[a] + i * dofs[a], goff[b] + i * dofs[b]);
+         }
+   }
+
+public:
+   /** @brief @a n_pot_ potential fields against @a n_tr_ trace fields, with
+       one integrator per trace field. Ownership is taken unless @a own is
+       false. */
+   VectorBlockDiagonalHDGIntegrator(int n_pot_, int n_tr_,
+                                    const std::vector<BilinearFormIntegrator*> &in,
+                                    bool own = true)
+      : n_pot(n_pot_), n_tr(n_tr_), integs(in), own_integs(own)
+   {
+      MFEM_ASSERT((int)integs.size() <= n_tr && n_tr <= n_pot,
+                  "one integrator per trace field, and no more trace fields "
+                  "than potential fields");
+   }
+
+   virtual ~VectorBlockDiagonalHDGIntegrator()
+   {
+      if (own_integs) { for (auto *i : integs) { delete i; } }
+   }
+
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+                              const FiniteElement &el1,
+                              const FiniteElement &el2,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override
+   {
+      const int dofs[3] = { el1.GetDof(),
+                            (Trans.Elem2No >= 0) ? el2.GetDof() : 0,
+                            trace_el.GetDof()
+                          };
+      const int mult[3] = { n_pot, n_pot, n_tr };
+      Setup(dofs, mult, 3, elmat);
+      for (int i = 0; i < (int)integs.size(); i++)
+      {
+         if (!integs[i]) { continue; }
+         integs[i]->AssembleHDGFaceMatrix(trace_el, el1, el2, Trans, blk);
+         PlaceOne(i, dofs, mult, 3, elmat);
+      }
+   }
+
+   void AssembleHDGFaceMatrix(int side, const FiniteElement &trace_el,
+                              const FiniteElement &el,
+                              FaceElementTransformations &Trans,
+                              DenseMatrix &elmat) override
+   {
+      const int dofs[2] = { el.GetDof(), trace_el.GetDof() };
+      const int mult[2] = { n_pot, n_tr };
+      Setup(dofs, mult, 2, elmat);
+      for (int i = 0; i < (int)integs.size(); i++)
+      {
+         if (!integs[i]) { continue; }
+         integs[i]->AssembleHDGFaceMatrix(side, trace_el, el, Trans, blk);
+         PlaceOne(i, dofs, mult, 2, elmat);
+      }
+   }
+};
+
 template<typename FType, int N, int M, typename... Args>
 void VectorBlockDiagonalIntegrator::AssembleMat(
    FType f,

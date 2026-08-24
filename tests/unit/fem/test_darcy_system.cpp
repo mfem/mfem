@@ -464,6 +464,111 @@ TEST_CASE("An off-diagonal block integrator places exactly one block",
       }
 }
 
+TEST_CASE("An HDG face block wrapper handles unequal field counts",
+          "[DarcyForm][DarcyHybridization][System][HDG]")
+{
+   // VectorBlockDiagonalIntegrator infers one multiplicity for every space, so
+   // it cannot describe a potential space with more fields than the trace
+   // space -- Stokes, where the pressure is a potential with no trace and no
+   // stabilization. VectorBlockDiagonalHDGIntegrator is told both counts.
+   //
+   // What is checked is that each stabilized field's block lands where
+   // DarcyHybridization will look for it -- element 1's fields, then element
+   // 2's, then the trace's -- and that the unstabilized potential field is
+   // left untouched.
+   const int order = GENERATE(0, 1, 2);
+   const int n_pot = 3, n_tr = 2;      // two velocities and a pressure
+   CAPTURE(order);
+
+   const int dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll), fes_t(&mesh, &t_coll);
+
+   int f = -1;
+   for (int i = 0; i < mesh.GetNumFaces(); i++)
+   {
+      if (mesh.FaceIsInterior(i)) { f = i; break; }
+   }
+   REQUIRE(f >= 0);
+   FaceElementTransformations *ftr = mesh.GetFaceElementTransformations(f);
+   const FiniteElement &el1 = *fes_p.GetFE(ftr->Elem1No);
+   const FiniteElement &el2 = *fes_p.GetFE(ftr->Elem2No);
+   const FiniteElement &tr_el = *fes_t.GetFaceElement(f);
+
+   ConstantCoefficient kap(1.0);
+
+   // The reference: one scalar HDG face matrix.
+   DenseMatrix ref;
+   HDGDiffusionIntegrator scalar(kap, 0.7);
+   scalar.AssembleHDGFaceMatrix(tr_el, el1, el2, *ftr, ref);
+
+   const int n1 = el1.GetDof(), n2 = el2.GetDof(), nt = tr_el.GetDof();
+   REQUIRE(ref.Height() == n1 + n2 + nt);
+
+   std::vector<BilinearFormIntegrator *> stab(n_tr);
+   for (int i = 0; i < n_tr; i++)
+   {
+      stab[i] = new HDGDiffusionIntegrator(kap, 0.7);
+   }
+   VectorBlockDiagonalHDGIntegrator blocked(n_pot, n_tr, stab);
+
+   DenseMatrix elmat;
+   blocked.AssembleHDGFaceMatrix(tr_el, el1, el2, *ftr, elmat);
+
+   const int tot = n_pot * n1 + n_pot * n2 + n_tr * nt;
+   REQUIRE(elmat.Height() == tot);
+   REQUIRE(elmat.Width() == tot);
+
+   // Group offsets, in the order DarcyHybridization slices them.
+   const int gdof[3] = {n1, n2, nt};
+   const int gmul[3] = {n_pot, n_pot, n_tr};
+   int goff[3] = {0, 0, 0}, soff[3] = {0, 0, 0};
+   for (int g = 1; g < 3; g++)
+   {
+      goff[g] = goff[g-1] + gmul[g-1] * gdof[g-1];
+      soff[g] = soff[g-1] + gdof[g-1];
+   }
+
+   // Every entry: the scalar block on field i of both groups, zero elsewhere.
+   // In particular the pressure's potential rows and columns are untouched.
+   for (int a = 0; a < 3; a++)
+      for (int b = 0; b < 3; b++)
+         for (int fa = 0; fa < gmul[a]; fa++)
+            for (int fb = 0; fb < gmul[b]; fb++)
+               for (int i = 0; i < gdof[a]; i++)
+                  for (int j = 0; j < gdof[b]; j++)
+                  {
+                     const real_t e = elmat(goff[a] + fa * gdof[a] + i,
+                                            goff[b] + fb * gdof[b] + j);
+                     const bool on = (fa == fb) && (fa < n_tr);
+                     const real_t want = on ? ref(soff[a] + i, soff[b] + j) : 0.0;
+                     if (e != want) { CAPTURE(a, b, fa, fb, i, j, e, want); }
+                     REQUIRE(e == want);
+                  }
+
+   // A boundary face is the same layout with the second group empty, which is
+   // where the old wrapper produced a matrix of the wrong shape that the
+   // caller then silently discarded.
+   int bf = -1;
+   for (int i = 0; i < mesh.GetNumFaces(); i++)
+   {
+      if (!mesh.FaceIsInterior(i)) { bf = i; break; }
+   }
+   REQUIRE(bf >= 0);
+   FaceElementTransformations *btr = mesh.GetFaceElementTransformations(bf);
+   const FiniteElement &bel = *fes_p.GetFE(btr->Elem1No);
+   const FiniteElement &btr_el = *fes_t.GetFaceElement(bf);
+   DenseMatrix belmat;
+   blocked.AssembleHDGFaceMatrix(btr_el, bel, bel, *btr, belmat);
+   const int btot = n_pot * bel.GetDof() + n_tr * btr_el.GetDof();
+   REQUIRE(belmat.Height() == btot);
+   REQUIRE(belmat.Width() == btot);
+   REQUIRE(belmat.MaxMaxNorm() > 0.0);
+}
+
 TEST_CASE("A block-diagonal Darcy system reproduces its equations one by one",
           "[DarcyForm][DarcyHybridization][System]")
 {
