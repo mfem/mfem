@@ -45,14 +45,31 @@
 //                 1  +1   1.09   1.11   u only k, gradient k+1
 //
 //               Five of the six reproduce the paper. The exception is the
-//               gradient at ts = +1, and the reason is the branch's rather
-//               than the method's: DarcyHybridization assembles the flux
-//               constraint C on interior faces only, so a DG boundary trace
-//               reaches the system solely through the boundary stabilization's
-//               E and G blocks -- which means the strength with which the
-//               Dirichlet datum is imposed is tied to tau. As tau falls like h
-//               the boundary condition weakens with it, and NPC's does not.
-//               See the boundary treatment sweep in section 7 of the roadmap.
+//               gradient at ts = +1, which settles at k rather than k+1 -- it
+//               is not pre-asymptotic, reading 1.03 against u's 1.03 on a
+//               64x64 mesh. The most likely reason is simply that stage 1 is
+//               not Stokes: with the pressure a known source these are d
+//               decoupled diffusion problems, and NPC's table describes the
+//               coupled system, where the gradient's convergence is tied to
+//               the pressure's. That should be revisited once stage 2 lands
+//               rather than explained away now.
+//
+//               Two things measured while chasing it, both worth keeping:
+//
+//               The Dirichlet datum reaches the flux equation through C^T,
+//               independently of tau. DarcyForm::EnableHybridization walks the
+//               *divergence form's* boundary face markers and registers the
+//               trace-jump integrator as a boundary flux constraint on each,
+//               so adding a boundary face integrator to B is what gives C a
+//               boundary block. Perturbing the essential trace values wrecks
+//               the solution, which is the check that the datum is live.
+//
+//               The boundary stabilization below is, by contrast, inert:
+//               removing it entirely, or scaling it over six decades, leaves
+//               the answer bit for bit identical, even though the integrator
+//               is registered (NumBdrPotConstraintIntegrators() is one). It is
+//               kept because the method calls for it; that it does nothing is
+//               a defect, recorded in section 9 of the roadmap.
 
 #include "mfem.hpp"
 #include <fstream>

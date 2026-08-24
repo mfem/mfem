@@ -900,25 +900,36 @@ boundary flux constraint integrator is registered. A boundary trace unknown
 therefore had no constraint row *and* no `Cᵀ` column: nothing determined it,
 and it influenced nothing.
 
+**Corrected in §9: registering one is easier than this section first said.**
+`DarcyForm::EnableHybridization` walks the *divergence form's* boundary face
+markers and registers the trace-jump integrator as a boundary flux constraint
+on each, so **adding a boundary face integrator to `B` is what gives `C` a
+boundary block** — which the DG harnesses do, and which is why their essential
+traces inject through `Cᵀ` and not, as this section originally claimed, through
+the stabilisation.
+
 **Which route is available depends on where the datum can enter, and the two
 spaces differ.**
 
-* **RT and broken RT keep the weak route**, and should. The datum would have to
-  ride in on `Cᵀ`, `C` has no boundary block, and the integrator that would
-  give it one cannot be registered in time — `DarcyForm::EnableHybridization`
-  forwards only the *potential* boundary constraint integrators and then calls
-  `Init()`, which is what builds `C`. Measured, going through the motions
-  anyway leaves the datum nowhere and the potential comes out right up to a
-  constant, a fixed error of 0.26 at every order and every mesh. The weak route
-  is the classical hybridized mixed Dirichlet condition and there is nothing
-  wrong with it; the price is that `λ` on a boundary face is meaningless and
-  must not be read.
-* **DG takes the essential route**, and does not need `C` for it: the boundary
-  stabilisation couples `λ` to the potential directly through `E` and `G`. The
-  boundary faces join the divergence form and the stabilisation, the datum is
-  projected onto the trace, and `λ` then means the same thing everywhere. The
-  estimator above needs exactly that, and so would an enriched potential space
-  (§Optional B).
+* **RT and broken RT keep the weak route.** Measured, going through the motions
+  of the essential route leaves the datum nowhere and the potential comes out
+  right up to a constant, a fixed error of 0.26 at every order and every mesh.
+  The reason given here at first — that a boundary flux constraint integrator
+  cannot be registered in time — is **wrong**, and §9 says why: `B`'s boundary
+  face markers are what register it, and the RT harnesses add no `B` face
+  integrators at all, so none is registered. Whether adding one is the fix for
+  RT is untested and is the open item below. The weak route is in any case the
+  classical hybridized mixed Dirichlet condition and there is nothing wrong
+  with it; the price is that `λ` on a boundary face is meaningless and must not
+  be read.
+* **DG takes the essential route.** The boundary faces join the divergence
+  form and the stabilisation, the datum is projected onto the trace, and `λ`
+  then means the same thing everywhere. The estimator above needs exactly that,
+  and so would an enriched potential space (§Optional B). It is joining the
+  *divergence form* that matters: that is what registers the boundary flux
+  constraint and gives `C` its boundary block. §9 measures the stabilisation's
+  boundary contribution to be inert — removable entirely, with the answer bit
+  for bit unchanged — which is a defect in its own right.
 
 **What it cost in rates.** A different method, landing a little lower at the
 same orders. §4's nonlinear system study and its postprocessing table are both
@@ -1091,15 +1102,31 @@ Five of six reproduce it, including the `ts = −1` trade in both directions and
 of order unity — is their recommendation and ours**, and it agrees with what §5
 found for diffusion by a different route.
 
-**The sixth row is the branch's doing, not the method's.** At `ts = +1` the
-gradient reads 1.11 where the paper has `k+1`. `ConstructC` assembles the flux
-constraint on interior faces only, so a DG boundary trace reaches the system
-solely through the boundary stabilisation's `E` and `G` blocks — **the strength
-with which the Dirichlet datum is imposed is tied to `τ`**, and as `τ` falls
-like `h` the boundary condition weakens with it. NPC's numerical trace carries
-the datum regardless of `τ`. Same root cause as everything else in §7's sweep,
-and the sharpest demonstration of it so far, since here it costs a convergence
-order.
+**The sixth row does not reproduce, and the first explanation for it was
+wrong.** At `ts = +1` the gradient settles at `k` where the paper has `k+1` —
+1.03 against `u`'s 1.03 on a 64×64 mesh, so not pre-asymptotic. It was first
+put down to the Dirichlet datum's strength being tied to `τ` through the
+stabilisation. **Measured, that is not what happens**, and chasing it turned up
+two things worth more than the explanation:
+
+* **The datum reaches the flux equation through `Cᵀ`, independently of `τ`.**
+  `DarcyForm::EnableHybridization` walks the *divergence form's* boundary face
+  markers and registers the trace-jump integrator as a boundary flux constraint
+  on each — so adding a boundary face integrator to `B` is what gives `C` a
+  boundary block. §7's sweep said this could not be done; it is done
+  automatically. Perturbing the essential trace values wrecks the solution,
+  which is the check that the datum is live.
+* **The boundary stabilisation is inert.** Removing it entirely, or scaling it
+  over six decades, leaves the answer bit for bit identical — even though the
+  integrator is registered and `NumBdrPotConstraintIntegrators()` returns one.
+  That is a defect, and it means the DG boundary faces are currently
+  unstabilised whatever `τ` says.
+
+The likeliest reason for the row is duller: **stage 1 is not Stokes.** With the
+pressure a known source these are `d` decoupled diffusion problems, and the
+paper's table describes the coupled system, where the gradient's convergence is
+tied to the pressure's. Revisit it once stage 2 lands rather than explain it
+away now.
 
 ### What it covers, and what has to be added
 
@@ -1527,12 +1554,14 @@ Kept with their answers rather than deleted, because the answers are the content
    reconstruction — is a loop over equations away from being general in `vdim`;
    §Optional A step 2. And §Optional B would remove the need entirely for the
    quantity that matters, since HDG (A) is superconvergent as solved.
-6. **A boundary flux constraint integrator that can be registered in time**, so
-   that RT could take the essential-trace route at all. `C` has no boundary
-   block and `EnableHybridization` builds it before anything can be added.
-   Needed only if something has to read `λ` on a boundary face of an RT
-   problem — §7's estimator on the mixed form is the case in view. The
-   discontinuous spaces do not need it; see §7's sweep.
+6. **The essential-trace route for RT, and the inert boundary stabilisation.**
+   Two loose ends from §9's measurements. `C` gets a boundary block from the
+   *divergence form's* boundary face markers, and the RT harnesses add no `B`
+   face integrators, so nothing registers one — whether adding one is the fix
+   is untested. Separately, a boundary potential constraint integrator is
+   registered and contributes nothing: removing the boundary stabilisation
+   leaves the answer bit for bit identical. Both matter only where `λ` on a
+   boundary face is read.
 7. **The miniapps still default to the weak route for DG, and are being left
    that way deliberately.** The sweep changed the unit-test harnesses, not the
    drivers. Moving `convdiff` and its siblings is the branch author's call,
