@@ -30,9 +30,9 @@
 //               with its own source correction, so Kovasznay stays the
 //               manufactured solution throughout.
 //
-//               What is built so far is recorded in Stage below. Stage 1 is
-//               complete and validated; stage 2 assembles and solves but does
-//               not yet converge -- see the note on Stage::Stokes.
+//               What is built so far is recorded in Stage below. -diag reads
+//               the stage 2 blocks against the exact solution, which is what
+//               found the sign error that had the pressure pinned to zero.
 //
 //               Validated against NPC's own convergence study, section 4.1,
 //               which sweeps the stabilization as nu*tau = h^ts. Rates over
@@ -95,25 +95,28 @@ enum class Stage
    /// which turns both of its couplings into blocks of B. DarcyForm forms the
    /// transpose that pairs them, which is Stokes' own symmetry.
    ///
-   /// **Incomplete.** It assembles, the trace system is the same size as
-   /// stage 1's -- 2176 against 2176 at n=16, so the pressure has genuinely
-   /// added no global unknowns -- and GMRES converges in 73 iterations against
-   /// stage 1's 55. But the answer does not converge under refinement: the
-   /// velocity, flux and mean-removed pressure errors all sit flat at 0.49,
-   /// 0.28 and 0.22.
+   /// Converges at k+1 in all three variables, which is NPC's nu*tau = 1 row.
+   /// Rates over the two finest of four meshes from 4x4, or the pair before
+   /// that at k=2:
    ///
-   /// Settled so far. The rectangular arrangement itself is not the problem
-   /// the way the earlier dummy-flux one was; the sign of the potential mass
-   /// block that cancels the isotropic part must be positive, since the
-   /// negative one makes the local solve singular; and a bisection that drops
-   /// the coupling blocks proves nothing here, because the source -f_i
-   /// assumes the pressure gradient is in the operator.
+   ///     k    u      sigma   p
+   ///     0    1.01   0.83    0.80
+   ///     1    2.05   1.92    2.01
+   ///     2    2.76   2.77    2.84
    ///
-   /// What to do next is the diagnostic this has twice been deferred in favour
-   /// of guessing: assemble monolithically, project the exact (sigma, w) into
-   /// the spaces, and look at the residual row by row. That separates a wrong
-   /// operator from a wrong solve, and in particular says directly whether the
-   /// pressure row really reduces to (div u, w) = 0.
+   /// The pressure is determined only up to a constant by an all-Dirichlet
+   /// velocity, so a small multiple of the pressure mass pins it and the
+   /// errors are measured with the mean of the difference removed -- from the
+   /// stress as well, which carries the pressure on its diagonal and inherits
+   /// the same constant. Forgetting the second is what made the stress look
+   /// like it had stalled at 0.117 when it had not.
+   ///
+   /// Two things are still wrong with it. At k=2 the finest mesh breaks down,
+   /// 2449 GMRES iterations and the rate collapsing, which is the solver
+   /// meeting a nearly singular system rather than the discretization; and it
+   /// has to take the Dirichlet datum weakly, because with the pressure
+   /// coupled in the reduced matrix comes out structurally asymmetric and the
+   /// essential-trace elimination refuses it.
    Stokes = 2,
 };
 
@@ -357,7 +360,8 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
    DarcyForm darcy(&fes_q, &fes_u);
 
    const real_t nu = kov->Viscosity();
-   ConstantCoefficient inu(1.0 / nu), one(1.0), dnu(real_t(dim) / nu);
+   ConstantCoefficient inu(1.0 / nu), one(1.0), dnu(-real_t(dim) / nu),
+                       eps(1e-8);
 
    // nu^-1 (sigma, v), replicated down the momentum components.
    std::vector<BilinearFormIntegrator *> mass(nv);
@@ -394,11 +398,6 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
             new VectorBlockIntegrator(
                np, nv * dim, i, i * dim,
                new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
-         B->AddBdrFaceIntegrator(
-            new VectorBlockIntegrator(
-               np, nv * dim, i, i * dim,
-               new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
-            bdr_ess);
 
          // The coupling, one object read two ways. Forward it collects
          // nu^-1 sum_i (sigma_i)_i into the pressure's row; since
@@ -412,6 +411,12 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
       }
       darcy.GetPotentialMassForm()->AddDomainIntegrator(
          new VectorBlockIntegrator(np, np, nv, nv, new MassIntegrator(dnu)));
+      // All-Dirichlet velocity leaves the pressure determined only up to a
+      // constant, so the constraint row is singular. A small multiple of the
+      // pressure mass pins it; the error is measured with the mean removed, so
+      // what this perturbs is below anything being read.
+      darcy.GetPotentialMassForm()->AddDomainIntegrator(
+         new VectorBlockIntegrator(np, np, nv, nv, new MassIntegrator(eps)));
    }
 
    // The stabilization. HDGDiffusionIntegrator builds tau = td Q / h, so with
@@ -446,11 +451,15 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
       // for.
       darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
          new VectorBlockDiagonalHDGIntegrator(np, nv, stab));
-      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
-         new VectorBlockDiagonalHDGIntegrator(np, nv, bstab), bdr_ess);
+      for (auto *i : bstab) { delete i; }
    }
 
    VectorFunctionCoefficient gcoeff(np, gFun), wcoeff(np, wFun);
+   VectorFunctionCoefficient natcoeff(nv, [](const Vector &x, Vector &v)
+   {
+      kov->Velocity(x, v);
+      v.Neg();
+   });
    VectorFunctionCoefficient ucoeff(nv, uFun);
    VectorFunctionCoefficient qcoeff(nv * dim, qFun);
    darcy.GetPotentialRHS()->AddDomainIntegrator(
@@ -461,15 +470,31 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
       &fes_t,
       new VectorBlockDiagonalIntegrator(nv, new NormalTraceJumpIntegrator),
       ess_flux_tdofs);
-   darcy.GetHybridization()->SetEssentialBC(bdr_ess);
+   // Stage 1 puts the velocity datum on an essential trace, which section 7's
+   // sweep settled as the default for the discontinuous spaces. Stage 2 cannot
+   // yet: with the pressure coupled in, the reduced matrix comes out
+   // structurally asymmetric and SparseMatrix::EliminateRowCol refuses it. The
+   // weak route -- the datum on the flux equation's natural term -- is correct
+   // for solving, which is what is being established here, so it is used until
+   // that is chased down.
+   if (!with_p) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
+   else
+   {
+      darcy.GetFluxRHS()->AddBdrFaceIntegrator(
+         new VectorBoundaryFluxLFIntegrator(natcoeff));
+   }
 
-   darcy.Assemble();
+   // skip_zeros = 0: with the pressure coupled in, entries of the reduced
+   // matrix cancel exactly, and dropping them leaves a sparsity that is no
+   // longer symmetric, which the essential-trace elimination requires.
+   darcy.Assemble(with_p ? 0 : 1);
 
    BlockVector x(darcy.GetOffsets());
    x = 0.0;
 
    OperatorPtr A;
    Vector X, RHS;
+   if (!with_p)
    {
       GridFunction tr0(&fes_t);
       tr0 = 0.0;
@@ -528,6 +553,15 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
       for (int i = 0; i < n1; i++) { p_h(i) -= shift; }
       r.err_p = p_h.ComputeL2Error(pc, irs);
 
+      // The stress carries the pressure on its diagonal, so it inherits the
+      // same undetermined constant and has to have it removed too.
+      const int nq = fes_q.GetVSize() / (nv * dim);
+      for (int i = 0; i < nv; i++)
+         for (int j = 0; j < nq; j++)
+         {
+            q_h((i * dim + i) * nq + j) -= shift;
+         }
+
       FiniteElementSpace fes_v(&mesh, &u_coll, nv, Ordering::byNODES);
       GridFunction uh(&fes_v);
       for (int i = 0; i < nv * n1; i++) { uh(i) = x.GetBlock(1)(i); }
@@ -544,11 +578,112 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
    return r;
 }
 
+/// Read the stage 2 blocks against the exact solution, row by row.
+///
+/// The claim being tested is arithmetic, not asymptotic. B's pressure row
+/// collects nu^-1 sum_i (sigma_i)_i, and since (sigma_i)_i = -nu d_i u_i + p
+/// that is (-div u + (d/nu) p, w); Kovasznay is divergence free, so applied to
+/// the exact solution it must equal ((d/nu) p, w), which is what the
+/// cancelling potential mass block also produces. If the two agree, the
+/// cancellation is available and only the sign with which the potential
+/// equation combines them is in question -- read off directly rather than
+/// guessed.
+///
+/// The momentum rows are checked the same way: B's row i applied to the exact
+/// stress must be (f_i, w_i), the momentum source.
+void Diagnose(Mesh &mesh, int order)
+{
+   const int dim = mesh.Dimension();
+   const int nv = dim, np = nv + 1;
+   const real_t nu = kov->Viscosity();
+
+   L2_FECollection q_coll(order, dim), u_coll(order, dim);
+   FiniteElementSpace fes_q(&mesh, &q_coll, nv * dim, Ordering::byNODES);
+   FiniteElementSpace fes_u(&mesh, &u_coll, np, Ordering::byNODES);
+   FiniteElementSpace fes_1(&mesh, &u_coll);
+
+   ConstantCoefficient inu(1.0 / nu), dnu(real_t(dim) / nu);
+
+   // B's volume blocks only: its faces never touch the pressure row.
+   MixedBilinearForm Bd(&fes_q, &fes_u);
+   for (int i = 0; i < nv; i++)
+   {
+      Bd.AddDomainIntegrator(
+         new VectorBlockIntegrator(np, nv * dim, i, i * dim,
+                                   new VectorDivergenceIntegrator));
+      Bd.AddDomainIntegrator(
+         new VectorBlockIntegrator(np, nv * dim, nv, i * dim + i,
+                                   new MassIntegrator(inu)));
+   }
+   Bd.Assemble();
+   Bd.Finalize();
+
+   BilinearForm Md(&fes_u);
+   Md.AddDomainIntegrator(
+      new VectorBlockIntegrator(np, np, nv, nv, new MassIntegrator(dnu)));
+   Md.Assemble();
+   Md.Finalize();
+
+   VectorFunctionCoefficient qc(nv * dim, qFun), wc(np, wFun);
+   GridFunction sig(&fes_q), w(&fes_u);
+   sig.ProjectCoefficient(qc);
+   w.ProjectCoefficient(wc);
+
+   Vector bs(fes_u.GetVSize()), mw(fes_u.GetVSize());
+   Bd.Mult(sig, bs);
+   Md.Mult(w, mw);
+
+   const int n1 = fes_1.GetVSize();
+   Vector fref(fes_u.GetVSize());
+   fref = 0.0;
+   for (int i = 0; i < nv; i++)
+   {
+      const int comp = i;
+      FunctionCoefficient fi([comp](const Vector &x)
+      {
+         Vector f;
+         kov->Momentum(x, f);
+         return f(comp);
+      });
+      LinearForm lf(&fes_1);
+      lf.AddDomainIntegrator(new DomainLFIntegrator(fi));
+      lf.Assemble();
+      for (int j = 0; j < n1; j++) { fref(i * n1 + j) = lf.Elem(j); }
+   }
+
+   auto bnorm = [&](const Vector &v, int c)
+   {
+      real_t m = 0.0;
+      for (int j = 0; j < n1; j++) { m = std::max(m, std::abs(v(c * n1 + j))); }
+      return m;
+   };
+   auto bdiff = [&](const Vector &a, const Vector &b, int c, real_t sgn)
+   {
+      real_t m = 0.0;
+      for (int j = 0; j < n1; j++)
+      { m = std::max(m, std::abs(a(c * n1 + j) + sgn * b(c * n1 + j))); }
+      return m;
+   };
+
+   cout << "\n  blocks at the exact solution, " << mesh.GetNE()
+        << " elements, order " << order << "\n";
+   for (int i = 0; i < nv; i++)
+   {
+      cout << "    momentum " << i << ":  |B sigma| = " << bnorm(bs, i)
+           << "   |(f,w)| = " << bnorm(fref, i)
+           << "   |B sigma - (f,w)| = " << bdiff(bs, fref, i, -1.0) << "\n";
+   }
+   cout << "    pressure  :  |B sigma| = " << bnorm(bs, nv)
+        << "   |M_p w| = " << bnorm(mw, nv)
+        << "   |B sigma - M_p w| = " << bdiff(bs, mw, nv, -1.0)
+        << "   |B sigma + M_p w| = " << bdiff(bs, mw, nv, +1.0) << "\n";
+}
+
 int main(int argc, char *argv[])
 {
    int nx = 8, ny = 8, order = 1, ref_levels = 0, stage_i = 1, ts = 0;
    real_t nu = 0.1, td = 1.0;
-   bool verbose = false, visualization = false;
+   bool verbose = false, visualization = false, diagnose = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&nx, "-nx", "--ncells-x", "Number of cells in x.");
@@ -565,6 +700,8 @@ int main(int argc, char *argv[])
                   "How much of the operator to assemble (1 = momentum only).");
    args.AddOption(&verbose, "-v", "--verbose", "-no-v", "--no-verbose",
                   "Print the solver history.");
+   args.AddOption(&diagnose, "-diag", "--diagnose", "-no-diag", "--no-diagnose",
+                  "Read the stage 2 blocks against the exact solution.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Send the solution to GLVis (not implemented yet).");
@@ -587,6 +724,16 @@ int main(int argc, char *argv[])
    Mesh mesh = Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL, false,
                                      2.0, 2.0);
    for (int i = 0; i < mesh.GetNV(); i++) { mesh.GetVertex(i)[1] -= 0.5; }
+
+   if (diagnose)
+   {
+      for (int l = 0; l <= ref_levels; l++)
+      {
+         Diagnose(mesh, order);
+         if (l < ref_levels) { mesh.UniformRefinement(); }
+      }
+      return 0;
+   }
 
    cout << "\n  n      dim(M)     ||u-u_h||    rate     ||q-q_h||    rate"
         << ((kov_stage >= Stage::Stokes) ? "     ||p-p_h||    rate" : "")

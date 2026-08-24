@@ -1192,24 +1192,48 @@ down the diagonal of a system whose potential and trace spaces carry different
 numbers of fields. Neither could be expressed before;
 `VectorBlockDiagonalIntegrator` infers a single multiplicity for everything.
 
-**It assembles and solves, and does not yet converge.** The trace system is
-the same size as stage 1's — 2176 against 2176 at `n=16`, so the pressure has
-genuinely added no global unknowns, which is the point of the arrangement —
-and GMRES takes 73 iterations against 55. But the velocity, flux and
-mean-removed pressure errors sit flat at 0.49, 0.28 and 0.22.
+**It works.** The trace system is the same size as stage 1's — 2176 against
+2176 at `n=16`, so the pressure adds no global unknowns, which is the point of
+the arrangement — and all three variables converge at `k+1`, which is NPC's
+`ντ = 1` row. Over the two finest of four meshes from 4×4, or the pair before
+that at `k=2`:
 
-Settled: the arrangement is not broken the way the dummy-flux one was; the
-cancelling potential mass block's sign must be positive, the negative one
-making the local solve singular; and dropping the coupling blocks proves
-nothing, because the source `−f_i` assumes the pressure gradient is in the
-operator. **What is next is the diagnostic twice deferred in favour of
-guessing**: assemble monolithically, project the exact `(σ, w)`, and read the
-residual row by row, which separates a wrong operator from a wrong solve and
-says directly whether the pressure row reduces to `(∇·u, w) = 0`.
+| `k` | `u` | `σ` | `p` |
+|---|---|---|---|
+| 0 | 1.01 | 0.83 | 0.80 |
+| 1 | 2.05 | 1.92 | 2.01 |
+| 2 | 2.76 | 2.77 | 2.84 |
+
+**It was found by the diagnostic, not by more guessing.** `stokes -diag`
+assembles `B` and the cancelling potential mass block standalone, applies them
+to the *exact* solution and reads the pressure row. `B σ` and `M_p w` came out
+equal to machine precision — 6.9e-18 — so the cancellation was exactly
+available and only the sign of the combination was in question. It was wrong:
+the potential row was taking their **sum**, so the pressure row read
+`−2(d/ν)(p, w) = 0` and pinned the pressure to zero, which is why every error
+sat flat. Two sign guesses had already missed it; one measurement settled it in
+a single run.
+
+Two things remain wrong. At `k=2` the finest mesh breaks down — 2449 GMRES
+iterations and the rate collapsing — which is the solver meeting a nearly
+singular system, not the discretisation; the pressure is determined only up to
+a constant by an all-Dirichlet velocity, pinned here by a small multiple of the
+pressure mass. And stage 2 has to take the Dirichlet datum **weakly**, because
+with the pressure coupled in the reduced matrix comes out structurally
+asymmetric and `SparseMatrix::EliminateRowCol` refuses it — so the
+essential-trace default §7 settled on is unavailable here, and that is the next
+thing to chase.
+
+A convention worth stating, since getting it wrong cost a false alarm: the
+stress carries the pressure on its diagonal, so it inherits the same
+undetermined constant and the mean has to be removed from **it** as well.
+Removing it from the pressure alone left the stress apparently stalled at
+0.117 when it was converging.
 
 The other route remains NPC's own — an element-mean pressure as a separate
 global unknown, which a trace-only reduced system cannot hold without the
-augmented-Lagrangian reduction of their §3.2 and its outer iteration.
+augmented-Lagrangian reduction of their §3.2 and its outer iteration. There is
+now no reason to take it.
 
 ## Optional A. Interpolatory evaluation of the nonlinear coefficient
 
