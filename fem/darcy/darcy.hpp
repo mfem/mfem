@@ -22,6 +22,7 @@
 #include "functionals_hdg.hpp"
 #include "postprocess_hdg.hpp"
 #include "tmop_hdg.hpp"
+#include "extension_hdg.hpp"
 
 #ifdef MFEM_USE_MPI
 #include "pdarcyform.hpp"

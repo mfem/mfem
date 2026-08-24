@@ -226,9 +226,133 @@ postprocessed scalar at `k ≥ 1`, **even when `dist(Γ_h, Γ)` is only `O(h)`**
 last clause is the whole point — earlier techniques needed `O(h^(k+1))`. `τ = 1`
 throughout, with sensitivity reported only at extreme `τ`.
 
-**Library-side questions.** Can an FE function be evaluated outside its element
-cheaply? Where do per-face path data live? Is there a quadrature abstraction for
-integrating along a path that is not a mesh entity?
+**Library-side questions, now answered.** Can an FE function be evaluated
+outside its element cheaply? Yes, but not by the obvious call — see the trap
+below. Where do per-face path data live? Nowhere yet; the two path families
+built so far need none, being closed-form maps. Is there a quadrature
+abstraction for integrating along a path that is not a mesh entity? No, and
+none is needed: the path is a straight segment, so a rule on
+`Geometry::SEGMENT` on the unit interval is the whole of it.
+
+### What is built, and what it measures
+
+`fem/darcy/extension_hdg.{hpp,cpp}`, tested by
+`tests/unit/fem/test_darcy_extension.cpp`. Four pieces, matching the four in
+the list above:
+
+* **Subdomain selection** — `MarkLevelSetSubdomain` takes a background mesh and
+  a level set and marks the elements lying entirely inside. The vertex test is
+  exact for a convex `Ω`; `extra_refine` additionally samples a refined lattice
+  for the case that is not. An `offset` selects against `φ ≤ -offset` instead,
+  which is how `dist(Γ_h, Γ)` is set deliberately — the papers' robustness
+  studies vary it. `SubMesh::CreateFromDomain` then builds `D_h`, and gives the
+  cut boundary its own attribute, which is `Γ_h`.
+* **Paths** — `TransferPath` is the map `a: Γ_h → Γ`, the path itself being the
+  straight segment, which is what both papers use. `ClosestPointPath` is the
+  analytic case the section above asked for directly, with
+  `ClosestPointPath::Sphere` supplying `a(x) = c + R(x-c)/|x-c|`.
+  `LevelSetPath` marches along the outward face normal and bisects on `φ`,
+  needing no representation of `Γ` beyond the level set that selected the
+  subdomain. **The normal-ray family is the one the a priori analysis is
+  written for** — CQS say in as many words that the paths defining the boundary
+  datum are parallel to the normal of `Γ_h` — so it is not a poor relation of
+  the general vertex-cone construction, and the cone construction is not built.
+* **The extension `E_h`** — `ElementExtension`, one line of mathematics and one
+  trap; see below.
+* **The lifting `L_h`** — `PathIntegral`, deliberately a free function taking
+  the evaluator of `C u` rather than a method on anything, because that makes
+  it checkable on its own.
+
+**Measured: the lifting alone converges at `k+2`.** Fed the `L²`-projected
+exact flux on `D_h` and asked for the datum on `Γ_h`, with `Ω` a disc immersed
+in a triangulated unit square and `dist(Γ_h, Γ)` measured to be `O(h)`:
+
+| `k` | `n = 16` | `32` | `64` | `128` | rate |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 2.01e-03 | 3.97e-04 | 1.04e-04 | 2.55e-05 | 2.03 |
+| 1 | 7.59e-05 | 6.62e-06 | 8.36e-07 | 1.02e-07 | 3.04 |
+| 2 | 2.25e-06 | 1.01e-07 | 6.17e-09 | 3.84e-10 | 4.00 |
+| 3 | 7.67e-08 | 1.60e-09 | 4.71e-11 | 1.45e-12 | 5.02 |
+
+`‖φ_h - p‖_{L²(Γ_h)}`, last column the rate over the final refinement.
+`dist(Γ_h, Γ)` runs 8.4e-2, 4.2e-2, 2.1e-2, 1.05e-2 — halving with `h`, so
+this is the demanding `O(h)` case throughout and not the easy `O(h²)` one.
+The extra order over the flux's own `k+1` is not a surprise once stated: the
+error is the path integral of the flux error over a path of length `O(h)`. It
+is the same `k+2` the papers report for the potential on `D_h^c`, isolated here
+from the solve.
+
+**Two exact checks sit under that table**, and they are the ones that establish
+the conventions the branch's practice says must be measured rather than
+reasoned. Because `C u = -∇p` is a gradient, the path integral from `x` to
+`a(x)` is `p(x) - p(a(x))` *for any path whatever*, so the lifted datum must
+reproduce the exact potential on `Γ_h`. With a polynomial potential the line
+quadrature is exact too, and the agreement is to round-off — `1e-12` and
+better, against a datum of order one. That fixes the orientation of the path,
+the sign of the integral and the direction of the tangent simultaneously, and
+leaves no room for a sign to be right by accident. The second check does the
+same with the flux replaced by its projection into `P^k`, `k ≥ 2`, of a
+degree-two exact flux: the projection is exact, the elements are affine, so the
+*extension* is exact outside the element too, and the lifting is again exact.
+
+**The trap, which is silent.** `ElementTransformation::TransformBack()` uses
+`InverseElementTransformation`'s default `NewtonElementProject` solver, which
+**projects every iterate back into the reference element**. A point outside
+therefore comes back as the nearest point of the element boundary, the
+"extension" degenerates to the element's boundary values, and nothing reports
+anything: the call returns `Outside` and a perfectly well-formed integration
+point. `ElementExtension` configures the unrestricted `Newton` solver instead.
+A test pins it, asserting the clamped answer is worse by more than three orders
+of magnitude — the answer that a naive implementation would have quietly
+produced.
+
+### Where it attaches to `DarcyForm`, read from the tree and not yet measured
+
+The question that decides how much library work §1 needs is **which of the two
+boundary routes the transferred datum enters by**, and the answer is that the
+weak one costs nothing structural and the essential one costs a change to
+`DarcyHybridization` that the class is not currently shaped for.
+
+* **On the weak route the whole method is element-local.** The datum enters
+  the flux equation as `⟨φ_h, v·n⟩_e`, and `φ_h = g∘a + L_e(u_h)` with `L_e`
+  reading `u_h` on the *one* element owning the face `e ⊂ Γ_h`. The
+  `u_h`-dependent part is therefore an addition to that element's own flux mass
+  block, and the datum part an addition to its right-hand side — both inside a
+  single element, so static condensation is untouched and `C`, `E`, `G` and `H`
+  never see it. Where `τ ≠ 0` on `Γ_h` there is a matching pair in the
+  divergence block and the potential right-hand side, also element-local.
+* **On the essential-trace route it is not.** There the boundary face carries a
+  real constraint row, and the extension makes that row `⟨μ, λ⟩_e - ⟨μ,
+  L_e(u_h)⟩_e = ⟨μ, g∘a⟩_e`. The `C` block on such a face is then `-L_e`, which
+  is **not** the transpose of the `Cᵀ` block `⟨μ, φ_j·n⟩_e` that the same face
+  contributes to the flux equation. `DarcyHybridization` stores `Ct_data` only
+  and forms `C` as its transpose at all four sites that need it — the two
+  `MultAtB` calls in `ComputeH`, the `MultTranspose` in `Mult`, and the one in
+  `ReduceRHS`. Supporting `C ≠ Cᵀᵀ` means a second block store and those four
+  sites; contained, but a change to paths every existing test covers.
+* **One smaller gap is real on either route.** `DarcyForm::Assemble` builds the
+  hybridized element block with `M_u->ComputeElementMatrix(i, elmat)`, which
+  sums **domain integrators only**, and `DarcyHybridization::AssembleFluxMassMatrix`
+  *overwrites* its block where the potential-mass and divergence counterparts
+  accumulate. So **a boundary face integrator added to the flux mass form is
+  silently dropped when hybridized** — the same species of defect as the others
+  this branch has turned up. Making the flux block accumulate and adding the
+  boundary-face pass is the fix, and it is small.
+* **A trace right-hand side needs nothing.** `ReduceRHS` accumulates into a
+  `b_r` it only zeroes when the size does not match, and `convdiff` already
+  preloads it from a `LinearForm` on the trace space for its Neumann condition.
+
+**The order this suggests**: weak route first, because it needs no change to
+`DarcyHybridization` and produces the convergence table that says whether the
+construction is right; the essential route afterwards, if the table or §7's
+estimator wants a meaningful `λ` on `Γ_h`. The weak route is also what the
+existing miniapps use for Dirichlet data, so nothing has to move.
+
+**Not yet built**: the extension of the *potential* to `D_h^c`, which is the
+lifting evaluated there rather than only its restriction to `Γ_h`, and which
+the papers' `e_p ext` and `e_u ext` columns need; the general vertex-cone path
+family, for a `Γ` with no closed-form closest point; and anything in three
+dimensions, where the path construction is unchanged but has not been run.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -1857,8 +1981,10 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. **§1 and §2**, untouched. Nothing in §3 or §4 blocks them: they sit on their
-   own branch of the dependency graph.
+1. **§2**, untouched, and **§1 in part**: its geometry, extension and lifting
+   are built and measured — see §1 — but nothing is solved through them yet.
+   Nothing in §3 or §4 blocks either: they sit on their own branch of the
+   dependency graph.
 2. **§7's `hp`**, and §8 in its entirety.
 3. **Whether the degenerate order loss is asymptotic** — recorded in §3(d),
    where the practical answer is already known: floor the stabilisation. The
@@ -1946,9 +2072,23 @@ subject.
   (2010) 582–597. The velocity–pressure–gradient formulation §9 follows; §3.2
   is the augmented-Lagrangian reduction to the velocity trace alone, §4.1 the
   stabilisation sweep §9 reproduces.
-* **CS-Extensions** — Cockburn & Solano, on solving problems posed on curved
-  domains by extension from a polyhedral subdomain, reducing the boundary
-  treatment to line integrals along transferring paths. §1.
+* **CS-Extensions** — Cockburn, B., & Solano, M., *Solving Dirichlet
+  boundary-value problems on curved domains by extensions from subdomains*,
+  SIAM J. Sci. Comput. **34** (2012) A497–A519. §2 is the method — the
+  subdomain, the paths, the extension and the lifting; §3.2 is the disc at
+  distance `O(h)` that §1's tests are built on. Its companions: **CS-ConvDiff**,
+  *Solving convection–diffusion problems on curved domains by extensions from
+  subdomains*, J. Sci. Comput. **59** (2014) 512–543, whose Eq. (2) shows the
+  **lifting is unchanged by the convection** — it integrates the constitutive
+  law, in which the convective field does not appear — and whose Eq. (8) gives
+  the practical rule `d = ½ min{h, 1/Pe}/(k+1)²`; and **CQS-Analysis**,
+  Cockburn, Qiu & Solano, *A priori error analysis for HDG methods using
+  extensions from subdomains to achieve boundary conformity*, Math. Comp. **83**
+  (2014) 665–699, whose §2.1.3 records that the paths defining the boundary
+  datum are taken **parallel to the normal of `Γ_h`**, whose Assumptions S and P
+  are the smallness and sign conditions on the paths, and whose Theorem 2.1
+  gives `k+1` for both unknowns at `dist = O(h)` with `k+3/2` for the
+  postprocessed potential, rising to `k+2` at `dist = O(h^{5/4})`. §1.
 * **CSS-Coupling** — Cockburn, Sayas & Solano, on coupling an HDG interior solve
   to an exterior boundary-integral representation across an unmeshed interface,
   with **CSS-Analysis** its companion analysis, including the relaxed iteration

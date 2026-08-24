@@ -1,0 +1,274 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_EXTENSION_HDG
+#define MFEM_EXTENSION_HDG
+
+#include "../../config/config.hpp"
+#include "../bilininteg.hpp"
+#include "../coefficient.hpp"
+#include "../eltrans.hpp"
+#include "../gridfunc.hpp"
+#include "../../mesh/mesh.hpp"
+
+#include <functional>
+
+namespace mfem
+{
+
+/** @brief Solving a boundary-value problem on a polyhedral subdomain of the
+    true domain, by extension from that subdomain.
+
+    The construction is Cockburn & Solano's. Given a domain @f$\Omega@f$ with a
+    boundary @f$\Gamma@f$ that the mesh does not follow, one meshes a polyhedral
+    subdomain @f$D_h \subset \Omega@f$ and solves there, with the Dirichlet
+    datum given on @f$\Gamma@f$ transferred to the computational boundary
+    @f$\Gamma_h = \partial D_h@f$ along a family of *transferring paths*. For
+    the model problem
+
+    @f[ \boldsymbol{u} + K \nabla p = 0, \qquad -\nabla\cdot\boldsymbol{u} = f
+        \text{ in } \Omega, \qquad p = g \text{ on } \Gamma, @f]
+
+    integrating the first equation along a path @f$\sigma@f$ running from
+    @f$x \in \Gamma_h@f$ to @f$\bar{x} = a(x) \in \Gamma@f$ gives
+
+    @f[ p(x) = g(\bar{x}) + \int_\sigma C\,\boldsymbol{u}\cdot\boldsymbol{m}\,ds,
+        \qquad C = K^{-1}, @f]
+
+    with @f$\boldsymbol{m}@f$ the unit tangent of @f$\sigma@f$ pointing from
+    @f$x@f$ towards @f$\bar{x}@f$. The value is independent of the path because
+    @f$C\boldsymbol{u} = -\nabla p@f$ is a gradient. The discrete method
+    replaces @f$\boldsymbol{u}@f$ outside @f$D_h@f$ by the *extension*
+    @f$E_h(\boldsymbol{u}_h)@f$ -- the polynomial of the element owning the
+    face, evaluated outside it -- and takes the resulting
+
+    @f[ \varphi_h(x) = g(a(x))
+        + \int_\sigma C\,E_h(\boldsymbol{u}_h)\cdot\boldsymbol{m}\,ds @f]
+
+    as the Dirichlet datum on @f$\Gamma_h@f$. The curved boundary is thereby
+    reduced to the evaluation of line integrals; nothing depends on how
+    @f$\Gamma@f$ is represented, on the space dimension, or on the method used
+    inside @f$D_h@f$.
+
+    The point of the construction is that the orders of convergence are those
+    of the boundary-fitted method even when @f$\operatorname{dist}(\Gamma_h,
+    \Gamma)@f$ is only @f$O(h)@f$, where earlier techniques needed
+    @f$O(h^{k+1})@f$.
+
+    References:
+    - Cockburn, B., & Solano, M. (2012). Solving Dirichlet boundary-value
+      problems on curved domains by extensions from subdomains. SIAM J. Sci.
+      Comput. 34(1), A497-A519.
+    - Cockburn, B., & Solano, M. (2014). Solving convection-diffusion problems
+      on curved domains by extensions from subdomains. J. Sci. Comput. 59,
+      512-543. The lifting is unchanged by the convection: it integrates the
+      constitutive law, in which the convective field does not appear.
+    - Cockburn, B., Qiu, W., & Solano, M. (2014). A priori error analysis for
+      HDG methods using extensions from subdomains to achieve boundary
+      conformity. Math. Comp. 83(286), 665-699. */
+
+/// A scalar function of the physical position alone.
+/** The level set and the Dirichlet datum are both evaluated at points that lie
+    *outside* the mesh, where a Coefficient cannot be evaluated: a Coefficient
+    reaches its position through an ElementTransformation, and no element
+    contains these points. They are therefore taken as functions of position. */
+using PositionFunction = std::function<real_t(const Vector &)>;
+
+/// A vector-valued function of the physical position alone.
+using VectorPositionFunction = std::function<void(const Vector &, Vector &)>;
+
+
+/** @brief A family of transferring paths joining the computational boundary
+    @f$\Gamma_h@f$ to the true boundary @f$\Gamma@f$.
+
+    Each path is the straight segment from a point @f$x@f$ of @f$\Gamma_h@f$ to
+    its image @f$a(x)@f$ on @f$\Gamma@f$, so a family is determined by the map
+    @f$a@f$ alone. Two conditions are needed for the analysis to apply, and
+    both should be checked when a new family is written:
+    - @f$(a(x) - x)\cdot n_e > 0@f$ on every boundary face @f$e@f$, with
+      @f$n_e@f$ the outward normal;
+    - the paths do not cross before reaching @f$\Gamma@f$. */
+class TransferPath
+{
+public:
+   /** @brief The endpoint @f$a(x) \in \Gamma@f$ of the path issuing from the
+       point @a x of @f$\Gamma_h@f$, whose outward unit normal is @a n. */
+   virtual void Endpoint(const Vector &x, const Vector &n,
+                         Vector &xbar) const = 0;
+
+   /** @brief The endpoint at an integration point of a boundary face.
+
+       The default implementation evaluates the physical point and the outward
+       unit normal and defers to Endpoint(x, n). A family that depends on the
+       face itself -- on its vertices, or on data precomputed per face --
+       overrides this instead.
+
+       @a FTr must have its integration points set to @a ip already. */
+   virtual void Endpoint(FaceElementTransformations &FTr,
+                         const IntegrationPoint &ip, Vector &xbar) const;
+
+   virtual ~TransferPath() = default;
+};
+
+
+/** @brief The path family of a boundary with a closed-form closest-point map.
+
+    When @f$\Gamma@f$ is an analytic surface whose closest point is known in
+    closed form, the whole path construction collapses to that map: for a
+    sphere of centre @f$c@f$ and radius @f$R@f$,
+    @f$a(x) = c + R(x-c)/|x-c|@f$. This is worth having directly and not only
+    as a fast path through the general construction. */
+class ClosestPointPath : public TransferPath
+{
+   VectorPositionFunction cp;
+
+public:
+   /// @param cp_  the closest-point map onto @f$\Gamma@f$.
+   ClosestPointPath(VectorPositionFunction cp_) : cp(std::move(cp_)) { }
+
+   /// The closest-point map onto a sphere of centre @a c and radius @a R.
+   static VectorPositionFunction Sphere(const Vector &c, real_t R);
+
+   using TransferPath::Endpoint;
+
+   void Endpoint(const Vector &x, const Vector &n,
+                 Vector &xbar) const override { cp(x, xbar); }
+};
+
+
+/** @brief The path family issuing along the outward normal of @f$\Gamma_h@f$,
+    terminated on the zero level set by bisection.
+
+    This is the family the a priori error analysis is written for: its paths
+    are parallel to the face normal, which satisfies the sign condition
+    @f$(a(x)-x)\cdot n_e > 0@f$ by construction and, for a boundary that is
+    resolved by the mesh, does not cross. It needs no representation of
+    @f$\Gamma@f$ beyond the level set that selected the subdomain. */
+class LevelSetPath : public TransferPath
+{
+   PositionFunction phi;
+   real_t search_length;
+   int search_steps;
+   real_t tol;
+   int max_iter;
+
+public:
+   /** @param phi_            the level set: negative inside @f$\Omega@f$, zero
+                              on @f$\Gamma@f$, positive outside.
+       @param search_length_  how far along the normal to look for the sign
+                              change. It should exceed the largest expected
+                              distance from @f$\Gamma_h@f$ to @f$\Gamma@f$ and
+                              is normally a small multiple of the mesh size.
+       @param search_steps_   how many equal steps the search interval is cut
+                              into while bracketing the sign change. More than
+                              one is needed only where @f$\Gamma@f$ can be
+                              crossed twice within @a search_length_. */
+   LevelSetPath(PositionFunction phi_, real_t search_length_,
+                int search_steps_ = 1, real_t tol_ = 1e-13,
+                int max_iter_ = 100)
+      : phi(std::move(phi_)), search_length(search_length_),
+        search_steps(search_steps_), tol(tol_), max_iter(max_iter_) { }
+
+   using TransferPath::Endpoint;
+
+   void Endpoint(const Vector &x, const Vector &n,
+                 Vector &xbar) const override;
+};
+
+
+/** @brief The extension operator @f$E_h@f$: an element's own polynomial,
+    evaluated outside the element.
+
+    Mathematically trivial -- @f$E_h(q_h)|_{K^{ext}}(y) := q_h|_K(y)@f$ -- and
+    the only thing to get right is that the reference coordinates of a point
+    outside the element are not clamped to the reference element.
+    ElementTransformation::TransformBack() does clamp: it uses
+    InverseElementTransformation's default #NewtonElementProject solver, which
+    projects every iterate back into the reference element, so a point outside
+    silently comes back as the nearest point of the element boundary and the
+    extension degenerates into a constant. This class configures the
+    unrestricted #Newton solver instead.
+
+    For an affine element the composition of the reference basis with the
+    inverse map is a polynomial in the physical coordinates, so this is the
+    polynomial extension the method is written against. For an element with a
+    non-affine map -- a general quadrilateral, hexahedron or wedge -- it is the
+    reference-space extension instead, which is the natural generalisation but
+    not the same object. */
+class ElementExtension
+{
+   mutable InverseElementTransformation inv_tr;
+
+public:
+   ElementExtension();
+
+   /// Set the element whose polynomials are to be extended.
+   void SetElement(ElementTransformation &Tr) { inv_tr.SetTransformation(Tr); }
+
+   /** @brief Reference coordinates of the physical point @a y under the
+       element map, not restricted to the reference element.
+
+       Returns false if the Newton solve failed to converge, in which case
+       @a ip is not meaningful. Note that the element transformation's own
+       integration point is modified by the solve. */
+   bool TransformBack(const Vector &y, IntegrationPoint &ip) const;
+};
+
+
+/** @brief The line integral @f$\int_\sigma C\,\boldsymbol{u}\cdot
+    \boldsymbol{m}\,ds@f$ along the straight path from @a x to @a xbar.
+
+    @param Cu       evaluates @f$C(y)\,\boldsymbol{u}(y)@f$ at a physical point
+                    @a y, which lies outside the mesh.
+    @param line_ir  a rule on Geometry::SEGMENT. On a straight-sided element the
+                    integrand is a polynomial of the degree of the flux space,
+                    so a rule exact to that degree integrates it exactly; the
+                    outer integral over the face is the one that is not exact,
+                    because @f$a(x)@f$ is not polynomial in @f$x@f$.
+
+    This is the whole of the lifting apart from the datum @f$g(a(x))@f$, and it
+    is stated as a free function because that makes it checkable on its own:
+    fed the exact flux, it must return @f$p(x) - p(a(x))@f$ to quadrature
+    accuracy, whatever the path. */
+real_t PathIntegral(const VectorPositionFunction &Cu, const Vector &x,
+                    const Vector &xbar, const IntegrationRule &line_ir);
+
+
+/** @brief Selection of the polyhedral subdomain @f$D_h@f$ of a background mesh.
+
+    @f$D_h@f$ is the set of elements lying entirely inside @f$\Omega@f$. For a
+    convex @f$\Omega@f$ this is decided by the vertices alone -- a convex
+    element is inside if and only if all its vertices are -- and that is what
+    @a extra_refine = 0 tests. For a domain that is not convex an element can
+    have every vertex inside and still be cut by @f$\Gamma@f$, and additional
+    points have to be tested; @a extra_refine >= 1 additionally samples the
+    lattice of the reference element refined that many times.
+
+    @param mesh         the background mesh.
+    @param phi          the level set: negative inside @f$\Omega@f$.
+    @param offset       an element is taken only if @f$\phi \le -@f$@a offset
+                        at every point tested, which pushes @f$\Gamma_h@f$
+                        further from @f$\Gamma@f$. Meaningful as a distance
+                        only where @a phi is a signed distance. Used to set
+                        @f$\operatorname{dist}(\Gamma_h,\Gamma)@f$ deliberately,
+                        as the robustness studies of the papers do.
+    @param marker       set to 1 for the elements of @f$D_h@f$ and 0 otherwise.
+    @param extra_refine how many times to refine the sampling lattice; 0 tests
+                        the vertices only, which is exact for a convex
+                        @f$\Omega@f$.
+    @returns the number of elements selected. */
+int MarkLevelSetSubdomain(const Mesh &mesh, const PositionFunction &phi,
+                          real_t offset, Array<int> &marker,
+                          int extra_refine = 0);
+
+} // namespace mfem
+
+#endif
