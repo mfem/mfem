@@ -121,6 +121,7 @@ set(UNIT_TESTS_SRCS
   fem/test_domain_int.cpp
   fem/test_eigs.cpp
   fem/test_estimator.cpp
+  fem/test_estimators_hdg.cpp
   fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp
   fem/test_face_permutation.cpp
