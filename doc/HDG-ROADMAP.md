@@ -44,7 +44,7 @@ otherwise. The tests that hold them:
 
 | section | tests |
 | --- | --- |
-| 3(a)–(c) general operators | `tests/unit/fem/test_darcy_hybridization.cpp` |
+| 3 hybridization, constant scalar `κ` | `tests/unit/fem/test_darcy_hybridization.cpp` |
 | 3(d) degenerate coefficients | `tests/unit/fem/test_darcy_degenerate.cpp` |
 | 4 systems | `tests/unit/fem/test_darcy_system.cpp` |
 | 4 nonlinear, Jacobians, per-variable `τ` | `tests/unit/fem/test_darcy_nonlinear.cpp` |
@@ -285,6 +285,26 @@ order operator, not the pure-diffusion special case. Specifically:
   The branch handles convection–diffusion, so this may already be present; what
   matters is that it composes with a full tensor and a reaction term rather than
   being a separate code path.
+**Audited, and (a)–(c) are in a different state from what this file implied.**
+The nav table above used to credit them to
+`tests/unit/fem/test_darcy_hybridization.cpp`; that harness builds
+`ConstantCoefficient k(1.0)`, and no Darcy test anywhere constructs a
+`MatrixCoefficient` or a convective term. What exists is in the drivers:
+
+| | implemented | driven by | unit test | rate study |
+| --- | --- | --- | --- | --- |
+| (a) full varying tensor | yes | `anisodiff` | **none** | **none** |
+| (b) reaction | yes | `anisodiff` | constant `a`, equivalence only | **none** |
+| (c) convection | yes | `convdiff`, scalar `κ` | — | `convdiff` |
+| (a)+(b)+(c) together | — | **nothing** | **none** | **none** |
+
+So the gap is not the individual terms — `anisodiff` carries a
+`MatrixFunctionCoefficient` conductivity and a `MassIntegrator` reaction, and
+`convdiff` carries convection — but the **composition**, which is exactly what
+the requirement asks for: that they compose rather than being separate code
+paths. Nothing in the tree builds an operator with all three at once, and
+nothing measures rates for (a) or (b) at all.
+
 * **(d) Degenerate coefficients.** Operators of the form `∂_x( w(x) ∂_x · )` with
   `w` vanishing on part of the boundary. These are well posed in the natural
   weighted space, and the requirements were expected to be practical rather than
