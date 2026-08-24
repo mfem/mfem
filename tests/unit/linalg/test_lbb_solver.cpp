@@ -57,7 +57,8 @@ real_t ExactRoot(real_t a)
    for (int i = 0; i < 200; i++)
    {
       const real_t mid = 0.5 * (lo + hi);
-      if (mid * mid * mid + mid < a) { lo = mid; } else { hi = mid; }
+      if (mid * mid * mid + mid < a) { lo = mid; }
+      else { hi = mid; }
    }
    return 0.5 * (lo + hi);
 }
@@ -94,7 +95,7 @@ TEST_CASE("LBBSolver finds the root of a nonlinear system", "[LBBSolver]")
       const real_t expect = ExactRoot(a(i));
       CAPTURE(i, x(i), expect);
       REQUIRE(x(i) == MFEM_Approx(expect, 1e-8, 1e-8));
-    }
+   }
 
    // The residual really is at the tolerance asked for, not merely small.
    Vector r(n);

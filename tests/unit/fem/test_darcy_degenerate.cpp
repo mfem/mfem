@@ -549,10 +549,6 @@ TEST_CASE("HDG: degenerate diffusion on wedges",
    REQUIRE(rate_p > order + 0.1);
 }
 
-
-
-
-
 TEST_CASE("HDG: a tau floor recovers the order a degeneracy costs",
           "[DarcyForm][Degenerate][HDG][Stabilization]")
 {
