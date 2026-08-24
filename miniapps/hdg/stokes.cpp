@@ -100,9 +100,9 @@ enum class Stage
    /// that at k=2:
    ///
    ///     k    u      sigma   p
-   ///     0    1.01   0.83    0.80
-   ///     1    2.05   1.92    2.01
-   ///     2    2.76   2.77    2.84
+   ///     0    0.94   0.87    0.87
+   ///     1    1.94   1.86    1.95
+   ///     2    2.72   2.83    2.92
    ///
    /// The pressure is determined only up to a constant by an all-Dirichlet
    /// velocity, so a small multiple of the pressure mass pins it and the
@@ -111,12 +111,17 @@ enum class Stage
    /// the same constant. Forgetting the second is what made the stress look
    /// like it had stalled at 0.117 when it had not.
    ///
-   /// Two things are still wrong with it. At k=2 the finest mesh breaks down,
-   /// 2449 GMRES iterations and the rate collapsing, which is the solver
-   /// meeting a nearly singular system rather than the discretization; and it
-   /// has to take the Dirichlet datum weakly, because with the pressure
-   /// coupled in the reduced matrix comes out structurally asymmetric and the
-   /// essential-trace elimination refuses it.
+   /// One thing is still wrong with it. At k=2 the finest mesh breaks down,
+   /// 2178 GMRES iterations and the rate collapsing, which is the solver
+   /// meeting a nearly singular system rather than the discretization.
+   ///
+   /// The datum is on an essential trace, as section 7's sweep settled for the
+   /// discontinuous spaces. That looked impossible for a while --
+   /// SparseMatrix::EliminateRowCol refused the reduced matrix -- and the
+   /// reason turned out to have nothing to do with essential conditions: it
+   /// was this same singular pressure mode. Unpinned, the essential route
+   /// fails in EliminateRowCol and the weak route fails with a NaN in GMRES,
+   /// which is one cause wearing two disguises.
    Stokes = 2,
 };
 
@@ -398,6 +403,11 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
             new VectorBlockIntegrator(
                np, nv * dim, i, i * dim,
                new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+         B->AddBdrFaceIntegrator(
+            new VectorBlockIntegrator(
+               np, nv * dim, i, i * dim,
+               new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
+            bdr_ess);
 
          // The coupling, one object read two ways. Forward it collects
          // nu^-1 sum_i (sigma_i)_i into the pressure's row; since
@@ -451,15 +461,11 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
       // for.
       darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
          new VectorBlockDiagonalHDGIntegrator(np, nv, stab));
-      for (auto *i : bstab) { delete i; }
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalHDGIntegrator(np, nv, bstab), bdr_ess);
    }
 
    VectorFunctionCoefficient gcoeff(np, gFun), wcoeff(np, wFun);
-   VectorFunctionCoefficient natcoeff(nv, [](const Vector &x, Vector &v)
-   {
-      kov->Velocity(x, v);
-      v.Neg();
-   });
    VectorFunctionCoefficient ucoeff(nv, uFun);
    VectorFunctionCoefficient qcoeff(nv * dim, qFun);
    darcy.GetPotentialRHS()->AddDomainIntegrator(
@@ -470,31 +476,17 @@ Result Solve(Mesh &mesh, int order, real_t td, int ts, Stage stage,
       &fes_t,
       new VectorBlockDiagonalIntegrator(nv, new NormalTraceJumpIntegrator),
       ess_flux_tdofs);
-   // Stage 1 puts the velocity datum on an essential trace, which section 7's
-   // sweep settled as the default for the discontinuous spaces. Stage 2 cannot
-   // yet: with the pressure coupled in, the reduced matrix comes out
-   // structurally asymmetric and SparseMatrix::EliminateRowCol refuses it. The
-   // weak route -- the datum on the flux equation's natural term -- is correct
-   // for solving, which is what is being established here, so it is used until
-   // that is chased down.
-   if (!with_p) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
-   else
-   {
-      darcy.GetFluxRHS()->AddBdrFaceIntegrator(
-         new VectorBoundaryFluxLFIntegrator(natcoeff));
-   }
+   // The velocity datum on an essential trace, both stages, which is what
+   // section 7's sweep settled on for the discontinuous spaces.
+   darcy.GetHybridization()->SetEssentialBC(bdr_ess);
 
-   // skip_zeros = 0: with the pressure coupled in, entries of the reduced
-   // matrix cancel exactly, and dropping them leaves a sparsity that is no
-   // longer symmetric, which the essential-trace elimination requires.
-   darcy.Assemble(with_p ? 0 : 1);
+   darcy.Assemble();
 
    BlockVector x(darcy.GetOffsets());
    x = 0.0;
 
    OperatorPtr A;
    Vector X, RHS;
-   if (!with_p)
    {
       GridFunction tr0(&fes_t);
       tr0 = 0.0;

@@ -1219,9 +1219,9 @@ that at `k=2`:
 
 | `k` | `u` | `σ` | `p` |
 |---|---|---|---|
-| 0 | 1.01 | 0.83 | 0.80 |
-| 1 | 2.05 | 1.92 | 2.01 |
-| 2 | 2.76 | 2.77 | 2.84 |
+| 0 | 0.94 | 0.87 | 0.87 |
+| 1 | 1.94 | 1.86 | 1.95 |
+| 2 | 2.72 | 2.83 | 2.92 |
 
 **It was found by the diagnostic, not by more guessing.** `stokes -diag`
 assembles `B` and the cancelling potential mass block standalone, applies them
@@ -1233,15 +1233,31 @@ the potential row was taking their **sum**, so the pressure row read
 sat flat. Two sign guesses had already missed it; one measurement settled it in
 a single run.
 
-Two things remain wrong. At `k=2` the finest mesh breaks down — 2449 GMRES
-iterations and the rate collapsing — which is the solver meeting a nearly
-singular system, not the discretisation; the pressure is determined only up to
-a constant by an all-Dirichlet velocity, pinned here by a small multiple of the
-pressure mass. And stage 2 has to take the Dirichlet datum **weakly**, because
-with the pressure coupled in the reduced matrix comes out structurally
-asymmetric and `SparseMatrix::EliminateRowCol` refuses it — so the
-essential-trace default §7 settled on is unavailable here, and that is the next
-thing to chase.
+**And the second thing that looked wrong was the same thing wearing a
+disguise.** Stage 2 appeared unable to take the Dirichlet datum on an essential
+trace: `SparseMatrix::EliminateRowCol` refused the reduced matrix, which was
+read as a structural asymmetry introduced by the first-order coupling, and
+recorded as an open item on the grounds that it would block anything built on
+§3(f). **It is neither a bug nor a design choice in how essential conditions
+are handled.** It is the singular pressure mode again:
+
+| | essential route | weak route |
+|---|---|---|
+| pressure pinned | works | works |
+| not pinned | `EliminateRowCol #4` | NaN in GMRES |
+
+One cause, two symptoms, and the elimination is simply the first thing to
+notice that a row of the reduced matrix has nothing on its diagonal. With the
+mode pinned the essential route works and is slightly the more accurate of the
+two — 3.5e-3 against 4.0e-3 in the velocity at `k=1` — so stage 2 now uses it,
+and §7's default holds for a coupled system after all. **A first-order
+cross-field coupling does not obstruct essential traces.**
+
+What remains is the null space itself. At `k=2` the finest mesh breaks down —
+2178 GMRES iterations and the rate collapsing — which is the solver meeting a
+nearly singular system, not the discretisation. The small pressure mass pins
+the mode but leaves the conditioning; a mean-zero constraint, or a
+preconditioner that knows about the mode, is the real answer.
 
 A convention worth stating, since getting it wrong cost a false alarm: the
 stress carries the pressure on its diagonal, so it inherits the same
@@ -1671,17 +1687,14 @@ Kept with their answers rather than deleted, because the answers are the content
    with them rather than done here. The same goes for the `-trbc` gap above,
    which the library fix has already closed but which nothing in the suite
    exercises.
-7. **Essential traces alongside a first-order cross-field coupling.** With the
-   pressure coupled in, §9's reduced matrix comes out structurally asymmetric
-   and `SparseMatrix::EliminateRowCol` refuses it, so the essential-trace
-   default §7 settled on is unavailable there and the datum has to be taken
-   weakly. This is not particular to Stokes — it will meet any such coupling —
-   and it is the one item here that will block building further on §3(f).
-8. **A pressure-like null space needs pinning properly.** §9 pins it with a
+7. **A pressure-like null space needs pinning properly.** §9 pins it with a
    small multiple of the pressure mass, which works but leaves the system
-   nearly singular: at `k=2` the finest mesh takes 2449 GMRES iterations and
+   nearly singular: at `k=2` the finest mesh takes 2178 GMRES iterations and
    the rate collapses. A mean-zero constraint, or a preconditioner that knows
-   about the mode, is the real answer.
+   about the mode, is the real answer. **This subsumes the item that used to
+   sit here** — essential traces looked unavailable alongside a first-order
+   cross-field coupling, and that was this same mode, not anything to do with
+   essential conditions. Withdrawn; see §9.
 
 ## References
 
