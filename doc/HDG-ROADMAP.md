@@ -911,8 +911,7 @@ sine.
 `DarcyHybridization::EliminateTraceTrueDofsInRHS` opened with
 `if (IsNonlinear()) { return; } // not implemented`, so `SetEssentialBC` was
 **silently ignored on the nonlinear path** — no warning, no error, just an
-unconstrained trace, which also means `convdiff -trbc` with any nonlinear
-option was quietly solving a different problem. The constraint is now carried
+unconstrained trace. The constraint is now carried
 the way `NonlinearForm` carries one: the values ride in `x`, `Mult` zeroes the
 residual on those rows, `GetGradient` puts a unit diagonal there, and the
 reduced right-hand side is zeroed to match, so Newton leaves them alone. Rows
@@ -921,6 +920,14 @@ columns contribute nothing, and `EliminateRowCol` would demand a structurally
 symmetric matrix, which the reduced gradient is not. **The change is inert
 unless `SetEssentialBC` has been called, which no RT path does.** A test
 asserts the values come out of Newton bit-identical to what went in.
+
+**That fix reaches the miniapps without the miniapps being touched.**
+`convdiff -trbc` with any nonlinear option was, before it, quietly solving a
+different problem — the trace it asked to be essential simply was not. It now
+behaves. **No regression covers the combination**: all three `-trbc` reference
+cases are `-p 3` with `--no-nonlinear`, which is why the suite is unchanged
+either side of the fix, and also why the defect survived. Flagged for the
+branch author rather than acted on here.
 
 **So the h-adaptive requirement, anisotropic included, is largely "verify and
 use", not "build".** What has to be checked: that nonconforming refinement of
@@ -1417,10 +1424,13 @@ Kept with their answers rather than deleted, because the answers are the content
    Needed only if something has to read `λ` on a boundary face of an RT
    problem — §7's estimator on the mixed form is the case in view. The
    discontinuous spaces do not need it; see §7's sweep.
-7. **`convdiff` and the miniapps still default to the weak route for DG.** The
-   sweep changed the unit-test harnesses, not the drivers. Whether the
-   miniapps should follow is a separate decision, and moving them would move
-   their regression references.
+7. **The miniapps still default to the weak route for DG, and are being left
+   that way deliberately.** The sweep changed the unit-test harnesses, not the
+   drivers. Moving `convdiff` and its siblings is the branch author's call,
+   not ours, and it would move their regression references; it is being raised
+   with them rather than done here. The same goes for the `-trbc` gap above,
+   which the library fix has already closed but which nothing in the suite
+   exercises.
 
 ## References
 
