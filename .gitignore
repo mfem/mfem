@@ -450,9 +450,6 @@ miniapps/hdg/Mfem-logo*
 miniapps/hdg/convdiff
 miniapps/hdg/convdiff*.mesh
 miniapps/hdg/Convdiff*
-miniapps/hdg/stokes
-miniapps/hdg/stokes*.mesh
-miniapps/hdg/Stokes*
 miniapps/hdg/pconvdiff
 miniapps/hdg/panisodiff
 miniapps/hdg/panisodiff*.mesh
@@ -545,3 +542,6 @@ TAGS
 
 # vim swap files
 *.sw[a-p]
+
+# Claude Code session notes, deliberately not tracked
+CLAUDE.md

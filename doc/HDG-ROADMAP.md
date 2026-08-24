@@ -52,15 +52,15 @@ otherwise. The tests that hold them:
 | 5 `τ` and the stabilisation interface | `tests/unit/fem/test_bilininteg_hdg.cpp` |
 | 3(f) cross-field block placement | `tests/unit/fem/test_darcy_system.cpp` |
 | 7 estimators | `tests/unit/fem/test_estimators_hdg.cpp` |
-| 9 the driver | `miniapps/hdg/stokes.cpp` |
 
 The Darcy tests run polynomial orders 0, 1 and 2 by default. Order 2 used to
 sit behind `--all` in several of them; the one case still gated there is order
 2 in 3D, which is minutes rather than seconds. Widening the rest costs the
 Darcy set about fifty seconds.
 
-`miniapps/hdg/stokes.cpp` is the driver being grown to close §3 and §4; §9
-records what it covers and what is still to be added to it.
+§3 is closed by a driver that composes its terms and measures rates, and there
+is not one yet: the first attempt was withdrawn and §9 records what it
+established.
 
 `miniapps/hdg/regression_test.py` is the miniapp-level regression suite;
 its baseline at the time of writing is 2 failed / 49 skipped of 129, and any
@@ -302,7 +302,7 @@ The nav table above used to credit them to
 | (b) reaction | yes | `anisodiff` | constant `a`, equivalence only | **none** |
 | (c) convection | yes | `convdiff`, scalar `κ` | — | `convdiff` |
 | (a)+(b)+(c) together | — | **nothing** | **none** | **none** |
-| (f) derivative source | **yes** | `stokes` | `test_darcy_system.cpp` | §9 |
+| (f) derivative source | **yes** | — | `test_darcy_system.cpp` | withdrawn, §9 |
 
 So the gap is not the individual terms — `anisodiff` carries a
 `MatrixFunctionCoefficient` conductivity and a `MassIntegrator` reaction, and
@@ -399,10 +399,15 @@ nothing measures rates for (a) or (b) at all.
   replicate down the diagonal. `VectorBlockIntegrator` does that, with element,
   mixed-element and face overloads, and
   `VectorBlockDiagonalHDGIntegrator` handles the HDG face terms of a system
-  whose potential and trace spaces carry different numbers of fields. §9 is the
-  demonstration: Stokes' pressure gradient and incompressibility constraint are
-  one such coupling and its transpose, and converge at `k+1` in all three
-  variables.
+  whose potential and trace spaces carry different numbers of fields. Both are
+  in the library and unit-tested against every block of a rectangular layout.
+
+  It **has** been driven end to end — a Stokes-shaped driver reached `k+1` in
+  velocity, stress and pressure with the pressure gradient and the
+  incompressibility constraint as one such coupling and its transpose — but
+  that driver has since been withdrawn, so what survives is the tested
+  capability rather than a standing demonstration. §9 records what the attempt
+  established.
 
 ## 4. Systems of coupled nonlinear Darcy-like problems, with exact Jacobians
 
@@ -1076,199 +1081,65 @@ the smallest object any iterative method would have to work on, and it is
 precisely the low-order-surrogate trick that makes a trace-space preconditioner
 cheap to form.
 
-## 9. The Stokes driver, and how §3 and §4 get closed by it
+## 9. A driver, attempted and withdrawn
 
-**Where §3 and §4 actually stand.** §4's own machinery is complete and
-measured. §3's individual terms exist — `anisodiff` carries a varying tensor
-conductivity and a reaction, `convdiff` carries convection — but nothing
-composes them, nothing measures rates for (a) or (b), and (f) is untouched. The
-composition is what the requirement asks for, so **one driver that carries all
-of it is how §3 closes**, not a prelude to it.
+**A Stokes-shaped driver was built here and has been removed.** It was meant to
+close §3 by composing (a), (b) and (c) in one operator with a manufactured
+solution, and it never got that far: it spent its life as a testbed for the
+system machinery instead, which is not what §3 needs. A fresh one will be
+defined later. What it established is worth keeping, and divides into what is
+now in the library and what the next driver should know.
 
-`miniapps/hdg/stokes.cpp` is that driver. It follows **NPC-Stokes**'s
-velocity–pressure–gradient formulation but arranges it as a *system of Darcy
-problems, one per velocity component*, which is the shape `DarcyForm` and
-`DarcyHybridization` already take:
+**In the library, tested, and independent of any driver.** Two integrators that
+did not exist and could not be expressed:
 
-    ν⁻¹ q_i + ∇u_i = 0          (q_i = −ν ∇u_i, the branch's sign)
-    −∇·q_i + ∂_i p = f_i        momentum
-    ∇·u = 0                     incompressibility
+* `VectorBlockIntegrator` writes one integrator into a chosen *(row-field,
+  column-field)* block of a rectangular layout — element, mixed-element and
+  face overloads. This is §3(f)'s enabler.
+* `VectorBlockDiagonalHDGIntegrator` replicates an HDG face integrator down the
+  diagonal of a system whose potential and trace spaces carry **different**
+  numbers of fields. `VectorBlockDiagonalIntegrator` infers one multiplicity
+  for every space it touches and cannot describe that.
 
-The exact solution is Kovasznay's, which solves steady Navier–Stokes, so used
-for Stokes it needs a momentum source — and that source is exactly the
-convective term Stokes drops. **Every term added later comes with its own
-source correction, so Kovasznay stays the manufactured solution throughout.**
-A self-check differences the analytic data before anything depends on it: that
-the flux is `−ν∇u`, that the velocity is divergence free, and that the source
-really is `−νΔu + ∇p`.
+Both are exercised in `tests/unit/fem/test_darcy_system.cpp` against every
+block of a rectangular layout, so §3(f) is built and unit-tested whatever
+happens to the drivers.
 
-### Validated against the paper's own table
+**Three defects were found by running a convergence table**, and all are fixed:
+the boundary HDG face block that `VectorBlockDiagonalIntegrator` built in the
+wrong shape and the caller then silently discarded (§7); the same wrapper's
+inability to describe unequal field counts; and, before those, the two in §4
+that only a manufactured solution could have caught. That is the argument for
+having a driver at all — **a convergence table finds things a unit test does
+not**, because it exercises the whole path against an answer that is known.
 
-NPC-Stokes §4.1 sweeps the stabilisation as `ντ = h^{ts}`. Rates over the two
-finest of four meshes from 4×4:
+**What the next driver should know.**
 
-| `k` | `ts` | `u` | `q` | NPC |
-|---|---|---|---|---|
-| 0 | 0 | 0.91 | 0.88 | both `k+1`, and `k=0` works at `ts=0` |
-| 1 | 0 | 1.98 | 1.83 | both `k+1` |
-| 2 | 0 | 2.97 | 2.87 | both `k+1` |
-| 1 | −1 | 2.01 | 1.00 | `u` at `k+1`, gradient only `k` |
-| 2 | −1 | 2.97 | 1.99 | `u` at `k+1`, gradient only `k` |
-| 1 | +1 | 1.01 | 1.05 | `u` only `k`, gradient `k+1` |
-
-Five of six reproduce it, including the `ts = −1` trade in both directions and
-`k = 0` at `ts = 0`, which the paper singles out. **`ts = 0` — a stabilisation
-of order unity — is their recommendation and ours**, and it agrees with what §5
-found for diffusion by a different route.
-
-**The sixth row does not reproduce, and the first explanation for it was
-wrong.** At `ts = +1` the gradient settles at `k` where the paper has `k+1` —
-1.03 against `u`'s 1.03 on a 64×64 mesh, so not pre-asymptotic. It was first
-put down to the Dirichlet datum's strength being tied to `τ` through the
-stabilisation. **Measured, that is not what happens**, and chasing it turned up
-two things worth more than the explanation:
-
-* **The datum reaches the flux equation through `Cᵀ`, independently of `τ`.**
-  `DarcyForm::EnableHybridization` walks the *divergence form's* boundary face
-  markers and registers the trace-jump integrator as a boundary flux constraint
-  on each — so adding a boundary face integrator to `B` is what gives `C` a
-  boundary block. §7's sweep said this could not be done; it is done
-  automatically. Perturbing the essential trace values wrecks the solution,
-  which is the check that the datum is live.
-* **The boundary stabilisation was inert — a defect, now fixed.** Removing it
-  entirely, or scaling it over six decades, left the answer bit for bit
-  identical, even though the integrator was registered and
-  `NumBdrPotConstraintIntegrators()` returned one.
-  `VectorBlockDiagonalIntegrator::AssembleHDGFaceMatrix` built the wrong shape
-  on a boundary face — trial `{el1, el1}` against test `{trace, trace}`, where
-  the HDG block is the `{el1, trace}` square both ways — and the caller checks
-  the size, finds it wrong and **silently drops the contribution**. So any HDG
-  face integrator wrapped in that class did nothing on a boundary face. With it
-  fixed the rates above move by less than a tenth of an order, so nothing
-  recorded elsewhere changes, but the boundary faces are now actually
-  stabilised.
-
-The likeliest reason for the row is duller: **stage 1 is not Stokes.** With the
-pressure a known source these are `d` decoupled diffusion problems, and the
-paper's table describes the coupled system, where the gradient's convergence is
-tied to the pressure's. Revisit it once stage 2 lands rather than explain it
-away now.
-
-### What it covers, and what has to be added
-
-| | status |
-|---|---|
-| §4 `N` fields as one system | **done** — `d` velocity components, `vdim = d` |
-| §3 harness, manufactured solution, self-check | **done** |
-| §3(f) derivative source | **next** — the pressure |
-| §3(b) reaction | Brinkman `+αu` |
-| §3(c) convection | Oseen, with a given advecting field |
-| §3(a) varying tensor | anisotropic `ν` |
-| §4 nonlinear law, analytic Jacobian | generalised Newtonian `ν(\|L\|)` |
-
-Stage 1, the momentum equations with the pressure a known source, is built and
-converging. The stages are additive and each keeps Kovasznay exact.
-
-**The pressure is the crux, and the branch can host it.** Both Stokes couplings
-— `∂_i p` in the momentum equation and `∇·u = 0` — are `B`-block couplings,
-flux against potential, just off the diagonal in the field index:
-`∇·u = ν⁻¹ Σ_i (q_i)_i` is a flux-to-potential map, and the pressure gradient
-is its transpose, which `DarcyForm` builds automatically as `±Bᵀ`. That is
-exactly Stokes' own symmetry. What is missing is an integrator that writes a
-scalar coupling into a chosen *(row-field, column-field)* block of `B` — the
-off-diagonal sibling of `VectorBlockDiagonalIntegrator`. **That one integrator
-is §3(f)**, and the pressure is its first customer.
-
-**Attempted, and the obvious arrangement does not work.** The first try folded
-the pressure into the flux as the isotropic part of the total stress,
-`σ_i = −ν∇u_i + p e_i`, which does turn both couplings into `B` blocks and does
-get the transpose for free — that part is sound, and
-`VectorBlockIntegrator` was written for it and is in the tree. What fails is the
-*field arrangement*: making the pressure a `d+1`-th potential field, with a
-dummy flux so that the block-diagonal wrappers and the trace space stay square.
-The velocity then converges at 1.6 against stage 1's 2.0 and the flux not at
-all.
-
-**The bisection that matters: remove the two coupling blocks and keep the extra
-field, and the velocity is still wrong** — 0.52 against stage 1's 0.013 on the
-same mesh. So it is not the coupling. A potential field whose flux carries
-nothing has no divergence block, so its potential is under-determined; the
-solve is near-singular and the damage leaks into the fields that are fine.
-Ruled out along the way: both signs of the `M_p` block that cancels the
-isotropic part, and an essential boundary condition on the pressure trace,
-which Stokes does not have and which was wrong to impose.
-
-**So the pressure is not a fourth Darcy field**, and the decision §9 deferred
-has been answered by measurement rather than argument.
-
-**The rectangular route is now built, and is where the work stands.** Potential
-`d+1`, flux `d·dim`, trace `d`, nothing padded to make the counts agree. It
-needed two additions, both in the tree and both tested:
-`VectorBlockIntegrator`, which writes one integrator into a chosen block of a
-rectangular layout — element, mixed-element and face overloads — and
-`VectorBlockDiagonalHDGIntegrator`, which replicates an HDG face integrator
-down the diagonal of a system whose potential and trace spaces carry different
-numbers of fields. Neither could be expressed before;
-`VectorBlockDiagonalIntegrator` infers a single multiplicity for everything.
-
-**It works.** The trace system is the same size as stage 1's — 2176 against
-2176 at `n=16`, so the pressure adds no global unknowns, which is the point of
-the arrangement — and all three variables converge at `k+1`, which is NPC's
-`ντ = 1` row. Over the two finest of four meshes from 4×4, or the pair before
-that at `k=2`:
-
-| `k` | `u` | `σ` | `p` |
-|---|---|---|---|
-| 0 | 0.94 | 0.87 | 0.87 |
-| 1 | 1.94 | 1.86 | 1.95 |
-| 2 | 2.72 | 2.83 | 2.92 |
-
-**It was found by the diagnostic, not by more guessing.** `stokes -diag`
-assembles `B` and the cancelling potential mass block standalone, applies them
-to the *exact* solution and reads the pressure row. `B σ` and `M_p w` came out
-equal to machine precision — 6.9e-18 — so the cancellation was exactly
-available and only the sign of the combination was in question. It was wrong:
-the potential row was taking their **sum**, so the pressure row read
-`−2(d/ν)(p, w) = 0` and pinned the pressure to zero, which is why every error
-sat flat. Two sign guesses had already missed it; one measurement settled it in
-a single run.
-
-**And the second thing that looked wrong was the same thing wearing a
-disguise.** Stage 2 appeared unable to take the Dirichlet datum on an essential
-trace: `SparseMatrix::EliminateRowCol` refused the reduced matrix, which was
-read as a structural asymmetry introduced by the first-order coupling, and
-recorded as an open item on the grounds that it would block anything built on
-§3(f). **It is neither a bug nor a design choice in how essential conditions
-are handled.** It is the singular pressure mode again:
-
-| | essential route | weak route |
-|---|---|---|
-| pressure pinned | works | works |
-| not pinned | `EliminateRowCol #4` | NaN in GMRES |
-
-One cause, two symptoms, and the elimination is simply the first thing to
-notice that a row of the reduced matrix has nothing on its diagonal. With the
-mode pinned the essential route works and is slightly the more accurate of the
-two — 3.5e-3 against 4.0e-3 in the velocity at `k=1` — so stage 2 now uses it,
-and §7's default holds for a coupled system after all. **A first-order
-cross-field coupling does not obstruct essential traces.**
-
-What remains is the null space itself. At `k=2` the finest mesh breaks down —
-2178 GMRES iterations and the rate collapsing — which is the solver meeting a
-nearly singular system, not the discretisation. The small pressure mass pins
-the mode but leaves the conditioning; a mean-zero constraint, or a
-preconditioner that knows about the mode, is the real answer.
-
-A convention worth stating, since getting it wrong cost a false alarm: the
-stress carries the pressure on its diagonal, so it inherits the same
-undetermined constant and the mean has to be removed from **it** as well.
-Removing it from the pressure alone left the stress apparently stalled at
-0.117 when it was converging.
-
-The other route remains NPC's own — an element-mean pressure as a separate
-global unknown, which a trace-only reduced system cannot hold without the
-augmented-Lagrangian reduction of their §3.2 and its outer iteration. There is
-now no reason to take it.
+* **The couplings a system needs are `B` blocks.** A derivative of another
+  solved field is a first-order cross-field coupling; the place for it is the
+  block that couples flux to potential, and `DarcyForm` forms `±Bᵀ` itself, so
+  one placement delivers its adjoint. Nothing needs assembling in a particular
+  order and no derivative of a discontinuous field is ever taken.
+* **A field with no flux of its own does not fit as another Darcy field.** The
+  first attempt gave it a dummy flux to keep the wrappers square, and its
+  potential came out under-determined; the near-singular solve then damaged the
+  fields that were fine. The rectangular arrangement is the one that works.
+* **Diagnose by applying the assembled blocks to the exact solution.** Two sign
+  guesses failed to find that a row was taking a sum where it needed a
+  difference; one run comparing two blocks at the exact solution found it, and
+  said which sign, because the two agreed to 7e-18 and only their combination
+  was in question.
+* **A constant null mode has to be pinned, and it disguises itself.** Pinning
+  it with a small mass leaves the conditioning; unpinned, it surfaces as
+  `SparseMatrix::EliminateRowCol #4` with an essential trace and as a NaN in
+  GMRES without one, neither of which reads as "your system is singular". An
+  hour went into reading the first of those as a structural property of the
+  coupling. It was not.
+* **Errors are only meaningful modulo the null mode.** Whatever carries the
+  undetermined constant — for Stokes the pressure, and the stress that carries
+  it on its diagonal — has to have the mean removed before its error means
+  anything. Removing it from one and not the other made a converging quantity
+  look stalled.
 
 ## Optional A. Interpolatory evaluation of the nonlinear coefficient
 
@@ -1611,8 +1482,9 @@ operator term §3 asks for exists — a full varying tensor and a reaction in
 `anisodiff`, convection in `convdiff`, a floored `τ` through
 `HDGStabilization::SetStabilization`, and now (f) through the block placement
 integrators. §4 is complete. What §3 still lacks is a driver that *composes*
-(a), (b) and (c) and measures rates against them, which is work in the
-miniapp rather than in the library. **Nothing in §3 or §4 is a prerequisite for
+(a), (b) and (c) and measures rates against them — work in a miniapp rather
+than in the library, and still to be defined; §9 records what the first attempt
+learned. **Nothing in §3 or §4 is a prerequisite for
 §1**, which sits on the other branch of the graph above; the remaining
 implementation items — a `vdim`-general postprocessing, §6's flux functional,
 `hp`, §8 — are each independent of it, and of each other.
@@ -1687,14 +1559,14 @@ Kept with their answers rather than deleted, because the answers are the content
    with them rather than done here. The same goes for the `-trbc` gap above,
    which the library fix has already closed but which nothing in the suite
    exercises.
-7. **A pressure-like null space needs pinning properly.** §9 pins it with a
-   small multiple of the pressure mass, which works but leaves the system
-   nearly singular: at `k=2` the finest mesh takes 2178 GMRES iterations and
-   the rate collapses. A mean-zero constraint, or a preconditioner that knows
-   about the mode, is the real answer. **This subsumes the item that used to
-   sit here** — essential traces looked unavailable alongside a first-order
-   cross-field coupling, and that was this same mode, not anything to do with
-   essential conditions. Withdrawn; see §9.
+7. **A constant null mode needs pinning properly**, for any problem that has
+   one. Pinning it with a small mass works but leaves the conditioning: the
+   withdrawn driver's `k=2` finest mesh took 2178 GMRES iterations and the rate
+   collapsed. A mean-zero constraint, or a preconditioner that knows about the
+   mode, is the real answer. **This subsumes the item that used to sit here** —
+   essential traces looked unavailable alongside a first-order cross-field
+   coupling, and that was this same mode, not anything to do with essential
+   conditions. Withdrawn; see §9.
 
 ## References
 
