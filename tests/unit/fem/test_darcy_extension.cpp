@@ -1278,6 +1278,177 @@ TEST_CASE("Extension from subdomains: the assembled block is the lifting",
    REQUIRE(worst < 1e-12 * scale);
 }
 
+TEST_CASE("Extension from subdomains: the imposed datum is reachable after "
+          "the solve",
+          "[DarcyExtension]")
+{
+   // The lifting L_e(u_h) was formed inside AssembleFaceMatrix() and
+   // contracted straight into the flux mass block, so once a solve was over
+   // there was no way to ask what had been imposed on a face. Any face
+   // indicator comparing a computed trace against the datum actually imposed
+   // -- eta_5 of Sanchez-Vizuet, Solano and Cerfon eq. (20) -- could not be
+   // formed on Gamma_h, and on the extension path the trace unknown there is
+   // pinned, so the term compared the postprocessed potential against zero
+   // and picked up an O(dist(Gamma_h, Gamma)) piece that swamped the rest.
+   //
+   // ComputeLift() is that term. The check is against PathIntegral() applied
+   // to the same extended flux, which the case above has already pinned as
+   // the functional the assembled block is built from -- so this says the two
+   // are the same object rather than two things that happen to agree.
+   const int n = 8;
+   const int order = GENERATE(1, 2);
+   const int lo = 2 * order + 2;
+
+   Subdomain s = BuildSubdomain(n);
+
+   L2_FECollection fec(order, 2, BasisType::GaussLobatto);
+   FiniteElementSpace fes(s.D_h.get(), &fec, 2);
+   GridFunction u_h(&fes);
+   VectorFunctionCoefficient ucoeff(2, uSin);
+   u_h.ProjectCoefficient(ucoeff);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+   ConstantCoefficient C(1.0);
+
+   const IntegrationRule &fir = IntRules.Get(Geometry::SEGMENT, lo);
+   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, lo);
+
+   HDGExtensionIntegrator integ(path, C, +1.0, lo);
+   PathLiftCoefficient lift_coeff(path, u_h, C, lo);
+
+   IsoparametricTransformation el_tr;
+   ElementExtension ext;
+   Array<int> vdofs;
+   Vector uloc, x, xbar;
+   real_t worst = 0., worst_coeff = 0., scale = 0.;
+   int points = 0;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      const int el = FTr->Elem1No;
+      const FiniteElement *fe = fes.GetFE(el);
+      fes.GetElementVDofs(el, vdofs);
+      u_h.GetSubVector(vdofs, uloc);
+
+      s.D_h->GetElementTransformation(el, &el_tr);
+      ext.SetElement(el_tr);
+      auto Cu = [&](const Vector &y, Vector &v)
+      {
+         IntegrationPoint eip;
+         MFEM_VERIFY(ext.TransformBack(y, eip), "no convergence");
+         u_h.GetVectorValue(el, eip, v);
+      };
+
+      for (int q = 0; q < fir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = fir.IntPoint(q);
+
+         const real_t got = integ.ComputeLift(*fe, *FTr, ip, uloc);
+
+         // The coefficient must land on the same number, since it is the same
+         // call with the dofs fetched for the caller. Taken first, because it
+         // moves the transformations and the reference below must not read
+         // anything left behind by it.
+         const real_t got_coeff = lift_coeff.Eval(*FTr, ip);
+
+         FTr->SetAllIntPoints(&ip);
+         FTr->Transform(ip, x);
+         path.Endpoint(*FTr, ip, xbar);
+         const real_t want = PathIntegral(Cu, x, xbar, lir);
+
+         worst = std::max(worst, std::abs(got - want));
+         worst_coeff = std::max(worst_coeff, std::abs(got_coeff - want));
+         scale = std::max(scale, std::abs(want));
+         points++;
+      }
+   }
+
+   CAPTURE(order, points, worst, worst_coeff, scale);
+   REQUIRE(points > 0);
+   REQUIRE(scale > 0.);
+   REQUIRE(worst < 1e-12 * scale);
+   REQUIRE(worst_coeff < 1e-12 * scale);
+}
+
+TEST_CASE("Extension from subdomains: the transferred datum is the potential "
+          "on Gamma_h",
+          "[DarcyExtension]")
+{
+   // phi_h = g.a + L_e(u_h) is what the method imposes, and neither half is
+   // it. Fed the exact flux the identity is exact: C u = -grad p is a
+   // gradient, so L_e returns p(x) - p(a(x)) whatever the path, and adding
+   // g(a(x)) = p(a(x)) leaves p(x). With the degree-two potential the line
+   // quadrature is exact as well and the agreement is to round-off, which
+   // leaves no room for a sign to be right by accident -- the same argument
+   // the lifting cases at the top of this file rest on.
+   const int n = 8;
+   const int order = GENERATE(2, 3);
+   const int lo = 2 * order + 2;
+
+   Subdomain s = BuildSubdomain(n);
+
+   L2_FECollection fec(order, 2, BasisType::GaussLobatto);
+   FiniteElementSpace fes(s.D_h.get(), &fec, 2);
+   GridFunction u_h(&fes);
+   VectorFunctionCoefficient ucoeff(2, uPoly);
+   u_h.ProjectCoefficient(ucoeff);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+   ConstantCoefficient C(1.0);
+
+   // g is the datum itself, not the negation the flux right-hand side is
+   // given; the class states phi_h in its own terms.
+   TransferredDatumCoefficient phi(path, pPoly, u_h, C, lo);
+   PathTraceCoefficient trace_only(path, pPoly);
+
+   const IntegrationRule &fir = IntRules.Get(Geometry::SEGMENT, lo);
+
+   Vector x;
+   real_t worst = 0., worst_trace = 0., scale = 0.;
+   int points = 0;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      for (int q = 0; q < fir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = fir.IntPoint(q);
+
+         const real_t got = phi.Eval(*FTr, ip);
+         const real_t got_trace = trace_only.Eval(*FTr, ip);
+
+         FTr->SetAllIntPoints(&ip);
+         FTr->Transform(ip, x);
+         const real_t want = pPoly(x);
+
+         worst = std::max(worst, std::abs(got - want));
+         worst_trace = std::max(worst_trace, std::abs(got_trace - want));
+         scale = std::max(scale, std::abs(want));
+         points++;
+      }
+   }
+
+   CAPTURE(order, points, worst, scale);
+   REQUIRE(points > 0);
+   REQUIRE(scale > 0.);
+   REQUIRE(worst < 1e-11 * scale);
+
+   // And the control: the datum alone is not phi_h. Gamma_h stands off Gamma
+   // by a mesh width here, so g.a differs from p on it by O(h) -- which is
+   // exactly the term an indicator built on the trace alone would pick up.
+   INFO("|g.a - p| = " << worst_trace << " against |phi_h - p| = " << worst);
+   REQUIRE(worst_trace > 1e-3 * scale);
+}
+
 TEST_CASE("Extension from subdomains: the matrix coefficient is not "
           "transposed",
           "[DarcyExtension]")

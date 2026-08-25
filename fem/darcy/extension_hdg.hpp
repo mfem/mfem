@@ -425,6 +425,135 @@ public:
                            DenseMatrix &elmat) override;
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
+
+   /** @brief The lifting @f$L_e(\boldsymbol{u}_h)(x)@f$ at one point of a face
+       of @f$\Gamma_h@f$, which is the half of the transferred datum that the
+       assembled block above absorbs and never reports.
+
+       @param el1    the element owning the face, as in AssembleFaceMatrix().
+       @param Trans  the face transformations; @a Trans.Elem2No must be
+                     negative.
+       @param ip     a point of the *face* reference element.
+       @param elfun  the element's flux dofs, ordered as AssembleFaceMatrix()
+                     orders the block it builds -- `Ordering::byNODES`, so
+                     component @a d of basis function @a j is entry
+                     `dof*d + j`.
+
+       Same quadrature and same geometry as the assembly: the block that
+       function forms is @f$\pm\sum_q w_q\,(\boldsymbol\varphi_i\cdot n)\,
+       L_e(\boldsymbol\varphi_j)@f$, and this returns the second factor
+       against a given @a elfun rather than against each basis function in
+       turn. Costs one line integral per call, so a caller sweeping a face
+       should sweep its quadrature points rather than call it pointwise from
+       elsewhere. */
+   real_t ComputeLift(const FiniteElement &el1,
+                      FaceElementTransformations &Trans,
+                      const IntegrationPoint &ip, const Vector &elfun);
+
+private:
+   /// The rule along the path, so that the assembly and ComputeLift() cannot
+   /// drift apart on it -- a different rule is a different lifting.
+   const IntegrationRule &LineRule(const FiniteElement &el1) const
+   {
+      return IntRules.Get(Geometry::SEGMENT,
+                          (line_order >= 0) ? line_order
+                          : (2 * el1.GetOrder() + 2));
+   }
+
+   /** @brief @f$L_e@f$ of every basis function of @a el1, at the face point
+       whose image is @a x and whose path displacement is @a m. Fills
+       @a Lmat(j,d) for the basis function @f$\text{shape}_j e_d@f$.
+
+       Expects #ext to have been set to the element and leaves
+       @a elem_tr's integration point wherever the last step of the path put
+       it. */
+   void LiftBasis(const FiniteElement &el1, ElementTransformation &elem_tr,
+                  const Vector &x, const Vector &m,
+                  const IntegrationRule &lir, DenseMatrix &Lmat);
+};
+
+
+/** @brief The solution-dependent half of the transferred datum, evaluable
+    after a solve.
+
+    @f$L_e(\boldsymbol{u}_h)@f$ is formed inside
+    HDGExtensionIntegrator::AssembleFaceMatrix() and contracted straight into
+    the element's flux mass block, so once the solve is over there is no way to
+    ask what was imposed on a given face. That defeats any face indicator that
+    compares a computed trace against the datum actually imposed -- @f$\eta_5@f$
+    of Sanchez-Vizuet, Solano and Cerfon eq. (20) among them, which on
+    @f$\Gamma_h@f$ otherwise compares the postprocessed potential against zero
+    and picks up an @f$O(\text{dist}(\Gamma_h,\Gamma))@f$ term that swamps the
+    rest. This coefficient is that term, at no new quadrature and no new
+    geometry.
+
+    Must be evaluated on a FaceElementTransformations of a face of
+    @f$\Gamma_h@f$, as PathTraceCoefficient must, and for the same reason.
+
+    @warning Evaluating it **moves both transformations**: the path endpoint
+    resets them and the line quadrature then walks the element's own
+    transformation out beyond @f$\Gamma_h@f$. Anything a caller needs from the
+    geometry at the face point -- the normal, the shape functions, the weight --
+    must be taken before the call, exactly as
+    HDGExtensionIntegrator::AssembleFaceMatrix() takes them. */
+class PathLiftCoefficient : public Coefficient
+{
+   const GridFunction &u;
+   HDGExtensionIntegrator integ;
+   mutable Array<int> vdofs;
+   mutable Vector elfun;
+
+public:
+   /** @param path_        the transferring paths, the same family the
+                           integrator was given.
+       @param u_           the computed flux.
+       @param C_           the inverse diffusion tensor, as the integrator
+                           takes it.
+       @param line_order_  order of the rule along the path; pass what the
+                           integrator was given, since a different rule is a
+                           different lifting. */
+   PathLiftCoefficient(const TransferPath &path_, const GridFunction &u_,
+                       Coefficient &C_, int line_order_ = -1)
+      : u(u_), integ(path_, C_, +1., line_order_) { }
+
+   PathLiftCoefficient(const TransferPath &path_, const GridFunction &u_,
+                       MatrixCoefficient &C_, int line_order_ = -1)
+      : u(u_), integ(path_, C_, +1., line_order_) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+
+/** @brief The transferred datum @f$\varphi_h = g\circ a +
+    L_e(\boldsymbol{u}_h)@f$ itself, which is what a face indicator on
+    @f$\Gamma_h@f$ needs and what neither half is on its own.
+
+    @a g is **the Dirichlet datum, not its negation.** The branch's harnesses
+    hand `VectorBoundaryFluxLFIntegrator` the negated potential and pair that
+    with the integrator's default `sign = +1`; this class states
+    @f$\varphi_h@f$ in its own terms instead, so the caller passes @f$g@f$ and
+    reads @f$\varphi_h@f$ back. Fed the exact flux it returns @f$p@f$ on
+    @f$\Gamma_h@f$ to quadrature accuracy -- @f$g(a(x)) = p(a(x))@f$ and
+    @f$L_e@f$ of the exact flux is @f$p(x) - p(a(x))@f$, which is the identity
+    PathIntegral() is documented by and the one this is tested against. */
+class TransferredDatumCoefficient : public Coefficient
+{
+   PathTraceCoefficient trace;
+   PathLiftCoefficient lift;
+
+public:
+   TransferredDatumCoefficient(const TransferPath &path_, PositionFunction g_,
+                               const GridFunction &u_, Coefficient &C_,
+                               int line_order_ = -1)
+      : trace(path_, std::move(g_)), lift(path_, u_, C_, line_order_) { }
+
+   TransferredDatumCoefficient(const TransferPath &path_, PositionFunction g_,
+                               const GridFunction &u_, MatrixCoefficient &C_,
+                               int line_order_ = -1)
+      : trace(path_, std::move(g_)), lift(path_, u_, C_, line_order_) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   { return trace.Eval(T, ip) + lift.Eval(T, ip); }
 };
 
 

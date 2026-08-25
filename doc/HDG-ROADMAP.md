@@ -637,6 +637,61 @@ family remains perfectly good for *transferring the datum*, which reads nothing
 off `Γ_h` but the faces themselves, and it converges at `k+1` doing so; it
 cannot be used to define the approximation outside. A test pins both halves.
 
+### The datum that was imposed, made reachable
+
+**Reported from outside**, as §4 of `doc/HDG-DEFECTS-FROM-MEQ.md` on
+`gf-hdg-dev` — a missing capability rather than a bug, but one that defeats a
+published error estimator, which is why it is here rather than on the list
+below.
+
+The method imposes `φ_h = g∘a + L_e(u_h)` on a face of `Γ_h`, and the two
+halves had very different visibility. `g∘a` is `PathTraceCoefficient` and can
+be evaluated anywhere a `Coefficient` can; `L_e(u_h)` was formed inside
+`HDGExtensionIntegrator::AssembleFaceMatrix` as the local matrix `L`,
+contracted straight into `elmat`, and never stored. After a solve there was no
+way to ask what had been imposed on a given face.
+
+**What that costs is a term of the estimator, not a convenience.** Any
+face-based indicator that compares a computed trace against the datum actually
+imposed cannot be formed on `Γ_h`. In eq. (20) of **SSC-Estimator** that is
+`η₅`, and on
+the extension path the trace unknown there is pinned rather than free, so the
+term compares the postprocessed potential against **zero**. The difference is
+`O(dist(Γ_h, Γ)) = O(h)` and swamps everything else: the reporting application
+measured `η = 4.09e-1` against `η₁ = 2.12e-3` at `k = 2`, converging at about
+one half. Unmitigated, an adaptive loop built on it runs, produces plausible
+pictures, and refines the wrong elements. Excluding those faces restores `k+1`
+for the total and is an omission rather than a repair — the term does carry
+information on `Γ_h`.
+
+**Now reachable, at no new quadrature and no new geometry.** The per-point
+lifting is factored out of the assembly into `LiftBasis`, so the two cannot
+drift, and the line rule is shared through one accessor for the same reason.
+Three things sit on it:
+
+* `HDGExtensionIntegrator::ComputeLift(el1, FTr, ip, elfun)` — `L_e(u_h)` at
+  one point of a face, against the element's flux dofs in the ordering the
+  assembled block uses.
+* `PathLiftCoefficient` — the same, fetching the dofs itself, to sit beside
+  `PathTraceCoefficient`.
+* `TransferredDatumCoefficient` — `φ_h` itself, which is what an indicator on
+  `Γ_h` needs and what neither half is.
+
+**Pinned two ways.** Against `PathIntegral` applied to the same extended flux,
+which the case above has already established as the functional the assembled
+block is built from — so the two are the same object rather than two things
+that agree. And against the identity the whole construction rests on: fed the
+exact flux, `φ_h` is the exact potential on `Γ_h`, because `C u = -grad p` is a
+gradient and the path integral is `p(x) - p(a(x))` whatever the path. With the
+degree-two potential that holds to round-off. The control in the same case is
+that `g∘a` alone is *not* `φ_h` — it differs from `p` on `Γ_h` by the `O(h)`
+stand-off, which is exactly the term an indicator built on the trace alone
+picks up.
+
+**Not built**: `η₅` itself. `HDGErrorEstimator` takes an integrator rather than
+a coefficient, so wiring the term in is a separate piece of work, and the
+constants of eq. (20) are §7's question rather than §1's.
+
 **Not yet built**: the **cone restriction `C(x)`** of CS-Extensions §2.4.1,
 which is what would close the airfoil's flux — see above, where it is bisected
 to that and nothing else; the postprocessed `p*` on `D_h` and its `k+2`; the
@@ -2388,5 +2443,12 @@ subject.
   to an exterior boundary-integral representation across an unmeshed interface,
   with **CSS-Analysis** its companion analysis, including the relaxed iteration
   and the contraction estimate. §2.
+* **SSC-Estimator** — Sánchez-Vizuet, Solano & Cerfon, an a posteriori error
+  estimator for an HDG solve on a domain reached by extension from a
+  subdomain. Its eq. (20) is the five-term indicator, of which `η₅` compares a
+  computed trace against the datum imposed on `Γ_h` and so needs `φ_h`
+  evaluable — see §1. Cited by the outside report
+  `doc/HDG-DEFECTS-FROM-MEQ.md`, which is where the measurements quoted for it
+  come from.
 * **Persson & Peraire**, modal-decay smoothness sensor, cited in §7 as the
   standard choice for an `hp` criterion.

@@ -441,14 +441,12 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
    L.SetSize(dof, dim);
    if (MC) { Cmat.SetSize(dim); }
 
-   const int order = (line_order >= 0) ? line_order : (2 * el1.GetOrder() + 2);
-
    const IntegrationRule *ir = IntRule;
    if (!ir)
    {
       ir = &IntRules.Get(Trans.GetGeometryType(), 2 * el1.GetOrder() + 2);
    }
-   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, order);
+   const IntegrationRule &lir = LineRule(el1);
 
    ext.SetElement(*Trans.Elem1);
 
@@ -477,42 +475,8 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
       subtract(xbar, x, m);
 
       // The lifting of every basis function of the element, at this point of
-      // the face.  The unit tangent is m/|m| and ds = |m| dt, so the length
-      // of the path cancels and never appears.
-      L = 0.;
-      for (int t = 0; t < lir.GetNPoints(); t++)
-      {
-         const IntegrationPoint &tip = lir.IntPoint(t);
-         for (int d = 0; d < dim; d++) { y(d) = x(d) + tip.x * m(d); }
-
-         IntegrationPoint eip;
-         MFEM_VERIFY(ext.TransformBack(y, eip),
-                     "the inverse element transformation did not converge on "
-                     "the extension of the element beyond Gamma_h");
-         Trans.Elem1->SetIntPoint(&eip);
-         el1.CalcPhysShape(*Trans.Elem1, shape_ext);
-
-         // (C phi_j) . m = phi_j . (C^T m), and phi_j = shape_j e_d.
-         if (MC)
-         {
-            MC->Eval(Cmat, *Trans.Elem1, eip);
-            Cmat.MultTranspose(m, CTm);
-         }
-         else
-         {
-            CTm = m;
-            CTm *= C->Eval(*Trans.Elem1, eip);
-         }
-
-         for (int d = 0; d < dim; d++)
-         {
-            const real_t wd = tip.weight * CTm(d);
-            for (int j = 0; j < dof; j++)
-            {
-               L(j, d) += wd * shape_ext(j);
-            }
-         }
-      }
+      // the face.
+      LiftBasis(el1, *Trans.Elem1, x, m, lir, L);
 
       const real_t w = sign * ip.weight;
       for (int di = 0; di < dim; di++)
@@ -526,6 +490,109 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
                }
          }
    }
+}
+
+void HDGExtensionIntegrator::LiftBasis(
+   const FiniteElement &el1, ElementTransformation &elem_tr, const Vector &x,
+   const Vector &m, const IntegrationRule &lir, DenseMatrix &Lmat)
+{
+   const int dof = el1.GetDof();
+   const int dim = m.Size();
+
+   shape_ext.SetSize(dof);
+   y.SetSize(dim);
+   CTm.SetSize(dim);
+   if (MC) { Cmat.SetSize(dim); }
+
+   // The unit tangent is m/|m| and ds = |m| dt, so the length of the path
+   // cancels and never appears.
+   Lmat.SetSize(dof, dim);
+   Lmat = 0.;
+   for (int t = 0; t < lir.GetNPoints(); t++)
+   {
+      const IntegrationPoint &tip = lir.IntPoint(t);
+      for (int d = 0; d < dim; d++) { y(d) = x(d) + tip.x * m(d); }
+
+      IntegrationPoint eip;
+      MFEM_VERIFY(ext.TransformBack(y, eip),
+                  "the inverse element transformation did not converge on "
+                  "the extension of the element beyond Gamma_h");
+      elem_tr.SetIntPoint(&eip);
+      el1.CalcPhysShape(elem_tr, shape_ext);
+
+      // (C phi_j) . m = phi_j . (C^T m), and phi_j = shape_j e_d.
+      if (MC)
+      {
+         MC->Eval(Cmat, elem_tr, eip);
+         Cmat.MultTranspose(m, CTm);
+      }
+      else
+      {
+         CTm = m;
+         CTm *= C->Eval(elem_tr, eip);
+      }
+
+      for (int d = 0; d < dim; d++)
+      {
+         const real_t wd = tip.weight * CTm(d);
+         for (int j = 0; j < dof; j++)
+         {
+            Lmat(j, d) += wd * shape_ext(j);
+         }
+      }
+   }
+}
+
+real_t HDGExtensionIntegrator::ComputeLift(
+   const FiniteElement &el1, FaceElementTransformations &Trans,
+   const IntegrationPoint &ip, const Vector &elfun)
+{
+   MFEM_VERIFY(Trans.Elem2No < 0,
+               "the extension term lives on a boundary face only");
+
+   const int dof = el1.GetDof();
+   const int dim = Trans.GetSpaceDim();
+
+   MFEM_VERIFY(elfun.Size() == dof * dim,
+               "the flux dofs of the element owning the face are expected, "
+               "with vdim equal to the space dimension");
+
+   m.SetSize(dim);
+
+   Trans.SetAllIntPoints(&ip);
+   Trans.Transform(ip, x);
+
+   // Endpoint() resets the transformations, so nothing read from them before
+   // this point may be relied on afterwards -- which is why the element is
+   // handed to the extension only below.
+   path.Endpoint(Trans, ip, xbar);
+   subtract(xbar, x, m);
+
+   ext.SetElement(*Trans.Elem1);
+   LiftBasis(el1, *Trans.Elem1, x, m, LineRule(el1), L);
+
+   real_t lift = 0.;
+   for (int d = 0; d < dim; d++)
+      for (int j = 0; j < dof; j++)
+      {
+         lift += L(j, d) * elfun(dof * d + j);
+      }
+   return lift;
+}
+
+real_t PathLiftCoefficient::Eval(ElementTransformation &T,
+                                 const IntegrationPoint &ip)
+{
+   FaceElementTransformations *FTr =
+      dynamic_cast<FaceElementTransformations *>(&T);
+   MFEM_VERIFY(FTr, "PathLiftCoefficient must be evaluated on a face, as the "
+               "lifting is defined along a path issuing from one");
+
+   const FiniteElementSpace &fes = *u.FESpace();
+   fes.GetElementVDofs(FTr->Elem1No, vdofs);
+   u.GetSubVector(vdofs, elfun);
+
+   return integ.ComputeLift(*fes.GetFE(FTr->Elem1No), *FTr, ip, elfun);
 }
 
 void ExtensionRegionQuadrature(
