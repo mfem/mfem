@@ -726,6 +726,44 @@ extension work back to `gf-hdg-dev` needs that pass as well as this fix.
 **(c) `ComputeHDGFaceEnergy()` ignored an installed `HDGStabilization`.** See
 §7 below; it is an estimator question rather than a postprocessing one.
 
+### A fourth, found by trying to reconstruct twice
+
+**Not in the outside report, and worse than anything in it.**
+`DarcyHybridization::ReconstructTotalFlux()` walks the faces with a single
+`DenseMatrix` for the constraint block. On an interior face
+`GetCtFaceMatrix()` **resets** that matrix onto the stored `Ct_data` — it
+aliases, it does not copy — and on a boundary face the constraint integrator
+assembles into the same variable. A `DenseMatrix` that already has the right
+shape keeps the pointer it was reset to, so the assembly **lands in
+`Ct_data`**. On a uniform mesh every face has that shape, so every boundary
+face overwrote the stored block of whichever interior face preceded it. The
+parallel shared-face branch does the same thing through `CopyMN`.
+
+**The call returns the right answer**; the corruption is behind it. Every
+number the miniapps print is unchanged by the fix, to the last digit —
+`convdiff -nx 8 -ny 8 -hb -dg -rec -anal -o 1` gives 0.00615473, 0.00510268
+and 0.00185788 before and after. What is damaged is the object it was called
+on, and the damage is total:
+
+| | measured |
+|---|---|
+| second `Reconstruct()`, `u_t` | moves by 0.40 on a field of norm 0.79 |
+| second `Reconstruct()`, `u_s` | moves by 1.58 |
+| `RecoverFEMSolution()` after a `Reconstruct()` | moves the solution by 3.24, on a solution of norm 2 |
+
+The reduced operator itself does **not** notice, because by then it is an
+assembled `SparseMatrix`; it is the recovery of flux and potential from the
+trace that reads `Ct_data` again. So this is invisible to a driver that solves
+once, reconstructs once and stops — which is every driver in this tree — and
+wrong for anything that reconstructs inside a loop: a time step, a Newton
+iteration, an adaptive pass that estimates and then solves again. §7's
+adaptive loop is exactly that shape, which is how it would have been found
+eventually.
+
+The fix is that nothing may assemble into a matrix `GetCtFaceMatrix()` has
+aliased. Two tests: reconstructing twice must agree to the last bit, and
+recovering the solution after a reconstruction must return the solution.
+
 The requirement as originally stated:
 
 * **`N` coupled fields, each a Darcy-like problem of the §3 kind**, coupled

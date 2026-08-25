@@ -310,8 +310,19 @@ TEST_CASE("Reconstruction carries a boundary-face term on the flux mass",
    // a term installed with AddBdrFaceIntegrator -- which is how an extension
    // method installs the element-local half of a transferred boundary datum,
    // deliberately keeping it off the constraint -- never reached the local
-   // problem. The assembled system had it and the post-processing did not,
-   // and the two disagreed in silence.
+   // problem the post-processing solves.
+   //
+   // The term is added *after* the solve, and the reconstruction is then run
+   // twice on that one solution. Nothing about the assembled problem differs
+   // between the two calls -- not the hybridization, not the total flux, not
+   // the element averages driving the local problems -- so any difference in
+   // what comes out is the lift and nothing else. That matters because
+   // whether the assembly carries such a term is a separate question with a
+   // separate answer: DarcyForm::Assemble() builds the hybridized flux mass
+   // from ComputeElementMatrix(), and only a tree with a boundary-face pass of
+   // its own -- AssembleFluxMassBdrFaces(), which the extension work adds --
+   // puts it into the solve. Holding the solve fixed makes this case say the
+   // same thing either way.
    const int dim = GENERATE(2, 3);
    const int order = GENERATE(0, 1);
    CAPTURE(dim, order);
@@ -320,36 +331,197 @@ TEST_CASE("Reconstruction carries a boundary-face term on the flux mass",
                ? Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false, 1., 1.)
                : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1., 1., 1.);
 
-   const real_t td = 0.5;
-   const Post none = Solve(mesh, order, PotForm::Linear, td, 0.0);
-   const Post some = Solve(mesh, order, PotForm::Linear, td, 3.0);
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, dim), fes_p(&mesh, &p_coll);
 
-   // Whether the *assembly* carries a boundary-face term on the flux mass is
-   // a separate question from whether the reconstruction does, and it is
-   // answered elsewhere: DarcyForm::Assemble() builds the hybridized flux
-   // mass from ComputeElementMatrix(), so on a branch without a boundary-face
-   // pass of its own the solve is unchanged by the term. That makes this the
-   // sharpest form of the test rather than the weakest -- the two solutions
-   // going into the post-processing are identical, so any difference in what
-   // comes out is the lift and nothing else.
-   REQUIRE(MaxDiff(none.ut, some.ut) < 1e-12 * std::max(some.ut.Normlinf(),
-                                                        real_t(1.0)));
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient gcoeff(gExact);
 
-   // The reconstruction must carry it. Until the lift took boundary faces,
-   // u_s came back bit for bit unchanged: the local problem on the boundary
-   // elements was solved without the term.
-   const real_t moved = MaxDiff(none.u_s, some.u_s);
+   DarcyForm darcy(&fes_u, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(1e-16);
+   lin.SetPreconditioner(prec);
+   lin.SetOperator(*A);
+   lin.Mult(RHS, X);
+   REQUIRE(lin.GetConverged());
+   darcy.RecoverFEMSolution(X, x);
+
+   // Before anything else: the reduced operator, and the reconstruction run
+   // twice on the same solution. Reconstructing used to *write into* the
+   // stored constraint blocks -- see the case below -- so neither was safe,
+   // and the two-reconstruction comparison this case rests on could not have
+   // been written at all.
+   Vector probe(X.Size()), Aprobe0(X.Size()), Aprobe1(X.Size());
+   for (int i = 0; i < probe.Size(); i++)
+   {
+      probe(i) = std::sin(1.7 * i + 0.3);
+   }
+   A->Mult(probe, Aprobe0);
+
+   GridFunction ut0, u0, p0, tr0;
+   darcy.Reconstruct(x, X, ut0, u0, p0, tr0);
+
+   A->Mult(probe, Aprobe1);
+   REQUIRE(MaxDiff(Aprobe0, Aprobe1) == 0.0);
+
+   // Now the term, and the same reconstruction again. The output functions
+   // are fresh, which is what makes the enriched form be rebuilt rather than
+   // reused -- the lift is cached against the spaces it was built for.
+   darcy.GetFluxMassForm()->AddBdrFaceIntegrator(new BdrFluxMass(3.0));
+
+   GridFunction ut1, u1, p1, tr1;
+   darcy.Reconstruct(x, X, ut1, u1, p1, tr1);
+
+   // The data of the local problems is identical by construction; only the
+   // flux block on boundary elements can have moved.
+   REQUIRE(MaxDiff(ut0, ut1) < 1e-14 * std::max(ut0.Normlinf(), real_t(1.0)));
+
+   const real_t moved = MaxDiff(u0, u1);
    INFO("max |u_s difference| = " << moved
-        << " against |u_s| = " << some.u_s.Normlinf());
-   REQUIRE(moved > 1e-6 * some.u_s.Normlinf());
-   REQUIRE(std::isfinite(some.u_s.Normlinf()));
+        << " against |u_s| = " << u1.Normlinf());
+   REQUIRE(std::isfinite(u1.Normlinf()));
+   REQUIRE(moved > 1e-6 * u1.Normlinf());
 
-   // A boundary mass penalises the flux there, so a larger coefficient must
-   // push the reconstructed flux on the boundary elements further, not merely
-   // somewhere else. Monotonicity is the cheapest statement that the term is
-   // entering with the sign the assembly would give it.
-   const Post more = Solve(mesh, order, PotForm::Linear, td, 30.0);
-   const real_t moved_more = MaxDiff(none.u_s, more.u_s);
+   // And it enters as a mass: a larger coefficient penalises the boundary
+   // flux harder, so the reconstruction must move further, not merely
+   // differently. That is the cheapest statement that the term is entering
+   // with the sign and the scaling the assembly would give it.
+   darcy.GetFluxMassForm()->AddBdrFaceIntegrator(new BdrFluxMass(27.0));
+
+   GridFunction ut2, u2, p2, tr2;
+   darcy.Reconstruct(x, X, ut2, u2, p2, tr2);
+
+   const real_t moved_more = MaxDiff(u0, u2);
    INFO("moved " << moved << " at c = 3 against " << moved_more << " at c = 30");
    REQUIRE(moved_more > moved);
+}
+
+TEST_CASE("Reconstruction leaves the hybridization as it found it",
+          "[DarcyForm][Reconstruction]")
+{
+   using namespace darcy_reconstruction;
+
+   // DarcyHybridization::ReconstructTotalFlux() walked the faces with one
+   // DenseMatrix for the constraint block. On an interior face
+   // GetCtFaceMatrix() *resets* that matrix onto the stored Ct_data; on a
+   // boundary face the constraint integrator assembled into it -- and a
+   // DenseMatrix that already has the right shape keeps the pointer it was
+   // reset to, so the assembly landed in Ct_data. On a uniform mesh every
+   // face has that shape, so every boundary face overwrote the stored block
+   // of whichever interior face came before it.
+   //
+   // The answer the call returns is right -- the corruption is behind it, and
+   // the miniapps' numbers do not move. What it damages is the object it was
+   // called on. So it is invisible to a driver that solves once, reconstructs
+   // once and stops, which is every driver in the tree, and wrong for
+   // anything that reconstructs inside a loop: a time step, a Newton
+   // iteration, an adaptive pass that estimates and then solves again.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1);
+   CAPTURE(dim, order);
+
+   Mesh mesh = (dim == 2)
+               ? Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false, 1., 1.)
+               : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1., 1., 1.);
+
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, dim), fes_p(&mesh, &p_coll);
+
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient gcoeff(gExact);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(1e-16);
+   lin.SetPreconditioner(prec);
+   lin.SetOperator(*A);
+   lin.Mult(RHS, X);
+   REQUIRE(lin.GetConverged());
+   darcy.RecoverFEMSolution(X, x);
+
+   // Recovering the flux and potential from the trace is what reads the
+   // stored constraint blocks after the system has been formed -- the reduced
+   // operator itself is a SparseMatrix by then and would not notice. So this
+   // is the sharp statement: the same trace must give the same solution.
+   BlockVector before(darcy.GetOffsets());
+   before = x;
+
+   GridFunction ut0, u0, p0, tr0;
+   darcy.Reconstruct(x, X, ut0, u0, p0, tr0);
+
+   BlockVector after(darcy.GetOffsets());
+   after = 0.0;
+   darcy.RecoverFEMSolution(X, after);
+
+   INFO("recovering the solution again moved it by " << MaxDiff(before, after)
+        << " on a solution of size " << before.Normlinf());
+   REQUIRE(MaxDiff(before, after) == 0.0);
+
+   // And the consequence a caller sees: reconstructing twice must give the
+   // same answer. It differed by half the field.
+   GridFunction ut1, u1, p1, tr1;
+   darcy.Reconstruct(x, X, ut1, u1, p1, tr1);
+
+   INFO("second reconstruction moved ut by " << MaxDiff(ut0, ut1)
+        << " and u_s by " << MaxDiff(u0, u1));
+   REQUIRE(MaxDiff(ut0, ut1) == 0.0);
+   REQUIRE(MaxDiff(u0, u1) == 0.0);
+   REQUIRE(MaxDiff(p0, p1) == 0.0);
+   REQUIRE(MaxDiff(tr0, tr1) == 0.0);
 }

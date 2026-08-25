@@ -29,7 +29,9 @@ came out differently from the reading below and are recorded where they are
 described: §1 is worse than stated — the local problem loses its face
 constraint as well as its mass, which is what makes it singular rather than
 merely wrong — and §3's fix could not be the loud one, because refusing would
-break the extension miniapp that relies on reconstructing.
+break the extension miniapp that relies on reconstructing. A fifth defect,
+not reported from outside, came out of writing §3's regression and is added at
+the end; it is worse than any of the four.
 
 **Ordered by how badly they fail, not by how hard they are to fix.** §1 returns
 wrong numbers with no diagnostic and is the one that matters. §2 is the same
@@ -264,6 +266,26 @@ quadrature point. A method that contracts it against the element's flux dofs
 and returns `L_e(u_h)` at a face integration point — or a `Coefficient` doing
 the same, to sit beside `PathTraceCoefficient` — would make `φ_h` evaluable
 with no new quadrature and no new geometry.
+
+---
+
+## A fifth, found here rather than there
+
+**`DarcyHybridization::ReconstructTotalFlux()` writes into the stored
+constraint blocks.** Not in this report, and worse than anything in it. The
+face loop uses one `DenseMatrix` for the constraint block; on an interior face
+`GetCtFaceMatrix()` *aliases* it onto `Ct_data`, and on a boundary face the
+constraint integrator assembles into the same variable, which keeps the
+aliased pointer whenever the shape already matches — always, on a uniform
+mesh. The call's own answer is right and every miniapp number is unchanged,
+but the object it was called on is left corrupt: a second `Reconstruct()`
+moves `u_t` by half its norm, and `RecoverFEMSolution()` afterwards moves the
+solution by more than the solution. Invisible to anything that reconstructs
+once, wrong for anything that reconstructs in a loop.
+
+**Found by trying to write the regression for §3**, which needs the same
+solution reconstructed twice with and without the boundary term, and could not
+be written until this was fixed. `HDG-ROADMAP.md` §4 has the measurements.
 
 ---
 

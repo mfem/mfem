@@ -3215,7 +3215,12 @@ void DarcyHybridization::ReconstructTotalFlux(
    const int nfaces = mesh->GetNumFaces();
    Array<int> f_2_b = mesh->GetFaceToBdrElMap();
    Array<int> vdofs_ut, vdofs_xf, vdofs1, vdofs2, dofs1, dofs2;
-   DenseMatrix Ct_l, Ct1, Ct2, Mf;
+   // Ct1 and Ct2 are made to *reference* the stored constraint blocks by
+   // GetCtFaceMatrix(), so nothing may be assembled into them: a DenseMatrix
+   // that already has the right shape keeps the pointer it was reset to, and
+   // the write lands in Ct_data. Ct_own is where every path that writes a
+   // constraint matrix puts it.
+   DenseMatrix Ct_l, Ct1, Ct2, Ct_own, Mf;
    Vector u1, u2, p1, p2, xf, bf, bf1, bf2, ut_f;
    MassIntegrator fbfi;
    DenseMatrixInverse Mfi;
@@ -3245,16 +3250,18 @@ void DarcyHybridization::ReconstructTotalFlux(
          //side 1
          fes.GetElementVDofs(ftr->Elem1No, vdofs1);
          sol_u.GetSubVector(vdofs1, u1);
-         Ct1.CopyMN(Ct_l, vdofs1.Size(), vdofs_ut.Size(), 0, 0);
-         Ct1.MultTranspose(u1, bf);
+         Ct_own.SetSize(vdofs1.Size(), vdofs_ut.Size());
+         Ct_own.CopyMN(Ct_l, vdofs1.Size(), vdofs_ut.Size(), 0, 0);
+         Ct_own.MultTranspose(u1, bf);
 
          //side 2
          pfes->GetFaceNbrElementVDofs(nbr_el, vdofs2);
          pu.FaceNbrData().GetSubVector(vdofs2, u2);
-         Ct2.CopyMN(Ct_l, vdofs2.Size(), vdofs_ut.Size(), vdofs1.Size(), 0);
+         Ct_own.SetSize(vdofs2.Size(), vdofs_ut.Size());
+         Ct_own.CopyMN(Ct_l, vdofs2.Size(), vdofs_ut.Size(), vdofs1.Size(), 0);
          // here we use the constraint integrator as well, but flip the sign
          // corresponding to the opposite normal for the total flux
-         Ct2.AddMultTranspose(u2, bf, -1.);
+         Ct_own.AddMultTranspose(u2, bf, -1.);
       }
       else
 #endif
@@ -3262,9 +3269,11 @@ void DarcyHybridization::ReconstructTotalFlux(
          //flux constraint
 
          //side 1
+         const DenseMatrix *Ct1_p;
          if (ftr->Elem2No >= 0)
          {
             GetCtFaceMatrix(f, 0, Ct1);
+            Ct1_p = &Ct1;
          }
          else
          {
@@ -3272,12 +3281,13 @@ void DarcyHybridization::ReconstructTotalFlux(
             // might or might not be present, and apply the constraint
             // integrator at the boundaries as well
             const FiniteElement *fe1 = fes.GetFE(ftr->Elem1No);
-            c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe1, *ftr, Ct1);
+            c_bfi->AssembleFaceMatrix(*fe_c, *fe1, *fe1, *ftr, Ct_own);
+            Ct1_p = &Ct_own;
          }
 
          fes.GetElementVDofs(ftr->Elem1No, vdofs1);
          sol_u.GetSubVector(vdofs1, u1);
-         Ct1.MultTranspose(u1, bf);
+         Ct1_p->MultTranspose(u1, bf);
 
          //side 2
          if (ftr->Elem2No >= 0)
