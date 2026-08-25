@@ -638,10 +638,93 @@ price of pushing `τ` up is `k=0` beginning to lock. That is a `τ` question,
   total-flux spaces with no `vdim` argument and indexes them with
   `GetElementDofs` rather than `GetElementVDofs`;
   `DarcyHybridization::ReconstructTotalFlux` takes a callback with a scalar
-  potential; the source term uses `DivergenceGridFunctionCoefficient`, which is
-  scalar; and a system whose stabilization is the nonlinear face integrator has
-  no linear potential constraint for the local problem to use. Listed in what
-  is still open.
+  potential; and the source term uses `DivergenceGridFunctionCoefficient`,
+  which is scalar. Listed in what is still open. The fourth item on that list
+  — a stabilization living on the nonlinear face integrator leaving the local
+  problem with no potential constraint — is no longer one of them; it is the
+  first of the three defects below.
+
+### Three defects the reconstruction had, found from outside
+
+**All three were found by a user of this branch rather than by this work**,
+building a fixed-boundary Grad–Shafranov solver on it, and reported in
+`doc/HDG-DEFECTS-FROM-MEQ.md`. Each is the same shape: a path was extended for
+one configuration and its sibling was not, and the sibling does not fail — it
+produces numbers. They are recorded here with what was measured, because the
+first of them is the strongest argument in this document for not trusting a
+postprocessing pass that has no twin to check against.
+
+**(a) The lift read the potential mass off the linear form only.** The block
+began `if (M_p)` with no `else if (Mnl_p)`, so a potential block living
+entirely on the nonlinear form — which a Newton path on a solution-dependent
+source forces, since a nonlinear potential mass and a linear one cannot be
+mixed — produced an enriched form with no integrators at all. Worse than the
+missing mass: the hybridization keeps a nonlinear potential constraint in
+`c_nlfi_p` rather than `c_bfi_p`, and the local problem read only the latter,
+so it had **no face constraint either**. The matrix was singular and was
+factored and solved anyway.
+
+Measured here, on the same problem solved twice with the potential mass on
+each form, `p_h` agreeing to solver tolerance:
+
+| | `‖p_s − p‖` linear | `‖p_s − p‖` nonlinear |
+|---|---|---|
+| before | as the table above | **7.8e16** |
+| after | as the table above | same to 8 figures |
+
+and from the miniapp, `convdiff -nx 8 -ny 8 -hb -dg -rec -anal -o 1`, where
+`-nlp` returned `nan` for both postprocessed fields and now returns
+0.00510265 and 0.00185785 against the linear path's 0.00510268 and 0.00185788.
+The reporting application measured 9.9e14 against 3.8e-6 on its own benchmark.
+
+The fix is to take the potential block as **the Jacobian frozen at the
+computed potential**, lifted onto the enriched space — the treatment the flux
+mass already gets one screen earlier, and one that reduces to the `M_p` branch
+term for term when the integrators are bilinear, since
+`BilinearFormIntegrator::AssembleElementGrad` is its element matrix. The
+enriched space contains the original one, so the embedding of `p_h` that the
+freezing point needs is exact and adds nothing of its own. The face constraint
+comes from `c_nlfi_p->AssembleHDGFaceGrad`, which lays its block out exactly as
+`AssembleHDGFaceMatrix` does when the whole mask is asked for.
+
+**What it refuses, and why.** That gradient is taken at the computed potential
+and at a **zero trace**, because the reconstruction is never handed the trace
+solution — `Reconstruct()` passes `sol_r` to the total-flux pass and not to
+this one. So the lift verifies that every interior-face integrator on the
+nonlinear potential mass is bilinear, and that any `HDGDiffusionIntegrator`
+among them carries no state-dependent stabilization; a genuinely nonlinear face
+term, `convdiff -nlc`, is refused with a message naming the reason instead of
+returning `nan`. Making that case work needs the coarse trace threaded into
+`ReconstructFluxAndPot`, which is an API question rather than a bug.
+
+**(b) The lift took domain integrators only.** A boundary-face term on the flux
+mass was dropped on the way to the enriched space. That is exactly how the
+extension work on `gf-hdg-subdomains-dev` installs the solution-dependent half
+of a transferred boundary datum — on the flux mass with `AddBdrFaceIntegrator`,
+deliberately, so that the element-local term does not reach the hybridization —
+and the reconstruction was solving its local problems without it. The reporting
+application measured this one **harmless**: `p_s` still converged at `k+2` on
+its benchmark, because the local problem is driven by the reconstructed total
+flux and the element average, and both already carry the extension.
+
+It is fixed rather than merely documented, because "harmless on the cases tried"
+has no diagnostic to tell it from the cases where it is not. The boundary-face
+integrators are lifted with their markers and assembled face by face into the
+local flux block. An **interior**-face term on the flux mass is refused
+instead: it couples two elements and the local problem is one element at a
+time, so there is nothing to lift it onto.
+
+**A second thing surfaced while pinning this.** `DarcyForm::Assemble()` builds
+the hybridized flux mass from `M_u->ComputeElementMatrix()`, which is domain
+integrators only — so on this branch a boundary-face term on the flux mass
+never reaches **the solve** either. `gf-hdg-subdomains-dev` added
+`AssembleFluxMassBdrFaces()` for exactly that and this branch has no
+equivalent, which is why the test here holds the discrete solution fixed and
+measures only what the postprocessing does with it. Anyone bringing the
+extension work back to `gf-hdg-dev` needs that pass as well as this fix.
+
+**(c) `ComputeHDGFaceEnergy()` ignored an installed `HDGStabilization`.** See
+§7 below; it is an estimator question rather than a postprocessing one.
 
 The requirement as originally stated:
 
@@ -853,6 +936,24 @@ hybridized Darcy-like systems, in two flavours:
   product can be evaluated **component-wise in reference space**, which is what
   produces the anisotropic flags. Needs `ComputeHDGFaceEnergy` with its
   `d_energy` parameter.
+
+**The energy mode reported the wrong `τ` when one was installed.** Every other
+path through `HDGDiffusionIntegrator` takes its stabilization from
+`StabValue()`, which is what gives `SetStabilization()` its effect: with a hook
+set it divides the quadrature weight out, calls `HDGStabilization::Eval()` and
+puts the weight back. `ComputeHDGFaceEnergy()` formed the built-in `{h⁻¹Q}`
+expression directly instead, so `Type::Energy` measured the energy of a
+stabilization that was not the one being solved with, while `Type::Residual` —
+the same class, the same `switch` — honoured the hook all along. With the
+constant `τ` both Grad–Shafranov papers use, and which is the usual reason to
+install a hook at all, the two differ by the local mesh size and the diffusion
+coefficient, so the discrepancy **grows under refinement** rather than staying a
+fixed factor. Reported from outside as §2 of
+`doc/HDG-DEFECTS-FROM-MEQ.md`; the energy now goes through `StabValue()` like
+the other four, and with no hook it is the same number to the last bit. The
+anisotropic split follows it: the direction weights are geometry and sum to
+`ni·nor`, so normalising by that distributes exactly the energy added, whatever
+the stabilization was.
 
 The indicator is the trace jump `|p̂ - λ|` — **the same quantity the scheme uses
 for stabilisation**, which is elegant and cheap, and the header argues that

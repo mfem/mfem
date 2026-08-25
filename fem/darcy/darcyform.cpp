@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "darcyform.hpp"
+#include "bilininteg_hdg.hpp"
 #include "../hyperbolic.hpp"
 #include "../nonlininteg_mixed.hpp"
 
@@ -1201,6 +1202,33 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
          {
             Mu_s->AddDomainIntegrator(bfi);
          }
+
+         // A boundary-face term on the flux mass is element-local -- that is
+         // why it is installed there rather than on the constraint -- so the
+         // local problem can and must carry it. It is lifted here and
+         // assembled face by face below; it used to be dropped, and the local
+         // problem was solved without the datum it carries.
+         auto Mu_bfbfi = *M_u->GetBFBFI();
+         auto Mu_bfbfi_marker = *M_u->GetBFBFI_Marker();
+         for (int k = 0; k < Mu_bfbfi.Size(); k++)
+         {
+            if (Mu_bfbfi_marker[k])
+            {
+               Mu_s->AddBdrFaceIntegrator(Mu_bfbfi[k], *Mu_bfbfi_marker[k]);
+            }
+            else
+            {
+               Mu_s->AddBdrFaceIntegrator(Mu_bfbfi[k]);
+            }
+         }
+
+         // An interior-face term is a different matter: it couples two
+         // elements, and the reconstruction solves one element at a time.
+         MFEM_VERIFY(M_u->GetFBFI()->Size() == 0,
+                     "Reconstruction cannot represent an interior-face term "
+                     "on the flux mass: the local problem is element-local "
+                     "and the term couples two elements.");
+
          Mu_s->UseExternalIntegrators();
       }
       else if (!frozen_flux)
@@ -1214,6 +1242,29 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                         "as a bilinear form.");
             Mu_s->AddDomainIntegrator(bfi);
          }
+
+         const auto &Mu_bfnfi = Mnl_u->GetBdrFaceIntegrators();
+         const auto &Mu_bfnfi_marker = Mnl_u->GetBdrFaceIntegratorsMarkers();
+         for (int k = 0; k < Mu_bfnfi.Size(); k++)
+         {
+            auto *bfi = dynamic_cast<BilinearFormIntegrator*>(Mu_bfnfi[k]);
+            MFEM_VERIFY(bfi, "Reconstruction needs a boundary-face term on "
+                        "the flux mass that assembles as a bilinear form.");
+            if (Mu_bfnfi_marker[k])
+            {
+               Mu_s->AddBdrFaceIntegrator(bfi, *Mu_bfnfi_marker[k]);
+            }
+            else
+            {
+               Mu_s->AddBdrFaceIntegrator(bfi);
+            }
+         }
+
+         MFEM_VERIFY(Mnl_u->GetInteriorFaceIntegrators().Size() == 0,
+                     "Reconstruction cannot represent an interior-face term "
+                     "on the flux mass: the local problem is element-local "
+                     "and the term couples two elements.");
+
          Mu_s->UseExternalIntegrators();
       }
       else
@@ -1285,18 +1336,69 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       }
    }
 
+   // The potential mass reaches the local problem's faces by a different
+   // route from the flux mass: EnableHybridization() turned its face
+   // integrators into the potential constraint, and the face loop below
+   // applies that constraint on every face of the element. So its
+   // boundary-face terms are not dropped -- unless there is no constraint at
+   // all, which is the one arrangement in which nothing carries them.
+   MFEM_VERIFY(!M_p || !M_p->GetBFBFI()->Size()
+               || hybridization->GetPotConstraintIntegrator()
+               || hybridization->GetPotConstraintNonlinearIntegrator(),
+               "Reconstruction cannot represent a boundary-face term on the "
+               "potential mass with no potential constraint to carry it.");
+
+   // The potential block on a non-linear form. There is nothing to lift onto
+   // the enriched space -- a non-linear integrator has no element matrix -- so
+   // the element term is taken as the Jacobian frozen at the computed
+   // potential, which is the same treatment the flux mass gets above and
+   // reduces to the M_p branch exactly when the integrators are bilinear.
+   // The list is refreshed on every call because the freezing point moves.
+   Mp_nl_lift.DeleteAll();
+   if (!M_p && Mnl_p)
+   {
+      for (NonlinearFormIntegrator *nlfi : *Mnl_p->GetDNFI())
+      {
+         Mp_nl_lift.Append(nlfi);
+      }
+
+      // The face constraint comes from the hybridization, whose non-linear
+      // potential integrator is the sum of exactly these. Its gradient is
+      // taken at the computed potential and at a zero trace, which is only
+      // the block the local problem needs if the trace cannot enter it --
+      // the reconstruction is never given the trace solution. Refuse rather
+      // than linearise about a state that is not the computed one.
+      for (NonlinearFormIntegrator *nlfi : Mnl_p->GetInteriorFaceIntegrators())
+      {
+         auto *bfi = dynamic_cast<BilinearFormIntegrator*>(nlfi);
+         MFEM_VERIFY(bfi, "Reconstruction needs a potential constraint whose "
+                     "gradient does not depend on the trace; this one is "
+                     "genuinely non-linear on the face.");
+         auto *hdi = dynamic_cast<HDGDiffusionIntegrator*>(nlfi);
+         MFEM_VERIFY(!hdi || !hdi->GetStabilization()
+                     || hdi->GetStabilization()->IsConstant(),
+                     "Reconstruction needs a potential constraint whose "
+                     "gradient does not depend on the trace; this "
+                     "stabilization is state dependent.");
+      }
+   }
+
    reconstruction->ReconstructFluxAndPot(*hybridization, pc, ut, u, p, tr,
-                                         M_p_src.get());
+                                         M_p_src.get(), &Mp_nl_lift);
 }
 
 void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
                                       const GridFunction &pc,
                                       const GridFunction &ut, GridFunction &u,
                                       GridFunction &p, GridFunction &tr,
-                                      MixedBilinearForm *Mp_src) const
+                                      MixedBilinearForm *Mp_src,
+                                      const Array<NonlinearFormIntegrator*> *Mp_nl)
+const
 {
    BilinearFormIntegrator *c_bfi = h.GetFluxConstraintIntegrator();
    BilinearFormIntegrator *c_bfi_p = h.GetPotConstraintIntegrator();
+   NonlinearFormIntegrator *c_nlfi_p = h.GetPotConstraintNonlinearIntegrator();
+   const bool pot_nl = (Mp_nl && Mp_nl->Size());
    FiniteElementSpace *fes_tr = tr.FESpace();
    const FiniteElementSpace *fes_pc = pc.FESpace();
    const FiniteElementSpace *fes_ut = ut.FESpace();
@@ -1307,11 +1409,29 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
    const int dim = mesh->Dimension();
 
    DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f,
-               Mp_src_z;
+               Mp_src_z, Mp_k, P_lift;
    DenseMatrixInverse inv;
    Vector rhs, rhs_p, shape_p, shape_pc;
    Vector shape_ut, shape_tr, ut_f, rhs_f;
+   Vector p_lift, rhs_p_nl, trfun_z;
    Array<int> faces, oris, vdofs_ut;
+
+   // The boundary-face terms of the flux mass, and the attribute each face
+   // carries so that their markers can be honoured. The lift copied them onto
+   // the enriched space; nothing else in the local problem does.
+   auto &Mu_bfbfi = *M_u->GetBFBFI();
+   auto &Mu_bfbfi_marker = *M_u->GetBFBFI_Marker();
+   Array<int> face_bdr_attr;
+   if (Mu_bfbfi.Size())
+   {
+      face_bdr_attr.SetSize(mesh->GetNumFaces());
+      face_bdr_attr = -1;
+      for (int be = 0; be < mesh->GetNBE(); be++)
+      {
+         face_bdr_attr[mesh->GetBdrElementFaceIndex(be)] = mesh->GetBdrAttribute(be);
+      }
+   }
+   DenseMatrix Mu_f;
 
    DivergenceGridFunctionCoefficient bp_coeff(&ut);
    DomainLFIntegrator bp(bp_coeff);
@@ -1357,6 +1477,23 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
       rhs.SetSize(elmat_h);
       rhs = 0.;
 
+      const FiniteElement *fe_p = fes_p->GetFE(z);
+      ElementTransformation *Tr = mesh->GetElementTransformation(z);
+
+      fes_pc->GetElementDofs(z, dofs_pc);
+      pc.GetSubVector(dofs_pc, sol_pc);
+
+      // The computed potential lifted onto the enriched space, the state that
+      // a frozen non-linear block is taken at. The enriched space contains the
+      // original one, so the embedding is exact and the lift adds nothing of
+      // its own.
+      if (pot_nl || c_nlfi_p)
+      {
+         fe_p->Project(*fes_pc->GetFE(z), *Tr, P_lift);
+         p_lift.SetSize(ndof_p);
+         P_lift.Mult(sol_pc, p_lift);
+      }
+
       M_u->ComputeElementMatrix(z, Mu_z);
       elmat.CopyMN(Mu_z, 0, 0);
 
@@ -1365,9 +1502,35 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
       B_z.Neg();
       elmat.CopyMNt(B_z, 0, ndof_u);
 
+      bool nl_src = false;
       if (M_p)
       {
          M_p->ComputeElementMatrix(z, Mp_z);
+         elmat.CopyMN(Mp_z, ndof_u, ndof_u);
+      }
+      else if (pot_nl)
+      {
+         Mp_z.SetSize(ndof_p);
+         Mp_z = 0.;
+         rhs_p_nl.SetSize(ndof_p);
+         rhs_p_nl = 0.;
+
+         for (NonlinearFormIntegrator *nlfi : *Mp_nl)
+         {
+            // For a bilinear integrator this is the element matrix itself, so
+            // the branch coincides with the M_p one term by term.
+            nlfi->AssembleElementGrad(*fe_p, *Tr, p_lift, Mp_k);
+            Mp_z += Mp_k;
+
+            // use non-singular terms as a source
+            if (!dynamic_cast<ConvectionIntegrator*>(nlfi)
+                && !dynamic_cast<ConservativeConvectionIntegrator*>(nlfi)
+                && !dynamic_cast<HyperbolicFormIntegrator*>(nlfi))
+            {
+               Mp_k.AddMult(p_lift, rhs_p_nl);
+               nl_src = true;
+            }
+         }
          elmat.CopyMN(Mp_z, ndof_u, ndof_u);
       }
 
@@ -1376,8 +1539,6 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
       rhs_p.MakeRef(rhs, ndof_u, ndof_p);
 
       // element term
-      const FiniteElement *fe_p = fes_p->GetFE(z);
-      ElementTransformation *Tr = mesh->GetElementTransformation(z);
       bp.AssembleRHSElementVect(*fe_p, *Tr, rhs_p);
 
       // face terms
@@ -1409,10 +1570,31 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
          elmat.CopyMNt(Ct_fz, off_tr, 0);
 
          //potential constraint
-         if (c_bfi_p)
+         if (c_bfi_p || c_nlfi_p)
          {
             const int side = (FTr->Elem1No == z)?(0):(1);
-            c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *FTr, DEGH_f);
+            if (c_bfi_p)
+            {
+               c_bfi_p->AssembleHDGFaceMatrix(side, *fe_tr, *fe_p, *FTr, DEGH_f);
+            }
+            else
+            {
+               // The constraint of a non-linear potential form. Its gradient
+               // is the block the local problem needs, and it is laid out just
+               // as AssembleHDGFaceMatrix() lays out its own when the whole
+               // mask is asked for. The trace is passed as zero: the caller
+               // has already refused every integrator whose gradient could
+               // notice, because the reconstruction is not given the trace
+               // solution to linearise about.
+               constexpr int mask = NonlinearFormIntegrator::HDGFaceType::ELEM
+                                    | NonlinearFormIntegrator::HDGFaceType::TRACE
+                                    | NonlinearFormIntegrator::HDGFaceType::CONSTR
+                                    | NonlinearFormIntegrator::HDGFaceType::FACE;
+               trfun_z.SetSize(ndof_tr_f);
+               trfun_z = 0.;
+               c_nlfi_p->AssembleHDGFaceGrad(mask | side, *fe_tr, *fe_p, *FTr,
+                                             trfun_z, p_lift, DEGH_f);
+            }
 
             D_fz.CopyMN(DEGH_f, ndof_p, ndof_p, 0, 0);
             elmat.AddMatrix(D_fz, ndof_u, ndof_u);
@@ -1458,18 +1640,39 @@ void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
 
          if (FTr->Elem1No != z) { rhs_f.Neg(); }
 
+         // flux mass on the boundary
+         if (FTr->Elem2No < 0 && Mu_bfbfi.Size() && face_bdr_attr[f] > 0)
+         {
+            const int bdr_attr = face_bdr_attr[f];
+            for (int i = 0; i < Mu_bfbfi.Size(); i++)
+            {
+               if (Mu_bfbfi_marker[i]
+                   && (*Mu_bfbfi_marker[i])[bdr_attr-1] == 0) { continue; }
+
+               Mu_bfbfi[i]->AssembleFaceMatrix(*fe_u1, *fe_u1, *FTr, Mu_f);
+               MFEM_VERIFY(Mu_f.Height() == ndof_u && Mu_f.Width() == ndof_u,
+                           "A boundary-face term on the flux mass must be "
+                           "element-local; this one is sized for two elements.");
+               elmat.AddMatrix(Mu_f, 0, 0);
+            }
+         }
+
          off_tr += ndof_tr_f;
       }
 
       // potential mass source (non-singular) / average fix (singular)
-      fes_pc->GetElementDofs(z, dofs_pc);
-      pc.GetSubVector(dofs_pc, sol_pc);
-
       if (Mp_src)
       {
          // add the source part to rhs
          Mp_src->ComputeElementMatrix(z, Mp_src_z);
          Mp_src_z.AddMult(sol_pc, rhs_p);
+      }
+      else if (nl_src)
+      {
+         // the same source, with the frozen block standing in for M_p_src:
+         // the lift of the potential is exact, so this is the mixed mass of
+         // the non-singular terms applied to the computed potential
+         rhs_p += rhs_p_nl;
       }
       else
       {

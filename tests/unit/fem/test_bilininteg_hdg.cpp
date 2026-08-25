@@ -632,3 +632,112 @@ TEST_CASE("A stabilization that hides its derivatives is caught",
    INFO("dropping both partials shifts J dy by " << diff.Normlinf());
    REQUIRE(diff.Normlinf() > 1e-4 * std::max(fd.Normlinf(), real_t(1.0)));
 }
+
+TEST_CASE("A user stabilization reaches the face energy",
+          "[HDGIntegrator][Stabilization]")
+{
+   using namespace bilininteg_hdg;
+
+   // ComputeHDGFaceEnergy() is what HDGErrorEstimator's Type::Energy mode is
+   // built on, and it formed the built-in {h^-1 Q} expression directly rather
+   // than going through StabValue(). An estimator then reported the energy of
+   // a stabilization that was not the one being solved with, and nothing said
+   // so -- the sibling Type::Residual mode, which goes through
+   // AssembleHDGFaceVector(), honoured the hook all along.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 2);
+   const Element::Type type = (dim == 2) ? Element::QUADRILATERAL
+                              : Element::HEXAHEDRON;
+   CAPTURE(dim, order);
+
+   Faces fx(dim, order, type);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+   const FiniteElement &tr_fe = *fx.fes_tr.GetFaceElement(f);
+   const FiniteElement &el_fe = *fx.fes_el.GetFE(Tr->Elem1No);
+
+   ConstantCoefficient q(2.5);
+
+   Vector elfun(el_fe.GetDof()), trfun(tr_fe.GetDof());
+   FillVarying(elfun, 0.4);
+   FillVarying(trfun, 2.2);
+
+   real_t plain, unit, doubled;
+   Vector d_plain, d_doubled;
+   {
+      HDGDiffusionIntegrator integ(q);
+      plain = integ.ComputeHDGFaceEnergy(0, tr_fe, el_fe, *Tr, trfun, elfun,
+                                         &d_plain);
+   }
+   {
+      HDGDiffusionIntegrator integ(q);
+      ScaledStabilization s(1.0);
+      integ.SetStabilization(s);
+      unit = integ.ComputeHDGFaceEnergy(0, tr_fe, el_fe, *Tr, trfun, elfun);
+   }
+   {
+      HDGDiffusionIntegrator integ(q);
+      ScaledStabilization s(2.0);
+      integ.SetStabilization(s);
+      doubled = integ.ComputeHDGFaceEnergy(0, tr_fe, el_fe, *Tr, trfun, elfun,
+                                           &d_doubled);
+   }
+
+   REQUIRE(plain > 0.0);
+   // Identity to round-off rather than bitwise: with an object set the weight
+   // is divided out and multiplied back.
+   REQUIRE(unit == MFEM_Approx(plain, 1e-12, 1e-12));
+   REQUIRE(doubled == MFEM_Approx(2.0 * plain, 1e-12, 1e-11));
+
+   // The anisotropic split is geometry and must follow the total, whatever
+   // the stabilization was.
+   REQUIRE(d_doubled.Size() == dim);
+   real_t sum = 0.0;
+   for (int d = 0; d < dim; d++) { sum += d_doubled(d); }
+   INFO("total " << doubled << " vs sum of directional parts " << sum);
+   REQUIRE(sum == MFEM_Approx(doubled, 1e-10, 1e-9));
+   for (int d = 0; d < dim; d++)
+   {
+      CAPTURE(d);
+      REQUIRE(d_doubled(d) == MFEM_Approx(2.0 * d_plain(d), 1e-10, 1e-9));
+   }
+}
+
+TEST_CASE("A state-dependent stabilization reaches the face energy",
+          "[HDGIntegrator][Stabilization]")
+{
+   using namespace bilininteg_hdg;
+
+   // The signature carries elfun and trfun, so unlike the bilinear paths the
+   // energy can honour a stabilization that reads the state, and must: an
+   // estimator built on it is measuring the method actually solved.
+   Faces fx(2, 1, Element::QUADRILATERAL);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+   const FiniteElement &tr_fe = *fx.fes_tr.GetFaceElement(f);
+   const FiniteElement &el_fe = *fx.fes_el.GetFE(Tr->Elem1No);
+
+   ConstantCoefficient q(2.5);
+
+   Vector elfun(el_fe.GetDof()), trfun(tr_fe.GetDof());
+   FillVarying(elfun, 0.4);
+   FillVarying(trfun, 2.2);
+
+   HDGDiffusionIntegrator plain_integ(q);
+   const real_t plain = plain_integ.ComputeHDGFaceEnergy(0, tr_fe, el_fe, *Tr,
+                                                         trfun, elfun);
+
+   HDGDiffusionIntegrator integ(q);
+   QuadraticStabilization stab(0.7);
+   integ.SetStabilization(stab);
+   const real_t state = integ.ComputeHDGFaceEnergy(0, tr_fe, el_fe, *Tr,
+                                                   trfun, elfun);
+
+   // s = s_diff + 0.7 (u^2 + uhat^2)/2 is strictly larger than s_diff on a
+   // state that is not identically zero, so the energy must be too. Against
+   // the built-in tau = {h^-1 Q} = 5 here the excess is over a tenth, so the
+   // margin below is well clear of round-off -- and the two were equal to the
+   // last bit until the energy went through StabValue().
+   INFO("built-in " << plain << " against state dependent " << state);
+   REQUIRE(state > 1.05 * plain);
+}

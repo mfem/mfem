@@ -129,6 +129,14 @@ protected:
    mutable std::unique_ptr<DarcyForm> reconstruction;
    mutable std::unique_ptr<MixedBilinearForm> M_p_src;
 
+   /** @brief The potential mass integrators of a non-linear form, to be frozen
+       at the computed potential by the reconstruction below.
+
+       Referenced, not owned: #Mnl_p keeps the integrators. The list is a
+       reference rather than a lifted form because the Jacobian has to be taken
+       afresh at every call, exactly as #Mu_nl_coeff does for the flux. */
+   mutable Array<NonlinearFormIntegrator*> Mp_nl_lift;
+
    void UpdateOffsetsAndSize();
    void UpdateTOffsetsAndSize();
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
@@ -147,7 +155,8 @@ protected:
 
    void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
                               const GridFunction &ut, GridFunction &u, GridFunction &p,
-                              GridFunction &tr, MixedBilinearForm *D = NULL) const;
+                              GridFunction &tr, MixedBilinearForm *D = NULL,
+                              const Array<NonlinearFormIntegrator*> *Mp_nl = NULL) const;
 
 public:
    friend class Gradient;

@@ -1950,6 +1950,7 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
          MQ->Eval(mq, *ElTr, eip);
          mq.MultTranspose(nh, ni);
       }
+      const real_t wq = ni * nor;
       // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
       // independent of Loc1 and always gives the size of element 1 in
       // direction perpendicular to the face. Indeed, for linear transformation
@@ -1961,6 +1962,7 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
       // for any tetrahedron vol(tet)=(1/3)*height*area(base).
       // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
 
+      const real_t un_raw = un;
       real_t a, b;
       if (un != 0.)
       {
@@ -1978,20 +1980,34 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
       const real_t tr_q = tr_shape * trfun;
       const real_t d_q = v_q - tr_q;
 
-      const real_t w = d_q*d_q * fabs(b+a);
+      // The weighted stabilization, taken exactly as the four assembly paths
+      // take it. With no hook StabValue() returns wq*(b+a), so the energy is
+      // the same number as before to the last bit; with one installed this is
+      // the only place the hook's value can enter, and the estimator reported
+      // the built-in expression instead until it did.
+      const real_t face_w = ip.weight * nor.Norml2();
+      const real_t s_w = StabValue(wq, b+a, un_raw, face_w, v_q, tr_q, *ElTr);
+
+      const real_t w = d_q*d_q * fabs(s_w);
       if (w == 0.) { continue; }
 
-      energy += w * (ni * nor);
+      energy += w;
 
       if (d_energy)
       {
+         // The split is geometry: the weights below sum to ni.nor over the
+         // directions, so dividing by it distributes exactly the energy just
+         // added, whatever the stabilization was. A face where the diffusion
+         // vanishes has no directions to split along and gets none of it.
+         const real_t wg = (wq != 0.) ? (w / wq) : 0.;
+
          ElTr->InverseJacobian().Mult(ni, ni_Ji);
          ElTr->Jacobian().MultTranspose(nor, nor_Jt);
          if (!MQ)
          {
             for (int d = 0; d < dim; d++)
             {
-               (*d_energy)(d) += w * ni_Ji(d) * nor_Jt(d);
+               (*d_energy)(d) += wg * ni_Ji(d) * nor_Jt(d);
             }
          }
          else
@@ -2004,7 +2020,7 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
 
             for (int d = 0; d < dim; d++)
             {
-               (*d_energy)(d) += 0.5 * w * (ni_Jt(d) * nor_Ji(d) + ni_Ji(d) * nor_Jt(d));
+               (*d_energy)(d) += 0.5 * wg * (ni_Jt(d) * nor_Ji(d) + ni_Ji(d) * nor_Jt(d));
             }
          }
       }
