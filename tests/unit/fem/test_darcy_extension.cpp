@@ -869,4 +869,814 @@ TEST_CASE("Extension from subdomains: a feature thinner than the mesh breaks "
    REQUIRE(rel[0] > 1e-3);                // the reference's tail: too large
 }
 
+// -- The pieces on their own --------------------------------------------------
+//
+// The cases above exercise the framework through the method it was built for.
+// Those below take each public piece by itself, so that a failure names the
+// piece rather than the composition.
+
+TEST_CASE("Extension from subdomains: the path integral is a potential "
+          "difference",
+          "[DarcyExtension]")
+{
+   // C u = -grad p is a gradient, so the integral along the segment from x to
+   // xbar is p(x) - p(xbar) whatever the segment. That is the property the
+   // whole construction rests on, and it needs no mesh to check.
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 8);
+   auto Cu = [](const Vector &y, Vector &v) { uPoly(y, v); };
+
+   Vector x(2), xbar(2);
+   real_t worst = 0.;
+   for (int i = 0; i < 40; i++)
+   {
+      // A deterministic spread of segments, some short, some long, some
+      // reversed, none axis-aligned by accident.
+      const real_t a = 0.37 * i, b = 0.61 * i;
+      x(0) = 0.5 + 0.4 * std::cos(a);
+      x(1) = 0.5 + 0.4 * std::sin(a);
+      xbar(0) = 0.5 + 0.9 * std::cos(b);
+      xbar(1) = 0.5 + 0.9 * std::sin(b);
+
+      const real_t got = PathIntegral(Cu, x, xbar, ir);
+      worst = std::max(worst, std::abs(got - (pPoly(x) - pPoly(xbar))));
+   }
+
+   CAPTURE(worst);
+   REQUIRE(worst < 1e-13);
+}
+
+TEST_CASE("Extension from subdomains: a degenerate path integrates to zero",
+          "[DarcyExtension]")
+{
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 8);
+   auto Cu = [](const Vector &y, Vector &v) { uPoly(y, v); };
+
+   Vector x(2);
+   x(0) = 0.3; x(1) = 0.7;
+   REQUIRE(PathIntegral(Cu, x, x, ir) == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Extension from subdomains: the closest-point map of a sphere",
+          "[DarcyExtension]")
+{
+   // The one path family with a closed form, in both dimensions it is wanted
+   // in. Every image must lie on the sphere, and the path must run along the
+   // radius -- from inside outwards, and from outside inwards, since a
+   // subdomain can sit on either side of its obstacle.
+   const int dim = GENERATE(2, 3);
+   const real_t R = 0.4;
+
+   Vector c(dim);
+   c = 0.5;
+   ClosestPointPath path(ClosestPointPath::Sphere(c, R));
+
+   Vector x(dim), xbar(dim), n(dim);
+   n = 0.0; n(0) = 1.0;   // ignored by this family
+
+   real_t worst_on = 0., worst_radial = 0.;
+   for (int i = 1; i <= 60; i++)
+   {
+      const real_t rad = 0.05 * ((i % 12) + 1);      // inside and outside R
+      const real_t a = 0.41 * i, b = 0.73 * i;
+      x(0) = c(0) + rad * std::cos(a);
+      x(1) = c(1) + rad * std::sin(a) * ((dim == 3) ? std::cos(b) : 1.0);
+      if (dim == 3) { x(2) = c(2) + rad * std::sin(a) * std::sin(b); }
+
+      path.Endpoint(x, n, xbar);
+
+      Vector d(xbar);
+      d -= c;
+      worst_on = std::max(worst_on, std::abs(d.Norml2() - R));
+
+      // xbar - c is parallel to x - c, and on the same side.
+      Vector e(x);
+      e -= c;
+      const real_t cosang = (d * e) / (d.Norml2() * e.Norml2());
+      worst_radial = std::max(worst_radial, std::abs(cosang - 1.0));
+   }
+
+   CAPTURE(dim, worst_on, worst_radial);
+   REQUIRE(worst_on < 1e-14);
+   REQUIRE(worst_radial < 1e-14);
+}
+
+TEST_CASE("Extension from subdomains: the level set is bracketed in steps",
+          "[DarcyExtension]")
+{
+   // LevelSetPath marches before it bisects, and the number of steps is what
+   // decides whether it finds the *first* crossing. On a boundary a ray meets
+   // more than once, a single step brackets the wrong interval or none at
+   // all; this pins that enough steps recover the nearest one.
+   auto phi = [](const Vector &y)
+   {
+      return -std::sin(2.0 * M_PI * y(0) / 0.4);   // crossings at 0.2, 0.6, ...
+   };
+
+   Vector x(2), n(2), xbar;
+   x = 0.0;
+   n(0) = 1.0; n(1) = 0.0;
+
+   LevelSetPath path(phi, 1.0, 10);
+   path.Endpoint(x, n, xbar);
+
+   CAPTURE(xbar(0));
+   REQUIRE(xbar(0) == MFEM_Approx(0.2, 1e-10, 1e-10));
+   REQUIRE(xbar(1) == MFEM_Approx(0.0));
+}
+
+TEST_CASE("Extension from subdomains: the extension inverts a curved element",
+          "[DarcyExtension]")
+{
+   // The elements of a background mesh need not be affine, and the reference
+   // point of an outside physical point is then found by a Newton solve rather
+   // than a matrix inverse. What must hold either way is that it is the
+   // reference point: mapping it forward has to return where we started.
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   // Pull one corner away, so the map is genuinely not affine.
+   mesh.GetVertex(3)[0] += 0.4;
+   mesh.GetVertex(3)[1] += 0.25;
+
+   IsoparametricTransformation Tr;
+   mesh.GetElementTransformation(0, &Tr);
+
+   ElementExtension ext;
+   ext.SetElement(Tr);
+
+   Vector y(2), back(2);
+   IntegrationPoint ip;
+   real_t worst = 0.;
+   int outside = 0;
+   for (int i = -3; i <= 6; i++)
+      for (int j = -3; j <= 6; j++)
+      {
+         y(0) = 0.25 * i;
+         y(1) = 0.25 * j;
+
+         if (!ext.TransformBack(y, ip)) { continue; }
+         Tr.SetIntPoint(&ip);
+         Tr.Transform(ip, back);
+
+         back -= y;
+         worst = std::max(worst, back.Norml2());
+         if (ip.x < 0. || ip.x > 1. || ip.y < 0. || ip.y > 1.) { outside++; }
+      }
+
+   CAPTURE(worst, outside);
+   REQUIRE(worst < 1e-10);
+   // And the point of the class: reference points outside the element are
+   // returned as such rather than clamped to its boundary.
+   REQUIRE(outside > 20);
+}
+
+TEST_CASE("Extension from subdomains: the vertex test is not enough where "
+          "Omega is not convex",
+          "[DarcyExtension]")
+{
+   // MarkLevelSetSubdomain's documented caveat, made concrete. An obstacle
+   // small enough to sit inside one triangle without reaching its vertices is
+   // invisible to the vertex test, so that element joins D_h and takes a piece
+   // of D_h with it that is not in Omega. Sampling the element interior finds
+   // it.
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::TRIANGLE);
+
+   Array<int> vert;
+   mesh.GetElementVertices(0, vert);
+   Vector centre(2);
+   centre = 0.0;
+   for (int v = 0; v < vert.Size(); v++)
+   {
+      const real_t *c = mesh.GetVertex(vert[v]);
+      centre(0) += c[0] / vert.Size();
+      centre(1) += c[1] / vert.Size();
+   }
+   real_t nearest = 1e9;
+   for (int v = 0; v < vert.Size(); v++)
+   {
+      const real_t *c = mesh.GetVertex(vert[v]);
+      nearest = std::min(nearest, std::sqrt((c[0] - centre(0)) * (c[0] - centre(0))
+                                            + (c[1] - centre(1)) * (c[1] - centre(1))));
+   }
+
+   const real_t r = 0.4 * nearest;
+   auto phi = [&centre, r](const Vector &x)
+   {
+      return r - std::sqrt((x(0) - centre(0)) * (x(0) - centre(0))
+                           + (x(1) - centre(1)) * (x(1) - centre(1)));
+   };
+
+   Array<int> m0, m1;
+   const int n0 = MarkLevelSetSubdomain(mesh, phi, 0., m0, 0);
+   const int n1 = MarkLevelSetSubdomain(mesh, phi, 0., m1, 3);
+
+   CAPTURE(n0, n1, mesh.GetNE());
+   REQUIRE(n0 == mesh.GetNE());   // the vertex test sees nothing
+   REQUIRE(n1 == n0 - 1);         // the lattice sees the one element
+   REQUIRE(m0[0] == 1);
+   REQUIRE(m1[0] == 0);
+}
+
+TEST_CASE("Extension from subdomains: the datum is read at the end of the path",
+          "[DarcyExtension]")
+{
+   // PathTraceCoefficient is the part of the lifting that does not depend on
+   // the solution, and it is what lets the ordinary weak Dirichlet integrator
+   // supply the transferred datum unchanged.
+   const int n = 8;
+   Subdomain s = BuildSubdomain(n);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+   PathTraceCoefficient datum(path, pPoly);
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 6);
+   Vector xbar;
+   real_t worst = 0.;
+   int points = 0;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         path.Endpoint(*FTr, ip, xbar);
+         FTr->SetAllIntPoints(&ip);
+         worst = std::max(worst, std::abs(datum.Eval(*FTr, ip) - pPoly(xbar)));
+         points++;
+      }
+   }
+
+   CAPTURE(points, worst);
+   REQUIRE(points > 0);
+   REQUIRE(worst < 1e-14);
+}
+
+/// a(x) = x + d n: a fixed distance along the outward normal. Not a family
+/// anyone would solve with -- it does not reach Gamma -- but the region it
+/// sweeps from a straight face is a rectangle, so the Jacobian of the sweep
+/// has a closed form to be checked against.
+class ConstantOffsetPath : public TransferPath
+{
+   real_t d;
+
+public:
+   ConstantOffsetPath(real_t d_) : d(d_) { }
+
+   using TransferPath::Endpoint;
+
+   void Endpoint(const Vector &x, const Vector &n, Vector &xbar) const override
+   {
+      xbar.SetSize(x.Size());
+      for (int i = 0; i < x.Size(); i++) { xbar(i) = x(i) + d * n(i); }
+   }
+};
+
+TEST_CASE("Extension from subdomains: the swept region has the right Jacobian",
+          "[DarcyExtension]")
+{
+   // Offset every point of Gamma_h by the same distance along its normal and
+   // the region swept from a straight face is a rectangle, so the total is the
+   // perimeter times the offset. That isolates the Jacobian of the sweep from
+   // the path family and from the shape of Gamma.
+   const int n = GENERATE(8, 16);
+   const real_t d = 0.01;
+
+   Subdomain s = BuildSubdomain(n);
+   ConstantOffsetPath path(d);
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 12);
+   real_t perimeter = 0., swept = 0., worst_t = 0.;
+   bool weights_positive = true;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         FTr->SetAllIntPoints(&ir.IntPoint(q));
+         perimeter += ir.IntPoint(q).weight * FTr->Weight();
+      }
+
+      ExtensionRegionQuadrature(*FTr, path, ir, ir,
+                                [&](const ExtensionPoint &pt)
+      {
+         swept += pt.weight;
+         if (pt.weight <= 0.) { weights_positive = false; }
+         worst_t = std::max(worst_t, std::abs(pt.t - 0.5) - 0.5);
+      });
+   }
+
+   CAPTURE(n, perimeter, swept, perimeter * d);
+   REQUIRE(weights_positive);
+   REQUIRE(worst_t <= 0.);                       // every point is on its path
+   REQUIRE(swept == MFEM_Approx(perimeter * d, 1e-10, 1e-12));
+}
+
+TEST_CASE("Extension from subdomains: the assembled block is the lifting",
+          "[DarcyExtension]")
+{
+   // HDGExtensionIntegrator is only ever seen through a solve above. Here it
+   // is applied to the degrees of freedom of a known flux and compared with
+   // the same functional evaluated by direct quadrature, which is the only way
+   // to say that the block it builds is the one intended rather than one that
+   // happens to converge.
+   const int n = 8;
+   const int order = GENERATE(1, 2);
+   const int lo = 2 * order + 2;
+
+   Subdomain s = BuildSubdomain(n);
+
+   L2_FECollection fec(order, 2, BasisType::GaussLobatto);
+   FiniteElementSpace fes(s.D_h.get(), &fec, 2);
+   GridFunction u_h(&fes);
+   VectorFunctionCoefficient ucoeff(2, uSin);
+   u_h.ProjectCoefficient(ucoeff);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+   ConstantCoefficient C(1.0);
+
+   const IntegrationRule &fir = IntRules.Get(Geometry::SEGMENT, lo);
+   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, lo);
+
+   HDGExtensionIntegrator integ(path, C, +1.0, lo);
+   integ.SetIntRule(&fir);
+
+   IsoparametricTransformation el_tr;
+   ElementExtension ext;
+   DenseMatrix elmat;
+   Array<int> vdofs;
+   Vector uloc, got, want, shape, nor(2), x, xbar;
+   real_t worst = 0., scale = 0.;
+   int faces = 0;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      const int el = FTr->Elem1No;
+      const FiniteElement *fe = fes.GetFE(el);
+      const int dof = fe->GetDof();
+
+      integ.AssembleFaceMatrix(*fe, *fe, *FTr, elmat);
+      REQUIRE(elmat.Height() == dof * 2);
+      REQUIRE(elmat.Width() == elmat.Height());
+
+      fes.GetElementVDofs(el, vdofs);
+      u_h.GetSubVector(vdofs, uloc);
+      got.SetSize(elmat.Height());
+      elmat.Mult(uloc, got);
+
+      // The same functional, assembled by hand.
+      s.D_h->GetElementTransformation(el, &el_tr);
+      ext.SetElement(el_tr);
+      auto Cu = [&](const Vector &y, Vector &v)
+      {
+         IntegrationPoint eip;
+         MFEM_VERIFY(ext.TransformBack(y, eip), "no convergence");
+         u_h.GetVectorValue(el, eip, v);
+      };
+
+      want.SetSize(elmat.Height());
+      want = 0.;
+      shape.SetSize(dof);
+      for (int q = 0; q < fir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = fir.IntPoint(q);
+         FTr->SetAllIntPoints(&ip);
+         CalcOrtho(FTr->Jacobian(), nor);
+         fe->CalcPhysShape(*FTr->Elem1, shape);
+         FTr->Transform(ip, x);
+         path.Endpoint(*FTr, ip, xbar);
+
+         const real_t L = PathIntegral(Cu, x, xbar, lir);
+         for (int d = 0; d < 2; d++)
+            for (int i = 0; i < dof; i++)
+            {
+               want(dof * d + i) += ip.weight * nor(d) * shape(i) * L;
+            }
+      }
+
+      for (int i = 0; i < got.Size(); i++)
+      {
+         worst = std::max(worst, std::abs(got(i) - want(i)));
+         scale = std::max(scale, std::abs(want(i)));
+      }
+      faces++;
+   }
+
+   CAPTURE(order, faces, worst, scale);
+   REQUIRE(faces > 0);
+   REQUIRE(scale > 0.);
+   REQUIRE(worst < 1e-12 * scale);
+}
+
+TEST_CASE("Extension from subdomains: the matrix coefficient is not "
+          "transposed",
+          "[DarcyExtension]")
+{
+   // The integrand is (C phi_j) . m, which the kernel evaluates as
+   // phi_j . (C^T m) because that is one matrix-vector product per quadrature
+   // node instead of one per basis function. A symmetric C cannot tell the two
+   // apart, so this uses one that is not, and compares against the primal form
+   // C u . m evaluated directly.
+   const int n = 8, order = 1, lo = 2 * order + 2;
+
+   Subdomain s = BuildSubdomain(n);
+
+   L2_FECollection fec(order, 2, BasisType::GaussLobatto);
+   FiniteElementSpace fes(s.D_h.get(), &fec, 2);
+   GridFunction u_h(&fes);
+   VectorFunctionCoefficient ucoeff(2, uSin);
+   u_h.ProjectCoefficient(ucoeff);
+
+   DenseMatrix Cm(2);
+   Cm(0, 0) = 1.0; Cm(0, 1) = 2.0;
+   Cm(1, 0) = -0.5; Cm(1, 1) = 3.0;
+   MatrixConstantCoefficient C(Cm);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+
+   const IntegrationRule &fir = IntRules.Get(Geometry::SEGMENT, lo);
+   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, lo);
+
+   HDGExtensionIntegrator integ(path, C, +1.0, lo);
+   integ.SetIntRule(&fir);
+
+   IsoparametricTransformation el_tr;
+   ElementExtension ext;
+   DenseMatrix elmat;
+   Array<int> vdofs;
+   Vector uloc, got, want, shape, nor(2), x, xbar, tmp(2);
+   real_t worst = 0., scale = 0.;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      const int el = FTr->Elem1No;
+      const FiniteElement *fe = fes.GetFE(el);
+      const int dof = fe->GetDof();
+
+      integ.AssembleFaceMatrix(*fe, *fe, *FTr, elmat);
+      fes.GetElementVDofs(el, vdofs);
+      u_h.GetSubVector(vdofs, uloc);
+      got.SetSize(elmat.Height());
+      elmat.Mult(uloc, got);
+
+      s.D_h->GetElementTransformation(el, &el_tr);
+      ext.SetElement(el_tr);
+      auto Cu = [&](const Vector &y, Vector &v)
+      {
+         IntegrationPoint eip;
+         MFEM_VERIFY(ext.TransformBack(y, eip), "no convergence");
+         u_h.GetVectorValue(el, eip, tmp);
+         Cm.Mult(tmp, v);              // C u, the primal form
+      };
+
+      want.SetSize(elmat.Height());
+      want = 0.;
+      shape.SetSize(dof);
+      for (int q = 0; q < fir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = fir.IntPoint(q);
+         FTr->SetAllIntPoints(&ip);
+         CalcOrtho(FTr->Jacobian(), nor);
+         fe->CalcPhysShape(*FTr->Elem1, shape);
+         FTr->Transform(ip, x);
+         path.Endpoint(*FTr, ip, xbar);
+
+         const real_t L = PathIntegral(Cu, x, xbar, lir);
+         for (int d = 0; d < 2; d++)
+            for (int i = 0; i < dof; i++)
+            {
+               want(dof * d + i) += ip.weight * nor(d) * shape(i) * L;
+            }
+      }
+
+      for (int i = 0; i < got.Size(); i++)
+      {
+         worst = std::max(worst, std::abs(got(i) - want(i)));
+         scale = std::max(scale, std::abs(want(i)));
+      }
+   }
+
+   CAPTURE(worst, scale);
+   REQUIRE(scale > 0.);
+   REQUIRE(worst < 1e-12 * scale);
+}
+
+TEST_CASE("Extension from subdomains: neighbouring faces share a vertex path",
+          "[DarcyExtension]")
+{
+   // The property that makes VertexConePath tile, checked directly rather than
+   // through the measure it implies: two faces meeting at a vertex must send
+   // that vertex to the same point of Gamma. It holds because the direction is
+   // chosen at the vertex and only interpolated along the face, and it is what
+   // a family following each face's own normal cannot do.
+   const int n = GENERATE(8, 16);
+
+   Subdomain s = BuildSubdomain(n);
+   VertexConePath path(*s.D_h, s.gamma_h_attr, DiscPhi, 4.0 / n);
+
+   std::vector<std::array<real_t, 4>> ends;   // x, then a(x)
+   Vector xbar, x;
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      for (real_t xi : {0.0, 1.0})
+      {
+         IntegrationPoint ip;
+         ip.Set1w(xi, 1.0);
+         path.Endpoint(*FTr, ip, xbar);
+         FTr->SetAllIntPoints(&ip);
+         FTr->Transform(ip, x);
+         ends.push_back({{x(0), x(1), xbar(0), xbar(1)}});
+      }
+   }
+
+   int shared = 0;
+   real_t worst = 0.;
+   for (size_t i = 0; i < ends.size(); i++)
+      for (size_t j = i + 1; j < ends.size(); j++)
+      {
+         const real_t dx = std::hypot(ends[i][0] - ends[j][0],
+                                      ends[i][1] - ends[j][1]);
+         if (dx > 1e-12) { continue; }
+         shared++;
+         worst = std::max(worst, std::hypot(ends[i][2] - ends[j][2],
+                                            ends[i][3] - ends[j][3]));
+      }
+
+   CAPTURE(n, ends.size(), shared, worst);
+   REQUIRE(shared > 0);
+   REQUIRE(worst < 1e-12);
+}
+
+/// Adds the extension term through a *domain* integrator, by finding the
+/// element's own faces on Gamma_h.
+/** A route that works whether or not the library forwards a boundary face
+    integrator of the flux mass form into the hybridized element block, since
+    BilinearForm::ComputeElementMatrix() has always summed the domain
+    integrators. Agreement between this and the boundary-face route is
+    therefore a statement about the forwarding and nothing else.
+
+    Not a way anyone should write this term -- it reaches around the assembly
+    to reconstruct what the face loop already knows -- which is the point: it
+    is an independent route to the same block. */
+class ExtensionAsDomainIntegrator : public BilinearFormIntegrator
+{
+   const Mesh &mesh;
+   HDGExtensionIntegrator face_integ;
+   std::vector<std::vector<int>> bdr_of_element;
+
+public:
+   ExtensionAsDomainIntegrator(const Mesh &mesh_, int gamma_h_attr,
+                               const TransferPath &path, Coefficient &C)
+      : mesh(mesh_), face_integ(path, C)
+   {
+      bdr_of_element.resize(mesh.GetNE());
+      for (int be = 0; be < mesh.GetNBE(); be++)
+      {
+         if (mesh.GetBdrAttribute(be) != gamma_h_attr) { continue; }
+         const int f = mesh.GetBdrElementFaceIndex(be);
+         int e1, e2;
+         mesh.GetFaceElements(f, &e1, &e2);
+         if (e1 >= 0) { bdr_of_element[e1].push_back(be); }
+      }
+   }
+
+   void AssembleElementMatrix(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              DenseMatrix &elmat) override
+   {
+      const int dim = Tr.GetSpaceDim();
+      elmat.SetSize(el.GetDof() * dim);
+      elmat = 0.0;
+
+      // Transformations of our own: the mesh hands out shared ones, and Tr is
+      // one of them.
+      FaceElementTransformations FTr;
+      IsoparametricTransformation t1, t2;
+      DenseMatrix block;
+
+      for (int be : bdr_of_element[Tr.ElementNo])
+      {
+         mesh.GetBdrFaceTransformations(be, FTr, t1, t2);
+         if (FTr.GetGeometryType() == Geometry::INVALID) { continue; }
+         face_integ.AssembleFaceMatrix(el, el, FTr, block);
+         elmat += block;
+      }
+   }
+};
+
+/// Solve the extension problem on D_h, giving the extension term to the flux
+/// mass form either as a boundary face integrator or as the domain integrator
+/// above, or leaving it out entirely.
+enum class ExtensionRoute { BoundaryFace, Domain, None };
+
+Vector SolveByRoute(int n, int order, ExtensionRoute route)
+{
+   const int dim = 2;
+   Subdomain s = BuildSubdomain(n);
+
+   Array<int> bdr_gamma_h(s.gamma_h_attr);
+   bdr_gamma_h = 0;
+   bdr_gamma_h[s.gamma_h_attr - 1] = 1;
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   FiniteElementSpace fes_u(s.D_h.get(), &u_coll, dim);
+   FiniteElementSpace fes_p(s.D_h.get(), &p_coll);
+
+   ConstantCoefficient C(1.0);
+   VectorFunctionCoefficient zero(dim, [](const Vector &, Vector &f) { f = 0.0; });
+   FunctionCoefficient gcoeff(gSin);
+   PathTraceCoefficient datum(path, pSinNatural);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(C));
+   if (route == ExtensionRoute::BoundaryFace)
+   {
+      darcy.GetFluxMassForm()->AddBdrFaceIntegrator(
+         new HDGExtensionIntegrator(path, C), bdr_gamma_h);
+   }
+   else if (route == ExtensionRoute::Domain)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new ExtensionAsDomainIntegrator(*s.D_h, s.gamma_h_attr, path, C));
+   }
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(C, 1.0 / n));
+
+   LinearForm *fform = darcy.GetFluxRHS();
+   fform->AddDomainIntegrator(new VectorDomainLFIntegrator(zero));
+   fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(datum),
+                               bdr_gamma_h);
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+
+   Array<int> ess_flux_tdofs;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(s.D_h.get(), &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(),
+                             ess_flux_tdofs);
+
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess_flux_tdofs, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver solver;
+   solver.SetKDim(500);
+   solver.SetMaxIter(5000);
+   solver.SetRelTol(0.0);
+   solver.SetAbsTol(1e-13);
+   solver.SetPreconditioner(prec);
+   solver.SetOperator(*A);
+   solver.Mult(RHS, X);
+   REQUIRE(solver.GetConverged());
+
+   darcy.RecoverFEMSolution(X, x);
+   return Vector(x.GetBlock(0));
+}
+
+TEST_CASE("Extension from subdomains: hybridization sees the flux mass "
+          "boundary faces",
+          "[DarcyExtension][DarcyForm][DarcyHybridization]")
+{
+   // The hybridized assembly takes its element block from
+   // BilinearForm::ComputeElementMatrix(), which sums the *domain* integrators
+   // only, and DarcyHybridization::AssembleFluxMassMatrix used to overwrite
+   // that block where its potential-mass and divergence counterparts
+   // accumulate. A boundary face integrator on the flux mass form was
+   // therefore dropped without a word, and the extension term is exactly such
+   // an integrator.
+   //
+   // The two routes below build the same element block by different means, one
+   // of which never needed the fix. Note that the monolithic block system is
+   // *not* the control here: with fully discontinuous spaces it is a different
+   // method, its stabilisation having no trace unknown to act on, and only the
+   // Raviart-Thomas configuration makes hybridized and monolithic comparable.
+   const int order = GENERATE(0, 1);
+   const int n = 8;
+
+   const Vector by_face = SolveByRoute(n, order, ExtensionRoute::BoundaryFace);
+   const Vector by_domain = SolveByRoute(n, order, ExtensionRoute::Domain);
+   const Vector without = SolveByRoute(n, order, ExtensionRoute::None);
+
+   Vector d(by_face);
+   d -= by_domain;
+   Vector dropped(by_face);
+   dropped -= without;
+
+   CAPTURE(order, d.Normlinf(), dropped.Normlinf(), by_face.Normlinf());
+   REQUIRE(by_face.Normlinf() > 0.);
+   REQUIRE(d.Normlinf() < 1e-10 * by_face.Normlinf());
+   // And the term is not inert: dropping it solves a different problem.
+   REQUIRE(dropped.Normlinf() > 1e-3 * by_face.Normlinf());
+}
+
+// -- One dimension ------------------------------------------------------------
+
+// Where the technique started: Cockburn, Gupta and Reitich did the
+// one-dimensional case before CS-Extensions took it to several. Nothing here
+// needs it, but it is the only setting that exercises the point-face branches,
+// and one of those was wrong.
+
+real_t Phi1D(const Vector &x) { return std::abs(x(0) - 0.5) - 0.3; }
+real_t p1D(const Vector &x) { return 1. + 2. * x(0) - 3. * x(0) * x(0); }
+void u1D(const Vector &x, Vector &u)
+{ u.SetSize(1); u(0) = 6. * x(0) - 2.; }      // u = -p'
+
+TEST_CASE("Extension from subdomains: in one dimension",
+          "[DarcyExtension]")
+{
+   // Omega is (0.2, 0.8) inside a mesh of the unit interval, so Gamma is two
+   // points and each face of Gamma_h is one. The outward normal of a point
+   // face cannot be read off the face's own reference coordinate, which is
+   // always zero; it has to come from the element's. With that wrong, the
+   // march along the normal runs inward, crosses the domain and returns the
+   // *far* boundary, silently and with the right magnitude of answer.
+   const int n = GENERATE(10, 20);
+
+   Mesh background = Mesh::MakeCartesian1D(n, 1.0);
+   Array<int> marker;
+   REQUIRE(MarkLevelSetSubdomain(background, Phi1D, 0., marker) > 0);
+   for (int i = 0; i < background.GetNE(); i++)
+   {
+      background.SetAttribute(i, marker[i] ? 1 : 2);
+   }
+   background.SetAttributes();
+
+   Array<int> domain_attr(1);
+   domain_attr[0] = 1;
+   SubMesh D_h = SubMesh::CreateFromDomain(background, domain_attr);
+
+   const int gamma_h = D_h.bdr_attributes.Max();
+   REQUIRE(gamma_h == background.bdr_attributes.Max() + 1);
+
+   LevelSetPath path(Phi1D, 0.9);
+
+   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, 8);
+   auto Cu = [](const Vector &y, Vector &v) { u1D(y, v); };
+
+   IntegrationPoint ip;
+   ip.Set1w(0.0, 1.0);
+   Vector x, xbar;
+   int faces = 0;
+   real_t worst_on = 0., worst_lift = 0., furthest = 0.;
+
+   for (int be = 0; be < D_h.GetNBE(); be++)
+   {
+      if (D_h.GetBdrAttribute(be) != gamma_h) { continue; }
+      FaceElementTransformations *FTr = D_h.GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      path.Endpoint(*FTr, ip, xbar);
+      FTr->SetAllIntPoints(&ip);
+      FTr->Transform(ip, x);
+
+      worst_on = std::max(worst_on, std::abs(Phi1D(xbar)));
+      furthest = std::max(furthest, std::abs(xbar(0) - x(0)));
+
+      const real_t lifted = p1D(xbar) + PathIntegral(Cu, x, xbar, lir);
+      worst_lift = std::max(worst_lift, std::abs(lifted - p1D(x)));
+      faces++;
+   }
+
+   CAPTURE(n, faces, worst_on, furthest, worst_lift);
+   REQUIRE(faces == 2);
+   REQUIRE(worst_on < 1e-12);
+   // The near boundary, not the far one: the whole domain is 0.6 across, and
+   // the nearest element boundary is within one mesh width of Gamma.
+   REQUIRE(furthest < 2.0 / n + 1e-12);
+   REQUIRE(worst_lift < 1e-12);
+}
+
 } // namespace darcy_extension

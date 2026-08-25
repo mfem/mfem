@@ -31,7 +31,9 @@ void TransferPath::Endpoint(FaceElementTransformations &FTr,
 
    if (sdim == 1)
    {
-      nor(0) = (ip.x > 0.5)?(1.):(-1.);
+      // The face is a point, whose own reference coordinate is always zero;
+      // which end of the element it is has to be read from the element's.
+      nor(0) = 2. * FTr.GetElement1IntPoint().x - 1.;
    }
    else
    {
