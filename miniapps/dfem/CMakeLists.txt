@@ -30,6 +30,15 @@ if (MFEM_USE_MPI)
         MAIN dfem-reaction-diffusion.cpp
         LIBRARIES mfem)
 
+    add_mfem_miniapp(dfem-navier-convergence
+        MAIN dfem-navier-stokes/dfem-navier-convergence.cpp
+        EXTRA_SOURCES dfem-navier-stokes/lib/navier_preconditioners.cpp
+                      dfem-navier-stokes/lib/navier_solver.cpp
+        EXTRA_HEADERS dfem-navier-stokes/lib/navier_preconditioners.hpp
+                      dfem-navier-stokes/lib/navier_qfunctions.hpp
+                      dfem-navier-stokes/lib/navier_solver.hpp
+        LIBRARIES mfem)
+
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
         add_test(NAME dfem-minimal-surface=${MFEM_MPI_NP}
@@ -58,6 +67,12 @@ if (MFEM_USE_MPI)
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-reaction-diffusion>
         -b 1 -o 1 -r 2 -pc 2 -no-vis
+        ${MPIEXEC_POSTFLAGS})
+
+        add_test(NAME dfem-navier-convergence=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-navier-convergence>
+        -o 1 -r 0
         ${MPIEXEC_POSTFLAGS})
 
         foreach(AL partial legacy full)

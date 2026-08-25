@@ -22,7 +22,10 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_EXAMPLES =
 PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity dfem-nonlinear-poisson \
-   dfem-hyperbolic-heat dfem-reaction-diffusion
+	dfem-hyperbolic-heat dfem-reaction-diffusion dfem-navier-convergence
+DFEM_NAVIER_CONVERGENCE_OBJ = dfem-navier-stokes/dfem-navier-convergence.o \
+	dfem-navier-stokes/lib/navier_preconditioners.o \
+	dfem-navier-stokes/lib/navier_solver.o
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -35,6 +38,12 @@ endif
 
 # Remove built-in rule
 %: %.cpp
+
+dfem-navier-convergence: $(DFEM_NAVIER_CONVERGENCE_OBJ)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+%.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 # Replace the default implicit rule for *.cpp files
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
@@ -61,9 +70,11 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
+	rm -f *.o dfem-navier-stokes/*.o dfem-navier-stokes/lib/*.o *~ \
+	   $(SEQ_EXAMPLES) $(PAR_EXAMPLES)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
 	@rm -rf dfem-minimal-surface-output dfem-nonlinear-poisson-output \
-	   dfem-hyperbolic-heat-output dfem-reaction-diffusion-output Output
+	   dfem-hyperbolic-heat-output dfem-reaction-diffusion-output \
+	   dfem-navier-stokes-output Output
