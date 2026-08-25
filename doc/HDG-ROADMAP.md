@@ -540,6 +540,45 @@ The cone needs the background mesh, which `VertexConePath` is not given; that
 is the next piece, and it is the only thing standing between this and the
 paper's Table 6.
 
+### It carries to `darcy-hdg-dev` unchanged, which was checked and not assumed
+
+**Measured, because it decides how this can be offered upstream.** The eight
+commits of §1 cherry-pick onto `darcy-hdg-dev` — which is exactly the
+merge-base, having nothing of its own — with **one conflict, and it is this
+file**, which does not exist there. They then build, and the whole battery runs
+bit-identically: all three problems, degrees 0 to 3, all three path families,
+every figure in every column the same to the last digit, and the extension's
+25 unit cases pass. **None of the other 51 commits on `gf-hdg-dev` is needed.**
+
+**Three properties are what keep it clear**, and they are worth knowing because
+they are also what would end the moment any of them changed:
+
+* **It is linear and scalar.** Everything `gf-hdg-dev` changed in
+  `darcyhybridization.cpp` is §4's nonlinear and systems work — the
+  off-diagonal gradient block, the per-variable `τ`, the coupled manufactured
+  solution — and `darcyform.cpp`'s one change is the nonlinear postprocessing.
+* **It is on the weak boundary route.** `gf-hdg-dev` made the essential trace
+  the *default* for the discontinuous spaces, and the extension asks for
+  neither: the transferred datum enters the flux equation as a coefficient, and
+  `SetEssentialBC` is never called. §9 records that the essential-trace fix is
+  inert unless it is.
+* **The two core files it leans on hardest are untouched.**
+  `fem/lininteg.cpp`, for `VectorBoundaryFluxLFIntegrator`, and
+  `fem/eltrans.cpp`, for `InverseElementTransformation`, are byte-identical
+  between the branches.
+
+`fem/darcy/extension_hdg.{hpp,cpp}` itself includes nothing from `fem/darcy` at
+all — only `Vector`, `DenseMatrix`, `Mesh`, `FaceElementTransformations`,
+`InverseElementTransformation`, `BilinearFormIntegrator` and `Coefficient` —
+so as a *library* it is not a Darcy addition and would sit as happily
+somewhere more general. What ties it to `fem/darcy` is the one change to
+`DarcyForm`, and that change is a fix on its own account.
+
+**The one thing that would be wanted alongside it** is `HDGStabilization`
+(`cd4ce0077f`), which is the whole of `gf-hdg-dev`'s change to
+`bilininteg_hdg.cpp`. Nothing here uses a solution-dependent `τ`; anyone who
+wanted one *with* the extension would need that commit, and nothing else.
+
 ### The region that was never meshed
 
 **The point of the method is the approximation on the whole of `Ω`, not the
