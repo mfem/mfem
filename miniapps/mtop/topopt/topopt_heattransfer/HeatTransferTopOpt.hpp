@@ -42,6 +42,36 @@ public:
    }
 };
 
+// =============================================================================
+// Brinkman Coefficient
+// =============================================================================
+// 
+class BrinkmanCoefficient : public Coefficient
+{
+private:
+   ParGridFunction *rho_filter;  // Filtered density ρ̃
+   real_t b;
+
+public:
+   BrinkmanCoefficient(ParGridFunction *rho_filt, real_t b_)
+      : rho_filter(rho_filt), b(b_) {}
+
+   virtual real_t Eval(ElementTransformation &T, const IntegrationPoint &ip)
+   {
+      real_t rho_val = rho_filter->GetValue(T, ip);
+      return (1 - rho_val) / (1 + b*rho_val) ;
+   }
+
+   // virtual real_t Eval_Derivative(ElementTransformation &T, const IntegrationPoint &ip)
+   // {
+   //    real_t rho_val = rho_filter->GetValue(T, ip);
+   //    rho_val = std::min(std::max(rho_val, 0.0), 1.0);  // Clamp to [0,1]
+   //    real_t rho_pow = std::pow(rho_val, exponent-1.0);
+   //    return exponent * rho_pow * (r_max - r_min);
+   // }
+};
+
+
 
 }
 #endif 

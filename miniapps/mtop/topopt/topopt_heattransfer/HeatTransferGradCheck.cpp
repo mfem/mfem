@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
    ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
    ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
    FunctionCoefficient inflow(inflow_function);   
-   FunctionCoefficient q0(q0_function); 
+   FunctionCoefficient q0(q0_function);  
    real_t dt_diffusion_term = dt*diffusion_term; 
    
    // 11. Construct the Objective Function  

@@ -32,7 +32,7 @@ MTOP_OBJ = mtop_solvers.o pde_filter.o MMA_MFEM.o
 # TRANSIENT_HEADERS = ObjectiveFunctional.hpp 
 
 SEQ_MINIAPPS =
-PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck 2D_NatConv test_imex_heattransfer TestForwardIMEX
+PAR_MINIAPPS = HeatTransferTopOpt HeatTransferGradCheck 2D_NatConv test_imex_heattransfer TestForwardIMEX StokesBrinkman
 ifeq ($(MFEM_USE_MPI),NO)
 #   MINIAPPS = $(SEQ_MINIAPPS)
 else
