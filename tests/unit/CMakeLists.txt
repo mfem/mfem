@@ -39,6 +39,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_divergence.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
+  dfem/test_tuple.cpp
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
@@ -96,6 +97,7 @@ set(UNIT_TESTS_SRCS
   fem/test_2d_bilininteg.cpp
   fem/test_3d_bilininteg.cpp
   fem/test_assembly_levels.cpp
+  fem/test_bdr_edgedof.cpp
   fem/test_bilinearform.cpp
   fem/test_block_operators.cpp
   fem/test_blocknonlinearform.cpp
