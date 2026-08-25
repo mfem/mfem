@@ -94,7 +94,7 @@ struct Result
 /// otherwise it is read on Gamma_h itself, which is the boundary-fitted
 /// problem on the same subdomain and so is the thing to match.
 Result Solve(int n, int order, real_t tau, real_t offset, bool level_set_path,
-             bool extend, int line_order)
+             bool extend, int line_order, bool visualization = false)
 {
    const int dim = 2;
 
@@ -308,6 +308,27 @@ Result Solve(int n, int order, real_t tau, real_t offset, bool level_set_path,
       res.ext_p = sqrt(e2p) / s;
    }
 
+   if (visualization)
+   {
+      // The subdomain and the solution on it. The region between Gamma_h and
+      // Gamma is not meshed and so is not drawn; what is drawn stops where the
+      // extension takes over.
+      char vishost[] = "localhost";
+      const int visport = 19916;
+      socketstream sol_sock(vishost, visport);
+      if (sol_sock.is_open())
+      {
+         sol_sock.precision(8);
+         sol_sock << "solution\n" << *D_h << p_h
+                  << "window_title 'potential on D_h'\n" << flush;
+      }
+      else
+      {
+         cout << "Unable to connect to GLVis server at "
+              << vishost << ':' << visport << endl;
+      }
+   }
+
    return res;
 }
 
@@ -324,6 +345,7 @@ int main(int argc, char *argv[])
    const char *path_type = "cp";
    bool extend = true;
    bool control = true;
+   bool visualization = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -347,6 +369,9 @@ int main(int argc, char *argv[])
    args.AddOption(&extend, "-ext", "--extend", "-no-ext", "--no-extend",
                   "Transfer the datum from Gamma. Without it the datum is "
                   "read on Gamma_h itself, which is a different problem.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Send the potential on the finest D_h to GLVis.");
    args.AddOption(&control, "-ctl", "--control", "-no-ctl", "--no-control",
                   "Also solve with the datum read on Gamma_h and report the "
                   "ratio of the errors.");
@@ -378,7 +403,7 @@ int main(int argc, char *argv[])
    for (int r = 0; r <= refinements; r++)
    {
       const Result e = Solve(nn, order, tau, offset, level_set_path, extend,
-                             line_order);
+                             line_order, visualization && r == refinements);
 
       cout << setw(4) << nn << setw(8) << e.elements << setw(9) << e.dofs
            << "  " << scientific << setprecision(2) << e.dist;
