@@ -34,9 +34,9 @@ constexpr int Coords = 2;
 // Ideally that's where a user would implement their own extension of the Navier-Stokes equations,
 // e.g. non-Newtonian rheology, stabilization, etc...
 // And then plug it in the wrapper NavierStokesOperator, where the actual
-// DifferentiableOperator is constructed. 
+// DifferentiableOperator is constructed.
 // (TODO: Maybe when we have more qfunction versions we could make it a parameter passed to the constructor of NavierStokesOperator,
-// instead of hardcoding it to NavierStokesQFunction, but for now this is fine.) 
+// instead of hardcoding it to NavierStokesQFunction, but for now this is fine.)
 
 // Spatial (steady) residual for incompressible Navier-Stokes equations.
 template <int DIM>
@@ -62,7 +62,7 @@ struct NavierStokesQFunction
       //--------------------------
       // Tested against Gradient<U>: (nu grad(u) - p I) : grad(v)
       momentum_gradient =
-          (viscosity * dudx - p * IdentityMatrix<DIM>()) * transpose(invJ) * dxw;
+         (viscosity * dudx - p * IdentityMatrix<DIM>()) * transpose(invJ) * dxw;
 
       // Tested against Value<U>: (u . grad)u = grad(u) * u
       momentum_value = (dudx * u) * dxw;

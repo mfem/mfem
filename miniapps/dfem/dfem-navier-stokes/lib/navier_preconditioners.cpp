@@ -67,8 +67,8 @@ void BlockDiagonalPreconditioner::SetOperator(const Operator &op)
                              jacobian->GetBlock(velocity_block,
                                                 velocity_block));
    const auto &divergence = dynamic_cast<const HypreParMatrix &>(
-                              jacobian->GetBlock(pressure_block,
-                                                 velocity_block));
+                               jacobian->GetBlock(pressure_block,
+                                                  velocity_block));
 
    velocity_amg = std::make_unique<HypreBoomerAMG>(velocity);
    velocity_amg->SetPrintLevel(0);
@@ -89,7 +89,7 @@ void BlockDiagonalPreconditioner::SetOperator(const Operator &op)
    // output keeps the pressure block in the zero-mean subspace, where S is
    // SPD, instead of letting the nullspace accumulate.
    pressure_ortho = std::make_unique<PressureOrthoSolver>(
-      comm, pressure_schur->Height(), *pressure_amg);
+                       comm, pressure_schur->Height(), *pressure_amg);
    pressure_ortho->SetOperator(*pressure_schur);
    block_preconditioner.SetDiagonalBlock(pressure_block, pressure_ortho.get());
 }

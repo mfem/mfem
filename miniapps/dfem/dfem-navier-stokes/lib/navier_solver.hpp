@@ -13,8 +13,8 @@
 #include <memory>
 
 
-/// TODO: The structure is fine for now, but we will need a refactor to make 
-/// the NavierStokesSolver the only user-facing class in the API. This means that 
+/// TODO: The structure is fine for now, but we will need a refactor to make
+/// the NavierStokesSolver the only user-facing class in the API. This means that
 /// all the other classes (NavierStokesOperator, NavierStokesResidual, NavierStokesEvolution) should be incorporater in it.
 /// Then we can simplify the example codes to not have to deal with instantiation of the separate components.
 
@@ -144,7 +144,7 @@ private:
 
 /// Simple wrapper for an ODE solver that advances the velocity and recovers the algebraic pressure at the new time.
 /// The ODESolver advances only the velocity, and the pressure would be the cached one from the last
-/// Mult() or ImplicitSolve() call. 
+/// Mult() or ImplicitSolve() call.
 /// This class avoids the user from having to manually call RecoverPressure() after each ODE step.
 class NavierStokesSolver
 {

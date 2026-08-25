@@ -42,9 +42,9 @@ NavierStokesOperator<DIM>::NavierStokesOperator(
    NavierStokesQFunction<DIM> qf{viscosity};
    dop->AddDomainIntegrator<LocalQFBackend>(
       qf,
-      Inputs<Value<U>, Gradient<U>, Value<P>, Gradient<Coords>, Weight>{},
-      Outputs<Gradient<U>, Value<U>, Value<P>>{}, ir, domain_attributes,
-      Derivatives<U, P>{});
+      Inputs<Value<U>, Gradient<U>, Value<P>, Gradient<Coords>, Weight> {},
+      Outputs<Gradient<U>, Value<U>, Value<P>> {}, ir, domain_attributes,
+      Derivatives<U, P> {});
 
    block_offsets.SetSize(3);
    block_offsets[0] = 0;
