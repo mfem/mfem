@@ -25,6 +25,8 @@
 //               convdiff -nx 40 -p 4 -k 1e-4 -tf 0.5 -nt 20 -ode 2 -o 2 -rd -brt -up
 //             * convdiff -nx 120 -ny 30 -sx 10 -sy 2.5 -p 5 -k 1e-2 -tf 10 -nt 100 -ode 3 -o 2 -dg -hb
 //
+// (* marks larger runs not executed within autotests)
+//
 // Device sample runs:
 //
 // Description:  This miniapp solves a convection-diffusion problem in the mixed
@@ -35,12 +37,12 @@
 //
 //               with natural Dirichlet boundary condition T = <given
 //               temperature> and/or Neumann boundary condition (q + Tc)⋅n =
-//               = <given total flux>, where n is the outer normal. The scalar k
-//               is the heat conductivity and c the given velocity field.
-//               Multiple problems are offered based on the paper: N.C. Nguyen
-//               et al., Journal of Computational Physics 228 (2009) 3232–3254.
-//               In particular, they are (corresponding to the subsections of
-//               section 5):
+//               = <given total flux>, where n is the outward pointing normal.
+//               The scalar k is the heat conductivity and c the given velocity
+//               field. Multiple problems are offered based on the paper: N.C.
+//               Nguyen et al., Journal of Computational Physics 228 (2009)
+//               3232–3254. In particular, they are (corresponding to the
+//               subsections of section 5):
 //               1) steady diffusion - sine profile steady diffusion with zero
 //                                     Dirichlet temperature BCs
 //               2) steady advection-diffusion - sine profile steady advection-

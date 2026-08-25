@@ -26,7 +26,7 @@
 //
 // Device sample runs:
 //
-// Description:  This miniapp solves asymptotic heat diffusion problem with
+// Description:  This miniapp solves an asymptotic heat diffusion problem with
 //               anisotropic conductivity in the mixed formulation corresponding
 //               to the system
 //
@@ -34,8 +34,8 @@
 //                                   ∇⋅q + a T = -f
 //
 //               with essential (RT) / natural (DG) Neumann boundary condition
-//               q⋅n = 0, where n is the outer normal, or Dirichlet b.c. T =
-//               = <given temperature>. The tensor k represents the heat
+//               q⋅n = 0, where n is the outward pointing normal, or Dirichlet
+//               b.c. T = <given temperature>. The tensor k represents the heat
 //               conductivity, where its symmetric and antisymmetric parts can
 //               be adjusted. The scalar a is the heat capacity, which can be
 //               zero, changing the problem to steady-state, indefinite,
