@@ -330,7 +330,6 @@ public:
    /// Compute y += a (P^t A P) x, where x and y are vectors on the true dofs
    void TrueAddMult(const Vector &x, Vector &y, const real_t a = 1.0) const;
 
-   using MixedBilinearForm::Update;
    virtual void Update(ParFiniteElementSpace *ntr_fes = NULL,
                        ParFiniteElementSpace *nte_fes = NULL)
    {
