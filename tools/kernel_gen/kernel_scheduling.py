@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 class GPUConfig:
     def __init__(
         self,
@@ -16,7 +19,11 @@ class GPUConfig:
         @param op_size max number of "words" in a single read op
         @param bank_entry_word_size number of bytes for each bank word
         @param allow_mcast True to allow any number of threads requesting the exact same word to be treated as a single read. Cuda compute capability 3.0 (Keplar, circa 2012) has multicast. Not sure about AMD.
-        TODO: add bcast support where all threads request the same address(TODO: is this correct?)
+        TODO: add bcast support where all threads request the same address (is this correct?)
+
+        Nvidia by default supports 48K of shared memory, though starting with Volta this could be configured higher (appears to be at least 64K? Need to check cudaDevAttrMaxSharedMemoryPerBlockOptin)
+        AMD has 64K of shared memory.
+        Intel has 64K of shared memory.
         """
         self.warp_size = warp_size
         self.unwrap_order = unwrap_order
@@ -107,3 +114,95 @@ class GPUConfig:
                     raise RuntimeError("error")
             all_accesses.append(accesses)
         return all_accesses
+
+
+class SpaceType(Enum):
+    Scalar = 0  # H1 or L2
+    HCurl = 1
+    HDiv = 2
+
+
+def SumFactorSmem(
+    gpu: GPUConfig,
+    trial_stype: SpaceType,
+    test_stype: SpaceType,
+    trial_instrs,
+    test_instrs,
+    ndims: int,
+    trial_vdims: int,
+    test_vdims: int,
+    trial_dofs1d: int,
+    test_dofs1d: int,
+    nquads1d: int,
+    mixed: bool,
+):
+    """
+    (C F(u), G(v))
+
+    Algorithm:
+    1. Evaluate F(u) at all quadrature points using sum factorization.
+       Required shared memory storage space:
+       - trial_vdims*trial_dofs buffer for input
+       - space for trial basis/deriv
+       - 2 buffers of size max(trial_dofs, nquads) to sum factor
+       - nvdims(F(u))*nquads to store F(u) at all quadrature points
+         - optimizations for only storing a limited number of components if not all vdims are needed at once (how to identify?)
+    2. Compute C F(u)
+    3. Sum factor down to v. Should be able to reverse input/output buffers.
+       - Might need to load test basis/deriv into where trial basis/deriv are.
+
+    @param trial_instrs
+    @param test_instrs
+    @param ndims number of reference space dimensions
+    @param trial_dofs1d for H(curl) and H(div) spaces this is the number of 1D open dofs
+    @param test_dofs1d for H(curl) and H(div) spaces this is the number of 1D open dofs
+    @param nquads1d
+    @param trial_vdims number of trial vector space components. H(curl) and H(div) must specify vector dimension.
+    @param test_vdims number of test vector space compnoents. H(curl) and H(div) must specify vector dimension.
+    @param mixed True if trial and test spaces are different
+    """
+    # analyze thread scheduling, element batch size, and shared memory bank conflicts
+    
+def SumFactorNoSmem(
+    gpu: GPUConfig,
+    trial_stype: SpaceType,
+    test_stype: SpaceType,
+    trial_instrs,
+    test_instrs,
+    ndims: int,
+    trial_vdims: int,
+    test_vdims: int,
+    trial_dofs1d: int,
+    test_dofs1d: int,
+    nquads1d: int,
+    mixed: bool,
+):
+    """
+    (C F(u), G(v))
+
+    Algorithm:
+    1. Evaluate F(u) at all quadrature points using sum factorization.
+       Required shared memory storage space:
+       - space for trial basis/deriv
+       Required global memory storage space:
+       - trial_vdims*trial_dofs buffer for input
+       - 2 buffers of size max(trial_dofs, nquads) to sum factor
+       - nvdims(F(u))*nquads to store F(u) at all quadrature points
+         - optimizations for only storing a limited number of components if not all vdims are needed at once (how to identify?)
+    2. Compute C F(u)
+    3. Sum factor down to v. Should be able to reverse input/output buffers.
+
+    @param trial_instrs
+    @param test_instrs
+    @param ndims number of reference space dimensions
+    @param trial_dofs1d for H(curl) and H(div) spaces this is the number of 1D open dofs
+    @param test_dofs1d for H(curl) and H(div) spaces this is the number of 1D open dofs
+    @param nquads1d
+    @param trial_vdims number of trial vector space components. H(curl) and H(div) must specify vector dimension.
+    @param test_vdims number of test vector space compnoents. H(curl) and H(div) must specify vector dimension.
+    @param mixed True if trial and test spaces are different
+    """
+    # analyze thread scheduling and how contiguous global memory read/write is
+    # assume large number of dofs/quads so I think no batching is best
+    # TODO: somehow compare against non-sum factored code? Is global memory read/write going to be a big problem compared to amount of computation?
+    # I think for CPU sum factorization should always be best because that's very compute bound
