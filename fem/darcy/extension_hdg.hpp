@@ -227,7 +227,8 @@ public:
     \boldsymbol{m}\,ds@f$ along the straight path from @a x to @a xbar.
 
     @param Cu       evaluates @f$C(y)\,\boldsymbol{u}(y)@f$ at a physical point
-                    @a y, which lies outside the mesh.
+                    @a y, which lies outside the mesh. Its output is passed in
+                    already sized, as MFEM's vector functions expect.
     @param line_ir  a rule on Geometry::SEGMENT. On a straight-sided element the
                     integrand is a polynomial of the degree of the flux space,
                     so a rule exact to that degree integrates it exactly; the

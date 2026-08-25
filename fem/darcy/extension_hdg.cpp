@@ -124,7 +124,7 @@ real_t PathIntegral(const VectorPositionFunction &Cu, const Vector &x,
                     const Vector &xbar, const IntegrationRule &line_ir)
 {
    const int dim = x.Size();
-   Vector m(dim), y(dim), v;
+   Vector m(dim), y(dim), v(dim);
 
    // The unit tangent is m/|m| and ds = |m| dt, so the length cancels.
    subtract(xbar, x, m);
