@@ -24,7 +24,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo
+SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff extension mfem-logo
 PAR_MINIAPPS = panisodiff pconvdiff
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -65,6 +65,9 @@ anisodiff-test-seq: anisodiff
 convdiff-test-seq: convdiff
 	@$(call mfem-test,$<,, HDG convection-diffusion miniapp,\
 	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -r 2)
+extension-test-seq: extension
+	@$(call mfem-test,$<,, HDG extension-from-subdomains miniapp,\
+	-o 1 -n 8 -r 1 -no-ctl)
 mfem-logo-test-seq: mfem-logo
 	@$(call mfem-test,$<,, HDG MFEM logo miniapp,\
 	-nx 50 -o 3 -hb -brt -a 1e3 -ks 1e-3 -c 2e4)

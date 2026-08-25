@@ -306,7 +306,7 @@ A test pins it, asserting the clamped answer is worse by more than three orders
 of magnitude — the answer that a naive implementation would have quietly
 produced.
 
-### Where it attaches to `DarcyForm`, read from the tree and not yet measured
+### Where it attaches to `DarcyForm` — read from the tree, then measured
 
 The question that decides how much library work §1 needs is **which of the two
 boundary routes the transferred datum enters by**, and the answer is that the
@@ -346,13 +346,98 @@ weak one costs nothing structural and the essential one costs a change to
 `DarcyHybridization` and produces the convergence table that says whether the
 construction is right; the essential route afterwards, if the table or §7's
 estimator wants a meaningful `λ` on `Γ_h`. The weak route is also what the
-existing miniapps use for Dirichlet data, so nothing has to move.
+existing miniapps use for Dirichlet data, so nothing has to move. **Taken, and
+it held**: the section below is the table, and the only library change it
+needed was the flux mass one.
+
+### Solved, and the design order is retained
+
+**`miniapps/hdg/extension.cpp`** is the driver: a disc immersed in a
+triangulated square, the datum on the circle transferred to `Γ_h`, solved
+hybridized, and a history of convergence printed — because the claim is a claim
+about rates. Alongside each row it solves *the same subdomain with the datum
+read on `Γ_h` itself* and reports the ratio, which is the boundary-fitted
+problem the transfer is standing in for and so the only fair control. Measured,
+with `τ = 1` held fixed and the closest-point paths:
+
+| `k` | `n` | `‖u-u_h‖` | rate | `‖p-p_h‖` | rate | ratio `u` | ratio `p` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | 16 | 1.35e-02 | 1.01 | 8.42e-03 | 0.85 | 1.049 | 1.002 |
+| 0 | 32 | 6.81e-03 | 0.99 | 4.41e-03 | 0.93 | 1.011 | 1.000 |
+| 0 | 64 | 3.41e-03 | 1.00 | 2.23e-03 | 0.98 | 1.004 | 0.999 |
+| 1 | 16 | 2.58e-04 | 2.36 | 1.04e-04 | 1.89 | 1.378 | 1.008 |
+| 1 | 32 | 5.38e-05 | 2.26 | 2.66e-05 | 1.97 | 1.096 | 1.001 |
+| 1 | 64 | 1.29e-05 | 2.06 | 6.68e-06 | 1.99 | 1.035 | 1.000 |
+| 2 | 16 | 5.93e-06 | 3.54 | 1.15e-06 | 3.08 | 3.763 | 1.108 |
+| 2 | 32 | 4.66e-07 | 3.67 | 1.37e-07 | 3.07 | 2.209 | 1.013 |
+| 2 | 64 | 4.20e-08 | 3.47 | 1.72e-08 | 3.00 | 1.559 | 1.004 |
+| 3 | 16 | 4.55e-07 | 5.38 | 3.54e-08 | 6.35 | 37.44 | 5.745 |
+| 3 | 32 | 1.21e-08 | 5.24 | 7.48e-10 | 5.56 | 15.04 | 1.884 |
+| 3 | 64 | 4.47e-10 | 4.75 | 3.02e-11 | 4.63 | 8.652 | 1.211 |
+
+`dist(Γ_h, Γ)` is 8.2e-2, 4.1e-2, 2.0e-2 down the mesh sequence — **halving
+with `h`, which is the demanding case the method exists for.** Both unknowns
+converge at `k+1` or better at every degree. Unit tests in
+`test_darcy_extension.cpp` assert the rate and the ratio.
+
+**The constant grows sharply with `k`, and that is the paper's own finding, not
+a defect.** At `k = 3` the coarsest mesh is a hundred times worse than the
+control and is still eight times worse at `n = 64`, while the rate is above
+`k+1` throughout — a pre-asymptotic regime, not a lost order. CQS's Assumption
+S is exactly this: the ratio of the extension's height to the element's must be
+`O((k+1)^{-8/3})`, so it has to shrink as the degree rises. CS-ConvDiff gives
+the practical rule `d = ½ min{h, Pe^{-1}}/(k+1)²` and shows the error ratio
+stays near one under it. **Raising the degree on a fixed background mesh is
+therefore not free here, unlike in the boundary-fitted method**, and the
+reference says as much: "we must refine the mesh if we want to increase the
+polynomial degree".
+
+**The path family matters, and it matters through the distance it induces.**
+The normal-ray family reaches the circle further out than the radial
+closest-point map does — `dist` 5.8e-2 against 2.0e-2 at `n = 64` — and costs a
+factor of about two in the flux error, 2.24 against 1.035 relative to the
+control, at the same `k+1` rate. Both families satisfy the analysis's
+assumptions; the closed-form map is simply the better one where it exists,
+which is why §1 asked for it directly.
+
+**Two signs, both measured rather than argued.**
+* **The stabilisation.** `HDGDiffusionIntegrator`'s parameter is `τ h/κ`, not
+  `τ`. Passing a fixed value while refining makes `τ` grow like `1/h`, which is
+  a different method — §5's tests already record that it trades the flux's
+  order for the scalar's superconvergence — and it cost an order here until it
+  was noticed: `k = 1` gave rate 0.97 in the flux and 1.99 in the scalar.
+  Passing `τ/n` holds `τ` at one, which is what CS-Extensions uses, and both
+  return to `k+1`. **The failure looks exactly like a defect in the extension
+  and is not.**
+* **The extension term.** Its sign is the negative of the sign the datum enters
+  the flux right-hand side with, so it is `+1` alongside this branch's negated
+  `pNatural`. With it reversed the method does not degrade, it destroys itself:
+  the error grew by four orders between the two finest meshes. Pinned by a
+  test.
+
+**No change to `DarcyHybridization` was needed**, as the reading above
+predicted: the term is element-local and goes into the flux mass block. **One
+change to `DarcyForm` was.** `BilinearForm::ComputeElementMatrix()`, which the
+hybridized assembly uses, sums the *domain* integrators only, and
+`DarcyHybridization::AssembleFluxMassMatrix` *overwrote* its block where the
+potential-mass and divergence counterparts accumulate — so a boundary face
+integrator on the flux mass form was **silently dropped when hybridized**. The
+flux block now accumulates like the other two, is zeroed at `Init` and by
+`Reset` as they are, and `DarcyForm::AssembleFluxMassBdrFaces` makes the extra
+pass. Nothing in the suite moved: serial unit 487 cases, parallel 84, the
+miniapp regressions at their 2 of 129.
 
 **Not yet built**: the extension of the *potential* to `D_h^c`, which is the
 lifting evaluated there rather than only its restriction to `Γ_h`, and which
-the papers' `e_p ext` and `e_u ext` columns need; the general vertex-cone path
-family, for a `Γ` with no closed-form closest point; and anything in three
-dimensions, where the path construction is unchanged but has not been run.
+the papers' `e_p ext` and `e_u ext` columns need — **the claim that the method
+approximates the solution on the whole of `Ω`, as against merely not being hurt
+on `D_h`, is therefore not yet measured here**; the postprocessed `p*` and its
+`k+2`; the `ρ_d` robustness study under `d = ½h/(k+1)²`, which the paragraph on
+the constant above says is the thing to do next; the general vertex-cone path
+family, for a `Γ` with no closed-form closest point; the non-convex case, where
+selecting `D_h` needs more than the vertex test that `MarkLevelSetSubdomain`
+already provides for; and anything in three dimensions, where the path
+construction is unchanged but has not been run.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -1981,8 +2066,10 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. **§2**, untouched, and **§1 in part**: its geometry, extension and lifting
-   are built and measured — see §1 — but nothing is solved through them yet.
+1. **§2**, untouched. **§1 solves and converges at the design order on `D_h`**,
+   but what remains is the half of its claim that concerns `D_h^c`: the
+   extension and the lifting are not yet evaluated there, so nothing has been
+   measured about the approximation on the whole of `Ω`. §1 lists the rest.
    Nothing in §3 or §4 blocks either: they sit on their own branch of the
    dependency graph.
 2. **§7's `hp`**, and §8 in its entirety.

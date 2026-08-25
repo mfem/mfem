@@ -450,6 +450,7 @@ miniapps/hdg/Mfem-logo*
 miniapps/hdg/convdiff
 miniapps/hdg/convdiff*.mesh
 miniapps/hdg/Convdiff*
+miniapps/hdg/extension
 miniapps/hdg/pconvdiff
 miniapps/hdg/panisodiff
 miniapps/hdg/panisodiff*.mesh

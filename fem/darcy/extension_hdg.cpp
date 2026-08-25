@@ -141,6 +141,127 @@ real_t PathIntegral(const VectorPositionFunction &Cu, const Vector &x,
    return val;
 }
 
+real_t PathTraceCoefficient::Eval(ElementTransformation &T,
+                                  const IntegrationPoint &ip)
+{
+   FaceElementTransformations *FTr =
+      dynamic_cast<FaceElementTransformations *>(&T);
+   MFEM_VERIFY(FTr, "PathTraceCoefficient must be evaluated on a face: the "
+               "path family may need the outward normal of Gamma_h");
+
+   path.Endpoint(*FTr, ip, xbar);
+   return g(xbar);
+}
+
+void HDGExtensionIntegrator::AssembleFaceMatrix(
+   const FiniteElement &el1, const FiniteElement &el2,
+   FaceElementTransformations &Trans, DenseMatrix &elmat)
+{
+   MFEM_VERIFY(Trans.Elem2No < 0,
+               "the extension term lives on a boundary face only");
+
+   const int dof = el1.GetDof();
+   const int dim = Trans.GetSpaceDim();
+
+   elmat.SetSize(dof * dim);
+   elmat = 0.;
+
+   shape.SetSize(dof);
+   shape_ext.SetSize(dof);
+   nor.SetSize(dim);
+   m.SetSize(dim);
+   y.SetSize(dim);
+   CTm.SetSize(dim);
+   L.SetSize(dof, dim);
+   if (MC) { Cmat.SetSize(dim); }
+
+   const int order = (line_order >= 0) ? line_order : (2 * el1.GetOrder() + 2);
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      ir = &IntRules.Get(Trans.GetGeometryType(), 2 * el1.GetOrder() + 2);
+   }
+   const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, order);
+
+   ext.SetElement(*Trans.Elem1);
+
+   for (int q = 0; q < ir->GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(q);
+      Trans.SetAllIntPoints(&ip);
+
+      // The scaled normal already carries the face Jacobian, so the face
+      // weight is the quadrature weight alone.
+      if (dim == 1)
+      {
+         nor(0) = 2 * Trans.GetElement1IntPoint().x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      el1.CalcPhysShape(*Trans.Elem1, shape);
+      Trans.Transform(ip, x);
+
+      // Endpoint() resets the transformations, which is why the shape and the
+      // normal above are taken into arrays of our own first.
+      path.Endpoint(Trans, ip, xbar);
+      subtract(xbar, x, m);
+
+      // The lifting of every basis function of the element, at this point of
+      // the face.  The unit tangent is m/|m| and ds = |m| dt, so the length
+      // of the path cancels and never appears.
+      L = 0.;
+      for (int t = 0; t < lir.GetNPoints(); t++)
+      {
+         const IntegrationPoint &tip = lir.IntPoint(t);
+         for (int d = 0; d < dim; d++) { y(d) = x(d) + tip.x * m(d); }
+
+         IntegrationPoint eip;
+         MFEM_VERIFY(ext.TransformBack(y, eip),
+                     "the inverse element transformation did not converge on "
+                     "the extension of the element beyond Gamma_h");
+         Trans.Elem1->SetIntPoint(&eip);
+         el1.CalcPhysShape(*Trans.Elem1, shape_ext);
+
+         // (C phi_j) . m = phi_j . (C^T m), and phi_j = shape_j e_d.
+         if (MC)
+         {
+            MC->Eval(Cmat, *Trans.Elem1, eip);
+            Cmat.MultTranspose(m, CTm);
+         }
+         else
+         {
+            CTm = m;
+            CTm *= C->Eval(*Trans.Elem1, eip);
+         }
+
+         for (int d = 0; d < dim; d++)
+         {
+            const real_t wd = tip.weight * CTm(d);
+            for (int j = 0; j < dof; j++)
+            {
+               L(j, d) += wd * shape_ext(j);
+            }
+         }
+      }
+
+      const real_t w = sign * ip.weight;
+      for (int di = 0; di < dim; di++)
+         for (int i = 0; i < dof; i++)
+         {
+            const real_t ti = w * nor(di) * shape(i);
+            for (int dj = 0; dj < dim; dj++)
+               for (int j = 0; j < dof; j++)
+               {
+                  elmat(dof * di + i, dof * dj + j) += ti * L(j, dj);
+               }
+         }
+   }
+}
+
 int MarkLevelSetSubdomain(const Mesh &mesh, const PositionFunction &phi,
                           real_t offset, Array<int> &marker, int extra_refine)
 {

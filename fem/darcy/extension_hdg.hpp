@@ -242,6 +242,105 @@ real_t PathIntegral(const VectorPositionFunction &Cu, const Vector &x,
                     const Vector &xbar, const IntegrationRule &line_ir);
 
 
+/** @brief The Dirichlet datum of @f$\Gamma@f$, seen from @f$\Gamma_h@f$.
+
+    Evaluates @f$g(a(x))@f$ at a point @a x of a boundary face, which is the
+    part of the lifting that does not depend on the solution. Paired with
+    VectorBoundaryFluxLFIntegrator it supplies @f$\langle g\circ a, v\cdot
+    n\rangle_e@f$, which is exactly how the miniapps already give a Dirichlet
+    datum to the flux equation -- the only difference being where the datum is
+    read from.
+
+    Must be evaluated on a FaceElementTransformations, since the path family
+    may need the face normal. */
+class PathTraceCoefficient : public Coefficient
+{
+   const TransferPath &path;
+   PositionFunction g;
+   mutable Vector xbar;
+
+public:
+   PathTraceCoefficient(const TransferPath &path_, PositionFunction g_)
+      : path(path_), g(std::move(g_)) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+};
+
+
+/** @brief The solution-dependent part of the transferred Dirichlet datum, as a
+    contribution to the flux mass form on a face of @f$\Gamma_h@f$.
+
+    The transferred datum is @f$\varphi_h = g\circ a + L_e(\boldsymbol{u}_h)@f$
+    and the flux equation reads it as @f$\langle \varphi_h, v\cdot n
+    \rangle_e@f$. Only the first term is data; the second depends on the
+    unknown flux, so it belongs on the left, and this integrator is it:
+
+    @f[ \langle L_e(\boldsymbol\varphi_j), \boldsymbol\varphi_i \cdot n
+        \rangle_e, \qquad
+        L_e(\boldsymbol\varphi_j)(x) = \int_{\sigma(x)}
+        C\,E_h(\boldsymbol\varphi_j)\cdot\boldsymbol{m}\,ds. @f]
+
+    **The block is element-local.** A face of @f$\Gamma_h@f$ belongs to one
+    element, and the extension @f$E_h@f$ on the region beyond it is that
+    element's own polynomial, so nothing outside the element is read. The term
+    is therefore an addition to the element's flux mass block and leaves the
+    hybridization -- the constraint, its transpose, the static condensation --
+    untouched. That is why the weak boundary route costs nothing structural
+    here and the essential-trace route would.
+
+    @a C is the same coefficient the flux mass form carries: the *inverse* of
+    the diffusion tensor, as in @f$(C\boldsymbol{u}, v)@f$. It is evaluated at
+    points outside the element, through that element's transformation, so a
+    coefficient defined by a function of position extends as that function and
+    one defined by a grid function extends as that grid function's own
+    polynomial.
+
+    The space is assumed fully discontinuous with @a vdim equal to the space
+    dimension -- the arrangement `VectorMassIntegrator` also assumes, and the
+    one the HDG configuration of `DarcyForm` uses. */
+class HDGExtensionIntegrator : public BilinearFormIntegrator
+{
+   const TransferPath &path;
+   Coefficient *C{};
+   MatrixCoefficient *MC{};
+   real_t sign;
+   int line_order;
+
+   Vector shape, shape_ext, nor, x, xbar, m, y, CTm;
+   DenseMatrix Cmat, L;
+   ElementExtension ext;
+
+public:
+   /** @param path_        the transferring paths.
+       @param C_           the inverse diffusion tensor, as a scalar.
+       @param sign_        **the negative of the sign with which the datum
+                           enters the flux right-hand side**, since that is
+                           where the term comes from. The default, `+1`, is
+                           therefore the one to use with the branch's
+                           convention of giving the *negated* potential to
+                           VectorBoundaryFluxLFIntegrator, as `pNatural` does
+                           in the harnesses. Measured rather than argued: with
+                           the sign reversed the solve diverges outright, the
+                           error growing by four orders between the two finest
+                           meshes.
+       @param line_order_  order of the rule along the path; negative takes
+                           twice the element order plus two. */
+   HDGExtensionIntegrator(const TransferPath &path_, Coefficient &C_,
+                          real_t sign_ = +1., int line_order_ = -1)
+      : path(path_), C(&C_), sign(sign_), line_order(line_order_) { }
+
+   HDGExtensionIntegrator(const TransferPath &path_, MatrixCoefficient &C_,
+                          real_t sign_ = +1., int line_order_ = -1)
+      : path(path_), MC(&C_), sign(sign_), line_order(line_order_) { }
+
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override;
+
+   using BilinearFormIntegrator::AssembleFaceMatrix;
+};
+
+
 /** @brief Selection of the polyhedral subdomain @f$D_h@f$ of a background mesh.
 
     @f$D_h@f$ is the set of elements lying entirely inside @f$\Omega@f$. For a

@@ -388,4 +388,195 @@ TEST_CASE("Extension from subdomains: the lifting converges",
    REQUIRE(rate > order + 0.8);
 }
 
+// -- Solving on the subdomain -------------------------------------------------
+
+// C = I, so u = -grad p and the source of the potential equation is
+// g = -div u = laplacian p.
+real_t gSin(const Vector &x) { return -2.0 * pSin(x); }
+real_t pSinNatural(const Vector &x) { return -pSin(x); }
+
+struct SolveResult
+{
+   real_t err_u{}, err_p{};
+   bool converged{};
+};
+
+/// Solve the hybridized HDG problem on D_h. With @a extend the Dirichlet datum
+/// is transferred from Gamma along the paths; otherwise it is read on Gamma_h
+/// itself, which is the boundary-fitted problem on the same subdomain and so
+/// is what the extension has to match.
+///
+/// @a ext_sign is exposed only so that the wrong sign can be shown to fail.
+SolveResult SolveOnSubdomain(int n, int order, bool extend,
+                             real_t tau = 1.0, real_t ext_sign = +1.0)
+{
+   const int dim = 2;
+   Subdomain s = BuildSubdomain(n);
+
+   Array<int> bdr_gamma_h(s.gamma_h_attr);
+   bdr_gamma_h = 0;
+   bdr_gamma_h[s.gamma_h_attr - 1] = 1;
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   FiniteElementSpace fes_u(s.D_h.get(), &u_coll, dim);
+   FiniteElementSpace fes_p(s.D_h.get(), &p_coll);
+
+   ConstantCoefficient C(1.0);
+   VectorFunctionCoefficient zero(dim, [](const Vector &, Vector &f) { f = 0.0; });
+   FunctionCoefficient gcoeff(gSin);
+   FunctionCoefficient pcoeff(pSin);
+   VectorFunctionCoefficient ucoeff(dim, uSin);
+
+   FunctionCoefficient datum_here(pSinNatural);
+   PathTraceCoefficient datum_there(path, pSinNatural);
+   Coefficient &datum = extend ? static_cast<Coefficient &>(datum_there)
+                        : static_cast<Coefficient &>(datum_here);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(C));
+   if (extend)
+   {
+      darcy.GetFluxMassForm()->AddBdrFaceIntegrator(
+         new HDGExtensionIntegrator(path, C, ext_sign), bdr_gamma_h);
+   }
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   // HDGDiffusionIntegrator's parameter is tau*h/kappa, so tau/n holds tau
+   // fixed under refinement -- the scaling the reference uses, and the one
+   // that gives k+1 in both variables.
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(C, tau / n));
+
+   LinearForm *fform = darcy.GetFluxRHS();
+   fform->AddDomainIntegrator(new VectorDomainLFIntegrator(zero));
+   fform->AddBdrFaceIntegrator(new VectorBoundaryFluxLFIntegrator(datum),
+                               bdr_gamma_h);
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+
+   Array<int> ess_flux_tdofs;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(s.D_h.get(), &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(),
+                             ess_flux_tdofs);
+
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess_flux_tdofs, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver solver;
+   solver.SetKDim(500);
+   solver.SetMaxIter(5000);
+   solver.SetRelTol(0.0);
+   solver.SetAbsTol(1e-12);
+   solver.SetPreconditioner(prec);
+   solver.SetOperator(*A);
+   solver.Mult(RHS, X);
+
+   SolveResult r;
+   r.converged = solver.GetConverged();
+
+   darcy.RecoverFEMSolution(X, x);
+   GridFunction u_h, p_h;
+   u_h.MakeRef(&fes_u, x.GetBlock(0), 0);
+   p_h.MakeRef(&fes_p, x.GetBlock(1), 0);
+   r.err_u = u_h.ComputeL2Error(ucoeff);
+   r.err_p = p_h.ComputeL2Error(pcoeff);
+   return r;
+}
+
+TEST_CASE("Extension from subdomains: the design order is retained",
+          "[DarcyExtension][HDG]")
+{
+   // The claim of the method: solving on a subdomain whose boundary stands
+   // O(h) from the true one, with the datum transferred along the paths, keeps
+   // the k+1 of the boundary-fitted method in both variables. Earlier
+   // techniques needed the distance to be O(h^(k+1)); here it halves with h
+   // and no more.
+   const int order = GENERATE(0, 1, 2);
+
+   real_t prev_u = 0.0, prev_p = 0.0;
+   real_t rate_u = 0.0, rate_p = 0.0;
+   for (int n : {8, 16, 32})
+   {
+      const SolveResult r = SolveOnSubdomain(n, order, true);
+      REQUIRE(r.converged);
+      if (prev_u > 0.0)
+      {
+         rate_u = std::log2(prev_u / r.err_u);
+         rate_p = std::log2(prev_p / r.err_p);
+      }
+      INFO("order " << order << " n " << n << " eu " << r.err_u
+           << " ep " << r.err_p << " rate_u " << rate_u
+           << " rate_p " << rate_p);
+      prev_u = r.err_u;
+      prev_p = r.err_p;
+   }
+
+   CAPTURE(order, rate_u, rate_p);
+   REQUIRE(rate_u > order + 0.7);
+   REQUIRE(rate_p > order + 0.7);
+}
+
+TEST_CASE("Extension from subdomains: the transfer costs almost nothing",
+          "[DarcyExtension][HDG]")
+{
+   // Against the same subdomain solved with the datum read on Gamma_h itself,
+   // which is the boundary-fitted problem the transfer is standing in for.
+   // The ratio of the errors is the reference's measure of robustness, and it
+   // tends to one from above as the mesh is refined.
+   const int order = GENERATE(0, 1);
+
+   real_t ratio_u = 0.0, ratio_p = 0.0;
+   for (int n : {16, 32})
+   {
+      const SolveResult e = SolveOnSubdomain(n, order, true);
+      const SolveResult c = SolveOnSubdomain(n, order, false);
+      REQUIRE(e.converged);
+      REQUIRE(c.converged);
+      ratio_u = e.err_u / c.err_u;
+      ratio_p = e.err_p / c.err_p;
+      INFO("order " << order << " n " << n << " ratio_u " << ratio_u
+           << " ratio_p " << ratio_p);
+   }
+
+   CAPTURE(order, ratio_u, ratio_p);
+   REQUIRE(ratio_u < 1.5);
+   REQUIRE(ratio_p < 1.05);
+}
+
+TEST_CASE("Extension from subdomains: the sign of the transfer is not free",
+          "[DarcyExtension][HDG]")
+{
+   // The extension term is the solution-dependent half of the datum, moved to
+   // the left, so its sign is the negative of the sign the datum enters the
+   // flux right-hand side with. Reversing it does not degrade the method, it
+   // destroys it: the error grows under refinement. Pinned because a sign that
+   // is merely argued for is a sign that is eventually wrong.
+   const int order = 1;
+
+   const SolveResult good_c = SolveOnSubdomain(16, order, true, 1.0, +1.0);
+   const SolveResult good_f = SolveOnSubdomain(32, order, true, 1.0, +1.0);
+   const SolveResult bad_c  = SolveOnSubdomain(16, order, true, 1.0, -1.0);
+   const SolveResult bad_f  = SolveOnSubdomain(32, order, true, 1.0, -1.0);
+
+   CAPTURE(good_c.err_p, good_f.err_p, bad_c.err_p, bad_f.err_p);
+   REQUIRE(good_f.err_p < 0.5 * good_c.err_p);
+   REQUIRE(bad_f.err_p > 10.0 * good_f.err_p);
+}
+
 } // namespace darcy_extension
