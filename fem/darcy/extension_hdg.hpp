@@ -184,6 +184,92 @@ public:
 };
 
 
+/** @brief The general path family: a direction chosen at each vertex of
+    @f$\Gamma_h@f$ by a search, and interpolated along the faces.
+
+    The two closed-form families above are enough where @f$\Gamma@f$ has a
+    closest-point map, or where every face normal reaches it. Neither holds in
+    general, and the Joukowsky airfoil of CS-Extensions §3.4 is where both give
+    out. Measured there: **between four and fifteen per cent of the face
+    normals never meet @f$\Gamma@f$ at all**, passing outside the thin tail or
+    the nose, so LevelSetPath has no endpoint to return; and a family following
+    each face's own normal does not tile the region beyond @f$\Gamma_h@f$,
+    adjacent faces disagreeing on the path through the vertex they share.
+
+    This is CS-Extensions' own construction, and it repairs both at once. A
+    direction is chosen at each *vertex* of @f$\Gamma_h@f$ by searching a fan
+    of rays for the one reaching @f$\Gamma@f$ nearest, restricted to the
+    directions that leave @f$D_h@f$ through both faces meeting there; along a
+    face, the unit tangents of its two vertices are interpolated. The search is
+    what makes a path exist where a normal would miss, and the sharing of the
+    vertex path is what makes the swept regions tile — which is the property
+    the vertex-first construction is *for*, and which reading it as merely a
+    way to find a nearby point on @f$\Gamma@f$ misses.
+
+    Two dimensions only. The construction generalises, and the reference says
+    so, but nothing here has been run in three.
+
+    Must be evaluated through the FaceElementTransformations overload: a
+    direction interpolated along a face is not a function of the point alone.
+    The mesh must outlive the path. */
+class VertexConePath : public TransferPath
+{
+   const Mesh *mesh;
+   PositionFunction phi;
+   real_t search_length;
+   int n_rays, n_keep, search_steps, max_iter;
+   real_t tol;
+
+   /// Per face, the unit tangents of its two vertices, in the order the face's
+   /// reference coordinate visits them; four entries per face.
+   Array<real_t> tang;
+   Array<int> has_tangent;
+   int n_widened{};
+
+   /// Choose the direction at one vertex, given the outward normals of the
+   /// faces of @f$\Gamma_h@f$ meeting there. Returns false if no ray reached
+   /// @f$\Gamma@f$ even after the admissible fan was widened.
+   bool VertexDirection(const Vector &x, const Array<real_t> &normals,
+                        Vector &t);
+
+public:
+   /** @param mesh_           the mesh of @f$D_h@f$.
+       @param gamma_h_attr    the boundary attribute of @f$\Gamma_h@f$.
+       @param phi_            the level set, negative inside @f$\Omega@f$.
+       @param search_length_  how far along a ray to look for @f$\Gamma@f$.
+       @param n_rays_         rays in the fan searched at each vertex.
+       @param n_keep_         how many of the nearest endpoints found to
+                              average before shooting once more along their
+                              mean, which is what the reference does and what
+                              keeps the direction from jumping between two
+                              nearly equal rays. */
+   VertexConePath(const Mesh &mesh_, int gamma_h_attr, PositionFunction phi_,
+                  real_t search_length_, int n_rays_ = 16, int n_keep_ = 3,
+                  int search_steps_ = 32, real_t tol_ = 1e-13,
+                  int max_iter_ = 100);
+
+   using TransferPath::Endpoint;
+
+   /** @brief Not available: this family is defined face by face.
+
+       The base class's point-and-normal form cannot express an interpolated
+       direction, and silently falling back to the normal would reintroduce
+       exactly the two failures this family exists to repair. */
+   void Endpoint(const Vector &x, const Vector &n, Vector &xbar) const override;
+
+   void Endpoint(FaceElementTransformations &FTr, const IntegrationPoint &ip,
+                 Vector &xbar) const override;
+
+   /** @brief How many vertices needed the admissible fan widened past the
+       condition that the path leave @f$D_h@f$ through both adjacent faces.
+
+       Non-zero means Assumption P.1 of the analysis is violated somewhere, so
+       it is worth reporting rather than hiding: the method may still run, and
+       the estimate no longer covers it. */
+   int NumWidened() const { return n_widened; }
+};
+
+
 /** @brief The extension operator @f$E_h@f$: an element's own polynomial,
     evaluated outside the element.
 

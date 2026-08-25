@@ -13,6 +13,7 @@
 #include "unit_tests.hpp"
 
 #include <memory>
+#include <complex>
 
 using namespace mfem;
 
@@ -723,6 +724,149 @@ TEST_CASE("Extension from subdomains: the approximation on the whole domain",
    CAPTURE(order, rate_u, rate_p);
    REQUIRE(rate_u > order + 0.7);
    REQUIRE(rate_p > order + 1.7);
+}
+
+// -- The searched path family, and what it is for -----------------------------
+
+// The Joukowsky airfoil of CS-Extensions section 3.4, whose tail is the
+// feature that defeats the simpler families. The level set is the inverse of
+// the map, taking the branch injective on |z| >= lambda.
+const real_t foil_R = 0.107, foil_s1 = 0.01, foil_s2 = 0.01;
+
+real_t FoilPhi(const Vector &x, real_t lambda)
+{
+   const std::complex<real_t> w(x(0) - 0.5, x(1) - 0.5);
+   std::complex<real_t> r = std::sqrt(w * w - 4.0 * lambda * lambda);
+   if (w.real() * r.real() + w.imag() * r.imag() < 0.0) { r = -r; }
+   const std::complex<real_t> z = 0.5 * (w + r);
+   return foil_R - std::abs(z - std::complex<real_t>(foil_s1, foil_s2));
+}
+
+/// The measure the paths sweep, against the truth, on any subdomain.
+real_t SweptMeasure(Mesh &D_h, int gamma_h_attr, const TransferPath &path,
+                    int ir_order = 20)
+{
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, ir_order);
+   real_t area = 0.;
+   for (int be = 0; be < D_h.GetNBE(); be++)
+   {
+      if (D_h.GetBdrAttribute(be) != gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = D_h.GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+      ExtensionRegionQuadrature(*FTr, path, ir, ir,
+      [&](const ExtensionPoint &pt) { area += pt.weight; });
+   }
+   return area;
+}
+
+TEST_CASE("Extension from subdomains: the searched path family",
+          "[DarcyExtension]")
+{
+   // VertexConePath chooses a direction at each vertex of Gamma_h by searching
+   // a fan of rays, and interpolates along the faces. On a boundary that has a
+   // closest-point map it is not needed, which makes that the place to check
+   // it: it must land on Gamma, and it must tile, both of which the analytic
+   // family does and neither of which follows from the search converging.
+   const int n = GENERATE(8, 16);
+
+   Subdomain s = BuildSubdomain(n);
+   VertexConePath path(*s.D_h, s.gamma_h_attr, DiscPhi, 4.0 / n);
+
+   // No vertex needed the admissible fan widened, so every path leaves D_h
+   // through both of the faces meeting at its vertex: Assumption P.1 holds.
+   REQUIRE(path.NumWidened() == 0);
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 10);
+   Vector xbar;
+   real_t worst = 0.;
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      if (s.D_h->GetBdrAttribute(be) != s.gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         path.Endpoint(*FTr, ir.IntPoint(q), xbar);
+         worst = std::max(worst, std::abs(DiscPhi(xbar)));
+      }
+   }
+   CAPTURE(n, worst);
+   REQUIRE(worst < 1e-10);
+
+   const real_t truth = ComplementMeasure(*s.D_h);
+   const real_t swept = SweptMeasure(*s.D_h, s.gamma_h_attr, path);
+   CAPTURE(truth, swept);
+   REQUIRE(std::abs(swept - truth) < 1e-8 * truth);
+}
+
+TEST_CASE("Extension from subdomains: a feature thinner than the mesh breaks "
+          "the tiling",
+          "[DarcyExtension]")
+{
+   // Measured on the reference's airfoil, and the sharpest statement this file
+   // has about the limits of the construction. The Joukowsky parameter sets
+   // how thin the tail is: at the reference's own value the shape closes into
+   // a curled tail a fraction of a mesh width across, and there the
+   // interpolated paths of neighbouring faces cross before reaching Gamma, so
+   // their regions overlap and the swept measure comes out too large. Blunt
+   // the tail and the same family tiles exactly.
+   //
+   // The overlap falls with the mesh -- 1.1e-2, 1.1e-2, 5.3e-3, 1.1e-3 as n
+   // runs 16, 32, 64, 128 -- so it is a resolution effect and not a defect in
+   // the family. Closing it needs the cone of CS-Extensions section 2.4.1,
+   // which restricts the search to directions that cannot cross; only the
+   // half-space part of that restriction is built.
+   const int n = 32;
+   const real_t thin = foil_R - std::sqrt(foil_s1 * foil_s1 + foil_s2 * foil_s2);
+   const real_t blunt = 0.05;
+
+   real_t rel[2] = {0., 0.};
+   const real_t lambdas[2] = { thin, blunt };
+   for (int k = 0; k < 2; k++)
+   {
+      const real_t lambda = lambdas[k];
+      auto phi = [lambda](const Vector &x) { return FoilPhi(x, lambda); };
+
+      Mesh background = Mesh::MakeCartesian2D(n, n, Element::TRIANGLE);
+      Array<int> marker;
+      REQUIRE(MarkLevelSetSubdomain(background, phi, 0., marker) > 0);
+      for (int i = 0; i < background.GetNE(); i++)
+      {
+         background.SetAttribute(i, marker[i] ? 1 : 2);
+      }
+      background.SetAttributes();
+      Array<int> domain_attr(1);
+      domain_attr[0] = 1;
+      SubMesh D_h = SubMesh::CreateFromDomain(background, domain_attr);
+
+      const int gamma_h = D_h.bdr_attributes.Max();
+      REQUIRE(gamma_h == background.bdr_attributes.Max() + 1);
+
+      VertexConePath path(D_h, gamma_h, phi, 4.0 / n);
+
+      // The area of the Joukowsky image, by the shoelace formula on it.
+      const int N = 200000;
+      const std::complex<real_t> c(foil_s1, foil_s2);
+      real_t A = 0.;
+      std::complex<real_t> prev = c + foil_R + lambda * lambda / (c + foil_R);
+      for (int i = 1; i <= N; i++)
+      {
+         const std::complex<real_t> z =
+            c + foil_R * std::exp(std::complex<real_t>(0., 2. * M_PI * i / N));
+         const std::complex<real_t> w = z + lambda * lambda / z;
+         A += prev.real() * w.imag() - w.real() * prev.imag();
+         prev = w;
+      }
+      real_t vol_D = 0.;
+      for (int i = 0; i < D_h.GetNE(); i++) { vol_D += D_h.GetElementVolume(i); }
+      const real_t truth = (1. - 0.5 * std::abs(A)) - vol_D;
+
+      rel[k] = (SweptMeasure(D_h, gamma_h, path) - truth) / truth;
+   }
+
+   CAPTURE(rel[0], rel[1]);
+   REQUIRE(std::abs(rel[1]) < 1e-8);      // blunt: exact
+   REQUIRE(rel[0] > 1e-3);                // the reference's tail: too large
 }
 
 } // namespace darcy_extension

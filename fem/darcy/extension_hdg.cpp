@@ -12,6 +12,11 @@
 #include "extension_hdg.hpp"
 #include "../geom.hpp"
 
+#include <algorithm>
+#include <array>
+#include <map>
+#include <vector>
+
 namespace mfem
 {
 
@@ -62,36 +67,40 @@ VectorPositionFunction ClosestPointPath::Sphere(const Vector &c, real_t R)
    };
 }
 
-void LevelSetPath::Endpoint(const Vector &x, const Vector &n,
-                            Vector &xbar) const
+namespace
+{
+
+/** @brief March from @a x along the unit direction @a dir and bisect the first
+    crossing of the zero level set, returning its parameter in @a t.
+
+    Returns false when there is no crossing within @a length -- which is a real
+    outcome and not an error: a ray can leave the domain without ever meeting
+    the boundary, and on a shape with a thin feature many of them do. */
+bool FirstCrossing(const PositionFunction &phi, const Vector &x,
+                   const Vector &dir, real_t length, int steps, real_t tol,
+                   int max_iter, real_t &t)
 {
    const int dim = x.Size();
-   xbar.SetSize(dim);
-
    Vector y(dim);
-   auto phi_at = [&](real_t t) -> real_t
+   auto phi_at = [&](real_t u) -> real_t
    {
-      for (int d = 0; d < dim; d++) { y(d) = x(d) + t * n(d); }
+      for (int d = 0; d < dim; d++) { y(d) = x(d) + u * dir(d); }
       return phi(y);
    };
 
-   MFEM_VERIFY(phi_at(0.) <= 0., "the path starts outside the domain");
+   if (phi_at(0.) > 0.) { return false; }
 
-   // Bracket the crossing of the level set.
    real_t ta = 0., tb = -1.;
-   const real_t dt = search_length / search_steps;
-   for (int i = 1; i <= search_steps; i++)
+   const real_t du = length / steps;
+   for (int i = 1; i <= steps; i++)
    {
-      const real_t t = i * dt;
-      if (phi_at(t) > 0.) { tb = t; break; }
-      ta = t;
+      const real_t u = i * du;
+      if (phi_at(u) > 0.) { tb = u; break; }
+      ta = u;
    }
-   MFEM_VERIFY(tb > 0., "no crossing of the level set within the search length "
-               << search_length << ": either it is too short, or the outward "
-               "normal does not leave the domain");
+   if (tb < 0.) { return false; }
 
-   // Bisect it.
-   const real_t ttol = tol * search_length;
+   const real_t ttol = tol * length;
    for (int it = 0; it < max_iter && tb - ta > ttol; it++)
    {
       const real_t tm = 0.5 * (ta + tb);
@@ -99,8 +108,263 @@ void LevelSetPath::Endpoint(const Vector &x, const Vector &n,
       else { ta = tm; }
    }
 
-   const real_t t = 0.5 * (ta + tb);
+   t = 0.5 * (ta + tb);
+   return true;
+}
+
+} // namespace
+
+void LevelSetPath::Endpoint(const Vector &x, const Vector &n,
+                            Vector &xbar) const
+{
+   const int dim = x.Size();
+   xbar.SetSize(dim);
+
+   real_t t;
+   MFEM_VERIFY(FirstCrossing(phi, x, n, search_length, search_steps, tol,
+                             max_iter, t),
+               "the ray along the outward normal never meets the level set "
+               "within the search length " << search_length << ": either it is "
+               "too short, the normal does not leave the domain, or the "
+               "boundary has a feature the normal passes outside -- for which "
+               "VertexConePath is the family to use");
+
    for (int d = 0; d < dim; d++) { xbar(d) = x(d) + t * n(d); }
+}
+
+VertexConePath::VertexConePath(const Mesh &mesh_, int gamma_h_attr,
+                               PositionFunction phi_, real_t search_length_,
+                               int n_rays_, int n_keep_, int search_steps_,
+                               real_t tol_, int max_iter_)
+   : mesh(&mesh_), phi(std::move(phi_)), search_length(search_length_),
+     n_rays(n_rays_), n_keep(n_keep_), search_steps(search_steps_),
+     max_iter(max_iter_), tol(tol_)
+{
+   MFEM_VERIFY(mesh->Dimension() == 2 && mesh->SpaceDimension() == 2,
+               "VertexConePath is a two-dimensional construction");
+   MFEM_VERIFY(n_rays >= 2 && n_keep >= 1, "invalid search parameters");
+
+   Mesh &m = const_cast<Mesh &>(*mesh);
+   const int nfaces = m.GetNumFaces();
+
+   tang.SetSize(4 * nfaces); tang = 0.;
+   has_tangent.SetSize(nfaces); has_tangent = 0;
+
+   // The outward normals of the faces of Gamma_h meeting at each vertex.
+   std::map<int, Array<real_t>> vertex_normals;
+   Array<int> vs;
+   Vector nor(2);
+
+   for (int be = 0; be < m.GetNBE(); be++)
+   {
+      if (m.GetBdrAttribute(be) != gamma_h_attr) { continue; }
+
+      FaceElementTransformations *FTr = m.GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      IntegrationPoint mid;
+      mid.Set1w(0.5, 1.0);
+      FTr->SetAllIntPoints(&mid);
+      CalcOrtho(FTr->Jacobian(), nor);
+      nor /= nor.Norml2();
+
+      m.GetFaceVertices(m.GetBdrElementFaceIndex(be), vs);
+      for (int k = 0; k < vs.Size(); k++)
+      {
+         Array<real_t> &ns = vertex_normals[vs[k]];
+         ns.Append(nor(0));
+         ns.Append(nor(1));
+      }
+   }
+
+   // A direction at each of those vertices.
+   std::map<int, std::array<real_t, 2>> vertex_tangent;
+   Vector x(2), t(2);
+   for (auto &kv : vertex_normals)
+   {
+      const real_t *c = m.GetVertex(kv.first);
+      x(0) = c[0]; x(1) = c[1];
+      MFEM_VERIFY(VertexDirection(x, kv.second, t),
+                  "no ray from the vertex (" << x(0) << ", " << x(1)
+                  << ") of Gamma_h reaches Gamma within the search length "
+                  << search_length);
+      vertex_tangent[kv.first] = {{t(0), t(1)}};
+   }
+
+   // Per face, those two tangents in the order its reference coordinate visits
+   // the vertices. Which vertex sits at xi = 0 is read off the transformation
+   // rather than assumed to follow the mesh's own ordering.
+   IntegrationPoint zero;
+   zero.Set1w(0.0, 1.0);
+   for (int be = 0; be < m.GetNBE(); be++)
+   {
+      if (m.GetBdrAttribute(be) != gamma_h_attr) { continue; }
+
+      FaceElementTransformations *FTr = m.GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      const int f = m.GetBdrElementFaceIndex(be);
+      m.GetFaceVertices(f, vs);
+      MFEM_VERIFY(vs.Size() == 2, "a face of a two-dimensional mesh has two "
+                  "vertices");
+
+      FTr->SetAllIntPoints(&zero);
+      FTr->Transform(zero, x);
+
+      const real_t *c0 = m.GetVertex(vs[0]);
+      const real_t d0 = (x(0) - c0[0]) * (x(0) - c0[0])
+                        + (x(1) - c0[1]) * (x(1) - c0[1]);
+      const real_t *c1 = m.GetVertex(vs[1]);
+      const real_t d1 = (x(0) - c1[0]) * (x(0) - c1[0])
+                        + (x(1) - c1[1]) * (x(1) - c1[1]);
+
+      const int at0 = (d0 <= d1) ? vs[0] : vs[1];
+      const int at1 = (d0 <= d1) ? vs[1] : vs[0];
+
+      tang[4 * f + 0] = vertex_tangent[at0][0];
+      tang[4 * f + 1] = vertex_tangent[at0][1];
+      tang[4 * f + 2] = vertex_tangent[at1][0];
+      tang[4 * f + 3] = vertex_tangent[at1][1];
+      has_tangent[f] = 1;
+   }
+}
+
+bool VertexConePath::VertexDirection(const Vector &x,
+                                     const Array<real_t> &normals, Vector &t)
+{
+   const int m = normals.Size() / 2;
+   MFEM_VERIFY(m >= 1, "a vertex of Gamma_h with no face");
+
+   // The admissible directions are those leaving D_h through every face
+   // meeting here. In two dimensions each such condition is a half-circle, so
+   // their intersection is the arc about the mean normal whose half-width is
+   // pi/2 less the largest angle between the mean and any one of them.
+   Vector mean(2);
+   mean = 0.;
+   for (int i = 0; i < m; i++)
+   {
+      mean(0) += normals[2 * i];
+      mean(1) += normals[2 * i + 1];
+   }
+   const real_t mn = mean.Norml2();
+   real_t centre_angle, half_width;
+   if (mn > 1e-12)
+   {
+      mean /= mn;
+      centre_angle = atan2(mean(1), mean(0));
+      real_t worst = 0.;
+      for (int i = 0; i < m; i++)
+      {
+         const real_t dot = mean(0) * normals[2 * i] + mean(1) * normals[2 * i + 1];
+         worst = std::max(worst, acos(std::min(std::max(dot, -1.), 1.)));
+      }
+      half_width = M_PI / 2. - worst;
+   }
+   else
+   {
+      centre_angle = atan2(normals[1], normals[0]);
+      half_width = -1.;
+   }
+
+   // Search the admissible fan, then the half-circle about the mean normal,
+   // then everything. The widenings leave Assumption P.1 behind and are
+   // counted so that a driver can say so.
+   const real_t widths[3] = { half_width, M_PI / 2., M_PI };
+   for (int pass = 0; pass < 3; pass++)
+   {
+      const real_t w = widths[pass];
+      if (w <= 0.) { continue; }
+      const real_t use = (pass == 0) ? 0.98 * w : 0.98 * w;
+
+      // Endpoints found, sorted by distance, keeping the nearest few.
+      std::vector<std::pair<real_t, std::array<real_t, 2>>> hits;
+      Vector d(2);
+      for (int i = 0; i < n_rays; i++)
+      {
+         const real_t a = centre_angle
+                          + ((n_rays == 1) ? 0.
+                             : (-use + 2. * use * i / (n_rays - 1)));
+         d(0) = cos(a); d(1) = sin(a);
+         real_t s;
+         if (!FirstCrossing(phi, x, d, search_length, search_steps, tol,
+                            max_iter, s)) { continue; }
+         hits.push_back({s, {{x(0) + s * d(0), x(1) + s * d(1)}}});
+      }
+      if (hits.empty()) { continue; }
+
+      if (pass > 0) { n_widened++; }
+
+      std::sort(hits.begin(), hits.end(),
+                [](const std::pair<real_t, std::array<real_t, 2>> &a,
+                   const std::pair<real_t, std::array<real_t, 2>> &b)
+      { return a.first < b.first; });
+
+      const int keep = std::min<int>(n_keep, hits.size());
+      real_t mx = 0., my = 0.;
+      for (int i = 0; i < keep; i++)
+      {
+         mx += hits[i].second[0];
+         my += hits[i].second[1];
+      }
+      mx /= keep; my /= keep;
+
+      t.SetSize(2);
+      t(0) = mx - x(0); t(1) = my - x(1);
+      const real_t len = t.Norml2();
+      if (len <= 0.) { continue; }
+      t /= len;
+
+      // One more shot along the mean, so that the endpoint lands on Gamma and
+      // not merely near it.
+      real_t s;
+      if (!FirstCrossing(phi, x, t, search_length, search_steps, tol, max_iter,
+                         s)) { continue; }
+      return true;
+   }
+
+   return false;
+}
+
+void VertexConePath::Endpoint(const Vector &x, const Vector &n,
+                              Vector &xbar) const
+{
+   MFEM_ABORT("VertexConePath is defined face by face: use the "
+              "FaceElementTransformations overload. Falling back to the "
+              "normal would reintroduce the two failures this family repairs.");
+}
+
+void VertexConePath::Endpoint(FaceElementTransformations &FTr,
+                              const IntegrationPoint &ip, Vector &xbar) const
+{
+   const int f = (FTr.ElementType == ElementTransformation::BDR_FACE)
+                 ? mesh->GetBdrElementFaceIndex(FTr.ElementNo)
+                 : FTr.ElementNo;
+   MFEM_VERIFY(f >= 0 && f < has_tangent.Size() && has_tangent[f],
+               "no path was built for this face: it is not on the boundary "
+               "the family was constructed for");
+
+   const real_t th = ip.x;
+   Vector t(2);
+   t(0) = (1. - th) * tang[4 * f + 0] + th * tang[4 * f + 2];
+   t(1) = (1. - th) * tang[4 * f + 1] + th * tang[4 * f + 3];
+   const real_t len = t.Norml2();
+   MFEM_VERIFY(len > 1e-12, "the paths of the two vertices of a face oppose "
+               "each other, so no direction can be interpolated between them");
+   t /= len;
+
+   Vector x(2);
+   FTr.SetAllIntPoints(&ip);
+   FTr.Transform(ip, x);
+
+   real_t s;
+   MFEM_VERIFY(FirstCrossing(phi, x, t, search_length, search_steps, tol,
+                             max_iter, s),
+               "the interpolated path from a point of Gamma_h never meets "
+               "Gamma within the search length " << search_length);
+
+   xbar.SetSize(2);
+   xbar(0) = x(0) + s * t(0);
+   xbar(1) = x(1) + s * t(1);
 }
 
 ElementExtension::ElementExtension()

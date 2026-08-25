@@ -352,9 +352,16 @@ needed was the flux mass one.
 
 ### Solved, and the design order is retained
 
-**`miniapps/hdg/extension.cpp`** is the driver, and **the problem it solves is
-CS-Extensions §3.2, second experiment — the disc with `dist(Γ_h, Γ) = O(h)`,
-whose history of convergence is that paper's Table 4.** `Ω` is the circle of
+**`miniapps/hdg/extension.cpp`** is the driver, and it carries three of
+CS-Extensions' experiments, chosen with `-p`:
+
+| | the paper | `Ω` | what it adds |
+| --- | --- | --- | --- |
+| 1 | §3.2, Table 4 | a disc | the whole boundary is transferred |
+| 2 | §3.3, Table 5 | the square less a disc | not convex, and the outer boundary *is* fitted |
+| 3 | §3.4, Table 6 | the square less a Joukowsky airfoil | a curved reentrant corner, and no closest-point map |
+
+**The default is 1**, the disc with `dist(Γ_h, Γ) = O(h)`: `Ω` is the circle of
 radius 0.5 about `(0.5, 0.5)`, immersed in a triangulated unit square; the
 exact solution is `p = sin x sin y`; `K = I`; `τ = 1`. The datum on the circle
 is transferred to `Γ_h` and the history of convergence printed — because the
@@ -373,9 +380,15 @@ because there the measure shrinks with `h` and the factor would show up as half
 an order. Two of the paper's columns are not computed at all: the trace error
 `e_p^{E_h}` and the postprocessed `e_p^* int`. And three of its experiments are
 not run: Table 3, the disc at distance `O(h²)`, which is the one case where the
-paper abandons the background triangulation for a fitted one; and Tables 5 and
-6, the non-convex domains — flow around a disc, and the airfoil with its
-curved reentrant corner.
+paper abandons the background triangulation for a fitted one. Problems 2 and 3
+carry the same caveats, and problem 3 one more: the paper states the Joukowsky
+parameter as `λ = R − |s|`, which with its `R = 0.107`, `s = (0.01, 0.01)`
+makes the circle internally *tangent* to `|z| = λ` rather than passing through
+the branch point. The shape that results has a chord of 0.376, a thickness of
+0.0625 and a thin curled tail at its **left** end — which agrees with the
+paper's own remarks about "the tail of the airfoil, that is, where the
+curvature is higher" and about the approximation deteriorating "around the
+leftmost part". `-lam` overrides it.
 
 **Against the paper's own rates**, at the finest mesh of each:
 
@@ -458,6 +471,75 @@ flux block now accumulates like the other two, is zeroed at `Init` and by
 pass. Nothing in the suite moved: serial unit 487 cases, parallel 84, the
 miniapp regressions at their 2 of 129.
 
+### The two non-convex domains, and what the airfoil costs
+
+**Problem 2, potential flow around a disc**, adds two things at once: `Ω` is
+not convex, and its outer boundary *is* fitted by the mesh, so the transferred
+treatment on the obstacle and the ordinary weak Dirichlet treatment on the
+square run side by side in one solve. It works. At `k = 1`, over `n = 8` to
+`128`, `‖p-p_h‖` reaches 2.16 and `‖u-u_h‖` 1.97, against the paper's Table 5
+values of 2.72 and 2.13 at its own finest — the same behaviour, and as ragged
+in the paper's table as in ours. The regions tile to `8e-10`.
+
+**One trap, and it is the one `MarkLevelSetSubdomain`'s documentation warns
+about.** Where `Ω` is not convex the vertex test is not exact: a triangle can
+have every vertex outside the obstacle and still clip it, which puts part of
+`D_h` outside `Ω`. Selecting the obstacle's radius wrongly produced exactly
+that, and the symptom was the tiling check reporting the swept measure 54 per
+cent adrift — **which is what that check is for**. `-er` samples a refined
+lattice for the case; measured, it changes nothing at the resolutions here, so
+the vertex test is in fact sufficient for these two shapes.
+
+**Problem 3, the airfoil, is where the simple path families give out**, and it
+is worth saying exactly how because the two failures are different.
+
+* **The face-normal family has no path to return.** Measured on the reference's
+  airfoil, **4 to 15 per cent of the face normals never meet `Γ` at all**,
+  passing outside the tail or the nose; the proportion falls with refinement
+  and is still 3.6 per cent at `n = 64`. `LevelSetPath` stops with an error
+  rather than inventing an endpoint, which is the right failure but is a
+  failure.
+* **The closest-point family does not exist**: a Joukowsky image has no
+  closed-form nearest point.
+
+**`VertexConePath` is the answer, and is CS-Extensions' own construction**: a
+direction searched at each *vertex* of `Γ_h` over a fan of rays, restricted to
+those leaving `D_h` through both faces meeting there, and interpolated along
+each face. The search is what makes a path exist where a normal misses; the
+sharing of the vertex path is what makes the regions tile.
+
+**Checked against the analytic family where both apply.** On problem 1 it
+reproduces the closest-point results to the same rates and magnitudes and tiles
+to `1e-10` — an independent construction landing on the same answer, which is
+worth more than either alone.
+
+**On the airfoil it runs, and the potential is optimal; the flux is not.** At
+`k = 1`, over `n = 16` to `128`, `‖p-p_h‖` converges at 2.01, 2.01, 2.01 —
+exactly the paper's Table 6 value of 2.00 — while `‖u-u_h‖` gives 2.09, 1.46,
+1.53 against the paper's 2.03.
+
+**Bisected, and the cause is the tail alone.** Two measurements settle it.
+Against the same subdomain solved with the datum read on `Γ_h` itself, the
+ratio in the potential is 1.001 at every mesh while the ratio in the flux
+climbs 1.035, 1.499, 2.080 — and the control's own flux converges at exactly
+2.00, so the mesh and the geometry are innocent and the transfer is not. Then,
+holding everything else fixed and blunting the tail with `-lam 0.05`: the
+tiling error falls from `1.1e-2` to `-3.6e-10`, the flux returns to 2.03 and
+2.01, the potential stays at 2.01, and the two complement columns come back at
+`k+1` and `k+2`. **The whole of the loss is a boundary feature thinner than the
+mesh.**
+
+**What is missing is one restriction, and it is named.** With a tail a fraction
+of a mesh width across, the interpolated paths of neighbouring faces cross
+before reaching `Γ`, so their regions overlap and the swept measure comes out
+too large — by `1.1e-2, 1.1e-2, 5.3e-3, 1.1e-3` as `n` runs 16 to 128, so the
+overlap converges away rather than persisting. CS-Extensions §2.4.1 prevents
+crossings with a **cone** `C(x)` built from the background mesh's edges at each
+vertex, and only the half-space part `H(x)` of that restriction is built here.
+The cone needs the background mesh, which `VertexConePath` is not given; that
+is the next piece, and it is the only thing standing between this and the
+paper's Table 6.
+
 ### The region that was never meshed
 
 **The point of the method is the approximation on the whole of `Ω`, not the
@@ -516,14 +598,13 @@ family remains perfectly good for *transferring the datum*, which reads nothing
 off `Γ_h` but the faces themselves, and it converges at `k+1` doing so; it
 cannot be used to define the approximation outside. A test pins both halves.
 
-**Not yet built**: the postprocessed `p*` on `D_h` and its `k+2`; the `ρ_d`
-robustness study under `d = ½h/(k+1)²`, which the paragraph on the constant
-above says is the thing to do next; the general vertex-cone path family, needed
-both for a `Γ` with no closed-form closest point and — per the tiling above —
-for any approximation on `D_h^c` away from that case; the non-convex case,
-where selecting `D_h` needs more than the vertex test that
-`MarkLevelSetSubdomain` already provides for; and anything in three dimensions,
-where the path construction is unchanged but has not been run.
+**Not yet built**: the **cone restriction `C(x)`** of CS-Extensions §2.4.1,
+which is what would close the airfoil's flux — see above, where it is bisected
+to that and nothing else; the postprocessed `p*` on `D_h` and its `k+2`; the
+`ρ_d` robustness study under `d = ½h/(k+1)²`, which the paragraph on the
+constant above says is the thing to do next; the trace column `e_p^{E_h}`; and
+anything in three dimensions, where the path construction is unchanged but has
+not been run.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -2155,8 +2236,8 @@ Kept with their answers rather than deleted, because the answers are the content
 1. **§2**, untouched. **§1's core claim is met and measured** — optimal `k+1`
    in both unknowns over the whole of `Ω`, with `k+2` for the potential
    outside `D_h`, at `dist(Γ_h, Γ) = O(h)`. What remains there is the
-   postprocessed `p*`, the general path family, three dimensions and the
-   non-convex case; §1 lists them. Nothing in §3 or §4 blocks either: they sit
+   postprocessed `p*`, the cone restriction that the airfoil needs, and three
+   dimensions; §1 lists them. Nothing in §3 or §4 blocks either: they sit
    on their own branch of the dependency graph.
 2. **§7's `hp`**, and §8 in its entirety.
 3. **Whether the degenerate order loss is asymptotic** — recorded in §3(d),
