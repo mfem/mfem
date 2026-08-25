@@ -307,6 +307,21 @@ template <typename real_t>
 class TIntegrationRule<Geometry::TETRAHEDRON, 7, real_t>
    : public GenericIntegrationRule<Geometry::TETRAHEDRON, 31, 7, real_t> { };
 
+template<typename real_t>
+class TIntegrationRule<Geometry::PENTATOPE, 0, real_t>
+   : public GenericIntegrationRule<Geometry::PENTATOPE, 1, 0, real_t> { };
+template<typename real_t>
+class TIntegrationRule<Geometry::PENTATOPE, 1, real_t>
+   : public GenericIntegrationRule<Geometry::PENTATOPE, 1, 1, real_t> { };
+template<typename real_t>
+class TIntegrationRule<Geometry::PENTATOPE, 2, real_t>
+   : public GenericIntegrationRule<Geometry::PENTATOPE, 5, 2, real_t> { };
+template<typename real_t>
+class TIntegrationRule<Geometry::PENTATOPE, 3, real_t>
+   : public GenericIntegrationRule<Geometry::PENTATOPE, 15, 3, real_t> { };
+template<typename real_t>
+class TIntegrationRule<Geometry::PENTATOPE, 4, real_t>
+   : public GenericIntegrationRule<Geometry::PENTATOPE, 35, 4, real_t> { };
 } // namespace mfem
 
 #endif // MFEM_TEMPLATE_INTEGRATION_RULES

@@ -345,6 +345,59 @@ public:
 };
 
 template <int P>
+class H1_FiniteElement<Geometry::PENTATOPE, P>
+{
+public:
+   static const Geometry::Type geom = Geometry::PENTATOPE;
+   static const int dim    = 4;
+   static const int degree = P;
+   static const int dofs   = ((P + 1)*(P + 2)*(P + 3)*(P + 4))/24;
+
+   static const bool tensor_prod = false;
+
+   // Type for run-time parameter for the constructor
+   typedef int parameter_type;
+
+protected:
+   const FiniteElement *my_fe;
+   parameter_type type; // run-time specified basis type
+   void Init(const parameter_type type_)
+   {
+      type = type_;
+      if (type == BasisType::Positive)
+      {
+         MFEM_ABORT("Not implemented!")
+      }
+      else
+      {
+         int pt_type = BasisType::GetQuadrature1D(type);
+         my_fe = new H1_PentatopeElement(P, pt_type);
+      }
+   }
+
+public:
+   H1_FiniteElement(const parameter_type type_ = BasisType::GaussLobatto)
+   {
+      Init(type_);
+   }
+   H1_FiniteElement(const FiniteElementCollection &fec)
+   {
+      const H1_FECollection *h1_fec =
+         dynamic_cast<const H1_FECollection *>(&fec);
+      MFEM_ASSERT(h1_fec, "invalid FiniteElementCollection");
+      Init(h1_fec->GetBasisType());
+   }
+   ~H1_FiniteElement() { delete my_fe; }
+
+   template <typename real_t>
+   void CalcShapes(const IntegrationRule &ir, real_t *B, real_t *G) const
+   {
+      mfem::CalcShapes(*my_fe, ir, B, G, NULL);
+   }
+   const Array<int> *GetDofMap() const { return NULL; }
+};
+
+template <int P>
 class H1_FiniteElement<Geometry::CUBE, P>
 {
 public:
