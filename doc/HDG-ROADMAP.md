@@ -352,13 +352,44 @@ needed was the flux mass one.
 
 ### Solved, and the design order is retained
 
-**`miniapps/hdg/extension.cpp`** is the driver: a disc immersed in a
-triangulated square, the datum on the circle transferred to `Γ_h`, solved
-hybridized, and a history of convergence printed — because the claim is a claim
-about rates. Alongside each row it solves *the same subdomain with the datum
-read on `Γ_h` itself* and reports the ratio, which is the boundary-fitted
-problem the transfer is standing in for and so the only fair control. Measured,
-with `τ = 1` held fixed and the closest-point paths:
+**`miniapps/hdg/extension.cpp`** is the driver, and **the problem it solves is
+CS-Extensions §3.2, second experiment — the disc with `dist(Γ_h, Γ) = O(h)`,
+whose history of convergence is that paper's Table 4.** `Ω` is the circle of
+radius 0.5 about `(0.5, 0.5)`, immersed in a triangulated unit square; the
+exact solution is `p = sin x sin y`; `K = I`; `τ = 1`. The datum on the circle
+is transferred to `Γ_h` and the history of convergence printed — because the
+claim is a claim about rates.
+
+**Where it departs from that experiment, and it is worth knowing which
+differences are real.** The background mesh subdivides each Cartesian square
+into **two** triangles rather than the paper's four, `Mesh::MakeCartesian2D`
+offering no four-way split. The default radius is 0.45 rather than 0.5, so that
+`Γ` stands clear of the square; `-R 0.5` is the paper's own value and runs, the
+tangency at the four edge midpoints admitting no element, and gives the same
+rates. The `D_h` columns are plain `L²` norms where the paper divides by
+`|D_h|^{1/2}`, which changes the numbers by a factor tending to
+`(πR²)^{-1/2}` and the rates not at all; the `D_h^c` columns *are* normalised,
+because there the measure shrinks with `h` and the factor would show up as half
+an order. Two of the paper's columns are not computed at all: the trace error
+`e_p^{E_h}` and the postprocessed `e_p^* int`. And three of its experiments are
+not run: Table 3, the disc at distance `O(h²)`, which is the one case where the
+paper abandons the background triangulation for a fitted one; and Tables 5 and
+6, the non-convex domains — flow around a disc, and the airfoil with its
+curved reentrant corner.
+
+**Against the paper's own rates**, at the finest mesh of each:
+
+| | `e_p int` | `e_p ext` | `e_u int` | `e_u ext` |
+| --- | --- | --- | --- | --- |
+| `k=0` Table 4 / here | 0.93 / 0.98 | 2.15 / 1.93 | 1.02 / 1.00 | 0.89 / 0.92 |
+| `k=1` Table 4 / here | 2.05 / 1.99 | 2.99 / 3.01 | 2.37 / 2.06 | 1.98 / 1.96 |
+| `k=2` Table 4 / here | 3.26 / 3.00 | 4.16 / 4.03 | 3.64 / 3.47 | 3.10 / 3.04 |
+
+Alongside each row the driver solves *the same subdomain with the datum read on
+`Γ_h` itself* and reports the ratio — the boundary-fitted problem the transfer
+is standing in for, and a sharper control than the paper's, which compares
+against a differently meshed `Ω`. Measured, with `τ = 1` held fixed and the
+closest-point paths:
 
 | `k` | `n` | `‖u-u_h‖` | rate | `‖p-p_h‖` | rate | ratio `u` | ratio `p` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -457,7 +488,7 @@ carry half an order that says nothing about the approximation:
 | 2 | 64 | 5.59e-07 | 3.04 | 2.87e-09 | 4.03 |
 
 **`k+1` for the flux and `k+2` for the potential, at `k = 0` as well as above
-it** — which is CS-Extensions' Table 2 reproduced, including the
+it** — which is CS-Extensions' **Table 4** reproduced, including the
 superconvergence of the potential outside. That last is not a surprise once
 stated: on `D_h^c` the potential is *defined* by an integral of the flux over a
 path of length `O(h)`, so it inherits the flux's `k+1` plus the order the path
@@ -2217,8 +2248,10 @@ subject.
 * **CS-Extensions** — Cockburn, B., & Solano, M., *Solving Dirichlet
   boundary-value problems on curved domains by extensions from subdomains*,
   SIAM J. Sci. Comput. **34** (2012) A497–A519. §2 is the method — the
-  subdomain, the paths, the extension and the lifting; §3.2 is the disc at
-  distance `O(h)` that §1's tests are built on. Its companions: **CS-ConvDiff**,
+  subdomain, the paths, the extension and the lifting; **§3.2's second
+  experiment — the disc with `dist(Γ_h, Γ) = O(h)`, Table 4 — is what
+  `miniapps/hdg/extension.cpp` reproduces**, and §3.1's Table 2 is its
+  polygonal counterpart. Tables 5 and 6 are the non-convex cases, not run. Its companions: **CS-ConvDiff**,
   *Solving convection–diffusion problems on curved domains by extensions from
   subdomains*, J. Sci. Comput. **59** (2014) 512–543, whose Eq. (2) shows the
   **lifting is unchanged by the convection** — it integrates the constitutive
