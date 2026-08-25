@@ -397,9 +397,20 @@ real_t pSinNatural(const Vector &x) { return -pSin(x); }
 
 struct SolveResult
 {
-   real_t err_u{}, err_p{};
+   real_t err_u{}, err_p{};    ///< L2 errors on D_h
+   real_t ext_u{}, ext_p{};    ///< and on its complement, normalized
+   real_t area_err{};          ///< how far the swept measure is from the true
    bool converged{};
 };
+
+/// The measure of the disc less that of D_h, which the regions swept by the
+/// paths must reproduce if they tile it.
+real_t ComplementMeasure(Mesh &D_h)
+{
+   real_t vol = 0.;
+   for (int i = 0; i < D_h.GetNE(); i++) { vol += D_h.GetElementVolume(i); }
+   return M_PI * disc_R * disc_R - vol;
+}
 
 /// Solve the hybridized HDG problem on D_h. With @a extend the Dirichlet datum
 /// is transferred from Gamma along the paths; otherwise it is read on Gamma_h
@@ -496,6 +507,63 @@ SolveResult SolveOnSubdomain(int n, int order, bool extend,
    p_h.MakeRef(&fes_p, x.GetBlock(1), 0);
    r.err_u = u_h.ComputeL2Error(ucoeff);
    r.err_p = p_h.ComputeL2Error(pcoeff);
+
+   // The approximation on D_h^c: the flux is the extension of the element's
+   // own polynomial, the potential the lifting evaluated there rather than
+   // only on Gamma_h. This is the half of the claim that is about Omega and
+   // not merely about D_h.
+   const int iro = 2 * order + 8;
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, iro);
+   IsoparametricTransformation el_tr;
+   ElementExtension ext;
+   Vector ue(dim), v;
+   real_t e2u = 0., e2p = 0., area = 0.;
+
+   for (int be = 0; be < s.D_h->GetNBE(); be++)
+   {
+      FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+
+      const int el = FTr->Elem1No;
+      s.D_h->GetElementTransformation(el, &el_tr);
+      ext.SetElement(el_tr);
+
+      auto Cu = [&](const Vector &yy, Vector &vv)
+      {
+         IntegrationPoint eip;
+         MFEM_VERIFY(ext.TransformBack(yy, eip), "no convergence");
+         u_h.GetVectorValue(el, eip, vv);
+      };
+
+      ExtensionRegionQuadrature(*FTr, path, ir, ir,
+                                [&](const ExtensionPoint &pt)
+      {
+         uSin(pt.y, ue);
+         Cu(pt.y, v);
+         real_t du = 0.;
+         for (int d = 0; d < dim; d++)
+         {
+            const real_t q = ue(d) - v(d);
+            du += q * q;
+         }
+         const real_t lift = pSin(pt.xbar) + PathIntegral(Cu, pt.y, pt.xbar, ir);
+         const real_t dp = pSin(pt.y) - lift;
+
+         e2u += pt.weight * du;
+         e2p += pt.weight * dp * dp;
+         area += pt.weight;
+      });
+   }
+
+   const real_t vol_c = ComplementMeasure(*s.D_h);
+   r.area_err = std::abs(area - vol_c) / vol_c;
+
+   // Normalized by the measure, as the reference does: it shrinks like h, and
+   // a raw L2 norm over it would carry half an order that says nothing about
+   // the approximation.
+   const real_t scale = (area > 0.) ? std::sqrt(area) : 1.;
+   r.ext_u = std::sqrt(e2u) / scale;
+   r.ext_p = std::sqrt(e2p) / scale;
    return r;
 }
 
@@ -577,6 +645,84 @@ TEST_CASE("Extension from subdomains: the sign of the transfer is not free",
    CAPTURE(good_c.err_p, good_f.err_p, bad_c.err_p, bad_f.err_p);
    REQUIRE(good_f.err_p < 0.5 * good_c.err_p);
    REQUIRE(bad_f.err_p > 10.0 * good_f.err_p);
+}
+
+TEST_CASE("Extension from subdomains: the regions tile the complement",
+          "[DarcyExtension]")
+{
+   // The regions swept by the paths are where the approximation on D_h^c
+   // lives, and an integral over them is an integral over the complement only
+   // if they tile it. That is a property of the path family, not of the
+   // quadrature: adjacent faces must agree on the path through the vertex they
+   // share.
+   //
+   // The closest-point map agrees, depending on the point and not on the face.
+   // A family following each face's own normal does not, and this measures how
+   // badly -- which is why CS-Extensions builds its general family by
+   // interpolating the paths of the vertices instead.
+   const int n = GENERATE(8, 16, 32);
+
+   Subdomain s = BuildSubdomain(n);
+   const real_t truth = ComplementMeasure(*s.D_h);
+   REQUIRE(truth > 0.);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath cp(ClosestPointPath::Sphere(c, disc_R));
+   LevelSetPath ls(DiscPhi, 4.0 / n);
+
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 20);
+
+   real_t area[2] = {0., 0.};
+   const TransferPath *paths[2] = { &cp, &ls };
+   for (int k = 0; k < 2; k++)
+   {
+      for (int be = 0; be < s.D_h->GetNBE(); be++)
+      {
+         FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(be);
+         if (!FTr) { continue; }
+         ExtensionRegionQuadrature(*FTr, *paths[k], ir, ir,
+                                   [&](const ExtensionPoint &pt)
+         { area[k] += pt.weight; });
+      }
+   }
+
+   CAPTURE(n, truth, area[0], area[1]);
+   REQUIRE(std::abs(area[0] - truth) < 1e-8 * truth);
+   REQUIRE(area[1] > 1.2 * truth);
+}
+
+TEST_CASE("Extension from subdomains: the approximation on the whole domain",
+          "[DarcyExtension][HDG]")
+{
+   // What the method is for. On the region that was never meshed, the flux is
+   // the extension of the element's polynomial and the potential is the
+   // lifting; the first converges at k+1, and the second at k+2, which is what
+   // the reference reports and follows from the potential being *defined*
+   // there by an integral of the flux over a path of length O(h).
+   const int order = GENERATE(0, 1, 2);
+
+   real_t prev_u = 0.0, prev_p = 0.0;
+   real_t rate_u = 0.0, rate_p = 0.0;
+   for (int n : {8, 16, 32})
+   {
+      const SolveResult r = SolveOnSubdomain(n, order, true);
+      REQUIRE(r.converged);
+      REQUIRE(r.area_err < 1e-8);
+      if (prev_u > 0.0)
+      {
+         rate_u = std::log2(prev_u / r.ext_u);
+         rate_p = std::log2(prev_p / r.ext_p);
+      }
+      INFO("order " << order << " n " << n << " ext_u " << r.ext_u
+           << " ext_p " << r.ext_p << " rate_u " << rate_u
+           << " rate_p " << rate_p);
+      prev_u = r.ext_u;
+      prev_p = r.ext_p;
+   }
+
+   CAPTURE(order, rate_u, rate_p);
+   REQUIRE(rate_u > order + 0.7);
+   REQUIRE(rate_p > order + 1.7);
 }
 
 } // namespace darcy_extension

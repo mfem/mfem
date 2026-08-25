@@ -427,17 +427,72 @@ flux block now accumulates like the other two, is zeroed at `Init` and by
 pass. Nothing in the suite moved: serial unit 487 cases, parallel 84, the
 miniapp regressions at their 2 of 129.
 
-**Not yet built**: the extension of the *potential* to `D_h^c`, which is the
-lifting evaluated there rather than only its restriction to `Γ_h`, and which
-the papers' `e_p ext` and `e_u ext` columns need — **the claim that the method
-approximates the solution on the whole of `Ω`, as against merely not being hurt
-on `D_h`, is therefore not yet measured here**; the postprocessed `p*` and its
-`k+2`; the `ρ_d` robustness study under `d = ½h/(k+1)²`, which the paragraph on
-the constant above says is the thing to do next; the general vertex-cone path
-family, for a `Γ` with no closed-form closest point; the non-convex case, where
-selecting `D_h` needs more than the vertex test that `MarkLevelSetSubdomain`
-already provides for; and anything in three dimensions, where the path
-construction is unchanged but has not been run.
+### The region that was never meshed
+
+**The point of the method is the approximation on the whole of `Ω`, not the
+absence of harm on `D_h`.** On `D_h^c` the flux is the extension of the owning
+element's polynomial and the potential is the lifting evaluated *there* rather
+than only on `Γ_h`. `ExtensionRegionQuadrature` integrates over `K_ext^e`, the
+region swept by the paths issuing from one face, by the map
+
+```
+y(ξ,t) = x(ξ) + t (a(x(ξ)) − x(ξ)),   ξ on the face, t in [0,1]
+```
+
+against that map's Jacobian, the derivative of `a` along the face being taken
+by central differences. Measured, with the errors divided by `|D_h^c|^{1/2}` as
+the papers do — the region shrinks like `h`, so a raw `L²` norm over it would
+carry half an order that says nothing about the approximation:
+
+| `k` | `n` | `e_u ext` | rate | `e_p ext` | rate |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 16 | 3.76e-02 | 0.88 | 7.75e-04 | 1.91 |
+| 0 | 32 | 1.86e-02 | 1.02 | 1.73e-04 | 2.16 |
+| 0 | 64 | 9.83e-03 | 0.92 | 4.55e-05 | 1.93 |
+| 1 | 16 | 1.39e-03 | 1.95 | 3.37e-05 | 3.18 |
+| 1 | 32 | 2.90e-04 | 2.26 | 3.24e-06 | 3.38 |
+| 1 | 64 | 7.46e-05 | 1.96 | 4.02e-07 | 3.01 |
+| 2 | 16 | 4.88e-05 | 2.89 | 9.76e-07 | 4.17 |
+| 2 | 32 | 4.61e-06 | 3.41 | 4.68e-08 | 4.38 |
+| 2 | 64 | 5.59e-07 | 3.04 | 2.87e-09 | 4.03 |
+
+**`k+1` for the flux and `k+2` for the potential, at `k = 0` as well as above
+it** — which is CS-Extensions' Table 2 reproduced, including the
+superconvergence of the potential outside. That last is not a surprise once
+stated: on `D_h^c` the potential is *defined* by an integral of the flux over a
+path of length `O(h)`, so it inherits the flux's `k+1` plus the order the path
+length supplies. It is the same mechanism as the `k+2` measured for the lifting
+alone above, now with a solved flux instead of a projected one.
+
+**The regions have to tile `D_h^c`, and whether they do is a property of the
+path family.** Adjacent faces must agree on the path through the vertex they
+share. Checked sharply, by summing the quadrature weights and comparing with
+`|Ω| − |D_h|` computed from the element volumes:
+
+| | `n=8` | `16` | `32` | `64` |
+| --- | --- | --- | --- | --- |
+| closest-point map | 1.1e-11 | 6.2e-11 | 1.1e-10 | 8.4e-12 |
+| face-normal ray | 0.33 | 0.61 | 0.56 | 0.47 |
+
+relative error in the measure. **The closest-point map tiles exactly; the
+face-normal family is wrong by half.** Its paths follow each face's own normal,
+so at a shared vertex the two faces disagree and the regions overlap and leave
+gaps. **This is what CS-Extensions' vertex-cone construction is for** — its
+paths are defined at the *vertices* first and interpolated along the face
+precisely so that adjacent faces agree — and the reading of that construction
+as merely a way to find a nearby point on `Γ` misses the point. The face-normal
+family remains perfectly good for *transferring the datum*, which reads nothing
+off `Γ_h` but the faces themselves, and it converges at `k+1` doing so; it
+cannot be used to define the approximation outside. A test pins both halves.
+
+**Not yet built**: the postprocessed `p*` on `D_h` and its `k+2`; the `ρ_d`
+robustness study under `d = ½h/(k+1)²`, which the paragraph on the constant
+above says is the thing to do next; the general vertex-cone path family, needed
+both for a `Γ` with no closed-form closest point and — per the tiling above —
+for any approximation on `D_h^c` away from that case; the non-convex case,
+where selecting `D_h` needs more than the vertex test that
+`MarkLevelSetSubdomain` already provides for; and anything in three dimensions,
+where the path construction is unchanged but has not been run.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -2066,12 +2121,12 @@ Kept with their answers rather than deleted, because the answers are the content
 
 ## What is still open
 
-1. **§2**, untouched. **§1 solves and converges at the design order on `D_h`**,
-   but what remains is the half of its claim that concerns `D_h^c`: the
-   extension and the lifting are not yet evaluated there, so nothing has been
-   measured about the approximation on the whole of `Ω`. §1 lists the rest.
-   Nothing in §3 or §4 blocks either: they sit on their own branch of the
-   dependency graph.
+1. **§2**, untouched. **§1's core claim is met and measured** — optimal `k+1`
+   in both unknowns over the whole of `Ω`, with `k+2` for the potential
+   outside `D_h`, at `dist(Γ_h, Γ) = O(h)`. What remains there is the
+   postprocessed `p*`, the general path family, three dimensions and the
+   non-convex case; §1 lists them. Nothing in §3 or §4 blocks either: they sit
+   on their own branch of the dependency graph.
 2. **§7's `hp`**, and §8 in its entirety.
 3. **Whether the degenerate order loss is asymptotic** — recorded in §3(d),
    where the practical answer is already known: floor the stabilisation. The

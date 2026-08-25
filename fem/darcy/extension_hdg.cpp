@@ -262,6 +262,71 @@ void HDGExtensionIntegrator::AssembleFaceMatrix(
    }
 }
 
+void ExtensionRegionQuadrature(
+   FaceElementTransformations &FTr, const TransferPath &path,
+   const IntegrationRule &face_ir, const IntegrationRule &line_ir,
+   const std::function<void(const ExtensionPoint &)> &visit, real_t fd_step)
+{
+   const int sdim = FTr.GetSpaceDim();
+   const int fdim = sdim - 1;
+
+   Vector x(sdim), xbar(sdim), m(sdim), y(sdim);
+   Vector xbar_p(sdim), xbar_m(sdim), da(sdim);
+   DenseMatrix J(sdim), dxdxi(sdim, std::max(fdim, 1));
+   DenseMatrix dadxi(sdim, std::max(fdim, 1));
+
+   for (int q = 0; q < face_ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = face_ir.IntPoint(q);
+
+      path.Endpoint(FTr, ip, xbar);
+      FTr.SetAllIntPoints(&ip);
+      FTr.Transform(ip, x);
+      subtract(xbar, x, m);
+
+      // The face's own Jacobian, and the derivative of the path's endpoint
+      // along the face.  A point face -- the boundary of a one-dimensional
+      // mesh -- has neither, and the region is the path itself.
+      if (fdim > 0) { dxdxi = FTr.Jacobian(); }
+
+      for (int i = 0; i < fdim; i++)
+      {
+         IntegrationPoint ip_p = ip, ip_m = ip;
+         real_t *cp = (i == 0) ? &ip_p.x : ((i == 1) ? &ip_p.y : &ip_p.z);
+         real_t *cm = (i == 0) ? &ip_m.x : ((i == 1) ? &ip_m.y : &ip_m.z);
+         *cp += fd_step;
+         *cm -= fd_step;
+
+         path.Endpoint(FTr, ip_p, xbar_p);
+         path.Endpoint(FTr, ip_m, xbar_m);
+         subtract(xbar_p, xbar_m, da);
+         da /= 2. * fd_step;
+         for (int d = 0; d < sdim; d++) { dadxi(d, i) = da(d); }
+      }
+      // Endpoint() moved the transformations; put them back.
+      FTr.SetAllIntPoints(&ip);
+
+      for (int t = 0; t < line_ir.GetNPoints(); t++)
+      {
+         const IntegrationPoint &tip = line_ir.IntPoint(t);
+
+         for (int d = 0; d < sdim; d++) { y(d) = x(d) + tip.x * m(d); }
+
+         // dy/dxi_i = (1-t) dx/dxi_i + t da/dxi_i, and dy/dt = m.
+         for (int i = 0; i < fdim; i++)
+            for (int d = 0; d < sdim; d++)
+            {
+               J(d, i) = (1. - tip.x) * dxdxi(d, i) + tip.x * dadxi(d, i);
+            }
+         for (int d = 0; d < sdim; d++) { J(d, sdim - 1) = m(d); }
+
+         const ExtensionPoint pt{y, xbar, ip, tip.x,
+                                 ip.weight * tip.weight * std::abs(J.Det())};
+         visit(pt);
+      }
+   }
+}
+
 int MarkLevelSetSubdomain(const Mesh &mesh, const PositionFunction &phi,
                           real_t offset, Array<int> &marker, int extra_refine)
 {

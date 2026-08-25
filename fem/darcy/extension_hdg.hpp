@@ -341,6 +341,56 @@ public:
 };
 
 
+/** @brief A point of the region beyond a face of @f$\Gamma_h@f$, with the
+    quadrature weight that goes with it. */
+struct ExtensionPoint
+{
+   const Vector &y;                  ///< the physical point, outside @f$D_h@f$
+   const Vector &xbar;               ///< the end @f$a(x)@f$ of its path
+   const IntegrationPoint &face_ip;  ///< where that path leaves @f$\Gamma_h@f$
+   real_t t;                         ///< along the path; 0 on @f$\Gamma_h@f$
+   real_t weight;                    ///< quadrature weight, Jacobian included
+};
+
+
+/** @brief Quadrature over @f$K^{ext}_e@f$, the region swept by the paths
+    issuing from one face of @f$\Gamma_h@f$.
+
+    The region is the image of the face times the unit interval under
+
+    @f[ y(\xi,t) = x(\xi) + t\,(a(x(\xi)) - x(\xi)), @f]
+
+    and integrating in @f$(\xi,t)@f$ against the Jacobian of that map is
+    integrating over @f$K^{ext}_e@f$. The Jacobian's columns are
+    @f$(1-t)\,\partial x/\partial\xi_i + t\,\partial a/\partial\xi_i@f$ and
+    @f$a(x)-x@f$; the derivative of @f$a@f$ along the face is taken by central
+    differences, because a path family is a map and not required to supply one.
+
+    Summed over the faces this is a quadrature over @f$D_h^c = \Omega\setminus
+    D_h@f$ **provided the regions tile it**, which is a property of the path
+    family and not of this routine: adjacent faces must agree on the path
+    through a shared vertex. The closest-point map does agree, since it depends
+    on the point and not on the face. A family whose paths follow each face's
+    own normal does not, and leaves gaps and overlaps at the vertices -- which
+    is why CS-Extensions builds its general family by interpolating the paths
+    of the vertices rather than taking each face's normal.
+
+    **The tiling is checkable and should be checked**: the weights sum to
+    @f$|K^{ext}_e|@f$, so summing them over the faces must give
+    @f$|\Omega| - |D_h|@f$.
+
+    @param FTr       a boundary face of @f$\Gamma_h@f$.
+    @param path      the transferring paths.
+    @param face_ir   a rule on the face.
+    @param line_ir   a rule on Geometry::SEGMENT, for the path direction.
+    @param visit     called once per quadrature point. */
+void ExtensionRegionQuadrature(
+   FaceElementTransformations &FTr, const TransferPath &path,
+   const IntegrationRule &face_ir, const IntegrationRule &line_ir,
+   const std::function<void(const ExtensionPoint &)> &visit,
+   real_t fd_step = 1e-6);
+
+
 /** @brief Selection of the polyhedral subdomain @f$D_h@f$ of a background mesh.
 
     @f$D_h@f$ is the set of elements lying entirely inside @f$\Omega@f$. For a

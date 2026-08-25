@@ -80,7 +80,10 @@ real_t pNatural(const Vector &x) { return -pExact(x); }
 
 struct Result
 {
-   real_t err_u{}, err_p{};
+   real_t err_u{}, err_p{};        ///< L2 errors on D_h
+   real_t ext_u{}, ext_p{};        ///< and on the complement, normalized
+   real_t area_c{};                ///< the measure of D_h^c, as swept
+   real_t area_err{};              ///< how far that is from |Omega| - |D_h|
    real_t dist{};        ///< the largest distance from Gamma_h to Gamma
    int    dofs{};        ///< size of the hybridized system
    int    elements{};
@@ -240,6 +243,71 @@ Result Solve(int n, int order, real_t tau, real_t offset, bool level_set_path,
       }
    }
 
+   // The approximation on D_h^c: the flux is the extension of the element's
+   // own polynomial, and the potential is the lifting evaluated there rather
+   // than only on Gamma_h. This is the half of the method's claim that is
+   // about the whole of Omega.
+   {
+      const int iro = 2 * order + 8;
+      const IntegrationRule &fir = IntRules.Get(Geometry::SEGMENT, iro);
+      const IntegrationRule &lir = IntRules.Get(Geometry::SEGMENT, iro);
+
+      IsoparametricTransformation el_tr;
+      ElementExtension ext;
+      Vector ue(dim), ye(dim), v;
+      real_t e2u = 0.0, e2p = 0.0;
+
+      for (int be = 0; be < D_h->GetNBE(); be++)
+      {
+         FaceElementTransformations *FTr = D_h->GetBdrFaceTransformations(be);
+         if (!FTr) { continue; }
+
+         const int el = FTr->Elem1No;
+         D_h->GetElementTransformation(el, &el_tr);
+         ext.SetElement(el_tr);
+
+         auto Cu = [&](const Vector &yy, Vector &vv)
+         {
+            IntegrationPoint eip;
+            MFEM_VERIFY(ext.TransformBack(yy, eip), "no convergence");
+            u_h.GetVectorValue(el, eip, vv);
+         };
+
+         ExtensionRegionQuadrature(
+            *FTr, *path, fir, lir, [&](const ExtensionPoint &pt)
+         {
+            uExact(pt.y, ue);
+            Cu(pt.y, v);
+            real_t du = 0.0;
+            for (int d = 0; d < dim; d++)
+            {
+               const real_t s = ue(d) - v(d);
+               du += s * s;
+            }
+            // The lifting from the point itself, not from Gamma_h.
+            const real_t lift =
+               pExact(pt.xbar) + PathIntegral(Cu, pt.y, pt.xbar, lir);
+            const real_t dp = pExact(pt.y) - lift;
+
+            e2u += pt.weight * du;
+            e2p += pt.weight * dp * dp;
+            res.area_c += pt.weight;
+         });
+      }
+
+      real_t vol_D = 0.0;
+      for (int i = 0; i < D_h->GetNE(); i++) { vol_D += D_h->GetElementVolume(i); }
+      const real_t vol_c = M_PI * disc_R * disc_R - vol_D;
+      res.area_err = fabs(res.area_c - vol_c) / vol_c;
+
+      // Normalized by the measure of the region, as the reference does: it
+      // shrinks like h, and a raw L2 norm over it would carry half an order
+      // that has nothing to do with the approximation.
+      const real_t s = (res.area_c > 0.0) ? sqrt(res.area_c) : 1.0;
+      res.ext_u = sqrt(e2u) / s;
+      res.ext_p = sqrt(e2p) / s;
+   }
+
    return res;
 }
 
@@ -291,12 +359,21 @@ int main(int argc, char *argv[])
                "unknown path family '" << path_type << "'");
 
    cout << "\n"
+        << "The errors on D_h are plain L2 norms; those on its complement are\n"
+        << "divided by the square root of its measure, which shrinks like h.\n\n"
         << "   n    elem     dofs      dist       ||u-u_h||   rate"
-        << "     ||p-p_h||   rate";
-   if (control && extend) { cout << "     ratio_u  ratio_p"; }
+        << "     ||p-p_h||   rate      ext_u      rate      ext_p      rate";
+   if (control && extend) { cout << "    ratio_u  ratio_p"; }
    cout << "\n";
 
-   real_t prev_u = 0.0, prev_p = 0.0;
+   auto column = [](real_t err, real_t prev)
+   {
+      cout << "   " << scientific << setprecision(4) << err << "  " << fixed
+           << setw(5) << setprecision(2) << (prev > 0.0 ? log2(prev / err) : 0.0);
+   };
+
+   real_t prev_u = 0.0, prev_p = 0.0, prev_xu = 0.0, prev_xp = 0.0;
+   real_t worst_area = 0.0;
    int nn = n;
    for (int r = 0; r <= refinements; r++)
    {
@@ -304,28 +381,41 @@ int main(int argc, char *argv[])
                              line_order);
 
       cout << setw(4) << nn << setw(8) << e.elements << setw(9) << e.dofs
-           << "  " << scientific << setprecision(2) << e.dist
-           << "   " << setprecision(4) << e.err_u << "  " << fixed
-           << setw(5) << setprecision(2)
-           << (prev_u > 0.0 ? log2(prev_u / e.err_u) : 0.0)
-           << "   " << scientific << setprecision(4) << e.err_p << "  " << fixed
-           << setw(5) << setprecision(2)
-           << (prev_p > 0.0 ? log2(prev_p / e.err_p) : 0.0);
+           << "  " << scientific << setprecision(2) << e.dist;
+      column(e.err_u, prev_u);
+      column(e.err_p, prev_p);
+      column(e.ext_u, prev_xu);
+      column(e.ext_p, prev_xp);
 
       if (control && extend)
       {
          const Result c = Solve(nn, order, tau, offset, level_set_path, false,
                                 line_order);
-         cout << "   " << setw(7) << setprecision(3) << e.err_u / c.err_u
+         cout << "  " << setw(7) << setprecision(3) << e.err_u / c.err_u
               << "  " << setw(7) << e.err_p / c.err_p;
          if (!c.converged) { cout << "  [control did not converge]"; }
       }
       if (!e.converged) { cout << "  [NOT CONVERGED]"; }
       cout << "\n";
 
+      worst_area = max(worst_area, e.area_err);
       prev_u = e.err_u;
       prev_p = e.err_p;
+      prev_xu = e.ext_u;
+      prev_xp = e.ext_p;
       nn *= 2;
+   }
+
+   // The regions swept by the paths must tile the complement exactly, or the
+   // two columns above are integrals over the wrong set. The closest-point map
+   // tiles; a family following each face's own normal does not, adjacent faces
+   // disagreeing on the path through the vertex they share.
+   cout << "\nlargest relative error in the measure of D_h^c: "
+        << scientific << setprecision(2) << worst_area << "\n";
+   if (worst_area > 1e-6)
+   {
+      cout << "the extension regions do not tile the complement, so the two "
+           "columns above\nare not integrals over it\n";
    }
    cout << endl;
 
