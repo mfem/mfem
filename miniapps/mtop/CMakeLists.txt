@@ -13,6 +13,10 @@ add_mfem_miniapp(elasticity_pa_regression
 				 MAIN elasticity_pa_regression.cpp
 				 LIBRARIES mfem)
 
+# Frequency-domain preconditioners keep their sources and build definitions
+# in a self-contained subdirectory.
+add_subdirectory(frq)
+
 # Skip dFEM qfunction with floats
 if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
