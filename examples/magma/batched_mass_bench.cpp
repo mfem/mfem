@@ -219,6 +219,8 @@ void FillRHS(Vector &rhs)
    {
       x[i] = 1.0 + real_t((13*i + 7) % 29)/real_t(29);
    }
+   rhs.Read();
+   MFEM_DEVICE_SYNC;
 }
 
 void ComputeLowerPackedResidual(

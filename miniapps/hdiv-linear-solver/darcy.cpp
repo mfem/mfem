@@ -89,22 +89,22 @@ HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
 void ReportUmpireAllocator(const char *label, const char *alloc_name)
 {
    auto &rm = umpire::ResourceManager::getInstance();
-   if (!rm.isAllocator(alloc_name))
+   const int has_allocator = rm.isAllocator(alloc_name) ? 1 : 0;
+   unsigned long long cur = 0;
+   unsigned long long hwm = 0;
+   if (has_allocator)
    {
-      if (Mpi::Root())
-      {
-         cout << label << ": allocator '" << alloc_name
-              << "' not found (no allocations yet?)\n";
-      }
-      return;
+      auto alloc = rm.getAllocator(alloc_name);
+      cur = alloc.getCurrentSize();
+      hwm = alloc.getHighWatermark();
    }
 
-   auto alloc = rm.getAllocator(alloc_name);
-   const unsigned long long cur = alloc.getCurrentSize();
-   const unsigned long long hwm = alloc.getHighWatermark();
    unsigned long long cur_sum = 0, cur_max = 0;
    unsigned long long hwm_sum = 0, hwm_max = 0;
+   int allocator_count = 0;
 
+   MPI_Reduce(&has_allocator, &allocator_count, 1, MPI_INT, MPI_SUM, 0,
+              MPI_COMM_WORLD);
    MPI_Reduce(&cur, &cur_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
               MPI_COMM_WORLD);
    MPI_Reduce(&cur, &cur_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
@@ -116,9 +116,18 @@ void ReportUmpireAllocator(const char *label, const char *alloc_name)
 
    if (Mpi::Root())
    {
-      cout << label << " (Umpire '" << alloc_name << "'): "
-           << "current(sum/max)=(" << cur_sum << "/" << cur_max << ") bytes, "
-           << "hwm(sum/max)=(" << hwm_sum << "/" << hwm_max << ") bytes\n";
+      if (allocator_count == 0)
+      {
+         cout << label << ": allocator '" << alloc_name
+              << "' not found (no allocations yet?)\n";
+      }
+      else
+      {
+         cout << label << " (Umpire '" << alloc_name << "'): "
+              << "current(sum/max)=(" << cur_sum << "/" << cur_max
+              << ") bytes, "
+              << "hwm(sum/max)=(" << hwm_sum << "/" << hwm_max << ") bytes\n";
+      }
    }
 }
 
@@ -298,6 +307,8 @@ int main(int argc, char *argv[])
       rhs.UseDevice(true);
       x_l2.UseDevice(true);
       rhs.Randomize(1);
+      rhs.Read();
+      MFEM_DEVICE_SYNC;
 
       // Warm up and time repeated applications.
       saddle_point_solver.GetL2Inverse().Mult(rhs, x_l2);
