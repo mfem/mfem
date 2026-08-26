@@ -889,8 +889,44 @@ normal is across the field it is `κ_⊥` — a hundred times too small. This is
 **`τ → 0` again, arriving from anisotropy rather than from a degeneracy**, and
 §3(d)'s conclusion carries over unchanged: the fix is a floor, which needs an
 `HDGStabilization` object because the integrator derives `τ` from the
-coefficient and cannot express one. That is the next thing to build here, and
-it now has a rate study to be judged against.
+coefficient and cannot express one.
+
+### `HDGFloorStabilization`, and the half order back
+
+**Built, deployed and measured.** `HDGFloorStabilization` is in the library —
+`Eval` returns `max(s_diff, τ_min)`, constant, so the bilinear assembly path
+takes it — and `anisodiff -tf` installs it on the face integrators. It is a
+*floor* and not a replacement, which is the difference from the `FloorTau` the
+degenerate tests carry privately: on faces already aligned with the strong
+direction the built-in `κ_∥/h` is kept, and only the faces across the field are
+lifted.
+
+`τ_min = 1` throughout below, which is not a tuned number: it is `κ_∥/ℓ` with
+`κ_∥ = 1` and `ℓ = 1`, the `η_d` of **NPC-1** §3.6.3. Same sequences, as
+`q` / `T`:
+
+| | no floor | `τ ≥ 1` |
+|---|---|---|
+| `k=1`, `ks=1e-2`, diffusion | 1.49/1.88 | **1.95/2.02** |
+| `k=2`, `ks=1e-2`, diffusion | 2.48/2.88 | **3.35/3.16** |
+| `k=1`, `ks=1e-2`, all three terms | 1.65/1.93 | **1.90/2.00** |
+| `k=2`, `ks=1e-2`, all three terms | 2.52/3.02 | **2.89/3.14** |
+| `k=1`, `ks=1e-3`, diffusion | 1.47/1.88 | **1.83/2.03** |
+| `k=1`, `ks=1` (isotropic), diffusion | 2.00/2.00 | 2.05/2.05 |
+
+**The half order is back at every anisotropy and every order tried**, and the
+errors fall with it — 5.7× and 7.3× at `k=1`, 11× and 8× at `k=2`. The last row
+is the control: on an isotropic coefficient the floor is not needed and does no
+harm, because there the built-in `τ` never goes below it.
+
+**Over-flooring costs the flux again**, which is the same trade the `1/h`
+scaling makes: at `τ_min = 4` the `k=1` flux rate falls back to 1.79 while the
+potential error keeps improving. So the floor is a floor, not a knob to turn up
+— `κ_∥/ℓ` is where to put it and there is no gain past it.
+
+| `τ_min` | 0 | 0.05 | 0.1 | 0.5 | 1.0 | 4.0 |
+|---|---|---|---|---|---|---|
+| `k=1` `ks=1e-2` flux rate | 1.49 | 1.64 | 1.75 | 1.90 | **1.95** | 1.79 |
 
 * **(d) Degenerate coefficients.** Operators of the form `∂_x( w(x) ∂_x · )` with
   `w` vanishing on part of the boundary. These are well posed in the natural
@@ -951,7 +987,9 @@ it now has a rate study to be judged against.
   Two consequences. Wherever a coefficient vanishes on part of the boundary, a
   floored `τ` is a requirement rather than a tuning option. And
   `HDGDiffusionIntegrator` cannot express one, since it derives `τ` from the
-  coefficient; supplying an `HDGStabilization` is how it is done.
+  coefficient; supplying an `HDGStabilization` is how it is done — which is now
+  `HDGFloorStabilization` in the library, built for the anisotropic case in
+  (a)+(b)+(c) above and applying here unchanged.
 
 * **(e) Singular coefficients — wanted, but check first whether they are
   avoidable.** A zeroth-order coefficient behaving like `1/x²` near a boundary is

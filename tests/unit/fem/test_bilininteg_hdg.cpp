@@ -741,3 +741,112 @@ TEST_CASE("A state-dependent stabilization reaches the face energy",
    INFO("built-in " << plain << " against state dependent " << state);
    REQUIRE(state > 1.05 * plain);
 }
+
+TEST_CASE("A floored stabilization lifts the small values and keeps the large",
+          "[HDGIntegrator][Stabilization]")
+{
+   using namespace bilininteg_hdg;
+
+   // HDGFloorStabilization is the library's answer to tau -> 0, which two
+   // separate findings on this branch run into: a coefficient that degenerates
+   // on part of the boundary, and one that is merely anisotropic, where
+   // n.Q.n is the perpendicular conductivity on a face whose normal lies
+   // across the field. Both lose order, and both are recovered by refusing the
+   // small values.
+   //
+   // With a constant Q the built-in stabilization is one number over the whole
+   // face, so the face matrix is linear in it and the floor shows up as a
+   // single scale factor. That is what makes this checkable without knowing
+   // what the built-in value happens to be.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 2);
+   const Element::Type type = (dim == 2) ? Element::QUADRILATERAL
+                              : Element::HEXAHEDRON;
+   CAPTURE(dim, order);
+
+   Faces fx(dim, order, type);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+   const FiniteElement &tr_fe = *fx.fes_tr.GetFaceElement(f);
+   const FiniteElement &el_fe = *fx.fes_el.GetFE(Tr->Elem1No);
+
+   ConstantCoefficient q(2.5);
+
+   auto assemble = [&](const HDGStabilization *s, DenseMatrix &m)
+   {
+      HDGDiffusionIntegrator integ(q);
+      if (s) { integ.SetStabilization(*s); }
+      integ.AssembleHDGFaceMatrix(0, tr_fe, el_fe, *Tr, m);
+   };
+
+   DenseMatrix plain;
+   assemble(nullptr, plain);
+
+   // The largest entry, and where it is, so the scale factor can be read off
+   // an entry that is not near zero.
+   int bi = 0, bj = 0;
+   for (int i = 0; i < plain.Height(); i++)
+      for (int j = 0; j < plain.Width(); j++)
+      {
+         if (std::abs(plain(i,j)) > std::abs(plain(bi,bj))) { bi = i; bj = j; }
+      }
+   REQUIRE(std::abs(plain(bi,bj)) > 0.0);
+
+   auto compare = [&](const DenseMatrix &m, real_t scale, real_t tol)
+   {
+      for (int i = 0; i < plain.Height(); i++)
+         for (int j = 0; j < plain.Width(); j++)
+         {
+            CAPTURE(i, j, scale);
+            REQUIRE(m(i,j) == MFEM_Approx(scale * plain(i,j), tol, tol));
+         }
+   };
+
+   SECTION("a floor below the built-in value changes nothing")
+   {
+      // Zero can never bind, and the built-in value here is of order Q/h.
+      HDGFloorStabilization none(0.0);
+      DenseMatrix m;
+      assemble(&none, m);
+      compare(m, 1.0, 1e-12);
+   }
+
+   SECTION("a floor above it replaces it, and scales with the floor")
+   {
+      // Far above anything Q/h can reach on these meshes, so the floor binds
+      // everywhere and the matrix becomes proportional to it.
+      HDGFloorStabilization big(1.0e6), bigger(2.0e6);
+      DenseMatrix m1, m2;
+      assemble(&big, m1);
+      assemble(&bigger, m2);
+
+      const real_t s1 = m1(bi,bj) / plain(bi,bj);
+      INFO("the floor binds and scales the whole face matrix by " << s1);
+      REQUIRE(s1 > 1.0);
+      compare(m1, s1, 1e-10);
+
+      // Twice the floor, twice the matrix -- the face term is linear in tau.
+      for (int i = 0; i < plain.Height(); i++)
+         for (int j = 0; j < plain.Width(); j++)
+         {
+            CAPTURE(i, j);
+            REQUIRE(m2(i,j) == MFEM_Approx(2.0 * m1(i,j), 1e-10, 1e-9));
+         }
+   }
+
+   SECTION("it never lowers the stabilization")
+   {
+      // The property the name promises, swept across the value the built-in
+      // expression takes on these meshes.
+      const real_t built_in = std::abs(plain(bi,bj));
+      for (real_t t : {0.0, 0.5, 1.0, 2.0, 8.0, 64.0})
+      {
+         HDGFloorStabilization s(t);
+         DenseMatrix m;
+         assemble(&s, m);
+         const real_t scale = m(bi,bj) / plain(bi,bj);
+         CAPTURE(t, built_in, scale);
+         REQUIRE(scale >= 1.0 - 1e-12);
+      }
+   }
+}

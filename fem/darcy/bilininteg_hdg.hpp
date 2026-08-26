@@ -171,6 +171,50 @@ public:
    { d1s = 0.; d2s = 0.; }
 };
 
+/** @brief A stabilization that is not allowed below a floor.
+
+    `HDGDiffusionIntegrator` builds its own value as
+    $\tau = \beta\,(\hat n \cdot Q \hat n)/h$, which vanishes wherever the
+    diffusion does *in the direction of the face normal*. Two separate findings
+    on this branch run into that, and both are recorded in section 3 of
+    `doc/HDG-ROADMAP.md`:
+
+    * a coefficient that **degenerates** on part of the boundary, where
+      $Q \to 0$ and the potential loses order -- 2.18 against a clean 2.99 at
+      $k = 2$;
+    * a coefficient that is **anisotropic**, where $Q$ does not vanish at all
+      but $\hat n \cdot Q \hat n$ is $\kappa_\perp$ on a face whose normal
+      lies across the field, and the *flux* loses order -- 1.49 against 2.00 at
+      $k = 1$ and $\kappa_\perp/\kappa_\parallel = 10^{-2}$.
+
+    In both the misbehaviour to fear is $\tau \to 0$ rather than
+    $\tau \to \infty$, and in both the remedy is the same: refuse the small
+    values and keep the large ones. That is what this does. It is a floor and
+    not a replacement, so on faces where the built-in value is already big
+    enough -- the ones aligned with the strong direction -- nothing changes.
+
+    The floor is an absolute stabilization, so it is the $\eta_d = \kappa/\ell$
+    of Nguyen, Peraire and Cockburn section 3.6.3 with $\ell$ a fixed problem
+    length scale, which is the scaling that holds $\tau$ constant under
+    refinement. It is therefore a number of the size of
+    $\kappa_\parallel/\ell$, not of $\kappa_\perp$.
+
+    Constant, so it costs nothing per quadrature point and the bilinear
+    assembly path accepts it. */
+class HDGFloorStabilization : public HDGStabilization
+{
+   real_t tau_min;
+
+public:
+   /// @param tau_min_ the smallest stabilization any face may be given.
+   HDGFloorStabilization(real_t tau_min_) : tau_min(tau_min_) { }
+
+   real_t Eval(real_t s_diff, real_t, real_t, real_t,
+               ElementTransformation &) const override
+   { return (s_diff > tau_min) ? s_diff : tau_min; }
+};
+
+
 /** Integrator for the H/LDG diffusion stabilization term
     The LDG stabilization takes the form
     $$

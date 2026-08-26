@@ -24,6 +24,7 @@
 //               anisodiff -nx 20 -p 5 -ks 1e+1 -o 2 -hb -brt -amr 5
 //               anisodiff -nx 20 -p 9 -ks 1e-4 -o 2 -hb -dg -amr 5
 //               anisodiff -nx 32 -p 11 -o 2 -hb -dg -c 1 -a 2 -ka 0.3 -td 0.015625
+//               anisodiff -nx 32 -p 11 -o 2 -hb -dg -ks 1e-2 -td 0.015625 -tf 1
 //
 // Device sample runs:
 //
@@ -181,6 +182,7 @@ int main(int argc, char *argv[])
    pars.a = 0.;
    pars.c = 0.;
    real_t td = 0.5;
+   real_t tau_floor = 0.;
    bool bc_neumann = false;
    bool reduction = false;
    bool hybridization = false;
@@ -248,6 +250,11 @@ int main(int argc, char *argv[])
                   "Speed of the flow along the magnetic field (problem 11)");
    args.AddOption(&pars.a, "-a", "--heat_capacity",
                   "Heat capacity coefficient (0=indefinite problem)");
+   args.AddOption(&tau_floor, "-tf", "--tau-floor",
+                  "Smallest stabilization any face may be given, as an "
+                  "absolute tau. Zero leaves the built-in tau = td*n.k.n/h, "
+                  "which is what an anisotropic or degenerate conductivity "
+                  "makes vanish on the faces across the weak direction.");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
    args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
@@ -458,6 +465,11 @@ int main(int argc, char *argv[])
    auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
 
    // Darcy form
+   // Referenced by the face integrators below, not owned by them, so it is
+   // declared before the form that will hold them.
+   unique_ptr<HDGFloorStabilization> stab;
+   if (tau_floor > 0.) { stab.reset(new HDGFloorStabilization(tau_floor)); }
+
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
    // 8. Define the coefficients, analytical solution, and rhs of the PDE.
@@ -582,24 +594,28 @@ int main(int argc, char *argv[])
 
       if (td > 0.)
       {
+         auto stabilized = [&](void) -> HDGDiffusionIntegrator*
+         {
+            auto *hdi = new HDGDiffusionIntegrator(kcoeff, td);
+            if (stab) { hdi->SetStabilization(*stab); }
+            return hdi;
+         };
+
          if (!nonlinear)
          {
             BilinearForm *Mt = darcy->GetPotentialMassForm();
-            Mt->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                     bdr_is_neumann);
+            Mt->AddInteriorFaceIntegrator(stabilized());
+            Mt->AddBdrFaceIntegrator(stabilized(), bdr_is_neumann);
             if (trace_ess_bc)
             {
-               Mt->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                        bdr_is_dirichlet);
+               Mt->AddBdrFaceIntegrator(stabilized(), bdr_is_dirichlet);
             }
          }
          else
          {
             NonlinearForm *Mtnl = darcy->GetPotentialMassNonlinearForm();
-            Mtnl->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td));
-            Mtnl->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(kcoeff, td),
-                                       bdr_is_neumann);
+            Mtnl->AddInteriorFaceIntegrator(stabilized());
+            Mtnl->AddBdrFaceIntegrator(stabilized(), bdr_is_neumann);
          }
       }
    }
