@@ -82,10 +82,7 @@ void MagmaPackedLowerCholesky::Factor(
    magma_memset(d_info, 0, batch_size*sizeof(magma_int_t));
 
    const magma_int_t status =
-      (n <= 8) ?
-      MFEM_TRIPACK_MAGMA_PREFIX(pptrf_batched_small)(
-         MagmaLower, n, d_factor_ptrs, d_info, batch_size, queue) :
-      MFEM_TRIPACK_MAGMA_PREFIX(pptf2_batched_small)(
+      MFEM_TRIPACK_MAGMA_PREFIX(pptrf_batched)(
          MagmaLower, n, d_factor_ptrs, d_info, batch_size, queue);
 
    MFEM_VERIFY(status == MAGMA_SUCCESS,
@@ -127,20 +124,10 @@ void MagmaPackedLowerCholesky::SolveInPlace(
    real_t **d_rhs_ptrs =
       SetPackedPointerArray(rhs_ptrs, rhs_data, solve_n, solve_batch, queue);
 
-   // On HIP, MAGMA's packed 1-RHS batched solve kernel only supports n <= 32.
-   // Fail fast with a clear error for larger element sizes (e.g., (p+1)^3 = 64).
-   if (Device::Allows(Backend::HIP_MASK))
-   {
-      MFEM_VERIFY(solve_n <= 32,
-                  "MAGMA packed Cholesky solve (1 RHS) supports n <= 32 on HIP; "
-                  "got n = " << solve_n << ". "
-                  "Use a smaller element size (lower order), or disable MAGMA "
-                  "solve in the benchmark, or use the full (dense) MAGMA path.");
-   }
-
    const magma_int_t status =
-      MFEM_TRIPACK_MAGMA_PREFIX(pptrs_1rhs_batched_small)(
-         solve_n, 1, d_factor_ptrs, d_rhs_ptrs, solve_n, solve_batch, queue);
+      MFEM_TRIPACK_MAGMA_PREFIX(pptrs_batched)(
+         MagmaLower, solve_n, 1, d_factor_ptrs, d_rhs_ptrs, solve_n,
+         solve_batch, queue);
 
    MFEM_VERIFY(status == MAGMA_SUCCESS,
                "MAGMA packed Cholesky solve failed.");

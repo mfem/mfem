@@ -362,7 +362,6 @@ void ComputeCholeskyLowerInverse(const TriPackLowerMatrix &packed_lower,
          const int jj = eoff + TriPackLowerMatrix::LowerIndex(j, j, n);
          X[jj] = 1.0/L[jj];
 
-         const real_t invLjj = X[jj];
          for (int i = j + 1; i < n; ++i)
          {
             real_t sum = 0.0;
@@ -371,7 +370,8 @@ void ComputeCholeskyLowerInverse(const TriPackLowerMatrix &packed_lower,
                sum += L[eoff + TriPackLowerMatrix::LowerIndex(i, k, n)] *
                       X[eoff + TriPackLowerMatrix::LowerIndex(k, j, n)];
             }
-            X[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)] = -invLjj*sum;
+            X[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)] =
+               -sum/L[eoff + TriPackLowerMatrix::LowerIndex(i, i, n)];
          }
       }
 
