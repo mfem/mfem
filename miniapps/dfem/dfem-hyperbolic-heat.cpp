@@ -584,6 +584,7 @@ int main(int argc, char *argv[])
    int order = 2;
    int refinements = 0;
    const char *device_config = "cpu";
+   const char *outfolder = "./Output";
    int ode_solver_type = 11;
    real_t t_final = 0.4;
    real_t dt = 0.02;
@@ -639,6 +640,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                   "Enable or disable ParaView DataCollection output.");
+   args.AddOption(&outfolder, "-of", "--output-folder",
+                  "Output folder for ParaView DataCollection files.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
@@ -763,6 +766,7 @@ int main(int argc, char *argv[])
 
    // Create a ParaView data collection
    ParaViewDataCollection pd("dfem-hyperbolic-heat-output", &pmesh);
+   pd.SetPrefixPath(outfolder);
    if (paraview)
    {
       pd.RegisterField("temperature", &T_gf);

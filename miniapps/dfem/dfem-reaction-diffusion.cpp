@@ -433,6 +433,7 @@ int main(int argc, char *argv[])
    int order = 1;
    int refinements = 3;
    const char *device_config = "cpu";
+   const char *outfolder = "./Output";
    real_t kappa = 1.0;
    real_t alpha = 1.0;
    real_t beta = 1.0;
@@ -471,6 +472,8 @@ int main(int argc, char *argv[])
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                   "Enable or disable ParaView DataCollection output.");
+   args.AddOption(&outfolder, "-of", "--output-folder",
+                  "Output folder for ParaView DataCollection files.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.ParseCheck();
 
@@ -576,6 +579,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       ParaViewDataCollection pd("dfem-reaction-diffusion-output", &pmesh);
+      pd.SetPrefixPath(outfolder);
       pd.RegisterField("solution", &u_gf);
       pd.SetDataFormat(VTKFormat::BINARY);
       if (order > 1)

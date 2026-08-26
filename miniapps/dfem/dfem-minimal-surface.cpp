@@ -483,6 +483,7 @@ int main(int argc, char *argv[])
    // 2. Parse command-line options
    int order = 1;
    const char *device_config = "cpu";
+   const char *outfolder = "./Output";
    bool visualization = true;
    int refinements = 0;
    int derivative_type = AUTODIFF;
@@ -496,6 +497,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
+   args.AddOption(&outfolder, "-of", "--output-folder",
+                  "Output folder for ParaView DataCollection files.");
    args.AddOption(&refinements, "-r", "--refinements", "");
    args.AddOption(&derivative_type, "-der", "--derivative-type",
                   "Derivative computation type: 0=AutomaticDifferentiation,"
@@ -620,6 +623,7 @@ int main(int argc, char *argv[])
 
    // 16. Save the solution in parallel using ParaView format
    ParaViewDataCollection dc("dfem-minimal-surface-output", &pmesh);
+   dc.SetPrefixPath(outfolder);
    dc.SetHighOrderOutput(true);
    dc.SetLevelsOfDetail(order);
    dc.RegisterField("solution", &u);

@@ -476,6 +476,7 @@ int main(int argc, char *argv[])
 
    int order = 1;
    const char *device_config = "cpu";
+   const char *outfolder = "./Output";
    int serial_refinement_levels = 0;
    real_t cg_tol = 1e-1;
    const char *material_name = "neo-hookean";
@@ -503,6 +504,8 @@ int main(int argc, char *argv[])
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview",
                   "Enable or disable ParaView DataCollection output.");
+   args.AddOption(&outfolder, "-of", "--output-folder",
+                  "Output folder for ParaView DataCollection files.");
    args.AddOption(&visport, "-p", "--send-port", "Socket for GLVis.");
    args.ParseCheck();
 
@@ -605,6 +608,7 @@ int main(int argc, char *argv[])
    {
       // Create a ParaView data collection
       ParaViewDataCollection pd("dfem-hyperelasticity-output", &pmesh);
+      pd.SetPrefixPath(outfolder);
       pd.RegisterField("displacement", &U_gf);
       pd.SetDataFormat(VTKFormat::BINARY);
       if (order > 1)
