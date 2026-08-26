@@ -224,6 +224,17 @@ int main(int argc, char *argv[])
       out_dc->RegisterField(it->first,it->second);
    }
 
+   // loop over all quad funcs in the source dc, and add them to the output dc
+   const DataCollection::QFieldMapType &src_qfields = src_dc->GetQFieldMap();
+
+   for (DataCollection::QFieldMapType::const_iterator it = src_qfields.begin();
+        it != src_qfields.end();
+        ++it)
+   {
+      out_dc->RegisterQField(it->first,it->second);
+   }
+
+
    out_dc->Save();
 
    if (out_dc->Error() != DataCollection::No_Error)

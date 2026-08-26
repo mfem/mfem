@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "../general/communication.hpp"
+#include "../general/forall.hpp"
 #include "operator.hpp"
 #include "ode.hpp"
 
@@ -28,8 +29,14 @@ std::string ODESolver::ImplicitTypes  =
    "        GA      : 40 -- 50  - Generalized-alpha,\n\t"
    "        AM      : 51 - AM1, 52 - AM2, 53 - AM3, 54 - AM4\n";
 
+std::string ODESolver::IMEXTypes =
+   "\n\tIMEX solver: \n\t"
+   "        (L-Stab): 61 - Forward Backward Euler, 62 - IMEXRK2(2,2,2),\n\t"
+   "                  63 - IMEXRK2(2,3,2), 64 - IMEX_DIRK_RK3\n";
+
 std::string ODESolver::Types = ODESolver::ExplicitTypes +
-                               ODESolver::ImplicitTypes;
+                               ODESolver::ImplicitTypes +
+                               ODESolver::IMEXTypes;
 
 std::unique_ptr<ODESolver> ODESolver::Select(int ode_solver_type)
 {
@@ -106,6 +113,20 @@ std::unique_ptr<ODESolver> ODESolver::SelectImplicit(int ode_solver_type)
    }
 }
 
+std::unique_ptr<ODESolver> ODESolver::SelectIMEX(const int ode_solver_type)
+{
+   using ode_ptr = std::unique_ptr<ODESolver>;
+   switch (ode_solver_type)
+   {
+      // L-stable IMEX methods
+      case 61: return ode_ptr(new IMEXExpImplEuler);
+      case 62: return ode_ptr(new IMEXRK2);
+      case 63: return ode_ptr(new IMEXRK2_3StageExplicit);
+      case 64: return ode_ptr(new IMEX_DIRK_RK3);
+
+      default: MFEM_ABORT("Unknown ODE solver type: " << ode_solver_type );
+   }
+}
 
 void ODEStateDataVector::SetSize( int vsize, MemoryType m_t)
 {
@@ -162,6 +183,23 @@ void ODESolver::Init(TimeDependentOperator &f_)
 {
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
+}
+
+void ODESolver::ComputeSlopeFromState(const real_t dt, const Vector &u,
+                                      Vector &k)
+{
+   // k currently holds state u(t+dt),
+   // convert to slope k = du/dt ~= (u(t+dt)-u(t))/dt
+   const int usz = u.Size();
+   real_t fac = 1.0/dt;
+   auto d_u = u.Read();
+   auto d_k = k.ReadWrite();
+
+   mfem::forall(usz, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_k[i] -= d_u[i];
+      d_k[i] *= fac;
+   });
 }
 
 void ForwardEulerSolver::Init(TimeDependentOperator &f_)
@@ -609,6 +647,10 @@ void AdamsMoultonSolver::Step(Vector &x, real_t &t, real_t &dt)
       }
       state.ShiftStages();
       f->ImplicitSolve(a[0]*dt, x, state[0]);
+      if (f->ImplicitVarTypeIsState())
+      {
+         ComputeSlopeFromState(a[0]*dt, x, state[0]);
+      }
       x.Add(a[0]*dt, state[0]);
       t += dt;
    }
@@ -641,7 +683,15 @@ void BackwardEulerSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt);
    f->ImplicitSolve(dt, x, k); // solve for k: k = f(x + dt*k, t + dt)
-   x.Add(dt, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      x = k; // x = u_{i+1}
+   }
+   else
+   {
+      x.Add(dt, k);
+   }
+
    t += dt;
 }
 
@@ -656,7 +706,16 @@ void ImplicitMidpointSolver::Step(Vector &x, real_t &t, real_t &dt)
 {
    f->SetTime(t + dt/2);
    f->ImplicitSolve(dt/2, x, k);
-   x.Add(dt, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      x.Neg();
+      x.Add(2.0, k);
+   }
+   else
+   {
+      x.Add(dt, k);
+   }
+
    t += dt;
 }
 
@@ -698,11 +757,19 @@ void SDIRK23Solver::Step(Vector &x, real_t &t, real_t &dt)
    // note: with gamma_opt=3, both solve are outside [t,t+dt] since a>1
    f->SetTime(t + gamma*dt);
    f->ImplicitSolve(gamma*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(gamma*dt, x, k);
+   }
    add(x, (1.-2.*gamma)*dt, k, y); // y = x + (1-2*gamma)*dt*k
    x.Add(dt/2, k);
 
    f->SetTime(t + (1.-gamma)*dt);
    f->ImplicitSolve(gamma*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(gamma*dt, y, k);
+   }
    x.Add(dt/2, k);
    t += dt;
 }
@@ -729,17 +796,29 @@ void SDIRK34Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, x, k);
+   }
    add(x, (0.5-a)*dt, k, y);
    add(x,  (2.*a)*dt, k, z);
    x.Add(b*dt, k);
 
    f->SetTime(t + dt/2);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    z.Add((1.-4.*a)*dt, k);
    x.Add((1.-2.*b)*dt, k);
 
    f->SetTime(t + (1.-a)*dt);
    f->ImplicitSolve(a*dt, z, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, z, k);
+   }
    x.Add(b*dt, k);
    t += dt;
 }
@@ -765,15 +844,27 @@ void SDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + a*dt);
    f->ImplicitSolve(a*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, x, k);
+   }
    add(x, (c-a)*dt, k, y);
    x.Add(b*dt, k);
 
    f->SetTime(t + c*dt);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    x.Add((1.0-a-b)*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, x, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, x, k);
+   }
    x.Add(a*dt, k);
    t += dt;
 }
@@ -798,6 +889,10 @@ void TrapezoidalRuleSolver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + dt);
    f->ImplicitSolve(dt/2.0, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(0.5*dt, y, k);
+   }
    x.Add(dt/2.0, k);
    t += dt;
 }
@@ -828,11 +923,19 @@ void ESDIRK32Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (2.0*a)*dt);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    z.Add(b*dt, k);
    x.Add(b*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, z, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, z, k);
+   }
    x.Add(a*dt, k);
    t += dt;
 }
@@ -865,11 +968,19 @@ void ESDIRK33Solver::Step(Vector &x, real_t &t, real_t &dt)
 
    f->SetTime(t + (2.0*a)*dt);
    f->ImplicitSolve(a*dt, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, y, k);
+   }
    z.Add(b*dt, k);
    x.Add(b_2*dt, k);
 
    f->SetTime(t + dt);
    f->ImplicitSolve(a*dt, z, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(a*dt, z, k);
+   }
    x.Add(b_3*dt, k);
    t += dt;
 }
@@ -935,6 +1046,10 @@ void GeneralizedAlphaSolver::Step(Vector &x, real_t &t, real_t &dt)
    real_t dt_eff = (gamma*alpha_f/alpha_m)*dt;
    f->SetTime(t + alpha_f*dt);
    f->ImplicitSolve(dt_eff, y, k);
+   if (f->ImplicitVarTypeIsState())
+   {
+      ComputeSlopeFromState(dt_eff, y, k);
+   }
 
    // Update x and xdot
    x.Add((1.0 - (gamma/alpha_m))*dt, state[0]);
@@ -1096,8 +1211,8 @@ void SecondOrderODESolver::EulerStep(Vector &x, Vector &dxdt, real_t &t,
    f->SetTime(t + dt);
    f->ImplicitSolve(0.5*dt*dt, dt, x, dxdt, state[0]);
 
-   x   .Add(0.5*dt*dt, state[0]);
-   dxdt.Add(dt,    state[0]);
+   x.Add(0.5*dt*dt, state[0]);
+   dxdt.Add(dt, state[0]);
    t += dt;
 }
 
@@ -1183,8 +1298,8 @@ void NewmarkSolver::Step(Vector &x, Vector &dxdt, real_t &t, real_t &dt)
    f->SetTime(t + dt);
    f->ImplicitSolve(fac3*dt*dt, fac4*dt, x, dxdt, state[0]);
 
-   x   .Add(fac3*dt*dt, state[0]);
-   dxdt.Add(fac4*dt,    state[0]);
+   x.Add(fac3*dt*dt, state[0]);
+   dxdt.Add(fac4*dt, state[0]);
    t += dt;
 }
 
@@ -1275,6 +1390,214 @@ void GeneralizedAlpha2Solver::Step(Vector &x, Vector &dxdt,
    state[0].Add (1.0/fac5, aa);
 
    t += dt;
+}
+
+void IMEXExpImplEuler::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1.SetSize(n, mem_type);
+   k2.SetSize(n, mem_type);
+}
+
+void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
+{
+   f->SetTime(t);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1);
+
+   f->SetTime(t+dt);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt, x, k2);
+
+   f->SetTime(t);
+   x.Add(dt, k1);
+   x.Add(dt, k2);
+   t += dt;
+}
+
+void IMEXRK2::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+}
+
+void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 1 - sqrt(2)/2;
+   double delta = 1 - 1/(2*gamma);
+
+   f->SetTime(t);
+
+   //K1 exp is just f_1(t, x)
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
+
+   //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+
+   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+   //reuse k_imp to avoid extra vector
+
+   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
+   f -> SetTime(t + dt);
+   //add(x, dt*(1-gamma), k2_imp, z);
+   //optimization to avoid extra vector
+   x.Add(dt*(1-gamma), k_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   //f->ImplicitSolve(dt*gamma, z, k3_imp);
+   //reuse k_imp to avoid extra vector
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
+   //add it all up
+   x.Add(dt*delta, k1_exp);
+   x.Add(dt*(1-delta), k2_exp);
+   //x.Add(dt*(1-gamma), k2_imp); it is already added to x above
+   x.Add(dt*gamma, k_imp);
+   t += dt;
+}
+
+void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k3_exp.SetSize(n, mem_type);
+   k_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+}
+
+void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 1 - sqrt(2)/2;
+   double delta = -2*sqrt(2)/3;
+
+   f->SetTime(t);
+
+   //K1 exp is just f_1(t, x)
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
+
+   //K2 exp is f_1(t + gamma dt, x + dt gamma K1)
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+
+   //K3 Exp is f_1(t + dt, x + dt delta K1_exp + dt (1-delta) K2_exp)
+   f->SetTime(t + dt);
+   add(x, dt*delta, k1_exp, y);
+   //add(y, dt*(1-delta), k2_exp, w);
+   //optimization to avoid extra vector
+   y.Add(dt*(1-delta), k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k3_exp);
+
+   //K2_imp = f_2(t + gamma dt, x + dt gamma K2_imp)
+   f->SetTime(t + gamma*dt);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
+   //K3_imp = f_2(t+dt,x + dt(1-gamma)K2_imp + dt gamma K3_imp)
+   f -> SetTime(t + dt);
+   //add(x, dt*(1-gamma), k2_imp, z);
+   x.Add(dt*(1-gamma), k_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k_imp);
+
+   //add it all up
+   x.Add(dt*delta, k2_exp);
+   x.Add(dt*(1-delta), k3_exp);
+   //x.Add(dt*(1-gamma), k2_imp); // it is already added to x above
+   x.Add(dt*gamma, k_imp);
+   t += dt;
+}
+
+void IMEX_DIRK_RK3::Init(TimeDependentOperator &f_)
+{
+   ODESolver::Init(f_);
+   int n = f->Width();
+   k1_exp.SetSize(n, mem_type);
+   k2_exp.SetSize(n, mem_type);
+   k3_exp.SetSize(n, mem_type);
+   k4_exp.SetSize(n, mem_type);
+   k2_imp.SetSize(n, mem_type);
+   k3_imp.SetSize(n, mem_type);
+   y.SetSize(n, mem_type);
+}
+
+void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
+{
+   double gamma = 0.4358665215;
+   double b1 = 1.208496649;
+   double b2 = -0.644363171;
+   double a_31 = 0.3212788860;
+   double a_32 = 0.3966543747;
+   double a_41 = -0.105858296;
+   double a_42 = 0.5529291479;
+   double a_43 = 0.5529291479;
+
+   //K1_exp
+   f->SetTime(t);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(x, k1_exp);
+
+   //K2_imp, K2_exp
+   f->SetTime(t + gamma*dt);
+   add(x, dt*gamma, k1_exp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k2_imp);
+
+   //K3_imp, K3_exp
+   f->SetTime(t + (1+gamma)/2*dt);
+   add(x, dt*a_31, k1_exp, y);
+   //add(y, dt*a_32, k2_exp, w);
+   //optimization to avoid extra vector
+   y.Add(dt*a_32, k2_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k3_exp);
+   add(x, dt*(1-gamma)/2, k2_imp, y);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, y, k3_imp);
+
+   //K4_imp, K4_exp
+   f->SetTime(t+dt);
+   add(x, dt*a_41, k1_exp, y);
+   //add(y, dt*a_42, k2_exp, v);
+   y.Add(dt*a_42, k2_exp);
+   //add(w, dt*a_43, k3_exp, v);
+   y.Add(dt*a_43, k3_exp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
+   f->Mult(y, k4_exp);
+   //add(x, dt*b1, k2_imp, z);
+   //add(z, dt*b2, k3_imp, u);
+   //optimization to avoid extra vector
+   x.Add(dt*b1, k2_imp);
+   x.Add(dt*b2, k3_imp);
+   f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
+   f->ImplicitSolve(dt*gamma, x, k3_imp);
+
+   //add it all together
+   x.Add(dt*b1, k2_exp);
+   x.Add(dt*b2, k3_exp);
+   x.Add(dt*gamma, k4_exp);
+   //x.Add(dt*b1, k2_imp); //already added above
+   //x.Add(dt*b2, k3_imp); //already added above
+   x.Add(dt*gamma, k3_imp);
+   t += dt;
+
 }
 
 }

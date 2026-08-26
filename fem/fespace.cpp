@@ -22,42 +22,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
+#include <unordered_map>
+#include <unordered_set>
 
 using namespace std;
 
 namespace mfem
 {
-template <>
-void Ordering::DofsToVDofs<Ordering::byNODES>(int ndofs, int vdim,
-                                              Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = 1; vd < vdim; vd++)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byNODES>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
-
-template <>
-void Ordering::DofsToVDofs<Ordering::byVDIM>(int ndofs, int vdim,
-                                             Array<int> &dofs)
-{
-   // static method
-   int size = dofs.Size();
-   dofs.SetSize(size*vdim);
-   for (int vd = vdim-1; vd >= 0; vd--)
-   {
-      for (int i = 0; i < size; i++)
-      {
-         dofs[i+size*vd] = Map<byVDIM>(ndofs, vdim, dofs[i], vd);
-      }
-   }
-}
 
 FiniteElementSpace::FiniteElementSpace()
    : mesh(NULL), fec(NULL), vdim(0), ordering(Ordering::byNODES),
@@ -313,14 +284,7 @@ int FiniteElementSpace::DofToVDof(int dof, int vd, int ndofs_) const
 void FiniteElementSpace::AdjustVDofs(Array<int> &vdofs)
 {
    int n = vdofs.Size(), *vdof = vdofs;
-   for (int i = 0; i < n; i++)
-   {
-      int j;
-      if ((j = vdof[i]) < 0)
-      {
-         vdof[i] = -1-j;
-      }
-   }
+   for (int i = 0; i < n; i++) { vdof[i] = UnsignIndex(vdof[i]); }
 }
 
 void FiniteElementSpace::GetElementVDofs(int i, Array<int> &vdofs,
@@ -514,13 +478,14 @@ void FiniteElementSpace::ReorderElementToDofTable()
    for (int k = 0, dof_counter = 0; k < nnz; k++)
    {
       const int sdof = J[k]; // signed dof
-      const int dof = (sdof < 0) ? -1-sdof : sdof;
+      const int dof = UnsignIndex(sdof);
       int new_dof = dof_marker[dof];
       if (new_dof < 0)
       {
          dof_marker[dof] = new_dof = dof_counter++;
       }
-      J[k] = (sdof < 0) ? -1-new_dof : new_dof; // preserve the sign of sdof
+      // Preserve the sign of sdof
+      J[k] = (sdof < 0) ? FlipIndexSign(new_dof) : new_dof;
    }
 }
 
@@ -578,7 +543,7 @@ void MarkDofs(const Array<int> &dofs, Array<int> &mark_array)
 {
    for (auto d : dofs)
    {
-      mark_array[d >= 0 ? d : -1 - d] = -1;
+      mark_array[UnsignIndex(d)] = -1;
    }
 }
 
@@ -962,7 +927,7 @@ void FiniteElementSpace::AddDependencies(
             if (std::abs(coef) > 1e-12)
             {
                const int mdof = master_dofs[j];
-               if (mdof != sdof && mdof != (-1-sdof))
+               if (mdof != sdof && mdof != FlipIndexSign(sdof))
                {
                   deps.Add(sdof, mdof, coef);
                }
@@ -1055,7 +1020,7 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
    // FiniteElementSpace::AddDependencies.
 
    Array<int> edof;
-   int order = GetEdgeDofs(-1 - index, edof, variant);
+   int order = GetEdgeDofs(FlipIndexSign(index), edof, variant);
 
    int nv = fec->DofForGeometry(Geometry::POINT);
    int ne = fec->DofForGeometry(Geometry::SEGMENT);
@@ -1547,42 +1512,87 @@ const FaceRestriction *FiniteElementSpace::GetFaceRestriction(
    const bool is_dg_space = IsDGSpace();
    const L2FaceValues m = (is_dg_space && mul==L2FaceValues::DoubleValued) ?
                           L2FaceValues::DoubleValued : L2FaceValues::SingleValued;
-   key_face key = std::make_tuple(is_dg_space, f_ordering, type, m);
+   auto key = std::make_tuple(is_dg_space, f_ordering, type, m);
    auto itr = L2F.find(key);
    if (itr != L2F.end())
    {
-      return itr->second;
+      return itr->second.get();
    }
    else
    {
-      FaceRestriction *res;
+      std::unique_ptr<FaceRestriction> res;
       if (is_dg_space)
       {
          if (Conforming())
          {
-            res = new L2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new L2FaceRestriction(*this, f_ordering, type, m));
          }
          else
          {
-            res = new NCL2FaceRestriction(*this, f_ordering, type, m);
+            res.reset(new NCL2FaceRestriction(*this, f_ordering, type, m));
          }
       }
       else if (dynamic_cast<const DG_Interface_FECollection*>(fec))
       {
-         res = new L2InterfaceFaceRestriction(*this, f_ordering, type);
+         res.reset(new L2InterfaceFaceRestriction(*this, f_ordering, type));
       }
       else
       {
-         res = new ConformingFaceRestriction(*this, f_ordering, type);
+         res.reset(new ConformingFaceRestriction(*this, f_ordering, type));
       }
-      L2F[key] = res;
-      return res;
+      return L2F.emplace(key, std::move(res)).first->second.get();
+   }
+}
+
+const InterpolationManager &FiniteElementSpace::GetInterpolationManager(
+   ElementDofOrdering f_ordering, FaceType type) const
+{
+   const auto key = make_tuple(f_ordering, type);
+
+   auto it = interpolations.find(key);
+   if (it != interpolations.end())
+   {
+      return *it->second;
+   }
+   else
+   {
+      auto interp = make_unique<InterpolationManager>(*this, f_ordering, type);
+
+      int face_idx = 0;
+      for (int f = 0; f < mesh->GetNumFacesWithGhost(); ++f)
+      {
+         Mesh::FaceInformation face = mesh->GetFaceInformation(f);
+         if (!face.IsOfFaceType(type) || face.IsNonconformingCoarse())
+         {
+            continue;
+         }
+         if (face.IsConforming() || face.IsBoundary())
+         {
+            interp->RegisterFaceConformingInterpolation(face, face_idx);
+         }
+         else
+         {
+            interp->RegisterFaceCoarseToFineInterpolation(face, face_idx);
+         }
+         ++face_idx;
+      }
+
+      // Transform the interpolation matrix map into contiguous memory.
+      interp->LinearizeInterpolatorMapIntoVector();
+      interp->InitializeNCInterpConfig();
+
+      return *interpolations.emplace(key, std::move(interp)).first->second;
    }
 }
 
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const IntegrationRule &ir) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1597,6 +1607,11 @@ const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
 const QuadratureInterpolator *FiniteElementSpace::GetQuadratureInterpolator(
    const QuadratureSpace &qs) const
 {
+   if (!QuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    for (int i = 0; i < E2Q_array.Size(); i++)
    {
       const QuadratureInterpolator *qi = E2Q_array[i];
@@ -1612,6 +1627,11 @@ const FaceQuadratureInterpolator
 *FiniteElementSpace::GetFaceQuadratureInterpolator(
    const IntegrationRule &ir, FaceType type) const
 {
+   if (!FaceQuadratureInterpolator::SupportsFESpace(*this))
+   {
+      return nullptr;
+   }
+
    if (type==FaceType::Interior)
    {
       for (int i = 0; i < E2IFQ_array.Size(); i++)
@@ -1686,8 +1706,8 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
 
          for (int i = 0; i < fine_ldof; i++)
          {
-            int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int r = DofToVDof(dofs[i], vd);
+            const int m = UnsignIndex(r);
 
             if (!mark[m])
             {
@@ -1748,7 +1768,7 @@ SparseMatrix *FiniteElementSpace::VariableOrderRefinementMatrix(
          for (int i = 0; i < fine_ldof; i++)
          {
             const int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int m = UnsignIndex(r);
 
             if (!mark[m])
             {
@@ -2458,8 +2478,8 @@ SparseMatrix* FiniteElementSpace::DerefinementMatrix(int old_ndofs,
          {
             if (!std::isfinite(lR(i, 0))) { continue; }
 
-            int r = DofToVDof(dofs[i], vd);
-            int m = (r >= 0) ? r : (-1 - r);
+            const int r = DofToVDof(dofs[i], vd);
+            const int m = UnsignIndex(r);
 
             if (is_dg || !mark[m])
             {
@@ -3177,7 +3197,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             else
             {
                // degenerate face (i.e., edge-face constraint)
-               slave_orders |= edge_orders[-1 - slave.index];
+               slave_orders |= edge_orders[FlipIndexSign(slave.index)];
             }
          }
 
@@ -3916,6 +3936,16 @@ const FiniteElement *FiniteElementSpace::GetBE(int i) const
    return BE;
 }
 
+const FiniteElement *FiniteElementSpace::GetTypicalBE() const
+{
+   if (mesh->GetNBE() > 0) { return GetBE(0); }
+
+   Geometry::Type geom = mesh->GetTypicalFaceGeometry();
+   const FiniteElement *be = fec->FiniteElementForGeometry(geom);
+   MFEM_VERIFY(be != nullptr, "Could not determine a typical BE!");
+   return be;
+}
+
 const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
 {
    MFEM_VERIFY(!IsVariableOrder(), "not implemented");
@@ -3944,6 +3974,11 @@ const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
    }
 
    return fe;
+}
+
+const FiniteElement *FiniteElementSpace::GetTypicalFaceElement() const
+{
+   return fec->FiniteElementForGeometry(mesh->GetTypicalFaceGeometry());
 }
 
 const FiniteElement *FiniteElementSpace::GetEdgeElement(int i,
@@ -3985,11 +4020,8 @@ void FiniteElementSpace::Destroy()
       delete E2Q_array[i];
    }
    E2Q_array.SetSize(0);
-   for (auto &x : L2F)
-   {
-      delete x.second;
-   }
    L2F.clear();
+   interpolations.clear();
    for (int i = 0; i < E2IFQ_array.Size(); i++)
    {
       delete E2IFQ_array[i];
@@ -4500,6 +4532,210 @@ void FiniteElementSpace
    }
 }
 
+void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
+   const Array<int> &boundary_element_indices,
+   Array<int> &boundary_edge_dofs,
+   Array<int> *dof_edges,
+   Array<int> *dof_boundary_elements) const
+{
+   MFEM_VERIFY(mesh->Dimension() >= 2,
+               "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find edge objects");
+
+   boundary_edge_dofs.SetSize(0);
+   if (dof_edges) { dof_edges->SetSize(0); }
+   if (dof_boundary_elements) { dof_boundary_elements->SetSize(0); }
+
+   // A DOF that appears in exactly one selected boundary element lies on the
+   // bounding loop; one appearing in two or more is interior to the boundary
+   // region and is dropped. Count occurrences of each DOF (using scratch maps,
+   // exposed only as parallel-indexed Array<int> below) and record, on first
+   // sight, the local edge and boundary element carrying it.
+   //
+   // The count is over GetEdgeDofs, which returns endpoint vertex DOFs as well
+   // as edge-interior DOFs (relevant for collections such as ND_R2D that carry
+   // vertex DOFs). Edge-interior DOFs occur once per edge, so the count mainly
+   // resolves vertex DOFs: a vertex shared by several elements is interior and
+   // dropped, while a genuine loop-corner (open-curve endpoint) vertex is kept.
+   // This is why we count GetEdgeDofs rather than collecting GetEdgeInteriorDofs,
+   // which would omit the endpoint vertex DOFs the method is documented to keep.
+   // The 3D removal criterion (any edge in two or more faces) matches the
+   // parallel version rather than a parity toggle.
+   std::unordered_map<int, int> dof_count, dof_edge, dof_belem;
+   Array<int> edge_dofs, edges, edge_orientations;
+
+   const int dim = mesh->Dimension();
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
+   {
+      const int boundary_element_idx = boundary_element_indices[i];
+      std::unordered_set<int> boundary_element_dofs;
+
+      if (dim == 3)
+      {
+         // Boundary elements are 2D faces; extract their 1D edges.
+         int face_index, face_orientation;
+         mesh->GetBdrElementFace(boundary_element_idx, &face_index,
+                                 &face_orientation);
+         mesh->GetFaceEdges(face_index, edges, edge_orientations);
+      }
+      else
+      {
+         // Boundary elements are 1D segments, each being a single edge.
+         mesh->GetBdrElementEdges(boundary_element_idx, edges, edge_orientations);
+         MFEM_VERIFY(edges.Size() == 1,
+                     "2D boundary element should have exactly one edge");
+      }
+
+      for (int j = 0; j < edges.Size(); ++j)
+      {
+         GetEdgeDofs(edges[j], edge_dofs);
+         for (int k = 0; k < edge_dofs.Size(); ++k)
+         {
+            const int dof = edge_dofs[k];
+            // Count each DOF once per boundary element and record metadata the
+            // first time it is seen, so H1 DOFs shared by multiple edges of the
+            // same element are not double counted.
+            if (boundary_element_dofs.insert(dof).second &&
+                dof_count[dof]++ == 0)
+            {
+               dof_edge[dof] = edges[j];
+               dof_belem[dof] = boundary_element_idx;
+            }
+         }
+      }
+   }
+
+   // Emit the DOFs seen in exactly one selected boundary element, in a
+   // deterministic (increasing DOF index) order shared by all output arrays.
+   std::vector<int> kept;
+   kept.reserve(dof_count.size());
+   for (const auto &[dof, count] : dof_count)
+   {
+      if (count == 1) { kept.push_back(dof); }
+   }
+   std::sort(kept.begin(), kept.end());
+
+   boundary_edge_dofs.Reserve(static_cast<int>(kept.size()));
+   if (dof_edges) { dof_edges->Reserve(static_cast<int>(kept.size())); }
+   if (dof_boundary_elements)
+   {
+      dof_boundary_elements->Reserve(static_cast<int>(kept.size()));
+   }
+   for (int dof : kept)
+   {
+      boundary_edge_dofs.Append(dof);
+      if (dof_edges) { dof_edges->Append(dof_edge[dof]); }
+      if (dof_boundary_elements) { dof_boundary_elements->Append(dof_belem[dof]); }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   const Array<int> &bdr_attrs,
+   std::vector<Array<int>> &attr_to_elements)
+{
+   // One (initially empty) list of boundary elements per requested attribute,
+   // indexed to match bdr_attrs.
+   attr_to_elements.assign(bdr_attrs.Size(), Array<int>());
+
+   // Map attribute value -> position in bdr_attrs for quick lookup.
+   std::unordered_map<int, int> attr_to_index;
+   for (int i = 0; i < bdr_attrs.Size(); ++i)
+   {
+      attr_to_index[bdr_attrs[i]] = i;
+   }
+
+   // Bucket boundary elements by their attribute.
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      int attr = mesh->GetBdrElement(i)->GetAttribute();
+      auto it = attr_to_index.find(attr);
+      if (it != attr_to_index.end())
+      {
+         attr_to_elements[it->second].Append(i);
+      }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
+                                                        Array<int> &boundary_elements)
+{
+   boundary_elements.SetSize(0);
+
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      if (mesh->GetBdrElement(i)->GetAttribute() == bdr_attr)
+      {
+         boundary_elements.Append(i);
+      }
+   }
+}
+
+void FiniteElementSpace::ComputeLoopEdgeOrientations(
+   const Array<int> &dof_edges,
+   const Array<int> &dof_boundary_elements,
+   const Vector &loop_normal,
+   Array<int> &dof_orientations) const
+{
+   MFEM_VERIFY(dof_edges.Size() == dof_boundary_elements.Size(),
+               "dof_edges and dof_boundary_elements must be parallel-indexed");
+
+   const int ndof = dof_edges.Size();
+   dof_orientations.SetSize(ndof);
+
+   Array<int> edge_verts, bdr_elem_verts;
+   Vector edge_vec(3), to_edge_vec(3), cross_product(3);
+   for (int i = 0; i < ndof; i++)
+   {
+      const int edge_id = dof_edges[i];
+      const int bdr_elem_idx = dof_boundary_elements[i];
+
+      // Get edge vertices
+      mesh->GetEdgeVertices(edge_id, edge_verts);
+
+      const real_t *v0 = mesh->GetVertex(edge_verts[0]);
+      const real_t *v1 = mesh->GetVertex(edge_verts[1]);
+
+      // Get boundary element vertices
+      mesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
+
+      // Find the third vertex (not part of the edge)
+      int third_vertex = -1;
+      for (int j = 0; j < bdr_elem_verts.Size(); j++)
+      {
+         int v = bdr_elem_verts[j];
+         if (v != edge_verts[0] && v != edge_verts[1])
+         {
+            third_vertex = v;
+            break;
+         }
+      }
+
+      if (third_vertex == -1)
+      {
+         MFEM_ABORT("Boundary element " << bdr_elem_idx << " has only 2 vertices, "
+                    "but 3D boundary elements must have at least 3 vertices");
+      }
+
+      const real_t *v2 = mesh->GetVertex(third_vertex);
+
+      // Edge vector
+      for (int j = 0; j < 3; j++) { edge_vec[j] = v1[j] - v0[j]; }
+
+      // Vector from third vertex to edge (use edge midpoint)
+      for (int j = 0; j < 3; j++)
+      {
+         real_t edge_midpoint = (v0[j] + v1[j]) * 0.5;
+         to_edge_vec[j] = edge_midpoint - v2[j];
+      }
+
+      // Cross product: to_edge × edge
+      to_edge_vec.cross3D(edge_vec, cross_product);
+
+      // Check alignment with loop normal
+      real_t dot_product = cross_product * loop_normal;
+      dof_orientations[i] = (dot_product > 0) ? 1 : -1;
+   }
+}
+
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {
    string buff;
@@ -4604,9 +4840,8 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
 {
-   return UsesTensorBasis(fes)?
+   return (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) ?
           ElementDofOrdering::LEXICOGRAPHIC:
           ElementDofOrdering::NATIVE;
 }
-
 } // namespace mfem

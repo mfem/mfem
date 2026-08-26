@@ -494,6 +494,64 @@ TEST_CASE("Batched Linear Algebra",
    }
 }
 
+#ifdef MFEM_USE_EXCEPTIONS
+namespace
+{
+
+DenseTensor MakeSingularBatchedMatrices()
+{
+   const int n = 3;
+   const int n_mat = 3;
+
+   DenseTensor A_batch(n, n, n_mat);
+   for (int i = 0; i < n_mat; ++i)
+   {
+      DenseMatrix &A = A_batch(i);
+      A = 0.0;
+      for (int j = 0; j < n; ++j)
+      {
+         A(j, j) = 2.0 + i + j;
+      }
+   }
+
+   DenseMatrix &singular = A_batch(1);
+   singular = 0.0;
+   singular(0, 0) = 1.0;
+   singular(2, 2) = 1.0;
+
+   return A_batch;
+}
+
+}
+
+TEST_CASE("Batched LU factorization failure handling",
+          "[DenseMatrix][GPU]")
+{
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
+
+   SECTION("LUFactor")
+   {
+      DenseTensor A_batch = MakeSingularBatchedMatrices();
+      Array<int> P;
+      REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).LUFactor(A_batch, P),
+                          Catch::Matchers::Contains(
+                             "Batch LU factorization failed"));
+   }
+
+   SECTION("Invert")
+   {
+      DenseTensor A_batch = MakeSingularBatchedMatrices();
+      REQUIRE_THROWS_WITH(BatchedLinAlg::Get(backend).Invert(A_batch),
+                          Catch::Matchers::Contains(
+                             "Batch LU factorization failed"));
+   }
+}
+#endif
+
 TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
 {
    DenseTensor t1(2,3,4);
@@ -961,3 +1019,38 @@ TEST_CASE("NNLS", "[DenseMatrix]")
 }
 
 #endif // if MFEM_USE_LAPACK
+
+TEST_CASE("DenseTensor slice copy and move assign equivalency",
+          "[DenseMatrix][DenseTensor]")
+{
+   auto fill_matrix = [](int n)
+   {
+      DenseMatrix M(n, n);
+      M = 0.0;
+      for (int i = 0; i < n; i++)
+         for (int j = 0; j < n; j++)
+         {
+            M(i, j) = i+j*n+1;
+         }
+      return M;
+   };
+
+   constexpr int n = 3;
+   constexpr int k = 2;
+
+   DenseTensor tensor1(n, n, k), tensor2(n, n, k);
+   tensor1 = 0.0; tensor2 = 0.0;
+
+   DenseMatrix temp = fill_matrix(n);
+   tensor1(0) = temp; // copy assign
+   tensor2(0) = std::move(temp); // move assign
+
+   // Check that the tensor was actually updated
+   for (int i = 0; i < n; i++)
+   {
+      for (int j = 0; j < n; j++)
+      {
+         CHECK(tensor1(i, j, 0) == tensor2(i, j, 0));
+      }
+   }
+}

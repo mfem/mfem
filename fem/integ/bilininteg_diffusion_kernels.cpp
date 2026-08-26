@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_diffusion_pa_simplices.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -19,6 +20,13 @@ namespace mfem
 DiffusionIntegrator::Kernels::Kernels()
 {
    // 2D
+   // Q = P, only for simplex
+   DiffusionIntegrator::AddSimplexSpecialization<2,2,1>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,3,2>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,4,3>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,5,4>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,6,5>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,7,6>();
    // Q = P+1
    DiffusionIntegrator::AddSpecialization<2,1,1>();
    DiffusionIntegrator::AddSpecialization<2,2,2>();
@@ -40,7 +48,18 @@ DiffusionIntegrator::Kernels::Kernels()
    DiffusionIntegrator::AddSpecialization<2,8,9>();
    DiffusionIntegrator::AddSpecialization<2,9,10>();
    // others
+   DiffusionIntegrator::AddSimplexSpecialization<2,2,5>();
+   DiffusionIntegrator::AddSimplexSpecialization<2,3,6>();
+
    // 3D
+   // Q = P, only for simplex
+   DiffusionIntegrator::AddSimplexSpecialization<3,2,1>();
+   DiffusionIntegrator::AddSimplexSpecialization<3,3,2>();
+   DiffusionIntegrator::AddSimplexSpecialization<3,4,3>();
+   DiffusionIntegrator::AddSimplexSpecialization<3,5,4>();
+   DiffusionIntegrator::AddSimplexSpecialization<3,6,5>();
+   DiffusionIntegrator::AddSimplexSpecialization<3,7,6>();
+   DiffusionIntegrator::AddSimplexSpecialization<3,8,7>();
    // Q = P+1
    DiffusionIntegrator::AddSpecialization<3,1,1>();
    DiffusionIntegrator::AddSpecialization<3,2,2>();
@@ -134,14 +153,19 @@ void PADiffusionSetup2D<2>(const int Q1D,
                            Vector &d)
 {
    const bool symmetric = (coeffDim != 4);
-   const bool const_c = c.Size() == 1;
-   MFEM_VERIFY(coeffDim < 3 ||
-               !const_c, "Constant matrix coefficient not supported");
+   const bool const_c = c.Size() == coeffDim;
    const auto W = Reshape(w.Read(), Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,2,2,NE);
-   const auto C = const_c ? Reshape(c.Read(), 1,1,1,1) :
+   const auto C = const_c ? Reshape(c.Read(), coeffDim,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D, symmetric ? 3 : 4, NE);
+
+   auto get_coeff = [const_c] MFEM_HOST_DEVICE
+                    (const decltype(C) &C, int i, int qx, int qy, int e)
+   {
+      return const_c ? C(i,0,0,0) : C(i,qx,qy,e);
+   };
+
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -156,10 +180,11 @@ void PADiffusionSetup2D<2>(const int Q1D,
             if (coeffDim == 3 || coeffDim == 4) // Matrix coefficient
             {
                // First compute entries of R = MJ^{-T}, without det J factor.
-               const real_t M11 = C(0,qx,qy,e);
-               const real_t M12 = C(1,qx,qy,e);
-               const real_t M21 = symmetric ? M12 : C(2,qx,qy,e);
-               const real_t M22 = symmetric ? C(2,qx,qy,e) : C(3,qx,qy,e);
+               const real_t M11 = get_coeff(C,0,qx,qy,e);
+               const real_t M12 = get_coeff(C,1,qx,qy,e);
+               const real_t M21 = symmetric ? M12 : get_coeff(C,2,qx,qy,e);
+               const real_t M22 = symmetric ? get_coeff(C,2,qx,qy,e)
+                                  : get_coeff(C,3,qx,qy,e);
                const real_t R11 = M11*J22 - M12*J12;
                const real_t R21 = M21*J22 - M22*J12;
                const real_t R12 = -M11*J21 + M12*J11;
@@ -177,9 +202,8 @@ void PADiffusionSetup2D<2>(const int Q1D,
             }
             else // Vector or scalar coefficient
             {
-               const real_t C1 = const_c ? C(0,0,0,0) : C(0,qx,qy,e);
-               const real_t C2 = const_c ? C(0,0,0,0) :
-                                 (coeffDim == 2 ? C(1,qx,qy,e) : C(0,qx,qy,e));
+               const real_t C1 = get_coeff(C,0,qx,qy,e);
+               const real_t C2 = get_coeff(C,coeffDim==2?1:0,qx,qy,e);
 
                D(qx,qy,0,e) =  w_detJ * (C2*J12*J12 + C1*J22*J22); // 1,1
                D(qx,qy,1,e) = -w_detJ * (C2*J12*J11 + C1*J22*J21); // 1,2
@@ -244,14 +268,19 @@ void PADiffusionSetup3D(const int Q1D,
                         Vector &d)
 {
    const bool symmetric = (coeffDim != 9);
-   const bool const_c = c.Size() == 1;
-   MFEM_VERIFY(coeffDim < 6 ||
-               !const_c, "Constant matrix coefficient not supported");
+   const bool const_c = c.Size() == coeffDim;
    const auto W = Reshape(w.Read(), Q1D,Q1D,Q1D);
    const auto J = Reshape(j.Read(), Q1D,Q1D,Q1D,3,3,NE);
-   const auto C = const_c ? Reshape(c.Read(), 1,1,1,1,1) :
+   const auto C = const_c ? Reshape(c.Read(), coeffDim,1,1,1,1) :
                   Reshape(c.Read(), coeffDim,Q1D,Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D,Q1D, symmetric ? 6 : 9, NE);
+
+   auto get_coeff = [const_c] MFEM_HOST_DEVICE
+                    (const decltype(C) &C, int i, int qx, int qy, int qz, int e)
+   {
+      return const_c ? C(i,0,0,0,0) : C(i,qx,qy,qz,e);
+   };
+
    mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
@@ -287,15 +316,18 @@ void PADiffusionSetup3D(const int Q1D,
                if (coeffDim == 6 || coeffDim == 9) // Matrix coefficient version
                {
                   // Compute entries of R = MJ^{-T} = M adj(J)^T, without det J.
-                  const real_t M11 = C(0, qx,qy,qz, e);
-                  const real_t M12 = C(1, qx,qy,qz, e);
-                  const real_t M13 = C(2, qx,qy,qz, e);
-                  const real_t M21 = (!symmetric) ? C(3, qx,qy,qz, e) : M12;
-                  const real_t M22 = (!symmetric) ? C(4, qx,qy,qz, e) : C(3, qx,qy,qz, e);
-                  const real_t M23 = (!symmetric) ? C(5, qx,qy,qz, e) : C(4, qx,qy,qz, e);
-                  const real_t M31 = (!symmetric) ? C(6, qx,qy,qz, e) : M13;
-                  const real_t M32 = (!symmetric) ? C(7, qx,qy,qz, e) : M23;
-                  const real_t M33 = (!symmetric) ? C(8, qx,qy,qz, e) : C(5, qx,qy,qz, e);
+                  const real_t M11 = get_coeff(C, 0, qx,qy,qz, e);
+                  const real_t M12 = get_coeff(C, 1, qx,qy,qz, e);
+                  const real_t M13 = get_coeff(C, 2, qx,qy,qz, e);
+                  const real_t M21 = (!symmetric) ? get_coeff(C, 3, qx,qy,qz, e) : M12;
+                  const real_t M22 = (!symmetric) ? get_coeff(C, 4, qx,qy,qz, e)
+                                     : get_coeff(C, 3, qx,qy,qz, e);
+                  const real_t M23 = (!symmetric) ? get_coeff(C, 5, qx,qy,qz, e)
+                                     : get_coeff(C, 4, qx,qy,qz, e);
+                  const real_t M31 = (!symmetric) ? get_coeff(C, 6, qx,qy,qz, e) : M13;
+                  const real_t M32 = (!symmetric) ? get_coeff(C, 7, qx,qy,qz, e) : M23;
+                  const real_t M33 = (!symmetric) ? get_coeff(C, 8, qx,qy,qz, e)
+                                     : get_coeff(C, 5, qx,qy,qz, e);
 
                   const real_t R11 = M11*A11 + M12*A12 + M13*A13;
                   const real_t R12 = M11*A21 + M12*A22 + M13*A23;
@@ -335,11 +367,9 @@ void PADiffusionSetup3D(const int Q1D,
                }
                else  // Vector or scalar coefficient version
                {
-                  const real_t C1 = const_c ? C(0,0,0,0,0) : C(0,qx,qy,qz,e);
-                  const real_t C2 = const_c ? C(0,0,0,0,0) :
-                                    (coeffDim == 3 ? C(1,qx,qy,qz,e) : C(0,qx,qy,qz,e));
-                  const real_t C3 = const_c ? C(0,0,0,0,0) :
-                                    (coeffDim == 3 ? C(2,qx,qy,qz,e) : C(0,qx,qy,qz,e));
+                  const real_t C1 = get_coeff(C,0,qx,qy,qz,e);
+                  const real_t C2 = get_coeff(C,coeffDim==3?1:0,qx,qy,qz,e);
+                  const real_t C3 = get_coeff(C,coeffDim==3?2:0,qx,qy,qz,e);
 
                   // detJ J^{-1} J^{-T} = (1/detJ) adj(J) adj(J)^T
                   D(qx,qy,qz,0,e) = w_detJ * (C1*A11*A11 + C2*A12*A12 + C3*A13*A13); // 1,1

@@ -63,7 +63,6 @@ ThresholdRefiner::ThresholdRefiner(ErrorEstimator &est)
 
    threshold = 0.0;
    num_marked_elements = 0LL;
-   current_sequence = -1;
 
    non_conforming = -1;
    nc_limit = 0;
@@ -87,7 +86,6 @@ int ThresholdRefiner::MarkWithoutRefining(Mesh & mesh,
    threshold = 0.0;
    num_marked_elements = 0LL;
    refinements.SetSize(0);
-   current_sequence = mesh.GetSequence();
 
    const long long num_elements = mesh.GetGlobalNE();
    if (num_elements >= max_elements) { return STOP; }
@@ -143,13 +141,12 @@ int ThresholdRefiner::ApplyImpl(Mesh &mesh)
    if (num_marked_elements == 0LL) { return STOP; }
 
    mesh.GeneralRefinement(marked_elements, non_conforming, nc_limit);
-   return CONTINUE + REFINED;
+   return static_cast<int>(CONTINUE) + static_cast<int>(REFINED);
 }
 
 void ThresholdRefiner::Reset()
 {
    estimator.Reset();
-   current_sequence = -1;
    num_marked_elements = 0LL;
    // marked_elements.SetSize(0); // not necessary
 }
@@ -162,7 +159,7 @@ int ThresholdDerefiner::ApplyImpl(Mesh &mesh)
    const Vector &local_err = estimator.GetLocalErrors();
    bool derefs = mesh.DerefineByError(local_err, threshold, nc_limit, op);
 
-   return derefs ? CONTINUE + DEREFINED : NONE;
+   return derefs ? static_cast<int>(CONTINUE) + static_cast<int>(DEREFINED) : NONE;
 }
 
 
@@ -290,7 +287,7 @@ int CoefficientRefiner::PreprocessMesh(Mesh &mesh, int max_it)
    }
    delete l2fes;
    delete gf;
-   return CONTINUE + REFINED;
+   return static_cast<int>(CONTINUE) + static_cast<int>(REFINED);
 
 }
 
@@ -310,7 +307,7 @@ int Rebalancer::ApplyImpl(Mesh &mesh)
    if (pmesh && pmesh->Nonconforming())
    {
       pmesh->Rebalance();
-      return CONTINUE + REBALANCED;
+      return static_cast<int>(CONTINUE) + static_cast<int>(REBALANCED);
    }
 #endif
    return NONE;

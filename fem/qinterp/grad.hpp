@@ -268,8 +268,9 @@ static void Derivatives3D(const int NE,
       DeviceMatrix B(BG[0], D1D, Q1D);
       DeviceMatrix G(BG[1], D1D, Q1D);
 
-      MFEM_SHARED real_t sm0[3][MQ1*MQ1*MQ1];
-      MFEM_SHARED real_t sm1[3][MQ1*MQ1*MQ1];
+      constexpr int MDQ = MD1 > MQ1 ? MD1 : MQ1;
+      MFEM_SHARED real_t sm0[3][MD1*MD1*MDQ];
+      MFEM_SHARED real_t sm1[3][MD1*MQ1*MQ1];
       DeviceTensor<3> X(sm0[2], D1D, D1D, D1D);
       DeviceTensor<3> DDQ0(sm0[0], D1D, D1D, Q1D);
       DeviceTensor<3> DDQ1(sm0[1], D1D, D1D, Q1D);
@@ -592,10 +593,10 @@ template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
 QuadratureInterpolator::GradKernelType
 QuadratureInterpolator::GradKernels::Kernel()
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::Derivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::Derivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::Derivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, Q1D>; }
+   MFEM_ABORT("");
 }
 
 template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
@@ -603,10 +604,10 @@ template<int DIM, QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int VDIM, int D1D,
 QuadratureInterpolator::CollocatedGradKernelType
 QuadratureInterpolator::CollocatedGradKernels::Kernel()
 {
-   if (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
-   else if (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>; }
-   else if (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D>; }
-   else { MFEM_ABORT(""); }
+   if constexpr (DIM == 1) { return internal::quadrature_interpolator::CollocatedDerivatives1D<Q_LAYOUT, GRAD_PHYS>; }
+   else if constexpr (DIM == 2) { return internal::quadrature_interpolator::CollocatedDerivatives2D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D, NBZ>; }
+   else if constexpr (DIM == 3) { return internal::quadrature_interpolator::CollocatedDerivatives3D<Q_LAYOUT, GRAD_PHYS, VDIM, D1D>; }
+   MFEM_ABORT("");
 }
 
 /// @endcond

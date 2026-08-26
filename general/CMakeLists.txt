@@ -18,6 +18,7 @@ list(APPEND SRCS
   gecko.cpp
   globals.cpp
   hash.cpp
+  hash_util.cpp
   isockstream.cpp
   mem_manager.cpp
   occa.cpp
@@ -46,6 +47,7 @@ list(APPEND HDRS
   globals.hpp
   zstr.hpp
   hash.hpp
+  hash_util.hpp
   isockstream.hpp
   kdtree.hpp
   mem_alloc.hpp

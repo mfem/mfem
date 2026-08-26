@@ -228,7 +228,19 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1_", 3))
    {
-      fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
+      // Parse pyramid basis type if included in the name
+      const char *pyr = strstr(name, "Pyr");
+      if (pyr == NULL)
+      {
+         // Use default pyramid type elements
+         fec = new H1_FECollection(atoi(name + 7), atoi(name + 3));
+      }
+      else
+      {
+         // Use specific pyramid type elements
+         fec = new H1_FECollection(atoi(name + 7), atoi(name + 3),
+                                   BasisType::GaussLobatto, atoi(pyr + 3));
+      }
    }
    else if (!strncmp(name, "H1Pos_Trace_", 12))
    {
@@ -245,26 +257,44 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
    }
    else if (!strncmp(name, "H1@", 3))
    {
-      fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
-                                BasisType::GetType(name[3]));
+      // Parse pyramid basis type if included in the name
+      const char *pyr = strstr(name, "Pyr");
+      if (pyr == NULL)
+      {
+         // Use default pyramid type elements
+         fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
+                                   BasisType::GetType(name[3]));
+      }
+      else
+      {
+         // Use specific pyramid type elements
+         fec = new H1_FECollection(atoi(name + 9), atoi(name + 5),
+                                   BasisType::GetType(name[3]),
+                                   atoi(pyr + 3));
+      }
    }
-   else if (!strncmp(name, "L2_T", 4))
-      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
-                                atoi(name + 4));
-   else if (!strncmp(name, "L2_", 3))
+   else if (!strncmp(name, "L2", 2))
    {
-      fec = new L2_FECollection(atoi(name + 7), atoi(name + 3));
-   }
-   else if (!strncmp(name, "L2Int_T", 7))
-   {
-      fec = new L2_FECollection(atoi(name + 13), atoi(name + 9),
-                                atoi(name + 7), FiniteElement::INTEGRAL);
-   }
-   else if (!strncmp(name, "L2Int_", 6))
-   {
-      fec = new L2_FECollection(atoi(name + 10), atoi(name + 6),
-                                BasisType::GaussLegendre,
-                                FiniteElement::INTEGRAL);
+      // Parse Map Type
+      const int mtype = strstr(name, "Int") == NULL ?
+                        FiniteElement::VALUE : FiniteElement::INTEGRAL;
+
+      // Parse the base order
+      const int p = atoi(strstr(name, "_P") + 2);
+
+      // Parse the mesh dimension
+      const int dim = atoi(strstr(name, "D") - 1);
+
+      // Parse basis type if specified
+      const char *t = strstr(name, "_T");
+      const int btype = t == NULL ? BasisType::GaussLegendre : atoi(t + 2);
+
+      // Parse the pyramid type if specified
+      const char *pyr = strstr(name, "Pyr");
+      const int ptype = pyr == NULL ? 1 : atoi(pyr + 3);
+
+      // Create collection
+      fec = new L2_FECollection(p, dim, btype, mtype, ptype);
    }
    else if (!strncmp(name, "RT_Trace_", 9))
    {
@@ -308,13 +338,25 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                           FiniteElement::INTEGRAL,
                                           BasisType::GetType(name[12]));
    }
-   else if (!strncmp(name, "RT_R1D",6))
+   else if (!strncmp(name, "RT_R1D_", 7))
    {
-      fec = new RT_R1D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new RT_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "RT_R2D",6))
+   else if (!strncmp(name, "RT_R1D@", 7))
    {
-      fec = new RT_R2D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new RT_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "RT_R2D_", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "RT_R2D@", 7))
+   {
+      fec = new RT_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "RT_", 3))
    {
@@ -336,13 +378,25 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                       BasisType::GetType(name[9]),
                                       BasisType::GetType(name[10]));
    }
-   else if (!strncmp(name, "ND_R1D",6))
+   else if (!strncmp(name, "ND_R1D_", 7))
    {
-      fec = new ND_R1D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new ND_R1D_FECollection(atoi(name + 11), atoi(name + 7));
    }
-   else if (!strncmp(name, "ND_R2D",6))
+   else if (!strncmp(name, "ND_R1D@", 7))
    {
-      fec = new ND_R2D_FECollection(atoi(name+11),atoi(name + 7));
+      fec = new ND_R1D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
+   }
+   else if (!strncmp(name, "ND_R2D_", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 11), atoi(name + 7));
+   }
+   else if (!strncmp(name, "ND_R2D@", 7))
+   {
+      fec = new ND_R2D_FECollection(atoi(name + 14), atoi(name + 10),
+                                    BasisType::GetType(name[7]),
+                                    BasisType::GetType(name[8]));
    }
    else if (!strncmp(name, "ND_", 3))
    {
@@ -485,7 +539,7 @@ GetFace(int &nv, v_t &v, int &ne, e_t &e, eo_t &eo,
       int v0 = v[f_consts::Edges[i][0]];
       int v1 = v[f_consts::Edges[i][1]];
       int eor = 0;
-      if (v0 > v1) { swap(v0, v1); eor = 1; }
+      if (v0 > v1) { std::swap(v0, v1); eor = 1; }
       for (int j = g_consts::VertToVert::I[v0]; true; j++)
       {
          MFEM_ASSERT(j < g_consts::VertToVert::I[v0+1],
@@ -1685,9 +1739,10 @@ const int *RT1_3DFECollection::DofOrderForOrientation(Geometry::Type GeomType,
 
 
 H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
-                                 const int pyrtype)
+                                 const int pyr_type)
    : FiniteElementCollection(p)
    , dim(dim)
+   , p_type(pyr_type)
 {
    MFEM_VERIFY(p >= 1, "H1_FECollection requires order >= 1.");
    MFEM_VERIFY(dim >= 0 && dim <= 3, "H1_FECollection requires 0 <= dim <= 3.");
@@ -1700,7 +1755,14 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
    {
       case BasisType::GaussLobatto:
       {
-         snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
+         if (pyr_type == ScalarPyramid::DefaultType)
+         {
+            snprintf(h1_name, 32, "H1_%dD_P%d", dim, p);
+         }
+         else
+         {
+            snprintf(h1_name, 32, "H1_%dD_P%d_Pyr%d", dim, p, pyr_type);
+         }
          break;
       }
       case BasisType::Positive:
@@ -1886,11 +1948,11 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
          H1_dof[Geometry::TETRAHEDRON] = (TriDof*pm3)/3;
          H1_dof[Geometry::CUBE] = QuadDof*pm1;
          H1_dof[Geometry::PRISM] = TriDof*pm1;
-         if (pyrtype == 0 || b_type == BasisType::Positive)
+         if (pyr_type == 0 || b_type == BasisType::Positive)
          {
             H1_dof[Geometry::PYRAMID] = pm2*pm1*(2*p-3)/6; // Bergot (JSC)
          }
-         else if (pyrtype == 1)
+         else if (pyr_type == 1)
          {
             H1_dof[Geometry::PYRAMID] = pm1*pm1*pm1; // Fuentes
          }
@@ -1911,13 +1973,15 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
                new H1_TetrahedronElement(p, btype);
             H1_Elements[Geometry::CUBE] = new H1_HexahedronElement(p, btype);
             H1_Elements[Geometry::PRISM] = new H1_WedgeElement(p, btype);
-            if (pyrtype == 0)
+            if (pyr_type == 0)
             {
-               H1_Elements[Geometry::PYRAMID] = new H1_BergotPyramidElement(p, btype);
+               H1_Elements[Geometry::PYRAMID] =
+                  new H1_BergotPyramidElement(p, btype);
             }
             else
             {
-               H1_Elements[Geometry::PYRAMID] = new H1_FuentesPyramidElement(p, btype);
+               H1_Elements[Geometry::PYRAMID] =
+                  new H1_FuentesPyramidElement(p, btype);
             }
          }
 
@@ -2124,6 +2188,7 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    : FiniteElementCollection(p)
    , dim(dim)
    , m_type(map_type)
+   , p_type(pyr_type)
 {
    MFEM_VERIFY(p >= 0, "L2_FECollection requires order >= 0.");
 
@@ -2139,10 +2204,25 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
    switch (btype)
    {
       case BasisType::GaussLegendre:
-         snprintf(d_name, 32, "%s_%dD_P%d", prefix, dim, p);
+         if (pyr_type == ScalarPyramid::DefaultType)
+         {
+            snprintf(d_name, 32, "%s_%dD_P%d", prefix, dim, p);
+         }
+         else
+         {
+            snprintf(d_name, 32, "%s_%dD_P%d_Pyr%d", prefix, dim, p, pyr_type);
+         }
          break;
       default:
-         snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
+         if (pyr_type == ScalarPyramid::DefaultType)
+         {
+            snprintf(d_name, 32, "%s_T%d_%dD_P%d", prefix, btype, dim, p);
+         }
+         else
+         {
+            snprintf(d_name, 32, "%s_T%d_%dD_P%d_Pyr%d",
+                     prefix, btype, dim, p, pyr_type);
+         }
    }
 
    for (int g = 0; g < Geometry::NumGeom; g++)
@@ -2261,11 +2341,13 @@ L2_FECollection::L2_FECollection(const int p, const int dim, const int btype,
          L2_Elements[Geometry::PRISM] = new L2_WedgeElement(p, btype);
          if (pyr_type == 0)
          {
-            L2_Elements[Geometry::PYRAMID] = new L2_BergotPyramidElement(p, btype);
+            L2_Elements[Geometry::PYRAMID] =
+               new L2_BergotPyramidElement(p, btype);
          }
          else
          {
-            L2_Elements[Geometry::PYRAMID] = new L2_FuentesPyramidElement(p, btype);
+            L2_Elements[Geometry::PYRAMID] =
+               new L2_FuentesPyramidElement(p, btype);
          }
       }
 

@@ -340,8 +340,20 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
-   int GetDofSign(int i)
-   { return NURBSext || Nonconforming() ? 1 : ldof_sign[VDofToDof(i)]; }
+   /** @brief Return true if the parallel FE space has DOFs with signs opposite
+       of the DOFs in the respective serial FE space. */
+   bool HaveDofSigns() const { return ldof_sign.Size() != 0; }
+
+   /** @brief Apply the DOF signs to the given host data @a h_data which must be
+       of size GetVSize() if HaveDofSigns() is true. If HaveDofSigns() is false,
+       this method is no-op and returns immediately. */
+   void ApplyDofSigns(real_t *h_data) const;
+
+   /** @brief Return -1 if the given (vector) DOF @a i has a sign opposite of
+       the DOF in the respecive serial FE space. Otherwise, return 1. */
+   int GetDofSign(int i) const
+   { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
+
    HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
    HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
    HYPRE_BigInt GlobalVSize() const
@@ -448,6 +460,41 @@ public:
    void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
                             int component = -1) const override;
 
+   /** @brief Extract the edge degrees of freedom of a boundary "loop" on a
+       parallel mesh (see the serial FiniteElementSpace::GetBoundaryLoopEdgeDofs
+       for the definition of a loop). This version removes the artificial
+       boundary edges that appear at processor boundaries, so the selected DOFs
+       are independent of the mesh partitioning.
+
+       As in the serial version, the @a boundary_edge_dofs_out, @a dof_edges and
+       @a dof_boundary_elements outputs share a single indexing describing the
+       same local DOF at each position.
+
+       Requirements:
+       - Mesh must be conforming (no hanging nodes)
+       - Mesh dimension must be >= 2
+       @param[in]  boundary_element_indices Array of boundary element indices.
+       @param[out] ess_tdof_list Essential true DOF indices, sorted ascending.
+       @param[out] boundary_edge_dofs_out Local boundary-loop DOF indices.
+       @param[out] ldof_marker Optional; marker of the boundary edge DOFs,
+                   derivable from @a boundary_edge_dofs_out via ListToMarker().
+       @param[out] dof_edges Optional; local edge index of each DOF.
+       @param[out] dof_boundary_elements Optional; a boundary element containing
+                   each DOF.
+       @param[out] ess_edge_list Optional array of edge indices, in one-to-one
+                                 correspondence with @a ess_tdof_list. An entry
+                                 is -1 when the true DOF is owned by this rank
+                                 but no local edge can be associated with it,
+                                 which can happen for a shared vertex DOF whose
+                                 boundary elements are all on other ranks. */
+   void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
+                                Array<int> &ess_tdof_list,
+                                Array<int> &boundary_edge_dofs_out,
+                                Array<int> *ldof_marker = nullptr,
+                                Array<int> *dof_edges = nullptr,
+                                Array<int> *dof_boundary_elements = nullptr,
+                                Array<int> *ess_edge_list = nullptr);
+
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
@@ -483,6 +530,8 @@ public:
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
    const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() { return face_nbr_glob_dof_map; }
    const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
+   const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() const
+   { return face_nbr_glob_dof_map; }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 

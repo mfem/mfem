@@ -23,15 +23,19 @@ list(APPEND SRCS
   complex_operator.cpp
   constraints.cpp
   densemat.cpp
-  symmat.cpp
+  filteredsolver.cpp
   handle.cpp
   matrix.cpp
   mma.cpp
+  multivector.cpp
   ode.cpp
   operator.cpp
+  ordering.cpp
+  particlevector.cpp
   solvers.cpp
   sparsemat.cpp
   sparsesmoothers.cpp
+  symmat.cpp
   vector.cpp
   )
 
@@ -50,8 +54,9 @@ list(APPEND HDRS
   constraints.hpp
   densemat.hpp
   dinvariants.hpp
-  symmat.hpp
   dtensor.hpp
+  dual.hpp
+  filteredsolver.hpp
   handle.hpp
   invariants.hpp
   kernels.hpp
@@ -59,16 +64,19 @@ list(APPEND HDRS
   linalg.hpp
   matrix.hpp
   mma.hpp
+  multivector.hpp
   ode.hpp
   operator.hpp
+  ordering.hpp
+  particlevector.hpp
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp
+  symmat.hpp
   tlayout.hpp
   tmatrix.hpp
   ttensor.hpp
   tensor.hpp
-  dual.hpp
   vector.hpp
   )
 
@@ -140,6 +148,12 @@ endif()
 if (MFEM_USE_MKL_PARDISO)
   list(APPEND SRCS pardiso.cpp)
   list(APPEND HDRS pardiso.hpp)
+endif()
+
+# cudss solver
+if (MFEM_USE_CUDSS)
+  list(APPEND SRCS cudss.cpp)
+  list(APPEND HDRS cudss.hpp)
 endif()
 
 convert_filenames_to_full_paths(SRCS)

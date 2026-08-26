@@ -204,9 +204,9 @@ void MUMPSSolver::SetOperator(const Operator &op)
          delete id;
       }
 #ifdef MFEM_USE_SINGLE
-      id = new SMUMPS_STRUC_C;
+      id = new SMUMPS_STRUC_C();
 #else
-      id = new DMUMPS_STRUC_C;
+      id = new DMUMPS_STRUC_C();
 #endif
       id->sym = mat_type;
 
@@ -341,7 +341,7 @@ void MUMPSSolver::InitRhsSol(int nrhs) const
 #else
       if (myid == 0)
       {
-         delete rhs_glob;
+         delete [] rhs_glob;
          rhs_glob = new real_t[nrhs * id->lrhs];
          id->rhs = rhs_glob;
       }

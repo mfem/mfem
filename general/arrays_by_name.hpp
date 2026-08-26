@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include "array.hpp"
+#include "text.hpp"
 
 #include <iostream>
 #include <map>
@@ -247,7 +248,8 @@ inline void ArraysByName<T>::Print(std::ostream &os, int width) const
    os << data.size() << '\n';
    for (auto const &it : data)
    {
-      os << '"' << it.first << '"' << '\n' << it.second.Size() << '\n';
+      // Note: The method Load() can read any string formatted with std::quoted.
+      os << std::quoted(it.first) << '\n' << it.second.Size() << '\n';
       it.second.Print(os, width > 0 ? width : it.second.Size());
    }
 }
@@ -258,31 +260,36 @@ void ArraysByName<T>::Load(std::istream &in)
    int NumArrays;
    in >> NumArrays;
 
-   std::string ArrayLine, ArrayName;
-   for (int i=0; i < NumArrays; i++)
+   for (int i = 0; i < NumArrays; i++)
    {
       in >> std::ws;
-      getline(in, ArrayLine);
-
-      std::size_t q0 = ArrayLine.find('"');
-      std::size_t q1 = ArrayLine.rfind('"');
-
-      if (q0 != std::string::npos && q1 > q0)
+      // Read the name:
+      // - If the stream 'in' starts with " then parse it with the function
+      //   parse_quoted_string() from text.hpp. In this case, the name can be
+      //   empty. Note: this case allows for reading any string formatted using
+      //   std::quoted, e.g. as in the method Print().
+      // - If the name does not start with " then the name ends with the first
+      //   white space character (and the white space character is not included
+      //   in the name). Since white space characters are skipped before reading
+      //   the name, there will be at least one non-white-space character in the
+      //   name in this case.
+      std::string ArrayName;
+      if (in.peek() == '"')
       {
-         // Locate set name between first and last double quote
-         ArrayName = ArrayLine.substr(q0+1,q1-q0-1);
+         if (parse_quoted_string(ArrayName, in) != 0)
+         {
+            MFEM_ABORT("error parsing input!");
+         }
       }
       else
       {
-         // If no double quotes found locate set name using white space
-         q1 = ArrayLine.find(' ');
-         ArrayName = ArrayLine.substr(0,q1-1);
+         in >> ArrayName;
+         MFEM_VERIFY(in.good(), "error parsing input!");
       }
 
-      // Ignore the remainder of the line which may contain explanatory comments
-      data[ArrayName].Load(in, 0);
+      // Read the array
+      data[ArrayName].Load(in);
    }
-
 }
 
 }

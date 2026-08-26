@@ -60,6 +60,12 @@ void Linear1DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(1,0) =  1.;
 }
 
+void Linear1DFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                        DenseMatrix &h) const
+{
+   h = 0.0;
+}
+
 Linear2DFiniteElement::Linear2DFiniteElement()
    : NodalFiniteElement(2, Geometry::TRIANGLE, 3, 1)
 {
@@ -87,6 +93,11 @@ void Linear2DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(2,0) =  0.; dshape(2,1) =  1.;
 }
 
+void Linear2DFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                        DenseMatrix &h) const
+{
+   h = 0.0;
+}
 
 BiLinear2DFiniteElement::BiLinear2DFiniteElement()
    : NodalFiniteElement(2, Geometry::SQUARE, 4, 1, FunctionSpace::Qk)
@@ -1256,6 +1267,12 @@ void Linear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    }
 }
 
+void Linear3DFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                        DenseMatrix &h) const
+{
+   h = 0.0;
+}
+
 void Linear3DFiniteElement::GetFaceDofs (int face, int **dofs, int *ndofs)
 const
 {
@@ -1630,6 +1647,37 @@ void TriLinear3DFiniteElement::CalcDShape(const IntegrationPoint &ip,
    dshape(7,0) = -  y *  z;
    dshape(7,1) =   ox *  z;
    dshape(7,2) =   ox *  y;
+}
+
+void TriLinear3DFiniteElement::CalcHessian(const IntegrationPoint &ip,
+                                           DenseMatrix &h) const
+{
+   real_t x = ip.x, y = ip.y, z = ip.z;
+   real_t ox = 1.-x, oy = 1.-y, oz = 1.-z;
+
+   h(0,0) = 0.;   h(0,1) =  oz;   h(0,2) = oy;
+   h(0,3) = 0.;   h(0,4) =  ox;   h(0,5) = 0.;
+
+   h(1,0) = 0.;   h(1,1) = -oz;   h(1,2) = -oy;
+   h(1,3) = 0.;   h(1,4) =  x;    h(1,5) = 0.;
+
+   h(2,0) = 0.;   h(2,1) =  oz;   h(2,2) = -y;
+   h(2,3) = 0.;   h(2,4) =  -x;   h(2,5) = 0.;
+
+   h(3,0) = 0.;   h(3,1) = -oz;   h(3,2) = y;
+   h(3,3) = 0.;   h(3,4) = -ox;   h(3,5) = 0.;
+
+   h(4,0) = 0.;   h(4,1) =  z;    h(4,2) = -oy;
+   h(4,3) = 0.;   h(4,4) = -ox;   h(4,5) = 0.;
+
+   h(5,0) = 0.;   h(5,1) = -z;    h(5,2) = oy;
+   h(5,3) = 0.;   h(5,4) = -x;    h(5,5) = 0.;
+
+   h(6,0) = 0.;   h(6,1) =  z;    h(6,2) = y;
+   h(6,3) = 0.;   h(6,4) =  x;    h(6,5) = 0.;
+
+   h(7,0) = 0.;   h(7,1) = -z;    h(7,2) = -y;
+   h(7,3) = 0.;   h(7,4) = ox;    h(7,5) = 0.;
 }
 
 

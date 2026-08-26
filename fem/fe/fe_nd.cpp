@@ -1282,12 +1282,49 @@ ND_SegmentElement::ND_SegmentElement(const int p, const int ob_type)
    }
 }
 
+void ND_SegmentElement::CalcShape(const IntegrationPoint &ip,
+                                  Vector &shape) const
+{
+   if (obasis1d.IsIntegratedType()) { obasis1d.ScaleIntegrated(false); }
+   obasis1d.Eval(ip.x, shape);
+}
+
 void ND_SegmentElement::CalcVShape(const IntegrationPoint &ip,
                                    DenseMatrix &shape) const
 {
    Vector vshape(shape.Data(), dof);
 
-   obasis1d.Eval(ip.x, vshape);
+   CalcShape(ip, vshape);
+}
+
+void ND_SegmentElement::ProjectIntegrated(VectorCoefficient &vc,
+                                          ElementTransformation &Trans,
+                                          Vector &dofs) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   real_t vk[Geometry::MaxDim];
+   Vector xk(vk, vc.GetVDim());
+
+   const real_t *cp = poly1d.ClosedPoints(dof, BasisType::GaussLobatto);
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, dof);
+   IntegrationPoint ip;
+
+   for (int i = 0; i < dof; i++)
+   {
+      const real_t h = cp[i+1] - cp[i];
+      real_t val = 0.0;
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip1d = ir.IntPoint(q);
+         ip.x = cp[i] + h*ip1d.x;
+         Trans.SetIntPoint(&ip);
+         vc.Eval(xk, Trans, ip);
+         val += ip1d.weight*Trans.Jacobian().InnerProduct(tk, vk);
+      }
+
+      dofs(i) = val*h;
+   }
 }
 
 const real_t ND_WedgeElement::tk[15] =
@@ -2531,7 +2568,7 @@ void ND_FuentesPyramidElement::calcCurlBasis(const int p,
 
 ND_R1D_PointElement::ND_R1D_PointElement(int p)
    : VectorFiniteElement(1, Geometry::POINT, 2, p,
-                         H_CURL, FunctionSpace::Pk)
+                         H_CURL_R1D, FunctionSpace::Pk)
 {
    // VectorFiniteElement::SetDerivMembers doesn't support 0D H_CURL elements
    // so we mimic a 1D element and then correct the dimension here.
@@ -2562,7 +2599,7 @@ ND_R1D_SegmentElement::ND_R1D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, 3 * p + 2, p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL_R1D, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
@@ -2839,7 +2876,7 @@ ND_R2D_SegmentElement::ND_R2D_SegmentElement(const int p,
                                              const int cb_type,
                                              const int ob_type)
    : VectorFiniteElement(1, Geometry::SEGMENT, 2 * p + 1, p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL_R2D, FunctionSpace::Pk),
      dof2tk(dof),
      cbasis1d(poly1d.GetBasis(p, VerifyClosed(cb_type))),
      obasis1d(poly1d.GetBasis(p - 1, VerifyOpen(ob_type)))
@@ -3023,7 +3060,7 @@ void ND_R2D_SegmentElement::Project(VectorCoefficient &vc,
 ND_R2D_FiniteElement::ND_R2D_FiniteElement(int p, Geometry::Type G, int Do,
                                            const real_t *tk_fe)
    : VectorFiniteElement(2, G, Do, p,
-                         H_CURL, FunctionSpace::Pk),
+                         H_CURL_R2D, FunctionSpace::Pk),
      tk(tk_fe),
      dof_map(dof),
      dof2tk(dof)

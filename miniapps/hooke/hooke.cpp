@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
    Mpi::Init(argc, argv);
    int num_procs = Mpi::WorldSize();
    int myid = Mpi::WorldRank();
+   Hypre::Init();
 
    int order = 1;
    const char *device_config = "cpu";

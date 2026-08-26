@@ -108,6 +108,15 @@
 // Enable MFEM functionality based on the STRUMPACK library.
 #cmakedefine MFEM_USE_STRUMPACK
 
+// Enable MFEM functionality based on the cuDSS library.
+#cmakedefine MFEM_USE_CUDSS
+
+// CUDSS communication layer library path
+#cmakedefine MFEM_CUDSS_COMM_LIB "@MFEM_CUDSS_COMM_LIB@"
+
+// CUDSS threading layer library path
+#cmakedefine MFEM_CUDSS_THREADING_LIB "@MFEM_CUDSS_THREADING_LIB@"
+
 // Enable functionality based on the Ginkgo library.
 #cmakedefine MFEM_USE_GINKGO
 
