@@ -1542,20 +1542,26 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
    static_assert(T_D1D > 0 && T_Q1D > 0, "");
    // Specialized packed lower-triangular hex mass assembly using block-column
    // sum-factorization.
-   constexpr int D1D = T_D1D;
-   constexpr int Q1D = T_Q1D;
-   constexpr int COLB = T_COLB;
-   constexpr int NT = T_NT;
-   constexpr int ND = D1D*D1D*D1D;
-   constexpr int NQ = Q1D*Q1D*Q1D;
+   constexpr int HD1D = T_D1D;
+   constexpr int HQ1D = T_Q1D;
+   constexpr int HND = HD1D*HD1D*HD1D;
 
-   auto B = Reshape(basis.Read(), Q1D, D1D);
-   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, NE);
+   auto B = Reshape(basis.Read(), HQ1D, HD1D);
+   auto D = Reshape(padata.Read(), HQ1D, HQ1D, HQ1D, NE);
    auto M = Reshape(add ? eadata.ReadWrite() : eadata.Write(),
-                    TriPackLowerMatrix::PackedSize(ND), NE);
+                    TriPackLowerMatrix::PackedSize(HND), NE);
 
-   mfem::forall_3D_grid(NE, NT, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D_grid(NE, T_NT, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr int D1D = T_D1D;
+      constexpr int Q1D = T_Q1D;
+      constexpr int COLB = T_COLB;
+      constexpr int NT = T_NT;
+      constexpr int ND = D1D*D1D*D1D;
+      constexpr int NQ = Q1D*Q1D*Q1D;
+      constexpr int T1S = D1D*Q1D*Q1D;
+      constexpr int T2S = D1D*D1D*Q1D;
+
       const int tid = MFEM_THREAD_ID(x);
 
       MFEM_SHARED real_t s_B[Q1D][D1D];
@@ -1603,7 +1609,6 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
          }
          MFEM_SYNC_THREAD;
 
-         constexpr int T1S = D1D*Q1D*Q1D;
          for (int a = tid; a < T1S; a += NT)
          {
             const int i1 = a % D1D;
@@ -1624,7 +1629,6 @@ inline void EAMassAssembleTriangular3D_LowerBlockCols_Impl(
          }
          MFEM_SYNC_THREAD;
 
-         constexpr int T2S = D1D*D1D*Q1D;
          for (int a = tid; a < T2S; a += NT)
          {
             const int i1 = a % D1D;
