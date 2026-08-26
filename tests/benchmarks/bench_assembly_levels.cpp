@@ -135,8 +135,6 @@ struct Problem: public BakeOff
 
          ess_bdr = 1;
          fes.GetEssentialTrueDofs(ess_bdr,ess_tdof_list);
-         // The scalar DomainLFIntegrator can only be used with a scalar space:
-         // for vector spaces (VDIM > 1) the vector version is required.
          if (VDIM == 1)
          {
             b.AddDomainIntegrator(new DomainLFIntegrator(one));
