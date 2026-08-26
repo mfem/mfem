@@ -18,6 +18,7 @@
 
 #include "mkl_pardiso.h"
 #include "operator.hpp"
+#include "sparsitypattern.hpp"
 
 namespace mfem
 {
@@ -79,6 +80,41 @@ public:
     */
    void SetMatrixType(MatType mat_type);
 
+   /**
+    * @brief Retain the analysis phase across SetOperator() calls and reuse it
+    * whenever the sparsity pattern is unchanged. Off by default.
+    *
+    * PARDISO's phase 11, the reordering and symbolic factorization, depends
+    * only on the sparsity pattern. A caller that refactorizes a matrix whose
+    * pattern does not change -- a Newton iteration, an implicit time step, a
+    * continuation loop, a parameter sweep -- otherwise repeats it on every
+    * SetOperator() call and uses it once. With reuse, such a call is phase 22
+    * alone.
+    *
+    * The pattern is checked, not assumed, by the exact comparison described in
+    * UMFPackSolver::SetReuseSymbolic(): when it has changed, the factorization
+    * is released and phase 11 is run again.
+    *
+    * @param reuse Whether to reuse the analysis
+    */
+   void SetReuseSymbolic(bool reuse = true);
+
+   /// Whether analysis reuse is enabled; see SetReuseSymbolic().
+   bool GetReuseSymbolic() const { return reuse_symbolic; }
+
+   /**
+    * @brief The number of analyses actually performed, that is, of PARDISO
+    * phase 11 calls. Without reuse this is the number of SetOperator() calls;
+    * with reuse it is the number of times the pattern changed.
+    */
+   long GetNumSymbolicFactorizations() const { return num_symbolic; }
+
+   /**
+    * @brief The number of numeric factorizations actually performed, that is,
+    * of PARDISO phase 22 calls. Reuse never skips one of these.
+    */
+   long GetNumNumericFactorizations() const { return num_numeric; }
+
    ~PardisoSolver();
 
 private:
@@ -108,6 +144,22 @@ private:
    // Dummy variables
    mutable int idum;
    mutable real_t ddum;
+
+   // Whether the analysis may be retained and reused; see SetReuseSymbolic()
+   bool reuse_symbolic = false;
+
+   // The pattern the retained analysis was made for; empty unless reusing
+   RetainedSparsityPattern pattern;
+
+   // Whether pt holds a factorization, and so has memory to release
+   bool factored = false;
+
+   // The number of phase 11 and phase 22 calls actually made
+   long num_symbolic = 0;
+   long num_numeric = 0;
+
+   // Release the memory held by pt, if there is any
+   void ReleaseFactorization();
 };
 } // namespace mfem
 

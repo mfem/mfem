@@ -61,6 +61,47 @@ CPardisoSolver::CPardisoSolver(MPI_Comm comm)
    nrhs = 1;
 };
 
+void CPardisoSolver::ReleaseFactorization()
+{
+   if (!factored) { return; }
+
+   // Release all internal memory held for the current factorization. Without
+   // this a second analysis on the same handle leaks whatever the first one
+   // allocated inside MKL.
+   phase = -1;
+   cluster_sparse_solver(pt,
+                         &maxfct,
+                         &mnum,
+                         &mtype,
+                         &phase,
+                         &m,
+                         reordered_csr_nzval,
+                         csr_rowptr,
+                         reordered_csr_colind,
+                         &idum,
+                         &nrhs,
+                         iparm,
+                         &msglvl,
+                         &ddum,
+                         &ddum,
+                         &comm_,
+                         &error);
+
+   MFEM_ASSERT(error == 0, "CPardiso free error");
+
+   factored = false;
+}
+
+void CPardisoSolver::SetReuseSymbolic(bool reuse)
+{
+   reuse_symbolic = reuse;
+   if (!reuse)
+   {
+      pattern.Clear();
+      pattern_first_row = -1;
+   }
+}
+
 void CPardisoSolver::SetOperator(const Operator &op)
 {
    auto hypreParMat = dynamic_cast<const HypreParMatrix &>(op);
@@ -88,16 +129,15 @@ void CPardisoSolver::SetOperator(const Operator &op)
    real_t *csr_nzval = csr_op->data;
    int *csr_colind = csr_op->j;
 
-   delete[] csr_rowptr;
-   delete[] reordered_csr_colind;
-   delete[] reordered_csr_nzval;
-   csr_rowptr = new int[m_loc + 1];
-   reordered_csr_colind = new int[nnz_loc];
-   reordered_csr_nzval = new real_t[nnz_loc];
+   // The local CSR has to be built before it can be compared, so what reuse
+   // saves here is the analysis, not the assembly of the copy.
+   int *new_csr_rowptr = new int[m_loc + 1];
+   int *new_csr_colind = new int[nnz_loc];
+   real_t *new_csr_nzval = new real_t[nnz_loc];
 
    for (int i = 0; i <= m_loc; i++)
    {
-      csr_rowptr[i] = (csr_op->i)[i];
+      new_csr_rowptr[i] = (csr_op->i)[i];
    }
 
    // CPardiso expects the column indices to be sorted for each row
@@ -105,8 +145,8 @@ void CPardisoSolver::SetOperator(const Operator &op)
    std::iota(permutation_idx.begin(), permutation_idx.end(), 0);
    for (int i = 0; i < m_loc; i++)
    {
-      std::sort(permutation_idx.begin() + csr_rowptr[i],
-                permutation_idx.begin() + csr_rowptr[i + 1],
+      std::sort(permutation_idx.begin() + new_csr_rowptr[i],
+                permutation_idx.begin() + new_csr_rowptr[i + 1],
                 [csr_colind](int i1, int i2)
       {
          return csr_colind[i1] < csr_colind[i2];
@@ -115,11 +155,35 @@ void CPardisoSolver::SetOperator(const Operator &op)
 
    for (int i = 0; i < nnz_loc; i++)
    {
-      reordered_csr_colind[i] = csr_colind[permutation_idx[i]];
-      reordered_csr_nzval[i] = csr_nzval[permutation_idx[i]];
+      new_csr_colind[i] = csr_colind[permutation_idx[i]];
+      new_csr_nzval[i] = csr_nzval[permutation_idx[i]];
    }
 
    hypre_CSRMatrixDestroy(csr_op);
+
+   // Whether the analysis in hand was made for this pattern. Checked against
+   // the pattern itself, never assumed; see SetReuseSymbolic().
+   int reuse_here = (reuse_symbolic && factored &&
+                     first_row == pattern_first_row &&
+                     pattern.Matches(m_loc, nnz_loc, new_csr_rowptr,
+                                     new_csr_colind)) ? 1 : 0;
+
+   // cluster_sparse_solver() is collective, so the decision has to be. A rank
+   // that skipped phase 11 while another ran it would leave the two of them in
+   // different calls, and the run would hang rather than fail.
+   int reuse_all = reuse_here;
+   MPI_Allreduce(&reuse_here, &reuse_all, 1, MPI_INT, MPI_MIN,
+                 MPI_Comm_f2c(comm_));
+   const bool reuse = (reuse_all == 1);
+
+   if (!reuse) { ReleaseFactorization(); }
+
+   delete[] csr_rowptr;
+   delete[] reordered_csr_colind;
+   delete[] reordered_csr_nzval;
+   csr_rowptr = new_csr_rowptr;
+   reordered_csr_colind = new_csr_colind;
+   reordered_csr_nzval = new_csr_nzval;
 
    // iparm[40], the number of row in global matrix, rhs element and solution vector that
    // begins the input domain belonging to this MPI process
@@ -138,27 +202,37 @@ void CPardisoSolver::SetOperator(const Operator &op)
       iparm[41] = first_row + m_loc - 1;
    }
 
-   // Analyze inputs
-   phase = 11;
-   cluster_sparse_solver(pt,
-                         &maxfct,
-                         &mnum,
-                         &mtype,
-                         &phase,
-                         &m,
-                         reordered_csr_nzval,
-                         csr_rowptr,
-                         reordered_csr_colind,
-                         &idum,
-                         &nrhs,
-                         iparm,
-                         &msglvl,
-                         &ddum,
-                         &ddum,
-                         &comm_,
-                         &error);
+   if (!reuse)
+   {
+      // Analyze inputs
+      phase = 11;
+      cluster_sparse_solver(pt,
+                            &maxfct,
+                            &mnum,
+                            &mtype,
+                            &phase,
+                            &m,
+                            reordered_csr_nzval,
+                            csr_rowptr,
+                            reordered_csr_colind,
+                            &idum,
+                            &nrhs,
+                            iparm,
+                            &msglvl,
+                            &ddum,
+                            &ddum,
+                            &comm_,
+                            &error);
 
-   MFEM_ASSERT(error == 0, "CPardiso analyze input error");
+      MFEM_ASSERT(error == 0, "CPardiso analyze input error");
+
+      num_symbolic++;
+      if (reuse_symbolic)
+      {
+         pattern.Set(m_loc, nnz_loc, csr_rowptr, reordered_csr_colind);
+         pattern_first_row = first_row;
+      }
+   }
 
    // Numerical factorization
    phase = 22;
@@ -181,6 +255,9 @@ void CPardisoSolver::SetOperator(const Operator &op)
                          &error);
 
    MFEM_ASSERT(error == 0, "CPardiso factorization input error");
+
+   num_numeric++;
+   factored = true;
 }
 
 void CPardisoSolver::Mult(const Vector &b, Vector &x) const
@@ -220,27 +297,9 @@ void CPardisoSolver::SetMatrixType(MatType mat_type)
 
 CPardisoSolver::~CPardisoSolver()
 {
-   // Release all internal memory
-   phase = -1;
-   cluster_sparse_solver(pt,
-                         &maxfct,
-                         &mnum,
-                         &mtype,
-                         &phase,
-                         &m,
-                         reordered_csr_nzval,
-                         csr_rowptr,
-                         reordered_csr_colind,
-                         &idum,
-                         &nrhs,
-                         iparm,
-                         &msglvl,
-                         &ddum,
-                         &ddum,
-                         &comm_,
-                         &error);
-
-   MFEM_ASSERT(error == 0, "CPardiso free error");
+   // Release all internal memory. There is none to release, and no matrix to
+   // name in the call, if SetOperator() was never reached.
+   ReleaseFactorization();
 
    delete[] csr_rowptr;
    delete[] reordered_csr_colind;

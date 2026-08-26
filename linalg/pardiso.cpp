@@ -55,6 +55,29 @@ PardisoSolver::PardisoSolver()
    nrhs = 1;
 }
 
+void PardisoSolver::ReleaseFactorization()
+{
+   if (!factored) { return; }
+
+   // Release all internal memory held for the current factorization. Without
+   // this a second analysis on the same handle leaks whatever the first one
+   // allocated inside MKL.
+   phase = -1;
+   PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
+           reordered_csr_colind, &idum, &nrhs,
+           iparm, &msglvl, &ddum, &ddum, &error);
+
+   MFEM_ASSERT(error == 0, "Pardiso free error");
+
+   factored = false;
+}
+
+void PardisoSolver::SetReuseSymbolic(bool reuse)
+{
+   reuse_symbolic = reuse;
+   if (!reuse) { pattern.Clear(); }
+}
+
 void PardisoSolver::SetOperator(const Operator &op)
 {
    auto mat = const_cast<SparseMatrix *>(dynamic_cast<const SparseMatrix *>(&op));
@@ -69,35 +92,60 @@ void PardisoSolver::SetOperator(const Operator &op)
 
    nnz = mat->NumNonZeroElems();
 
+   // Pardiso expects the column indices to be sorted for each row
+   mat->SortColumnIndices();
+
    const int *Ap = mat->HostReadI();
    const int *Ai = mat->HostReadJ();
    const real_t *Ax = mat->HostReadData();
 
-   csr_rowptr = new int[m + 1];
-   reordered_csr_colind = new int[nnz];
-   reordered_csr_nzval = new real_t[nnz];
+   // Whether the analysis in hand was made for this pattern. Checked against
+   // the pattern itself, never assumed; see SetReuseSymbolic(). Without reuse
+   // there is never one to keep, and this is false on every call.
+   const bool reuse = reuse_symbolic && factored &&
+                      pattern.Matches(m, nnz, Ap, Ai);
 
-   for (int i = 0; i <= m; i++)
+   if (!reuse)
    {
-      csr_rowptr[i] = Ap[i];
+      ReleaseFactorization();
+
+      delete[] csr_rowptr;
+      delete[] reordered_csr_colind;
+      delete[] reordered_csr_nzval;
+      csr_rowptr = new int[m + 1];
+      reordered_csr_colind = new int[nnz];
+      reordered_csr_nzval = new real_t[nnz];
+
+      for (int i = 0; i <= m; i++)
+      {
+         csr_rowptr[i] = Ap[i];
+      }
+
+      for (int i = 0; i < nnz; i++)
+      {
+         reordered_csr_colind[i] = Ai[i];
+      }
    }
 
-   // Pardiso expects the column indices to be sorted for each row
-   mat->SortColumnIndices();
-
+   // The values are the reason for the call, reuse or not.
    for (int i = 0; i < nnz; i++)
    {
-      reordered_csr_colind[i] = Ai[i];
       reordered_csr_nzval[i] = Ax[i];
    }
 
-   // Analyze inputs
-   phase = 11;
-   PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
-           reordered_csr_colind, &idum, &nrhs,
-           iparm, &msglvl, &ddum, &ddum, &error);
+   if (!reuse)
+   {
+      // Analyze inputs
+      phase = 11;
+      PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval,
+              csr_rowptr, reordered_csr_colind, &idum, &nrhs,
+              iparm, &msglvl, &ddum, &ddum, &error);
 
-   MFEM_ASSERT(error == 0, "Pardiso symbolic factorization error");
+      MFEM_ASSERT(error == 0, "Pardiso symbolic factorization error");
+
+      num_symbolic++;
+      if (reuse_symbolic) { pattern.Set(m, nnz, Ap, Ai); }
+   }
 
    // Numerical factorization
    phase = 22;
@@ -106,6 +154,9 @@ void PardisoSolver::SetOperator(const Operator &op)
            iparm, &msglvl, &ddum, &ddum, &error);
 
    MFEM_ASSERT(error == 0, "Pardiso numerical factorization error");
+
+   num_numeric++;
+   factored = true;
 }
 
 void PardisoSolver::Mult(const Vector &b, Vector &x) const
@@ -131,13 +182,9 @@ void PardisoSolver::SetMatrixType(MatType mat_type)
 
 PardisoSolver::~PardisoSolver()
 {
-   // Release all internal memory
-   phase = -1;
-   PARDISO(pt, &maxfct, &mnum, &mtype, &phase, &m, reordered_csr_nzval, csr_rowptr,
-           reordered_csr_colind, &idum, &nrhs,
-           iparm, &msglvl, &ddum, &ddum, &error);
-
-   MFEM_ASSERT(error == 0, "Pardiso free error");
+   // Release all internal memory. There is none to release, and no m or matrix
+   // to name in the call, if SetOperator() was never reached.
+   ReleaseFactorization();
 
    delete[] csr_rowptr;
    delete[] reordered_csr_colind;

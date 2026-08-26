@@ -19,7 +19,8 @@
 
 using namespace mfem;
 
-#ifdef MFEM_USE_SUITESPARSE
+#if defined(MFEM_USE_SUITESPARSE) || defined(MFEM_USE_MKL_PARDISO) || \
+    defined(MFEM_USE_MKL_CPARDISO)
 
 namespace direct_solver_reuse
 {
@@ -115,6 +116,8 @@ bool BitwiseEqual(const Vector &x, const Vector &y)
                       x.Size()*sizeof(real_t)) == 0;
 }
 
+#ifdef MFEM_USE_SUITESPARSE
+
 // The old UMFPackSolver::SetOperator() and Mult(), written out: analyse,
 // factorize, throw the analysis away, solve. Whatever the wrapper does with
 // reuse turned off has to agree with this to the bit.
@@ -184,9 +187,13 @@ void RawKLUSolve(SparseMatrix &A, const Vector &b, Vector &x,
    klu_free_numeric(&Numeric, &Common);
 }
 
+#endif // MFEM_USE_SUITESPARSE
+
 } // namespace direct_solver_reuse
 
 using namespace direct_solver_reuse;
+
+#ifdef MFEM_USE_SUITESPARSE
 
 TEST_CASE("UMFPack symbolic reuse", "[DirectSolvers]")
 {
@@ -870,3 +877,416 @@ TEST_CASE("ComplexUMFPack without reuse is bit-for-bit unchanged",
 }
 
 #endif // MFEM_USE_SUITESPARSE
+
+#ifdef MFEM_USE_MKL_PARDISO
+
+TEST_CASE("Pardiso analysis reuse", "[DirectSolvers]")
+{
+   const int n = 400;
+   const real_t tol = 1e-11;
+
+   std::unique_ptr<SparseMatrix> A(MakeBanded(n, 7));
+   const Vector b = MakeRHS(n);
+   Vector x(n), x_ref(n);
+
+   PardisoSolver solver;
+   solver.SetReuseSymbolic();
+   REQUIRE(solver.GetReuseSymbolic());
+
+   SECTION("nothing is analysed twice, and the answer does not move")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x_ref);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 1);
+      REQUIRE(RelResidual(*A, x_ref, b) < tol);
+
+      // Phase 22 runs again, phase 11 does not, and the answer is bit-for-bit
+      // what the first solve gave.
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 2);
+      REQUIRE(BitwiseEqual(x, x_ref));
+   }
+
+   SECTION("values change in place, as a reassembled Jacobian does")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+
+      for (int step = 1; step <= 4; step++)
+      {
+         const real_t s = 0.4*step - 1.0;
+         CAPTURE(step);
+         SetDiagonal(*A, s);
+         solver.SetOperator(*A);
+         solver.Mult(b, x);
+
+         REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+         REQUIRE(solver.GetNumNumericFactorizations() == step + 1);
+         REQUIRE(RelResidual(*A, x, b) < tol);
+
+         // PARDISO's phase 11 does not read the values, so a reused analysis
+         // is the analysis a fresh solver would compute, and the answers agree
+         // to the bit rather than merely to round-off.
+         std::unique_ptr<SparseMatrix> A_fresh(MakeBanded(n, 7));
+         SetDiagonal(*A_fresh, s);
+         PardisoSolver fresh;
+         fresh.SetOperator(*A_fresh);
+         fresh.Mult(b, x_ref);
+         REQUIRE(BitwiseEqual(x, x_ref));
+      }
+   }
+
+   SECTION("rebuilt into a fresh matrix with the same pattern")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x_ref);
+
+      std::unique_ptr<SparseMatrix> A2(MakeBanded(n, 7));
+      SetDiagonal(*A2, 0.5);
+      REQUIRE(A2.get() != A.get());
+
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 2);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+   }
+
+   SECTION("a matrix rebuilt where the old one stood")
+   {
+      std::unique_ptr<SparseMatrix> A1(MakeBanded(n, 7));
+      solver.SetOperator(*A1);
+      solver.Mult(b, x);
+      const uintptr_t addr = (uintptr_t) A1.get();
+      const uintptr_t addr_I = (uintptr_t) A1->HostReadI();
+      const uintptr_t addr_J = (uintptr_t) A1->HostReadJ();
+      A1.reset();
+
+      std::unique_ptr<SparseMatrix> A2(MakeBanded(n, 11));
+      const bool recycled = (uintptr_t) A2.get() == addr &&
+                            (uintptr_t) A2->HostReadI() == addr_I &&
+                            (uintptr_t) A2->HostReadJ() == addr_J;
+      CAPTURE(recycled);
+
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 2);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+   }
+
+   SECTION("the pattern changes: the analysis is redone")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+
+      std::unique_ptr<SparseMatrix> A2(MakeBanded(n, 11));
+      REQUIRE(A2->NumNonZeroElems() == A->NumNonZeroElems());
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 2);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+
+      std::unique_ptr<SparseMatrix> A3(MakeBanded(n/2, 11));
+      const Vector b3 = MakeRHS(n/2);
+      Vector x3(n/2);
+      solver.SetOperator(*A3);
+      solver.Mult(b3, x3);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 3);
+      REQUIRE(RelResidual(*A3, x3, b3) < tol);
+   }
+
+   SECTION("reuse can be turned off again")
+   {
+      solver.SetOperator(*A);
+      solver.SetOperator(*A);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+
+      solver.SetReuseSymbolic(false);
+      REQUIRE_FALSE(solver.GetReuseSymbolic());
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 2);
+      REQUIRE(RelResidual(*A, x, b) < tol);
+   }
+}
+
+TEST_CASE("Pardiso without reuse is bit-for-bit unchanged", "[DirectSolvers]")
+{
+   const int n = 400;
+
+   std::unique_ptr<SparseMatrix> A(MakeBanded(n, 7));
+   const Vector b = MakeRHS(n);
+   Vector x(n), x_raw(n);
+
+   SECTION("a solver used again is a solver used the first time")
+   {
+      // Without reuse the solver keeps no analysis, so a sequence of operators
+      // through one solver has to give exactly what a new solver per operator
+      // gives. That is what every existing caller does.
+      PardisoSolver solver;
+      for (int step = 0; step < 4; step++)
+      {
+         CAPTURE(step);
+         SetDiagonal(*A, 0.4*step - 1.0);
+
+         solver.SetOperator(*A);
+         solver.Mult(b, x);
+
+         PardisoSolver fresh;
+         fresh.SetOperator(*A);
+         fresh.Mult(b, x_raw);
+
+         REQUIRE(BitwiseEqual(x, x_raw));
+         REQUIRE(solver.GetNumSymbolicFactorizations() == step + 1);
+         REQUIRE(solver.GetNumNumericFactorizations() == step + 1);
+      }
+   }
+
+   SECTION("a solver that is never given an operator")
+   {
+      // The destructor has nothing to release, and must not ask MKL to release
+      // a factorization that was never made.
+      PardisoSolver solver;
+      REQUIRE_FALSE(solver.GetReuseSymbolic());
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 0);
+      REQUIRE(solver.GetNumNumericFactorizations() == 0);
+   }
+
+   SECTION("a structurally symmetric matrix type still works")
+   {
+      std::unique_ptr<SparseMatrix> S(MakeSymmetricBanded(n, 7));
+      PardisoSolver solver;
+      solver.SetMatrixType(PardisoSolver::MatType::REAL_STRUCTURE_SYMMETRIC);
+      solver.SetReuseSymbolic();
+      solver.SetOperator(*S);
+      solver.Mult(b, x);
+      REQUIRE(RelResidual(*S, x, b) < 1e-11);
+
+      SetDiagonal(*S, 0.3);
+      solver.SetOperator(*S);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 2);
+      REQUIRE(RelResidual(*S, x, b) < 1e-11);
+   }
+}
+
+#endif // MFEM_USE_MKL_PARDISO
+
+#ifdef MFEM_USE_MKL_CPARDISO
+
+namespace direct_solver_reuse
+{
+
+// A block-diagonal parallel matrix: every rank owns a square block and couples
+// to no other rank. That leaves the local sparsity pattern each rank's own to
+// choose, which is what the collective half of the check needs to be put under
+// any pressure at all.
+HypreParMatrix *MakeBlockDiagonal(SparseMatrix &diag, int rank, int nranks,
+                                  HYPRE_BigInt *row_starts)
+{
+   const int n_loc = diag.Height();
+   row_starts[0] = (HYPRE_BigInt) rank * n_loc;
+   row_starts[1] = (HYPRE_BigInt) (rank + 1) * n_loc;
+   const HYPRE_BigInt glob = (HYPRE_BigInt) nranks * n_loc;
+   return new HypreParMatrix(MPI_COMM_WORLD, glob, row_starts, &diag);
+}
+
+real_t RelResidual(const HypreParMatrix &A, const Vector &x, const Vector &b)
+{
+   Vector r(b.Size());
+   A.Mult(x, r);
+   r -= b;
+   real_t local[2] = { r*r, b*b }, global[2];
+   MPI_Allreduce(local, global, 2, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 MPI_COMM_WORLD);
+   return std::sqrt(global[0] / global[1]);
+}
+
+// The same on every rank, or the count is not the collective thing it claims.
+long AgreedCount(long count)
+{
+   long lo, hi;
+   MPI_Allreduce(&count, &lo, 1, MPI_LONG, MPI_MIN, MPI_COMM_WORLD);
+   MPI_Allreduce(&count, &hi, 1, MPI_LONG, MPI_MAX, MPI_COMM_WORLD);
+   return (lo == hi) ? lo : -1;
+}
+
+} // namespace direct_solver_reuse
+
+TEST_CASE("CPardiso analysis reuse", "[Parallel][DirectSolvers]")
+{
+   int rank, nranks;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &nranks);
+
+   const int n_loc = 200;
+   const real_t tol = 1e-11;
+
+   std::unique_ptr<SparseMatrix> D(MakeBanded(n_loc, 7));
+   HYPRE_BigInt row_starts[2];
+   std::unique_ptr<HypreParMatrix> A(MakeBlockDiagonal(*D, rank, nranks,
+                                                       row_starts));
+
+   Vector b(n_loc), x(n_loc);
+   for (int i = 0; i < n_loc; i++) { b(i) = 1.0 + real_t((i + rank) % 7); }
+
+   CPardisoSolver solver(MPI_COMM_WORLD);
+   solver.SetReuseSymbolic();
+   REQUIRE(solver.GetReuseSymbolic());
+
+   SECTION("nothing is analysed twice, and the answer does not move")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 1);
+      REQUIRE(AgreedCount(solver.GetNumNumericFactorizations()) == 1);
+      REQUIRE(RelResidual(*A, x, b) < tol);
+
+      Vector x2(n_loc);
+      solver.SetOperator(*A);
+      solver.Mult(b, x2);
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 1);
+      REQUIRE(AgreedCount(solver.GetNumNumericFactorizations()) == 2);
+      REQUIRE(BitwiseEqual(x2, x));
+   }
+
+   SECTION("the values change: phase 22 alone")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+
+      for (int step = 1; step <= 3; step++)
+      {
+         CAPTURE(step);
+         // A matrix rebuilt with the same structure and different values, as a
+         // reassembled Jacobian is.
+         std::unique_ptr<SparseMatrix> D2(MakeBanded(n_loc, 7));
+         SetDiagonal(*D2, 0.4*step - 1.0);
+         HYPRE_BigInt starts2[2];
+         std::unique_ptr<HypreParMatrix> A2(MakeBlockDiagonal(*D2, rank, nranks,
+                                                              starts2));
+         solver.SetOperator(*A2);
+         solver.Mult(b, x);
+
+         REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 1);
+         REQUIRE(AgreedCount(solver.GetNumNumericFactorizations()) == step + 1);
+         REQUIRE(RelResidual(*A2, x, b) < tol);
+      }
+   }
+
+   SECTION("the pattern changes on one rank only")
+   {
+      // The case the reduction exists for. Rank 0 gets a different structure,
+      // with the same size and the same number of nonzeros; every other rank's
+      // local pattern is untouched and would, left to itself, reuse the
+      // analysis while rank 0 recomputed it. cluster_sparse_solver() is
+      // collective, so the two of them would then be in different calls, and
+      // the run would hang rather than fail.
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 1);
+
+      std::unique_ptr<SparseMatrix> D2(MakeBanded(n_loc, rank == 0 ? 11 : 7));
+      REQUIRE(D2->NumNonZeroElems() == D->NumNonZeroElems());
+      HYPRE_BigInt starts2[2];
+      std::unique_ptr<HypreParMatrix> A2(MakeBlockDiagonal(*D2, rank, nranks,
+                                                           starts2));
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+
+      // Every rank analysed again, including the ranks that saw no change.
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 2);
+      REQUIRE(AgreedCount(solver.GetNumNumericFactorizations()) == 2);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+   }
+
+   SECTION("the size changes")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+
+      std::unique_ptr<SparseMatrix> D2(MakeBanded(n_loc/2, 7));
+      HYPRE_BigInt starts2[2];
+      std::unique_ptr<HypreParMatrix> A2(MakeBlockDiagonal(*D2, rank, nranks,
+                                                           starts2));
+      Vector b2(n_loc/2), x2(n_loc/2);
+      for (int i = 0; i < n_loc/2; i++) { b2(i) = 1.0 + real_t(i % 5); }
+      solver.SetOperator(*A2);
+      solver.Mult(b2, x2);
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 2);
+      REQUIRE(RelResidual(*A2, x2, b2) < tol);
+   }
+
+   SECTION("reuse can be turned off again")
+   {
+      solver.SetOperator(*A);
+      solver.SetOperator(*A);
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 1);
+
+      solver.SetReuseSymbolic(false);
+      REQUIRE_FALSE(solver.GetReuseSymbolic());
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 2);
+      REQUIRE(RelResidual(*A, x, b) < tol);
+   }
+}
+
+TEST_CASE("CPardiso without reuse is unchanged", "[Parallel][DirectSolvers]")
+{
+   int rank, nranks;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   MPI_Comm_size(MPI_COMM_WORLD, &nranks);
+
+   const int n_loc = 200;
+
+   std::unique_ptr<SparseMatrix> D(MakeBanded(n_loc, 7));
+   HYPRE_BigInt row_starts[2];
+   std::unique_ptr<HypreParMatrix> A(MakeBlockDiagonal(*D, rank, nranks,
+                                                       row_starts));
+   Vector b(n_loc), x(n_loc), x_ref(n_loc);
+   for (int i = 0; i < n_loc; i++) { b(i) = 1.0 + real_t((i + rank) % 7); }
+
+   SECTION("a solver used again is a solver used the first time")
+   {
+      CPardisoSolver solver(MPI_COMM_WORLD);
+      for (int step = 0; step < 3; step++)
+      {
+         CAPTURE(step);
+         std::unique_ptr<SparseMatrix> D2(MakeBanded(n_loc, 7));
+         SetDiagonal(*D2, 0.4*step - 1.0);
+         HYPRE_BigInt starts2[2];
+         std::unique_ptr<HypreParMatrix> A2(MakeBlockDiagonal(*D2, rank, nranks,
+                                                              starts2));
+
+         solver.SetOperator(*A2);
+         solver.Mult(b, x);
+
+         CPardisoSolver fresh(MPI_COMM_WORLD);
+         fresh.SetOperator(*A2);
+         fresh.Mult(b, x_ref);
+
+         REQUIRE(BitwiseEqual(x, x_ref));
+         REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == step + 1);
+         REQUIRE(AgreedCount(solver.GetNumNumericFactorizations()) == step + 1);
+      }
+   }
+
+   SECTION("a solver that is never given an operator")
+   {
+      CPardisoSolver solver(MPI_COMM_WORLD);
+      REQUIRE_FALSE(solver.GetReuseSymbolic());
+      REQUIRE(AgreedCount(solver.GetNumSymbolicFactorizations()) == 0);
+      REQUIRE(AgreedCount(solver.GetNumNumericFactorizations()) == 0);
+   }
+}
+
+#endif // MFEM_USE_MKL_CPARDISO
+
+#endif // MFEM_USE_SUITESPARSE || MFEM_USE_MKL_PARDISO ||
+// MFEM_USE_MKL_CPARDISO
