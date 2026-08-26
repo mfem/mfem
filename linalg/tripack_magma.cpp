@@ -129,11 +129,14 @@ void MagmaPackedLowerCholesky::SolveInPlace(
 
    // On HIP, MAGMA's packed 1-RHS batched solve kernel only supports n <= 32.
    // Fail fast with a clear error for larger element sizes (e.g., (p+1)^3 = 64).
-   MFEM_VERIFY(solve_n <= 32,
-               "MAGMA packed Cholesky solve (1 RHS) supports n <= 32 on this "
-               "MAGMA build; got n = " << solve_n << ". "
-               "Use a smaller element size (lower order), or disable MAGMA "
-               "solve in the benchmark, or use the full (dense) MAGMA path.");
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      MFEM_VERIFY(solve_n <= 32,
+                  "MAGMA packed Cholesky solve (1 RHS) supports n <= 32 on HIP; "
+                  "got n = " << solve_n << ". "
+                  "Use a smaller element size (lower order), or disable MAGMA "
+                  "solve in the benchmark, or use the full (dense) MAGMA path.");
+   }
 
    const magma_int_t status =
       MFEM_TRIPACK_MAGMA_PREFIX(pptrs_1rhs_batched_small)(

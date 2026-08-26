@@ -61,12 +61,16 @@ HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED;
    }
+   if (strcmp(name, "magma-packed-ppinv") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV;
+   }
    if (strcmp(name, "magma-full") == 0)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL;
    }
    MFEM_ABORT("Unknown -l2inv value: " << name
-              << " (expected: cg | magma-packed | magma-full)");
+              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full)");
    return HdivSaddlePointSolver::L2InverseType::CG;
 }
 
@@ -147,7 +151,7 @@ int main(int argc, char *argv[])
                   "-hb", "--hybridization", "-no-hb", "--no-hybridization",
                   "Enable or disable hybridization solver.");
    args.AddOption(&l2inv, "-l2inv", "--l2-inverse",
-                  "Local L2 mass inverse: cg | magma-packed | magma-full.");
+                  "Local L2 mass inverse: cg | magma-packed | magma-packed-ppinv | magma-full.");
    args.AddOption(&use_umpire_pool, "-umpire-pool", "--umpire-pool",
                   "-no-umpire-pool", "--no-umpire-pool",
                   "Use Umpire QuickPool allocators for MFEM allocations.");

@@ -72,12 +72,16 @@ HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED;
    }
+   if (strcmp(name, "magma-packed-ppinv") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV;
+   }
    if (strcmp(name, "magma-full") == 0)
    {
       return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL;
    }
    MFEM_ABORT("Unknown -l2inv value: " << name
-              << " (expected: cg | magma-packed | magma-full)");
+              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full)");
    return HdivSaddlePointSolver::L2InverseType::CG;
 }
 
@@ -159,7 +163,7 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&alpha, "-a", "--alpha", "Value of alpha coefficient.");
    args.AddOption(&l2inv, "-l2inv", "--l2-inverse",
-                  "Local L2 mass inverse: cg | magma-packed | magma-full.");
+                  "Local L2 mass inverse: cg | magma-packed | magma-packed-ppinv | magma-full.");
    args.AddOption(&bench_l2inv, "-l2bench", "--l2-bench",
                   "-no-l2bench", "--no-l2-bench",
                   "Benchmark the local L2 inverse apply.");

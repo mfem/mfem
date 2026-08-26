@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
    int reps = 100;
    int setup_reps = 10;
    const char *device_config = "cpu";
-   bool use_magma = true;
+   bool use_magma = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
@@ -466,6 +466,14 @@ int main(int argc, char *argv[])
 
 #ifndef MFEM_USE_MAGMA
    MFEM_VERIFY(!use_magma, "MFEM was built without MAGMA support.");
+#else
+   if (use_magma)
+   {
+      MFEM_VERIFY(Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK),
+                  "MAGMA solve requires a CUDA or HIP device. "
+                  "Re-run with '-d cuda' or '-d hip', or disable MAGMA "
+                  "solve with '-no-magma'.");
+   }
 #endif
 
    Mesh mesh(mesh_file, 1, 1);

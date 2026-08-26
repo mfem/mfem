@@ -95,6 +95,54 @@ public:
    }
 };
 
+class MagmaPackedPpInvL2MassInverse final : public Solver
+{
+private:
+   const FiniteElementSpace &fes;
+   Coefficient &coeff;
+   const IntegrationRule &ir;
+
+   TriPackLowerMatrix packed_mass;
+   TriPackLowerMatrix mass_inv;
+   mutable MagmaPackedLowerInverse ws;
+
+public:
+   MagmaPackedPpInvL2MassInverse(const FiniteElementSpace &fes_,
+                                 Coefficient &coeff_,
+                                 const IntegrationRule &ir_)
+      : Solver(fes_.GetTrueVSize()),
+        fes(fes_),
+        coeff(coeff_),
+        ir(ir_)
+   {
+      MFEM_VERIFY(fes.IsDGSpace(), "MagmaPackedPpInvL2MassInverse requires DG.");
+      MFEM_VERIFY(UsesTensorBasis(fes),
+                  "MagmaPackedPpInvL2MassInverse requires a tensor basis.");
+      MFEM_VERIFY(Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK),
+                  "MAGMA L2 inverse requires CUDA or HIP device backend.");
+      Update();
+   }
+
+   void Update()
+   {
+      MassIntegrator mass(coeff, &ir);
+      mass.AssembleEATriangular(fes, packed_mass, false);
+      tripack::magma::ComputeInverseLower(packed_mass, mass_inv, ws);
+   }
+
+   void Mult(const Vector &b, Vector &u) const override
+   {
+      u = b;
+      u.UseDevice(true);
+      tripack::magma::ApplyInverseLowerInPlace(mass_inv, u, ws);
+   }
+
+   void SetOperator(const Operator &) override
+   {
+      MFEM_ABORT("SetOperator not supported with MagmaPackedPpInvL2MassInverse.");
+   }
+};
+
 class MagmaFullL2MassInverse final : public Solver
 {
 private:
@@ -393,6 +441,14 @@ void HdivSaddlePointSolver::Setup()
 #ifdef MFEM_USE_MAGMA
          L_inv.reset(new MagmaPackedL2MassInverse(fes_l2, W_mix_coeff,
                                                   qs.GetIntRule(0)));
+#else
+         MFEM_ABORT("MFEM was built without MAGMA support.");
+#endif
+         break;
+      case L2InverseType::MAGMA_PACKED_PPINV:
+#ifdef MFEM_USE_MAGMA
+         L_inv.reset(new MagmaPackedPpInvL2MassInverse(fes_l2, W_mix_coeff,
+                                                       qs.GetIntRule(0)));
 #else
          MFEM_ABORT("MFEM was built without MAGMA support.");
 #endif
