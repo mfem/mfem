@@ -3350,76 +3350,6 @@ void ResidualBCMonitor::MonitorResidual(
 
 #ifdef MFEM_USE_SUITESPARSE
 
-/** The sparsity pattern of a SparseMatrix, copied so that a matrix seen later
-    can be tested against it.
-
-    The test is exact: the size and the number of nonzeros first, which rejects
-    most changes at O(1), and then the pattern itself, entry by entry, at O(nnz)
-    integer compares. That is a fraction of a percent of the factorization it
-    guards -- some 1 ms against the 100 ms symbolic analysis of a matrix with a
-    million nonzeros -- and it is the whole safety of reusing an analysis, so it
-    is not worth shortening.
-
-    In particular it is not enough to ask whether this is the same matrix object
-    with the same I and J arrays, tempting though that O(1) test is for a matrix
-    reassembled in place. A matrix destroyed and rebuilt with different
-    structure but the same size and the same number of nonzeros asks the
-    allocator for blocks of exactly the sizes just freed, and readily lands on
-    the same addresses; a SparseMatrix built in a loop can even be the same
-    object every time. Identity would then hold for a pattern that had changed,
-    which is the one failure this check exists to prevent, and it would be
-    silent.
-
-    The pattern is copied rather than pointed at so that the comparison stays
-    valid, and stays safe, after the matrix it was taken from is destroyed. */
-class SuiteSparsePattern
-{
-private:
-   int size, nnz;
-   Array<int> I_copy, J_copy;
-   bool set;
-
-public:
-   SuiteSparsePattern() : size(0), nnz(0), set(false) { }
-
-   /// Forget the pattern; Matches() returns false until the next Set().
-   void Clear()
-   {
-      size = nnz = 0;
-      I_copy.DeleteAll();
-      J_copy.DeleteAll();
-      set = false;
-   }
-
-   /// Record the sparsity pattern of the finalized matrix @a A.
-   void Set(const SparseMatrix &A)
-   {
-      const int *I = A.HostReadI();
-      const int *J = A.HostReadJ();
-      MFEM_ASSERT(I && J, "the matrix is not finalized");
-      size = A.Height();
-      nnz = I[size];
-      I_copy.SetSize(size+1);
-      J_copy.SetSize(nnz);
-      std::copy(I, I + size + 1, I_copy.begin());
-      std::copy(J, J + nnz, J_copy.begin());
-      set = true;
-   }
-
-   /// Whether @a A has the pattern recorded by the last Set().
-   bool Matches(const SparseMatrix &A) const
-   {
-      if (!set) { return false; }
-      if (A.Height() != size || A.Width() != size) { return false; }
-      const int *Ai = A.HostReadI();
-      const int *Aj = A.HostReadJ();
-      if (!Ai || !Aj) { return false; }
-      if (Ai[size] != nnz) { return false; }
-      return std::equal(I_copy.begin(), I_copy.end(), Ai) &&
-             std::equal(J_copy.begin(), J_copy.end(), Aj);
-   }
-};
-
 void UMFPackSolver::Init()
 {
    mat = NULL;
@@ -3427,7 +3357,7 @@ void UMFPackSolver::Init()
    AI = AJ = NULL;
    Symbolic = NULL;
    reuse_symbolic = false;
-   pattern = NULL;
+   pattern.Clear();
    num_symbolic = 0;
    num_numeric = 0;
    if (!use_long_ints)
@@ -3454,27 +3384,18 @@ void UMFPackSolver::FreeSymbolic()
       }
       Symbolic = NULL;
    }
-   if (pattern) { pattern->Clear(); }
+   pattern.Clear();
 }
 
 bool UMFPackSolver::CanReuseSymbolic(const SparseMatrix &A) const
 {
-   return reuse_symbolic && Symbolic && pattern && pattern->Matches(A);
+   return reuse_symbolic && Symbolic && pattern.Matches(A);
 }
 
 void UMFPackSolver::SetReuseSymbolic(bool reuse)
 {
    reuse_symbolic = reuse;
-   if (reuse)
-   {
-      if (!pattern) { pattern = new SuiteSparsePattern; }
-   }
-   else
-   {
-      FreeSymbolic();
-      delete pattern;
-      pattern = NULL;
-   }
+   if (!reuse) { FreeSymbolic(); }
 }
 
 void UMFPackSolver::SetOperator(const Operator &op)
@@ -3529,7 +3450,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
                        " umfpack_di_symbolic() failed!");
          }
          num_symbolic++;
-         if (reuse_symbolic) { pattern->Set(*mat); }
+         if (reuse_symbolic) { pattern.Set(*mat); }
       }
 
       status = umfpack_di_numeric(Ap, Ai, Ax, Symbolic, &Numeric,
@@ -3583,7 +3504,7 @@ void UMFPackSolver::SetOperator(const Operator &op)
                        " umfpack_dl_symbolic() failed!");
          }
          num_symbolic++;
-         if (reuse_symbolic) { pattern->Set(*mat); }
+         if (reuse_symbolic) { pattern.Set(*mat); }
       }
 
       status = umfpack_dl_numeric(AI, AJ, Ax, Symbolic, &Numeric,
@@ -3691,14 +3612,13 @@ UMFPackSolver::~UMFPackSolver()
       }
    }
    FreeSymbolic();
-   delete pattern;
 }
 
 void KLUSolver::Init()
 {
    reuse_symbolic = false;
    reuse_numeric = false;
-   pattern = NULL;
+   pattern.Clear();
    num_symbolic = 0;
    num_numeric = 0;
    num_refactor = 0;
@@ -3707,24 +3627,19 @@ void KLUSolver::Init()
 
 bool KLUSolver::CanReuseSymbolic(const SparseMatrix &A) const
 {
-   return reuse_symbolic && Symbolic && pattern && pattern->Matches(A);
+   return reuse_symbolic && Symbolic && pattern.Matches(A);
 }
 
 void KLUSolver::SetReuseSymbolic(bool reuse)
 {
    reuse_symbolic = reuse;
-   if (reuse)
-   {
-      if (!pattern) { pattern = new SuiteSparsePattern; }
-   }
-   else
+   if (!reuse)
    {
       // Symbolic is not freed here: klu_solve() needs it, so it is held for the
       // life of the factorization whether or not it is reused. Dropping the
       // pattern is what stops it being reused: the next SetOperator() rebuilds
       // it, exactly as it does without this flag.
-      delete pattern;
-      pattern = NULL;
+      pattern.Clear();
       reuse_numeric = false;
    }
 }
@@ -3777,7 +3692,7 @@ void KLUSolver::SetOperator(const Operator &op)
    {
       Symbolic = klu_analyze(height, Ap, Ai, &Common);
       num_symbolic++;
-      if (reuse_symbolic && Symbolic) { pattern->Set(*mat); }
+      if (reuse_symbolic && Symbolic) { pattern.Set(*mat); }
    }
 
    if (refactor)
@@ -3838,7 +3753,6 @@ KLUSolver::~KLUSolver()
    klu_free_numeric (&Numeric, &Common) ;
    Symbolic = 0;
    Numeric = 0;
-   delete pattern;
 }
 
 #endif // MFEM_USE_SUITESPARSE

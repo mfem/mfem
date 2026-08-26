@@ -23,6 +23,7 @@
 
 #ifdef MFEM_USE_SUITESPARSE
 #include "sparsemat.hpp"
+#include "sparsitypattern.hpp"
 #include <umfpack.h>
 #include <klu.h>
 #endif
@@ -1205,14 +1206,6 @@ public:
 
 #ifdef MFEM_USE_SUITESPARSE
 
-/** @brief The sparsity pattern of a SparseMatrix, retained so that a matrix
-    seen later can be tested against it.
-
-    An implementation detail of the SuiteSparse solver wrappers, which use it to
-    decide whether a symbolic factorization may be reused; see
-    UMFPackSolver::SetReuseSymbolic(). Defined in solvers.cpp. */
-class SuiteSparsePattern;
-
 /// Direct sparse solver using UMFPACK
 class UMFPackSolver : public Solver
 {
@@ -1227,8 +1220,8 @@ protected:
    void *Symbolic;
    /// Whether #Symbolic may be retained and reused; see SetReuseSymbolic().
    bool reuse_symbolic;
-   /// The pattern #Symbolic was computed from. Owned; NULL unless reusing.
-   SuiteSparsePattern *pattern;
+   /// The pattern #Symbolic was computed from; empty unless reusing.
+   RetainedSparsityPattern pattern;
    /// The number of symbolic analyses actually performed.
    long num_symbolic;
    /// The number of numeric factorizations actually performed.
@@ -1336,8 +1329,8 @@ protected:
    bool reuse_symbolic;
    /// Whether #Numeric may be refactorized; see SetReuseNumeric().
    bool reuse_numeric;
-   /// The pattern #Symbolic was computed from. Owned; NULL unless reusing.
-   SuiteSparsePattern *pattern;
+   /// The pattern #Symbolic was computed from; empty unless reusing.
+   RetainedSparsityPattern pattern;
    /// The number of symbolic analyses actually performed.
    long num_symbolic;
    /// The number of full numeric factorizations actually performed.
