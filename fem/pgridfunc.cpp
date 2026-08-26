@@ -511,8 +511,8 @@ void ParGridFunction::CountElementsPerVDof(Array<int> &elem_per_vdof) const
    GridFunction::CountElementsPerVDof(elem_per_vdof);
    // Count the zones globally.
    GroupCommunicator &gcomm = this->ParFESpace()->GroupComm();
-   gcomm.Reduce<int>(elem_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(elem_per_vdof);
+   gcomm.Reduce<int>(elem_per_vdof.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(elem_per_vdof.HostReadWrite());
 }
 
 void ParGridFunction::GetDerivative(int comp, int der_comp,
@@ -523,8 +523,8 @@ void ParGridFunction::GetDerivative(int comp, int der_comp,
 
    // Count the zones globally.
    GroupCommunicator &gcomm = der.ParFESpace()->GroupComm();
-   gcomm.Reduce<int>(overlap, GroupCommunicator::Sum);
-   gcomm.Bcast(overlap);
+   gcomm.Reduce<int>(overlap.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(overlap.HostReadWrite());
 
    // Accumulate for all dofs.
    gcomm.Reduce<real_t>(der.HostReadWrite(), GroupCommunicator::Sum);
@@ -570,8 +570,8 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
       if (pfes->GetNURBSext())
       {
          GroupCommunicator &gcomm = pfes->GroupComm();
-         gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
-         gcomm.Bcast<real_t>(data);
+         gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
+         gcomm.Bcast<real_t>(HostReadWrite());
       }
    }
    else
@@ -597,8 +597,8 @@ void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
    if (pfes->GetNURBSext())
    {
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
-      gcomm.Bcast<real_t>(data);
+      gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(HostReadWrite());
    }
 }
 
@@ -639,11 +639,11 @@ void ParGridFunction::ProjectCoefficientElementL2(Coefficient &coeff)
    ProjectCoefficientElementL2_(coeff, *this, Va);
 
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(GetData());
+   gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(HostReadWrite());
 
-   gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(Va.GetData());
+   gcomm.Reduce<real_t>(Va.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(Va.HostReadWrite());
    (*this)/=Va;
 }
 
@@ -695,11 +695,11 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
       ProjectCoefficientElementL2_(vcoeff, *this, Va);
 
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(GetData());
+      gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(HostReadWrite());
 
-      gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(Va.GetData());
+      gcomm.Reduce<real_t>(Va.HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(Va.HostReadWrite());
       (*this)/=Va;
    }
    else
@@ -719,11 +719,11 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
       }
 
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(GetData());
+      gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(HostReadWrite());
 
-      gcomm.Reduce<real_t>(gVa.GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(gVa.GetData());
+      gcomm.Reduce<real_t>(gVa.HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(gVa.HostReadWrite());
       *this /= gVa;
    }
 }
@@ -742,9 +742,9 @@ void ParGridFunction::ProjectDiscCoefficient(
    Array<int> gdof_attr;
    ldof_attr.Copy(gdof_attr);
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Max);
-   gcomm.Bcast(gdof_attr);
-   gdof_attr.HostReadWrite();
+   // use host communications
+   gcomm.Reduce(gdof_attr.HostReadWrite(), GroupCommunicator::Max);
+   gcomm.Bcast(gdof_attr.HostReadWrite());
 
    // set local value to zero if global maximal element attribute is larger than
    // the local one, and mark (in gdof_attr) if we have the correct value
@@ -763,9 +763,9 @@ void ParGridFunction::ProjectDiscCoefficient(
 
    // parallel averaging plus interpolation to determine final values
    HypreParVector *tv = pfes->NewTrueDofVector();
-   gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Sum);
-   gcomm.Bcast(gdof_attr);
-   gdof_attr.HostRead();
+   // use host communications
+   gcomm.Reduce(gdof_attr.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(gdof_attr.HostReadWrite());
    HostReadWrite();
    for (int i = 0; i < fes->GetVSize(); i++)
    {
@@ -789,17 +789,14 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(coeff, type, zones_per_vdof);
 
-   // Count the zones globally.
+   // Count the zones globally. (host communication)
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(zones_per_vdof);
+   gcomm.Reduce(zones_per_vdof.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof.HostReadWrite());
 
-   // Accumulate for all vdofs.
-   real_t *data_ptr = ReadWrite(GetMemory().DeviceIsValid());
-   gcomm.Reduce<real_t>(data_ptr, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data_ptr);
-   zones_per_vdof.HostRead();
-   HostReadWrite();
+   // Accumulate for all vdofs. (host communication)
+   gcomm.Reduce(HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(HostReadWrite());
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -816,17 +813,14 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    Array<int> zones_per_vdof;
    AccumulateAndCountZones(vcoeff, type, zones_per_vdof);
 
-   // Count the zones globally.
+   // Count the zones globally. (host communication)
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<int>(zones_per_vdof, GroupCommunicator::Sum);
-   gcomm.Bcast(zones_per_vdof);
+   gcomm.Reduce(zones_per_vdof.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(zones_per_vdof.HostReadWrite());
 
-   // Accumulate for all vdofs.
-   real_t *data_ptr = ReadWrite(GetMemory().DeviceIsValid());
-   gcomm.Reduce<real_t>(data_ptr, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data_ptr);
-   zones_per_vdof.HostRead();
-   HostReadWrite();
+   // Accumulate for all vdofs. (host communication)
+   gcomm.Reduce(HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(HostReadWrite());
 
    ComputeMeans(type, zones_per_vdof);
 }

@@ -109,7 +109,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    Rconf = nullptr;
    R = nullptr;
    num_face_nbr_dofs = -1;
-   nd_strias = false;
 
    if (NURBSext && !pNURBSext())
    {
@@ -132,11 +131,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
-
-   // Check for shared triangular faces with interior Nedelec DoFs
-   CheckNDSTriaDofs();
-   // Enable the device shared-dof path only for spaces where it is supported.
-   gcomm->SetDeviceSharedDofSupport(Conforming() && !SharedNDTriangleDofs());
 }
 
 void ParFiniteElementSpace::CommunicateGhostOrder()
@@ -287,6 +281,10 @@ void ParFiniteElementSpace::Construct()
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+   // Check for shared triangular faces with interior Nedelec DoFs:
+   // initializes 'nd_strias'.
+   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::PrintPartitionStats()
@@ -1149,8 +1147,9 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
    MFEM_VERIFY(ldof_marker.Size() == GetVSize(), "invalid in/out array");
 
    // implement allreduce(|) as reduce(|) + broadcast
-   gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);
-   gcomm->Bcast(ldof_marker);
+   // (use host communications to avoid an issue when using the debug device)
+   gcomm->Reduce<int>(ldof_marker.HostReadWrite(), GroupCommunicator::BitOR);
+   gcomm->Bcast(ldof_marker.HostReadWrite());
 }
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
@@ -2216,7 +2215,8 @@ void ParFiniteElementSpace::ConstructTrueDofs()
    gcomm->SetLTDofTable(ldof_ltdof);
 
    // have the group masters broadcast their ltdofs to the rest of the group
-   gcomm->Bcast(ldof_ltdof);
+   // (use host communication to avoid an issue when using the debug device)
+   gcomm->Bcast(ldof_ltdof.HostReadWrite());
 }
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
@@ -5285,7 +5285,6 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    Destroy();  // Does not clear elem_order
    FiniteElementSpace::Destroy(); // calls Th.Clear()
-   nd_strias = false;
 
    // In the variable-order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
@@ -5293,9 +5292,6 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    FiniteElementSpace::Construct();
    Construct();
-   CheckNDSTriaDofs();
-   // Enable the device shared-dof path only for spaces where it is supported.
-   gcomm->SetDeviceSharedDofSupport(Conforming() && !SharedNDTriangleDofs());
 
    BuildElementToDofTable();
 
@@ -5575,7 +5571,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int in_layout = 2; // 2 - input is ltdofs array
    if (local)
    {
-      y = 0.0;
+      y.SetSubVector(external_ldofs, 0.0);
    }
    else
    {
@@ -5631,14 +5627,13 @@ void ConformingProlongationOperator::MultTranspose(
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    int lsize, const GroupCommunicator &gc_, bool local_)
-   : ConformingProlongationOperator(lsize, gc_, local_),
-     nbr_comm(new internal::DeviceNeighborDofComm(gc_))
-{
-   shr_buf.SetSize(nbr_comm->SharedLTDof().Size());
-   shr_buf.UseDevice(true);
-   ext_buf.SetSize(nbr_comm->ExternalLDof().Size());
-   ext_buf.UseDevice(true);
-}
+   : ConformingProlongationOperator(lsize, gc_, local_)
+{ }
+
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
+   : ConformingProlongationOperator(R->Width(), gc_, local_)
+{ }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const ParFiniteElementSpace &pfes, bool local_)
@@ -5649,110 +5644,31 @@ DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    MFEM_ASSERT(pfes.Conforming(), "internal error");
 }
 
-void DeviceConformingProlongationOperator::BcastBeginCopy(
-   const Vector &x) const
-{
-   const auto &shr_ltdof = nbr_comm->SharedLTDof();
-   // shr_buf[i] = src[shr_ltdof[i]]
-   if (shr_ltdof.Size() == 0) { return; }
-   internal::DeviceNeighborDofExtract(shr_ltdof, x, shr_buf);
-   if (nbr_comm->MpiGpuAware()) { MFEM_STREAM_SYNC; }
-}
-
-void DeviceConformingProlongationOperator::BcastLocalCopy(
-   const Vector &x, Vector &y) const
-{
-   const auto &ltdof_ldof = nbr_comm->LocalTDofToLDof();
-   // dst[ltdof_ldof[i]] = src[i]
-   if (ltdof_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofSet(ltdof_ldof, x, y);
-}
-
-void DeviceConformingProlongationOperator::BcastEndCopy(
-   Vector &y) const
-{
-   const auto &ext_ldof = nbr_comm->ExternalLDof();
-   // dst[ext_ldof[i]] = ext_buf[i]
-   if (ext_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofSet(ext_ldof, ext_buf, y);
-}
-
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
-   int req_counter = 0;
-   // Make sure 'y' is marked as valid on device and for use on device.
-   // This ensures that there is no unnecessary host to device copy when the
-   // input 'y' is valid on host (in 'y.SetSubVector(ext_ldof, 0.0)' when local
-   // is true) or BcastLocalCopy (when local is false).
-   y.Write();
-   if (local)
+   if (!local)
    {
-      // done on device since we've marked ext_ldof for use on device:
-      y.SetSubVector(nbr_comm->ExternalLDof(), 0.0);
+      gc.GetDeviceComm().Prolongate(*x.GetArrayView(), *y.GetArrayView());
    }
    else
    {
-      BcastBeginCopy(x); // copy to 'shr_buf'
-      req_counter = nbr_comm->ExchangeSharedToExternal<real_t>(shr_buf, ext_buf,
-                                                               41822);
+      gc.GetDeviceComm().RestrictTranspose(*x.GetArrayView(),
+                                           *y.GetArrayView());
    }
-   BcastLocalCopy(x, y);
-   if (!local)
-   {
-      nbr_comm->WaitAll(req_counter);
-      BcastEndCopy(y); // copy from 'ext_buf'
-   }
-}
-
-DeviceConformingProlongationOperator::
-~DeviceConformingProlongationOperator() = default;
-
-void DeviceConformingProlongationOperator::ReduceBeginCopy(
-   const Vector &x) const
-{
-   const auto &ext_ldof = nbr_comm->ExternalLDof();
-   // ext_buf[i] = src[ext_ldof[i]]
-   if (ext_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofExtract(ext_ldof, x, ext_buf);
-   if (nbr_comm->MpiGpuAware()) { MFEM_STREAM_SYNC; }
-}
-
-void DeviceConformingProlongationOperator::ReduceLocalCopy(
-   const Vector &x, Vector &y) const
-{
-   const auto &ltdof_ldof = nbr_comm->LocalTDofToLDof();
-   // dst[i] = src[ltdof_ldof[i]]
-   if (ltdof_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofExtract(ltdof_ldof, x, y);
-}
-
-void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
-{
-   const auto &unq_ltdof = nbr_comm->UniqueLTDof();
-   // dst[shr_ltdof[i]] += shr_buf[i]
-   if (unq_ltdof.Size() == 0) { return; }
-   internal::DeviceNeighborDofAdd(unq_ltdof,
-                                  nbr_comm->UniqueSharedOffsets(),
-                                  nbr_comm->UniqueSharedIndices(),
-                                  shr_buf, y);
 }
 
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
-   int req_counter = 0;
    if (!local)
    {
-      ReduceBeginCopy(x); // copy to 'ext_buf'
-      req_counter = nbr_comm->ExchangeExternalToShared<real_t>(ext_buf, shr_buf,
-                                                               41823);
+      gc.GetDeviceComm().ProlongateTranspose(*x.GetArrayView(),
+                                             *y.GetArrayView());
    }
-   ReduceLocalCopy(x, y);
-   if (!local)
+   else
    {
-      nbr_comm->WaitAll(req_counter);
-      ReduceEndAssemble(y); // assemble from 'shr_buf'
+      gc.GetDeviceComm().Restrict(*x.GetArrayView(), *y.GetArrayView());
    }
 }
 

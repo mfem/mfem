@@ -332,8 +332,7 @@ public:
    void Reset(MemoryType host_mt);
 
    /// Return true if the Memory object is empty, see Reset().
-   /** Default-constructed objects are uninitialized, so they are not guaranteed
-       to be empty. */
+   /** Default-constructed objects are guaranteed to be empty. */
    bool Empty() const { return h_ptr == NULL; }
 
    /** @brief Allocate host memory for @a size entries with the current host
@@ -523,6 +522,10 @@ public:
        necessary), and not @a base. */
    inline void SyncAlias(const Memory &base, int alias_size) const;
 
+   /** @brief Copy all flags from @a other to *this. */
+   /** @warning Use this method with caution! */
+   inline void CopyFlagsFrom(const Memory &other) const { flags = other.flags; }
+
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
        returned. */
@@ -606,6 +609,70 @@ private:
    {
       return Alloc<new_align_bytes>::New(size);
    }
+};
+
+
+/** @brief Type that enables viewing Vector objects as Array<real_t> objects and
+    vice versa. For example, see Vector::GetArrayView(). */
+template <typename ViewedType>
+class MemoryView
+{
+protected:
+   static constexpr bool is_const_view = std::is_const_v<ViewedType>;
+   using T =
+      std::remove_reference_t<decltype((std::remove_cv_t<ViewedType> {})[0])>;
+   using MemoryType =
+      std::conditional_t<is_const_view, const Memory<T>, Memory<T>>;
+   using SizeType =
+      std::conditional_t<is_const_view, const int, int>;
+
+   std::remove_cv_t<ViewedType> view;
+   MemoryType &base_mem;
+   SizeType &base_size;  // if is_const_view, this is initialized by not used
+
+public:
+   inline MemoryView(MemoryType &mem, SizeType &size)
+      : base_mem(mem), base_size(size)
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      view.data = mem;
+      view.size = size;
+   }
+
+   MemoryView(const MemoryView &) = delete;
+   MemoryView(MemoryView &&) = delete;
+   MemoryView &operator=(const MemoryView &) = delete;
+   MemoryView &operator=(MemoryView &&) = delete;
+
+   inline ~MemoryView()
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      if constexpr (!is_const_view)
+      {
+         base_mem = view.data;
+         base_size = view.size;
+      }
+      else
+      {
+         base_mem.CopyFlagsFrom(view.data);
+      }
+      view.data.Reset();
+   }
+
+   /** @brief Implicit conversion function to `ViewedType &`.
+
+       Implicit conversion may not work automatically when the returned type is
+       used for template parameter deduction. In such cases, use the prefix
+       operator*() to explicitly perform the conversion to `ViewedType &`. */
+   inline operator ViewedType &() { return view; }
+
+   /** @brief Return the view object by reference, `ViewedType &`.
+
+       This is an explicit way to return the view object, alternative to the
+       implicit conversion function to `ViewedType &`. */
+   inline ViewedType &operator*() { return view; }
 };
 
 

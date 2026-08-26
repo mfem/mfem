@@ -540,6 +540,28 @@ public:
    virtual real_t *HostReadWrite()
    { return mfem::ReadWrite(data, size, false); }
 
+   /** @brief Create a mutable (non-const) view of the Vector as Array<real_t>
+       that can be used to pass Vector objects to functions that take Array
+       arguments.
+
+       The returned MemoryView object is implicitly and explicitly convertible
+       to `Array<real_t> &`, see class MemoryView.
+
+       Creating multiple views, of the same Vector object, that have overlapping
+       life spans is not supported. */
+   MemoryView<Array<real_t>> GetArrayView()
+   { return MemoryView<Array<real_t>>(data, size); }
+
+   /** @brief Create a const view of the Vector as const Array<real_t> that can
+       be used to pass Vector objects to functions that take Array arguments.
+
+       The returned MemoryView object is implicitly and explicitly convertible
+       to `const Array<real_t> &`, see class MemoryView.
+
+       Creating multiple views, of the same Vector object, that have overlapping
+       life spans is not supported. */
+   MemoryView<const Array<real_t>> GetArrayView() const
+   { return MemoryView<const Array<real_t>>(data, size); }
 };
 
 // Inline methods

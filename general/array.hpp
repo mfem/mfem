@@ -28,6 +28,10 @@
 namespace mfem
 {
 
+// Forward declaration
+template <typename ViewedType> class MemoryView;
+
+
 /** @brief Swap objects of type T. The operation is performed using the most
     specialized `swap` function from the `mfem` namespace (or other visible
     `swap` functions), or using the `std::swap` generic template and its
@@ -55,6 +59,9 @@ protected:
    inline void GrowSize(int minsize);
 
    static_assert(std::is_trivial<T>::value, "type T must be trivial");
+
+   friend class MemoryView<Array<T>>;
+   friend class MemoryView<const Array<T>>;
 
 public:
    using value_type = T; ///< Type alias for stl.
