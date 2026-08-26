@@ -1,0 +1,99 @@
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+# In this CI section, we build the benchmarks of tests/benchmarks and measure
+# them with CodSpeed, which reports the performance changes on pull requests,
+# see https://app.codspeed.io/mfem/mfem.
+name: "CodSpeed"
+
+permissions:
+  contents: read # required by actions/checkout
+  id-token: write # required by the OIDC authentication with CodSpeed
+
+on:
+  push:
+    branches:
+      - master
+      - next
+  pull_request:
+  # 'workflow_dispatch' also allows CodSpeed to run backtest performance
+  # analysis, in order to generate initial data.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmarks:
+    name: benchmarks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout mfem
+        uses: actions/checkout@v6
+
+      # Restore the compiler cache (ccache). All runs restore, but only pushes
+      # save (see "save ccache"). PRs warm-start from the base branch via the
+      # restore-keys prefix without saving their own.
+      - name: restore ccache
+        uses: actions/cache/restore@v5
+        with:
+          path: .ccache
+          key: ccache-codspeed-${{ github.run_id }}
+          restore-keys: |
+            ccache-codspeed-
+
+      - name: configure ccache
+        run: |
+          command -v ccache >/dev/null 2>&1 || {
+            sudo apt-get update && sudo apt-get install -y ccache
+          }
+          echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=500M" >> $GITHUB_ENV
+          echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
+          # Ignore header timestamps (restamped by each checkout) so direct mode hits.
+          echo "CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,time_macros" >> $GITHUB_ENV
+          # Hash absolute paths relative to the workspace.
+          echo "CCACHE_BASEDIR=${{ github.workspace }}" >> $GITHUB_ENV
+
+      # 'MFEM_USE_CODSPEED' makes the build use CodSpeed's Google Benchmark
+      # compatibility layer, which is fetched by tests/benchmarks/CMakeLists.txt.
+      # 'RelWithDebInfo' is used to get optimized benchmarks with the debug
+      # symbols needed by the CodSpeed reports.
+      - name: configure mfem
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DMFEM_USE_BENCHMARK=YES \
+            -DMFEM_ENABLE_TESTING=YES \
+            -DMFEM_USE_CODSPEED=YES
+
+      - name: build benchmarks
+        run: cmake --build build --target benchmarks -j $(nproc)
+
+      - name: ccache stats
+        run: ccache -s
+
+      # Only pushes (master/next) save; see "restore ccache" above.
+      - name: save ccache
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .ccache
+          key: ccache-codspeed-${{ github.run_id }}
+
+      - name: run benchmarks
+        uses: CodSpeedHQ/action@v5
+        with:
+          mode: simulation
+          run: tests/benchmarks/codspeed.sh build/tests/benchmarks
