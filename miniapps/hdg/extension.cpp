@@ -8,6 +8,7 @@
 //               extension -o 1 -n 16 -r 2 -no-ext
 //               extension -p 2 -o 1 -n 8 -r 3
 //               extension -p 3 -o 1 -n 16 -r 2
+//               extension -o 2 -n 8 -r 3 -no-ctl -no-rec
 //
 // Description:  Solves the Darcy problem
 //
@@ -46,7 +47,12 @@
 //
 //               The miniapp solves on a sequence of background meshes and
 //               prints the history of convergence, because the claim being
-//               tested is a claim about rates. With -ctl it also solves, on
+//               tested is a claim about rates. With -rec, the default, it
+//               also postprocesses onto spaces one order higher and reports
+//               the errors of the total flux u_t and of the pair (u*, p*).
+//               The potential gains a full order there -- k+2 -- with the
+//               datum transferred as well as without it, which is the last
+//               of the reference's claims about the method. With -ctl it also solves, on
 //               the same D_h, the problem whose Dirichlet datum is read on
 //               Gamma_h itself -- the boundary-fitted problem the extension is
 //               trying to match -- and reports the ratio of the errors.
@@ -241,6 +247,8 @@ real_t pNatural(const Vector &x) { return -pExact(x); }
 struct Result
 {
    real_t err_u{}, err_p{};        ///< L2 errors on D_h
+   real_t err_us{}, err_ps{};      ///< and of the postprocessed pair
+   real_t err_ut{};                ///< and of the total flux
    real_t ext_u{}, ext_p{};        ///< and on the complement, normalized
    real_t area_c{};                ///< the measure of D_h^c, as swept
    real_t area_err{};              ///< how far that is from |Omega| - |D_h|
@@ -258,7 +266,7 @@ enum class PathFamily { ClosestPoint, LevelSet, VertexCone };
 
 Result Solve(int n, int order, real_t tau, real_t offset,
              PathFamily path_family, bool extend, int line_order,
-             bool visualization = false)
+             bool postprocess = true, bool visualization = false)
 {
    const int dim = 2;
 
@@ -417,6 +425,22 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    res.err_u = u_h.ComputeL2Error(ucoeff);
    res.err_p = p_h.ComputeL2Error(pcoeff);
 
+   // The local postprocessing, on spaces one order higher. Its local problem
+   // is the same one the element was solved with, and on a face of Gamma_h
+   // that includes the extension term -- which is the half of the transferred
+   // datum that depends on the flux, and which the lift onto the enriched
+   // space used to drop. The reference's claim for it is k+2 in the
+   // potential; the reconstructed flux is not superconvergent and is not
+   // claimed to be.
+   GridFunction ut, u_s, p_s, tr_s;
+   if (postprocess)
+   {
+      darcy.Reconstruct(x, X, ut, u_s, p_s, tr_s);
+      res.err_ut = ut.ComputeL2Error(ucoeff);
+      res.err_us = u_s.ComputeL2Error(ucoeff);
+      res.err_ps = p_s.ComputeL2Error(pcoeff);
+   }
+
    // How far the computational boundary stands from the true one, which is the
    // parameter the whole construction is about.
    Vector xp, xbar;
@@ -538,6 +562,7 @@ int main(int argc, char *argv[])
    const char *path_type = "cp";
    bool extend = true;
    bool control = true;
+   bool postprocess = true;
    bool visualization = true;
 
    OptionsParser args(argc, argv);
@@ -596,6 +621,10 @@ int main(int argc, char *argv[])
    args.AddOption(&control, "-ctl", "--control", "-no-ctl", "--no-control",
                   "Also solve with the datum read on Gamma_h and report the "
                   "ratio of the errors.");
+   args.AddOption(&postprocess, "-rec", "--reconstruct", "-no-rec",
+                  "--no-reconstruct",
+                  "Postprocess flux and potential onto spaces one order "
+                  "higher and report their errors and the total flux's.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(cout); return 1; }
    args.PrintOptions(cout);
@@ -620,6 +649,10 @@ int main(int argc, char *argv[])
         << "divided by the square root of its measure, which shrinks like h.\n\n"
         << "   n    elem     dofs      dist       ||u-u_h||   rate"
         << "     ||p-p_h||   rate      ext_u      rate      ext_p      rate";
+   if (postprocess)
+   {
+      cout << "     ||u-u_t||   rate     ||u-u*||    rate     ||p-p*||    rate";
+   }
    if (control && extend) { cout << "    ratio_u  ratio_p"; }
    cout << "\n";
 
@@ -630,12 +663,14 @@ int main(int argc, char *argv[])
    };
 
    real_t prev_u = 0.0, prev_p = 0.0, prev_xu = 0.0, prev_xp = 0.0;
+   real_t prev_ut = 0.0, prev_us = 0.0, prev_ps = 0.0;
    real_t worst_area = 0.0;
    int nn = n;
    for (int r = 0; r <= refinements; r++)
    {
       const Result e = Solve(nn, order, tau, offset, family, extend,
-                             line_order, visualization && r == refinements);
+                             line_order, postprocess,
+                             visualization && r == refinements);
 
       cout << setw(4) << nn << setw(8) << e.elements << setw(9) << e.dofs
            << "  " << scientific << setprecision(2) << e.dist;
@@ -643,11 +678,17 @@ int main(int argc, char *argv[])
       column(e.err_p, prev_p);
       column(e.ext_u, prev_xu);
       column(e.ext_p, prev_xp);
+      if (postprocess)
+      {
+         column(e.err_ut, prev_ut);
+         column(e.err_us, prev_us);
+         column(e.err_ps, prev_ps);
+      }
 
       if (control && extend)
       {
          const Result c = Solve(nn, order, tau, offset, family, false,
-                                line_order);
+                                line_order, false);
          cout << "  " << setw(7) << setprecision(3) << e.err_u / c.err_u
               << "  " << setw(7) << e.err_p / c.err_p;
          if (!c.converged) { cout << "  [control did not converge]"; }
@@ -664,6 +705,9 @@ int main(int argc, char *argv[])
       prev_p = e.err_p;
       prev_xu = e.ext_u;
       prev_xp = e.ext_p;
+      prev_ut = e.err_ut;
+      prev_us = e.err_us;
+      prev_ps = e.err_ps;
       nn *= 2;
    }
 

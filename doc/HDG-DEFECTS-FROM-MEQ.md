@@ -251,9 +251,8 @@ hybridization through `DarcyHybridization::AssembleFluxMassMatrix()`, called a
 second time for the element owning the face, and that routine *assigned*. So
 the term did not fail to reach the solve; it reached it and replaced the
 element's whole flux mass block, on every element touching the boundary,
-silently. The hybridized flux differed from the monolithic one by more than
-5% in the max norm. Fixed, with a
-regression, in §10 of the roadmap.
+silently. The hybridized flux differed from the monolithic one by more than 5%
+in the max norm. Fixed, with a regression, in §10 of the roadmap.
 
 ---
 

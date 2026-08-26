@@ -692,13 +692,38 @@ picks up.
 a coefficient, so wiring the term in is a separate piece of work, and the
 constants of eq. (20) are §7's question rather than §1's.
 
+### The postprocessing on `D_h`, and `k+2` with the datum transferred
+
+**Built, and it is the measurement that settled §4's (b).** `extension -rec`
+— the default — reconstructs the total flux and then flux and potential one
+order higher, and reports all three. Problem 1, the disc, over 8×8 to 64×64:
+
+| `k` | `‖p−p_h‖` | rate | `‖p−p*‖` | rate | `‖u−u*‖` | rate |
+|---|---|---|---|---|---|---|
+| 1 | 6.68e-6 | 1.99 | **2.43e-7** | **2.82** | 6.66e-6 | 2.25 |
+| 2 | 1.72e-8 | 3.00 | **1.58e-9** | **3.80** | 3.22e-8 | 3.63 |
+| 3 | 7.48e-10 | 5.56 | **6.34e-10** | **5.78** | 1.16e-8 | 5.27 |
+
+`k+2` for the potential at `k = 1` and `k = 2`, which is the claim, and a
+factor of 27 and 11 in the error over `p_h` itself. `k = 3` is measured on the
+8-to-32 sequence only and both columns are running above their asymptotic
+rates there. The non-convex cases gain too, less cleanly: problem 2 at `k = 1`
+takes `p*` to 1.96e-5 against `p_h`'s 3.04e-5, and the airfoil to 1.67e-4
+against 4.33e-3 at rate 2.25 — a factor of 26 on the hardest case in the
+reference.
+
+**And it works with the datum transferred, not merely without it.** The
+control matters here: with `-no-ext`, where the datum is read on `Γ_h` itself,
+`p*` reaches 2.64e-8 at rate 2.95 at `k = 1`. The extension costs the
+postprocessing an order of magnitude in the constant and nothing in the rate,
+which is the same statement the `err_p` column makes about the solve.
+
 **Not yet built**: the **cone restriction `C(x)`** of CS-Extensions §2.4.1,
 which is what would close the airfoil's flux — see above, where it is bisected
-to that and nothing else; the postprocessed `p*` on `D_h` and its `k+2`; the
-`ρ_d` robustness study under `d = ½h/(k+1)²`, which the paragraph on the
-constant above says is the thing to do next; the trace column `e_p^{E_h}`; and
-anything in three dimensions, where the path construction is unchanged but has
-not been run.
+to that and nothing else; the `ρ_d` robustness study under `d = ½h/(k+1)²`,
+which the paragraph on the constant above says is the thing to do next; the
+trace column `e_p^{E_h}`; and anything in three dimensions, where the path
+construction is unchanged but has not been run.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -1170,19 +1195,17 @@ returning `nan`. Making that case work needs the coarse trace threaded into
 **(b) The lift takes domain integrators only — and that is right. Reported as
 a defect, implemented as a fix, and withdrawn as wrong.** The report's reading
 is that a boundary-face term on the flux mass is dropped on the way to the
-enriched space, which is exactly how the extension work on
-`gf-hdg-subdomains-dev` installs the solution-dependent half of a transferred
-boundary datum, and that the reconstruction therefore solves its local problems
-without it. It measured this **harmless** — `p_s` still converged at `k+2` —
-and asked for it to be fixed anyway, on the ground that "harmless on the cases
-tried" has no diagnostic distinguishing it from the cases where it is not.
+enriched space, which is exactly how the extension work installs the
+solution-dependent half of a transferred boundary datum, and that the
+reconstruction therefore solves its local problems without it. It measured
+this **harmless** — `p_s` still converged at `k+2` — and asked for it to be
+fixed anyway, on the ground that "harmless on the cases tried" has no
+diagnostic distinguishing it from the cases where it is not.
 
 Carrying the term was implemented and then measured on the extension miniapp,
-which was given a postprocessing pass for the purpose — that work is on
-`gf-hdg-subdomains-dev`, where the miniapp lives, and its §1 records the
-tables. It is not harmless; it is the drop that is required. At `k = 2` on the
-disc, where the whole computational boundary is transferred, over the 8×8 to
-64×64 sequence:
+whose postprocessing was added for the purpose. It is not harmless; it is the
+drop that is required. At `k = 2` on problem 1 — the disc, where the whole
+computational boundary is transferred — over the 8×8 to 64×64 sequence:
 
 | | `‖p−p*‖` at `n=64` | rate | `‖u−u*‖` | rate |
 |---|---|---|---|---|
@@ -1190,7 +1213,10 @@ disc, where the whole computational boundary is transferred, over the 8×8 to
 | lifted | 8.57e-5 | **1.27** | 2.43e-4 | 1.25 |
 
 `k+2` for the potential either kept or lost, and a factor of 5e4 in the error.
-At `k = 1` the same: 2.43e-7 at rate 2.82 against 1.07e-4 at rate 1.35.
+At `k = 1` the same: 2.43e-7 at rate 2.82 against 1.07e-4 at rate 1.35. On
+problem 2 the two are indistinguishable, because there only the obstacle's
+boundary is transferred and most of `Γ_h` is fitted — which is why a
+measurement of that shape sees nothing.
 
 **Why, once stated, it could not have been otherwise.** The local problem is
 not the assembled problem restricted to an element. Its trace unknown is free
