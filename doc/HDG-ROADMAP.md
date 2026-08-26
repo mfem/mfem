@@ -793,10 +793,10 @@ The nav table above used to credit them to
 
 | | implemented | driven by | unit test | rate study |
 | --- | --- | --- | --- | --- |
-| (a) full varying tensor | yes | `anisodiff` | **none** | **none** |
-| (b) reaction | yes | `anisodiff` | constant `a`, equivalence only | **none** |
-| (c) convection | yes | `convdiff`, scalar `κ` | — | `convdiff` |
-| (a)+(b)+(c) together | — | **nothing** | **none** | **none** |
+| (a) full varying tensor | yes | `anisodiff` | **none** | `anisodiff -p 11` |
+| (b) reaction | yes | `anisodiff` | constant `a`, equivalence only | `anisodiff -p 11` |
+| (c) convection | yes | `convdiff`, scalar `κ` | — | `convdiff`, `anisodiff -p 11` |
+| (a)+(b)+(c) together | yes | `anisodiff -p 11` | **none** | `anisodiff -p 11` |
 | (f) derivative source | **yes** | — | `test_darcy_system.cpp` | withdrawn, §9 |
 
 So the gap is not the individual terms — `anisodiff` carries a
@@ -805,6 +805,92 @@ So the gap is not the individual terms — `anisodiff` carries a
 the requirement asks for: that they compose rather than being separate code
 paths. Nothing in the tree builds an operator with all three at once, and
 nothing measures rates for (a) or (b) at all.
+
+### (a)+(b)+(c) composed, and measured — `anisodiff -p 11`
+
+**The composition is now built and it converges.** Before building it, the
+MFEM examples were checked for one that could serve instead: none composes the
+three, and the near misses fail structurally rather than narrowly — `ex29`
+carries a genuine varying tensor but on an embedded surface with no other
+term, `ex31` an anisotropic tensor and a reaction but in `curl curl`, `ex41`
+convection with a scalar diffusion. The problem built instead is
+physically motivated in the way §3 asks: **anisotropic conduction along a
+sheared magnetic field, with flow along that field and a volumetric sink**,
+which is edge-plasma transport and the same physics as the application behind
+`HDG-DEFECTS-FROM-MEQ.md`.
+
+* **(a)** `κ = κ_⊥ I + (κ_∥−κ_⊥) b̂b̂ᵀ + κ_∧ J`, with `b̂ = (cos θ, sin θ)` and
+  `θ = π/6 + (π/3) sin(πx) sin(πy)`. Every entry varies, the off-diagonals do
+  not vanish, `-ks` is the anisotropy ratio `κ_⊥/κ_∥` and `-ka` the
+  diamagnetic term that makes the operator non-symmetric.
+* **(b)** the existing `-a` reaction.
+* **(c)** `c = c₀ b̂`, so the flow runs along the *strong* direction of the
+  conduction — §5's requirement, a problem convection-dominated along one
+  direction and diffusion-dominated across it, arriving from the physics
+  rather than imposed.
+
+**The field is of unit length by construction, and that is the point.** Every
+other field in the file is `∇ψ^⊥/|∇ψ|`, which has null points; `b̂b̂ᵀ` stays
+bounded there but `∇·b̂` does not, and a convective term's manufactured source
+needs that divergence. A sheared field with no null point is what makes the
+source bounded and the rates meaningful. The manufactured `T = t₀ sin(πx)
+sin(πy)` is deliberately *not* constant along the field: one that is — as
+Sovinec's is — leaves the parallel conduction and the parallel flow
+contributing nothing to the source, so the composition would not be measured.
+The source was checked against symbolic differentiation of `∇·(κ∇T)` before
+being written.
+
+Rates over the 8×8 to 64×64 sequence, `τ` held fixed under refinement
+(`-td 0.5/n`), as `q` / `T`:
+
+| case | 8→16 | 16→32 | 32→64 |
+|---|---|---|---|
+| `k=1` diffusion only | 1.84/1.86 | 1.96/1.96 | **2.00/2.00** |
+| `k=1` + diamagnetic `ka=0.3` | 1.80/1.83 | 1.90/1.94 | **1.94/1.99** |
+| `k=1` + reaction `a=2` | 1.80/1.81 | 1.93/1.93 | **1.99/1.99** |
+| `k=1` + convection `c=1` | 2.00/2.00 | 2.04/2.04 | **2.04/2.04** |
+| `k=1` all three, `ks=1` | 1.92/1.95 | 1.96/2.01 | **1.96/2.02** |
+| `k=2` all three, `ks=1` | 2.86/2.90 | 2.88/2.93 | **2.90/2.96** |
+
+**`k+1` in both unknowns, with all three terms live, at `k=1` and `k=2`.** The
+terms compose; they are not separate code paths.
+
+**And the postprocessing gains its full order on the composed operator**, which
+is the end-to-end check: the local problem of §4's reconstruction is built from
+these same forms, so a term it could not represent would show here first.
+`-rec`, same sequence, as `T` / `T*`:
+
+| case | 8→16 | 16→32 | 32→64 | final `T` | final `T*` |
+|---|---|---|---|---|---|
+| `k=1` all three | 1.95/2.94 | 2.01/3.00 | **2.02/3.00** | 4.9e-4 | **8.0e-6** |
+| `k=2` all three | 2.90/3.99 | 2.93/3.94 | **2.96/3.94** | 2.2e-6 | **8.9e-9** |
+
+`k+2` at both orders, and a factor of 61 and 241 in the error over `T` itself.
+The total flux `u_t` is compared against `q + cT` rather than `q`: `DarcyForm`
+deduces what "total" means from the integrators on the potential mass, so with
+a flow term present the conductive flux alone is the wrong reference and
+reports `‖cT‖` as an error.
+
+**Anisotropy costs the flux, and it is `τ` again.** With `κ_⊥/κ_∥ = 10⁻²` the
+flux rate falls to about 1.5 at `k=1` and 2.5 at `k=2` while the potential
+holds near `k+1`. That is not the composition failing — the isotropic rows
+above have every term live — and the cause is the one §3(d) already found from
+the other direction:
+
+| `ks=1e-2`, `k=1`, diffusion only | 8→16 | 16→32 | 32→64 | final `‖T‖` err |
+|---|---|---|---|---|
+| `τ = 0.5/n` | 1.98/1.71 | 1.63/1.83 | 1.49/1.88 | 6.7e-3 |
+| `τ = 4/n` | 1.94/1.69 | 1.75/1.84 | 1.59/1.91 | 9.9e-4 |
+| `τ = 32/n` | 1.69/1.86 | 1.82/1.87 | **1.90/1.91** | **1.4e-4** |
+
+Raising `τ` recovers the order and takes the potential error down by a factor
+of 49. `HDGDiffusionIntegrator` builds `τ` from `n·κn/h`, so on a face whose
+normal is across the field it is `κ_⊥` — a hundred times too small. This is
+**`τ → 0` again, arriving from anisotropy rather than from a degeneracy**, and
+§3(d)'s conclusion carries over unchanged: the fix is a floor, which needs an
+`HDGStabilization` object because the integrator derives `τ` from the
+coefficient and cannot express one. That is the next thing to build here, and
+it now has a rate study to be judged against.
 
 * **(d) Degenerate coefficients.** Operators of the form `∂_x( w(x) ∂_x · )` with
   `w` vanishing on part of the boundary. These are well posed in the natural

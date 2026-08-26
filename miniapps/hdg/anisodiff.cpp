@@ -23,6 +23,7 @@
 //               anisodiff -m ../../data/square-disc.mesh -p 2 -a 1 -k 1e-2 -ks 1e-4 -o 2 -rd
 //               anisodiff -nx 20 -p 5 -ks 1e+1 -o 2 -hb -brt -amr 5
 //               anisodiff -nx 20 -p 9 -ks 1e-4 -o 2 -hb -dg -amr 5
+//               anisodiff -nx 32 -p 11 -o 2 -hb -dg -c 1 -a 2 -ka 0.3 -td 0.015625
 //
 // Device sample runs:
 //
@@ -31,7 +32,10 @@
 //               to the system
 //
 //                                 kˉ¹⋅q + ∇ T =  g
-//                                   ∇⋅q + a T = -f
+//                                   ∇⋅q + ∇⋅(c T) + a T = -f
+//
+//               where the flow term ∇⋅(c T) is carried by problem 11 alone and
+//               is absent from every other, c being zero there.
 //
 //               with essential (RT) / natural (DG) Neumann boundary condition
 //               q⋅n = 0, where n is the outer normal, or Dirichlet b.c. T =
@@ -66,6 +70,24 @@
 //                                                 with a single X-point
 //               10) double-null diverted tokamak - Two-wire model of tokamak
 //                                                  with two X-points
+//               11) sheared transport - conduction along a sheared magnetic
+//                                       field, with flow along that field and
+//                                       a volumetric sink, against a
+//                                       manufactured steady-state solution.
+//                                       This is the one problem here that
+//                                       carries a full spatially varying
+//                                       tensor, a convective term and a
+//                                       reaction at once, which is what makes
+//                                       it a test of their composition rather
+//                                       than of any one of them; the others
+//                                       carry at most two. The field is
+//                                       (cos θ, sin θ) with θ swept from 30 to
+//                                       90 degrees across the domain, so it is
+//                                       of unit length everywhere -- unlike
+//                                       the flux-function fields of problems
+//                                       2-4 and 8-10, whose null points would
+//                                       make ∇⋅b, and so the manufactured
+//                                       source of a flow term, unbounded.
 //               We discretize with (broken) Raviart-Thomas finite elements
 //               (heat flux q) and piecewise discontinuous polynomials
 //               (temperature T). Alternatively, the piecewise discontinuous
@@ -92,6 +114,7 @@ using namespace mfem;
 using namespace mfem::hdg;
 
 // Define the analytical solution and forcing terms / boundary conditions
+typedef function<void(const Vector &, Vector &)> VecFunc;
 typedef function<real_t(const Vector &, real_t)> TFunc;
 typedef function<void(const Vector &, real_t, Vector &)> VecTFunc;
 typedef function<void(const Vector &, DenseMatrix &)> MatFunc;
@@ -108,6 +131,7 @@ enum Problem
    Sovinec,
    SingleNull,
    DoubleNull,
+   ShearedTransport,
 };
 
 struct ProblemParams
@@ -117,9 +141,11 @@ struct ProblemParams
    real_t k, ks, ka;
    real_t t_0;
    real_t a;
+   real_t c;      ///< speed of the flow along the field, zero for no flow
 };
 
 MatFunc GetKFun(const ProblemParams &params);
+VecFunc GetCFun(const ProblemParams &params);
 TFunc GetTFun(const ProblemParams &params);
 VecTFunc GetQFun(const ProblemParams &params);
 TFunc GetFFun(const ProblemParams &params);
@@ -153,6 +179,7 @@ int main(int argc, char *argv[])
    pars.ks = 1.;
    pars.ka = 0.;
    pars.a = 0.;
+   pars.c = 0.;
    real_t td = 0.5;
    bool bc_neumann = false;
    bool reduction = false;
@@ -206,13 +233,19 @@ int main(int argc, char *argv[])
                   "7=steady varying angle\n\t\t"
                   "8=Sovinec\n\t\t"
                   "9=Single null\n\t\t"
-                  "10=Double null\n\t\t");
+                  "10=Double null\n\t\t"
+                  "11=sheared transport: anisotropic conduction along a\n\t\t"
+                  "   sheared field, with flow along it and a volumetric\n\t\t"
+                  "   sink -- the composition of a full varying tensor, a\n\t\t"
+                  "   convective term and a reaction\n\t\t");
    args.AddOption(&pars.k, "-k", "--kappa",
                   "Heat conductivity");
    args.AddOption(&pars.ks, "-ks", "--kappa_sym",
                   "Symmetric anisotropy of the heat conductivity tensor");
    args.AddOption(&pars.ka, "-ka", "--kappa_anti",
                   "Antisymmetric anisotropy of the heat conductivity tensor");
+   args.AddOption(&pars.c, "-c", "--velocity",
+                  "Speed of the flow along the magnetic field (problem 11)");
    args.AddOption(&pars.a, "-a", "--heat_capacity",
                   "Heat capacity coefficient (0=indefinite problem)");
    args.AddOption(&td, "-td", "--stab_diff",
@@ -357,6 +390,13 @@ int main(int argc, char *argv[])
       case Problem::SteadyVaryingAngle:
          bdr_is_dirichlet = -1;
          break;
+      case Problem::ShearedTransport:
+         // The manufactured temperature vanishes on the whole boundary, so
+         // the weak Dirichlet datum below is homogeneous. That is deliberate:
+         // this problem exists to measure the composition of the three terms
+         // in the operator, and section 7 of the roadmap has already swept the
+         // boundary treatment separately.
+         break;
       default:
          cerr << "Unknown problem" << endl;
          return 1;
@@ -429,6 +469,11 @@ int main(int argc, char *argv[])
    MatrixFunctionCoefficient kcoeff(dim, kFun); // Tensor conductivity
    InverseMatrixCoefficient ikcoeff(kcoeff); // Inverse tensor conductivity
 
+   auto cFun = GetCFun(pars);
+   const bool bconv = (bool)cFun;
+   unique_ptr<VectorFunctionCoefficient> ccoeff; // Flow along the field
+   if (bconv) { ccoeff.reset(new VectorFunctionCoefficient(dim, cFun)); }
+
    auto tFun = GetTFun(pars);
    FunctionCoefficient tcoeff(tFun); // Analytic temperature
    ProductCoefficient gcoeff(-1., tcoeff); // Boundary heat flux r.h.s.
@@ -439,6 +484,19 @@ int main(int argc, char *argv[])
    auto qFun = GetQFun(pars);
    VectorFunctionCoefficient qcoeff(dim, qFun); // Analytic heat flux
    ConstantCoefficient one;
+
+   // The reconstructed total flux is the conductive flux plus the convective
+   // one, since DarcyForm deduces what "total" means from the integrators on
+   // the potential mass. Comparing it against the conductive flux alone would
+   // report the size of c*T as an error.
+   unique_ptr<VectorSumCoefficient> qtcoeff_;
+   if (bconv)
+   {
+      qtcoeff_.reset(new VectorSumCoefficient(*ccoeff, qcoeff, tcoeff,
+                                              one));
+   }
+   VectorCoefficient &qtcoeff = bconv ? (VectorCoefficient&)*qtcoeff_
+                                : (VectorCoefficient&)qcoeff;
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -569,6 +627,29 @@ int main(int argc, char *argv[])
          B->AddBdrFaceIntegrator(new TransposeIntegrator(new DGNormalTraceIntegrator(
                                                             -2.)), bdr_is_dirichlet);
       }
+   }
+
+   // Convection
+
+   if (bconv)
+   {
+      MFEM_VERIFY(dg, "The flow term is implemented for the discontinuous "
+                  "flux space only; the trace of the potential it upwinds on "
+                  "is what the HDG face integrators below need.");
+      MFEM_VERIFY(!nonlinear, "The flow term is linear; -nl would put it on "
+                  "the nonlinear form, which is a different code path.");
+
+      // The conservative form, div(c T), matching the source in GetFFun().
+      // The face terms are the centred ones: with the flow along the field
+      // and the field sheared, the normal velocity changes sign across the
+      // domain, and upwinding is a different method whose rates are section
+      // 5's question rather than this problem's.
+      BilinearForm *Mt = darcy->GetPotentialMassForm();
+      Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(*ccoeff));
+      Mt->AddInteriorFaceIntegrator(
+         new HDGConvectionCenteredIntegrator(*ccoeff));
+      Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(*ccoeff),
+                               bdr_is_neumann);
    }
 
    // Inertial term
@@ -839,8 +920,8 @@ int main(int argc, char *argv[])
       if (reconstruct)
       {
          darcy->Reconstruct(x, x.GetBlock(2), qt_h, q_hs, t_hs, tr_hs);
-         real_t err_qt = qt_h.ComputeL2Error(qcoeff, irs);
-         real_t norm_qt = ComputeLpNorm(2., qcoeff, mesh, irs);
+         real_t err_qt = qt_h.ComputeL2Error(qtcoeff, irs);
+         real_t norm_qt = ComputeLpNorm(2., qtcoeff, mesh, irs);
          cout << "|| qt_h - qt_ex || / || qt_ex || = " << err_qt / norm_qt << "\n";
          real_t err_qs = q_hs.ComputeL2Error(qcoeff, irs);
          cout << "|| q_hs - q_ex || / || q_ex || = " << err_qs / norm_q << "\n";
@@ -1046,6 +1127,48 @@ int main(int argc, char *argv[])
    return 0;
 }
 
+/** @brief The sheared magnetic field of Problem::ShearedTransport, and every
+    derivative of it the manufactured source needs.
+
+    @f$\hat b = (\cos\theta, \sin\theta)@f$ with
+    @f$\theta = \theta_0 + \theta_1 \sin(\pi x)\sin(\pi y)@f$. The unit
+    length is the point of it: a field built as @f$\nabla\psi^\perp/|\nabla
+    \psi|@f$ -- Sovinec's, and every other flux-function field in this file --
+    has null points where @f$|\nabla\psi|@f$ vanishes, and although @f$\hat b
+    \hat b^T@f$ stays bounded there, @f$\nabla\cdot\hat b@f$ does not. A
+    convective term needs that divergence, so a field with no null point is
+    what makes the manufactured source bounded and the rates meaningful.
+
+    The direction sweeps from @f$\theta_0@f$ to @f$\theta_0+\theta_1@f$
+    across the domain, so it is nowhere aligned with a Cartesian mesh, which
+    is the case anisotropic discretisations are weakest on. */
+struct ShearedField
+{
+   static constexpr real_t theta_0 = M_PI / 6.;   ///< 30 degrees at the walls
+   static constexpr real_t theta_1 = M_PI / 3.;   ///< sweeping to 90 in between
+
+   real_t st, ct;        ///< sin and cos of the angle
+   real_t div_b;         ///< the divergence of the unit field
+   real_t b_dot_gth;     ///< b . grad(theta), the curvature magnitude
+
+   ShearedField(const Vector &x)
+   {
+      const real_t sx = sin(M_PI * x(0)), cx = cos(M_PI * x(0));
+      const real_t sy = sin(M_PI * x(1)), cy = cos(M_PI * x(1));
+
+      const real_t th = theta_0 + theta_1 * sx * sy;
+      const real_t th_x = theta_1 * M_PI * cx * sy;
+      const real_t th_y = theta_1 * M_PI * sx * cy;
+
+      st = sin(th);
+      ct = cos(th);
+      div_b = -st * th_x + ct * th_y;
+      b_dot_gth = ct * th_x + st * th_y;
+   }
+
+   void Unit(Vector &b) const { b.SetSize(2); b(0) = ct; b(1) = st; }
+};
+
 MatFunc GetKFun(const ProblemParams &params)
 {
    const real_t &k = params.k;
@@ -1134,6 +1257,30 @@ MatFunc GetKFun(const ProblemParams &params)
                AddMult_a_VVt((1. - ks) * k, b, kappa);
             }
          };
+      case Problem::ShearedTransport:
+         // kappa = k_perp I + (k_par - k_perp) b b^T + k_anti J, so that -ks
+         // is the anisotropy ratio k_perp/k_par and -ka the diamagnetic term.
+         // Every entry varies and the off-diagonals do not vanish, which is
+         // what section 3(a) of the roadmap asks of a tensor coefficient.
+         return [=](const Vector &x, DenseMatrix &kappa)
+         {
+            MFEM_VERIFY(x.Size() == 2, "the sheared transport problem is 2D");
+
+            const ShearedField f(x);
+            Vector b;
+            f.Unit(b);
+
+            kappa.Diag(ks * k, 2);
+            if (ks != 1.)
+            {
+               AddMult_a_VVt((1. - ks) * k, b, kappa);
+            }
+            if (ka != 0.)
+            {
+               kappa(0,1) += ka * k;
+               kappa(1,0) -= ka * k;
+            }
+         };
       case Problem::SingleNull:
          // C. Vogl, I. Joseph and M. Holec, Mesh refinement for anisotropic
          // diffusion in magnetized plasmas, Computers and Mathematics with
@@ -1200,6 +1347,32 @@ MatFunc GetKFun(const ProblemParams &params)
          };
    }
    return MatFunc();
+}
+
+/** @brief The flow field. Empty for every problem but the sheared transport
+    one, whose flow runs along the magnetic field -- which is what a plasma
+    does, and what makes the convection and the strong direction of the
+    conduction the same direction. That is section 5's requirement, a problem
+    convection-dominated along one direction and diffusion-dominated across
+    it, arriving from the physics rather than being imposed. */
+VecFunc GetCFun(const ProblemParams &params)
+{
+   const real_t &c = params.c;
+
+   switch (params.prob)
+   {
+      case Problem::ShearedTransport:
+         if (c == 0.) { break; }
+         return [=](const Vector &x, Vector &v)
+         {
+            const ShearedField f(x);
+            f.Unit(v);
+            v *= c;
+         };
+      default:
+         break;
+   }
+   return VecFunc();
 }
 
 TFunc GetTFun(const ProblemParams &params)
@@ -1369,6 +1542,15 @@ TFunc GetTFun(const ProblemParams &params)
 
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return psi / kappa_perp;
+         };
+      case Problem::ShearedTransport:
+         // Manufactured, and deliberately not constant along the field: a
+         // temperature that is, as Sovinec's is, leaves the parallel
+         // conduction and the parallel flow contributing nothing to the
+         // source, so the composition being measured would not be measured.
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            return t_0 * sin(M_PI * x(0)) * sin(M_PI * x(1));
          };
       case Problem::SingleNull:
       case Problem::DoubleNull:
@@ -1549,6 +1731,20 @@ VecTFunc GetQFun(const ProblemParams &params)
             v(0) = M_PI * sin(M_PI * dx(0)) * cos(M_PI * dx(1));
             v(1) = M_PI * cos(M_PI * dx(0)) * sin(M_PI * dx(1));
          };
+      case Problem::ShearedTransport:
+         return [=](const Vector &x, real_t, Vector &v)
+         {
+            v.SetSize(2);
+
+            Vector gT(2);
+            gT(0) = t_0 * M_PI * cos(M_PI*x(0)) * sin(M_PI*x(1));
+            gT(1) = t_0 * M_PI * sin(M_PI*x(0)) * cos(M_PI*x(1));
+
+            DenseMatrix kappa;
+            kFun(x, kappa);
+            kappa.Mult(gT, v);
+            v.Neg();
+         };
    }
    return VecTFunc();
 }
@@ -1559,6 +1755,8 @@ TFunc GetFFun(const ProblemParams &params)
    const real_t &ks = params.ks;
    //const real_t &ka = params.ka;
    const real_t &a = params.a;
+   const real_t &c = params.c;
+   const real_t &t_0 = params.t_0;
    const real_t &x0 = params.x0;
    const real_t &y0 = params.y0;
    const real_t &sx = params.sx;
@@ -1630,6 +1828,54 @@ TFunc GetFFun(const ProblemParams &params)
 
             const real_t psi = cos(M_PI * dx(0)) * cos(M_PI * dx(1));
             return -2.*M_PI*M_PI * psi;
+         };
+      case Problem::ShearedTransport:
+         // f = div(kappa grad T) - div(c T) - a T, which is the convention the
+         // rest of this file uses: the potential row of the block system above
+         // carries -B and -Mt against the right-hand side.
+         //
+         // Written with the field's own quantities rather than expanded, so
+         // that it can be read against the identity it comes from:
+         //
+         //   div(kappa grad T) = k_perp lap(T)
+         //                     + (k_par - k_perp) [ (div b)(b.grad T)
+         //                                        + (b.grad b).grad T
+         //                                        + b^T H(T) b ]
+         //
+         // with b.grad b = (b.grad theta) b_perp, the curvature vector. The
+         // diamagnetic term drops out of the source but not out of kappa: a
+         // *constant* antisymmetric tensor contributes T_xy - T_yx to the
+         // divergence and so nothing at all, while still making the assembled
+         // operator non-symmetric. Both halves were checked against symbolic
+         // differentiation of div(kappa grad T) before being written here.
+         return [=](const Vector &x, real_t) -> real_t
+         {
+            const real_t sxp = sin(M_PI*x(0)), cxp = cos(M_PI*x(0));
+            const real_t syp = sin(M_PI*x(1)), cyp = cos(M_PI*x(1));
+
+            const real_t T = t_0 * sxp * syp;
+            const real_t T_x = t_0 * M_PI * cxp * syp;
+            const real_t T_y = t_0 * M_PI * sxp * cyp;
+            const real_t T_xy = t_0 * M_PI*M_PI * cxp * cyp;
+            const real_t T_xx = -M_PI*M_PI * T, T_yy = T_xx;
+            const real_t lapT = T_xx + T_yy;
+
+            const ShearedField bf(x);
+            const real_t b_dot_gT = bf.ct * T_x + bf.st * T_y;
+            const real_t curv_gT =
+            bf.b_dot_gth * (-bf.st * T_x + bf.ct * T_y);
+            const real_t bHb = bf.ct*bf.ct * T_xx
+            + 2. * bf.st*bf.ct * T_xy
+            + bf.st*bf.st * T_yy;
+
+            const real_t k_perp = ks * k;
+            const real_t dk = (1. - ks) * k;   // k_par - k_perp
+
+            const real_t div_kgT =
+            k_perp * lapT + dk * (bf.div_b * b_dot_gT + curv_gT + bHb);
+            const real_t div_cT = c * (T * bf.div_b + b_dot_gT);
+
+            return div_kgT - div_cT - a * T;
          };
    }
    return TFunc();
