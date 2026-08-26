@@ -513,11 +513,6 @@ MFEM_USE_BENCHMARK = YES/NO
    Enables support for Google Benchmark, a library to support the benchmarking
    of functions, in the tests/benchmarks directory.
 
-MFEM_USE_CODSPEED = YES/NO
-   (CMake only) Build the benchmarks against CodSpeed's fork of Google
-   Benchmark (https://codspeed.io) for continuous benchmarking in CI.
-   Requires MFEM_USE_BENCHMARK = YES and CMake >= 3.18.
-
 MFEM_USE_HIOP = YES/NO
    Enable the usage of HiOp (https://github.com/LLNL/hiop) in MFEM. HiOp is an
    HPC solver for nonlinear optimization problems.
@@ -1103,7 +1098,9 @@ MFEM_USE_ENZYME
 The following options are CMake specific:
 
 MFEM_USE_CODSPEED    - Build the benchmarks against CodSpeed's fork of Google
-                       Benchmark, no GNU make equivalent.
+                       Benchmark (https://codspeed.io) for continuous
+                       benchmarking in CI, no GNU make equivalent. Requires
+                       MFEM_USE_BENCHMARK = YES and CMake >= 3.18.
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.
