@@ -209,7 +209,7 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
 
     // PDE Coefficients
     real_t raw_diff_term;
-    mutable VectorFunctionCoefficient v_base;
+    mutable VectorGridFunctionCoefficient v_base;
     mutable FunctionCoefficient raw_inflow;
     real_t dt_diff_term;
     
@@ -225,7 +225,7 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
     public:
     IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes, 
         FunctionCoefficient &raw_inflow, 
-        VectorFunctionCoefficient &v_base, 
+        VectorGridFunctionCoefficient &v_base, 
         real_t &dt_diff_term, 
         real_t &raw_diff_term,  
         GridFunctionCoefficient &q0, 
@@ -238,7 +238,7 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
 
     IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes, 
         FunctionCoefficient &raw_inflow, 
-        VectorFunctionCoefficient &v_base, 
+        VectorGridFunctionCoefficient &v_base, 
         real_t &dt_diff_term, 
         real_t &raw_diff_term,  
         GridFunctionCoefficient &q0, 
@@ -341,7 +341,7 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
 
 IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes_, 
         FunctionCoefficient &raw_inflow_, 
-        VectorFunctionCoefficient &v_base_, 
+        VectorGridFunctionCoefficient &v_base_, 
         real_t &dt_diff_term_, 
         real_t &raw_diff_term_,  
         GridFunctionCoefficient &q0_, 
@@ -394,7 +394,7 @@ IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace
 
 IMEXAdvectionDiffusionSolver::IMEXAdvectionDiffusionSolver(ParFiniteElementSpace &fes_, 
         FunctionCoefficient &raw_inflow_, 
-        VectorFunctionCoefficient &v_base_, 
+        VectorGridFunctionCoefficient &v_base_, 
         real_t &dt_diff_term_, 
         real_t &raw_diff_term_,  
         GridFunctionCoefficient &q0_, 
@@ -544,11 +544,11 @@ void IMEXAdvectionDiffusionSolver::InitializeFlowProblem()
 
     // Form the DG Conevection Matrix
     constexpr real_t alpha = -1.0;
-    ScalarVectorProductCoefficient velocity_cf(SIMP_cf, v_base);  
+    //ScalarVectorProductCoefficient velocity_cf(SIMP_cf, v_base);  
     K = new ParBilinearForm(fespace);
-    K->AddDomainIntegrator(new ConvectionIntegrator(velocity_cf, alpha));
-    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha));                                                       
-    K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(velocity_cf, alpha), inflow_bdr_attr);
+    K->AddDomainIntegrator(new ConvectionIntegrator(v_base, alpha));
+    K->AddInteriorFaceIntegrator(new NonconservativeDGTraceIntegrator(v_base, alpha));                                                       
+    K->AddBdrFaceIntegrator(new NonconservativeDGTraceIntegrator(v_base, alpha), inflow_bdr_attr);
     
     // Form DG Stiffness Matrix
     ProductCoefficient diff_cf(raw_diff_term, SIMP_cf);
@@ -575,7 +575,7 @@ void IMEXAdvectionDiffusionSolver::InitializeFlowProblem()
 
 
     b = new ParLinearForm(fespace);
-    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, velocity_cf, alpha), inflow_bdr_attr);
+    b->AddBdrFaceIntegrator(new BoundaryFlowIntegrator(raw_inflow, v_base, alpha), inflow_bdr_attr);
     b->Assemble();
     b_vec.reset(b->ParallelAssemble());
 
@@ -612,14 +612,14 @@ void IMEXAdvectionDiffusionSolver::Mult1(const Vector &x, Vector &y) const
    z += *b_vec;
    M_solver->Mult(z, y);
 
-   // raw_inflow.SetTime(t);
-   // GridFunctionCoefficient rho_til_cf(&rho_tilde);
-   // ProductCoefficient inflow(rho_til_cf, raw_inflow);
-   // //b->Update();
-   // b = new ParLinearForm(fespace);
-   // b->AddDomainIntegrator(new DomainLFIntegrator(inflow));
-   // b->Assemble();
-   // b_vec.reset(b->ParallelAssemble());
+   raw_inflow.SetTime(t);
+   GridFunctionCoefficient rho_til_cf(&rho_tilde);
+   ProductCoefficient inflow(rho_til_cf, raw_inflow);
+   //b->Update();
+   b = new ParLinearForm(fespace);
+   b->AddDomainIntegrator(new DomainLFIntegrator(inflow));
+   b->Assemble();
+   b_vec.reset(b->ParallelAssemble());
 }
 
 void IMEXAdvectionDiffusionSolver::ImplicitSolve2(const real_t dt_pass, const Vector &x, Vector &k)
@@ -723,7 +723,7 @@ void IMEXAdvectionDiffusionSolver::ExplicitMultDesignGradient(const real_t dt_pa
 
    if (problem_type == 1)
    {
-      //raw_inflow.SetTime(t);
+      raw_inflow.SetTime(t);
       ParLinearForm dom_flow_lf(filter_fes);
       dom_flow_lf.AddDomainIntegrator(new DomainDesignLFIntegrator(lam_gf, raw_inflow));
       dom_flow_lf.Assemble();

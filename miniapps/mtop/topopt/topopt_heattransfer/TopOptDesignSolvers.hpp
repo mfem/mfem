@@ -30,7 +30,7 @@ class DesignSolver
    SIMPCoefficient SIMP_cf;
 
    // PDE Coefficients
-   VectorFunctionCoefficient v_base;
+   VectorGridFunctionCoefficient v_base;
    real_t dt_diff_term;
    FunctionCoefficient raw_inflow;
    real_t raw_diff_term;
@@ -61,7 +61,7 @@ class DesignSolver
                          ParFiniteElementSpace &control_fes_,
                          toopt::PDEFilter &filter_,
                          HeatTransferObjectiveFunction &objective_,
-                         VectorFunctionCoefficient &v_base_,
+                         VectorGridFunctionCoefficient &v_base_,
                          real_t raw_diff_term_,
                          real_t dt_diff_term_,
                          FunctionCoefficient &raw_inflow_,
@@ -132,7 +132,7 @@ class DesignSolver
          pd->RegisterField("solution", &q_gf);
          pd->SetLevelsOfDetail(state_fes.GetOrder(0));
          pd->SetDataFormat(VTKFormat::BINARY);
-         pd->SetHighOrderOutput(false);
+         pd->SetHighOrderOutput(true);
          pd->SetCycle(0);
          pd->SetTime(0.0);
          pd->Save();

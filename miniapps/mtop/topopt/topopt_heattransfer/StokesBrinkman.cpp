@@ -35,6 +35,109 @@ bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)
    return true;
 }
 
+real_t inflow_function(const Vector &x)      
+{
+   return 0.0;  
+}  
+
+// Initial condition
+real_t u0_function(const Vector &x)
+{
+   int dim = x.Size();
+
+   // map to the reference [-1,1] domain
+//    Vector X(dim);
+//    real_t bb_min = 0.0;
+//    real_t bb_max = 1.0;
+//    for (int i = 0; i < dim; i++)
+//    {
+//       real_t center = (1 + 0) * 0.5;
+//       X(i) = 2 * (x(i) - center) / (1);
+//    }
+//    const real_t f = M_PI;
+//    return sin(f*X(0))*sin(f*X(1));
+    real_t x_center1 = 2.0/6.0;
+    real_t x_center2 = 2.0/6.0;
+    real_t x_center3 = 2.0/6.0;
+    real_t x_center4 = 4.0 / 6.0;
+    real_t x_center5 = 4.0 / 6.0;
+    real_t x_center6 = 4.0 / 6.0;
+    real_t x_center7 = 6.0/6.0;
+    real_t x_center8 = 6.0/6.0;
+
+
+    real_t y_center1 = 5.0/6.0;
+    real_t y_center2 = 0.5;
+    real_t y_center3 = 1.0/6.0;
+    real_t y_center4 = 5.0/6.0;
+    real_t y_center5 = 0.5;
+    real_t y_center6 = 1.0/6.0;
+    real_t y_center7 = 5.0/6.0;
+    real_t y_center8 = 1.0/6.0;
+
+    real_t sigma_x = 0.1;
+    real_t sigma_y = 0.1;
+
+
+    // Injection 1
+    // Distance from center (normalized by sigma)
+    real_t dx1 = (x(0) - x_center1) / sigma_x;
+    real_t dy1 = (x(1) - y_center1) / sigma_y;
+    real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
+    real_t gaussian1 = std::exp(-0.5 * r_squared1);
+
+    // Injection 2
+    // Distance from center (normalized by sigma)
+    real_t dx2 = (x(0) - x_center2) / sigma_x;
+    real_t dy2 = (x(1) - y_center2) / sigma_y;
+    real_t r_squared2 = dx2 * dx2 + dy2 * dy2;
+    real_t gaussian2 = std::exp(-0.5 * r_squared2);
+
+    // Injection 3
+    // Distance from center (normalized by sigma)
+    real_t dx3 = (x(0) - x_center3) / sigma_x;
+    real_t dy3 = (x(1) - y_center3) / sigma_y;
+    real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
+    real_t gaussian3 = std::exp(-0.5 * r_squared3);
+
+        // Injection 4
+    // Distance from center (normalized by sigma)
+    real_t dx4 = (x(0) - x_center4) / sigma_x;
+    real_t dy4 = (x(1) - y_center4) / sigma_y;
+    real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
+    real_t gaussian4 = std::exp(-0.5 * r_squared4);
+
+        // Injection 5
+    // Distance from center (normalized by sigma)
+    real_t dx5 = (x(0) - x_center5) / sigma_x;
+    real_t dy5 = (x(1) - y_center5) / sigma_y;
+    real_t r_squared5 = dx5 * dx5 + dy5 * dy5;
+    real_t gaussian5 = std::exp(-0.5 * r_squared5);
+
+        // Injection 6
+    // Distance from center (normalized by sigma)
+    real_t dx6 = (x(0) - x_center6) / sigma_x;
+    real_t dy6 = (x(1) - y_center6) / sigma_y;
+    real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
+    real_t gaussian6 = std::exp(-0.5 * r_squared6);
+
+            // Injection 7
+    // Distance from center (normalized by sigma)
+    real_t dx7 = (x(0) - x_center7) / sigma_x;
+    real_t dy7 = (x(1) - y_center7) / sigma_y;
+    real_t r_squared7 = dx7 * dx7 + dy7 * dy7;
+    real_t gaussian7 = std::exp(-0.5 * r_squared7); 
+
+        // Injection 8
+    // Distance from center (normalized by sigma)
+    real_t dx8 = (x(0) - x_center8) / sigma_x;
+    real_t dy8 = (x(1) - y_center8) / sigma_y;  
+    real_t r_squared8 = dx8 * dx8 + dy8 * dy8;
+    real_t gaussian8 = std::exp(-0.5 * r_squared8);
+ 
+    return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6 + gaussian7 + gaussian8);
+}
+
 
 int main(int argc, char *argv[]) 
 {
@@ -51,6 +154,14 @@ int main(int argc, char *argv[])
     int order = 2; 
     real_t dynamic_viscosity = 1.0;
     bool visualization = true;
+    real_t t_final = 0.1;           
+    real_t dt = 0.001;              
+    real_t diffusion_term = 0.01;   
+    int problem_type = 2; 
+    int vis_steps = 1; 
+
+    bool pv_vis = true; 
+    int ode_solver_type = 4; // 1 - Forward Backward Euler 
     const char *device_config = "cpu";  
     OptionsParser args(argc, argv); 
     args.AddOption(&mesh_file, "-m", "--mesh",
@@ -67,6 +178,21 @@ int main(int argc, char *argv[])
                         "Enable or disable Visualization"); 
     args.AddOption(&dynamic_viscosity, "-dv", "--dynamic-viscosity",
                         "Dynamic Viscosity of the Fluid.");  
+                           args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",  
+                    "--no-visualization", 
+                    "Enable or disable Paraview Visualization");
+    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
+                        ODESolver::IMEXTypes.c_str()); 
+    args.AddOption(&t_final, "-tf", "--t-final",   
+                        "Final time; start time is 0.");   
+    args.AddOption(&dt, "-dt", "--time-step",
+                        "Time step.");
+    args.AddOption(&diffusion_term, "-dc", "--diffusion-coeff",
+                        "Diffusion coefficient in the PDE.");  
+    args.AddOption(&vis_steps, "-vs", "--visualization-steps", 
+                    "Visualize every n-th timestep.");   
+    args.AddOption(&problem_type, "-pt", "--problem_type",                                  
+                    "Select which problem solve.");
     args.AddOption(&device_config, "-d", "--device",
                     "Device configuration string, see Device::Configure().");         
     args.Parse(); 
@@ -325,6 +451,82 @@ int main(int argc, char *argv[])
              << endl;
    }
 
+    FiniteElementCollection *fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);                                                                
+    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize(); 
+
+    // 8. Boundary Conditions    
+    Array<int> ess_tdof_list;                              
+    Array<int> ess_bdr(4);   
+    ess_bdr = 0;   
+    pmesh->MarkExternalBoundaries(ess_bdr);  
+    fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
+    Array<int> inflow_bdr(4); 
+    inflow_bdr = 0;
+    //inflow_bdr[1] = 1;    
+        
+    
+    
+    // 10. Define the Coefficients  
+    SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0);  
+    ConstantCoefficient cons_diff_coeff(diffusion_term);  
+    ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);    
+    ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
+    ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
+    FunctionCoefficient inflow(inflow_function);   
+    FunctionCoefficient q0(u0_function); 
+    VectorGridFunctionCoefficient u_cf(u); 
+    real_t dt_diffusion_term = dt*diffusion_term; 
+    
+    // 11. Construct the Objective Function 
+    RectangularIndicator indicator(0, 1, 0, 1); 
+    ParGridFunction one_gf(fes);
+    ConstantCoefficient one_cf(1.0);
+    one_gf.ProjectCoefficient(one_cf);     
+    TerminalTargetObjective obj_func(fes, indicator, one_gf, comm);           
+    int n_steps = (int)ceil(t_final / dt);   
+    
+    const int n = control_fes.GetTrueVSize();      
+    Vector rho_tv(n);
+    rho.GetTrueDofs(rho_tv);
+
+    Vector dJ_drho(rho_tv.Size());
+    ParGridFunction q0_gf(fes); 
+    q0_gf.ProjectCoefficient(q0);
+    GridFunctionCoefficient q0_cf; 
+    q0_cf.SetGridFunction(&q0_gf);
+    DesignSolver design_solver(*fes,               
+        filter_fes,  
+        control_fes, 
+        filter, 
+        obj_func,
+        u_cf, 
+        diffusion_term, 
+        dt_diffusion_term,
+        inflow, 
+        q0_cf, 
+        n_steps, 
+        dt, 
+        t_final, 
+        rho, rho_tilde, 
+        simp_stiff, ode_solver_type, 
+        vis_steps, problem_type, comm); 
+    design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
+    const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
+
+    ParaViewDataCollection paraview_dc("density", pmesh); 
+    if (pv_vis) {
+        paraview_dc.SetPrefixPath("ParaView"); 
+        paraview_dc.SetLevelsOfDetail(order);
+        paraview_dc.SetDataFormat(VTKFormat::BINARY);
+        paraview_dc.SetHighOrderOutput(true);
+        paraview_dc.RegisterField("density", &rho);
+        paraview_dc.RegisterField("rho_filter", &rho_tilde); 
+        paraview_dc.SetCycle(0);
+        paraview_dc.SetTime(0.0);
+        paraview_dc.Save();
+    }
+
 
 
     // Free the used memory.  
@@ -350,6 +552,9 @@ int main(int argc, char *argv[])
     delete p_coll;
     delete v_coll;
     delete pmesh;
+    delete fes;  
+    //delete pmesh;
+    delete fec; 
     
     return 0; 
 }
