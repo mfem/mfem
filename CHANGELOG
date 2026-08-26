@@ -53,6 +53,16 @@ Discretization improvements
   ComplexHypreParMatrix::GetSystemMatrix, which previously assumed equal
   trial and test spaces.
 
+- Added FiniteElementSpace::GetBoundaryLoopEdgeDofs to extract the edge DOFs on
+  the perimeter loop of a set of boundary elements, with a ParFiniteElementSpace
+  overload that reconciles the selection across processor boundaries so the
+  result is partition invariant. This is useful for imposing boundary conditions
+  on boundary edge DOFs.
+
+- Added a MaxAbs reduction to GroupCommunicator that selects the signed value of
+  largest magnitude across a group, keeping its sign. Equal-magnitude ties
+  resolve deterministically to the positive value.
+
 Meshing improvements
 --------------------
 - Added support for nonuniform anisotropic mesh refinement on parallel quad/hex
@@ -145,6 +155,11 @@ Miscellaneous
   saving via SaveAsOne(). Simplified the process of applying the DOF signs by
   using the new method ApplyDofSigns() in class ParFiniteElementSpace: the
   method will return immediately if no sign flips are needed.
+
+- Added support for coefficient-weighted LOR transfer in
+  L2ProjectionGridTransfer. The transfer conserves the weighted mass, for
+  example when transferring velocity while conserving density-weighted momentum.
+  This is illustrated in the lor-transfer and plor-transfer miniapps.
 
 - Added support for saving DataCollection output on the node-local storage,
   instead of requiring that the filesystem is shared among all the ranks.
