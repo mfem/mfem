@@ -58,8 +58,9 @@ struct Hashed4
  *
  *  There are two main methods this class provides. The Get(...) methods always
  *  return an item given the two or four indices. If the item did not previously
- *  exist, the methods creates a new one. The Find(...) methods, on the other
- *  hand, just return NULL or -1 if the item does not exist.
+ *  exist, the methods add one to the table, reusing a deleted item when
+ *  available. The Find(...) and FindId(...) methods, on the other hand, return
+ *  NULL or -1 if the item does not exist.
  *
  *  Each new item is automatically assigned a unique ID - the index of the item
  *  inside the BlockArray. The IDs may (but need not) be used as p1, p2, ... of
@@ -101,33 +102,33 @@ public:
    HashTable& operator=(const HashTable&) = delete;
    ~HashTable();
 
-   /** @brief Item accessor with key (or parents) the pair p1, p2. Default
-       construct an item of type T if no value corresponds to the requested key.
+   /** @brief Item accessor with key (or parents) the pair p1, p2. Add an item
+       to the table if no item corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
-       @return The index "id" of the key in the BlockArray<T>.
+       @return A pointer to the item associated with the key.
 
        @warning This method should only be called if T inherits from Hashed2. */
    T* Get(int p1, int p2);
 
    /** @brief Item accessor with key (or parents) the quadruplet p1, p2, p3, p4.
-       The key p4 is optional. Default construct an item of type T if no value
-       corresponds to the requested key.
+       The key p4 is optional. Add an item to the table if no item corresponds
+       to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
        @param[in] p3 Third part of the key.
        @param[in] p4 Fourth part of the key (optional).
-       @return The index "id" of the key in the BlockArray<T>.
+       @return A pointer to the item associated with the key.
 
       @warning This method should only be called if T inherits from Hashed4. */
    T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
 
    /** @brief Get the "id" of the item whose parents are p1, p2, this "id"
        corresponding to the index of the item in the underlying BlockArray<T>
-       object. Default construct an item and "id" if no value corresponds to the
-       requested key.
+       object. Add an item to the table if no item corresponds to the requested
+       key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -137,8 +138,8 @@ public:
    int GetId(int p1, int p2);
 
    /** @brief Get the "id" of an item, this "id" corresponding to the index of
-       the item in the underlying BlockArray<T> object. Default construct an item
-       and "id" if no value corresponds to the requested key.
+       the item in the underlying BlockArray<T> object. Add an item to the table
+       if no item corresponds to the requested key.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
@@ -199,26 +200,26 @@ public:
        does not exist.
 
        This "id" corresponds to the index of the item in the underlying
-       BlockArray<T> object. Default construct an item and "id" if no value
-       corresponds to the requested key.
+       BlockArray<T> object.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
-       @return The index "id" of the key in the BlockArray<T>.
+       @return The index "id" of the key in the BlockArray<T>, or -1 if no
+               matching item is found.
 
        @warning This method should only be called if T inherits from Hashed2. */
    int FindId(int p1, int p2) const;
 
    /** @brief Find the "id" of an item, this "id" corresponding to the index of
        the item in the underlying BlockArray<T> object. Return -1 if it does not
-       exist. Default construct an item and "id" if no value corresponds to the
-       requested key.
+       exist.
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
        @param[in] p3 Third part of the key.
        @param[in] p4 Fourth part of the key (optional).
-       @return The index "id" of the key in the BlockArray<T>.
+       @return The index "id" of the key in the BlockArray<T>, or -1 if no
+               matching item is found.
 
        @warning This method should only be called if T inherits from Hashed4. */
    int FindId(int p1, int p2, int p3, int p4 = -1) const;
@@ -400,7 +401,8 @@ protected:
        @param[in] id Index of the item in the underlying BlockArray<T>.
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
-       @return The index "id" of the key in the BlockArray<T>.
+       @return The index "id" of the key in the BlockArray<T>, or -1 if no
+               matching item is found.
 
        @warning This method should only be called if T inherits from Hashed2. */
    int SearchList(int id, int p1, int p2) const;
@@ -412,7 +414,8 @@ protected:
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
        @param[in] p3 Third part of the key.
-       @return The index "id" of the key in the BlockArray<T>.
+       @return The index "id" of the key in the BlockArray<T>, or -1 if no
+               matching item is found.
 
        @warning This method should only be called if T inherits from Hashed4. */
    int SearchList(int id, int p1, int p2, int p3) const;
