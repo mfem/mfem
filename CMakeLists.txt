@@ -556,7 +556,6 @@ if (MFEM_USE_BENCHMARK)
    # compatibility layer, which is fetched from tests/benchmarks/CMakeLists.txt.
    # Otherwise, an existing Google Benchmark installation is required.
    if (MFEM_USE_CODSPEED)
-      set(MFEM_BENCHMARK_USE_CODSPEED ON)
       message(STATUS "Google Benchmark: using CodSpeed's fork")
    else()
       find_package(Benchmark REQUIRED)

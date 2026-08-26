@@ -24,7 +24,7 @@ include_directories(BEFORE ${BENCHMARK_INCLUDE_DIRS})
 # the benchmarks are linked against the 'benchmark::benchmark' target, which
 # takes care of the include directories and the compile definitions.
 set(MFEM_BENCHMARK_EXTRA_LIBS "")
-if (MFEM_BENCHMARK_USE_CODSPEED)
+if (MFEM_USE_CODSPEED)
    if (CMAKE_VERSION VERSION_LESS 3.18.0)
       message(FATAL_ERROR "Benchmarking with CodSpeed requires CMake >= 3.18")
    endif()
