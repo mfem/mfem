@@ -56,8 +56,8 @@ struct Hashed4
  *  The order of the p1, p2, ... indices is not relevant as they are sorted
  *  each time this class is invoked.
  *
- *  There are two main methods this class provides. The Get(...) methods always
- *  return an item given the two or four indices. If the item did not previously
+ *  This class provides three main methods. The Get(...) methods always return
+ *  an item, given the two or four indices. If the item did not previously
  *  exist, the methods add one to the table, reusing a deleted item when
  *  available. The Find(...) and FindId(...) methods, on the other hand, return
  *  NULL or -1 if the item does not exist.
@@ -109,7 +109,7 @@ public:
        @param[in] p2 Second part of the key.
        @return A pointer to the item associated with the key.
 
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    T* Get(int p1, int p2);
 
    /** @brief Item accessor with key (or parents) the quadruplet p1, p2, p3, p4.
@@ -122,7 +122,7 @@ public:
        @param[in] p4 Fourth part of the key (optional).
        @return A pointer to the item associated with the key.
 
-      @warning This method should only be called if T inherits from Hashed4. */
+      @warning This method should be called only if T inherits from Hashed4. */
    T* Get(int p1, int p2, int p3, int p4 = -1 /* p4 optional */);
 
    /** @brief Get the "id" of the item whose parents are p1, p2, this "id"
@@ -134,7 +134,7 @@ public:
        @param[in] p2 Second part of the key.
        @return The index "id" of the key in the BlockArray<T>.
 
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    int GetId(int p1, int p2);
 
    /** @brief Get the "id" of an item, this "id" corresponding to the index of
@@ -147,7 +147,7 @@ public:
        @param[in] p4 Fourth part of the key (optional).
        @return The index "id" of the key in the BlockArray<T>.
 
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    int GetId(int p1, int p2, int p3, int p4 = -1);
 
    /** @brief Item accessor with key (or parents) the pair p1, p2. Return
@@ -155,9 +155,10 @@ public:
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
-       @return The item associated to the key (p1,p2).
+       @return A pointer to the item associated with the key (p1,p2), or NULL if it
+               does not exist.
 
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    T* Find(int p1, int p2);
 
    /** @brief Item accessor with key (or parents) the quadruplet p1, p2, p3, p4.
@@ -168,9 +169,10 @@ public:
        @param[in] p2 Second part of the key.
        @param[in] p3 Third part of the key.
        @param[in] p4 Fourth part of the key (optional).
-       @return The item associated to the key (p1,p2,p3,p4).
+       @return A pointer to the item associated with the key (p1,p2,p3,p4), or NULL
+               if it does not exist.
 
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    T* Find(int p1, int p2, int p3, int p4 = -1);
 
    /** @brief Item const accessor with key (or parents) the pair p1, p2.
@@ -178,9 +180,10 @@ public:
 
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
-       @return The item associated to the key (p1,p2).
+       @return A pointer to the item associated with the key (p1,p2), or NULL if it
+               does not exist.
 
-      @warning This method should only be called if T inherits from Hashed2. */
+      @warning This method should be called only if T inherits from Hashed2. */
    const T* Find(int p1, int p2) const;
 
    /** @brief Item const accessor with key (or parents) the quadruplet p1, p2,
@@ -191,9 +194,10 @@ public:
        @param[in] p2 Second part of the key.
        @param[in] p3 Third part of the key.
        @param[in] p4 Fourth part of the key (optional).
-       @return The item associated to the key (p1,p2,p3,p4).
+       @return A pointer to the item associated with the key (p1,p2,p3,p4), or NULL
+               if it does not exist.
 
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    const T* Find(int p1, int p2, int p3, int p4 = -1) const;
 
    /** @brief Find the "id" of an item whose parents are p1, p2. Return -1 if it
@@ -207,7 +211,7 @@ public:
        @return The index "id" of the key in the BlockArray<T>, or -1 if no
                matching item is found.
 
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    int FindId(int p1, int p2) const;
 
    /** @brief Find the "id" of an item, this "id" corresponding to the index of
@@ -221,7 +225,7 @@ public:
        @return The index "id" of the key in the BlockArray<T>, or -1 if no
                matching item is found.
 
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    int FindId(int p1, int p2, int p3, int p4 = -1) const;
 
    /// Return the number of elements currently stored in the HashTable.
@@ -274,7 +278,7 @@ public:
        @param[in] new_p1 First part of the new key.
        @param[in] new_p2 Second part of the new key.
 
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    void Reparent(int id, int new_p1, int new_p2);
 
    /** @brief Change the key associated with an item.
@@ -287,7 +291,7 @@ public:
        @param[in] new_p3 Third part of the new key.
        @param[in] new_p4 Fourth part of the new key (optional).
 
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    void Reparent(int id, int new_p1, int new_p2, int new_p3, int new_p4 = -1);
 
    /// Return total size of allocated memory (tables plus items), in bytes.
@@ -369,7 +373,7 @@ protected:
        @return The hash key "idx" identifying a bin/bucket.
 
        NOTE: the constants are arbitrary
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    inline int Hash(size_t p1, size_t p2) const
    { return (984120265ul*p1 + 125965121ul*p2) & mask; }
 
@@ -382,7 +386,7 @@ protected:
 
        NOTE: The constants are arbitrary.
        NOTE: p4 is not hashed nor stored as p1, p2, p3 identify a face uniquely.
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    inline int Hash(size_t p1, size_t p2, size_t p3) const
    { return (984120265ul*p1 + 125965121ul*p2 + 495698413ul*p3) & mask; }
 
@@ -395,7 +399,7 @@ protected:
    inline int Hash(const Hashed4& item) const
    { return Hash(item.p1, item.p2, item.p3); }
 
-   /** @brief Search the index of the item associated to the key (p1,p2)
+   /** @brief Search for the index of the item associated with the key (p1,p2),
        starting from the item with index @a id.
 
        @param[in] id Index of the item in the underlying BlockArray<T>.
@@ -404,11 +408,11 @@ protected:
        @return The index "id" of the key in the BlockArray<T>, or -1 if no
                matching item is found.
 
-       @warning This method should only be called if T inherits from Hashed2. */
+       @warning This method should be called only if T inherits from Hashed2. */
    int SearchList(int id, int p1, int p2) const;
 
-   /** @brief Search the index of the item associated to the key (p1,p2,p3,(p4))
-       starting from the item with index @a id.
+   /** @brief Search for the index of the item associated with the key
+       (p1,p2,p3,(p4)), starting from the item with index @a id.
 
        @param[in] id Index of the item in the underlying BlockArray<T>.
        @param[in] p1 First part of the key.
@@ -417,7 +421,7 @@ protected:
        @return The index "id" of the key in the BlockArray<T>, or -1 if no
                matching item is found.
 
-       @warning This method should only be called if T inherits from Hashed4. */
+       @warning This method should be called only if T inherits from Hashed4. */
    int SearchList(int id, int p1, int p2, int p3) const;
 
    /** @brief Insert the item @a id into bin @a idx.
