@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 //
 //             ------------------------------------------
-//             Navier-Stokes dFEM convergence test
+//                dFEM Navier-Stokes: convergence test
 //             ------------------------------------------
 //
 // Compile with: make dfem-navier-convergence
@@ -47,6 +47,8 @@
 
 using namespace mfem;
 using namespace mfem::dfem_navier;
+
+constexpr int dim = 2;
 
 // ----------------------------------------------------------------------------
 // Taylor-Green vortex on the unit square, an exact solution of the
@@ -97,6 +99,7 @@ struct RunConfiguration
    int frequency;
    real_t dt;
    real_t t_final;
+   const char *outfolder;
    bool paraview;
    bool verbose;
 };
@@ -225,6 +228,7 @@ RunResult Run(const RunConfiguration &config,
    {
       pd = std::make_unique<ParaViewDataCollection>(
               "dfem-navier-stokes-output", &pmesh);
+            pd->SetPrefixPath(config.outfolder);
       pd->RegisterField("velocity", &velocity);
       pd->RegisterField("pressure", &pressure);
       pd->SetDataFormat(VTKFormat::BINARY);
@@ -361,6 +365,7 @@ int main(int argc, char *argv[])
    real_t dt = 1.0e-2;
    real_t t_final = 0.1;
    const char *device_config = "cpu";
+   const char *outfolder = "./Output";
    bool paraview = false;
    bool temporal_convergence = false;
    bool spatial_convergence = false;
@@ -388,6 +393,8 @@ int main(int argc, char *argv[])
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv",
                   "--no-paraview", "Enable or disable ParaView output.");
+   args.AddOption(&outfolder, "-of", "--output-folder",
+                  "Output folder for ParaView DataCollection files.");
    args.AddOption(&temporal_convergence, "-tc", "--temporal-convergence",
                   "-no-tc", "--no-temporal-convergence",
                   "Run a time-step refinement study.");
@@ -421,7 +428,7 @@ int main(int argc, char *argv[])
 
    RunConfiguration config{order, refinements, elements_per_direction,
                            ode_solver_type, viscosity, frequency, dt, t_final,
-                           paraview, true};
+                           outfolder, paraview, true};
 
    // Single run, no convergence study requested
    if (!temporal_convergence && !spatial_convergence)

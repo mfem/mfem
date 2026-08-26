@@ -24,11 +24,28 @@ namespace mfem
 namespace dfem_navier
 {
 
+/// Dimension-independent interface used by the solver infrastructure.
+/// This is needed for type-erasure of the NavierStokesOperator, since the
+/// other classes (NavierStokesResidual, NavierStokesEvolution) are effectively
+/// dimension-independent (but have a reference to the NavierStokesOperator)
+/// TODO: this might change if we refactor the classes as above
+class NavierStokesOperatorBase : public Operator
+{
+public:
+   using Operator::Operator;
+
+   virtual const Array<int> &GetEssentialVelocityTrueDofs() const = 0;
+   virtual const Array<int> &GetBlockOffsets() const = 0;
+   virtual std::shared_ptr<future::DerivativeOperator>
+   GetDerivative(size_t field_id, const BlockVector &state,
+                 bool use_cached_setup = false) const = 0;
+};
+
 /// Wrapper for the DifferentiableOperator that implements the incompressible Navier-Stokes equations.
 /// This is the driver of the differentiable path, and is used in some of the other classes below to
 /// implement the residual, the time-dependent operator, and the ODE solver.
 template <int DIM>
-class NavierStokesOperator : public Operator
+class NavierStokesOperator : public NavierStokesOperatorBase
 {
 public:
    NavierStokesOperator(ParFiniteElementSpace &ufes,
@@ -38,13 +55,17 @@ public:
 
    void SetEssentialVelocityAttributes(const Array<int> &ess_bdr);
    void SetEssentialVelocityTrueDofs(const Array<int> &tdofs);
-   const Array<int> &GetEssentialVelocityTrueDofs() const;
-   const Array<int> &GetBlockOffsets() const;
+   const Array<int> &GetEssentialVelocityTrueDofs() const override;
+   const Array<int> &GetBlockOffsets() const override;
    void Mult(const Vector &x, Vector &y) const override;
 
    std::shared_ptr<future::DerivativeOperator>
    GetDerivative(size_t field_id, const BlockVector &state,
-                 bool use_cached_setup = true) const;
+                 bool use_cached_setup = false) const override; 
+   // NOTE: in this case the PA cached version is inefficient
+   // cuz we have to perform the setup on each GetDerivative()
+   // i.e. every time we call GetGradient() in the NavierStokesResidual
+   // might be useful if we have a Frozen Jacobian option for Newton.
 
 private:
    ParFiniteElementSpace &ufes;
@@ -68,7 +89,7 @@ private:
       JacobianOperator(const HypreParMatrix &mass,
                        HypreParMatrix &divergence,
                        HypreParMatrix &pressure_gradient,
-                       NavierStokesOperator<dim> &ns_operator,
+                       NavierStokesOperatorBase &ns_operator,
                        const BlockVector &state, real_t gamma);
 
    private:
@@ -76,7 +97,7 @@ private:
    };
 
 public:
-   NavierStokesResidual(NavierStokesOperator<dim> &ns_operator,
+   NavierStokesResidual(NavierStokesOperatorBase &ns_operator,
                         const HypreParMatrix &mass,
                         HypreParMatrix &divergence,
                         HypreParMatrix &pressure_gradient);
@@ -86,7 +107,7 @@ public:
    Operator &GetGradient(const Vector &stage_derivative) const override;
 
 private:
-   NavierStokesOperator<dim> &ns_operator;
+   NavierStokesOperatorBase &ns_operator;
    const HypreParMatrix &mass;
    HypreParMatrix &divergence;
    HypreParMatrix &pressure_gradient;
@@ -107,7 +128,7 @@ class NavierStokesEvolution : public TimeDependentOperator
 public:
    NavierStokesEvolution(ParFiniteElementSpace &ufes,
                          ParFiniteElementSpace &pfes,
-                         NavierStokesOperator<dim> &ns_operator,
+                         NavierStokesOperatorBase &ns_operator,
                          const BlockVector &initial_state);
    ~NavierStokesEvolution() override;
 
@@ -120,7 +141,7 @@ public:
    const Vector &GetPressure() const { return pressure; }
 
 private:
-   NavierStokesOperator<dim> &ns_operator;
+   NavierStokesOperatorBase &ns_operator;
    MPI_Comm comm;
    Array<int> block_offsets;
    mutable BlockVector state;
@@ -161,7 +182,8 @@ private:
    NavierStokesEvolution &evolution;
 };
 
-extern template class NavierStokesOperator<dim>;
+extern template class NavierStokesOperator<2>;
+extern template class NavierStokesOperator<3>;
 
 } // namespace dfem_navier
 } // namespace mfem

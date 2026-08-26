@@ -22,7 +22,6 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-constexpr int dim = 2;
 constexpr int U = 0;
 constexpr int P = 1;
 constexpr int Coords = 2;

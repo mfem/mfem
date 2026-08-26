@@ -15,7 +15,8 @@ template <int DIM>
 NavierStokesOperator<DIM>::NavierStokesOperator(
    ParFiniteElementSpace &ufes, ParFiniteElementSpace &pfes,
    const IntegrationRule &ir, real_t viscosity)
-   : Operator(ufes.GetTrueVSize() + pfes.GetTrueVSize()), ufes(ufes), pfes(pfes)
+   : NavierStokesOperatorBase(ufes.GetTrueVSize() + pfes.GetTrueVSize()),
+     ufes(ufes), pfes(pfes)
 {
    auto &nodes = *static_cast<ParGridFunction *>(ufes.GetParMesh()->GetNodes());
    nodes_fes = nodes.ParFESpace();
@@ -112,10 +113,12 @@ NavierStokesOperator<DIM>::GetDerivative(size_t field_id,
 NavierStokesResidual::JacobianOperator::JacobianOperator(
    const HypreParMatrix &mass, HypreParMatrix &divergence,
    HypreParMatrix &pressure_gradient,
-   NavierStokesOperator<dim> &ns_operator,
+   NavierStokesOperatorBase &ns_operator,
    const BlockVector &state, real_t gamma)
    : BlockOperator(ns_operator.GetBlockOffsets())
 {
+   // Only Assemble() is used below, so the cached derivative-apply callbacks
+   // would never be used; ask for the direct path.
    auto dRdU = ns_operator.GetDerivative(U, state, false);
    std::vector<HypreParMatrix *> velocity_blocks;
    dRdU->Assemble(velocity_blocks);
@@ -132,7 +135,7 @@ NavierStokesResidual::JacobianOperator::JacobianOperator(
 }
 
 NavierStokesResidual::NavierStokesResidual(
-   NavierStokesOperator<dim> &ns_operator, const HypreParMatrix &mass,
+   NavierStokesOperatorBase &ns_operator, const HypreParMatrix &mass,
    HypreParMatrix &divergence, HypreParMatrix &pressure_gradient)
    : Operator(ns_operator.Height()), ns_operator(ns_operator), mass(mass),
      divergence(divergence), pressure_gradient(pressure_gradient),
@@ -183,7 +186,7 @@ Operator &NavierStokesResidual::GetGradient(
 
 NavierStokesEvolution::NavierStokesEvolution(
    ParFiniteElementSpace &ufes, ParFiniteElementSpace &pfes,
-   NavierStokesOperator<dim> &ns_operator,
+   NavierStokesOperatorBase &ns_operator,
    const BlockVector &initial_state)
    : TimeDependentOperator(ufes.GetTrueVSize()), ns_operator(ns_operator),
      comm(ufes.GetComm()), block_offsets(ns_operator.GetBlockOffsets()),
@@ -354,7 +357,9 @@ void NavierStokesSolver::Step(BlockVector &state, real_t &t, real_t &dt)
    state.GetBlock(P) = evolution.GetPressure();
 }
 
-template class NavierStokesOperator<dim>;
+/// Template instantiations for 2D and 3D Navier-Stokes operators
+template class NavierStokesOperator<2>;
+template class NavierStokesOperator<3>;
 
 } // namespace dfem_navier
 } // namespace mfem

@@ -30,14 +30,42 @@ if (MFEM_USE_MPI)
         MAIN dfem-reaction-diffusion.cpp
         LIBRARIES mfem)
 
+    # Build the dfem-navier library and link it to the different examples
+    set(DFEM_NAVIER_SOURCES
+        dfem-navier-stokes/lib/navier_preconditioners.cpp
+        dfem-navier-stokes/lib/navier_solver.cpp)
+    set(DFEM_NAVIER_HEADERS
+        dfem-navier-stokes/lib/navier_preconditioners.hpp
+        dfem-navier-stokes/lib/navier_qfunctions.hpp
+        dfem-navier-stokes/lib/navier_solver.hpp)
+
+    # If CUDA/HIP is enabled, tag the sources the same way add_mfem_miniapp
+    # would have done for EXTRA_SOURCES.
+    if (MFEM_USE_CUDA)
+        set_source_files_properties(${DFEM_NAVIER_SOURCES}
+            PROPERTIES LANGUAGE CUDA)
+    endif()
+    if (MFEM_USE_HIP)
+        set_source_files_properties(${DFEM_NAVIER_SOURCES}
+            PROPERTIES HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif()
+
+    add_library(dfem-navier STATIC
+        ${DFEM_NAVIER_SOURCES} ${DFEM_NAVIER_HEADERS})
+    target_link_libraries(dfem-navier PUBLIC mfem)
+    add_dependencies(dfem-navier ${MFEM_EXEC_PREREQUISITES_TARGET_NAME})
+
     add_mfem_miniapp(dfem-navier-convergence
         MAIN dfem-navier-stokes/dfem-navier-convergence.cpp
-        EXTRA_SOURCES dfem-navier-stokes/lib/navier_preconditioners.cpp
-                      dfem-navier-stokes/lib/navier_solver.cpp
-        EXTRA_HEADERS dfem-navier-stokes/lib/navier_preconditioners.hpp
-                      dfem-navier-stokes/lib/navier_qfunctions.hpp
-                      dfem-navier-stokes/lib/navier_solver.hpp
-        LIBRARIES mfem)
+        LIBRARIES dfem-navier)
+
+    add_mfem_miniapp(dfem-navier-cavity
+        MAIN dfem-navier-stokes/dfem-navier-cavity.cpp
+        LIBRARIES dfem-navier)
+
+    add_mfem_miniapp(dfem-navier-kovasznay
+        MAIN dfem-navier-stokes/dfem-navier-kovasznay.cpp
+        LIBRARIES dfem-navier)
 
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
@@ -73,6 +101,18 @@ if (MFEM_USE_MPI)
         COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
         ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-navier-convergence>
         -o 1 -r 0
+        ${MPIEXEC_POSTFLAGS})
+
+        add_test(NAME dfem-navier-cavity=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-navier-cavity>
+        -o 1 -e 2 -tf 0.01 -dt 0.01 -no-pv
+        ${MPIEXEC_POSTFLAGS})
+
+        add_test(NAME dfem-navier-kovasznay=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-navier-kovasznay>
+        -o 1 -r 1 -tf 0.01 -dt 0.01 -no-pv
         ${MPIEXEC_POSTFLAGS})
 
         foreach(AL partial legacy full)
