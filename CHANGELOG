@@ -94,6 +94,15 @@ Linear and nonlinear solvers
   Operator: MultMV, MultTransposeMV, and GetGradientMV, that use MultiVector
   objects for input and/or output parameters. [PR #5249]
 
+- UMFPackSolver and KLUSolver can now retain the symbolic factorization across
+  SetOperator() calls and reuse it whenever the sparsity pattern is unchanged,
+  which saves the analysis -- a fifth to a quarter of the cost of a
+  factorization -- in any loop that refactorizes a matrix of fixed structure: a
+  Newton iteration, an implicit time step, a continuation loop, a parameter
+  sweep. Off by default, enabled with SetReuseSymbolic(), and the pattern is
+  checked rather than taken on trust. KLUSolver::SetReuseNumeric() additionally
+  refactorizes through klu_refactor(), reusing the pivot ordering as well.
+
 GPU computing
 -------------
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
