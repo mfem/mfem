@@ -20,8 +20,9 @@ which exists only on the subdomains branch — on `gf-hdg-dev` those two section
 describe files that are not there. The line numbers throughout are from
 `527cb4c74a`.
 
-**Status, added by the branch.** §1, §2 and §3 are fixed on `gf-hdg-dev` and
-each has a regression that fails without the fix; what was measured is in
+**Status, added by the branch.** §1 and §2 are fixed on `gf-hdg-dev`, each
+with a regression that fails without the fix; **§3 is withdrawn — it is not a
+defect**, and the paragraph at the end of it has the measurement; what was measured is in
 `HDG-ROADMAP.md` §4 ("Three defects the reconstruction had, found from
 outside") and §7. §4 is untouched here and belongs on
 `gf-hdg-subdomains-dev`, which is where the file it concerns lives. Two things
@@ -29,7 +30,10 @@ came out differently from the reading below and are recorded where they are
 described: §1 is worse than stated — the local problem loses its face
 constraint as well as its mass, which is what makes it singular rather than
 merely wrong — and §3's fix could not be the loud one, because refusing would
-break the extension miniapp that relies on reconstructing. A fifth defect,
+break the extension miniapp that relies on reconstructing — and then §3
+turned out not to be a defect at all, the drop it reports being required
+rather than tolerated, which the extension miniapp's new postprocessing pass
+measures. A fifth defect,
 not reported from outside, came out of writing §3's regression and is added at
 the end; it is worse than any of the four.
 
@@ -202,23 +206,45 @@ and there is no diagnostic to tell those apart. Either copy the boundary-face
 integrators, or refuse to reconstruct when the form carries integrators the
 lift cannot represent. The second is cheap and is the one that fails loudly.
 
-**Fixed by the first, because the second would break the extension miniapp.**
-Refusing is only the cheaper option if nothing depends on reconstructing, and
-`miniapps/hdg/extension` does — the `k+2` rates quoted above are its. So the
-boundary-face integrators are lifted with their markers and assembled face by
-face into the local flux block. Copying alone would have been a no-op worth
-less than nothing: `BilinearForm::ComputeElementMatrix()`, which is what the
-local problem calls, reads domain integrators only, so an integrator merely
-added to the enriched form would have looked fixed and changed no number. An
-**interior**-face term on the flux mass is refused instead, since it couples
-two elements and the local problem is one element at a time.
+**Not a defect. Fixed, measured, and withdrawn.** Carrying the term was
+implemented, and then the extension miniapp was given a postprocessing pass to
+check it — `extension -rec` — which is the measurement this section always
+needed and did not have. It is the drop that is required. At `k = 2` on
+problem 1, the disc, where the whole computational boundary is transferred:
 
-**And the drop is not only in the lift.** `DarcyForm::Assemble()` builds the
-hybridized flux mass from `ComputeElementMatrix()` too, so on `gf-hdg-dev` a
-boundary-face term on the flux mass never reaches the *solve* either.
-`gf-hdg-subdomains-dev` added `AssembleFluxMassBdrFaces()` for exactly that,
-which is why the extension work sees a term the reconstruction was then
-ignoring. `gf-hdg-dev` has no equivalent and would need one.
+| | `‖p−p*‖` at `n=64` | rate | `‖u−u*‖` | rate |
+|---|---|---|---|---|
+| dropped | 1.58e-9 | **3.80** | 3.22e-8 | 3.63 |
+| lifted | 8.57e-5 | **1.27** | 2.43e-4 | 1.25 |
+
+`k+2` kept or lost, and a factor of 5e4 in the error. At `k = 1`, 2.43e-7 at
+rate 2.82 against 1.07e-4 at rate 1.35.
+
+**Why the reading was wrong.** The local problem is not the assembled problem
+restricted to an element. Its trace unknown is free on *every* face, boundary
+faces included, and is determined by the `⟨u_t·n, μ⟩` equation; the boundary
+condition reaches it through the reconstructed total flux and the element
+average — which is exactly the mechanism this section identified when it
+recorded the drop as harmless, and it is the whole mechanism, not a lucky
+part of one. `⟨L_e(u_h), v·n⟩` is one half of a boundary condition; the other
+half, `⟨g∘a, v·n⟩`, is a linear-form term the local problem has no way to
+know. One half imposes half a condition against a trace free to answer it,
+and both halves would double-count the boundary flux against that same free
+trace. The rates above are what half a condition costs.
+
+Two things came out of the section anyway. The **argument for making it
+anyway** — that "harmless on the cases tried" cannot be told from the cases
+where it is not — is right in general and was the reason to build the
+measurement; it just came back the other way. And the drop is now stated in
+the class documentation of `DarcyForm`, with the numbers, rather than left to
+be read as an oversight. A unit case pins it: one solve, reconstructed with
+and without such a term installed, must give the same answer to the last bit.
+
+**One thing does stand.** `DarcyForm::Assemble()` builds the hybridized flux
+mass from `ComputeElementMatrix()` too, so on `gf-hdg-dev` a boundary-face
+term on the flux mass never reaches the *solve* either.
+`gf-hdg-subdomains-dev` added `AssembleFluxMassBdrFaces()` for exactly that.
+`gf-hdg-dev` has no equivalent and would need one.
 
 ---
 

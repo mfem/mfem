@@ -301,28 +301,45 @@ TEST_CASE("Reconstruction reads the potential mass off either form",
    REQUIRE(nlp.err_ps < nlp.err_p);
 }
 
-TEST_CASE("Reconstruction carries a boundary-face term on the flux mass",
+TEST_CASE("Reconstruction does not lift a boundary-face term on the flux mass",
           "[DarcyForm][Reconstruction]")
 {
    using namespace darcy_reconstruction;
 
-   // The lift copied the flux mass's domain integrators and nothing else, so
-   // a term installed with AddBdrFaceIntegrator -- which is how an extension
-   // method installs the element-local half of a transferred boundary datum,
-   // deliberately keeping it off the constraint -- never reached the local
-   // problem the post-processing solves.
+   // Reported from outside as a defect -- the lift copies the flux mass's
+   // domain integrators and nothing else, so a term installed with
+   // AddBdrFaceIntegrator, which is how an extension method installs the
+   // element-local half of a transferred Dirichlet datum, never reaches the
+   // local problem. Carrying it was implemented, and then withdrawn, because
+   // it is measurably wrong.
    //
-   // The term is added *after* the solve, and the reconstruction is then run
-   // twice on that one solution. Nothing about the assembled problem differs
-   // between the two calls -- not the hybridization, not the total flux, not
-   // the element averages driving the local problems -- so any difference in
-   // what comes out is the lift and nothing else. That matters because
-   // whether the assembly carries such a term is a separate question with a
-   // separate answer: DarcyForm::Assemble() builds the hybridized flux mass
-   // from ComputeElementMatrix(), and only a tree with a boundary-face pass of
-   // its own -- AssembleFluxMassBdrFaces(), which the extension work adds --
-   // puts it into the solve. Holding the solve fixed makes this case say the
-   // same thing either way.
+   // The local problem is not the assembled problem restricted to an element.
+   // Its trace unknown is free on every face, boundary faces included, and the
+   // boundary condition reaches it through the reconstructed total flux and
+   // the element average rather than through the forms. A boundary-face term
+   // on the flux mass is one half of a boundary condition -- the half that
+   // depends on the flux -- and putting it in without the datum half, which
+   // the local problem has no way to know and could not use without
+   // double-counting against its own free trace, imposes half a condition.
+   // On miniapps/hdg/extension at k = 2, problem 1, over the 8x8 to 64x64
+   // sequence:
+   //
+   //            ||p - p*|| at n = 64      rate      ||u - u*||      rate
+   //   dropped        1.58e-9             3.80        3.22e-8       3.63
+   //   lifted         8.57e-5             1.27        2.43e-4       1.25
+   //
+   // -- k+2 for the potential either kept or lost, and a factor of 5e4 in the
+   // error. So the drop is required, not tolerated, and this case says so: the
+   // same solve, reconstructed with and without such a term installed, must
+   // give the same answer to the last bit.
+   //
+   // The term is added after the solve, so nothing about the assembled
+   // problem differs between the two calls -- not the hybridization, not the
+   // total flux, not the element averages. Whether the *assembly* carries such
+   // a term is a separate question with a separate answer: only a tree with
+   // AssembleFluxMassBdrFaces(), which the extension work adds, puts it into
+   // the solve. Holding the solve fixed makes this case say the same thing
+   // either way.
    const int dim = GENERATE(2, 3);
    const int order = GENERATE(0, 1);
    CAPTURE(dim, order);
@@ -375,54 +392,25 @@ TEST_CASE("Reconstruction carries a boundary-face term on the flux mass",
    REQUIRE(lin.GetConverged());
    darcy.RecoverFEMSolution(X, x);
 
-   // Before anything else: the reduced operator, and the reconstruction run
-   // twice on the same solution. Reconstructing used to *write into* the
-   // stored constraint blocks -- see the case below -- so neither was safe,
-   // and the two-reconstruction comparison this case rests on could not have
-   // been written at all.
-   Vector probe(X.Size()), Aprobe0(X.Size()), Aprobe1(X.Size());
-   for (int i = 0; i < probe.Size(); i++)
-   {
-      probe(i) = std::sin(1.7 * i + 0.3);
-   }
-   A->Mult(probe, Aprobe0);
-
    GridFunction ut0, u0, p0, tr0;
    darcy.Reconstruct(x, X, ut0, u0, p0, tr0);
 
-   A->Mult(probe, Aprobe1);
-   REQUIRE(MaxDiff(Aprobe0, Aprobe1) == 0.0);
-
    // Now the term, and the same reconstruction again. The output functions
    // are fresh, which is what makes the enriched form be rebuilt rather than
-   // reused -- the lift is cached against the spaces it was built for.
+   // reused -- the lift is cached against the spaces it was built for -- so a
+   // lift that took boundary faces would show here.
    darcy.GetFluxMassForm()->AddBdrFaceIntegrator(new BdrFluxMass(3.0));
 
    GridFunction ut1, u1, p1, tr1;
    darcy.Reconstruct(x, X, ut1, u1, p1, tr1);
 
-   // The data of the local problems is identical by construction; only the
-   // flux block on boundary elements can have moved.
-   REQUIRE(MaxDiff(ut0, ut1) < 1e-14 * std::max(ut0.Normlinf(), real_t(1.0)));
-
-   const real_t moved = MaxDiff(u0, u1);
-   INFO("max |u_s difference| = " << moved
-        << " against |u_s| = " << u1.Normlinf());
-   REQUIRE(std::isfinite(u1.Normlinf()));
-   REQUIRE(moved > 1e-6 * u1.Normlinf());
-
-   // And it enters as a mass: a larger coefficient penalises the boundary
-   // flux harder, so the reconstruction must move further, not merely
-   // differently. That is the cheapest statement that the term is entering
-   // with the sign and the scaling the assembly would give it.
-   darcy.GetFluxMassForm()->AddBdrFaceIntegrator(new BdrFluxMass(27.0));
-
-   GridFunction ut2, u2, p2, tr2;
-   darcy.Reconstruct(x, X, ut2, u2, p2, tr2);
-
-   const real_t moved_more = MaxDiff(u0, u2);
-   INFO("moved " << moved << " at c = 3 against " << moved_more << " at c = 30");
-   REQUIRE(moved_more > moved);
+   INFO("adding a boundary-face term to the flux mass moved u_s by "
+        << MaxDiff(u0, u1) << " and p_s by " << MaxDiff(p0, p1));
+   REQUIRE(MaxDiff(ut0, ut1) == 0.0);
+   REQUIRE(MaxDiff(u0, u1) == 0.0);
+   REQUIRE(MaxDiff(p0, p1) == 0.0);
+   REQUIRE(MaxDiff(tr0, tr1) == 0.0);
+   REQUIRE(u0.Normlinf() > 0.0);
 }
 
 TEST_CASE("Reconstruction leaves the hybridization as it found it",

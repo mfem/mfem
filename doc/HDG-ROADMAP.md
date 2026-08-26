@@ -697,31 +697,55 @@ term, `convdiff -nlc`, is refused with a message naming the reason instead of
 returning `nan`. Making that case work needs the coarse trace threaded into
 `ReconstructFluxAndPot`, which is an API question rather than a bug.
 
-**(b) The lift took domain integrators only.** A boundary-face term on the flux
-mass was dropped on the way to the enriched space. That is exactly how the
-extension work on `gf-hdg-subdomains-dev` installs the solution-dependent half
-of a transferred boundary datum — on the flux mass with `AddBdrFaceIntegrator`,
-deliberately, so that the element-local term does not reach the hybridization —
-and the reconstruction was solving its local problems without it. The reporting
-application measured this one **harmless**: `p_s` still converged at `k+2` on
-its benchmark, because the local problem is driven by the reconstructed total
-flux and the element average, and both already carry the extension.
+**(b) The lift takes domain integrators only — and that is right. Reported as
+a defect, implemented as a fix, and withdrawn as wrong.** The report's reading
+is that a boundary-face term on the flux mass is dropped on the way to the
+enriched space, which is exactly how the extension work on
+`gf-hdg-subdomains-dev` installs the solution-dependent half of a transferred
+boundary datum, and that the reconstruction therefore solves its local problems
+without it. It measured this **harmless** — `p_s` still converged at `k+2` —
+and asked for it to be fixed anyway, on the ground that "harmless on the cases
+tried" has no diagnostic distinguishing it from the cases where it is not.
 
-It is fixed rather than merely documented, because "harmless on the cases tried"
-has no diagnostic to tell it from the cases where it is not. The boundary-face
-integrators are lifted with their markers and assembled face by face into the
-local flux block. An **interior**-face term on the flux mass is refused
-instead: it couples two elements and the local problem is one element at a
-time, so there is nothing to lift it onto.
+Carrying the term was implemented and then measured on the extension miniapp,
+which was given a postprocessing pass for the purpose — that work is on
+`gf-hdg-subdomains-dev`, where the miniapp lives, and its §1 records the
+tables. It is not harmless; it is the drop that is required. At `k = 2` on the
+disc, where the whole computational boundary is transferred, over the 8×8 to
+64×64 sequence:
 
-**A second thing surfaced while pinning this.** `DarcyForm::Assemble()` builds
-the hybridized flux mass from `M_u->ComputeElementMatrix()`, which is domain
-integrators only — so on this branch a boundary-face term on the flux mass
-never reaches **the solve** either. `gf-hdg-subdomains-dev` added
-`AssembleFluxMassBdrFaces()` for exactly that and this branch has no
-equivalent, which is why the test here holds the discrete solution fixed and
-measures only what the postprocessing does with it. Anyone bringing the
-extension work back to `gf-hdg-dev` needs that pass as well as this fix.
+| | `‖p−p*‖` at `n=64` | rate | `‖u−u*‖` | rate |
+|---|---|---|---|---|
+| dropped | 1.58e-9 | **3.80** | 3.22e-8 | 3.63 |
+| lifted | 8.57e-5 | **1.27** | 2.43e-4 | 1.25 |
+
+`k+2` for the potential either kept or lost, and a factor of 5e4 in the error.
+At `k = 1` the same: 2.43e-7 at rate 2.82 against 1.07e-4 at rate 1.35.
+
+**Why, once stated, it could not have been otherwise.** The local problem is
+not the assembled problem restricted to an element. Its trace unknown is free
+on *every* face, boundary faces included, and is determined by the
+`⟨u_t·n, μ⟩` equation; the boundary condition reaches it through the
+reconstructed total flux and the element average, both of which already carry
+the transferred datum. That is the mechanism the report itself identified when
+it called the drop harmless, and it is the whole mechanism rather than a lucky
+part of one. A boundary-face term on the flux mass is one half of a boundary
+condition — the half depending on the flux, `⟨L_e(u_h), v·n⟩` — and the other
+half, `⟨g∘a, v·n⟩`, is a linear-form term the local problem has no way to
+know. Putting one half in imposes half a condition against a trace that is free
+to answer it. Putting both in would double-count the boundary flux against that
+same free trace. **Neither is the right answer; the design already was.** That
+is now said in the class documentation of `DarcyForm` rather than left to be
+rediscovered, and a unit case pins it: the same solve, reconstructed with and
+without such a term installed, must give the same answer to the last bit.
+
+**A second thing surfaced while pinning this**, and it stands.
+`DarcyForm::Assemble()` builds the hybridized flux mass from
+`M_u->ComputeElementMatrix()`, which is domain integrators only — so on this
+branch a boundary-face term on the flux mass never reaches **the solve**
+either. `gf-hdg-subdomains-dev` added `AssembleFluxMassBdrFaces()` for exactly
+that and this branch has no equivalent. Anyone bringing the extension work
+back here needs that pass.
 
 **(c) `ComputeHDGFaceEnergy()` ignored an installed `HDGStabilization`.** See
 §7 below; it is an estimator question rather than a postprocessing one.

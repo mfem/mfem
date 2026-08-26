@@ -422,6 +422,8 @@ void DarcyForm::Assemble(int skip_zeros)
 #endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
             hybridization->AssembleFluxMassMatrix(i, elmat);
          }
+
+         AssembleFluxMassBdrFaces(skip_zeros);
       }
       else if (reduction)
       {
@@ -1194,6 +1196,16 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       reconstruction.reset(new DarcyForm(u.FESpace(), p.FESpace()));
       M_p_src.reset();
 
+      // Only the domain integrators of the flux mass are lifted, and that is
+      // deliberate rather than an omission -- see the note above the class
+      // definition of the reconstruction in darcyform.hpp. The local problem
+      // is not the assembled problem restricted to an element: its trace is
+      // free on every face, boundary faces included, and the boundary
+      // condition reaches it through the reconstructed total flux and the
+      // element average rather than through the forms. Lifting a boundary
+      // face term onto it was tried and measured, and it costs the
+      // postprocessed potential its order -- k+2 falls to about 1.25 on the
+      // extension miniapp, with the error 5e4 times larger at k = 2.
       BilinearForm *Mu_s = reconstruction->GetFluxMassForm();
       if (M_u)
       {
@@ -1202,33 +1214,6 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
          {
             Mu_s->AddDomainIntegrator(bfi);
          }
-
-         // A boundary-face term on the flux mass is element-local -- that is
-         // why it is installed there rather than on the constraint -- so the
-         // local problem can and must carry it. It is lifted here and
-         // assembled face by face below; it used to be dropped, and the local
-         // problem was solved without the datum it carries.
-         auto Mu_bfbfi = *M_u->GetBFBFI();
-         auto Mu_bfbfi_marker = *M_u->GetBFBFI_Marker();
-         for (int k = 0; k < Mu_bfbfi.Size(); k++)
-         {
-            if (Mu_bfbfi_marker[k])
-            {
-               Mu_s->AddBdrFaceIntegrator(Mu_bfbfi[k], *Mu_bfbfi_marker[k]);
-            }
-            else
-            {
-               Mu_s->AddBdrFaceIntegrator(Mu_bfbfi[k]);
-            }
-         }
-
-         // An interior-face term is a different matter: it couples two
-         // elements, and the reconstruction solves one element at a time.
-         MFEM_VERIFY(M_u->GetFBFI()->Size() == 0,
-                     "Reconstruction cannot represent an interior-face term "
-                     "on the flux mass: the local problem is element-local "
-                     "and the term couples two elements.");
-
          Mu_s->UseExternalIntegrators();
       }
       else if (!frozen_flux)
@@ -1242,29 +1227,6 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                         "as a bilinear form.");
             Mu_s->AddDomainIntegrator(bfi);
          }
-
-         const auto &Mu_bfnfi = Mnl_u->GetBdrFaceIntegrators();
-         const auto &Mu_bfnfi_marker = Mnl_u->GetBdrFaceIntegratorsMarkers();
-         for (int k = 0; k < Mu_bfnfi.Size(); k++)
-         {
-            auto *bfi = dynamic_cast<BilinearFormIntegrator*>(Mu_bfnfi[k]);
-            MFEM_VERIFY(bfi, "Reconstruction needs a boundary-face term on "
-                        "the flux mass that assembles as a bilinear form.");
-            if (Mu_bfnfi_marker[k])
-            {
-               Mu_s->AddBdrFaceIntegrator(bfi, *Mu_bfnfi_marker[k]);
-            }
-            else
-            {
-               Mu_s->AddBdrFaceIntegrator(bfi);
-            }
-         }
-
-         MFEM_VERIFY(Mnl_u->GetInteriorFaceIntegrators().Size() == 0,
-                     "Reconstruction cannot represent an interior-face term "
-                     "on the flux mass: the local problem is element-local "
-                     "and the term couples two elements.");
-
          Mu_s->UseExternalIntegrators();
       }
       else
@@ -1336,18 +1298,6 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       }
    }
 
-   // The potential mass reaches the local problem's faces by a different
-   // route from the flux mass: EnableHybridization() turned its face
-   // integrators into the potential constraint, and the face loop below
-   // applies that constraint on every face of the element. So its
-   // boundary-face terms are not dropped -- unless there is no constraint at
-   // all, which is the one arrangement in which nothing carries them.
-   MFEM_VERIFY(!M_p || !M_p->GetBFBFI()->Size()
-               || hybridization->GetPotConstraintIntegrator()
-               || hybridization->GetPotConstraintNonlinearIntegrator(),
-               "Reconstruction cannot represent a boundary-face term on the "
-               "potential mass with no potential constraint to carry it.");
-
    // The potential block on a non-linear form. There is nothing to lift onto
    // the enriched space -- a non-linear integrator has no element matrix -- so
    // the element term is taken as the Jacobian frozen at the computed
@@ -1415,23 +1365,6 @@ const
    Vector shape_ut, shape_tr, ut_f, rhs_f;
    Vector p_lift, rhs_p_nl, trfun_z;
    Array<int> faces, oris, vdofs_ut;
-
-   // The boundary-face terms of the flux mass, and the attribute each face
-   // carries so that their markers can be honoured. The lift copied them onto
-   // the enriched space; nothing else in the local problem does.
-   auto &Mu_bfbfi = *M_u->GetBFBFI();
-   auto &Mu_bfbfi_marker = *M_u->GetBFBFI_Marker();
-   Array<int> face_bdr_attr;
-   if (Mu_bfbfi.Size())
-   {
-      face_bdr_attr.SetSize(mesh->GetNumFaces());
-      face_bdr_attr = -1;
-      for (int be = 0; be < mesh->GetNBE(); be++)
-      {
-         face_bdr_attr[mesh->GetBdrElementFaceIndex(be)] = mesh->GetBdrAttribute(be);
-      }
-   }
-   DenseMatrix Mu_f;
 
    DivergenceGridFunctionCoefficient bp_coeff(&ut);
    DomainLFIntegrator bp(bp_coeff);
@@ -1639,23 +1572,6 @@ const
          }
 
          if (FTr->Elem1No != z) { rhs_f.Neg(); }
-
-         // flux mass on the boundary
-         if (FTr->Elem2No < 0 && Mu_bfbfi.Size() && face_bdr_attr[f] > 0)
-         {
-            const int bdr_attr = face_bdr_attr[f];
-            for (int i = 0; i < Mu_bfbfi.Size(); i++)
-            {
-               if (Mu_bfbfi_marker[i]
-                   && (*Mu_bfbfi_marker[i])[bdr_attr-1] == 0) { continue; }
-
-               Mu_bfbfi[i]->AssembleFaceMatrix(*fe_u1, *fe_u1, *FTr, Mu_f);
-               MFEM_VERIFY(Mu_f.Height() == ndof_u && Mu_f.Width() == ndof_u,
-                           "A boundary-face term on the flux mass must be "
-                           "element-local; this one is sized for two elements.");
-               elmat.AddMatrix(Mu_f, 0, 0);
-            }
-         }
 
          off_tr += ndof_tr_f;
       }
@@ -2236,6 +2152,71 @@ void DarcyForm::AssemblePotLDGFaces(int skip_zeros)
             M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat, skip_zeros);
 #endif //MFEM_DARCY_REDUCTION_ELIM_BCS
          }
+      }
+   }
+}
+
+void DarcyForm::AssembleFluxMassBdrFaces(int skip_zeros)
+{
+   Array<BilinearFormIntegrator*> &boundary_face_integs = *M_u->GetBFBFI();
+   const int num_boundary_face_integs = boundary_face_integs.Size();
+
+   if (num_boundary_face_integs <= 0) { return; }
+
+   Array<Array<int>*> &boundary_face_integs_marker = *M_u->GetBFBFI_Marker();
+   Mesh *mesh = fes_u->GetMesh();
+   DenseMatrix elmat;
+
+   // Which boundary attributes need to be processed?
+   Array<int> bdr_attr_marker(mesh->bdr_attributes.Size() ?
+                              mesh->bdr_attributes.Max() : 0);
+   bdr_attr_marker = 0;
+   for (int k = 0; k < num_boundary_face_integs; k++)
+   {
+      if (boundary_face_integs_marker[k] == NULL)
+      {
+         bdr_attr_marker = 1;
+         break;
+      }
+      Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+      MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
+                  "invalid boundary marker for boundary face integrator #"
+                  << k << ", counting from zero");
+      for (int i = 0; i < bdr_attr_marker.Size(); i++)
+      {
+         bdr_attr_marker[i] |= bdr_marker[i];
+      }
+   }
+
+   for (int i = 0; i < fes_u->GetNBE(); i++)
+   {
+      const int bdr_attr = mesh->GetBdrAttribute(i);
+      if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
+
+      FaceElementTransformations *FTr = mesh->GetBdrFaceTransformations(i);
+      if (!FTr) { continue; }
+
+      const FiniteElement *fe1 = fes_u->GetFE(FTr->Elem1No);
+      // The second element is a dummy on a boundary face, as elsewhere: it is
+      // never used, but a null reference cannot be formed.
+      const FiniteElement *fe2 = fe1;
+
+      for (int k = 0; k < num_boundary_face_integs; k++)
+      {
+         if (boundary_face_integs_marker[k] &&
+             (*boundary_face_integs_marker[k])[bdr_attr-1] == 0) { continue; }
+
+         boundary_face_integs[k]->AssembleFaceMatrix(*fe1, *fe2, *FTr, elmat);
+         MFEM_VERIFY(elmat.Height() == fe1->GetDof() * fes_u->GetVDim() &&
+                     elmat.Width() == elmat.Height(),
+                     "the flux mass boundary face integrator must return the "
+                     "block of the adjacent element alone");
+         hybridization->AssembleFluxMassMatrix(FTr->Elem1No, elmat);
+#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+         Array<int> vdofs;
+         fes_u->GetElementVDofs(FTr->Elem1No, vdofs);
+         M_u->SpMat().AddSubMatrix(vdofs, vdofs, elmat, skip_zeros);
+#endif //!MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
       }
    }
 }

@@ -72,6 +72,23 @@ namespace mfem
 
     Additionally, reconstruction of the superconvergent quantities can be
     performed after solution of the hybridized system has been obtained.
+
+    **The local problem the reconstruction solves is not the assembled problem
+    restricted to an element**, and the difference matters to anyone extending
+    it. It carries the element's flux mass, its divergence and the HDG
+    constraint, all on spaces one order higher, and it is driven by the
+    reconstructed total flux and by the element average of the computed
+    potential. Its trace unknown is free on *every* face, boundary faces
+    included, so a boundary condition reaches it through the total flux rather
+    than through the forms. Only the domain integrators of the mass forms are
+    lifted onto the enriched space for that reason; the potential mass's face
+    integrators reach it by the separate route of the hybridization's
+    potential constraint. Lifting a boundary-face term on the flux mass onto
+    it as well was tried and measured on `miniapps/hdg/extension`, where such a
+    term carries half of a transferred Dirichlet datum: it costs the
+    postprocessed potential its order, k+2 falling to about 1.25, because it
+    imposes one half of a boundary condition against a trace that is free to
+    answer it.
     It combines the original solution (flux and potential) with the trace
     solution to obtain the normally continuous total flux through
     ReconstructTotalFlux(). The second step is reconstruction of the fluxes
@@ -142,6 +159,21 @@ protected:
    void EnableReduction(const Array<int> &ess_flux_tdof_list,
                         DarcyReduction *reduction);
 
+   /** @brief Assemble the boundary face integrators of the flux mass form into
+       the hybridized element blocks.
+
+       BilinearForm::ComputeElementMatrix(), which the hybridized assembly uses
+       to obtain the element block, sums the *domain* integrators only, so a
+       boundary face integrator added to the flux mass form would otherwise be
+       dropped without a word. The contribution of such an integrator is
+       element-local -- a boundary face belongs to one element -- so it is
+       simply added to that element's block.
+
+       Wanted by the extension-from-subdomains boundary treatment, where the
+       Dirichlet datum on the true boundary is transferred to the computational
+       one along paths and so depends on the flux of the element owning the
+       face; see extension_hdg.hpp. */
+   void AssembleFluxMassBdrFaces(int skip_zeros);
    void AssembleDivLDGFaces(int skip_zeros);
    void AssemblePotLDGFaces(int skip_zeros);
    void AssemblePotHDGFaces(int skip_zeros);
