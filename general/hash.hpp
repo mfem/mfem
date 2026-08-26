@@ -56,10 +56,10 @@ struct Hashed4
  *  The order of the p1, p2, ... indices is not relevant as they are sorted
  *  each time this class is invoked.
  *
- *  This class provides three main methods. The Get(...) methods always return
- *  an item, given the two or four indices. If the item did not previously
+ *  This class provides four main methods. The Get() and GetId() methods always
+ *  return an item, given the two or four indices. If the item did not previously
  *  exist, the methods add one to the table, reusing a deleted item when
- *  available. The Find(...) and FindId(...) methods, on the other hand, return
+ *  available. The Find() and FindId() methods, on the other hand, return
  *  NULL or -1 if the item does not exist.
  *
  *  Each new item is automatically assigned a unique ID - the index of the item
