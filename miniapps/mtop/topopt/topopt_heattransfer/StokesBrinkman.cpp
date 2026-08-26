@@ -13,70 +13,19 @@ real_t f_natural(const Vector & x);
 
 real_t simple_init_design(const Vector &x)    
 {    
-   //return 0.5;  
-//    return 0.5 + 0.4 * std::sin(M_PI*x(0)) * std::cos(M_PI*x(1));  
-   if (x(0) > 0.4 && x(0) < 0.6 && x(1) > 0.4 && x(1) < 0.6)  
-   {    
-      return 0.0;   
-   }
-   else
-   { 
-      return 1.0;
-   }  
-}
-  
-bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)       
-{
-   // GaussianDesignCoefficient gaussian(x_max/2.0, y_max/2.0,  
-   //                                       0.25*x_max, 0.25*y_max,    
-   //                                       0.10, 1.0); 
-   FunctionCoefficient one(simple_init_design);  
-   rho.ProjectCoefficient(one);   
-   return true;
-}
-
-real_t inflow_function(const Vector &x)      
-{
-   return 0.0;  
-}  
-
-// Initial condition
-real_t u0_function(const Vector &x)
-{
-   int dim = x.Size();
-
-   // map to the reference [-1,1] domain
-//    Vector X(dim);
-//    real_t bb_min = 0.0;
-//    real_t bb_max = 1.0;
-//    for (int i = 0; i < dim; i++)
-//    {
-//       real_t center = (1 + 0) * 0.5;
-//       X(i) = 2 * (x(i) - center) / (1);
-//    }
-//    const real_t f = M_PI;
-//    return sin(f*X(0))*sin(f*X(1));
     real_t x_center1 = 2.0/6.0;
-    real_t x_center2 = 2.0/6.0;
     real_t x_center3 = 2.0/6.0;
     real_t x_center4 = 4.0 / 6.0;
-    real_t x_center5 = 4.0 / 6.0;
     real_t x_center6 = 4.0 / 6.0;
-    real_t x_center7 = 6.0/6.0;
-    real_t x_center8 = 6.0/6.0;
 
 
-    real_t y_center1 = 5.0/6.0;
-    real_t y_center2 = 0.5;
-    real_t y_center3 = 1.0/6.0;
-    real_t y_center4 = 5.0/6.0;
-    real_t y_center5 = 0.5;
-    real_t y_center6 = 1.0/6.0;
-    real_t y_center7 = 5.0/6.0;
-    real_t y_center8 = 1.0/6.0;
+    real_t y_center1 = 4.0/6.0;
+    real_t y_center3 = 2.0/6.0;
+    real_t y_center4 = 4.0/6.0;
+    real_t y_center6 = 2.0/6.0;
 
-    real_t sigma_x = 0.1;
-    real_t sigma_y = 0.1;
+    real_t sigma_x = 0.05;
+    real_t sigma_y = 0.05;
 
 
     // Injection 1
@@ -86,12 +35,6 @@ real_t u0_function(const Vector &x)
     real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
     real_t gaussian1 = std::exp(-0.5 * r_squared1);
 
-    // Injection 2
-    // Distance from center (normalized by sigma)
-    real_t dx2 = (x(0) - x_center2) / sigma_x;
-    real_t dy2 = (x(1) - y_center2) / sigma_y;
-    real_t r_squared2 = dx2 * dx2 + dy2 * dy2;
-    real_t gaussian2 = std::exp(-0.5 * r_squared2);
 
     // Injection 3
     // Distance from center (normalized by sigma)
@@ -107,12 +50,6 @@ real_t u0_function(const Vector &x)
     real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
     real_t gaussian4 = std::exp(-0.5 * r_squared4);
 
-        // Injection 5
-    // Distance from center (normalized by sigma)
-    real_t dx5 = (x(0) - x_center5) / sigma_x;
-    real_t dy5 = (x(1) - y_center5) / sigma_y;
-    real_t r_squared5 = dx5 * dx5 + dy5 * dy5;
-    real_t gaussian5 = std::exp(-0.5 * r_squared5);
 
         // Injection 6
     // Distance from center (normalized by sigma)
@@ -121,21 +58,130 @@ real_t u0_function(const Vector &x)
     real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
     real_t gaussian6 = std::exp(-0.5 * r_squared6);
 
-            // Injection 7
-    // Distance from center (normalized by sigma)
-    real_t dx7 = (x(0) - x_center7) / sigma_x;
-    real_t dy7 = (x(1) - y_center7) / sigma_y;
-    real_t r_squared7 = dx7 * dx7 + dy7 * dy7;
-    real_t gaussian7 = std::exp(-0.5 * r_squared7); 
-
-        // Injection 8
-    // Distance from center (normalized by sigma)
-    real_t dx8 = (x(0) - x_center8) / sigma_x;
-    real_t dy8 = (x(1) - y_center8) / sigma_y;  
-    real_t r_squared8 = dx8 * dx8 + dy8 * dy8;
-    real_t gaussian8 = std::exp(-0.5 * r_squared8);
  
-    return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6 + gaussian7 + gaussian8);
+    return 1 - (gaussian1 + gaussian3 + gaussian4 + gaussian6);
+}
+
+void inlet_vel_func(const Vector &x, Vector &v)
+{
+   int dim = x.Size();
+   v(0) = 1.0;  
+   v(1) = 0.0;   
+} 
+  
+bool InitializeDesign(ParGridFunction &rho, real_t x_max, real_t y_max)       
+{
+   // GaussianDesignCoefficient gaussian(x_max/2.0, y_max/2.0,  
+   //                                       0.25*x_max, 0.25*y_max,    
+   //                                       0.10, 1.0); 
+   FunctionCoefficient one(simple_init_design);  
+   rho.ProjectCoefficient(one);   
+   return true;
+}
+
+real_t inflow_function(const Vector &x)      
+{
+   return 1.0;  
+}  
+
+// Initial condition
+real_t u0_function(const Vector &x)
+{
+
+    return 3.0;
+//    int dim = x.Size();
+
+//    // map to the reference [-1,1] domain
+// //    Vector X(dim);
+// //    real_t bb_min = 0.0;
+// //    real_t bb_max = 1.0;
+// //    for (int i = 0; i < dim; i++)
+// //    {
+// //       real_t center = (1 + 0) * 0.5;
+// //       X(i) = 2 * (x(i) - center) / (1);
+// //    }
+// //    const real_t f = M_PI;
+// //    return sin(f*X(0))*sin(f*X(1));
+//     real_t x_center1 = 2.0/6.0;
+//     real_t x_center2 = 2.0/6.0;
+//     real_t x_center3 = 2.0/6.0;
+//     real_t x_center4 = 4.0 / 6.0;
+//     real_t x_center5 = 4.0 / 6.0;
+//     real_t x_center6 = 4.0 / 6.0;
+//     real_t x_center7 = 6.0/6.0;
+//     real_t x_center8 = 6.0/6.0;
+
+
+//     real_t y_center1 = 5.0/6.0;
+//     real_t y_center2 = 0.5;
+//     real_t y_center3 = 1.0/6.0;
+//     real_t y_center4 = 5.0/6.0;
+//     real_t y_center5 = 0.5;
+//     real_t y_center6 = 1.0/6.0;
+//     real_t y_center7 = 5.0/6.0;
+//     real_t y_center8 = 1.0/6.0;
+
+//     real_t sigma_x = 0.1;
+//     real_t sigma_y = 0.1;
+
+
+//     // Injection 1
+//     // Distance from center (normalized by sigma)
+//     real_t dx1 = (x(0) - x_center1) / sigma_x;
+//     real_t dy1 = (x(1) - y_center1) / sigma_y;
+//     real_t r_squared1 = dx1 * dx1 + dy1 * dy1;
+//     real_t gaussian1 = std::exp(-0.5 * r_squared1);
+
+//     // Injection 2
+//     // Distance from center (normalized by sigma)
+//     real_t dx2 = (x(0) - x_center2) / sigma_x;
+//     real_t dy2 = (x(1) - y_center2) / sigma_y;
+//     real_t r_squared2 = dx2 * dx2 + dy2 * dy2;
+//     real_t gaussian2 = std::exp(-0.5 * r_squared2);
+
+//     // Injection 3
+//     // Distance from center (normalized by sigma)
+//     real_t dx3 = (x(0) - x_center3) / sigma_x;
+//     real_t dy3 = (x(1) - y_center3) / sigma_y;
+//     real_t r_squared3 = dx3 * dx3 + dy3 * dy3;
+//     real_t gaussian3 = std::exp(-0.5 * r_squared3);
+
+//         // Injection 4
+//     // Distance from center (normalized by sigma)
+//     real_t dx4 = (x(0) - x_center4) / sigma_x;
+//     real_t dy4 = (x(1) - y_center4) / sigma_y;
+//     real_t r_squared4 = dx4 * dx4 + dy4 * dy4;
+//     real_t gaussian4 = std::exp(-0.5 * r_squared4);
+
+//         // Injection 5
+//     // Distance from center (normalized by sigma)
+//     real_t dx5 = (x(0) - x_center5) / sigma_x;
+//     real_t dy5 = (x(1) - y_center5) / sigma_y;
+//     real_t r_squared5 = dx5 * dx5 + dy5 * dy5;
+//     real_t gaussian5 = std::exp(-0.5 * r_squared5);
+
+//         // Injection 6
+//     // Distance from center (normalized by sigma)
+//     real_t dx6 = (x(0) - x_center6) / sigma_x;
+//     real_t dy6 = (x(1) - y_center6) / sigma_y;
+//     real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
+//     real_t gaussian6 = std::exp(-0.5 * r_squared6);
+
+//             // Injection 7
+//     // Distance from center (normalized by sigma)
+//     real_t dx7 = (x(0) - x_center7) / sigma_x;
+//     real_t dy7 = (x(1) - y_center7) / sigma_y;
+//     real_t r_squared7 = dx7 * dx7 + dy7 * dy7;
+//     real_t gaussian7 = std::exp(-0.5 * r_squared7); 
+
+//         // Injection 8
+//     // Distance from center (normalized by sigma)
+//     real_t dx8 = (x(0) - x_center8) / sigma_x;
+//     real_t dy8 = (x(1) - y_center8) / sigma_y;  
+//     real_t r_squared8 = dx8 * dx8 + dy8 * dy8;
+//     real_t gaussian8 = std::exp(-0.5 * r_squared8);
+ 
+//     return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6 + gaussian7 + gaussian8);
 }
 
 
@@ -248,7 +294,7 @@ int main(int argc, char *argv[])
     HYPRE_BigInt dimV = V_space->GlobalTrueVSize();
     HYPRE_BigInt dimP = P_space->GlobalTrueVSize();
 
-    if(Mpi::Root)
+    if(Mpi::Root())
     {
         std::cout << "***********************************************************\n";
         std::cout << "dim(V) = " << dimV << "\n";
@@ -276,14 +322,14 @@ int main(int argc, char *argv[])
     toopt::PDEFilterOptions filter_opts;
     filter_opts.print_level = 0; 
     // filter_opts.solver_rtol = 1e-12;
-    filter_opts.filter_radius = 0.05; 
+    filter_opts.filter_radius = 0.01; 
     toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);     
     filter.Assemble();   
     filter.Mult(rho, rho_tilde);    
     rho_tilde.ExchangeFaceNbrData();
 
     BrinkmanCoefficient brink_coeff(&rho_tilde, 0.5);  
-    ProductCoefficient b_coeff(10000.0, brink_coeff);
+    ProductCoefficient b_coeff(100000.0, brink_coeff);
 
 
     
@@ -300,27 +346,59 @@ int main(int argc, char *argv[])
     block_trueOffsets[2] = P_space->TrueVSize();
     block_trueOffsets.PartialSum();
 
-    // 8. coeffs
+    // 8. Boundary conditions
+    int max_bdr = pmesh->bdr_attributes.Max();
+
+    // Separate arrays for projection
+    Array<int> inlet_bdr(max_bdr);    inlet_bdr = 0;
+    Array<int> noslip_bdr(max_bdr);   noslip_bdr = 0;
+
+    // Combined array for matrix elimination
+    Array<int> all_ess_bdr(max_bdr);  all_ess_bdr = 0;
+
+    // Set Left (Attr 4) as Inlet
+    inlet_bdr[3] = 1;
+    all_ess_bdr[3] = 1;
+
+    // Set Top (Attr 3) and Bottom (Attr 1) as No-Slip
+    noslip_bdr[2] = 1;
+    noslip_bdr[0] = 1;
+    all_ess_bdr[2] = 1;
+    all_ess_bdr[0] = 1;
+
+
+
+    // 9. coeffs
     ConstantCoefficient visc_coeff(dynamic_viscosity);
     ConstantCoefficient zero(0.0);
     ConstantCoefficient one(1.0);
-    Vector vec_one(V_space->GetVSize());
+    ConstantCoefficient mone(-1.0);
+    Vector vec_one(dim);
     vec_one = 1.0;
     VectorConstantCoefficient vone(vec_one);
 
     FunctionCoefficient fnatcoeff(f_natural);
 
 
-    Vector vec_zero(V_space->GetVSize());
+    Vector vec_zero(dim);
     vec_zero = 0.0;
     VectorConstantCoefficient vzero(vec_zero);
 
-    // 9. Block operator
+    VectorFunctionCoefficient inlet_cf(dim, inlet_vel_func);
+
+    ParGridFunction u(V_space);
+    u = 0.0; // Initialize with zero
+    ParGridFunction p(P_space);
+    p = 0.0;    
+
+    // Project the respective boundary conditions
+    // u.ProjectBdrCoefficient(inlet_cf, noslip_bdr);
+    u.ProjectBdrCoefficient(inlet_cf, inlet_bdr);
+
+    // 10. Block operator
     ParBilinearForm *a(new ParBilinearForm(V_space)); 
     ParMixedBilinearForm *b(new ParMixedBilinearForm(V_space, P_space));
 
-    HypreParMatrix *A = NULL;
-    HypreParMatrix *B = NULL;
 
     a->AddDomainIntegrator(new VectorMassIntegrator(b_coeff));
     a->AddDomainIntegrator(new VectorDiffusionIntegrator(visc_coeff));
@@ -328,28 +406,45 @@ int main(int argc, char *argv[])
     a->Finalize();
 
 
-    b->AddDomainIntegrator(new VectorDivergenceIntegrator);
+    b->AddDomainIntegrator(new VectorDivergenceIntegrator(mone));
     b->Assemble();
     b->Finalize();
 
 
     BlockOperator *BrinkStokesOp = new BlockOperator(block_trueOffsets);
 
-    Array<int> empty_tdof_list;  // empty
-    OperatorPtr opA, opB;
+    Array<int> ess_tdof_slip;
+    V_space->GetEssentialTrueDofs(noslip_bdr, ess_tdof_slip, 1); 
+
+    Array<int> ess_tdof_inlet;
+    V_space->GetEssentialTrueDofs(inlet_bdr, ess_tdof_inlet, -1);
+
+    Array<int> ess_tdof_list;
+    ess_tdof_list.Append(ess_tdof_slip);
+    ess_tdof_list.Append(ess_tdof_inlet);
+
+    ess_tdof_list.Sort();
+    ess_tdof_list.Unique();
+
+    // Array<int> ess_tdof_list;
+    // V_space->GetEssentialTrueDofs(all_ess_bdr, ess_tdof_list);
+    Array<int> empty_p_tdofs;
+    
+    HypreParMatrix A;
+    HypreParMatrix B;
 
 
-    TransposeOperator *Bt = NULL;
+    //TransposeOperator Bt;
 
-    A = a->ParallelAssemble();
-    B = b->ParallelAssemble();
-    (*B) *= -1;
-    Bt = new TransposeOperator(B);
-    BrinkStokesOp->SetBlock(0,0, A);
-    BrinkStokesOp->SetBlock(0,1, Bt);
-    BrinkStokesOp->SetBlock(1,0, B);
+    // A = a->ParallelAssemble();
+    // B = b->ParallelAssemble();
+    // (*B) *= -1;
+    // Bt = new TransposeOperator(B);
+    // BrinkStokesOp->SetBlock(0,0, A);
+    // BrinkStokesOp->SetBlock(0,1, Bt);
+    // BrinkStokesOp->SetBlock(1,0, B);
 
-    // 10. RHS
+    // 11. RHS
     MemoryType mt = device.GetMemoryType();
     BlockVector x(block_offsets, mt), rhs(block_offsets, mt);
     BlockVector trueX(block_trueOffsets, mt), trueRhs(block_trueOffsets, mt);
@@ -357,19 +452,37 @@ int main(int argc, char *argv[])
     ParLinearForm *fform(new ParLinearForm);
     fform->Update(V_space, rhs.GetBlock(0), 0);
     fform->AddDomainIntegrator(new VectorDomainLFIntegrator(vzero));
-    fform->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
+    //fform->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(fnatcoeff));
     fform->Assemble();
     fform->SyncAliasMemory(rhs);
-    fform->ParallelAssemble(trueRhs.GetBlock(0));
-    trueRhs.GetBlock(0).SyncAliasMemory(trueRhs);
+    // fform->ParallelAssemble(trueRhs.GetBlock(0));
+    // trueRhs.GetBlock(0).SyncAliasMemory(trueRhs);
 
     ParLinearForm *gform(new ParLinearForm);
     gform->Update(P_space, rhs.GetBlock(1), 0);
     gform->AddDomainIntegrator(new DomainLFIntegrator(zero));
     gform->Assemble();
     gform->SyncAliasMemory(rhs);
-    gform->ParallelAssemble(trueRhs.GetBlock(1));
-    trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
+    // gform->ParallelAssemble(trueRhs.GetBlock(1));
+    // trueRhs.GetBlock(1).SyncAliasMemory(trueRhs);
+
+    Vector X_v, B_v, X_p, B_p;
+
+    // Eliminate boundary DOFs from the A block (Velocity)
+    a->FormLinearSystem(ess_tdof_list, u,*fform, A, trueX.GetBlock(0), trueRhs.GetBlock(0));
+
+    // Eliminate boundary DOFs from the B block (Divergence constraint)
+    b->FormRectangularLinearSystem(ess_tdof_list, empty_p_tdofs, u, *gform, B, trueX.GetBlock(0), trueRhs.GetBlock(1));
+
+    TransposeOperator Bt(&B);
+    BrinkStokesOp->SetBlock(0,0, &A);
+    BrinkStokesOp->SetBlock(0,1, &Bt);
+    BrinkStokesOp->SetBlock(1,0, &B);
+
+
+    
+
+
 
     // 11. Construct the operators for preconditioner
     // HypreParMatrix *AinvBt = NULL;
@@ -396,7 +509,7 @@ int main(int argc, char *argv[])
 
     // 12. Solve the linear system with MINRES.
     //     Check the norm of the unpreconditioned residual.
-    int maxIter(2000);
+    int maxIter(15000);
     real_t rtol(1.e-6);
     real_t atol(1.e-10);
     MINRESSolver solver(MPI_COMM_WORLD);
@@ -422,12 +535,12 @@ int main(int argc, char *argv[])
         }
     }
 
-    ParGridFunction *u(new ParGridFunction);
-    ParGridFunction *p(new ParGridFunction);
-    u->MakeRef(V_space, x.GetBlock(0), 0);
-    p->MakeRef(P_space, x.GetBlock(1), 0);
-    u->Distribute(&(trueX.GetBlock(0)));
-    p->Distribute(&(trueX.GetBlock(1)));
+    // ParGridFunction *u(new ParGridFunction);
+    // ParGridFunction *p(new ParGridFunction);
+    u.MakeRef(V_space, x.GetBlock(0), 0);
+    p.MakeRef(P_space, x.GetBlock(1), 0);
+    u.Distribute(&(trueX.GetBlock(0)));
+    p.Distribute(&(trueX.GetBlock(1)));
 
 
     
@@ -439,7 +552,7 @@ int main(int argc, char *argv[])
       socketstream u_sock(vishost, visport);
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock.precision(8);
-      u_sock << "solution\n" << *pmesh << *u << "window_title 'Velocity'"
+      u_sock << "solution\n" << *pmesh << u << "window_title 'Velocity'"
              << endl;
       // Make sure all ranks have sent their 'u' solution before initiating
       // another set of GLVis connections (one from each rank):
@@ -447,72 +560,73 @@ int main(int argc, char *argv[])
       socketstream p_sock(vishost, visport);
       p_sock << "parallel " << num_procs << " " << myid << "\n";
       p_sock.precision(8);
-      p_sock << "solution\n" << *pmesh << *p << "window_title 'Pressure'"
+      p_sock << "solution\n" << *pmesh << p << "window_title 'Pressure'"
              << endl;
    }
 
-    FiniteElementCollection *fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);                                                                
-    HYPRE_BigInt global_vSize = fes->GlobalTrueVSize(); 
+    // FiniteElementCollection *fec = new DG_FECollection(order, dim, BasisType::GaussLobatto);
+    // ParFiniteElementSpace *fes = new ParFiniteElementSpace(pmesh, fec);                                                                
+    // HYPRE_BigInt global_vSize = fes->GlobalTrueVSize(); 
 
-    // 8. Boundary Conditions    
-    Array<int> ess_tdof_list;                              
-    Array<int> ess_bdr(4);   
-    ess_bdr = 0;   
-    pmesh->MarkExternalBoundaries(ess_bdr);  
-    fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
-    Array<int> inflow_bdr(4); 
-    inflow_bdr = 0;
-    //inflow_bdr[1] = 1;    
+    // // 8. Boundary Conditions    
+    // // Array<int> ess_tdof_list;                              
+    // // Array<int> ess_bdr(4);   
+    // // ess_bdr = 0;   
+    // // pmesh->MarkExternalBoundaries(ess_bdr);  
+    // // fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
+    // // Array<int> inflow_bdr(4); 
+    // // inflow_bdr = 0;
+    // //inflow_bdr[1] = 1;    
         
     
     
-    // 10. Define the Coefficients  
-    SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0);  
-    ConstantCoefficient cons_diff_coeff(diffusion_term);  
-    ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);    
-    ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
-    ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
-    FunctionCoefficient inflow(inflow_function);   
-    FunctionCoefficient q0(u0_function); 
-    VectorGridFunctionCoefficient u_cf(u); 
-    real_t dt_diffusion_term = dt*diffusion_term; 
+    // // 10. Define the Coefficients  
+    // SIMPCoefficient simp_stiff(&rho_tilde, 1e-6, 1.0, 3.0);  
+    // ConstantCoefficient cons_diff_coeff(diffusion_term);  
+    // ConstantCoefficient cons_dt_diff_coeff(dt*diffusion_term);    
+    // ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
+    // ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
+    // FunctionCoefficient inflow(inflow_function);   
+    // FunctionCoefficient q0(u0_function); 
+    // VectorGridFunctionCoefficient u_cf(&u); 
+    // real_t dt_diffusion_term = dt*diffusion_term; 
     
-    // 11. Construct the Objective Function 
-    RectangularIndicator indicator(0, 1, 0, 1); 
-    ParGridFunction one_gf(fes);
-    ConstantCoefficient one_cf(1.0);
-    one_gf.ProjectCoefficient(one_cf);     
-    TerminalTargetObjective obj_func(fes, indicator, one_gf, comm);           
-    int n_steps = (int)ceil(t_final / dt);   
+    // // 11. Construct the Objective Function 
+    // RectangularIndicator indicator(0, 1, 0, 1); 
+    // ParGridFunction one_gf(fes);
+    // ConstantCoefficient one_cf(1.0);
+    // one_gf.ProjectCoefficient(one_cf);     
+    // TerminalTargetObjective obj_func(fes, indicator, one_gf, comm);           
+    // int n_steps = (int)ceil(t_final / dt);   
     
-    const int n = control_fes.GetTrueVSize();      
-    Vector rho_tv(n);
-    rho.GetTrueDofs(rho_tv);
+    // const int n = control_fes.GetTrueVSize();      
+    // Vector rho_tv(n);
+    // rho.GetTrueDofs(rho_tv);
 
-    Vector dJ_drho(rho_tv.Size());
-    ParGridFunction q0_gf(fes); 
-    q0_gf.ProjectCoefficient(q0);
-    GridFunctionCoefficient q0_cf; 
-    q0_cf.SetGridFunction(&q0_gf);
-    DesignSolver design_solver(*fes,               
-        filter_fes,  
-        control_fes, 
-        filter, 
-        obj_func,
-        u_cf, 
-        diffusion_term, 
-        dt_diffusion_term,
-        inflow, 
-        q0_cf, 
-        n_steps, 
-        dt, 
-        t_final, 
-        rho, rho_tilde, 
-        simp_stiff, ode_solver_type, 
-        vis_steps, problem_type, comm); 
-    design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
-    const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
+    // Vector dJ_drho(rho_tv.Size());
+    // ParGridFunction q0_gf(fes); 
+    // q0_gf.ProjectCoefficient(q0);
+    // GridFunctionCoefficient q0_cf; 
+    // q0_cf.SetGridFunction(&q0_gf);
+    // DesignSolver design_solver(*fes,               
+    //     filter_fes,  
+    //     control_fes, 
+    //     filter, 
+    //     obj_func,
+    //     u_cf, 
+    //     diffusion_term, 
+    //     dt_diffusion_term,
+    //     inflow, 
+    //     q0_cf, 
+    //     n_steps, 
+    //     dt, 
+    //     t_final, 
+    //     rho, rho_tilde, 
+    //     simp_stiff, ode_solver_type, 
+    //     vis_steps, problem_type, comm);
+    // design_solver.SetInflowBdr(inlet_bdr); 
+    // design_solver.FilterFSolve(rho_tv);              // forward filter:  rho -> rho_tilde
+    // const real_t J0 = design_solver.PhysicsFSolve(); // forward physics: -> J
 
     ParaViewDataCollection paraview_dc("density", pmesh); 
     if (pv_vis) {
@@ -533,8 +647,8 @@ int main(int argc, char *argv[])
     // delete pd;
     delete fform;
     delete gform;
-    delete u;
-    delete p;
+    // delete u;
+    // delete p;
     delete BrinkStokesOp;
     // delete StokesBrinkmanPr;
     // delete invA;
@@ -542,9 +656,9 @@ int main(int argc, char *argv[])
     // delete S;
     // delete Ad;
     // delete AinvBt;
-    delete Bt;
-    delete B;
-    delete A;
+    // delete Bt;
+    // delete B;
+    // delete A;
     delete a;
     delete b;
     delete P_space;
@@ -552,9 +666,9 @@ int main(int argc, char *argv[])
     delete p_coll;
     delete v_coll;
     delete pmesh;
-    delete fes;  
-    //delete pmesh;
-    delete fec; 
+    // delete fes;  
+    // //delete pmesh;
+    // delete fec; 
     
     return 0; 
 }

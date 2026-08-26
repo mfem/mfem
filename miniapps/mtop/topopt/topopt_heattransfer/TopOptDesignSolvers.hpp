@@ -45,6 +45,8 @@ class DesignSolver
    ParGridFunction q_gf;
    HypreParVector *q_vec;
 
+   Array<int> inflow_bdr_attr;
+
    bool paraview_vis;
 
 
@@ -92,6 +94,8 @@ class DesignSolver
 
    int NumSteps() const {return nsteps;}
    real_t Time_Step() const {return dt;}
+   
+   void SetInflowBdr(Array<int> &inflow_bdr) {inflow_bdr_attr = inflow_bdr;}
 
    // 1. Forward Filter. Raw control density -> filtered density (Helmholtz solve).
    void FilterFSolve(const Vector &rho_tv)
@@ -115,6 +119,7 @@ class DesignSolver
          rho_tilde, dt, 
          t_final, SIMP_cf,
          comm);
+      if (inflow_bdr_attr){oper->SetInflowBdrAttr(inflow_bdr_attr);}
       if (problem_type == 1){oper->InitializeInjectionProblem();}
       else if (problem_type == 2){oper->InitializeFlowProblem();}
       else{MFEM_ABORT("Unknown Problem Type: " << problem_type );}

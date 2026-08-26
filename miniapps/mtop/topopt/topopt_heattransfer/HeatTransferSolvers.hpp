@@ -285,6 +285,8 @@ class IMEXAdvectionDiffusionSolver : public TopOptTimeDependentOperator
         dt = dt_real;
     }
 
+    void SetInflowBdrAttr(Array<int> &inflow_bdr) {inflow_bdr_attr = inflow_bdr;}
+
     ParGridFunction& Getq() { return q_gf; }
 
 
