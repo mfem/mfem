@@ -60,6 +60,27 @@ void SetDiagonal(SparseMatrix &A, real_t s)
    }
 }
 
+// The same, but with a structurally symmetric pattern: both neighbours at each
+// of the two offsets, so that (i,j) is filled whenever (j,i) is. The values
+// stay asymmetric. PARDISO is told about this through SetMatrixType(), and it
+// has to be true when it is: told REAL_STRUCTURE_SYMMETRIC about a matrix that
+// is not, MKL does not report an error, it fails to return.
+SparseMatrix *MakeSymmetricBanded(int n, int d)
+{
+   MFEM_VERIFY(d > 1 && n > 2*d + 1, "the five columns would not be distinct");
+   SparseMatrix *A = new SparseMatrix(n, n);
+   for (int i = 0; i < n; i++)
+   {
+      A->Add(i, i, 10.0);
+      A->Add(i, (i+1)%n, -1.0);
+      A->Add(i, (i-1+n)%n, -0.6);
+      A->Add(i, (i+d)%n, -1.2);
+      A->Add(i, (i-d+n)%n, -0.4);
+   }
+   A->Finalize();
+   return A;
+}
+
 Vector MakeRHS(int n)
 {
    Vector b(n);
@@ -586,6 +607,265 @@ TEST_CASE("KLU without reuse is bit-for-bit unchanged", "[DirectSolvers]")
       REQUIRE(solver.GetNumSymbolicFactorizations() == 0);
       REQUIRE(solver.GetNumNumericFactorizations() == 0);
       REQUIRE(solver.GetNumRefactorizations() == 0);
+   }
+}
+
+
+namespace direct_solver_reuse
+{
+
+// A complex matrix whose real and imaginary parts share a sparsity pattern,
+// which is what ComplexUMFPackSolver requires.
+ComplexSparseMatrix *MakeComplexBanded(int n, int d, SparseMatrix *&re,
+                                       SparseMatrix *&im,
+                                       ComplexOperator::Convention conv =
+                                          ComplexOperator::HERMITIAN)
+{
+   re = MakeBanded(n, d);
+   im = MakeBanded(n, d);
+   real_t *data = im->HostReadWriteData();
+   for (int k = 0; k < im->NumNonZeroElems(); k++) { data[k] *= 0.3; }
+   return new ComplexSparseMatrix(re, im, true, true, conv);
+}
+
+Vector MakeComplexRHS(int n)
+{
+   Vector b(2*n);
+   for (int i = 0; i < 2*n; i++)
+   {
+      b(i) = 1.0 + std::sin(real_t(2*i)) + real_t(i%5);
+   }
+   return b;
+}
+
+real_t RelResidual(ComplexSparseMatrix &A, const Vector &x, const Vector &b)
+{
+   Vector r(b.Size());
+   A.Mult(x, r);
+   r -= b;
+   return r.Norml2() / b.Norml2();
+}
+
+// The old ComplexUMFPackSolver::SetOperator() and Mult(), written out.
+void RawComplexUMFPackSolve(ComplexSparseMatrix &A, const Vector &b, Vector &x,
+                            bool use_long_ints)
+{
+   A.real().SortColumnIndices();
+   A.imag().SortColumnIndices();
+   const int n = A.real().Height();
+   const int *Ap = A.real().HostReadI();
+   const int *Ai = A.real().HostReadJ();
+   const real_t *Ax = A.real().HostReadData();
+   const real_t *Az = A.imag().HostReadData();
+   real_t Control[UMFPACK_CONTROL], Info[UMFPACK_INFO];
+   void *Symbolic, *Numeric;
+   x.SetSize(2*n);
+   real_t *datax = x.GetData();
+   const real_t *datab = b.GetData();
+   if (!use_long_ints)
+   {
+      umfpack_zi_defaults(Control);
+      umfpack_zi_symbolic(n, n, Ap, Ai, Ax, Az, &Symbolic, Control, Info);
+      umfpack_zi_numeric(Ap, Ai, Ax, Az, Symbolic, &Numeric, Control, Info);
+      umfpack_zi_free_symbolic(&Symbolic);
+      umfpack_zi_solve(UMFPACK_Aat, Ap, Ai, Ax, Az, datax, &datax[n], datab,
+                       &datab[n], Numeric, Control, Info);
+      umfpack_zi_free_numeric(&Numeric);
+   }
+   else
+   {
+      umfpack_zl_defaults(Control);
+      SuiteSparse_long *AI = new SuiteSparse_long[n+1];
+      SuiteSparse_long *AJ = new SuiteSparse_long[Ap[n]];
+      for (int i = 0; i <= n; i++) { AI[i] = (SuiteSparse_long)(Ap[i]); }
+      for (int i = 0; i < Ap[n]; i++) { AJ[i] = (SuiteSparse_long)(Ai[i]); }
+      umfpack_zl_symbolic(n, n, AI, AJ, Ax, Az, &Symbolic, Control, Info);
+      umfpack_zl_numeric(AI, AJ, Ax, Az, Symbolic, &Numeric, Control, Info);
+      umfpack_zl_free_symbolic(&Symbolic);
+      umfpack_zl_solve(UMFPACK_Aat, AI, AJ, Ax, Az, datax, &datax[n], datab,
+                       &datab[n], Numeric, Control, Info);
+      umfpack_zl_free_numeric(&Numeric);
+      delete [] AJ;
+      delete [] AI;
+   }
+}
+
+} // namespace direct_solver_reuse
+
+TEST_CASE("ComplexUMFPack symbolic reuse", "[DirectSolvers]")
+{
+   const int n = 300;
+   const real_t tol = 1e-11;
+   const bool use_long_ints = GENERATE(false, true);
+   CAPTURE(use_long_ints);
+
+   SparseMatrix *re = nullptr, *im = nullptr;
+   std::unique_ptr<ComplexSparseMatrix> A(MakeComplexBanded(n, 7, re, im));
+   const Vector b = MakeComplexRHS(n);
+   Vector x(2*n), x_ref(2*n);
+
+   ComplexUMFPackSolver solver(use_long_ints);
+   solver.SetReuseSymbolic();
+   REQUIRE(solver.GetReuseSymbolic());
+
+   SECTION("nothing is analysed twice, and the answer does not move")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x_ref);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 1);
+      REQUIRE(RelResidual(*A, x_ref, b) < tol);
+
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 2);
+      REQUIRE(BitwiseEqual(x, x_ref));
+   }
+
+   SECTION("values change in place, as a reassembled Jacobian does")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+
+      for (int step = 1; step <= 3; step++)
+      {
+         const real_t s = 0.4*step - 1.0;
+         CAPTURE(step);
+         SetDiagonal(*re, s);
+         solver.SetOperator(*A);
+         solver.Mult(b, x);
+
+         REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+         REQUIRE(solver.GetNumNumericFactorizations() == step + 1);
+         REQUIRE(RelResidual(*A, x, b) < tol);
+
+         SparseMatrix *re2 = nullptr, *im2 = nullptr;
+         std::unique_ptr<ComplexSparseMatrix> A2(MakeComplexBanded(n, 7, re2,
+                                                                   im2));
+         SetDiagonal(*re2, s);
+         ComplexUMFPackSolver fresh(use_long_ints);
+         fresh.SetOperator(*A2);
+         fresh.Mult(b, x_ref);
+         REQUIRE(RelDiff(x, x_ref) < tol);
+      }
+   }
+
+   SECTION("rebuilt into a fresh matrix with the same pattern")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x_ref);
+
+      SparseMatrix *re2 = nullptr, *im2 = nullptr;
+      std::unique_ptr<ComplexSparseMatrix> A2(MakeComplexBanded(n, 7, re2, im2));
+      SetDiagonal(*re2, 0.5);
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(solver.GetNumNumericFactorizations() == 2);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+   }
+
+   SECTION("the pattern changes: the analysis is redone")
+   {
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+
+      // The same size and the same number of nonzeros, a different structure.
+      SparseMatrix *re2 = nullptr, *im2 = nullptr;
+      std::unique_ptr<ComplexSparseMatrix> A2(MakeComplexBanded(n, 11, re2,
+                                                                im2));
+      REQUIRE(re2->NumNonZeroElems() == re->NumNonZeroElems());
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 2);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+   }
+
+   SECTION("reuse can be turned off again")
+   {
+      solver.SetOperator(*A);
+      solver.SetOperator(*A);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+
+      solver.SetReuseSymbolic(false);
+      REQUIRE_FALSE(solver.GetReuseSymbolic());
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 2);
+      REQUIRE(RelResidual(*A, x, b) < tol);
+   }
+
+   SECTION("the block-symmetric convention")
+   {
+      SparseMatrix *re2 = nullptr, *im2 = nullptr;
+      std::unique_ptr<ComplexSparseMatrix> A2(
+         MakeComplexBanded(n, 7, re2, im2, ComplexOperator::BLOCK_SYMMETRIC));
+      solver.SetOperator(*A2);
+      solver.Mult(b, x_ref);
+      REQUIRE(RelResidual(*A2, x_ref, b) < tol);
+
+      SetDiagonal(*re2, 0.6);
+      solver.SetOperator(*A2);
+      solver.Mult(b, x);
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 1);
+      REQUIRE(RelResidual(*A2, x, b) < tol);
+   }
+}
+
+TEST_CASE("ComplexUMFPack without reuse is bit-for-bit unchanged",
+          "[DirectSolvers]")
+{
+   const int n = 300;
+   const bool use_long_ints = GENERATE(false, true);
+   CAPTURE(use_long_ints);
+
+   SparseMatrix *re = nullptr, *im = nullptr;
+   std::unique_ptr<ComplexSparseMatrix> A(MakeComplexBanded(n, 7, re, im));
+   const Vector b = MakeComplexRHS(n);
+   Vector x(2*n), x_raw(2*n);
+
+   SECTION("against UMFPACK called directly, as the wrapper used to")
+   {
+      ComplexUMFPackSolver solver(use_long_ints);
+      solver.SetOperator(*A);
+      solver.Mult(b, x);
+      RawComplexUMFPackSolve(*A, b, x_raw, use_long_ints);
+      REQUIRE(BitwiseEqual(x, x_raw));
+
+      ComplexUMFPackSolver ctor_solver(*A, use_long_ints);
+      ctor_solver.Mult(b, x);
+      REQUIRE(BitwiseEqual(x, x_raw));
+   }
+
+   SECTION("a solver used again is a solver used the first time")
+   {
+      ComplexUMFPackSolver solver(use_long_ints);
+      for (int step = 0; step < 3; step++)
+      {
+         CAPTURE(step);
+         SetDiagonal(*re, 0.4*step - 1.0);
+
+         solver.SetOperator(*A);
+         solver.Mult(b, x);
+
+         ComplexUMFPackSolver fresh(use_long_ints);
+         fresh.SetOperator(*A);
+         fresh.Mult(b, x_raw);
+
+         REQUIRE(BitwiseEqual(x, x_raw));
+         REQUIRE(solver.GetNumSymbolicFactorizations() == step + 1);
+         REQUIRE(solver.GetNumNumericFactorizations() == step + 1);
+      }
+   }
+
+   SECTION("the counters start at zero and reuse is off")
+   {
+      ComplexUMFPackSolver solver(use_long_ints);
+      REQUIRE_FALSE(solver.GetReuseSymbolic());
+      REQUIRE(solver.GetNumSymbolicFactorizations() == 0);
+      REQUIRE(solver.GetNumNumericFactorizations() == 0);
    }
 }
 
