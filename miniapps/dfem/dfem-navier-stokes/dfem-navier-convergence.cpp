@@ -228,7 +228,7 @@ RunResult Run(const RunConfiguration &config,
    {
       pd = std::make_unique<ParaViewDataCollection>(
               "dfem-navier-stokes-output", &pmesh);
-            pd->SetPrefixPath(config.outfolder);
+      pd->SetPrefixPath(config.outfolder);
       pd->RegisterField("velocity", &velocity);
       pd->RegisterField("pressure", &pressure);
       pd->SetDataFormat(VTKFormat::BINARY);

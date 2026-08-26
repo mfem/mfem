@@ -25,7 +25,7 @@
 //
 // - Steady-state initialized test (follows miniapps/fluids/navier/navier_kovasznay.cpp).
 //   No real transient but useful to check the solver preserves the steady state
-//   (cr checks results against analytical sol, eic starts the run from the exact solution, 
+//   (cr checks results against analytical sol, eic starts the run from the exact solution,
 //   tu/tp set the tolerances for the check):
 //   mpirun -np 4 ./dfem-navier-kovasznay -o 4 -r 2 -re 40 -dt 1e-3 \
 //      -tf 1e-2 -eic -st 0 -cr -tu 1e-7 -tp 1e-7
@@ -80,7 +80,7 @@ real_t ExactPressure(const Vector &x)
 {
    return -0.5 * std::exp(2.0 * lambda * x(0));
 }
-} 
+}
 
 int main(int argc, char *argv[])
 {
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       pvdc = std::make_unique<ParaViewDataCollection>(
-                               "dfem-navier-kovasznay-output", &pmesh);
+                "dfem-navier-kovasznay-output", &pmesh);
       pvdc->SetPrefixPath(outfolder);
       pvdc->SetDataFormat(VTKFormat::BINARY);
       pvdc->SetHighOrderOutput(true);
@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
 
    // The exact pressure is only defined up to a constant, while the discrete
    // pressure is constrained to have zero mean. We project the exact field once
-   // and remove its mean, so it can be compared directly at every step 
+   // and remove its mean, so it can be compared directly at every step
    // (Kovasznay solution is steady, so the reference doesn't change in time).
    pressure_reference.ProjectCoefficient(exact_pressure);
    Vector pressure_reference_true_dofs;

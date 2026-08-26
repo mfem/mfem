@@ -61,7 +61,7 @@ public:
 
    std::shared_ptr<future::DerivativeOperator>
    GetDerivative(size_t field_id, const BlockVector &state,
-                 bool use_cached_setup = false) const override; 
+                 bool use_cached_setup = false) const override;
    // NOTE: in this case the PA cached version is inefficient
    // cuz we have to perform the setup on each GetDerivative()
    // i.e. every time we call GetGradient() in the NavierStokesResidual

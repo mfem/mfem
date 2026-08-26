@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
    if (paraview)
    {
       pvdc = std::make_unique<ParaViewDataCollection>(
-                               "dfem-navier-cavity", &pmesh);
+                "dfem-navier-cavity", &pmesh);
       pvdc->SetPrefixPath(outfolder);
       pvdc->SetDataFormat(VTKFormat::BINARY);
       pvdc->SetHighOrderOutput(true);
@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
       solver.Step(state, time, step_dt);
       step++;
 
-      // Compute the relative change rate of the velocity field, 
+      // Compute the relative change rate of the velocity field,
       // we use it to check if the solution has reached a steady state,
       // and terminate it early.
       velocity_change = state.GetBlock(U);
