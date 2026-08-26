@@ -2255,26 +2255,6 @@ void GenericTransferOperator::Mult(const Vector& x, Vector& y) const
    ran_gf->GetTrueDofs(y);
 }
 
-void GenericTransferOperator::MultTranspose(const Vector& x, Vector& y) const
-{
-   ran_gf->SetFromTrueDofs(x);
-   if (ran_cf)
-   {
-      dom_gf->ProjectCoefficient(*ran_cf);
-   }
-   else if (ran_vcf)
-   {
-      dom_gf->ProjectCoefficient(*ran_vcf);
-   }
-   else
-   {
-      mfem_error("GenericTransferOperator::MultTranspose\n"
-                 " coefficient not defined");
-   }
-   dom_gf->GetTrueDofs(y);
-}
-
-
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
    : Operator(hFESpace_.GetVSize(), lFESpace_.GetVSize())

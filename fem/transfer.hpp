@@ -657,11 +657,6 @@ public:
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
    void Mult(const Vector& x, Vector& y) const override;
-
-   /// Restriction by applying the transpose of the Mult method.
-   /** The vector \p x corresponding to the fine space is restricted to the
-       vector \p y corresponding to the coarse space. */
-   void MultTranspose(const Vector& x, Vector& y) const override;
 };
 
 /// Matrix-free transfer operator between finite element spaces
