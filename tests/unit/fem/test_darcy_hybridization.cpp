@@ -47,6 +47,31 @@ real_t gExact(const Vector &x)
 
 real_t pNatural(const Vector &x) { return -pExact(x); }
 
+/** A flux-mass boundary face integrator whose only property is that it is
+    symmetric positive definite on the block of the element adjacent to the
+    face: @a s times the identity. It discretises nothing. What is under test
+    is the plumbing -- that the block reaches the element it belongs to, and
+    that it is *added* to what the domain integrators have already put there
+    rather than replacing it. */
+class ScaledIdentityFaceIntegrator : public BilinearFormIntegrator
+{
+   const real_t s;
+   const int vdim;
+
+public:
+   ScaledIdentityFaceIntegrator(real_t s_, int vdim_) : s(s_), vdim(vdim_) { }
+
+   void AssembleFaceMatrix(const FiniteElement &el1, const FiniteElement &el2,
+                           FaceElementTransformations &Trans,
+                           DenseMatrix &elmat) override
+   {
+      const int n = el1.GetDof() * vdim;
+      elmat.SetSize(n);
+      elmat = 0.0;
+      for (int i = 0; i < n; i++) { elmat(i, i) = s; }
+   }
+};
+
 /// Which discretisation of the flux. DG is the Nguyen-Peraire-Cockburn
 /// setting -- both variables discontinuous, coupled only through the trace and
 /// a stabilisation tau. RT is the hybridized mixed method, kept as a control
@@ -57,6 +82,7 @@ enum class Form { RT, DG };
 struct Result
 {
    Vector u, p;         ///< the recovered flux and potential
+   Vector t;            ///< the trace, as solved for (empty if not hybridized)
    real_t err_u, err_p; ///< L2 errors against the exact solution
    int    solved_size;  ///< size of the system actually solved
 };
@@ -65,8 +91,12 @@ struct Result
 /// full block system or hybridized down to the traces. Everything except the
 /// call to EnableHybridization() is shared, so a difference between the two
 /// results is a property of the hybridization and of nothing else.
+/** @a m_u_bdr installs one flux-mass boundary face integrator per entry, of
+    the given scale. Empty for every caller but the boundary-face assembly
+    test below. */
 Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
-             real_t td = 0.5)
+             real_t td = 0.5, const std::vector<real_t> &m_u_bdr = {},
+             bool ess_trace = false, real_t marker_scale = -2.0)
 {
    const int dim = mesh.Dimension();
 
@@ -122,10 +152,34 @@ Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
          new VectorFEDivergenceIntegrator);
 
       fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
-      fform->AddBoundaryIntegrator(
-         new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+      if (!ess_trace)
+      {
+         fform->AddBoundaryIntegrator(
+            new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+      }
+      else
+      {
+         // The boundary block of C is registered from the divergence form's
+         // boundary face *markers*: DarcyForm::Assemble() reads
+         // B->GetBFBFI_Marker() and installs constr_flux_integ on each marker
+         // it finds. The integrator object itself is never assembled on the
+         // hybridized path -- only AssembleDivLDGFaces(), which the reduction
+         // branch calls, touches it -- so what this line supplies is the
+         // marker and nothing else.
+         Array<int> all(mesh.bdr_attributes.Max());
+         all = 1;
+         darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+            new TransposeIntegrator(new DGNormalTraceIntegrator(marker_scale)),
+            all);
+      }
    }
    darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
+
+   for (real_t s : m_u_bdr)
+   {
+      darcy.GetFluxMassForm()->AddBdrFaceIntegrator(
+         new ScaledIdentityFaceIntegrator(s, fes_u.GetVDim()));
+   }
 
    // The pressure enters naturally, so none of the flux dofs are essential.
    Array<int> ess_flux_tdofs;
@@ -134,10 +188,13 @@ Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
    // DarcyForm's hybridization, hence the scope of these two.
    DG_Interface_FECollection trace_coll(order, dim);
    FiniteElementSpace fes_t(&mesh, &trace_coll);
+   Array<int> bdr_all(mesh.bdr_attributes.Max());
+   bdr_all = 1;
    if (hybridize)
    {
       darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(),
                                 ess_flux_tdofs);
+      if (ess_trace) { darcy.GetHybridization()->SetEssentialBC(bdr_all); }
    }
 
    darcy.Assemble();
@@ -147,6 +204,13 @@ Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
 
    OperatorPtr A;
    Vector X, B;
+   if (ess_trace)
+   {
+      GridFunction tr0(&fes_t);
+      tr0 = 0.0;
+      tr0.ProjectBdrCoefficient(pcoeff, bdr_all);
+      X = tr0;
+   }
    darcy.FormLinearSystem(ess_flux_tdofs, x, A, X, B, true);
 
    Result res;
@@ -177,6 +241,8 @@ Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
       solver.Mult(B, X);
       REQUIRE(solver.GetConverged());
    }
+
+   if (hybridize) { res.t = X; }
 
    darcy.RecoverFEMSolution(X, x);
 
@@ -468,4 +534,135 @@ TEST_CASE("HDG: the discontinuous formulation on wedges",
    CAPTURE(order, r.p, r.u);
 
    REQUIRE(r.p > order + 0.7);
+}
+
+TEST_CASE("A boundary face term on the flux mass reaches the hybridized solve",
+          "[DarcyForm][DarcyHybridization]")
+{
+   using namespace darcy_hybridization;
+
+   // BilinearForm::ComputeElementMatrix(), which the hybridized assembly uses
+   // to obtain each element's flux mass block, sums the domain integrators
+   // only. DarcyForm::AssembleFluxMassBdrFaces() is what carries a boundary
+   // face integrator of that form into the hybridization, and it does so by
+   // calling AssembleFluxMassMatrix() a second time for the element owning the
+   // face. So that routine has to accumulate. Assigning instead does not drop
+   // the term -- it drops everything else, replacing the element's whole
+   // block with the boundary contribution, silently and only on the elements
+   // that touch the boundary.
+   //
+   // RT is the form to test it in, because hybridizing the mixed method is
+   // algebraically exact: the monolithic solve assembles the same integrator
+   // through BilinearForm::Assemble()'s own boundary face loop, which uses the
+   // identical fe2 = fe1 convention, so the two must agree to solver
+   // tolerance and the reference is right by construction rather than by
+   // measurement.
+   const int order = GENERATE(0, 1, 2);
+   const Element::Type elem = GENERATE(Element::QUADRILATERAL,
+                                       Element::TRIANGLE);
+   CAPTURE(order, int(elem));
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, elem, false, 1.0, 1.0);
+
+   const Result mono = Solve(mesh, order, false, Form::RT, 0.5, {0.7});
+   const Result hyb  = Solve(mesh, order, true,  Form::RT, 0.5, {0.7});
+
+   Vector du(hyb.u), dp(hyb.p);
+   du -= mono.u;
+   dp -= mono.p;
+   REQUIRE(du.Normlinf() < 1e-8 * std::max(mono.u.Normlinf(), real_t(1.0)));
+   REQUIRE(dp.Normlinf() < 1e-8 * std::max(mono.p.Normlinf(), real_t(1.0)));
+
+   // The term has to have done something, or the agreement above is vacuous.
+   const Result plain = Solve(mesh, order, true, Form::RT);
+   Vector d0(hyb.u);
+   d0 -= plain.u;
+   REQUIRE(d0.Normlinf() > 1e-3 * plain.u.Normlinf());
+
+   // And the contributions accumulate across integrators as well as with the
+   // domain block: two of scale s must equal one of scale 2s. A corner element
+   // carries two boundary faces and so makes the same demand of the face loop.
+   const Result twice = Solve(mesh, order, true, Form::RT, 0.5, {0.35, 0.35});
+   Vector d2(twice.u);
+   d2 -= hyb.u;
+   REQUIRE(d2.Normlinf() < 1e-8 * std::max(hyb.u.Normlinf(), real_t(1.0)));
+}
+
+TEST_CASE("Raviart-Thomas takes its Dirichlet datum on an essential trace",
+          "[DarcyForm][DarcyHybridization]")
+{
+   using namespace darcy_hybridization;
+
+   // The boundary block of the constraint matrix C is registered from the
+   // *divergence form's* boundary face markers: DarcyForm::Assemble() reads
+   // B->GetBFBFI_Marker() and installs constr_flux_integ wherever it finds
+   // one. The RT harnesses add no B face integrators at all, so nothing
+   // registers one, so lambda on a boundary face has no entry in C -- and the
+   // solve, being otherwise well posed through the natural boundary term on
+   // the flux right-hand side, returns zero there without complaint.
+   //
+   // That is the whole of the gap. Supplying the marker closes it, and it
+   // costs the discretisation nothing, which is the second half of this case:
+   // on the hybridized path the marker's integrator is never assembled. Only
+   // AssembleDivLDGFaces(), which the *reduction* branch calls, evaluates
+   // B's face integrators; the hybridized branch takes the element matrices
+   // alone and gets its face coupling from C. So the object handed to
+   // AddBdrFaceIntegrator() here is read for its marker and for nothing else.
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(4, 8);
+   CAPTURE(order, n);
+
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false, 1., 1.);
+
+   const Result nat = Solve(mesh, order, true, Form::RT);
+   const Result ess = Solve(mesh, order, true, Form::RT, 0.5, {}, true);
+
+   DG_Interface_FECollection trace_coll(order, 2);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   REQUIRE(fes_t.GetVSize() == nat.t.Size());
+
+   // Without the marker, every boundary trace dof is exactly zero; with it,
+   // they carry the datum they were given, to round-off.
+   Array<int> bdr_all(mesh.bdr_attributes.Max());
+   bdr_all = 1;
+   GridFunction tr(&fes_t);
+   tr = 0.0;
+   FunctionCoefficient pcoeff(pExact);
+   tr.ProjectBdrCoefficient(pcoeff, bdr_all);
+
+   Array<int> bdr_dofs;
+   fes_t.GetEssentialTrueDofs(bdr_all, bdr_dofs);
+   REQUIRE(bdr_dofs.Size() > 0);
+
+   real_t nat_bdr = 0.0, ess_drift = 0.0, datum = 0.0;
+   for (int i = 0; i < bdr_dofs.Size(); i++)
+   {
+      const int d = bdr_dofs[i];
+      nat_bdr   = std::max(nat_bdr, std::abs(nat.t(d)));
+      ess_drift = std::max(ess_drift, std::abs(ess.t(d) - tr(d)));
+      datum     = std::max(datum, std::abs(tr(d)));
+   }
+   INFO("boundary trace dofs " << bdr_dofs.Size() << " of " << nat.t.Size()
+        << ", datum magnitude " << datum);
+   REQUIRE(datum > 0.1);
+   REQUIRE(nat_bdr == 0.0);
+   REQUIRE(ess_drift < 1e-12 * datum);
+
+   // And the two routes are the same discrete method, not merely comparable
+   // ones: for RT_k the normal trace on a face is a polynomial of degree k and
+   // the trace space is of that degree, so eliminating the essential trace
+   // reproduces the natural term <p_D, v.n> exactly.
+   Vector du(ess.u), dp(ess.p);
+   du -= nat.u;
+   dp -= nat.p;
+   REQUIRE(du.Normlinf() < 1e-10 * std::max(nat.u.Normlinf(), real_t(1.0)));
+   REQUIRE(dp.Normlinf() < 1e-10 * std::max(nat.p.Normlinf(), real_t(1.0)));
+   REQUIRE(ess.err_u == MFEM_Approx(nat.err_u, 1e-12, 1e-10));
+   REQUIRE(ess.err_p == MFEM_Approx(nat.err_p, 1e-12, 1e-10));
+
+   // The marker's integrator is not assembled: changing it changes nothing.
+   const Result other = Solve(mesh, order, true, Form::RT, 0.5, {}, true, 7.0);
+   Vector d2(other.u);
+   d2 -= ess.u;
+   REQUIRE(d2.Normlinf() < 1e-12 * std::max(ess.u.Normlinf(), real_t(1.0)));
 }

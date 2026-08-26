@@ -739,13 +739,20 @@ is now said in the class documentation of `DarcyForm` rather than left to be
 rediscovered, and a unit case pins it: the same solve, reconstructed with and
 without such a term installed, must give the same answer to the last bit.
 
-**A second thing surfaced while pinning this**, and it stands.
+**A second thing surfaced while pinning this**, and it has since been chased
+down and turns out to have been half true and half a live defect.
 `DarcyForm::Assemble()` builds the hybridized flux mass from
-`M_u->ComputeElementMatrix()`, which is domain integrators only — so on this
-branch a boundary-face term on the flux mass never reaches **the solve**
-either. `gf-hdg-subdomains-dev` added `AssembleFluxMassBdrFaces()` for exactly
-that and this branch has no equivalent. Anyone bringing the extension work
-back here needs that pass.
+`M_u->ComputeElementMatrix()`, which is domain integrators only, so a
+boundary-face term on the flux mass needs a pass of its own:
+`AssembleFluxMassBdrFaces()`. That pass came onto this branch with the
+withdrawal commit above, so the note that `gf-hdg-dev` had no equivalent was
+already out of date when it was written. **What did not come with it was the
+half that makes it work.** `AssembleFluxMassBdrFaces()` reaches the
+hybridization by calling `DarcyHybridization::AssembleFluxMassMatrix()` a
+second time for the element owning the face, and that routine *assigned*. So
+the boundary contribution did not fail to arrive — it arrived and replaced the
+element's entire flux mass block, on every element touching the boundary,
+silently. See §10.
 
 **(c) `ComputeHDGFaceEnergy()` ignored an installed `HDGStabilization`.** See
 §7 below; it is an estimator question rather than a postprocessing one.
@@ -1304,6 +1311,167 @@ not**, because it exercises the whole path against an answer that is known.
   anything. Removing it from one and not the other made a converging quantity
   look stalled.
 
+## 10. Three loose ends, swept
+
+Three small items that had accumulated in *What is still open* and were each
+one measurement away from being settled. All three are settled below, and two
+of them turned out to say something other than what the entry claimed.
+
+### The flux mass boundary pass arrived without the half that makes it work
+
+**A live defect on `gf-hdg-dev`, fixed.** `DarcyForm::AssembleFluxMassBdrFaces()`
+exists on this branch and is called from `Assemble()`. It carries a boundary
+face integrator of the flux mass form into the hybridization by calling
+`DarcyHybridization::AssembleFluxMassMatrix()` a second time for the element
+that owns the face — the domain integrators having gone in on the first pass,
+through `ComputeElementMatrix()`, which sums domain integrators only.
+
+That second call therefore has to *accumulate*, and it assigned. The failure
+mode is not the term going missing: it is the term arriving and **replacing the
+element's entire flux mass block**, on every element that touches the boundary,
+with no diagnostic anywhere. `AssemblePotMassMatrix()` and `AssembleDivMatrix()`
+already accumulated, so this was the odd one out; the fix is `+=` in the two
+loops of `AssembleFluxMassMatrix()`, plus zeroing `Af_data` and `Ae_data` at
+`Init()`, after the resize in `Finalize()`, and in `Reset()`.
+
+Measured before the fix, on the 4×4 unit square with `RT_k`/`L2_k` and one
+boundary-face term on `M_u`: the hybridized flux differed from the monolithic
+one by **more than 5% in the max norm**, at every order and on both
+quadrilaterals and triangles. After it, they agree to round-off.
+
+`RT` is the right form to test this in, and the test uses it, because
+hybridizing the mixed method is algebraically exact — the monolithic path
+assembles the same integrator through `BilinearForm::Assemble()`'s own boundary
+face loop, with the identical `fe2 = fe1` convention, so the reference is right
+by construction rather than by measurement. The test integrator is deliberately
+not a discretisation of anything: `s` times the identity on the adjacent
+element's block. What is under test is the plumbing.
+
+Two further properties are pinned alongside it, because the first is vacuous
+without them: that the term *changed* the answer at all, and that two
+integrators of scale `s` give the same result as one of scale `2s` — a corner
+element carries two boundary faces and so makes the same demand of the face
+loop that the domain-then-boundary sequence makes of the whole pass.
+
+### Raviart–Thomas on the essential-trace route, and what `B`'s face markers are for
+
+**The entry asked whether adding a `B` face integrator is the fix. It is, and
+it costs the discretisation nothing.**
+
+The mechanism first, because it is not what the API suggests. The boundary
+block of the constraint matrix `C` is registered from the *divergence form's
+boundary face markers*: `DarcyForm::Assemble()` reads `B->GetBFBFI_Marker()`
+and installs `constr_flux_integ` — the integrator handed to
+`EnableHybridization()`, not anything belonging to `B` — on every marker it
+finds. So what `B->AddBdrFaceIntegrator()` supplies on the hybridized path is a
+*marker*, and nothing else: only `AssembleDivLDGFaces()` evaluates `B`'s face
+integrators, and that is called from the **reduction** branch, never the
+hybridized one. The hybridized branch takes `B`'s element matrices alone and
+gets all of its face coupling from `C`.
+
+That is why the RT harnesses have the gap. They add no `B` face integrators —
+correctly, since `u·n` is continuous in `RT` and the divergence form needs no
+face terms — and so nothing registers a boundary constraint, and `λ` on a
+boundary face has no entry in `C` at all. Measured: **every boundary trace dof
+is exactly zero**, in both the `RT` and the `DG` harness of
+`test_darcy_hybridization.cpp`, which is what `ComputeH`'s `DIAG_ONE` policy
+leaves behind after `SetDiagIdentity()` gives those structurally empty rows a
+unit diagonal. The solve is otherwise well posed, through the natural boundary
+term on the flux right-hand side, so nothing complains.
+
+Supplying the marker closes it, and the result is stronger than "it works":
+
+* The essential trace values come out of the solve **exactly** as they went in,
+  to `1e-12` of the datum's magnitude.
+* The two routes are **the same discrete method**. Flux, potential and both
+  `L²` errors agree to round-off at `k = 0, 1, 2` on `4×4` and `8×8`. For
+  `RT_k` the normal trace on a face is a polynomial of degree `k` and the trace
+  space is of that degree, so eliminating the essential trace reproduces the
+  natural term `⟨p_D, v·n⟩` exactly. This is not an approximation that happens
+  to be good.
+* Changing the marker's integrator changes nothing, which pins the marker-only
+  reading directly rather than leaving it as a claim about the code.
+
+**What this does not settle.** The miniapps refuse `-trbc` outside `dg`/`brt`
+with *"Essential trace BC does not work with continuous elements"*, and that
+guard is in `examples/hdg/ex5.cpp` too, so it is upstream and deliberate.
+Nothing here touches it: moving the drivers is the branch author's call. What
+changes is the reason it would be refused — not that the route is unavailable
+to `RT`, but that the drivers never register the marker for `RT`, because the
+line that would is inside their `if (dg || brt)` block.
+
+### The constant null mode, and a diagnosis that was wrong
+
+**The entry said a small mass "works but leaves the conditioning", and named a
+mean-zero constraint as the real answer. Measured, all three parts of that are
+wrong, and the thing that actually breaks the solve is elsewhere.**
+
+The vehicle is a pure-Neumann Darcy problem on the unit square, which is what
+the branch has lacked since the §9 driver was withdrawn: `u + ∇p = 0`,
+`-∇·u = g`, with `u·n` given on the whole boundary and no zeroth-order term.
+`p = cos(πx)cos(πy)` is the convenient exact solution — its normal derivative
+vanishes on all four sides, so the essential flux datum is homogeneous; its
+mean is zero, so the mean-zero normalisation picks out the exact solution and
+the errors need no shifting; and `∫g = 0`, the compatibility condition that
+pure Neumann demands, holds for the same reason.
+
+The trace system really is singular and the constant really is its null vector.
+Measured directly: `‖H n‖/‖n‖ = 2e-15` for `n` the constant on the constrained
+faces, and `|n·b|/(‖n‖‖b‖) = 8e-17`, so it is singular **and consistent**. The
+trace basis is nodal, so that constant is the vector of ones — but only on the
+faces that carry a constraint, which is why MFEM's `OrthoSolver`, hard-wired to
+the vector of ones over *all* dofs, is not the projector this needs.
+
+**(a) A compatible problem does not need pinning at all.** GMRES converges on
+the consistent singular system and returns the design order in both variables,
+`k = 1` and `k = 2`, over `8×8` to `32×32`. Neither a small mass nor projecting
+the mode out of the Krylov space changes the answer or the cost.
+
+**(b) The small mass costs accuracy, not conditioning.** The iteration count is
+*identical* across `ε` from `1e-8` to `1e-1` — 40, 98, ~1000 at `n = 8, 16, 32`
+— and the error floors at `O(ε)`:
+
+| `k=2`, `‖p−p_h‖` | `n=8` | `n=16` | `n=32` |
+|---|---|---|---|
+| unpinned | 1.347e-4 | 1.685e-5 | 2.107e-6 |
+| `ε = 1e-8` | 1.347e-4 | 1.685e-5 | 2.107e-6 |
+| `ε = 1e-3` | 1.370e-4 | 3.042e-5 | 2.542e-5 |
+| `ε = 1e-1` | 2.524e-3 | 2.520e-3 | 2.520e-3 |
+
+The last row is a collapsed rate, and it is the whole of what "the rate
+collapsed" meant. The trap is that `ε` has to sit below the smallest error the
+study intends to reach, and that threshold moves with the mesh: `1e-3` is
+harmless at `n = 8` and costs an order of magnitude by `n = 32`.
+
+**(c) The iteration count is the trace system's own conditioning.** Unpreconditioned
+GMRES takes 1004 iterations at `k=2`, `n=32`; a plain `GSSmoother` takes 189.
+The mode contributes nothing to either number.
+
+**(d) What breaks the solve is incompatible data.** Add a constant to `g` so
+that `∫g ≠ 0` and the system goes from singular-and-consistent to
+singular-and-*inconsistent*, and that is the whole of the pathology:
+
+| `k=2` | compatible | `∫g = 1` |
+|---|---|---|
+| unpinned | 98 its, 1.685e-5 | **5000 its, did not converge** |
+| `ε = 1e-6` mass | 98 its, 1.685e-5 | 1495 its, 1.685e-5 |
+| mode projected out | 98 its, 1.685e-5 | 145 its, **1.761e-3** |
+
+So the iteration blow-up the entry attributed to the pinning belongs here
+instead, and an unexplained blow-up on a problem of this shape should be read
+as a compatibility bug in the data. It also explains why pinning with a mass is
+reported to work and reported to be expensive at the same time: under
+incompatible data it **rescues the answer** — the spurious component goes into
+`ε·mean(p)` and the rest comes out unchanged, to five figures — at fifteen
+times the compatible iteration count.
+
+And the mean-zero constraint, named in the entry as the real answer, is the
+cheapest repair and the worst one. It converges in a small multiple of the
+compatible cost and returns the least-squares solution, silently discarding the
+incompatible component — which is real information about the data being wrong.
+**Project the mode out only where compatibility is guaranteed by construction,
+and there it is unnecessary.**
+
 ## Optional A. Interpolatory evaluation of the nonlinear coefficient
 
 **Not a requirement.** This and §Optional B are candidate work that came out of
@@ -1710,11 +1878,10 @@ Kept with their answers rather than deleted, because the answers are the content
    reconstruction — is a loop over equations away from being general in `vdim`;
    §Optional A step 2. And §Optional B would remove the need entirely for the
    quantity that matters, since HDG (A) is superconvergent as solved.
-5. **The essential-trace route for RT.** `C` gets a boundary block from the
-   *divergence form's* boundary face markers, and the RT harnesses add no `B`
-   face integrators, so nothing registers one — whether adding one is the fix
-   is untested. Matters only where `λ` on a boundary face is read. The inert
-   boundary stabilisation that sat alongside this is fixed; see §9.
+5. ~~**The essential-trace route for RT.**~~ **Tested, and adding the marker is
+   the fix.** Raviart–Thomas takes its Dirichlet datum on an essential trace
+   and produces the *same discrete solution* as the natural route, to
+   round-off, at every order measured. See §10.
 6. **The miniapps still default to the weak route for DG, and are being left
    that way deliberately.** The sweep changed the unit-test harnesses, not the
    drivers. Moving `convdiff` and its siblings is the branch author's call,
@@ -1722,12 +1889,12 @@ Kept with their answers rather than deleted, because the answers are the content
    with them rather than done here. The same goes for the `-trbc` gap above,
    which the library fix has already closed but which nothing in the suite
    exercises.
-7. **A constant null mode needs pinning properly**, for any problem that has
-   one. Pinning it with a small mass works but leaves the conditioning: the
-   withdrawn driver's `k=2` finest mesh took 2178 GMRES iterations and the rate
-   collapsed. A mean-zero constraint, or a preconditioner that knows about the
-   mode, is the real answer. **This subsumes the item that used to sit here** —
-   essential traces looked unavailable alongside a first-order cross-field
+7. ~~**A constant null mode needs pinning properly.**~~ **Measured, and the
+   diagnosis it carried was wrong.** A compatible pure-Neumann problem needs no
+   pinning at all; what the small mass costs is accuracy rather than
+   conditioning; and the iteration blow-up attributed to it belongs to
+   *incompatible data*. See §10. The item this subsumed still stands as it
+   was: essential traces looked unavailable alongside a first-order cross-field
    coupling, and that was this same mode, not anything to do with essential
    conditions. Withdrawn; see §9.
 

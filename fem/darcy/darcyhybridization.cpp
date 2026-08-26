@@ -197,7 +197,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       Af_f_offsets[i+1] = Af_f_offsets[i] + f_size;
    }
 
-   Af_data.SetSize(Af_offsets[NE]);
+   Af_data.SetSize(Af_offsets[NE]); Af_data = 0.;
    Af_ipiv.SetSize(Af_f_offsets[NE]);
 
    // Assemble the constraint matrix C
@@ -237,7 +237,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
       AllocD();
    }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-   Ae_data.SetSize(Ae_offsets[NE]);
+   Ae_data.SetSize(Ae_offsets[NE]); Ae_data = 0.;
    Be_data.SetSize(Be_offsets[NE]); Be_data = 0.;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
@@ -285,6 +285,13 @@ void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    }
 }
 
+/** @brief Assemble an element matrix of @a Mu.
+
+    Accumulates, as AssemblePotMassMatrix() and AssembleDivMatrix() do, because
+    an element receives its flux mass block in more than one pass: the domain
+    integrators first, then any boundary face integrator of the flux mass form
+    -- see DarcyForm::AssembleFluxMassBdrFaces(). The storage is therefore
+    zeroed at Init() and by Reset(). */
 void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 {
    const int o = hat_offsets[el];
@@ -301,7 +308,7 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          for (int i = 0; i < s; i++)
          {
-            Ae_data[Ae_el_idx++] = A(i, j);
+            Ae_data[Ae_el_idx++] += A(i, j);
          }
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          continue;
@@ -309,7 +316,7 @@ void DarcyHybridization::AssembleFluxMassMatrix(int el, const DenseMatrix &A)
       for (int i = 0; i < s; i++)
       {
          if (hat_dofs_marker[o + i] == 1) { continue; }
-         Af_data[Af_el_idx++] = A(i, j);
+         Af_data[Af_el_idx++] += A(i, j);
       }
    }
    MFEM_ASSERT(Af_el_idx == Af_offsets[el+1], "Internal error");
@@ -2056,6 +2063,7 @@ void DarcyHybridization::Finalize()
          {
             Swap(Af_data, Af_lin_data);
             Af_data.SetSize(Af_offsets.Last());
+            Af_data = 0.;
          }
 
          if (!D_empty)
@@ -3540,6 +3548,7 @@ void DarcyHybridization::Reset()
    pGrad.Clear();
 
    A_empty = true;
+   Af_data = 0.;
    Bf_data = 0.;
    if (Df_data.Size())
    {
@@ -3547,6 +3556,7 @@ void DarcyHybridization::Reset()
       D_empty = true;
    }
 #ifdef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
+   Ae_data = 0.;
    Be_data = 0.;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }

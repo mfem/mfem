@@ -240,11 +240,20 @@ the class documentation of `DarcyForm`, with the numbers, rather than left to
 be read as an oversight. A unit case pins it: one solve, reconstructed with
 and without such a term installed, must give the same answer to the last bit.
 
-**One thing does stand.** `DarcyForm::Assemble()` builds the hybridized flux
-mass from `ComputeElementMatrix()` too, so on `gf-hdg-dev` a boundary-face
-term on the flux mass never reaches the *solve* either.
-`gf-hdg-subdomains-dev` added `AssembleFluxMassBdrFaces()` for exactly that.
-`gf-hdg-dev` has no equivalent and would need one.
+**One thing does stand, and it turned out to be worse than this.**
+`DarcyForm::Assemble()` builds the hybridized flux mass from
+`ComputeElementMatrix()` too, so a boundary-face term on the flux mass needs a
+pass of its own — `AssembleFluxMassBdrFaces()`. The claim made here, that
+`gf-hdg-dev` has no equivalent, was wrong when it was written: the commit
+withdrawing §3 carried that pass over with it. **What it did not carry was the
+half that makes it work.** `AssembleFluxMassBdrFaces()` reaches the
+hybridization through `DarcyHybridization::AssembleFluxMassMatrix()`, called a
+second time for the element owning the face, and that routine *assigned*. So
+the term did not fail to reach the solve; it reached it and replaced the
+element's whole flux mass block, on every element touching the boundary,
+silently. The hybridized flux differed from the monolithic one by more than
+5% in the max norm. Fixed, with a
+regression, in §10 of the roadmap.
 
 ---
 
