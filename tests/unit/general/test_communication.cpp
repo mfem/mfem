@@ -14,6 +14,8 @@
 
 using namespace mfem;
 
+#ifdef MFEM_USE_MPI
+
 TEST_CASE("DeviceGroupCommunicator", "[Parallel][GPU]")
 {
    const int nx = 6, ny = 6;
@@ -91,3 +93,5 @@ TEST_CASE("DeviceGroupCommunicator", "[Parallel][GPU]")
       reduce_check(GroupCommunicator::Max, DeviceGroupCommunicator::Op::Max);
    }
 }
+
+#endif
