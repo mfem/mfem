@@ -911,7 +911,8 @@ void GroupCommunicator::BcastBegin(Array<T> &ldata, int layout) const
    }
 
    // Use 'while' instead of 'if' so that we can break out without using 'goto'.
-   while (Device::Allows(Backend::DEVICE_MASK) &&
+   while (ldata.UseDevice() &&
+          Device::Allows(Backend::DEVICE_MASK) &&
           have_ltdof_ldof &&
           mode == byNeighbor)
    {
@@ -1032,7 +1033,8 @@ void GroupCommunicator::BcastEnd(Array<T> &ldata, int layout) const
       return;
    }
 
-   if (Device::Allows(Backend::DEVICE_MASK) &&
+   if (ldata.UseDevice() &&
+       Device::Allows(Backend::DEVICE_MASK) &&
        have_ltdof_ldof &&
        mode == byNeighbor &&
        layout == 0)  // output is ldofs array
@@ -1192,7 +1194,8 @@ void GroupCommunicator::ReduceBegin(const Array<T> &ldata) const
       return;
    }
 
-   if (Device::Allows(Backend::DEVICE_MASK) &&
+   if (ldata.UseDevice() &&
+       Device::Allows(Backend::DEVICE_MASK) &&
        have_ltdof_ldof &&
        mode == byNeighbor)
    {
@@ -1310,7 +1313,8 @@ void GroupCommunicator::ReduceEnd(Array<T> &ldata, int layout,
       return;
    }
 
-   if (Device::Allows(Backend::DEVICE_MASK) &&
+   if (ldata.UseDevice() &&
+       Device::Allows(Backend::DEVICE_MASK) &&
        have_ltdof_ldof &&
        mode == byNeighbor)
    {

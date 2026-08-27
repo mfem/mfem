@@ -169,6 +169,7 @@ class Memory
 protected:
    friend class MemoryManager;
    friend void MemoryPrintFlags(unsigned flags);
+   template <typename VT> friend class MemoryView;
 
    enum FlagMask: unsigned
    {
@@ -522,10 +523,6 @@ public:
        necessary), and not @a base. */
    inline void SyncAlias(const Memory &base, int alias_size) const;
 
-   /** @brief Copy all flags from @a other to *this. */
-   /** @warning Use this method with caution! */
-   inline void CopyFlagsFrom(const Memory &other) const { flags = other.flags; }
-
    /** @brief Return a MemoryType that is currently valid. If both the host and
        the device pointers are currently valid, then the device memory type is
        returned. */
@@ -656,7 +653,7 @@ public:
       }
       else
       {
-         base_mem.CopyFlagsFrom(view.data);
+         base_mem.flags = view.data.flags;
       }
       view.data.Reset();
    }

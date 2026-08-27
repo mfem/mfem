@@ -368,9 +368,10 @@ public:
                              receive buffer, so its type is not const.
        @param[in]    layout  For a description, see CopyGroupToBuffer().
 
-       This method performs the operation on device. However, not all
-       communication modes and layouts are supported on device yet. In such
-       cases, the operation is performed on host. */
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes and layouts are
+       supported on device yet. In such cases, the operation is performed on
+       host. */
    template <class T> void BcastBegin(Array<T> &ldata, int layout) const;
 
    /** @brief Finalize a broadcast started with the host version of
@@ -402,9 +403,10 @@ public:
                           For a description of the layouts, see
                           CopyGroupToBuffer().
 
-       This method performs the operation on device. However, not all
-       communication modes and layouts are supported on device yet. In such
-       cases, the operation is performed on host. */
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes and layouts are
+       supported on device yet. In such cases, the operation is performed on
+       host. */
    template <class T> void BcastEnd(Array<T> &ldata, int layout) const;
 
    /** @brief Broadcast within each group where the master is the root.
@@ -462,9 +464,9 @@ public:
        The reduce operation will be specified when calling ReduceEnd(). This
        method is instantiated for int, double, and float.
 
-       This method performs the operation on device. However, not all
-       communication modes are supported on device yet. In such cases, the
-       operation is performed on host. */
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes are supported on
+       device yet. In such cases, the operation is performed on host. */
    template <class T> void ReduceBegin(const Array<T> &ldata) const;
 
    /** @brief Finalize reduction operation started with the host version of
@@ -496,9 +498,10 @@ public:
        of the supported operations.) This method is instantiated for int,
        double, and float.
 
-       This method performs the operation on device. However, not all
-       communication modes and layouts are supported on device yet. In such
-       cases, the operation is performed on host.
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes and layouts are
+       supported on device yet. In such cases, the operation is performed on
+       host.
 
        @note If the output data layout is 2, then the data from the @a ldata
        array passed to this call is used in the reduction operation, instead of

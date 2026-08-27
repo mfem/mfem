@@ -166,6 +166,13 @@ public:
    /// Return a reference to the Memory object used by the Array, const version.
    const Memory<T> &GetMemory() const { return data; }
 
+   /** @brief Set the device flag of the Array, i.e. the device flag of the
+       Memory object used by the Array.
+
+       Setting the device flag to true will inform other MFEM functions and
+       classes to prefer using the Array on device. */
+   void UseDevice(bool use_dev) const { data.UseDevice(use_dev); }
+
    /// Return the device flag of the Memory object used by the Array
    bool UseDevice() const { return data.UseDevice(); }
 
