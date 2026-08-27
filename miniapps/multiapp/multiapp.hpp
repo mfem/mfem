@@ -24,6 +24,26 @@ class FieldCollection;
 class GraphNode;
 class DAGraph;
 class GraphGradient;
+class GraphTape;
+
+
+/// @brief Abstract base class for recording operations
+/// Declared here to avoid circular dependencies between GraphNode and GraphTape
+class AbstractTape
+{
+protected:
+    bool recording = false; ///< Flag to indicate if recording is active
+
+public:
+    bool IsRecording() const { return recording; }
+    void StartRecording() { recording = true; }
+    void StopRecording() { recording = false; }
+
+    virtual void RegisterOperation(GraphNode &node) = 0;
+    virtual void Clear() = 0;
+
+    virtual ~AbstractTape() = default;
+};
 
 
 /// @brief Base class for storing data (Vector) and distinguishing
@@ -45,6 +65,7 @@ protected:
 
     std::string name; // Optional name for the field
     Operator *oper  = nullptr; // Operator that outputs this field
+    AbstractTape *tape = nullptr; // Optional tape tracking this field
 
     int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
     {
@@ -117,6 +138,20 @@ public:
     }
 
     virtual void SetOperator(Operator *op) { oper = op; }
+
+    void SetTape(AbstractTape *t)
+    {
+        if((tape && t) && (tape != t))
+        {
+            MFEM_ABORT("Tape is already set for this Field.");
+        }
+        tape = t;
+    }
+
+    AbstractTape* GetTape() const
+    {
+        return tape;
+    }
 
     std::string Name() const { return name; }
     void SetName(const std::string &n) { name = n; }
@@ -453,7 +488,7 @@ public:
     /// @brief Read only access to the input offsets for block starts.
     const Array<int>& InputOffsets() const { return input_offsets; }
 
-    void SetInputOffsets(const Array<int> &offsets) { input_offsets = offsets; }
+    virtual void SetInputOffsets(const Array<int> &offsets) { input_offsets = offsets; }
 
     /// @brief Return the output offsets for block starts.
     Array<int>& OutputOffsets() { return output_offsets; }
@@ -461,7 +496,7 @@ public:
     /// @brief Read only access to the output offsets for block starts.
     const Array<int>& OutputOffsets() const { return output_offsets; }
 
-    void SetOutputOffsets(const Array<int> &offsets) { output_offsets = offsets; }
+    virtual void SetOutputOffsets(const Array<int> &offsets) { output_offsets = offsets; }
 
     virtual void MultMV(const MultiVector &x, MultiVector &y) const
     {
@@ -507,7 +542,6 @@ public:
     {
         // Add the input fields to the node
         (AddInput(std::forward<Args>(args), OwnInputs), ...);
-        // (AddInput(args), ...);
 
         if(OutputFields().Size() == 0)
         {
@@ -528,6 +562,30 @@ public:
             for(int i = 0; i < N; ++i)
             {
                 field_collection.SetFieldOwnership(outputs[i]->ID(), OwnOutputs);
+            }
+        }
+
+        // Tape operations
+        // Check if all input fields have the same tape; if so, register this node with that tape
+        auto inputs = InputFields();
+        bool same_tape = std::equal(inputs.begin() + 1, inputs.end(), inputs.begin(),
+                                    [](Field *a, Field *b) { return a->GetTape() == b->GetTape(); });
+
+        if(AbstractTape *tape = inputs[0]->GetTape(); tape && same_tape)
+        {
+            if(tape->IsRecording())
+            {
+                tape->RegisterOperation(*this);
+            }
+        }
+        else if(!same_tape)
+        {
+            bool any_recording = std::any_of(inputs.begin(), inputs.end(),
+                                            [](Field *f)
+                                            { return f->GetTape() ? f->GetTape()->IsRecording() : false; });
+            if(any_recording)
+            {
+                MFEM_ABORT("Input fields are being recorded on different tapes. Cannot register operation.");
             }
         }
 
@@ -669,6 +727,7 @@ protected:
     bool sorted    = false; ///< True if the nodes are topologically sorted
     bool assembled = false; ///< True if the graph is assembled
 
+    GraphTape *tape = nullptr; ///< Tape for recording operations on the graph
     GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
     mutable Operator *grad = nullptr; ///< Gradient operator
     mutable MultiVector xmv_node, ymv_node; ///< Temporary multivectors for evaluating nodes
@@ -682,11 +741,7 @@ public:
        @brief Construct a new CoupledOperator object.
        @param nop Total number of operators to couple
      */
-    DAGraph(const int nop) : GraphNode()
-    {
-        nodes.Reserve(nop);
-        node_owned.Reserve(nop);
-    }
+    DAGraph(const int nop = 0);
 
     /**
        @brief Construct a new CoupledOperator object for an 
@@ -736,6 +791,13 @@ public:
     template <class OpType>
     GraphNode* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
 
+    /// @brief Add multiple operators to the list of coupled operators
+    template<typename... Args>
+    void AddOperators(Args... args)
+    {
+        (AddOperator(std::forward<Args>(args)), ...);
+    }
+
     /// @brief Get the number of coupled operators
     int Size(){return nnodes;}
 
@@ -745,6 +807,8 @@ public:
 
     IntToIntMap &GetFieldIdToIndexMap() { return fid_to_index; }
     IntToIntMap GetFieldIdToIndexMap() const { return fid_to_index; }
+
+    GraphTape& GetTape() { return *tape; }
 
     /// @brief Get the operator at index @a i
     GraphNode* GetNode(const int i)
@@ -773,6 +837,18 @@ public:
     void ComputeDepth();
 
     void ValidateOffsets();
+
+    void SetInputOffsets(const Array<int> &offsets) override
+    {
+        GraphNode::SetInputOffsets(offsets);
+        width = offsets.Last();
+    }
+
+    void SetOutputOffsets(const Array<int> &offsets) override
+    {
+        GraphNode::SetOutputOffsets(offsets);
+        height = offsets.Last();
+    }
 
     void ValidateNode(GraphNode &node);
 
@@ -858,6 +934,150 @@ public:
             if(v) { delete v; v = nullptr; }
         }
         x_arr.DeleteAll();
+    }
+};
+
+/// @brief A tape for recording operations and fields in a computation graph
+class GraphTape : public AbstractTape
+{
+protected:
+    using FieldMap = GenericFieldMap<int, Field*>; // ID -> Field
+    FieldMap fields;  ///< All fields involved in the computation
+    DAGraph &graph; ///< Reference to the DAGraph for which this is the tape
+    Array<Field*> inputs;  ///< Input fields for the tape
+    Array<Field*> outputs; ///< Output fields for the tape
+
+public:
+    GraphTape(DAGraph &dag) : graph(dag)
+    { }
+
+    template<typename... Args,
+             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
+             typename std::enable_if<AreFields, bool>::type = true >
+    void Watch(Args... args)
+    {
+        // Clear the DAG's fields (inputs/outputs)
+        graph.Fields().Clear();
+
+        // Clear any previously recorded fields
+        fields.clear();
+
+        // Set the tape for each watched field
+        ((std::forward<Args>(args)->SetTape(this)), ...);
+
+        // Store the watched fields in the tape's inputs array
+        inputs.SetSize(sizeof...(args));
+        int idx = 0;
+        ((inputs[idx++] = std::forward<Args>(args)), ...);
+    }
+
+    void RegisterField(Field *field) // TODO: Possibly make this protected
+    {
+        if(field->GetTape() != nullptr && field->GetTape() != this)
+        {
+            MFEM_ABORT("GraphTape::RegisterField: Field is already associated with another tape.");
+        }
+
+        const int fid = field->ID();
+        if(!fields.Has(fid))
+        {
+            field->SetTape(this);
+            fields.Register(fid, field, false);
+        }
+    }
+
+    // Possibly make this protected, and have the GraphTape be a friend of GraphNode
+    void RegisterOperation(GraphNode &node) override
+    {
+        // if(recording) // TODO: Should this check be done here or by the caller?
+        // Record input and output fields of the node
+        for (auto &input_field : node.InputFields())
+        {
+            RegisterField(input_field);
+        }
+        for (auto &output_field : node.OutputFields())
+        {
+            RegisterField(output_field);
+        }
+
+        // Add the node to the DAG
+        graph.AddOperator(&node);
+    }
+
+    template<typename... Args,
+             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
+             typename std::enable_if<AreFields, bool>::type = true >
+    void Finalize(Args... args)
+    {
+        // Ensure that some inputs were 'watched' before finalizing
+        if(inputs.Size() == 0)
+        {
+            MFEM_ABORT("No input fields were watched. Please call Watch() before Finalize().");
+        }
+
+        // Ensure that some outputs were provided before finalizing
+        if(sizeof...(args) == 0)
+        {
+            MFEM_ABORT("No output fields were provided. Please provide at least one output field to Finalize().");
+        }
+
+        // Store the output fields in the tape's outputs array
+        outputs.SetSize(sizeof...(args));
+        int idx = 0;
+        ((outputs[idx++] = std::forward<Args>(args)), ...);
+
+        // Loop through tape's inputs and output to ensure they were used in computation
+        // if used, add to DAG's field collection; if not used, throw a warning
+        for (auto &input_field : inputs)
+        {
+            if(fields.Has(input_field->ID()))
+            {
+                graph.AddInput(input_field, false); // Add to DAG's field collection without ownership
+            }
+            else
+            {
+                MFEM_WARNING("GraphTape::Finalize: Input field " << input_field->Name()
+                             << " (ID: " << input_field->ID() << ") was not used in any recorded operation.");
+            }
+        }
+
+        for (auto &output_field : outputs)
+        {
+            if(fields.Has(output_field->ID()))
+            {
+                graph.AddOutput(output_field, false); // Add to DAG's field collection without ownership
+            }
+            else
+            {
+                MFEM_WARNING("GraphTape::Finalize: Output field " << output_field->Name()
+                             << " (ID: " << output_field->ID() << ") was not used in any recorded operation.");
+            }
+        }
+
+        // Clear the recorded fields after stopping recording and
+        // nullifying the tape association for each tracked field
+        recording = false;
+        Clear();
+    }
+
+    void Clear() override
+    {
+        for (auto f = fields.begin(); f != fields.end(); ++f)
+        {
+            Field *field = f->second;
+            if(field->GetTape() == this) // This should always be true, but check to be safe
+            {
+                field->SetTape(nullptr); // Nullify the tape association for the field
+            }
+        }
+        fields.clear();
+        inputs.SetSize(0);
+        outputs.SetSize(0);
+    }
+
+    ~GraphTape()
+    {
+        Clear();
     }
 };
 

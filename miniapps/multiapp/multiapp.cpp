@@ -14,6 +14,13 @@
 namespace mfem
 {
 
+DAGraph::DAGraph(const int nop) : GraphNode()
+{
+    nodes.Reserve(nop);
+    node_owned.Reserve(nop);
+    tape = new GraphTape(*this); // Create a tape for this DAGraph
+}
+
 DAGraph::~DAGraph()
 {
     for(int i=0; i < nnodes; i++)
@@ -21,6 +28,7 @@ DAGraph::~DAGraph()
         if(node_owned[i] && nodes[i]) delete nodes[i];
     }
     if(grad) delete grad;
+    if(tape) delete tape;
 }
 
 void DAGraph::Assemble()
@@ -44,8 +52,6 @@ void DAGraph::Assemble()
     // Update width and height of the DAG from offsets
     // Check that the input and output offsets are consistent
     ValidateOffsets();
-    width  = input_offsets.Last();
-    height = output_offsets.Last();
 
     // Delete any existing gradient operator as node ordering may have changed
     if (grad) delete grad;
@@ -57,7 +63,7 @@ void DAGraph::ValidateOffsets()
 {
     // Check that the input and output offsets are consistent
     // with the number of inputs and outputs
-    if(InputFields().Size() > 1)
+    if(InputFields().Size() > 1 && input_offsets.Size() > 0)
     {
         MFEM_ASSERT(input_offsets.Size() == InputFields().Size() + 1,
                     "Input offsets size inconsistent with number of input fields");
@@ -67,7 +73,7 @@ void DAGraph::ValidateOffsets()
         input_offsets = Array<int>({0, nodes[0]->Width()});
     }
 
-    if(OutputFields().Size() > 1)
+    if(OutputFields().Size() > 1 && output_offsets.Size() > 0)
     {
         MFEM_ASSERT(output_offsets.Size() == OutputFields().Size() + 1,
                     "Output offsets size inconsistent with number of output fields");
@@ -135,8 +141,22 @@ void DAGraph::TopologicalSort()
         DepthFirstSearch(i);
     }
 
-    nodes.Permute(sorted_indices);
-    node_owned.Permute(sorted_indices);
+    // check if already sorted
+    bool already_sorted = true;
+    for(int i=0; i < nnodes; i++)
+    {
+        if(sorted_indices[i] != i)
+        {
+            already_sorted = false;
+            break;
+        }
+    }
+
+    if(!already_sorted)
+    {
+        nodes.Permute(sorted_indices);
+        node_owned.Permute(sorted_indices);
+    }
 
     // Update the node indices after sorting
     for(int i=0; i < nnodes; i++)
@@ -262,7 +282,7 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     auto index_map = GetFieldIdToIndexMap();
     auto field_set = Fields();
     int nfields = index_map.NumFields();
-    MultiVector ymv(nfields); // TODO: Should this be a member function?
+    MultiVector ymv(nfields); // TODO: Should this be a member variable?
 
     // Assemble the multivector from the individual fields based on their IDs
     // This multivector contains all input, output, and intermediate fields in the graph

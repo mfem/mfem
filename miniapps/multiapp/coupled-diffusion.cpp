@@ -618,14 +618,6 @@ int main(int argc, char *argv[])
    diff_op2.SetName("Div(k(T1,T2) grad(T2))");
 
 
-   // Build the DAG in any order, and then sort it to ensure the correct execution order
-   DAGraph dag(5);
-   dag.AddOperator(&diff_coeff_1);
-   dag.AddOperator(&diff_op1);
-   dag.AddOperator(&diff_op2);
-   dag.AddOperator(&diff_coeff_2);
-   dag.AddOperator(&prod_coeff);
-
    Vector k1vec(fes.GetTrueVSize()); k1vec = 0.0;
    Vector k2vec(fes.GetTrueVSize()); k2vec = 0.0;
    Vector kpvec(fes.GetTrueVSize()); kpvec = 0.0;
@@ -647,10 +639,16 @@ int main(int argc, char *argv[])
    Field *f1_field = nullptr;
    Field *f2_field = nullptr;
 
+   // Define the DAG
+   DAGraph dag;
+   bool construct_dag_manually = false; // Set to true to construct the DAG manually, false to use the tape-based approach
+
    // Form connections between the nodes in the DAG
-   bool construct_dag_manually = false;
    if(construct_dag_manually)
    {
+      // Add operators in any order, and then sort it to ensure the correct execution order
+      dag.AddOperators(&diff_coeff_1, &diff_op1, &diff_op2, &diff_coeff_2, &prod_coeff);
+
       // Write space for data and adjoint only needed
       // for the intermediate fields k1, k2, and k_prod
       k1_field = new Field(&k1vec, &k1adj);
@@ -686,9 +684,16 @@ int main(int argc, char *argv[])
          diff_op1.AddInput(k1_field);
          diff_op2.AddInput(k2_field);
       }
+
+      dag.AddInputs(T1_field, T2_field);
+      dag.AddOutputs(f1_field, f2_field);
    }
    else
    {
+      GraphTape& tape = dag.GetTape();
+      tape.Watch(T1_field, T2_field);
+      tape.StartRecording();
+
       k1_field = diff_coeff_1(T1_field);
       k1_field->SetData(&k1vec, &k1adj); // Use different provided memory for data and adjoint
 
@@ -709,11 +714,12 @@ int main(int argc, char *argv[])
          f1_field = diff_op1(T1_field, k1_field);
          f2_field = diff_op2(T2_field, k2_field);
       }
+
+      tape.StopRecording();
+      tape.Finalize(f1_field, f2_field);
    }
    // Add input and output to the DAG
    int sz = fes.GetTrueVSize();
-   dag.AddInputs(T1_field, T2_field);
-   dag.AddOutputs(f1_field, f2_field);
    dag.SetInputOffsets(Array<int>({0, sz, 2*sz}));
    dag.SetOutputOffsets(Array<int>({0, sz, 2*sz}));
 
