@@ -16,16 +16,26 @@ a mild problem is unaffected, a stiff one is lost in its first Newton steps,
 and a line search, which measures every trial against one linearisation, is
 worst of all.
 
-Both demonstrators are MFEM only. `doc/lf-jacobian-bug.cpp` has been rewritten
-without the `../meq` dependency the report asked to have removed — as it noted,
-`GetEssentialTrueDofs()` was the accessor it needed all along.
+**The demonstrators are gone**, both of them, and what they measured is in
+`tests/unit/fem/test_darcy_linearise_first.cpp` instead: "The reduced operator
+is a function of the trace" for the first finding, "The reduced gradient is the
+derivative of the reduced residual" and "The reduced residual survives the
+linearisation advancing" for the second. A scratch file that has to be compiled
+by hand goes stale the first time anyone changes the API around it; a test does
+not. Their numbers are all kept below.
+
+The second demonstrator had needed `../meq`, only for the essential trace dof
+list, and did not: `GetEssentialTrueDofs()` was the accessor it wanted all
+along — see `doc/REQUEST-ESSENTIAL-TRACE-DOFS.md`. It was rewritten MFEM-only
+before being folded in, so nothing was lost with the dependency.
 
 ---
 
 ## First finding — FIXED by c5cac09e2f
 
-A bug report against `gf-hdg-linearise-first` at `43d9548910`. Demonstrator:
-`doc/lf-residual-bug.cpp`, self-contained, MFEM only, no meq.
+A bug report against `gf-hdg-linearise-first` at `43d9548910`. The
+demonstrator was self-contained, MFEM only, no meq; it is now the unit test
+"The reduced operator is a function of the trace".
 
 ## The invariant
 
@@ -126,16 +136,13 @@ small), and the line search failing fastest of all (most residual evaluations
 per
 gradient).
 
-## Building the demonstrator
+## Where the demonstrator went
 
-```sh
-g++ -std=c++17 -O2 -I <mfem>/include doc/lf-residual-bug.cpp \
-    <mfem>/lib/libmfem.a $(MFEM_EXT_LIBS) -o lf_bug && ./lf_bug
-```
-
-It takes about a second. `Inconsistency()` returns the relative change, so it
-drops into `tests/unit/fem/` as an assertion — `REQUIRE(rel == 0.0)` for
-`CondenseThenLinearise` and whatever tolerance is judged right for the other.
+Into `tests/unit/fem/test_darcy_linearise_first.cpp` as "The reduced operator
+is a function of the trace", which was the report's own suggestion: it sweeps
+`c` from 1 to 10⁵ in both orderings and requires `Mult`, `GetGradient`, `Mult`,
+`GetGradient`, `Mult` to be bitwise equal — `REQUIRE(rel == 0.0)` in effect,
+for both orderings rather than only the exact one.
 
 ---
 
@@ -188,21 +195,25 @@ At `c = 1` the error is 5e-9 and Newton converges in 3 iterations either way; by
 degrades with the nonlinearity, which is consistent with a mild problem working
 and a stiff one diverging.
 
-**A caveat on the demonstrator, now resolved.** The reported version of
-`doc/lf-jacobian-bug.cpp` used meq, only to get the essential trace dof list,
-and said the dependency was removable: `GetEssentialTrueDofs()` does return the
-trace dofs, its member merely being documented as flux dofs — see
-`doc/REQUEST-ESSENTIAL-TRACE-DOFS.md`. It has been removed; the file is now
-MFEM only. An earlier attempt to write it MFEM-only by detecting unit rows in
-the assembled Jacobian found **zero** of them, because that setup had not
-established essential trace dofs at all; its numbers were measuring an
-ill-posed problem and are not in this report. Anything reproducing this needs a
-genuinely well-posed Dirichlet problem and the essential rows masked, and
-should check both — `CondenseThenLinearise` reaching round-off is the control
-that says the harness works. The rewritten demonstrator prints the essential
-dof count for exactly that reason, and tightens the control's local solve,
-whose default `rtol` of `1e-6` would otherwise put the reference at `1e-6` and
-hide everything smaller.
+**A caveat on the demonstrator, now resolved.** The reported version used meq,
+only to get the essential trace dof list, and said the dependency was
+removable: `GetEssentialTrueDofs()` does return the trace dofs, its member
+merely being documented as flux dofs — see
+`doc/REQUEST-ESSENTIAL-TRACE-DOFS.md`. It was removed. An earlier attempt to
+write it MFEM-only by detecting unit rows in the assembled Jacobian found
+**zero** of them, because that setup had not established essential trace dofs
+at all; its numbers were measuring an ill-posed problem and are not in this
+report.
+
+Two things follow for anything reproducing this, and both are now in the unit
+test rather than in a file someone has to remember to run. It needs a genuinely
+well-posed Dirichlet problem with the essential rows masked, and it must
+**check** that rather than assume it — the test asserts the essential dof count
+is non-zero before it measures anything. And the control's local solve has to
+be tightened: `SetLocalNLSolver`'s default `rtol` of `1e-6` otherwise puts
+`CondenseThenLinearise` at `1e-6`, which is above most of what is being looked
+for. The first run of this harness made exactly that mistake and put the
+"exact" ordering at 7.5e-6.
 
 ---
 
