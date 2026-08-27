@@ -53,6 +53,7 @@ void BatchedLOR_H1::Assemble2D()
       {
          MFEM_FOREACH_THREAD(ix,x,nd1d)
          {
+            MFEM_UNROLL(1)
             for (int j=0; j<nnz_per_row; ++j)
             {
                V(j,ix,iy,iel_ho) = 0.0;
@@ -71,20 +72,25 @@ void BatchedLOR_H1::Assemble2D()
             DeviceTensor<3> Q(Q_, ddm2 + 1, 2, 2);
             DeviceTensor<2> local_mat(local_mat_, nv, nv);
 
+            MFEM_UNROLL(1)
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
             SetupLORQuadData2D<ORDER,SDIM,false,false>(X, iel_ho, kx, ky, Q, false);
 
+            MFEM_UNROLL(1)
             for (int iqx=0; iqx<2; ++iqx)
             {
+               MFEM_UNROLL(1)
                for (int iqy=0; iqy<2; ++iqy)
                {
                   const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
                   const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
+                  MFEM_UNROLL(1)
                   for (int jy=0; jy<2; ++jy)
                   {
                      const real_t bjy = (jy == iqy) ? 1.0 : 0.0;
                      const real_t gjy = (jy == 0) ? -1.0 : 1.0;
+                     MFEM_UNROLL(1)
                      for (int jx=0; jx<2; ++jx)
                      {
                         const real_t bjx = (jx == iqx) ? 1.0 : 0.0;
@@ -95,10 +101,12 @@ void BatchedLOR_H1::Assemble2D()
 
                         int jj_loc = jx + 2*jy;
 
+                        MFEM_UNROLL(1)
                         for (int iy=0; iy<2; ++iy)
                         {
                            const real_t biy = (iy == iqy) ? 1.0 : 0.0;
                            const real_t giy = (iy == 0) ? -1.0 : 1.0;
+                           MFEM_UNROLL(1)
                            for (int ix=0; ix<2; ++ix)
                            {
                               const real_t bix = (ix == iqx) ? 1.0 : 0.0;
@@ -131,10 +139,12 @@ void BatchedLOR_H1::Assemble2D()
             // Assemble the local matrix into the macro-element sparse matrix
             // in a format similar to coordinate format. The (I,J) arrays
             // are implicit (not stored explicitly).
+            MFEM_UNROLL(1)
             for (int ii_loc=0; ii_loc<nv; ++ii_loc)
             {
                const int ix = ii_loc%2;
                const int iy = ii_loc/2;
+               MFEM_UNROLL(1)
                for (int jj_loc=0; jj_loc<nv; ++jj_loc)
                {
                   const int jx = jj_loc%2;
@@ -159,17 +169,21 @@ void BatchedLOR_H1::Assemble2D()
    sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
    auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
+   MFEM_UNROLL(1)
    for (int iy=0; iy<nd1d; ++iy)
    {
       const int jy_begin = (iy > 0) ? iy - 1 : 0;
       const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
+      MFEM_UNROLL(1)
       for (int ix=0; ix<nd1d; ++ix)
       {
          const int jx_begin = (ix > 0) ? ix - 1 : 0;
          const int jx_end = (ix < ORDER) ? ix + 1 : ORDER;
          const int ii_el = ix + nd1d*iy;
+         MFEM_UNROLL(1)
          for (int jy=jy_begin; jy<=jy_end; ++jy)
          {
+            MFEM_UNROLL(1)
             for (int jx=jx_begin; jx<=jx_end; ++jx)
             {
                const int jj_off = (jx-ix+1) + 3*(jy-iy+1);
@@ -225,6 +239,7 @@ void BatchedLOR_H1::Assemble3D()
             MFEM_FOREACH_THREAD(ix,x,nd1d)
             {
                MFEM_UNROLL(nnz_per_row)
+               MFEM_UNROLL(1)
                for (int j=0; j<nnz_per_row; ++j)
                {
                   V(j,ix,iy,iz,iel_ho) = 0.0;
@@ -256,26 +271,34 @@ void BatchedLOR_H1::Assemble3D()
                DeviceTensor<5> mass_B(mass_B_, 2, 2, 2, 2, 2);
 
                // local_mat is the local (dense) stiffness matrix
+               MFEM_UNROLL(1)
                for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
                // Intermediate quantities
                // (see e.g. Mora and Demkowicz for notation).
+               MFEM_UNROLL(1)
                for (int i=0; i<sz_grad_A; ++i) { grad_A[i] = 0.0; }
+               MFEM_UNROLL(1)
                for (int i=0; i<sz_grad_B; ++i) { grad_B[i] = 0.0; }
 
+               MFEM_UNROLL(1)
                for (int i=0; i<sz_mass_A; ++i) { mass_A[i] = 0.0; }
+               MFEM_UNROLL(1)
                for (int i=0; i<sz_mass_B; ++i) { mass_B[i] = 0.0; }
 
                real_t vx[8], vy[8], vz[8];
                LORVertexCoordinates3D<ORDER>(X, iel_ho, kx, ky, kz, vx, vy, vz);
 
                // MFEM_UNROLL(2)
+               MFEM_UNROLL(1)
                for (int iqz=0; iqz<2; ++iqz)
                {
                   // MFEM_UNROLL(2)
+                  MFEM_UNROLL(1)
                   for (int iqy=0; iqy<2; ++iqy)
                   {
                      // MFEM_UNROLL(2)
+                     MFEM_UNROLL(1)
                      for (int iqx=0; iqx<2; ++iqx)
                      {
                         const real_t x = iqx;
@@ -308,20 +331,25 @@ void BatchedLOR_H1::Assemble3D()
                }
 
                // MFEM_UNROLL(2)
+               MFEM_UNROLL(1)
                for (int iqx=0; iqx<2; ++iqx)
                {
                   // MFEM_UNROLL(2)
+                  MFEM_UNROLL(1)
                   for (int jz=0; jz<2; ++jz)
                   {
                      // Note loop starts at iz=jz here, taking advantage of
                      // symmetries.
                      // MFEM_UNROLL(2)
+                     MFEM_UNROLL(1)
                      for (int iz=jz; iz<2; ++iz)
                      {
                         // MFEM_UNROLL(2)
+                        MFEM_UNROLL(1)
                         for (int iqy=0; iqy<2; ++iqy)
                         {
                            // MFEM_UNROLL(2)
+                           MFEM_UNROLL(1)
                            for (int iqz=0; iqz<2; ++iqz)
                            {
                               const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
@@ -357,9 +385,11 @@ void BatchedLOR_H1::Assemble3D()
                               mass_A(iqy,iz,jz,iqx) += mq*wdetJ*biz*bjz;
                            }
                            // MFEM_UNROLL(2)
+                           MFEM_UNROLL(1)
                            for (int jy=0; jy<2; ++jy)
                            {
                               // MFEM_UNROLL(2)
+                              MFEM_UNROLL(1)
                               for (int iy=0; iy<2; ++iy)
                               {
                                  const real_t biy = (iy == iqy) ? 1.0 : 0.0;
@@ -383,15 +413,19 @@ void BatchedLOR_H1::Assemble3D()
                            }
                         }
                         // MFEM_UNROLL(2)
+                        MFEM_UNROLL(1)
                         for (int jy=0; jy<2; ++jy)
                         {
                            // MFEM_UNROLL(2)
+                           MFEM_UNROLL(1)
                            for (int jx=0; jx<2; ++jx)
                            {
                               // MFEM_UNROLL(2)
+                              MFEM_UNROLL(1)
                               for (int iy=0; iy<2; ++iy)
                               {
                                  // MFEM_UNROLL(2)
+                                 MFEM_UNROLL(1)
                                  for (int ix=0; ix<2; ++ix)
                                  {
                                     const real_t bix = (ix == iqx) ? 1.0 : 0.0;
@@ -432,12 +466,14 @@ void BatchedLOR_H1::Assemble3D()
                // in a format similar to coordinate format. The (I,J) arrays
                // are implicit (not stored explicitly).
                // MFEM_UNROLL(8)
+               MFEM_UNROLL(1)
                for (int ii_loc=0; ii_loc<nv; ++ii_loc)
                {
                   const int ix = ii_loc%2;
                   const int iy = (ii_loc/2)%2;
                   const int iz = ii_loc/2/2;
 
+                  MFEM_UNROLL(1)
                   for (int jj_loc=0; jj_loc<nv; ++jj_loc)
                   {
                      const int jx = jj_loc%2;
@@ -463,14 +499,17 @@ void BatchedLOR_H1::Assemble3D()
    sparse_mapping.SetSize(nnz_per_row*ndof_per_el);
    sparse_mapping = -1;
    auto map = Reshape(sparse_mapping.HostReadWrite(), nnz_per_row, ndof_per_el);
+   MFEM_UNROLL(1)
    for (int iz=0; iz<nd1d; ++iz)
    {
       const int jz_begin = (iz > 0) ? iz - 1 : 0;
       const int jz_end = (iz < ORDER) ? iz + 1 : ORDER;
+      MFEM_UNROLL(1)
       for (int iy=0; iy<nd1d; ++iy)
       {
          const int jy_begin = (iy > 0) ? iy - 1 : 0;
          const int jy_end = (iy < ORDER) ? iy + 1 : ORDER;
+         MFEM_UNROLL(1)
          for (int ix=0; ix<nd1d; ++ix)
          {
             const int jx_begin = (ix > 0) ? ix - 1 : 0;
@@ -478,10 +517,13 @@ void BatchedLOR_H1::Assemble3D()
 
             const int ii_el = ix + nd1d*(iy + nd1d*iz);
 
+            MFEM_UNROLL(1)
             for (int jz=jz_begin; jz<=jz_end; ++jz)
             {
+               MFEM_UNROLL(1)
                for (int jy=jy_begin; jy<=jy_end; ++jy)
                {
+                  MFEM_UNROLL(1)
                   for (int jx=jx_begin; jx<=jx_end; ++jx)
                   {
                      const int jj_off = (jx-ix+1) + 3*(jy-iy+1) + 9*(jz-iz+1);

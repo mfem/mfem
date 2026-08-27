@@ -40,6 +40,7 @@ static void EADiffusionAssemble1D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t r_Gi[MQ1];
       real_t r_Gj[MQ1];
+      MFEM_UNROLL(1)
       for (int q = 0; q < Q1D; q++)
       {
          r_Gi[q] = G(q,MFEM_THREAD_ID(x));
@@ -50,6 +51,7 @@ static void EADiffusionAssemble1D(const int NE,
          MFEM_FOREACH_THREAD(j1,y,D1D)
          {
             real_t val = 0.0;
+            MFEM_UNROLL(1)
             for (int k1 = 0; k1 < Q1D; ++k1)
             {
                val += r_Gj[k1] * D(k1, e) * r_Gi[k1];
@@ -93,8 +95,10 @@ static void EADiffusionAssemble2D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t r_B[MQ1][MD1];
       real_t r_G[MQ1][MD1];
+      MFEM_UNROLL(1)
       for (int d = 0; d < D1D; d++)
       {
+         MFEM_UNROLL(1)
          for (int q = 0; q < Q1D; q++)
          {
             r_B[q][d] = B(q,d);
@@ -106,13 +110,17 @@ static void EADiffusionAssemble2D(const int NE,
       {
          MFEM_FOREACH_THREAD(i2,y,D1D)
          {
+            MFEM_UNROLL(1)
             for (int j1 = 0; j1 < D1D; ++j1)
             {
+               MFEM_UNROLL(1)
                for (int j2 = 0; j2 < D1D; ++j2)
                {
                   real_t val = 0.0;
+                  MFEM_UNROLL(1)
                   for (int k1 = 0; k1 < Q1D; ++k1)
                   {
+                     MFEM_UNROLL(1)
                      for (int k2 = 0; k2 < Q1D; ++k2)
                      {
                         real_t bgi = r_G[k1][i1] * r_B[k2][i2];
@@ -170,8 +178,10 @@ static void EADiffusionAssemble3D(const int NE,
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t r_B[MQ1][MD1];
       real_t r_G[MQ1][MD1];
+      MFEM_UNROLL(1)
       for (int d = 0; d < D1D; d++)
       {
+         MFEM_UNROLL(1)
          for (int q = 0; q < Q1D; q++)
          {
             r_B[q][d] = B(q,d);
@@ -185,17 +195,23 @@ static void EADiffusionAssemble3D(const int NE,
          {
             MFEM_FOREACH_THREAD(i3,z,D1D)
             {
+               MFEM_UNROLL(1)
                for (int j1 = 0; j1 < D1D; ++j1)
                {
+                  MFEM_UNROLL(1)
                   for (int j2 = 0; j2 < D1D; ++j2)
                   {
+                     MFEM_UNROLL(1)
                      for (int j3 = 0; j3 < D1D; ++j3)
                      {
                         real_t val = 0.0;
+                        MFEM_UNROLL(1)
                         for (int k1 = 0; k1 < Q1D; ++k1)
                         {
+                           MFEM_UNROLL(1)
                            for (int k2 = 0; k2 < Q1D; ++k2)
                            {
+                              MFEM_UNROLL(1)
                               for (int k3 = 0; k3 < Q1D; ++k3)
                               {
                                  real_t bbgi = r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3];

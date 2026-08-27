@@ -306,7 +306,7 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
          {
             MFEM_FOREACH_THREAD(dy,x,D1D-1)
             {
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dx = 0; dx < D1D; ++dx)
                {
                   X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
@@ -346,18 +346,18 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u[D1D];
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dx = 0; dx < nx; ++dx)
                {
-                  MFEM_UNROLL(MD1)
+                  MFEM_UNROLL(1)
                   for (int dz = 0; dz < nz; ++dz)
                   {
                      u[dz] += Xxyz(dx,dy,dz,vd) * Bx(dx,qx);
                   }
                }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { QDD(qx,dy,dz,vd) = u[dz]; }
             }
          }
@@ -373,18 +373,18 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u[D1D];
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dy = 0; dy < ny; ++dy)
                {
-                  MFEM_UNROLL(MD1)
+                  MFEM_UNROLL(1)
                   for (int dz = 0; dz < nz; ++dz)
                   {
                      u[dz] += QDD(qx,dy,dz,vd) * By(dy,qy);
                   }
                }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { QQD(qx,qy,dz,vd) = u[dz]; }
             }
          }
@@ -399,18 +399,18 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
                real_t u[Q1D];
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz)
                {
-                  MFEM_UNROLL(MQ1)
+                  MFEM_UNROLL(1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      u[qz] += QQD(qx,qy,dz,vd) * Bz(dz,qz);
                   }
                }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { QQQ(qx,qy,qz,vd) = u[qz]; }
             }
          }
@@ -423,7 +423,7 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
          {
             MFEM_FOREACH_THREAD(qx,x,Q1D)
             {
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   const real_t Qx = QQQ(qx,qy,qz,0);
@@ -458,18 +458,18 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
                real_t u[Q1D];
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qx = 0; qx < Q1D; ++qx)
                {
-                  MFEM_UNROLL(MQ1)
+                  MFEM_UNROLL(1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      u[qz] += QQQ(qx,qy,qz,vd) * Btx(dx,qx);
                   }
                }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { DQQ(dx,qy,qz,vd) = u[qz]; }
             }
          }
@@ -485,18 +485,18 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
                real_t u[Q1D];
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { u[qz] = 0.0; }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qy = 0; qy < Q1D; ++qy)
                {
-                  MFEM_UNROLL(MQ1)
+                  MFEM_UNROLL(1)
                   for (int qz = 0; qz < Q1D; ++qz)
                   {
                      u[qz] += DQQ(dx,qy,qz,vd) * Bty(dy,qy);
                   }
                }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz) { DDQ(dx,dy,qz,vd) = u[qz]; }
             }
          }
@@ -514,18 +514,18 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             MFEM_FOREACH_THREAD(dx,x,nx)
             {
                real_t u[D1D];
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { u[dz] = 0.0; }
-               MFEM_UNROLL(MQ1)
+               MFEM_UNROLL(1)
                for (int qz = 0; qz < Q1D; ++qz)
                {
-                  MFEM_UNROLL(MD1)
+                  MFEM_UNROLL(1)
                   for (int dz = 0; dz < nz; ++dz)
                   {
                      u[dz] += DDQ(dx,dy,qz,vd) * Btz(dz,qz);
                   }
                }
-               MFEM_UNROLL(MD1)
+               MFEM_UNROLL(1)
                for (int dz = 0; dz < nz; ++dz) { Yxyz(dx,dy,dz,vd,e) += u[dz]; }
             }
          }

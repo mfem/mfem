@@ -9,6 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+//#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 1000)
+
 #include "lor_batched.hpp"
 #include "../../fem/quadinterpolator.hpp"
 #include "../../general/forall.hpp"
@@ -116,10 +118,12 @@ static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int n_my_elts,
                                       const int *nbr_elts, const int n_nbr_elts)
 {
    int min_el = INT_MAX;
+   MFEM_UNROLL(1)
    for (int i = 0; i < n_my_elts; i++)
    {
       const int e_i = my_elts[i];
       if (e_i >= min_el) { continue; }
+      MFEM_UNROLL(1)
       for (int j = 0; j < n_nbr_elts; j++)
       {
          if (e_i==nbr_elts[j])
@@ -180,12 +184,14 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
       const int i_next_offset = K[ii+1];
       const int i_ne = i_next_offset - i_offset;
       int *i_elts = &d_ij_elts(i_offset, 0);
+      MFEM_UNROLL(1)
       for (int e_i = 0; e_i < i_ne; ++e_i)
       {
          const int si_E = dof_glob2loc[i_offset+e_i]; // signed
          const int i_E = (si_E >= 0) ? si_E : -1 - si_E;
          i_elts[e_i] = i_E/ndof_per_el;
       }
+      MFEM_UNROLL(1)
       for (int j = 0; j < nnz_per_row; ++j)
       {
          int jj_el = map(j, ii_el);
@@ -203,6 +209,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
          else // assembly required
          {
             int *j_elts = &d_ij_elts(j_offset, 1);
+            MFEM_UNROLL(1)
             for (int e_j = 0; e_j < j_ne; ++e_j)
             {
                const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
@@ -222,6 +229,7 @@ int BatchedLORAssembly::FillI(SparseMatrix &A) const
    // We need to sum the entries of I, we do it on CPU as it is very sequential.
    auto h_I = A.HostReadWriteI();
    int sum = 0;
+   MFEM_UNROLL(1)
    for (int i = 0; i < nvdof; i++)
    {
       const int nnz = h_I[i];
@@ -287,6 +295,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
       int *i_elts = &d_ij_B_el(i_offset, 0);
       int *i_B = &d_ij_B_el(i_offset, 1);
 
+      MFEM_UNROLL(1)
       for (int e_i = 0; e_i < i_ne; ++e_i)
       {
          const int si_E = dof_glob2loc[i_offset+e_i]; // signed
@@ -296,6 +305,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
          const int i_Bi = i_E % ndof_per_el;
          i_B[e_i] = plus ? i_Bi : -1 - i_Bi; // encode with sign
       }
+      MFEM_UNROLL(1)
       for (int j=0; j<nnz_per_row; ++j)
       {
          int jj_el = map(j, ii_el);
@@ -317,6 +327,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
          {
             int *j_elts = &d_ij_B_el(j_offset, 2);
             int *j_B = &d_ij_B_el(j_offset, 3);
+            MFEM_UNROLL(1)
             for (int e_j = 0; e_j < j_ne; ++e_j)
             {
                const int sj_E = dof_glob2loc[j_offset+e_j]; // signed
@@ -330,11 +341,13 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
             if (iel_ho == min_e) // add the nnz only once
             {
                real_t val = 0.0;
+               MFEM_UNROLL(1)
                for (int k = 0; k < i_ne; k++)
                {
                   const int iel_ho_2 = i_elts[k];
                   const int sii_el_2 = i_B[k]; // signed
                   const int ii_el_2 = (sii_el_2 >= 0) ? sii_el_2 : -1 -sii_el_2;
+                  MFEM_UNROLL(1)
                   for (int l = 0; l < j_ne; l++)
                   {
                      const int jel_ho_2 = j_elts[l];
@@ -346,6 +359,7 @@ void BatchedLORAssembly::FillJAndData(SparseMatrix &A) const
                                            || (sjj_el_2 < 0 && sii_el_2 <0)) ? 1 : -1;
                         int j2 = -1;
                         // find nonzero in matrix of other element
+                        MFEM_UNROLL(1)
                         for (int m = 0; m < nnz_per_row; ++m)
                         {
                            if (map(m, ii_el_2) == jj_el_2)
@@ -411,6 +425,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
    Array<int> nbr_info(nel_ho*3*2*dim);
    auto h_nbr_info = Reshape(nbr_info.HostWrite(), nel_ho, 2*dim, 3);
    const int num_faces = fes_ho.GetMesh()->GetNumFaces();
+   MFEM_UNROLL(1)
    for (int f = 0; f < num_faces; f++)
    {
       Mesh::FaceInformation finfo = fes_ho.GetMesh()->GetFaceInformation(f);
@@ -444,6 +459,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
 
    auto h_I = A_mat->HostWriteI();
    h_I[0] = 0;
+   MFEM_UNROLL(1)
    for (int i = 0; i < nrows; ++i)
    {
       const int iel_ho = i / ndof_per_el;
@@ -452,8 +468,10 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
       static const int lex_map_3[6] = {4, 2, 1, 3, 0, 5};
       const int local_i[3] = {iloc % pp1, (iloc/pp1)%pp1, iloc/pp1/pp1};
       int bdr_count = 0;
+      MFEM_UNROLL(1)
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
+         MFEM_UNROLL(1)
          for (int e_i = 0; e_i < 2; ++e_i)
          {
             const int j_lex = e_i + n_idx*2;
@@ -493,12 +511,14 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
       AV[offset] = V(0, iloc, e);
       J[offset] = i;
       ++offset;
+      MFEM_UNROLL(1)
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
          // qi is the face lexicographic index, obtained by taking the
          // lexicographic index of the coordinates ommiting n_idx.
          int qi = 0;
          int stride = 1;
+         MFEM_UNROLL(1)
          for (int d = 0; d < dim; ++d)
          {
             if (d != n_idx)
@@ -507,6 +527,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
                stride *= pp1;
             }
          }
+         MFEM_UNROLL(1)
          for (int e_i = 0; e_i < 2; ++e_i)
          {
             const int j_lex = e_i + n_idx*2;
@@ -529,6 +550,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
             else
             {
                int shift = (e_i == 0) ? -1 : 1;
+               MFEM_UNROLL(1)
                for (int n = 0; n < n_idx; ++n) { shift *= pp1; }
                J[offset] = i + shift;
                AV[offset] = V(f+1, iloc, e);
@@ -758,3 +780,5 @@ IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes)
 }
 
 } // namespace mfem
+
+//#endif // !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 1000)
