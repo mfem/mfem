@@ -1271,7 +1271,16 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    DenseMatrix AiBt, AiCt, BAiCt, CAiBt, H_l;
    Array<int> c_dofs_1, c_dofs_2;
    Array<int> faces;
-   if (!H_) { H_.reset(new SparseMatrix(c_fes.GetVSize())); }
+
+   // The factorisation below is what GradientMode::MatrixFree needs and all it
+   // needs; the face loops after it are the assembly, which is what costs one
+   // local solve per trace dof of the element. Both modes take the same first
+   // half, which is the point of doing it here rather than in ConstructGrad():
+   // that duplicate omitted the Jacobian's d(flux residual)/dp and so built a
+   // different Schur complement from this one.
+   const bool assemble = (mode != ComputeHMode::GradientFactorOnly);
+   const bool gradient = (mode != ComputeHMode::Linear);
+   if (assemble && !H_) { H_.reset(new SparseMatrix(c_fes.GetVSize())); }
 
    for (int el = 0; el < NE; el++)
    {
@@ -1280,7 +1289,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 
       // Decompose A
       LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
-      if (mode == ComputeHMode::Linear || lop_type != LocalOpType::PotNL)
+      if (!gradient || lop_type != LocalOpType::PotNL)
       {
          LU_A.Factor(a_dofs_size);
       }
@@ -1299,14 +1308,14 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       AiBt.Transpose(B);
       if (!bsym) { AiBt.Neg(); }
       DenseMatrix Bnl;
-      if (mode == ComputeHMode::Gradient && GetBnlMatrix(el, Bnl))
+      if (gradient && GetBnlMatrix(el, Bnl))
       {
          AiBt -= Bnl;
       }
       LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
 
       LUFactors LU_S;
-      if (mode == ComputeHMode::Linear || lop_type != LocalOpType::FluxNL)
+      if (!gradient || lop_type != LocalOpType::FluxNL)
       {
          mfem::AddMult(B, AiBt, D);
 
@@ -1317,6 +1326,11 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       }
       else
       {
+         MFEM_VERIFY(assemble, "GradientMode::MatrixFree is not supported when "
+                     "only the flux mass is nonlinear: the Schur complement is "
+                     "built into a temporary here because Df_data holds the "
+                     "factored linear potential mass, so there is nothing for "
+                     "MultInv() to read back.");
          const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
                                  d_dofs_size, d_dofs_size);
          S = D_lin;
@@ -1328,6 +1342,8 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
          LU_S.ipiv = S_ipiv.GetData();
          LU_S.Factor(d_dofs_size);
       }
+
+      if (!assemble) { continue; }
 
       GetElementFaces(el, faces);
 
@@ -1406,6 +1422,11 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 
       }
    }
+
+   // Everything past here finalizes the assembled matrix, and there is none
+   // in GradientMode::MatrixFree: the loop above did the factorisation, which
+   // is the whole of what that mode wanted.
+   if (!assemble) { return; }
 
    if (diag_policy == DIAG_ONE || diag_policy == DIAG_ZERO)
    {
@@ -1618,24 +1639,30 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    Vector y;//dummy
    MultNL(MultNlMode::Grad, darcy_rhs, x, y);
 
-#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-   //assemble gradient matrix
-   Grad.reset();
-   ComputeH(ComputeHMode::Gradient, Grad);
-   // Rows only. The columns could be eliminated too, but they need not be --
-   // the correction is zero on these dofs, so their columns contribute
-   // nothing -- and EliminateRowCol() would demand a structurally symmetric
-   // matrix, which the reduced gradient is not.
-   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   if (grad_mode == GradientMode::Assembled)
    {
-      Grad->EliminateRow(ess_tdof_list[i], Matrix::DIAG_ONE);
+      //assemble gradient matrix
+      Grad.reset();
+      ComputeH(ComputeHMode::Gradient, Grad);
+      // Rows only. The columns could be eliminated too, but they need not be --
+      // the correction is zero on these dofs, so their columns contribute
+      // nothing -- and EliminateRowCol() would demand a structurally symmetric
+      // matrix, which the reduced gradient is not.
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         Grad->EliminateRow(ess_tdof_list[i], Matrix::DIAG_ONE);
+      }
+      return *Grad;
    }
-   return *Grad;
-#else
-   //construct gradient operator
+
+   // Matrix-free: the same factorisation, none of the assembly. Gradient::Mult
+   // then applies H - [C G] M^-1 [C^T; E] one element at a time.
+   Grad.reset();
+   std::unique_ptr<SparseMatrix> H_unused;
+   ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
+   MarkEmptyTraceRows();
    pGrad.Reset(new Gradient(*this));
    return *pGrad;
-#endif
 }
 
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
@@ -1686,13 +1713,12 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       Vector y_dummy;
       MultNL(MultNlMode::Grad, bu, bp, x, y_dummy);
 
-#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-      // ConstructGrad() leaves the blocks unfactored on this path; it is
-      // ComputeH() that factors A and builds the Schur complement, and the
-      // substitution below needs both. The reduced matrix it also assembles is
-      // discarded here -- GetGradient() will ask for its own in a moment.
+      // ConstructGrad() leaves the blocks unfactored; it is ComputeH() that
+      // factors A and builds the Schur complement, and the substitution below
+      // needs both. Factor-only, in either gradient mode: this pass never
+      // wanted the assembled matrix, and used to build and discard one.
       std::unique_ptr<SparseMatrix> H_unused;
-      ComputeH(ComputeHMode::Gradient, H_unused);
+      ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
 
       // And once more, which is the whole point of doing it here. The pass
       // above had no factors to substitute with, so all it could retain was
@@ -1711,8 +1737,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       // function of the trace.
       if (c_nlfi_p || c_nlfi) { H_data = 0.; }
       MultNL(MultNlMode::Grad, bu, bp, x, y_dummy, true);
-      ComputeH(ComputeHMode::Gradient, H_unused);
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+      ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
    }
 
    for (int el = 0; el < NE; el++)
@@ -1883,8 +1908,12 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       }
       else
       {
-         //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-         MultInv(el, bu_l, bp_l, u_l, p_l);
+         // (A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol), with the Jacobian's
+         // (0,1) block -- this is a gradient application, so d(flux
+         // residual)/dp belongs in it. Passing the linear -/+B^T alone is what
+         // made the matrix-free gradient disagree with the assembled one
+         // whenever the flux law depended on the potential.
+         MultInv(el, bu_l, bp_l, u_l, p_l, true);
       }
 
       // C u_l
@@ -2600,6 +2629,83 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    delete lop;
 }
 
+void DarcyHybridization::MarkEmptyTraceRows() const
+{
+   mf_diag_marker.SetSize(c_fes.GetVSize());
+   mf_diag_marker = 1;   // 1 = no face carrying this dof contributes anything
+
+   Array<int> c_dofs;
+   const int NF = fes.GetMesh()->GetNumFaces();
+   for (int f = 0; f < NF; f++)
+   {
+      // The trace row of a face is Ct^T u_l + G p_l + H x_f, so those three
+      // are what can make it non-empty. E is not among them: it feeds the
+      // local right-hand side, and if Ct, G and H all vanish the row is zero
+      // whatever the local fields are.
+      bool live = false;
+      for (int i = Ct_offsets[f]; i < Ct_offsets[f+1] && !live; i++)
+      {
+         if (Ct_data[i] != 0.) { live = true; }
+      }
+      if (!live && G_data.Size() > 0)
+      {
+         for (int i = G_offsets[f]; i < G_offsets[f+1] && !live; i++)
+         {
+            if (G_data[i] != 0.) { live = true; }
+         }
+      }
+      if (!live && H_data.Size() > 0)
+      {
+         for (int i = H_offsets[f]; i < H_offsets[f+1] && !live; i++)
+         {
+            if (H_data[i] != 0.) { live = true; }
+         }
+      }
+      if (!live) { continue; }
+
+      c_fes.GetFaceVDofs(f, c_dofs);
+      for (int i = 0; i < c_dofs.Size(); i++)
+      {
+         mf_diag_marker[FiniteElementSpace::DecodeDof(c_dofs[i])] = 0;
+      }
+   }
+
+   // That marker is in L-dofs, and the operator this is applied in works in
+   // true dofs. Where the two differ, a true dof is empty only if every L-dof
+   // feeding it is: sum the live flags through the prolongation and read off
+   // the zeros. In parallel the assembled counterpart of this is
+   // HypreParMatrix::EliminateZeroRows(), which is likewise a true-dof
+   // operation.
+   const Operator *P = ParallelC() ? c_fes.GetProlongationMatrix()
+                       : static_cast<const Operator*>(
+                          c_fes.GetConformingProlongation());
+   if (!P) { return; }
+
+   Vector live_l(mf_diag_marker.Size()), live_t(P->Width());
+   for (int i = 0; i < live_l.Size(); i++)
+   {
+      live_l(i) = mf_diag_marker[i] ? 0.0 : 1.0;
+   }
+   P->MultTranspose(live_l, live_t);
+
+   mf_diag_marker.SetSize(live_t.Size());
+   for (int i = 0; i < live_t.Size(); i++)
+   {
+      mf_diag_marker[i] = (live_t(i) == 0.0) ? 1 : 0;
+   }
+}
+
+void DarcyHybridization::SetGradientMode(GradientMode mode)
+{
+   if (mode == grad_mode) { return; }
+
+   grad_mode = mode;
+
+   // Whatever was built belongs to the mode that built it.
+   Grad.reset();
+   pGrad.Clear();
+}
+
 void DarcyHybridization::SetNonlinearOrdering(NLOrdering ordering)
 {
    if (ordering == nl_ordering) { return; }
@@ -2694,12 +2800,6 @@ void DarcyHybridization::MultInvLin(int el, const Array<int> &faces,
          E.AddMult_a(-1., dx_f, bp_l);
       }
    }
-
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-   MFEM_VERIFY(Bnl_empty, "This ordering needs the assembled gradient matrix "
-               "when the flux law depends on the potential: the matrix-free "
-               "Schur complement leaves d(flux residual)/dp out.");
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
    // The increment, by the local elimination -- with the Jacobian's (0,1)
    // block, which is what ComputeH(Gradient) put into these factors.
@@ -3000,35 +3100,12 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       }
    }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-   if (lop_type != LocalOpType::PotNL)
-   {
-      // Decompose A
-      LU_A.Factor(a_dofs_size);
-   }
-
-   if (lop_type != LocalOpType::FluxNL)
-   {
-      // Construct Schur complement
-      const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
-                          d_dofs_size, a_dofs_size);
-      DenseMatrix AiBt(a_dofs_size, d_dofs_size);
-
-      AiBt.Transpose(B);
-      if (!bsym) { AiBt.Neg(); }
-      LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
-      mfem::AddMult(B, AiBt, D);
-
-      // Decompose Schur complement
-      LUFactors LU_S(D.GetData(), &Df_ipiv[Df_f_offsets[el]]);
-
-      LU_S.Factor(d_dofs_size);
-   }
-   else
-   {
-      MFEM_ABORT("Not implemented");
-   }
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+   // No factorisation here. It used to happen on the matrix-free path only,
+   // duplicating ComputeH()'s and leaving out the Jacobian's (0,1) block, so
+   // the two modes built different Schur complements and the matrix-free one
+   // was wrong whenever the flux law depended on the potential. Both now go
+   // through ComputeH(), which is called for either mode once this pass over
+   // the elements is finished.
 }
 
 void DarcyHybridization::AssembleHDGGrad(
@@ -3881,13 +3958,32 @@ void DarcyHybridization::Reset()
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 void DarcyHybridization::Gradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
    dh.MultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+
+   // The unit row the assembled mode gets from EliminateRow(DIAG_ONE). Without
+   // it these rows come back as whatever the Schur complement makes of them
+   // and the two modes are different operators -- and this one is singular
+   // against a residual that is zero there.
+   for (int i = 0; i < dh.ess_tdof_list.Size(); i++)
+   {
+      const int dof = dh.ess_tdof_list[i];
+      y(dof) = x(dof);
+   }
+
+   // And the unit row the assembled mode gets from SetDiagIdentity(), which
+   // regularises rows nothing contributed to. There is no matrix here for it
+   // to act on, so it is applied by hand; see mf_diag_marker.
+   if (dh.diag_policy == DIAG_ONE)
+   {
+      for (int i = 0; i < dh.mf_diag_marker.Size(); i++)
+      {
+         if (dh.mf_diag_marker[i]) { y(i) = x(i); }
+      }
+   }
 }
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
 #ifdef MFEM_USE_MPI
 void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
@@ -3922,32 +4018,45 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
    Vector y;//dummy
    dh.ParMultNL(MultNlMode::Grad, dh.darcy_rhs, x, y);
 
-#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
-   //assemble gradient matrix
-   dh.Grad.reset();
-   pGrad.SetType(dh.pH.Type());
-   dh.ComputeParH(ComputeHMode::Gradient, dh.Grad, pGrad);
-   if (dh.ess_tdof_list.Size() > 0)
+   if (dh.grad_mode == GradientMode::Assembled)
    {
-      // Rows and columns here, hypre offering no rows-with-unit-diagonal; the
-      // extra column elimination is harmless for the same reason the serial
-      // path can skip it.
-      delete pGrad.As<HypreParMatrix>()->EliminateRowsCols(dh.ess_tdof_list);
+      //assemble gradient matrix
+      dh.Grad.reset();
+      pGrad.SetType(dh.pH.Type());
+      dh.ComputeParH(ComputeHMode::Gradient, dh.Grad, pGrad);
+      if (dh.ess_tdof_list.Size() > 0)
+      {
+         // Rows and columns here, hypre offering no rows-with-unit-diagonal;
+         // the extra column elimination is harmless for the same reason the
+         // serial path can skip it.
+         delete pGrad.As<HypreParMatrix>()->EliminateRowsCols(dh.ess_tdof_list);
+      }
+      return *pGrad;
    }
-#else
-   //construct gradient operator
+
+   // Matrix-free: factor the local blocks, assemble nothing.
+   dh.Grad.reset();
+   std::unique_ptr<SparseMatrix> H_unused;
+   dh.ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
    pGrad.Reset(new ParGradient(dh));
-#endif
    return *pGrad;
 }
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
 {
    //note that rhs is not used, it is only a dummy
    dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+
+   // The unit row; see the serial Gradient::Mult(). The assembled parallel
+   // path eliminates the columns as well, which this does not -- harmless for
+   // the same reason it is harmless serially, the correction being zero on
+   // these dofs.
+   for (int i = 0; i < dh.ess_tdof_list.Size(); i++)
+   {
+      const int dof = dh.ess_tdof_list[i];
+      y(dof) = x(dof);
+   }
 }
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 #endif // MFEM_USE_MPI
 
 DarcyHybridization::LocalNLOperator::LocalNLOperator(

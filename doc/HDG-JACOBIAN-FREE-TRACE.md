@@ -4,8 +4,10 @@ Three things to fix and one design question, all raised by the same upstream
 question: how does `NLOrdering::LineariseThenCondense` behave when the global
 Newton solve uses a Jacobian-free method for the linear system?
 
-Nothing here is implemented. The measurements below are real and were taken on
-`gf-hdg-linearise-first` at `8cfc2226a6`; everything proposed is a proposal.
+**Status.** §2 and §3 are **done** — the three levels of trace solve are all
+available at run time, through `DarcyHybridization::SetGradientMode()`, and
+tested. **§1 is still open**: the JFNK state-advance trap is unfixed, and it is
+the item that produces a wrong answer while reporting success. Do that next.
 
 ---
 
@@ -96,7 +98,63 @@ name `SetMaxSetupCalls(1)` for KINSOL users.
 
 ---
 
-## 2. The matrix-free reduced gradient is only half-fixed, and that half is mine
+## 2. DONE: the matrix-free reduced gradient, which was only half-fixed
+
+Superseded by the work below; kept because the measurements are the record of
+what was wrong. What was a compile-time macro is now
+`SetGradientMode(GradientMode::MatrixFree)`, both paths compile into one
+binary, and both are tested against each other and against a difference
+quotient.
+
+### What it took, beyond flipping the macro
+
+* **Both modes now share one factorisation.** `ConstructGrad()` had its own,
+  reached only when the macro was off, and it left out the Jacobian's
+  `d(flux residual)/dp` -- so the two modes built *different* Schur
+  complements. That duplicate is gone; `ComputeH()` gained a
+  `GradientFactorOnly` mode that does the factorisation and stops before the
+  assembly, which is precisely what MatrixFree needs and precisely what the
+  initialisation pass in `MultNL()` always needed. That pass used to assemble a
+  matrix and discard it.
+* **`MultNL(GradMult, ...)` applied the linear `-/+B^T` alone.** It is a
+  gradient application, so it needs the same `(0,1)` block: `MultInv(..., true)`.
+  Measured: without it the matrix-free apply disagrees with a central
+  difference by `1.4e-03` where the assembled one is at round-off.
+* **The diagonal policy had nothing to act on.** The assembled matrix gets a
+  unit row on every trace row nothing contributes to, via `SearchRow` +
+  `Finalize(0)` + `SetDiagIdentity()`; that is a regularisation, and without it
+  the reduced matrix is singular. There is no matrix in MatrixFree mode, so the
+  same rows have to be marked and given `y(i) = x(i)` by hand. Measured: without
+  it the two modes differ by **0.497** -- on this problem 64 trace rows of 160,
+  every boundary one, since its constraint has no boundary face term.
+* **`lop_type == LocalOpType::FluxNL` is refused**, explicitly. The Schur
+  complement is built into a temporary there, `Df_data` being occupied by the
+  factored linear potential mass, so there is nothing for `MultInv()` to read
+  back. The old code aborted with `"Not implemented"`; it now says why.
+
+### What the tests are, and which have teeth for what
+
+Three of the four are new, and the teeth were checked by reverting each fix:
+
+* *Both reduced gradients are the derivative on a coupled flux law* -- a
+  central difference against each mode, on the block nonlinear form so that
+  `Bnl` is non-empty, with the rows the residual never moves excluded. **Catches
+  the missing `Bnl`** (fails at `1.4e-03`). Does not catch the missing
+  regularisation: a difference quotient has nothing to say about those rows.
+* *Assembling the reduced gradient and applying it give one operator* -- the
+  two modes applied to one vector at one trace, compared row for row. **Catches
+  both** (fails at `0.497` without the regularisation).
+* *The three trace solves reach the same solution* and *The trace solves agree
+  where the matrix-free apply is hardest* -- levels 0, 1 and 2 driven to
+  convergence. These catch **neither** gap, and that is worth knowing: a wrong
+  Jacobian changes the path Newton takes, not the root it reaches, so a solve
+  test passes with the gradient broken. They are there to show the three levels
+  are usable and interchangeable, not to check the operator.
+* *The reduced gradient is the derivative of the reduced residual* and *The
+  reduced residual survives the linearisation advancing* now sweep the gradient
+  mode as well.
+
+### The old note, for the record
 
 With `MFEM_DARCY_HYBRIDIZATION_GRAD_MAT` undefined, `GetGradient()` returns a
 matrix-free `Gradient` operator instead of an assembled `SparseMatrix`. Built
@@ -137,7 +195,7 @@ Two other things about that configuration, neither of them new:
 
 ---
 
-## 3. The design question: can the global trace system be avoided entirely?
+## 3. DONE: the global trace system can be avoided, and now can be at run time
 
 Raised upstream, and it is the right question: once the reduced matrix has been
 assembled, solving it with a Krylov method is only *somewhat* Jacobian-free.
@@ -159,17 +217,20 @@ in principle, and a JFNK driver that thinks it has avoided Jacobians has not.
 
 ### The ladder
 
-0. Assemble `S = H − C'M⁻¹K`, direct solve. Today's default.
-1. Assemble `S`, Krylov solve. The "somewhat" case.
+0. Assemble `S = H − C'M⁻¹K`, direct solve. `GradientMode::Assembled` with a
+   direct solver; the default.
+1. Assemble `S`, Krylov solve. `GradientMode::Assembled` with a Krylov method.
+   The "somewhat" case.
 2. **Do not assemble `S`; apply it.** `S v = H v − C' M⁻¹ (K v)` costs, per
    element per matvec, one gather, one back-substitution against the stored
-   factors, one scatter. This is exactly what `GRAD_MAT` undefined already
-   does, via `MultNL(MultNlMode::GradMult, ...)`.
+   factors, one scatter. `GradientMode::MatrixFree`.
 3. Krylov on the full `(q, u, λ)` system, matrix-free. Available, but it
    discards the reason to hybridize.
 
-**Level 2 is the answer to the question, and MFEM already has it.** The
-interesting part is that it is exactly the path §2 above says is half-broken.
+**Level 2 is the answer to the question, and all three are now selectable at
+run time.** A caller at level 2 must solve with something that needs only the
+action: `GSSmoother`, `UMFPackSolver` and the algebraic preconditioners all
+require a `SparseMatrix` and abort.
 
 ### Why level 2 is the right target and JFNK is not
 

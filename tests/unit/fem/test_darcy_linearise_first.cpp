@@ -172,7 +172,9 @@ struct Outcome
 
 /// Solve the same hybridized nonlinear problem in one ordering or the other.
 Outcome Solve(Mesh &mesh, int order, real_t eps,
-              DarcyHybridization::NLOrdering ordering, int max_it = 20)
+              DarcyHybridization::NLOrdering ordering, int max_it = 20,
+              DarcyHybridization::GradientMode gmode =
+                 DarcyHybridization::GradientMode::Assembled)
 {
    const int dim = mesh.Dimension();
    const int neq = 2;
@@ -217,6 +219,7 @@ Outcome Solve(Mesh &mesh, int order, real_t eps,
    dh->SetLocalNLSolver(DarcyHybridization::LSsolveType::Newton, 100, 1e-13,
                         1e-15, -1);
    dh->SetNonlinearOrdering(ordering);
+   dh->SetGradientMode(gmode);
 
    BlockVector x(darcy.GetOffsets());
    x = 0.0;
@@ -225,13 +228,17 @@ Outcome Solve(Mesh &mesh, int order, real_t eps,
    Vector X, RHS;
    darcy.FormLinearSystem(ess, x, op, X, RHS, true);
 
+   // GSSmoother needs a SparseMatrix, so the matrix-free mode goes without.
    GSSmoother prec;
    GMRESSolver lin;
    lin.SetKDim(500);
-   lin.SetMaxIter(2000);
+   lin.SetMaxIter(4000);
    lin.SetRelTol(1e-14);
    lin.SetAbsTol(0.0);
-   lin.SetPreconditioner(prec);
+   if (gmode == DarcyHybridization::GradientMode::Assembled)
+   {
+      lin.SetPreconditioner(prec);
+   }
 
    NormHistory history;
    NewtonSolver newton;
@@ -433,15 +440,29 @@ struct SemilinearHDG
    OperatorHandle R;
    Vector X, B;
    BlockVector sol;
+   FunctionCoefficient src;
 
+   /// @a src_scale drives a source on the potential, so that the problem has a
+   /// solution other than zero. The gradient tests below leave it at zero and
+   /// evaluate at a randomised trace instead; only a solve needs it.
    SemilinearHDG(int n, int order, real_t c,
-                 DarcyHybridization::NLOrdering ordering)
+                 DarcyHybridization::NLOrdering ordering,
+                 DarcyHybridization::GradientMode gmode =
+                    DarcyHybridization::GradientMode::Assembled,
+                 real_t src_scale = 0.0)
       : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE)),
         u_coll(order, 2, BasisType::GaussLobatto), p_coll(order, 2),
         t_coll(order, 2),
         Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
-        darcy(&Vh, &Wh), one(1.0)
+        darcy(&Vh, &Wh), one(1.0),
+        src([src_scale](const Vector &X_)
+   { return src_scale*std::sin(M_PI*X_(0))*std::sin(M_PI*X_(1)); })
    {
+      if (src_scale != 0.0)
+      {
+         darcy.GetPotentialRHS()->AddDomainIntegrator(
+            new DomainLFIntegrator(src));
+      }
       darcy.GetFluxMassForm()->AddDomainIntegrator(
          new VectorMassIntegrator(one));
       darcy.GetFluxDivForm()->AddDomainIntegrator(
@@ -459,6 +480,7 @@ struct SemilinearHDG
       darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
                                 ess_flux);
       darcy.GetHybridization()->SetNonlinearOrdering(ordering);
+      darcy.GetHybridization()->SetGradientMode(gmode);
       // The control has to be a control. CondenseThenLinearise solves the
       // local problem to this tolerance, and an inexact local solve is itself
       // a residual error, so the default 1e-6 would put the reference at 1e-6
@@ -485,6 +507,7 @@ TEST_CASE("The reduced gradient is the derivative of the reduced residual",
 {
    using namespace darcy_linearise_first;
    using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
 
    // GetGradient() against a central difference of Mult(). Under
    // LineariseThenCondense it was not the derivative: the retained local
@@ -507,9 +530,15 @@ TEST_CASE("The reduced gradient is the derivative of the reduced residual",
    const auto ordering = GENERATE(Ord::CondenseThenLinearise,
                                   Ord::LineariseThenCondense);
    const real_t h = GENERATE(1.0e-4, 1.0e-5);
-   CAPTURE(c, h, ordering == Ord::LineariseThenCondense);
+   // Both ways of producing the gradient have to be the derivative of the same
+   // residual. The matrix-free one applies the Schur complement instead of
+   // assembling it, and used to leave out d(flux residual)/dp and the diagonal
+   // policy's regularisation, either of which makes it a different operator.
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   CAPTURE(c, h, ordering == Ord::LineariseThenCondense,
+           gmode == GM::MatrixFree);
 
-   SemilinearHDG P(8, 1, c, ordering);
+   SemilinearHDG P(8, 1, c, ordering, gmode);
    Operator &op = P.op();
    const int m = op.Height();
 
@@ -576,6 +605,7 @@ TEST_CASE("The reduced residual survives the linearisation advancing",
 {
    using namespace darcy_linearise_first;
    using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
 
    // "The reduced operator is a function of the trace" asks for the residual
    // twice at a trace the linearisation is already at, where GetGradient() is
@@ -594,9 +624,11 @@ TEST_CASE("The reduced residual survives the linearisation advancing",
    const real_t c = GENERATE(1.0, 1.0e1);
    const auto ordering = GENERATE(Ord::CondenseThenLinearise,
                                   Ord::LineariseThenCondense);
-   CAPTURE(c, ordering == Ord::LineariseThenCondense);
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   CAPTURE(c, ordering == Ord::LineariseThenCondense,
+           gmode == GM::MatrixFree);
 
-   SemilinearHDG P(8, 1, c, ordering);
+   SemilinearHDG P(8, 1, c, ordering, gmode);
    Operator &op = P.op();
    const int m = op.Height();
 
@@ -619,4 +651,334 @@ TEST_CASE("The reduced residual survives the linearisation advancing",
    CAPTURE(rel, ra.Norml2(), rb.Norml2());
    REQUIRE(ra.Norml2() > 0.0);
    REQUIRE(rel < 1.0e-7);
+}
+
+TEST_CASE("The three trace solves reach the same solution",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // Hybridization leaves a choice of how much of the trace system to build,
+   // and all of it has to be available and equivalent:
+   //
+   //   0  assemble the Schur complement and factor it       (direct)
+   //   1  assemble it and solve with a Krylov method        (assembled)
+   //   2  never assemble it, only apply it                  (matrix-free)
+   //
+   // Level 2 is the only one that is Jacobian-free in the sense a hybridized
+   // formulation can be: the local blocks must still be factored per element
+   // on every route -- that is what condensation is -- and what it avoids is
+   // the global matrix, at one local back-substitution per element per
+   // application instead of one per trace dof once.
+   //
+   // The three must agree. They did not: the matrix-free apply left out the
+   // Jacobian's d(flux residual)/dp and the diagonal policy's regularisation
+   // of rows nothing contributes to, so it was a different operator from the
+   // matrix its own GetGradient() would have assembled.
+   const real_t c = GENERATE(1.0, 5.0);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   const real_t src = 4.0;
+   CAPTURE(c, ordering == Ord::LineariseThenCondense);
+
+   // The reference: assembled and solved directly.
+   Vector p_ref;
+   int ref_its = -1;
+   {
+      SemilinearHDG P(6, 1, c, ordering, GM::Assembled, src);
+      GSSmoother prec;
+      GMRESSolver lin;
+      lin.SetKDim(400);
+      lin.SetMaxIter(2000);
+      lin.SetRelTol(1e-14);
+      lin.SetAbsTol(0.0);
+      lin.SetPreconditioner(prec);
+      NewtonSolver newton;
+      newton.SetSolver(lin);
+      newton.SetOperator(P.op());
+      newton.SetRelTol(1e-12);
+      newton.SetAbsTol(1e-14);
+      newton.SetMaxIter(30);
+      newton.SetPrintLevel(-1);
+      newton.Mult(P.B, P.X);
+      REQUIRE(newton.GetConverged());
+      ref_its = newton.GetNumIterations();
+      P.darcy.RecoverFEMSolution(P.X, P.sol);
+      p_ref = P.sol.GetBlock(1);
+   }
+   REQUIRE(p_ref.Normlinf() > 0.0);
+
+   const int level = GENERATE(0, 1, 2);
+   CAPTURE(level);
+
+   SemilinearHDG P(6, 1, c, ordering,
+                   (level == 2) ? GM::MatrixFree : GM::Assembled, src);
+
+   // Level 2 has no matrix, so it must be solved by something that needs only
+   // the action. GSSmoother and the direct solvers all require a SparseMatrix.
+   GSSmoother prec;
+   GMRESSolver gmres;
+   gmres.SetKDim(400);
+   gmres.SetMaxIter(4000);
+   gmres.SetRelTol(1e-13);
+   gmres.SetAbsTol(0.0);
+   gmres.SetPrintLevel(-1);
+   if (level == 1) { gmres.SetPreconditioner(prec); }
+
+#ifdef MFEM_USE_SUITESPARSE
+   UMFPackSolver direct;
+#else
+   GMRESSolver direct;
+   direct.SetKDim(400);
+   direct.SetMaxIter(4000);
+   direct.SetRelTol(1e-14);
+   direct.SetAbsTol(0.0);
+   direct.SetPreconditioner(prec);
+   direct.SetPrintLevel(-1);
+#endif
+
+   NewtonSolver newton;
+   newton.SetSolver((level == 0) ? (Solver &)direct : (Solver &)gmres);
+   newton.SetOperator(P.op());
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-14);
+   newton.SetMaxIter(30);
+   newton.SetPrintLevel(-1);
+   newton.Mult(P.B, P.X);
+
+   CAPTURE(newton.GetNumIterations(), ref_its);
+   REQUIRE(newton.GetConverged());
+
+   P.darcy.RecoverFEMSolution(P.X, P.sol);
+   Vector d(P.sol.GetBlock(1));
+   d -= p_ref;
+   CAPTURE(d.Norml2(), p_ref.Norml2());
+   REQUIRE(d.Norml2() < 1e-9 * p_ref.Norml2());
+}
+
+TEST_CASE("The trace solves agree where the matrix-free apply is hardest",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // "The three trace solves reach the same solution" drives a semilinear
+   // potential mass, which exercises the matrix-free apply mechanically and
+   // tests neither thing that was wrong with it: Bnl is empty there, and the
+   // potential constraint has a boundary face term so no trace row needs the
+   // diagonal policy's regularisation.
+   //
+   // This one drives the block nonlinear form, where both bite. The flux law
+   // depends on the potential, so d(flux residual)/dp is non-empty and the
+   // matrix-free Schur complement used to drop it; and the constraint has no
+   // boundary face term, so 64 of the 160 trace rows are empty and carry a
+   // unit diagonal in the assembled matrix that the apply has to reproduce.
+   // Without either, this test fails.
+   const real_t eps = GENERATE(0.0, 0.5, 5.0);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   CAPTURE(eps, ordering == Ord::LineariseThenCondense);
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   Outcome assembled = Solve(mesh, 1, eps, ordering, 20, GM::Assembled);
+   Outcome matfree = Solve(mesh, 1, eps, ordering, 20, GM::MatrixFree);
+
+   CAPTURE(assembled.converged, matfree.converged,
+           assembled.norms.size(), matfree.norms.size());
+   REQUIRE(assembled.converged);
+   REQUIRE(matfree.converged);
+   REQUIRE(assembled.p.Normlinf() > 1e-4);
+
+   Vector d(matfree.p);
+   d -= assembled.p;
+   CAPTURE(d.Norml2(), assembled.p.Norml2());
+   REQUIRE(d.Norml2() < 1e-9 * assembled.p.Norml2());
+}
+
+namespace darcy_linearise_first
+{
+
+/// The block-nonlinear-form problem of Solve(), stopped before the solve so a
+/// gradient can be compared against a difference quotient at a chosen trace.
+struct CoupledHDG
+{
+   Mesh mesh;
+   ScaledCoupledFlux flux;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace fes_u, fes_p, fes_t;
+   DarcyForm darcy;
+   VectorFunctionCoefficient gcoeff;
+   Array<int> ess;
+   OperatorPtr op;
+   Vector X, RHS;
+   BlockVector x;
+
+   CoupledHDG(int n, int order, real_t eps,
+              DarcyHybridization::NLOrdering ordering,
+              DarcyHybridization::GradientMode gmode)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL)),
+        flux(2, eps), u_coll(order, 2), p_coll(order, 2), t_coll(order, 2),
+        fes_u(&mesh, &u_coll, 2*2, Ordering::byNODES),
+        fes_p(&mesh, &p_coll, 2, Ordering::byNODES),
+        fes_t(&mesh, &t_coll, 2, Ordering::byNODES),
+        darcy(&fes_u, &fes_p), gcoeff(2, SourceTerm)
+   {
+      BlockNonlinearForm *Mnl = darcy.GetBlockNonlinearForm();
+      Mnl->AddDomainIntegrator(new MixedConductionNLFIntegrator(flux));
+      auto *face = new MixedConductionNLFIntegrator(flux);
+      Vector taus(2);
+      taus = 1.0;
+      face->SetVariableStabilization(taus);
+      Mnl->AddInteriorFaceIntegrator(face);
+
+      MixedBilinearForm *Bform = darcy.GetFluxDivForm();
+      Bform->AddDomainIntegrator(
+         new VectorBlockDiagonalIntegrator(2, new VectorDivergenceIntegrator));
+      Bform->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
+                                          2, new TransposeIntegrator(
+                                             new DGNormalTraceIntegrator(-1.))));
+
+      darcy.GetPotentialRHS()->AddDomainIntegrator(
+         new VectorDomainLFIntegrator(gcoeff));
+
+      darcy.EnableHybridization(&fes_t, new VectorBlockDiagonalIntegrator(
+                                   2, new NormalTraceJumpIntegrator), ess);
+      darcy.Assemble();
+
+      DarcyHybridization *dh = darcy.GetHybridization();
+      dh->SetLocalNLSolver(DarcyHybridization::LSsolveType::Newton, 100, 1e-13,
+                           1e-15, -1);
+      dh->SetNonlinearOrdering(ordering);
+      dh->SetGradientMode(gmode);
+
+      x.Update(darcy.GetOffsets());
+      x = 0.0;
+      darcy.FormLinearSystem(ess, x, op, X, RHS, true);
+   }
+};
+
+} // namespace darcy_linearise_first
+
+TEST_CASE("Both reduced gradients are the derivative on a coupled flux law",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // This is the case that has teeth for the matrix-free apply, and a solve
+   // does not: a wrong Jacobian changes the path Newton takes, not the root it
+   // reaches, so "the three levels agree on the answer" passes with the
+   // gradient broken. Only a difference quotient catches it.
+   //
+   // The flux law here depends on the potential, so the local Jacobian's (0,1)
+   // block is -/+B^T PLUS d(flux residual)/dp. The matrix-free Schur
+   // complement applied the linear part alone and was wrong by the rest.
+   const real_t eps = GENERATE(0.5, 5.0);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   CAPTURE(eps, ordering == Ord::LineariseThenCondense,
+           gmode == GM::MatrixFree);
+
+   CoupledHDG P(4, 1, eps, ordering, gmode);
+   Operator &op = *P.op;
+   const int m = op.Height();
+
+   Vector x(m), v(m), Jv(m), r0(m);
+   x.Randomize(11);
+   x *= 0.05;
+   v.Randomize(13);
+   v *= 1.0/v.Norml2();
+
+   op.Mult(x, r0);
+   op.GetGradient(x);
+
+   const real_t h = 1e-6;
+   Vector xp(x), xm(x), rp(m), rm(m);
+   xp.Add(h, v);
+   xm.Add(-h, v);
+   op.Mult(xp, rp);
+   op.Mult(xm, rm);
+   Vector fd(rp);
+   fd -= rm;
+   fd *= 1.0/(2.0*h);
+
+   op.GetGradient(x).Mult(v, Jv);
+
+   // This problem's constraint has no boundary face term, so the trace rows on
+   // the boundary get no contribution at all: the residual is identically zero
+   // there and the diagonal policy gives them a unit row. A difference
+   // quotient has nothing to say about such a row -- it moved by exactly zero
+   // -- so they come out here, the same way the essential rows do elsewhere.
+   int compared = 0;
+   real_t num = 0.0, den = 0.0;
+   for (int i = 0; i < m; i++)
+   {
+      if (rp(i) == rm(i)) { continue; }
+      const real_t d = Jv(i) - fd(i);
+      num += d*d;
+      den += fd(i)*fd(i);
+      compared++;
+   }
+   const real_t rel = std::sqrt(num)/std::max(real_t(1e-300), std::sqrt(den));
+
+   CAPTURE(rel, compared, m);
+   REQUIRE(compared > m/4);
+   REQUIRE(den > 0.0);
+   REQUIRE(rel < 1.0e-7);
+}
+
+TEST_CASE("Assembling the reduced gradient and applying it give one operator",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // The two gradient modes must be the same operator, not merely two things
+   // a Krylov method can be driven to the same answer with. This compares them
+   // row for row, which the difference-quotient test cannot: a difference
+   // quotient has nothing to say about a row the residual never moves, and
+   // those are exactly the rows the diagonal policy regularises.
+   //
+   // Both halves of that matter and neither is caught by a solve. Dropping
+   // d(flux residual)/dp from the apply leaves the two disagreeing by 1e-3 on
+   // the live rows; dropping the regularisation leaves them disagreeing by
+   // 0.57 overall, on the 64 boundary trace rows of 160 that carry a unit
+   // diagonal in the matrix and nothing at all in the apply.
+   const real_t eps = GENERATE(0.0, 0.5, 5.0);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   CAPTURE(eps, ordering == Ord::LineariseThenCondense);
+
+   CoupledHDG A(4, 1, eps, ordering, GM::Assembled);
+   CoupledHDG M(4, 1, eps, ordering, GM::MatrixFree);
+   const int m = A.op->Height();
+   REQUIRE(M.op->Height() == m);
+
+   Vector x(m), v(m), ya(m), ym(m), r(m);
+   x.Randomize(11);
+   x *= 0.05;
+   v.Randomize(13);
+   v *= 1.0/v.Norml2();
+
+   // Both are put in the same state first: a residual, then a gradient at the
+   // same trace, which is the order NewtonSolver uses and the only one in
+   // which a retained linearisation is defined.
+   A.op->Mult(x, r);
+   M.op->Mult(x, r);
+   A.op->GetGradient(x).Mult(v, ya);
+   M.op->GetGradient(x).Mult(v, ym);
+
+   Vector d(ym);
+   d -= ya;
+   const real_t rel = d.Norml2()/std::max(real_t(1e-300), ya.Norml2());
+   CAPTURE(rel, ya.Norml2(), ym.Norml2());
+   REQUIRE(ya.Norml2() > 0.0);
+   REQUIRE(rel < 1.0e-12);
 }

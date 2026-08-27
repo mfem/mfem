@@ -23,7 +23,6 @@
 #include <functional>
 
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
-#define MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
 namespace mfem
 {
@@ -203,6 +202,30 @@ public:
       LineariseThenCondense,
    };
 
+   /** @brief Whether the reduced (trace) gradient is assembled as a sparse
+       matrix or only applied.
+
+       Both build the same operator and both need the local blocks factored
+       once per linearisation -- that is what condensation is, and no setting
+       avoids it. They differ in whether the global trace matrix is formed.
+
+       Assembling costs one local back-substitution per trace dof of the
+       element, so it is worth roughly that many matrix-free applications: six
+       for k = 1 triangles, near a hundred for k = 3 hexes. Against that it
+       buys a matrix a direct solver or an algebraic preconditioner can use, so
+       it wins outright at low order. MatrixFree carries no global matrix at
+       all, does no sparse gather or scatter, and does identical work on every
+       element; the case for it is memory and device fitness, and the cost of
+       it is that GS, AMG and a direct factorisation are no longer available to
+       precondition the trace solve. */
+   enum class GradientMode
+   {
+      /// Assemble the Schur complement; GetGradient() returns a SparseMatrix.
+      Assembled,
+      /// Apply it; GetGradient() returns an Operator with no stored matrix.
+      MatrixFree,
+   };
+
 protected:
    FiniteElementSpace &fes_p;       ///< potential FE space
 #ifdef MFEM_USE_MPI
@@ -318,6 +341,7 @@ private:
    mutable Array<int> f_2_b;
 
    NLOrdering nl_ordering{NLOrdering::CondenseThenLinearise};
+   GradientMode grad_mode{GradientMode::Assembled};
    mutable long num_local_nl_iters{0};
 
    /** @brief The point the local Jacobian in @a Af_data, @a Df_data and
@@ -341,8 +365,22 @@ private:
    mutable std::unique_ptr<SparseMatrix> Grad;
    mutable OperatorHandle pGrad;
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+   /** @brief Trace dofs whose row in the assembled reduced gradient would be
+       empty, and which the diagonal policy therefore regularises.
+
+       Rebuilt by GetGradient() in GradientMode::MatrixFree, where there is no
+       matrix for SetDiagIdentity() to act on. A row is empty when every face
+       carrying the dof contributes nothing through C, G or H, which is what
+       happens to a boundary trace dof of a problem whose constraint has no
+       boundary face term. Without this the two modes are different operators
+       -- the matrix-free one singular exactly where the assembled one was
+       regularised to be nonsingular. */
+   mutable Array<int> mf_diag_marker;
+   /// Fill @a mf_diag_marker; see it.
+   void MarkEmptyTraceRows() const;
+
    friend class Gradient;
+   /// The reduced gradient applied rather than assembled; see GradientMode.
    class Gradient : public Operator
    {
       const DarcyHybridization &dh;
@@ -352,7 +390,6 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override;
    };
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 
 #ifdef MFEM_USE_MPI
    friend class ParOperator;
@@ -369,7 +406,6 @@ private:
    };
    mutable OperatorHandle pOp;
 
-#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
    class ParGradient : public Operator
    {
       const DarcyHybridization &dh;
@@ -379,7 +415,6 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override;
    };
-#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
 #endif //MFEM_USE_MPI
 
    enum class LocalOpType { FluxNL, PotNL, FullNL };
@@ -529,7 +564,14 @@ private:
    void InvertA();
    void InvertD();
    void GetElementFaces(int el, Array<int> &faces) const;
-   enum class ComputeHMode { Linear, Gradient };
+   /** @brief What ComputeH() is being asked for.
+
+       GradientFactorOnly does the first half of Gradient -- factoring A and
+       the Schur complement of every element, with the Jacobian's (0,1) block
+       -- and stops before assembling the global matrix. It is what
+       GradientMode::MatrixFree needs, and it is also all the initialisation
+       pass in MultNL() ever needed: that pass discarded the matrix it built. */
+   enum class ComputeHMode { Linear, Gradient, GradientFactorOnly };
    void ComputeH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H) const;
 #ifdef MFEM_USE_MPI
    void ComputeParH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H,
@@ -661,6 +703,25 @@ public:
 
    /// The ordering set by SetNonlinearOrdering().
    NLOrdering GetNonlinearOrdering() const { return nl_ordering; }
+
+   /** @brief Choose whether GetGradient() assembles the reduced system or only
+       applies it. See GradientMode; the default is Assembled, which is what
+       every caller written before this existed gets.
+
+       GradientMode::MatrixFree returns an Operator with no stored matrix, so a
+       caller must solve with something that needs only the action -- an
+       unpreconditioned Krylov method, or one preconditioned by something not
+       built from the matrix. GSSmoother, UMFPackSolver and the algebraic
+       preconditioners all require a SparseMatrix and will abort.
+
+       Not supported when only the flux mass is nonlinear
+       (LocalOpType::FluxNL): the Schur complement has nowhere to live there,
+       @a Df_data being occupied by the factored linear potential mass.
+       GetGradient() aborts rather than returning something wrong. */
+   void SetGradientMode(GradientMode mode);
+
+   /// The mode set by SetGradientMode().
+   GradientMode GetGradientMode() const { return grad_mode; }
 
    /** @brief The number of local nonlinear iterations performed, summed over
        elements and over every residual and gradient evaluation.
