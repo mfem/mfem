@@ -179,13 +179,20 @@ int main(int argc, char *argv[])
     const int n_dir = static_cast<int>(ray_dirs.size());
     // const int n_dir = 0;
 
-    for (int l = 0; l < ref_levels; l++)
+    const int serial_ref = std::min(3, ref_levels);
+
+    for (int l = 0; l < serial_ref; l++)
     {
         mesh.UniformRefinement();
     }
 
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
+
+    for (int l = serial_ref; l < ref_levels; l++)
+    {
+        pmesh.UniformRefinement();
+    }
 
     ParSubMesh design_domain = ParSubMesh::CreateFromDomain(pmesh, domain_attr);
 
@@ -1018,8 +1025,8 @@ static MeshProblem SetupDisk6Holes(Mesh &mesh, const char *mesh_file)
     MeshProblem p;
     p.domain_attr.Append(1);
     p.outer_bdr_attrs = Array<int>({1});
-    p.rays.parallel = { 16, 2 * M_PI, 0.0 };
-    p.rays.cone     = { 16, 2 * M_PI, 0.0 };
+    p.rays.parallel = { 10, 2 * M_PI, 0.0 };
+    p.rays.cone     = { 10, 2 * M_PI, 0.0 };
 
     p.cases.resize(1);
     LoadCase &lc = p.cases[0];
