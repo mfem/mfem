@@ -252,6 +252,20 @@ int main()
    failures += !Check("two-block diagonal in-place transpose application",
                       block_transpose_in_place, expected_transpose, tolerance);
 
+   // Distinct Vector objects may still alias the same underlying storage.
+   Vector aliased_storage(rhs);
+   Vector aliased_input, aliased_output;
+   aliased_input.MakeRef(aliased_storage, 0, aliased_storage.Size());
+   aliased_output.MakeRef(aliased_storage, 0, aliased_storage.Size());
+   block_diagonal.Mult(aliased_input, aliased_output);
+   failures += !Check("two-block diagonal shared-storage alias",
+                      aliased_output, expected, tolerance);
+
+   aliased_storage = rhs;
+   block_diagonal.MultTranspose(aliased_input, aliased_output);
+   failures += !Check("two-block diagonal transpose shared-storage alias",
+                      aliased_output, expected_transpose, tolerance);
+
    std::cout << (failures == 0 ? "ALL TESTS PASSED\n" : "TESTS FAILED\n");
    return failures == 0 ? 0 : 2;
 }

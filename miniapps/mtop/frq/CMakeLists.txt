@@ -30,6 +30,7 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
                                   frequency_domain_preconditioners.cpp
                     EXTRA_HEADERS frequency_domain_elasticity_solver.hpp
                                   frequency_domain_elasticity.hpp
+                                  frequency_domain_driver_utils.hpp
                                   frequency_domain_preconditioners.hpp
                     LIBRARIES mfem)
 
@@ -40,6 +41,7 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
                                   frequency_domain_preconditioners.cpp
                     EXTRA_HEADERS frequency_domain_elasticity_solver.hpp
                                   frequency_domain_elasticity.hpp
+                                  frequency_domain_driver_utils.hpp
                                   frequency_domain_preconditioners.hpp
                     LIBRARIES mfem)
 endif()

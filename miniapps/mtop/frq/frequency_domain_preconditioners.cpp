@@ -44,7 +44,6 @@ void VerifySquareOperator(const Operator &op, const char *name)
 /// Only these two constituent actions are retained, so this constructor is
 /// independent of how W, T, and H were assembled. The two operators are
 /// non-owning. The full real-block size exposed through mfem::Solver is 2n.
-/// Block vectors (input_, output_) are sized according to block_offsets_.
 /// Work vectors are configured to use device memory when MFEM device support
 /// is enabled.
 PRESBPreconditioner::PRESBPreconditioner(const Operator &T,
@@ -55,14 +54,10 @@ PRESBPreconditioner::PRESBPreconditioner(const Operator &T,
      H_inverse_(&H_inverse),
      imaginary_sign_(imaginary_sign),
      block_size_(T.Height()),
-     block_offsets_(MakeTwoBlockOffsets(block_size_)),
-     input_(block_offsets_),
-     output_(block_offsets_),
      first_rhs_(block_size_),
      second_rhs_(block_size_),
      first_solution_(block_size_),
-     second_solution_(block_size_),
-     work_(block_size_)
+     second_solution_(block_size_)
 {
    VerifySquareOperator(T, "T");
    VerifySquareOperator(H_inverse, "H inverse");
@@ -76,16 +71,10 @@ PRESBPreconditioner::PRESBPreconditioner(const Operator &T,
    // Enable device execution for all work vectors. This allows GPU operation
    // when MFEM is configured with device support and the input vectors and
    // operators are device-capable.
-   input_.UseDevice(true);
-   output_.UseDevice(true);
-   input_.SyncToBlocks();
-   output_.SyncToBlocks();
    first_rhs_.UseDevice(true);
    second_rhs_.UseDevice(true);
    first_solution_.UseDevice(true);
    second_solution_.UseDevice(true);
-   work_.UseDevice(true);
-
 }
 
 /// Check the [real; imaginary] input length before accessing its blocks.
@@ -122,11 +111,8 @@ void PRESBPreconditioner::Mult(const Vector &b, Vector &x) const
 {
    ValidateInput(b);
 
-   // Only copy if input and output alias (in-place operation)
-   const bool aliased = (&b == &x);
-
    // Create block views directly from input to avoid full vector copy
-   const real_t *b_data = b.Read();
+   b.Read();
    Vector b_real_view, b_imag_view;
    b_real_view.MakeRef(const_cast<Vector&>(b), 0, block_size_);
    b_imag_view.MakeRef(const_cast<Vector&>(b), block_size_, block_size_);
@@ -182,6 +168,7 @@ void PRESBPreconditioner::MultTranspose(const Vector &b, Vector &x) const
    ValidateInput(b);
 
    // Create block views directly from input
+   b.Read();
    Vector b_real_view, b_imag_view;
    b_real_view.MakeRef(const_cast<Vector&>(b), 0, block_size_);
    b_imag_view.MakeRef(const_cast<Vector&>(b), block_size_, block_size_);
@@ -272,6 +259,9 @@ void RealBlockDiagonalPreconditioner::Mult(const Vector &b, Vector &x) const
 {
    ValidateInput(b);
 
+   // Always stage the input because distinct Vector objects can still refer to
+   // the same memory. Object-address comparison is not sufficient to detect
+   // that form of aliasing, and H_inverse need not support in-place use.
    input_.Set(1.0, b);
    input_.SyncToBlocks();
    H_inverse_->Mult(input_.GetBlock(0), output_.GetBlock(0));
@@ -291,6 +281,8 @@ void RealBlockDiagonalPreconditioner::MultTranspose(const Vector &b,
 {
    ValidateInput(b);
 
+   // See Mult(): staging is required for aliases represented by different
+   // Vector objects as well as for the exact same object.
    input_.Set(1.0, b);
    input_.SyncToBlocks();
    H_inverse_->MultTranspose(input_.GetBlock(0), output_.GetBlock(0));

@@ -132,14 +132,10 @@ private:
    int imaginary_sign_;
    int block_size_;
 
-   Array<int> block_offsets_;
-   mutable BlockVector input_;
-   mutable BlockVector output_;
    mutable Vector first_rhs_;
    mutable Vector second_rhs_;
    mutable Vector first_solution_;
    mutable Vector second_solution_;
-   mutable Vector work_;
 };
 
 /// Apply a block-diagonal inverse to the symmetric real formulation.

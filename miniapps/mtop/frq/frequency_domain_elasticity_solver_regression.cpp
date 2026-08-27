@@ -61,6 +61,30 @@ void ZeroEssentialEntries(const Array<int> &essential_tdofs, Vector &vector)
    }
 }
 
+/// Vector coefficient whose value can be changed between solver applications.
+class MutableVectorCoefficient : public VectorCoefficient
+{
+public:
+   explicit MutableVectorCoefficient(const Vector &value)
+      : VectorCoefficient(value.Size()), value_(value) { }
+
+   void SetValue(const Vector &value)
+   {
+      MFEM_VERIFY(value.Size() == GetVDim(),
+                  "Mutable coefficient dimension changed.");
+      value_ = value;
+   }
+
+   void Eval(Vector &value, ElementTransformation &,
+             const IntegrationPoint &) override
+   {
+      value = value_;
+   }
+
+private:
+   Vector value_;
+};
+
 /// Apply the common low-frequency material and homogeneous boundary setup.
 void ConfigureSolver(FrequencyDomainLinearElasticitySolver &solver)
 {
@@ -149,10 +173,10 @@ bool CheckComplexBoundaryLifting(ParFiniteElementSpace &space)
       real_boundary(1) = -0.021;
       imaginary_boundary(1) = 0.027;
    }
-   std::shared_ptr<VectorCoefficient> real_coefficient(
-      new VectorConstantCoefficient(real_boundary));
-   std::shared_ptr<VectorCoefficient> imaginary_coefficient(
-      new VectorConstantCoefficient(imaginary_boundary));
+   std::shared_ptr<MutableVectorCoefficient> real_coefficient(
+      new MutableVectorCoefficient(real_boundary));
+   std::shared_ptr<MutableVectorCoefficient> imaginary_coefficient(
+      new MutableVectorCoefficient(imaginary_boundary));
    solver.AddDisplacementBC(1, real_coefficient, imaginary_coefficient);
 
    ParComplexGridFunction exact_grid_function(&space);
@@ -198,7 +222,29 @@ bool CheckComplexBoundaryLifting(ParFiniteElementSpace &space)
    const bool repeated_solve =
       CheckValue("complex displacement lifting after transpose",
                  repeated_solution.Normlinf(), 1.0e-7, space.GetComm());
-   return initial_solve && repeated_solve;
+
+   // A coefficient changed in place must be explicitly invalidated without
+   // forcing the matrix and preconditioner to be rebuilt.
+   real_boundary(0) += 0.013;
+   imaginary_boundary(0) -= 0.009;
+   real_coefficient->SetValue(real_boundary);
+   imaginary_coefficient->SetValue(imaginary_boundary);
+   solver.BoundaryValuesChanged();
+   exact_grid_function.real().ProjectBdrCoefficient(
+      *real_coefficient, marker);
+   exact_grid_function.imag().ProjectBdrCoefficient(
+      *imaginary_coefficient, marker);
+   exact_grid_function.real().SyncAliasMemory(exact_grid_function);
+   exact_grid_function.imag().SyncAliasMemory(exact_grid_function);
+   exact_grid_function.ParallelProject(exact_true);
+   reference.Mult(exact_true, rhs);
+   Vector updated_solution;
+   solver.Mult(rhs, updated_solution);
+   updated_solution -= exact_true;
+   const bool updated_solve =
+      CheckValue("updated complex displacement lifting",
+                 updated_solution.Normlinf(), 1.0e-7, space.GetComm());
+   return initial_solve && repeated_solve && updated_solve;
 }
 
 /// Verify real, imaginary-only, volume, and traction load assembly by residual.
@@ -357,9 +403,20 @@ int main(int argc, char *argv[])
       solver.SetHInverseType(
          FrequencyDomainLinearElasticitySolver::HInverseType::
          LORMonolithicCGAMG);
-      const bool selected_fgmres =
-         solver.GetActiveLinearSolverType() ==
-         FrequencyDomainLinearElasticitySolver::LinearSolverType::FGMRES;
+      solver.Assemble();
+      // Inspection getters must remain safe when called only on rank zero.
+      int rank = 0;
+      MPI_Comm_rank(space.GetComm(), &rank);
+      int selected_fgmres = 0;
+      if (rank == 0)
+      {
+         // SetOperator must not perform collective lazy assembly.
+         solver.SetOperator(solver.GetFrequencyDomainOperator());
+         selected_fgmres =
+            solver.GetActiveLinearSolverType() ==
+            FrequencyDomainLinearElasticitySolver::LinearSolverType::FGMRES;
+      }
+      MPI_Bcast(&selected_fgmres, 1, MPI_INT, 0, space.GetComm());
       failures += !CheckValue("automatic FGMRES selection",
                               selected_fgmres ? 0.0 : 1.0, 0.0,
                               space.GetComm());

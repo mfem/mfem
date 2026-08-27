@@ -33,6 +33,10 @@ CANTILEVER_MMS_OBJECTS = frequency_domain_cantilever_mms_regression.o \
 	frequency_domain_elasticity.o \
 	frequency_domain_preconditioners.o
 
+frequency_domain_cantilever.o \
+frequency_domain_cantilever_mms_regression.o: \
+	frequency_domain_driver_utils.hpp
+
 .DEFAULT_GOAL := all
 
 .SUFFIXES:

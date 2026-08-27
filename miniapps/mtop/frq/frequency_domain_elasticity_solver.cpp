@@ -2,6 +2,7 @@
 
 #include "frequency_domain_elasticity_solver.hpp"
 
+#include <algorithm>
 #include <utility>
 
 namespace mfem
@@ -159,6 +160,70 @@ private:
    Ordering::Type inner_ordering_;
    mutable Vector inner_x_;
    mutable Vector inner_y_;
+};
+
+/// Count applications of an owned solver and its iterative work.
+///
+/// For an IterativeSolver, work is the sum of the iterations reported after
+/// every application. For a fixed AMG action, @a fixed_work_per_application is
+/// one V-cycle. Direct inverse actions use zero because they have no iterations.
+class InstrumentedSolver : public Solver
+{
+public:
+   InstrumentedSolver(std::unique_ptr<Solver> solver,
+                      const int fixed_work_per_application = 0)
+      : Solver(solver ? solver->Height() : 0,
+               solver ? solver->Width() : 0),
+        solver_(std::move(solver)),
+        fixed_work_per_application_(fixed_work_per_application)
+   {
+      MFEM_VERIFY(solver_, "Instrumented solver is null.");
+   }
+
+   void SetOperator(const Operator &op) override
+   {
+      solver_->SetOperator(op);
+      height = solver_->Height();
+      width = solver_->Width();
+   }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      solver_->iterative_mode = iterative_mode;
+      solver_->Mult(x, y);
+      RecordApplication();
+   }
+
+   void MultTranspose(const Vector &x, Vector &y) const override
+   {
+      solver_->iterative_mode = iterative_mode;
+      solver_->MultTranspose(x, y);
+      RecordApplication();
+   }
+
+   void ResetStatistics() const
+   {
+      applications_ = 0;
+      iterations_ = 0;
+   }
+
+   int GetApplications() const { return applications_; }
+   int GetIterations() const { return iterations_; }
+
+private:
+   void RecordApplication() const
+   {
+      ++applications_;
+      const IterativeSolver *iterative =
+         dynamic_cast<const IterativeSolver *>(solver_.get());
+      iterations_ += iterative ? std::max(0, iterative->GetNumIterations()) :
+                     fixed_work_per_application_;
+   }
+
+   std::unique_ptr<Solver> solver_;
+   int fixed_work_per_application_;
+   mutable int applications_ = 0;
+   mutable int iterations_ = 0;
 };
 
 } // namespace
@@ -498,6 +563,12 @@ void FrequencyDomainLinearElasticitySolver::MaterialChanged()
 {
    operator_.MaterialChanged();
    SetNeedsAssembly();
+}
+
+/// Invalidate cached prescribed displacement values after coefficient updates.
+void FrequencyDomainLinearElasticitySolver::BoundaryValuesChanged() const
+{
+   boundary_values_stale_ = true;
 }
 
 /// Add a homogeneous displacement boundary attribute.
@@ -840,11 +911,23 @@ void FrequencyDomainLinearElasticitySolver::SetNeedsAssembly(
       lor_h_coefficients_.clear();
       lor_fespace_.reset();
       lor_discretization_.reset();
+      active_solver_type_ = LinearSolverType::Automatic;
       has_previous_solution_ = false;
       num_iterations_ = 0;
-      // Note: boundary_values_stale_ is NOT reset here because boundary
-      // conditions are independent of operator assembly. It's managed
-      // separately through AddBoundaryID(), AddDisplacementBC(), etc.
+      converged_ = false;
+      initial_norm_ = -1.0;
+      final_norm_ = -1.0;
+      preconditioner_applications_ = 0;
+      h_inverse_applications_ = 0;
+      h_inverse_iterations_ = 0;
+      assembly_time_ = 0.0;
+      preconditioner_assembly_time_ = 0.0;
+      solver_setup_time_ = 0.0;
+      load_assembly_time_ = 0.0;
+      linear_solve_time_ = 0.0;
+      solution_distribution_time_ = 0.0;
+      // Boundary projection validity is tracked separately because most setup
+      // changes do not affect prescribed displacement data.
    }
    needs_assembly_ = value;
 }
@@ -1169,7 +1252,7 @@ void FrequencyDomainLinearElasticitySolver::BuildHInverse() const
       mumps->SetMatrixSymType(
          MUMPSSolver::MatType::SYMMETRIC_POSITIVE_DEFINITE);
       mumps->SetOperator(*h_matrix_);
-      h_inverse_ = std::move(mumps);
+      h_inverse_.reset(new InstrumentedSolver(std::move(mumps)));
       if (Device::IsEnabled() && preconditioner_print_level_ >= 0 &&
           IsRoot(fespace_.GetComm()))
       {
@@ -1202,7 +1285,7 @@ void FrequencyDomainLinearElasticitySolver::BuildHInverse() const
 
    if (h_inverse_type_ == HInverseType::LORMonolithicAMG)
    {
-      h_inverse_ = std::move(reordered);
+      h_inverse_.reset(new InstrumentedSolver(std::move(reordered), 1));
       return;
    }
 
@@ -1217,7 +1300,7 @@ void FrequencyDomainLinearElasticitySolver::BuildHInverse() const
    cg->SetPreconditioner(*h_auxiliary_preconditioner_);
    cg->iterative_mode = false;
 
-   h_inverse_ = std::move(cg);
+   h_inverse_.reset(new InstrumentedSolver(std::move(cg)));
 }
 
 /// Construct the selected block preconditioner and report its traits.
@@ -1232,15 +1315,19 @@ FrequencyDomainLinearElasticitySolver::BuildBlockPreconditioner() const
    {
       traits.convention = ComplexOperator::HERMITIAN;
       traits.symmetric_positive_definite = false;
-      preconditioner_.reset(new PRESBPreconditioner(
-                               operator_.GetTOperator(), *h_inverse_, 1));
+      std::unique_ptr<Solver> presb(new PRESBPreconditioner(
+                                      operator_.GetTOperator(),
+                                      *h_inverse_, 1));
+      preconditioner_.reset(new InstrumentedSolver(std::move(presb)));
    }
    else
    {
       traits.convention = ComplexOperator::BLOCK_SYMMETRIC;
       traits.symmetric_positive_definite = !traits.variable;
-      preconditioner_.reset(
+      std::unique_ptr<Solver> block_diagonal(
          new RealBlockDiagonalPreconditioner(*h_inverse_));
+      preconditioner_.reset(
+         new InstrumentedSolver(std::move(block_diagonal)));
    }
    return traits;
 }
@@ -1393,8 +1480,10 @@ void FrequencyDomainLinearElasticitySolver::Assemble() const
       if (preconditioner_type_ == PreconditionerType::PRESB)
       {
          transpose_operator_.reset(new TransposeOperator(*system_operator_));
-         transpose_preconditioner_.reset(new PRESBPreconditioner(
+         std::unique_ptr<Solver> transpose_presb(new PRESBPreconditioner(
             operator_.GetTOperator(), *h_inverse_, -1));
+         transpose_preconditioner_.reset(
+            new InstrumentedSolver(std::move(transpose_presb)));
          transpose_solver_ = BuildIterativeSolver(
                                 active_solver_type_, *transpose_operator_,
                                 *transpose_preconditioner_);
@@ -1410,6 +1499,15 @@ void FrequencyDomainLinearElasticitySolver::Assemble() const
    needs_assembly_ = false;
    has_previous_solution_ = false;
    num_iterations_ = 0;
+   converged_ = false;
+   initial_norm_ = -1.0;
+   final_norm_ = -1.0;
+   preconditioner_applications_ = 0;
+   h_inverse_applications_ = 0;
+   h_inverse_iterations_ = 0;
+   load_assembly_time_ = 0.0;
+   linear_solve_time_ = 0.0;
+   solution_distribution_time_ = 0.0;
 }
 
 /// Negate the imaginary block without forcing host synchronization.
@@ -1449,11 +1547,15 @@ void FrequencyDomainLinearElasticitySolver::SolveForward(
 {
    MFEM_VERIFY(rhs.Size() == Width(), "RHS has incompatible size.");
 
-   // Lazy boundary assembly: only rebuild when boundary conditions changed
-   if (boundary_values_stale_)
+   // Reproject when boundary data changed or the finite element space was
+   // updated. Coefficients changed in place are reported through
+   // BoundaryValuesChanged().
+   if (boundary_values_stale_ ||
+       boundary_fespace_sequence_ != fespace_.GetSequence())
    {
       BuildBoundaryTrueVector(boundary_true_values_);
       boundary_values_stale_ = false;
+      boundary_fespace_sequence_ = fespace_.GetSequence();
    }
 
    solve_rhs_ = rhs;
@@ -1468,12 +1570,23 @@ void FrequencyDomainLinearElasticitySolver::SolveForward(
    solution.UseDevice(true);
    if (!use_initial_guess) { solution = 0.0; }
    InsertBoundaryValues(boundary_true_values_, solution);
+   InstrumentedSolver *counted_preconditioner =
+      dynamic_cast<InstrumentedSolver *>(preconditioner_.get());
+   InstrumentedSolver *counted_h_inverse =
+      dynamic_cast<InstrumentedSolver *>(h_inverse_.get());
+   if (counted_preconditioner) { counted_preconditioner->ResetStatistics(); }
+   if (counted_h_inverse) { counted_h_inverse->ResetStatistics(); }
+   StopWatch solve_timer;
+   solve_timer.Start();
    if (active_solver_type_ == LinearSolverType::MUMPS)
    {
       MFEM_VERIFY(direct_solver_, "MUMPS solver is not assembled.");
       direct_solver_->iterative_mode = false;
       direct_solver_->Mult(solve_rhs_, solution);
       num_iterations_ = 0;
+      converged_ = true;
+      initial_norm_ = -1.0;
+      final_norm_ = -1.0;
    }
    else
    {
@@ -1481,7 +1594,18 @@ void FrequencyDomainLinearElasticitySolver::SolveForward(
       iterative_solver_->iterative_mode = use_initial_guess;
       iterative_solver_->Mult(solve_rhs_, solution);
       num_iterations_ = iterative_solver_->GetNumIterations();
+      converged_ = iterative_solver_->GetConverged();
+      initial_norm_ = iterative_solver_->GetInitialNorm();
+      final_norm_ = iterative_solver_->GetFinalNorm();
    }
+   solve_timer.Stop();
+   linear_solve_time_ = solve_timer.RealTime();
+   preconditioner_applications_ = counted_preconditioner ?
+                                  counted_preconditioner->GetApplications() : 0;
+   h_inverse_applications_ = counted_h_inverse ?
+                             counted_h_inverse->GetApplications() : 0;
+   h_inverse_iterations_ = counted_h_inverse ?
+                           counted_h_inverse->GetIterations() : 0;
    InsertBoundaryValues(boundary_true_values_, solution);
 }
 
@@ -1497,6 +1621,8 @@ void FrequencyDomainLinearElasticitySolver::Mult(
 void FrequencyDomainLinearElasticitySolver::MultAssembled(
    const Vector &rhs, Vector &solution) const
 {
+   load_assembly_time_ = 0.0;
+   solution_distribution_time_ = 0.0;
    SolveForward(rhs, solution, iterative_mode);
 }
 
@@ -1512,6 +1638,8 @@ void FrequencyDomainLinearElasticitySolver::MultTranspose(
 void FrequencyDomainLinearElasticitySolver::MultTransposeAssembled(
    const Vector &rhs, Vector &solution) const
 {
+   load_assembly_time_ = 0.0;
+   solution_distribution_time_ = 0.0;
    MFEM_VERIFY(rhs.Size() == Height(), "Transpose RHS has incompatible size.");
    solve_rhs_ = rhs;
    Vector homogeneous_boundary(Height());
@@ -1523,12 +1651,26 @@ void FrequencyDomainLinearElasticitySolver::MultTransposeAssembled(
    solution.UseDevice(true);
    if (!iterative_mode) { solution = 0.0; }
 
+   InstrumentedSolver *counted_preconditioner =
+      dynamic_cast<InstrumentedSolver *>(
+         preconditioner_type_ == PreconditionerType::PRESB ?
+         transpose_preconditioner_.get() : preconditioner_.get());
+   InstrumentedSolver *counted_h_inverse =
+      dynamic_cast<InstrumentedSolver *>(h_inverse_.get());
+   if (counted_preconditioner) { counted_preconditioner->ResetStatistics(); }
+   if (counted_h_inverse) { counted_h_inverse->ResetStatistics(); }
+   StopWatch solve_timer;
+   solve_timer.Start();
+
    if (active_solver_type_ == LinearSolverType::MUMPS)
    {
       direct_solver_->iterative_mode = false;
       direct_solver_->Mult(solve_rhs_, solution);
       NegateImaginaryBlock(solution);
       num_iterations_ = 0;
+      converged_ = true;
+      initial_norm_ = -1.0;
+      final_norm_ = -1.0;
    }
    else if (preconditioner_type_ == PreconditionerType::PRESB)
    {
@@ -1536,6 +1678,9 @@ void FrequencyDomainLinearElasticitySolver::MultTransposeAssembled(
       transpose_solver_->iterative_mode = iterative_mode;
       transpose_solver_->Mult(solve_rhs_, solution);
       num_iterations_ = transpose_solver_->GetNumIterations();
+      converged_ = transpose_solver_->GetConverged();
+      initial_norm_ = transpose_solver_->GetInitialNorm();
+      final_norm_ = transpose_solver_->GetFinalNorm();
    }
    else
    {
@@ -1544,7 +1689,18 @@ void FrequencyDomainLinearElasticitySolver::MultTransposeAssembled(
       iterative_solver_->Mult(solve_rhs_, solution);
       NegateImaginaryBlock(solution);
       num_iterations_ = iterative_solver_->GetNumIterations();
+      converged_ = iterative_solver_->GetConverged();
+      initial_norm_ = iterative_solver_->GetInitialNorm();
+      final_norm_ = iterative_solver_->GetFinalNorm();
    }
+   solve_timer.Stop();
+   linear_solve_time_ = solve_timer.RealTime();
+   preconditioner_applications_ = counted_preconditioner ?
+                                  counted_preconditioner->GetApplications() : 0;
+   h_inverse_applications_ = counted_h_inverse ?
+                             counted_h_inverse->GetApplications() : 0;
+   h_inverse_iterations_ = counted_h_inverse ?
+                           counted_h_inverse->GetIterations() : 0;
    InsertBoundaryValues(homogeneous_boundary, solution);
 }
 
@@ -1556,7 +1712,11 @@ void FrequencyDomainLinearElasticitySolver::Solve(
    MFEM_VERIFY(solution.ParFESpace() == &fespace_,
                "Solution must use the solver finite element space.");
    Vector rhs;
+   StopWatch load_timer;
+   load_timer.Start();
    BuildLoadTrueVector(rhs);
+   load_timer.Stop();
+   load_assembly_time_ = load_timer.RealTime();
    if (!has_previous_solution_)
    {
       previous_solution_.SetSize(Height());
@@ -1564,59 +1724,56 @@ void FrequencyDomainLinearElasticitySolver::Solve(
    }
    SolveForward(rhs, previous_solution_, has_previous_solution_);
    has_previous_solution_ = true;
+   StopWatch distribution_timer;
+   distribution_timer.Start();
    solution.Distribute(previous_solution_);
+   distribution_timer.Stop();
+   solution_distribution_time_ = distribution_timer.RealTime();
 }
 
 /// Validate dimensions of an external standard complex operator.
 void FrequencyDomainLinearElasticitySolver::SetOperator(const Operator &op)
 {
-   Assemble();
    MFEM_VERIFY(op.Height() == Height() && op.Width() == Width(),
                "External operator dimensions do not match the solver.");
 }
 
-/// Return the effective outer solver selected during assembly.
+/// Return the effective outer solver selected by the last assembly.
 FrequencyDomainLinearElasticitySolver::LinearSolverType
 FrequencyDomainLinearElasticitySolver::GetActiveLinearSolverType() const
 {
-   Assemble();
    return active_solver_type_;
 }
 
 /// Return the outer iteration count, or zero for MUMPS.
 int FrequencyDomainLinearElasticitySolver::GetNumIterations() const
 {
-   Assemble();
    return num_iterations_;
 }
 
-/// Return the current constrained true-dof list after lazy assembly.
+/// Return the constrained true-dof list built by the last assembly.
 const Array<int> &
 FrequencyDomainLinearElasticitySolver::GetEssentialTrueDofs() const
 {
-   Assemble();
    return ess_tdofs_;
 }
 
-/// Return the active matrix-free real-block operator after lazy assembly.
+/// Return the active matrix-free real-block operator without lazy assembly.
 const Operator *FrequencyDomainLinearElasticitySolver::GetOperator() const
 {
-   Assemble();
    return system_operator_.get();
 }
 
-/// Return the constrained component operator after lazy assembly.
+/// Return the component operator without lazy assembly.
 const FrequencyDomainElasticityOperator &
 FrequencyDomainLinearElasticitySolver::GetFrequencyDomainOperator() const
 {
-   Assemble();
    return operator_;
 }
 
-/// Return the active block preconditioner after lazy assembly.
+/// Return the active block preconditioner without lazy assembly.
 const Solver *FrequencyDomainLinearElasticitySolver::GetPreconditioner() const
 {
-   Assemble();
    return preconditioner_.get();
 }
 

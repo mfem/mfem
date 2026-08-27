@@ -29,6 +29,10 @@ namespace mfem
 ///
 /// @warning One instance is not safe for concurrent solves because its
 /// Krylov methods, preconditioners, and boundary lifting reuse work vectors.
+///
+/// @warning All ranks in the finite element space communicator must configure
+/// the solver identically and call Assemble(), Mult(), MultTranspose(), and
+/// Solve() in the same order. These methods perform collective MPI work.
 class FrequencyDomainLinearElasticitySolver : public Solver
 {
 public:
@@ -133,8 +137,10 @@ public:
 
    /// Set the angular excitation frequency.
    ///
-   /// Iterative methods require this frequency to remain below the first
-   /// eigenfrequency; this is a caller contract and is not checked internally.
+   /// PRESB and block-diagonal methods require their H inverse to be suitable;
+   /// in particular the documented spectral bounds assume H is positive
+   /// definite. The assembled MUMPS path has no first-eigenfrequency
+   /// restriction. These conditions are not checked internally.
    void SetFrequency(real_t omega);
 
    /// Select Rayleigh damping C=alpha M+beta K.
@@ -160,6 +166,13 @@ public:
 
    /// Mark material and damping coefficient values as changed in place.
    void MaterialChanged();
+
+   /// Mark prescribed displacement coefficient values as changed in place.
+   ///
+   /// Call this after updating a coefficient previously supplied to
+   /// AddDisplacementBC(). This refreshes the cached boundary projection on the
+   /// next forward solve without rebuilding the system operator.
+   void BoundaryValuesChanged() const;
 
    /// Mark a one-based boundary attribute as zero complex displacement.
    void AddBoundaryID(int id);
@@ -285,26 +298,26 @@ public:
    /// Force or clear the lazy assembly flag; forcing also releases stale setup.
    void SetNeedsAssembly(bool needs_assembly = true) const;
 
-   /// Assemble the PA operator, auxiliary inverse, preconditioner, and solver.
+   /// Collectively assemble the operator, inverse, preconditioner, and solver.
    void Assemble() const;
 
-   /// Solve a supplied standard complex true-dof right-hand side.
+   /// Collectively solve a supplied standard complex true-dof right-hand side.
    void Mult(const Vector &rhs, Vector &solution) const override;
 
-   /// Solve without performing the lazy assembly check.
+   /// Collectively solve without performing the lazy assembly check.
    void MultAssembled(const Vector &rhs, Vector &solution) const;
 
-   /// Solve the transposed standard complex system with homogeneous BC data.
+   /// Collectively solve the transpose with homogeneous boundary data.
    void MultTranspose(const Vector &rhs, Vector &solution) const override;
 
-   /// Solve the transpose without performing the lazy assembly check.
+   /// Collectively solve the transpose without a lazy assembly check.
    void MultTransposeAssembled(const Vector &rhs,
                                Vector &solution) const;
 
-   /// Assemble configured complex loads and solve into @a solution.
+   /// Collectively assemble complex loads and solve into @a solution.
    void Solve(ParComplexGridFunction &solution) const;
 
-   /// Validate dimensions of an externally supplied standard complex operator.
+   /// Validate an external complex operator's size without MPI communication.
    void SetOperator(const Operator &op) override;
 
    /// Return the current outer relative tolerance.
@@ -348,11 +361,31 @@ public:
    /// Return the vector ordering used by the monolithic LOR space.
    Ordering::Type GetLOROrdering() const { return lor_ordering_; }
 
-   /// Return the effective outer solver after automatic selection.
+   /// Return the effective outer solver after assembly, without MPI work.
+   /// Before assembly this returns Automatic.
    LinearSolverType GetActiveLinearSolverType() const;
 
-   /// Return the outer iteration count from the most recent solve.
+   /// Return the latest outer iteration count without MPI work.
    int GetNumIterations() const;
+
+   /// Return whether the most recent iterative or direct solve succeeded.
+   bool GetConverged() const { return converged_; }
+
+   /// Return the initial outer residual norm, or -1 for a direct solve.
+   real_t GetInitialNorm() const { return initial_norm_; }
+
+   /// Return the final outer residual norm, or -1 for a direct solve.
+   real_t GetFinalNorm() const { return final_norm_; }
+
+   /// Return block-preconditioner applications in the most recent solve.
+   int GetNumPreconditionerApplications() const
+   { return preconditioner_applications_; }
+
+   /// Return H inverse applications in the most recent solve.
+   int GetNumHInverseApplications() const { return h_inverse_applications_; }
+
+   /// Return accumulated AMG cycles or nested-CG iterations in H inverses.
+   int GetNumHInverseIterations() const { return h_inverse_iterations_; }
 
    /// Return seconds spent assembling the PA system and constraints.
    double GetAssemblyTime() const { return assembly_time_; }
@@ -364,23 +397,33 @@ public:
    /// Return seconds spent constructing the outer iterative or direct solver.
    double GetSolverSetupTime() const { return solver_setup_time_; }
 
+   /// Return seconds spent assembling configured loads in the most recent Solve.
+   double GetLoadAssemblyTime() const { return load_assembly_time_; }
+
+   /// Return seconds spent in the linear solver during the most recent solve.
+   double GetLinearSolveTime() const { return linear_solve_time_; }
+
+   /// Return seconds spent distributing the true-dof solution in Solve.
+   double GetSolutionDistributionTime() const
+   { return solution_distribution_time_; }
+
    /// Return the finite element space supplied by the caller.
    ParFiniteElementSpace &GetFESpace() { return fespace_; }
 
    /// Return the finite element space supplied by the caller.
    const ParFiniteElementSpace &GetFESpace() const { return fespace_; }
 
-   /// Return the frequency-domain component operator.
+   /// Return the component operator without triggering collective assembly.
    const FrequencyDomainElasticityOperator &
    GetFrequencyDomainOperator() const;
 
-   /// Return the current component-aware essential true-dof list.
+   /// Return the last assembled essential true-dof list without MPI work.
    const Array<int> &GetEssentialTrueDofs() const;
 
-   /// Return the active PA real-block operator, or null for MUMPS.
+   /// Return the active PA block operator, or null before assembly or for MUMPS.
    const Operator *GetOperator() const;
 
-   /// Return the currently active real-block preconditioner, if any.
+   /// Return the active preconditioner, or null before assembly or for MUMPS.
    const Solver *GetPreconditioner() const;
 
 private:
@@ -527,13 +570,23 @@ private:
 
    mutable Vector boundary_true_values_;
    mutable bool boundary_values_stale_ = true;
+   mutable long boundary_fespace_sequence_ = -1;
    mutable Vector solve_rhs_;
    mutable Vector previous_solution_;
    mutable bool has_previous_solution_ = false;
    mutable int num_iterations_ = 0;
+   mutable bool converged_ = false;
+   mutable real_t initial_norm_ = -1.0;
+   mutable real_t final_norm_ = -1.0;
+   mutable int preconditioner_applications_ = 0;
+   mutable int h_inverse_applications_ = 0;
+   mutable int h_inverse_iterations_ = 0;
    mutable double assembly_time_ = 0.0;
    mutable double preconditioner_assembly_time_ = 0.0;
    mutable double solver_setup_time_ = 0.0;
+   mutable double load_assembly_time_ = 0.0;
+   mutable double linear_solve_time_ = 0.0;
+   mutable double solution_distribution_time_ = 0.0;
 };
 
 } // namespace mfem
