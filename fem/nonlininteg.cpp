@@ -1002,6 +1002,76 @@ void SkewSymmetricVectorConvectionNLFIntegrator::AssembleElementGrad(
    }
 }
 
+void ConvectiveVectorConvectionNLFIntegrator::AssemblePA(
+   const FiniteElementSpace &)
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleGradPA(
+   const Vector &, const FiniteElementSpace &)
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AddMultPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AddMultGradPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void ConvectiveVectorConvectionNLFIntegrator::AssembleGradDiagonalPA(
+   Vector &) const
+{
+   MFEM_ABORT("ConvectiveVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssemblePA(
+   const FiniteElementSpace &)
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleGradPA(
+   const Vector &, const FiniteElementSpace &)
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AddMultPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AddMultGradPA(
+   const Vector &, Vector &) const
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
+void SkewSymmetricVectorConvectionNLFIntegrator::AssembleGradDiagonalPA(
+   Vector &) const
+{
+   MFEM_ABORT("SkewSymmetricVectorConvectionNLFIntegrator does not support "
+              "partial assembly; use VectorConvectionNLFIntegrator");
+}
+
 void SumNLFIntegrator::SetIntRule(const IntegrationRule *ir)
 {
    IntRule = ir;

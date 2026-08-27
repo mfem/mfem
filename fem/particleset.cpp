@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "particleset.hpp"
+#include "../general/forall.hpp"
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
@@ -225,6 +226,7 @@ void ParticleSet::AddParticles(const Array<IDType> &new_ids,
       }
    }
    // Add new ids
+   ids.HostReadWrite();
    ids.Append(new_ids);
 
    // Update data
@@ -244,6 +246,102 @@ void ParticleSet::AddParticles(const Array<IDType> &new_ids,
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 
 /// \cond DO_NOT_DOCUMENT
+// Static helper: gather selected particle-vector entries into a compact buffer.
+// nvcc does not allow extended host/device lambdas in non-public members.
+static void GatherParticleVectorDevice(const ParticleVector &pv,
+                                       const Array<int> &send_idxs,
+                                       Vector &send_data,
+                                       int nsend)
+{
+   const int vdim = pv.GetVDim();
+   const int ordering = pv.GetOrdering();
+   const int num_particles = pv.GetNumParticles();
+   const MemoryClass device_mc = Device::GetDeviceMemoryClass();
+   send_data.SetSize(nsend*vdim);
+   real_t *d_send_data =
+      send_data.GetMemory().Write(device_mc, send_data.Size());
+   const real_t *d_src = pv.GetMemory().Read(device_mc, pv.Size());
+   const int *d_send_idxs = send_idxs.GetMemory().Read(device_mc, nsend);
+
+   mfem::forall(nsend, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int p = d_send_idxs[i];
+      const int offset = (ordering == Ordering::byVDIM) ? p * vdim : p;
+      const int stride = (ordering == Ordering::byVDIM) ? 1 : num_particles;
+
+      for (int c = 0; c < vdim; c++)
+      {
+         d_send_data[i*vdim + c] = d_src[offset + c*stride];
+      }
+   });
+}
+
+// Static helper: gather selected tag values into a compact buffer.
+// nvcc does not allow extended host/device lambdas in non-public members.
+static void GatherParticleTagsDevice(const Array<int> &tag,
+                                     const Array<int> &send_idxs,
+                                     Array<int> &send_tag,
+                                     int nsend)
+{
+   const MemoryClass device_mc = Device::GetDeviceMemoryClass();
+   send_tag.SetSize(nsend);
+   int *d_send_tag = send_tag.GetMemory().Write(device_mc, nsend);
+   const int *d_tag = tag.GetMemory().Read(device_mc, tag.Size());
+   const int *d_send_idxs = send_idxs.GetMemory().Read(device_mc, nsend);
+
+   mfem::forall(nsend, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_send_tag[i] = d_tag[d_send_idxs[i]];
+   });
+}
+
+// Static helper: scatter compact particle-vector entries to particle storage.
+// nvcc does not allow extended host/device lambdas in non-public members.
+static void ScatterParticleVectorDevice(ParticleVector &pv,
+                                        const Vector &recv_data,
+                                        const Array<int> &recv_locs,
+                                        int nrecv)
+{
+   const int vdim = pv.GetVDim();
+   const int ordering = pv.GetOrdering();
+   const int num_particles = pv.GetNumParticles();
+   const MemoryClass device_mc = Device::GetDeviceMemoryClass();
+   const real_t *d_recv_data =
+      recv_data.GetMemory().Read(device_mc, recv_data.Size());
+   const int *d_recv_locs = recv_locs.GetMemory().Read(device_mc, nrecv);
+   real_t *d_dst = pv.GetMemory().ReadWrite(device_mc, pv.Size());
+
+   mfem::forall(nrecv, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int p = d_recv_locs[i];
+      const int offset = (ordering == Ordering::byVDIM) ? p * vdim : p;
+      const int stride = (ordering == Ordering::byVDIM) ? 1 : num_particles;
+
+      for (int c = 0; c < vdim; c++)
+      {
+         d_dst[offset + c*stride] = d_recv_data[i*vdim + c];
+      }
+   });
+}
+
+// Static helper: scatter compact tag values to particle storage.
+// nvcc does not allow extended host/device lambdas in non-public members.
+static void ScatterParticleTagsDevice(Array<int> &tag,
+                                      const Array<int> &recv_tag,
+                                      const Array<int> &recv_locs,
+                                      int nrecv)
+{
+   const MemoryClass device_mc = Device::GetDeviceMemoryClass();
+   const int *d_recv_tag = recv_tag.GetMemory().Read(device_mc, nrecv);
+   const int *d_recv_locs = recv_locs.GetMemory().Read(device_mc, nrecv);
+   int *d_tag = tag.GetMemory().ReadWrite(device_mc, tag.Size());
+
+   mfem::forall(nrecv, [=] MFEM_HOST_DEVICE (int i)
+   {
+      d_tag[d_recv_locs[i]] = d_recv_tag[i];
+   });
+}
+
 template<size_t NBytes>
 void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
                                         const Array<int> &send_idxs,
@@ -266,37 +364,108 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
    array_init(parr_t, &gsl_arr, send_idxs.Size());
    pdata_arr = (parr_t*) gsl_arr.ptr;
 
+   int nparticles = pset.GetNParticles();
+   int nsend      = send_idxs.Size();
    gsl_arr.n = send_idxs.Size();
+
+   const int *h_send_idxs_initial = send_idxs.HostRead();
+   const IDType *h_ids = pset.GetIDs().HostRead();
    for (int i = 0; i < send_idxs.Size(); i++)
    {
       parr_t &pdata = pdata_arr[i];
-      pdata.id = pset.GetIDs()[send_idxs[i]];
+      pdata.id = h_ids[h_send_idxs_initial[i]];
+   }
 
-      // Copy particle data directly into pdata
-      size_t counter = 0;
-      for (int f = -1; f < pset.GetNFields(); f++)
+   // Pack coords and fields into the GSLIB send buffer. Device-resident data
+   // is first gathered into a compact device buffer so that only selected
+   // particles are copied back to host. Host-resident data is packed directly.
+   int max_vdim = pset.Coords().GetVDim();
+   for (int f = 0; f < pset.GetNFields(); f++)
+   {
+      int f_vdim = pset.Field(f).GetVDim();
+      if (f_vdim > max_vdim) { max_vdim = f_vdim; }
+   }
+   Vector send_data;
+   Array<int> send_tag;
+   if (Device::IsEnabled())
+   {
+      send_data.SetSize(nsend * max_vdim); // allocate max size over all fields
+      send_tag.SetSize(nsend);
+   }
+
+   size_t counter = 0;
+   for (int f = -1; f < pset.GetNFields(); f++)
+   {
+      const ParticleVector &pv = f == -1 ? pset.Coords() : pset.Field(f);
+      const int vdim = pv.GetVDim();
+      const int ordering = pv.GetOrdering();
+      const int num_particles = pv.GetNumParticles();
+      const bool use_dev = Device::IsEnabled() && pv.UseDevice();
+
+      if (use_dev)
       {
-         ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
-         for (int c = 0; c < pv.GetVDim(); c++)
+         GatherParticleVectorDevice(pv, send_idxs, send_data, nsend);
+
+         const real_t *h_send_data = send_data.HostRead();
+         for (int i = 0; i < nsend; i++)
          {
-            std::memcpy(pdata.data.data() + counter, &pv(send_idxs[i], c),
-                        sizeof(real_t));
-            counter += sizeof(real_t);
+            std::memcpy(pdata_arr[i].data.data() + counter,
+                        h_send_data + i*vdim, vdim * sizeof(real_t));
+         }
+      }
+      else
+      {
+         const real_t *h_src = pv.HostRead();
+         const int *h_send_idxs = send_idxs.HostRead();
+         for (int i = 0; i < nsend; i++)
+         {
+            parr_t &pdata = pdata_arr[i];
+            const int p = h_send_idxs[i];
+            const int offset = (ordering == Ordering::byVDIM) ? p * vdim : p;
+            const int stride = (ordering == Ordering::byVDIM) ? 1 :
+                               num_particles;
+
+            for (int c = 0; c < vdim; c++)
+            {
+               std::memcpy(pdata.data.data() + counter + c*sizeof(real_t),
+                           h_src + offset + c*stride, sizeof(real_t));
+            }
          }
       }
 
-      // Copy tags
-      for (int t = 0; t < pset.GetNTags(); t++)
-      {
-         Array<int> &tag_arr = pset.Tag(t);
-         std::memcpy(pdata.data.data() + counter, &tag_arr[send_idxs[i]],
-                     sizeof(int));
-         counter += sizeof(int);
-      }
+      counter += vdim*sizeof(real_t);
    }
 
-   int nparticles = pset.GetNParticles();
-   int nsend      = send_idxs.Size();
+   // Pack tags after all real_t data. Each tag uses the same selective
+   // device gather path when its Array is device-resident.
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      const Array<int> &tag = pset.Tag(t);
+      const size_t tag_counter = counter + t*sizeof(int);
+      const bool use_dev = Device::IsEnabled() && tag.UseDevice();
+
+      if (use_dev)
+      {
+         GatherParticleTagsDevice(tag, send_idxs, send_tag, nsend);
+
+         const int *h_send_tag = send_tag.HostRead();
+         for (int i = 0; i < nsend; i++)
+         {
+            std::memcpy(pdata_arr[i].data.data() + tag_counter,
+                        h_send_tag + i, sizeof(int));
+         }
+      }
+      else
+      {
+         const int *h_tag = tag.HostRead();
+         const int *h_send_idxs = send_idxs.HostRead();
+         for (int i = 0; i < nsend; i++)
+         {
+            std::memcpy(pdata_arr[i].data.data() + tag_counter,
+                        h_tag + h_send_idxs[i], sizeof(int));
+         }
+      }
+   }
 
    // Transfer particles
    sarray_transfer_ext(parr_t, &gsl_arr, send_ranks.GetData(),
@@ -304,11 +473,20 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
 
    // Make sure we have enough space for received particles
    int nrecv = (int) gsl_arr.n;
+
+   Vector recv_data;
+   Array<int> recv_tag;
+   if (Device::IsEnabled())
+   {
+      recv_data.SetSize(nrecv * max_vdim);
+      recv_tag.SetSize(nrecv);
+   }
+
    int ndelete = nsend - nrecv;
    if (ndelete > 0)
    {
       // Remove unneeded particles
-      auto datap = const_cast<int*>(send_idxs.GetData());
+      auto datap = const_cast<int*>(send_idxs.HostRead());
       Array<int> delete_idxs(datap + nrecv, ndelete);
       pset.RemoveParticles(delete_idxs);
    }
@@ -319,47 +497,133 @@ void ParticleSet::TransferParticlesImpl(ParticleSet &pset,
 
    pdata_arr = (parr_t*) gsl_arr.ptr;
 
-   // Add newly-recvd data directly to active state
+   // Make a list of new IDs to add
+   int num_new = nrecv > nsend ? nrecv - nsend : 0;
+   Array<IDType> new_ids(num_new);
+   for (int i = 0; i < num_new; i++)
+   {
+      new_ids[i] = pdata_arr[nsend + i].id;
+   }
+
+   // Add particles in batch
+   Array<int> new_indices;
+   if (num_new > 0)
+   {
+      pset.AddParticles(new_ids, &new_indices);
+   }
+
+   // Map each received packet to the local particle slot it updates.
+   Array<int> recv_locs(nrecv);
+   int *h_recv_locs = recv_locs.HostWrite();
+   const int *h_send_idxs_recv = send_idxs.HostRead();
    for (int i = 0; i < nrecv; i++)
    {
       parr_t &pdata = pdata_arr[i];
-      IDType id = pdata.id;
-
-      int new_loc_idx;
       if (i < nsend) // update existing particle
       {
-         new_loc_idx = send_idxs[i];
-         pset.UpdateID(new_loc_idx, id);
+         h_recv_locs[i] = h_send_idxs_recv[i];
+         pset.UpdateID(h_recv_locs[i], pdata.id);
       }
       else
       {
-         // add new particle
-         Array<int> idx_temp;
-         pset.AddParticles(Array<IDType>({id}), &idx_temp);
-         new_loc_idx = idx_temp[0]; // Get index of newly-added particle
+         h_recv_locs[i] = new_indices[i - nsend];
       }
+   }
 
-      size_t counter = 0;
-      for (int f = -1; f < pset.GetNFields(); f++)
+   // Unpack coords and fields from GSLIB host packets. Device-resident
+   // destinations use a compact host buffer followed by a device scatter.
+   size_t recv_counter = 0;
+   for (int f = -1; f < pset.GetNFields(); f++)
+   {
+      ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
+      const int vdim = pv.GetVDim();
+      const int ordering = pv.GetOrdering();
+      const int num_particles = pv.GetNumParticles();
+      const bool use_dev = Device::IsEnabled() && pv.UseDevice();
+
+      if (use_dev)
       {
-         ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
-         for (int c = 0; c < pv.GetVDim(); c++)
+         recv_data.SetSize(nrecv*vdim);
+         real_t *h_recv_data = recv_data.HostWrite();
+
+         for (int i = 0; i < nrecv; i++)
          {
-            real_t& val = pv(new_loc_idx, c);
-            std::memcpy(&val, pdata.data.data() + counter, sizeof(real_t));
-            counter += sizeof(real_t);
+            std::memcpy(h_recv_data + i*vdim,
+                        pdata_arr[i].data.data() + recv_counter,
+                        vdim*sizeof(real_t));
+         }
+
+         ScatterParticleVectorDevice(pv, recv_data, recv_locs, nrecv);
+      }
+      else
+      {
+         real_t *h_dst = pv.HostReadWrite();
+         const int *h_recv_locs_read = recv_locs.HostRead();
+         for (int i = 0; i < nrecv; i++)
+         {
+            parr_t &pdata = pdata_arr[i];
+            const int p = h_recv_locs_read[i];
+            const int offset = (ordering == Ordering::byVDIM) ? p * vdim : p;
+            const int stride = (ordering == Ordering::byVDIM) ? 1 :
+                               num_particles;
+
+            for (int c = 0; c < vdim; c++)
+            {
+               std::memcpy(h_dst + offset + c*stride,
+                           pdata.data.data() + recv_counter + c*sizeof(real_t),
+                           sizeof(real_t));
+            }
          }
       }
 
-      for (int t = 0; t < pset.GetNTags(); t++)
+      recv_counter += vdim*sizeof(real_t);
+   }
+
+   // Unpack tags after all real_t data, using the same compact scatter path
+   // for device-resident tag arrays.
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      Array<int> &tag = pset.Tag(t);
+      const size_t tag_counter = recv_counter + t*sizeof(int);
+      const bool use_dev = Device::IsEnabled() && tag.UseDevice();
+
+      if (use_dev)
       {
-         Array<int> &tag_arr = pset.Tag(t);
-         std::memcpy(&tag_arr[new_loc_idx],
-                     pdata.data.data() + counter, sizeof(int));
-         counter += sizeof(int);
+         recv_tag.SetSize(nrecv);
+         int *h_recv_tag = recv_tag.HostWrite();
+
+         for (int i = 0; i < nrecv; i++)
+         {
+            std::memcpy(h_recv_tag + i,
+                        pdata_arr[i].data.data() + tag_counter, sizeof(int));
+         }
+
+         ScatterParticleTagsDevice(tag, recv_tag, recv_locs, nrecv);
+      }
+      else
+      {
+         int *h_tag = tag.HostReadWrite();
+         const int *h_recv_locs_read = recv_locs.HostRead();
+         for (int i = 0; i < nrecv; i++)
+         {
+            std::memcpy(h_tag + h_recv_locs_read[i],
+                        pdata_arr[i].data.data() + tag_counter, sizeof(int));
+         }
       }
    }
    array_free(&gsl_arr);
+
+   // Restore Device validity if needed
+   for (int f = -1; f < pset.GetNFields(); f++)
+   {
+      ParticleVector &pv = (f == -1 ? pset.Coords() : pset.Field(f));
+      pv.ReadWrite(pv.UseDevice());
+   }
+   for (int t = 0; t < pset.GetNTags(); t++)
+   {
+      Array<int> &tag_arr = pset.Tag(t);
+      if (tag_arr.UseDevice()) { tag_arr.ReadWrite(true); }
+   }
 }
 
 template<size_t NBytes>
@@ -526,11 +790,14 @@ ParticleSet::ParticleSet(int id_stride_, IDType id_counter_, int num_particles,
                          int dim, Ordering::Type coords_ordering, const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names_)
+                         const Array<const char*> &tag_names_,
+                         bool use_device)
    : id_stride(id_stride_),
      id_counter(id_counter_),
      coords(dim, coords_ordering)
 {
+   if (use_device) { coords.UseDevice(true); }
+
    // Initialize fields
    for (int f = 0; f < field_vdims.Size(); f++)
    {
@@ -580,21 +847,22 @@ bool ParticleSet::IsValidParticle(const Particle &p) const
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim,
-                         Ordering::Type coords_ordering)
+                         Ordering::Type coords_ordering,
+                         bool use_device)
    : ParticleSet(1, 0, num_particles, dim, coords_ordering, Array<int>(),
                  Array<Ordering::Type>(), Array<const char*>(), 0,
-                 Array<const char*>())
+                 Array<const char*>(), use_device)
 {
 
 }
 
 ParticleSet::ParticleSet(int num_particles, int dim,
                          const Array<int> &field_vdims, int num_tags,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  GetEmptyNameArray(field_vdims.Size()), num_tags,
-                 GetEmptyNameArray(num_tags))
+                 GetEmptyNameArray(num_tags), use_device)
 {
 }
 
@@ -602,11 +870,11 @@ ParticleSet::ParticleSet(int num_particles, int dim,
                          const Array<int> &field_vdims, const Array<const
                          char*> &field_names_, int num_tags,
                          const Array<const char*> &tag_names_,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(1, 0, num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  field_names_, num_tags,
-                 tag_names_)
+                 tag_names_, use_device)
 {
 
 }
@@ -616,9 +884,9 @@ ParticleSet::ParticleSet(int num_particles, int dim,
                          const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names_)
+                         const Array<const char*> &tag_names_, bool use_device)
    : ParticleSet(1, 0, num_particles, dim, coords_ordering, field_vdims,
-                 field_orderings, field_names_, num_tags, tag_names_)
+                 field_orderings, field_names_, num_tags, tag_names_, use_device)
 {
 
 }
@@ -627,21 +895,21 @@ ParticleSet::ParticleSet(int num_particles, int dim,
 
 #ifdef MFEM_USE_MPI
 ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
-                         Ordering::Type coords_ordering)
+                         Ordering::Type coords_ordering, bool use_device)
    : ParticleSet(comm_, rank_num_particles, dim, coords_ordering, Array<int>(),
                  Array<Ordering::Type>(), Array<const char*>(), 0,
-                 Array<const char*>())
+                 Array<const char*>(), use_device)
 {
 
 };
 
 ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims, int num_tags,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(comm_, rank_num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  GetEmptyNameArray(field_vdims.Size()), num_tags,
-                 GetEmptyNameArray(num_tags))
+                 GetEmptyNameArray(num_tags), use_device)
 {
 
 }
@@ -650,11 +918,11 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims, const Array<const
                          char*> &field_names_,
                          int num_tags, const Array<const char*> &tag_names_,
-                         Ordering::Type all_ordering)
+                         Ordering::Type all_ordering, bool use_device)
    : ParticleSet(comm_, rank_num_particles, dim, all_ordering, field_vdims,
                  GetOrderingArray(all_ordering, field_vdims.Size()),
                  field_names_, num_tags,
-                 tag_names_)
+                 tag_names_, use_device)
 {
 
 }
@@ -664,7 +932,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims,
                          const Array<Ordering::Type> &field_orderings,
                          const Array<const char*> &field_names_, int num_tags,
-                         const Array<const char*> &tag_names_)
+                         const Array<const char*> &tag_names_, bool use_device)
    : ParticleSet(GetSize(comm_), (IDType)GetRank(comm_),
                  rank_num_particles,
                  dim,
@@ -673,7 +941,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                  field_orderings,
                  field_names_,
                  num_tags,
-                 tag_names_)
+                 tag_names_, use_device)
 {
    comm = comm_;
 #ifdef MFEM_USE_GSLIB
@@ -705,6 +973,7 @@ int ParticleSet::AddField(int vdim, Ordering::Type field_ordering,
    }
    fields.emplace_back(std::make_unique<ParticleVector>(vdim, field_ordering,
                                                         GetNParticles()));
+   if (coords.UseDevice()) { fields.back()->UseDevice(true); }
    field_names.emplace_back(field_name_str);
 
    return GetNFields() - 1;
@@ -718,6 +987,7 @@ int ParticleSet::AddTag(const char* tag_name)
       tag_name_str = GetDefaultTagName(tag_names.size());
    }
    tags.emplace_back(std::make_unique<Array<int>>(GetNParticles()));
+   if (coords.UseDevice()) { tags.back()->GetMemory().UseDevice(true); }
    tag_names.emplace_back(tag_name_str);
 
    return GetNTags() - 1;
@@ -782,7 +1052,7 @@ Particle ParticleSet::GetParticle(int i) const
 
    for (int t = 0; t < GetNTags(); t++)
    {
-      p.Tag(t) = Tag(t)[i];
+      p.Tag(t) = Tag(t).HostRead()[i];
    }
 
    return p;
@@ -790,13 +1060,21 @@ Particle ParticleSet::GetParticle(int i) const
 
 bool ParticleSet::IsParticleRefValid() const
 {
-   if (coords.GetOrdering() == Ordering::byNODES)
+   if (coords.GetOrdering() == Ordering::byNODES || coords.UseDevice())
    {
       return false;
    }
    for (int f = 0; f < GetNFields(); f++)
    {
-      if (fields[f]->GetOrdering() == Ordering::byNODES)
+      if (fields[f]->GetOrdering() == Ordering::byNODES ||
+          fields[f]->UseDevice())
+      {
+         return false;
+      }
+   }
+   for (int t = 0; t < GetNTags(); t++)
+   {
+      if (tags[t]->UseDevice())
       {
          return false;
       }
@@ -806,6 +1084,10 @@ bool ParticleSet::IsParticleRefValid() const
 
 Particle ParticleSet::GetParticleRef(int i)
 {
+   MFEM_ASSERT(IsParticleRefValid(),
+               "GetParticleRef is only valid when coordinates and fields are "
+               "ordered byVDIM and particle data is host-resident.");
+
    Particle p = CreateParticle();
 
    Coords().GetValuesRef(i, p.Coords());
@@ -839,7 +1121,7 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 
    for (int t = 0; t < GetNTags(); t++)
    {
-      Tag(t)[i] = p.Tag(t);
+      Tag(t).HostReadWrite()[i] = p.Tag(t);
    }
 }
 
@@ -900,6 +1182,15 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 #ifdef MFEM_USE_MPI
    int rank = GetRank(comm);
 #endif // MFEM_USE_MPI
+   // make sure we can read tag data on host. fields and coords will be read as
+   // needed in the loop below, so we don't need to pre-read them here.
+   for (int i = 0; i < GetNTags(); i++)
+   {
+      tags[i]->HostRead();
+   }
+   ids.HostRead();
+
+   // Write particle data
    for (int i = 0; i < GetNParticles(); i++)
    {
       ss_data << ids[i];

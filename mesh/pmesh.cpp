@@ -2014,18 +2014,37 @@ void ParMesh::DeleteFaceNbrData()
    send_face_nbr_vertices.Clear();
 }
 
-void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF() const
+{
+   int mesh_poly_deg =
+      Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1;
+   // determinant order is d*p-1 for tensor product elements and
+   // d*(p-1) for simplices. We use the former here for simplicity.
+   int det_order = Dim*mesh_poly_deg-1;
+   L2_FECollection *fec_det = new L2_FECollection(det_order, Dim,
+                                                  BasisType::GaussLobatto);
+   ParFiniteElementSpace *fespace_det =
+      new ParFiniteElementSpace(const_cast<ParMesh *>(this), fec_det);
+   auto detgf = std::make_unique<ParGridFunction>(fespace_det);
+   detgf->MakeOwner(fec_det);
+   Mesh::UpdateJacobianDeterminantGF(*detgf.get());
+   return detgf;
+}
+
+void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering,
+                           int pyrtype)
 {
    DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
    {
-      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto);
+      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto,
+                                 FiniteElement::VALUE, pyrtype);
    }
    else
    {
-      nfec = new H1_FECollection(order, Dim);
+      nfec = new H1_FECollection(order, Dim, BasisType::GaussLobatto, pyrtype);
    }
    ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
                                                            ordering);
@@ -4844,6 +4863,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (NURBSext)
    {
       Printer(os, "", comments); // does not print shared boundary
+      return;
+   }
+
+   if (pncmesh && pncmesh->using_scaling)
+   {
+      // For nodes scaling, we write the file in the format MFEM NC mesh v1.1.
+      Printer(os, "", comments);
       return;
    }
 

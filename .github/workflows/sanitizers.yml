@@ -17,7 +17,17 @@ permissions:
 on:
   push:
     branches: ["master", "next"]
+    paths-ignore: &docs-only-paths
+      - "**/*.md"
+      - "doc/**"
+      - ".binder/**"
+      - "CITATION.cff"
+      - "LICENSE"
+      - "NOTICE"
+      - "CHANGELOG"
+      - "INSTALL"
   pull_request:
+    paths-ignore: *docs-only-paths
   workflow_dispatch:
 
 concurrency:

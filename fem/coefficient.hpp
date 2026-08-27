@@ -1066,7 +1066,8 @@ public:
 
 typedef VectorCoefficient DiagonalMatrixCoefficient;
 
-/// Base class for Matrix Coefficients that optionally depend on time and space.
+/** Base class for matrix-valued coefficients that optionally depend on time
+    and space. */
 class MatrixCoefficient
 {
 protected:
@@ -1112,6 +1113,9 @@ public:
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
+   ///
+   /// The stored entries use the same row/column convention as `Eval()`,
+   /// unless `transpose == true`, in which case `K^T` is stored instead.
    ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.

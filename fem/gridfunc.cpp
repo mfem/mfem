@@ -5553,6 +5553,7 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
+
    Vector lel, uel;
    GetElementBounds(plb, lel, uel, vdim);
 

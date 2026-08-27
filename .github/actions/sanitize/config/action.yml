@@ -94,6 +94,16 @@ inputs:
     description: If true, do not set any CXXFLAGS or LDFLAGS.
     default: false
 
+  # Unfortunately, "uses:" fields cannot have references to variables like
+  # ${{env.MFEM_ACTIONS_VERSION}}, so the branch/tag name has to be hard coded.
+  # Therefore, in the future, when updating the version of the
+  # mfem/github-actions to use, we'll have to replace:
+  # - all definitions of MFEM_ACTIONS_VERSION and
+  # - all "uses:" fields that refer to mfem/github-actions.
+  MFEM_ACTIONS_VERSION:
+    description: Version (branch or tag) of the mfem/github-actions to use.
+    default: v2.7
+
 runs:
   using: 'composite'
   steps:
@@ -118,6 +128,7 @@ runs:
         echo UBSAN_LDFLAGS=${{inputs.UBSAN_LDFLAGS}} >> $GITHUB_ENV
         echo MSAN_CXXFLAGS=${{inputs.MSAN_CXXFLAGS}} >> $GITHUB_ENV
         echo MSAN_LDFLAGS=${{inputs.MSAN_LDFLAGS}} >> $GITHUB_ENV
+        echo MFEM_ACTIONS_VERSION=${{inputs.MFEM_ACTIONS_VERSION}} >> $GITHUB_ENV
       shell: bash
 
     - name: Env (dir)
