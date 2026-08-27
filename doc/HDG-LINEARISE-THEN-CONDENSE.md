@@ -194,10 +194,92 @@ batched or device backend wants, and `linalg/batched/` already provides
 `LUFactor` and `LUSolve` over exactly that. The two plans compound, and this one
 is the better of the two to do first.
 
+## Outcome
+
+Implemented as `SetNonlinearOrdering(NLOrdering::LineariseThenCondense)`, off by
+default. Two bug reports followed from the same source, both now fixed; this
+section is what they established, kept here because the reports themselves were
+transient and this is the ordering's durable record.
+
+**The design is not the one this plan proposed.** The plan assumed the iterate
+has to be accumulated, which needs a "step accepted" signal, which means
+`NewtonSolver::ProcessNewState` — and therefore a solver subclass, and therefore
+a problem, because `KINSolver` never calls it. Instead the hybridization retains
+a *linearisation point* — trace, fields, factored local Jacobian — refreshed
+only by `GetGradient()`. Between two `GetGradient()` calls the reduced residual
+is an ordinary function of the trace. No accumulated iterate, no
+`ProcessNewState`, no KIN change, and line searches work untouched.
+
+**The two reports, and what each turned on.**
+
+1. *The reduced operator was not a function of the trace.* Every
+   `GetGradient()` advanced the linearisation, so asking twice at one trace was
+   an unglobalised local Newton iteration: the residual at one trace grew from
+   1.87e+01 to 4.15e+03 between two calls. Fixed by `LinearisedAt()` — a
+   gradient taken at the trace the linearisation is already at re-assembles at
+   the *retained* fields rather than substituted ones, which makes the pass
+   idempotent.
+
+2. *`GetGradient()` was not the derivative of `Mult()`.* The retained local
+   residual was applied twice — once in the affine prediction (`-M⁻¹ r_lin`),
+   once in the local Newton correction that recomputes it — so the correction
+   was evaluated a whole local Newton step from the fields `M` was assembled
+   at, and
+
+       d(residual)/dx = Schur(M) + C' M⁻¹ (J(fields) − M) M⁻¹ [C; E]
+
+   with the second term zero only for a linear problem or an exact local solve.
+   It existed only at a **cold** linearisation, the first one, which retained
+   the caller's raw initial guess: 3.2e-03 cold against 7.4e-12 after a single
+   relinearisation, at `c = 100` on `(c p², w)`. Hence a mild problem
+   unaffected, a stiff one lost in its first steps, and a line search worst of
+   all.
+
+   The fix separates two jobs that were conflated in one line of arithmetic.
+   *Evaluating* the operator takes exactly one frozen-Jacobian local correction
+   from the retained fields — that is what makes `Schur(M)` the derivative
+   identically. *Forming* a linearisation point has no such constraint and
+   takes one more, including a second initialisation pass so that the first
+   linearisation is not the raw guess. Doing only the first half cost an outer
+   iteration on every case measured, which is what identified the second.
+
+**The property this ordering does not have, and cannot.** `Mult` is a function
+of the trace when the linearisation is already at that trace, but not across
+one that *advances* onto it, which is every Newton step after the first —
+measured 5.0e-10 / 4.8e-06 / 1.1e-02 at `c` = 1 / 100 / 10⁴. Exactness there
+would need the local problem solved exactly, which is `CondenseThenLinearise`.
+What can be asked is that the dependence be second order, and correcting the
+retained fields is what buys that.
+
+**Acceptance, measured.** Outer Newton residuals on a two-equation nonlinear DG
+system, hybridized, 4×4 quads: `1.11e-01 1.52e-04 3.91e-07` at order 0 and
+`7.38e-02 2.24e-05 9.08e-09` at order 1, matching the other ordering's first two
+residuals and agreeing with its solution to round-off. **Local nonlinear
+iterations 192 and 304 before, zero after**, which is the item that says the
+ordering really changed. The reduced gradient tracks a central difference down
+the round-off curve, `8.8e-13` to `9.0e-10` as `h` falls from 1e-4 to 1e-7, flat
+in the nonlinearity, and the same on 2 MPI ranks.
+
+Regressions in `tests/unit/fem/test_darcy_linearise_first.cpp`. They drive
+`GetPotentialMassNonlinearForm()` — a nonlinear *potential mass*, the path a
+semilinear source takes and the path that had no coverage, every earlier case
+having driven the block nonlinear form instead. They also cover an essential
+trace BC together with a nonlinear reduced operator, which had none.
+
+**Still open here.** The parallel exercise is a scratch probe, not a committed
+test: this branch has no `[Parallel]` Darcy unit tests at all. There is no
+`-lfirst` flag on `DarcyOperator`, so `convdiff`/`pconvdiff` cannot run the
+acceptance case both ways. The matrix-free gradient
+(`MFEM_DARCY_HYBRIDIZATION_GRAD_MAT` undefined) applies the linear `∓Bᵀ` as the
+(0,1) block, which is not the Jacobian's when the flux law depends on the
+potential; this ordering refuses it rather than quietly disagreeing, but the
+gap is still there for the other ordering. The default flip for nonlinear
+problems is deliberately a later commit.
+
 ## Provenance
 
-Reported from `../meq`, whose `doc/HDG-DEFECTS-FROM-MEQ.md` sibling records four
-earlier findings from the same source. This one is a capability rather than a
+Reported from `../meq`, which found several things on this branch in one
+pass. This one is a capability rather than a
 defect: nothing here computes a wrong answer, and the current ordering is a
 legitimate way to solve a nonlinear hybridized system. It is simply a harder way
 than the reference does it, and the difficulty is not academic — it is the

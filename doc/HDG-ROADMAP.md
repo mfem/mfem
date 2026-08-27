@@ -647,8 +647,8 @@ price of pushing `τ` up is `k=0` beginning to lock. That is a `τ` question,
 ### Three defects the reconstruction had, found from outside
 
 **All three were found by a user of this branch rather than by this work**,
-building a fixed-boundary Grad–Shafranov solver on it, and reported in
-`doc/HDG-DEFECTS-FROM-MEQ.md`. Each is the same shape: a path was extended for
+building a fixed-boundary Grad–Shafranov solver on it. Each is the same
+shape: a path was extended for
 one configuration and its sibling was not, and the sibling does not fail — it
 produces numbers. They are recorded here with what was measured, because the
 first of them is the strongest argument in this document for not trusting a
@@ -1017,8 +1017,8 @@ the same class, the same `switch` — honoured the hook all along. With the
 constant `τ` both Grad–Shafranov papers use, and which is the usual reason to
 install a hook at all, the two differ by the local mesh size and the diffusion
 coefficient, so the discrepancy **grows under refinement** rather than staying a
-fixed factor. Reported from outside as §2 of
-`doc/HDG-DEFECTS-FROM-MEQ.md`; the energy now goes through `StabValue()` like
+fixed factor. Reported from outside; the energy now goes through
+`StabValue()` like
 the other four, and with no hook it is the same number to the last bit. The
 anisotropic split follows it: the direction weights are geometry and sum to
 `ni·nor`, so normalising by that distributes exactly the energy added, whatever

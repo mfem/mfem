@@ -181,10 +181,9 @@ case
 
 ## Provenance
 
-Reported from `../meq`, whose `doc/HDG-DEFECTS-FROM-MEQ.md` and
-`doc/HDG-LINEARISE-THEN-CONDENSE.md` siblings record earlier findings. Like the
-latter, this is a capability rather than a defect — nothing here computes a
-wrong
+Reported from `../meq`, whose `doc/HDG-LINEARISE-THEN-CONDENSE.md` sibling
+records earlier findings from the same source. Like it, this is a capability
+rather than a defect — nothing here computes a wrong
 answer. It is that the one structural property hybridization guarantees, element
 independence, is not currently used for anything.
 

@@ -70,6 +70,10 @@ call site says so.
 
 ## Provenance
 
-Found while writing `doc/LINEARISE-FIRST-RESIDUAL-BUG.md`, whose second finding
-needs exactly this list and whose demonstrator therefore has a dependency on
-`../meq` that it should not need.
+Found while reporting a bug against `NLOrdering::LineariseThenCondense` — see
+the Outcome section of `doc/HDG-LINEARISE-THEN-CONDENSE.md` — whose
+demonstrator needed exactly this list and therefore carried a dependency on
+`../meq` that it should not have needed. That demonstrator is now the unit test
+"The reduced gradient is the derivative of the reduced residual", which uses
+`GetEssentialTrueDofs()` for the purpose described above, so the accessor is
+load-bearing on this branch and the comment above it is still wrong.
