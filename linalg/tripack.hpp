@@ -100,9 +100,9 @@ void SolveLowerTranspose(const TriPackLowerMatrix &lower_factor,
                          const Vector &rhs,
                          Vector &sol);
 
-void SolveCholeskyLower(const TriPackLowerMatrix &lower_factor,
-                        const Vector &rhs,
-                        Vector &sol);
+void SolveCholesky(const TriPackLowerMatrix &lower_factor,
+                   const Vector &rhs,
+                   Vector &sol);
 
 /// Compute the inverse of the Cholesky lower factor for a batch of SPD matrices.
 ///

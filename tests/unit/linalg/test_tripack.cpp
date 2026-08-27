@@ -140,7 +140,7 @@ TEST_CASE("TriPackLowerMatrix operations", "[TriPackLowerMatrix]")
       tripack::ComputeCholeskyLower(packed, lfac);
       tripack::SolveLower(lfac, rhs, t);
       tripack::SolveLowerTranspose(lfac, t, x);
-      tripack::SolveCholeskyLower(lfac, rhs, y);
+      tripack::SolveCholesky(lfac, rhs, y);
 
       const DenseMatrix *mats[batch_size] = { &A0, &A1 };
       for (int e = 0; e < batch_size; ++e)

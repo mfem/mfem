@@ -550,7 +550,7 @@ inline T ZeroSubnormal(T val)
    return (std::fpclassify(val) == FP_SUBNORMAL) ? T{} : val;
 }
 
-inline bool IsFinite(const real_t &val)
+MFEM_HOST_DEVICE inline bool IsFinite(const real_t &val)
 {
    // isfinite didn't appear in a standard until C99, and later C++11. It wasn't
    // standard in C89 or C++98. PGI as of 14.7 still defines it as a macro.

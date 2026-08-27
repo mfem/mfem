@@ -28,16 +28,7 @@ MFEM_HOST_DEVICE inline int SymmetricIndex(const int i,
    return TriPackLowerMatrix::Index(i, j, n);
 }
 
-MFEM_HOST_DEVICE inline bool TriPackIsFinite(const real_t val)
-{
-#ifdef isfinite
-   return isfinite(val);
-#else
-   return std::isfinite(val);
-#endif
-}
-
-void ComputeCholeskyFactorsLowerDevice(
+void ComputeCholeskyFactorsLower(
    const TriPackLowerMatrix &packed_lower,
    Vector &factor)
 {
@@ -57,14 +48,14 @@ void ComputeCholeskyFactorsLowerDevice(
       const real_t eps = std::numeric_limits<real_t>::epsilon();
       bool bad = false;
 
-      // Copy packed-lower input into factor storage (no scaling).
+      // Copy packed-lower input into factor storage.
       for (int j = 0; j < n; ++j)
       {
          for (int i = j; i < n; ++i)
          {
             const int t = TriPackLowerMatrix::LowerIndex(i, j, n);
             const real_t Aij = A[eoff + t];
-            if (!TriPackIsFinite(Aij)) { bad = true; }
+            if (!IsFinite(Aij)) { bad = true; }
             L[eoff + t] = Aij;
          }
       }
@@ -88,7 +79,7 @@ void ComputeCholeskyFactorsLowerDevice(
          }
 
          const real_t tol = 64.0*eps*fabs(Lkk0);
-         if (!TriPackIsFinite(Lkk) || Lkk < -tol)
+         if (!IsFinite(Lkk) || Lkk < -tol)
          {
             bad = true;
             break;
@@ -116,59 +107,6 @@ void ComputeCholeskyFactorsLowerDevice(
          for (int t = 0; t < packed_size; ++t) { L[eoff + t] = nan; }
       }
    });
-}
-
-void ComputeCholeskyFactorsLower(
-   const TriPackLowerMatrix &packed_lower,
-   Vector &factor)
-{
-   const int n = packed_lower.GetNumRows();
-   const int batch_size = packed_lower.GetNumMatrices();
-   const int packed_size = packed_lower.GetPackedSize();
-
-   factor.SetSize(batch_size*packed_size);
-   factor.UseDevice(true);
-
-   const real_t *A = packed_lower.Data().HostRead();
-   real_t *L = factor.HostWrite();
-
-   for (int e = 0; e < batch_size; ++e)
-   {
-      const int eoff = e*packed_size;
-      for (int j = 0; j < n; ++j)
-      {
-         for (int i = j; i < n; ++i)
-         {
-            L[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)] =
-               A[eoff + TriPackLowerMatrix::LowerIndex(i, j, n)];
-         }
-      }
-
-      for (int k = 0; k < n; ++k)
-      {
-         const int kk = eoff + TriPackLowerMatrix::LowerIndex(k, k, n);
-         real_t Akk = L[kk];
-         for (int s = 0; s < k; ++s)
-         {
-            const real_t Lks = L[eoff + TriPackLowerMatrix::LowerIndex(k, s, n)];
-            Akk -= Lks*Lks;
-         }
-         MFEM_VERIFY(Akk > 0.0, "Matrix is not SPD.");
-         L[kk] = std::sqrt(Akk);
-
-         const real_t Lkk = L[kk];
-         for (int i = k + 1; i < n; ++i)
-         {
-            real_t Aik = L[eoff + TriPackLowerMatrix::LowerIndex(i, k, n)];
-            for (int s = 0; s < k; ++s)
-            {
-               Aik -= L[eoff + TriPackLowerMatrix::LowerIndex(i, s, n)] *
-                      L[eoff + TriPackLowerMatrix::LowerIndex(k, s, n)];
-            }
-            L[eoff + TriPackLowerMatrix::LowerIndex(i, k, n)] = Aik / Lkk;
-         }
-      }
-   }
 }
 
 }
@@ -328,7 +266,7 @@ void ComputeCholeskyLowerInverse(const TriPackLowerMatrix &packed_lower,
    Vector work(batch_size*packed_size);
    work.UseDevice(true);
 
-   ComputeCholeskyFactorsLowerDevice(packed_lower, factored);
+   ComputeCholeskyFactorsLower(packed_lower, factored);
 
    const real_t *L = factored.Read();
    real_t *X = work.Write();
@@ -341,7 +279,7 @@ void ComputeCholeskyLowerInverse(const TriPackLowerMatrix &packed_lower,
 
       for (int t = 0; t < packed_size; ++t)
       {
-         if (!TriPackIsFinite(L[eoff + t]))
+         if (!IsFinite(L[eoff + t]))
          {
             bad = true;
             break;
@@ -458,9 +396,9 @@ void SolveLowerTranspose(const TriPackLowerMatrix &lower_factor,
    sol = out;
 }
 
-void SolveCholeskyLower(const TriPackLowerMatrix &lower_factor,
-                        const Vector &rhs,
-                        Vector &sol)
+void SolveCholesky(const TriPackLowerMatrix &lower_factor,
+                   const Vector &rhs,
+                   Vector &sol)
 {
    Vector tmp;
    SolveLower(lower_factor, rhs, tmp);
