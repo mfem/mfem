@@ -41,11 +41,13 @@
 // Sample runs:
 //
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
-//      mpirun -n 4 ./electrostatic-pic -case 0 -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1 -diff 10 -eoi 10
+//      mpirun -n 4 ./electrostatic-pic -case 0 -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -diff 10 -eoi 10
 //   2D2V Two-stream instability (warm beams):
-//      mpirun -n 4 ./electrostatic-pic -case 1 -rdi 1 -npt 409600 -k 0.2855993321  -v0 0.5 -vvar 0.01 -nt 200 -nx 32 -ny 32 -O 1 -q 0.001181640625 -m 0.001181640625 -oci 1000 -dt 0.1 -no-vis
+//      mpirun -n 4 ./electrostatic-pic -case 1 -rdi 1 -npt 409600 -k 0.2855993321  -v0 0.5 -vvar 0.01 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis
+//   2D2V Bump-on-tail:
+//      mpirun -n 4 ./electrostatic-pic -case 2 -rdi 1 -npt 409600 -k 0.2855993321 -bf 0.1 -vb 4.5 -vth 1.0 -vtb 0.5 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
-//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -q 0.00004844730731 -m 0.00004844730731 -oci 1000 -dt 0.02 -no-vis
+//      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -oci 1000 -dt 0.02 -no-vis
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -72,16 +74,20 @@ struct PICContext
 
    int ordering = 1;  ///< Ordering of particles.
    int npt = 1000;    ///< Number of particles.
-   real_t q = 1.0;    ///< Particle charge.
-   real_t m = 1.0;    ///< Particle mass.
+   real_t q = -1.0;    ///< Particle charge. set to -1: auto-normalized
+   real_t m = -1.0;    ///< Particle mass. set to -1: auto-normalized
 
    real_t k = 1.0;      ///< Wave number for initial distribution.
    real_t alpha = 0.1;  ///< Density perturbation amplitude.
 
-   int init_case = 0;  ///< 0 = Landau damping, 1 = two-stream instability.
+   int init_case = 0;  ///< 0 = Landau, 1 = two-stream, 2 = bump-on-tail.
    real_t v0 = 0.5;    ///< Counter-streaming beam speed (case 1).
    real_t beam_variance =
       0.0;  ///< Variance of each counter-streaming beam (case 1).
+   real_t bump_fraction = 0.1;  ///< Bump weight in f0 (case 2; not Landau alpha).
+   real_t vb = 4.5;             ///< Bump beam speed (case 2).
+   real_t vth = 1.0;            ///< Bulk thermal speed (case 2).
+   real_t vtb = 0.5;            ///< Bump thermal speed (case 2).
 
    real_t dt = 1e-2;  ///< Time step size.
    real_t diffusivity =
@@ -127,8 +133,10 @@ int main(int argc, char* argv[])
                   "Number of elements in the y direction.");
    args.AddOption(&ctx.nz, "-nz", "--num-z",
                   "Number of elements in the z direction.");
-   args.AddOption(&ctx.q, "-q", "--charge", "Particle charge.");
-   args.AddOption(&ctx.m, "-m", "--mass", "Particle mass.");
+   args.AddOption(&ctx.q, "-q", "--charge",
+                  "Particle charge. If < 0, set so npt*q/L^dim = 1.");
+   args.AddOption(&ctx.m, "-m", "--mass",
+                  "Particle mass. If < 0, set so npt*m/L^dim = 1.");
    args.AddOption(&ctx.dt, "-dt", "--time-step", "Time Step.");
    args.AddOption(&ctx.diffusivity, "-diff", "--diffusivity",
                   "Diffusivity coefficient c for diffusion matrix.");
@@ -150,14 +158,24 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
    args.AddOption(&ctx.k, "-k", "--k", "Wave number for initial distribution.");
-   args.AddOption(&ctx.alpha, "-a", "--alpha",
-                  "Perturbation amplitude for initial distribution.");
    args.AddOption(&ctx.init_case, "-case", "--case",
-                  "Initial distribution: 0 = Landau damping, 1 = two-stream.");
+                  "Initial distribution: 0 = Landau, 1 = two-stream, "
+                  "2 = bump-on-tail.");
+   args.AddOption(&ctx.alpha, "-a", "--alpha",
+                  "Perturbation amplitude for initial distribution "
+                  "(case 0 only).");
    args.AddOption(&ctx.v0, "-v0", "--v0",
                   "Counter-streaming beam speed (case 1 only).");
    args.AddOption(&ctx.beam_variance, "-vvar", "--beam-variance",
                   "Variance of each counter-streaming beam (case 1 only).");
+   args.AddOption(&ctx.bump_fraction, "-bf", "--bump-fraction",
+                  "Bump weight alpha in f0 (case 2 only).");
+   args.AddOption(&ctx.vb, "-vb", "--vb",
+                  "Bump beam speed v_b (case 2 only).");
+   args.AddOption(&ctx.vth, "-vth", "--vth",
+                  "Bulk thermal speed v_th (case 2 only).");
+   args.AddOption(&ctx.vtb, "-vtb", "--vtb",
+                  "Bump thermal speed v_tb (case 2 only).");
    args.AddOption(&ctx.ordering, "-o", "--ordering",
                   "Ordering of particle data. 0 = byNODES, 1 = byVDIM.");
    args.AddOption(&ctx.redist_interval, "-rdi", "--redist-interval",
@@ -177,21 +195,32 @@ int main(int argc, char* argv[])
       if (Mpi::Root()) { args.PrintUsage(cout); }
       return 1;
    }
-   if (Mpi::Root()) { args.PrintOptions(cout); }
 
    // Assert that dimension is 2 or 3
    MFEM_VERIFY(ctx.dim == 2 || ctx.dim == 3,
                "Dimension must be 2 or 3, got " << ctx.dim);
+   MFEM_VERIFY(ctx.npt > 0, "num-particles must be positive.");
    MFEM_VERIFY(ctx.alpha >= -1.0 && ctx.alpha < 1.0,
                "Alpha should be in range [-1, 1).");
    MFEM_VERIFY(ctx.k > 0.0,
                "k must be nonzero for displacement initialization.");
-   MFEM_VERIFY(ctx.init_case == 0 || ctx.init_case == 1,
-               "case must be 0 (Landau) or 1 (two-stream).");
+   MFEM_VERIFY(ctx.init_case == 0 || ctx.init_case == 1 || ctx.init_case == 2,
+               "case must be 0 (Landau), 1 (two-stream), or 2 (bump-on-tail).");
    MFEM_VERIFY(ctx.beam_variance >= 0.0,
                "beam-variance must be non-negative.");
+   MFEM_VERIFY(ctx.bump_fraction >= 0.0 && ctx.bump_fraction <= 1.0,
+               "bump-fraction must be in [0, 1].");
+   MFEM_VERIFY(ctx.vth > 0.0, "vth must be positive.");
+   MFEM_VERIFY(ctx.vtb > 0.0, "vtb must be positive.");
 
    ctx.L = 2.0 * M_PI / ctx.k;
+   // Negative q/m means auto-normalize total density: npt*(q|m)/L^dim = 1.
+   real_t vol = ctx.L * ctx.L;
+   if (ctx.dim == 3) { vol *= ctx.L; }
+   if (ctx.q < 0.0) { ctx.q = vol / ctx.npt; }
+   if (ctx.m < 0.0) { ctx.m = vol / ctx.npt; }
+
+   if (Mpi::Root()) { args.PrintOptions(cout); }
 
    // 1. make a Cartesian Mesh (2D or 3D)
    Mesh serial_mesh;
@@ -251,7 +280,8 @@ int main(int argc, char* argv[])
                                 E_finder, num_particles, ordering_type);
    particle_mover.InitializeChargedParticles(
       ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
-      ctx.beam_variance, ctx.reproduce);
+      ctx.beam_variance, ctx.bump_fraction, ctx.vb, ctx.vth, ctx.vtb,
+      ctx.reproduce);
 
    // 8. Start the main loop
    real_t t = 0;

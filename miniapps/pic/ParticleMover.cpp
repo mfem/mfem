@@ -45,16 +45,19 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
       pdata_ordering);
 }
 
-void ParticleMover::InitializeChargedParticles(const real_t& k,
-                                               const real_t& alpha,
-                                               real_t m, real_t q, real_t L,
-                                               int init_case, real_t v0,
-                                               real_t beam_variance,
-                                               bool reproduce)
+void ParticleMover::InitializeChargedParticles(
+   const real_t& k, const real_t& alpha, real_t m, real_t q, real_t L,
+   int init_case, real_t v0, real_t beam_variance, real_t bump_fraction,
+   real_t vb, real_t vth, real_t vtb, bool reproduce)
 {
-   MFEM_VERIFY(init_case == 0 || init_case == 1,
-               "init_case must be 0 (Landau) or 1 (two-stream).");
+   MFEM_VERIFY(init_case == 0 || init_case == 1 || init_case == 2,
+               "init_case must be 0 (Landau), 1 (two-stream), or 2 "
+               "(bump-on-tail).");
    MFEM_VERIFY(beam_variance >= 0.0, "beam_variance must be non-negative.");
+   MFEM_VERIFY(bump_fraction >= 0.0 && bump_fraction <= 1.0,
+               "bump_fraction must be in [0, 1].");
+   MFEM_VERIFY(vth > 0.0, "vth must be positive.");
+   MFEM_VERIFY(vtb > 0.0, "vtb must be positive.");
 
    int rank;
    MPI_Comm_rank(charged_particles->GetComm(), &rank);
@@ -89,13 +92,26 @@ void ParticleMover::InitializeChargedParticles(const real_t& k,
             X(i, d) = x;
          }
       }
-      else  // init_case == 1
+      else if (init_case == 1)
       {
          // Two-stream: Gaussian beams at +/-v0 in x, Maxwellian transverse.
          const real_t vx_mean = (real_dist(gen) < 0.5 ? v0 : -v0);
          P(i, 0) = m * (vx_mean + beam_std * norm_dist(gen));
 
          for (int d = 1; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
+
+         for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
+      }
+      else  // init_case == 2
+      {
+         // Bump-on-tail: (1-bf)*N(0,vth^2) + bf*N(vb,vtb^2) in vx.
+         const real_t vx =
+            (real_dist(gen) < bump_fraction)
+               ? (vb + vtb * norm_dist(gen))
+               : (vth * norm_dist(gen));
+         P(i, 0) = m * vx;
+
+         for (int d = 1; d < dim; d++) { P(i, d) = m * vth * norm_dist(gen); }
 
          for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
       }
