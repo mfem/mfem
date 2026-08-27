@@ -9,8 +9,6 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 1000)
-
 #include "lor_batched.hpp"
 #include "../../fem/quadinterpolator.hpp"
 #include "../../general/forall.hpp"
@@ -780,5 +778,3 @@ IntegrationRule GetCollocatedFaceIntRule(FiniteElementSpace &fes)
 }
 
 } // namespace mfem
-
-//#endif // !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 1000)
