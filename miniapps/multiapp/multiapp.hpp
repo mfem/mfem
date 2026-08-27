@@ -40,6 +40,8 @@ protected:
     Vector *data = nullptr;
     Vector *adjoint = nullptr; // For storing derivative info
     int id = -1; // initialized to invalid id
+    bool own_adj = false; // Whether this Field owns the adjoint Vector
+    bool own_data = false; // Whether this Field owns the data Vector
 
     std::string name; // Optional name for the field
     Operator *oper  = nullptr; // Operator that outputs this field
@@ -60,29 +62,61 @@ public:
     Field(Vector *field, int id_ = -1) :
           Field(field, nullptr, id_) { }
 
+    template<typename T,
+             typename std::enable_if<std::is_base_of<Vector,T>::value,bool>::type = true>
+    Field(const T &v, int id_ = -1) : Field(nullptr, nullptr, id_)
+    {
+        AllocateData(v);
+    }
+
     ///@brief Get the stored internally stored data pointer
     Vector* Data() const { return data; }
     Vector* Adjoint() const { return adjoint; }
     Operator* GetOperator() const { return oper; }
 
+    template<typename T,
+             typename std::enable_if<std::is_base_of<Vector,T>::value,bool>::type = true>
+    void AllocateData(const T &v)
+    {
+        if(data && own_data) { delete data; }
+        if(adjoint && own_adj) { delete adjoint; }
+        data = new T(v); // Create a new Vector on device/host
+        adjoint = new T(v); // Might be unused (e.g., gradient calculation)
+        own_data = true;
+        own_adj = true;
+    }
+
     ///@brief Set the internally stored data pointer
     virtual void SetData(Vector *field, Vector *adj)
     {
+        if(data && own_data) { delete data; }
+        if(adjoint && own_adj) { delete adjoint; }
         data = field;
         adjoint = adj;
+        own_data = false;
+        own_adj = false;
     }
 
     virtual void SetData(Vector *field)
     {
+        if(data && own_data) { delete data; }
         data = field;
-        if(!adjoint) { adjoint = field; } // If not set, use the same as data
+        own_data = false;
+        if(!adjoint)
+        {
+            adjoint = field;// If not set, use the same as data
+            own_adj = false;
+        }
     }
 
-    virtual void SetAdjoint(Vector *adj) { adjoint = adj; }
-    virtual void SetOperator(Operator *op) { oper = op; }
+    virtual void SetAdjoint(Vector *adj)
+    {
+        if(adjoint && own_adj) { delete adjoint; }
+        adjoint = adj;
+        own_adj = false;
+    }
 
-    virtual void GetData(Vector &field) const { field = *data; }
-    virtual void GetAdjoint(Vector &adj) const { adj = *adjoint; }
+    virtual void SetOperator(Operator *op) { oper = op; }
 
     std::string Name() const { return name; }
     void SetName(const std::string &n) { name = n; }
@@ -94,7 +128,11 @@ public:
         id = i;
     }
 
-    virtual ~Field() = default;
+    virtual ~Field()
+    {
+        if(data && own_data) { delete data; }
+        if(adjoint && own_adj) { delete adjoint; }
+    }
 };
 
 /// @brief A collection of Fields, each identified by a name

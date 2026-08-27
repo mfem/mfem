@@ -690,15 +690,15 @@ int main(int argc, char *argv[])
    else
    {
       k1_field = diff_coeff_1(T1_field);
-      k1_field->SetData(&k1vec, &k1adj);
+      k1_field->SetData(&k1vec, &k1adj); // Use different provided memory for data and adjoint
 
       k2_field = diff_coeff_2(T2_field);
-      k2_field->SetData(&k2vec, &k2adj);
+      k2_field->AllocateData(k2vec); // Allocate memory for data and adjoint of same size and type
 
       if(ctx.coupled)
       {
          kp_field = prod_coeff(k1_field, k2_field);
-         kp_field->SetData(&kpvec, &kpvec);
+         kp_field->SetData(&kpvec); // Use same, provided memory for data and adjoint
 
          f1_field = diff_op1(T1_field, kp_field);
          f2_field = diff_op2(T2_field, kp_field);
