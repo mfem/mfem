@@ -34,6 +34,7 @@
 
 #include <iostream>
 #include <map>
+#include <utility> // std::as_const
 
 using namespace std;
 
@@ -2243,6 +2244,17 @@ template void GroupCommunicator::MaxAbs<float>(OpData<float>);
 
 /// @cond DOXYGEN_SKIP
 
+template void DeviceGroupCommunicator::BcastBeginTDofs<int>(Array<int> &) const;
+template void DeviceGroupCommunicator::BcastBeginLDofs<int>(Array<int> &) const;
+template void DeviceGroupCommunicator::BcastEndLDofs<int>(Array<int> &) const;
+template void DeviceGroupCommunicator::ReduceBeginLDofs<int>(
+   const Array<int> &) const;
+template void DeviceGroupCommunicator::ReduceEndTDofs<int>(
+   Array<int> &, Op) const;
+template void DeviceGroupCommunicator::ReduceEndLDofs<int>(
+   Array<int> &, Op) const;
+template void DeviceGroupCommunicator::CopyTDofsToLDofs<int>(
+   const Array<int> &, Array<int> &) const;
 template void DeviceGroupCommunicator::Prolongate<int>(
    const Array<int> &, Array<int> &) const;
 template void DeviceGroupCommunicator::ProlongateTranspose<int>(
@@ -2252,6 +2264,20 @@ template void DeviceGroupCommunicator::Restrict<int>(
 template void DeviceGroupCommunicator::RestrictTranspose<int>(
    const Array<int> &, Array<int> &) const;
 
+template void DeviceGroupCommunicator::BcastBeginTDofs<real_t>(
+   Array<real_t> &) const;
+template void DeviceGroupCommunicator::BcastBeginLDofs<real_t>(
+   Array<real_t> &) const;
+template void DeviceGroupCommunicator::BcastEndLDofs<real_t>(
+   Array<real_t> &) const;
+template void DeviceGroupCommunicator::ReduceBeginLDofs<real_t>(
+   const Array<real_t> &) const;
+template void DeviceGroupCommunicator::ReduceEndTDofs<real_t>(
+   Array<real_t> &, Op) const;
+template void DeviceGroupCommunicator::ReduceEndLDofs<real_t>(
+   Array<real_t> &, Op) const;
+template void DeviceGroupCommunicator::CopyTDofsToLDofs<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
 template void DeviceGroupCommunicator::Prolongate<real_t>(
    const Array<real_t> &, Array<real_t> &) const;
 template void DeviceGroupCommunicator::ProlongateTranspose<real_t>(
