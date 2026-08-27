@@ -415,3 +415,208 @@ TEST_CASE("The reduced operator is a function of the trace",
    REQUIRE(BitwiseEqual(r2, r1));
    REQUIRE(BitwiseEqual(r3, r2));
 }
+
+namespace darcy_linearise_first
+{
+
+/// The semilinear problem of the two tests below: (c p^2, w) on the potential
+/// mass form, Dirichlet trace all round. Returns the reduced operator.
+struct SemilinearHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   DarcyForm darcy;
+   ConstantCoefficient one;
+   Array<int> ess_flux;
+   OperatorHandle R;
+   Vector X, B;
+   BlockVector sol;
+
+   SemilinearHDG(int n, int order, real_t c,
+                 DarcyHybridization::NLOrdering ordering)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE)),
+        u_coll(order, 2, BasisType::GaussLobatto), p_coll(order, 2),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        darcy(&Vh, &Wh), one(1.0)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+      darcy.GetFluxDivForm()->AddDomainIntegrator(
+         new VectorDivergenceIntegrator());
+      darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new SquareSource(c));
+      Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+      Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+      Array<int> ess_bdr(mesh.bdr_attributes.Max());
+      ess_bdr = 1;
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      darcy.GetHybridization()->SetNonlinearOrdering(ordering);
+      // The control has to be a control. CondenseThenLinearise solves the
+      // local problem to this tolerance, and an inexact local solve is itself
+      // a residual error, so the default 1e-6 would put the reference at 1e-6
+      // and hide anything smaller.
+      darcy.GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton, 1000, 1e-14, 1e-30);
+      darcy.GetHybridization()->SetEssentialBC(ess_bdr);
+      darcy.Assemble();
+
+      sol.Update(darcy.GetOffsets());
+      sol = 0.0;
+      darcy.FormLinearSystem(ess_flux, sol, R, X, B, true);
+   }
+
+   Operator &op() { return *R.Ptr(); }
+   const Array<int> &ess() const
+   { return darcy.GetHybridization()->GetEssentialTrueDofs(); }
+};
+
+} // namespace darcy_linearise_first
+
+TEST_CASE("The reduced gradient is the derivative of the reduced residual",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+
+   // GetGradient() against a central difference of Mult(). Under
+   // LineariseThenCondense it was not the derivative: the retained local
+   // residual was applied twice, once predicting and once correcting, so the
+   // correction was evaluated a whole local Newton step away from the fields
+   // the retained factors were built at, and the gradient was wrong by the
+   // change in the local Jacobian over that step.
+   //
+   // The error was O(1) at a COLD linearisation -- the first one, which
+   // retained the caller's initial guess -- and second-order small once the
+   // retained fields had converged. That is why a mild problem was unaffected
+   // and a stiff one lost the first Newton step, and why a line search, which
+   // measures every trial against one linearisation, made it worse. This test
+   // is deliberately cold: one Mult, one GetGradient, then the difference.
+   //
+   // With the defect present, at c = 100 this reported 3.2e-03 and was
+   // independent of h across four decades -- which is what says a real
+   // Jacobian error rather than a differencing artefact.
+   const real_t c = GENERATE(1.0, 1.0e1, 1.0e2, 1.0e3);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   const real_t h = GENERATE(1.0e-4, 1.0e-5);
+   CAPTURE(c, h, ordering == Ord::LineariseThenCondense);
+
+   SemilinearHDG P(8, 1, c, ordering);
+   Operator &op = P.op();
+   const int m = op.Height();
+
+   // The essential trace rows are masked: the residual is zeroed there and the
+   // Jacobian carries a unit row, so comparing them is meaningless. Finding
+   // none of them would mean the problem is not the Dirichlet problem it is
+   // supposed to be, and the whole comparison would be measuring something
+   // ill-posed -- so that is checked, not assumed.
+   Array<int> ess_marker(m);
+   ess_marker = 0;
+   for (int i = 0; i < P.ess().Size(); i++) { ess_marker[P.ess()[i]] = 1; }
+   CAPTURE(P.ess().Size(), m);
+   REQUIRE(P.ess().Size() > 0);
+
+   Vector x(m), v(m);
+   x.Randomize(3);
+   x *= 0.05;
+   v.Randomize(7);
+   for (int i = 0; i < m; i++)
+   {
+      if (ess_marker[i]) { x(i) = 0.0; v(i) = 0.0; }
+   }
+   v *= 1.0/v.Norml2();
+
+   // Newton's own order, and the only order in which the question is well
+   // posed: the residual, then the gradient at the same trace. The
+   // linearisation then sits at x and Mult() never moves it, so both
+   // difference evaluations see the linearisation the gradient belongs to.
+   Vector r0(m);
+   op.Mult(x, r0);
+   op.GetGradient(x);
+
+   Vector xp(x), xm(x), rp(m), rm(m), Jv(m);
+   xp.Add(h, v);
+   xm.Add(-h, v);
+   op.Mult(xp, rp);
+   op.Mult(xm, rm);
+   Vector fd(rp);
+   fd -= rm;
+   fd *= 1.0/(2.0*h);
+
+   op.GetGradient(x).Mult(v, Jv);   // idempotent at the retained trace
+
+   real_t num = 0.0, den = 0.0;
+   for (int i = 0; i < m; i++)
+   {
+      if (ess_marker[i]) { continue; }
+      const real_t d = Jv(i) - fd(i);
+      num += d*d;
+      den += fd(i)*fd(i);
+   }
+   const real_t rel = std::sqrt(num)/std::max(real_t(1e-300), std::sqrt(den));
+
+   CAPTURE(rel, std::sqrt(den));
+   REQUIRE(std::sqrt(den) > 0.0);
+   // A central difference of an exact Jacobian is limited by round-off, which
+   // grows as 1/h -- about 1e-12 at h = 1e-4 and 1e-11 at h = 1e-5 here. The
+   // bound is set well above that and far below the 3.2e-03 the defect gave.
+   REQUIRE(rel < 1.0e-8);
+}
+
+TEST_CASE("The reduced residual survives the linearisation advancing",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+
+   // "The reduced operator is a function of the trace" asks for the residual
+   // twice at a trace the linearisation is already at, where GetGradient() is
+   // idempotent and the answers agree bit for bit. This asks the same thing at
+   // a trace the linearisation ADVANCES to, which is what happens at every
+   // Newton iteration after the first, and there the answers cannot agree
+   // exactly: the retained fields move, and the residual is evaluated at
+   // fields substituted from them.
+   //
+   // What can be required is that the move is second order -- that the
+   // retained fields carry a local residual small enough for the substitution
+   // to be insensitive to which of them it started from. That holds only
+   // because the linearisation is formed with a local correction applied,
+   // including the very first one; retaining the caller's raw initial guess
+   // instead put this at 3.3e-05 rather than 5.0e-10.
+   const real_t c = GENERATE(1.0, 1.0e1);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   CAPTURE(c, ordering == Ord::LineariseThenCondense);
+
+   SemilinearHDG P(8, 1, c, ordering);
+   Operator &op = P.op();
+   const int m = op.Height();
+
+   Vector x0(m), x1(m), r(m), ra(m), rb(m);
+   x0.Randomize(1);
+   x0 *= 0.1;
+   x1.Randomize(5);
+   x1 *= 0.1;
+
+   op.Mult(x0, r);
+   op.GetGradient(x0);      // the linearisation sits at x0
+   op.Mult(x1, ra);         // a new trace, the old linearisation
+   op.GetGradient(x1);      // the linearisation advances to x1
+   op.Mult(x1, rb);         // the same trace as ra
+
+   Vector d(rb);
+   d -= ra;
+   const real_t rel = d.Norml2()/std::max(real_t(1e-300), ra.Norml2());
+
+   CAPTURE(rel, ra.Norml2(), rb.Norml2());
+   REQUIRE(ra.Norml2() > 0.0);
+   REQUIRE(rel < 1.0e-7);
+}

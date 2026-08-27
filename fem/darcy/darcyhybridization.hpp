@@ -312,15 +312,17 @@ private:
    mutable long num_local_nl_iters{0};
 
    /** @brief The point the local Jacobian in @a Af_data, @a Df_data and
-       @a Bnl_data was assembled at, and the local residual there.
+       @a Bnl_data was assembled at.
 
        Only used by NLOrdering::LineariseThenCondense, and refreshed only by
        GetGradient(); see SetNonlinearOrdering(). @a lin_trace is a trace
-       L-vector, @a lin_u and @a lin_p are flux and potential L-vectors, and
-       the residuals are element-local, indexed by @a Af_f_offsets and
-       @a Df_f_offsets like the blocks they belong to. */
+       L-vector, @a lin_u and @a lin_p are flux and potential L-vectors.
+
+       The local residual here is deliberately not retained. Every evaluation
+       recomputes it at the fields it is actually using, which is what keeps
+       the reduced gradient the derivative of the reduced residual; see
+       MultInvLin(). */
    mutable Vector lin_trace, lin_u, lin_p;
-   mutable Array<real_t> lin_ru_data, lin_rp_data;
    /// Scratch for the next linearisation point, swapped in when it is complete.
    mutable Vector lin_u_next, lin_p_next;
    mutable bool lin_valid{false};
@@ -504,8 +506,12 @@ private:
    void AllocEG() const;
    void AllocH() const;
    enum class MultNlMode { Mult, Sol, Grad, GradMult };
+   /** @a force_relin makes a MultNlMode::Grad pass re-substitute and
+       relinearise even at the trace it is already linearised about. Only the
+       initialisation below wants that; a gradient asked for twice at one trace
+       must be idempotent, which is why it is not the default. */
    void MultNL(MultNlMode mode, const Vector &bu, const Vector &bp,
-               const Vector &x, Vector &y) const;
+               const Vector &x, Vector &y, bool force_relin = false) const;
    void MultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
                Vector &y) const
    { MultNL(mode, b.GetBlock(0), b.GetBlock(1), x, y); }
@@ -532,14 +538,18 @@ private:
    /** @brief Whether the retained linearisation belongs to the trace @a x,
        compared bit for bit: anything else is a different iterate. */
    bool LinearisedAt(const Vector &x) const;
+   /** @a corrections is how many frozen-Jacobian local Newton steps follow the
+       affine prediction. Evaluating the reduced operator must use exactly one,
+       or its derivative stops being the assembled Schur complement; forming a
+       linearisation point is under no such constraint and uses one more, which
+       is what keeps the retained fields near the local solution. */
    void MultInvLin(int el, const Array<int> &faces, const BlockVector &x_l,
                    const Vector &bu_l, const Vector &bp_l, Vector &u_l,
-                   Vector &p_l) const;
+                   Vector &p_l, int corrections) const;
    /** @brief Record @a el's contribution to the linearisation point: the
-       fields, the local residual there, and the local Jacobian. */
+       fields and the local Jacobian there. */
    void Relinearise(int el, const Array<int> &faces, const BlockVector &x_l,
-                    const Vector &bu_l, const Vector &bp_l, const Vector &u_l,
-                    const Vector &p_l) const;
+                    const Vector &u_l, const Vector &p_l) const;
    /// The local nonlinear residual of @a el at (@a u_l, @a p_l).
    void LocalResidual(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &bu_l, const Vector &bp_l,
