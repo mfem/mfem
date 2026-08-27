@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <cstring>
 #include <vector>
 
 using namespace mfem;
@@ -89,6 +90,67 @@ void SourceTerm(const Vector &x, Vector &g)
    for (int d = 0; d < x.Size(); d++) { s *= std::sin(M_PI * x(d)); }
    g(0) = s;
    g(1) = -0.7 * s;
+}
+
+// A source (s(u), w) on the potential block with s(u) = c u^2. The point is
+// that it drives GetPotentialMassNonlinearForm(), which is a different path
+// from the block nonlinear form above, and c scales how stiff the local
+// problem is.
+class SquareSource : public NonlinearFormIntegrator
+{
+public:
+   explicit SquareSource(real_t c_) : c(c_) { }
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 2);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcPhysShape(Tr, shape);
+         const real_t u = shape * elfun;
+         elvect.Add(ip.weight * Tr.Weight() * c * u * u, shape);
+      }
+   }
+
+   void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elmat.SetSize(dof);
+      elmat = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 2);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcPhysShape(Tr, shape);
+         const real_t u = shape * elfun;
+         AddMult_a_VVt(ip.weight * Tr.Weight() * 2.0 * c * u, shape, elmat);
+      }
+   }
+
+private:
+   real_t c;
+   Vector shape;
+};
+
+/// The same bits, which is what "a function of the trace" has to mean here.
+bool BitwiseEqual(const Vector &a, const Vector &b)
+{
+   if (a.Size() != b.Size()) { return false; }
+   return std::memcmp(a.GetData(), b.GetData(),
+                      a.Size()*sizeof(real_t)) == 0;
 }
 
 /// Collects the outer residual norm of every Newton iteration.
@@ -276,4 +338,80 @@ TEST_CASE("Linearise-then-condense reaches the same solution",
       CAPTURE(new_way.norms.size());
       REQUIRE(checked >= 1);
    }
+}
+
+TEST_CASE("The reduced operator is a function of the trace",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+
+   // A residual asked for twice at the same trace has to answer the same
+   // thing, whatever happened in between. It did not: every GetGradient()
+   // advanced the linearisation point, which is a local Newton step at fixed
+   // trace, so the operator was a function of its own history. On a stiff
+   // local problem those ungloablised steps ran away -- the residual grew from
+   // 1.9e+01 to 4.2e+03 between two calls at one trace, and again by 10^4 at
+   // the next. The nonlinearity here is on the potential mass form, which is
+   // the path that had no coverage.
+   const real_t c = GENERATE(1.0, 1.0e2, 1.0e4, 1.0e5);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   CAPTURE(c, ordering == Ord::LineariseThenCondense);
+
+   const int order = 1;
+   Mesh mesh = Mesh::MakeCartesian2D(8, 8, Element::TRIANGLE);
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim);
+   FiniteElementSpace Wh(&mesh, &p_coll);
+   FiniteElementSpace Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(
+      new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new SquareSource(c));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_bdr(mesh.bdr_attributes.Max()), ess_flux;
+   ess_bdr = 1;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   darcy.GetHybridization()->SetNonlinearOrdering(ordering);
+   darcy.GetHybridization()->SetEssentialBC(ess_bdr);
+   darcy.Assemble();
+
+   BlockVector sol(darcy.GetOffsets()), rhs(darcy.GetOffsets());
+   sol = 0.0;
+   rhs = 0.0;
+
+   OperatorHandle R;
+   Vector X, B;
+   darcy.FormLinearSystem(ess_flux, sol, rhs, R, X, B, true);
+
+   Operator &op = *R.Ptr();
+   Vector x(op.Height()), r1(op.Height()), r2(op.Height()), r3(op.Height());
+   x.Randomize(1);
+   x *= 0.1;
+
+   op.Mult(x, r1);
+   op.GetGradient(x);            // the same trace
+   op.Mult(x, r2);
+   op.GetGradient(x);            // and again
+   op.Mult(x, r3);
+
+   CAPTURE(r1.Norml2(), r2.Norml2(), r3.Norml2());
+   REQUIRE(r1.Norml2() > 0.0);
+   REQUIRE(BitwiseEqual(r2, r1));
+   REQUIRE(BitwiseEqual(r3, r2));
 }

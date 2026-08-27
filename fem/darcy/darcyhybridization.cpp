@@ -11,6 +11,8 @@
 
 #include "darcyhybridization.hpp"
 
+#include <cstring>
+
 #include "../../mesh/segment.hpp"
 #include "../../mesh/triangle.hpp"
 #include "../../mesh/quadrilateral.hpp"
@@ -1664,6 +1666,10 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       f_2_b = fes.GetMesh()->GetFaceToBdrElMap();
    }
 
+   // The linearisation point advances when the trace does. A gradient asked
+   // for at the trace it was last taken at is the same gradient.
+   const bool relinearise = !LinearisedAt(x);
+
    if (nl_ordering == NLOrdering::LineariseThenCondense && !lin_valid &&
        (mode == MultNlMode::Mult || mode == MultNlMode::Sol))
    {
@@ -1771,10 +1777,26 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
 
          if (lin_first && lin_valid)
          {
-            // The flux and the potential the linearisation implies for this
-            // trace, by substitution. No element runs a nonlinear solve in
-            // this ordering; see SetNonlinearOrdering().
-            MultInvLin(el, faces, x_l, bu_l, bp_l, u_l, p_l);
+            if (mode == MultNlMode::Grad && !relinearise)
+            {
+               // Re-linearising at a trace the linearisation is already at
+               // must not move the fields. Taking the substituted fields here
+               // instead would apply a local Newton step per GetGradient()
+               // call, so the operator would stop being a function of the
+               // trace, and on a stiff local problem those ungloablised steps
+               // run away: the residual at one trace grew from 1.9e+01 to
+               // 4.2e+03 between two calls. Covered by the unit test "The
+               // reduced operator is a function of the trace".
+               lin_u.GetSubVector(u_vdofs, u_l);
+               lin_p.GetSubVector(p_dofs, p_l);
+            }
+            else
+            {
+               // The flux and the potential the linearisation implies for this
+               // trace, by substitution. No element runs a nonlinear solve in
+               // this ordering; see SetNonlinearOrdering().
+               MultInvLin(el, faces, x_l, bu_l, bp_l, u_l, p_l);
+            }
          }
          else
          {
@@ -2566,6 +2588,13 @@ void DarcyHybridization::SetNonlinearOrdering(NLOrdering ordering)
    lin_p_next.SetSize(0);
    lin_ru_data.DeleteAll();
    lin_rp_data.DeleteAll();
+}
+
+bool DarcyHybridization::LinearisedAt(const Vector &x) const
+{
+   return lin_valid && lin_trace.Size() == x.Size() &&
+          std::memcmp(lin_trace.GetData(), x.GetData(),
+                      x.Size()*sizeof(real_t)) == 0;
 }
 
 void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,

@@ -529,6 +529,9 @@ private:
                   const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
    /** @brief The flux and potential the linearisation implies for the trace
        @a x_l, that is (q, u)(L) of SetNonlinearOrdering(). */
+   /** @brief Whether the retained linearisation belongs to the trace @a x,
+       compared bit for bit: anything else is a different iterate. */
+   bool LinearisedAt(const Vector &x) const;
    void MultInvLin(int el, const Array<int> &faces, const BlockVector &x_l,
                    const Vector &bu_l, const Vector &bp_l, Vector &u_l,
                    Vector &p_l) const;
