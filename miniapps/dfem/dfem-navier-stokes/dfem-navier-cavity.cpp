@@ -17,14 +17,17 @@
 //
 // Sample runs:
 //
-// - Reynolds 100, Q3-Q2, dt = 0.05, t_final = 20 (but should reach steady state at t ~ 10):
+// - Newtonian, Reynolds 100, Q3-Q2, dt = 0.05, t_final = 20 (but should reach steady state at t ~ 10):
 //   mpirun -np 4 ./dfem-navier-cavity -o 2 -r 1 -re 100 -dt 0.05 -tf 20 -st 1e-6 -pv
 //
-// - Reynolds 1000, Q3-Q2, dt = 0.01, t_final = 20:
+// - Newtonian, Reynolds 1000, Q3-Q2, dt = 0.01, t_final = 20:
 //  mpirun -np 4 ./dfem-navier-cavity -o 2 -r 1 -re 1000 -dt 0.01 -tf 20 -st 1e-6 -pv
 //
-// - Shear-thinning power-law fluid (non-newtonian):
+// - Non Newtonian: Shear-thinning regularized Power-Law fluid (n = 0.5, epsilon = 1e-3):
 //   mpirun -np 4 ./dfem-navier-cavity -o 2 -r 1 -rheo power-law -re 100 -dt 0.025 -tf 20 -st 1e-6 -pv
+//
+// - Non Newtonian: Regularized Bingham fluid (Bn = 2, m = 10, epsilon = 1e-3):
+//   mpirun -np 4 ./dfem-navier-cavity -o 2 -r 1 -rheo bingham -re 100 -dt 0.025 -tf 20 -st 1e-6 -pv
 //
 // To run in 3D, replace dim = 2 with dim = 3 below and recompile.
 // Be mindful of the number of elements and order in 3D as the above runs cam be demanding in 3D.
@@ -66,8 +69,9 @@ RheologyType ParseRheology(const char *name)
    {
       return RheologyType::PowerLaw;
    }
+   if (rheology == "bingham") { return RheologyType::Bingham; }
    MFEM_ABORT("Unknown rheology '" << rheology
-              << "'. Available rheologies: newtonian, power-law.");
+              << "'. Available rheologies: newtonian, power-law, bingham.");
    return RheologyType::Newtonian;
 }
 
@@ -129,7 +133,7 @@ int main(int argc, char *argv[])
                   "Number of serial uniform refinements.");
    args.AddOption(&reynolds, "-re", "--reynolds", "Reynolds number.");
    args.AddOption(&rheology_name, "-rheo", "--rheology",
-                  "Rheology model: newtonian or power-law.");
+                  "Rheology model: newtonian, power-law, or bingham.");
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&t_final, "-tf", "--t-final", "Final time.");
    args.AddOption(&steady_tolerance, "-st", "--steady-tolerance",
@@ -223,6 +227,8 @@ int main(int argc, char *argv[])
 
    ParGridFunction velocity(&velocity_fes);
    ParGridFunction pressure(&pressure_fes);
+   Coefficient &viscosity_coefficient = navier_operator.GetViscosity(velocity);
+   ShearRateCoefficient shear_rate_coefficient(velocity);
    VectorFunctionCoefficient wall_velocity(dim, WallVelocity);
    velocity.ProjectCoefficient(wall_velocity);
    velocity.GetTrueDofs(state.GetBlock(U));
@@ -266,6 +272,8 @@ int main(int argc, char *argv[])
       pvdc->SetLevelsOfDetail(order + 1);
       pvdc->RegisterField("velocity", &velocity);
       pvdc->RegisterField("pressure", &pressure);
+      pvdc->RegisterCoeffField("viscosity", &viscosity_coefficient);
+      pvdc->RegisterCoeffField("shear_rate", &shear_rate_coefficient);
       pvdc->SetCycle(0);
       pvdc->SetTime(0.0);
       pvdc->Save();

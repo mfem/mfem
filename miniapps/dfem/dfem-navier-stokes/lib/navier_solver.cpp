@@ -11,6 +11,42 @@ namespace dfem_navier
 
 using namespace future;
 
+/// Evaluates the effective viscosity of a velocity field. It forms the strain
+/// rate D = sym(grad(u)), which is pure kinematics, and hands it to the
+/// viscosity law encoded in the selected Rheology model.
+class ViscosityCoefficient : public Coefficient
+{
+public:
+   ViscosityCoefficient(const ParGridFunction &velocity,
+                        std::function<real_t(const DenseMatrix &)>
+                        viscosity_function)
+      : velocity(velocity),
+        viscosity_function(std::move(viscosity_function)) { }
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      T.SetIntPoint(&ip);
+      velocity.GetVectorGradient(T, strain_rate);
+      strain_rate.Symmetrize();  // In place: D = (grad(u) + grad(u)^T) / 2
+      return viscosity_function(strain_rate);
+   }
+
+private:
+   const ParGridFunction &velocity;
+   std::function<real_t(const DenseMatrix &)> viscosity_function;
+   DenseMatrix strain_rate;
+};
+
+
+real_t ShearRateCoefficient::Eval(ElementTransformation &T,
+                                  const IntegrationPoint &ip)
+{
+   T.SetIntPoint(&ip);
+   velocity.GetVectorGradient(T, strain_rate);
+   strain_rate.Symmetrize();  // In place: D = (grad(u) + grad(u)^T) / 2
+   return std::sqrt(2.0 * strain_rate.FNorm2());  // FNorm2 is D:D
+}
+
 template <int DIM>
 NavierStokesOperator<DIM>::NavierStokesOperator(
    ParFiniteElementSpace &ufes, ParFiniteElementSpace &pfes,
@@ -49,11 +85,27 @@ NavierStokesOperator<DIM>::NavierStokesOperator(
 
    auto register_rheology = [&](auto qf)
    {
+      // Add the q-function specified by selected Rheology to the differentiable operator
       dop->AddDomainIntegrator<LocalQFBackend>(
          qf,
          Inputs<Value<U>, Gradient<U>, Value<P>, Gradient<Coords>, Weight> {},
          Outputs<Gradient<U>, Value<U>, Value<P>> {}, ir, domain_attributes,
          Derivatives<U, P> {});
+
+      // Capture the same q-function for post-processing, so the exported
+      // viscosity is by construction the one the solve differentiates.
+      viscosity_law = [qf](const DenseMatrix &strain_rate)
+      {
+         tensor<real_t, DIM, DIM> D;
+         for (int i = 0; i < DIM; i++)
+         {
+            for (int j = 0; j < DIM; j++)
+            {
+               D(i, j) = strain_rate(i, j);
+            }
+         }
+         return qf.effective_viscosity(D);
+      };
    };
 
    switch (rheology)
@@ -70,6 +122,17 @@ NavierStokesOperator<DIM>::NavierStokesOperator(
          RegularizedPowerLawNavierStokesQFunction<DIM> qf;
          qf.consistency = viscosity;
          qf.power_index = 0.5;  // Shear thinning behavior
+         qf.regularization = 1.0e-3;
+         register_rheology(qf);
+         break;
+      }
+      case RheologyType::Bingham:
+      {
+         RegularizedBinghamNavierStokesQFunction<DIM> qf;
+         qf.mu_p = viscosity;
+         constexpr real_t bingham_number = 2.0;
+         qf.yield_stress = bingham_number * viscosity;
+         qf.tau_regularization = 1.0e1;
          qf.regularization = 1.0e-3;
          register_rheology(qf);
          break;
@@ -127,6 +190,19 @@ void NavierStokesOperator<DIM>::Mult(const Vector &x, Vector &y) const
    MultiVector Y{result.GetBlock(0), result.GetBlock(1)};
    dop->Mult(X, Y);
    result.GetBlock(0).SetSubVector(ess_velocity_tdofs, 0.0);
+}
+
+template <int DIM>
+Coefficient &NavierStokesOperator<DIM>::GetViscosity(
+   const ParGridFunction &velocity) const
+{
+   MFEM_VERIFY(viscosity_law, "no rheology was registered");
+   if (!viscosity_coefficient)
+   {
+      viscosity_coefficient =
+         std::make_unique<ViscosityCoefficient>(velocity, viscosity_law);
+   }
+   return *viscosity_coefficient;
 }
 
 template <int DIM>

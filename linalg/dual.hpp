@@ -384,6 +384,18 @@ dual<value_type, gradient_type> exp(dual<value_type, gradient_type> a)
    return {exp(a.value), exp(a.value) * a.gradient};
 }
 
+/** @brief implementation of expm1 for dual numbers
+ * {expm1(x), exp(x)}, or reusing expm1, {expm1(x), expm1(x) + 1}
+*/
+
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> expm1(dual<value_type, gradient_type> a)
+{
+   using std::expm1;
+   const auto value = expm1(a.value);
+   return {value, (value + value_type{1}) * a.gradient};
+}
+
 /** @brief implementation of the natural logarithm function for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)

@@ -10,6 +10,7 @@
 #include "navier_preconditioners.hpp"
 #include "navier_qfunctions.hpp"
 
+#include <functional>
 #include <memory>
 
 
@@ -23,6 +24,19 @@ namespace mfem
 {
 namespace dfem_navier
 {
+
+/// Shear rate gamma = sqrt(2 D:D) of a velocity field, with D = sym(grad(u)).
+class ShearRateCoefficient : public Coefficient
+{
+public:
+   ShearRateCoefficient(const ParGridFunction &velocity) : velocity(velocity) {}
+
+   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+
+private:
+   const ParGridFunction &velocity;
+   DenseMatrix strain_rate;
+};
 
 /// Dimension-independent interface used by the solver infrastructure.
 /// This is needed for type-erasure of the NavierStokesOperator, since the
@@ -64,6 +78,9 @@ public:
    const Array<int> &GetBlockOffsets() const override;
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// Effective viscosity mu of the active rheology
+   Coefficient &GetViscosity(const ParGridFunction &velocity) const;
+
    std::shared_ptr<future::DerivativeOperator>
    GetDerivative(size_t field_id, const BlockVector &state,
                  bool use_cached_setup = false) const override;
@@ -80,6 +97,11 @@ private:
    Array<int> ess_velocity_tdofs;
    Array<int> block_offsets;
    std::shared_ptr<future::DifferentiableOperator> dop;
+
+   /// mu(D) of the rheology selected at construction, captured next to the
+   /// q-function it was configured with so the two cannot disagree.
+   std::function<real_t(const DenseMatrix &)> viscosity_law;
+   mutable std::unique_ptr<Coefficient> viscosity_coefficient;
 };
 
 /// Operator for the Residual form of the incompressible Navier-Stokes equations.
