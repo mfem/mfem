@@ -20,34 +20,6 @@ namespace
 
 #ifdef MFEM_USE_MAGMA
 
-#ifdef MFEM_USE_SINGLE
-#define MFEM_HDIV_MAGMA_PREFIX(stub) magma_s##stub
-#define MFEM_HDIV_MAGMA_SET_POINTER magma_sset_pointer
-#elif defined(MFEM_USE_DOUBLE)
-#define MFEM_HDIV_MAGMA_PREFIX(stub) magma_d##stub
-#define MFEM_HDIV_MAGMA_SET_POINTER magma_dset_pointer
-#else
-#error "Unsupported MFEM precision for MAGMA in hdiv-linear-solver."
-#endif
-
-real_t **SetMagmaPointerArray(Array<real_t *> &ptrs,
-                              real_t *data,
-                              const int stride,
-                              const int batch_size,
-                              const magma_queue_t queue)
-{
-   if (ptrs.Size() != batch_size)
-   {
-      if (ptrs.Size() != 0) { magma_queue_sync(queue); }
-      ptrs.SetSize(batch_size, Device::GetDeviceMemoryType());
-   }
-
-   real_t **d_ptrs = ptrs.Write();
-   MFEM_HDIV_MAGMA_SET_POINTER(d_ptrs, data, 1, 0, 0, stride,
-                               batch_size, queue);
-   return d_ptrs;
-}
-
 class MagmaPackedL2MassInverse final : public Solver
 {
 private:
@@ -150,14 +122,8 @@ private:
    Coefficient &coeff;
    const IntegrationRule &ir;
 
-   Vector A_factor;
-   int n = 0;
-   int batch_size = 0;
-
-   mutable Array<real_t *> mat_ptrs;
-   mutable Array<real_t *> rhs_ptrs;
-   Array<magma_int_t> info;
-   magma_queue_t queue = nullptr;
+   DenseTensor A_factor;
+   Array<int> pivots;
 
 public:
    MagmaFullL2MassInverse(const FiniteElementSpace &fes_,
@@ -173,7 +139,6 @@ public:
                   "MagmaFullL2MassInverse requires a tensor basis.");
       MFEM_VERIFY(Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK),
                   "MAGMA L2 inverse requires CUDA or HIP device backend.");
-      queue = Magma::Queue();
       Update();
    }
 
@@ -181,66 +146,31 @@ public:
    {
       MassIntegrator mass(coeff, &ir);
 
-      n = fes.GetTypicalFE()->GetDof();
-      batch_size = fes.GetMesh()->GetNE();
+      const int n = fes.GetTypicalFE()->GetDof();
+      const int batch_size = fes.GetMesh()->GetNE();
 
       // MassIntegrator::AssembleEA expects the output Vector to be sized by
       // the caller (unlike AssembleEATriangular which sizes its output).
-      A_factor.SetSize(batch_size*n*n, Device::GetDeviceMemoryType());
-      A_factor.UseDevice(true);
-      mass.AssembleEA(fes, A_factor, false);
+      A_factor.SetSize(n, n, batch_size, Device::GetDeviceMemoryType());
+      Vector A_factor_vec;
+      A_factor_vec.NewMemoryAndSize(A_factor.GetMemory(),
+                                    A_factor.TotalSize(), false);
+      A_factor_vec.UseDevice(true);
+      mass.AssembleEA(fes, A_factor_vec, false);
 
-      MFEM_VERIFY(A_factor.Size() == batch_size*n*n,
+      MFEM_VERIFY(A_factor.TotalSize() == batch_size*n*n,
                   "Unexpected element matrix storage size.");
 
-      if (batch_size == 0) { return; }
-
-      real_t *A_data = A_factor.ReadWrite();
-      real_t **dA =
-         SetMagmaPointerArray(mat_ptrs, A_data, n*n, batch_size, queue);
-
-      info.SetSize(batch_size, Device::GetDeviceMemoryType());
-      magma_int_t *d_info = info.Write();
-      magma_memset(d_info, 0, batch_size*sizeof(magma_int_t));
-
-      const magma_int_t status =
-         MFEM_HDIV_MAGMA_PREFIX(potrf_batched)(
-            MagmaLower, n, dA, n, d_info, batch_size, queue);
-
-      MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA full potrf batched failed.");
-      magma_queue_sync(queue);
-
-      const magma_int_t *h_info = info.HostRead();
-      for (int e = 0; e < batch_size; ++e)
-      {
-         MFEM_VERIFY(h_info[e] == 0,
-                     "MAGMA full potrf failed on matrix " << e << '.');
-      }
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(A_factor, pivots);
    }
 
    void Mult(const Vector &b, Vector &u) const override
    {
-      MFEM_VERIFY(queue != nullptr, "MAGMA queue is not set.");
       MFEM_VERIFY(b.Size() == height, "Invalid RHS size.");
 
       u = b;
       u.UseDevice(true);
-
-      if (batch_size == 0) { return; }
-
-      real_t *A_data = const_cast<real_t *>(A_factor.Read());
-      real_t **dA =
-         SetMagmaPointerArray(mat_ptrs, A_data, n*n, batch_size, queue);
-
-      real_t *rhs_data = u.ReadWrite();
-      real_t **dB =
-         SetMagmaPointerArray(rhs_ptrs, rhs_data, n, batch_size, queue);
-
-      const magma_int_t status =
-         MFEM_HDIV_MAGMA_PREFIX(potrs_batched)(
-            MagmaLower, n, 1, dA, n, dB, n, batch_size, queue);
-
-      MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA full potrs batched failed.");
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUSolve(A_factor, pivots, u);
    }
 
    void SetOperator(const Operator &) override
@@ -248,9 +178,6 @@ public:
       MFEM_ABORT("SetOperator not supported with MagmaFullL2MassInverse.");
    }
 };
-
-#undef MFEM_HDIV_MAGMA_SET_POINTER
-#undef MFEM_HDIV_MAGMA_PREFIX
 
 #endif // MFEM_USE_MAGMA
 

@@ -25,58 +25,6 @@ namespace
 {
 
 #ifdef MFEM_USE_MAGMA
-inline void MagmaSetPointer(float **output, float *input,
-                            magma_int_t inc, magma_int_t row, magma_int_t col,
-                            magma_int_t lda, magma_int_t batch_count,
-                            magma_queue_t queue)
-{
-   magma_sset_pointer(output, input, inc, row, col, lda, batch_count, queue);
-}
-
-inline void MagmaSetPointer(double **output, double *input,
-                            magma_int_t inc, magma_int_t row, magma_int_t col,
-                            magma_int_t lda, magma_int_t batch_count,
-                            magma_queue_t queue)
-{
-   magma_dset_pointer(output, input, inc, row, col, lda, batch_count, queue);
-}
-
-inline magma_int_t MagmaPotrfBatched(magma_uplo_t uplo, magma_int_t n,
-                                     float **dA, magma_int_t ldda,
-                                     magma_int_t *info, magma_int_t batch_count,
-                                     magma_queue_t queue)
-{
-   return magma_spotrf_batched(uplo, n, dA, ldda, info, batch_count, queue);
-}
-
-inline magma_int_t MagmaPotrfBatched(magma_uplo_t uplo, magma_int_t n,
-                                     double **dA, magma_int_t ldda,
-                                     magma_int_t *info, magma_int_t batch_count,
-                                     magma_queue_t queue)
-{
-   return magma_dpotrf_batched(uplo, n, dA, ldda, info, batch_count, queue);
-}
-
-inline magma_int_t MagmaPotrsBatched(magma_uplo_t uplo, magma_int_t n,
-                                     magma_int_t nrhs, float **dA,
-                                     magma_int_t ldda, float **dB,
-                                     magma_int_t lddb, magma_int_t batch_count,
-                                     magma_queue_t queue)
-{
-   return magma_spotrs_batched(uplo, n, nrhs, dA, ldda, dB, lddb,
-                               batch_count, queue);
-}
-
-inline magma_int_t MagmaPotrsBatched(magma_uplo_t uplo, magma_int_t n,
-                                     magma_int_t nrhs, double **dA,
-                                     magma_int_t ldda, double **dB,
-                                     magma_int_t lddb, magma_int_t batch_count,
-                                     magma_queue_t queue)
-{
-   return magma_dpotrs_batched(uplo, n, nrhs, dA, ldda, dB, lddb,
-                               batch_count, queue);
-}
-
 void PrintMagmaFasterCondition(const double eq_fixed_ms,
                                const double eq_apply_ms,
                                const double magma_fixed_ms,
@@ -130,84 +78,6 @@ void PrintMagmaFasterCondition(const double eq_fixed_ms,
            << " applies (positive integer N >= " << (long long)first_n
            << "); eq-iter is faster below that.\n";
    }
-}
-
-real_t **SetMagmaPackedPointerArray(Array<real_t *> &ptrs, real_t *data,
-                                    const int stride,
-                                    const int batch_size,
-                                    const magma_queue_t queue)
-{
-   if (ptrs.Size() != batch_size)
-   {
-      if (ptrs.Size() != 0) { magma_queue_sync(queue); }
-      ptrs.SetSize(batch_size, Device::GetDeviceMemoryType());
-   }
-
-   real_t **d_ptrs = ptrs.Write();
-   MagmaSetPointer(d_ptrs, data, 1, 0, 0, stride, batch_size, queue);
-   return d_ptrs;
-}
-
-void ComputeMagmaFullCholeskyLower(
-   const Vector &full,
-   const int n,
-   Vector &factor,
-   Array<real_t *> &factor_ptrs,
-   const magma_queue_t queue)
-{
-   const int batch_size = full.Size()/(n*n);
-   MFEM_VERIFY(full.Size() == batch_size*n*n, "Invalid full matrix storage.");
-
-   factor = full;
-
-   if (batch_size == 0) { return; }
-
-   real_t *factor_data = factor.ReadWrite();
-   real_t **dA = SetMagmaPackedPointerArray(factor_ptrs, factor_data, n*n,
-                                            batch_size, queue);
-
-   Array<magma_int_t> info_array(batch_size, Device::GetDeviceMemoryType());
-   magma_int_t *d_info = info_array.Write();
-   magma_memset(d_info, 0, batch_size*sizeof(magma_int_t));
-
-   const magma_int_t status =
-      MagmaPotrfBatched(MagmaLower, n, dA, n, d_info, batch_size, queue);
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA full potrf batched failed.");
-
-   magma_queue_sync(queue);
-   const magma_int_t *info = info_array.HostRead();
-   for (int e = 0; e < batch_size; ++e)
-   {
-      MFEM_VERIFY(info[e] == 0, "MAGMA full potrf failed on matrix " << e << '.');
-   }
-}
-
-void SolveMagmaFullCholeskyLowerInPlace(
-   const Vector &full_factor,
-   const int n,
-   const Array<real_t *> &factor_ptrs,
-   Array<real_t *> &rhs_ptrs,
-   Vector &rhs_sol,
-   const magma_queue_t queue)
-{
-   const int batch_size = rhs_sol.Size()/n;
-   MFEM_VERIFY(rhs_sol.Size() == batch_size*n, "Invalid RHS size.");
-   MFEM_VERIFY(factor_ptrs.Size() == batch_size,
-               "Factor pointer array has the wrong size.");
-
-   if (batch_size == 0) { return; }
-
-   real_t *factor_data = const_cast<real_t *>(full_factor.Read());
-   real_t **dA = const_cast<real_t **>(factor_ptrs.Read());
-   (void)factor_data; // Factor data is referenced by dA (for clarity).
-
-   real_t *rhs_data = rhs_sol.ReadWrite();
-   real_t **dB = SetMagmaPackedPointerArray(rhs_ptrs, rhs_data, n, batch_size,
-                                            queue);
-
-   const magma_int_t status =
-      MagmaPotrsBatched(MagmaLower, n, 1, dA, n, dB, n, batch_size, queue);
-   MFEM_VERIFY(status == MAGMA_SUCCESS, "MAGMA full potrs batched failed.");
 }
 #endif
 
@@ -401,28 +271,23 @@ double TimeMagmaInverseApply(
    return 1000.0*sw.RealTime()/reps;
 }
 
-double TimeMagmaFullSolve(
-   const Vector &full_factor,
-   const int n,
-   const Array<real_t *> &factor_ptrs,
+double TimeBatchedLinAlgFullLUSolve(
+   const DenseTensor &full_factor,
+   const Array<int> &pivots,
    const Vector &rhs,
    const int reps,
-   Vector &x,
-   const magma_queue_t queue)
+   Vector &x)
 {
    StopWatch sw;
-   Array<real_t *> rhs_ptrs;
 
    x = rhs;
-   SolveMagmaFullCholeskyLowerInPlace(full_factor, n, factor_ptrs, rhs_ptrs, x,
-                                      queue);
+   BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUSolve(full_factor, pivots, x);
    MFEM_DEVICE_SYNC;
    sw.Start();
    for (int r = 0; r < reps; ++r)
    {
       x = rhs;
-      SolveMagmaFullCholeskyLowerInPlace(full_factor, n, factor_ptrs, rhs_ptrs,
-                                         x, queue);
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUSolve(full_factor, pivots, x);
    }
    MFEM_DEVICE_SYNC;
    sw.Stop();
@@ -536,8 +401,8 @@ int main(int argc, char *argv[])
    std::unique_ptr<MagmaPackedLowerInverse> magma_inv_ws;
    double magma_inverse_ms = 0.0;
    bool magma_ppinv_enabled = false;
-   Vector magma_full_factor;
-   Array<real_t *> magma_full_factor_ptrs;
+   DenseTensor magma_full_factor;
+   Array<int> magma_full_pivots;
    double magma_full_factor_ms = 0.0;
 
    if (use_magma)
@@ -582,24 +447,27 @@ int main(int argc, char *argv[])
          magma_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
       }
 
-      // Full (dense) batched Cholesky factorization for comparison.
-      Vector full_ea(ne*elem_dofs*elem_dofs);
-      full_ea.UseDevice(true);
-      mass.AssembleEA(fespace, full_ea, false);
+      // Full (dense) MFEM BatchedLinAlg LU factorization for comparison.
+      DenseTensor full_ea(elem_dofs, elem_dofs, ne,
+                          Device::GetDeviceMemoryType());
+      Vector full_ea_vec;
+      full_ea_vec.NewMemoryAndSize(full_ea.GetMemory(), full_ea.TotalSize(),
+                                   false);
+      full_ea_vec.UseDevice(true);
+      mass.AssembleEA(fespace, full_ea_vec, false);
 
-      magma_full_factor.SetSize(full_ea.Size(), Device::GetDeviceMemoryType());
-      magma_full_factor.UseDevice(true);
-
-      ComputeMagmaFullCholeskyLower(full_ea, elem_dofs, magma_full_factor,
-                                    magma_full_factor_ptrs, magma_queue);
+      magma_full_factor = full_ea;
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(magma_full_factor,
+                                                        magma_full_pivots);
       MFEM_DEVICE_SYNC;
 
       sw.Clear();
       sw.Start();
       for (int r = 0; r < setup_reps; ++r)
       {
-         ComputeMagmaFullCholeskyLower(full_ea, elem_dofs, magma_full_factor,
-                                       magma_full_factor_ptrs, magma_queue);
+         magma_full_factor = full_ea;
+         BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(magma_full_factor,
+                                                           magma_full_pivots);
       }
       MFEM_DEVICE_SYNC;
       sw.Stop();
@@ -644,9 +512,8 @@ int main(int argc, char *argv[])
       magma_full_x.SetSize(rhs.Size());
       magma_full_x.UseDevice(true);
       magma_full_solve_ms =
-         TimeMagmaFullSolve(magma_full_factor, elem_dofs,
-                            magma_full_factor_ptrs, rhs, reps, magma_full_x,
-                            magma_queue);
+         TimeBatchedLinAlgFullLUSolve(magma_full_factor, magma_full_pivots, rhs,
+                                      reps, magma_full_x);
       ComputeLowerPackedResidual(packed_ea, magma_full_x, rhs,
                                  magma_full_res_l2, magma_full_rel_res_l2,
                                  magma_full_res_max, magma_full_rel_res_max);
@@ -689,8 +556,8 @@ int main(int argc, char *argv[])
    {
       cout << "Setup MAGMA packed Cholesky factor (ms): " << magma_factor_ms
            << '\n';
-      cout << "Setup MAGMA full Cholesky factor (ms): " << magma_full_factor_ms
-           << '\n';
+      cout << "Setup MFEM BatchedLinAlg MAGMA full LU factor (ms): "
+           << magma_full_factor_ms << '\n';
       if (magma_ppinv_enabled)
       {
          cout << "Setup MAGMA packed inverse (ppinv) (ms): " << magma_inverse_ms
@@ -712,11 +579,12 @@ int main(int argc, char *argv[])
    {
       cout << "Apply MAGMA packed Cholesky solve (ms/apply): "
            << magma_solve_ms << '\n';
-      cout << "Apply MAGMA full Cholesky solve (ms/apply): "
+      cout << "Apply MFEM BatchedLinAlg MAGMA full LU solve (ms/apply): "
            << magma_full_solve_ms << '\n';
       cout << "MAGMA solve / MFEM tripack inverse apply: "
            << magma_solve_ms/tripack_apply_ms << '\n';
-      cout << "MAGMA full solve / MFEM tripack inverse apply: "
+      cout << "MFEM BatchedLinAlg MAGMA full LU solve / "
+           << "MFEM tripack inverse apply: "
            << magma_full_solve_ms/tripack_apply_ms << '\n';
 
       if (magma_ppinv_enabled)
@@ -744,13 +612,15 @@ int main(int argc, char *argv[])
            << "(assembly+setup+applies, ms): " << tripack_total_ms << '\n';
       cout << "Total MAGMA packed Cholesky solve for current repetitions "
            << "(assembly+setup+applies, ms): " << magma_total_ms << '\n';
-      cout << "Total MAGMA full Cholesky solve for current repetitions "
+      cout << "Total MFEM BatchedLinAlg MAGMA full LU solve for current "
+           << "repetitions "
            << "(assembly+setup+applies, ms): " << magma_full_total_ms << '\n';
       cout << "Faster approach for current repetitions: "
            << ((magma_total_ms < tripack_total_ms &&
                 magma_total_ms <= magma_full_total_ms) ? "MAGMA packed" :
                ((magma_full_total_ms < tripack_total_ms &&
-                 magma_full_total_ms < magma_total_ms) ? "MAGMA full" :
+                 magma_full_total_ms < magma_total_ms) ?
+                "MFEM BatchedLinAlg MAGMA full" :
                 ((tripack_total_ms < magma_total_ms &&
                   tripack_total_ms <= magma_full_total_ms) ? "tripack" :
                  "tie")))
@@ -788,7 +658,7 @@ int main(int argc, char *argv[])
            << magma_rel_res_max << "), L2: "
            << magma_res_l2 << " (relative "
            << magma_rel_res_l2 << ")\n";
-      cout << "Residual, MAGMA full Cholesky solve, max: "
+      cout << "Residual, MFEM BatchedLinAlg MAGMA full LU solve, max: "
            << magma_full_res_max << " (relative "
            << magma_full_rel_res_max << "), L2: "
            << magma_full_res_l2 << " (relative "
