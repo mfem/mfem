@@ -628,7 +628,7 @@ protected:
 
    std::remove_cv_t<ViewedType> view;
    MemoryType &base_mem;
-   SizeType &base_size;  // if is_const_view, this is initialized by not used
+   SizeType &base_size;  // if is_const_view, this is initialized but not used
 
 public:
    inline MemoryView(MemoryType &mem, SizeType &size)

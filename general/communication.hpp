@@ -377,7 +377,7 @@ public:
        BcastBegin().
 
        @param[out] ldata  Output L-vector data. It must be a host pointer.
-       @param[in] layout  Ouput data layout; one of:
+       @param[in] layout  Output data layout; one of:
                           - 0: @a ldata is an array on all ldofs; the input
                                layout should be either 0 or 2,
                           - 1: @a ldata is the same array as given to
@@ -393,7 +393,7 @@ public:
        BcastBegin().
 
        @param[out] ldata  Output L-vector data.
-       @param[in] layout  Ouput data layout; one of:
+       @param[in] layout  Output data layout; one of:
                           - 0: @a ldata is an array on all ldofs; the input
                                layout should be either 0 or 2,
                           - 1: @a ldata is the same array as given to
@@ -598,7 +598,7 @@ public:
    void BcastBeginTDofs(Array<T> &x_tdof) const;
 
    template <typename T>
-   void BcastBeginLDofs(Array<T> &x_tdof) const;
+   void BcastBeginLDofs(Array<T> &x_ldof) const;
 
    template <typename T>
    void BcastEndLDofs(Array<T> &x_ldof) const;
@@ -652,7 +652,7 @@ protected:
    void ReduceBeginCopy(const Array<T> &x_ldof, Array<T> &ext_buf_t) const;
 
    // Kernel: assemble dofs from 'shr_buf_t' into to 'x_tdof' - after recv.
-   //         x_tdof[shr_ltdof[i]] Op= shr_buf_i[i]
+   //         x_tdof[shr_ltdof[i]] Op= shr_buf_t[i]
    template <typename T>
    void ReduceEndAssembleTDofs(const Array<T> &shr_buf_t,
                                Array<T> &x_tdof, Op op) const;
