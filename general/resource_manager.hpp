@@ -1008,7 +1008,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
       offset_ = 0;
    }
    // look for existing host-accessible ptr
-   auto search_for = [&inst](void *p, size_t size, size_t idx,
+   auto search_for = [&inst](void *p, size_t nbytes, size_t idx,
                              const std::map<const void *, size_t> &mapped,
                              bool &found)
    {
@@ -1026,6 +1026,10 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
          auto &seg = inst.storage.GetSegment(tmp->second);
          if (p < seg.lowers[idx] + seg.nbytes)
          {
+            MFEM_ASSERT(reinterpret_cast<char *>(p) - seg.lowers[idx] +
+                        nbytes <=
+                        seg.nbytes,
+                        "requested size exceeds previously registered aliased pointer size");
             found = true;
             return tmp;
          }
@@ -1038,13 +1042,13 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
    };
    bool found;
    // look for host-accessible pointer first
-   auto iter = search_for(ptr, size, 0, inst.segment_maps[0], found);
+   auto iter =
+      search_for(ptr, size * sizeof(T), 0, inst.segment_maps[0], found);
    if (found)
    {
       h_ptr = ptr;
       size_ = size;
-      offset_ = reinterpret_cast<const char *>(ptr) -
-                reinterpret_cast<const char *>(iter->first);
+      offset_ = ptr - reinterpret_cast<const T *>(iter->first);
       segment = iter->second;
       auto& seg = inst.storage.GetSegment(segment);
       h_mt = seg.mtypes[0];
@@ -1053,15 +1057,14 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
    }
    else
    {
-      iter = search_for(ptr, size, 1, inst.segment_maps[1], found);
+      iter = search_for(ptr, size * sizeof(T), 1, inst.segment_maps[1], found);
       if (found)
       {
          size_ = size;
-         offset_ = reinterpret_cast<const char *>(ptr) -
-                   reinterpret_cast<const char *>(iter->first);
+         offset_ = ptr - reinterpret_cast<const T *>(iter->first);
          segment = iter->second;
          auto &seg = inst.storage.GetSegment(segment);
-         h_ptr = reinterpret_cast<T *>(seg.lowers[0]);
+         h_ptr = reinterpret_cast<T *>(seg.lowers[0]) + offset_;
          h_mt = seg.mtypes[0];
          ++seg.ref_count;
          flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
