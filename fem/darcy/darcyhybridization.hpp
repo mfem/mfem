@@ -234,7 +234,16 @@ protected:
    bool bsym{};      ///< sign convention, see DarcyReduction()
    bool bfin{};      ///< indicates finalized hybridization
    DiagonalPolicy diag_policy{DIAG_ONE};  ///< diagonal policy
-   Array<int> ess_tdof_list;              ///< essential flux true DOFs
+   /** @brief Essential *trace* true DOFs, in the constraint space @a c_fes.
+
+       Not flux dofs, which is what this said for long enough to mislead an
+       outside user into writing a substitute for the accessor below. The flux
+       ones are Init()'s @a ess_flux_tdof_list and are not retained here.
+       Every setter -- SetEssentialBC(), SetEssentialVDofs(),
+       SetEssentialTrueDofs() -- fills this from @a c_fes, and these are the
+       rows the diagonal policy pins in the reduced operator: Mult() zeroes the
+       residual on them and GetGradient() leaves a unit row. */
+   Array<int> ess_tdof_list;
 
 private:
    struct
@@ -845,18 +854,26 @@ public:
    /** @param ess_flux_tdof_list    essential true DOFs of the flux */
    void Init(const Array<int> &ess_flux_tdof_list) override;
 
-   /// Specify essential boundary conditions.
+   /// Specify essential boundary conditions on the trace.
+   /** Takes a *boundary attribute* marker and produces essential true DOFs of
+       the constraint (trace) space, not of the flux -- the flux ones are
+       Init()'s argument. See @a ess_tdof_list. */
    void SetEssentialBC(const Array<int> &bdr_attr_is_ess);
 
-   /// Specify essential VDOFs.
+   /// Specify essential VDOFs of the constraint (trace) space.
    /** Use either SetEssentialBC() or SetEssentialTrueDofs() if possible. */
    void SetEssentialVDofs(const Array<int> &ess_vdofs_list);
 
-   /// Specify essential true DOFs.
+   /// Specify essential true DOFs of the constraint (trace) space.
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list_)
    { ess_tdof_list_.Copy(ess_tdof_list); }
 
-   /// Return a (read-only) list of all essential true DOFs.
+   /// Return a (read-only) list of the essential *trace* true DOFs.
+   /** These index the reduced system, so this is the list a caller needs to
+       compare GetGradient() against a finite difference of Mult(): the
+       residual is masked on them and the Jacobian carries a unit row, so they
+       have to be left out or the comparison is meaningless. See
+       @a ess_tdof_list. */
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
 
    /// Not available, use a specific Assemble*MassMatrix() instead.
