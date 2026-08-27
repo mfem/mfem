@@ -15,6 +15,13 @@ template <int DIM>
 NavierStokesOperator<DIM>::NavierStokesOperator(
    ParFiniteElementSpace &ufes, ParFiniteElementSpace &pfes,
    const IntegrationRule &ir, real_t viscosity)
+   : NavierStokesOperator(ufes, pfes, ir, viscosity,
+                          RheologyType::Newtonian) { }
+
+template <int DIM>
+NavierStokesOperator<DIM>::NavierStokesOperator(
+   ParFiniteElementSpace &ufes, ParFiniteElementSpace &pfes,
+   const IntegrationRule &ir, real_t viscosity, RheologyType rheology)
    : NavierStokesOperatorBase(ufes.GetTrueVSize() + pfes.GetTrueVSize()),
      ufes(ufes), pfes(pfes)
 {
@@ -40,12 +47,34 @@ NavierStokesOperator<DIM>::NavierStokesOperator(
       domain_attributes = 1;
    }
 
-   NavierStokesQFunction<DIM> qf{viscosity};
-   dop->AddDomainIntegrator<LocalQFBackend>(
-      qf,
-      Inputs<Value<U>, Gradient<U>, Value<P>, Gradient<Coords>, Weight> {},
-      Outputs<Gradient<U>, Value<U>, Value<P>> {}, ir, domain_attributes,
-      Derivatives<U, P> {});
+   auto register_rheology = [&](auto qf)
+   {
+      dop->AddDomainIntegrator<LocalQFBackend>(
+         qf,
+         Inputs<Value<U>, Gradient<U>, Value<P>, Gradient<Coords>, Weight> {},
+         Outputs<Gradient<U>, Value<U>, Value<P>> {}, ir, domain_attributes,
+         Derivatives<U, P> {});
+   };
+
+   switch (rheology)
+   {
+      case RheologyType::Newtonian:
+      {
+         NewtonianNavierStokesQFunction<DIM> qf;
+         qf.viscosity = viscosity;
+         register_rheology(qf);
+         break;
+      }
+      case RheologyType::PowerLaw:
+      {
+         RegularizedPowerLawNavierStokesQFunction<DIM> qf;
+         qf.consistency = viscosity;
+         qf.power_index = 0.5;  // Shear thinning behavior
+         qf.regularization = 1.0e-3;
+         register_rheology(qf);
+         break;
+      }
+   }
 
    block_offsets.SetSize(3);
    block_offsets[0] = 0;

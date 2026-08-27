@@ -23,10 +23,11 @@
 // - Reynolds 1000, Q3-Q2, dt = 0.01, t_final = 20:
 //  mpirun -np 4 ./dfem-navier-cavity -o 2 -r 1 -re 1000 -dt 0.01 -tf 20 -st 1e-6 -pv
 //
-// To run in 3D, replace dim = 2 with dim = 3 below and recompile. For a less
-// expensive center-plane study, use fewer elements in the spanwise direction:
-//   mpirun -np 4 ./dfem-navier-cavity -o 2 -e 16 -re 100 \
-//      -dt 0.025 -tf 15 -st 1e-5 -pv -vs 20
+// - Shear-thinning power-law fluid (non-newtonian):
+//   mpirun -np 4 ./dfem-navier-cavity -o 2 -r 1 -rheo power-law -re 100 -dt 0.025 -tf 20 -st 1e-6 -pv
+//
+// To run in 3D, replace dim = 2 with dim = 3 below and recompile.
+// Be mindful of the number of elements and order in 3D as the above runs cam be demanding in 3D.
 //
 // Description:
 //   This miniapp solves the incompressible Navier-Stokes equations
@@ -38,8 +39,7 @@
 //   cube. All walls carry an essential (Dirichlet) velocity condition: the top
 //   lid is driven with a smooth profile that tapers to zero at the corners,
 //   and the three remaining walls are no-slip. The lid profile is regularized
-//   rather than the discontinuous u = 1 of the textbook problem, since the
-//   corner singularity of the latter destroys the high-order convergence rate.
+//   to avoid singularities in the pressure field.
 //   The test runs until the final time t_final, or until reaching a steady state
 //
 
@@ -56,14 +56,28 @@ using namespace mfem::dfem_navier;
 namespace
 {
 
-constexpr int dim = 3;
+constexpr int dim = 2;
 
-/// Velocity of the cavity walls: zero on the three stationary walls and
-/// u = (g(x), 0) on the top lid. Supplies the essential boundary data, which
-/// stays fixed for the whole run since the residual is zeroed on those dofs.
-// Compared to traditional u = 1 on the top lid, this profile is regularized
-// to taper to zero at the corners, which avoids the pressure singularity.
-// The g(x satisfies g(0) = g(1) = 0, g'(0) = g'(1) = 0, and g(0.5) = 1.
+RheologyType ParseRheology(const char *name)
+{
+   const std::string rheology(name);
+   if (rheology == "newtonian") { return RheologyType::Newtonian; }
+   if (rheology == "power-law" || rheology == "powerlaw")
+   {
+      return RheologyType::PowerLaw;
+   }
+   MFEM_ABORT("Unknown rheology '" << rheology
+              << "'. Available rheologies: newtonian, power-law.");
+   return RheologyType::Newtonian;
+}
+
+/// Velocity for lid driven cavity:
+// - No-slip on bottom and side walls,
+// - Smooth lid velocity on the top wall (time independent)
+// The velocity profile tapers at the corners to avoid singularities in the pressure field.
+// Velocity v = (-d psi/dy, d psi/dx) based on stream function psi(x,y) = g(x) h(y).
+// g(x)/h(y) polynomials s.t g(0) = g(1) = 0, g'(0) = g'(1) = 0, and g(0.5) = 1, and
+// h(0) = 0, h(1) = 1, h'(0) = 0, and h'(1) = 0.
 void WallVelocity(const Vector &x, Vector &velocity)
 {
    const real_t x0 = x(0);
@@ -102,6 +116,7 @@ int main(int argc, char *argv[])
    real_t t_final = 1.0;
    real_t steady_tolerance = 1.0e-6;
    const char *device_config = "cpu";
+   const char *rheology_name = "newtonian";
    bool paraview = true;
    const char *outfolder = "./Output";
 
@@ -113,6 +128,8 @@ int main(int argc, char *argv[])
    args.AddOption(&refinements, "-r", "--refinements",
                   "Number of serial uniform refinements.");
    args.AddOption(&reynolds, "-re", "--reynolds", "Reynolds number.");
+   args.AddOption(&rheology_name, "-rheo", "--rheology",
+                  "Rheology model: newtonian or power-law.");
    args.AddOption(&dt, "-dt", "--time-step", "Time step.");
    args.AddOption(&t_final, "-tf", "--t-final", "Final time.");
    args.AddOption(&steady_tolerance, "-st", "--steady-tolerance",
@@ -141,6 +158,7 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(reynolds > 0.0, "Reynolds number must be positive");
 
    viscosity = 1.0 / reynolds;
+   const RheologyType rheology = ParseRheology(rheology_name);
 
    Device device(device_config);
    if (Mpi::Root())
@@ -183,6 +201,7 @@ int main(int argc, char *argv[])
    {
       mfem::out << "Number of velocity unknowns: " << global_velocity_dofs
                 << "\nNumber of pressure unknowns: " << global_pressure_dofs
+                << "\nRheology: " << rheology_name
                 << "\nReynolds number: " << reynolds
                 << "\nKinematic viscosity: " << viscosity
                 << std::endl;
@@ -199,7 +218,7 @@ int main(int argc, char *argv[])
    const IntegrationRule &integration_rule = IntRules.Get(
                                                 pmesh.GetTypicalElementGeometry(), 2 * (order + 1) + 2);
    NavierStokesOperator<dim> navier_operator(
-      velocity_fes, pressure_fes, integration_rule, viscosity);
+      velocity_fes, pressure_fes, integration_rule, viscosity, rheology);
    navier_operator.SetEssentialVelocityAttributes(walls);
 
    ParGridFunction velocity(&velocity_fes);

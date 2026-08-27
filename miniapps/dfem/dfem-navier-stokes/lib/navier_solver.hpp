@@ -52,6 +52,11 @@ public:
                         ParFiniteElementSpace &pfes,
                         const IntegrationRule &ir,
                         real_t viscosity);
+   NavierStokesOperator(ParFiniteElementSpace &ufes,
+                        ParFiniteElementSpace &pfes,
+                        const IntegrationRule &ir,
+                        real_t viscosity,
+                        RheologyType rheology);
 
    void SetEssentialVelocityAttributes(const Array<int> &ess_bdr);
    void SetEssentialVelocityTrueDofs(const Array<int> &tdofs);
