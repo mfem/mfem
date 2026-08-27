@@ -614,6 +614,8 @@ private:
 template <typename ViewedType>
 class MemoryView
 {
+   friend class Vector;
+
 protected:
    static constexpr bool is_const_view = std::is_const_v<ViewedType>;
    using T =
@@ -627,7 +629,7 @@ protected:
    MemoryType &base_mem;
    SizeType &base_size;  // if is_const_view, this is initialized but not used
 
-public:
+   // Keep the constructor private, for now.
    inline MemoryView(MemoryType &mem, SizeType &size)
       : base_mem(mem), base_size(size)
    {
@@ -637,6 +639,7 @@ public:
       view.size = size;
    }
 
+public:
    MemoryView(const MemoryView &) = delete;
    MemoryView(MemoryView &&) = delete;
    MemoryView &operator=(const MemoryView &) = delete;

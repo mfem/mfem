@@ -547,6 +547,19 @@ public:
        The returned MemoryView object is implicitly and explicitly convertible
        to `Array<real_t> &`, see class MemoryView.
 
+       The simplest way to use this method is:
+       @code
+       func(*v.GetArrayView());
+       @endcode
+       where `func` has an `Array<real_t>&` argument and `v` is a Vector. In
+       this examples, the returned MemoryView object is temporary, created just
+       before the call to `func` and destroyed automatically right after that
+       call.
+
+       Note that when the MemoryView is destroyed, the state of the underlying
+       Array<real_t> object is copied back to this Vector to reflect any changes
+       made to the Array.
+
        Creating multiple views, of the same Vector object, that have overlapping
        life spans is not supported. */
    MemoryView<Array<real_t>> GetArrayView()
@@ -557,6 +570,20 @@ public:
 
        The returned MemoryView object is implicitly and explicitly convertible
        to `const Array<real_t> &`, see class MemoryView.
+
+       The simplest way to use this method is:
+       @code
+       func(*v.GetArrayView());
+       @endcode
+       where `func` has a `const Array<real_t>&` argument and `v` is a const
+       Vector. In this examples, the returned MemoryView object is temporary,
+       created just before the call to `func` and destroyed automatically right
+       after that call.
+
+       Note that when the MemoryView is destroyed, the mutable part of the state
+       of the underlying const Array<real_t> object is copied back to this
+       Vector to reflect any changes made to the Array, e.g. if the data was
+       moved from host to device.
 
        Creating multiple views, of the same Vector object, that have overlapping
        life spans is not supported. */

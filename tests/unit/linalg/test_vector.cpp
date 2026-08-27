@@ -271,6 +271,8 @@ TEST_CASE("Vector delete at indices", "[Vector],[GPU]")
 
 TEST_CASE("Vector GetArrayView", "[Vector]")
 {
+   // Use 'volatile' to prevent the compiler from optimizing for the specific
+   // value of 'n' set here.
    volatile int n = 5;
    {
       Vector x(n);
