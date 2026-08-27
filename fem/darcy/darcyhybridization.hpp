@@ -183,6 +183,26 @@ public:
       LU,
    };
 
+   /** @brief The order in which hybridization and linearisation are applied to
+       a nonlinear problem.
+
+       The two orderings solve the same discrete problem and agree at
+       convergence; they differ in what an element has to do. */
+   enum class NLOrdering
+   {
+      /** @brief Condense first, linearise second. Eliminating the flux and the
+          potential on an element is itself a nonlinear solve, run once per
+          element per residual evaluation of the outer iteration, and the outer
+          unknown is the trace alone. */
+      CondenseThenLinearise,
+      /** @brief Linearise first, condense second: Newton on the full
+          (q, u, u_hat) system, with the resulting linear system hybridized.
+          Every local operation is then a linear solve, which is how the method
+          is defined -- Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855,
+          eqs (14)-(18). See SetNonlinearOrdering(). */
+      LineariseThenCondense,
+   };
+
 protected:
    FiniteElementSpace &fes_p;       ///< potential FE space
 #ifdef MFEM_USE_MPI
@@ -287,6 +307,23 @@ private:
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
+
+   NLOrdering nl_ordering{NLOrdering::CondenseThenLinearise};
+   mutable long num_local_nl_iters{0};
+
+   /** @brief The point the local Jacobian in @a Af_data, @a Df_data and
+       @a Bnl_data was assembled at, and the local residual there.
+
+       Only used by NLOrdering::LineariseThenCondense, and refreshed only by
+       GetGradient(); see SetNonlinearOrdering(). @a lin_trace is a trace
+       L-vector, @a lin_u and @a lin_p are flux and potential L-vectors, and
+       the residuals are element-local, indexed by @a Af_f_offsets and
+       @a Df_f_offsets like the blocks they belong to. */
+   mutable Vector lin_trace, lin_u, lin_p;
+   mutable Array<real_t> lin_ru_data, lin_rp_data;
+   /// Scratch for the next linearisation point, swapped in when it is complete.
+   mutable Vector lin_u_next, lin_p_next;
+   mutable bool lin_valid{false};
 
    std::unique_ptr<SparseMatrix> He;
    OperatorHandle pHe;
@@ -490,8 +527,30 @@ private:
    void GetCtSubMatrix(int el, const Array<int> &c_dofs, DenseMatrix &Ct) const;
    void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l,
                   const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
+   /** @brief The flux and potential the linearisation implies for the trace
+       @a x_l, that is (q, u)(L) of SetNonlinearOrdering(). */
+   void MultInvLin(int el, const Array<int> &faces, const BlockVector &x_l,
+                   const Vector &bu_l, const Vector &bp_l, Vector &u_l,
+                   Vector &p_l) const;
+   /** @brief Record @a el's contribution to the linearisation point: the
+       fields, the local residual there, and the local Jacobian. */
+   void Relinearise(int el, const Array<int> &faces, const BlockVector &x_l,
+                    const Vector &bu_l, const Vector &bp_l, const Vector &u_l,
+                    const Vector &p_l) const;
+   /// The local nonlinear residual of @a el at (@a u_l, @a p_l).
+   void LocalResidual(int el, const Array<int> &faces, const BlockVector &x_l,
+                      const Vector &bu_l, const Vector &bp_l,
+                      const Vector &u_l, const Vector &p_l,
+                      Vector &ru_l, Vector &rp_l) const;
+   /** @brief Apply the inverse of the local block system to (@a bu, @a bp).
+
+       With @a with_bnl, the (0,1) block is taken to be the Jacobian's, that
+       is -/+B^T plus the solution-dependent d(flux residual)/dp of
+       @a Bnl_data, rather than the linear -/+B^T alone. The Schur complement
+       held in @a Df_data must have been built the same way, which is what
+       ComputeH(ComputeHMode::Gradient) does. */
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
-                Vector &p) const;
+                Vector &p, bool with_bnl = false) const;
    void ConstructGrad(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &u_l,
                       const Vector &p_l) const;
@@ -551,6 +610,43 @@ public:
       lsolve.prec.rtol = rtol;
       lsolve.prec.atol = atol;
    }
+
+   /** @brief Choose whether a nonlinear problem is condensed and then
+       linearised, or linearised and then condensed. The default is
+       NLOrdering::CondenseThenLinearise, which is what every caller written
+       before this had.
+
+       Under NLOrdering::LineariseThenCondense the object handed to the outer
+       solver is the condensed Jacobian rather than the derivative of a
+       condensed residual, and no element ever runs a nonlinear solve:
+       GetNumLocalNLIterations() stays at zero. What the reduced operator
+       computes is
+
+           (q, u)(L)  =  (q, u)_lin + M^-1 (-r_lin - [C; E] (L - L_lin))
+           F(L)       =  the trace residual at (L, q(L), u(L))
+
+       where the linearisation point (L_lin, (q, u)_lin), its local residual
+       r_lin, and the factored local Jacobian M are refreshed by GetGradient().
+       Between two GetGradient() calls F is an ordinary function of the trace,
+       so line searches and lagged-Jacobian iterations behave as they would on
+       any other operator; dF/dL at the linearisation point is the condensed
+       Jacobian, because (q, u)(L) solves the linearised local equations
+       exactly and its sensitivity is the Schur complement itself.
+
+       SetLocalNLSolver() and SetLocalNLPreconditioner() are inert in this
+       mode: there is no local nonlinear solve for them to configure. */
+   void SetNonlinearOrdering(NLOrdering ordering);
+
+   /// The ordering set by SetNonlinearOrdering().
+   NLOrdering GetNonlinearOrdering() const { return nl_ordering; }
+
+   /** @brief The number of local nonlinear iterations performed, summed over
+       elements and over every residual and gradient evaluation.
+
+       Zero for a linear problem, and zero under
+       NLOrdering::LineariseThenCondense, which is what says the ordering
+       really changed rather than merely working. */
+   long GetNumLocalNLIterations() const { return num_local_nl_iters; }
 
    /// N/A, use SetConstraintIntegrators()
    void SetConstraintIntegrator(BilinearFormIntegrator *c_integ) = delete;

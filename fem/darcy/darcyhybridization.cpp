@@ -1664,6 +1664,31 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       f_2_b = fes.GetMesh()->GetFaceToBdrElMap();
    }
 
+   if (nl_ordering == NLOrdering::LineariseThenCondense && !lin_valid &&
+       (mode == MultNlMode::Mult || mode == MultNlMode::Sol))
+   {
+      // The residual is a function of the trace only once there is something
+      // to linearise about, and NewtonSolver asks for the residual before it
+      // asks for the first gradient. The blocks are allocated here as
+      // GetGradient() allocates them.
+      if (!Df_data.Size()) { AllocD(); }
+      if (!E_data.Size() || !G_data.Size()) { AllocEG(); }
+      if (!H_data.Size()) { AllocH(); }
+      else if (c_nlfi_p || c_nlfi) { H_data = 0.; }
+
+      Vector y_dummy;
+      MultNL(MultNlMode::Grad, bu, bp, x, y_dummy);
+
+#ifdef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+      // ConstructGrad() leaves the blocks unfactored on this path; it is
+      // ComputeH() that factors A and builds the Schur complement, and the
+      // substitution below needs both. The reduced matrix it also assembles is
+      // discarded here -- GetGradient() will ask for its own in a moment.
+      std::unique_ptr<SparseMatrix> H_unused;
+      ComputeH(ComputeHMode::Gradient, H_unused);
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+   }
+
    for (int el = 0; el < NE; el++)
    {
       //Load RHS
@@ -1741,33 +1766,52 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
 
       if (mode != MultNlMode::GradMult)
       {
-         //local u
-         if (darcy_u.Size() > 0)
+         const bool lin_first =
+            (nl_ordering == NLOrdering::LineariseThenCondense);
+
+         if (lin_first && lin_valid)
          {
-            //load the initial guess from the non-reduced solution vector
-            darcy_u.GetSubVector(u_vdofs, u_l);
+            // The flux and the potential the linearisation implies for this
+            // trace, by substitution. No element runs a nonlinear solve in
+            // this ordering; see SetNonlinearOrdering().
+            MultInvLin(el, faces, x_l, bu_l, bp_l, u_l, p_l);
          }
          else
          {
-            u_l.SetSize(u_vdofs.Size());
-            u_l = 0.;//initial guess?
+            //local u
+            if (darcy_u.Size() > 0)
+            {
+               //load the initial guess from the non-reduced solution vector
+               darcy_u.GetSubVector(u_vdofs, u_l);
+            }
+            else
+            {
+               u_l.SetSize(u_vdofs.Size());
+               u_l = 0.;//initial guess?
 
-         }
+            }
 
-         //local p
-         if (darcy_p.Size() > 0)
-         {
-            //load the initial guess from the non-reduced solution vector
-            darcy_p.GetSubVector(p_dofs, p_l);
-         }
-         else
-         {
-            p_l.SetSize(p_dofs.Size());
-            p_l = 0.;//initial guess?
-         }
+            //local p
+            if (darcy_p.Size() > 0)
+            {
+               //load the initial guess from the non-reduced solution vector
+               darcy_p.GetSubVector(p_dofs, p_l);
+            }
+            else
+            {
+               p_l.SetSize(p_dofs.Size());
+               p_l = 0.;//initial guess?
+            }
 
-         //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-         MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
+            if (!lin_first)
+            {
+               //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+               MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
+            }
+            // else: the first pass has nothing to substitute into, so the
+            // fields are the caller's initial guess, and this pass is what
+            // makes a linearisation point out of it.
+         }
 
          if (mode == MultNlMode::Sol)
          {
@@ -1777,7 +1821,14 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          }
          else if (mode == MultNlMode::Grad)
          {
-            ConstructGrad(el, faces, x_l, u_l, p_l);
+            if (lin_first)
+            {
+               Relinearise(el, faces, x_l, bu_l, bp_l, u_l, p_l);
+            }
+            else
+            {
+               ConstructGrad(el, faces, x_l, u_l, p_l);
+            }
             continue;
          }
       }
@@ -1913,6 +1964,19 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          c_fes.GetFaceVDofs(faces[f], c_dofs);
          y.AddElementVector(c_dofs, y_l);
       }
+   }
+
+   if (nl_ordering == NLOrdering::LineariseThenCondense &&
+       mode == MultNlMode::Grad)
+   {
+      // The new linearisation point, committed only now that every element
+      // has been through: an element later in the loop reads the old fields,
+      // and in a conforming flux space its dofs overlap the ones an earlier
+      // element has already written.
+      lin_trace = x;
+      lin_u.Swap(lin_u_next);
+      lin_p.Swap(lin_p_next);
+      lin_valid = true;
    }
 }
 
@@ -2464,6 +2528,8 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       break;
    }
 
+   num_local_nl_iters += lsolver->GetNumIterations();
+
    if (lsolver->GetConverged())
    {
       if (lsolve.print_lvl >= 0)
@@ -2485,8 +2551,175 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
    delete lop;
 }
 
+void DarcyHybridization::SetNonlinearOrdering(NLOrdering ordering)
+{
+   if (ordering == nl_ordering) { return; }
+
+   nl_ordering = ordering;
+
+   // The linearisation point belongs to the ordering that made it.
+   lin_valid = false;
+   lin_trace.SetSize(0);
+   lin_u.SetSize(0);
+   lin_p.SetSize(0);
+   lin_u_next.SetSize(0);
+   lin_p_next.SetSize(0);
+   lin_ru_data.DeleteAll();
+   lin_rp_data.DeleteAll();
+}
+
+void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
+                                       const BlockVector &x_l,
+                                       const Vector &bu_l, const Vector &bp_l,
+                                       const Vector &u_l, const Vector &p_l,
+                                       Vector &ru_l, Vector &rp_l) const
+{
+   // The local equations are lop(u, p) = (bu_l, bp_l) -- that is what the
+   // local nonlinear solve solves in the other ordering -- so the residual is
+   // one evaluation of the same operator rather than a solve with it.
+   LocalNLOperator lop(*this, el, x_l, faces);
+
+   BlockVector xv(lop.GetOffsets()), rv(lop.GetOffsets());
+   xv.GetBlock(0) = u_l;
+   xv.GetBlock(1) = p_l;
+
+   lop.Mult(xv, rv);
+
+   ru_l = rv.GetBlock(0);
+   ru_l -= bu_l;
+   rp_l = rv.GetBlock(1);
+   rp_l -= bp_l;
+}
+
+void DarcyHybridization::MultInvLin(int el, const Array<int> &faces,
+                                    const BlockVector &x_l, const Vector &bu_l0,
+                                    const Vector &bp_l0, Vector &u_l,
+                                    Vector &p_l) const
+{
+   MFEM_ASSERT(lin_valid, "No linearisation point");
+
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   // -r_lin - [C; E] (x - x_lin). The residual is read through a named
+   // vector and copied with Set(): assigning a temporary here would bind to
+   // Vector's move assignment, leaving the right-hand side aliasing the stored
+   // residual, and every line below would then write back into it.
+   const Vector ru_lin(const_cast<real_t*>(&lin_ru_data[Af_f_offsets[el]]),
+                       a_dofs_size);
+   const Vector rp_lin(const_cast<real_t*>(&lin_rp_data[Df_f_offsets[el]]),
+                       d_dofs_size);
+   Vector bu_l(a_dofs_size), bp_l(d_dofs_size);
+   bu_l.Set(-1., ru_lin);
+   bp_l.Set(-1., rp_lin);
+
+   Array<int> c_dofs;
+   Vector xlin_f, dx_f;
+
+   for (int f = 0; f < faces.Size(); f++)
+   {
+      int el1, el2;
+      fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+
+      c_fes.GetFaceVDofs(faces[f], c_dofs);
+      lin_trace.GetSubVector(c_dofs, xlin_f);
+
+      const Vector &x_f = x_l.GetBlock(f);
+      dx_f.SetSize(x_f.Size());
+      subtract(x_f, xlin_f, dx_f);
+
+      DenseMatrix Ct;
+      GetCtFaceMatrix(faces[f], el1 != el, Ct);
+      Ct.AddMult_a(-1., dx_f, bu_l);
+
+      if (E_data.Size() > 0)
+      {
+         DenseMatrix E;
+         GetEFaceMatrix(faces[f], el1 != el, E);
+         E.AddMult_a(-1., dx_f, bp_l);
+      }
+   }
+
+#ifndef MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+   MFEM_VERIFY(Bnl_empty, "This ordering needs the assembled gradient matrix "
+               "when the flux law depends on the potential: the matrix-free "
+               "Schur complement leaves d(flux residual)/dp out.");
+#endif //MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
+
+   // The increment, by the local elimination -- with the Jacobian's (0,1)
+   // block, which is what ComputeH(Gradient) put into these factors.
+   Vector du_l, dp_l;
+   MultInv(el, bu_l, bp_l, du_l, dp_l, true);
+
+   // and the fields it implies
+   Array<int> u_vdofs, p_dofs;
+   GetFDofs(el, u_vdofs);
+   fes_p.GetElementVDofs(el, p_dofs);
+
+   lin_u.GetSubVector(u_vdofs, u_l);
+   lin_p.GetSubVector(p_dofs, p_l);
+   u_l += du_l;
+   p_l += dp_l;
+
+   // One local Newton correction on top, which is what carries the local
+   // residual into the trace equation.
+   //
+   // Without it the fields solve the linearised local equations exactly, and
+   // the trace residual is then an affine function of the trace -- the trace
+   // row is linear in the fields and the substitution above is affine -- so
+   // the outer Newton lands on its root in a single step and stops there, at
+   // the solution of the first linearisation rather than of the problem. This
+   // is the -[C' E'] M^-1 r_local term of NPC eq (18), applied to the fields
+   // rather than assembled into the right-hand side: the same thing to second
+   // order, and it evaluates a nonlinear trace term at the corrected fields
+   // instead of at a linearisation of them.
+   Vector ru_l(a_dofs_size), rp_l(d_dofs_size);
+   LocalResidual(el, faces, x_l, bu_l0, bp_l0, u_l, p_l, ru_l, rp_l);
+   ru_l.Neg();
+   rp_l.Neg();
+   MultInv(el, ru_l, rp_l, du_l, dp_l, true);
+   u_l += du_l;
+   p_l += dp_l;
+}
+
+void DarcyHybridization::Relinearise(int el, const Array<int> &faces,
+                                     const BlockVector &x_l,
+                                     const Vector &bu_l, const Vector &bp_l,
+                                     const Vector &u_l, const Vector &p_l) const
+{
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   if (lin_ru_data.Size() != Af_f_offsets.Last())
+   {
+      lin_ru_data.SetSize(Af_f_offsets.Last());
+   }
+   if (lin_rp_data.Size() != Df_f_offsets.Last())
+   {
+      lin_rp_data.SetSize(Df_f_offsets.Last());
+   }
+   if (lin_u_next.Size() != fes.GetVSize()) { lin_u_next.SetSize(fes.GetVSize()); }
+   if (lin_p_next.Size() != fes_p.GetVSize()) { lin_p_next.SetSize(fes_p.GetVSize()); }
+
+   // The residual has to be taken before ConstructGrad(), which overwrites the
+   // blocks it is read from with the factored Jacobian.
+   Vector ru_l(&lin_ru_data[Af_f_offsets[el]], a_dofs_size);
+   Vector rp_l(&lin_rp_data[Df_f_offsets[el]], d_dofs_size);
+   LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l);
+
+   // The fields go to the scratch copy: an element later in the loop still
+   // reads the old ones, and in a conforming flux space the two overlap.
+   Array<int> u_vdofs, p_dofs;
+   GetFDofs(el, u_vdofs);
+   fes_p.GetElementVDofs(el, p_dofs);
+   lin_u_next.SetSubVector(u_vdofs, u_l);
+   lin_p_next.SetSubVector(p_dofs, p_l);
+
+   ConstructGrad(el, faces, x_l, u_l, p_l);
+}
+
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
-                                 Vector &u, Vector &p) const
+                                 Vector &u, Vector &p, bool with_bnl) const
 {
    Vector AiBtSiBAibu, AiBtSibp;
 
@@ -2523,6 +2756,18 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    //u += -A^-1 B^T S^-1 (B A^-1 bu - bp)
    AiBtSiBAibu.SetSize(B.Width());
    B.MultTranspose(p, AiBtSiBAibu);
+
+   if (with_bnl)
+   {
+      // The (0,1) block is s B^T + Bnl with s = -1 when symmetrized, and the
+      // term below is applied with the factor -s, so Bnl enters here scaled by
+      // s to come out with the factor -1 it needs.
+      DenseMatrix Bnl;
+      if (GetBnlMatrix(el, Bnl))
+      {
+         Bnl.AddMult_a((bsym)?(-1.):(1.), p, AiBtSiBAibu);
+      }
+   }
 
    LU_A.Solve(AiBtSiBAibu.Size(), 1, AiBtSiBAibu.GetData());
 
