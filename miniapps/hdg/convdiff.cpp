@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
    bool nonlinear_conv = false;
    int gradient_mode = -1;
    bool linearise_first = false;
+   bool threaded_assembly = false;
    real_t newton_rtol = -1.;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
@@ -261,6 +262,15 @@ int main(int argc, char *argv[])
                   "Every local operation is then a linear solve. Requires a "
                   "solver that asks for a gradient once per iterate -- Newton "
                   "does, LBFGS does not.");
+   args.AddOption(&threaded_assembly, "-thr", "--threaded-assembly",
+                  "-no-thr", "--no-threaded-assembly",
+                  "Run the element-local half of the hybridized assembly on "
+                  "several threads: DarcyHybridization::AssemblyMode::"
+                  "Threaded. The scatter into the trace matrix stays serial "
+                  "and ordered, so the assembled matrix, the iteration counts "
+                  "and the errors are identical to the serial run whatever "
+                  "OMP_NUM_THREADS says. Needs an MFEM_USE_OPENMP and "
+                  "MFEM_THREAD_SAFE build and aborts without one.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -832,6 +842,11 @@ int main(int argc, char *argv[])
       if (trace_ess_bc)
       {
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
+      }
+      if (threaded_assembly)
+      {
+         darcy->GetHybridization()->SetAssemblyMode(
+            DarcyHybridization::AssemblyMode::Threaded);
       }
       if (linearise_first)
       {

@@ -11,7 +11,11 @@
 
 #include "darcyhybridization.hpp"
 
+#include <algorithm>
 #include <cstring>
+#ifdef MFEM_USE_OPENMP
+#include <omp.h>
+#endif
 
 #include "../../mesh/segment.hpp"
 #include "../../mesh/triangle.hpp"
@@ -1258,19 +1262,235 @@ bool DarcyHybridization::GetBnlMatrix(int el, DenseMatrix &Bnl) const
    return true;
 }
 
+int DarcyHybridization::GetElementTraceSize(const Array<int> &faces) const
+{
+   int size = 0;
+   for (int f = 0; f < faces.Size(); f++)
+   {
+      size += c_fes.GetFaceElement(faces[f])->GetDof() * c_fes.GetVDim();
+   }
+   return size;
+}
+
+int DarcyHybridization::AssemblyChunkSize(int NE) const
+{
+   // The chunk bounds the block buffer, so it must not grow with the mesh:
+   // an order-2 hex has 54 trace dofs and therefore a 23 kB block, which at
+   // one buffer for the whole mesh would be gigabytes on a mesh worth
+   // threading. It must still be long enough that the serial scatter between
+   // chunks is not the synchronisation point.
+   int chunk = 256;
+#ifdef MFEM_USE_OPENMP
+   if (asm_mode == AssemblyMode::Threaded)
+   {
+      chunk = std::max(chunk, 8 * omp_get_max_threads());
+   }
+#endif
+   return std::min(chunk, std::max(NE, 1));
+}
+
+void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
+                                         real_t *Hel) const
+{
+   const bool assemble = (mode != ComputeHMode::GradientFactorOnly);
+   const bool gradient = (mode != ComputeHMode::Linear);
+
+   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
+   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+   // Decompose A
+   LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
+   if (!gradient || lop_type != LocalOpType::PotNL)
+   {
+      LU_A.Factor(a_dofs_size);
+   }
+
+   // Construct Schur complement
+   const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
+                       d_dofs_size, a_dofs_size);
+   DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
+   DenseMatrix AiBt(a_dofs_size, d_dofs_size);
+
+   // AiBt is A^-1 times the negated (0,1) block, which everything below
+   // -- the Schur complement and the C A^-1 B^T + G product -- is built
+   // from. The (0,1) block is -/+B^T from the linear divergence form plus,
+   // for a solution-dependent flux law, d(flux residual)/dp; subtracting
+   // the latter here is what puts it into both.
+   AiBt.Transpose(B);
+   if (!bsym) { AiBt.Neg(); }
+   DenseMatrix Bnl;
+   if (gradient && GetBnlMatrix(el, Bnl))
+   {
+      AiBt -= Bnl;
+   }
+   LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
+
+   DenseMatrix S;
+   Array<int> S_ipiv;
+   LUFactors LU_S;
+   if (!gradient || lop_type != LocalOpType::FluxNL)
+   {
+      mfem::AddMult(B, AiBt, D);
+
+      // Decompose Schur complement
+      LU_S.data = D.GetData();
+      LU_S.ipiv = &Df_ipiv[Df_f_offsets[el]];
+      LU_S.Factor(d_dofs_size);
+   }
+   else
+   {
+      MFEM_VERIFY(assemble, "GradientMode::MatrixFree is not supported when "
+                  "only the flux mass is nonlinear: the Schur complement is "
+                  "built into a temporary here because Df_data holds the "
+                  "factored linear potential mass, so there is nothing for "
+                  "MultInv() to read back.");
+      const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
+                              d_dofs_size, d_dofs_size);
+      S = D_lin;
+      mfem::AddMult(B, AiBt, S);
+
+      // Decompose Schur complement
+      LU_S.data = S.GetData();
+      S_ipiv.SetSize(d_dofs_size);
+      LU_S.ipiv = S_ipiv.GetData();
+      LU_S.Factor(d_dofs_size);
+   }
+
+   if (!assemble) { return; }
+
+   Array<int> faces;
+   GetElementFaces(el, faces);
+
+   DenseMatrix AiCt, BAiCt, CAiBt, H_l;
+   real_t *Hp = Hel;
+
+   // Mult C^T
+   for (int f1 = 0; f1 < faces.Size(); f1++)
+   {
+      int el1_1, el1_2;
+      fes.GetMesh()->GetFaceElements(faces[f1], &el1_1, &el1_2);
+      DenseMatrix Ct1;
+      GetCtFaceMatrix(faces[f1], el1_1 != el, Ct1);
+
+      //A^-1 C^T
+      AiCt.SetSize(Ct1.Height(), Ct1.Width());
+      AiCt = Ct1;
+      LU_A.Solve(Ct1.Height(), Ct1.Width(), AiCt.GetData());
+
+      //S^-1 (B A^-1 C^T - E)
+      BAiCt.SetSize(B.Height(), Ct1.Width());
+      mfem::Mult(B, AiCt, BAiCt);
+
+      if (c_bfi_p || mode == ComputeHMode::Gradient)
+      {
+         DenseMatrix E;
+         GetEFaceMatrix(faces[f1], el1_1 != el, E);
+
+         BAiCt -= E;
+      }
+
+      LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
+
+      for (int f2 = 0; f2 < faces.Size(); f2++)
+      {
+         int el2_1, el2_2;
+         fes.GetMesh()->GetFaceElements(faces[f2], &el2_1, &el2_2);
+         DenseMatrix Ct2;
+         GetCtFaceMatrix(faces[f2], el2_1 != el, Ct2);
+
+         // The block lands in the buffer rather than in H_ directly; the
+         // arithmetic below is unchanged, and ScatterElementH() walks the
+         // same two loops in the same order to add them.
+         H_l.UseExternalData(Hp, Ct2.Width(), Ct1.Width());
+
+         //- C A^-1 C^T
+         mfem::MultAtB(Ct2, AiCt, H_l);
+         H_l.Neg();
+
+         //(C A^-1 B^T + G) S^-1 (B A^-1 C^T - E)
+         CAiBt.SetSize(Ct2.Width(), B.Height());
+         mfem::MultAtB(Ct2, AiBt, CAiBt);
+
+         if (c_bfi_p || mode == ComputeHMode::Gradient)
+         {
+            DenseMatrix G;
+            GetGFaceMatrix(faces[f2], el2_1 != el, G);
+
+            CAiBt += G;
+         }
+
+         mfem::AddMult(CAiBt, BAiCt, H_l);
+
+         if (f1 == f2)
+         {
+            //integrate the face contrbution only on one (first) side
+            if (mode == ComputeHMode::Gradient && el2_1 == el)
+            {
+               DenseMatrix H_f;
+               GetHFaceMatrix(faces[f1], H_f);
+               H_l += H_f;
+            }
+         }
+
+         Hp += Ct2.Width() * Ct1.Width();
+      }
+   }
+}
+
+void DarcyHybridization::ScatterElementH(int el, const real_t *Hel,
+                                         SparseMatrix &H_) const
+{
+   const int skip_zeros = 1;
+
+   Array<int> faces, c_dofs_1, c_dofs_2;
+   GetElementFaces(el, faces);
+
+   const real_t *Hp = Hel;
+   DenseMatrix H_l;
+
+   for (int f1 = 0; f1 < faces.Size(); f1++)
+   {
+      c_fes.GetFaceVDofs(faces[f1], c_dofs_1);
+
+      for (int f2 = 0; f2 < faces.Size(); f2++)
+      {
+         c_fes.GetFaceVDofs(faces[f2], c_dofs_2);
+
+         H_l.UseExternalData(const_cast<real_t*>(Hp), c_dofs_2.Size(),
+                             c_dofs_1.Size());
+
+         if (f1 == f2)
+         {
+            // Both index arrays are one object here, as they were when this
+            // was a single loop, and that is load-bearing: AddSubMatrix()
+            // reads &rows != &cols to decide whether skip_zeros may drop an
+            // entry whose transpose is nonzero. Passing two equal but
+            // distinct arrays would give H_ a different sparsity pattern.
+            H_.AddSubMatrix(c_dofs_1, c_dofs_1, H_l, skip_zeros);
+         }
+         else
+         {
+            H_.AddSubMatrix(c_dofs_2, c_dofs_1, H_l, skip_zeros);
+         }
+
+         Hp += c_dofs_2.Size() * c_dofs_1.Size();
+      }
+   }
+
+   MFEM_ASSERT(Hp - Hel == GetElementTraceSize(faces) *
+               GetElementTraceSize(faces),
+               "element H block buffer over- or under-run");
+}
+
 void DarcyHybridization::ComputeH(ComputeHMode mode,
                                   std::unique_ptr<SparseMatrix> &H_) const
 {
    MFEM_ASSERT(mode != ComputeHMode::Linear || !IsNonlinear(),
                "Cannot assemble H matrix in the non-linear regime");
 
+   // Still needed by the Finalize() below; ScatterElementH() carries its own.
    const int skip_zeros = 1;
    const int NE = fes.GetNE();
-   DenseMatrix S;
-   Array<int> S_ipiv;
-   DenseMatrix AiBt, AiCt, BAiCt, CAiBt, H_l;
-   Array<int> c_dofs_1, c_dofs_2;
-   Array<int> faces;
 
    // The factorisation below is what GradientMode::MatrixFree needs and all it
    // needs; the face loops after it are the assembly, which is what costs one
@@ -1279,147 +1499,77 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
    // that duplicate omitted the Jacobian's d(flux residual)/dp and so built a
    // different Schur complement from this one.
    const bool assemble = (mode != ComputeHMode::GradientFactorOnly);
-   const bool gradient = (mode != ComputeHMode::Linear);
    if (assemble && !H_) { H_.reset(new SparseMatrix(c_fes.GetVSize())); }
 
-   for (int el = 0; el < NE; el++)
+   // The loop runs in chunks: a chunk's element-local work may happen in any
+   // order, and the scatter that follows it is replayed in element order. The
+   // buffer is what separates the two, and both halves of that separation are
+   // needed.
+   //
+   // Threading the scatter instead is not an option that was passed over.
+   // AddSubMatrix() reaches an unfinalized SparseMatrix through SetColPtr(),
+   // and that matrix has one current_row, one column-pointer scratch and one
+   // RowNode allocator for the whole matrix -- so two threads adding to
+   // *disjoint* rows still collide, and the failure is a hang rather than a
+   // wrong answer. Element colouring buys disjoint rows and therefore does not
+   // fix this by itself.
+   //
+   // The two modes then agree bit for bit -- but the ordering is not what
+   // buys that, and it was worth measuring rather than asserting. A trace dof
+   // lives on a face and a face has at most two elements, so each entry of H_
+   // is a sum of at most two contributions, and IEEE addition of two terms
+   // does not depend on their order. Scattering a chunk back-to-front instead
+   // was tried: it leaves the assembled matrix's effect unchanged, at the same
+   // 139 and 119 iterations and the same errors to every digit on the two
+   // nonlinear cases that are sensitive enough to have drifted before.
+   //
+   // So element order is kept because it is free and deterministic, not
+   // because exactness needs it. What exactness needs is that the arithmetic
+   // above be per-element, which it is: nothing in it is reassociated by the
+   // schedule, and the entries themselves are what the sum is over.
+   const int chunk = AssemblyChunkSize(NE);
+
+   Array<real_t> Hel_data;
+   Array<int> Hel_offsets, faces;
+
+   for (int el_0 = 0; el_0 < NE; el_0 += chunk)
    {
-      int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+      const int el_1 = std::min(el_0 + chunk, NE);
+      const int nel = el_1 - el_0;
 
-      // Decompose A
-      LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
-      if (!gradient || lop_type != LocalOpType::PotNL)
+      // Sizing the chunk is serial and cheap, and it is also what lets the
+      // loop below write into a plain array with no allocation of its own.
+      Hel_offsets.SetSize(nel+1);
+      Hel_offsets[0] = 0;
+      for (int el = el_0; el < el_1; el++)
       {
-         LU_A.Factor(a_dofs_size);
+         int size = 0;
+         if (assemble)
+         {
+            GetElementFaces(el, faces);
+            const int t_size = GetElementTraceSize(faces);
+            size = t_size * t_size;
+         }
+         Hel_offsets[el-el_0+1] = Hel_offsets[el-el_0] + size;
       }
+      Hel_data.SetSize(Hel_offsets[nel]);
+      real_t * const Hbuf = (Hel_data.Size() > 0) ? Hel_data.GetData() : NULL;
 
-      // Construct Schur complement
-      const DenseMatrix B(const_cast<real_t*>(&Bf_data[Bf_offsets[el]]),
-                          d_dofs_size, a_dofs_size);
-      DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
-      AiBt.SetSize(a_dofs_size, d_dofs_size);
-
-      // AiBt is A^-1 times the negated (0,1) block, which everything below
-      // -- the Schur complement and the C A^-1 B^T + G product -- is built
-      // from. The (0,1) block is -/+B^T from the linear divergence form plus,
-      // for a solution-dependent flux law, d(flux residual)/dp; subtracting
-      // the latter here is what puts it into both.
-      AiBt.Transpose(B);
-      if (!bsym) { AiBt.Neg(); }
-      DenseMatrix Bnl;
-      if (gradient && GetBnlMatrix(el, Bnl))
-      {
-         AiBt -= Bnl;
-      }
-      LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
-
-      LUFactors LU_S;
-      if (!gradient || lop_type != LocalOpType::FluxNL)
-      {
-         mfem::AddMult(B, AiBt, D);
-
-         // Decompose Schur complement
-         LU_S.data = D.GetData();
-         LU_S.ipiv = &Df_ipiv[Df_f_offsets[el]];
-         LU_S.Factor(d_dofs_size);
-      }
-      else
-      {
-         MFEM_VERIFY(assemble, "GradientMode::MatrixFree is not supported when "
-                     "only the flux mass is nonlinear: the Schur complement is "
-                     "built into a temporary here because Df_data holds the "
-                     "factored linear potential mass, so there is nothing for "
-                     "MultInv() to read back.");
-         const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
-                                 d_dofs_size, d_dofs_size);
-         S = D_lin;
-         mfem::AddMult(B, AiBt, S);
-
-         // Decompose Schur complement
-         LU_S.data = S.GetData();
-         S_ipiv.SetSize(d_dofs_size);
-         LU_S.ipiv = S_ipiv.GetData();
-         LU_S.Factor(d_dofs_size);
-      }
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel for schedule(dynamic) \
+      if (asm_mode == AssemblyMode::Threaded)
+#endif
+         for (int el = el_0; el < el_1; el++)
+         {
+            ComputeElementH(el, mode,
+                            Hbuf ? Hbuf + Hel_offsets[el-el_0] : NULL);
+         }
 
       if (!assemble) { continue; }
 
-      GetElementFaces(el, faces);
-
-      // Mult C^T
-      for (int f1 = 0; f1 < faces.Size(); f1++)
+      for (int el = el_0; el < el_1; el++)
       {
-         c_fes.GetFaceVDofs(faces[f1], c_dofs_1);
-
-         int el1_1, el1_2;
-         fes.GetMesh()->GetFaceElements(faces[f1], &el1_1, &el1_2);
-         DenseMatrix Ct1;
-         GetCtFaceMatrix(faces[f1], el1_1 != el, Ct1);
-
-         //A^-1 C^T
-         AiCt.SetSize(Ct1.Height(), Ct1.Width());
-         AiCt = Ct1;
-         LU_A.Solve(Ct1.Height(), Ct1.Width(), AiCt.GetData());
-
-         //S^-1 (B A^-1 C^T - E)
-         BAiCt.SetSize(B.Height(), Ct1.Width());
-         mfem::Mult(B, AiCt, BAiCt);
-
-         if (c_bfi_p || mode == ComputeHMode::Gradient)
-         {
-            DenseMatrix E;
-            GetEFaceMatrix(faces[f1], el1_1 != el, E);
-
-            BAiCt -= E;
-         }
-
-         LU_S.Solve(BAiCt.Height(), BAiCt.Width(), BAiCt.GetData());
-
-         for (int f2 = 0; f2 < faces.Size(); f2++)
-         {
-            int el2_1, el2_2;
-            fes.GetMesh()->GetFaceElements(faces[f2], &el2_1, &el2_2);
-            DenseMatrix Ct2;
-            GetCtFaceMatrix(faces[f2], el2_1 != el, Ct2);
-
-            //- C A^-1 C^T
-            H_l.SetSize(Ct2.Width(), Ct1.Width());
-            mfem::MultAtB(Ct2, AiCt, H_l);
-            H_l.Neg();
-
-            //(C A^-1 B^T + G) S^-1 (B A^-1 C^T - E)
-            CAiBt.SetSize(Ct2.Width(), B.Height());
-            mfem::MultAtB(Ct2, AiBt, CAiBt);
-
-            if (c_bfi_p || mode == ComputeHMode::Gradient)
-            {
-               DenseMatrix G;
-               GetGFaceMatrix(faces[f2], el2_1 != el, G);
-
-               CAiBt += G;
-            }
-
-            mfem::AddMult(CAiBt, BAiCt, H_l);
-
-            if (f1 == f2)
-            {
-               //integrate the face contrbution only on one (first) side
-               if (mode == ComputeHMode::Gradient && el2_1 == el)
-               {
-                  DenseMatrix H_f;
-                  GetHFaceMatrix(faces[f1], H_f);
-                  H_l += H_f;
-               }
-               H_->AddSubMatrix(c_dofs_1, c_dofs_1, H_l, skip_zeros);
-            }
-            else
-            {
-               c_fes.GetFaceVDofs(faces[f2], c_dofs_2);
-               H_->AddSubMatrix(c_dofs_2, c_dofs_1, H_l, skip_zeros);
-            }
-         }
-
+         ScatterElementH(el, Hbuf + Hel_offsets[el-el_0], *H_);
       }
    }
 
@@ -2766,6 +2916,28 @@ void DarcyHybridization::SetNonlinearOrdering(NLOrdering ordering)
    lin_p.SetSize(0);
    lin_u_next.SetSize(0);
    lin_p_next.SetSize(0);
+}
+
+void DarcyHybridization::SetAssemblyMode(AssemblyMode mode)
+{
+   if (mode == AssemblyMode::Threaded)
+   {
+      // Refused rather than quietly downgraded. A caller that asks for this
+      // is asking a performance question, and answering it with the serial
+      // loop would report a speedup nobody got.
+#ifndef MFEM_USE_OPENMP
+      MFEM_ABORT("AssemblyMode::Threaded needs MFEM_USE_OPENMP, and this build "
+                 "has none: mfem::forall and every omp pragma in it reduce to "
+                 "a serial loop.");
+#endif
+#ifndef MFEM_THREAD_SAFE
+      MFEM_ABORT("AssemblyMode::Threaded needs MFEM_THREAD_SAFE: without it "
+                 "GetElementFaces() keeps its orientation scratch in a "
+                 "function-local static that every thread would share.");
+#endif
+   }
+
+   asm_mode = mode;
 }
 
 bool DarcyHybridization::LinearisedAt(const Vector &x) const

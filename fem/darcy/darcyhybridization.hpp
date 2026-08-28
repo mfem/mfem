@@ -202,6 +202,30 @@ public:
       LineariseThenCondense,
    };
 
+   /** @brief How the loop over elements that builds the reduced system is
+       executed.
+
+       Static condensation is defined by each element's flux and potential
+       being eliminable independently of every other, so the loop is parallel
+       by construction rather than by accident. What is not independent is the
+       result: a trace dof lives on a face and a face has two elements, so the
+       trace matrix receives two contributions per entry.
+
+       Both modes assemble the *same matrix, entry for entry and bit for bit*.
+       That is a property worth having rather than a coincidence -- see
+       SetAssemblyMode() for what it costs and why it was paid. */
+   enum class AssemblyMode
+   {
+      /** @brief One thread, elements in order. The historical behaviour and
+          the default: no existing caller pays anything for the other mode. */
+      Serial,
+      /** @brief The element-local work -- factoring A, forming and factoring
+          the Schur complement, and evaluating the element's blocks of H -- is
+          run in parallel; the scatter into the trace matrix stays serial and
+          in element order. Requires MFEM_USE_OPENMP and MFEM_THREAD_SAFE. */
+      Threaded,
+   };
+
    /** @brief Whether the reduced (trace) gradient is assembled as a sparse
        matrix or only applied.
 
@@ -342,6 +366,7 @@ private:
 
    NLOrdering nl_ordering{NLOrdering::CondenseThenLinearise};
    GradientMode grad_mode{GradientMode::Assembled};
+   AssemblyMode asm_mode{AssemblyMode::Serial};
 
    /** @brief Residual evaluations since the linearisation last advanced, and
        the number of them tolerated. See SetMaxEvalsWithoutAdvance(). */
@@ -582,6 +607,28 @@ private:
        GradientMode::MatrixFree needs, and it is also all the initialisation
        pass in MultNL() ever needed: that pass discarded the matrix it built. */
    enum class ComputeHMode { Linear, Gradient, GradientFactorOnly };
+   /// Total trace dofs on @a faces, which is the side of an element's H block.
+   int GetElementTraceSize(const Array<int> &faces) const;
+   /** @brief The element-local half of ComputeH() for one element: factor A,
+       form and factor the Schur complement, and -- unless the mode is
+       GradientFactorOnly -- evaluate this element's face-pair blocks of H
+       into @a Hel.
+
+       Everything it reads is either shared and const or indexed by @a el, and
+       everything it writes is indexed by @a el, so two elements may run
+       concurrently. Its scratch is local for the same reason: the scratch the
+       single loop hoisted and reused across elements is exactly what threads
+       cannot share.
+
+       @a Hel receives the (f2,f1) blocks contiguously, f1 outer and f2 inner,
+       in the order ScatterElementH() replays them; it may be NULL when the
+       mode is GradientFactorOnly. */
+   void ComputeElementH(int el, ComputeHMode mode, real_t *Hel) const;
+   /** @brief Add the blocks ComputeElementH() left in @a Hel to @a H.
+       Serial by contract -- see SetAssemblyMode(). */
+   void ScatterElementH(int el, const real_t *Hel, SparseMatrix &H) const;
+   /// Elements per chunk of the element loop; see ComputeH().
+   int AssemblyChunkSize(int NE) const;
    void ComputeH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H) const;
 #ifdef MFEM_USE_MPI
    void ComputeParH(ComputeHMode mode, std::unique_ptr<SparseMatrix> &H,
@@ -732,6 +779,37 @@ public:
 
    /// The ordering set by SetNonlinearOrdering().
    NLOrdering GetNonlinearOrdering() const { return nl_ordering; }
+
+   /** @brief Choose how the element loop that builds the reduced system runs.
+       AssemblyMode::Serial by default, so nothing existing changes.
+
+       AssemblyMode::Threaded parallelises the element-local work and leaves
+       the scatter serial and in element order. The scatter is not threaded
+       because it cannot safely be: SparseMatrix::AddSubMatrix() reaches the
+       matrix through SetColPtr(), and an unfinalized SparseMatrix carries one
+       @a current_row, one column-pointer scratch array and one RowNode
+       allocator for the whole matrix. Two threads adding to *disjoint rows*
+       still collide on those, and the observed failure is a hang, not a wrong
+       answer -- so element colouring, which buys disjoint rows, does not make
+       this loop safe on its own.
+
+       The two modes agree bit for bit, so a test may assert equality rather
+       than a tolerance -- but note what does and does not buy that. It is not
+       the ordering: a trace dof lives on a face and a face has at most two
+       elements, so each entry is a sum of at most two terms and IEEE addition
+       of two terms is order-independent. Scattering a chunk back-to-front was
+       measured and changed nothing. What exactness rests on is that the
+       element-local arithmetic is per-element and so reassociates nothing.
+       Element order is kept because it is free and deterministic.
+
+       Aborts if the build cannot honour it: MFEM_USE_OPENMP is what makes it
+       parallel, and MFEM_THREAD_SAFE is what stops GetElementFaces() keeping
+       its scratch in a function-local static. Falling back quietly would
+       report a speedup nobody got. */
+   void SetAssemblyMode(AssemblyMode mode);
+
+   /// The mode set by SetAssemblyMode().
+   AssemblyMode GetAssemblyMode() const { return asm_mode; }
 
    /** @brief Choose whether GetGradient() assembles the reduced system or only
        applies it. See GradientMode; the default is Assembled, which is what
