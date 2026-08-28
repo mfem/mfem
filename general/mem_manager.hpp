@@ -1398,19 +1398,6 @@ inline void Memory<T>::Sync(const Memory<U> &other) const
            (other.flags & (VALID_HOST | VALID_DEVICE));
 }
 
-// template <typename T>
-// inline void Memory<T>::SyncBuffer(const Memory<U> &other) const
-// {
-//    if (!(flags & Registered) && (other.flags & Registered))
-//    {
-//       MFEM_ASSERT((flags & ALIAS) == (other.flags & ALIAS),
-//                   "invalid input");
-//       flags = (flags | Registered) & ~(OWNS_DEVICE | OWNS_INTERNAL);
-//    }
-//    flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
-//            (other.flags & (VALID_HOST | VALID_DEVICE));
-// }
-
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const
 {
