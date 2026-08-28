@@ -227,7 +227,7 @@ public:
                 !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
                 (std::is_same_v<std::decay_t<U>, char> ||
                  std::is_same_v<std::decay_t<U>, unsigned char> ||
-                 std::is_same_v<std::decay_t<U>, std::byte>)>>
+                 std::is_same_v<std::decay_t<U>, std::byte>)> >
    Memory(const Memory<U> &base)
    {
       MakeAlias(base, 0, 0);
@@ -236,7 +236,7 @@ public:
                 !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
                 (std::is_same_v<std::decay_t<U>, char> ||
                  std::is_same_v<std::decay_t<U>, unsigned char> ||
-                 std::is_same_v<std::decay_t<U>, std::byte>)>>
+                 std::is_same_v<std::decay_t<U>, std::byte>)> >
    Memory(const Memory<U> &base, int offset, int size)
    {
       MakeAlias(base, offset, size);
@@ -443,7 +443,7 @@ public:
                 !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
                 (std::is_same_v<std::decay_t<U>, char> ||
                  std::is_same_v<std::decay_t<U>, unsigned char> ||
-                 std::is_same_v<std::decay_t<U>, std::byte>)>>
+                 std::is_same_v<std::decay_t<U>, std::byte>)> >
    inline void MakeAlias(const Memory<U> &base, int offset, int size);
 
    /// Set the device MemoryType to be used by the Memory object.
@@ -551,24 +551,24 @@ public:
                 std::is_same_v<std::decay_t<U>, std::decay_t<T>> ||
                 std::is_same_v<std::decay_t<T>, char> ||
                 std::is_same_v<std::decay_t<T>, unsigned char> ||
-                std::is_same_v<std::decay_t<T>, std::byte>>>
-                inline void Sync(const Memory<U> &other) const;
+                std::is_same_v<std::decay_t<T>, std::byte> > >
+   inline void Sync(const Memory<U> &other) const;
 
-             /** @brief Update the alias Memory @a *this to match the memory location (all
-                 valid locations) of its base Memory, @a base. */
-             /** This method is useful when alias Memory is moved and manipulated in a
-                 different memory space. Such operations render the pointer validity flags
-                 of the base incorrect. Calling this method will ensure that @a base is
-                 up-to-date. Note that this is achieved by moving/copying @a *this (if
-                 necessary), and not @a base. */
-             inline void SyncAlias(const Memory &base, int alias_size) const;
+   /** @brief Update the alias Memory @a *this to match the memory location (all
+       valid locations) of its base Memory, @a base. */
+   /** This method is useful when alias Memory is moved and manipulated in a
+       different memory space. Such operations render the pointer validity flags
+       of the base incorrect. Calling this method will ensure that @a base is
+       up-to-date. Note that this is achieved by moving/copying @a *this (if
+       necessary), and not @a base. */
+   inline void SyncAlias(const Memory &base, int alias_size) const;
 
-             /** @brief Return a MemoryType that is currently valid. If both the host and
-                 the device pointers are currently valid, then the device memory type is
-                 returned. */
-             inline MemoryType GetMemoryType() const;
+   /** @brief Return a MemoryType that is currently valid. If both the host and
+       the device pointers are currently valid, then the device memory type is
+       returned. */
+   inline MemoryType GetMemoryType() const;
 
-             /// Return the host MemoryType of the Memory object.
+   /// Return the host MemoryType of the Memory object.
    inline MemoryType GetHostMemoryType() const { return h_mt; }
 
    /** @brief Return the device MemoryType of the Memory object. If the device
@@ -1163,14 +1163,14 @@ template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
    MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
-               MFEM_ASSERT(0 <= size, "invalid size = " << size);
-               MFEM_ASSERT(offset + size <= base.capacity,
-                           "invalid offset + size = " << offset + size
-                           << " > base capacity = " << base.capacity);
-               capacity = size;
-               h_mt = base.h_mt;
-               h_ptr = base.h_ptr + offset;
-               if (!(base.flags & Registered))
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT(offset + size <= base.capacity,
+               "invalid offset + size = " << offset + size
+               << " > base capacity = " << base.capacity);
+   capacity = size;
+   h_mt = base.h_mt;
+   h_ptr = base.h_ptr + offset;
+   if (!(base.flags & Registered))
    {
       if (
 #if !defined(HYPRE_USING_GPU)
