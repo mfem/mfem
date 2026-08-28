@@ -30,17 +30,10 @@ namespace internal
 namespace quadrature_interpolator
 {
 
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
-static void Derivatives1D(const int NE,
-                          const real_t *b_,
-                          const real_t *g_,
-                          const real_t *j_,
-                          const real_t *x_,
-                          real_t *y_,
-                          const int sdim,
-                          const int vdim,
-                          const int d1d,
-                          const int q1d)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
+                   const real_t *j_, const real_t *x_, real_t *y_,
+                   const int sdim, const int vdim, const int d1d, const int q1d)
 {
    MFEM_CONTRACT_VAR(b_);
    const int SDIM = GRAD_PHYS ? sdim : 1;
@@ -99,19 +92,12 @@ static void Derivatives1D(const int NE,
 }
 
 // Template compute kernel for derivatives in 2D: tensor product version.
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
-         int T_NBZ = 1>
-static void Derivatives2D(const int NE,
-                          const real_t *b_,
-                          const real_t *g_,
-                          const real_t *j_,
-                          const real_t *x_,
-                          real_t *y_,
-                          const int sdim = 2,
-                          const int vdim = 0,
-                          const int d1d = 0,
-                          const int q1d = 0)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_Q1D = 0, int T_NBZ = 1>
+void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
+                   const real_t *j_, const real_t *x_, real_t *y_,
+                   const int sdim = 2, const int vdim = 0, const int d1d = 0,
+                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -230,18 +216,12 @@ static void Derivatives2D(const int NE,
 }
 
 // Template compute kernel for derivatives in 3D: tensor product version.
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
-static void Derivatives3D(const int NE,
-                          const real_t *b_,
-                          const real_t *g_,
-                          const real_t *j_,
-                          const real_t *x_,
-                          real_t *y_,
-                          const int sdim = 3,
-                          const int vdim = 0,
-                          const int d1d = 0,
-                          const int q1d = 0)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_Q1D = 0>
+void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
+                   const real_t *j_, const real_t *x_, real_t *y_,
+                   const int sdim = 3, const int vdim = 0, const int d1d = 0,
+                   const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -374,32 +354,21 @@ static void Derivatives3D(const int NE,
    });
 }
 
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
-static void CollocatedDerivatives1D(const int NE,
-                                    const real_t *g_,
-                                    const real_t *j_,
-                                    const real_t *x_,
-                                    real_t *y_,
-                                    const int sdim,
-                                    const int vdim,
-                                    const int d1d)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
+void CollocatedDerivatives1D(const int NE, const real_t *g_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim,
+                             const int vdim, const int d1d)
 {
    Derivatives1D<Q_LAYOUT, GRAD_PHYS>(
       NE, nullptr, g_, j_, x_, y_, sdim, vdim, d1d, d1d);
 }
 
 // Template compute kernel for derivatives in 2D: tensor product version.
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM = 0, int T_D1D = 0,
-         int T_NBZ = 1>
-static void CollocatedDerivatives2D(const int NE,
-                                    const real_t *g_,
-                                    const real_t *j_,
-                                    const real_t *x_,
-                                    real_t *y_,
-                                    const int sdim = 2,
-                                    const int vdim = 0,
-                                    const int d1d = 0)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0,
+          int T_NBZ = 1>
+void CollocatedDerivatives2D(const int NE, const real_t *g_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim = 2,
+                             const int vdim = 0, const int d1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -494,16 +463,10 @@ static void CollocatedDerivatives2D(const int NE,
 }
 
 // Template compute kernel for derivatives in 3D: tensor product version.
-template<QVectorLayout Q_LAYOUT, bool GRAD_PHYS,
-         int T_VDIM = 0, int T_D1D = 0>
-static void CollocatedDerivatives3D(const int NE,
-                                    const real_t *g_,
-                                    const real_t *j_,
-                                    const real_t *x_,
-                                    real_t *y_,
-                                    const int sdim = 3,
-                                    const int vdim = 0,
-                                    const int d1d = 0)
+template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS, int T_VDIM = 0, int T_D1D = 0>
+void CollocatedDerivatives3D(const int NE, const real_t *g_, const real_t *j_,
+                             const real_t *x_, real_t *y_, const int sdim = 3,
+                             const int vdim = 0, const int d1d = 0)
 {
    MFEM_VERIFY(sdim == 3, "");
 

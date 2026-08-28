@@ -94,9 +94,19 @@ Linear and nonlinear solvers
   Operator: MultMV, MultTransposeMV, and GetGradientMV, that use MultiVector
   objects for input and/or output parameters. [PR #5249]
 
+- Added new class MemoryView that enables viewing Vector objects as
+  Array<real_t> objects and vice versa. See the new methods GetArrayView() in
+  class Vector.
+
 GPU computing
 -------------
-- Device support for GroupCommunicator::Reduce() and GroupCommunicator::Bcast().
+- Added device support to class GroupCommunicator. Methods that take the data to
+  be communicated as raw pointers continue to execute on host and expect the
+  raw pointer to be a host pointer. Methods that take the data to be
+  communicated as Array<T>& will perform the operations on the configured
+  mfem::Device and will use GPU-aware MPI, if enabled for the mfem::Device.
+  Not all cases are supported on device; in such cases, execution will fall back
+  to host.
 
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
   kernels, kernel registration, and transpose support.

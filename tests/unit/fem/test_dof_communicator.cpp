@@ -47,17 +47,17 @@ void MakeRowPartitioning(const Mesh &mesh, int ntasks, Array<int> &partitioning)
 
 // Shared values differ only on the lower and upper local vertex rows.
 real_t ExpectedReductionValue(int rank, int ntasks, bool top,
-                              DeviceSharedDofCommunicator::Op op)
+                              DeviceGroupCommunicator::Op op)
 {
    const bool first_rank = (rank == 0);
    const bool last_rank = (rank == ntasks - 1);
 
-   if (op == DeviceSharedDofCommunicator::Op::Min)
+   if (op == DeviceGroupCommunicator::Op::Min)
    {
       if (top) { return rank; }
       return first_rank ? rank : rank - 1;
    }
-   if (op == DeviceSharedDofCommunicator::Op::Max)
+   if (op == DeviceGroupCommunicator::Op::Max)
    {
       if (!top) { return rank; }
       return last_rank ? rank : rank + 1;
@@ -98,27 +98,25 @@ TEST_CASE("GroupCommunicator Shared Dof Reduction", "[Parallel][GPU]")
    const real_t y_top = real_t(rank + 1) / ntasks;
    const real_t tol = 1.0e-12;
 
-   auto check_reduction = [&](DeviceSharedDofCommunicator::Op op)
+   auto check_reduction = [&](DeviceGroupCommunicator::Op op)
    {
       // Start with the row number on every local dof copy.
-      Vector x(pfes.GetVSize());
-      x.UseDevice(true);
+      Array<real_t> x(pfes.GetVSize());
       x = real_t(rank);
 
-      real_t *x_ptr = x.ReadWrite();
       switch (op)
       {
-         case DeviceSharedDofCommunicator::Op::Min:
-            pfes.GroupComm().Reduce<real_t>(x_ptr, GroupCommunicator::Min);
+         case DeviceGroupCommunicator::Op::Min:
+            pfes.GroupComm().Reduce(x, GroupCommunicator::Min);
             break;
-         case DeviceSharedDofCommunicator::Op::Max:
-            pfes.GroupComm().Reduce<real_t>(x_ptr, GroupCommunicator::Max);
+         case DeviceGroupCommunicator::Op::Max:
+            pfes.GroupComm().Reduce(x, GroupCommunicator::Max);
             break;
-         case DeviceSharedDofCommunicator::Op::Sum:
-            pfes.GroupComm().Reduce<real_t>(x_ptr, GroupCommunicator::Sum);
+         case DeviceGroupCommunicator::Op::Sum:
+            pfes.GroupComm().Reduce(x, GroupCommunicator::Sum);
             break;
       }
-      pfes.GroupComm().Bcast<real_t>(x_ptr);
+      pfes.GroupComm().Bcast(x);
       x.HostRead();
 
       // Order 1 H1 scalar dofs coincide with mesh vertices.
@@ -131,24 +129,24 @@ TEST_CASE("GroupCommunicator Shared Dof Reduction", "[Parallel][GPU]")
 
          REQUIRE((top || bottom));
          pfes.GetVertexVDofs(i, vdofs);
-         REQUIRE(x(vdofs[0]) == MFEM_Approx(
+         REQUIRE(std::as_const(x)[vdofs[0]] == MFEM_Approx(
                     ExpectedReductionValue(rank, ntasks, top, op)));
       }
    };
 
    SECTION("Min")
    {
-      check_reduction(DeviceSharedDofCommunicator::Op::Min);
+      check_reduction(DeviceGroupCommunicator::Op::Min);
    }
 
    SECTION("Max")
    {
-      check_reduction(DeviceSharedDofCommunicator::Op::Max);
+      check_reduction(DeviceGroupCommunicator::Op::Max);
    }
 
    SECTION("Sum")
    {
-      check_reduction(DeviceSharedDofCommunicator::Op::Sum);
+      check_reduction(DeviceGroupCommunicator::Op::Sum);
    }
 }
 
@@ -171,6 +169,7 @@ TEST_CASE("ProjectDiscCoefficient Row Partition", "[Parallel][GPU]")
 
    ConstantCoefficient coeff(rank);
    gf.ProjectDiscCoefficient(coeff);
+   gf.HostRead();
 
    const real_t y_bottom = real_t(rank) / ntasks;
    const real_t y_top = real_t(rank + 1) / ntasks;
@@ -186,7 +185,7 @@ TEST_CASE("ProjectDiscCoefficient Row Partition", "[Parallel][GPU]")
 
       REQUIRE((top || bottom));
       pfes.GetVertexVDofs(i, vdofs);
-      REQUIRE(gf(vdofs[0]) == MFEM_Approx(
+      REQUIRE(std::as_const(gf)(vdofs[0]) == MFEM_Approx(
                  ExpectedProjectedValue(rank, ntasks, top)));
    }
 }

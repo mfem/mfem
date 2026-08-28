@@ -19,7 +19,6 @@
 #endif
 
 #include "array.hpp"
-#include "../linalg/vector.hpp"
 #include "table.hpp"
 #include "sets.hpp"
 #include "communication.hpp"
@@ -35,6 +34,7 @@
 
 #include <iostream>
 #include <map>
+#include <utility> // std::as_const
 
 using namespace std;
 
@@ -47,259 +47,6 @@ int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
 #else
 int Mpi::default_thread_required = MPI_THREAD_SINGLE;
 #endif
-
-namespace internal
-{
-
-void BuildNeighborLDofTable(const Table &group_ldof,
-                            const Table &nbr_groups,
-                            Table &nbr_ldof)
-{
-   nbr_ldof.MakeI(nbr_groups.Size());
-   for (int nbr = 1; nbr < nbr_groups.Size(); nbr++)
-   {
-      const int num_groups = nbr_groups.RowSize(nbr);
-      if (num_groups == 0) { continue; }
-      const int *grp_list = nbr_groups.GetRow(nbr);
-      for (int i = 0; i < num_groups; i++)
-      {
-         nbr_ldof.AddColumnsInRow(nbr, group_ldof.RowSize(grp_list[i]));
-      }
-   }
-   nbr_ldof.MakeJ();
-   for (int nbr = 1; nbr < nbr_groups.Size(); nbr++)
-   {
-      const int num_groups = nbr_groups.RowSize(nbr);
-      if (num_groups == 0) { continue; }
-      const int *grp_list = nbr_groups.GetRow(nbr);
-      for (int i = 0; i < num_groups; i++)
-      {
-         const int group = grp_list[i];
-         const int nldofs = group_ldof.RowSize(group);
-         nbr_ldof.AddConnections(nbr, group_ldof.GetRow(group), nldofs);
-      }
-   }
-   nbr_ldof.ShiftUpI();
-}
-
-DeviceNeighborDofComm::DeviceNeighborDofComm(const GroupCommunicator &gc_)
-   : gc(gc_),
-     mpi_gpu_aware(Device::GetGPUAwareMPI())
-{
-   MFEM_VERIFY(gc_.have_ltdof_ldof,
-               "Device shared-dof communication requires SetLTDofTable().");
-   ltdof_ldof = gc_.ltdof_ldof;
-   {
-      Table nbr_ltdof;
-      gc_.GetNeighborLTDofTable(nbr_ltdof);
-      const int nb_connections = nbr_ltdof.Size_of_connections();
-      shr_ltdof.SetSize(nb_connections);
-      if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
-      shr_buf_offsets = nbr_ltdof.GetIMemory();
-      {
-         Array<int> shared_ltdof(nbr_ltdof.GetJ(), nb_connections);
-         Array<int> unique_ltdof(shared_ltdof);
-         unique_ltdof.Sort();
-         unique_ltdof.Unique();
-         for (int i = 0; i < shared_ltdof.Size(); i++)
-         {
-            shared_ltdof[i] = unique_ltdof.FindSorted(shared_ltdof[i]);
-            MFEM_ASSERT(shared_ltdof[i] != -1, "internal error");
-         }
-         Table unique_shr;
-         Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
-         unq_ltdof = unique_ltdof;
-         unq_shr_i.GetMemory() = unique_shr.GetIMemory();
-         unq_shr_i.SetSize(unique_shr.Size()+1);
-         unq_shr_j.GetMemory() = unique_shr.GetJMemory();
-         unq_shr_j.SetSize(unique_shr.Size_of_connections());
-         unique_shr.LoseData();
-      }
-      nbr_ltdof.GetJMemory().Delete();
-      nbr_ltdof.LoseData();
-   }
-   {
-      Table nbr_ldof;
-      gc_.GetNeighborLDofTable(nbr_ldof);
-      const int nb_connections = nbr_ldof.Size_of_connections();
-      ext_ldof.SetSize(nb_connections);
-      if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
-      ext_ldof.GetMemory().UseDevice(true);
-      ext_buf_offsets = nbr_ldof.GetIMemory();
-      nbr_ldof.GetJMemory().Delete();
-      nbr_ldof.LoseData();
-   }
-
-   const GroupTopology &gtopo = gc_.GetGroupTopology();
-   int req_counter = 0;
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-   {
-      const int send_offset = shr_buf_offsets[nbr];
-      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0) { req_counter++; }
-
-      const int recv_offset = ext_buf_offsets[nbr];
-      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0) { req_counter++; }
-   }
-   requests.SetSize(req_counter);
-}
-
-DeviceNeighborDofComm::~DeviceNeighborDofComm()
-{
-   ext_buf_offsets.Delete();
-   shr_buf_offsets.Delete();
-}
-
-template <typename T, typename SendBuffer, typename RecvBuffer>
-int DeviceNeighborDofComm::Exchange(const SendBuffer &send_buf,
-                                    const Memory<int> &send_offsets,
-                                    RecvBuffer &recv_buf,
-                                    const Memory<int> &recv_offsets,
-                                    int tag) const
-{
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-   {
-      const int send_offset = send_offsets[nbr];
-      const int send_size = send_offsets[nbr+1] - send_offset;
-      if (send_size > 0)
-      {
-         auto send_ptr = mpi_gpu_aware ? send_buf.Read() : send_buf.HostRead();
-         MPI_Isend(send_ptr + send_offset, send_size, MPITypeMap<T>::mpi_type,
-                   gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
-                   &requests[req_counter++]);
-      }
-      const int recv_offset = recv_offsets[nbr];
-      const int recv_size = recv_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0)
-      {
-         auto recv_ptr = mpi_gpu_aware ? recv_buf.Write() : recv_buf.HostWrite();
-         MPI_Irecv(recv_ptr + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
-                   gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
-                   &requests[req_counter++]);
-      }
-   }
-   return req_counter;
-}
-
-template <typename T, typename SendBuffer, typename RecvBuffer>
-int DeviceNeighborDofComm::ExchangeSharedToExternal(const SendBuffer &shr_buf,
-                                                    RecvBuffer &ext_buf,
-                                                    int tag) const
-{
-   return Exchange<T>(shr_buf, shr_buf_offsets, ext_buf, ext_buf_offsets, tag);
-}
-
-template <typename T, typename SendBuffer, typename RecvBuffer>
-int DeviceNeighborDofComm::ExchangeExternalToShared(const SendBuffer &ext_buf,
-                                                    RecvBuffer &shr_buf,
-                                                    int tag) const
-{
-   return Exchange<T>(ext_buf, ext_buf_offsets, shr_buf, shr_buf_offsets, tag);
-}
-
-void DeviceNeighborDofComm::WaitAll(int req_counter) const
-{
-   MPI_Waitall(req_counter, requests.GetData(), MPI_STATUSES_IGNORE);
-}
-
-template <typename InBuffer, typename OutBuffer>
-void DeviceNeighborDofExtract(const Array<int> &indices,
-                              const InBuffer &xin,
-                              OutBuffer &xout)
-{
-   MFEM_ASSERT(indices.Size() == xout.Size(), "incompatible sizes!");
-   auto y = xout.Write();
-   const auto x = xin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[i] = x[I[i]];
-   });
-}
-
-template <typename InBuffer, typename OutBuffer>
-void DeviceNeighborDofSet(const Array<int> &indices,
-                          const InBuffer &xin,
-                          OutBuffer &xout)
-{
-   MFEM_ASSERT(indices.Size() == xin.Size(), "incompatible sizes!");
-   auto y = xout.ReadWrite();
-   const auto x = xin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[I[i]] = x[i];
-   });
-}
-
-template <typename SrcBuffer, typename DstBuffer>
-void DeviceNeighborDofAdd(const Array<int> &unique_dst_indices,
-                          const Array<int> &unique_to_src_offsets,
-                          const Array<int> &unique_to_src_indices,
-                          const SrcBuffer &src,
-                          DstBuffer &dst)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      real_t sum = y[dst_idx];
-      const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
-      y[dst_idx] = sum;
-   });
-}
-
-template <typename T>
-void DeviceSharedDofApplyReduction(const Array<int> &unique_dst_indices,
-                                   const Array<int> &unique_to_src_offsets,
-                                   const Array<int> &unique_to_src_indices,
-                                   const Array<T> &src,
-                                   Array<T> &dst,
-                                   DeviceSharedDofCommunicator::Op op)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      T val = y[dst_idx];
-      const int end = SRC_O[i+1];
-      switch (op)
-      {
-         case DeviceSharedDofCommunicator::Op::Sum:
-            for (int j = SRC_O[i]; j != end; ++j) { val += x[SRC_I[j]]; }
-            break;
-         case DeviceSharedDofCommunicator::Op::Min:
-            for (int j = SRC_O[i]; j != end; ++j)
-            {
-               const T xj = x[SRC_I[j]];
-               val = (xj < val) ? xj : val;
-            }
-            break;
-         case DeviceSharedDofCommunicator::Op::Max:
-            for (int j = SRC_O[i]; j != end; ++j)
-            {
-               const T xj = x[SRC_I[j]];
-               val = (xj > val) ? xj : val;
-            }
-            break;
-      }
-      y[dst_idx] = val;
-   });
-}
-
-} // namespace internal
 
 
 GroupTopology::GroupTopology(const GroupTopology &gt)
@@ -631,14 +378,16 @@ GroupCommunicator::GroupCommunicator(const GroupTopology &gt, Mode m)
    num_requests = 0;
    request_marker = NULL;
    buf_offsets = NULL;
-   ldof_size = 0;
-   device_shared_dof_comm = NULL;
-   device_shared_dof_comm_enabled = true;
    have_ltdof_ldof = false;
+   ldof_size = -1; // unknown ldof_size
+   device_gc = NULL;
 }
 
 void GroupCommunicator::Create(const Array<int> &ldof_group)
 {
+   MFEM_VERIFY(buf_offsets == nullptr,
+               "the GroupCommunicator is already Finalized!");
+
    group_ldof.MakeI(gtopo.NGroups());
    for (int i = 0; i < ldof_group.Size(); i++)
    {
@@ -665,6 +414,8 @@ void GroupCommunicator::Create(const Array<int> &ldof_group)
 
 void GroupCommunicator::Finalize()
 {
+   if (buf_offsets) { return; } // Finalize() was already called.
+
    int request_counter = 0;
 
    // size buf_offsets = max(number of groups, number of neighbors)
@@ -774,10 +525,8 @@ void GroupCommunicator::Finalize()
 
 void GroupCommunicator::SetLTDofTable(const Array<int> &ldof_ltdof)
 {
-   if (group_ltdof.Size() == group_ldof.Size() && have_ltdof_ldof) { return; }
-
-   delete device_shared_dof_comm;
-   device_shared_dof_comm = NULL;
+   MFEM_VERIFY(!have_ltdof_ldof,
+               "SetLTDofTable() should be called at most once!");
 
    group_ltdof.MakeI(group_ldof.Size());
    for (int gr = 1; gr < group_ldof.Size(); gr++)
@@ -802,445 +551,88 @@ void GroupCommunicator::SetLTDofTable(const Array<int> &ldof_ltdof)
    }
    group_ltdof.ShiftUpI();
 
-   int ltdof_size = 0;
    ldof_size = ldof_ltdof.Size();
-   for (int ldof = 0; ldof < ldof_ltdof.Size(); ldof++)
-   {
-      if (ldof_ltdof[ldof] >= 0)
-      {
-         ltdof_size = max(ltdof_size, ldof_ltdof[ldof] + 1);
-      }
-   }
+   const int ltdof_size = (ldof_size == 0) ? 0 :
+                          std::max(ldof_ltdof.Max() + 1, 0);
    ltdof_ldof.SetSize(ltdof_size);
-   for (int ltdof = 0; ltdof < ltdof_size; ltdof++) { ltdof_ldof[ltdof] = -1; }
+#ifdef MFEM_DEBUG
+   int ltdof_counter = 0;
+   ltdof_ldof = -1;
+#endif
    for (int ldof = 0; ldof < ldof_ltdof.Size(); ldof++)
    {
       const int ltdof = ldof_ltdof[ldof];
-      if (ltdof >= 0) { ltdof_ldof[ltdof] = ldof; }
+      if (ltdof >= 0)
+      {
+#ifdef MFEM_DEBUG
+         ltdof_counter++;
+#endif
+         MFEM_ASSERT(ltdof_ldof[ltdof] == -1, "repeated ltdof indices found!");
+         ltdof_ldof[ltdof] = ldof;
+      }
    }
+   MFEM_ASSERT(ltdof_counter == ltdof_size, "unassigned ltdof indices found!");
    have_ltdof_ldof = true;
 }
 
-void GroupCommunicator::SetDeviceSharedDofSupport(bool enable)
+namespace internal
 {
-   device_shared_dof_comm_enabled = enable;
-   if (!enable)
+
+static void BuildNeighborDofTable(const Table &group_dof,
+                                  const Table &nbr_groups,
+                                  Table &nbr_dof)
+{
+   nbr_dof.MakeI(nbr_groups.Size());
+   for (int nbr = 1; nbr < nbr_groups.Size(); nbr++)
    {
-      delete device_shared_dof_comm;
-      device_shared_dof_comm = NULL;
+      const int num_groups = nbr_groups.RowSize(nbr);
+      if (num_groups == 0) { continue; }
+      const int *grp_list = nbr_groups.GetRow(nbr);
+      for (int i = 0; i < num_groups; i++)
+      {
+         const int group = grp_list[i];
+         const int ndofs = group_dof.RowSize(group);
+         nbr_dof.AddColumnsInRow(nbr, ndofs);
+      }
    }
+   nbr_dof.MakeJ();
+   for (int nbr = 1; nbr < nbr_groups.Size(); nbr++)
+   {
+      const int num_groups = nbr_groups.RowSize(nbr);
+      if (num_groups == 0) { continue; }
+      const int *grp_list = nbr_groups.GetRow(nbr);
+      for (int i = 0; i < num_groups; i++)
+      {
+         const int group = grp_list[i];
+         const int ndofs = group_dof.RowSize(group);
+         const int *dofs = group_dof.GetRow(group);
+         nbr_dof.AddConnections(nbr, dofs, ndofs);
+      }
+   }
+   nbr_dof.ShiftUpI();
 }
 
-const DeviceSharedDofCommunicator *
-GroupCommunicator::GetDeviceSharedDofCommunicator() const
-{
-   MFEM_VERIFY(mode == byNeighbor,
-               "Device shared-dof communicator requires neighbor mode.");
-   MFEM_VERIFY(device_shared_dof_comm_enabled,
-               "Device shared-dof communicator is not enabled.");
-   MFEM_VERIFY(have_ltdof_ldof,
-               "Device shared-dof communicator requires SetLTDofTable().");
-   if (!device_shared_dof_comm)
-   {
-      device_shared_dof_comm = new DeviceSharedDofCommunicator(*this);
-   }
-   return device_shared_dof_comm;
-}
-
-bool GroupCommunicator::UseDeviceSharedDofComm(const void *ptr) const
-{
-   if (!device_shared_dof_comm_enabled || !have_ltdof_ldof || ptr == NULL)
-   {
-      return false;
-   }
-   if (mode != byNeighbor || group_buf_size == 0) { return false; }
-   if (!Device::Allows(Backend::DEVICE_MASK)) { return false; }
-   const MemoryType mt = Device::QueryMemoryType(ptr);
-   return IsDeviceMemory(mt) || mt == MemoryType::MANAGED;
-}
+} // namespace internal
 
 void GroupCommunicator::GetNeighborLTDofTable(Table &nbr_ltdof) const
 {
-   nbr_ltdof.MakeI(nbr_send_groups.Size());
-   for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
-   {
-      const int num_send_groups = nbr_send_groups.RowSize(nbr);
-      if (num_send_groups > 0)
-      {
-         const int *grp_list = nbr_send_groups.GetRow(nbr);
-         for (int i = 0; i < num_send_groups; i++)
-         {
-            const int group = grp_list[i];
-            const int nltdofs = group_ltdof.RowSize(group);
-            nbr_ltdof.AddColumnsInRow(nbr, nltdofs);
-         }
-      }
-   }
-   nbr_ltdof.MakeJ();
-   for (int nbr = 1; nbr < nbr_send_groups.Size(); nbr++)
-   {
-      const int num_send_groups = nbr_send_groups.RowSize(nbr);
-      if (num_send_groups > 0)
-      {
-         const int *grp_list = nbr_send_groups.GetRow(nbr);
-         for (int i = 0; i < num_send_groups; i++)
-         {
-            const int group = grp_list[i];
-            const int nltdofs = group_ltdof.RowSize(group);
-            const int *ltdofs = group_ltdof.GetRow(group);
-            nbr_ltdof.AddConnections(nbr, ltdofs, nltdofs);
-         }
-      }
-   }
-   nbr_ltdof.ShiftUpI();
+   internal::BuildNeighborDofTable(group_ltdof, nbr_send_groups, nbr_ltdof);
 }
 
 void GroupCommunicator::GetNeighborLDofTable(Table &nbr_ldof) const
 {
-   nbr_ldof.MakeI(nbr_recv_groups.Size());
-   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
+   internal::BuildNeighborDofTable(group_ldof, nbr_recv_groups, nbr_ldof);
+}
+
+const DeviceGroupCommunicator &GroupCommunicator::GetDeviceComm() const
+{
+   if (!device_gc)
    {
-      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
-      if (num_recv_groups > 0)
-      {
-         const int *grp_list = nbr_recv_groups.GetRow(nbr);
-         for (int i = 0; i < num_recv_groups; i++)
-         {
-            const int group = grp_list[i];
-            const int nldofs = group_ldof.RowSize(group);
-            nbr_ldof.AddColumnsInRow(nbr, nldofs);
-         }
-      }
+      // The ctor of DeviceGroupCommunicator verifies that the GroupCommunicator
+      // meets all requirements: mode == byNeighbor and have_ltdof_ldof == true.
+      device_gc = new DeviceGroupCommunicator(*this);
    }
-   nbr_ldof.MakeJ();
-   for (int nbr = 1; nbr < nbr_recv_groups.Size(); nbr++)
-   {
-      const int num_recv_groups = nbr_recv_groups.RowSize(nbr);
-      if (num_recv_groups > 0)
-      {
-         const int *grp_list = nbr_recv_groups.GetRow(nbr);
-         for (int i = 0; i < num_recv_groups; i++)
-         {
-            const int group = grp_list[i];
-            const int nldofs = group_ldof.RowSize(group);
-            const int *ldofs = group_ldof.GetRow(group);
-            nbr_ldof.AddConnections(nbr, ldofs, nldofs);
-         }
-      }
-   }
-   nbr_ldof.ShiftUpI();
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::ReduceBeginCopy(const Array<T> &x_ldof,
-                                                  Array<T> &ext_buf_t) const
-{
-   const auto &ext_ldof = nbr_comm->ExternalLDof();
-   if (ext_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofExtract(ext_ldof, x_ldof, ext_buf_t);
-   if (nbr_comm->MpiGpuAware()) { MFEM_STREAM_SYNC; }
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::ReduceLocalCopy(const Array<T> &x_ldof,
-                                                  Array<T> &x_tdof) const
-{
-   const auto &ltdof_ldof = nbr_comm->LocalTDofToLDof();
-   if (ltdof_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofExtract(ltdof_ldof, x_ldof, x_tdof);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::ReduceEndAssemble(const Array<T> &shr_buf_t,
-                                                    Array<T> &x_tdof,
-                                                    Op op) const
-{
-   const auto &unq_ltdof = nbr_comm->UniqueLTDof();
-   if (unq_ltdof.Size() == 0) { return; }
-   internal::DeviceSharedDofApplyReduction(unq_ltdof,
-                                           nbr_comm->UniqueSharedOffsets(),
-                                           nbr_comm->UniqueSharedIndices(),
-                                           shr_buf_t, x_tdof, op);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::BcastBeginCopy(const Array<T> &x_tdof,
-                                                 Array<T> &shr_buf_t) const
-{
-   const auto &shr_ltdof = nbr_comm->SharedLTDof();
-   if (shr_ltdof.Size() == 0) { return; }
-   internal::DeviceNeighborDofExtract(shr_ltdof, x_tdof, shr_buf_t);
-   if (nbr_comm->MpiGpuAware()) { MFEM_STREAM_SYNC; }
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::BcastLocalCopy(const Array<T> &x_tdof,
-                                                 Array<T> &x_ldof) const
-{
-   const auto &ltdof_ldof = nbr_comm->LocalTDofToLDof();
-   if (ltdof_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofSet(ltdof_ldof, x_tdof, x_ldof);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::BcastEndCopy(const Array<T> &ext_buf_t,
-                                               Array<T> &x_ldof) const
-{
-   const auto &ext_ldof = nbr_comm->ExternalLDof();
-   if (ext_ldof.Size() == 0) { return; }
-   internal::DeviceNeighborDofSet(ext_ldof, ext_buf_t, x_ldof);
-}
-
-DeviceSharedDofCommunicator::DeviceSharedDofCommunicator(
-   const GroupCommunicator &gc)
-   : nbr_comm(new internal::DeviceNeighborDofComm(gc))
-{
-   const int tdofs = nbr_comm->LocalTDofToLDof().Size();
-   true_buf.SetSize(tdofs);
-   true_buf.GetMemory().UseDevice(true);
-   shr_buf.SetSize(nbr_comm->SharedLTDof().Size());
-   shr_buf.GetMemory().UseDevice(true);
-   ext_buf.SetSize(nbr_comm->ExternalLDof().Size());
-   ext_buf.GetMemory().UseDevice(true);
-}
-
-DeviceSharedDofCommunicator::~DeviceSharedDofCommunicator()
-{
-   delete nbr_comm;
-}
-
-template <typename T>
-void MakeTypedBufferView(Array<real_t> &storage, int size, Array<T> &view)
-{
-   MFEM_ASSERT(sizeof(real_t) >= sizeof(T),
-               "internal buffer type is too small for this view");
-   const int capacity = storage.Size() * int(sizeof(real_t) / sizeof(T));
-   MFEM_VERIFY(size <= capacity, "internal buffer view exceeds capacity");
-   real_t *ptr = storage.ReadWrite();
-   view.MakeRef(reinterpret_cast<T*>(ptr), size, Device::QueryMemoryType(ptr),
-                false);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::Reduce(const Array<T> &x_ldof,
-                                         Array<T> &x_tdof,
-                                         Op op) const
-{
-   MFEM_ASSERT(x_tdof.Size() == nbr_comm->LocalTDofToLDof().Size(),
-               "incompatible sizes!");
-   Array<T> ext_buf_t, shr_buf_t;
-   MakeTypedBufferView(ext_buf, nbr_comm->ExternalLDof().Size(), ext_buf_t);
-   MakeTypedBufferView(shr_buf, nbr_comm->SharedLTDof().Size(), shr_buf_t);
-   ReduceBeginCopy(x_ldof, ext_buf_t);
-   const int req_counter =
-      nbr_comm->ExchangeExternalToShared<T>(ext_buf_t, shr_buf_t, 41827);
-   ReduceLocalCopy(x_ldof, x_tdof);
-   nbr_comm->WaitAll(req_counter);
-   ReduceEndAssemble(shr_buf_t, x_tdof, op);
-}
-
-template <>
-void DeviceSharedDofCommunicator::Reduce<real_t>(const Array<real_t> &x_ldof,
-                                                 Array<real_t> &x_tdof,
-                                                 Op op) const
-{
-   MFEM_ASSERT(x_tdof.Size() == nbr_comm->LocalTDofToLDof().Size(),
-               "incompatible sizes!");
-   ReduceBeginCopy(x_ldof, ext_buf);
-   const int req_counter =
-      nbr_comm->ExchangeExternalToShared<real_t>(ext_buf, shr_buf, 41825);
-   ReduceLocalCopy(x_ldof, x_tdof);
-   nbr_comm->WaitAll(req_counter);
-   ReduceEndAssemble(shr_buf, x_tdof, op);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::Reduce(Array<T> &x_ldof, Op op) const
-{
-   Array<T> x_tdof;
-   MakeTypedBufferView(true_buf, nbr_comm->LocalTDofToLDof().Size(), x_tdof);
-   Reduce(x_ldof, x_tdof, op);
-   BcastLocalCopy(x_tdof, x_ldof);
-}
-
-template <>
-void DeviceSharedDofCommunicator::Reduce<real_t>(Array<real_t> &x_ldof,
-                                                 Op op) const
-{
-   Reduce(x_ldof, true_buf, op);
-   BcastLocalCopy(true_buf, x_ldof);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::Bcast(const Array<T> &x_tdof,
-                                        Array<T> &x_ldof) const
-{
-   MFEM_ASSERT(x_tdof.Size() == nbr_comm->LocalTDofToLDof().Size(),
-               "incompatible sizes!");
-   Array<T> ext_buf_t, shr_buf_t;
-   MakeTypedBufferView(ext_buf, nbr_comm->ExternalLDof().Size(), ext_buf_t);
-   MakeTypedBufferView(shr_buf, nbr_comm->SharedLTDof().Size(), shr_buf_t);
-   x_ldof.Write();
-   BcastBeginCopy(x_tdof, shr_buf_t);
-   const int req_counter =
-      nbr_comm->ExchangeSharedToExternal<T>(shr_buf_t, ext_buf_t, 41826);
-   BcastLocalCopy(x_tdof, x_ldof);
-   nbr_comm->WaitAll(req_counter);
-   BcastEndCopy(ext_buf_t, x_ldof);
-}
-
-template <>
-void DeviceSharedDofCommunicator::Bcast<real_t>(const Array<real_t> &x_tdof,
-                                                Array<real_t> &x_ldof) const
-{
-   MFEM_ASSERT(x_tdof.Size() == nbr_comm->LocalTDofToLDof().Size(),
-               "incompatible sizes!");
-   x_ldof.Write();
-   BcastBeginCopy(x_tdof, shr_buf);
-   const int req_counter =
-      nbr_comm->ExchangeSharedToExternal<real_t>(shr_buf, ext_buf, 41824);
-   BcastLocalCopy(x_tdof, x_ldof);
-   nbr_comm->WaitAll(req_counter);
-   BcastEndCopy(ext_buf, x_ldof);
-}
-
-template <typename T>
-void DeviceSharedDofCommunicator::Bcast(Array<T> &x_ldof) const
-{
-   Array<T> x_tdof;
-   MakeTypedBufferView(true_buf, nbr_comm->LocalTDofToLDof().Size(), x_tdof);
-   ReduceLocalCopy(x_ldof, x_tdof);
-   Bcast(x_tdof, x_ldof);
-}
-
-template <>
-void DeviceSharedDofCommunicator::Bcast<real_t>(Array<real_t> &x_ldof) const
-{
-   ReduceLocalCopy(x_ldof, true_buf);
-   Bcast(true_buf, x_ldof);
-}
-
-template <class T>
-void GroupCommunicator::Bcast(T *ldata, int layout) const
-{
-   BcastBegin(ldata, layout);
-   BcastEnd(ldata, layout);
-}
-
-template <class T>
-void GroupCommunicator::Bcast(T *ldata) const
-{
-   if (ldata == NULL)
-   {
-      Bcast<T>(ldata, 0);
-      return;
-   }
-   const MemoryType mt = Device::QueryMemoryType(ldata);
-
-   // Use the shared-dof device path when it is available.
-   if (UseDeviceSharedDofComm(ldata))
-   {
-      Array<T> ldata_view;
-      ldata_view.MakeRef(ldata, ldof_size, mt, false);
-      GetDeviceSharedDofCommunicator()->Bcast(ldata_view);
-      return;
-   }
-
-   // Go back to host when the shared-dof device path is not available.
-   if (IsDeviceMemory(mt))
-   {
-      Array<T> device_view, host_data(ldof_size);
-      device_view.MakeRef(ldata, ldof_size, mt, false);
-      host_data = device_view;
-      Bcast<T>(host_data.HostReadWrite(), 0);
-      device_view = host_data;
-      return;
-   }
-
-   Bcast<T>(ldata, 0);
-}
-
-template <class T>
-void GroupCommunicator::Bcast(Array<T> &ldata) const
-{
-   const bool on_dev =
-      ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
-   Bcast<T>(ldata.ReadWrite(on_dev));
-}
-
-template <class T>
-void GroupCommunicator::Reduce(T *ldata, void (*Op)(OpData<T>)) const
-{
-   if (ldata == NULL)
-   {
-      ReduceBegin(ldata);
-      ReduceEnd(ldata, 0, Op);
-      return;
-   }
-   const MemoryType mt = Device::QueryMemoryType(ldata);
-
-   // Use the shared-dof device path when it is available.
-   if (UseDeviceSharedDofComm(ldata))
-   {
-      // Materialize typed function pointers before comparison so stricter GPU
-      // toolchains do not have to resolve overloaded template names here.
-      using OpFunc = void (*)(OpData<T>);
-      const OpFunc sum_op = &GroupCommunicator::template Sum<T>;
-      const OpFunc min_op = &GroupCommunicator::template Min<T>;
-      const OpFunc max_op = &GroupCommunicator::template Max<T>;
-      DeviceSharedDofCommunicator::Op device_op;
-      if (Op == sum_op)
-      {
-         device_op = DeviceSharedDofCommunicator::Op::Sum;
-      }
-      else if (Op == min_op)
-      {
-         device_op = DeviceSharedDofCommunicator::Op::Min;
-      }
-      else if (Op == max_op)
-      {
-         device_op = DeviceSharedDofCommunicator::Op::Max;
-      }
-      else
-      {
-         // Just a placeholder - this case won't be executed on GPU.
-         device_op = DeviceSharedDofCommunicator::Op::Sum;
-      }
-
-      // Only the operations with a direct DeviceSharedDofCommunicator mapping
-      // can stay on the device; the rest fall back to the legacy host path.
-      if (Op == sum_op || Op == min_op || Op == max_op)
-      {
-         Array<T> ldata_view;
-         ldata_view.MakeRef(ldata, ldof_size, mt, false);
-         GetDeviceSharedDofCommunicator()->Reduce(ldata_view, device_op);
-         return;
-      }
-   }
-
-   // Go back to host when the shared-dof device path is not available.
-   if (IsDeviceMemory(mt))
-   {
-      Array<T> device_view, host_data(ldof_size);
-      device_view.MakeRef(ldata, ldof_size, mt, false);
-      host_data = device_view;
-      ReduceBegin(host_data.HostRead());
-      ReduceEnd(host_data.HostReadWrite(), 0, Op);
-      device_view = host_data;
-      return;
-   }
-
-   ReduceBegin(ldata);
-   ReduceEnd(ldata, 0, Op);
-}
-
-template <class T>
-void GroupCommunicator::Reduce(Array<T> &ldata,
-                               void (*Op)(OpData<T>)) const
-{
-   const bool on_dev =
-      ldata.GetMemory().DeviceIsValid() && device_shared_dof_comm_enabled;
-   Reduce<T>(ldata.ReadWrite(on_dev), Op);
+   return *device_gc;
 }
 
 template <class T>
@@ -1355,8 +747,13 @@ template <class T>
 void GroupCommunicator::BcastBegin(T *ldata, int layout) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
+   MFEM_ASSERT(0 <= layout && layout <= 2, "invalid layout: " << layout);
 
-   if (group_buf_size == 0) { return; }
+   if (group_buf_size == 0)
+   {
+      comm_lock = 1; // 1 - locked for Bcast
+      return;
+   }
 
    int request_counter = 0;
    switch (mode)
@@ -1489,11 +886,73 @@ void GroupCommunicator::BcastBegin(T *ldata, int layout) const
 }
 
 template <class T>
+void GroupCommunicator::BcastBegin(Array<T> &ldata, int layout) const
+{
+   MFEM_VERIFY(comm_lock == 0, "object is already in use");
+   MFEM_ASSERT(0 <= layout && layout <= 2, "invalid layout: " << layout);
+#ifdef MFEM_DEBUG
+   // for layouts 0 and 2, ldata_size is known only when have_ltdof_ldof is true
+   if (layout == 1 || have_ltdof_ldof)
+   {
+      // FIXME: Currently, this check causes a failure in the unit test
+      //          "Parallel Variable Order FiniteElementSpace" "Quad mesh"
+      //        Re-enable this check when the issue is fixed.
+
+      // const int ldata_size = layout == 0 ? ldof_size :
+      //                        layout == 1 ? group_ldof.Size_of_connections() :
+      //                        ltdof_ldof.Size();
+      // MFEM_ASSERT(ldata.Size() == ldata_size, "invalid 'ldata' size");
+   }
+#endif
+
+   if (group_buf_size == 0)
+   {
+      comm_lock = 1; // 1 - locked for Bcast
+      return;
+   }
+
+   // Use 'while' instead of 'if' so that we can break out without using 'goto'.
+   while (ldata.UseDevice() &&
+          Device::Allows(Backend::DEVICE_MASK) &&
+          have_ltdof_ldof &&
+          mode == byNeighbor)
+   {
+      if (layout == 0)  // input is ldofs array
+      {
+         GetDeviceComm().BcastBeginLDofs(ldata);
+      }
+      else if (layout == 2)  // input is ltdofs array
+      {
+         GetDeviceComm().BcastBeginTDofs(ldata);
+      }
+      else
+      {
+         break;
+      }
+      comm_lock = 1; // 1 - locked for Bcast
+      return;
+   }
+
+   // Call the host version of this method with the data moved to host
+   BcastBegin(ldata.HostReadWrite(), layout);
+   // comm_lock is set by the above call
+}
+
+template <class T>
 void GroupCommunicator::BcastEnd(T *ldata, int layout) const
 {
-   if (comm_lock == 0) { return; }
-   // The above also handles the case (group_buf_size == 0).
+   // Is there a real case where we want to allow BcastEnd without corresponding
+   // BcastBegin?
+   // if (comm_lock == 0) { return; }
+
    MFEM_VERIFY(comm_lock == 1, "object is NOT locked for Bcast");
+   MFEM_ASSERT(layout == 0 || layout == 1, "invalid layout: " << layout);
+
+   if (group_buf_size == 0)
+   {
+      comm_lock = 0; // 0 - no lock
+      return;
+   }
 
    switch (mode)
    {
@@ -1551,11 +1010,59 @@ void GroupCommunicator::BcastEnd(T *ldata, int layout) const
 }
 
 template <class T>
+void GroupCommunicator::BcastEnd(Array<T> &ldata, int layout) const
+{
+   MFEM_VERIFY(comm_lock == 1, "object is NOT locked for Bcast");
+   MFEM_ASSERT(layout == 0 || layout == 1, "invalid layout: " << layout);
+#ifdef MFEM_DEBUG
+   // for layouts 0 and 2, ldata_size is known only when have_ltdof_ldof is true
+   if (layout == 1 || have_ltdof_ldof)
+   {
+      // FIXME: Currently, this check causes a failure in the unit test
+      //          "Parallel Variable Order FiniteElementSpace" "Quad mesh"
+      //        Re-enable this check when the issue is fixed.
+
+      // const int ldata_size = layout == 0 ? ldof_size :
+      //                        group_ldof.Size_of_connections();
+      // MFEM_ASSERT(ldata.Size() == ldata_size, "invalid 'ldata' size");
+   }
+#endif
+
+   if (group_buf_size == 0)
+   {
+      comm_lock = 0; // 0 - no lock
+      return;
+   }
+
+   if (ldata.UseDevice() &&
+       Device::Allows(Backend::DEVICE_MASK) &&
+       have_ltdof_ldof &&
+       mode == byNeighbor &&
+       layout == 0)  // output is ldofs array
+   {
+      GetDeviceComm().BcastEndLDofs(ldata);
+      comm_lock = 0; // 0 - no lock
+      return;
+   }
+
+   // call the host version of this method with the data moved to host
+   BcastEnd(ldata.HostReadWrite(), layout);
+   // comm_lock is set by the above call
+}
+
+template <class T>
 void GroupCommunicator::ReduceBegin(const T *ldata) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
 
-   if (group_buf_size == 0) { return; }
+   if (group_buf_size == 0)
+   {
+      comm_lock = 2; // 2 - locked for Reduce
+      return;
+   }
+
+   // Set the reduce_op to nullptr -- unknown reduce operation
+   reduce_op = nullptr;
 
    int request_counter = 0;
    group_buf.SetSize(group_buf_size*sizeof(T));
@@ -1665,17 +1172,104 @@ void GroupCommunicator::ReduceBegin(const T *ldata) const
       }
    }
 
-   comm_lock = 2;
+   comm_lock = 2; // 2 - locked for Reduce
    num_requests = request_counter;
+}
+
+template <typename T>
+static inline bool OpIsSupportedDeviceOp(
+   void (*Op)(GroupCommunicator::OpData<T>),
+   DeviceGroupCommunicator::Op &device_op)
+{
+   // Materialize typed function pointers before comparison so stricter
+   // GPU toolchains do not have to resolve overloaded template names
+   // here.
+   using OpFunc = void (*)(GroupCommunicator::OpData<T>);
+   const OpFunc sum_op = &GroupCommunicator::template Sum<T>;
+   const OpFunc min_op = &GroupCommunicator::template Min<T>;
+   const OpFunc max_op = &GroupCommunicator::template Max<T>;
+   if (Op == sum_op)
+   {
+      device_op = DeviceGroupCommunicator::Op::Sum;
+   }
+   else if (Op == min_op)
+   {
+      device_op = DeviceGroupCommunicator::Op::Min;
+   }
+   else if (Op == max_op)
+   {
+      device_op = DeviceGroupCommunicator::Op::Max;
+   }
+   else
+   {
+      return false; // Op is not supported on device
+   }
+   return true; // Op is supported on device
+}
+
+template <class T>
+void GroupCommunicator::ReduceBegin(const Array<T> &ldata,
+                                    void (*Op)(OpData<T>)) const
+{
+   MFEM_VERIFY(comm_lock == 0, "object is already in use");
+   // layout is 0
+#ifdef MFEM_DEBUG
+   if (ldof_size >= 0) // ldof_size is -1 when it is unknown
+   {
+      // FIXME: Currently, this check causes a failure in the unit test
+      //          "Parallel Variable Order FiniteElementSpace" "Quad mesh"
+      //        Re-enable this check when the issue is fixed.
+
+      // MFEM_ASSERT(ldata.Size() == ldof_size, "invalid 'ldata' size");
+   }
+#endif
+
+   // Store the provided Op for inspection in ReduceEnd().
+   reduce_op = reinterpret_cast<decltype(reduce_op)>(Op);
+
+   if (group_buf_size == 0)
+   {
+      comm_lock = 2; // 2 - locked for Reduce
+      return;
+   }
+
+   if (ldata.UseDevice() &&
+       Device::Allows(Backend::DEVICE_MASK) &&
+       have_ltdof_ldof &&
+       mode == byNeighbor)
+   {
+      DeviceGroupCommunicator::Op device_op{};
+      if (Op == nullptr || OpIsSupportedDeviceOp(Op, device_op))
+      {
+         GetDeviceComm().ReduceBeginLDofs(ldata);
+         comm_lock = 2; // 2 - locked for Reduce
+         return;
+      }
+   }
+
+   // call the host version of this method with the data copied to host
+   ReduceBegin(ldata.HostRead());
+   // comm_lock is set by the above call
+   // reduce_op is set to nullptr by the above call -- restore its value:
+   reduce_op = reinterpret_cast<decltype(reduce_op)>(Op);
 }
 
 template <class T>
 void GroupCommunicator::ReduceEnd(T *ldata, int layout,
                                   void (*Op)(OpData<T>)) const
 {
-   if (comm_lock == 0) { return; }
-   // The above also handles the case (group_buf_size == 0).
+   // Is there a real case where we want to allow ReduceEnd without
+   // corresponding ReduceBegin?
+   // if (comm_lock == 0) { return; }
+
    MFEM_VERIFY(comm_lock == 2, "object is NOT locked for Reduce");
+   MFEM_ASSERT(layout == 0 || layout == 2, "invalid layout: " << layout);
+
+   if (group_buf_size == 0)
+   {
+      comm_lock = 0; // 0 - no lock
+      return;
+   }
 
    switch (mode)
    {
@@ -1737,6 +1331,73 @@ void GroupCommunicator::ReduceEnd(T *ldata, int layout,
 
    comm_lock = 0; // 0 - no lock
    num_requests = 0;
+}
+
+template <class T>
+void GroupCommunicator::ReduceEnd(Array<T> &ldata, int layout,
+                                  void (*Op)(OpData<T>)) const
+{
+   MFEM_VERIFY(comm_lock == 2, "object is NOT locked for Reduce");
+   MFEM_ASSERT(layout == 0 || layout == 2, "invalid layout: " << layout);
+#ifdef MFEM_DEBUG
+   // for layouts 0 and 2, ldata_size is known only when have_ltdof_ldof is true
+   if (have_ltdof_ldof)
+   {
+      // FIXME: Currently, this check causes a failure in the unit test
+      //          "Parallel Variable Order FiniteElementSpace" "Quad mesh"
+      //        Re-enable this check when the issue is fixed.
+
+      // const int ldata_size = layout == 0 ? ldof_size : ltdof_ldof.Size();
+      // MFEM_ASSERT(ldata.Size() == ldata_size, "invalid 'ldata' size");
+   }
+#endif
+
+   if (group_buf_size == 0)
+   {
+      comm_lock = 0; // 0 - no lock
+      return;
+   }
+
+   if (ldata.UseDevice() &&
+       Device::Allows(Backend::DEVICE_MASK) &&
+       have_ltdof_ldof &&
+       mode == byNeighbor)
+   {
+      auto BeginOp = reinterpret_cast<void(*)(OpData<T>)>(reduce_op);
+      MFEM_VERIFY(BeginOp == nullptr || BeginOp == Op,
+                  "the reduction operations given to ReduceBegin() and "
+                  "ReduceEnd() do not match!");
+      DeviceGroupCommunicator::Op device_op{};
+      const bool op_is_supported_device_op =
+         OpIsSupportedDeviceOp(Op, device_op);
+      // The primal definition of 'reduce_began_on_device' is:
+      //    (BeginOp == nullptr) || OpIsSupportedDeviceOp(BeginOp, device_op)
+      // However, due to the above MFEM_VERIFY, this is equivalent to the
+      // expression used below.
+      const bool reduce_began_on_device =
+         (BeginOp == nullptr) || op_is_supported_device_op;
+      if (reduce_began_on_device)
+      {
+         MFEM_VERIFY(op_is_supported_device_op,
+                     "the reduce operation 'Op' is not supported on device!"
+                     "\n\tTo resolve this error, provide 'Op' to ReduceBegin() "
+                     "in the second argument.");
+         if (layout == 0)  // output is ldofs array
+         {
+            GetDeviceComm().ReduceEndLDofs(ldata, device_op);
+         }
+         else // layout == 2 -- output is ltdofs array
+         {
+            GetDeviceComm().ReduceEndTDofs(ldata, device_op);
+         }
+         comm_lock = 0; // 0 - no lock
+         return;
+      }
+   }
+
+   // call the host version of this method with the data moved to host
+   ReduceEnd(ldata.HostReadWrite(), layout, Op);
+   // comm_lock is set by the above call
 }
 
 template <class T>
@@ -2084,132 +1745,503 @@ void GroupCommunicator::PrintInfo(std::ostream &os) const
 
 GroupCommunicator::~GroupCommunicator()
 {
-   delete device_shared_dof_comm;
+   delete device_gc;
    delete [] buf_offsets;
    delete [] request_marker;
    // delete [] statuses;
    delete [] requests;
 }
 
-// @cond DOXYGEN_SKIP
 
-// instantiate GroupCommunicator::Bcast and Reduce for int and double
-template void GroupCommunicator::Bcast<int>(int *, int) const;
-template void GroupCommunicator::Bcast<int>(int *) const;
-template void GroupCommunicator::Bcast<int>(Array<int> &) const;
+namespace internal
+{
+
+/** @brief Extract a sub-array: xout[i] = xin[indices[i]].
+    Note that the 'indices' can contain repeated integers. */
+template <typename T>
+static void ExtractSubArray(const Array<int> &indices,
+                            const Array<T> &xin,
+                            Array<T> &xout)
+{
+   MFEM_ASSERT(indices.Size() == xout.Size(), "incompatible sizes!");
+   auto y = xout.Write();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[i] = x[I[i]];
+   });
+}
+
+/** @brief Set a sub-array: xout[indices[i]] = xin[i].
+    Note that the 'indices' can NOT contain repeated integers because that will
+    create a race condition during parallel execution. */
+template <typename T>
+static void SetSubArray(const Array<int> &indices,
+                        const Array<T> &xin,
+                        Array<T> &xout)
+{
+   MFEM_ASSERT(indices.Size() == xin.Size(), "incompatible sizes!");
+   // Use ReadWrite() since we modify only a subset of the indices:
+   auto y = xout.ReadWrite();
+   const auto x = xin.Read();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = x[i];
+   });
+}
+
+/** @brief Set a sub-array: xout[indices[i]] = val.
+    Note that the 'indices' can contain repeated integers. Since the same value
+    is assigned to all given entries, there no real race condition during
+    parallel execution. */
+template <typename T>
+static void SetSubArray(const Array<int> &indices, Array<T> &xout, T val)
+{
+   // Use ReadWrite() since we modify only a subset of the indices:
+   auto y = xout.ReadWrite();
+   const auto I = indices.Read();
+   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y[I[i]] = val;
+   });
+}
+
+/** @brief Perform the operation: dst += A src, where:
+    - A is a Boolean matrix
+    - unique_dst_indices are the nonzeros rows of A
+    - unique_to_src_offsets and unique_to_src_indices are the I and J arrays of
+      the csr format of A restricted to its nonzero rows. */
+template <typename T>
+static void BooleanAddMult(const Array<int> &unique_dst_indices,
+                           const Array<int> &unique_to_src_offsets,
+                           const Array<int> &unique_to_src_indices,
+                           const Array<T> &src,
+                           Array<T> &dst)
+{
+   auto y = dst.ReadWrite();
+   const auto x = src.Read();
+   const auto DST_I = unique_dst_indices.Read();
+   const auto SRC_O = unique_to_src_offsets.Read();
+   const auto SRC_I = unique_to_src_indices.Read();
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int dst_idx = DST_I[i];
+      T sum = y[dst_idx];
+      const int end = SRC_O[i+1];
+      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
+      y[dst_idx] = sum;
+   });
+}
+
+/** @brief Operation similar to BooleanAddMult(): dst += A src, where:
+    - the addition operations are replaced by the reduction operation op
+    - only nonzero entries of A participate in the reduction operation
+    - A is a Boolean matrix
+    - unique_dst_indices are the nonzeros rows of A
+    - unique_to_src_offsets and unique_to_src_indices are the I and J arrays of
+      the csr format of A restricted to its nonzero rows. */
+template <typename T>
+static void BooleanReduceApply(const Array<int> &unique_dst_indices,
+                               const Array<int> &unique_to_src_offsets,
+                               const Array<int> &unique_to_src_indices,
+                               const Array<T> &src,
+                               Array<T> &dst,
+                               DeviceGroupCommunicator::Op op)
+{
+   auto y = dst.ReadWrite();
+   const auto x = src.Read();
+   const auto DST_I = unique_dst_indices.Read();
+   const auto SRC_O = unique_to_src_offsets.Read();
+   const auto SRC_I = unique_to_src_indices.Read();
+   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int dst_idx = DST_I[i];
+      T val = y[dst_idx];
+      const int end = SRC_O[i+1];
+      switch (op)
+      {
+         case DeviceGroupCommunicator::Op::Sum:
+            for (int j = SRC_O[i]; j != end; ++j) { val += x[SRC_I[j]]; }
+            break;
+         case DeviceGroupCommunicator::Op::Min:
+            for (int j = SRC_O[i]; j != end; ++j)
+            {
+               const T xj = x[SRC_I[j]];
+               val = (xj < val) ? xj : val;
+            }
+            break;
+         case DeviceGroupCommunicator::Op::Max:
+            for (int j = SRC_O[i]; j != end; ++j)
+            {
+               const T xj = x[SRC_I[j]];
+               val = (xj > val) ? xj : val;
+            }
+            break;
+      }
+      y[dst_idx] = val;
+   });
+}
+
+} // namespace internal
+
+
+DeviceGroupCommunicator::DeviceGroupCommunicator(const GroupCommunicator &gc_)
+   : gc(gc_)
+{
+   MFEM_VERIFY(gc.mode == gc.byNeighbor,
+               "Device group-communicator requires neighbor mode.");
+   MFEM_VERIFY(gc.have_ltdof_ldof,
+               "The GroupCommunicator method SetLTDofTable() must be called "
+               "before constructing the DeviceGroupCommunicator!");
+   {
+      Table nbr_ltdof;
+      gc.GetNeighborLTDofTable(nbr_ltdof);
+      // Transfer the I and J arrays of nbr_ltdof to shr_buf_offsets and
+      // shr_ltdof, respectively:
+      shr_buf_offsets.NewMemoryAndSize(nbr_ltdof.GetIMemory(),
+                                       nbr_ltdof.Size()+1, true);
+      shr_ltdof.NewMemoryAndSize(nbr_ltdof.GetJMemory(),
+                                 nbr_ltdof.Size_of_connections(), true);
+      nbr_ltdof.LoseData();
+   }
+   shr_ldof.SetSize(shr_ltdof.Size());
+   // shr_ldof[i] = gc.ltdof_ldof[shr_ltdof[i]]:
+   internal::ExtractSubArray(shr_ltdof, gc.ltdof_ldof, shr_ldof);
+   {
+      // Sort() is a host method, so initialize 'unique_ltdof' on host:
+      Array<int> unique_ltdof(shr_ltdof.Size());
+      unique_ltdof.CopyFrom(shr_ltdof.HostRead());
+      unique_ltdof.Sort();
+      unique_ltdof.Unique();
+      unq_ltdof = unique_ltdof;
+   }
+   {
+      Array<int> shr_unique(shr_ltdof.Size());
+      for (int i = 0; i < shr_unique.Size(); i++)
+      {
+         shr_unique[i] = unq_ltdof.FindSorted(std::as_const(shr_ltdof)[i]);
+         MFEM_ASSERT(shr_unique[i] != -1, "internal error");
+      }
+      Table unique_shr;
+      Transpose(shr_unique, unique_shr, unq_ltdof.Size());
+      // Transfer the I and J arrays of unique_shr to unq_shr_i and unq_shr_j,
+      // respectively:
+      unq_shr_i.NewMemoryAndSize(unique_shr.GetIMemory(),
+                                 unique_shr.Size()+1, true);
+      unq_shr_j.NewMemoryAndSize(unique_shr.GetJMemory(),
+                                 unique_shr.Size_of_connections(), true);
+      unique_shr.LoseData();
+   }
+   unq_ldof.SetSize(unq_ltdof.Size());
+   // unq_ldof[i] = gc.ltdof_ldof[unq_ltdof[i]]:
+   internal::ExtractSubArray(unq_ltdof, gc.ltdof_ldof, unq_ldof);
+   {
+      Table nbr_ldof;
+      gc.GetNeighborLDofTable(nbr_ldof);
+      // Transfer the I and J arrays of nbr_ldof to ext_buf_offsets and
+      // ext_ldof, respectively:
+      ext_buf_offsets.NewMemoryAndSize(nbr_ldof.GetIMemory(),
+                                       nbr_ldof.Size()+1, true);
+      ext_ldof.NewMemoryAndSize(nbr_ldof.GetJMemory(),
+                                nbr_ldof.Size_of_connections(), true);
+      ext_ldof.GetMemory().UseDevice(true);
+      nbr_ldof.LoseData();
+   }
+
+   shr_buf.SetSize(shr_ltdof.Size());
+   ext_buf.SetSize(ext_ldof.Size());
+   shr_buf.Write();
+   ext_buf.Write();
+
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+   int req_counter = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   {
+      const int send_offset = shr_buf_offsets[nbr];
+      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
+      if (send_size > 0) { req_counter++; }
+
+      const int recv_offset = ext_buf_offsets[nbr];
+      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0) { req_counter++; }
+   }
+   requests.SetSize(req_counter);
+   num_requests = 0;
+}
+
+template <typename T>
+void DeviceGroupCommunicator::BcastBeginTDofs(Array<T> &x_tdof) const
+{
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   BcastBeginCopyTDofs(x_tdof, shr_buf_t.view);
+   ExchangeSharedToExternal(shr_buf_t.view, ext_buf_t.view);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::BcastBeginLDofs(Array<T> &x_ldof) const
+{
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   BcastBeginCopyLDofs(x_ldof, shr_buf_t.view);
+   ExchangeSharedToExternal(shr_buf_t.view, ext_buf_t.view);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::BcastEndLDofs(Array<T> &x_ldof) const
+{
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   WaitAll();
+   BcastEndCopy(ext_buf_t.view, x_ldof);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ReduceBeginLDofs(const Array<T> &x_ldof) const
+{
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   ReduceBeginCopy(x_ldof, ext_buf_t.view);
+   ExchangeExternalToShared(ext_buf_t.view, shr_buf_t.view);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ReduceEndTDofs(Array<T> &x_tdof, Op op) const
+{
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   WaitAll();
+   ReduceEndAssembleTDofs(shr_buf_t.view, x_tdof, op);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ReduceEndLDofs(Array<T> &x_ldof, Op op) const
+{
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   WaitAll();
+   if (unq_ldof.Size() == 0) { return; }
+   if (op == Op::Sum)
+   {
+      internal::BooleanAddMult(unq_ldof, unq_shr_i, unq_shr_j,
+                               shr_buf_t.view, x_ldof);
+   }
+   else
+   {
+      internal::BooleanReduceApply(unq_ldof, unq_shr_i, unq_shr_j,
+                                   shr_buf_t.view, x_ldof, op);
+   }
+}
+
+template <typename T>
+void DeviceGroupCommunicator::CopyTDofsToLDofs(const Array<T> &x_tdof,
+                                               Array<T> &x_ldof) const
+{
+   if (gc.ltdof_ldof.Size() == 0) { return; }
+   internal::SetSubArray(gc.ltdof_ldof, x_tdof, x_ldof);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::Prolongate(const Array<T> &x_tdof,
+                                         Array<T> &x_ldof) const
+{
+   MFEM_ASSERT(x_tdof.Size() == gc.ltdof_ldof.Size(), "incompatible sizes!");
+   MFEM_ASSERT(x_ldof.Size() == gc.ldof_size, "incompatible sizes!");
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   BcastBeginCopyTDofs(x_tdof, shr_buf_t.view);
+   ExchangeSharedToExternal(shr_buf_t.view, ext_buf_t.view);
+   CopyTDofsToLDofs(x_tdof, x_ldof);
+   WaitAll();
+   BcastEndCopy(ext_buf_t.view, x_ldof);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ProlongateTranspose(const Array<T> &x_ldof,
+                                                  Array<T> &x_tdof,
+                                                  Op op) const
+{
+   MFEM_ASSERT(x_ldof.Size() == gc.ldof_size, "incompatible sizes!");
+   MFEM_ASSERT(x_tdof.Size() == gc.ltdof_ldof.Size(), "incompatible sizes!");
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   ReduceBeginCopy(x_ldof, ext_buf_t.view);
+   ExchangeExternalToShared(ext_buf_t.view, shr_buf_t.view);
+   Restrict(x_ldof, x_tdof);
+   WaitAll();
+   ReduceEndAssembleTDofs(shr_buf_t.view, x_tdof, op);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::Restrict(const Array<T> &x_ldof,
+                                       Array<T> &x_tdof) const
+{
+   if (gc.ltdof_ldof.Size() == 0) { return; }
+   internal::ExtractSubArray(gc.ltdof_ldof, x_ldof, x_tdof);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::RestrictTranspose(const Array<T> &x_tdof,
+                                                Array<T> &x_ldof) const
+{
+   CopyTDofsToLDofs(x_tdof, x_ldof);
+   internal::SetSubArray(ext_ldof, x_ldof, T(0));
+}
+
+template <typename T>
+void DeviceGroupCommunicator::Exchange(const Array<T> &send_buf,
+                                       const Array<int> &send_offsets,
+                                       Array<T> &recv_buf,
+                                       const Array<int> &recv_offsets,
+                                       int tag) const
+{
+   const GroupTopology &gtopo = gc.GetGroupTopology();
+   const bool mpi_gpu_aware = Device::GetGPUAwareMPI();
+   auto send_ptr = mpi_gpu_aware ? send_buf.Read() : send_buf.HostRead();
+   auto recv_ptr = mpi_gpu_aware ? recv_buf.Write() : recv_buf.HostWrite();
+   num_requests = 0;
+   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
+   {
+      const int send_offset = send_offsets[nbr];
+      const int send_size = send_offsets[nbr+1] - send_offset;
+      if (send_size > 0)
+      {
+         MPI_Isend(send_ptr + send_offset, send_size, MPITypeMap<T>::mpi_type,
+                   gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
+                   &requests[num_requests++]);
+      }
+      const int recv_offset = recv_offsets[nbr];
+      const int recv_size = recv_offsets[nbr+1] - recv_offset;
+      if (recv_size > 0)
+      {
+         MPI_Irecv(recv_ptr + recv_offset, recv_size, MPITypeMap<T>::mpi_type,
+                   gtopo.GetNeighborRank(nbr), tag, gtopo.GetComm(),
+                   &requests[num_requests++]);
+      }
+   }
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ExchangeSharedToExternal(
+   const Array<T> &shr_buf_t, Array<T> &ext_buf_t) const
+{
+   const int tag = 41822;
+   Exchange(shr_buf_t, shr_buf_offsets, ext_buf_t, ext_buf_offsets, tag);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ExchangeExternalToShared(
+   const Array<T> &ext_buf_t, Array<T> &shr_buf_t) const
+{
+   const int tag = 41823;
+   Exchange(ext_buf_t, ext_buf_offsets, shr_buf_t, shr_buf_offsets, tag);
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ReduceBeginCopy(const Array<T> &x_ldof,
+                                              Array<T> &ext_buf_t) const
+{
+   if (ext_ldof.Size() == 0) { return; }
+   internal::ExtractSubArray(ext_ldof, x_ldof, ext_buf_t);
+   if (Device::GetGPUAwareMPI()) { MFEM_STREAM_SYNC; }
+}
+
+template <typename T>
+void DeviceGroupCommunicator::ReduceEndAssembleTDofs(const Array<T> &shr_buf_t,
+                                                     Array<T> &x_tdof,
+                                                     Op op) const
+{
+   if (unq_ltdof.Size() == 0) { return; }
+   if (op == Op::Sum)
+   {
+      internal::BooleanAddMult(unq_ltdof, unq_shr_i, unq_shr_j,
+                               shr_buf_t, x_tdof);
+   }
+   else
+   {
+      internal::BooleanReduceApply(unq_ltdof, unq_shr_i, unq_shr_j,
+                                   shr_buf_t, x_tdof, op);
+   }
+}
+
+template <typename T>
+void DeviceGroupCommunicator::BcastBeginCopyTDofs(const Array<T> &x_tdof,
+                                                  Array<T> &shr_buf_t) const
+{
+   if (shr_ltdof.Size() == 0) { return; }
+   internal::ExtractSubArray(shr_ltdof, x_tdof, shr_buf_t);
+   if (Device::GetGPUAwareMPI()) { MFEM_STREAM_SYNC; }
+}
+
+template <typename T>
+void DeviceGroupCommunicator::BcastBeginCopyLDofs(const Array<T> &x_ldof,
+                                                  Array<T> &shr_buf_t) const
+{
+   if (shr_ldof.Size() == 0) { return; }
+   internal::ExtractSubArray(shr_ldof, x_ldof, shr_buf_t);
+   if (Device::GetGPUAwareMPI()) { MFEM_STREAM_SYNC; }
+}
+
+template <typename T>
+void DeviceGroupCommunicator::BcastEndCopy(const Array<T> &ext_buf_t,
+                                           Array<T> &x_ldof) const
+{
+   if (ext_ldof.Size() == 0) { return; }
+   internal::SetSubArray(ext_ldof, ext_buf_t, x_ldof);
+}
+
+void DeviceGroupCommunicator::WaitAll() const
+{
+   MPI_Waitall(num_requests, requests.GetData(), MPI_STATUSES_IGNORE);
+}
+
+/// @cond DOXYGEN_SKIP
+
+// instantiate GroupCommunicator::Bcast and Reduce for int, double, and float
 template void GroupCommunicator::BcastBegin<int>(int *, int) const;
+template void GroupCommunicator::BcastBegin<int>(Array<int> &, int) const;
 template void GroupCommunicator::BcastEnd<int>(int *, int) const;
-template void GroupCommunicator::Reduce<int>(
-   int *, void (*)(OpData<int>)) const;
-template void GroupCommunicator::Reduce<int>(
-   Array<int> &, void (*)(OpData<int>)) const;
+template void GroupCommunicator::BcastEnd<int>(Array<int> &, int) const;
 template void GroupCommunicator::ReduceBegin<int>(const int *) const;
+template void GroupCommunicator::ReduceBegin<int>(
+   const Array<int> &, void (*)(OpData<int>)) const;
 template void GroupCommunicator::ReduceEnd<int>(
    int *, int, void (*)(OpData<int>)) const;
+template void GroupCommunicator::ReduceEnd<int>(
+   Array<int> &, int, void (*)(OpData<int>)) const;
 template void GroupCommunicator::ReduceMarked<int>(
    int*, const Array<int>&, int, void (*)(OpData<int>)) const;
 
-template void GroupCommunicator::Bcast<double>(double *, int) const;
-template void GroupCommunicator::Bcast<double>(double *) const;
-template void GroupCommunicator::Bcast<double>(Array<double> &) const;
 template void GroupCommunicator::BcastBegin<double>(double *, int) const;
+template void GroupCommunicator::BcastBegin<double>(Array<double> &, int) const;
 template void GroupCommunicator::BcastEnd<double>(double *, int) const;
-template void GroupCommunicator::Reduce<double>(
-   double *, void (*)(OpData<double>)) const;
-template void GroupCommunicator::Reduce<double>(
-   Array<double> &, void (*)(OpData<double>)) const;
+template void GroupCommunicator::BcastEnd<double>(Array<double> &, int) const;
 template void GroupCommunicator::ReduceBegin<double>(const double *) const;
+template void GroupCommunicator::ReduceBegin<double>(
+   const Array<double> &, void (*)(OpData<double>)) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
+template void GroupCommunicator::ReduceEnd<double>(
+   Array<double> &, int, void (*)(OpData<double>)) const;
 template void GroupCommunicator::ReduceMarked<double>(
    double*, const Array<int>&, int, void (*)(OpData<double>)) const;
 
-template void GroupCommunicator::Bcast<float>(float *, int) const;
-template void GroupCommunicator::Bcast<float>(float *) const;
-template void GroupCommunicator::Bcast<float>(Array<float> &) const;
 template void GroupCommunicator::BcastBegin<float>(float *, int) const;
+template void GroupCommunicator::BcastBegin<float>(Array<float> &, int) const;
 template void GroupCommunicator::BcastEnd<float>(float *, int) const;
-template void GroupCommunicator::Reduce<float>(
-   float *, void (*)(OpData<float>)) const;
-template void GroupCommunicator::Reduce<float>(
-   Array<float> &, void (*)(OpData<float>)) const;
+template void GroupCommunicator::BcastEnd<float>(Array<float> &, int) const;
 template void GroupCommunicator::ReduceBegin<float>(const float *) const;
+template void GroupCommunicator::ReduceBegin<float>(
+   const Array<float> &, void (*)(OpData<float>)) const;
 template void GroupCommunicator::ReduceEnd<float>(
    float *, int, void (*)(OpData<float>)) const;
+template void GroupCommunicator::ReduceEnd<float>(
+   Array<float> &, int, void (*)(OpData<float>)) const;
 template void GroupCommunicator::ReduceMarked<float>(
    float*, const Array<int>&, int, void (*)(OpData<float>)) const;
 
-template int internal::DeviceNeighborDofComm::
-ExchangeSharedToExternal<int,Array<int>, Array<int>>(
-   const Array<int> &, Array<int> &, int) const;
-template int internal::DeviceNeighborDofComm::
-ExchangeExternalToShared<int,Array<int>, Array<int>>(
-   const Array<int> &, Array<int> &, int) const;
-template int internal::DeviceNeighborDofComm::
-ExchangeSharedToExternal<real_t,Array<real_t>, Array<real_t>>(
-   const Array<real_t> &,Array<real_t> &, int) const;
-template int internal::DeviceNeighborDofComm::
-ExchangeExternalToShared<real_t,Array<real_t>, Array<real_t>>(
-   const Array<real_t> &,Array<real_t> &, int) const;
-template int internal::DeviceNeighborDofComm::
-ExchangeSharedToExternal<real_t, Vector, Vector>(
-   const Vector &, Vector &, int) const;
-template int internal::DeviceNeighborDofComm::
-ExchangeExternalToShared<real_t,Vector, Vector>(
-   const Vector &, Vector &, int) const;
+/// @endcond
 
-template void internal::DeviceNeighborDofExtract<Array<int>, Array<int>>(
-   const Array<int> &, const Array<int> &, Array<int> &);
-template void internal::DeviceNeighborDofExtract<Array<real_t>, Array<real_t>>(
-   const Array<int> &, const Array<real_t> &, Array<real_t> &);
-template void internal::DeviceNeighborDofExtract<Vector, Vector>(
-   const Array<int> &, const Vector &, Vector &);
-template void internal::DeviceNeighborDofSet<Array<int>, Array<int>>(
-   const Array<int> &, const Array<int> &, Array<int> &);
-template void internal::DeviceNeighborDofSet<Array<real_t>, Array<real_t>>(
-   const Array<int> &, const Array<real_t> &, Array<real_t> &);
-template void internal::DeviceNeighborDofSet<Vector, Vector>(
-   const Array<int> &, const Vector &, Vector &);
-template void internal::DeviceNeighborDofAdd<Vector, Vector>(
-   const Array<int> &, const Array<int> &, const Array<int> &,
-   const Vector &, Vector &);
-
-template void DeviceSharedDofCommunicator::ReduceBeginCopy<int>(
-   const Array<int> &, Array<int> &) const;
-template void DeviceSharedDofCommunicator::ReduceLocalCopy<int>(
-   const Array<int> &, Array<int> &) const;
-template void DeviceSharedDofCommunicator::ReduceEndAssemble<int>(
-   const Array<int> &, Array<int> &, Op) const;
-template void DeviceSharedDofCommunicator::BcastBeginCopy<int>(
-   const Array<int> &, Array<int> &) const;
-template void DeviceSharedDofCommunicator::BcastLocalCopy<int>(
-   const Array<int> &, Array<int> &) const;
-template void DeviceSharedDofCommunicator::BcastEndCopy<int>(
-   const Array<int> &, Array<int> &) const;
-template void DeviceSharedDofCommunicator::Reduce<int>(
-   const Array<int> &, Array<int> &, Op) const;
-template void DeviceSharedDofCommunicator::Reduce<int>(
-   Array<int> &, Op) const;
-template void DeviceSharedDofCommunicator::Bcast<int>(
-   const Array<int> &, Array<int> &) const;
-template void DeviceSharedDofCommunicator::Bcast<int>(
-   Array<int> &) const;
-template void DeviceSharedDofCommunicator::ReduceBeginCopy<real_t>(
-   const Array<real_t> &, Array<real_t> &) const;
-template void DeviceSharedDofCommunicator::ReduceLocalCopy<real_t>(
-   const Array<real_t> &, Array<real_t> &) const;
-template void DeviceSharedDofCommunicator::ReduceEndAssemble<real_t>(
-   const Array<real_t> &, Array<real_t> &, Op) const;
-template void DeviceSharedDofCommunicator::BcastBeginCopy<real_t>(
-   const Array<real_t> &, Array<real_t> &) const;
-template void DeviceSharedDofCommunicator::BcastLocalCopy<real_t>(
-   const Array<real_t> &, Array<real_t> &) const;
-template void DeviceSharedDofCommunicator::BcastEndCopy<real_t>(
-   const Array<real_t> &, Array<real_t> &) const;
-
-// @endcond
-
-// instantiate reduce operators for int and double
+// instantiate reduce operators for int, double, and float
 template void GroupCommunicator::Sum<int>(OpData<int>);
 template void GroupCommunicator::Min<int>(OpData<int>);
 template void GroupCommunicator::Max<int>(OpData<int>);
@@ -2225,6 +2257,54 @@ template void GroupCommunicator::Sum<float>(OpData<float>);
 template void GroupCommunicator::Min<float>(OpData<float>);
 template void GroupCommunicator::Max<float>(OpData<float>);
 template void GroupCommunicator::MaxAbs<float>(OpData<float>);
+
+
+/// @cond DOXYGEN_SKIP
+
+template void DeviceGroupCommunicator::BcastBeginTDofs<int>(Array<int> &) const;
+template void DeviceGroupCommunicator::BcastBeginLDofs<int>(Array<int> &) const;
+template void DeviceGroupCommunicator::BcastEndLDofs<int>(Array<int> &) const;
+template void DeviceGroupCommunicator::ReduceBeginLDofs<int>(
+   const Array<int> &) const;
+template void DeviceGroupCommunicator::ReduceEndTDofs<int>(
+   Array<int> &, Op) const;
+template void DeviceGroupCommunicator::ReduceEndLDofs<int>(
+   Array<int> &, Op) const;
+template void DeviceGroupCommunicator::CopyTDofsToLDofs<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceGroupCommunicator::Prolongate<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceGroupCommunicator::ProlongateTranspose<int>(
+   const Array<int> &, Array<int> &, Op) const;
+template void DeviceGroupCommunicator::Restrict<int>(
+   const Array<int> &, Array<int> &) const;
+template void DeviceGroupCommunicator::RestrictTranspose<int>(
+   const Array<int> &, Array<int> &) const;
+
+template void DeviceGroupCommunicator::BcastBeginTDofs<real_t>(
+   Array<real_t> &) const;
+template void DeviceGroupCommunicator::BcastBeginLDofs<real_t>(
+   Array<real_t> &) const;
+template void DeviceGroupCommunicator::BcastEndLDofs<real_t>(
+   Array<real_t> &) const;
+template void DeviceGroupCommunicator::ReduceBeginLDofs<real_t>(
+   const Array<real_t> &) const;
+template void DeviceGroupCommunicator::ReduceEndTDofs<real_t>(
+   Array<real_t> &, Op) const;
+template void DeviceGroupCommunicator::ReduceEndLDofs<real_t>(
+   Array<real_t> &, Op) const;
+template void DeviceGroupCommunicator::CopyTDofsToLDofs<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceGroupCommunicator::Prolongate<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceGroupCommunicator::ProlongateTranspose<real_t>(
+   const Array<real_t> &, Array<real_t> &, Op) const;
+template void DeviceGroupCommunicator::Restrict<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+template void DeviceGroupCommunicator::RestrictTranspose<real_t>(
+   const Array<real_t> &, Array<real_t> &) const;
+
+/// @endcond
 
 
 #ifdef __bgq__
