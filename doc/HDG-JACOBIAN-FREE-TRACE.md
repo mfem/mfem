@@ -6,8 +6,12 @@ Newton solve uses a Jacobian-free method for the linear system?
 
 **Status.** §2 and §3 are **done** — the three levels of trace solve are all
 available at run time, through `DarcyHybridization::SetGradientMode()`, and
-tested. **§1 is still open**: the JFNK state-advance trap is unfixed, and it is
-the item that produces a wrong answer while reporting success. Do that next.
+tested. Of §1, **(a) and (c) are done**: the contract has a name
+(`AdvanceLinearisation()`), a guard (`SetMaxEvalsWithoutAdvance()`) and is
+documented where it is chosen. **(b) is open** — `KINSolver` itself is
+untouched, so a JFNK caller still has to know to call
+`SetMaxSetupCalls(1)` or to advance by hand. The guard now makes the failure
+loud instead of silent, which was the point of doing (a) first.
 
 ---
 
@@ -56,13 +60,29 @@ strictly safer ordering under any Jacobian-free driver.
 
 ### What to fix, in order of how much it is worth
 
-**(a) Make the contract enforceable, in `DarcyHybridization`.** Split the
-advance out of `GetGradient()` into a public
-`AdvanceLinearisation(const Vector &trace)`; `GetGradient()` calls it, and a
-solver that does not ask for gradients can call it directly. Then count
-residual evaluations since the last advance and **fail loudly** past a
-threshold, rather than returning a converged-looking wrong answer. A silent
-wrong answer is the worst outcome available here and it is the current one.
+**(a) DONE — make the contract enforceable, in `DarcyHybridization`.**
+`AdvanceLinearisation(const Vector &trace)` is public and is the named form of
+what `GetGradient()` did implicitly; a solver that asks for no gradient calls
+it once per accepted iterate instead. `SetMaxEvalsWithoutAdvance()` counts
+residual evaluations since the last advance and aborts past a limit, defaulting
+to 1000, with a message that names both remedies.
+
+**It is a heuristic, and the reason it can only be one is worth stating.** The
+operator cannot see which of its evaluations are accepted iterates. A line
+search legitimately evaluates far from the linearisation; a Jacobian-free
+Krylov solve legitimately evaluates hundreds of times between advances. What
+separates correct use from broken is the *ratio* of evaluations to advances,
+and only the count is visible from inside. The default passes an ordinary
+Newton (two per advance), a line-searched one (tens), and a Jacobian-free one
+that advances every iterate (as deep as the Krylov space); it catches a solve
+that never advances, and one that advances every tenth iterate, which is
+KINSOL's default and the reported case. A legitimately deeper Krylov space
+would trip it, and raising the limit is one call.
+
+The abort itself is only *executable* where `MFEM_USE_EXCEPTIONS` is on, which
+this build does not have; its test is under that guard, following the
+convention in `test_quadf_coef.cpp`, and has not been run here. The counting
+and reset either side of it are tested unguarded.
 
 **(b) Fix the `KINSolver` JFNK pathway properly.** Three candidates, in
 increasing order of intrusiveness:
@@ -92,9 +112,26 @@ increasing order of intrusiveness:
 
 The first is the stopgap; the second is the fix; the third is the design.
 
-**(c) Until then, document it at the point of use.** `SetNonlinearOrdering`'s
-doc comment should say that this ordering requires a gradient per iterate, and
-name `SetMaxSetupCalls(1)` for KINSOL users.
+**(c) DONE — document it at the point of use.** `SetNonlinearOrdering()` now
+carries a `@warning` saying that the mode places a requirement on the *solver*,
+that a Jacobian-free one does not meet it, and naming
+`KINSolver::SetMaxSetupCalls(1)` with a preconditioner registered — together
+with the measured consequence of not doing so. `AdvanceLinearisation()` and
+`SetMaxEvalsWithoutAdvance()` carry the rest.
+
+### What (a) and (c) are tested by
+
+* *A Jacobian-free solve needs the linearisation advanced by hand* — a real
+  JFNK drive of the reduced system, GMRES on a difference quotient of the
+  residual with no `GetGradient()` anywhere. Without the advance it reaches a
+  residual below `1e-11` and an answer wrong by more than `1e-7`, and the test
+  requires **both**, because "converged and wrong" is the failure and asserting
+  only the error would not show that the solver was fooled. With the advance
+  the same drive lands on the reference. `CondenseThenLinearise` needs neither
+  and its count stays at zero.
+* *The residual count guards the linearisation advance* — the counter
+  increments per residual and resets on either route to an advance, and is
+  inert for the ordering with no contract.
 
 ---
 

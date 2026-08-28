@@ -342,6 +342,11 @@ private:
 
    NLOrdering nl_ordering{NLOrdering::CondenseThenLinearise};
    GradientMode grad_mode{GradientMode::Assembled};
+
+   /** @brief Residual evaluations since the linearisation last advanced, and
+       the number of them tolerated. See SetMaxEvalsWithoutAdvance(). */
+   mutable long evals_since_advance{0};
+   long max_evals_without_advance{1000};
    mutable long num_local_nl_iters{0};
 
    /** @brief The point the local Jacobian in @a Af_data, @a Df_data and
@@ -378,6 +383,11 @@ private:
    mutable Array<int> mf_diag_marker;
    /// Fill @a mf_diag_marker; see it.
    void MarkEmptyTraceRows() const;
+
+   /** @brief Count one residual evaluation and enforce
+       SetMaxEvalsWithoutAdvance(). Inert unless the ordering retains a
+       linearisation. */
+   void CountResidualEval() const;
 
    friend class Gradient;
    /// The reduced gradient applied rather than assembled; see GradientMode.
@@ -698,7 +708,26 @@ public:
        exactly and its sensitivity is the Schur complement itself.
 
        SetLocalNLSolver() and SetLocalNLPreconditioner() are inert in this
-       mode: there is no local nonlinear solve for them to configure. */
+       mode: there is no local nonlinear solve for them to configure.
+
+       @warning This mode places a requirement on the SOLVER, and one that is
+       silent when unmet. The linearisation point advances only in
+       GetGradient(), so the outer iteration must ask for a gradient once per
+       accepted iterate. A NewtonSolver does. A Jacobian-free Newton-Krylov
+       solve does not: it differences the residual and reaches GetGradient()
+       only through its preconditioner setup.
+
+       For KINSolver::SetJFNK(true) that means KINSolver::SetMaxSetupCalls(1),
+       with a preconditioner registered. KINSOL's default is ten -- see
+       SetMaxSetupCalls(), "maximum number of nonlinear iterations without a
+       Jacobian update" -- so any problem converging in fewer than ten steps
+       forms its linearisation once and never moves it. Measured on a
+       semilinear source: the residual falls to 2e-15, the iteration reports
+       convergence, and the answer is wrong in the fifth digit.
+
+       Solvers with no gradient call at all must call AdvanceLinearisation()
+       once per accepted iterate instead. SetMaxEvalsWithoutAdvance() guards
+       the requirement, loudly and imperfectly. */
    void SetNonlinearOrdering(NLOrdering ordering);
 
    /// The ordering set by SetNonlinearOrdering().
@@ -722,6 +751,56 @@ public:
 
    /// The mode set by SetGradientMode().
    GradientMode GetGradientMode() const { return grad_mode; }
+
+   /** @brief Move the retained linearisation to @a trace.
+
+       NLOrdering::LineariseThenCondense retains a linearisation point and
+       expands about it, and that point has to follow the outer iterate.
+       GetGradient() advances it, which is why an ordinary NewtonSolver needs
+       to know nothing about any of this: it asks for a gradient once per
+       accepted iterate and the advance rides along. This is the named way to
+       ask for the advance without wanting the operator, and it is implemented
+       as GetGradient() with the result dropped -- the two are one pass over
+       the elements, so there is no cheaper route to it.
+
+       A solver that does NOT ask for a gradient every iterate must call this
+       instead, or it will converge onto the root of a frozen operator, which
+       is not the problem. A Jacobian-free Newton-Krylov solve is exactly that
+       case: it differences the residual and reaches GetGradient() only through
+       a preconditioner setup, which KINSOL performs lazily -- see
+       SetNonlinearOrdering() for what to do about it.
+
+       Inert under NLOrdering::CondenseThenLinearise, which retains nothing. */
+   void AdvanceLinearisation(const Vector &trace);
+
+   /** @brief Abort after this many residual evaluations without an advance.
+
+       A guard on the contract described in AdvanceLinearisation(), because the
+       failure it catches is silent: the outer iteration converges, the
+       residual reaches round-off, and the answer is wrong.
+
+       It is a heuristic and worth knowing why it can only be one. The operator
+       cannot see which of its evaluations are accepted iterates: a line search
+       legitimately evaluates far from the linearisation, and a Jacobian-free
+       Krylov solve legitimately evaluates hundreds of times between advances.
+       What separates correct use from broken is the ratio, not the count, and
+       the count is all that is visible here. The default of 1000 passes an
+       ordinary Newton (two evaluations per advance), a line-searched one
+       (tens), and a Jacobian-free one that advances every iterate (as many as
+       the Krylov space is deep); it catches a solve that never advances at
+       all, and one that advances every tenth iterate, which is KINSOL's
+       default.
+
+       Zero disables the guard. Raise it if a legitimately deep Krylov space
+       trips it -- and if it trips, check first that the advance is happening,
+       because that is the more likely cause. */
+   void SetMaxEvalsWithoutAdvance(long n) { max_evals_without_advance = n; }
+
+   /// The limit set by SetMaxEvalsWithoutAdvance().
+   long GetMaxEvalsWithoutAdvance() const { return max_evals_without_advance; }
+
+   /// Residual evaluations since the linearisation last advanced.
+   long GetEvalsSinceAdvance() const { return evals_since_advance; }
 
    /** @brief The number of local nonlinear iterations performed, summed over
        elements and over every residual and gradient evaluation.

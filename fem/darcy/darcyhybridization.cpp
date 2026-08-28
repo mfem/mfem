@@ -1611,6 +1611,7 @@ void DarcyHybridization::Mult(const Vector &x, Vector &y) const
    }
 
    MultNL(MultNlMode::Mult, darcy_rhs, x, y);
+   CountResidualEval();
 
    // Essential trace dofs. There is no assembled matrix on this path to move
    // columns out of, so the constraint is carried the way NonlinearForm
@@ -2051,6 +2052,10 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       // has been through: an element later in the loop reads the old fields,
       // and in a conforming flux space its dofs overlap the ones an earlier
       // element has already written.
+      //
+      // This is the only place the linearisation advances, so it is the only
+      // place the guard's count resets. See SetMaxEvalsWithoutAdvance().
+      evals_since_advance = 0;
       lin_trace = x;
       lin_u.Swap(lin_u_next);
       lin_p.Swap(lin_p_next);
@@ -2693,6 +2698,48 @@ void DarcyHybridization::MarkEmptyTraceRows() const
    {
       mf_diag_marker[i] = (live_t(i) == 0.0) ? 1 : 0;
    }
+}
+
+void DarcyHybridization::AdvanceLinearisation(const Vector &trace)
+{
+   if (nl_ordering != NLOrdering::LineariseThenCondense) { return; }
+
+   // Advancing and building the gradient are one pass over the elements --
+   // ConstructGrad() assembles at the very fields the advance retains -- so
+   // this is GetGradient() with the result dropped rather than a cheaper
+   // route. In GradientMode::MatrixFree that is a factorisation and no
+   // assembly; in Assembled it is the matrix a caller wanting this would be
+   // preconditioning with anyway.
+   GetGradient(trace);
+}
+
+void DarcyHybridization::CountResidualEval() const
+{
+   if (nl_ordering != NLOrdering::LineariseThenCondense) { return; }
+   if (max_evals_without_advance <= 0) { return; }
+
+   if (++evals_since_advance <= max_evals_without_advance) { return; }
+
+   MFEM_ABORT("NLOrdering::LineariseThenCondense has been asked for "
+              << evals_since_advance << " residuals without the linearisation "
+              "advancing, which is past the limit of "
+              << max_evals_without_advance << ".\n"
+              "This ordering expands about a retained linearisation point, and "
+              "that point moves only in GetGradient() or "
+              "AdvanceLinearisation(). An outer iteration that never moves it "
+              "converges onto the root of a frozen operator: the residual "
+              "reaches round-off and the answer is wrong, with nothing to say "
+              "so -- which is why this aborts rather than warning.\n"
+              "A Jacobian-free Newton-Krylov solve is the usual cause. With "
+              "KINSolver::SetJFNK(true), call SetMaxSetupCalls(1) and register "
+              "a preconditioner, so the gradient is rebuilt every iterate; "
+              "KINSOL's default is every tenth. A solver that asks for no "
+              "gradient at all must call AdvanceLinearisation() once per "
+              "accepted iterate.\n"
+              "If the count is legitimate -- a Krylov space deeper than this "
+              "limit, with the linearisation advancing every iterate -- raise "
+              "it with SetMaxEvalsWithoutAdvance(), or pass zero to disable "
+              "the guard.");
 }
 
 void DarcyHybridization::SetGradientMode(GradientMode mode)
@@ -3997,6 +4044,7 @@ void DarcyHybridization::ParOperator::Mult(const Vector &x, Vector &y) const
    }
 
    dh.ParMultNL(MultNlMode::Mult, dh.darcy_rhs, x, y);
+   dh.CountResidualEval();
 
    y.SetSubVector(dh.ess_tdof_list, 0.);   // see the serial Mult()
 }
