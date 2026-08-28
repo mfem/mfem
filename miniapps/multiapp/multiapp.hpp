@@ -90,6 +90,8 @@ public:
         AllocateData(v);
     }
 
+    Field(int id_ = -1) : Field(nullptr, nullptr, id_) { }
+
     ///@brief Get the stored internally stored data pointer
     Vector* Data() const { return data; }
     Vector* Adjoint() const { return adjoint; }
@@ -493,15 +495,6 @@ public:
                            bool own = false)
     { for(auto &f : fields) { AddInput(f, own); } }
 
-    template<bool OwnInputs = false,
-             typename... Args,
-             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
-             typename std::enable_if<AreFields, bool>::type = true >
-    void AddInputs(Args... args)
-    {
-        ((AddInput(std::forward<Args>(args), OwnInputs)), ...);
-    }
-
     virtual void AddOutput(const std::string &field_name,
                            Field *field, bool own = false)
     { field_collection.AddOutput(field_name, field, own); }
@@ -512,15 +505,6 @@ public:
     virtual void AddOutputs(std::initializer_list<Field*> fields,
                             bool own = false)
     { for(auto &f : fields) { AddOutput(f, own); } }
-
-    template<bool OwnOutputs = false,
-             typename... Args,
-             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
-             typename std::enable_if<AreFields, bool>::type = true >
-    void AddOutputs(Args... args)
-    {
-        ((AddOutput(std::forward<Args>(args), OwnOutputs)), ...);
-    }
 
     /// @brief Return the input offsets for block starts.
     Array<int>& InputOffsets() { return input_offsets; }
@@ -607,77 +591,6 @@ public:
             }
         }
     }
-
-    // Variadic template that takes in an arbitrary number of Fields as inputs and returns a tuple of the N output fields
-    // TODO: Remove in favor of RegisterFields() above, which is more explicit and flexible
-    template<int N = 1, // Number of output fields
-             bool OwnInputs = false,  // Whether to own the input fields
-             bool OwnOutputs = false, // Whether to own the output fields
-             typename... Args, // Parameter pack for input fields
-             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
-             typename std::enable_if<AreFields, bool>::type = true >
-    constexpr auto operator()(Args... args)
-    {
-        // Add the input fields to the node
-        (AddInput(std::forward<Args>(args), OwnInputs), ...);
-
-        if(OutputFields().Size() == 0)
-        {
-            // Add 'N' number of output fields to the node if none exist
-            for(int i = 0; i < N; ++i)
-            {
-                AddOutput(new Field(nullptr, nullptr), OwnOutputs);
-            }
-        }
-        else
-        {
-            MFEM_ASSERT(OutputFields().Size() == N,
-                        "Number of output fields " << OutputFields().Size()
-                        << " does not match the specified number of outputs " << N);
-
-            // Set output ownership for the output fields if existing fields are used
-            auto outputs = OutputFields();
-            for(int i = 0; i < N; ++i)
-            {
-                field_collection.SetFieldOwnership(outputs[i]->ID(), OwnOutputs);
-            }
-        }
-
-        // Tape operations
-        // Check if all input fields have the same tape; if so, register this node with that tape
-        auto inputs = InputFields();
-        bool same_tape = std::equal(inputs.begin() + 1, inputs.end(), inputs.begin(),
-                                    [](Field *a, Field *b) { return a->GetTape() == b->GetTape(); });
-
-        if(AbstractTape *tape = inputs[0]->GetTape(); tape && same_tape)
-        {
-            if(tape->IsRecording())
-            {
-                tape->RegisterOperation(*this);
-            }
-        }
-        else if(!same_tape)
-        {
-            bool any_recording = std::any_of(inputs.begin(), inputs.end(),
-                                            [](Field *f)
-                                            { return f->GetTape() ? f->GetTape()->IsRecording() : false; });
-            if(any_recording)
-            {
-                MFEM_ABORT("Input fields are being recorded on different tapes. Cannot register operation.");
-            }
-        }
-
-        if constexpr (N == 1)
-        {
-            return OutputField(0);
-        }
-        else if constexpr (N > 1)
-        {
-            // Build and return a tuple of pointer to output fields
-            return ArrayToTuple<N>(OutputFields());
-        }
-    }
-
 
     virtual ~GraphNode()
     {
@@ -884,8 +797,10 @@ public:
         }
     }
 
-    /// @brief Add multiple operators to the list of coupled operators
-    template<typename... Args>
+    /// @brief Add multiple operators to the list of coupled operators. Used for cases
+    /// where all operators are not derived from Operator. Ensure all are pointers.
+    template<typename... Args,
+             typename std::enable_if<(std::is_pointer<Args>::value && ...), bool>::type = true>
     void AddOperators(Args... args)
     {
         (AddOperator(std::forward<Args>(args)), ...);
@@ -1044,26 +959,6 @@ public:
     GraphTape(DAGraph &dag) : graph(dag)
     { }
 
-    template<typename... Args,
-             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
-             typename std::enable_if<AreFields, bool>::type = true >
-    void Watch(Args... args)
-    {
-        // Clear the DAG's fields (inputs/outputs)
-        graph.Fields().Clear();
-
-        // Clear any previously recorded fields
-        fields.clear();
-
-        // Set the tape for each watched field
-        ((std::forward<Args>(args)->SetTape(this)), ...);
-
-        // Store the watched fields in the tape's inputs array
-        inputs.SetSize(sizeof...(args));
-        int idx = 0;
-        ((inputs[idx++] = std::forward<Args>(args)), ...);
-    }
-
     void Watch(std::initializer_list<Field*> fields_list)
     {
         // Clear the DAG's fields (inputs/outputs)
@@ -1118,62 +1013,6 @@ public:
 
         // Add the node to the DAG
         graph.AddOperator(&node);
-    }
-
-    template<typename... Args,
-             bool AreFields = std::conjunction<std::is_base_of<Field, std::remove_pointer_t<Args>> ...>::value,
-             typename std::enable_if<AreFields, bool>::type = true >
-    void Finalize(Args... args)
-    {
-        // Ensure that some inputs were 'watched' before finalizing
-        if(inputs.Size() == 0)
-        {
-            MFEM_ABORT("No input fields were watched. Please call Watch() before Finalize().");
-        }
-
-        // Ensure that some outputs were provided before finalizing
-        if(sizeof...(args) == 0)
-        {
-            MFEM_ABORT("No output fields were provided. Please provide at least one output field to Finalize().");
-        }
-
-        // Store the output fields in the tape's outputs array
-        outputs.SetSize(sizeof...(args));
-        int idx = 0;
-        ((outputs[idx++] = std::forward<Args>(args)), ...);
-
-        // Loop through tape's inputs and output to ensure they were used in computation
-        // if used, add to DAG's field collection; if not used, throw a warning
-        for (auto &input_field : inputs)
-        {
-            if(fields.Has(input_field->ID()))
-            {
-                graph.AddInput(input_field, false); // Add to DAG's field collection without ownership
-            }
-            else
-            {
-                MFEM_WARNING("GraphTape::Finalize: Input field " << input_field->Name()
-                             << " (ID: " << input_field->ID() << ") was not used in any recorded operation.");
-            }
-        }
-
-        for (auto &output_field : outputs)
-        {
-            if(fields.Has(output_field->ID()))
-            {
-                graph.AddOutput(output_field, false); // Add to DAG's field collection without ownership
-            }
-            else
-            {
-                MFEM_WARNING("GraphTape::Finalize: Output field " << output_field->Name()
-                             << " (ID: " << output_field->ID() << ") was not used in any recorded operation.");
-            }
-        }
-
-        // Clear the recorded fields after stopping recording and
-        // nullifying the tape association for each tracked field
-        recording = false;
-        Clear();
     }
 
     void Finalize(std::initializer_list<Field*> outputs_list)

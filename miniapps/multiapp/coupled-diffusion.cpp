@@ -619,111 +619,72 @@ int main(int argc, char *argv[])
 
 
    Vector k1vec(fes.GetTrueVSize()); k1vec = 0.0;
-   Vector k2vec(fes.GetTrueVSize()); k2vec = 0.0;
+   Vector k1adj(fes.GetTrueVSize()); k1adj = 0.0;
    Vector kpvec(fes.GetTrueVSize()); kpvec = 0.0;
 
-   Vector k1adj(fes.GetTrueVSize()); k1adj = 0.0;
-   Vector k2adj(fes.GetTrueVSize()); k2adj = 0.0;
-   // Vector kpadj(fes.GetTrueVSize()); kpadj = 0.0;
-
    // Input fields get data from 'x' in DAGraph::Mult(x, y)
-   Field *T1_field = new Field(nullptr, nullptr);
-   Field *T2_field = new Field(nullptr, nullptr);
+   Field *T1_field = new Field();
+   Field *T2_field = new Field();
 
    // Intermediate fields for the diffusion coefficients
-   Field *k1_field = nullptr;
-   Field *k2_field = nullptr;
-   Field *kp_field = nullptr;
+   Field *k1_field = new Field();
+   Field *k2_field = new Field();
+   Field *kp_field = new Field(); // Only needed for the coupled case
 
-   // Output fields
-   Field *f1_field = nullptr;
-   Field *f2_field = nullptr;
+   // Output fields get data from 'y' in DAGraph::Mult(x, y)
+   Field *f1_field = new Field();
+   Field *f2_field = new Field();
+
+   // Write space for data and adjoint only needed
+   // for the intermediate fields k1, k2, and k_prod (if coupled)
+   k1_field->SetData(&k1vec, &k1adj); // Use different provided memory for data and adjoint
+   k2_field->AllocateData(k1vec); // Allocate memory for data and adjoint of same size and type
+   kp_field->SetData(&kpvec); // Use same, provided memory for data and adjoint
 
    // Define the DAG
    DAGraph dag;
-   bool construct_dag_manually = false; // Set to true to construct the DAG manually, false to use the tape-based approach
+   GraphTape& tape = dag.GetTape();
+   bool use_tape = false; // Set to true to construct the DAG manually, false to use the tape-based approach
 
-   // Form connections between the nodes in the DAG
-   if(construct_dag_manually)
+   if(use_tape)
    {
-      // Add operators in any order, and then sort it to ensure the correct execution order
-      dag.AddOperators(&diff_coeff_1, &diff_op1, &diff_op2, &diff_coeff_2, &prod_coeff);
+      tape.Watch({T1_field, T2_field});
+      tape.StartRecording();
+   }
+   else
+   { // Manually add operators and input/output fields to the DAG
+      dag.AddOperators({&diff_coeff_1, &diff_op1,
+                        &diff_op2, &diff_coeff_2, &prod_coeff});
 
-      // Write space for data and adjoint only needed
-      // for the intermediate fields k1, k2, and k_prod
-      k1_field = new Field(&k1vec, &k1adj);
-      k2_field = new Field(&k2vec, &k2adj);
+      dag.RegisterFields({T1_field, T2_field}, {f1_field, f2_field});
+   }
 
-      // Output fields get data from 'y' in DAGraph::Mult(x, y)
-      f1_field = new Field(nullptr, nullptr);
-      f2_field = new Field(nullptr, nullptr);
+   diff_coeff_1.RegisterFields({T1_field}, {k1_field});
+   diff_coeff_2.RegisterFields({T2_field}, {k2_field});
 
-      diff_coeff_1.AddInput(T1_field);
-      diff_coeff_1.AddOutput(k1_field);
-
-      diff_coeff_2.AddInput(T2_field);
-      diff_coeff_2.AddOutput(k2_field);
-
-      diff_op1.AddInput(T1_field);
-      diff_op1.AddOutput(f1_field);
-
-      diff_op2.AddInput(T2_field);
-      diff_op2.AddOutput(f2_field);
-
-      if(ctx.coupled)
-      {
-         kp_field = new Field(&kpvec, &kpvec); // can use same space for data & adjoint
-         prod_coeff.AddInputs(k1_field, k2_field);
-         prod_coeff.AddOutput(kp_field);
-
-         diff_op1.AddInput(kp_field);
-         diff_op2.AddInput(kp_field);
-      }
-      else
-      {
-         diff_op1.AddInput(k1_field);
-         diff_op2.AddInput(k2_field);
-      }
-
-      dag.AddInputs(T1_field, T2_field);
-      dag.AddOutputs(f1_field, f2_field);
+   if(ctx.coupled)
+   {
+      prod_coeff.RegisterFields({k1_field, k2_field}, {kp_field});
+      diff_op1.RegisterFields({T1_field, kp_field}, {f1_field});
+      diff_op2.RegisterFields({T2_field, kp_field}, {f2_field});
    }
    else
    {
-      GraphTape& tape = dag.GetTape();
-      tape.Watch(T1_field, T2_field);
-      tape.StartRecording();
-
-      k1_field = diff_coeff_1(T1_field);
-      k1_field->SetData(&k1vec, &k1adj); // Use different provided memory for data and adjoint
-
-      k2_field = diff_coeff_2(T2_field);
-      k2_field->AllocateData(k2vec); // Allocate memory for data and adjoint of same size and type
-
-      if(ctx.coupled)
-      {
-         kp_field = prod_coeff(k1_field, k2_field);
-         kp_field->SetData(&kpvec); // Use same, provided memory for data and adjoint
-
-         f1_field = diff_op1(T1_field, kp_field);
-         f2_field = diff_op2(T2_field, kp_field);
-         // auto [out1, out2, out3] = app1<3>(in1, in2); // if multple outputs
-      }
-      else
-      {
-         f1_field = diff_op1(T1_field, k1_field);
-         f2_field = diff_op2(T2_field, k2_field);
-      }
-
-      tape.StopRecording();
-      tape.Finalize(f1_field, f2_field);
+      diff_op1.RegisterFields({T1_field, k1_field}, {f1_field});
+      diff_op2.RegisterFields({T2_field, k2_field}, {f2_field});
    }
-   // Add input and output to the DAG
+
+   if(use_tape)
+   {
+      tape.Finalize({f1_field, f2_field});
+   }
+
    int sz = fes.GetTrueVSize();
+   // Needed to construct MultiVector from Vector in Mult()
    dag.SetInputOffsets(Array<int>({0, sz, 2*sz}));
    dag.SetOutputOffsets(Array<int>({0, sz, 2*sz}));
 
-   // Assemble DAG: topological sort, validate nodes, etc.
+   // Assemble DAG: topological sort (if needed), validate nodes, etc.
    dag.Assemble();
 
    std::string output_prefix = ctx.coupled ? "Coupled_Diffusion" : "Uncoupled_Diffusion";
