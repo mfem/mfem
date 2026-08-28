@@ -317,6 +317,41 @@ trace-space operator assembled at low order and reused. That is the open
 research question in this direction, and it should be named as one rather than
 assumed away.
 
+### The three levels in the convdiff miniapp
+
+`-gm 0|1|2` on `convdiff` and `pconvdiff` selects them, defaulting to `-1`,
+which leaves everything exactly as it was. Checked on the nonlinear-convection
+problem, `-p 2 -o 2 -dg -hb -nl -nlc`, 10x10:
+
+| scheme | level 0 | level 1 | level 2 | ‖q‖ error, all levels |
+|---|---|---|---|---|
+| `-hdg 2 -nls 3` | 1 it | 1 it | 1 it | 1.04381e-04 |
+| `-hdg 4 -nls 3` | 1 it | 1 it | 1 it | 8.93095e-05 |
+| `-hdg 2 -nls 3`, 2 ranks | 1 it | 1 it | 1 it | 1.04381e-04 |
+| `-hdg 4 -nls 3`, 2 ranks | 1 it | 1 it | 1 it | 8.93095e-05 |
+
+Three things that check turned up, none of them caused by the gradient mode:
+
+* **`-nlc` without `-nls` uses LBFGS, which never asks for a gradient at all.**
+  The mode is therefore inert there, verified: `-gm` 0, 1, 2 and the default
+  all give 107 iterations and identical errors. It is also, incidentally, a
+  case that would silently freeze the linearisation under
+  `LineariseThenCondense` -- LBFGS is a solver with no gradient call, which is
+  what `AdvanceLinearisation()` exists for.
+* **The hybridized nonlinear path has never attached its preconditioner.**
+  `DarcyOperator::SetupNonlinearSolver()` builds a `GSSmoother`, names it in
+  the reported solver string, and never calls
+  `lin_solver->SetPreconditioner()`; only the non-hybridized branch does. So
+  `Newton+GMRES+GS` has always been an unpreconditioned GMRES. Left alone,
+  because correcting it moves the recorded iteration counts of the `-nlc -nls`
+  references; `-gm 0` and `-gm 1` attach it, and are the only paths that do.
+* **`-hdg 1` and `-hdg 3` will not take a preconditioner on the trace system.**
+  `-gm 1` on `-hdg 1` dies in `SparseMatrix::Gauss_Seidel_forw(...) #2`, a zero
+  diagonal, and `-gm 0` dies in the direct solve; the unpreconditioned levels
+  (default and 2) run. `-hdg 3 -nls 3` fails at every level *including the
+  default*, with `IsFinite(norm)` -- confirmed against the committed miniapp,
+  so it predates all of this. Neither combination has a regression reference.
+
 ### What to measure before building any of it
 
 Per this branch's own rule — build the measurement that would falsify the plan

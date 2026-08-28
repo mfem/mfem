@@ -107,20 +107,64 @@ void DarcyOperator::SetupNonlinearSolver(real_t rtol_, real_t atol_,
    {
       if (darcy->GetHybridization())
       {
+         // NOTE: unlike the reduction branch below, nothing here calls
+         // lin_solver->SetPreconditioner(). The smoother is built, named in
+         // the reported solver string, and never attached, so the hybridized
+         // nonlinear path has always run an unpreconditioned Krylov solve
+         // while claiming otherwise. That is left alone -- correcting it moves
+         // the recorded iteration counts of the -nlc -nls regressions -- and
+         // is only attached below when SetTraceSolveLevel() asks for a level
+         // explicitly, which no default path does.
 #ifdef MFEM_USE_MPI
          if (pdarcy)
          {
-            auto *amg = new HypreBoomerAMG();
-            amg->SetAdvectiveOptions();
-            lin_prec.reset(amg);
-            lin_prec_str = "HypreAMG";
+            if (trace_solve_level == 2)
+            {
+               // No matrix for AMG to coarsen; see the serial branch.
+               lin_prec.reset();
+               lin_prec_str = "none";
+            }
+            else
+            {
+               auto *amg = new HypreBoomerAMG();
+               amg->SetAdvectiveOptions();
+               lin_prec.reset(amg);
+               lin_prec_str = "HypreAMG";
+               if (trace_solve_level == 0 || trace_solve_level == 1)
+               {
+                  lin_solver->SetPreconditioner(*lin_prec);
+               }
+            }
          }
          else
 #endif
-         {
-            lin_prec.reset(new GSSmoother());
-            lin_prec_str = "GS";
-         }
+            if (trace_solve_level == 2)
+            {
+               // GradientMode::MatrixFree returns an operator with no matrix,
+               // so GS and the direct solvers have nothing to act on.
+               lin_prec.reset();
+               lin_prec_str = "none";
+            }
+            else if (trace_solve_level == 0)
+            {
+#ifdef MFEM_USE_SUITESPARSE
+               lin_prec.reset(new UMFPackSolver());
+               lin_prec_str = "UMFPack";
+#else
+               lin_prec.reset(new GSSmoother());
+               lin_prec_str = "GS";
+#endif
+               lin_solver->SetPreconditioner(*lin_prec);
+            }
+            else
+            {
+               lin_prec.reset(new GSSmoother());
+               lin_prec_str = "GS";
+               if (trace_solve_level == 1)
+               {
+                  lin_solver->SetPreconditioner(*lin_prec);
+               }
+            }
       }
       else
       {

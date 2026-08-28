@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
    bool nonlinear_flux = false;
    bool nonlinear_pot = false;
    bool nonlinear_conv = false;
+   int gradient_mode = -1;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::Default;
@@ -251,6 +252,13 @@ int main(int argc, char *argv[])
                   "--no-nonlinear-diffusion", "Enable non-linear diffusion regime.");
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
+   args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
+                  "How much of the hybridized trace system to build: "
+                  "0=assemble and precondition directly, 1=assemble and "
+                  "precondition with GS, 2=do not assemble, apply it and "
+                  "solve unpreconditioned. Negative leaves it alone. "
+                  "Only meaningful with -hb, and only where the solver asks "
+                  "for a gradient at all -- LBFGS does not.");
    args.AddOption(&solver_type, "-nls", "--nonlinear-solver",
                   "Nonlinear solver type (1=LBFGS, 2=LBB, 3=Newton, 4=KINSol).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -829,6 +837,13 @@ int main(int argc, char *argv[])
       {
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
+      if (gradient_mode >= 0)
+      {
+         darcy->GetHybridization()->SetGradientMode(
+            (gradient_mode == 2)
+            ? DarcyHybridization::GradientMode::MatrixFree
+            : DarcyHybridization::GradientMode::Assembled);
+      }
       chrono.Stop();
       if (root) { cout << "Hybridization init took " << chrono.RealTime() << "s.\n"; }
    }
@@ -1006,6 +1021,7 @@ int main(int argc, char *argv[])
    {gform.get(), fform.get(), hform.get()},
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
+   op.SetTraceSolveLevel(gradient_mode);
 
    // 15. Construct the time ODE solver
    unique_ptr<ODESolver> ode_solver;

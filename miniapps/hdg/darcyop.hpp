@@ -74,6 +74,7 @@ public:
 
 private:
    Array<int> offsets;
+   int trace_solve_level{-1};
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g{};
@@ -292,6 +293,20 @@ public:
 
    /// Set the maximal number of iterations of iterative solvers
    void SetMaxIters(int iters_) { max_iters = iters_; }
+
+   /** @brief How much of the hybridized trace system to build, and what to
+       solve it with. Negative leaves the choice as it was.
+
+       0  assemble the reduced gradient, precondition with a direct solve
+       1  assemble it, precondition with Gauss-Seidel
+       2  do not assemble it -- DarcyHybridization::GradientMode::MatrixFree --
+          and solve with an unpreconditioned Krylov method, there being no
+          matrix for GS or a direct solver to work on
+
+       Only 2 changes the operator; 0 and 1 change what preconditions it. The
+       caller sets the gradient mode itself, on the hybridization; this decides
+       the preconditioner to match. */
+   void SetTraceSolveLevel(int level) { trace_solve_level = level; }
 
    void EnableSolutionController(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }
