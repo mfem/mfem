@@ -28,17 +28,6 @@ using mfem::future::dual;
 using dscalar_t = dual<real_t, real_t>;
 #endif
 
-constexpr int U = 0;
-constexpr int P = 1;
-constexpr int Coords = 2;
-
-enum class RheologyType
-{
-   Newtonian,
-   PowerLaw,
-   Bingham
-};
-
 /* NOTE: The specialized Rheology q-function is meant to provide the
 viscous stress tensor tau. We could in principle just return the viscosity since all the models
 assume tau = 2 mu D. However this abstraction might help if designing models that

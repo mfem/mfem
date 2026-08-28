@@ -33,7 +33,9 @@ if (MFEM_USE_MPI)
     # Build the dfem-navier library and link it to the different examples
     set(DFEM_NAVIER_SOURCES
         dfem-navier-stokes/lib/navier_preconditioners.cpp
-        dfem-navier-stokes/lib/navier_solver.cpp)
+        dfem-navier-stokes/lib/navier_solver.cpp
+        dfem-navier-stokes/lib/navier_solver_2d.cpp
+        dfem-navier-stokes/lib/navier_solver_3d.cpp)
     set(DFEM_NAVIER_HEADERS
         dfem-navier-stokes/lib/navier_preconditioners.hpp
         dfem-navier-stokes/lib/navier_qfunctions.hpp

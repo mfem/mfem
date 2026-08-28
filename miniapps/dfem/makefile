@@ -25,7 +25,9 @@ PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity dfem-nonlinear-poisson 
 	dfem-hyperbolic-heat dfem-reaction-diffusion dfem-navier-convergence \
 	dfem-navier-cavity dfem-navier-kovasznay
 DFEM_NAVIER_LIB_OBJ = dfem-navier-stokes/lib/navier_preconditioners.o \
-	dfem-navier-stokes/lib/navier_solver.o
+	dfem-navier-stokes/lib/navier_solver.o \
+	dfem-navier-stokes/lib/navier_solver_2d.o \
+	dfem-navier-stokes/lib/navier_solver_3d.o
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
