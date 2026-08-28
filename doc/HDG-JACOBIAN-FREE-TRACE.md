@@ -323,21 +323,51 @@ assumed away.
 which leaves everything exactly as it was. Checked on the nonlinear-convection
 problem, `-p 2 -o 2 -dg -hb -nl -nlc`, 10x10:
 
-| scheme | level 0 | level 1 | level 2 | ‖q‖ error, all levels |
-|---|---|---|---|---|
-| `-hdg 2 -nls 3` | 1 it | 1 it | 1 it | 1.04381e-04 |
-| `-hdg 4 -nls 3` | 1 it | 1 it | 1 it | 8.93095e-05 |
-| `-hdg 2 -nls 3`, 2 ranks | 1 it | 1 it | 1 it | 1.04381e-04 |
-| `-hdg 4 -nls 3`, 2 ranks | 1 it | 1 it | 1 it | 8.93095e-05 |
+`-lfirst` selects `NLOrdering::LineariseThenCondense` on the same miniapps, and
+`-rtol` the outer tolerance, whose 1e-6 default is loose enough that this
+problem stops after one step. At `-rtol 1e-12` all six combinations of ordering
+and level agree to every printed digit:
+
+| scheme | ‖q‖ error, all 6 | ‖t‖ error, all 6 |
+|---|---|---|
+| `-hdg 2 -nls 3` | 1.04381e-04 | 6.30581e-05 |
+| `-hdg 4 -nls 3` | 8.93105e-05 | 6.62458e-05 |
+| `-hdg 2 -nls 3`, 2 ranks | 1.04381e-04 | — |
+| `-hdg 4 -nls 3`, 2 ranks | 8.93105e-05 | — |
+
+Every one converges in a single outer iteration, which is worth naming rather
+than glossing: a one-step convergence is exactly the shape
+`LineariseThenCondense` fails with when it is wrong. It is not that here --
+both orderings reach a residual of 2e-15 and the same answer, and at the loose
+default tolerance they differ in the fifth digit only because
+`CondenseThenLinearise`'s local solve is run to `rtol * 1e-3`, so tightening
+the outer tolerance tightens the local one and the difference goes away.
 
 Three things that check turned up, none of them caused by the gradient mode:
 
 * **`-nlc` without `-nls` uses LBFGS, which never asks for a gradient at all.**
-  The mode is therefore inert there, verified: `-gm` 0, 1, 2 and the default
-  all give 107 iterations and identical errors. It is also, incidentally, a
-  case that would silently freeze the linearisation under
-  `LineariseThenCondense` -- LBFGS is a solver with no gradient call, which is
-  what `AdvanceLinearisation()` exists for.
+  The gradient mode is therefore inert there, verified: `-gm` 0, 1, 2 and the
+  default all give 107 iterations and identical errors.
+
+  **And it is a live violation of §1's contract, which the §1 guard does not
+  catch.** Under `-lfirst` that run makes **113 residual evaluations with zero
+  advances** -- measured, by printing `GetEvalsSinceAdvance()` at the end --
+  and the default limit of 1000 sails past it. The answer comes out close only
+  because this problem is mildly nonlinear enough to be solved in one Newton
+  step. So the guard catches a *long* solve that never advances, not a short
+  one, and 113 sits inside the band a legitimate Jacobian-free Krylov solve
+  occupies. That is the heuristic's stated weakness arriving in practice.
+
+  Two things follow. `convdiff` and `pconvdiff` now **warn** when `-lfirst` is
+  combined with LBFGS or LBB, naming Newton and `AdvanceLinearisation()` as the
+  remedies -- the flag should not be able to fail silently the first time
+  anyone uses it. And there is a better signal available, not implemented:
+  count *distinct far traces* since the last advance rather than evaluations,
+  where "far" is any move larger than a difference quotient's `1e-8`. Correct
+  matrix-Newton scores 1 per advance, a line search tens, a legitimate
+  Jacobian-free solve about 1 -- its probes cluster around the current iterate
+  -- and this LBFGS run scores 113. That separates the cases the raw count
+  cannot.
 * **The hybridized nonlinear path has never attached its preconditioner.**
   `DarcyOperator::SetupNonlinearSolver()` builds a `GSSmoother`, names it in
   the reported solver string, and never calls

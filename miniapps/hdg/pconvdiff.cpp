@@ -171,6 +171,8 @@ int main(int argc, char *argv[])
    bool nonlinear_pot = false;
    bool nonlinear_conv = false;
    int gradient_mode = -1;
+   bool linearise_first = false;
+   real_t newton_rtol = -1.;
    bool nonlinear_diff = false;
    int hdg_scheme = 1;
    int solver_type = (int)DarcyOperator::SolverType::Default;
@@ -252,6 +254,18 @@ int main(int argc, char *argv[])
                   "--no-nonlinear-diffusion", "Enable non-linear diffusion regime.");
    args.AddOption(&hdg_scheme, "-hdg", "--hdg_scheme",
                   "HDG scheme (1=HDG-I, 2=HDG-II, 3=Rusanov, 4=Godunov).");
+   args.AddOption(&newton_rtol, "-rtol", "--newton-rtol",
+                  "Relative tolerance of the outer nonlinear solver. "
+                  "Negative keeps the default, which is 1e-6 and is loose "
+                  "enough that a mildly nonlinear problem stops after one "
+                  "step.");
+   args.AddOption(&linearise_first, "-lfirst", "--linearise-first",
+                  "-no-lfirst", "--no-linearise-first",
+                  "Hybridize the Jacobian instead of eliminating nonlinearly: "
+                  "DarcyHybridization::NLOrdering::LineariseThenCondense. "
+                  "Every local operation is then a linear solve. Requires a "
+                  "solver that asks for a gradient once per iterate -- Newton "
+                  "does, LBFGS does not.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -837,6 +851,28 @@ int main(int argc, char *argv[])
       {
          darcy->GetHybridization()->SetEssentialBC(bdr_is_dirichlet);
       }
+      if (linearise_first)
+      {
+         darcy->GetHybridization()->SetNonlinearOrdering(
+            DarcyHybridization::NLOrdering::LineariseThenCondense);
+
+         // That ordering retains a linearisation and advances it only when a
+         // gradient is asked for. LBFGS and LBB never ask, so the point would
+         // stay where it was first formed and the iteration would converge
+         // onto the root of a frozen operator. Measured on -nlc -hdg 4:
+         // 113 residual evaluations, zero advances, and an answer that happens
+         // to be close only because this problem is mildly nonlinear.
+         const int stype = (solver_type == 0) ? 1 : solver_type;
+         if (stype == 1 || stype == 2)
+         {
+            cerr << "WARNING: --linearise-first with "
+                 << ((stype == 1) ? "LBFGS" : "LBB")
+                 << " is unsound: that solver never asks for a gradient, so "
+                 "the linearisation never advances. Use -nls 3 (Newton), or "
+                 "call DarcyHybridization::AdvanceLinearisation() once per "
+                 "accepted iterate." << endl;
+         }
+      }
       if (gradient_mode >= 0)
       {
          darcy->GetHybridization()->SetGradientMode(
@@ -1022,6 +1058,7 @@ int main(int argc, char *argv[])
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
    op.SetTraceSolveLevel(gradient_mode);
+   if (newton_rtol > 0.) { op.SetTolerance(newton_rtol); }
 
    // 15. Construct the time ODE solver
    unique_ptr<ODESolver> ode_solver;
