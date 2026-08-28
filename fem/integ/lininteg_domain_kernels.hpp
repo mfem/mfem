@@ -22,11 +22,10 @@ namespace mfem
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void DLFEvalAssemble1D(const int vdim, const int ne, const int d,
-                              const int q, const int map_type,
-                              const int *markers, const real_t *b,
-                              const real_t *detj, const real_t *weights,
-                              const Vector &coeff, real_t *y)
+void DLFEvalAssemble1D(const int vdim, const int ne, const int d, const int q,
+                       const int map_type, const int *markers, const real_t *b,
+                       const real_t *detj, const real_t *weights,
+                       const Vector &coeff, real_t *y)
 {
    {
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -76,11 +75,10 @@ static void DLFEvalAssemble1D(const int vdim, const int ne, const int d,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void DLFEvalAssemble2D(const int vdim, const int ne, const int d,
-                              const int q, const int map_type,
-                              const int *markers, const real_t *b,
-                              const real_t *detj, const real_t *weights,
-                              const Vector &coeff, real_t *y)
+void DLFEvalAssemble2D(const int vdim, const int ne, const int d, const int q,
+                       const int map_type, const int *markers, const real_t *b,
+                       const real_t *detj, const real_t *weights,
+                       const Vector &coeff, real_t *y)
 {
    {
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -162,11 +160,10 @@ static void DLFEvalAssemble2D(const int vdim, const int ne, const int d,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void DLFEvalAssemble3D(const int vdim, const int ne, const int d,
-                              const int q, const int map_type,
-                              const int* markers, const real_t *b,
-                              const real_t *detj, const real_t *weights,
-                              const Vector &coeff, real_t *y)
+void DLFEvalAssemble3D(const int vdim, const int ne, const int d, const int q,
+                       const int map_type, const int *markers, const real_t *b,
+                       const real_t *detj, const real_t *weights,
+                       const Vector &coeff, real_t *y)
 {
    {
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
