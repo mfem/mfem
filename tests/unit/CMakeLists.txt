@@ -116,6 +116,7 @@ set(UNIT_TESTS_SRCS
   fem/test_doftrans.cpp
   fem/test_domain_int.cpp
   fem/test_eigs.cpp
+  fem/test_elasticity_pa.cpp
   fem/test_estimator.cpp
   fem/test_fa_determinism.cpp
   fem/test_face_elem_trans.cpp

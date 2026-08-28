@@ -286,7 +286,6 @@ miniapps/meshing/bounding-box*
 miniapps/meshing/jacobian-determinant*
 
 miniapps/mtop/ParaView/
-miniapps/mtop/elasticity_pa_regression
 miniapps/mtop/mtop_ex_linear_elasticity_solver
 miniapps/mtop/mtop_test_iso_elasticity
 

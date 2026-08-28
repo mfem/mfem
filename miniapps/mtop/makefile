@@ -24,9 +24,8 @@ MTOP_COMMON_SRC = mtop_solvers.cpp linear_elasticity_solver.cpp
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-SEQ_MINIAPPS = elasticity_pa_regression
 MTOP_MPI_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
-MINIAPPS = $(SEQ_MINIAPPS)
+MINIAPPS =
 
 # The first explicit rule below is for an MPI executable. Ensure an invocation
 # without a target still selects the serial-safe aggregate target.
@@ -41,9 +40,6 @@ MINIAPPS = $(SEQ_MINIAPPS)
 %.o: %.cpp
 
 $(MTOP_MPI_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
-
-$(SEQ_MINIAPPS): %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
@@ -76,7 +72,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(SEQ_MINIAPPS) $(MTOP_MPI_MINIAPPS)
+	rm -f *.o *~ $(MTOP_MPI_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
