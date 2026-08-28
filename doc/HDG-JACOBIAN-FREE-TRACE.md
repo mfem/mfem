@@ -375,12 +375,45 @@ Three things that check turned up, none of them caused by the gradient mode:
   `Newton+GMRES+GS` has always been an unpreconditioned GMRES. Left alone,
   because correcting it moves the recorded iteration counts of the `-nlc -nls`
   references; `-gm 0` and `-gm 1` attach it, and are the only paths that do.
-* **`-hdg 1` and `-hdg 3` will not take a preconditioner on the trace system.**
-  `-gm 1` on `-hdg 1` dies in `SparseMatrix::Gauss_Seidel_forw(...) #2`, a zero
-  diagonal, and `-gm 0` dies in the direct solve; the unpreconditioned levels
-  (default and 2) run. `-hdg 3 -nls 3` fails at every level *including the
-  default*, with `IsFinite(norm)` -- confirmed against the committed miniapp,
-  so it predates all of this. Neither combination has a regression reference.
+* **`-hdg 1`'s reduced trace system is singular, and that is why it fails.**
+  Not a preconditioner problem, which is how it first looked. Measured on
+  `-p 2 -o 2 -nlc`, 10x10, by instrumenting the assembled matrix in
+  `ComputeH()`: of 660 trace dofs, **60 have an identically zero column**, and
+  the same 60 have a zero diagonal. A zero column means those unknowns appear
+  in no equation at all, so the matrix has no inverse; their rows are not
+  empty, so they do constrain everything else.
+
+  They are on 20 of the 40 boundary faces, no interior face, and the 20 are
+  exactly the **outflow** boundary: face centres at `y = 1` and `x = 1`, with
+  `-p 2`'s velocity `(c, c) = (1, 1)`. The raw `H` face block there is
+  identically zero -- `|H|max = 0` -- so nothing is cancelling, nothing is
+  contributed. `-hdg 2`, `3` and `4` have zero such columns.
+
+  The reason is in `HDGFlux::AverageGrad`, `fem/hyperbolic.cpp:1665`. HDG-I
+  takes the numerical flux from side 1 alone (`case HDG_1: flux = fluxN1`) and
+  its Jacobian returns `grad = 0.` for side 2 -- the trace side. On an outflow
+  boundary face there is no second element, so the trace is all that side 2
+  is, and HDG-I gives it nothing. HDG-II is the mirror image, taking the flux
+  from side 2, which is why it does not have the problem.
+
+  What follows: Gauss-Seidel divides by the zero diagonal and aborts
+  (`Gauss_Seidel_forw(...) #2` fires only when the row's residual is also
+  nonzero, which it is); a direct solve on a singular matrix aborts inside
+  GMRES; and unpreconditioned Krylov -- the pre-existing default, and level 2
+  -- survives it, returning the right element errors while never converging,
+  because the residual in those 60 rows cannot be driven to zero. The route
+  that would constrain those trace dofs, `-trbc`, is refused outright for
+  nonlinear forms: "Essential trace BC is not implemented for non-linear
+  forms".
+
+  None of this is caused by the gradient mode. It has gone unnoticed because
+  the only hybridized `-hdg 1` regression uses LBFGS, which never asks for a
+  gradient, so no reduced matrix is ever assembled on a covered path.
+
+* **`-hdg 3 -nls 3` fails at every level *including* the default**, with
+  `IsFinite(norm)` -- confirmed against the committed miniapp, so it predates
+  all of this. Not diagnosed further. Neither combination has a regression
+  reference.
 
 ### What to measure before building any of it
 
