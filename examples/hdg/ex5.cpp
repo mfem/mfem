@@ -552,12 +552,21 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 350, Wh = 350; // window size
+      int offx = Ww+10; // window offsets x
+      //int offy = Ww+100; // window offsets y
       socketstream u_sock(vishost, visport);
       u_sock.precision(8);
-      u_sock << "solution\n" << mesh << u << "window_title 'Velocity'" << endl;
+      u_sock << "solution\n" << mesh << u << "window_title 'Velocity'"
+             << "window_geometry " << Wx << " " << Wy << " " << Ww << " " << Wh
+             << endl;
+      Wx += offx;
       socketstream p_sock(vishost, visport);
       p_sock.precision(8);
-      p_sock << "solution\n" << mesh << p << "window_title 'Pressure'" << endl;
+      p_sock << "solution\n" << mesh << p << "window_title 'Pressure'"
+             << "window_geometry " << Wx << " " << Wy << " " << Ww << " " << Wh
+             << endl;
    }
 
    return 0;
