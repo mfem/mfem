@@ -192,7 +192,8 @@ public:
    /// warm start when available.
    void Solve(ParGridFunction &solution) const;
 
-   /// Check that an externally supplied operator has compatible dimensions.
+   /// This solver always uses its internally assembled PA elasticity operator;
+   /// it is not a drop-in Solver for an external operator.
    void SetOperator(const Operator &op) override;
 
    /// Return the finite element space supplied by the caller.

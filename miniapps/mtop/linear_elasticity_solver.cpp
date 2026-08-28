@@ -649,10 +649,9 @@ void LinearElasticitySolver::Assemble() const
    cg_->SetOperator(*system_operator_);
    cg_->SetPreconditioner(*preconditioner_);
 
-   LinearElasticitySolver *self =
-      const_cast<LinearElasticitySolver *>(this);
-   self->height = system_operator_->Height();
-   self->width = system_operator_->Width();
+   MFEM_ASSERT(system_operator_->Height() == Height() &&
+               system_operator_->Width() == Width(),
+               "Assembled elasticity operator size does not match the solver.");
    needs_assembly_ = false;
 }
 
@@ -761,11 +760,11 @@ void LinearElasticitySolver::Solve(ParGridFunction &solution) const
    solution.SetFromTrueDofs(previous_solution_);
 }
 
-void LinearElasticitySolver::SetOperator(const Operator &op)
+void LinearElasticitySolver::SetOperator(const Operator &)
 {
-   Assemble();
-   MFEM_VERIFY(op.Height() == Height() && op.Width() == Width(),
-               "External operator dimensions do not match elasticity solver.");
+   MFEM_ABORT("LinearElasticitySolver always uses its internally assembled "
+              "PA elasticity operator; it is not a drop-in Solver for an "
+              "external operator.");
 }
 
 const Array<int> &LinearElasticitySolver::GetEssentialTrueDofs() const

@@ -15,6 +15,11 @@ Version 4.9.1 (development)
 
 Discretization improvements
 ---------------------------
+- Fixed ElasticityIntegrator partial assembly: the scaled constructor
+  ElasticityIntegrator(m, q_l, q_m) now projects q_λ m and q_μ m; AssembleDiagonalPA
+  accumulates into the output vector; component element assembly honors add and
+  stores the (trial, test, element) layout expected by EABilinearFormExtension.
+
 - Improved FindPointsGSLIB surface mesh capability with support for simplices
   and an option to specify axis-aligned bounding box padding for near-surface
   point queries.
@@ -96,6 +101,10 @@ Linear and nonlinear solvers
 
 GPU computing
 -------------
+- Added compact pa_data and fused tensor-product partial-assembly apply kernels
+  for ElasticityIntegrator on quadrilaterals and hexahedra, with a generic
+  full-map fallback for other elements.
+
 - Improved partial assembly for VectorDivergenceIntegrator with shared-memory
   kernels, kernel registration, and transpose support.
 
@@ -140,6 +149,9 @@ GPU computing
 
 New and updated examples and miniapps
 -------------------------------------
+- Added LinearElasticitySolver and the mtop_ex_linear_elasticity_solver driver
+  in miniapps/mtop for lazy partial-assembly isotropic linear elasticity.
+
 - The Lorentz miniapp (in miniapps/electromagnetics) has been updated to
   leverage the ParticleSet capability.
 

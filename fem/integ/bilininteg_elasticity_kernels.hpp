@@ -133,7 +133,7 @@ void ElasticityAddMultPA_(const int nDofs,
    using future::tensor;
 
    static_assert((i_block < 0) == (j_block < 0),
-                 "i_block and j_block must both be non-negative or negative.");
+                 "i_block and j_block must both be set or both omitted.");
    static constexpr int d = dim;
    static constexpr int qSize = i_block < 0 ? d : 1;
    static constexpr bool component = i_block >= 0;
@@ -434,7 +434,6 @@ void ElasticityAddMultPATensor2D_(const int numEls,
                                   const Vector &x,
                                   Vector &y)
 {
-   using future::make_tensor;
    using future::tensor;
    static constexpr int d = 2;
    static constexpr int entries = 6;
@@ -604,7 +603,6 @@ void ElasticityAddMultPATensor3D_(const int numEls,
                                   const Vector &x,
                                   Vector &y)
 {
-   using future::make_tensor;
    using future::tensor;
    static constexpr int d = 3;
    static constexpr int entries = 11;

@@ -25,7 +25,11 @@ MTOP_COMMON_SRC = mtop_solvers.cpp linear_elasticity_solver.cpp
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 MTOP_MPI_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
-MINIAPPS =
+ifeq ($(MFEM_USE_MPI),NO)
+   MINIAPPS =
+else
+   MINIAPPS = $(MTOP_MPI_MINIAPPS)
+endif
 
 # The first explicit rule below is for an MPI executable. Ensure an invocation
 # without a target still selects the serial-safe aggregate target.
@@ -33,7 +37,7 @@ MINIAPPS =
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
-.PHONY: all parallel clean clean-build clean-exec
+.PHONY: all clean clean-build clean-exec
 
 # Remove built-in rules
 %: %.cpp
@@ -46,11 +50,6 @@ $(MTOP_MPI_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
-
-# The mtop solver drivers require an MPI-enabled MFEM build. Keep them out of
-# the default target so a stale external make configuration cannot select them
-# while linking against a serial MFEM library.
-parallel: $(MTOP_MPI_MINIAPPS)
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)

@@ -375,4 +375,42 @@ TEST_CASE("Elasticity component EA", "[PartialAssembly][ElasticityPA][GPU]")
    }
 }
 
+TEST_CASE("Elasticity PA empty mesh",
+          "[PartialAssembly][ElasticityPA][GPU]")
+{
+   // Mimic an empty MPI partition: no local elements, but typical quad
+   // geometry is still known (ParMesh copies meshgen from the global mesh).
+   class EmptyQuadMesh : public Mesh
+   {
+   public:
+      EmptyQuadMesh() : Mesh(2, 0, 0)
+      {
+         FinalizeTopology();
+         meshgen = 2;
+         mesh_geoms = (1 << Geometry::SQUARE) | (1 << Geometry::SEGMENT)
+                      | (1 << Geometry::POINT);
+      }
+   };
+
+   EmptyQuadMesh mesh;
+   REQUIRE(mesh.GetNE() == 0);
+
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace vector_fes(&mesh, &fec, 2, Ordering::byNODES);
+   ConstantCoefficient material(1.0);
+
+   BilinearForm pa_form(&vector_fes);
+   pa_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_form.AddDomainIntegrator(
+      new ElasticityIntegrator(material, q_lambda, q_mu));
+   pa_form.Assemble();
+
+   Vector x(vector_fes.GetVSize());
+   Vector y(vector_fes.GetVSize());
+   x = 0.0;
+   y = 0.0;
+   pa_form.Mult(x, y);
+   REQUIRE(y.Norml2() == MFEM_Approx(0.0));
+}
+
 } // namespace elasticity_pa

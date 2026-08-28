@@ -136,7 +136,6 @@ ElasticityIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
 
 ElasticityIntegrator::Kernels::Kernels()
 {
-#ifndef MFEM_ELASTICITY_PA_DISABLE_TENSOR
    // 2D: Q = P+1, P+2, P+3
    ElasticityIntegrator::AddSpecialization<2,2,2>();
    ElasticityIntegrator::AddSpecialization<2,2,3>();
@@ -175,7 +174,6 @@ ElasticityIntegrator::Kernels::Kernels()
    ElasticityIntegrator::AddSpecialization<3,6,6>();
    ElasticityIntegrator::AddSpecialization<3,6,7>();
    ElasticityIntegrator::AddSpecialization<3,7,7>();
-#endif
 }
 
 template<int DIM, int I, int J>

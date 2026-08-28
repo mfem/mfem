@@ -27,8 +27,6 @@ void VerifyElasticityPASpace(const FiniteElementSpace &fes,
                "Elasticity PA is implemented only in dimensions 2 and 3.");
    MFEM_VERIFY(dim == mesh.SpaceDimension(),
                "Elasticity PA does not support embedded meshes.");
-   MFEM_VERIFY(mesh.GetNE() > 0,
-               "Elasticity PA requires a nonempty mesh.");
    if (expected_vdim > 1)
    {
       MFEM_VERIFY(fes.GetOrdering() == Ordering::byNODES,
@@ -38,27 +36,14 @@ void VerifyElasticityPASpace(const FiniteElementSpace &fes,
                "Unexpected vector dimension for elasticity PA.");
    MFEM_VERIFY(!fes.IsVariableOrder(),
                "Elasticity PA does not support variable-order spaces.");
-
+   // Empty MPI partitions (GetNE()==0) must succeed: setup and apply kernels
+   // are zero-length foralls. GetTypicalFE() already handles that case.
+   MFEM_VERIFY(mesh.GetNumGeometries(dim) <= 1,
+               "Elasticity PA requires a single element geometry.");
    const FiniteElement &typical_fe = *fes.GetTypicalFE();
    MFEM_VERIFY(typical_fe.GetRangeType() == FiniteElement::SCALAR &&
                typical_fe.GetMapType() == FiniteElement::VALUE,
                "Elasticity PA requires scalar, VALUE-mapped finite elements.");
-
-   const int typical_dofs = typical_fe.GetDof();
-   const Geometry::Type typical_geometry =
-      mesh.GetTypicalElementTransformation()->GetGeometryType();
-   for (int e = 0; e < mesh.GetNE(); ++e)
-   {
-      const FiniteElement &fe = *fes.GetFE(e);
-      const Geometry::Type geometry =
-         mesh.GetElementTransformation(e)->GetGeometryType();
-      MFEM_VERIFY(geometry == typical_geometry &&
-                  fe.GetDof() == typical_dofs &&
-                  fe.GetRangeType() == FiniteElement::SCALAR &&
-                  fe.GetMapType() == FiniteElement::VALUE,
-                  "Elasticity PA requires one uniform scalar VALUE-mapped "
-                  "finite element type on all mesh elements.");
-   }
 }
 } // namespace
 
@@ -132,10 +117,7 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
    const auto ordering = GetEVectorOrdering(*fespace);
 
    // Tensor kernels require lexicographic element vectors. Unspecialized
-   // D1D/Q1D pairs use the generic fallback below. Define
-   // MFEM_ELASTICITY_PA_DISABLE_TENSOR while building MFEM to benchmark or
-   // debug the optimized generic fallback independently.
-#ifndef MFEM_ELASTICITY_PA_DISABLE_TENSOR
+   // D1D/Q1D pairs use the generic fallback below.
    if (ordering == ElementDofOrdering::LEXICOGRAPHIC &&
        dynamic_cast<const TensorBasisElement *>(&fe) != nullptr)
    {
@@ -154,7 +136,6 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
          return;
       }
    }
-#endif
 
    internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *maps, pa_data,
                                  x, *q_vec, y);
