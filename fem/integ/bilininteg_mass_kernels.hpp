@@ -30,9 +30,9 @@ namespace internal
 {
 
 // PA Mass Diagonal 1D kernel
-void PAMassAssembleDiagonal1D(const int NE, const Array<real_t> &b,
-                              const Vector &d, Vector &y, const int D1D,
-                              const int Q1D)
+inline void PAMassAssembleDiagonal1D(const int NE, const Array<real_t> &b,
+                                     const Vector &d, Vector &y, const int D1D,
+                                     const int Q1D)
 {
    auto B = Reshape(b.Read(), Q1D, D1D);
    auto D = Reshape(d.Read(), Q1D, NE);
@@ -101,9 +101,10 @@ void PAMassApply1D_Element(const int e,
 }
 
 // PA Mass Apply 1D kernel
-void PAMassApply1D(const int NE, const Array<real_t> &b_,
-                   const Array<real_t> &bt_, const Vector &d_, const Vector &x_,
-                   Vector &y_, const int d1d = 0, const int q1d = 0)
+inline void PAMassApply1D(const int NE, const Array<real_t> &b_,
+                          const Array<real_t> &bt_, const Vector &d_,
+                          const Vector &x_, Vector &y_, const int d1d = 0,
+                          const int q1d = 0)
 {
    MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q1d <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
