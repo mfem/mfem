@@ -1026,10 +1026,11 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
          auto &seg = inst.storage.GetSegment(tmp->second);
          if (p < seg.lowers[idx] + seg.nbytes)
          {
-            MFEM_ASSERT(reinterpret_cast<char *>(p) - seg.lowers[idx] +
-                        nbytes <=
+            MFEM_ASSERT(static_cast<size_t>(reinterpret_cast<char *>(p) -
+                                            seg.lowers[idx] + nbytes) <=
                         seg.nbytes,
-                        "requested size exceeds previously registered aliased pointer size");
+                        "requested size exceeds previously registered aliased "
+                        "pointer size");
             found = true;
             return tmp;
          }
