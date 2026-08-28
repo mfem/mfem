@@ -1389,7 +1389,7 @@ inline void Memory<T>::Sync(const Memory<U> &other) const
 {
    if (!(flags & Registered) && (other.flags & Registered))
    {
-      MFEM_ASSERT(reinterpret_cast<T *>(h_ptr) == other.h_ptr &&
+      MFEM_ASSERT(reinterpret_cast<U *>(h_ptr) == other.h_ptr &&
                   (flags & ALIAS) == (other.flags & ALIAS),
                   "invalid input");
       flags = (flags | Registered) & ~(OWNS_DEVICE | OWNS_INTERNAL);
