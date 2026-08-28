@@ -2,9 +2,9 @@
 // Thickness measure is calculated by solving an advection pde, one advection
 // direction per ray angle, giving one thickness constraint per direction.
 //
-// Sample run:  mpirun -np 8 ./ElastTopOpt_ct -m "../../data/d_square_4_holes.msh" -vf 0.4 -amax 0.6
-//              mpirun -np 8 ./ElastTopOpt_ct -m "../../data/circular_5_holes_pentagon.msh" -vf 0.4 -amax 1.0
-//              mpirun -np 8 ./ElastTopOpt_ct -m "../../data/disk_6_holes.msh" -vf 0.4 -amax 1.0
+// Sample run:  mpirun -np 8 ./ElastTopOpt_ct -m "./data/d_square_4_holes.msh" -vf 0.4 -amax 0.6
+//              mpirun -np 8 ./ElastTopOpt_ct -m "./data/circular_5_holes_pentagon.msh" -vf 0.4 -amax 1.0
+//              mpirun -np 8 ./ElastTopOpt_ct -m "./data/disk_6_holes.msh" -vf 0.4 -amax 1.0
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
@@ -102,13 +102,12 @@ int main(int argc, char *argv[])
 
     const real_t E_min    = 1e-6;     // SIMP void stiffness
     const real_t E_max    = 1.0;      // SIMP E max
-    const real_t exponent = 1.0;      // SIMP exponent (applied to the projection)
-    // --- PLAIN SIMP ---  use p = 3 when SIMP acts directly on rho~
-    // const real_t exponent = 3.0;
+    real_t       exponent = 1.0;      // SIMP exponent (applied to the projection)
+    // --- PLAIN SIMP ---  use -p 3 when SIMP acts directly on rho~
 
     int    init_it   = 20;
     real_t decay     = 0.5;
-    real_t eps_floor = 1e-16;
+    real_t eps_floor = 1e-10;
     int    decay_int = 50;
 
     int    beta_steps = 50;           // Heaviside beta continuation steps
@@ -126,6 +125,8 @@ int main(int argc, char *argv[])
     args.AddOption(&beta_steps, "-bs", "--beta-steps", "Heaviside beta continuation steps");
     args.AddOption(&beta_max, "-bm", "--beta-max", "Heaviside beta max value");
     args.AddOption(&eta, "-eta", "--eta", "Heaviside eta");
+    args.AddOption(&exponent, "-p", "--penal",
+                    "SIMP penalization exponent (applied to the projection)");
     args.AddOption(&epsilon, "-e", "--epsilon", "thickness residual tolerance (initial)");
     args.AddOption(&decay, "-d", "--decay", "decay rate of epsilon");
     args.AddOption(&decay_int, "-di", "--decay_int", "decay interval of epsilon");
@@ -178,13 +179,20 @@ int main(int argc, char *argv[])
     const int n_dir = static_cast<int>(ray_dirs.size());
     // const int n_dir = 0;
 
-    for (int l = 0; l < ref_levels; l++)
+    const int serial_ref = std::min(3, ref_levels);
+
+    for (int l = 0; l < serial_ref; l++)
     {
         mesh.UniformRefinement();
     }
 
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
+
+    for (int l = serial_ref; l < ref_levels; l++)
+    {
+        pmesh.UniformRefinement();
+    }
 
     ParSubMesh design_domain = ParSubMesh::CreateFromDomain(pmesh, domain_attr);
 
@@ -295,8 +303,9 @@ int main(int argc, char *argv[])
 
     // material property coefficients
     ConstantCoefficient one_cf(1.0);
-    ConstantCoefficient lambda_cf(2.0);   // lambda0
-    ConstantCoefficient mu_cf(1.0);       // mu0
+    ConstantCoefficient E_cf(3.0), nu_cf(0.3);
+    IsoElasticyLambdaCoeff lambda_cf(&E_cf, &nu_cf);
+    IsoElasticySchearCoeff mu_cf(&E_cf, &nu_cf);
 
     // Heaviside projections of rho~:  eroded -> stiffness, dilated -> volume,
     // intermediate -> the design that is actually reported.
@@ -423,8 +432,6 @@ int main(int argc, char *argv[])
     for (int r = 0; r < n_dir; r++)
     {
         advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r]);
-        // advect[r]->SetMinv(minv);
-        // advect[r]->GetSolver().SetTerminalTime(3);
         advect[r]->AssembleLinearSolver();
     }
 
@@ -675,15 +682,15 @@ int main(int argc, char *argv[])
         rho_filter.SetFromTrueDofs(rho_filter_tv);
 
         // construct dialated desgin coefficients
-        ParGridFunction rho_dila_gf(&filter_fes);
-        rho_dila_gf.ProjectCoefficient(rho_dila_cf);
-        Vector rho_dila_tv(nf);
-        rho_dila_gf.GetTrueDofs(rho_dila_tv);
+        // ParGridFunction rho_dila_gf(&filter_fes);
+        // rho_dila_gf.ProjectCoefficient(rho_dila_cf);
+        // Vector rho_dila_tv(nf);
+        // rho_dila_gf.GetTrueDofs(rho_dila_tv);
 
-        ParGridFunction rho_dila_grad_gf(&filter_fes);
-        rho_dila_grad_gf.ProjectCoefficient(rho_dila_grad_cf);
-        Vector rho_dila_grad_tv(nf);
-        rho_dila_grad_gf.GetTrueDofs(rho_dila_grad_tv);
+        // ParGridFunction rho_dila_grad_gf(&filter_fes);
+        // rho_dila_grad_gf.ProjectCoefficient(rho_dila_grad_cf);
+        // Vector rho_dila_grad_tv(nf);
+        // rho_dila_grad_gf.GetTrueDofs(rho_dila_grad_tv);
 
         // (2) state solves:  K(ρ~) u = f   (self-adjoint compliance), averaged
         //     over the load cases, together with the adjoint filter rhs
@@ -742,7 +749,8 @@ int main(int argc, char *argv[])
         double adv_runtime = MPI_Wtime();
         for (int r = 0; r < n_dir; r++)
         {
-            advect[r]->SetRhs(rho_dila_tv);
+            advect[r]->SetRhs(rho_filter_tv);
+            // advect[r]->SetRhs(rho_dila_tv);
             advect[r]->LinearFSolve();
             ray_rho_a(r) = advect[r]->GetRhoA().Max();   // local max, DG: no shared dofs
             ray_alpha(r) = alpha[r]->Max();
@@ -766,7 +774,7 @@ int main(int argc, char *argv[])
             advect[r]->LinearASolve();
 
             Vector dGdrho_tilde(advect[r]->GetSensitivity());
-            dGdrho_tilde *= rho_dila_grad_tv;
+            // dGdrho_tilde *= rho_dila_grad_tv;
             filter.MultTranspose(dGdrho_tilde, dthick[r].GetBlock(0));
 
             fival(1 + r) = thickres - epsilon;     // update constraint value
@@ -1017,8 +1025,8 @@ static MeshProblem SetupDisk6Holes(Mesh &mesh, const char *mesh_file)
     MeshProblem p;
     p.domain_attr.Append(1);
     p.outer_bdr_attrs = Array<int>({1});
-    p.rays.parallel = { 18, 2 * M_PI, 0.0 };
-    p.rays.cone     = { 18, 2 * M_PI, 0.0 };
+    p.rays.parallel = { 10, 2 * M_PI, 0.0 };
+    p.rays.cone     = { 10, 2 * M_PI, 0.0 };
 
     p.cases.resize(1);
     LoadCase &lc = p.cases[0];
@@ -1078,7 +1086,7 @@ static MeshProblem SetupPentagon(Mesh &mesh, const char *mesh_file)
     p.rays.cone     = { 5, 2 * M_PI, 0.0 };
 
     const int n_case = 5;
-    const real_t angles_deg_forces[] = {90.0, 162.0, 234.0, 306.0, 18.0};
+    const real_t angles_deg_forces[] = {18.0, 90.0, 162.0, 234.0, 306.0};
     real_t fdx[5], fdy[5];
     for (int k = 0; k < n_case; k++)
     {
@@ -1102,7 +1110,7 @@ static MeshProblem SetupPentagon(Mesh &mesh, const char *mesh_file)
             lc.load_attrs.Append(attr);
             lc.fx.Append(-fdx[j]);
             lc.fy.Append(-fdy[j]);
-            }
+        }
     }
     return p;
 }

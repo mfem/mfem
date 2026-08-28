@@ -12,7 +12,7 @@
 
 namespace mfem
 {
-    class DesignSolver
+class DesignSolver
 {
    private:
    // Finite Element Spaces
@@ -29,13 +29,8 @@ namespace mfem
    Vector dJ_drho_tilde;
    SIMPCoefficient SIMP_cf;
 
-   // Boundary Conditions
-   Array<int> ess_tdof_list;
-   Array<int> ess_bdr_attr;
-   Array<int> inflow_bdr;
-
    // PDE Coefficients
-   VectorFunctionCoefficient v_base;
+   VectorGridFunctionCoefficient v_base;
    real_t dt_diff_term;
    FunctionCoefficient raw_inflow;
    real_t raw_diff_term;
@@ -49,6 +44,8 @@ namespace mfem
    GridFunctionCoefficient q0;          // initial condition
    ParGridFunction q_gf;
    HypreParVector *q_vec;
+
+   Array<int> inflow_bdr_attr;
 
    bool paraview_vis;
 
@@ -65,10 +62,8 @@ namespace mfem
                          ParFiniteElementSpace &filter_fes_,
                          ParFiniteElementSpace &control_fes_,
                          toopt::PDEFilter &filter_,
-                         Array<int> &ess_bdr_attr_,
-                         Array<int> &inflow_bdr_,
                          HeatTransferObjectiveFunction &objective_,
-                         VectorFunctionCoefficient &v_base_,
+                         VectorGridFunctionCoefficient &v_base_,
                          real_t raw_diff_term_,
                          real_t dt_diff_term_,
                          FunctionCoefficient &raw_inflow_,
@@ -80,7 +75,6 @@ namespace mfem
                          int imex_integrator_, int vis_steps_, int problem_type_, MPI_Comm comm_)
       : state_fes(state_fes_), filter_fes(filter_fes_), control_fes(control_fes_),
         filter(filter_),
-        ess_bdr_attr(ess_bdr_attr_), inflow_bdr(inflow_bdr_),
         objective(objective_), 
         dt_diff_term(dt_diff_term_), raw_inflow(raw_inflow_), q0(q0_), raw_diff_term(raw_diff_term_),
         nsteps(nsteps_), dt(dt_), t_final(t_final_),
@@ -100,6 +94,8 @@ namespace mfem
 
    int NumSteps() const {return nsteps;}
    real_t Time_Step() const {return dt;}
+   
+   void SetInflowBdr(Array<int> &inflow_bdr) {inflow_bdr_attr = inflow_bdr;}
 
    // 1. Forward Filter. Raw control density -> filtered density (Helmholtz solve).
    void FilterFSolve(const Vector &rho_tv)
@@ -122,7 +118,8 @@ namespace mfem
          raw_diff_term, q0, 
          rho_tilde, dt, 
          t_final, SIMP_cf,
-         comm, inflow_bdr, ess_bdr_attr);
+         comm);
+      if (inflow_bdr_attr){oper->SetInflowBdrAttr(inflow_bdr_attr);}
       if (problem_type == 1){oper->InitializeInjectionProblem();}
       else if (problem_type == 2){oper->InitializeFlowProblem();}
       else{MFEM_ABORT("Unknown Problem Type: " << problem_type );}
@@ -140,7 +137,7 @@ namespace mfem
          pd->RegisterField("solution", &q_gf);
          pd->SetLevelsOfDetail(state_fes.GetOrder(0));
          pd->SetDataFormat(VTKFormat::BINARY);
-         pd->SetHighOrderOutput(false);
+         pd->SetHighOrderOutput(true);
          pd->SetCycle(0);
          pd->SetTime(0.0);
          pd->Save();

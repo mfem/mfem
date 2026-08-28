@@ -302,6 +302,13 @@ public:
     }
     ~AdvectThicknessResidual() { delete rho_a_sub; }
 
+    real_t GetMaxRohA()
+    {
+        Refresh();
+        ConstantCoefficient zero(0.0);
+        return rho_a_sub->ComputeMaxError(zero);    //max |rho_a| on Γ_out
+    }
+
     // forward solve for rho_a over the pseudo-time interval, then integrate
     // the accumulated density over the outflow boundary
     real_t Eval() override

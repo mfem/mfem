@@ -89,11 +89,11 @@ int main(int argc, char *argv[])
                     "Finite element order (polynomial degree) >= 0.");       
    args.AddOption(&pv_vis, "-vis", "--visualization", "-no-vis",  
                     "--no-visualization", 
-                    "Enable or disable Paraview Visualization");
+                    "Enable or disable Paraview Visualization"); 
    args.AddOption(&ode_solver_type, "-s", "--ode-solver",
                     ODESolver::IMEXTypes.c_str()); 
    args.AddOption(&t_final, "-tf", "--t-final",   
-                    "Final time; start time is 0.");   
+                    "Final time; start time is 0.");     
    args.AddOption(&dt, "-dt", "--time-step",
                     "Time step.");
    args.AddOption(&diffusion_term, "-dc", "--diffusion-coeff",
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
    args.AddOption(&problem_type, "-pt", "--problem_type",                                  
                   "Select which problem solve.");
    args.AddOption(&device_config, "-d", "--device",
-                   "Device configuration string, see Device::Configure().");      
+                   "Device configuration string, see Device::Configure().");         
    args.Parse(); 
    if (!args.Good()) 
    {
@@ -167,15 +167,6 @@ int main(int argc, char *argv[])
       return 1;
    } 
  
-   // 8. Boundary Conditions    
-   Array<int> ess_tdof_list;                              
-   Array<int> ess_bdr(4);   
-   ess_bdr = 0;   
-   pmesh->MarkExternalBoundaries(ess_bdr);  
-   fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);  
-   Array<int> inflow_bdr(4); 
-   inflow_bdr = 0;
-   inflow_bdr[1] = 1;    
     
    // 9. PDE Filter
    toopt::PDEFilterOptions filter_opts;
@@ -197,7 +188,7 @@ int main(int argc, char *argv[])
    ProductCoefficient diff_coeff(cons_diff_coeff, simp_stiff);
    ProductCoefficient dt_diff_coeff(cons_dt_diff_coeff, simp_stiff); 
    FunctionCoefficient inflow(inflow_function);   
-   FunctionCoefficient q0(q0_function); 
+   FunctionCoefficient q0(q0_function);  
    real_t dt_diffusion_term = dt*diffusion_term; 
    
    // 11. Construct the Objective Function  
@@ -236,8 +227,6 @@ int main(int argc, char *argv[])
          filter_fes,  
          control_fes, 
          filter, 
-         ess_bdr,  
-         inflow_bdr, 
          obj_func,
          raw_velocity, 
          diffusion_term, 

@@ -16,8 +16,8 @@ void velocity_func(const Vector &x, Vector &v)
     int dim = x.Size();
     // v(0) = 1.0;
     // v(1) = 0.0;
-    v(0) = 5.0*sin(M_PI*3.0*x(0))*cos(M_PI*3.0*x(1)) + 1.0;
-    v(1) = -5.0*cos(M_PI*3.0*x(0))*sin(M_PI*3.0*x(1)); 
+    v(0) = 5.0*sin(M_PI*2.0*x(0))*cos(M_PI*2.0*x(1)) + 1.0;
+    v(1) = -5.0*cos(M_PI*2.0*x(0))*sin(M_PI*2.0*x(1)); 
 }
 
 // Initial condition for advection-diffusion heat transfer. 
@@ -41,9 +41,9 @@ real_t T0_func(const Vector &x)
 real_t inflow_flux_func(const Vector &x, real_t t)      
 {
     real_t rad = 0.1;
-    if (t < 5.0)
+    if (t < 0.1)
     {
-        if ((fabs(x(0) - 2.0/6.0) < rad || fabs(x(0) - 4.0 / 6.0) < rad || fabs(x(0) - 6.0/6.0) < rad) && (fabs(x(1) - 5.0/6.0) < rad || fabs(x(1) - 0.5) < rad || fabs(x(1) - 1.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 6.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 4.0/6.0) < rad))
+        if ((fabs(x(0) - 2.0/6.0) < rad || fabs(x(0) - 4.0 / 6.0) < rad) && (fabs(x(1) - 5.0/6.0) < rad || fabs(x(1) - 0.5) < rad || fabs(x(1) - 1.0/6.0) < rad) && !(fabs(x(1) - 0.5) < rad && fabs(x(0) - 4.0/6.0) < rad))
         {
             return 100.0;
         }
@@ -66,8 +66,6 @@ real_t init_design_func(const Vector &x)
     real_t x_center4 = 4.0 / 6.0;
     real_t x_center5 = 4.0 / 6.0;
     real_t x_center6 = 4.0 / 6.0;
-    real_t x_center7 = 6.0/6.0;
-    real_t x_center8 = 6.0/6.0;
 
 
     real_t y_center1 = 5.0/6.0;
@@ -76,8 +74,6 @@ real_t init_design_func(const Vector &x)
     real_t y_center4 = 5.0/6.0;
     real_t y_center5 = 0.5;
     real_t y_center6 = 1.0/6.0;
-    real_t y_center7 = 5.0/6.0;
-    real_t y_center8 = 1.0/6.0;
 
     real_t sigma_x = 0.01;
     real_t sigma_y = 0.01;
@@ -125,21 +121,8 @@ real_t init_design_func(const Vector &x)
     real_t r_squared6 = dx6 * dx6 + dy6 * dy6;
     real_t gaussian6 = std::exp(-0.5 * r_squared6);
 
-            // Injection 7
-    // Distance from center (normalized by sigma)
-    real_t dx7 = (x(0) - x_center7) / sigma_x;
-    real_t dy7 = (x(1) - y_center7) / sigma_y;
-    real_t r_squared7 = dx7 * dx7 + dy7 * dy7;
-    real_t gaussian7 = std::exp(-0.5 * r_squared7); 
-
-        // Injection 8
-    // Distance from center (normalized by sigma)
-    real_t dx8 = (x(0) - x_center8) / sigma_x;
-    real_t dy8 = (x(1) - y_center8) / sigma_y;  
-    real_t r_squared8 = dx8 * dx8 + dy8 * dy8;
-    real_t gaussian8 = std::exp(-0.5 * r_squared8);
  
-    return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6 + gaussian7 + gaussian8);
+    return 3*(gaussian1 + gaussian2 + gaussian3 + gaussian4 + gaussian6);
 }
 
 real_t target_func(const Vector &x)
@@ -194,7 +177,7 @@ int main(int argc, char *argv[])
     int order = 2; 
     bool pv_vis = true; 
     bool density_pv = true;
-    int ode_solver_type = 1; // 1 - Only Forward-Backward Euler Available currently
+    int ode_solver_type = 1; 
     real_t t_final = 3.0;         
     real_t dt = 0.01; 
     real_t fl_diff_const = 0.1;     
@@ -323,7 +306,7 @@ int main(int argc, char *argv[])
     filter_opts.print_level = 0;
     filter_opts.filter_radius = filter_rad; 
     toopt::PDEFilter filter(filter_fes, control_fes, filter_opts);   
-    filter.Assemble();   
+    filter.Assemble();    
     filter.Mult(rho, rho_tilde);   
     rho_tilde.ExchangeFaceNbrData();
     GridFunctionCoefficient rho_cf(&rho);
@@ -381,15 +364,20 @@ int main(int argc, char *argv[])
     GridFunctionCoefficient T0_gcf; 
     T0_gcf.SetGridFunction(&T0_gf);
 
+    ParFiniteElementSpace *vstate_fes = new ParFiniteElementSpace(pmesh, state_fec, dim);
+
+    ParGridFunction v_gf(vstate_fes);  
+    v_gf.ProjectCoefficient(raw_velocity_cf); 
+    VectorGridFunctionCoefficient v_gcf; 
+    v_gcf.SetGridFunction(&v_gf);
+
     real_t dt_fl_diff_const = dt*fl_diff_const;
     DesignSolver design_solver(*state_fes, 
         filter_fes, 
         control_fes, 
         filter, 
-        ess_bdr, 
-        inflow_bdr, 
         obj_func, 
-        raw_velocity_cf, 
+        v_gcf, 
         fl_diff_const, 
         dt_fl_diff_const, 
         inflow_cf, 
@@ -412,12 +400,12 @@ int main(int argc, char *argv[])
     if (myid == 0){std::cout<<"Initial volume = " << initial_vol <<std::endl;}
 
     //    Visualize the velocity field
-    FiniteElementCollection *vel_fec;
-    ParFiniteElementSpace *vel_fespace;
-    vel_fec = new H1_FECollection(order, 2);
-    vel_fespace = new ParFiniteElementSpace(pmesh, vel_fec, 2);
-    ParGridFunction v_gf(vel_fespace); 
-    v_gf.ProjectCoefficient(raw_velocity_cf);
+    // FiniteElementCollection *vel_fec;
+    // ParFiniteElementSpace *vel_fespace;
+    // vel_fec = new H1_FECollection(order, 2);
+    // vel_fespace = new ParFiniteElementSpace(pmesh, vel_fec, 2);
+    // ParGridFunction v_gf(vel_fespace); 
+    // v_gf.ProjectCoefficient(raw_velocity_cf);
     {
       char vishost[] = "localhost";
       int  visport   = 19916;
@@ -430,7 +418,7 @@ int main(int argc, char *argv[])
 
     // 15. Optimization loop.
     real_t iterationError = 1.0;
-    int max_it = 100;
+    int max_it = 30;
     real_t tol = 1e-5;
     for (int k = 0; k < max_it && iterationError > tol; k++)
     {
