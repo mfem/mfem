@@ -3386,8 +3386,8 @@ class ElasticityIntegrator : public BilinearFormIntegrator
    friend class ElasticityComponentIntegrator;
 
 protected:
-   real_t q_lambda, q_mu;
-   Coefficient *lambda, *mu;
+   real_t q_lambda = 0.0, q_mu = 0.0;
+   Coefficient *lambda = nullptr, *mu = nullptr;
 
 private:
 #ifndef MFEM_THREAD_SAFE
@@ -3398,27 +3398,53 @@ private:
 
    // PA extension
 
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   int vdim, ndofs;
-   const FiniteElementSpace *fespace;   ///< Not owned.
+   const DofToQuad *maps = nullptr;         ///< Not owned
+   const DofToQuad *tensor_maps = nullptr;  ///< Not owned
+   int vdim = 0, ndofs = 0, d1d = 0, q1d = 0;
+   bool use_tensor_pa = false;
+   const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
 
    std::unique_ptr<QuadratureSpace> q_space;
    /// Coefficients projected onto q_space
    std::unique_ptr<CoefficientVector> lambda_quad, mu_quad;
-   /// Workspace vector
+   /// Compact PA data: inv(J), lambda*det(J)*w, mu*det(J)*w.
+   Vector pa_data;
+   /// Workspace used only by the generic (non-tensor) apply path.
+   /// Layout: reference derivatives, then flux (each vdim*vdim).
    std::unique_ptr<QuadratureFunction> q_vec;
 
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
 public:
+   /// Tensor PA apply arguments: ne, maps, pa_data, x, y
+   using ApplyKernelType = void(*)(const int, const DofToQuad&,
+                                   const Vector&, const Vector&, Vector&);
+private:
+   /// Cached specialized tensor apply; null on the generic path.
+   ApplyKernelType tensor_apply = nullptr;
+public:
+   /// Dispatch parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
-   { lambda = &l; mu = &m; }
+   {
+      lambda = &l; mu = &m;
+      static Kernels kernels;
+   }
    /** With this constructor $\lambda = q_l m$ and $\mu = q_m m$
        if $dim q_l + 2 q_m = 0$ then $tr(\sigma) = 0$. */
    ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
-   { lambda = NULL; mu = &m; q_lambda = q_l; q_mu = q_m; }
+   {
+      lambda = nullptr; mu = &m; q_lambda = q_l; q_mu = q_m;
+      static Kernels kernels;
+   }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Tr,
@@ -3472,11 +3498,26 @@ class ElasticityComponentIntegrator : public BilinearFormIntegrator
    const int i_block;
    const int j_block;
 
-   const DofToQuad *maps;         ///< Not owned
-   const GeometricFactors *geom;  ///< Not owned
-   const FiniteElementSpace *fespace;   ///< Not owned.
+   const DofToQuad *maps = nullptr;         ///< Not owned
+   const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
+   /// Generic apply scratch; derivatives then flux, each sized for a
+   /// scalar trial gradient.
+   std::unique_ptr<QuadratureFunction> q_vec;
 
 public:
+   /// Component PA apply arguments: ndofs, fespace, maps, pa_data, x, q_vec, y
+   using ApplyKernelType = void(*)(const int, const FiniteElementSpace&,
+                                   const DofToQuad&, const Vector&,
+                                   const Vector&, QuadratureFunction&, Vector&);
+   /// Dispatch parameters: dim, i_block, j_block
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+   template <int DIM, int I, int J>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, I, J>::Add();
+   }
+
    /// @brief Given an ElasticityIntegrator, create an integrator that
    /// represents the $(i,j)$th component block.
    ///
