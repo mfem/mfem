@@ -49,11 +49,13 @@ to allow the NavierStokesSolver to retrieve the effective viscosity for post-pro
 */
 
 // Spatial residual shared by incompressible Navier-Stokes rheology models.
-// The derived model supplies the viscous stress tau(grad(u)); this adapter adds
+// The policy supplies the viscous stress tau(grad(u)); this adapter adds
 // pressure, convection, continuity, and the physical-to-reference mapping.
 template <typename Rheology, int DIM>
 struct NavierStokesQFunction
 {
+   Rheology rheology;
+
    MFEM_HOST_DEVICE inline void operator()(
       const tensor<dscalar_t, DIM> &u,
       const tensor<dscalar_t, DIM, DIM> &dudxi,
@@ -68,7 +70,7 @@ struct NavierStokesQFunction
       const auto dudx = dudxi * invJ;
       const real_t dxw = det(J) * weight;
       const auto total_stress =
-         rheology().stress(dudx) - p * IdentityMatrix<DIM>();
+         rheology.stress(dudx) - p * IdentityMatrix<DIM>();
 
       // Tested against Gradient<U>: (tau - p I) : grad(v)
       momentum_gradient = total_stress * transpose(invJ) * dxw;
@@ -80,17 +82,17 @@ struct NavierStokesQFunction
       continuity_value = tr(dudx) * dxw;
    }
 
-private:
-   MFEM_HOST_DEVICE inline const Rheology &rheology() const
+   template <typename scalar_t>
+   MFEM_HOST_DEVICE inline scalar_t effective_viscosity(
+      const tensor<scalar_t, DIM, DIM> &D) const
    {
-      return static_cast<const Rheology &>(*this);
+      return rheology.effective_viscosity(D);
    }
 };
 
 /// Newtonian viscosity in vector-Laplacian form, tau = nu grad(u).
 template <int DIM>
-struct NewtonianNavierStokesQFunction :
-   NavierStokesQFunction<NewtonianNavierStokesQFunction<DIM>, DIM>
+struct NewtonianRheology
 {
    real_t viscosity = 1.0;
 
@@ -112,8 +114,7 @@ struct NewtonianNavierStokesQFunction :
 /// tau = 2 mu D, mu = K (gamma_eps)^(n - 1), gamma_eps = sqrt( 2 D:D + epsilon^2 )
 /// See: Barrett, John W., and W. B. Liu. "Finite element error analysis of a quasi-Newtonian flow obeying the Carreau or power law." Numerische Mathematik 64.1 (1993): 433-453.
 template <int DIM>
-struct RegularizedPowerLawNavierStokesQFunction :
-   NavierStokesQFunction<RegularizedPowerLawNavierStokesQFunction<DIM>, DIM>
+struct RegularizedPowerLawRheology
 {
    real_t consistency = 1.0;
    real_t power_index = 0.5;
@@ -145,8 +146,7 @@ struct RegularizedPowerLawNavierStokesQFunction :
 /// sigma = 2μ_p D(u) − pI + √2 τ_y  D(u)/|D(u)|,   if  τ ≥ τ_y   (yielded)
 /// D(u) = 0,                                       if  τ < τ_y   (unyielded/rigid)
 template <int DIM>
-struct RegularizedBinghamNavierStokesQFunction :
-   NavierStokesQFunction<RegularizedBinghamNavierStokesQFunction<DIM>, DIM>
+struct RegularizedBinghamRheology
 {
    real_t yield_stress = 1.0;
    real_t mu_p = 1.0;
