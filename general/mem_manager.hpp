@@ -221,27 +221,6 @@ public:
       other.Reset();
    }
 
-   /// Makes an Alias from one of Memory<char>, Memory<unsigned char>, or
-   /// Memory<std::byte>
-   template <class U, class = std::enable_if_t<
-                !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
-                (std::is_same_v<std::decay_t<U>, char> ||
-                 std::is_same_v<std::decay_t<U>, unsigned char> ||
-                 std::is_same_v<std::decay_t<U>, std::byte>)> >
-   Memory(const Memory<U> &base)
-   {
-      MakeAlias(base, 0, 0);
-   }
-   template <class U, class = std::enable_if_t<
-                !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
-                (std::is_same_v<std::decay_t<U>, char> ||
-                 std::is_same_v<std::decay_t<U>, unsigned char> ||
-                 std::is_same_v<std::decay_t<U>, std::byte>)> >
-   Memory(const Memory<U> &base, int offset, int size)
-   {
-      MakeAlias(base, offset, size);
-   }
-
    /// Copy-assignment operator: default.
    Memory &operator=(const Memory &) = default;
 
@@ -538,10 +517,7 @@ public:
        that use the same host/device pointers, or when @a *this is an alias
        (sub-Memory) of @a other. Typically, this method should be called after
        @a other is manipulated in a way that changes its pointer validity flags
-       (e.g. it was moved from device to host memory).
-       @tparam U musst either be the same type as T, or T must be one of (char,
-      unsigned char, std::byte)
-   */
+       (e.g. it was moved from device to host memory). */
    inline void Sync(const Memory &other) const;
 
    /** @brief Update the alias Memory @a *this to match the memory location (all
@@ -1199,7 +1175,7 @@ template <typename T>
 template <class U>
 inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
 {
-   h_ptr = reinterpret_cast<T*>(base.h_ptr);
+   h_ptr = reinterpret_cast<T*>(base.h_ptr); // can also use (T*)base
    capacity = base.capacity;
    h_mt = base.h_mt;
    flags = base.flags;

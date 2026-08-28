@@ -278,10 +278,7 @@ public:
    inline void MakeRef(const Array &master);
 
    /// Make this Array a reference to the given sub-Memory of @a base.
-   /// @a offset and @a size_ are in terms of T, i.e. &(*this)[0] == &(base[0]) + offset*sizeof(T)
-   /// U must be one of (T, char, unsigned char, std::byte)
-   template <class U>
-   inline void MakeRef(Memory<U> &base, int offset, int size_);
+   inline void MakeRef(Memory<T> &base, int offset, int size_);
 
    /// Reset the Array to use the given external Memory @a mem and size @a s.
    /** If @a own_mem is false, the Array will not own any of the pointers of
@@ -1106,8 +1103,7 @@ inline void Array<T>::MakeRef(const Array &master)
 }
 
 template <class T>
-template <class U>
-inline void Array<T>::MakeRef(Memory<U> &base, int offset, int size_)
+inline void Array<T>::MakeRef(Memory<T> &base, int offset, int size_)
 {
    data.Delete();
    size = size_;
