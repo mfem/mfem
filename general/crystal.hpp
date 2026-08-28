@@ -11,6 +11,7 @@
 #include <memory>
 #include <type_traits>
 #include <vector>
+#include "device.hpp"
 #include "../linalg/ordering.hpp"
 #include "../linalg/vector.hpp"
 #include "../linalg/particlevector.hpp"
@@ -35,6 +36,10 @@ public:
    virtual void Unpack(int i, const char *src) = 0;
    virtual void Copy(int src, int dst) = 0;
    virtual void Resize(int n) = 0;
+
+
+   virtual void ToHost() = 0;
+   virtual void ToDevice() = 0;
 };
 
 namespace internal
@@ -93,6 +98,8 @@ public:
    Ordering::Type GetOrdering() const override { return ordering; }
    int Size() const override { return arr->Size() / vdim; }
    std::size_t RowBytes() const override { return (std::size_t)vdim * sizeof(T); }
+   void ToHost() override{ arr->HostReadWrite(); arr->GetMemory().UseDevice(false); }
+   void ToDevice() override{ arr->GetMemory().UseDevice(true); arr->ReadWrite(); }
 
    void Pack(int i, char *dst) const override {
       const int n = Size();
@@ -151,6 +158,8 @@ public:
    Ordering::Type GetOrdering() const override { return ordering; }
    int Size() const override { return vec->Size() / vdim; }
    std::size_t RowBytes() const override{ return (std::size_t)vdim * sizeof(real_t); }
+   void ToHost() override   { vec->HostReadWrite(); vec->UseDevice(false); }
+   void ToDevice() override { vec->UseDevice(true); vec->ReadWrite(); }
 
    void Pack(int i, char *dst) const override {
       const int n = Size();
@@ -221,6 +230,8 @@ public:
    Ordering::Type GetOrdering() const override { return pv->GetOrdering(); }
    int Size() const override { return pv->GetNumParticles(); }
    std::size_t RowBytes() const override{ return (std::size_t)pv->GetVDim() * sizeof(real_t); }
+   void ToHost() override   { pv->HostReadWrite(); pv->UseDevice(false); }
+   void ToDevice() override { pv->UseDevice(true); pv->ReadWrite(); }
 
    void Pack(int i, char *dst) const override {
       const int vd = pv->GetVDim();

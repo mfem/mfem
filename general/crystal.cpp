@@ -31,9 +31,14 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
                   "CrystalRouter: field size does not match rank_list size");
    }
 
-   // copy to preserve rank list
+   const bool use_dev = Device::IsEnabled();
+
+   if (use_dev) { for (auto *f : fields) { f->ToHost(); } }
+
    Array<unsigned int> ranks(rank_list);
    RouteInternal(ranks, fields);
+
+   if (use_dev) { for (auto *f : fields) { f->ToDevice(); } }
 }
 
 // PRIVATE METHODS
