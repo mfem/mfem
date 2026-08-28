@@ -109,19 +109,29 @@ struct derivative_action_t
    std::function<void *()> qfunc_shadow;
 };
 
-/// @brief Type alias for a function that assembles the SparseMatrix of a
-/// derivative operator
+/// @brief Type alias for a function that assembles the SparseMatrix row blocks
+/// of a derivative operator
+///
+/// The derivative of a residual with several output (test) fields is a block
+/// column, one row block per output field, so the callback fills a vector
+/// indexed by position in the operator's output FieldDescriptors rather than a
+/// single matrix.
 using assemble_derivative_sparsematrix_callback_t =
-   std::function<void(SparseMatrix *&)>;
+   std::function<void(std::vector<SparseMatrix *> &)>;
 
-/// @brief Type alias for a function that assembles the HypreParMatrix of a
-/// derivative operator
+/// @brief Type alias for a function that assembles the HypreParMatrix row
+/// blocks of a derivative operator
+///
+/// @see assemble_derivative_sparsematrix_callback_t for the indexing.
 using assemble_derivative_hypreparmatrix_callback_t =
-   std::function<void(HypreParMatrix *&)>;
+   std::function<void(std::vector<HypreParMatrix *> &)>;
 
-/// @brief Type alias for a function that assembles the diagonal of a derivative
-/// operator into an E-vector
-using assemble_diagonal_callback_t = std::function<void(Vector &)>;
+/// @brief Type alias for a function that assembles the diagonal of one row
+/// block of a derivative operator into an E-vector
+///
+/// The first argument names the output (test) field whose row block is wanted;
+/// only a square block has a diagonal at all.
+using assemble_diagonal_callback_t = std::function<void(int, Vector &)>;
 
 /// @brief Type alias for a function that applies the appropriate restriction to
 /// the solution and parameters
@@ -248,60 +258,73 @@ MakeDerivativeHypreParMatrixAssemble(
    std::vector<assemble_derivative_sparsematrix_callback_t> &sparse_callbacks,
    const IntegratorContext &ctx)
 {
-   return [derivative_idx, &sparse_callbacks, ctx](HypreParMatrix *&A)
+   using blocks_t = std::vector<HypreParMatrix *>;
+   return [derivative_idx, &sparse_callbacks, ctx](blocks_t &A)
    {
-      MFEM_VERIFY(ctx.outfds.size() == 1,
-                  "HypreParMatrix assembly requires a single output field");
-
       const size_t trial_field_idx = FindIdx(derivative_idx, ctx.unionfds);
       MFEM_VERIFY(trial_field_idx != SIZE_MAX,
                   "derivative field not found for HypreParMatrix assembly");
 
-      const auto *test_fes_ptr =
-         std::get_if<const ParFiniteElementSpace *>(&ctx.outfds[0].data);
       const auto *trial_fes_ptr =
          std::get_if<const ParFiniteElementSpace *>(
             &ctx.unionfds[trial_field_idx].data);
-      MFEM_VERIFY(test_fes_ptr && *test_fes_ptr,
-                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
-                  "output field");
       MFEM_VERIFY(trial_fes_ptr && *trial_fes_ptr,
                   "HypreParMatrix assembly requires a ParFiniteElementSpace "
                   "derivative field");
-
-      const ParFiniteElementSpace *test_fes = *test_fes_ptr;
       const ParFiniteElementSpace *trial_fes = *trial_fes_ptr;
-      MFEM_VERIFY(test_fes->GetComm() == trial_fes->GetComm(),
-                  "test and trial spaces must use the same MPI communicator");
 
-      SparseMatrix *spmat = nullptr;
+      // Every integrator fills the row blocks it contributes to; the local
+      // blocks are then RAP'd one by one, each with its own test space.
+      std::vector<SparseMatrix *> spmat(ctx.outfds.size(), nullptr);
       for (const auto &f : sparse_callbacks)
       {
          f(spmat);
       }
 
-      MFEM_VERIFY(spmat != nullptr,
+      bool any = false;
+      for (const auto *m : spmat) { any = any || (m != nullptr); }
+      MFEM_VERIFY(any,
                   "internal error: sparse derivative assembly returned NULL");
-      MFEM_VERIFY(spmat->Finalized(),
-                  "local derivative matrix must be finalized");
 
-      if (test_fes == trial_fes)
+      if (A.size() < ctx.outfds.size())
       {
-         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
-                           test_fes->GetDofOffsets(), spmat);
-         A = RAP(&dA, test_fes->Dof_TrueDof_Matrix());
-      }
-      else
-      {
-         HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
-                           trial_fes->GlobalVSize(),
-                           test_fes->GetDofOffsets(),
-                           trial_fes->GetDofOffsets(), spmat);
-         A = RAP(test_fes->Dof_TrueDof_Matrix(), &dA,
-                 trial_fes->Dof_TrueDof_Matrix());
+         A.resize(ctx.outfds.size(), nullptr);
       }
 
-      delete spmat;
+      for (size_t i = 0; i < spmat.size(); i++)
+      {
+         if (spmat[i] == nullptr) { continue; }
+         MFEM_VERIFY(spmat[i]->Finalized(),
+                     "local derivative matrix must be finalized");
+
+         const auto *test_fes_ptr =
+            std::get_if<const ParFiniteElementSpace *>(&ctx.outfds[i].data);
+         MFEM_VERIFY(test_fes_ptr && *test_fes_ptr,
+                     "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                     "output field");
+         const ParFiniteElementSpace *test_fes = *test_fes_ptr;
+         MFEM_VERIFY(test_fes->GetComm() == trial_fes->GetComm(),
+                     "test and trial spaces must use the same "
+                     "MPI communicator");
+
+         if (test_fes == trial_fes)
+         {
+            HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                              test_fes->GetDofOffsets(), spmat[i]);
+            A[i] = RAP(&dA, test_fes->Dof_TrueDof_Matrix());
+         }
+         else
+         {
+            HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
+                              trial_fes->GlobalVSize(),
+                              test_fes->GetDofOffsets(),
+                              trial_fes->GetDofOffsets(), spmat[i]);
+            A[i] = RAP(test_fes->Dof_TrueDof_Matrix(), &dA,
+                       trial_fes->Dof_TrueDof_Matrix());
+         }
+
+         delete spmat[i];
+      }
    };
 }
 
@@ -563,17 +586,64 @@ public:
       }
    }
 
+   /// @brief Assemble the row blocks of the derivative operator into
+   /// SparseMatrices.
+   ///
+   /// A q-function may write to several output (test) fields. Differentiating
+   /// w.r.t. one field then gives a block column with one row block per output
+   /// field,
+   ///
+   ///     dR/dU = [ dR_U/dU ; dR_Y/dU ],
+   ///
+   /// all sharing the trial space of the differentiated field. Each row block
+   /// is an ordinary test x trial matrix and is assembled separately; the
+   /// stacked matrix, if wanted, is one HypreParMatrixFromBlocks call away.
+   ///
+   /// @param A Resized to the number of output fields and indexed the same way,
+   /// so A[f] is the row block of output field f. Fields whose rows cannot be
+   /// materialised -- quadrature and parameter spaces, which have no basis to
+   /// contract against -- are left as nullptr. Ownership passes to the caller.
+   void Assemble(std::vector<SparseMatrix *> &A)
+   {
+      MFEM_VERIFY(!assemble_derivative_sparsematrix_callbacks.empty(),
+                  "derivative can't be assembled into a SparseMatrix");
+      EnsureQpCache();
+
+      A.assign(outfds.size(), nullptr);
+      for (const auto &f : assemble_derivative_sparsematrix_callbacks)
+      {
+         f(A);
+      }
+   }
+
    /// @brief Assemble the derivative operator into a SparseMatrix.
+   ///
+   /// Convenience overload for the common case of a derivative with a single
+   /// assemblable row block. Use Assemble(std::vector<SparseMatrix *> &) when
+   /// the q-function writes to more than one test field.
    ///
    /// @param A The SparseMatrix to assemble the derivative operator into. Can
    /// be an uninitialized object.
    void Assemble(SparseMatrix *&A)
    {
-      MFEM_ASSERT(!assemble_derivative_sparsematrix_callbacks.empty(),
-                  "derivative can't be assembled into a SparseMatrix");
+      std::vector<SparseMatrix *> blocks;
+      Assemble(blocks);
+      A = SingleBlock(blocks);
+   }
+
+   /// @brief Assemble the row blocks of the derivative operator into
+   /// HypreParMatrices.
+   ///
+   /// @see Assemble(std::vector<SparseMatrix *> &) for the indexing and the
+   /// block structure.
+   void Assemble(std::vector<HypreParMatrix *> &A)
+   {
+      MFEM_VERIFY(!assemble_derivative_hypreparmatrix_callbacks.empty(),
+                  "derivative can't be assembled into a HypreParMatrix");
       EnsureQpCache();
 
-      for (const auto &f : assemble_derivative_sparsematrix_callbacks)
+      A.assign(outfds.size(), nullptr);
+      for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
       {
          f(A);
       }
@@ -581,18 +651,17 @@ public:
 
    /// @brief Assemble the derivative operator into a HypreParMatrix.
    ///
+   /// Convenience overload for the common case of a derivative with a single
+   /// assemblable row block. Use Assemble(std::vector<HypreParMatrix *> &) when
+   /// the q-function writes to more than one test field.
+   ///
    /// @param A The HypreParMatrix to assemble the derivative operator into. Can
    /// be an uninitialized object.
    void Assemble(HypreParMatrix *&A)
    {
-      MFEM_ASSERT(!assemble_derivative_hypreparmatrix_callbacks.empty(),
-                  "derivative can't be assembled into a HypreParMatrix");
-      EnsureQpCache();
-
-      for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
-      {
-         f(A);
-      }
+      std::vector<HypreParMatrix *> blocks;
+      Assemble(blocks);
+      A = SingleBlock(blocks);
    }
 
    /// @brief Assemble the derivative of a functional into a Vector.
@@ -635,35 +704,89 @@ public:
       }
    }
 
-   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   /// @brief Assemble the diagonal of one row block of the derivative
+   /// operator into a T-vector.
    ///
-   /// @param diag The vector to receive the diagonal (must be T-dof sized).
-   void AssembleDiagonal(Vector &diag) const override
+   /// The derivative is a block column, one row block per output field, all
+   /// sharing the trial space of the differentiated field. Only a block whose
+   /// test space *is* that trial space is square, and only a square block has a
+   /// diagonal. Squareness alone cannot pick the block when several output
+   /// fields live on the trial space, so the row is named rather than inferred.
+   /// Output field ids may differ from the differentiated field's id while
+   /// sharing its ParFiniteElementSpace, in which case several row blocks are
+   /// square at once. Naming the output field id resolves the ambiguity.
+   ///
+   /// @param out_field_id The output field whose row block is wanted.
+   /// @param diag The vector to receive the diagonal, resized to that field's
+   /// T-dof size.
+   void AssembleDiagonal(size_t out_field_id, Vector &diag) const
    {
-      MFEM_ASSERT(!assemble_diagonal_callbacks.empty(),
+      MFEM_VERIFY(!assemble_diagonal_callbacks.empty(),
                   "derivative can't assemble diagonal");
       EnsureQpCache();
-      MFEM_ASSERT(outfds.size() == 1,
-                  "AssembleDiagonal currently requires a single output field");
+
+      const size_t diagonal_idx = FindIdx(out_field_id, outfds);
+      MFEM_VERIFY(diagonal_idx != SIZE_MAX,
+                  "AssembleDiagonal: field " << out_field_id << " is not an "
+                  "output field of this operator");
 
       const auto *test_pf =
-         std::get_if<const ParFiniteElementSpace *>(&outfds[0].data);
+         std::get_if<const ParFiniteElementSpace *>(&outfds[diagonal_idx].data);
       MFEM_VERIFY(test_pf && *test_pf,
                   "AssembleDiagonal: test field must be a ParFiniteElementSpace");
+      const auto *trial_pf =
+         std::get_if<const ParFiniteElementSpace *>(&direction.data);
+      MFEM_VERIFY(trial_pf && *trial_pf,
+                  "AssembleDiagonal: the differentiated field must be a "
+                  "ParFiniteElementSpace");
+      MFEM_VERIFY(*test_pf == *trial_pf,
+                  "AssembleDiagonal: the requested row block is not square and "
+                  "so has no diagonal; its test space is not the trial space "
+                  "of the differentiated field");
 
       prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
 
       for (const auto &f : assemble_diagonal_callbacks)
       {
-         f(*daction_e[0]);
+         f(static_cast<int>(out_field_id), *daction_e[diagonal_idx]);
       }
 
       restriction_transpose(outfds, out_rcache, daction_e, daction_l);
-      prolongation_transpose(outfds[0], *daction_l[0], diag);
+      prolongation_transpose(outfds[diagonal_idx],
+                             *daction_l[diagonal_idx], diag);
+   }
+
+   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   ///
+   /// Uses the row block of the differentiated field, i.e. the usual diagonal
+   /// block dR_U/dU for GetDerivative(U). Call
+   /// AssembleDiagonal(size_t, Vector &) for any other row block.
+   ///
+   /// @param diag The vector to receive the diagonal.
+   void AssembleDiagonal(Vector &diag) const override
+   {
+      AssembleDiagonal(direction.id, diag);
    }
 
 private:
+   /// The single non-null row block of @a blocks, for the scalar Assemble
+   /// overloads.
+   template <typename mat_t>
+   static mat_t *SingleBlock(const std::vector<mat_t *> &blocks)
+   {
+      mat_t *single = nullptr;
+      int count = 0;
+      for (auto *m : blocks)
+      {
+         if (m != nullptr) { single = m; count++; }
+      }
+      MFEM_VERIFY(count == 1,
+                  "the derivative has " << count << " assemblable row blocks, "
+                  "not one; assemble it into a std::vector instead");
+      return single;
+   }
+
    /// Derivative action callbacks. Depending on the requested derivatives in
    /// DifferentiableOperator the callbacks represent certain combinations of
    /// actions of derivatives of the forward operator.
@@ -1479,15 +1602,22 @@ void DifferentiableOperator::AddIntegrator(
          constexpr size_t derivative_idx = decltype(derivative_id)::value;
          using callback_outputs_t = std::decay_t<decltype(outputs)>;
 
-         bool disable_assemble = false;
+
+         // NOTE: before disable_assemble was looking for any identity outputs,
+         // But this would silently disable assembly for other valid outputs across
+         // different fields.
+         bool any_assemblable_output = false;
          for_constexpr([&](auto j)
          {
-            using output_fop_t = tuple_element_t<j, callback_outputs_t>;
-            if constexpr (is_identity_fop_v<std::decay_t<output_fop_t>>)
+            using output_fop_t =
+               std::decay_t<tuple_element_t<j, callback_outputs_t>>;
+            if constexpr (!is_identity_fop_v<output_fop_t>)
             {
-               disable_assemble = true;
+               any_assemblable_output = true;
             }
          }, std::make_index_sequence<tuple_size<callback_outputs_t>::value> {});
+
+         const bool disable_assemble = !any_assemblable_output;
 
          // Setup the qp cache for the derivative
          setup_callbacks[callback_key].push_back(
@@ -1509,22 +1639,33 @@ void DifferentiableOperator::AddIntegrator(
 
          if (!disable_assemble)
          {
+            const auto output_groups =
+               std::make_shared<const OutputFieldGroups<callback_outputs_t>>(
+                  callback_ctx, outputs);
+
             // Assemble the derivative into a SparseMatrix
             assemble_sparsematrix_callbacks[callback_key].push_back(
                backend_t::template MakeDerivativeAssemble<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache));
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                  output_groups));
 
-            // Assemble the derivative into a HypreParMatrix
-            assemble_hypreparmatrix_callbacks[callback_key].push_back(
-               MakeDerivativeHypreParMatrixAssemble(
-                  derivative_idx,
-                  assemble_sparsematrix_callbacks[callback_key],
-                  callback_ctx));
+            // Assemble the derivative into a HypreParMatrix. This one runs
+            // every sparse callback registered under the key, so it is
+            // registered once and not once per integrator.
+            if (assemble_hypreparmatrix_callbacks[callback_key].empty())
+            {
+               assemble_hypreparmatrix_callbacks[callback_key].push_back(
+                  MakeDerivativeHypreParMatrixAssemble(
+                     derivative_idx,
+                     assemble_sparsematrix_callbacks[callback_key],
+                     callback_ctx));
+            }
 
             // Assemble the diagonal of the derivative into an L-vector
             assemble_diagonal_cbs[callback_key].push_back(
                backend_t::template MakeDerivativeAssembleDiagonal<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache));
+                  callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                  output_groups));
          }
 
          // Apply the derivative

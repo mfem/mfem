@@ -191,11 +191,12 @@ struct GlobalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache)
+      const Vector &qp_cache,
+      std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups)
    {
       return LocalQFImpl::DerivativeAssemble<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+                ctx, qfunc, inputs, outputs, qp_cache, output_groups);
    }
 
    template<
@@ -208,11 +209,12 @@ struct GlobalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache)
+      const Vector &qp_cache,
+      std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups)
    {
       return LocalQFImpl::DerivativeAssembleDiagonal<
              derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+                ctx, qfunc, inputs, outputs, qp_cache, output_groups);
    }
 };
 
