@@ -630,11 +630,17 @@ int main(int argc, char *argv[])
    {
       char vishost[] = "localhost";
       int  visport   = 19916;
+      int Wx = 0, Wy = 0; // window position
+      int Ww = 350, Wh = 350; // window size
+      int offx = Ww+10; // window offsets x
+      //int offy = Ww+100; // window offsets y
       socketstream u_sock(vishost, visport);
       u_sock << "parallel " << num_procs << " " << myid << "\n";
       u_sock.precision(8);
       u_sock << "solution\n" << pmesh << u << "window_title 'Velocity'"
+             << "window_geometry " << Wx << " " << Wy << " " << Ww << " " << Wh
              << endl;
+      Wx += offx;
       // Make sure all ranks have sent their 'u' solution before initiating
       // another set of GLVis connections (one from each rank):
       MPI_Barrier(pmesh.GetComm());
@@ -642,6 +648,7 @@ int main(int argc, char *argv[])
       p_sock << "parallel " << num_procs << " " << myid << "\n";
       p_sock.precision(8);
       p_sock << "solution\n" << pmesh << p << "window_title 'Pressure'"
+             << "window_geometry " << Wx << " " << Wy << " " << Ww << " " << Wh
              << endl;
    }
 
