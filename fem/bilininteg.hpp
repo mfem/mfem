@@ -3415,12 +3415,30 @@ private:
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
 public:
+   /// Tensor PA apply arguments: ne, maps, pa_data, x, y
+   using ApplyKernelType = void(*)(const int, const DofToQuad&,
+                                   const Vector&, const Vector&, Vector&);
+   /// Dispatch parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
-   { lambda = &l; mu = &m; }
+   {
+      lambda = &l; mu = &m;
+      static Kernels kernels;
+   }
    /** With this constructor $\lambda = q_l m$ and $\mu = q_m m$
        if $dim q_l + 2 q_m = 0$ then $tr(\sigma) = 0$. */
    ElasticityIntegrator(Coefficient &m, real_t q_l, real_t q_m)
-   { lambda = nullptr; mu = &m; q_lambda = q_l; q_mu = q_m; }
+   {
+      lambda = nullptr; mu = &m; q_lambda = q_l; q_mu = q_m;
+      static Kernels kernels;
+   }
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Tr,
@@ -3479,6 +3497,19 @@ class ElasticityComponentIntegrator : public BilinearFormIntegrator
    const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
 
 public:
+   /// Component PA apply arguments: ndofs, fespace, maps, pa_data, x, q_vec, y
+   using ApplyKernelType = void(*)(const int, const FiniteElementSpace&,
+                                   const DofToQuad&, const Vector&,
+                                   const Vector&, QuadratureFunction&, Vector&);
+   /// Dispatch parameters: dim, i_block, j_block
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+   template <int DIM, int I, int J>
+   static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, I, J>::Add();
+   }
+
    /// @brief Given an ElasticityIntegrator, create an integrator that
    /// represents the $(i,j)$th component block.
    ///

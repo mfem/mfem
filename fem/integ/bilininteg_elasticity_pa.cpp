@@ -131,8 +131,8 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
    const FiniteElement &fe = *fespace->GetTypicalFE();
    const auto ordering = GetEVectorOrdering(*fespace);
 
-   // Tensor kernels require lexicographic element vectors. Unsupported
-   // D1D/Q1D pairs return false and use the generic fallback below. Define
+   // Tensor kernels require lexicographic element vectors. Unspecialized
+   // D1D/Q1D pairs use the generic fallback below. Define
    // MFEM_ELASTICITY_PA_DISABLE_TENSOR while building MFEM to benchmark or
    // debug the optimized generic fallback independently.
 #ifndef MFEM_ELASTICITY_PA_DISABLE_TENSOR
@@ -141,9 +141,16 @@ void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       const DofToQuad &tensor_maps =
          fe.GetDofToQuad(*IntRule, DofToQuad::TENSOR);
-      if (internal::ElasticityAddMultPATensor(vdim, fespace->GetNE(),
-                                              tensor_maps, pa_data, x, y))
+      const int d1d = tensor_maps.ndof;
+      const int q1d = tensor_maps.nqpt;
+      // Tensor and generic kernels use different DofToQuad layouts, so the
+      // dispatch Fallback cannot call ElasticityAddMultPA. Unspecialized
+      // sizes therefore skip Run and use the generic path below.
+      const auto &table = ApplyPAKernels::GetDispatchTable();
+      if (table.find(std::make_tuple(vdim, d1d, q1d)) != table.end())
       {
+         ApplyPAKernels::Run(vdim, d1d, q1d, fespace->GetNE(),
+                             tensor_maps, pa_data, x, y);
          return;
       }
    }
@@ -220,17 +227,17 @@ void ElasticityComponentIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void ElasticityComponentIntegrator::AddMultPA(const Vector &x,
                                               Vector &y) const
 {
-   internal::ElasticityComponentAddMultPA(
-      parent.vdim, parent.ndofs, *fespace, *maps, parent.pa_data,
-      x, *parent.q_vec, y, i_block, j_block);
+   ApplyPAKernels::Run(parent.vdim, i_block, j_block,
+                       parent.ndofs, *fespace, *maps, parent.pa_data,
+                       x, *parent.q_vec, y);
 }
 
 void ElasticityComponentIntegrator::AddMultTransposePA(
    const Vector &x, Vector &y) const
 {
-   internal::ElasticityComponentAddMultPA(
-      parent.vdim, parent.ndofs, *fespace, *maps, parent.pa_data,
-      x, *parent.q_vec, y, j_block, i_block);
+   ApplyPAKernels::Run(parent.vdim, j_block, i_block,
+                       parent.ndofs, *fespace, *maps, parent.pa_data,
+                       x, *parent.q_vec, y);
 }
 
 } // namespace mfem

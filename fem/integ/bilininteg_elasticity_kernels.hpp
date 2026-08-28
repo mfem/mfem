@@ -61,19 +61,6 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
                          const DofToQuad &maps, const Vector &pa_data,
                          const Vector &x, QuadratureFunction &QVec, Vector &y);
 
-/// Fused sum-factorized quad/hex kernel. Returns false when the D1D/Q1D pair
-/// is not specialized so the caller can use ElasticityAddMultPA.
-bool ElasticityAddMultPATensor(const int dim, const int numEls,
-                               const DofToQuad &maps,
-                               const Vector &pa_data,
-                               const Vector &x, Vector &y);
-
-void ElasticityComponentAddMultPA(
-   const int dim, const int nDofs, const FiniteElementSpace &fespace,
-   const DofToQuad &maps, const Vector &pa_data, const Vector &x,
-   QuadratureFunction &QVec, Vector &y,
-   const int i_block, const int j_block);
-
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
                                   const DofToQuad &maps,
                                   const IntegrationRule &ir,
@@ -272,7 +259,7 @@ void ElasticityAddMultPA_(const int nDofs,
    });
 
    // Generic full-map transpose. Tensor-product elements normally bypass this
-   // reduction through ElasticityAddMultPATensor.
+   // reduction through ElasticityIntegrator::ApplyPAKernels.
    const auto QRead = Reshape(QVec.Read(), numPoints, qSize, d, numEls);
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    auto Y = Reshape(y.ReadWrite(), nDofs, qSize, numEls);

@@ -9,10 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#include "../bilininteg.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
 
 namespace mfem
 {
+
 namespace internal
 {
 
@@ -61,151 +63,6 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
    }
 }
 
-void ElasticityComponentAddMultPA(
-   const int dim, const int nDofs, const FiniteElementSpace &fespace,
-   const DofToQuad &maps, const Vector &pa_data, const Vector &x,
-   QuadratureFunction &QVec, Vector &y,
-   const int i_block, const int j_block)
-{
-   const int id = (dim << 8) | (i_block << 4) | j_block;
-   switch (id)
-   {
-      case 0x200:
-         ElasticityAddMultPA_<2,0,0>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x201:
-         ElasticityAddMultPA_<2,0,1>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x210:
-         ElasticityAddMultPA_<2,1,0>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x211:
-         ElasticityAddMultPA_<2,1,1>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x300:
-         ElasticityAddMultPA_<3,0,0>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x301:
-         ElasticityAddMultPA_<3,0,1>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x302:
-         ElasticityAddMultPA_<3,0,2>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x310:
-         ElasticityAddMultPA_<3,1,0>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x311:
-         ElasticityAddMultPA_<3,1,1>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x312:
-         ElasticityAddMultPA_<3,1,2>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x320:
-         ElasticityAddMultPA_<3,2,0>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x321:
-         ElasticityAddMultPA_<3,2,1>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      case 0x322:
-         ElasticityAddMultPA_<3,2,2>(nDofs, fespace, maps, pa_data,
-                                     x, QVec, y);
-         return;
-      default:
-         MFEM_ABORT("Invalid elasticity component block.");
-   }
-}
-
-#define MFEM_ELASTICITY_TENSOR_CASE_2D(D1D, Q1D) \
-   case ((D1D << 8) | Q1D): \
-      ElasticityAddMultPATensor2D_<D1D, Q1D>(numEls, maps, pa_data, x, y); \
-      return true
-
-#define MFEM_ELASTICITY_TENSOR_CASE_3D(D1D, Q1D) \
-   case ((D1D << 8) | Q1D): \
-      ElasticityAddMultPATensor3D_<D1D, Q1D>(numEls, maps, pa_data, x, y); \
-      return true
-
-bool ElasticityAddMultPATensor(const int dim, const int numEls,
-                               const DofToQuad &maps,
-                               const Vector &pa_data,
-                               const Vector &x, Vector &y)
-{
-   if (maps.mode != DofToQuad::TENSOR || maps.ndof > maps.nqpt)
-   {
-      return false;
-   }
-   const int id = (maps.ndof << 8) | maps.nqpt;
-
-   if (dim == 2)
-   {
-      switch (id)
-      {
-            MFEM_ELASTICITY_TENSOR_CASE_2D(2,2);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(2,3);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(2,4);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(3,3);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(3,4);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(3,5);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(4,4);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(4,5);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(4,6);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(5,5);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(5,6);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(5,7);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(6,6);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(6,7);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(6,8);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(7,7);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(7,8);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(7,9);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(8,8);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(8,9);
-            MFEM_ELASTICITY_TENSOR_CASE_2D(8,10);
-         default:
-            return false;
-      }
-   }
-   if (dim == 3)
-   {
-      switch (id)
-      {
-            MFEM_ELASTICITY_TENSOR_CASE_3D(2,2);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(2,3);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(2,4);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(3,3);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(3,4);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(3,5);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(4,4);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(4,5);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(4,6);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(5,5);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(5,6);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(5,7);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(6,6);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(6,7);
-            MFEM_ELASTICITY_TENSOR_CASE_3D(7,7);
-         default:
-            return false;
-      }
-   }
-   return false;
-}
-
-#undef MFEM_ELASTICITY_TENSOR_CASE_2D
-#undef MFEM_ELASTICITY_TENSOR_CASE_3D
-
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
                                   const DofToQuad &maps,
                                   const IntegrationRule &ir,
@@ -250,4 +107,109 @@ void ElasticityAssembleEA(const int dim, const int i_block,
 }
 
 } // namespace internal
+
+/// \cond DO_NOT_DOCUMENT
+
+template<int DIM, int D1D, int Q1D>
+ElasticityIntegrator::ApplyKernelType
+ElasticityIntegrator::ApplyPAKernels::Kernel()
+{
+   if constexpr (DIM == 2)
+   {
+      return internal::ElasticityAddMultPATensor2D_<D1D, Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return internal::ElasticityAddMultPATensor3D_<D1D, Q1D>;
+   }
+   MFEM_ABORT("Elasticity tensor PA is implemented only in dimensions 2 and 3.");
+   return nullptr;
+}
+
+ElasticityIntegrator::ApplyKernelType
+ElasticityIntegrator::ApplyPAKernels::Fallback(int dim, int, int)
+{
+   MFEM_CONTRACT_VAR(dim);
+   MFEM_ABORT("No specialized elasticity tensor PA kernel for this (D1D, Q1D).");
+   return nullptr;
+}
+
+ElasticityIntegrator::Kernels::Kernels()
+{
+#ifndef MFEM_ELASTICITY_PA_DISABLE_TENSOR
+   // 2D: Q = P+1, P+2, P+3
+   ElasticityIntegrator::AddSpecialization<2,2,2>();
+   ElasticityIntegrator::AddSpecialization<2,2,3>();
+   ElasticityIntegrator::AddSpecialization<2,2,4>();
+   ElasticityIntegrator::AddSpecialization<2,3,3>();
+   ElasticityIntegrator::AddSpecialization<2,3,4>();
+   ElasticityIntegrator::AddSpecialization<2,3,5>();
+   ElasticityIntegrator::AddSpecialization<2,4,4>();
+   ElasticityIntegrator::AddSpecialization<2,4,5>();
+   ElasticityIntegrator::AddSpecialization<2,4,6>();
+   ElasticityIntegrator::AddSpecialization<2,5,5>();
+   ElasticityIntegrator::AddSpecialization<2,5,6>();
+   ElasticityIntegrator::AddSpecialization<2,5,7>();
+   ElasticityIntegrator::AddSpecialization<2,6,6>();
+   ElasticityIntegrator::AddSpecialization<2,6,7>();
+   ElasticityIntegrator::AddSpecialization<2,6,8>();
+   ElasticityIntegrator::AddSpecialization<2,7,7>();
+   ElasticityIntegrator::AddSpecialization<2,7,8>();
+   ElasticityIntegrator::AddSpecialization<2,7,9>();
+   ElasticityIntegrator::AddSpecialization<2,8,8>();
+   ElasticityIntegrator::AddSpecialization<2,8,9>();
+   ElasticityIntegrator::AddSpecialization<2,8,10>();
+   // 3D
+   ElasticityIntegrator::AddSpecialization<3,2,2>();
+   ElasticityIntegrator::AddSpecialization<3,2,3>();
+   ElasticityIntegrator::AddSpecialization<3,2,4>();
+   ElasticityIntegrator::AddSpecialization<3,3,3>();
+   ElasticityIntegrator::AddSpecialization<3,3,4>();
+   ElasticityIntegrator::AddSpecialization<3,3,5>();
+   ElasticityIntegrator::AddSpecialization<3,4,4>();
+   ElasticityIntegrator::AddSpecialization<3,4,5>();
+   ElasticityIntegrator::AddSpecialization<3,4,6>();
+   ElasticityIntegrator::AddSpecialization<3,5,5>();
+   ElasticityIntegrator::AddSpecialization<3,5,6>();
+   ElasticityIntegrator::AddSpecialization<3,5,7>();
+   ElasticityIntegrator::AddSpecialization<3,6,6>();
+   ElasticityIntegrator::AddSpecialization<3,6,7>();
+   ElasticityIntegrator::AddSpecialization<3,7,7>();
+#endif
+}
+
+template<int DIM, int I, int J>
+ElasticityComponentIntegrator::ApplyKernelType
+ElasticityComponentIntegrator::ApplyPAKernels::Kernel()
+{
+   return internal::ElasticityAddMultPA_<DIM, I, J>;
+}
+
+ElasticityComponentIntegrator::ApplyKernelType
+ElasticityComponentIntegrator::ApplyPAKernels::Fallback(int dim, int i, int j)
+{
+   MFEM_ABORT("Invalid elasticity component block (" << dim << ", "
+              << i << ", " << j << ").");
+   return nullptr;
+}
+
+ElasticityComponentIntegrator::Kernels::Kernels()
+{
+   ElasticityComponentIntegrator::AddSpecialization<2,0,0>();
+   ElasticityComponentIntegrator::AddSpecialization<2,0,1>();
+   ElasticityComponentIntegrator::AddSpecialization<2,1,0>();
+   ElasticityComponentIntegrator::AddSpecialization<2,1,1>();
+   ElasticityComponentIntegrator::AddSpecialization<3,0,0>();
+   ElasticityComponentIntegrator::AddSpecialization<3,0,1>();
+   ElasticityComponentIntegrator::AddSpecialization<3,0,2>();
+   ElasticityComponentIntegrator::AddSpecialization<3,1,0>();
+   ElasticityComponentIntegrator::AddSpecialization<3,1,1>();
+   ElasticityComponentIntegrator::AddSpecialization<3,1,2>();
+   ElasticityComponentIntegrator::AddSpecialization<3,2,0>();
+   ElasticityComponentIntegrator::AddSpecialization<3,2,1>();
+   ElasticityComponentIntegrator::AddSpecialization<3,2,2>();
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
 } // namespace mfem
