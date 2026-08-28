@@ -22,9 +22,9 @@ constexpr real_t q_mu = 0.7;
 
 real_t MaterialFunction(const Vector &x)
 {
-   real_t value = 
-   1.45 + 0.19 * sin(2.0 * M_PI * x[0])
-                  + 0.13 * cos(3.0 * M_PI * x[1]);
+   real_t value =
+      1.45 + 0.19 * sin(2.0 * M_PI * x[0])
+      + 0.13 * cos(3.0 * M_PI * x[1]);
    if (x.Size() == 3)
    {
       value += 0.08 * x[2] + 0.05 * sin(M_PI * x[2]);
@@ -38,9 +38,8 @@ MFEM_HOST_DEVICE inline int ComponentVDof(const int dof,
                                           const int vdim,
                                           const int bynodes)
 {
-   return vdim == 1
-             ? dof
-             : (bynodes ? dof + ndofs * component : component + vdim * dof);
+   return vdim == 1 ? dof
+          : (bynodes ? dof + ndofs * component : component + vdim * dof);
 }
 
 void FillVector(Vector &v, const int seed)
@@ -68,7 +67,8 @@ void ScatterScalarComponent(const Vector &scalar,
    vector = 0.0;
    const auto *src = scalar.Read();
    auto *dest = vector.ReadWrite();
-   mfem::forall(n, [=] MFEM_HOST_DEVICE(int k) {
+   mfem::forall(n, [=] MFEM_HOST_DEVICE(int k)
+   {
       dest[ComponentVDof(k, component, ndofs, vdim, bynodes)] = src[k];
    });
 }
@@ -84,7 +84,8 @@ void GatherScalarComponent(const Vector &vector,
    const int bynodes = vector_fes.GetOrdering() == Ordering::byNODES;
    const auto *src = vector.Read();
    auto *dest = scalar.Write();
-   mfem::forall(n, [=] MFEM_HOST_DEVICE(int k) {
+   mfem::forall(n, [=] MFEM_HOST_DEVICE(int k)
+   {
       dest[k] = src[ComponentVDof(k, component, ndofs, vdim, bynodes)];
    });
 }
