@@ -693,9 +693,26 @@ protected:
    Array<int> unq_ltdof, unq_ldof;
    Array<int> unq_shr_i, unq_shr_j;
    using buffer_max_type = int64_t;
-   mutable Array<char> shr_buf, ext_buf;
+   mutable Array<buffer_max_type> shr_buf, ext_buf;
    mutable Array<MPI_Request> requests;
    mutable int num_requests;
+
+   template <class T> struct TypedBufferView
+   {
+      Array<buffer_max_type> &storage;
+      Array<T> view;
+      TypedBufferView(Array<buffer_max_type> &storage_) : storage(storage_)
+      {
+         view.GetMemory().CopyConvertPtr(storage.GetMemory());
+         view.SetSize(storage.Size());
+      }
+
+      ~TypedBufferView()
+      {
+         storage.GetMemory().CopyConvertPtr(view.GetMemory());
+         view.LoseData();
+      }
+   };
 };
 
 
