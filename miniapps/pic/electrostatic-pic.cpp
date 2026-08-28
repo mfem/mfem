@@ -304,6 +304,20 @@ int main(int argc, char* argv[])
 
    mfem::StopWatch sw;
    sw.Start();
+
+   if (ctx.output_csv_interval > 0)
+   {
+      std::string csv_prefix = "PIC_Part_";
+      particle_mover.UpdateParticleOutputFields();
+      Array<int> field_idx{ParticleMover::MOM, ParticleMover::PHI,
+                           ParticleMover::RHO},
+         tag_idx;
+      std::string file_name =
+         csv_prefix + mfem::to_padded_string(0, 6) + ".csv";
+      particle_mover.GetParticles().PrintCSV(file_name.c_str(), field_idx,
+                                             tag_idx);
+   }
+
    for (int step = 1; step <= ctx.nt; step++)
    {
       // Step the FieldSolver
