@@ -279,6 +279,7 @@ public:
 
    /// Make this Array a reference to the given sub-Memory of @a base.
    /// @a offset and @a size_ are in terms of T, i.e. &(*this)[0] == &(base[0]) + offset*sizeof(T)
+   /// U must be one of (T, char, unsigned char, std::byte)
    template <class U>
    inline void MakeRef(Memory<U> &base, int offset, int size_);
 
