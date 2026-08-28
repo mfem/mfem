@@ -308,11 +308,10 @@ DomainLFIntegrator::AssembleKernels::Kernel()
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
-                              const Vector &jac, const Array<real_t> &weights,
-                              const Array<real_t> &testBO,
-                              const Array<real_t> &testBC, const Vector &coeff,
-                              Vector &y, const int d, const int q)
+void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
+                       const Vector &jac, const Array<real_t> &weights,
+                       const Array<real_t> &testBO, const Array<real_t> &testBC,
+                       const Vector &coeff, Vector &y, const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Problem size too large.");
@@ -412,11 +411,11 @@ static void HdivDLFAssemble2D(const int ne, const Array<int> &markers,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
-                              const Vector &jac, const Array<real_t> &weights,
-                              const Array<real_t> &testBO,
-                              const Array<real_t> &testBC, const Vector &coeff,
-                              Vector &y, const int d, const int q)
+void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
+                       const Vector &jac, const Array<real_t> &weights,
+                       const Array<real_t> &testBO,
+                       const Array<real_t> &testBC, const Vector &coeff,
+                       Vector &y, const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
                "Problem size too large.");
@@ -581,11 +580,11 @@ static void HdivDLFAssemble3D(const int ne, const Array<int> &markers,
 /// @tparam T_D1D maximum number of dofs along any direction, or 0
 /// @tparam T_Q1D maximum number of quadrature points along any direction, or 0
 template <int T_D1D = 0, int T_Q1D = 0>
-static void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
-                               const Vector &jac, const Array<real_t> &weights,
-                               const Array<real_t> &testBO,
-                               const Array<real_t> &testBC, const Vector &coeff,
-                               Vector &y, const int d, const int q)
+void HcurlDLFAssemble3D(const int ne, const Array<int> &markers,
+                        const Vector &jac, const Array<real_t> &weights,
+                        const Array<real_t> &testBO,
+                        const Array<real_t> &testBC, const Vector &coeff,
+                        Vector &y, const int d, const int q)
 {
    MFEM_VERIFY(T_D1D || d <= DeviceDofQuadLimits::Get().HCURL_MAX_D1D,
                "Problem size too large.");
