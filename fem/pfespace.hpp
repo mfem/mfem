@@ -460,6 +460,41 @@ public:
    void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
                             int component = -1) const override;
 
+   /** @brief Extract the edge degrees of freedom of a boundary "loop" on a
+       parallel mesh (see the serial FiniteElementSpace::GetBoundaryLoopEdgeDofs
+       for the definition of a loop). This version removes the artificial
+       boundary edges that appear at processor boundaries, so the selected DOFs
+       are independent of the mesh partitioning.
+
+       As in the serial version, the @a boundary_edge_dofs_out, @a dof_edges and
+       @a dof_boundary_elements outputs share a single indexing describing the
+       same local DOF at each position.
+
+       Requirements:
+       - Mesh must be conforming (no hanging nodes)
+       - Mesh dimension must be >= 2
+       @param[in]  boundary_element_indices Array of boundary element indices.
+       @param[out] ess_tdof_list Essential true DOF indices, sorted ascending.
+       @param[out] boundary_edge_dofs_out Local boundary-loop DOF indices.
+       @param[out] ldof_marker Optional; marker of the boundary edge DOFs,
+                   derivable from @a boundary_edge_dofs_out via ListToMarker().
+       @param[out] dof_edges Optional; local edge index of each DOF.
+       @param[out] dof_boundary_elements Optional; a boundary element containing
+                   each DOF.
+       @param[out] ess_edge_list Optional array of edge indices, in one-to-one
+                                 correspondence with @a ess_tdof_list. An entry
+                                 is -1 when the true DOF is owned by this rank
+                                 but no local edge can be associated with it,
+                                 which can happen for a shared vertex DOF whose
+                                 boundary elements are all on other ranks. */
+   void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
+                                Array<int> &ess_tdof_list,
+                                Array<int> &boundary_edge_dofs_out,
+                                Array<int> *ldof_marker = nullptr,
+                                Array<int> *dof_edges = nullptr,
+                                Array<int> *dof_boundary_elements = nullptr,
+                                Array<int> *ess_edge_list = nullptr);
+
    /** If the given ldof is owned by the current processor, return its local
        tdof number, otherwise return -1 */
    int GetLocalTDofNumber(int ldof) const;
