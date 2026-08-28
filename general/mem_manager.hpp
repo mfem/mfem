@@ -1212,7 +1212,7 @@ inline void Memory<T>::MakeAlias(const Memory<U> &base, int offset, int size)
    static_assert(sizeof(U) == 1);
    MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
    MFEM_ASSERT(0 <= size, "invalid size = " << size);
-   MFEM_ASSERT((offset + size) * sizeof(T) <= base.capacity,
+   MFEM_ASSERT((offset + size) * sizeof(T) <= static_cast<size_t>(base.capacity),
                "invalid offset + size = " << (offset + size) * sizeof(T)
                << " > base capacity = "
                << base.capacity);
