@@ -1061,6 +1061,9 @@ void GroupCommunicator::ReduceBegin(const T *ldata) const
       return;
    }
 
+   // Set the reduce_op to nullptr -- unknown reduce operation
+   reduce_op = nullptr;
+
    int request_counter = 0;
    group_buf.SetSize(group_buf_size*sizeof(T));
    T *buf = (T *)group_buf.GetData();
@@ -1173,8 +1176,40 @@ void GroupCommunicator::ReduceBegin(const T *ldata) const
    num_requests = request_counter;
 }
 
+template <typename T>
+static inline bool OpIsSupportedDeviceOp(
+   void (*Op)(GroupCommunicator::OpData<T>),
+   DeviceGroupCommunicator::Op &device_op)
+{
+   // Materialize typed function pointers before comparison so stricter
+   // GPU toolchains do not have to resolve overloaded template names
+   // here.
+   using OpFunc = void (*)(GroupCommunicator::OpData<T>);
+   const OpFunc sum_op = &GroupCommunicator::template Sum<T>;
+   const OpFunc min_op = &GroupCommunicator::template Min<T>;
+   const OpFunc max_op = &GroupCommunicator::template Max<T>;
+   if (Op == sum_op)
+   {
+      device_op = DeviceGroupCommunicator::Op::Sum;
+   }
+   else if (Op == min_op)
+   {
+      device_op = DeviceGroupCommunicator::Op::Min;
+   }
+   else if (Op == max_op)
+   {
+      device_op = DeviceGroupCommunicator::Op::Max;
+   }
+   else
+   {
+      return false; // Op is not supported on device
+   }
+   return true; // Op is supported on device
+}
+
 template <class T>
-void GroupCommunicator::ReduceBegin(const Array<T> &ldata) const
+void GroupCommunicator::ReduceBegin(const Array<T> &ldata,
+                                    void (*Op)(OpData<T>)) const
 {
    MFEM_VERIFY(comm_lock == 0, "object is already in use");
    // layout is 0
@@ -1189,6 +1224,9 @@ void GroupCommunicator::ReduceBegin(const Array<T> &ldata) const
    }
 #endif
 
+   // Store the provided Op for inspection in ReduceEnd().
+   reduce_op = reinterpret_cast<decltype(reduce_op)>(Op);
+
    if (group_buf_size == 0)
    {
       comm_lock = 2; // 2 - locked for Reduce
@@ -1200,14 +1238,20 @@ void GroupCommunicator::ReduceBegin(const Array<T> &ldata) const
        have_ltdof_ldof &&
        mode == byNeighbor)
    {
-      GetDeviceComm().ReduceBeginLDofs(ldata);
-      comm_lock = 2; // 2 - locked for Reduce
-      return;
+      DeviceGroupCommunicator::Op device_op{};
+      if (Op == nullptr || OpIsSupportedDeviceOp(Op, device_op))
+      {
+         GetDeviceComm().ReduceBeginLDofs(ldata);
+         comm_lock = 2; // 2 - locked for Reduce
+         return;
+      }
    }
 
    // call the host version of this method with the data copied to host
    ReduceBegin(ldata.HostRead());
    // comm_lock is set by the above call
+   // reduce_op is set to nullptr by the above call -- restore its value:
+   reduce_op = reinterpret_cast<decltype(reduce_op)>(Op);
 }
 
 template <class T>
@@ -1319,36 +1363,25 @@ void GroupCommunicator::ReduceEnd(Array<T> &ldata, int layout,
        have_ltdof_ldof &&
        mode == byNeighbor)
    {
+      auto BeginOp = reinterpret_cast<void(*)(OpData<T>)>(reduce_op);
+      MFEM_VERIFY(BeginOp == nullptr || BeginOp == Op,
+                  "the reduction operations given to ReduceBegin() and "
+                  "ReduceEnd() do not match!");
       DeviceGroupCommunicator::Op device_op{};
-      auto op_is_supported_device_op = [&]() -> bool
+      const bool op_is_supported_device_op =
+         OpIsSupportedDeviceOp(Op, device_op);
+      // The primal definition of 'reduce_began_on_device' is:
+      //    (BeginOp == nullptr) || OpIsSupportedDeviceOp(BeginOp, device_op)
+      // However, due to the above MFEM_VERIFY, this is equivalent to the
+      // expression used below.
+      const bool reduce_began_on_device =
+         (BeginOp == nullptr) || op_is_supported_device_op;
+      if (reduce_began_on_device)
       {
-         // Materialize typed function pointers before comparison so stricter
-         // GPU toolchains do not have to resolve overloaded template names
-         // here.
-         using OpFunc = void (*)(OpData<T>);
-         const OpFunc sum_op = &GroupCommunicator::template Sum<T>;
-         const OpFunc min_op = &GroupCommunicator::template Min<T>;
-         const OpFunc max_op = &GroupCommunicator::template Max<T>;
-         if (Op == sum_op)
-         {
-            device_op = DeviceGroupCommunicator::Op::Sum;
-         }
-         else if (Op == min_op)
-         {
-            device_op = DeviceGroupCommunicator::Op::Min;
-         }
-         else if (Op == max_op)
-         {
-            device_op = DeviceGroupCommunicator::Op::Max;
-         }
-         else
-         {
-            return false; // Op is not supported on device
-         }
-         return true; // Op is supported on device
-      };
-      if (op_is_supported_device_op())
-      {
+         MFEM_VERIFY(op_is_supported_device_op,
+                     "the reduce operation 'Op' is not supported on device!"
+                     "\n\tTo resolve this error, provide 'Op' to ReduceBegin() "
+                     "in the second argument.");
          if (layout == 0)  // output is ldofs array
          {
             GetDeviceComm().ReduceEndLDofs(ldata, device_op);
@@ -2183,7 +2216,8 @@ template void GroupCommunicator::BcastBegin<int>(Array<int> &, int) const;
 template void GroupCommunicator::BcastEnd<int>(int *, int) const;
 template void GroupCommunicator::BcastEnd<int>(Array<int> &, int) const;
 template void GroupCommunicator::ReduceBegin<int>(const int *) const;
-template void GroupCommunicator::ReduceBegin<int>(const Array<int> &) const;
+template void GroupCommunicator::ReduceBegin<int>(
+   const Array<int> &, void (*)(OpData<int>)) const;
 template void GroupCommunicator::ReduceEnd<int>(
    int *, int, void (*)(OpData<int>)) const;
 template void GroupCommunicator::ReduceEnd<int>(
@@ -2197,7 +2231,7 @@ template void GroupCommunicator::BcastEnd<double>(double *, int) const;
 template void GroupCommunicator::BcastEnd<double>(Array<double> &, int) const;
 template void GroupCommunicator::ReduceBegin<double>(const double *) const;
 template void GroupCommunicator::ReduceBegin<double>(
-   const Array<double> &) const;
+   const Array<double> &, void (*)(OpData<double>)) const;
 template void GroupCommunicator::ReduceEnd<double>(
    double *, int, void (*)(OpData<double>)) const;
 template void GroupCommunicator::ReduceEnd<double>(
@@ -2210,7 +2244,8 @@ template void GroupCommunicator::BcastBegin<float>(Array<float> &, int) const;
 template void GroupCommunicator::BcastEnd<float>(float *, int) const;
 template void GroupCommunicator::BcastEnd<float>(Array<float> &, int) const;
 template void GroupCommunicator::ReduceBegin<float>(const float *) const;
-template void GroupCommunicator::ReduceBegin<float>(const Array<float> &) const;
+template void GroupCommunicator::ReduceBegin<float>(
+   const Array<float> &, void (*)(OpData<float>)) const;
 template void GroupCommunicator::ReduceEnd<float>(
    float *, int, void (*)(OpData<float>)) const;
 template void GroupCommunicator::ReduceEnd<float>(

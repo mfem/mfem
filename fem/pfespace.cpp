@@ -1147,9 +1147,8 @@ void ParFiniteElementSpace::Synchronize(Array<int> &ldof_marker) const
    MFEM_VERIFY(ldof_marker.Size() == GetVSize(), "invalid in/out array");
 
    // implement allreduce(|) as reduce(|) + broadcast
-   // (use host communications to avoid an issue when using the debug device)
-   gcomm->Reduce<int>(ldof_marker.HostReadWrite(), GroupCommunicator::BitOR);
-   gcomm->Bcast(ldof_marker.HostReadWrite());
+   gcomm->Reduce<int>(ldof_marker, GroupCommunicator::BitOR);
+   gcomm->Bcast(ldof_marker);
 }
 
 void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
@@ -2215,8 +2214,7 @@ void ParFiniteElementSpace::ConstructTrueDofs()
    gcomm->SetLTDofTable(ldof_ltdof);
 
    // have the group masters broadcast their ltdofs to the rest of the group
-   // (use host communication to avoid an issue when using the debug device)
-   gcomm->Bcast(ldof_ltdof.HostReadWrite());
+   gcomm->Bcast(ldof_ltdof);
 }
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()

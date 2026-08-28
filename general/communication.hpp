@@ -260,6 +260,7 @@ protected:
    // comm_lock: 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
    mutable int comm_lock;
    mutable int num_requests;
+   mutable void (*reduce_op)(); // used when 'comm_lock' is 2
    int *request_marker;
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
@@ -406,7 +407,10 @@ public:
        This method performs the operation on device if the device flag of
        @a ldata is set. However, not all communication modes and layouts are
        supported on device yet. In such cases, the operation is performed on
-       host. */
+       host.
+
+       It is expected that the device flag of @a ldata is the same as the device
+       flag of the data array provided to BcastBegin(). */
    template <class T> void BcastEnd(Array<T> &ldata, int layout) const;
 
    /** @brief Broadcast within each group where the master is the root.
@@ -461,13 +465,16 @@ public:
        The input data layout is an array on all ldofs, i.e. layout 0, see
        CopyGroupToBuffer().
 
-       The reduce operation will be specified when calling ReduceEnd(). This
-       method is instantiated for int, double, and float.
+       Generally, the reduce operation will be specified when calling
+       ReduceEnd(), however, if the reduction operation is not supported on
+       device, it must be given to this call as the optional second argument
+       @a Op. This method is instantiated for int, double, and float.
 
        This method performs the operation on device if the device flag of
        @a ldata is set. However, not all communication modes are supported on
        device yet. In such cases, the operation is performed on host. */
-   template <class T> void ReduceBegin(const Array<T> &ldata) const;
+   template <class T> void ReduceBegin(const Array<T> &ldata,
+                                       void (*Op)(OpData<T>) = nullptr) const;
 
    /** @brief Finalize reduction operation started with the host version of
        ReduceBegin().
@@ -502,6 +509,9 @@ public:
        @a ldata is set. However, not all communication modes and layouts are
        supported on device yet. In such cases, the operation is performed on
        host.
+
+       It is expected that the device flag of @a ldata is the same as the device
+       flag of the data array provided to ReduceBegin().
 
        @note If the output data layout is 2, then the data from the @a ldata
        array passed to this call is used in the reduction operation, instead of
