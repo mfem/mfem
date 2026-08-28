@@ -168,6 +168,7 @@ class Memory
 {
 protected:
    friend class MemoryManager;
+   template <class U> friend class Memory;
    friend void MemoryPrintFlags(unsigned flags);
    template <typename VT> friend class MemoryView;
 
@@ -413,6 +414,11 @@ public:
 
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
+
+   /// For internal use only.
+   /// U* must be reinterpret_cast-able to T*
+   template <class U>
+   inline void CopyConvertPtr(const Memory<U> &base);
 
    /// Set the device MemoryType to be used by the Memory object.
    /** If the specified @a d_mt is not a device MemoryType, i.e. not one of the
@@ -1163,6 +1169,16 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    const size_t s_bytes = size*sizeof(T);
    const size_t o_bytes = offset*sizeof(T);
    MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+}
+
+template <typename T>
+template <class U>
+inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
+{
+   h_ptr = reinterpret_cast<T*>(base.h_ptr); // can also use (T*)base
+   capacity = base.capacity;
+   h_mt = base.h_mt;
+   flags = base.flags;
 }
 
 template <typename T>

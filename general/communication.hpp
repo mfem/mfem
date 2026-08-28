@@ -696,6 +696,23 @@ protected:
    mutable Array<buffer_max_type> shr_buf, ext_buf;
    mutable Array<MPI_Request> requests;
    mutable int num_requests;
+
+   template <class T> struct TypedBufferView
+   {
+      Array<buffer_max_type> &storage;
+      Array<T> view;
+      TypedBufferView(Array<buffer_max_type> &storage_) : storage(storage_)
+      {
+         view.GetMemory().CopyConvertPtr(storage.GetMemory());
+         view.SetSize(storage.Size());
+      }
+
+      ~TypedBufferView()
+      {
+         storage.GetMemory().CopyConvertPtr(view.GetMemory());
+         view.LoseData();
+      }
+   };
 };
 
 

@@ -1952,9 +1952,6 @@ DeviceGroupCommunicator::DeviceGroupCommunicator(const GroupCommunicator &gc_)
 
    shr_buf.SetSize(shr_ltdof.Size());
    ext_buf.SetSize(ext_ldof.Size());
-   // Allocate the buffers on device to make sure the reinterpred_cast versions
-   // used by MakeTypedBufferView do not need to allocate on device -- they will
-   // allocate less memory if the type has smaller size.
    shr_buf.Write();
    ext_buf.Write();
 
@@ -1974,75 +1971,64 @@ DeviceGroupCommunicator::DeviceGroupCommunicator(const GroupCommunicator &gc_)
    num_requests = 0;
 }
 
-// Returns 'storage' reinterpret_cast as Array<T> &.
-// The returned array should not be resized in a way where new bigger
-// allocations are needed, unless the type T has the same size as BT.
-template <typename T, typename BT>
-static inline Array<T> &MakeTypedBufferView(Array<BT> &storage)
-{
-   static_assert(sizeof(BT) >= sizeof(T),
-                 "internal buffer type is too small for this view!");
-   return *reinterpret_cast<Array<T>*>(&storage);
-}
-
 template <typename T>
 void DeviceGroupCommunicator::BcastBeginTDofs(Array<T> &x_tdof) const
 {
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
-   Array<T> &ext_buf_t = MakeTypedBufferView<T>(ext_buf);
-   BcastBeginCopyTDofs(x_tdof, shr_buf_t);
-   ExchangeSharedToExternal(shr_buf_t, ext_buf_t);
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   BcastBeginCopyTDofs(x_tdof, shr_buf_t.view);
+   ExchangeSharedToExternal(shr_buf_t.view, ext_buf_t.view);
 }
 
 template <typename T>
 void DeviceGroupCommunicator::BcastBeginLDofs(Array<T> &x_ldof) const
 {
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
-   Array<T> &ext_buf_t = MakeTypedBufferView<T>(ext_buf);
-   BcastBeginCopyLDofs(x_ldof, shr_buf_t);
-   ExchangeSharedToExternal(shr_buf_t, ext_buf_t);
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   BcastBeginCopyLDofs(x_ldof, shr_buf_t.view);
+   ExchangeSharedToExternal(shr_buf_t.view, ext_buf_t.view);
 }
 
 template <typename T>
 void DeviceGroupCommunicator::BcastEndLDofs(Array<T> &x_ldof) const
 {
-   Array<T> &ext_buf_t = MakeTypedBufferView<T>(ext_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
    WaitAll();
-   BcastEndCopy(ext_buf_t, x_ldof);
+   BcastEndCopy(ext_buf_t.view, x_ldof);
 }
 
 template <typename T>
 void DeviceGroupCommunicator::ReduceBeginLDofs(const Array<T> &x_ldof) const
 {
-   Array<T> &ext_buf_t = MakeTypedBufferView<T>(ext_buf);
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
-   ReduceBeginCopy(x_ldof, ext_buf_t);
-   ExchangeExternalToShared(ext_buf_t, shr_buf_t);
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   ReduceBeginCopy(x_ldof, ext_buf_t.view);
+   ExchangeExternalToShared(ext_buf_t.view, shr_buf_t.view);
 }
 
 template <typename T>
 void DeviceGroupCommunicator::ReduceEndTDofs(Array<T> &x_tdof, Op op) const
 {
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
+   TypedBufferView<T> shr_buf_t(shr_buf);
    WaitAll();
-   ReduceEndAssembleTDofs(shr_buf_t, x_tdof, op);
+   ReduceEndAssembleTDofs(shr_buf_t.view, x_tdof, op);
 }
 
 template <typename T>
 void DeviceGroupCommunicator::ReduceEndLDofs(Array<T> &x_ldof, Op op) const
 {
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
+   TypedBufferView<T> shr_buf_t(shr_buf);
    WaitAll();
    if (unq_ldof.Size() == 0) { return; }
    if (op == Op::Sum)
    {
       internal::BooleanAddMult(unq_ldof, unq_shr_i, unq_shr_j,
-                               shr_buf_t, x_ldof);
+                               shr_buf_t.view, x_ldof);
    }
    else
    {
       internal::BooleanReduceApply(unq_ldof, unq_shr_i, unq_shr_j,
-                                   shr_buf_t, x_ldof, op);
+                                   shr_buf_t.view, x_ldof, op);
    }
 }
 
@@ -2060,13 +2046,13 @@ void DeviceGroupCommunicator::Prolongate(const Array<T> &x_tdof,
 {
    MFEM_ASSERT(x_tdof.Size() == gc.ltdof_ldof.Size(), "incompatible sizes!");
    MFEM_ASSERT(x_ldof.Size() == gc.ldof_size, "incompatible sizes!");
-   Array<T> &ext_buf_t = MakeTypedBufferView<T>(ext_buf);
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
-   BcastBeginCopyTDofs(x_tdof, shr_buf_t);
-   ExchangeSharedToExternal(shr_buf_t, ext_buf_t);
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   BcastBeginCopyTDofs(x_tdof, shr_buf_t.view);
+   ExchangeSharedToExternal(shr_buf_t.view, ext_buf_t.view);
    CopyTDofsToLDofs(x_tdof, x_ldof);
    WaitAll();
-   BcastEndCopy(ext_buf_t, x_ldof);
+   BcastEndCopy(ext_buf_t.view, x_ldof);
 }
 
 template <typename T>
@@ -2076,13 +2062,13 @@ void DeviceGroupCommunicator::ProlongateTranspose(const Array<T> &x_ldof,
 {
    MFEM_ASSERT(x_ldof.Size() == gc.ldof_size, "incompatible sizes!");
    MFEM_ASSERT(x_tdof.Size() == gc.ltdof_ldof.Size(), "incompatible sizes!");
-   Array<T> &ext_buf_t = MakeTypedBufferView<T>(ext_buf);
-   Array<T> &shr_buf_t = MakeTypedBufferView<T>(shr_buf);
-   ReduceBeginCopy(x_ldof, ext_buf_t);
-   ExchangeExternalToShared(ext_buf_t, shr_buf_t);
+   TypedBufferView<T> shr_buf_t(shr_buf);
+   TypedBufferView<T> ext_buf_t(ext_buf);
+   ReduceBeginCopy(x_ldof, ext_buf_t.view);
+   ExchangeExternalToShared(ext_buf_t.view, shr_buf_t.view);
    Restrict(x_ldof, x_tdof);
    WaitAll();
-   ReduceEndAssembleTDofs(shr_buf_t, x_tdof, op);
+   ReduceEndAssembleTDofs(shr_buf_t.view, x_tdof, op);
 }
 
 template <typename T>
