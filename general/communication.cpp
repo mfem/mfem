@@ -1983,7 +1983,7 @@ template <class T, class BT> struct TypedBufferView
 {
    Array<BT> &storage;
    Array<T> view;
-   TypedBufferView(Array<BT> &storage_) : storage(storage)
+   TypedBufferView(Array<BT> &storage_) : storage(storage_)
    {
       using buffer_max_type = BufferMaxTypeGetter::buffer_max_type;
       static_assert(sizeof(T) <= sizeof(buffer_max_type));
