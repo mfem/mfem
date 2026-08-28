@@ -56,6 +56,8 @@ public:
    /// Initialize charged particles with given parameters.
    /// @a init_case: 0 = Landau, 1 = two-stream, 2 = bump-on-tail.
    /// @a bump_fraction is the bump weight in f0 (case 2), not Landau alpha.
+   /// @a landau_x: case 0 only; perturb density along x, not all axes.
+   /// @a use_its: case 0 only; sample x from n(x)=[1+alpha cos(kx)]/L via ITS.
    void InitializeChargedParticles(const mfem::real_t& k,
                                    const mfem::real_t& alpha, mfem::real_t m,
                                    mfem::real_t q, mfem::real_t L,
@@ -63,6 +65,8 @@ public:
                                    mfem::real_t beam_variance,
                                    mfem::real_t bump_fraction, mfem::real_t vb,
                                    mfem::real_t vth, mfem::real_t vtb,
+                                   bool landau_x = false,
+                                   bool use_its = false,
                                    bool reproduce = false);
 
    /// Find Particles in mesh corresponding to E and field

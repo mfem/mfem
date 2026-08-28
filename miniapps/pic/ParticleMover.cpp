@@ -14,9 +14,34 @@
 #include <cmath>
 #include <ctime>
 #include <random>
+#include <vector>
 
 using namespace mfem;
 using namespace mfem::common;
+
+namespace
+{
+/// Invert F(x) = x/L + (alpha/(k*L)) sin(kx) for p(x) = [1 + alpha cos(kx)]/L.
+real_t LandauInverseCDF(real_t u, real_t L, real_t k, real_t alpha)
+{
+   MFEM_VERIFY(u >= 0.0 && u <= 1.0, "CDF sample u must be in [0, 1].");
+   const real_t target = L * u;
+   real_t x = target;
+   const real_t coeff = alpha / k;
+   for (int iter = 0; iter < 8; ++iter)
+   {
+      const real_t kx = k * x;
+      const real_t f = x + coeff * std::sin(kx) - target;
+      const real_t df = 1.0 + alpha * std::cos(kx);
+      const real_t dx = f / df;
+      x -= dx;
+      if (std::abs(dx) <= 1e-14 * (1.0 + std::abs(x))) { break; }
+   }
+   x = std::fmod(x, L);
+   if (x < 0.0) { x += L; }
+   return x;
+}
+}  // namespace
 
 ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
                              ParGridFunction* phi_gf_,
@@ -48,11 +73,14 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
 void ParticleMover::InitializeChargedParticles(
    const real_t& k, const real_t& alpha, real_t m, real_t q, real_t L,
    int init_case, real_t v0, real_t beam_variance, real_t bump_fraction,
-   real_t vb, real_t vth, real_t vtb, bool reproduce)
+   real_t vb, real_t vth, real_t vtb, bool landau_x, bool use_its,
+   bool reproduce)
 {
    MFEM_VERIFY(init_case == 0 || init_case == 1 || init_case == 2,
                "init_case must be 0 (Landau), 1 (two-stream), or 2 "
                "(bump-on-tail).");
+   MFEM_VERIFY(!use_its || init_case == 0,
+               "use_its is only valid for init_case 0 (Landau).");
    MFEM_VERIFY(beam_variance >= 0.0, "beam_variance must be non-negative.");
    MFEM_VERIFY(bump_fraction >= 0.0 && bump_fraction <= 1.0,
                "bump_fraction must be in [0, 1].");
@@ -68,6 +96,25 @@ void ParticleMover::InitializeChargedParticles(
 
    const int dim = charged_particles->Coords().GetVDim();
    const real_t beam_std = std::sqrt(beam_variance);
+   const int local_n = charged_particles->GetNParticles();
+
+   int global_offset = 0;
+   int global_npt = local_n;
+   if (init_case == 0 && use_its)
+   {
+      MPI_Comm comm = charged_particles->GetComm();
+      int comm_size = 1;
+      MPI_Comm_size(comm, &comm_size);
+      std::vector<int> counts(comm_size);
+      MPI_Allgather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT, comm);
+      global_npt = 0;
+      for (int r = 0; r < comm_size; ++r)
+      {
+         if (r < rank) { global_offset += counts[r]; }
+         global_npt += counts[r];
+      }
+      MFEM_VERIFY(global_npt > 0, "Need at least one particle for Landau ITS.");
+   }
 
    ParticleVector& X = charged_particles->Coords();
    ParticleVector& P = charged_particles->Field(ParticleMover::MOM);
@@ -78,18 +125,29 @@ void ParticleMover::InitializeChargedParticles(
    {
       if (init_case == 0)
       {
-         // Landau damping: Maxwellian momentum, sin(kx) density perturbation.
+         // Landau damping: Maxwellian momentum, cos(kx) density perturbation in x.
          for (int d = 0; d < dim; d++) { P(i, d) = m * norm_dist(gen); }
 
-         for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
-
-         for (int d = 0; d < dim; d++)
+         if (use_its)
          {
-            real_t x = X(i, d);
-            x -= (alpha / k) * std::sin(k * x);
-            x = std::fmod(x, L);
-            if (x < 0) { x += L; }
-            X(i, d) = x;
+            // Quiet inverse-transform sampling for n(x) ~ [1 + alpha cos(kx)]/L.
+            const real_t u = (global_offset + i + 0.5) / global_npt;
+            X(i, 0) = LandauInverseCDF(u, L, k, alpha);
+            for (int d = 1; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
+         }
+         else
+         {
+            for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
+
+            const int d_end = landau_x ? 1 : dim;
+            for (int d = 0; d < d_end; d++)
+            {
+               real_t x = X(i, d);
+               x -= (alpha / k) * std::sin(k * x);
+               x = std::fmod(x, L);
+               if (x < 0) { x += L; }
+               X(i, d) = x;
+            }
          }
       }
       else if (init_case == 1)

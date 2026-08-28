@@ -42,6 +42,8 @@
 //
 //   2D2V Linear Landau damping test case (Ricketson & Hu, 2025):
 //      mpirun -n 4 ./electrostatic-pic -case 0 -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -diff 10 -eoi 10
+//   2D2V Landau with x-only cos(kx) density via inverse CDF (quiet start):
+//      mpirun -n 4 ./electrostatic-pic -case 0 -landau1d -use-its -rdi 1 -npt 409600 -k 0.2855993321 -a 0.05 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis
 //   2D2V Two-stream instability (warm beams):
 //      mpirun -n 4 ./electrostatic-pic -case 1 -rdi 1 -npt 409600 -k 0.2855993321  -v0 0.5 -vvar 0.01 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis
 //   2D2V Bump-on-tail:
@@ -79,12 +81,16 @@ struct PICContext
 
    real_t k = 1.0;      ///< Wave number for initial distribution.
    real_t alpha = 0.1;  ///< Density perturbation amplitude.
+   bool landau_x =
+      false;  ///< Case 0: perturb density along x only (not all axes).
+   bool use_its =
+      false;  ///< Case 0: sample x from n~[1+alpha cos(kx)]/L via inverse CDF.
 
    int init_case = 0;  ///< 0 = Landau, 1 = two-stream, 2 = bump-on-tail.
    real_t v0 = 0.5;    ///< Counter-streaming beam speed (case 1).
    real_t beam_variance =
       0.0;  ///< Variance of each counter-streaming beam (case 1).
-   real_t bump_fraction = 0.1;  ///< Bump weight in f0 (case 2; not Landau alpha).
+   real_t bump_fraction = 0.1;  ///< Bump weight in f0 (case 2).
    real_t vb = 4.5;             ///< Bump beam speed (case 2).
    real_t vth = 1.0;            ///< Bulk thermal speed (case 2).
    real_t vtb = 0.5;            ///< Bump thermal speed (case 2).
@@ -164,12 +170,19 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.alpha, "-a", "--alpha",
                   "Perturbation amplitude for initial distribution "
                   "(case 0 only).");
+   args.AddOption(&ctx.landau_x, "-landau1d", "--landau-1d",
+                  "-no-landau1d", "--no-landau-1d",
+                  "apply sin(kx) density perturbation along x only (case 0 only).");
+   args.AddOption(&ctx.use_its, "-use-its", "--use-its", "-no-use-its",
+                  "--no-use-its",
+                  "sample x from n~[1+alpha cos(kx)]/L via inverse CDF "
+                  "(case 0 only).");
    args.AddOption(&ctx.v0, "-v0", "--v0",
                   "Counter-streaming beam speed (case 1 only).");
    args.AddOption(&ctx.beam_variance, "-vvar", "--beam-variance",
                   "Variance of each counter-streaming beam (case 1 only).");
    args.AddOption(&ctx.bump_fraction, "-bf", "--bump-fraction",
-                  "Bump weight alpha in f0 (case 2 only).");
+                  "Bump weight in f0 (case 2 only).");
    args.AddOption(&ctx.vb, "-vb", "--vb",
                   "Bump beam speed v_b (case 2 only).");
    args.AddOption(&ctx.vth, "-vth", "--vth",
@@ -206,6 +219,8 @@ int main(int argc, char* argv[])
                "k must be nonzero for displacement initialization.");
    MFEM_VERIFY(ctx.init_case == 0 || ctx.init_case == 1 || ctx.init_case == 2,
                "case must be 0 (Landau), 1 (two-stream), or 2 (bump-on-tail).");
+   MFEM_VERIFY(!ctx.use_its || ctx.init_case == 0,
+               "-use-its is only valid for case 0 (Landau).");
    MFEM_VERIFY(ctx.beam_variance >= 0.0,
                "beam-variance must be non-negative.");
    MFEM_VERIFY(ctx.bump_fraction >= 0.0 && ctx.bump_fraction <= 1.0,
@@ -281,7 +296,7 @@ int main(int argc, char* argv[])
    particle_mover.InitializeChargedParticles(
       ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
       ctx.beam_variance, ctx.bump_fraction, ctx.vb, ctx.vth, ctx.vtb,
-      ctx.reproduce);
+      ctx.landau_x, ctx.use_its, ctx.reproduce);
 
    // 8. Start the main loop
    real_t t = 0;
