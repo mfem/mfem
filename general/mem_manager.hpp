@@ -168,6 +168,7 @@ class Memory
 {
 protected:
    friend class MemoryManager;
+   template <class U> friend class Memory;
    friend void MemoryPrintFlags(unsigned flags);
    template <typename VT> friend class MemoryView;
 
@@ -218,6 +219,27 @@ public:
    {
       *this = other;
       other.Reset();
+   }
+
+   /// Makes an Alias from one of Memory<char>, Memory<unsigned char>, or
+   /// Memory<std::byte>
+   template <class U, class = std::enable_if_t<
+                !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
+                (std::is_same_v<std::decay_t<U>, char> ||
+                 std::is_same_v<std::decay_t<U>, unsigned char> ||
+                 std::is_same_v<std::decay_t<U>, std::byte>)>>
+   Memory(const Memory<U> &base)
+   {
+      MakeAlias(base, 0, 0);
+   }
+   template <class U, class = std::enable_if_t<
+                !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
+                (std::is_same_v<std::decay_t<U>, char> ||
+                 std::is_same_v<std::decay_t<U>, unsigned char> ||
+                 std::is_same_v<std::decay_t<U>, std::byte>)>>
+   Memory(const Memory<U> &base, int offset, int size)
+   {
+      MakeAlias(base, offset, size);
    }
 
    /// Copy-assignment operator: default.
@@ -414,6 +436,16 @@ public:
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
 
+   /// Make this an Alias of a Memory<char>, Memory<unsigned char>, or
+   /// Memory<std::byte>.
+   /// @a size and @a offset are in terms of type T, i.e. &(*this)[0] == &(base[0]) + offset*sizeof(T)
+   template <class U, class = std::enable_if_t<
+                !std::is_same_v<std::decay_t<U>, std::decay_t<T>> &&
+                (std::is_same_v<std::decay_t<U>, char> ||
+                 std::is_same_v<std::decay_t<U>, unsigned char> ||
+                 std::is_same_v<std::decay_t<U>, std::byte>)>>
+   inline void MakeAlias(const Memory<U> &base, int offset, int size);
+
    /// Set the device MemoryType to be used by the Memory object.
    /** If the specified @a d_mt is not a device MemoryType, i.e. not one of the
        types in MemoryClass::DEVICE, then this method will return immediately.
@@ -511,24 +543,32 @@ public:
        that use the same host/device pointers, or when @a *this is an alias
        (sub-Memory) of @a other. Typically, this method should be called after
        @a other is manipulated in a way that changes its pointer validity flags
-       (e.g. it was moved from device to host memory). */
-   inline void Sync(const Memory &other) const;
+       (e.g. it was moved from device to host memory).
+       @tparam U musst either be the same type as T, or T must be one of (char,
+      unsigned char, std::byte)
+   */
+   template <class U, class = std::enable_if_t<
+                std::is_same_v<std::decay_t<U>, std::decay_t<T>> ||
+                std::is_same_v<std::decay_t<T>, char> ||
+                std::is_same_v<std::decay_t<T>, unsigned char> ||
+                std::is_same_v<std::decay_t<T>, std::byte>>>
+                inline void Sync(const Memory<U> &other) const;
 
-   /** @brief Update the alias Memory @a *this to match the memory location (all
-       valid locations) of its base Memory, @a base. */
-   /** This method is useful when alias Memory is moved and manipulated in a
-       different memory space. Such operations render the pointer validity flags
-       of the base incorrect. Calling this method will ensure that @a base is
-       up-to-date. Note that this is achieved by moving/copying @a *this (if
-       necessary), and not @a base. */
-   inline void SyncAlias(const Memory &base, int alias_size) const;
+             /** @brief Update the alias Memory @a *this to match the memory location (all
+                 valid locations) of its base Memory, @a base. */
+             /** This method is useful when alias Memory is moved and manipulated in a
+                 different memory space. Such operations render the pointer validity flags
+                 of the base incorrect. Calling this method will ensure that @a base is
+                 up-to-date. Note that this is achieved by moving/copying @a *this (if
+                 necessary), and not @a base. */
+             inline void SyncAlias(const Memory &base, int alias_size) const;
 
-   /** @brief Return a MemoryType that is currently valid. If both the host and
-       the device pointers are currently valid, then the device memory type is
-       returned. */
-   inline MemoryType GetMemoryType() const;
+             /** @brief Return a MemoryType that is currently valid. If both the host and
+                 the device pointers are currently valid, then the device memory type is
+                 returned. */
+             inline MemoryType GetMemoryType() const;
 
-   /// Return the host MemoryType of the Memory object.
+             /// Return the host MemoryType of the Memory object.
    inline MemoryType GetHostMemoryType() const { return h_mt; }
 
    /** @brief Return the device MemoryType of the Memory object. If the device
@@ -1123,14 +1163,14 @@ template <typename T>
 inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
 {
    MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
-   MFEM_ASSERT(0 <= size, "invalid size = " << size);
-   MFEM_ASSERT(offset + size <= base.capacity,
-               "invalid offset + size = " << offset + size
-               << " > base capacity = " << base.capacity);
-   capacity = size;
-   h_mt = base.h_mt;
-   h_ptr = base.h_ptr + offset;
-   if (!(base.flags & Registered))
+               MFEM_ASSERT(0 <= size, "invalid size = " << size);
+               MFEM_ASSERT(offset + size <= base.capacity,
+                           "invalid offset + size = " << offset + size
+                           << " > base capacity = " << base.capacity);
+               capacity = size;
+               h_mt = base.h_mt;
+               h_ptr = base.h_ptr + offset;
+               if (!(base.flags & Registered))
    {
       if (
 #if !defined(HYPRE_USING_GPU)
@@ -1149,6 +1189,55 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
       {
          // Register 'base':
          MemoryManager::Register_(base.h_ptr, nullptr, base.capacity*sizeof(T),
+                                  base.h_mt, base.flags & OWNS_HOST,
+                                  base.flags & ALIAS, base.flags);
+      }
+      else
+      {
+         // Copy the flags from 'base', setting the ALIAS flag to true, and
+         // setting both OWNS_HOST and OWNS_DEVICE to false:
+         flags = (base.flags | ALIAS) & ~(OWNS_HOST | OWNS_DEVICE);
+         return;
+      }
+   }
+   const size_t s_bytes = size*sizeof(T);
+   const size_t o_bytes = offset*sizeof(T);
+   MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+}
+
+template <typename T>
+template <class U, class>
+inline void Memory<T>::MakeAlias(const Memory<U> &base, int offset, int size)
+{
+   static_assert(sizeof(U) == 1);
+   MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT((offset + size) * sizeof(T) <= base.capacity,
+               "invalid offset + size = " << (offset + size) * sizeof(T)
+               << " > base capacity = "
+               << base.capacity);
+   capacity = size;
+   h_mt = base.h_mt;
+   h_ptr = reinterpret_cast<T*>(base.h_ptr) + offset;
+   if (!(base.flags & Registered))
+   {
+      if (
+#if !defined(HYPRE_USING_GPU)
+         // If the following condition is true then MemoryManager::Exists()
+         // should also be true:
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
+#elif MFEM_HYPRE_VERSION < 23100
+         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+         // register the 'base' if the MemoryManager::Exists():
+         MemoryManager::Exists()
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType()) ||
+         (MemoryManager::Exists() && HypreUsingGPU())
+#endif
+      )
+      {
+         // Register 'base':
+         MemoryManager::Register_(base.h_ptr, nullptr, base.capacity,
                                   base.h_mt, base.flags & OWNS_HOST,
                                   base.flags & ALIAS, base.flags);
       }
@@ -1295,11 +1384,12 @@ inline T *Memory<T>::Write(MemoryClass mc, int size)
 }
 
 template <typename T>
-inline void Memory<T>::Sync(const Memory &other) const
+template <class U, class>
+inline void Memory<T>::Sync(const Memory<U> &other) const
 {
    if (!(flags & Registered) && (other.flags & Registered))
    {
-      MFEM_ASSERT(h_ptr == other.h_ptr &&
+      MFEM_ASSERT(reinterpret_cast<T *>(h_ptr) == other.h_ptr &&
                   (flags & ALIAS) == (other.flags & ALIAS),
                   "invalid input");
       flags = (flags | Registered) & ~(OWNS_DEVICE | OWNS_INTERNAL);
@@ -1307,6 +1397,19 @@ inline void Memory<T>::Sync(const Memory &other) const
    flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
            (other.flags & (VALID_HOST | VALID_DEVICE));
 }
+
+// template <typename T>
+// inline void Memory<T>::SyncBuffer(const Memory<U> &other) const
+// {
+//    if (!(flags & Registered) && (other.flags & Registered))
+//    {
+//       MFEM_ASSERT((flags & ALIAS) == (other.flags & ALIAS),
+//                   "invalid input");
+//       flags = (flags | Registered) & ~(OWNS_DEVICE | OWNS_INTERNAL);
+//    }
+//    flags = (flags & ~(VALID_HOST | VALID_DEVICE)) |
+//            (other.flags & (VALID_HOST | VALID_DEVICE));
+// }
 
 template <typename T>
 inline void Memory<T>::SyncAlias(const Memory &base, int alias_size) const

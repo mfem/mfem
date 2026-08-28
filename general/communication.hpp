@@ -693,7 +693,7 @@ protected:
    Array<int> unq_ltdof, unq_ldof;
    Array<int> unq_shr_i, unq_shr_j;
    using buffer_max_type = int64_t;
-   mutable Array<buffer_max_type> shr_buf, ext_buf;
+   mutable Array<char> shr_buf, ext_buf;
    mutable Array<MPI_Request> requests;
    mutable int num_requests;
 };
