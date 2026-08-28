@@ -22,7 +22,7 @@ using namespace mfem::common;
 namespace
 {
 /// Invert F(x) = x/L + (alpha/(k*L)) sin(kx) for p(x) = [1 + alpha cos(kx)]/L.
-real_t LandauInverseCDF(real_t u, real_t L, real_t k, real_t alpha)
+real_t InverseCDF(real_t u, real_t L, real_t k, real_t alpha)
 {
    MFEM_VERIFY(u >= 0.0 && u <= 1.0, "CDF sample u must be in [0, 1].");
    const real_t target = L * u;
@@ -40,6 +40,75 @@ real_t LandauInverseCDF(real_t u, real_t L, real_t k, real_t alpha)
    x = std::fmod(x, L);
    if (x < 0.0) { x += L; }
    return x;
+}
+
+void GlobalParticleRange(MPI_Comm comm, int rank, int local_n, int &global_offset,
+                       int &global_npt)
+{
+   int comm_size = 1;
+   MPI_Comm_size(comm, &comm_size);
+   std::vector<int> counts(comm_size);
+   MPI_Allgather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT, comm);
+   global_offset = 0;
+   global_npt = 0;
+   for (int r = 0; r < comm_size; ++r)
+   {
+      if (r < rank) { global_offset += counts[r]; }
+      global_npt += counts[r];
+   }
+}
+
+/// 2D cold-beam quiet lattice indices and y on [0, L).
+void ColdBeamLatticeIndices(int gid, int global_npt, int &n_x, int &n_y, int &ix,
+                            int &iy)
+{
+   n_x = std::max(1, static_cast<int>(std::lround(std::sqrt(global_npt))));
+   n_y = (global_npt + n_x - 1) / n_x;
+   ix = gid % n_x;
+   iy = gid / n_x;
+}
+
+real_t ColdBeamLatticeY(int iy, int n_y, real_t L)
+{
+   return (iy + 0.5) * L / n_y;
+}
+
+real_t ColdBeamLatticeX(int ix, int n_x, real_t L)
+{
+   return (ix + 0.5) * L / n_x;
+}
+
+real_t WrapPeriodic(real_t x, real_t L)
+{
+   x = std::fmod(x, L);
+   if (x < 0.0) { x += L; }
+   return x;
+}
+
+/// Given lattice coordinate xi in [0, L), solve x + (alpha/k) sin(k x) = xi.
+real_t PerturbLatticeX(real_t xi, real_t L, real_t k, real_t alpha)
+{
+   if (alpha == 0.0) { return xi; }
+   real_t x = xi;
+   for (int iter = 0; iter < 8; ++iter)
+   {
+      const real_t kx = k * x;
+      const real_t f = x + (alpha / k) * std::sin(kx) - xi;
+      const real_t df = 1.0 + alpha * std::cos(kx);
+      const real_t dx = f / df;
+      x -= dx;
+      if (std::abs(dx) <= 1e-14 * (1.0 + std::abs(x))) { break; }
+   }
+   return WrapPeriodic(x, L);
+}
+
+/// Lagrangian sin(kx) density perturbation with amplitude alpha.
+real_t ApplySinDensityPerturbation(real_t x, real_t L, real_t k_exc,
+                                   real_t alpha)
+{
+   if (alpha == 0.0) { return x; }
+   x -= (alpha / k_exc) * std::sin(k_exc * x);
+   return WrapPeriodic(x, L);
 }
 }  // namespace
 
@@ -71,21 +140,27 @@ ParticleMover::ParticleMover(MPI_Comm comm, ParGridFunction* E_gf_,
 }
 
 void ParticleMover::InitializeChargedParticles(
-   const real_t& k, const real_t& alpha, real_t m, real_t q, real_t L,
+   const real_t& k, int mode, const real_t& alpha, real_t m, real_t q, real_t L,
    int init_case, real_t v0, real_t beam_variance, real_t bump_fraction,
    real_t vb, real_t vth, real_t vtb, bool landau_x, bool use_its,
    bool reproduce)
 {
-   MFEM_VERIFY(init_case == 0 || init_case == 1 || init_case == 2,
-               "init_case must be 0 (Landau), 1 (two-stream), or 2 "
-               "(bump-on-tail).");
+   MFEM_VERIFY(mode >= 1, "mode must be >= 1.");
+   const real_t k_exc = mode * k;
+   MFEM_VERIFY(init_case == 0 || init_case == 1 || init_case == 2 ||
+                  init_case == 3,
+               "init_case must be 0 (Landau), 1 (two-stream), 2 "
+               "(bump-on-tail), or 3 (cold-beam).");
    MFEM_VERIFY(!use_its || init_case == 0,
                "use_its is only valid for init_case 0 (Landau).");
    MFEM_VERIFY(beam_variance >= 0.0, "beam_variance must be non-negative.");
-   MFEM_VERIFY(bump_fraction >= 0.0 && bump_fraction <= 1.0,
-               "bump_fraction must be in [0, 1].");
-   MFEM_VERIFY(vth > 0.0, "vth must be positive.");
-   MFEM_VERIFY(vtb > 0.0, "vtb must be positive.");
+   if (init_case == 2)
+   {
+      MFEM_VERIFY(bump_fraction >= 0.0 && bump_fraction <= 1.0,
+                  "bump_fraction must be in [0, 1].");
+      MFEM_VERIFY(vth > 0.0, "vth must be positive.");
+      MFEM_VERIFY(vtb > 0.0, "vtb must be positive.");
+   }
 
    int rank;
    MPI_Comm_rank(charged_particles->GetComm(), &rank);
@@ -95,25 +170,18 @@ void ParticleMover::InitializeChargedParticles(
    std::normal_distribution<> norm_dist(0.0, 1.0);
 
    const int dim = charged_particles->Coords().GetVDim();
+   MFEM_VERIFY(init_case != 3 || dim == 2,
+               "init_case 3 (cold-beam) requires 2D spatial dimension.");
    const real_t beam_std = std::sqrt(beam_variance);
    const int local_n = charged_particles->GetNParticles();
 
    int global_offset = 0;
    int global_npt = local_n;
-   if (init_case == 0 && use_its)
+   if ((init_case == 0 && use_its) || init_case == 3)
    {
-      MPI_Comm comm = charged_particles->GetComm();
-      int comm_size = 1;
-      MPI_Comm_size(comm, &comm_size);
-      std::vector<int> counts(comm_size);
-      MPI_Allgather(&local_n, 1, MPI_INT, counts.data(), 1, MPI_INT, comm);
-      global_npt = 0;
-      for (int r = 0; r < comm_size; ++r)
-      {
-         if (r < rank) { global_offset += counts[r]; }
-         global_npt += counts[r];
-      }
-      MFEM_VERIFY(global_npt > 0, "Need at least one particle for Landau ITS.");
+      GlobalParticleRange(charged_particles->GetComm(), rank, local_n,
+                          global_offset, global_npt);
+      MFEM_VERIFY(global_npt > 0, "Need at least one particle.");
    }
 
    ParticleVector& X = charged_particles->Coords();
@@ -132,7 +200,7 @@ void ParticleMover::InitializeChargedParticles(
          {
             // Quiet inverse-transform sampling for n(x) ~ [1 + alpha cos(kx)]/L.
             const real_t u = (global_offset + i + 0.5) / global_npt;
-            X(i, 0) = LandauInverseCDF(u, L, k, alpha);
+            X(i, 0) = InverseCDF(u, L, k_exc, alpha);
             for (int d = 1; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
          }
          else
@@ -142,11 +210,7 @@ void ParticleMover::InitializeChargedParticles(
             const int d_end = landau_x ? 1 : dim;
             for (int d = 0; d < d_end; d++)
             {
-               real_t x = X(i, d);
-               x -= (alpha / k) * std::sin(k * x);
-               x = std::fmod(x, L);
-               if (x < 0) { x += L; }
-               X(i, d) = x;
+               X(i, d) = ApplySinDensityPerturbation(X(i, d), L, k_exc, alpha);
             }
          }
       }
@@ -160,7 +224,7 @@ void ParticleMover::InitializeChargedParticles(
 
          for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
       }
-      else  // init_case == 2
+      else if (init_case == 2)
       {
          // Bump-on-tail: (1-bf)*N(0,vth^2) + bf*N(vb,vtb^2) in vx.
          const real_t vx =
@@ -172,6 +236,21 @@ void ParticleMover::InitializeChargedParticles(
          for (int d = 1; d < dim; d++) { P(i, d) = m * vth * norm_dist(gen); }
 
          for (int d = 0; d < dim; d++) { X(i, d) = real_dist(gen) * L; }
+      }
+      else  // init_case == 3
+      {
+         // 2D quiet lattice (xi_i, y_j), then 1D ITS in x only: x_i + (alpha/k) sin(k x_i) = xi_i.
+         // x_i depends on column i only (same for every y-row); y_j is unperturbed.
+         const int gid = global_offset + i;
+         int n_x = 0, n_y = 0, ix = 0, iy = 0;
+         ColdBeamLatticeIndices(gid, global_npt, n_x, n_y, ix, iy);
+
+         const real_t xi = ColdBeamLatticeX(ix, n_x, L);
+         X(i, 0) = PerturbLatticeX(xi, L, k_exc, alpha);
+         X(i, 1) = ColdBeamLatticeY(iy, n_y, L);
+
+         P(i, 0) = m * v0;
+         P(i, 1) = 0.0;
       }
 
       M(i) = m;

@@ -54,11 +54,13 @@ public:
                  mfem::Ordering::Type pdata_ordering);
 
    /// Initialize charged particles with given parameters.
-   /// @a init_case: 0 = Landau, 1 = two-stream, 2 = bump-on-tail.
+   /// @a init_case: 0 = Landau, 1 = two-stream, 2 = bump-on-tail, 3 = cold-beam.
    /// @a bump_fraction is the bump weight in f0 (case 2), not Landau alpha.
    /// @a landau_x: case 0 only; perturb density along x, not all axes.
-   /// @a use_its: case 0 only; sample x from n(x)=[1+alpha cos(kx)]/L via ITS.
-   void InitializeChargedParticles(const mfem::real_t& k,
+   /// @a use_its: case 0 only; sample x from n(x)=[1+alpha cos(k_exc x)]/L via ITS.
+   /// @a k sets domain length L = 2*pi/k; excitation uses k_exc = mode*k.
+   /// @a alpha: excitation magnitude (cases 0 and 3).
+   void InitializeChargedParticles(const mfem::real_t& k, int mode,
                                    const mfem::real_t& alpha, mfem::real_t m,
                                    mfem::real_t q, mfem::real_t L,
                                    int init_case, mfem::real_t v0,

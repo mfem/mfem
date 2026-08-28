@@ -48,6 +48,8 @@
 //      mpirun -n 4 ./electrostatic-pic -case 1 -rdi 1 -npt 409600 -k 0.2855993321  -v0 0.5 -vvar 0.01 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis
 //   2D2V Bump-on-tail:
 //      mpirun -n 4 ./electrostatic-pic -case 2 -rdi 1 -npt 409600 -k 0.2855993321 -bf 0.1 -vb 4.5 -vth 1.0 -vtb 0.5 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis
+//   2D2V Cold-beam free-streaming test (x ITS from n~[1+alpha cos(mode*k*x)]/L):
+//      mpirun -n 4 ./electrostatic-pic -case 3 -rdi 1 -npt 409600 -k 1 -mode 1 -a 0.1 -v0 0.5 -nt 200 -nx 32 -ny 32 -O 1 -oci 1000 -dt 0.1 -no-vis -diff 0
 //   3D3V Linear Landau damping test case (Zheng et al., 2025):
 //      mpirun -n 128 ./electrostatic-pic -dim 3 -rdi 1 -npt 40960000 -k 0.5 -a 0.01 -nt 100 -nx 32 -ny 32 -nz 32 -O 1 -oci 1000 -dt 0.02 -no-vis
 #include <fstream>
@@ -79,15 +81,16 @@ struct PICContext
    real_t q = -1.0;    ///< Particle charge. set to -1: auto-normalized
    real_t m = -1.0;    ///< Particle mass. set to -1: auto-normalized
 
-   real_t k = 1.0;      ///< Wave number for initial distribution.
-   real_t alpha = 0.1;  ///< Density perturbation amplitude.
+   real_t k = 1.0;      ///< Fundamental wave number: L = 2*pi/k (lambda = L).
+   int mode = 1;        ///< Excitation mode m (lambda = L/m); k_exc = mode*k.
+   real_t alpha = 0.1;  ///< Excitation amplitude (cases 0 and 3).
    bool landau_x =
       false;  ///< Case 0: perturb density along x only (not all axes).
    bool use_its =
-      false;  ///< Case 0: sample x from n~[1+alpha cos(kx)]/L via inverse CDF.
+      false;  ///< Case 0: sample x from n~[1+alpha cos(mode*k*x)]/L via inverse CDF.
 
-   int init_case = 0;  ///< 0 = Landau, 1 = two-stream, 2 = bump-on-tail.
-   real_t v0 = 0.5;    ///< Counter-streaming beam speed (case 1).
+   int init_case = 0;  ///< 0 = Landau, 1 = two-stream, 2 = bump-on-tail, 3 = cold-beam.
+   real_t v0 = 0.5;    ///< Beam speed (case 1: counter-stream; case 3: cold-beam vx).
    real_t beam_variance =
       0.0;  ///< Variance of each counter-streaming beam (case 1).
    real_t bump_fraction = 0.1;  ///< Bump weight in f0 (case 2).
@@ -163,22 +166,24 @@ int main(int argc, char* argv[])
    args.AddOption(&ctx.nt, "-nt", "--num-timesteps", "Number of timesteps.");
    args.AddOption(&ctx.npt, "-npt", "--num-particles",
                   "Total number of particles.");
-   args.AddOption(&ctx.k, "-k", "--k", "Wave number for initial distribution.");
+   args.AddOption(&ctx.k, "-k", "--k",
+                  "Fundamental wave number (L = 2*pi/k; mode-1 wavelength).");
+   args.AddOption(&ctx.mode, "-mode", "--mode",
+                  "Excitation mode m: wavelength lambda = L/m (cases 0 and 3).");
    args.AddOption(&ctx.init_case, "-case", "--case",
                   "Initial distribution: 0 = Landau, 1 = two-stream, "
-                  "2 = bump-on-tail.");
+                  "2 = bump-on-tail, 3 = cold-beam.");
    args.AddOption(&ctx.alpha, "-a", "--alpha",
-                  "Perturbation amplitude for initial distribution "
-                  "(case 0 only).");
+                  "Excitation amplitude (cases 0 and 3).");
    args.AddOption(&ctx.landau_x, "-landau1d", "--landau-1d",
                   "-no-landau1d", "--no-landau-1d",
                   "apply sin(kx) density perturbation along x only (case 0 only).");
    args.AddOption(&ctx.use_its, "-use-its", "--use-its", "-no-use-its",
                   "--no-use-its",
-                  "sample x from n~[1+alpha cos(kx)]/L via inverse CDF "
+                  "sample x from n~[1+alpha cos(mode*k*x)]/L via inverse CDF "
                   "(case 0 only).");
    args.AddOption(&ctx.v0, "-v0", "--v0",
-                  "Counter-streaming beam speed (case 1 only).");
+                  "Beam speed (case 1: counter-stream; case 3: cold-beam vx).");
    args.AddOption(&ctx.beam_variance, "-vvar", "--beam-variance",
                   "Variance of each counter-streaming beam (case 1 only).");
    args.AddOption(&ctx.bump_fraction, "-bf", "--bump-fraction",
@@ -215,18 +220,25 @@ int main(int argc, char* argv[])
    MFEM_VERIFY(ctx.npt > 0, "num-particles must be positive.");
    MFEM_VERIFY(ctx.alpha >= -1.0 && ctx.alpha < 1.0,
                "Alpha should be in range [-1, 1).");
-   MFEM_VERIFY(ctx.k > 0.0,
-               "k must be nonzero for displacement initialization.");
-   MFEM_VERIFY(ctx.init_case == 0 || ctx.init_case == 1 || ctx.init_case == 2,
-               "case must be 0 (Landau), 1 (two-stream), or 2 (bump-on-tail).");
+   MFEM_VERIFY(ctx.k > 0.0, "k must be positive.");
+   MFEM_VERIFY(ctx.mode >= 1, "mode must be >= 1.");
+   MFEM_VERIFY(ctx.init_case == 0 || ctx.init_case == 1 || ctx.init_case == 2 ||
+                  ctx.init_case == 3,
+               "case must be 0 (Landau), 1 (two-stream), 2 (bump-on-tail), "
+               "or 3 (cold-beam).");
+   MFEM_VERIFY(ctx.init_case != 3 || ctx.dim == 2,
+               "case 3 (cold-beam) requires -dim 2.");
    MFEM_VERIFY(!ctx.use_its || ctx.init_case == 0,
                "-use-its is only valid for case 0 (Landau).");
    MFEM_VERIFY(ctx.beam_variance >= 0.0,
                "beam-variance must be non-negative.");
-   MFEM_VERIFY(ctx.bump_fraction >= 0.0 && ctx.bump_fraction <= 1.0,
-               "bump-fraction must be in [0, 1].");
-   MFEM_VERIFY(ctx.vth > 0.0, "vth must be positive.");
-   MFEM_VERIFY(ctx.vtb > 0.0, "vtb must be positive.");
+   if (ctx.init_case == 2)
+   {
+      MFEM_VERIFY(ctx.bump_fraction >= 0.0 && ctx.bump_fraction <= 1.0,
+                  "bump-fraction must be in [0, 1].");
+      MFEM_VERIFY(ctx.vth > 0.0, "vth must be positive.");
+      MFEM_VERIFY(ctx.vtb > 0.0, "vtb must be positive.");
+   }
 
    ctx.L = 2.0 * M_PI / ctx.k;
    // Negative q/m means auto-normalize total density: npt*(q|m)/L^dim = 1.
@@ -294,7 +306,7 @@ int main(int argc, char* argv[])
    ParticleMover particle_mover(MPI_COMM_WORLD, &E_gf, &phi_gf, &rho_gf,
                                 E_finder, num_particles, ordering_type);
    particle_mover.InitializeChargedParticles(
-      ctx.k, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
+      ctx.k, ctx.mode, ctx.alpha, ctx.m, ctx.q, ctx.L, ctx.init_case, ctx.v0,
       ctx.beam_variance, ctx.bump_fraction, ctx.vb, ctx.vth, ctx.vtb,
       ctx.landau_x, ctx.use_its, ctx.reproduce);
 
