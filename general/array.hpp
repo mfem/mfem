@@ -75,6 +75,11 @@ public:
    inline Array(int asize, MemoryType mt)
       : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
+   /// Creates array of @a asize elements with a given @a h_mt host MemoryType
+   /// and @a d_mt device MemoryType
+   inline Array(int asize, MemoryType h_mt, MemoryType d_mt)
+      : data(h_mt, d_mt), size(asize) { if (asize > 0) { data.New(asize, h_mt, d_mt); } }
+
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
        of the pointer.
@@ -109,6 +114,18 @@ public:
 
    /// Destructor
    inline ~Array() { data.Delete(); }
+
+
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   /// Creates and returns a temporary array. The result memory type will be
+   /// @sa GetTemporaryMemorySpace(@a mt).
+   static Array NewTemporary(int size,
+                             MemoryType mt = Device::GetDeviceMemoryType())
+   {
+      Array res(size, GetTemporaryMemorySpace(mt));
+      return res;
+   }
+#endif
 
    /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -209,10 +226,13 @@ public:
    void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const T *els, int nels);
+   inline int Append(const Array<T> &els);
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const Array<T> &els) { return Append(els, els.Size()); }
+   inline int Append(const T *els, int nels)
+   {
+      return Append(Array(const_cast<T *>(els), nels));
+   }
 
    /// Prepend an 'el' to the array, resize if necessary.
    inline int Prepend(const T &el);
@@ -381,13 +401,13 @@ public:
    inline T* begin() { return data; }
 
    /// STL-like end.  Returns pointer after the last element of the array.
-   inline T* end() { return data + size; }
+   inline T* end() { return static_cast<T*>(data) + size; }
 
    /// STL-like begin.  Returns const pointer to the first element of the array.
    inline const T* begin() const { return data; }
 
    /// STL-like end.  Returns const pointer after the last element of the array.
-   inline const T* end() const { return data + size; }
+   inline const T* end() const { return static_cast<const T*>(data) + size; }
 
    /// Returns the number of bytes allocated for the array including any reserve.
    std::size_t MemoryUsage() const { return Capacity() * sizeof(T); }
@@ -811,7 +831,7 @@ inline void Array<T>::GrowSize(int minsize)
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
@@ -822,7 +842,7 @@ inline void Array<T>::ShrinkToFit()
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
@@ -872,6 +892,10 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
       {
          GrowSize(nsize);
       }
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+      // resizing could have a fragmented memory validity
+      data.Write(false, size, nsize - size);
+#endif
       for (int i = size; i < nsize; i++)
       {
          data[i] = initval;
@@ -897,13 +921,12 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
    if (nsize > 0)
    {
       data.New(nsize, mt);
-      size = nsize;
    }
    else
    {
       data.Reset();
-      size = 0;
    }
+   size = nsize;
    data.UseDevice(use_dev);
 }
 
@@ -927,17 +950,27 @@ template <class T>
 inline int Array<T>::Append(const T &el)
 {
    SetSize(size+1);
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   // resizing could have a fragmented memory validity
+   data.Write(false, size - 1, 1)[0] = el;
+#else
    data[size-1] = el;
+#endif
    return size;
 }
 
 template <class T>
-inline int Array<T>::Append(const T *els, int nels)
+inline int Array<T>::Append(const Array& els)
 {
    const int old_size = size;
 
-   SetSize(size + nels);
-   for (int i = 0; i < nels; i++)
+   SetSize(size + els.Size());
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   // resizing could have a fragmented memory validity
+   data.Write(false, old_size, els.Size());
+#endif
+   // TODO: use data.CopyFrom(els) with the proper offset
+   for (int i = 0; i < els.Size(); i++)
    {
       data[old_size+i] = els[i];
    }
@@ -947,8 +980,12 @@ inline int Array<T>::Append(const T *els, int nels)
 template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
-   SetSize(size+1);
-   for (int i = size-1; i > 0; i--)
+   SetSize(size + 1);
+#ifdef MFEM_USE_NEW_MEM_MANAGER
+   // resizing could have a fragmented memory validity
+   data.Write(false, size);
+#endif
+   for (int i = size - 1; i > 0; i--)
    {
       data[i] = data[i-1];
    }
