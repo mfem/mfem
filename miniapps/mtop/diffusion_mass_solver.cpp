@@ -17,6 +17,30 @@ bool GlobalBooleanOr(MPI_Comm comm, bool value)
    return global != 0;
 }
 
+Geometry::Type GlobalElementGeometry(const ParFiniteElementSpace &fespace)
+{
+   const ParMesh *mesh = fespace.GetParMesh();
+   const int local_geometry = mesh->GetNE() > 0
+                              ? static_cast<int>(mesh->GetElementGeometry(0))
+                              : -1;
+   int global_geometry = -1;
+   MPI_Allreduce(&local_geometry, &global_geometry, 1, MPI_INT, MPI_MAX,
+                 fespace.GetComm());
+   MFEM_VERIFY(global_geometry >= 0,
+               "DiffusionMassSolver requires a globally nonempty mesh.");
+   return static_cast<Geometry::Type>(global_geometry);
+}
+
+int GlobalMaxElementOrder(const ParFiniteElementSpace &fespace)
+{
+   const int local_order = fespace.GetNE() > 0
+                           ? fespace.GetMaxElementOrder() : 0;
+   int global_order = 0;
+   MPI_Allreduce(&local_order, &global_order, 1, MPI_INT, MPI_MAX,
+                 fespace.GetComm());
+   return global_order;
+}
+
 ParFiniteElementSpace &CheckedFESpace(
    const std::shared_ptr<ParFiniteElementSpace> &fespace,
    const char *name)
@@ -760,8 +784,10 @@ void DiffusionMassSolver::AttributeCoefficientMap::Add(
    MFEM_VERIFY(owner_ != nullptr, "Coefficient map is not attached to a solver.");
    MFEM_VERIFY(qf != nullptr, "QuadratureFunction pointer is null.");
    owner_->ValidateQuadratureFunction(*qf);
+   std::shared_ptr<Coefficient> coefficient =
+      owner_->MakeQuadratureCoefficient(qf);
+   Add(attr, coefficient);
    qf_owners_[attr] = qf;
-   Add(attr, owner_->MakeQuadratureCoefficient(qf));
 }
 
 void DiffusionMassSolver::AttributeCoefficientMap::Add(
@@ -776,8 +802,10 @@ void DiffusionMassSolver::AttributeCoefficientMap::Add(
    MFEM_VERIFY(owner_ != nullptr, "Coefficient map is not attached to a solver.");
    MFEM_VERIFY(gf != nullptr, "ParGridFunction pointer is null.");
    owner_->ValidateParGridFunction(*gf);
+   std::shared_ptr<Coefficient> coefficient =
+      owner_->MakeGridFunctionCoefficient(gf);
+   Add(attr, coefficient);
    gf_owners_[attr] = gf;
-   Add(attr, owner_->MakeGridFunctionCoefficient(gf));
 }
 
 void DiffusionMassSolver::AttributeCoefficientMap::Clear()
@@ -851,7 +879,9 @@ DiffusionMassSolver::DiffusionMassSolver(ParFiniteElementSpace &fespace)
      fespace_(fespace),
      diffusion_coefficient_(std::make_shared<ConstantCoefficient>(1.0)),
      mass_coefficient_(std::make_shared<ConstantCoefficient>(1.0)),
-     integration_order_(2*fespace.GetMaxElementOrder())
+     element_geometry_(GlobalElementGeometry(fespace)),
+     max_element_order_(GlobalMaxElementOrder(fespace)),
+     integration_order_(2*max_element_order_)
 {
    rhs_coefficients_.SetOwner(this, MapKind::DomainRHS);
    boundary_coefficients_.SetOwner(this, MapKind::Boundary);
@@ -874,6 +904,8 @@ void DiffusionMassSolver::SetDiffusionCoefficient(
    std::shared_ptr<Coefficient> coefficient)
 {
    MFEM_VERIFY(coefficient != nullptr, "Diffusion coefficient is null.");
+   diffusion_qf_owner_.reset();
+   diffusion_gf_owner_.reset();
    diffusion_coefficient_ = coefficient;
    MarkCoefficientChanged();
 }
@@ -929,6 +961,8 @@ void DiffusionMassSolver::SetMassCoefficient(
    std::shared_ptr<Coefficient> coefficient)
 {
    MFEM_VERIFY(coefficient != nullptr, "Mass coefficient is null.");
+   mass_qf_owner_.reset();
+   mass_gf_owner_.reset();
    mass_coefficient_ = coefficient;
    MarkCoefficientChanged();
 }
@@ -1010,12 +1044,10 @@ void DiffusionMassSolver::Assemble() const
    form_->SetAssemblyLevel(AssemblyLevel::PARTIAL);
    form_->AddDomainIntegrator(new DiffusionIntegrator(
                                  *diffusion_coefficient_,
-                                 &GetIntegrationRule(
-                                    fespace_.GetParMesh()->GetElementGeometry(0))));
+                                 &GetIntegrationRule(element_geometry_)));
    form_->AddDomainIntegrator(new MassIntegrator(
                                  *mass_coefficient_,
-                                 &GetIntegrationRule(
-                                    fespace_.GetParMesh()->GetElementGeometry(0))));
+                                 &GetIntegrationRule(element_geometry_)));
    form_->Assemble();
 
    system_operator_.SetType(Operator::ANY_TYPE);
@@ -1099,8 +1131,7 @@ void DiffusionMassSolver::Solve(ParGridFunction &solution) const
          rhs_form_->AddDomainIntegrator(new DomainLFIntegrator(
                                            rhs_coefficients_.AsCoefficient(),
                                            &GetIntegrationRule(
-                                              fespace_.GetParMesh()
-                                              ->GetElementGeometry(0))));
+                                              element_geometry_)));
       }
       rhs_form_dirty_ = false;
       rhs_vector_dirty_ = true;
@@ -1352,7 +1383,7 @@ void DiffusionMassSolver::BuildPreconditioner() const
    assembled_operator_.Clear();
    assembled_form_.reset();
 
-   if (fespace_.GetMaxElementOrder() > 1)
+   if (max_element_order_ > 1)
    {
       BuildLORAMGPreconditioner();
    }
@@ -1368,13 +1399,11 @@ void DiffusionMassSolver::BuildAMGPreconditionerOnFESpace() const
    assembled_form_->AddDomainIntegrator(new DiffusionIntegrator(
                                            *diffusion_coefficient_,
                                            &GetIntegrationRule(
-                                              fespace_.GetParMesh()
-                                              ->GetElementGeometry(0))));
+                                              element_geometry_)));
    assembled_form_->AddDomainIntegrator(new MassIntegrator(
                                            *mass_coefficient_,
                                            &GetIntegrationRule(
-                                              fespace_.GetParMesh()
-                                              ->GetElementGeometry(0))));
+                                              element_geometry_)));
    assembled_form_->Assemble();
 
    assembled_operator_.SetType(Operator::Hypre_ParCSR);
@@ -1389,7 +1418,7 @@ void DiffusionMassSolver::BuildAMGPreconditionerOnFESpace() const
 
 void DiffusionMassSolver::BuildLORAMGPreconditioner() const
 {
-   const int order = fespace_.GetMaxElementOrder();
+   const int order = max_element_order_;
    ParMesh *pmesh = fespace_.GetParMesh();
 
    MFEM_VERIFY(!diffusion_qf_owner_ && !mass_qf_owner_,
@@ -1419,12 +1448,10 @@ void DiffusionMassSolver::BuildLORAMGPreconditioner() const
    lor_form_.reset(new ParBilinearForm(lor_fespace_.get()));
    lor_form_->AddDomainIntegrator(new DiffusionIntegrator(
                                     *lor_diffusion_coefficient_,
-                                    &GetIntegrationRule(
-                                       pmesh->GetElementGeometry(0))));
+                                    &GetIntegrationRule(element_geometry_)));
    lor_form_->AddDomainIntegrator(new MassIntegrator(
                                     *lor_mass_coefficient_,
-                                    &GetIntegrationRule(
-                                       pmesh->GetElementGeometry(0))));
+                                    &GetIntegrationRule(element_geometry_)));
    lor_form_->Assemble();
 
    lor_operator_.SetType(Operator::Hypre_ParCSR);

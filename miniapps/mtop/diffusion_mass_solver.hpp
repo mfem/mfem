@@ -616,6 +616,12 @@ private:
    /// Dirichlet boundary coefficients keyed by boundary attribute.
    mutable AttributeCoefficientMap boundary_coefficients_;
 
+   /// Element geometry shared by all elements in the global mesh.
+   Geometry::Type element_geometry_;
+
+   /// Maximum element order across all MPI processes.
+   int max_element_order_;
+
    /// Domain integration order used for operators and RHS forms.
    int integration_order_;
 
