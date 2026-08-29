@@ -177,12 +177,9 @@ void SmemPAVectorMassApply3D(const int NE,
 }
 
 template <int T_Q1D = 0, int T_MDQ = 16>
-static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
-                                               const int d1d,
-                                               const int q1d,
-                                               const real_t *b_r,
-                                               const real_t *d_r,
-                                               real_t *y_rw)
+void SmemPAVectorMassAssembleDiagonal2D(const int ne, const int d1d,
+                                        const int q1d, const real_t *b_r,
+                                        const real_t *d_r, real_t *y_rw)
 {
    constexpr int VDIM = 2;
 
@@ -234,12 +231,9 @@ static void SmemPAVectorMassAssembleDiagonal2D(const int ne,
 
 // T_MDQ <= 10 so the Q1D^3 thread block stays within the 1024/block GPU limit
 template <int T_Q1D = 0, int T_MDQ = 10>
-static void SmemPAVectorMassAssembleDiagonal3D(const int ne,
-                                               const int d1d,
-                                               const int q1d,
-                                               const real_t *b_r,
-                                               const real_t *d_r,
-                                               real_t *y_rw)
+void SmemPAVectorMassAssembleDiagonal3D(const int ne, const int d1d,
+                                        const int q1d, const real_t *b_r,
+                                        const real_t *d_r, real_t *y_rw)
 {
    constexpr int VDIM = 3;
 
