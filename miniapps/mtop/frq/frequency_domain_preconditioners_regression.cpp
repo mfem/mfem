@@ -1,5 +1,5 @@
-// Algebraic regression tests for the problem-independent PRESB and two-block
-// diagonal preconditioners. No mesh or PDE-specific operator is used here.
+// Algebraic regression tests for the problem-independent frequency-domain
+// and two-level preconditioners. No mesh or PDE-specific operator is used.
 
 #include "frequency_domain_preconditioners.hpp"
 
@@ -172,6 +172,145 @@ bool Check(const std::string &name, const Vector &actual,
    return passed;
 }
 
+#ifdef MFEM_USE_LAPACK
+Vector ApplyDense(const std::vector<real_t> &matrix, const Vector &input,
+                  const bool transpose = false)
+{
+   const int n = input.Size();
+   Vector output(n);
+   output = 0.0;
+   for (int i = 0; i < n; ++i)
+   {
+      for (int j = 0; j < n; ++j)
+      {
+         output(i) += (transpose ? matrix[j*n + i] : matrix[i*n + j])*
+                      input(j);
+      }
+   }
+   return output;
+}
+
+Vector ApplyCoarseReference(const std::vector<real_t> &matrix,
+                            const std::vector<Vector> &basis,
+                            const Vector &input)
+{
+   const int n = input.Size();
+   const int coarse_size = static_cast<int>(basis.size());
+   std::vector<real_t> reduced(coarse_size*coarse_size, 0.0);
+   Vector coarse_rhs(coarse_size);
+   for (int j = 0; j < coarse_size; ++j)
+   {
+      const Vector image = ApplyDense(matrix, basis[j]);
+      for (int i = 0; i < coarse_size; ++i)
+      {
+         reduced[i*coarse_size + j] = basis[i]*image;
+      }
+      coarse_rhs(j) = basis[j]*input;
+   }
+
+   const Vector coarse_solution = SolveDense(reduced, coarse_rhs);
+   Vector output(n);
+   output = 0.0;
+   for (int i = 0; i < coarse_size; ++i)
+   {
+      output.Add(coarse_solution(i), basis[i]);
+   }
+   return output;
+}
+
+std::vector<real_t> TransposeDense(const std::vector<real_t> &matrix,
+                                   const int n)
+{
+   std::vector<real_t> transpose(n*n);
+   for (int i = 0; i < n; ++i)
+   {
+      for (int j = 0; j < n; ++j)
+      {
+         transpose[i*n + j] = matrix[j*n + i];
+      }
+   }
+   return transpose;
+}
+
+Vector ApplyTwoLevelReference(const std::vector<real_t> &matrix,
+                              const std::vector<real_t> &smoother,
+                              const std::vector<Vector> &basis,
+                              const Vector &input)
+{
+   Vector output = ApplyDense(smoother, input);
+   Vector residual(input);
+   residual -= ApplyDense(matrix, output);
+
+   const Vector correction = ApplyCoarseReference(matrix, basis, residual);
+   output += correction;
+   residual -= ApplyDense(matrix, correction);
+   output += ApplyDense(smoother, residual, true);
+   return output;
+}
+
+Vector ApplyTwoLevelReference(const std::vector<real_t> &matrix,
+                              const std::vector<real_t> &pre_smoother,
+                              const std::vector<real_t> &post_smoother,
+                              const std::vector<Vector> &basis,
+                              const Vector &input)
+{
+   Vector output = ApplyDense(pre_smoother, input);
+   Vector residual(input);
+   residual -= ApplyDense(matrix, output);
+
+   const Vector correction = ApplyCoarseReference(matrix, basis, residual);
+   output += correction;
+   residual -= ApplyDense(matrix, correction);
+   output += ApplyDense(post_smoother, residual);
+   return output;
+}
+
+std::vector<real_t> MakeTwoLevelReferenceMatrix(
+   const std::vector<real_t> &matrix,
+   const std::vector<real_t> &smoother,
+   const std::vector<Vector> &basis)
+{
+   const int n = basis[0].Size();
+   std::vector<real_t> result(n*n, 0.0);
+   for (int j = 0; j < n; ++j)
+   {
+      Vector unit(n);
+      unit = 0.0;
+      unit(j) = 1.0;
+      const Vector column =
+         ApplyTwoLevelReference(matrix, smoother, basis, unit);
+      for (int i = 0; i < n; ++i)
+      {
+         result[i*n + j] = column(i);
+      }
+   }
+   return result;
+}
+
+std::vector<real_t> MakeTwoLevelReferenceMatrix(
+   const std::vector<real_t> &matrix,
+   const std::vector<real_t> &pre_smoother,
+   const std::vector<real_t> &post_smoother,
+   const std::vector<Vector> &basis)
+{
+   const int n = basis[0].Size();
+   std::vector<real_t> result(n*n, 0.0);
+   for (int j = 0; j < n; ++j)
+   {
+      Vector unit(n);
+      unit = 0.0;
+      unit(j) = 1.0;
+      const Vector column = ApplyTwoLevelReference(
+         matrix, pre_smoother, post_smoother, basis, unit);
+      for (int i = 0; i < n; ++i)
+      {
+         result[i*n + j] = column(i);
+      }
+   }
+   return result;
+}
+#endif
+
 } // namespace
 
 int main()
@@ -265,6 +404,226 @@ int main()
    block_diagonal.MultTranspose(aliased_input, aliased_output);
    failures += !Check("two-block diagonal transpose shared-storage alias",
                       aliased_output, expected_transpose, tolerance);
+
+#ifdef MFEM_USE_LAPACK
+   const std::vector<real_t> two_level_matrix = {
+      4.0, 1.0, 0.5,
+      0.0, 3.0, 1.0,
+      0.2, 0.0, 2.0
+   };
+   const std::vector<real_t> smoother_entries = {
+      0.20, 0.03, 0.00,
+      0.01, 0.25, 0.02,
+      0.00, 0.04, 0.30
+   };
+   const std::vector<real_t> post_smoother_entries = {
+      0.18, 0.00, 0.02,
+      0.03, 0.22, 0.00,
+      0.01, 0.05, 0.27
+   };
+   DenseTestOperator two_level_operator(3, two_level_matrix);
+   DenseTestOperator smoother(3, smoother_entries);
+   DenseTestOperator post_smoother(3, post_smoother_entries);
+   Vector z0(3), z1(3), z2(3), two_level_rhs(3);
+   z0 = 0.0;
+   z1 = 0.0;
+   z2 = 0.0;
+   z0(0) = 1.0;
+   z1(1) = 1.0;
+   z2(2) = 1.0;
+   two_level_rhs(0) = 0.7;
+   two_level_rhs(1) = -1.1;
+   two_level_rhs(2) = 0.4;
+
+   TwoLevelPreconditioner two_level(two_level_operator, 2);
+   failures += two_level.GetMaxCoarseVectors() != 2;
+   failures += two_level.GetNumCoarseVectors() != 0;
+   failures += two_level.AddCoarseVector(z0) != 0;
+   failures += two_level.AddCoarseVector(z1) != 1;
+   failures += two_level.GetNumCoarseVectors() != 2;
+   const std::vector<Vector> first_basis = {z0, z1};
+
+   Vector two_level_actual;
+   two_level.Assemble();
+   two_level.Mult(two_level_rhs, two_level_actual);
+   const Vector coarse_expected =
+      ApplyCoarseReference(two_level_matrix, first_basis, two_level_rhs);
+   failures += !Check("two-level coarse-only action", two_level_actual,
+                      coarse_expected, 500.0*tolerance);
+
+   two_level.MultCoarse(two_level_rhs, two_level_actual);
+   failures += !Check("two-level explicit coarse action", two_level_actual,
+                      coarse_expected, 500.0*tolerance);
+
+   Vector left_deflation_expected(two_level_rhs);
+   left_deflation_expected -=
+      ApplyDense(two_level_matrix, coarse_expected);
+   two_level.MultLeftDeflation(two_level_rhs, two_level_actual);
+   failures += !Check("two-level left deflation", two_level_actual,
+                      left_deflation_expected, 1000.0*tolerance);
+   two_level.FormDeflatedRHS(two_level_rhs, two_level_actual);
+   failures += !Check("two-level deflated right-hand side", two_level_actual,
+                      left_deflation_expected, 1000.0*tolerance);
+   Vector deflation_in_place(two_level_rhs);
+   two_level.MultLeftDeflation(deflation_in_place, deflation_in_place);
+   failures += !Check("two-level in-place left deflation",
+                      deflation_in_place, left_deflation_expected,
+                      1000.0*tolerance);
+
+   const std::vector<real_t> transpose_matrix =
+      TransposeDense(two_level_matrix, 3);
+   const Vector transpose_image =
+      ApplyDense(two_level_matrix, two_level_rhs, true);
+   Vector right_deflation_expected(two_level_rhs);
+   right_deflation_expected -=
+      ApplyCoarseReference(transpose_matrix, first_basis, transpose_image);
+   two_level.MultRightDeflation(two_level_rhs, two_level_actual);
+   failures += !Check("two-level right deflation", two_level_actual,
+                      right_deflation_expected, 1000.0*tolerance);
+
+   const Vector operator_image =
+      ApplyDense(two_level_matrix, two_level_rhs);
+   const Vector coarse_operator_image =
+      ApplyCoarseReference(two_level_matrix, first_basis, operator_image);
+   Vector deflated_operator_expected(operator_image);
+   deflated_operator_expected -=
+      ApplyDense(two_level_matrix, coarse_operator_image);
+   two_level.MultDeflatedOperator(two_level_rhs, two_level_actual);
+   failures += !Check("two-level deflated operator", two_level_actual,
+                      deflated_operator_expected, 1000.0*tolerance);
+
+   Vector complementary(3);
+   complementary(0) = -0.2;
+   complementary(1) = 0.6;
+   complementary(2) = 1.1;
+   Vector recovered_expected(coarse_expected);
+   Vector projected_complementary(complementary);
+   const Vector transpose_complementary =
+      ApplyDense(two_level_matrix, complementary, true);
+   projected_complementary -= ApplyCoarseReference(
+                                 transpose_matrix, first_basis,
+                                 transpose_complementary);
+   recovered_expected += projected_complementary;
+   two_level.RecoverDeflatedSolution(two_level_rhs, complementary,
+                                     two_level_actual);
+   failures += !Check("two-level deflated solution recovery",
+                      two_level_actual, recovered_expected,
+                      1000.0*tolerance);
+   Vector recovery_in_place(two_level_rhs);
+   two_level.RecoverDeflatedSolution(recovery_in_place, complementary,
+                                     recovery_in_place);
+   failures += !Check("two-level in-place deflated recovery",
+                      recovery_in_place, recovered_expected,
+                      1000.0*tolerance);
+
+   two_level.SetSmoother(smoother);
+   failures += !two_level.PostSmootherUsesTranspose();
+   const Vector smoothed_expected = ApplyTwoLevelReference(
+      two_level_matrix, smoother_entries, first_basis, two_level_rhs);
+   two_level.Mult(two_level_rhs, two_level_actual);
+   failures += !Check("two-level smoothed action", two_level_actual,
+                      smoothed_expected, 500.0*tolerance);
+
+   const std::vector<real_t> two_level_reference =
+      MakeTwoLevelReferenceMatrix(two_level_matrix, smoother_entries,
+                                  first_basis);
+   two_level.MultTranspose(two_level_rhs, two_level_actual);
+   const Vector two_level_transpose_expected =
+      ApplyDense(two_level_reference, two_level_rhs, true);
+   failures += !Check("two-level transpose action", two_level_actual,
+                      two_level_transpose_expected, 1000.0*tolerance);
+
+   Vector two_level_in_place(two_level_rhs);
+   two_level.Mult(two_level_in_place, two_level_in_place);
+   failures += !Check("two-level in-place action", two_level_in_place,
+                      smoothed_expected, 500.0*tolerance);
+
+   Vector two_level_alias_storage(two_level_rhs);
+   Vector two_level_alias_input, two_level_alias_output;
+   two_level_alias_input.MakeRef(two_level_alias_storage, 0, 3);
+   two_level_alias_output.MakeRef(two_level_alias_storage, 0, 3);
+   two_level.Mult(two_level_alias_input, two_level_alias_output);
+   failures += !Check("two-level shared-storage alias",
+                      two_level_alias_output, smoothed_expected,
+                      500.0*tolerance);
+
+   two_level.SetPreSmoother(smoother);
+   two_level.SetPostSmoother(post_smoother);
+   const Vector independent_smoothers_expected = ApplyTwoLevelReference(
+      two_level_matrix, smoother_entries, post_smoother_entries,
+      first_basis, two_level_rhs);
+   two_level.Mult(two_level_rhs, two_level_actual);
+   failures += !Check("two-level independent smoothers", two_level_actual,
+                      independent_smoothers_expected, 500.0*tolerance);
+   const std::vector<real_t> independent_reference =
+      MakeTwoLevelReferenceMatrix(two_level_matrix, smoother_entries,
+                                  post_smoother_entries, first_basis);
+   two_level.MultTranspose(two_level_rhs, two_level_actual);
+   const Vector independent_transpose_expected =
+      ApplyDense(independent_reference, two_level_rhs, true);
+   failures += !Check("two-level independent-smoother transpose",
+                      two_level_actual, independent_transpose_expected,
+                      1000.0*tolerance);
+   failures += two_level.GetPreSmoother() != &smoother;
+   failures += two_level.GetPostSmoother() != &post_smoother;
+   failures += two_level.GetSmoother() != nullptr;
+   failures += two_level.PostSmootherUsesTranspose();
+
+   two_level.SetSmoother(nullptr);
+   two_level.Mult(two_level_rhs, two_level_actual);
+   failures += !Check("two-level removed smoother", two_level_actual,
+                      coarse_expected, 500.0*tolerance);
+
+   failures += two_level.AddCoarseVector(z2) != 0;
+   Vector extracted;
+   two_level.GetCoarseVector(0, extracted);
+   failures += !Check("two-level cyclic overwrite", extracted, z2,
+                      tolerance);
+   two_level.SetCoarseVector(1, z0);
+   two_level.GetCoarseVector(1, extracted);
+   failures += !Check("two-level indexed replacement", extracted, z0,
+                      tolerance);
+   const std::vector<Vector> replaced_basis = {z2, z0};
+   two_level.Mult(two_level_rhs, two_level_actual);
+   const Vector replaced_expected = ApplyCoarseReference(
+      two_level_matrix, replaced_basis, two_level_rhs);
+   failures += !Check("two-level lazy reassembly", two_level_actual,
+                      replaced_expected, 500.0*tolerance);
+
+   const std::vector<real_t> identity_entries = {
+      1.0, 0.0, 0.0,
+      0.0, 1.0, 0.0,
+      0.0, 0.0, 1.0
+   };
+   DenseTestOperator identity(3, identity_entries);
+   TwoLevelPreconditioner rank_deficient(identity, 2);
+   rank_deficient.AddCoarseVector(z0);
+   rank_deficient.AddCoarseVector(z0);
+   rank_deficient.Mult(two_level_rhs, two_level_actual);
+   Vector rank_deficient_expected(3);
+   rank_deficient_expected = 0.0;
+   rank_deficient_expected(0) = two_level_rhs(0);
+   failures += !Check("two-level rank-deficient basis", two_level_actual,
+                      rank_deficient_expected, 1000.0*tolerance);
+
+   Vector scaled_z1(z1);
+   scaled_z1 *= 1.0e-4;
+   TwoLevelPreconditioner filtered(identity, 2);
+   filtered.AddCoarseVector(z0);
+   filtered.AddCoarseVector(scaled_z1);
+   filtered.SetSVDRelativeTolerance(1.0e-6);
+   filtered.Mult(two_level_rhs, two_level_actual);
+   failures += !Check("two-level SVD filtering", two_level_actual,
+                      rank_deficient_expected, 1000.0*tolerance);
+
+   filtered.SetSVDRelativeTolerance(0.0);
+   filtered.Mult(two_level_rhs, two_level_actual);
+   Vector unfiltered_expected(two_level_rhs);
+   unfiltered_expected(2) = 0.0;
+   failures += !Check("two-level configurable SVD tolerance",
+                      two_level_actual, unfiltered_expected,
+                      1000.0*tolerance);
+#endif
 
    std::cout << (failures == 0 ? "ALL TESTS PASSED\n" : "TESTS FAILED\n");
    return failures == 0 ? 0 : 2;

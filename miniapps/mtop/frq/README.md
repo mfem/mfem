@@ -1,14 +1,16 @@
 # Frequency-domain elasticity drivers
 
-This directory contains a matrix-free damped elasticity solver and two MPI
+This directory contains a matrix-free damped elasticity solver and three MPI
 drivers for evaluating its accuracy and preconditioners:
 
 - `frequency_domain_cantilever` solves a loaded two- or three-dimensional
   cantilever.
 - `frequency_domain_cantilever_mms_regression` checks spatial convergence
   against a complex manufactured solution in 2D, 3D, or both.
+- `two_level_elasticity` compares an eigenmode-based two-level method with
+  LOR-AMG for a static cantilever.
 
-Both solve
+The two frequency-domain drivers solve
 
 \[
   (K-\omega^2 M+i\omega C)(u_r+i u_i)=f_r+i f_i.
@@ -28,6 +30,199 @@ copies of the reference articles are in `../articles/`.
 
 This test phase intentionally exposes only PRESB and block diagonal. Split
 preconditioners are not part of these driver options yet.
+
+## Generic two-level preconditioner
+
+`TwoLevelPreconditioner` is an algebraic component for applications that
+manage their own coarse vectors. It is not currently selected by either
+frequency-domain driver. Given a fine operator \(A\), coarse basis \(Z\), and
+optional smoother \(S\), it assembles
+
+\[
+ E=Z^TAZ, \qquad Q=ZE^\dagger Z^T,
+\]
+
+and applies a pre-smooth, residual, coarse-correction, and post-smooth cycle.
+`SetPreSmoother()` and `SetPostSmoother()` accept independent, non-owning
+operators whose `Mult()` actions define those steps. Either step can be
+disabled with `nullptr`. `SetSmoother(S)` is a symmetric convenience that sets
+the pre-smoothing action to `S.Mult()` and the post-smoothing action to
+`S.MultTranspose()`. With neither smoother configured, only \(Q\) is applied.
+
+Coarse vectors are added individually. Storage fills stable slots from zero to
+the configured capacity and then overwrites those slots cyclically. Existing
+slots can be copied out or replaced directly; indexed replacement does not
+move the cyclic insertion position. A vector or operator change invalidates
+the cached reduced system, which is rebuilt lazily on the next application or
+immediately by calling `Assemble()`.
+
+The reduced pseudoinverse is computed with LAPACK SVD. Singular values below a
+configurable relative cutoff are discarded; the default cutoff is the active
+coarse dimension times machine epsilon. An MFEM build without LAPACK can
+construct and populate the object, but coarse assembly reports that LAPACK is
+required.
+
+For distributed vectors, use the MPI constructor and pass the communicator on
+which each `Vector` represents a rank-local true-DOF segment. The projected
+matrix and coarse right-hand sides are summed over that communicator. All
+ranks must maintain the same capacity, active slots, tolerance, and collective
+call order. Fine vectors may remain device-resident, while the small dense SVD
+and MPI coefficient reductions use host memory.
+
+The serial algebraic checks live in
+`frequency_domain_preconditioners_regression`; the distributed projection
+check is `frequency_domain_preconditioners_mpi_regression` and is part of the
+`parallel` make target.
+
+The class also exposes the coarse inverse and deflation actions without
+changing the behavior of `Mult()`:
+
+\[
+ Q=Z(Z^TAZ)^\dagger Z^T,\qquad P=I-AQ,\qquad
+ A_D=PA=A-AQA.
+\]
+
+`MultCoarse()`, `MultLeftDeflation()`, `MultRightDeflation()`, and
+`MultDeflatedOperator()` apply these actions. After solving the compatible
+system \(A_D\widehat{x}=Pb\), `RecoverDeflatedSolution()` forms
+\(x=Qb+P^T\widehat{x}\). Deflated CG requires a symmetric positive-definite
+fine operator and symmetric coarse correction; `Mult()` remains the ordinary
+multiplicative two-level inverse.
+
+## Static two-level cantilever
+
+`two_level_elasticity` constructs the same Cartesian beam geometry used by the
+frequency-domain cantilever, clamps its left end, and applies constant traction
+to its free end. The high-order elasticity stiffness and vector mass operators
+use partial assembly. Their constrained true-dof operators are passed through
+lightweight true-dof restriction adapters to `HypreLOBPCG` to estimate the
+lowest modes of \(K\phi=\lambda M\phi\). LOBPCG vectors contain only free true
+dofs; each operator or LOR-AMG application expands its input to the full true
+vector, applies the original operator, and restricts its output. Thus the mass
+inner product is positive definite and essential unknowns cannot enter the
+eigensolver iteration. The returned modes are expanded with exact zeros on the
+clamped boundary, mass-normalized with the PA mass operator, and inserted into
+`TwoLevelPreconditioner`. The default coarse-space size is ten modes and can
+be changed with `--num-modes`.
+
+More precisely, if \(E_f\) injects the local free true dofs into a full true
+vector, LOBPCG sees
+
+\[
+ K_f=E_f^T K E_f, \qquad M_f=E_f^T M E_f.
+\]
+
+The restriction is local, while applications of \(K\), \(M\), and LOR-AMG
+retain their normal parallel communication. After expanding and normalizing
+the modes into \(Z=[\phi_1,\ldots,\phi_m]\), the two-level setup forms
+
+\[
+ E=Z^T K Z, \qquad Q=Z E^\dagger Z^T,
+\]
+
+where the reduced pseudoinverse \(E^\dagger\) is computed by SVD.
+
+With smoothing enabled, select where it is applied using
+`--smoother-placement pre|post|both` (default `both`). The `pre` cycle applies
+the smoother before the coarse correction, `post` applies it after the coarse
+correction, and `both` applies the symmetric pre/post pair. Select
+`--smoother-type l1` for the element absolute-row-sum diagonal
+
+\[
+ d_{e,i}=\sum_j |K_{e,ij}|,
+\]
+
+or `--smoother-type l2` for the conservative scaled row-Euclidean diagonal
+
+\[
+ d_{e,i}=\sqrt{n_e}\left(\sum_j K_{e,ij}^2\right)^{1/2}.
+\]
+
+The second choice dominates the first by the finite-dimensional norm
+inequality, so both give an A-convergent Jacobi smoother after their element
+contributions are assembled. Alternatively, `--smoother-type lor-amg` uses a
+separately constructed LOR-AMG V-cycle for the selected smoothing steps. Its
+positive L1-Jacobi relaxation and Galerkin hierarchy are exposed through a
+symmetric adapter whose transpose action equals its forward action, as
+required by PCG.
+The smoother AMG instance is distinct from the eigenmode and comparison AMG
+instances so its setup cost is charged to the two-level method. The `both`
+placement uses PCG because the post-action is the transpose of the pre-action.
+The one-sided `pre` and `post` cycles are nonsymmetric and therefore use GMRES.
+Pass `--gmres` to use GMRES for every static solve, including symmetric
+two-sided smoothing, deflation, and the LOR-AMG comparison. The default `--cg`
+uses CG wherever symmetry permits; one-sided smoothing still uses GMRES.
+
+`--smoother-type none` or the compatibility alias `--no-smoother` instead
+solves the compatible deflated system and reconstructs the complete
+displacement. It uses CG by default and GMRES with `--gmres`. Every run also
+solves the original system with LOR-AMG and reports setup time, solve time,
+iterations, convergence, true residuals, and the relative difference between
+the two solutions.
+
+For a smoother \(S\), one multiplicative two-level application computes
+
+\[
+ y_0=S b,\quad r_0=b-Ky_0,\quad y_c=Qr_0,\quad
+ r_1=r_0-Ky_c,\quad y=y_0+y_c+S^T r_1.
+\]
+
+Using the transpose post-step makes the preconditioner symmetric for PCG.
+With smoothing disabled, the driver uses the coarse inverse through
+
+\[
+ (K-KQK)\widehat u=(I-KQ)f,\qquad
+ u=Qf+(I-QK)\widehat u.
+\]
+
+### Important options
+
+| Group | Options | Meaning |
+|---|---|---|
+| Execution | `-d`, `--device` | MFEM device configuration; default `cpu`. |
+| Geometry | `-dim`, `-nx`, `-ny`, `-nz`, `-lx`, `-ly`, `-lz` | Dimension, Cartesian element counts, and beam dimensions. |
+| Discretization | `-o`, `-rs`, `-rp` | H1 order and serial/parallel refinement levels. |
+| Material | `-la`, `-mu`, `-rho` | Lame lambda, shear modulus, and density. |
+| Load | `-c`, `-a` | Zero-based traction component and constant amplitude; `-1` selects the last component. |
+| Coarse space | `-nm` | Number of lowest mass-normalized modes; default 10. |
+| LOBPCG | `-etol`, `-emi`, `-eseed`, `-epl` | Eigen tolerance, iteration limit, random seed, and print level. |
+| Smoother | `-st none|l1|l2|lor-amg` | Select deflation, diagonal smoothing, or LOR-AMG smoothing; default `l1`. |
+| Smoother placement | `-sp pre|post|both` | Apply smoothing before, after, or on both sides of the coarse correction; default `both`. |
+| Static solver | `-cg`/`-gmres` | Use CG where symmetry permits (default), or GMRES for every static solve. |
+| Legacy smoother aliases | `-sm`/`-no-sm`, `-sn l1`/`-sn l2` | Compatibility aliases for the original on/off and diagonal-norm options. |
+| Static Krylov solve | `-rtol`, `-atol`, `-mi`, `-pl` | Relative/absolute tolerances, iteration limit, and print level. |
+| Output | `-vis`/`-no-vis`, `-out`, `-csv` | Control ParaView output, its prefix, and an optional CSV path. |
+
+Do not combine `--smoother-type` with the legacy smoother aliases. The legacy
+`--no-smoother` setting takes precedence when both forms are present.
+
+For example:
+
+```
+cmake --build <build-directory> --target two_level_elasticity
+# or: make -C miniapps/mtop/frq parallel
+mpirun -np 4 ./two_level_elasticity -dim 2 -nm 10 -sn l1
+mpirun -np 8 ./two_level_elasticity -dim 3 -nm 12 -sn l2
+mpirun -np 4 ./two_level_elasticity -dim 2 -nm 10 -st lor-amg
+mpirun -np 4 ./two_level_elasticity -dim 2 -nm 10 -st lor-amg -gmres
+mpirun -np 4 ./two_level_elasticity -dim 2 -nm 10 -st l1 -sp pre
+mpirun -np 4 ./two_level_elasticity -dim 2 -nm 10 -st lor-amg -sp post
+mpirun -np 4 ./two_level_elasticity -dim 2 -nm 10 -no-sm
+```
+
+ParaView output is enabled by default and can be disabled with `--no-vis`.
+The collection contains the two-level or deflated solution, the LOR-AMG
+solution, their difference, and `mode_01` through `mode_10`. If fewer than ten
+modes are requested, all available modes are written. Use `--output-prefix`
+to select the output directory and `--csv` to save the comparison table.
+The console additionally reports modal eigenvalues, angular frequencies,
+PA residuals, total and unconstrained global true-DOF counts,
+mass-orthogonality error, setup phases, iterations, solve times, true
+residuals, and the solution difference. The DOF counts are printed before the
+eigensolve as well as in the final summary. Setup time for the two-level method
+includes the shared LOR construction, eigen-AMG setup, eigensolve, mode
+processing, smoother construction, and coarse SVD. The executable requires
+MPI, double precision, HYPRE, and LAPACK.
 
 ## Solver and preconditioner options
 

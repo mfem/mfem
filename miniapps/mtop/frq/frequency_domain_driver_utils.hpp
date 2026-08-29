@@ -26,6 +26,7 @@ struct SolverOptions
    const char *preconditioner = "presb";
    const char *h_inverse = "lor-amg";
    const char *lor_ordering = "nodes";
+   int h_amg_cycles = 1;
    real_t relative_tolerance = 1.0e-10;
    real_t absolute_tolerance = 0.0;
    int max_iterations = 500;
@@ -46,6 +47,8 @@ struct SolverOptions
                      "H inverse: lor-amg, lor-cg-amg, or mumps.");
       args.AddOption(&lor_ordering, "-lo", "--lor-ordering",
                      "LOR vector ordering: nodes or vdim.");
+      args.AddOption(&h_amg_cycles, "-hac", "--h-amg-cycles",
+                     "Fixed AMG cycles per H-inverse application.");
       args.AddOption(&relative_tolerance, "-rtol", "--relative-tolerance",
                      "Outer relative tolerance.");
       args.AddOption(&absolute_tolerance, "-atol", "--absolute-tolerance",
@@ -84,6 +87,8 @@ struct SolverOptions
       MFEM_VERIFY(hi == "lor-amg" || hi == "lor-cg-amg" || hi == "mumps",
                   "Unknown H inverse.");
       MFEM_VERIFY(lo == "nodes" || lo == "vdim", "Unknown LOR ordering.");
+      MFEM_VERIFY(h_amg_cycles > 0,
+                  "H-inverse AMG cycle count must be positive.");
       MFEM_VERIFY(relative_tolerance >= 0.0 && absolute_tolerance >= 0.0 &&
                   max_iterations > 0 && kdim > 0,
                   "Invalid outer solver controls.");
@@ -119,6 +124,7 @@ struct SolverOptions
          FD::HInverseType::LORMonolithicAMG);
       solver.SetLOROrdering(std::string(lor_ordering) == "vdim" ?
                             Ordering::byVDIM : Ordering::byNODES);
+      solver.SetHInverseAMGCycles(h_amg_cycles);
       solver.SetRelTol(relative_tolerance);
       solver.SetAbsTol(absolute_tolerance);
       solver.SetMaxIter(max_iterations);
@@ -135,11 +141,11 @@ struct SolverOptions
 struct DampingOptions
 {
    const char *model = "rayleigh";
-   real_t alpha = 0.08;
-   real_t beta = 0.015;
-   real_t mass = 0.08;
-   real_t lambda = 0.015;
-   real_t mu = 0.015;
+   real_t alpha = 0.02;
+   real_t beta = 0.0;
+   real_t mass = 0.02;
+   real_t lambda = 0.0;
+   real_t mu = 0.0;
 
    void AddOptions(OptionsParser &args)
    {

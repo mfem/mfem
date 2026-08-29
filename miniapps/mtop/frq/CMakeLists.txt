@@ -6,6 +6,14 @@ add_mfem_miniapp(frequency_domain_preconditioners_regression
                  EXTRA_HEADERS frequency_domain_preconditioners.hpp
                  LIBRARIES mfem)
 
+if(MFEM_USE_MPI)
+   add_mfem_miniapp(frequency_domain_preconditioners_mpi_regression
+                    MAIN frequency_domain_preconditioners_mpi_regression.cpp
+                    EXTRA_SOURCES frequency_domain_preconditioners.cpp
+                    EXTRA_HEADERS frequency_domain_preconditioners.hpp
+                    LIBRARIES mfem)
+endif()
+
 if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
    add_mfem_miniapp(frequency_domain_elasticity_test
                     MAIN frequency_domain_elasticity_test.cpp
@@ -44,4 +52,12 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
                                   frequency_domain_driver_utils.hpp
                                   frequency_domain_preconditioners.hpp
                     LIBRARIES mfem)
+
+   if(MFEM_USE_LAPACK)
+      add_mfem_miniapp(two_level_elasticity
+                       MAIN two_level_elasticity.cpp
+                       EXTRA_SOURCES frequency_domain_preconditioners.cpp
+                       EXTRA_HEADERS frequency_domain_preconditioners.hpp
+                       LIBRARIES mfem)
+   endif()
 endif()

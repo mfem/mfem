@@ -434,6 +434,8 @@ int main(int argc, char *argv[])
                     MUMPS ? "none" :
                     frequency_domain::HInverseName(
                        solver.GetHInverseType())) << '\n'
+                << "Fixed H-inverse AMG cycles: "
+                << solver.GetHInverseAMGCycles() << '\n'
                 << "LOR ordering: "
                 << frequency_domain::LOROrderingName(
                       solver.GetLOROrdering()) << '\n'
@@ -494,7 +496,8 @@ int main(int argc, char *argv[])
                 "frequency_ratio,modal_damping,damping_ratio,loss_factor,"
                 "h_indicator,elements,displacement_dofs,total_dofs,"
                 "requested_solver,active_solver,"
-                "preconditioner,h_inverse,lor_ordering,relative_tolerance,"
+                "preconditioner,h_inverse,h_amg_cycles,lor_ordering,"
+                "relative_tolerance,"
                 "absolute_tolerance,max_iterations,kdim,"
                 "preconditioner_relative_tolerance,"
                 "preconditioner_absolute_tolerance,"
@@ -527,6 +530,7 @@ int main(int argc, char *argv[])
                  FrequencyDomainLinearElasticitySolver::LinearSolverType::
                  MUMPS ? "none" : frequency_domain::HInverseName(
                     solver.GetHInverseType())) << ','
+             << solver.GetHInverseAMGCycles() << ','
              << frequency_domain::LOROrderingName(solver.GetLOROrdering())
              << ',' << solver.GetRelTol() << ',' << solver.GetAbsTol() << ','
              << solver.GetMaxIter() << ',' << solver.GetKDim() << ','

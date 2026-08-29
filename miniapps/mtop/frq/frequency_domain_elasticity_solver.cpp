@@ -165,8 +165,9 @@ private:
 /// Count applications of an owned solver and its iterative work.
 ///
 /// For an IterativeSolver, work is the sum of the iterations reported after
-/// every application. For a fixed AMG action, @a fixed_work_per_application is
-/// one V-cycle. Direct inverse actions use zero because they have no iterations.
+/// every application. For fixed AMG, @a fixed_work_per_application is the
+/// prescribed cycle count. Direct actions use zero because they have no
+/// iterations.
 class InstrumentedSolver : public Solver
 {
 public:
@@ -808,6 +809,15 @@ void FrequencyDomainLinearElasticitySolver::SetLOROrdering(
    SetNeedsAssembly();
 }
 
+/// Set the fixed number of AMG cycles used by the direct LOR-AMG action.
+void FrequencyDomainLinearElasticitySolver::SetHInverseAMGCycles(
+   const int cycles)
+{
+   MFEM_VERIFY(cycles > 0, "H-inverse AMG cycle count must be positive.");
+   h_inverse_amg_cycles_ = cycles;
+   SetNeedsAssembly();
+}
+
 /// Set the outer relative tolerance.
 void FrequencyDomainLinearElasticitySolver::SetRelTol(const real_t value)
 {
@@ -1270,12 +1280,12 @@ void FrequencyDomainLinearElasticitySolver::BuildHInverse() const
       new HypreBoomerAMG(*lor_h_matrix_));
    amg->SetSystemsOptions(fespace_.GetVDim(),
                           lor_ordering_ == Ordering::byNODES);
-   // A symmetric point relaxation makes one Galerkin V-cycle suitable as the
-   // SPD diagonal preconditioner required by MINRES. l1-Jacobi is supported
-   // by both CPU and GPU hypre builds.
+   // Symmetric point relaxation and a prescribed number of Galerkin V-cycles
+   // define the fixed SPD diagonal preconditioner required by MINRES.
+   // l1-Jacobi is supported by both CPU and GPU hypre builds.
    amg->SetRelaxType(18);
    amg->SetTol(0.0);
-   amg->SetMaxIter(1);
+   amg->SetMaxIter(h_inverse_amg_cycles_);
    amg->SetPrintLevel(preconditioner_print_level_ >= 0 ?
                       preconditioner_print_level_ : 0);
    std::unique_ptr<Solver> reordered(
@@ -1285,7 +1295,8 @@ void FrequencyDomainLinearElasticitySolver::BuildHInverse() const
 
    if (h_inverse_type_ == HInverseType::LORMonolithicAMG)
    {
-      h_inverse_.reset(new InstrumentedSolver(std::move(reordered), 1));
+      h_inverse_.reset(new InstrumentedSolver(
+                          std::move(reordered), h_inverse_amg_cycles_));
       return;
    }
 

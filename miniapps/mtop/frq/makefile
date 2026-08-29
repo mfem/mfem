@@ -16,8 +16,16 @@ OBJECTS = frequency_domain_preconditioners_regression.o \
 	frequency_domain_preconditioners.o
 PAR_TARGETS = frequency_domain_elasticity_test \
 	frequency_domain_elasticity_solver_regression \
+	frequency_domain_preconditioners_mpi_regression \
 	frequency_domain_cantilever \
 	frequency_domain_cantilever_mms_regression
+ifeq ($(MFEM_USE_MPI),YES)
+ifeq ($(MFEM_USE_DOUBLE),YES)
+ifeq ($(MFEM_USE_LAPACK),YES)
+   PAR_TARGETS += two_level_elasticity
+endif
+endif
+endif
 ELASTICITY_TEST_OBJECTS = frequency_domain_elasticity_test.o \
 	frequency_domain_elasticity.o
 SOLVER_REGRESSION_OBJECTS = frequency_domain_elasticity_solver_regression.o \
@@ -32,10 +40,13 @@ CANTILEVER_MMS_OBJECTS = frequency_domain_cantilever_mms_regression.o \
 	frequency_domain_elasticity_solver.o \
 	frequency_domain_elasticity.o \
 	frequency_domain_preconditioners.o
+TWO_LEVEL_ELASTICITY_OBJECTS = two_level_elasticity.o \
+	frequency_domain_preconditioners.o
 
 frequency_domain_cantilever.o \
 frequency_domain_cantilever_mms_regression.o: \
 	frequency_domain_driver_utils.hpp
+two_level_elasticity.o: frequency_domain_preconditioners.hpp
 
 .DEFAULT_GOAL := all
 
@@ -56,10 +67,18 @@ frequency_domain_elasticity_test: $(ELASTICITY_TEST_OBJECTS)
 frequency_domain_elasticity_solver_regression: $(SOLVER_REGRESSION_OBJECTS)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
+frequency_domain_preconditioners_mpi_regression: \
+	frequency_domain_preconditioners_mpi_regression.o \
+	frequency_domain_preconditioners.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
 frequency_domain_cantilever: $(CANTILEVER_OBJECTS)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 frequency_domain_cantilever_mms_regression: $(CANTILEVER_MMS_OBJECTS)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
+
+two_level_elasticity: $(TWO_LEVEL_ELASTICITY_OBJECTS)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: %.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)

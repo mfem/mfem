@@ -262,6 +262,9 @@ public:
    /// Select the vector ordering of the monolithic LOR auxiliary space.
    void SetLOROrdering(Ordering::Type ordering);
 
+   /// Set the fixed number of AMG cycles used by LORMonolithicAMG.
+   void SetHInverseAMGCycles(int cycles);
+
    /// Set the outer iterative relative tolerance.
    void SetRelTol(real_t rel_tol);
 
@@ -280,7 +283,7 @@ public:
    /// Set the nested CG relative tolerance.
    ///
    /// This setting applies to LORMonolithicCGAMG. A fixed AMG inverse always
-   /// applies one cycle, while MUMPS performs a direct solve.
+   /// applies the prescribed cycle count, while MUMPS performs a direct solve.
    void SetPreconditionerRelTol(real_t rel_tol);
 
    /// Set the nested CG absolute tolerance.
@@ -360,6 +363,9 @@ public:
 
    /// Return the vector ordering used by the monolithic LOR space.
    Ordering::Type GetLOROrdering() const { return lor_ordering_; }
+
+   /// Return the fixed AMG cycle count used by LORMonolithicAMG.
+   int GetHInverseAMGCycles() const { return h_inverse_amg_cycles_; }
 
    /// Return the effective outer solver after assembly, without MPI work.
    /// Before assembly this returns Automatic.
@@ -534,6 +540,7 @@ private:
    PreconditionerType preconditioner_type_ = PreconditionerType::PRESB;
    HInverseType h_inverse_type_ = HInverseType::LORMonolithicAMG;
    Ordering::Type lor_ordering_ = Ordering::byNODES;
+   int h_inverse_amg_cycles_ = 1;
    real_t rel_tol_ = 1.0e-12;
    real_t abs_tol_ = 0.0;
    int max_iter_ = 500;

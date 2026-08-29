@@ -926,7 +926,8 @@ bool CheckConvergence(const std::string &name,
 void WriteCSVHeader(std::ostream &output)
 {
    output << "dimension,boundary_case,level,requested_solver,active_solver,"
-             "preconditioner,h_inverse,lor_ordering,damping_model,"
+             "preconditioner,h_inverse,h_amg_cycles,lor_ordering,"
+             "damping_model,"
              "damping_alpha,damping_beta,mass_damping,damping_lambda,"
              "damping_mu,elements,displacement_dofs,total_dofs,frequency,"
              "lambda1,"
@@ -955,7 +956,8 @@ void WriteCSVRow(std::ostream &output, const LevelResult &result,
           << (result.active_solver ==
               FrequencyDomainLinearElasticitySolver::LinearSolverType::MUMPS ?
               "none" : solver_options.h_inverse)
-          << ',' << solver_options.lor_ordering << ',' << damping_options.model
+          << ',' << solver_options.h_amg_cycles << ','
+          << solver_options.lor_ordering << ',' << damping_options.model
           << ',' << damping_options.alpha << ',' << damping_options.beta << ','
           << damping_options.mass << ',' << damping_options.lambda << ','
           << damping_options.mu << ',' << result.elements << ',' << result.dofs
@@ -1108,7 +1110,9 @@ int main(int argc, char *argv[])
                    << '\n'
                    << "H inverse: " << solver_options.h_inverse << '\n';
       }
-      std::cout << "LOR ordering: " << solver_options.lor_ordering << '\n'
+      std::cout << "Fixed H-inverse AMG cycles: "
+                << solver_options.h_amg_cycles << '\n'
+                << "LOR ordering: " << solver_options.lor_ordering << '\n'
                 << "Damping model: " << damping_options.model << '\n';
       if (std::string(damping_options.model) == "rayleigh")
       {
