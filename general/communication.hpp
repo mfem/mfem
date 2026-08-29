@@ -550,7 +550,7 @@ public:
        operation is performed on host. */
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
    {
-      ReduceBegin(ldata);
+      ReduceBegin(ldata, Op);
       ReduceEnd(ldata, 0, Op);
    }
 

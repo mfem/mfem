@@ -552,7 +552,7 @@ public:
        func(*v.GetArrayView());
        @endcode
        where `func` has an `Array<real_t>&` argument and `v` is a Vector. In
-       this examples, the returned MemoryView object is temporary, created just
+       this example, the returned MemoryView object is temporary, created just
        before the call to `func` and destroyed automatically right after that
        call.
 
@@ -576,7 +576,7 @@ public:
        func(*v.GetArrayView());
        @endcode
        where `func` has a `const Array<real_t>&` argument and `v` is a const
-       Vector. In this examples, the returned MemoryView object is temporary,
+       Vector. In this example, the returned MemoryView object is temporary,
        created just before the call to `func` and destroyed automatically right
        after that call.
 

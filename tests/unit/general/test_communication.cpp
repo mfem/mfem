@@ -16,7 +16,7 @@ using namespace mfem;
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("DeviceGroupCommunicator", "[Parallel][GPU]")
+TEST_CASE("DeviceGroupCommunicator", "[Parallel][GroupCommunicator][GPU]")
 {
    const int nx = 6, ny = 6;
    Mesh mesh = Mesh::MakeCartesian2D(nx, ny, Element::QUADRILATERAL);
@@ -91,6 +91,25 @@ TEST_CASE("DeviceGroupCommunicator", "[Parallel][GPU]")
    SECTION("Reduce Max")
    {
       reduce_check(GroupCommunicator::Max, DeviceGroupCommunicator::Op::Max);
+   }
+
+   SECTION("Reduce BitOR")
+   {
+      Array<int> or_h(pfes.GetVSize()), or_d(pfes.GetVSize());
+      or_h = 1 << (Mpi::WorldRank() % 31);
+      or_d = or_h;
+      or_d.UseDevice(true);
+
+      gc.Reduce(or_h.HostReadWrite(), GroupCommunicator::BitOR);
+      gc.Reduce(or_d, GroupCommunicator::BitOR);
+
+      or_d.HostRead();
+      int error = 0;
+      for (int i = 0; i < or_h.Size(); i++)
+      {
+         error += (or_d[i] != or_h[i]);
+      }
+      CHECK(error == 0);
    }
 }
 
