@@ -227,8 +227,10 @@ inline void AddDerivativeApplyTranspose()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Apply the same DericativeKernel selection to the specializations
 template<int DIM, int Q1D, typename QT, typename IT, typename OT,
-         typename derivative_ids_t = std::index_sequence<>>
+         typename derivative_ids_t = std::index_sequence<>,
+         DerivativeKernels kernels = DerivativeKernels::All>
 inline void AddLocalSpecializations()
 {
    AddAction<DIM, Q1D, QT, IT, OT>();
@@ -236,10 +238,22 @@ inline void AddLocalSpecializations()
    for_constexpr([&](auto i)
    {
       using derivative_id = decltype(i);
-      AddDerivativeAction<DIM, Q1D, derivative_id::value, QT, IT, OT>();
-      AddDerivativeSetup<DIM, Q1D, derivative_id::value, QT, IT, OT>();
-      AddDerivativeApply<DIM, Q1D, derivative_id::value, QT, IT, OT>();
-      AddDerivativeApplyTranspose<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      if constexpr (HasAllKernels(kernels, DerivativeKernels::Action))
+      {
+         AddDerivativeAction<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      }
+      if constexpr (NeedsQpCache(kernels))
+      {
+         AddDerivativeSetup<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      }
+      if constexpr (HasAllKernels(kernels, DerivativeKernels::Apply))
+      {
+         AddDerivativeApply<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      }
+      if constexpr (HasAllKernels(kernels, DerivativeKernels::ApplyTranspose))
+      {
+         AddDerivativeApplyTranspose<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+      }
    }, derivative_ids_t{});
 }
 

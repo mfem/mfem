@@ -735,6 +735,74 @@ using Outputs = tuple<Ops...>;
 template <size_t... FieldIds>
 using Derivatives = std::integer_sequence<size_t, FieldIds...>;
 
+
+// Bit-mask selecting which derivative kernels are instantiated for an integrator.
+// Predefined families (MF, PA, AllAssembly, and All), individual kernels,
+// and bitwise combinations are supported.
+//
+// Usage:
+//
+// constexpr auto kernels = DerivativeKernels::PA; // Predefined family (MF, PA, AllAssembly, All)
+// constexpr auto kernels = DerivativeKernels::Action | DerivativeKernels::AssembleDiagonal; (combination of individual kernels)
+//
+// dop.AddDomainIntegrator<LocalQFBackend, kernels>(qfunc, inputs, outputs, ir, attributes, derivatives);
+//
+// By default, All kernels are requested. Selecting a smaller set reduces
+// compile time and binary size when the other operations are not needed.
+//
+// Setup is not explicitly requested but triggered by kernels that need that (see NeedsQpCache()).
+enum class DerivativeKernels : unsigned
+{
+   None             = 0,
+   Apply            = 1u << 0,  // DerivativeOperator::Mult
+   ApplyTranspose   = 1u << 1,  // DerivativeOperator::MultTranspose
+   AssembleMatrix   = 1u << 2,  // DerivativeOperator::Assemble
+   AssembleDiagonal = 1u << 3,  // DerivativeOperator::AssembleDiagonal
+   Action           = 1u << 4,  // matrix-free derivative action
+
+
+   // Convenience families of kernels
+   MF = Action,                 // Matrix free action (just an alias for Action)
+   PA = Apply | ApplyTranspose, // Partially-assembled action (setup+apply) 
+   AllAssembly  = AssembleMatrix | AssembleDiagonal, // Enable all assembly callbacks
+   All = PA | AllAssembly | Action
+};
+
+constexpr DerivativeKernels operator|(DerivativeKernels a, DerivativeKernels b)
+{
+   return static_cast<DerivativeKernels>(static_cast<unsigned>(a) |
+                                         static_cast<unsigned>(b));
+}
+
+// True if @a set and @a requested have at least one kernel in common.
+// ( HasAnyKernel(A,B) --> A \cap B != emptyset )
+constexpr bool HasAnyKernel(DerivativeKernels set,
+                            DerivativeKernels requested)
+{
+   return (static_cast<unsigned>(set) &
+           static_cast<unsigned>(requested)) != 0;
+}
+
+// True if @a set contains every kernel in @a requested.
+// ( HasAllKernels(A,B) --> B \subseteq A )
+constexpr bool HasAllKernels(DerivativeKernels set,
+                             DerivativeKernels requested)
+{
+   return (static_cast<unsigned>(set) & static_cast<unsigned>(requested)) ==
+          static_cast<unsigned>(requested);
+}
+
+// The families below read the quadrature point cache filled by DerivativeSetup.
+constexpr bool NeedsQpCache(DerivativeKernels set)
+{
+   constexpr auto qp_cache_kernels =
+      DerivativeKernels::Apply |
+      DerivativeKernels::ApplyTranspose |
+      DerivativeKernels::AssembleMatrix |
+      DerivativeKernels::AssembleDiagonal;
+   return HasAnyKernel(set, qp_cache_kernels);
+}
+
 // A single second derivative (Hessian) block of a functional f, obtained by
 // differentiating the gradient grad_G f in the direction of the field D, i.e.
 // DerivativePair<G, D> denotes d/dD (grad_G f). The two ids play different
