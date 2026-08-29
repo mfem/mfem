@@ -188,6 +188,7 @@ set(SRCS
   darcy/darcyreduction.cpp
   darcy/estimators_hdg.cpp
   darcy/functionals_hdg.cpp
+  darcy/postprocess_hdg.cpp
   darcy/pdarcyform.cpp
   darcy/tmop_hdg.cpp
   integrator.cpp

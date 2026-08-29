@@ -487,14 +487,22 @@ namespace darcy_nl_mms
 //
 // The branch reconstructs the normally continuous total flux and then flux
 // and potential one order higher, which is much of the point of an HDG
-// method. It is implemented for a *scalar* field only:
-// DarcyForm::ReconstructFluxAndPot asserts fes_p->GetVDim() == 1, and the
-// kernel under it indexes the potential, trace and total-flux spaces without
-// vdim, builds those enriched spaces with no vdim argument, and reaches
-// DarcyHybridization::ReconstructTotalFlux whose callback takes a scalar
-// potential. So the system above cannot be postprocessed as the branch
-// stands. What can be measured is the same manufactured problem with one
-// field, which is what follows.
+// method.
+//
+// Two postprocessings now exist and they differ in what they generalise to.
+// DarcyForm::Reconstruct() is the richer one -- an enriched flux, potential
+// and traces from one mixed local problem -- and it is still *scalar* only:
+// it asserts fes_p->GetVDim() == 1, and the kernel under it indexes the
+// potential and trace spaces without vdim and builds those enriched spaces
+// with no vdim argument. HDGPotentialPostprocessor is the classic local
+// postprocessing (NPC eq (25)), which yields the potential alone but is
+// general in vdim, because its local problems do not couple the equations and
+// it needs neither the trace space nor the hybridization -- only the computed
+// flux and potential. A system is postprocessed by that one; see
+// tests/unit/fem/test_darcy_postprocess.cpp.
+//
+// What follows measures the richer reconstruction, so it is the same
+// manufactured problem reduced to one field.
 //
 // One field means a scalar conductivity, and the existing
 // FunctionDiffusionFlux takes 1/k and its derivative directly.
