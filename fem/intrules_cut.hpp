@@ -511,7 +511,7 @@ protected:
     @param [in] order Order of the IntegrationRule
     @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation to initialize the members with
+    @param [in] Tr ElementTransformation to initialize the members with
    */
    void InitSurface(int order, Coefficient& levelset, int lsO,
                     ElementTransformation& Tr);
@@ -526,7 +526,7 @@ protected:
     @param [in] order Order of the IntegrationRule
     @param [in] levelset level-set function defining the implicit interface
     @param [in] lsO polynomial degree for approximation of level-set function
-    @param [in] Tr ElemenTransformation to initialize the members with
+    @param [in] Tr ElementTransformation to initialize the members with
    */
    void InitVolume(int order, Coefficient& levelset, int lsO,
                    ElementTransformation& Tr);
