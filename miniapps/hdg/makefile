@@ -24,7 +24,7 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo
+SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo navierstokes
 PAR_MINIAPPS = panisodiff pconvdiff
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -65,6 +65,9 @@ anisodiff-test-seq: anisodiff
 convdiff-test-seq: convdiff
 	@$(call mfem-test,$<,, HDG convection-diffusion miniapp,\
 	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -r 2)
+navierstokes-test-seq: navierstokes
+	@$(call mfem-test,$<,, HDG Navier-Stokes miniapp,\
+	-p 1 -nx 8 -ny 8 -o 2 -hb)
 mfem-logo-test-seq: mfem-logo
 	@$(call mfem-test,$<,, HDG MFEM logo miniapp,\
 	-nx 50 -o 3 -hb -brt -a 1e3 -ks 1e-3 -c 2e4)
@@ -87,5 +90,6 @@ clean-build:
 
 clean-exec:
 	@rm -f anisodiff*.mesh sol_t*.gf sol_q*.gf mfem-logo.mesh convdiff*.mesh
+	@rm -f navierstokes*.mesh
 	@rm -f panisodiff*.mesh pconvdiff*.mesh
 	@rm -rf Anisodiff* Convdiff* Mfem-logo* PAnisodiff* PConvdiff*

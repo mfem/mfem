@@ -38,11 +38,38 @@ superconvergent as solved.
 
 ## 5. `τ` for problems that are convection- and diffusion-dominated at once
 
-**The headline question is still open, and is now reachable for the first
-time.** Everything measured so far is diffusion-dominated or mildly convective
-with a single `τ`. Nothing speaks to a `τ` serving convection in one coordinate
-direction and diffusion in another simultaneously. `anisodiff -p 11` on
-`gf-hdg-subdomains-dev` is the shape of the driver it wants.
+**The headline question is still open, but the driver now exists.**
+Everything measured so far is diffusion-dominated or mildly convective with a
+single `τ`. Nothing yet speaks to a `τ` serving convection in one coordinate
+direction and diffusion in another simultaneously.
+
+`miniapps/hdg/navierstokes.cpp` is that driver, and
+`doc/HDG-NAVIER-STOKES.md` records it. Plane Poiseuille flow is diffusive
+across the channel and convective along it, and in the
+artificial-compressibility form the stabilization the reference asks for is
+`S = λ_max(û,n) I` with
+
+    λ_max = |v·n| + sqrt((v·n)^2 + β|n|^2),
+
+which is `|v| + sqrt(v²+β)` on a face whose normal lies along the flow and
+`sqrt(β)` on one across it. **That ratio is the question**, and it is set by
+the mesh aspect ratio and by the Reynolds number, both command-line knobs.
+`-tau <c>` swaps in the library's constant-`Ctau` `HDGFlux` so the
+direction-aware and direction-blind stabilizations can be measured against
+each other on the same problem. The measurement itself -- rates under each,
+swept in those two parameters -- has not been taken yet.
+
+`anisodiff -p 11` on `gf-hdg-subdomains-dev` remains the linear-diffusion
+shape of the same question.
+
+A constraint found while building that driver, which bounds how far the
+existing library can go: `MixedConductionNLFIntegrator`'s HDG face
+stabilization for more than one equation is `face_w * TauVar(e)`, one constant
+per equation set once through `SetVariableStabilization()`. It cannot express a
+stabilization depending on the state or the face normal. The Navier-Stokes
+driver sidesteps it by carrying the convective stabilization on the
+`NumericalFlux`; a *viscous* stabilization that varies with direction would
+not be able to.
 
 One methodological point survives from a withdrawn table because it cost a day:
 **rates must be taken asymptotically.** The same configurations read 1.6 rather
@@ -134,6 +161,13 @@ subject.
   (2010) 582–597. The velocity–pressure–gradient formulation §9 follows; §3.2
   is the augmented-Lagrangian reduction to the velocity trace alone, §4.1 the
   stabilisation sweep §9 reproduces.
+* **PNC-NS** — Peraire, Nguyen & Cockburn, *A hybridizable discontinuous
+  Galerkin method for the compressible Euler and Navier-Stokes equations*,
+  AIAA 2010-363. Eq. (3) is the numerical flux `F(û)·n + S(u,û)(u−û)`, Eq. (5)
+  the eigen-decomposition stabilisation and Eq. (6) the local Lax-Friedrichs
+  one `S = λ_max I`; Eq. (8) the inflow/outflow boundary flux `B̂`; Eq. (13)-(14)
+  the Navier-Stokes first-order system and its HDG formulation. §5's driver,
+  `miniapps/hdg/navierstokes.cpp`, follows it; see `doc/HDG-NAVIER-STOKES.md`.
 * **CS-Extensions** — Cockburn & Solano, on solving problems posed on curved
   domains by extension from a polyhedral subdomain, reducing the boundary
   treatment to line integrals along transferring paths. §1.

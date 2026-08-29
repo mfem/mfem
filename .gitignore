@@ -456,6 +456,9 @@ miniapps/hdg/panisodiff*.mesh
 miniapps/hdg/PAnisodiff*
 miniapps/hdg/pconvdiff*.mesh
 miniapps/hdg/PConvdiff*
+miniapps/hdg/navierstokes
+miniapps/hdg/navierstokes*.mesh
+miniapps/hdg/Navierstokes*
 
 miniapps/hdiv-linear-solver/darcy
 miniapps/hdiv-linear-solver/grad_div

@@ -139,6 +139,7 @@ set(UNIT_TESTS_SRCS
   fem/test_getgradient.cpp
   fem/test_getgradients.cpp
   fem/test_gslib.cpp
+  fem/test_hdg_nsflux.cpp
   fem/test_hybridization_operator.cpp
   fem/test_hyperbolic_hdg.cpp
   fem/test_hp_transfer.cpp

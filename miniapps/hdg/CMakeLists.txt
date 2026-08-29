@@ -42,6 +42,11 @@ add_mfem_miniapp(mfem-logo
     ${HDG_COMMON_FILES}
     LIBRARIES mfem)
 
+add_mfem_miniapp(navierstokes
+    MAIN navierstokes.cpp
+    ${HDG_COMMON_FILES}
+    LIBRARIES mfem)
+
 if (MFEM_USE_MPI)
   add_mfem_miniapp(panisodiff
     MAIN panisodiff.cpp
