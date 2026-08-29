@@ -76,7 +76,7 @@ real_t g0(Vector& x)
 
 real_t dg0(Vector& x, Vector& dx)
 {
-   const int n=x.Size();
+   int n = x.Size();
 
    int gn = n;
 #ifdef MFEM_USE_MPI
