@@ -763,7 +763,7 @@ enum class DerivativeKernels : unsigned
 
    // Convenience families of kernels
    MF = Action,                 // Matrix free action (just an alias for Action)
-   PA = Apply | ApplyTranspose, // Partially-assembled action (setup+apply) 
+   PA = Apply | ApplyTranspose, // Partially-assembled action (setup+apply)
    AllAssembly  = AssembleMatrix | AssembleDiagonal, // Enable all assembly callbacks
    All = PA | AllAssembly | Action
 };
