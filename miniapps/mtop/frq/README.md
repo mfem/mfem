@@ -89,6 +89,67 @@ system \(A_D\widehat{x}=Pb\), `RecoverDeflatedSolution()` forms
 fine operator and symmetric coarse correction; `Mult()` remains the ordinary
 multiplicative two-level inverse.
 
+The following MPI example shows the complete deflation sequence. The wrapper
+turns `MultDeflatedOperator()` into an `Operator` that can be passed to an MFEM
+Krylov solver:
+
+```cpp
+class DeflatedOperator : public mfem::Operator
+{
+private:
+   const mfem::TwoLevelPreconditioner &deflation_;
+
+public:
+   explicit DeflatedOperator(
+      const mfem::TwoLevelPreconditioner &deflation)
+      : mfem::Operator(deflation.Height()), deflation_(deflation) { }
+
+   void Mult(const mfem::Vector &x, mfem::Vector &y) const override
+   {
+      deflation_.MultDeflatedOperator(x, y);
+   }
+
+   void MultTranspose(const mfem::Vector &x,
+                      mfem::Vector &y) const override
+   {
+      // A-AQA is symmetric when A and Q are symmetric.
+      deflation_.MultDeflatedOperator(x, y);
+   }
+};
+
+mfem::TwoLevelPreconditioner deflation(
+   comm, A, static_cast<int>(coarse_vectors.size()));
+for (const mfem::Vector &z : coarse_vectors)
+{
+   deflation.AddCoarseVector(z);
+}
+deflation.SetSmoother(nullptr);
+deflation.Assemble();
+
+DeflatedOperator deflated_A(deflation);
+mfem::Vector deflated_b, x_hat(A.Width()), x;
+deflation.FormDeflatedRHS(b, deflated_b); // (I-AQ)b
+x_hat = 0.0;
+
+mfem::CGSolver cg(comm);
+cg.SetOperator(deflated_A);               // A-AQA
+cg.SetRelTol(1.0e-10);
+cg.SetAbsTol(0.0);
+cg.SetMaxIter(500);
+cg.SetPrintLevel(1);
+cg.Mult(deflated_b, x_hat);
+
+deflation.RecoverDeflatedSolution(b, x_hat, x);
+// x = Qb + (I-QA)x_hat
+```
+
+The coarse vectors must be populated before `Assemble()`. Do not pass
+`deflation` itself to `SetPreconditioner()` in this workflow: with no smoother,
+its ordinary `Mult()` applies only \(Q\). `GMRESSolver` can replace `CGSolver`
+for this fixed deflated operator. The construction and recovery shown here
+require symmetric positive-definite \(A\), symmetric \(Q\), and the compatible
+projected right-hand side returned by `FormDeflatedRHS()`.
+
 ## Static two-level cantilever
 
 `two_level_elasticity` constructs the same Cartesian beam geometry used by the

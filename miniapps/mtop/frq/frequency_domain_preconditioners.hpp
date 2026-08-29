@@ -281,6 +281,62 @@ private:
 /// positive-definite A and symmetric Q, PA=A-AQA is symmetric positive
 /// semidefinite and its null space contains the coarse space.
 ///
+/// @par Deflated solve example:
+/// MultDeflatedOperator() is an action rather than a separate Operator, so a
+/// small adapter exposes it to an MFEM Krylov solver. Populate and assemble the
+/// coarse space, form the compatible right-hand side, solve for the
+/// complementary component, and recover the full solution:
+/// @code
+/// class DeflatedOperator : public Operator
+/// {
+/// private:
+///    const TwoLevelPreconditioner &deflation_;
+///
+/// public:
+///    explicit DeflatedOperator(const TwoLevelPreconditioner &deflation)
+///       : Operator(deflation.Height()), deflation_(deflation) { }
+///
+///    void Mult(const Vector &x, Vector &y) const override
+///    {
+///       deflation_.MultDeflatedOperator(x, y);
+///    }
+///
+///    void MultTranspose(const Vector &x, Vector &y) const override
+///    {
+///       // A-AQA is symmetric when A and Q are symmetric.
+///       deflation_.MultDeflatedOperator(x, y);
+///    }
+/// };
+///
+/// TwoLevelPreconditioner deflation(comm, A, max_coarse_vectors);
+/// for (const Vector &z : coarse_vectors)
+/// {
+///    deflation.AddCoarseVector(z);
+/// }
+/// deflation.SetSmoother(nullptr);
+/// deflation.Assemble();
+///
+/// DeflatedOperator deflated_A(deflation);
+/// Vector deflated_b, x_hat(A.Width()), x;
+/// deflation.FormDeflatedRHS(b, deflated_b); // (I-AQ)b
+/// x_hat = 0.0;
+///
+/// CGSolver cg(comm);
+/// cg.SetOperator(deflated_A);               // A-AQA
+/// cg.SetRelTol(1.0e-10);
+/// cg.SetAbsTol(0.0);
+/// cg.SetMaxIter(500);
+/// cg.Mult(deflated_b, x_hat);
+///
+/// deflation.RecoverDeflatedSolution(b, x_hat, x);
+/// // x = Qb + (I-QA)x_hat
+/// @endcode
+/// Disabling the smoothers does not make Mult() apply deflation: with no
+/// smoothers, Mult() applies only Q. The construction and recovery above
+/// require symmetric positive-definite A, symmetric Q, and the compatible
+/// right-hand side returned by FormDeflatedRHS(). GMRESSolver may replace
+/// CGSolver for the same fixed deflated operator.
+///
 /// @warning For the cycle to be symmetric, A and Q must be symmetric and the
 /// post-smoother must be the transpose of the pre-smoother. SetSmoother()
 /// establishes the latter relationship automatically.
