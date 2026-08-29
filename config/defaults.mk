@@ -220,6 +220,14 @@ else ifeq ($(MAKECMDGOALS),config)
      MFEM_PRECISION = $(MFEM_PRECISION))
 endif
 
+ifeq ($(MFEM_USE_RAJA),YES)
+  BASE_FLAGS += -std=c++20
+endif
+
+ifeq ($(MFEM_USE_UMPIRE),YES)
+  BASE_FLAGS += -std=c++20
+endif
+
 # MPI library compile and link flags
 # These settings are used only when building MFEM with MPI + HIP
 ifeq ($(MFEM_USE_MPI)$(MFEM_USE_HIP),YESYES)
