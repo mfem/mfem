@@ -5,11 +5,11 @@
 // Sample runs:  ex14 -m ../../data/inline-quad.mesh -o 0 -hb -dg
 //               ex14 -m ../../data/star.mesh -r 4 -o 2 -hb -brt -trh1
 //               ex14 -m ../../data/star-mixed.mesh -r 4 -o 2 -hb
-//               ex14 -m ../../data/star-mixed.mesh -r 2 -o 2 -rd -dg
+//               ex14 -m ../../data/star-mixed.mesh -r 2 -o 2 -rd -brt
 //               ex14 -m ../../data/star-mixed.mesh -r 2 -o 2
 //               ex14 -m ../../data/escher.mesh -hb
 //               ex14 -m ../../data/fichera.mesh -hb -dg -trh1
-//               ex14 -m ../../data/fichera-mixed.mesh -rd -brt
+//               ex14 -m ../../data/fichera-mixed.mesh -rd -dg
 //               ex14 -m ../../data/square-disc-p2.vtk -r 3 -o 2 -hb -dg
 //               ex14 -m ../../data/square-disc-p3.mesh -r 2 -o 3 -hb -trh1
 //               ex14 -m ../../data/square-disc-nurbs.mesh -o 1
