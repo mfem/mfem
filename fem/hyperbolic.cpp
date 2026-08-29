@@ -539,6 +539,23 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
    const int dof_prim = dof_prim_el + dof_prim_tr;
    const int dof_dual = dof_dual_el + dof_dual_tr;
 
+   // Row and column bases of the *trace* group.
+   //
+   // The blocks are laid out group first and equation second -- all
+   // num_equations fields of the element dofs, then all num_equations fields
+   // of the trace dofs. That is the layout AssembleHDGFaceVector writes (its
+   // elvect_mat and trvect_mat are separate views, the second based at
+   // dof_dual_el*num_equations), and the layout DarcyHybridization slices D,
+   // E, G and H out of. Indexing by a running offset inside each equation
+   // instead interleaves the two groups. The two agree when num_equations
+   // is 1, and when only one group is requested; they differ otherwise, and
+   // ConstructGrad() asks for all four blocks in one call. So a system took a
+   // gradient that did not match its own residual, and because a hybridized
+   // Jacobian is never assembled globally the only symptom was Newton
+   // diverging on a problem whose residual was exact.
+   const int roff_tr = dof_dual_el * num_equations;
+   const int coff_tr = dof_prim_el * num_equations;
+
 #ifdef MFEM_THREAD_SAFE
    // Local storage for element integration
 
@@ -608,14 +625,12 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
       if (type & 1) { nor.Neg(); }
 
       // Compute average J(û, u)
-      int joff = 0;
       if (type & (HDGFaceType::ELEM | HDGFaceType::CONSTR))
       {
          numFlux.AverageGrad(2, state_tr, state_el, nor, Tr, JDotN);
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
-         int ioff = 0;
          if (type & HDGFaceType::ELEM)
          {
             for (int di = 0; di < num_equations; di++)
@@ -623,10 +638,9 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
                   for (int i = 0; i < dof_el; i++)
                      for (int j = 0; j < dof_el; j++)
                      {
-                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                        elmat(di*dof_dual_el+i, dj*dof_prim_el+j) +=
                            w * JDotN(di,dj) * shape_el(i) * shape_el(j);
                      }
-            ioff += dof_el;
          }
          if (type & HDGFaceType::CONSTR)
          {
@@ -635,11 +649,10 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
                   for (int i = 0; i < dof_tr; i++)
                      for (int j = 0; j < dof_el; j++)
                      {
-                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                        elmat(roff_tr+di*dof_dual_tr+i, dj*dof_prim_el+j) +=
                            w * JDotN(di,dj) * shape_tr(i) * shape_el(j);
                      }
          }
-         joff += dof_el;
       }
       if (type & (HDGFaceType::TRACE | HDGFaceType::FACE))
       {
@@ -647,7 +660,6 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
 
          // pre-multiply integration weight to Jacobians
          const real_t w = -ip.weight*sign;
-         int ioff = 0;
          if (type & HDGFaceType::TRACE)
          {
             for (int di = 0; di < num_equations; di++)
@@ -655,10 +667,9 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
                   for (int i = 0; i < dof_el; i++)
                      for (int j = 0; j < dof_tr; j++)
                      {
-                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                        elmat(di*dof_dual_el+i, coff_tr+dj*dof_prim_tr+j) +=
                            w * JDotN(di,dj) * shape_el(i) * shape_tr(j);
                      }
-            ioff += dof_el;
          }
          if (type & HDGFaceType::FACE)
          {
@@ -667,7 +678,7 @@ void HyperbolicFormIntegrator::AssembleHDGFaceGrad(
                   for (int i = 0; i < dof_tr; i++)
                      for (int j = 0; j < dof_tr; j++)
                      {
-                        elmat(di*dof_dual+ioff+i, dj*dof_prim+joff+j) +=
+                        elmat(roff_tr+di*dof_dual_tr+i, coff_tr+dj*dof_prim_tr+j) +=
                            w * JDotN(di,dj) * shape_tr(i) * shape_tr(j);
                      }
          }

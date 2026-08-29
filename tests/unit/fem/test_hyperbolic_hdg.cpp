@@ -336,3 +336,169 @@ TEST_CASE("HDGFlux::Average selects a side and adds a scaled jump",
       }
    }
 }
+
+TEST_CASE("The HDG face gradient and the HDG face residual share one ordering",
+          "[HyperbolicFlux]")
+{
+   using namespace hyperbolic_hdg;
+
+   // The four blocks of the HDG face gradient are laid out group-outermost:
+   // all num_equations fields of the element dofs, then all num_equations
+   // fields of the trace dofs. That is what AssembleHDGFaceVector writes (its
+   // trvect_mat is based at dof_dual_el*num_equations), and what
+   // DarcyHybridization::ConstructGrad() slices D, E, G and H out of.
+   // Indexing by a running offset inside each equation instead interleaves the
+   // two groups, and the two layouts coincide whenever num_equations == 1 or
+   // only one group is asked for -- so only a multi-equation flux assembled
+   // through the four-block call ConstructGrad() makes can see the difference,
+   // and nothing in the tree drove that combination before.
+   const int dim = GENERATE(2, 3);
+   const int neq = GENERATE(1, 3);
+   // The low bit of `type` selects the element on the far side of the face.
+   const int side = GENERATE(0, 1);
+   CAPTURE(dim, neq, side);
+
+   Geom g(dim);
+
+   Vector adv(dim);
+   for (int d = 0; d < dim; d++) { adv(d) = 1.0 - 0.4 * d; }
+   VectorConstantCoefficient acoeff(adv);
+   AdvectionFlux scalar(acoeff);
+   CompoundFlux flux(neq, scalar);
+   HDGFlux hdg(flux, HDGFlux::HDGScheme::HDG_1, 1.3);
+   HyperbolicFormIntegrator integ(hdg);
+   REQUIRE(integ.num_equations == neq);
+
+   using HDGFaceType = NonlinearFormIntegrator::HDGFaceType;
+   const int all = HDGFaceType::ELEM | HDGFaceType::TRACE |
+                   HDGFaceType::CONSTR | HDGFaceType::FACE;
+   const int elem_rows = side | HDGFaceType::ELEM | HDGFaceType::TRACE;
+   const int trace_rows = side | HDGFaceType::CONSTR | HDGFaceType::FACE;
+
+   // Deliberately unequal dof counts in the two groups -- an element space of
+   // order 2 against a trace of order 1. Equal counts let an offset be wrong
+   // by a whole group and still land inside the right block. Neither
+   // AssembleHDGFaceVector nor AssembleHDGFaceGrad requires them to match:
+   // dof_el and dof_tr are carried separately throughout.
+   L2_FECollection fec_el(2, dim);
+   L2_FECollection fec_tr(1, dim - 1);
+   const FiniteElement *fe =
+      fec_el.FiniteElementForGeometry(g.mesh.GetElementGeometry(0));
+   const FiniteElement *fe_tr =
+      fec_tr.FiniteElementForGeometry(g.FTr->GetGeometryType());
+   REQUIRE(fe != nullptr);
+   REQUIRE(fe_tr != nullptr);
+
+   const int dof_el = fe->GetDof();
+   const int dof_tr = fe_tr->GetDof();
+   REQUIRE(dof_el != dof_tr);
+   CAPTURE(dof_el, dof_tr);
+
+   const int n_el = dof_el * neq;
+   const int n_tr = dof_tr * neq;
+   const int n = n_el + n_tr;
+
+   // Every dof of every field gets its own value, so a misplaced entry cannot
+   // be hidden by a repeated one.
+   Vector elfun(n_el), trfun(n_tr);
+   for (int d = 0; d < neq; d++)
+   {
+      for (int j = 0; j < dof_el; j++)
+      {
+         elfun(d*dof_el + j) = 0.9 - 0.11 * j + 0.37 * d;
+      }
+      for (int j = 0; j < dof_tr; j++)
+      {
+         trfun(d*dof_tr + j) = -0.4 + 0.23 * j - 0.19 * d;
+      }
+   }
+
+   // The residual in the layout the gradient has to match. ELEM|TRACE writes
+   // the element rows alone and CONSTR|FACE the trace rows alone, so each call
+   // has only one group to place and cannot express the ambiguity; their
+   // concatenation therefore *defines* the group-outermost layout, and the
+   // gradient of the four-block call is compared against it.
+   Vector r_el, r_tr;
+   auto Residual = [&](const Vector &e, const Vector &t, Vector &r)
+   {
+      integ.AssembleHDGFaceVector(elem_rows, *fe_tr, *fe, *g.FTr, t, e, r_el);
+      integ.AssembleHDGFaceVector(trace_rows, *fe_tr, *fe, *g.FTr, t, e, r_tr);
+      r.SetSize(n);
+      for (int i = 0; i < n_el; i++) { r(i) = r_el(i); }
+      for (int i = 0; i < n_tr; i++) { r(n_el + i) = r_tr(i); }
+   };
+
+   Vector r0;
+   Residual(elfun, trfun, r0);
+   REQUIRE(r_el.Size() == n_el);
+   REQUIRE(r_tr.Size() == n_tr);
+
+   SECTION("the four-block gradient is the derivative of that residual")
+   {
+      DenseMatrix grad;
+      integ.AssembleHDGFaceGrad(side | all, *fe_tr, *fe, *g.FTr, trfun, elfun,
+                                grad);
+      REQUIRE(grad.Height() == n);
+      REQUIRE(grad.Width() == n);
+
+      // This is the assertion that fails under the interleaved indexing. With
+      // neq > 1 the trace group's rows and columns are offset by dof_el rather
+      // than by dof_el*neq, so every trace row and every trace column of the
+      // gradient sits where a different equation's element entry belongs,
+      // while the residual -- assembled one group at a time -- does not move.
+      // At neq == 1 the two indexings are identical, so those cases are a
+      // guard on the fix not disturbing the scalar path.
+      const real_t h = std::cbrt(std::numeric_limits<real_t>::epsilon());
+      Vector rp, rm;
+      for (int j = 0; j < n; j++)
+      {
+         Vector ep(elfun), em(elfun), tp(trfun), tm(trfun);
+         if (j < n_el) { ep(j) += h; em(j) -= h; }
+         else          { tp(j - n_el) += h; tm(j - n_el) -= h; }
+
+         Residual(ep, tp, rp);
+         Residual(em, tm, rm);
+
+         for (int i = 0; i < n; i++)
+         {
+            const real_t fd = (rp(i) - rm(i)) / (2.0 * h);
+            CAPTURE(i, j, grad(i, j), fd);
+            REQUIRE(grad(i, j) == MFEM_Approx(fd, 1e-7, 1e-6));
+         }
+      }
+   }
+
+   SECTION("the four blocks together are the two single-group calls stacked")
+   {
+      // The same statement without a difference quotient: asking for all four
+      // blocks at once must reproduce, entry for entry, what the element-row
+      // and the trace-row calls produce on their own -- which is exactly the
+      // consistency the interleaved indexing lost.
+      DenseMatrix grad, grad_el, grad_tr;
+      integ.AssembleHDGFaceGrad(side | all, *fe_tr, *fe, *g.FTr, trfun, elfun,
+                                grad);
+      integ.AssembleHDGFaceGrad(elem_rows, *fe_tr, *fe, *g.FTr, trfun, elfun,
+                                grad_el);
+      integ.AssembleHDGFaceGrad(trace_rows, *fe_tr, *fe, *g.FTr, trfun, elfun,
+                                grad_tr);
+
+      REQUIRE(grad_el.Height() == n_el);
+      REQUIRE(grad_el.Width() == n);
+      REQUIRE(grad_tr.Height() == n_tr);
+      REQUIRE(grad_tr.Width() == n);
+
+      for (int i = 0; i < n_el; i++)
+         for (int j = 0; j < n; j++)
+         {
+            CAPTURE(i, j);
+            REQUIRE(grad(i, j) == MFEM_Approx(grad_el(i, j), 1e-12, 1e-11));
+         }
+      for (int i = 0; i < n_tr; i++)
+         for (int j = 0; j < n; j++)
+         {
+            CAPTURE(i, j);
+            REQUIRE(grad(n_el + i, j) ==
+                    MFEM_Approx(grad_tr(i, j), 1e-12, 1e-11));
+         }
+   }
+}
