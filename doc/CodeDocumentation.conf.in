@@ -1086,7 +1086,8 @@ EXCLUDE_PATTERNS       =
 # ANamespace::AClass, ANamespace::*Test
 
 EXCLUDE_SYMBOLS        = mfem::internal \
-                         mfem::kernels::internal
+                         mfem::kernels::internal \
+                         mfem::future::detail
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include

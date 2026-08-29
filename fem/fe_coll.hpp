@@ -100,6 +100,10 @@ public:
       return FiniteElementForGeometry(GeomType);
    }
 
+   /** @brief Returns a collection of the trace elements.
+
+       @note The collection is owned by the caller and is NOT deleted in the
+       destructor. */
    virtual FiniteElementCollection *GetTraceCollection() const;
 
    virtual ~FiniteElementCollection();
