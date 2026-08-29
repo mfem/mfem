@@ -1337,6 +1337,12 @@ bool VisualizeField(socketstream &sout, const ParGridFunction &gf,
 {
    const char vishost[] = "localhost";
    const int visport = 19916;
+   static int visidx = 0; // index of the window
+   const int Ww = 400, Wh = 350; // window size
+   const int offx = Ww+10; // window offsets x
+   const int offy = Ww+100; // window offsets y
+   const int Wnx = 5; // number of windows in row
+
    if (!sout.is_open())
    {
       sout.open(vishost, visport);
@@ -1365,6 +1371,14 @@ bool VisualizeField(socketstream &sout, const ParGridFunction &gf,
       if (iter == 0)
       {
          sout << "window_title '" << name << "'\n";
+
+         const int Wx = (visidx % Wnx) * offx;
+         const int Wy = (visidx / Wnx) * offy;
+         visidx++;
+         sout << "window_geometry "
+              << Wx << " " << Wy << " "
+              << Ww << " " << Wh << "\n";
+
          if (gf.VectorDim() > 1)
          {
             sout << "keys Rljvvvvvmmc" << endl;
