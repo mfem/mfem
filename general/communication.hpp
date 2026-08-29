@@ -228,10 +228,17 @@ public:
    virtual ~GroupTopology() {}
 };
 
+
+// Forward declaration
+class DeviceGroupCommunicator;
+
+
 /** @brief Communicator performing operations within groups defined by a
     GroupTopology with arbitrary-size data associated with each group. */
 class GroupCommunicator
 {
+   friend class DeviceGroupCommunicator;
+
 public:
    /// Communication mode.
    enum Mode
@@ -253,9 +260,14 @@ protected:
    // comm_lock: 0 - no lock, 1 - locked for Bcast, 2 - locked for Reduce
    mutable int comm_lock;
    mutable int num_requests;
+   mutable void (*reduce_op)(); // used when 'comm_lock' is 2
    int *request_marker;
    int *buf_offsets; // size = max(number of groups, number of neighbors)
    Table nbr_send_groups, nbr_recv_groups; // nbr 0 = me
+   bool have_ltdof_ldof;
+   Array<int> ltdof_ldof;
+   int ldof_size;
+   mutable DeviceGroupCommunicator *device_gc;
 
 public:
    /// Construct a GroupCommunicator object.
@@ -286,17 +298,18 @@ public:
        data layout 2, see CopyGroupToBuffer() for layout descriptions. */
    void SetLTDofTable(const Array<int> &ldof_ltdof);
 
-   /// Get a reference to the associated GroupTopology object
-   const GroupTopology &GetGroupTopology() { return gtopo; }
-
    /// Get a const reference to the associated GroupTopology object
    const GroupTopology &GetGroupTopology() const { return gtopo; }
 
-   /// Dofs to be sent to communication neighbors
+   /// Dofs to be sent (during Bcast) to communication neighbors
    void GetNeighborLTDofTable(Table &nbr_ltdof) const;
 
-   /// Dofs to be received from communication neighbors
+   /// Dofs to be received (during Bcast) from communication neighbors
    void GetNeighborLDofTable(Table &nbr_ldof) const;
+
+   /** @brief Return the device communicator, 'device_gc', constructing it if
+       it was not already constructed. */
+   const DeviceGroupCommunicator &GetDeviceComm() const;
 
    /** @brief Data structure on which we define reduce operations.
        The data is associated with (and the operation is performed on) one
@@ -338,54 +351,142 @@ public:
    const T *ReduceGroupFromBuffer(const T *buf, T *ldata, int group,
                                   int layout, void (*Op)(OpData<T>)) const;
 
-   /// Begin a broadcast within each group where the master is the root.
-   /** For a description of @a layout, see CopyGroupToBuffer(). */
+   /** @brief Begin a broadcast within each group where the master is the root,
+       host version.
+
+       @param[in,out] ldata  Input L-vector data; in some cases it is used as a
+                             receive buffer, so its type is not const. It must
+                             be a host pointer.
+       @param[in]    layout  For a description, see CopyGroupToBuffer().
+
+       This method performs the operation on host. */
    template <class T> void BcastBegin(T *ldata, int layout) const;
 
-   /** @brief Finalize a broadcast started with BcastBegin().
+   /** @brief Begin a broadcast within each group where the master is the root,
+       device version.
 
-       The output data @a layout can be:
-       - 0 - @a ldata is an array on all ldofs; the input layout should be
-             either 0 or 2
-       - 1 - @a ldata is the same array as given to BcastBegin(); the input
-             layout should be 1.
+       @param[in,out] ldata  Input L-vector data; in some cases it is used as a
+                             receive buffer, so its type is not const.
+       @param[in]    layout  For a description, see CopyGroupToBuffer().
 
-       For more details about @a layout, see CopyGroupToBuffer(). */
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes and layouts are
+       supported on device yet. In such cases, the operation is performed on
+       host. */
+   template <class T> void BcastBegin(Array<T> &ldata, int layout) const;
+
+   /** @brief Finalize a broadcast started with the host version of
+       BcastBegin().
+
+       @param[out] ldata  Output L-vector data. It must be a host pointer.
+       @param[in] layout  Output data layout; one of:
+                          - 0: @a ldata is an array on all ldofs; the input
+                               layout should be either 0 or 2,
+                          - 1: @a ldata is the same array as given to
+                               BcastBegin(); the input layout should be 1.
+                          .
+                          For a description of the layouts, see
+                          CopyGroupToBuffer().
+
+       This method performs the operation on host. */
    template <class T> void BcastEnd(T *ldata, int layout) const;
+
+   /** @brief Finalize a broadcast started with the device version of
+       BcastBegin().
+
+       @param[out] ldata  Output L-vector data.
+       @param[in] layout  Output data layout; one of:
+                          - 0: @a ldata is an array on all ldofs; the input
+                               layout should be either 0 or 2,
+                          - 1: @a ldata is the same array as given to
+                               BcastBegin(); the input layout should be 1.
+                          .
+                          For a description of the layouts, see
+                          CopyGroupToBuffer().
+
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes and layouts are
+       supported on device yet. In such cases, the operation is performed on
+       host.
+
+       It is expected that the device flag of @a ldata is the same as the device
+       flag of the data array provided to BcastBegin(). */
+   template <class T> void BcastEnd(Array<T> &ldata, int layout) const;
 
    /** @brief Broadcast within each group where the master is the root.
 
        The data @a layout can be either 0 or 1.
 
-       For a description of @a layout, see CopyGroupToBuffer(). */
+       For a description of @a layout, see CopyGroupToBuffer().
+
+       This method performs the operation on host and expects @a ldata to be a
+       host pointer. */
    template <class T> void Bcast(T *ldata, int layout) const
    {
       BcastBegin(ldata, layout);
       BcastEnd(ldata, layout);
    }
 
-   /// Broadcast within each group where the master is the root.
-   template <class T> void Bcast(T *ldata) const { Bcast<T>(ldata, 0); }
-   /// Broadcast within each group where the master is the root.
+   /// Broadcast within each group where the master is the root, host version.
+   /** The implicit data layout is 0, i.e. the @a ldata array is an L-dof array.
+
+       This method performs the operation on host and expects @a ldata to be a
+       host pointer. */
+   template <class T> void Bcast(T *ldata) const { Bcast(ldata, 0); }
+
+   /// Broadcast within each group where the master is the root, device version.
+   /** The implicit data layout is 0, i.e. the @a ldata array is an L-dof array.
+
+       This method performs the operation on device. However, not all
+       communication modes are supported on device yet. In such cases, the
+       operation is performed on host. */
    template <class T> void Bcast(Array<T> &ldata) const
-   { Bcast<T>((T *)ldata); }
+   {
+      BcastBegin(ldata, 0);
+      BcastEnd(ldata, 0);
+   }
 
    /** @brief Begin reduction operation within each group where the master is
-       the root. */
-   /** The input data layout is an array on all ldofs, i.e. layout 0, see
+       the root, host version.
+
+       The input data layout is an array on all ldofs, i.e. layout 0, see
        CopyGroupToBuffer().
 
        The reduce operation will be specified when calling ReduceEnd(). This
-       method is instantiated for int and double. */
+       method is instantiated for int, double, and float.
+
+       This method performs the operation on host and expects @a ldata to be a
+       host pointer. */
    template <class T> void ReduceBegin(const T *ldata) const;
 
-   /** @brief Finalize reduction operation started with ReduceBegin().
+   /** @brief Begin reduction operation within each group where the master is
+       the root, device version.
+
+       The input data layout is an array on all ldofs, i.e. layout 0, see
+       CopyGroupToBuffer().
+
+       Generally, the reduce operation will be specified when calling
+       ReduceEnd(), however, if the reduction operation is not supported on
+       device, it must be given to this call as the optional second argument
+       @a Op. This method is instantiated for int, double, and float.
+
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes are supported on
+       device yet. In such cases, the operation is performed on host. */
+   template <class T> void ReduceBegin(const Array<T> &ldata,
+                                       void (*Op)(OpData<T>) = nullptr) const;
+
+   /** @brief Finalize reduction operation started with the host version of
+       ReduceBegin().
 
        The output data @a layout can be either 0 or 2, see CopyGroupToBuffer().
 
        The reduce operation is given by the third argument (see below for list
-       of the supported operations.) This method is instantiated for int and
-       double.
+       of the supported operations.) This method is instantiated for int,
+       double, and float.
+
+       This method performs the operation on host and expects @a ldata to be a
+       host pointer.
 
        @note If the output data layout is 2, then the data from the @a ldata
        array passed to this call is used in the reduction operation, instead of
@@ -395,19 +496,63 @@ public:
    template <class T> void ReduceEnd(T *ldata, int layout,
                                      void (*Op)(OpData<T>)) const;
 
-   /** @brief Reduce within each group where the master is the root.
+   /** @brief Finalize reduction operation started with the device version of
+       ReduceBegin().
+
+       The output data @a layout can be either 0 or 2, see CopyGroupToBuffer().
+
+       The reduce operation is given by the third argument (see below for list
+       of the supported operations.) This method is instantiated for int,
+       double, and float.
+
+       This method performs the operation on device if the device flag of
+       @a ldata is set. However, not all communication modes and layouts are
+       supported on device yet. In such cases, the operation is performed on
+       host.
+
+       It is expected that the device flag of @a ldata is the same as the device
+       flag of the data array provided to ReduceBegin().
+
+       @note If the output data layout is 2, then the data from the @a ldata
+       array passed to this call is used in the reduction operation, instead of
+       the data from the @a ldata array passed to ReduceBegin(). Therefore, the
+       data for master-groups has to be identical in both arrays.
+   */
+   template <class T> void ReduceEnd(Array<T> &ldata, int layout,
+                                     void (*Op)(OpData<T>)) const;
+
+   /** @brief Reduce within each group where the master is the root, host
+       version.
+
+       The implicit data layout is 0, i.e. the @a ldata array is an L-dof array.
 
        The reduce operation is given by the second argument (see below for list
-       of the supported operations.) */
+       of the supported operations.)
+
+       This method performs the operation on host and expects @a ldata to be a
+       host pointer. */
    template <class T> void Reduce(T *ldata, void (*Op)(OpData<T>)) const
    {
       ReduceBegin(ldata);
       ReduceEnd(ldata, 0, Op);
    }
 
-   /// Reduce within each group where the master is the root.
+   /** @brief Reduce within each group where the master is the root, device
+       version.
+
+       The implicit data layout is 0, i.e. the @a ldata array is an L-dof array.
+
+       The reduce operation is given by the second argument (see below for list
+       of the supported operations.)
+
+       This method performs the operation on device. However, not all
+       communication modes are supported on device yet. In such cases, the
+       operation is performed on host. */
    template <class T> void Reduce(Array<T> &ldata, void (*Op)(OpData<T>)) const
-   { Reduce<T>((T *)ldata, Op); }
+   {
+      ReduceBegin(ldata, Op);
+      ReduceEnd(ldata, 0, Op);
+   }
 
    /// Reduce operation Sum, instantiated for int, double and float
    template <class T> static void Sum(OpData<T>);
@@ -424,8 +569,8 @@ public:
    /// ties resolve to the positive one regardless of accumulation order.
    template <class T> static void MaxAbs(OpData<T>);
 
-   /** @brief Finalize reduction operation started with ReduceBegin(), but only apply
-       the reduction to DOFs marked in the marker array.
+   /** @brief Finalize reduction operation started with ReduceBegin(), but only
+       apply the reduction to DOFs marked in the marker array.
 
        @note The reduction is carried out in the signed type @a T, so the result
        is signed even for bitwise operations.
@@ -434,7 +579,8 @@ public:
    void ReduceMarked(T *ldata, const Array<int> &marker, int layout,
                      void (*Op)(OpData<T>)) const;
 
-   /** @brief Reduce within each group where the master is the root, but only for marked DOFs. */
+   /** @brief Reduce within each group where the master is the root, but only
+       for marked DOFs. */
    template <class T>
    void Reduce(T *ldata, const Array<int> &marker, void (*Op)(OpData<T>)) const
    {
@@ -449,6 +595,126 @@ public:
        structures and buffers. */
    ~GroupCommunicator();
 };
+
+
+/// Auxiliary class used by class GroupCommunicator
+class DeviceGroupCommunicator
+{
+public:
+   friend class GroupCommunicator;
+
+   enum class Op { Sum, Min, Max };
+
+   explicit DeviceGroupCommunicator(const GroupCommunicator &gc_);
+
+   template <typename T>
+   void BcastBeginTDofs(Array<T> &x_tdof) const;
+
+   template <typename T>
+   void BcastBeginLDofs(Array<T> &x_ldof) const;
+
+   template <typename T>
+   void BcastEndLDofs(Array<T> &x_ldof) const;
+
+   template <typename T>
+   void ReduceBeginLDofs(const Array<T> &x_ldof) const;
+
+   template <typename T>
+   void ReduceEndTDofs(Array<T> &x_tdof, Op op) const;
+
+   template <typename T>
+   void ReduceEndLDofs(Array<T> &x_ldof, Op op) const;
+
+   // Kernel: copy ltdofs from 'x_tdof' to ldofs in 'x_ldof'.
+   //         x_ldof[ltdof_ldof[i]] = x_tdof[i]
+   template <typename T>
+   void CopyTDofsToLDofs(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+
+   template <typename T>
+   void Prolongate(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+
+   template <typename T>
+   void ProlongateTranspose(const Array<T> &x_ldof,
+                            Array<T> &x_tdof, Op op = Op::Sum) const;
+
+   // Kernel: copy owned ldofs from 'x_ldof' to ltdofs in 'x_tdof'.
+   //         x_tdof[i] = x_ldof[ltdof_ldof[i]]
+   template <typename T>
+   void Restrict(const Array<T> &x_ldof, Array<T> &x_tdof) const;
+
+   template <typename T>
+   void RestrictTranspose(const Array<T> &x_tdof, Array<T> &x_ldof) const;
+
+protected:
+   template <typename T>
+   void Exchange(const Array<T> &send_buf, const Array<int> &send_offsets,
+                 Array<T> &recv_buf, const Array<int> &recv_offsets,
+                 int tag) const;
+
+   template <typename T>
+   void ExchangeSharedToExternal(const Array<T> &shr_buf,
+                                 Array<T> &ext_buf) const;
+
+   template <typename T>
+   void ExchangeExternalToShared(const Array<T> &ext_buf,
+                                 Array<T> &shr_buf) const;
+
+   // Kernel: copy ext. dofs from 'x_ldof' to 'ext_buf_t' - prepare for send.
+   //         ext_buf_t[i] = x_ldof[ext_ldof[i]]
+   template <typename T>
+   void ReduceBeginCopy(const Array<T> &x_ldof, Array<T> &ext_buf_t) const;
+
+   // Kernel: assemble dofs from 'shr_buf_t' into to 'x_tdof' - after recv.
+   //         x_tdof[shr_ltdof[i]] Op= shr_buf_t[i]
+   template <typename T>
+   void ReduceEndAssembleTDofs(const Array<T> &shr_buf_t,
+                               Array<T> &x_tdof, Op op) const;
+
+   // Kernel: copy ltdofs from 'x_tdof' to 'shr_buf_t' - prepare for send.
+   //         shr_buf_t[i] = x_tdof[shr_ltdof[i]]
+   template <typename T>
+   void BcastBeginCopyTDofs(const Array<T> &x_tdof, Array<T> &shr_buf_t) const;
+
+   // Kernel: copy ldofs from 'x_ldof' to 'shr_buf_t' - prepare for send.
+   //         shr_buf_t[i] = x_ldof[shr_ldof[i]]
+   template <typename T>
+   void BcastBeginCopyLDofs(const Array<T> &x_ldof, Array<T> &shr_buf_t) const;
+
+   // Kernel: copy ext. dofs from 'ext_buf_t' to 'x_ldof' - after recv.
+   //         x_ldof[ext_ldof[i]] = ext_buf_t[i]
+   template <typename T>
+   void BcastEndCopy(const Array<T> &ext_buf_t, Array<T> &x_ldof) const;
+
+   void WaitAll() const;
+
+   const GroupCommunicator &gc;
+   Array<int> shr_ltdof, shr_ldof, ext_ldof;
+   Array<int> shr_buf_offsets, ext_buf_offsets;
+   Array<int> unq_ltdof, unq_ldof;
+   Array<int> unq_shr_i, unq_shr_j;
+   using buffer_max_type = int64_t;
+   mutable Array<buffer_max_type> shr_buf, ext_buf;
+   mutable Array<MPI_Request> requests;
+   mutable int num_requests;
+
+   template <class T> struct TypedBufferView
+   {
+      Array<buffer_max_type> &storage;
+      Array<T> view;
+      TypedBufferView(Array<buffer_max_type> &storage_) : storage(storage_)
+      {
+         view.GetMemory().CopyConvertPtr(storage.GetMemory());
+         view.SetSize(storage.Size());
+      }
+
+      ~TypedBufferView()
+      {
+         storage.GetMemory().CopyConvertPtr(view.GetMemory());
+         view.LoseData();
+      }
+   };
+};
+
 
 /// General MPI message tags used by MFEM
 enum MessageTag

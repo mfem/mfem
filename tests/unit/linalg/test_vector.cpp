@@ -268,3 +268,48 @@ TEST_CASE("Vector delete at indices", "[Vector],[GPU]")
       }
    }
 }
+
+TEST_CASE("Vector GetArrayView", "[Vector]")
+{
+   // Use 'volatile' to prevent the compiler from optimizing for the specific
+   // value of 'n' set here.
+   volatile int n = 5;
+   {
+      Vector x(n);
+      Vector y(n);
+      const Vector &xc = x;
+
+      auto op_on_arrays = [](const Array<real_t> &a, Array<real_t> &b) -> void
+      {
+         if (verbose_tests)
+         {
+            mfem::out << "op_on_arrays(const Array<real_t> &, Array<real_t> &)"
+                      << std::endl;
+         }
+         b = a;
+         b.SetSize(2*b.Size(), 3_r);
+      };
+
+      x = 1_r;
+
+      // The commented out code in the MemoryView ctor + dtor can be uncommented
+      // to show the creation + destruction of the temporary objects returned by
+      // GetArrayView().
+      op_on_arrays(xc.GetArrayView(), y.GetArrayView());
+
+      CHECK(y.Size() == 2*n);
+      if (verbose_tests)
+      {
+         mfem::out << "after call to op_on_arrays()" << std::endl;
+         mfem::out << "x: ";
+         x.Print(mfem::out, x.Size());
+         mfem::out << "y: ";
+         y.Print(mfem::out, y.Size());
+         mfem::out << "before x, y dtor" << std::endl;
+      }
+   }
+   if (verbose_tests)
+   {
+      mfem::out << "after x, y dtor" << std::endl;
+   }
+}

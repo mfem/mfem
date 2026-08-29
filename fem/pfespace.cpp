@@ -131,9 +131,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
-
-   // Check for shared triangular faces with interior Nedelec DoFs
-   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::CommunicateGhostOrder()
@@ -284,6 +281,10 @@ void ParFiniteElementSpace::Construct()
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+   // Check for shared triangular faces with interior Nedelec DoFs:
+   // initializes 'nd_strias'.
+   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::PrintPartitionStats()
@@ -5568,7 +5569,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int in_layout = 2; // 2 - input is ltdofs array
    if (local)
    {
-      y = 0.0;
+      y.SetSubVector(external_ldofs, 0.0);
    }
    else
    {
@@ -5623,277 +5624,49 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
-   : ConformingProlongationOperator(R->Width(), gc_, local_),
-     mpi_gpu_aware(Device::GetGPUAwareMPI())
-{
-   MFEM_ASSERT(R->Finalized(), "");
-   const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
-   ltdof_ldof.SetSize(tdofs);
-   ltdof_ldof.CopyFrom(R->HostReadJ());
-   {
-      Table nbr_ltdof;
-      gc.GetNeighborLTDofTable(nbr_ltdof);
-      const int nb_connections = nbr_ltdof.Size_of_connections();
-      shr_ltdof.SetSize(nb_connections);
-      if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
-      shr_buf.SetSize(nb_connections);
-      shr_buf.UseDevice(true);
-      shr_buf_offsets = nbr_ltdof.GetIMemory();
-      {
-         Array<int> shared_ltdof(nbr_ltdof.GetJ(), nb_connections);
-         Array<int> unique_ltdof(shared_ltdof);
-         unique_ltdof.Sort();
-         unique_ltdof.Unique();
-         // Note: the next loop modifies the J array of nbr_ltdof
-         for (int i = 0; i < shared_ltdof.Size(); i++)
-         {
-            shared_ltdof[i] = unique_ltdof.FindSorted(shared_ltdof[i]);
-            MFEM_ASSERT(shared_ltdof[i] != -1, "internal error");
-         }
-         Table unique_shr;
-         Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
-         unq_ltdof = unique_ltdof;
-         // Steal I and J arrays from the unique_shr table.
-         unq_shr_i.GetMemory() = unique_shr.GetIMemory();
-         unq_shr_i.SetSize(unique_shr.Size()+1);
-         unq_shr_j.GetMemory() = unique_shr.GetJMemory();
-         unq_shr_j.SetSize(unique_shr.Size_of_connections());
-         unique_shr.LoseData();
-      }
-      nbr_ltdof.GetJMemory().Delete();
-      nbr_ltdof.LoseData();
-   }
-   {
-      Table nbr_ldof;
-      gc.GetNeighborLDofTable(nbr_ldof);
-      const int nb_connections = nbr_ldof.Size_of_connections();
-      ext_ldof.SetSize(nb_connections);
-      if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
-      ext_ldof.GetMemory().UseDevice(true);
-      ext_buf.SetSize(nb_connections);
-      ext_buf.UseDevice(true);
-      ext_buf_offsets = nbr_ldof.GetIMemory();
-      nbr_ldof.GetJMemory().Delete();
-      nbr_ldof.LoseData();
-   }
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-   {
-      const int send_offset = shr_buf_offsets[nbr];
-      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0) { req_counter++; }
+   int lsize, const GroupCommunicator &gc_, bool local_)
+   : ConformingProlongationOperator(lsize, gc_, local_)
+{ }
 
-      const int recv_offset = ext_buf_offsets[nbr];
-      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0) { req_counter++; }
-   }
-   requests = new MPI_Request[req_counter];
-}
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
+   : ConformingProlongationOperator(R->Width(), gc_, local_)
+{ }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const ParFiniteElementSpace &pfes, bool local_)
-   : DeviceConformingProlongationOperator(pfes.GroupComm(),
-                                          pfes.GetRestrictionMatrix(),
+   : DeviceConformingProlongationOperator(pfes.GetVSize(),
+                                          pfes.GroupComm(),
                                           local_)
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
-   MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
-}
-
-static void ExtractSubVector(const Array<int> &indices,
-                             const Vector &vin, Vector &vout)
-{
-   MFEM_ASSERT(indices.Size() == vout.Size(), "incompatible sizes!");
-   auto y = vout.Write();
-   const auto x = vin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[i] = x[I[i]];
-   }); // indices can be repeated
-}
-
-void DeviceConformingProlongationOperator::BcastBeginCopy(
-   const Vector &x) const
-{
-   // shr_buf[i] = src[shr_ltdof[i]]
-   if (shr_ltdof.Size() == 0) { return; }
-   ExtractSubVector(shr_ltdof, x, shr_buf);
-   // If the above kernel is executed asynchronously, we should wait for it to
-   // complete
-   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
-}
-
-static void SetSubVector(const Array<int> &indices,
-                         const Vector &vin, Vector &vout)
-{
-   MFEM_ASSERT(indices.Size() == vin.Size(), "incompatible sizes!");
-   // Use ReadWrite() since we modify only a subset of the indices:
-   auto y = vout.ReadWrite();
-   const auto x = vin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[I[i]] = x[i];
-   });
-}
-
-void DeviceConformingProlongationOperator::BcastLocalCopy(
-   const Vector &x, Vector &y) const
-{
-   // dst[ltdof_ldof[i]] = src[i]
-   if (ltdof_ldof.Size() == 0) { return; }
-   SetSubVector(ltdof_ldof, x, y);
-}
-
-void DeviceConformingProlongationOperator::BcastEndCopy(
-   Vector &y) const
-{
-   // dst[ext_ldof[i]] = ext_buf[i]
-   if (ext_ldof.Size() == 0) { return; }
-   SetSubVector(ext_ldof, ext_buf, y);
 }
 
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   // Make sure 'y' is marked as valid on device and for use on device.
-   // This ensures that there is no unnecessary host to device copy when the
-   // input 'y' is valid on host (in 'y.SetSubVector(ext_ldof, 0.0)' when local
-   // is true) or BcastLocalCopy (when local is false).
-   y.Write();
-   if (local)
+   if (!local)
    {
-      // done on device since we've marked ext_ldof for use on device:
-      y.SetSubVector(ext_ldof, 0.0);
+      gc.GetDeviceComm().Prolongate(*x.GetArrayView(), *y.GetArrayView());
    }
    else
    {
-      BcastBeginCopy(x); // copy to 'shr_buf'
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-      {
-         const int send_offset = shr_buf_offsets[nbr];
-         const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = ext_buf_offsets[nbr];
-         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-      }
+      gc.GetDeviceComm().RestrictTranspose(*x.GetArrayView(),
+                                           *y.GetArrayView());
    }
-   BcastLocalCopy(x, y);
-   if (!local)
-   {
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-      BcastEndCopy(y); // copy from 'ext_buf'
-   }
-}
-
-DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
-{
-   delete [] requests;
-   ext_buf_offsets.Delete();
-   shr_buf_offsets.Delete();
-}
-
-void DeviceConformingProlongationOperator::ReduceBeginCopy(
-   const Vector &x) const
-{
-   // ext_buf[i] = src[ext_ldof[i]]
-   if (ext_ldof.Size() == 0) { return; }
-   ExtractSubVector(ext_ldof, x, ext_buf);
-   // If the above kernel is executed asynchronously, we should wait for it to
-   // complete
-   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
-}
-
-void DeviceConformingProlongationOperator::ReduceLocalCopy(
-   const Vector &x, Vector &y) const
-{
-   // dst[i] = src[ltdof_ldof[i]]
-   if (ltdof_ldof.Size() == 0) { return; }
-   ExtractSubVector(ltdof_ldof, x, y);
-}
-
-static void AddSubVector(const Array<int> &unique_dst_indices,
-                         const Array<int> &unique_to_src_offsets,
-                         const Array<int> &unique_to_src_indices,
-                         const Vector &src,
-                         Vector &dst)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      real_t sum = y[dst_idx];
-      const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
-      y[dst_idx] = sum;
-   });
-}
-
-void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
-{
-   // dst[shr_ltdof[i]] += shr_buf[i]
-   if (unq_ltdof.Size() == 0) { return; }
-   AddSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
 }
 
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
    if (!local)
    {
-      ReduceBeginCopy(x); // copy to 'ext_buf'
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-      {
-         const int send_offset = ext_buf_offsets[nbr];
-         const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = shr_buf_offsets[nbr];
-         const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-      }
+      gc.GetDeviceComm().ProlongateTranspose(*x.GetArrayView(),
+                                             *y.GetArrayView());
    }
-   ReduceLocalCopy(x, y);
-   if (!local)
+   else
    {
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-      ReduceEndAssemble(y); // assemble from 'shr_buf'
+      gc.GetDeviceComm().Restrict(*x.GetArrayView(), *y.GetArrayView());
    }
 }
 

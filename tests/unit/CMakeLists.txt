@@ -43,6 +43,7 @@ set(UNIT_TESTS_SRCS
   general/test_array.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
+  general/test_communication.cpp
   general/test_error.cpp
   general/test_mem.cpp
   general/test_ordering.cpp
@@ -157,6 +158,7 @@ set(UNIT_TESTS_SRCS
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp
+  fem/test_dof_communicator.cpp
   fem/test_project_bdr_par.cpp
   fem/test_project_bdr.cpp
   fem/test_quadf_coef.cpp

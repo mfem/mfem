@@ -587,7 +587,7 @@ protected:
 
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
-   void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
+   void ComputeMeans(AvgType type, const Array<int> &zones_per_vdof);
 
    /// P-refinement version of Update().
    void UpdatePRef();
