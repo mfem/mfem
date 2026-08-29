@@ -20,11 +20,11 @@ namespace mfem
 // #define MFEM_TRACK_HIP_MEM
 
 #ifdef MFEM_USE_HIP
-void mfem_hip_error(hipError_t err, const char *expr, const char *func,
+void mfem_hip_error(hipError_t error, const char *expr, const char *func,
                     const char *file, int line)
 {
    mfem::err << "\n\nHIP error: (" << expr << ") failed with error:\n --> "
-             << hipGetErrorString(err) << " [code: " << (int)err << ']'
+             << hipGetErrorString(error) << " [code: " << (int)error << ']'
              << "\n ... in function: " << func
              << "\n ... in file: " << file << ':' << line << '\n';
    mfem_error();
