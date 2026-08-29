@@ -248,6 +248,120 @@ real_t MaxDiff(const Vector &a, const Vector &b)
    return d;
 }
 
+
+/** A non-linear potential term whose Jacobian vanishes identically.
+
+    F(u) = 0: it adds nothing to the residual and nothing to the Jacobian, so
+    it cannot change the discrete problem, and a reconstruction that changes
+    when it is installed is reading something it should not. It is the sharpest
+    form of the case reported from outside, where dF/du vanished on part of the
+    domain -- any tabulated profile with a flat segment produces one. */
+class NullPotentialNL : public NonlinearFormIntegrator
+{
+public:
+   void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      elvect.SetSize(el.GetDof());
+      elvect = 0.0;
+   }
+
+   void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      elmat.SetSize(el.GetDof());
+      elmat = 0.0;
+   }
+};
+
+/// Reconstruct with and without @a null_term installed on the potential mass.
+Post SolveWithNullTerm(Mesh &mesh, int order, bool null_term)
+{
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim), p_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, dim), fes_p(&mesh, &p_coll);
+
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient gcoeff(gExact), pcoeff(pExact);
+   VectorFunctionCoefficient fcoeff(dim, [](const Vector &, Vector &f)
+   {
+      f = 0.0;
+   });
+   RatioCoefficient ik(1.0, one);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   // The constraint is on the non-linear form either way, so the only
+   // difference between the two runs is the domain term below.
+   darcy.GetPotentialMassNonlinearForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   if (null_term)
+   {
+      darcy.GetPotentialMassNonlinearForm()->AddDomainIntegrator(
+         new NullPotentialNL());
+   }
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(1e-16);
+   lin.SetPreconditioner(prec);
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-14, 1e-16, -1);
+
+   NewtonSolver newton;
+   newton.SetSolver(lin);
+   newton.SetOperator(*A);
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-15);
+   newton.SetMaxIter(40);
+   newton.SetPrintLevel(-1);
+   newton.Mult(RHS, X);
+   REQUIRE(newton.GetConverged());
+
+   darcy.RecoverFEMSolution(X, x);
+
+   Post res;
+   GridFunction ut, u_s, p_s, tr_s;
+   darcy.Reconstruct(x, X, ut, u_s, p_s, tr_s);
+
+   GridFunction p_h(&fes_p, x.GetBlock(1));
+   const int quad_order = 2 * order + 6;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   { irs[i] = &(IntRules.Get(i, quad_order)); }
+
+   res.err_p  = p_h.ComputeL2Error(pcoeff, irs);
+   res.err_ps = p_s.ComputeL2Error(pcoeff, irs);
+   res.ut = ut;
+   res.u_s = u_s;
+   res.p_s = p_s;
+   res.tr_s = tr_s;
+   return res;
+}
+
 } // namespace darcy_reconstruction
 
 TEST_CASE("Reconstruction reads the potential mass off either form",
@@ -512,4 +626,44 @@ TEST_CASE("Reconstruction leaves the hybridization as it found it",
    REQUIRE(MaxDiff(u0, u1) == 0.0);
    REQUIRE(MaxDiff(p0, p1) == 0.0);
    REQUIRE(MaxDiff(tr0, tr1) == 0.0);
+}
+
+TEST_CASE("A potential term that contributes nothing changes nothing",
+          "[DarcyForm][Reconstruction]")
+{
+   // The local problem the reconstruction solves is a pure Neumann one: the
+   // total flux driving it is normally continuous, so the potential is
+   // determined only up to a constant and the element average closes it --
+   // NPC eq (25). That closure is unconditional, and this is what says so.
+   //
+   // It used to be skipped whenever a non-convective non-linear potential
+   // integrator was merely *present*, on the reasoning that such a term is a
+   // non-singular source. A term whose Jacobian vanishes is not, and the
+   // matrix was then factored singular in silence -- DenseMatrixInverse
+   // ::Factor() returns void and its tolerance is an exact zero, so nothing
+   // complained. Measured before the fix, at order 2 on 4x4 through 32x32:
+   // the postprocessed potential went from 2.19e-04 to 1.07e+00, and by the
+   // finest mesh to 4.5e+12, while the traces went with it.
+   using namespace darcy_reconstruction;
+
+   const int order = GENERATE(1, 2);
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   CAPTURE(order);
+
+   const Post without = SolveWithNullTerm(mesh, order, false);
+   const Post with    = SolveWithNullTerm(mesh, order, true);
+
+   // The forward solve first: if this moved, the term was not inert and the
+   // rest of the test would be measuring the wrong thing.
+   REQUIRE(with.err_p == Approx(without.err_p).epsilon(1e-12));
+
+   // Every field the local solve produces, not just the potential: they come
+   // out of one factorisation, and the traces move with the potential.
+   REQUIRE(MaxDiff(with.p_s,  without.p_s)  < 1e-10);
+   REQUIRE(MaxDiff(with.tr_s, without.tr_s) < 1e-10);
+   REQUIRE(MaxDiff(with.u_s,  without.u_s)  < 1e-10);
+   REQUIRE(MaxDiff(with.ut,   without.ut)   < 1e-10);
+
+   // And the postprocessing is still doing its job in both.
+   REQUIRE(with.err_ps < 0.5 * with.err_p);
 }

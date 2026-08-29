@@ -1194,7 +1194,6 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
        reconstruction->PotentialFESpace() != p.FESpace())
    {
       reconstruction.reset(new DarcyForm(u.FESpace(), p.FESpace()));
-      M_p_src.reset();
 
       // Only the domain integrators of the flux mass are lifted, and that is
       // deliberate rather than an omission -- see the note above the class
@@ -1273,18 +1272,17 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
          auto Mp_dbfi = *M_p->GetDBFI();
          for (BilinearFormIntegrator *bfi : Mp_dbfi)
          {
-            Mp_s->AddDomainIntegrator(bfi);
-
-            // use non-singular terms as a source
-            if (!dynamic_cast<ConvectionIntegrator*>(bfi)
-                && !dynamic_cast<ConservativeConvectionIntegrator*>(bfi))
+            // A reaction-like term is not part of the local problem the
+            // postprocessing solves. NPC eq (25) is a pure Neumann problem in
+            // the enriched potential, driven by the total flux and closed by
+            // the element average; it carries the diffusion and the
+            // stabilisation and nothing else. Convective and hyperbolic terms
+            // are kept because they *are* the local operator here; the rest
+            // are omitted rather than moved to the right-hand side.
+            if (dynamic_cast<ConvectionIntegrator*>(bfi)
+                || dynamic_cast<ConservativeConvectionIntegrator*>(bfi))
             {
-               if (!M_p_src)
-               {
-                  M_p_src.reset(new MixedBilinearForm(fes_p, p.FESpace()));
-                  M_p_src->UseExternalIntegrators();
-               }
-               M_p_src->AddDomainIntegrator(bfi);
+               Mp_s->AddDomainIntegrator(bfi);
             }
          }
 
@@ -1334,14 +1332,13 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
    }
 
    reconstruction->ReconstructFluxAndPot(*hybridization, pc, ut, u, p, tr,
-                                         M_p_src.get(), &Mp_nl_lift);
+                                         &Mp_nl_lift);
 }
 
 void DarcyForm::ReconstructFluxAndPot(const DarcyHybridization &h,
                                       const GridFunction &pc,
                                       const GridFunction &ut, GridFunction &u,
                                       GridFunction &p, GridFunction &tr,
-                                      MixedBilinearForm *Mp_src,
                                       const Array<NonlinearFormIntegrator*> *Mp_nl)
 const
 {
@@ -1359,11 +1356,11 @@ const
    const int dim = mesh->Dimension();
 
    DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f,
-               Mp_src_z, Mp_k, P_lift;
+               Mp_k, P_lift;
    DenseMatrixInverse inv;
    Vector rhs, rhs_p, shape_p, shape_pc;
    Vector shape_ut, shape_tr, ut_f, rhs_f;
-   Vector p_lift, rhs_p_nl, trfun_z;
+   Vector p_lift, trfun_z;
    Array<int> faces, oris, vdofs_ut;
 
    DivergenceGridFunctionCoefficient bp_coeff(&ut);
@@ -1435,7 +1432,6 @@ const
       B_z.Neg();
       elmat.CopyMNt(B_z, 0, ndof_u);
 
-      bool nl_src = false;
       if (M_p)
       {
          M_p->ComputeElementMatrix(z, Mp_z);
@@ -1445,24 +1441,22 @@ const
       {
          Mp_z.SetSize(ndof_p);
          Mp_z = 0.;
-         rhs_p_nl.SetSize(ndof_p);
-         rhs_p_nl = 0.;
 
          for (NonlinearFormIntegrator *nlfi : *Mp_nl)
          {
-            // For a bilinear integrator this is the element matrix itself, so
-            // the branch coincides with the M_p one term by term.
-            nlfi->AssembleElementGrad(*fe_p, *Tr, p_lift, Mp_k);
-            Mp_z += Mp_k;
-
-            // use non-singular terms as a source
+            // As in the M_p branch above: only the terms that are part of the
+            // local operator are taken, and for the same reason.
             if (!dynamic_cast<ConvectionIntegrator*>(nlfi)
                 && !dynamic_cast<ConservativeConvectionIntegrator*>(nlfi)
                 && !dynamic_cast<HyperbolicFormIntegrator*>(nlfi))
             {
-               Mp_k.AddMult(p_lift, rhs_p_nl);
-               nl_src = true;
+               continue;
             }
+
+            // For a bilinear integrator this is the element matrix itself, so
+            // the branch coincides with the M_p one term by term.
+            nlfi->AssembleElementGrad(*fe_p, *Tr, p_lift, Mp_k);
+            Mp_z += Mp_k;
          }
          elmat.CopyMN(Mp_z, ndof_u, ndof_u);
       }
@@ -1576,21 +1570,12 @@ const
          off_tr += ndof_tr_f;
       }
 
-      // potential mass source (non-singular) / average fix (singular)
-      if (Mp_src)
-      {
-         // add the source part to rhs
-         Mp_src->ComputeElementMatrix(z, Mp_src_z);
-         Mp_src_z.AddMult(sol_pc, rhs_p);
-      }
-      else if (nl_src)
-      {
-         // the same source, with the frozen block standing in for M_p_src:
-         // the lift of the potential is exact, so this is the mixed mass of
-         // the non-singular terms applied to the computed potential
-         rhs_p += rhs_p_nl;
-      }
-      else
+      // Close the local problem with the element average of the computed
+      // potential -- the second part of NPC eq (25), and unconditional. The
+      // problem is a pure Neumann one by construction: the total flux driving
+      // it is in H(div), so the element's flux balance is already satisfied
+      // and the potential is determined only up to a constant. There is
+      // nothing to decide here, and so nothing to get wrong.
       {
          // adjust the element average of potential
          const FiniteElement *fe_pc = fes_pc->GetFE(z);

@@ -144,7 +144,6 @@ protected:
 
    /// The DarcyForm of the reconstructed super-convergent system
    mutable std::unique_ptr<DarcyForm> reconstruction;
-   mutable std::unique_ptr<MixedBilinearForm> M_p_src;
 
    /** @brief The potential mass integrators of a non-linear form, to be frozen
        at the computed potential by the reconstruction below.
@@ -187,7 +186,7 @@ protected:
 
    void ReconstructFluxAndPot(const DarcyHybridization &h, const GridFunction &pc,
                               const GridFunction &ut, GridFunction &u, GridFunction &p,
-                              GridFunction &tr, MixedBilinearForm *D = NULL,
+                              GridFunction &tr,
                               const Array<NonlinearFormIntegrator*> *Mp_nl = NULL) const;
 
 public:
