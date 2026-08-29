@@ -40,7 +40,7 @@ namespace Ginkgo
 
 template <typename T> using gko_array = gko::array<T>;
 #if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
-// for inter-operability with hypre integer types
+// for interoperability with hypre integer types
 using gko_hypre_int =
    std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int32_t), std::int32_t,
    std::conditional_t<sizeof(HYPRE_Int) == sizeof(std::int64_t), std::int64_t, void>>;
@@ -473,7 +473,7 @@ real_t compute_norm(const VecType *b)
  * Custom gko::log::Logger base class for logging the final residual norm and
  * iteration count. This is necessary because some solvers (e.g., IR) will not
  * have the final residual available if they stop due to reaching maximum
- * iterations prior to convergance, and the standard Convergence logger will not
+ * iterations prior to convergence, and the standard Convergence logger will not
  * respect the use of derived types (VectorWrapper/ParallelVectorWrapper) when
  * computing the final residual.
  *

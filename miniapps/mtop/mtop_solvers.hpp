@@ -265,7 +265,7 @@ private:
    VectorCoefficientPtrMap surf_loads; // external vector coeeficients
 
    class SurfaceLoad;
-   std::unique_ptr<SurfaceLoad> lcsurf_load; // localy generated surface loads
+   std::unique_ptr<SurfaceLoad> lcsurf_load; // locally generated surface loads
    std::unique_ptr<SurfaceLoad> glsurf_load; // global surface loads
 
    // boundary conditions for x,y, and z directions

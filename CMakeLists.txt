@@ -302,7 +302,7 @@ endif()
 if (DEFINED FETCH_TPLS)
   message(STATUS "Setting MFEM_FETCH_TPLS to user-provided value of FETCH_TPLS (i.e., MFEM_FETCH_TPLS=${FETCH_TPLS})")
   set (MFEM_FETCH_TPLS FETCH_TPLS)
-  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
+  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in a future version. Please use MFEM_FETCH_TPLS instead.")
 endif()
 
   # Umpire (must be included before hypre, so hypre can use it if needed)

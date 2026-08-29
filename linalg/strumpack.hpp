@@ -119,7 +119,7 @@ public:
    /// Set up verbose printing during the solve step
    void SetPrintSolveStatistics(bool print_stat);
 
-   /// Set the relative tolerance for interative solvers
+   /// Set the relative tolerance for iterative solvers
    void SetRelTol(double rtol);
 
    /// Set the absolute tolerance for iterative solvers

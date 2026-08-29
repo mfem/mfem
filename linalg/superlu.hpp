@@ -78,7 +78,7 @@ typedef enum
 /// Define how to do iterative refinement
 typedef enum
 {
-   /// No interative refinement
+   /// No iterative refinement
    NOREFINE,
    /// Iterative refinement accumulating residuals in a float.
    SLU_SINGLE=1,
