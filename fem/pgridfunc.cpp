@@ -618,11 +618,11 @@ void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
 
    // Configure solver
    OperatorPtr A;
-   Vector B, X, x(*this);
+   Vector B, X, &x(*this);
    Array<int> ess_tdof_list;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    Solver *prec = new HypreBoomerAMG;
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(pfes->GetComm());
    cg.SetRelTol(rtol);
    cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
@@ -670,12 +670,12 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
 
    // Configure solver
    OperatorPtr A;
-   Vector B, X, x(*this);
+   Vector B, X, &x(*this);
    x = 0.0;
    Array<int> ess_tdof_list;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    Solver *prec = new HypreBoomerAMG;
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(pfes->GetComm());
    cg.SetRelTol(rtol);
    cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
@@ -683,7 +683,6 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    cg.SetOperator(*A);
    cg.Mult(B, X);
    a.RecoverFEMSolution(X, b, x);
-   x.Print();
    delete prec;
 }
 
