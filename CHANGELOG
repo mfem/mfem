@@ -176,6 +176,9 @@ Miscellaneous
   largest magnitude across a group, keeping its sign. Equal-magnitude ties
   resolve deterministically to the positive value.
 
+- The copyright year can now be updated automatically by running
+  config/githooks/pre-push --update-copyright.
+
 API changes
 -----------
 - Removed ProjectGrad from 2D RT elements. Users should use ProjectCurl instead.
