@@ -962,6 +962,52 @@ public:
    virtual ~DivergenceGridFunctionCoefficient() { }
 };
 
+/** @brief Vector coefficient whose components are the divergences of the
+    blocks of a block-vector GridFunction.
+
+    For a system of @a neq equations in @a dim spatial dimensions the flux is
+    one vector field per equation, held in a single GridFunction whose vdim is
+    `neq * dim`. This evaluates to a vector of length @a neq whose entry `e` is
+    the divergence of block `e`, so that a system can be treated the way
+    DivergenceGridFunctionCoefficient treats one field.
+
+    The block of equation `e` is the component range `[e*dim, (e+1)*dim)` of
+    the grid function's vdim. That is the layout the branch's block integrators
+    build (see VectorBlockDiagonalIntegrator) and it is asserted rather than
+    assumed: constructing this with a grid function whose vdim is not
+    `neq * dim` is an error.
+
+    Both places the vector-valuedness can live are handled, and they need
+    different vdims. A SCALAR-range space (L2, H1) carries it in vdim, so
+    `vdim = neq*dim` and block `e` is the component range above. An H(div)
+    space carries it in the element, so `vdim = neq` and block `e` is one
+    scalar component -- which is the layout of the total flux that
+    DarcyForm::ReconstructTotalFlux() produces. The constructor checks the
+    vdim against the space's range type rather than assuming one. */
+class VectorDivergenceGridFunctionCoefficient : public VectorCoefficient
+{
+protected:
+   const GridFunction *GridFunc;
+
+public:
+   /** @brief Construct the coefficient with a block-vector grid function @a gf
+       holding @a neq blocks. The grid function is not owned by the
+       coefficient. */
+   VectorDivergenceGridFunctionCoefficient(const GridFunction *gf, int neq);
+
+   /// Set the block-vector grid function. Its vdim must not change.
+   void SetGridFunction(const GridFunction *gf);
+
+   /// Get the block-vector grid function.
+   const GridFunction *GetGridFunction() const { return GridFunc; }
+
+   /// Evaluate the per-block divergences at @a ip.
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip) override;
+
+   virtual ~VectorDivergenceGridFunctionCoefficient() { }
+};
+
 /** @brief Vector coefficient defined by a scalar DeltaCoefficient and a
     constant vector direction.
 

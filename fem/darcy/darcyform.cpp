@@ -985,10 +985,35 @@ void DarcyForm::RecoverFEMSolution(const Vector &X, BlockVector &x)
    RecoverFEMSolution(X, *block_b, x);
 }
 
+/** @brief Whether @a integ is a T, looking inside a block-diagonal wrapper.
+
+    A system installs one VectorBlockDiagonalIntegrator per term, replicating a
+    scalar integrator once per equation. A dynamic_cast for a particular
+    integrator type therefore has to look inside it: the wrapper is not a
+    ConvectionIntegrator however convective its blocks are, and a filter that
+    does not unwrap classifies every term of a system as the opposite of what
+    it is. BilinearFormIntegrator derives from NonlinearFormIntegrator, so this
+    serves the non-linear lists too. */
+template <typename T>
+static bool IsOrWraps(NonlinearFormIntegrator *integ)
+{
+   if (dynamic_cast<T*>(integ)) { return true; }
+   if (auto *blk = dynamic_cast<VectorBlockDiagonalIntegrator*>(integ))
+   {
+      // The blocks of one wrapper are replicas of a single term, so the first
+      // decides for all of them.
+      return dynamic_cast<T*>(blk->GetIntegrator(0)) != NULL;
+   }
+   return false;
+}
+
 void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
                                      const Vector &sol_r, GridFunction &ut) const
 {
-   MFEM_ASSERT(fes_p->GetVDim() == 1,
+   // MFEM_VERIFY, not MFEM_ASSERT: an assert is compiled out of a release
+   // build, and a system reaching here would then be silently postprocessed
+   // as though it were one field rather than refused.
+   MFEM_VERIFY(fes_p->GetVDim() == 1,
                "Reconstruction is implemented only for vdim == 1");
 
    if (!hybridization) { return; }
@@ -1058,35 +1083,46 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
 
    if (vel)
    {
-      auto fx = [vel](ElementTransformation &Tr, const Vector &q, real_t p,
-                      Vector &qt)
+      auto fx = [vel](ElementTransformation &Tr, const Vector &q,
+                      const Vector &p, Vector &qt)
       {
          qt = q;
 
-         Vector cp(q.Size());
+         // One velocity, every equation convected by it: the block of
+         // equation e picks up p(e) times it.
+         const int neq = p.Size();
+         const int dim = q.Size() / neq;
+         Vector cp(dim);
          vel->Eval(cp, Tr, Tr.GetIntPoint());
-         qt.Add(p, cp);
+         for (int e = 0; e < neq; e++)
+         {
+            Vector qt_e(qt.GetData() + e * dim, dim);
+            qt_e.Add(p(e), cp);
+         }
       };
       hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
    }
    else if (flux_fun)
    {
-      auto fx = [flux_fun](ElementTransformation &Tr, const Vector &q, real_t p,
-                           Vector &qt)
+      auto fx = [flux_fun](ElementTransformation &Tr, const Vector &q,
+                           const Vector &p, Vector &qt)
       {
          qt = q;
 
+         // ComputeFlux() is already stated per equation -- a state vector in,
+         // an (neq x dim) flux out -- so only the shape passed to it moves.
+         const int neq = p.Size();
          Vector qc(q.Size());
-         DenseMatrix flux(qc.GetData(), 1, qc.Size());
-         Vector state{p};
-         flux_fun->ComputeFlux(state, Tr, flux);
+         DenseMatrix flux(qc.GetData(), neq, q.Size() / neq);
+         flux_fun->ComputeFlux(p, Tr, flux);
          qt += qc;
       };
       hybridization->ReconstructTotalFlux(sol, sol_r, fx, ut);
    }
    else
    {
-      auto fx = [](ElementTransformation &Tr, const Vector &q, real_t p, Vector &qt)
+      auto fx = [](ElementTransformation &Tr, const Vector &q, const Vector &p,
+                   Vector &qt)
       {
          qt = q;
       };
@@ -1098,7 +1134,10 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                                       const GridFunction &ut, GridFunction &u,
                                       GridFunction &p, GridFunction &tr) const
 {
-   MFEM_ASSERT(fes_p->GetVDim() == 1,
+   // MFEM_VERIFY, not MFEM_ASSERT: an assert is compiled out of a release
+   // build, and a system reaching here would then be silently postprocessed
+   // as though it were one field rather than refused.
+   MFEM_VERIFY(fes_p->GetVDim() == 1,
                "Reconstruction is implemented only for vdim == 1");
 
    if (!hybridization) { return; }
@@ -1279,8 +1318,8 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
             // stabilisation and nothing else. Convective and hyperbolic terms
             // are kept because they *are* the local operator here; the rest
             // are omitted rather than moved to the right-hand side.
-            if (dynamic_cast<ConvectionIntegrator*>(bfi)
-                || dynamic_cast<ConservativeConvectionIntegrator*>(bfi))
+            if (IsOrWraps<ConvectionIntegrator>(bfi)
+                || IsOrWraps<ConservativeConvectionIntegrator>(bfi))
             {
                Mp_s->AddDomainIntegrator(bfi);
             }
@@ -1446,9 +1485,9 @@ const
          {
             // As in the M_p branch above: only the terms that are part of the
             // local operator are taken, and for the same reason.
-            if (!dynamic_cast<ConvectionIntegrator*>(nlfi)
-                && !dynamic_cast<ConservativeConvectionIntegrator*>(nlfi)
-                && !dynamic_cast<HyperbolicFormIntegrator*>(nlfi))
+            if (!IsOrWraps<ConvectionIntegrator>(nlfi)
+                && !IsOrWraps<ConservativeConvectionIntegrator>(nlfi)
+                && !IsOrWraps<HyperbolicFormIntegrator>(nlfi))
             {
                continue;
             }

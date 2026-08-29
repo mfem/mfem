@@ -3432,7 +3432,11 @@ void DarcyHybridization::ReconstructTotalFlux(
    Array<int> vdofs, dofs, vdofs_ut_b, vdofs_ut_i;
    DenseMatrix Mut_z, Mut_zi;
    DenseMatrix vshape_u, vshape_ut;
-   Vector shape_u, shape_ut, shape_p, u_q(dim), ut_q(dim);
+   // The potential is per equation, so the value handed to the flux law is a
+   // vector of neq entries rather than a number -- one field is the case
+   // neq == 1, not the only case.
+   const int neq_p = fes_p.GetVDim();
+   Vector shape_u, shape_ut, shape_p, u_q(dim), ut_q(dim), p_q(neq_p);
    Vector u_z, p_z, b_z, b_zi, ut_zb, ut_zi;
    DenseMatrixInverse Muti_zi;
 
@@ -3463,7 +3467,9 @@ void DarcyHybridization::ReconstructTotalFlux(
       {
          shape_u.SetSize(fe_u->GetDof());
       }
-      shape_p.SetSize(dofs.Size());
+      // One scalar shape per potential dof; the equations share it, which is
+      // why this is GetDof() and not the vdof count that fills p_z.
+      shape_p.SetSize(fe_p->GetDof());
       vshape_ut.SetSize(nvdofs, dim);
       shape_ut.SetSize(nvdofs);
 
@@ -3494,7 +3500,10 @@ void DarcyHybridization::ReconstructTotalFlux(
          }
 
          fe_p->CalcShape(ip, shape_p);
-         const real_t p_q = p_z * shape_p;
+         // p_z holds the element's potential vdofs, equation-major under
+         // byNODES, so this reshape gives one value per equation.
+         const DenseMatrix p_zm(p_z.GetData(), shape_p.Size(), neq_p);
+         p_zm.MultTranspose(shape_p, p_q);
 
          ut_fx(*Tr, u_q, p_q, ut_q);
 

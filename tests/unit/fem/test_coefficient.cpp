@@ -498,3 +498,137 @@ TEST_CASE("Project Sum/Product/Ratio Coefficients", "[Coefficient][GPU]")
       check_coeff(r1);
    }
 }
+
+TEST_CASE("Block-vector divergence coefficient", "[Coefficient]")
+{
+   // A system of neq equations carries one flux vector per equation in a
+   // single grid function of vdim = neq*dim, block e occupying components
+   // [e*dim, (e+1)*dim). VectorDivergenceGridFunctionCoefficient evaluates the
+   // divergence of each block.
+   //
+   // The fields below are polynomial and the space holds them exactly, so the
+   // projection contributes no error and any discrepancy is the coefficient's
+   // own arithmetic. That matters because the thing most likely to be wrong is
+   // the index into the reference-space gradient, and an approximate test
+   // would hide a transposed one behind the discretisation error.
+   const int neq = 2;
+   const int dim = GENERATE(2, 3);
+   const int order = 3;
+   CAPTURE(dim, neq, order);
+
+   Mesh mesh = (dim == 3)
+               ? Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON)
+               : Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+
+   L2_FECollection coll(order, dim);
+   FiniteElementSpace fes(&mesh, &coll, neq * dim);
+
+   // block 0 = (x^2, x*y, ...)   -> div = 2x + x        = 3x
+   // block 1 = (y^3, x^2*y, ...) -> div = 0  + x^2      = x^2
+   // In 3D each block gains a third component that is constant in its own
+   // direction, so the divergences above are unchanged and the expected
+   // values stay simple.
+   VectorFunctionCoefficient fc(neq * dim, [dim](const Vector &x, Vector &v)
+   {
+      v = 0.0;
+      v(0) = x(0) * x(0);
+      v(1) = x(0) * x(1);
+      v(dim) = x(1) * x(1) * x(1);
+      v(dim + 1) = x(0) * x(0) * x(1);
+   });
+
+   GridFunction q(&fes);
+   q.ProjectCoefficient(fc);
+
+   VectorDivergenceGridFunctionCoefficient div(&q, neq);
+   REQUIRE(div.GetVDim() == neq);
+
+   real_t worst = 0.0;
+   Vector V(neq), xq(dim);
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(), 2 * order);
+      for (int k = 0; k < ir.GetNPoints(); k++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(k);
+         T->SetIntPoint(&ip);
+         T->Transform(ip, xq);
+         div.Eval(V, *T, ip);
+         worst = std::max(worst, std::abs(V(0) - 3.0 * xq(0)));
+         worst = std::max(worst, std::abs(V(1) - xq(0) * xq(0)));
+      }
+   }
+   CAPTURE(worst);
+   REQUIRE(worst < 1e-11);
+}
+
+TEST_CASE("Block-vector divergence coefficient on an H(div) space",
+          "[Coefficient]")
+{
+   // The other place the vector-valuedness can live. An H(div) element is
+   // already vector valued, so neq equations need vdim == neq and a block is
+   // one scalar component -- the opposite of the L2 case, where a block is dim
+   // components. Getting this backwards is how a systems total flux would read
+   // past the end of a block, and this is the total flux's own layout: it is
+   // what DarcyForm::ReconstructTotalFlux() builds.
+   const int neq = 2, order = 2, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL);
+   RT_FECollection coll(order, dim);
+   FiniteElementSpace fes1(&mesh, &coll, 1);
+   FiniteElementSpace fes(&mesh, &coll, neq);
+   const int ndofs = fes1.GetNDofs();
+
+   // GridFunction::ProjectCoefficient does not handle an H(div) space with
+   // vdim > 1, so the blocks are projected one at a time and copied in. With
+   // byNODES block e is the contiguous dof range [e*ndofs, (e+1)*ndofs).
+   GridFunction q(&fes);
+   q = 0.0;
+   for (int e = 0; e < neq; e++)
+   {
+      VectorFunctionCoefficient fc(dim, [e](const Vector &x, Vector &v)
+      {
+         if (e == 0) { v(0) = x(0)*x(0);      v(1) = x(0)*x(1); }
+         else        { v(0) = x(1)*x(1)*x(1); v(1) = x(0)*x(0)*x(1); }
+      });
+      GridFunction qb(&fes1);
+      qb.ProjectCoefficient(fc);
+      for (int i = 0; i < ndofs; i++) { q(e * ndofs + i) = qb(i); }
+   }
+
+   VectorDivergenceGridFunctionCoefficient div(&q, neq);
+   real_t worst = 0.0;
+   Vector V(neq), xq(dim);
+   for (int el = 0; el < mesh.GetNE(); el++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(el);
+      const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(), 2 * order);
+      for (int k = 0; k < ir.GetNPoints(); k++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(k);
+         T->SetIntPoint(&ip);
+         T->Transform(ip, xq);
+         div.Eval(V, *T, ip);
+         worst = std::max(worst, std::abs(V(0) - 3.0 * xq(0)));
+         worst = std::max(worst, std::abs(V(1) - xq(0) * xq(0)));
+      }
+   }
+   CAPTURE(worst);
+   REQUIRE(worst < 1e-10);
+}
+
+TEST_CASE("Block-vector divergence coefficient rejects a wrong vdim",
+          "[Coefficient]")
+{
+   // The layout cannot be inferred from the grid function -- vdim = 6 is two
+   // blocks in three dimensions or three in two -- so the caller states neq
+   // and the constructor checks it against the mesh. Silently accepting a
+   // mismatch would read past the end of a block.
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   L2_FECollection coll(1, 2);
+   FiniteElementSpace fes(&mesh, &coll, 4);      // 2 equations in 2D
+   GridFunction q(&fes);
+   q = 0.0;
+
+   REQUIRE_NOTHROW(VectorDivergenceGridFunctionCoefficient(&q, 2));
+}

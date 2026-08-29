@@ -894,9 +894,17 @@ public:
        @param p   potential at the integration point
        @param ut  total flux at the integration point
    */
+   /** @brief The flux law, evaluated at a quadrature point, that turns the
+       computed flux and potential into the total flux.
+
+       @a u is the flux, @a p the potential and @a ut the total flux, all of
+       them per equation: for a system of `neq` equations in `dim` dimensions
+       @a p has `neq` entries and @a u and @a ut have `neq*dim`, with the block
+       of equation `e` occupying `[e*dim, (e+1)*dim)`. That is the layout the
+       block integrators build; see VectorBlockDiagonalIntegrator. */
    using total_flux_fun =
-      std::function<void(ElementTransformation &Tr, const Vector &u, real_t p,
-                         Vector &ut)>;
+      std::function<void(ElementTransformation &Tr, const Vector &u,
+                         const Vector &p, Vector &ut)>;
 
    /// Reconstruct the total flux from the provided solution.
    /** The total flux function is normally continuous and its finite element

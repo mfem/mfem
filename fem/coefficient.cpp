@@ -633,6 +633,101 @@ real_t DivergenceGridFunctionCoefficient::Eval(ElementTransformation &T,
    }
 }
 
+VectorDivergenceGridFunctionCoefficient::
+VectorDivergenceGridFunctionCoefficient(const GridFunction *gf, int neq)
+   : VectorCoefficient(neq)
+{
+   SetGridFunction(gf);
+}
+
+void VectorDivergenceGridFunctionCoefficient::SetGridFunction(
+   const GridFunction *gf)
+{
+   GridFunc = gf;
+   if (!gf) { return; }
+
+   const FiniteElementSpace *fes = gf->FESpace();
+   MFEM_VERIFY(fes, "the grid function has no finite element space");
+   MFEM_VERIFY(fes->GetNE() > 0, "the space has no elements");
+
+   // How the blocks are laid out depends on where the vector-valuedness lives.
+   // A scalar-range space (L2, H1) carries it in vdim, so neq equations in dim
+   // dimensions need vdim == neq*dim. An H(div) space carries it in the
+   // element, so vdim == neq is right and vdim*dim would be wrong. Checking
+   // the wrong one of these is how a systems total flux would read past the
+   // end of a block, so it is verified rather than trusted.
+   const int dim = fes->GetMesh()->Dimension();
+   const bool vector_range =
+      (fes->GetFE(0)->GetRangeType() == FiniteElement::VECTOR);
+   const int expect = vector_range ? vdim : vdim * dim;
+   MFEM_VERIFY(fes->GetVDim() == expect,
+               "expected vdim == " << expect << " for a "
+               << (vector_range ? "vector" : "scalar")
+               << "-range space with neq = " << vdim
+               << " in " << dim << "D, got " << fes->GetVDim());
+}
+
+void VectorDivergenceGridFunctionCoefficient::Eval(
+   Vector &V, ElementTransformation &T, const IntegrationPoint &ip)
+{
+   MFEM_ASSERT(GridFunc, "no grid function");
+
+   const FiniteElementSpace *fes = GridFunc->FESpace();
+   const FiniteElement *fe = fes->GetFE(T.ElementNo);
+
+   T.SetIntPoint(&ip);
+   V.SetSize(vdim);
+
+   if (fe->GetRangeType() == FiniteElement::VECTOR)
+   {
+      // An H(div) space -- what DarcyForm::ReconstructTotalFlux() builds the
+      // total flux in. Here one equation is one *scalar* block of vdim, its
+      // vector-valuedness coming from the element rather than from vdim, so
+      // the blocks are ndof apart and the divergence is a contraction with
+      // CalcDivShape rather than with the inverse Jacobian.
+      const int ndof = fe->GetDof();
+      Array<int> vdofs;
+      fes->GetElementVDofs(T.ElementNo, vdofs);
+      MFEM_ASSERT(vdofs.Size() == ndof * vdim,
+                  "expected " << ndof * vdim << " vdofs, got " << vdofs.Size());
+
+      Vector loc_data, divshape(ndof);
+      GridFunc->GetSubVector(vdofs, loc_data);
+      fe->CalcDivShape(ip, divshape);
+
+      const real_t w = 1.0 / T.Weight();
+      for (int e = 0; e < vdim; e++)
+      {
+         const Vector blk(loc_data.GetData() + e * ndof, ndof);
+         V(e) = (blk * divshape) * w;
+      }
+      return;
+   }
+
+   // A scalar-range space carrying the vector in its vdim: equation e is the
+   // component range [e*dim, (e+1)*dim). One reference-space gradient serves
+   // every block -- GetVectorGradientHat() returns d(component)/d(reference)
+   // for all vdim components at once -- so the blocks differ only in which
+   // rows of it are traced against the inverse Jacobian.
+   const int dim = fes->GetMesh()->Dimension();
+   DenseMatrix grad_hat;
+   GridFunc->GetVectorGradientHat(T, grad_hat);
+   const DenseMatrix &Jinv = T.InverseJacobian();
+
+   for (int e = 0; e < vdim; e++)
+   {
+      real_t div_e = 0.0;
+      for (int i = 0; i < dim; i++)
+      {
+         for (int j = 0; j < Jinv.Height(); j++)
+         {
+            div_e += grad_hat(e * dim + i, j) * Jinv(j, i);
+         }
+      }
+      V(e) = div_e;
+   }
+}
+
 void VectorDeltaCoefficient::SetTime(real_t t)
 {
    d.SetTime(t);
