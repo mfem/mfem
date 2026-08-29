@@ -221,11 +221,11 @@ else ifeq ($(MAKECMDGOALS),config)
 endif
 
 ifeq ($(MFEM_USE_RAJA),YES)
-  BASE_FLAGS += -std=c++20
+  BASE_FLAGS = -std=c++20
 endif
 
 ifeq ($(MFEM_USE_UMPIRE),YES)
-  BASE_FLAGS += -std=c++20
+  BASE_FLAGS = -std=c++20
 endif
 
 # MPI library compile and link flags
