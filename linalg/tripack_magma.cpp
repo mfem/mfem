@@ -30,21 +30,53 @@ namespace
 #error "Unsupported MFEM precision for MAGMA packed routines."
 #endif
 
-real_t **SetPackedPointerArray(Array<real_t *> &ptrs,
-                               real_t *data,
-                               const int stride,
-                               const int batch_size,
-                               const magma_queue_t queue)
+real_t **SetPackedPointerArrayCached(Array<real_t *> &ptrs,
+                                     real_t *data,
+                                     const int stride,
+                                     const int batch_size,
+                                     const magma_queue_t queue,
+                                     real_t *&cached_base,
+                                     int &cached_stride,
+                                     int &cached_batch,
+                                     magma_queue_t &cached_queue)
 {
+   bool needs_rebuild = false;
+
    if (ptrs.Size() != batch_size)
    {
-      if (ptrs.Size() != 0) { magma_queue_sync(queue); }
+      // If ptrs is currently in use on the previous queue, sync before we
+      // resize or repopulate it.
+      if (ptrs.Size() != 0)
+      {
+         magma_queue_t sync_q = cached_queue ? cached_queue : queue;
+         magma_queue_sync(sync_q);
+      }
       ptrs.SetSize(batch_size, Device::GetDeviceMemoryType());
+      needs_rebuild = true;
+   }
+
+   if (cached_base != data || cached_stride != stride ||
+       cached_batch != batch_size || cached_queue != queue)
+   {
+      // If the queue changed, ensure prior uses of ptrs on the old queue have
+      // completed before updating pointer-array contents.
+      if (!needs_rebuild && cached_queue != nullptr && cached_queue != queue)
+      {
+         magma_queue_sync(cached_queue);
+      }
+      needs_rebuild = true;
    }
 
    real_t **d_ptrs = ptrs.Write();
-   MFEM_TRIPACK_MAGMA_SET_POINTER(d_ptrs, data, 1, 0, 0, stride,
-                                  batch_size, queue);
+   if (needs_rebuild)
+   {
+      MFEM_TRIPACK_MAGMA_SET_POINTER(d_ptrs, data, 1, 0, 0, stride,
+                                     batch_size, queue);
+      cached_base = data;
+      cached_stride = stride;
+      cached_batch = batch_size;
+      cached_queue = queue;
+   }
    return d_ptrs;
 }
 
@@ -74,8 +106,10 @@ void MagmaPackedLowerCholesky::Factor(
 
    real_t *factor_data = L.Data().ReadWrite();
    real_t **d_factor_ptrs =
-      SetPackedPointerArray(factor_ptrs, factor_data, packed_size,
-                            batch_size, queue);
+      SetPackedPointerArrayCached(factor_ptrs, factor_data, packed_size,
+                                  batch_size, queue,
+                                  cached_factor_base, cached_factor_stride,
+                                  cached_factor_batch, cached_factor_queue);
 
    info.SetSize(batch_size, Device::GetDeviceMemoryType());
    magma_int_t *d_info = info.Write();
@@ -117,12 +151,16 @@ void MagmaPackedLowerCholesky::SolveInPlace(
 
    real_t *factor_data = const_cast<real_t *>(L.Data().Read());
    real_t **d_factor_ptrs =
-      SetPackedPointerArray(factor_ptrs, factor_data, solve_packed,
-                            solve_batch, queue);
+      SetPackedPointerArrayCached(factor_ptrs, factor_data, solve_packed,
+                                  solve_batch, queue,
+                                  cached_factor_base, cached_factor_stride,
+                                  cached_factor_batch, cached_factor_queue);
 
    real_t *rhs_data = rhs_sol.ReadWrite();
    real_t **d_rhs_ptrs =
-      SetPackedPointerArray(rhs_ptrs, rhs_data, solve_n, solve_batch, queue);
+      SetPackedPointerArrayCached(rhs_ptrs, rhs_data, solve_n, solve_batch, queue,
+                                  cached_rhs_base, cached_rhs_stride,
+                                  cached_rhs_batch, cached_rhs_queue);
 
    const magma_int_t status =
       MFEM_TRIPACK_MAGMA_PREFIX(pptrs_batched)(
@@ -159,7 +197,9 @@ void MagmaPackedLowerInverse::Compute(
 
    real_t *inv_data = A_inv.Data().ReadWrite();
    real_t **d_inv_ptrs =
-      SetPackedPointerArray(inv_ptrs, inv_data, packed_size, batch_size, queue);
+      SetPackedPointerArrayCached(inv_ptrs, inv_data, packed_size, batch_size, queue,
+                                  cached_inv_base, cached_inv_stride,
+                                  cached_inv_batch, cached_inv_queue);
 
    info.SetSize(batch_size, Device::GetDeviceMemoryType());
    magma_int_t *d_info = info.Write();
@@ -208,12 +248,16 @@ void MagmaPackedLowerInverse::ApplyInPlace(
    {
       real_t *inv_data = const_cast<real_t *>(A_inv.Data().Read());
       real_t **d_inv_ptrs =
-         SetPackedPointerArray(inv_ptrs, inv_data, apply_packed, apply_batch,
-                               queue);
+         SetPackedPointerArrayCached(inv_ptrs, inv_data, apply_packed, apply_batch,
+                                     queue,
+                                     cached_inv_base, cached_inv_stride,
+                                     cached_inv_batch, cached_inv_queue);
 
       real_t *rhs_data = rhs_sol.ReadWrite();
       real_t **d_rhs_ptrs =
-         SetPackedPointerArray(rhs_ptrs, rhs_data, apply_n, apply_batch, queue);
+         SetPackedPointerArrayCached(rhs_ptrs, rhs_data, apply_n, apply_batch, queue,
+                                     cached_rhs_base, cached_rhs_stride,
+                                     cached_rhs_batch, cached_rhs_queue);
 
       // Note: MAGMA's symv_packed_inplace_batched_small returns void; it will
       // report argument errors via magma_xerbla.

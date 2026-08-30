@@ -36,6 +36,14 @@ private:
 
    mutable Array<real_t *> factor_ptrs;
    mutable Array<real_t *> rhs_ptrs;
+   mutable real_t *cached_factor_base = nullptr;
+   mutable int cached_factor_stride = 0;
+   mutable int cached_factor_batch = 0;
+   mutable magma_queue_t cached_factor_queue = nullptr;
+   mutable real_t *cached_rhs_base = nullptr;
+   mutable int cached_rhs_stride = 0;
+   mutable int cached_rhs_batch = 0;
+   mutable magma_queue_t cached_rhs_queue = nullptr;
    Array<magma_int_t> info;
 
    magma_queue_t queue = nullptr;
@@ -74,6 +82,14 @@ private:
 
    mutable Array<real_t *> inv_ptrs;
    mutable Array<real_t *> rhs_ptrs;
+   mutable real_t *cached_inv_base = nullptr;
+   mutable int cached_inv_stride = 0;
+   mutable int cached_inv_batch = 0;
+   mutable magma_queue_t cached_inv_queue = nullptr;
+   mutable real_t *cached_rhs_base = nullptr;
+   mutable int cached_rhs_stride = 0;
+   mutable int cached_rhs_batch = 0;
+   mutable magma_queue_t cached_rhs_queue = nullptr;
    mutable Vector work;
    Array<magma_int_t> info;
 
