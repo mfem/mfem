@@ -27,10 +27,10 @@ namespace internal
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PADGTraceApply2D(const int NF, const Array<real_t> &b,
-                             const Array<real_t> &bt, const Vector &op_,
-                             const Vector &x_, Vector &y_, const int d1d = 0,
-                             const int q1d = 0)
+void PADGTraceApply2D(const int NF, const Array<real_t> &b,
+                      const Array<real_t> &bt, const Vector &op_,
+                      const Vector &x_, Vector &y_, const int d1d = 0,
+                      const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -114,10 +114,10 @@ static void PADGTraceApply2D(const int NF, const Array<real_t> &b,
 
 // PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PADGTraceApply3D(const int NF, const Array<real_t> &b,
-                             const Array<real_t> &bt, const Vector &op_,
-                             const Vector &x_, Vector &y_, const int d1d = 0,
-                             const int q1d = 0)
+void PADGTraceApply3D(const int NF, const Array<real_t> &b,
+                      const Array<real_t> &bt, const Vector &op_,
+                      const Vector &x_, Vector &y_, const int d1d = 0,
+                      const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -255,10 +255,10 @@ static void PADGTraceApply3D(const int NF, const Array<real_t> &b,
 
 // Optimized PA DGTrace Apply 3D kernel for Gauss-Lobatto/Bernstein
 template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPADGTraceApply3D(const int NF, const Array<real_t> &b,
-                                 const Array<real_t> &bt, const Vector &op_,
-                                 const Vector &x_, Vector &y_,
-                                 const int d1d = 0, const int q1d = 0)
+void SmemPADGTraceApply3D(const int NF, const Array<real_t> &b,
+                          const Array<real_t> &bt, const Vector &op_,
+                          const Vector &x_, Vector &y_, const int d1d = 0,
+                          const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -373,11 +373,10 @@ static void SmemPADGTraceApply3D(const int NF, const Array<real_t> &b,
 
 // PA DGTrace Apply 2D kernel for Gauss-Lobatto/Bernstein
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PADGTraceApplyTranspose2D(const int NF, const Array<real_t> &b,
-                                      const Array<real_t> &bt,
-                                      const Vector &op_, const Vector &x_,
-                                      Vector &y_, const int d1d = 0,
-                                      const int q1d = 0)
+void PADGTraceApplyTranspose2D(const int NF, const Array<real_t> &b,
+                               const Array<real_t> &bt, const Vector &op_,
+                               const Vector &x_, Vector &y_, const int d1d = 0,
+                               const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -468,11 +467,10 @@ static void PADGTraceApplyTranspose2D(const int NF, const Array<real_t> &b,
 
 // PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PADGTraceApplyTranspose3D(const int NF, const Array<real_t> &b,
-                                      const Array<real_t> &bt,
-                                      const Vector &op_, const Vector &x_,
-                                      Vector &y_, const int d1d = 0,
-                                      const int q1d = 0)
+void PADGTraceApplyTranspose3D(const int NF, const Array<real_t> &b,
+                               const Array<real_t> &bt, const Vector &op_,
+                               const Vector &x_, Vector &y_, const int d1d = 0,
+                               const int q1d = 0)
 {
    const int VDIM = 1;
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -621,11 +619,10 @@ static void PADGTraceApplyTranspose3D(const int NF, const Array<real_t> &b,
 
 // Optimized PA DGTrace Apply Transpose 3D kernel for Gauss-Lobatto/Bernstein
 template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 0>
-static void SmemPADGTraceApplyTranspose3D(const int NF, const Array<real_t> &b,
-                                          const Array<real_t> &bt,
-                                          const Vector &op_, const Vector &x_,
-                                          Vector &y_, const int d1d = 0,
-                                          const int q1d = 0)
+void SmemPADGTraceApplyTranspose3D(const int NF, const Array<real_t> &b,
+                                   const Array<real_t> &bt, const Vector &op_,
+                                   const Vector &x_, Vector &y_,
+                                   const int d1d = 0, const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

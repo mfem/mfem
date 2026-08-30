@@ -4066,8 +4066,6 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
    }
    ceed::RemoveBasisAndRestriction(this);
-
-
 }
 
 void FiniteElementSpace::DestroyDoFTransArray()
