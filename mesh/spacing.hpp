@@ -801,7 +801,7 @@ public:
       CalculateSpacing();
    }
 
-   /// Copy constructor (deep-copy all data, including SpacingFunction pieces)
+   /// Copy constructor (deep-copy all data, including the full spacing function)
    PartialSpacingFunction(const PartialSpacingFunction &sf)
       : SpacingFunction(sf.n, sf.reverse), fullSpacing(sf.fullSpacing->Clone()),
         num_elems_full(sf.num_elems_full), num_elems(sf.num_elems),

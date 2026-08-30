@@ -80,8 +80,8 @@ public:
    /// Assembles the form i.e. sums over all domain integrators.
    void Assemble(int skip_zeros = 1);
 
-   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix has to be deleted by the caller. */
+   /// Assembles the matrix on the true dofs, i.e. P^t A P.
+   /** The result is stored internally. */
    void ParallelAssemble(BlockMatrix *mat_r, BlockMatrix *mat_i);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,

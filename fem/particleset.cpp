@@ -199,7 +199,7 @@ void ParticleSet::Reserve(int res)
 
 }
 
-const Array<int> ParticleSet::GetFieldVDims() const
+Array<int> ParticleSet::GetFieldVDims() const
 {
    Array<int> field_vdims(GetNFields());
    for (int f = 0; f < GetNFields(); f++)

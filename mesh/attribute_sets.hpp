@@ -45,7 +45,7 @@ public:
    /// @brief Return all attribute set names as an STL set
    std::set<std::string> GetAttributeSetNames() const;
 
-   /// @brief Return true is the named attribute set is present
+   /// @brief Return true if the named attribute set is present
    bool AttributeSetExists(const std::string &name) const;
 
    /// @brief Create an empty named attribute set
@@ -121,7 +121,7 @@ public:
        existence of a named set.
 
        @note The reference returned by this method can be invalidated by
-       subsequent calls to SetAttributeSet, ClearAttributeSet, or
+       subsequent calls to SetAttributeSet, DeleteAttributeSet, or
        RemoveFromAttributeSet. AddToAttributeSet should not invalidate this
        reference.
     */
@@ -136,7 +136,7 @@ public:
        existence of a named set.
 
        @note The reference returned by this method can be invalidated by
-       subsequent calls to SetAttributeSet, ClearAttributeSet, or
+       subsequent calls to SetAttributeSet, DeleteAttributeSet, or
        RemoveFromAttributeSet. AddToAttributeSet should not invalidate this
        reference.
     */

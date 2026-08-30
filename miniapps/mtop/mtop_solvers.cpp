@@ -528,6 +528,7 @@ void IsoLinElasticSolver::FSolve()
       }
       // add surface loads
       lf->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*lcsurf_load));
+      lf->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(*glsurf_load));
    }
 
    (*lf) = real_t(0.0);

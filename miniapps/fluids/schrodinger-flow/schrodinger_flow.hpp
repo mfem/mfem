@@ -105,7 +105,7 @@ struct Options: public OptionsParser
       AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                 "--no-visualization", "Enable or not GLVis visualization");
       AddOption(&paraview, "-pv", "--paraview", "-no-pv",
-                "--no-paraview", "Enable or not Paraview visualization");
+                "--no-paraview", "Enable or not ParaView visualization");
       AddOption(&vis_steps, "-vs", "--vis-steps", "Visualization steps");
       AddOption(&vis_width, "-vw", "--vis-width", "vis width");
       AddOption(&vis_height, "-vh", "--vis-height", "vis height");

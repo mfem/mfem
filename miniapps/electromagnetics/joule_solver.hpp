@@ -158,8 +158,8 @@ protected:
    MeshDependentCoefficient *sigma, *Tcapacity, *InvTcap, *InvTcond;
    real_t mu, dt_A1, dt_A2;
 
-   // The method builA2 creates the ParBilinearForm a2, the HypreParMatrix A2,
-   // and the solver and preconditioner pcg_a2 and amg_a2. The other build
+   // The method buildA2 creates the ParBilinearForm a2, the HypreParMatrix A2,
+   // and the solver and preconditioner pcg_a2 and ads_a2. The other build
    // functions do similar things.
    void buildA0(MeshDependentCoefficient &sigma);
    void buildA1(real_t muInv, MeshDependentCoefficient &sigma, real_t dt);

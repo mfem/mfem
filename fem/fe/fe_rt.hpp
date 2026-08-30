@@ -615,8 +615,8 @@ private:
    Poly_1D::Basis &cbasis1d, &obasis1d;
 
 public:
-   /** @brief Construct the RT_QuadrilateralElement of order @a p and closed and
-       open BasisType @a cb_type and @a ob_type */
+   /** @brief Construct the RT_R2D_QuadrilateralElement of order @a p and
+       closed and open BasisType @a cb_type and @a ob_type */
    RT_R2D_QuadrilateralElement(const int p,
                                const int cb_type = BasisType::GaussLobatto,
                                const int ob_type = BasisType::GaussLegendre);

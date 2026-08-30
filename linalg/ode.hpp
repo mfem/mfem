@@ -303,7 +303,7 @@ public:
 };
 
 
-/// The classical explicit forth-order Runge-Kutta method, RK4
+/// The classical explicit fourth-order Runge-Kutta method, RK4
 class RK4Solver : public ODESolver
 {
 private:

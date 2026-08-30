@@ -388,17 +388,18 @@ public:
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 
-   /// @param ne number of elements
+   /// @param NE number of elements
    /// @param markers array where entry markers[e] == 0 to skip assembly over
-   /// element e element
+   /// element e
    /// @param jac Spatial Jacobians evaluated at all quadrature points
    /// @param weights 1D quadrature weights
    /// @param testBO 1D open basis test functions
    /// @param testBC 1D closed basis test functions
    /// @param coeff coefficient values evaluated at quadrature points, possibly
    /// compressed.
-   /// @param d number of 1D closed dofs
-   /// @param q number of 1D quadrature points
+   /// @param y output E-vector of assembled contributions
+   /// @param testd1d number of 1D closed dofs
+   /// @param q1d number of 1D quadrature points
    using AssembleKernelType = void (*)(const int NE, const Array<int> &markers,
                                        const Vector &jac,
                                        const Array<real_t> &weights,

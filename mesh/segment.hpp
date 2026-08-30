@@ -29,10 +29,10 @@ public:
 
    Segment() : Element(Geometry::SEGMENT) {}
 
-   /// Constructs triangle by specifying the indices and the attribute.
+   /// Constructs segment by specifying the indices and the attribute.
    Segment(const int *ind, int attr = 1);
 
-   /// Constructs triangle by specifying the indices and the attribute.
+   /// Constructs segment by specifying the indices and the attribute.
    Segment(int ind1, int ind2, int attr = 1);
 
    /// Return element's type.

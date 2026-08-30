@@ -19,7 +19,7 @@
 //               seq_example -m ../../data/beam-tet.mesh
 //               seq_example -m ../../data/beam-wedge.mesh
 //
-// Description:  This examples solves a quasi-static nonlinear p-Laplacian
+// Description:  This example solves a quasi-static nonlinear p-Laplacian
 //               problem with zero Dirichlet boundary conditions applied on all
 //               defined boundaries
 //

@@ -434,7 +434,7 @@ class Rebalancer : public MeshOperator
 protected:
    /** @brief Rebalance a parallel mesh (only non-conforming parallel meshes are
        supported).
-       @return CONTINUE + REBALANCE on success, NONE otherwise. */
+       @return CONTINUE + REBALANCED on success, NONE otherwise. */
    int ApplyImpl(Mesh &mesh) override;
 
 public:

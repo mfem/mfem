@@ -74,7 +74,7 @@ public:
    enum AMGX_MODE
    {
       /// Use the preconditioned conjugate gradient method with the AMG
-      /// V-cycle used as a proconditioner.  With the default configuration
+      /// V-cycle used as a preconditioner.  With the default configuration
       /// a block Jacobi smoother is used.
       SOLVER,
       /// Directly apply iterations of the AMG V cycle to the matrix

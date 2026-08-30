@@ -662,7 +662,7 @@ public:
    GridFunction GetSerialGridFunction(
       int save_rank, FiniteElementSpace &serial_fes) const;
 
-   /// Write the serial GridFunction a single file (written using MPI rank 0).
+   /// Write the serial GridFunction to a single file (written using MPI rank 0).
    /// The given @a precision will be used for ASCII output.
    void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
 

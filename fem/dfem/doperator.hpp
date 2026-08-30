@@ -1302,8 +1302,8 @@ void DifferentiableOperator::AddIntegrator(
                   else
                   {
                      MFEM_ASSERT(trial_dofmap.Size() == num_trial_dof,
-                                 "internal error: dof map of the test space does not "
-                                 "match previously determined number of test space dofs");
+                                 "internal error: dof map of the trial space does not "
+                                 "match previously determined number of trial space dofs");
 
                      for (int vd = 0; vd < trial_vdim; vd++)
                      {

@@ -172,7 +172,7 @@ public:
    /// Adds new Test Integrator. Assumes ownership of @a bfi.
    void AddTestIntegrator(BilinearFormIntegrator *bfi, int n, int m);
 
-   /// Adds new Domain LF Integrator. Assumes ownership of @a bfi.
+   /// Adds new Domain LF Integrator. Assumes ownership of @a lfi.
    void AddDomainLFIntegrator(LinearFormIntegrator *lfi, int n);
 
    /// Assembles the form i.e. sums over all integrators.

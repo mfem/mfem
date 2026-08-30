@@ -110,7 +110,7 @@ int isValidAsDouble(char * s)
    }
    else
    {
-      return 0;   // we have encounter a wrong character
+      return 0;   // we have encountered a wrong character
    }
 }
 
@@ -288,7 +288,7 @@ void OptionsParser::WriteValue(const Option &opt, std::ostream &os)
          break;
 
       case STD_STRING:
-         out << *(std::string *)(opt.var_ptr);
+         os << *(std::string *)(opt.var_ptr);
          break;
 
       case ARRAY:

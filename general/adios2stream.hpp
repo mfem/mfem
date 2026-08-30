@@ -211,7 +211,7 @@ private:
    int32_t GLVISToVTKType(const int glvisType) const noexcept;
 
    /** sets the current vtk_schema from point data arrays to be parsed
-    *  in VTK for Paraview visualization */
+    *  in VTK for ParaView visualization */
    std::string VTKSchema() const noexcept;
 
    /**

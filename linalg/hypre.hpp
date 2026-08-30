@@ -1691,8 +1691,8 @@ public:
 
    /// Set the pattern reuse parameter
    /** A nonzero value indicates that the pattern of the preconditioner
-    * should be reused for subsequent constructions of the proconditioner.
-    * A zero value inicates that the peconditioner should be constructed
+    * should be reused for subsequent constructions of the preconditioner.
+    * A zero value indicates that the preconditioner should be constructed
     * from scratch. The default value is 0.
     */
    void SetReuse(int reuse);

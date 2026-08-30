@@ -662,7 +662,7 @@ private:
  * to the solvers) residual norms.
  *
  * This base class should not be used directly; solvers should use
- * EnableConvergenceLogger, which has vector type as a template parameter,
+ * EnableResidualLogger, which has vector type as a template parameter,
  * instead.
  *
  * @ingroup Ginkgo
@@ -1093,7 +1093,7 @@ public:
    void SetOperator(const Operator &op) override;
 
    /**
-    * Solve the linear system <tt>Ax=y</tt>. Dependent on the information
+    * Solve the linear system <tt>Ay=x</tt>. Dependent on the information
     * provided by derived classes one of Ginkgo's linear solvers is chosen.
     */
    void Mult(const Vector &x, Vector &y) const override;

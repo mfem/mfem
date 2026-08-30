@@ -870,7 +870,7 @@ void ComplexCholeskyFactors::USolve(int m, int n, real_t * X_r,
                                &info);
    MFEM_VERIFY(!info, "ComplexCholeskyFactors:USolve:: info");
 #else
-   // X <- L^{-t} X
+   // X <- L^{-H} X
    for (int k = 0; k < n; k++)
    {
       for (int j = m-1; j >= 0; j--)

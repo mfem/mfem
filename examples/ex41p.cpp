@@ -460,7 +460,7 @@ int main(int argc, char *argv[])
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
 
-   // For the preconditioner - create billinear form corresponding to
+   // For the preconditioner - create bilinear form corresponding to
    // operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);

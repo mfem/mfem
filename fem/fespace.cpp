@@ -4625,7 +4625,7 @@ void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
 
 void FiniteElementSpace::GetBoundaryElementsByAttribute(
    const Array<int> &bdr_attrs,
-   std::vector<Array<int>> &attr_to_elements)
+   std::vector<Array<int>> &attr_to_elements) const
 {
    // One (initially empty) list of boundary elements per requested attribute,
    // indexed to match bdr_attrs.
@@ -4650,8 +4650,8 @@ void FiniteElementSpace::GetBoundaryElementsByAttribute(
    }
 }
 
-void FiniteElementSpace::GetBoundaryElementsByAttribute(int bdr_attr,
-                                                        Array<int> &boundary_elements)
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   int bdr_attr, Array<int> &boundary_elements) const
 {
    boundary_elements.SetSize(0);
 

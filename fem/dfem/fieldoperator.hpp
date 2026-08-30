@@ -19,7 +19,7 @@ namespace mfem::future
 ///
 /// This class serves as a base for different FieldOperator types which can be
 /// applied to fields that are used with inputs to a quadrature point function.
-/// See DifferentialOperator.
+/// See DifferentiableOperator.
 template <int FIELD_ID = -1>
 class FieldOperator
 {

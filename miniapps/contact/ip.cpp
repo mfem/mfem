@@ -721,8 +721,8 @@ void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
 
 // Lagrangian function evaluation
 // L(x, l, zl) = f(x) + l^T c(x) - zl^T m
-real_t IPSolver::EvalLangrangian(const BlockVector &x, const Vector &l,
-                                 const Vector &zl)
+real_t IPSolver::EvalLagrangian(const BlockVector &x, const Vector &l,
+                                const Vector &zl)
 {
    int eval_err = 0;
    real_t fx = problem->CalcObjective(x, eval_err);

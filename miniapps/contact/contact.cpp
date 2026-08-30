@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
                ess_bdr = 0; ess_bdr[2] = 1;
             }
             f.constant = -p*(i+1)/nsteps;
-            prob.SetNeumanPressureData(f,ess_bdr);
+            prob.SetNeumannPressureData(f,ess_bdr);
             break;
          default:
             MFEM_ABORT("Should be unreachable");

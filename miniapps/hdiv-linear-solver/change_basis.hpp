@@ -38,8 +38,8 @@ public:
 /// Change of basis operator between RT spaces.
 ///
 /// This represents the change-of-basis operator from the given RT space to a
-/// space using Gauss-Lobatto as the "open" basis and IntegratedGLL as the
-/// "closed" basis.
+/// space using Gauss-Lobatto as the "closed" basis and IntegratedGLL as the
+/// "open" basis.
 class ChangeOfBasis_RT : public Operator
 {
 public:

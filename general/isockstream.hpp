@@ -43,7 +43,7 @@ public:
    /// Start waiting for data and return it in an input stream.
    void receive(std::istringstream **in);
 
-   /** Virtual destructor. If the data hasn't been sent it sends it. */
+   /** Destructor. Frees the internal buffer and closes the listening socket. */
    ~isockstream();
 };
 

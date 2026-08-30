@@ -108,7 +108,7 @@ public:
    void SetParameters(const Vector & E, const Vector & nu);
 
    /// Apply Neumann (pressure) boundary condition on a set of boundary markers.
-   void SetNeumanPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
+   void SetNeumannPressureData(ConstantCoefficient &f, Array<int> & bdr_marker);
 
    /// Apply Dirichlet (displacement) boundary condition on a set of boundary markers.
    void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr);

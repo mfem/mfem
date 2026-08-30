@@ -243,7 +243,7 @@ device/host memory manager.
 
 #### Examples and tests
 - `examples` and `miniapps` respectively gather simple and more fully-featured
-  demonstrations of the usage on MFEM. They both rely on `data/` for the
+  demonstrations of the usage of MFEM. They both rely on `data/` for the
   collection of meshes.
 - The `tests/` directory contains a unit test suite, additional tests, and
   benchmarks.
@@ -484,7 +484,7 @@ The current list of MFEM editors is:
 
 6. To take a final look and complete the PR merge in *master*. The final look step is optional and shouldn't take more than 3 days.
 
-7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign much shorter review window.
+7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign a much shorter review window.
 
 #### Responsibilities of Reviewers
 

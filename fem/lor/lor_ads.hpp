@@ -41,7 +41,7 @@ protected:
    /// Form the local elementwise discrete curl matrix.
    void Form3DFaceToEdge(Array<int> &face2edge);
 public:
-   /// @brief Construct the BatchedLOR_AMS object associated with the 3D RT
+   /// @brief Construct the BatchedLOR_ADS object associated with the 3D RT
    /// space @a pfes_ho_.
    ///
    /// The vector @a X_vert represents the LOR mesh coordinates in E-vector

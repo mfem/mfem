@@ -311,7 +311,7 @@ set(HDRS
   tmop.hpp
   tmop/pa.hpp
   tmop/assemble/grad2.hpp
-  tmop/assemble/grad2.hpp
+  tmop/assemble/grad3.hpp
   tmop/mult/mult2.hpp
   tmop/mult/mult3.hpp
   tmop/tools/energy2.hpp

@@ -27,7 +27,7 @@
 //
 // The solvers being compared include:
 //    1. MINRES preconditioned by a block diagonal preconditioner
-//    2. The divergence free solver (couple and decoupled modes)
+//    2. The divergence free solver (coupled and decoupled modes)
 //    3. The Bramble-Pasciak solver (using BPCG or regular PCG)
 //
 // We recommend viewing example 5 before viewing this miniapp.

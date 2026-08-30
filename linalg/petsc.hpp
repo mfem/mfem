@@ -124,7 +124,7 @@ public:
    }
    inline void SyncBase()
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       base->Sync(*this);
    }
    inline void SyncBaseAndReset()
@@ -135,17 +135,17 @@ public:
    }
    inline bool ReadRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return read;
    }
    inline bool WriteRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return write;
    }
    inline bool DeviceRequested() const
    {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSynch not called");
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       return usedev;
    }
    const real_t *GetHostPointer() const;

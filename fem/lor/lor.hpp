@@ -174,7 +174,7 @@ public:
                         int ref_type=BasisType::GaussLobatto);
 
    /// @brief Construct a low-order refined version of the ParFiniteElementSpace
-   /// @a pfes_ho.
+   /// @a fes_ho.
    ///
    /// The mesh is refined using the refinement type specified by @a ref_type
    /// (see ParMesh::MakeRefined).
@@ -316,7 +316,7 @@ public:
    /// Calls HypreADS::SetOperator.
    void SetOperator(const Operator &op);
 
-   /// Apply the action of the AMS preconditioner.
+   /// Apply the action of the ADS preconditioner.
    void Mult(const Vector &x, Vector &y) const;
 
    /// Access the underlying solver.

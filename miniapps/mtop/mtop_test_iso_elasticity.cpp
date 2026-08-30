@@ -57,8 +57,7 @@ int main(int argc, char *argv[])
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&order, "-o", "--order",
-                  "Finite element order (polynomial degree) or -1 for"
-                  " isoparametric space.");
+                  "Finite element order (polynomial degree).");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&dfem, "-dfem", "--dFEM", "-no-dfem", "--no-dFEM",
@@ -70,7 +69,7 @@ int main(int argc, char *argv[])
    args.AddOption(&par_ref_levels, "-prl", "--par-ref-levels",
                   "Number of times to refine the mesh uniformly in parallel.");
    args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
-                  "Enable or not Paraview visualization");
+                  "Enable or not ParaView visualization");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");

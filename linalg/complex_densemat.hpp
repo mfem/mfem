@@ -92,7 +92,7 @@ public:
 
    virtual bool Factor(int m, real_t TOL = 0.0)
    {
-      mfem_error("ComplexFactors::ComplexFactors(...)");
+      mfem_error("ComplexFactors::Factor(...)");
       return false;
    }
 
@@ -212,7 +212,7 @@ public:
        for a matrix X of size (m x n). */
    void LMult(int m, int n, real_t *X_r, real_t * X_i) const;
 
-   /** Assuming L.L^H = A factored data of size (m x m), compute X <- L^t X,
+   /** Assuming L.L^H = A factored data of size (m x m), compute X <- L^H X,
        for a matrix X of size (m x n). */
    void UMult(int m, int n, real_t *X_r, real_t *X_i) const;
 
@@ -221,7 +221,7 @@ public:
    void LSolve(int m, int n, real_t *X_r, real_t * X_i) const;
 
    /** Assuming L L^H = A factored data of size (m x m), compute
-       X <- L^{-t} X, for a matrix X of size (m x n). */
+       X <- L^{-H} X, for a matrix X of size (m x n). */
    void USolve(int m, int n, real_t *X_r, real_t *X_i) const;
 
    /** Assuming L.L^H = A factored data of size (m x m), compute X <- A^{-1} X,

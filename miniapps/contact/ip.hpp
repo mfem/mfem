@@ -184,7 +184,7 @@ private:
    void GetDxphi(const BlockVector &, real_t, BlockVector &);
 
    /// Evaluate the primal-dual Lagrangian
-   real_t EvalLangrangian(const BlockVector &, const Vector &, const Vector &);
+   real_t EvalLagrangian(const BlockVector &, const Vector &, const Vector &);
 
    /// Gradient of the primal-dual Lagrangian w.r.t. primal variables
    void EvalLagrangianGradient(const BlockVector &, const Vector &, const Vector &,

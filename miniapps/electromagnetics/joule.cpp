@@ -47,7 +47,7 @@
 // (front) and 2 (rear). This means that dT/dt = 0 on the boundaries, and the
 // initial T = 0.
 //
-// See Section 3 for how the material propertied are assigned to mesh
+// See Section 3 for how the material properties are assigned to mesh
 // attributes, this needs to be changed for different applications.
 //
 // See Section 5 for how the boundary conditions are assigned to mesh

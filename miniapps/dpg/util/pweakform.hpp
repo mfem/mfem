@@ -79,8 +79,8 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
-   /** The returned matrix has to be deleted by the caller. */
+   /// Assembles the matrix on the true dofs, i.e. P^t A P.
+   /** The result is stored internally. */
    void ParallelAssemble(BlockMatrix *mat);
 
    void FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,

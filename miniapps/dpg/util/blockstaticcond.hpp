@@ -18,7 +18,7 @@ namespace mfem
 {
 
 /** @brief Class that performs static condensation of interior dofs for
-    multiple FE spaces. This class is used in class DPGWeakFrom.
+    multiple FE spaces. This class is used in class DPGWeakForm.
     It is suitable for systems resulting from the discretization of multiple
     FE spaces. It eliminates the dofs associated with the interior of the elements
     and returns the reduced system which contains only the interfacial dofs.
@@ -182,8 +182,8 @@ public:
    void ConvertListToReducedTrueDofs(const Array<int> &ess_tdof_list,
                                      Array<int> &ess_rtdof_list) const;
 
-   /** Given a solution of the reduced system 'sc_sol' and the RHS 'b' for the
-       full linear system, compute the solution of the full system 'sol'. */
+   /** Given a solution of the reduced system 'sc_sol', compute the solution
+       of the full system 'sol'. */
    void ComputeSolution(const Vector &sc_sol, Vector &sol) const;
 
    void GetTraceFESpaces(Array<FiniteElementSpace *> & trace_fes) const

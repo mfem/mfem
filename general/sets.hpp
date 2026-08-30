@@ -26,11 +26,11 @@ public:
    using Array<int>::Array; ///< Inherit all Array constructors.
    // MSVC fails to recognize that rule of zero applies after using base class
    // constructors.
-   IntegerSet() = default; ///< Default construct and empty set.
+   IntegerSet() = default; ///< Default construct an empty set.
    IntegerSet(const IntegerSet &) = default; ///< Copy constructor.
    IntegerSet(IntegerSet &&) = default; ///< Move constructor.
-   IntegerSet& operator=(const IntegerSet &) = default; ///< Copy assignment.
-   IntegerSet& operator=(IntegerSet &&) = default; ///< Move assignment.
+   IntegerSet &operator=(const IntegerSet &) = default; ///< Copy assignment.
+   IntegerSet &operator=(IntegerSet &&) = default; ///< Move assignment.
 
    /// Create an integer set from C-array 'p' of 'n' integers.
    IntegerSet(const int n, const int *p) { Recreate(n, p); }

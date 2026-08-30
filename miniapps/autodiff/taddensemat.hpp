@@ -406,7 +406,7 @@ public:
 #ifdef MFEM_DEBUG
       if (Width() != Height())
       {
-         mfem_error("DenseMatrix::Symmetrize() : not a square matrix!");
+         mfem_error("TAutoDiffDenseMatrix::Symmetrize() : not a square matrix!");
       }
 #endif
 

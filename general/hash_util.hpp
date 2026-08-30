@@ -23,7 +23,7 @@
 namespace mfem
 {
 
-/// @brief streaming implementation for murmurhash3 128 (x64).
+/// @brief Streaming implementation of MurmurHash3 128 (x64).
 ///
 /// Constructs the hash in 3 stages: init, append, finalize.
 struct Hasher

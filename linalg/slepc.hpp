@@ -147,7 +147,7 @@ public:
    };
 
    /** @brief Spectral transformations that can be used by the solver in order
-       to accelerate the convergence to the target eignevalues
+       to accelerate the convergence to the target eigenvalues
    */
    enum SpectralTransformation
    {
@@ -172,8 +172,8 @@ public:
    */
    void SetTarget(real_t target);
 
-   /** @brief Set the spectral transformation strategy for acceletating
-       convergenvce. Both SlepcEigenSolver::SHIFT and
+   /** @brief Set the spectral transformation strategy for accelerating
+       convergence. Both SlepcEigenSolver::SHIFT and
        SlepcEigenSolver::SHIFT_INVERT are available.
    */
    void SetSpectralTransformation(SpectralTransformation transformation);

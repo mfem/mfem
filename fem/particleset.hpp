@@ -118,7 +118,7 @@ public:
    const Vector &Coords() const { return coords; }
 
    /// Get reference to field \p f , component \p c value.
-   real_t &FieldValue(int f, int c=0)
+   real_t &FieldValue(int f, int c = 0)
    {
       MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
                   "invalid field index");
@@ -128,7 +128,7 @@ public:
    }
 
    /// Get const reference to field \p f , component \p c value.
-   const real_t &FieldValue(int f, int c=0) const
+   const real_t &FieldValue(int f, int c = 0) const
    {
       MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
                   "invalid field index");
@@ -182,7 +182,7 @@ public:
    bool operator!=(const Particle &rhs) const { return !operator==(rhs); }
 
    /// Print all particle data to \p os.
-   void Print(std::ostream &os=mfem::out) const;
+   void Print(std::ostream &os = mfem::out) const;
 };
 
 /** @brief ParticleSet initializes and manages data associated with particles.
@@ -335,7 +335,7 @@ protected:
     *  set.
     */
    void AddParticles(const Array<IDType> &new_ids,
-                     Array<int> *new_indices=nullptr);
+                     Array<int> *new_indices = nullptr);
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
@@ -428,8 +428,8 @@ public:
     *                                 fields.
     */
    ParticleSet(int num_particles, int dim,
-               Ordering::Type coords_ordering=Ordering::byVDIM,
-               bool use_device=false);
+               Ordering::Type coords_ordering = Ordering::byVDIM,
+               bool use_device = false);
 
    /** @brief Construct a serial ParticleSet with specified fields and tags at
     *  construction.
@@ -444,8 +444,8 @@ public:
     *                                 fields.
     */
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims,
-               int num_tags, Ordering::Type all_ordering=Ordering::byVDIM,
-               bool use_device=false);
+               int num_tags, Ordering::Type all_ordering = Ordering::byVDIM,
+               bool use_device = false);
 
    /** @brief Construct a serial ParticleSet with specified fields and tags at
     *  construction, with names.
@@ -464,8 +464,8 @@ public:
    ParticleSet(int num_particles, int dim, const Array<int> &field_vdims,
                const Array<const char*> &field_names_, int num_tags,
                const Array<const char*> &tag_names_,
-               Ordering::Type all_ordering=Ordering::byVDIM,
-               bool use_device=false);
+               Ordering::Type all_ordering = Ordering::byVDIM,
+               bool use_device = false);
 
    /** @brief Comprehensive serial constructor of ParticleSet.
     *
@@ -485,7 +485,7 @@ public:
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
                const Array<const char*> &tag_names_,
-               bool use_device=false);
+               bool use_device = false);
 
 #ifdef MFEM_USE_MPI
    /** @brief Construct a parallel ParticleSet.
@@ -498,8 +498,8 @@ public:
     *                                 fields.
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
-               Ordering::Type coords_ordering=Ordering::byVDIM,
-               bool use_device=false);
+               Ordering::Type coords_ordering = Ordering::byVDIM,
+               bool use_device = false);
 
    /** @brief Construct a parallel ParticleSet with specified fields and tags
     *  at construction.
@@ -516,8 +516,8 @@ public:
     */
    ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                const Array<int> &field_vdims, int num_tags,
-               Ordering::Type all_ordering=Ordering::byVDIM,
-               bool use_device=false);
+               Ordering::Type all_ordering = Ordering::byVDIM,
+               bool use_device = false);
 
    /** @brief Construct a parallel ParticleSet with specified fields and tags
     *  at construction, with names (for PrintCSV()).
@@ -538,8 +538,8 @@ public:
                const Array<int> &field_vdims,
                const Array<const char*> &field_names_,
                int num_tags, const Array<const char*> &tag_names_,
-               Ordering::Type all_ordering=Ordering::byVDIM,
-               bool use_device=false);
+               Ordering::Type all_ordering = Ordering::byVDIM,
+               bool use_device = false);
 
    /** @brief Comprehensive parallel constructor of ParticleSet.
     *
@@ -560,7 +560,7 @@ public:
                const Array<Ordering::Type> &field_orderings,
                const Array<const char*> &field_names_, int num_tags,
                const Array<const char*> &tag_names_,
-               bool use_device=false);
+               bool use_device = false);
 
    /// Get the MPI communicator for this ParticleSet.
    MPI_Comm GetComm() const { return comm; }
@@ -584,16 +584,20 @@ public:
     *
     *  @return Index of the newly-added field.
     */
-   int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
-                const char *field_name=nullptr);
+   int AddField(int vdim, Ordering::Type field_ordering = Ordering::byVDIM,
+                const char *field_name = nullptr);
 
    /** @brief Add a field to the ParticleSet.
     *
     *  @details Same as AddField() but with different parameter order
-    *  for convenience
+    *  for convenience.
+    *  @param[in] vdim            Vector dimension of the field data.
+    *  @param[in] field_name      Name of the field, used e.g. by PrintCSV().
+    *  @param[in] field_ordering  Ordering of the field data.
+    *  @return Index of the newly-added field.
     */
    int AddNamedField(int vdim, const char *field_name,
-                     Ordering::Type field_ordering=Ordering::byVDIM)
+                     Ordering::Type field_ordering = Ordering::byVDIM)
    {
       return AddField(vdim, field_ordering, field_name);
    }
@@ -604,7 +608,7 @@ public:
     *
     *  @return Index of the newly-added tag.
     */
-   int AddTag(const char *tag_name=nullptr);
+   int AddTag(const char *tag_name = nullptr);
 
    /// Reserve memory for \p res particles.
    /** Can help to avoid reallocation when adding or removing particles. */
@@ -617,7 +621,7 @@ public:
    int GetNFields() const { return fields.size(); }
 
    /// Get an Array<int> of the field vector-dimensions registered to particles.
-   const Array<int> GetFieldVDims() const;
+   Array<int> GetFieldVDims() const;
 
    /// Get the vector dimension of field \p f .
    int FieldVDim(int f) const { return fields[f]->GetVDim(); }
@@ -634,7 +638,7 @@ public:
     *  @details The data of new particles is uninitialized and must be
     *  set.
     */
-   void AddParticles(int num_particles, Array<int> *new_indices=nullptr);
+   void AddParticles(int num_particles, Array<int> *new_indices = nullptr);
 
    /// Remove particle data specified by \p list of particle indices.
    void RemoveParticles(const Array<int> &list);
@@ -691,12 +695,12 @@ public:
     *  The output can be visualized in ParaView by loading the CSV files, and
     *  applying the "Table To Points" filter.
     */
-   void PrintCSV(const char *fname, int precision=16);
+   void PrintCSV(const char *fname, int precision = 16);
 
    /** @brief Print only particle field and tags given by \p field_idxs and
        \p tag_idxs respectively to a CSV file. */
    void PrintCSV(const char *fname, const Array<int> &field_idxs,
-                 const Array<int> &tag_idxs, int precision=16);
+                 const Array<int> &tag_idxs, int precision = 16);
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
 

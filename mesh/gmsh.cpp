@@ -585,7 +585,7 @@ void ChompNewline(istream &input)
 {
    if (input.peek() == '\r') { input.get(); }
    MFEM_VERIFY(input.get() == '\n', "Inconsistent newlines.");
-};
+}
 
 /// Enum for supported Gmsh mesh file versions.
 enum class GmshVersion { V2_2, V4_1 };

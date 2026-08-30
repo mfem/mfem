@@ -137,8 +137,8 @@ const char *VTKByteOrder();
 /// @brief Write either ASCII data to the stream or binary data to the buffer
 /// depending on the given format.
 ///
-/// If @a format is VTK::ASCII, write the canonical ASCII representation of @a
-/// val to the output stream. Subnormal floating point numbers are rounded to
+/// If @a format is VTKFormat::ASCII, write the canonical ASCII representation
+/// of @a val to the output stream. Subnormal floating point numbers are rounded to
 /// zero. Otherwise, append its raw binary data to the byte buffer @a buf.
 ///
 /// Note that there are specializations for @a uint8_t (to write as a numeric

@@ -111,7 +111,7 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 ///
 /// @note Directly calling getenv causes a warning with MSVC. Use this wrapper
 /// to suppress the warning.
-const char* GetEnv(const char* name);
+const char *GetEnv(const char *name);
 
 /// Signed indices i -> -1 - i are used as a convention to encode orientation.
 inline MFEM_HOST_DEVICE int FlipIndexSign(int i) { return -1 - i; }

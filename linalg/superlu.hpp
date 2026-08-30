@@ -97,8 +97,8 @@ typedef enum
    /** @brief Matrix A will be factored assuming the sparsity is the same as a
        previous factorization.  Column permutations will be reused. */
    SamePattern,
-   /** @brief Matrix A will be factored assuming the sparsity is the same and
-       the matrix as a previous are similar as a previous factorization.  Column
+   /** @brief Matrix A will be factored assuming the sparsity is the same as, and
+       the matrix values are similar to, a previous factorization.  Column
        permutations and row permutations will be reused. */
    SamePattern_SameRowPerm,
    /** @brief The matrix A was provided in fully factored form and no
@@ -205,7 +205,7 @@ public:
    /// Specify whether to print the solver statistics (default true)
    void SetPrintStatistics(bool print_stat);
 
-   /** @brief Specify whether to equibrate the system scaling to make
+   /** @brief Specify whether to equilibrate the system scaling to make
       the rows and columns have unit norms.  (default true) */
    void SetEquilibriate(bool equil);
 

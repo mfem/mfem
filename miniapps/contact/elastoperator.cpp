@@ -109,8 +109,8 @@ void ElasticityOperator::SetParameters(const Vector & E, const Vector & nu)
    c2_cf.UpdateConstants(c2);
 }
 
-void ElasticityOperator::SetNeumanPressureData(ConstantCoefficient &f,
-                                               Array<int> & bdr_marker)
+void ElasticityOperator::SetNeumannPressureData(ConstantCoefficient &f,
+                                                Array<int> & bdr_marker)
 {
    pressure_cf.constant = f.constant;
    b->AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(pressure_cf),

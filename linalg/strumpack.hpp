@@ -231,7 +231,7 @@ public:
     *  - LOSSY:          Lossy compression
     *
     * For versions of STRUMPACK < 5, we support only NONE, HSS, and BLR.
-    * BLR_HODLR and ZPR_BLR_HODLR are supported in STRUMPACK >= 6.
+    * BLR_HODLR and ZFP_BLR_HODLR are supported in STRUMPACK >= 6.
     */
    void SetCompression(strumpack::CompressionType type);
 

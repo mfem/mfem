@@ -1438,11 +1438,11 @@ public:
        attribute @a bdr_attrs[i]. */
    void GetBoundaryElementsByAttribute(
       const Array<int> &bdr_attrs,
-      std::vector<Array<int>> &attr_to_elements);
+      std::vector<Array<int>> &attr_to_elements) const;
 
    /** @brief Get all boundary elements with a specific attribute. */
    void GetBoundaryElementsByAttribute(int bdr_attr,
-                                       Array<int> &boundary_elements);
+                                       Array<int> &boundary_elements) const;
 
    /** @brief Compute edge orientations relative to a boundary loop direction.
 
