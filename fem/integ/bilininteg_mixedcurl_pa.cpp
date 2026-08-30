@@ -1513,20 +1513,21 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
 
+   const GeometricFactors *geom = nullptr;
    if (trial_fel->GetMapType() == FiniteElement::INTEGRAL)
    {
-      const GeometricFactors *geom =
-         mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
-      coeff /= geom->detJ;
+      geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS);
    }
 
    if (dim == 2)
    {
-      internal::PAHdivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+      internal::PAHdivL2Setup2D(quad1D, ne, ir->GetWeights(), coeff, pa_data,
+                                geom);
    }
    else
    {
-      internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
+      internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data,
+                                geom);
    }
    pa_data *= -1_r;
 }

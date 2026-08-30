@@ -593,18 +593,14 @@ void PADivDivApply3D(const int D1D,
                      Vector &y_);
 
 // PA H(div)-L2 Assemble 2D kernel
-void PAHdivL2Setup2D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op);
+// if geom != nullptr, then coeff_ is divided by detJ
+void PAHdivL2Setup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom);
 
 // PA H(div)-L2 Assemble 3D kernel
-void PAHdivL2Setup3D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op);
+// if geom != nullptr, then coeff_ is divided by detJ
+void PAHdivL2Setup3D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom);
 
 // PA H(div)-L2 Diagonal 2D kernel
 void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,
