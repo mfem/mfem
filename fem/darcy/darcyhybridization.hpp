@@ -226,6 +226,26 @@ public:
       Threaded,
    };
 
+   /** @brief How the element-local blocks are factored.
+
+       The flux mass A and the potential block D are factored one element at a
+       time, and each element's factorisation is independent of every other's
+       -- that independence is what static condensation is. These modes differ
+       only in how that loop is written, not in what it computes. */
+   enum class LocalFactorMode
+   {
+      /** @brief One LUFactors per element, in element order. The historical
+          behaviour and the default: no existing caller pays anything for the
+          other mode. */
+      Serial,
+      /** @brief The whole array in one BatchedLinAlg::LUFactor() call, which
+          makes the device path a backend selection rather than new kernels --
+          see BatchedLinAlg::SetActiveBackend(). Requires every element's
+          block to be the same size; CanBatchLocalFactor() answers that in
+          advance, and the loop above is taken when it is false. */
+      Batched,
+   };
+
    /** @brief Whether the reduced (trace) gradient is assembled as a sparse
        matrix or only applied.
 
@@ -367,6 +387,7 @@ private:
    NLOrdering nl_ordering{NLOrdering::CondenseThenLinearise};
    GradientMode grad_mode{GradientMode::Assembled};
    AssemblyMode asm_mode{AssemblyMode::Serial};
+   LocalFactorMode lfac_mode{LocalFactorMode::Serial};
 
    /** @brief Residual evaluations since the linearisation last advanced, and
        the number of them tolerated. See SetMaxEvalsWithoutAdvance(). */
@@ -598,6 +619,9 @@ private:
                   Vector &y) const;
    void InvertA();
    void InvertD();
+   /** @brief The size every element's block has in @a f_offsets, or -1
+       when they are not all equal. */
+   static int UniformBlockSize(const Array<int> &f_offsets, int NE);
    void GetElementFaces(int el, Array<int> &faces) const;
    /** @brief What ComputeH() is being asked for.
 
@@ -819,6 +843,78 @@ public:
 
    /// The mode set by SetAssemblyMode().
    AssemblyMode GetAssemblyMode() const { return asm_mode; }
+
+   /** @brief Choose how the element-local blocks A and D are factored.
+       LocalFactorMode::Serial by default, so nothing existing changes.
+
+       LocalFactorMode::Batched sends the whole array through
+       BatchedLinAlg::LUFactor(). Note what that does and does not buy on a
+       host: the native backend is an mfem::forall, so it threads only in a
+       build with MFEM_USE_OPENMP *and* a device configured to use it
+       (Device("omp")), and is otherwise the same serial traversal reached by
+       a different route. Its real payoff is the gpu_blas and magma backends.
+
+       The two modes agree **bit for bit** in a build without LAPACK, and that
+       is a fact about the code rather than a hope: BatchedLinAlg's native
+       backend calls kernels::LUFactor(), and LUFactors::Factor() *is* that
+       same routine when MFEM_USE_LAPACK is undefined -- the same partial
+       pivoting, the same 1-based ipiv. With LAPACK, LUFactors::Factor() calls
+       getrf_ instead, whose blocked update reassociates the arithmetic, and
+       the two then agree only to round-off. A test asserting equality must
+       know which build it is in.
+
+       One behaviour differs deliberately. A block whose factorisation meets
+       an exact zero pivot aborts here, where the serial loop discards
+       LUFactors::Factor()'s return value and carries on into whatever the
+       division by it produces.
+
+       **What it is worth, measured, so that nobody has to guess.** In an
+       MFEM_USE_OPENMP build with Device("omp"), the factorisation alone
+       (NE blocks of n*n, best of five) speeds up like this against the
+       serial loop:
+
+           threads      n=8    n=16    n=32    n=64
+                 1     0.85    1.08    0.96    1.00
+                 2     1.43    1.70    1.83    1.56
+                 4     2.45    3.10    3.17    2.76
+                 8     3.82    5.56    4.52    4.94
+
+       and the factors agree to the last bit at every thread count, pivots
+       included. But the *in situ* difference -- the wall time of
+       DarcyForm::Assemble(), whose only difference between the two modes is
+       this call -- stayed inside run-to-run scatter at every size tried, from
+       nx=24 at order 5 to nx=128 at order 2, with deltas of both signs.
+
+       The reason is worth knowing before anyone spends time here.
+       InvertA() and InvertD() run **once**, from Finalize(), and only for
+       LocalOpType::PotNL and FluxNL. The factorisation that runs once per
+       *linearisation* is the one in ComputeElementH(), which factors A itself
+       unless the local operator is PotNL -- and that one is already inside
+       the loop AssemblyMode::Threaded parallelises. So this setting batches
+       the cold path. Its value is that it makes the device backends reachable
+       for that work at all, not that it moves a host solve. Reaching the hot
+       path means factoring all of A in one batched pre-pass before ComputeH()'s
+       element loop and having ComputeElementH() skip it, which is a larger
+       change than this one and is not made here. */
+   void SetLocalFactorMode(LocalFactorMode mode);
+
+   /// The mode set by SetLocalFactorMode().
+   LocalFactorMode GetLocalFactorMode() const { return lfac_mode; }
+
+   /** @brief Whether LocalFactorMode::Batched would actually be taken, which
+       needs every element's A block, and every element's D block, to be the
+       size of every other's.
+
+       A uniform mesh at a uniform order is **not** enough, and assuming it is
+       is the trap here. Af_f_offsets sizes each element's block by counting
+       that element's *free* hat dofs, and a hat dof is essential when it
+       depends only on ess_flux_tdof_list -- so any problem with essential
+       flux dofs gives its boundary elements a smaller block than its interior
+       ones on a perfectly uniform mesh. The question is therefore asked of
+       the offsets themselves, never of the mesh and the order.
+
+       Valid once Init() has built the offsets. */
+   bool CanBatchLocalFactor() const;
 
    /** @brief Choose whether GetGradient() assembles the reduced system or only
        applies it. See GradientMode; the default is Assembled, which is what

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "darcyhybridization.hpp"
+#include "../../linalg/batched/batched.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -1181,9 +1182,49 @@ void DarcyHybridization::AllocH() const
    H_data.SetSize(H_offsets[num_faces]); H_data = 0.;
 }
 
+int DarcyHybridization::UniformBlockSize(const Array<int> &f_offsets, int NE)
+{
+   if (NE <= 0) { return -1; }
+
+   const int n = f_offsets[1] - f_offsets[0];
+   for (int el = 1; el < NE; el++)
+   {
+      if (f_offsets[el+1] - f_offsets[el] != n) { return -1; }
+   }
+   return n;
+}
+
+bool DarcyHybridization::CanBatchLocalFactor() const
+{
+   const int NE = fes.GetNE();
+
+   // A zero common size is uniform and vacuous -- an absent D block, say --
+   // so it is the -1 of "not all equal" that disqualifies, not a size of 0.
+   return UniformBlockSize(Af_f_offsets, NE) >= 0 &&
+          UniformBlockSize(Df_f_offsets, NE) >= 0;
+}
+
+void DarcyHybridization::SetLocalFactorMode(LocalFactorMode mode)
+{
+   lfac_mode = mode;
+}
+
 void DarcyHybridization::InvertA()
 {
    const int NE = fes.GetNE();
+
+   const int n = (lfac_mode == LocalFactorMode::Batched)
+                 ? UniformBlockSize(Af_f_offsets, NE) : -1;
+   if (n > 0)
+   {
+      // Af_data already has the memory order DenseTensor wants -- NE
+      // contiguous n*n blocks, Af_offsets[el] == el*n*n -- and the tensor is
+      // a non-owning view of it, so this factors the same array in place.
+      // Af_ipiv is likewise el*n, which is the (n, NE) shape LUFactor writes.
+      DenseTensor A(Af_data.GetData(), n, n, NE);
+      BatchedLinAlg::LUFactor(A, Af_ipiv);
+      return;
+   }
 
    for (int el = 0; el < NE; el++)
    {
@@ -1201,13 +1242,13 @@ void DarcyHybridization::InvertD()
 {
    const int NE = fes.GetNE();
 
+#ifdef MFEM_DEBUG
+   // Checked for every element whichever way the factorisation is done, so
+   // that the two modes fail on the same inputs as well as agreeing on the
+   // rest.
    for (int el = 0; el < NE; el++)
    {
-      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-
-      // Decompose D
-
-#ifdef MFEM_DEBUG
+      const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
       DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
       const real_t norm = D.MaxMaxNorm();
       if (norm == 0.)
@@ -1218,7 +1259,23 @@ void DarcyHybridization::InvertD()
       {
          MFEM_ABORT("Inverting a singular matrix!");
       }
+   }
 #endif
+
+   const int n = (lfac_mode == LocalFactorMode::Batched)
+                 ? UniformBlockSize(Df_f_offsets, NE) : -1;
+   if (n > 0)
+   {
+      DenseTensor D(Df_data.GetData(), n, n, NE);
+      BatchedLinAlg::LUFactor(D, Df_ipiv);
+      return;
+   }
+
+   for (int el = 0; el < NE; el++)
+   {
+      int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+
+      // Decompose D
 
       LUFactors LU_D(&Df_data[Df_offsets[el]], &Df_ipiv[Df_f_offsets[el]]);
 

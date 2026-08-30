@@ -22,32 +22,23 @@ being eliminable independently of every other is what static condensation *is*.
 Offset construction and allocation (prefix sums over `NE`) run once and are not
 worth touching.
 
-## 1. `InvertA` and `InvertD` via `BatchedLinAlg`
+## 1. `InvertA` and `InvertD` via `BatchedLinAlg` -- DONE
 
-No conflicts, no scratch, and the data already has the layout: `Af_data` is a
-flat `Array<real_t>` of contiguous `n*n` blocks, which is `DenseTensor`'s memory
-order, and `DenseTensor(real_t *d, int i, int j, int k)` is a **non-owning
-view**, so no copy is needed.
+`SetLocalFactorMode()`, off by default, plus `CanBatchLocalFactor()` and
+`tests/unit/fem/test_darcy_batched_factor.cpp`. The doxygen carries what it
+established: bit-for-bit agreement and why it is exact without LAPACK and only
+approximate with it, the 1/2/4/8 thread scaling, and -- the part that matters
+for what to do next -- that these two routines are the **cold** path. They run
+once, from `Finalize()`, and only for `PotNL` and `FluxNL`; the factorisation
+that runs once per linearisation is inside `ComputeElementH()`, which is
+already in the threaded loop. Batching *that* means a pre-pass before
+`ComputeH()`'s element loop, and is not done.
 
-```cpp
-// when every element has the same a_dofs_size == n
-DenseTensor A(Af_data.GetData(), n, n, NE);
-BatchedLinAlg::LUFactor(A, Af_ipiv);
-```
-
-`linalg/batched/` already carries `native`, `gpu_blas` and `magma` behind
-`BatchedLinAlg::SetActiveBackend`, so the device path is a backend selection
-rather than new kernels, and the pivot conventions agree already.
-
-**The uniform-size assumption is the catch, and not for the reason the plan
-first gave.** It is not only mixed-element meshes and variable order:
-`Af_f_offsets` sizes each block by counting the element's *free* hat dofs
-(`hat_dofs_marker[j] != 1`), and a hat dof is essential when it depends only on
-`ess_flux_tdof_list`. So **any** problem with essential flux dofs gives boundary
-elements a smaller block than interior ones on a perfectly uniform mesh — in
-practice the RT and broken-RT path, the discontinuous flux space leaving the
-list empty. Detect uniformity from the actual differences in `Af_f_offsets`,
-never from mesh and order homogeneity, and keep the existing loop as fallback.
+The uniform-size trap the plan warned about is real and is now checked from
+`Af_f_offsets` rather than from the mesh, but it is subtler than the warning
+said in one direction and blunter in another: essential flux dofs do break
+uniformity as predicted, and a **mixed-element mesh does not** at order 0,
+where a triangle and a quadrilateral carry the same number of `L2` dofs.
 
 ## 2. `MultNL`, which is the one that matters for stiff problems
 
@@ -106,3 +97,21 @@ version is a rewrite of the body, not a backend switch.
   give the right answer.
 * **A serial build unchanged.** Every existing caller is serial and none should
   pay for this.
+
+## A defect found while testing section 1, unrelated to it
+
+`DarcyHybridization`'s Jacobian is wrong on a **mixed-element mesh** at order
+>= 1. On `data/square-mixed.mesh` (8 triangles, 12 squares) with a semilinear
+potential mass, Newton falls by a constant factor of about 1.7 per step and
+stalls at 1.2e-08, with a *direct* trace solve so the linear solver is not in
+question; LBFGS, which never asks for a gradient, reaches 5.5e-14 in 36
+iterations and lands on the same solution to six digits. The same problem on
+all-quadrilateral and on all-triangle meshes converges in three Newton steps to
+2e-16, and the mixed mesh converges at order 0 -- which is exactly the order at
+which the two element types have equal dof counts.
+
+So the residual is right and the gradient is not, and the correlation with
+unequal per-element dof counts points at indexing that assumes them equal.
+Nothing else in the suite runs Darcy on a mixed mesh, which is why it had not
+been seen. `tests/unit/fem/test_darcy_batched_factor.cpp` carries the
+reproduction in a comment and deliberately does not assert convergence there.
