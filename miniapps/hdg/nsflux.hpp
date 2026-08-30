@@ -61,11 +61,31 @@ namespace hdg
     \verbatim
         lambda_max(u,n) = |v.n| + sqrt((v.n)^2 + beta |n|^2),
     \endverbatim
-    and that is the object section 5 of doc/HDG-ROADMAP.md is about: on a face
-    whose normal lies along the flow it is `|v| + sqrt(v^2 + beta)`, and on one
-    across the flow it is `sqrt(beta)`. One scalar `tau` cannot be both, which
-    is exactly why the constant-`Ctau` HDGFlux is not the right stabilization
-    here and HDGLaxFriedrichsFlux below is.
+    On a face whose normal lies along the flow that is `|v| + sqrt(v^2 + beta)`
+    and on one across the flow it is `sqrt(beta)`, so this one expression is
+    both a convective and a diffusive stabilization according to where it is
+    evaluated. That is the open question the navierstokes miniapp was built to
+    ask, and `-tau <c>` there swaps in the library's constant-`Ctau` HDGFlux to
+    ask it.
+
+    **What the answer turned out to be, because an earlier version of this
+    comment asserted the opposite and was wrong.** It claimed a single constant
+    `tau` "cannot be both" and that HDGLaxFriedrichsFlux is therefore the right
+    stabilization here. Measured over 937 runs, a constant near 0.5 is
+    *2.0-3.6x more accurate* than `lambda_max` in the flux and the pressure and
+    indistinguishable in the potential; `lambda_max` wins only on nonlinear
+    solvability, where it converges on coarse meshes at high Reynolds number
+    that every constant `tau <= 1` diverges on. The reason is that
+    `lambda_max = sqrt(beta)` on every face where `v.n = 0`, and on the
+    along-flow faces -- the only ones where it is larger -- the miniapp's exact
+    solutions are already representable, so the extra weight is a pure penalty.
+    A sweep of `beta`, which cannot change the steady answer, confirmed it:
+    `lambda_max`'s error moves with `beta` and tracks the constant `sqrt(beta)`
+    to 5-16%, while a fixed `tau` is `beta`-independent to 0.02%. The miniapp's
+    header comment carries the tables. So the honest statement is that
+    `lambda_max`'s value here is robustness, not accuracy, and that its
+    accuracy level is set by `beta` -- a free parameter of the formulation --
+    rather than by the flow.
 
     The Jacobians are analytic. Nothing in FluxFunction finite-differences a
     Jacobian you do not supply -- the default implementations MFEM_ABORT -- so

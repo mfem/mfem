@@ -757,6 +757,15 @@ public:
        SetLocalNLSolver() and SetLocalNLPreconditioner() are inert in this
        mode: there is no local nonlinear solve for them to configure.
 
+       A property this mode does NOT have, recorded so that it is not mistaken
+       for a defect and "fixed": Mult() is a function of the trace when the
+       linearisation is already at that trace, but not across one that
+       *advances* onto it -- which is every Newton step after the first. The
+       gap was measured at 5.0e-10, 4.8e-06 and 1.1e-02 as the nonlinearity
+       grew, and it cannot be closed within this ordering: exactness there
+       needs the local problem solved exactly, which is CondenseThenLinearise.
+       Pinned by a unit test.
+
        @warning This mode places a requirement on the SOLVER, and one that is
        silent when unmet. The linearisation point advances only in
        GetGradient(), so the outer iteration must ask for a gradient once per

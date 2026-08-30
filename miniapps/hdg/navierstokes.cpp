@@ -60,16 +60,88 @@
 //               which is the `s = s_diff + s_conv` splitting of NPC-1 section
 //               3.6 rather than one lumped constant.
 //
-//               **Why this problem, and what it is for.** Section 5 of
-//               doc/HDG-ROADMAP.md asks whether one tau can serve convection
-//               in one coordinate direction and diffusion in another at the
-//               same time. Plane Poiseuille flow is the smallest problem that
+//               **Why this problem, and what it is for.** The open question
+//               it was built to ask is whether one tau can serve convection in
+//               one coordinate direction and diffusion in another at the same
+//               time. Plane Poiseuille flow is the smallest problem that
 //               has that character: it is diffusive across the channel and
 //               convective along it. On a face whose normal lies along the
 //               flow `lambda_max = |v| + sqrt(v^2 + beta)`; on one across the
 //               flow it is `sqrt(beta)`. A single constant tau cannot be both,
 //               and `-tau <c>` against the default is how this miniapp asks
 //               what that costs.
+//
+//               **What that sweep measured, and it is not what was expected.**
+//               937 runs over both problems, orders 1-3, Re 10 to 1000, cell
+//               aspect ratios 1/4 to 4, tau 0.125 to 10, and beta over a
+//               factor of 16:
+//
+//                 - `S = lambda_max(u^,n) I` is 2.0-3.6x *worse* than the best
+//                   constant tau in the flux and in the pressure, and
+//                   indistinguishable from it in the potential. Over-
+//                   stabilization also costs the flux its rate: the last
+//                   measured rate at k = 2 falls from 2.60 to 2.18 as tau goes
+//                   0.5 to 5.
+//                 - The mechanism, established by sweeping beta rather than by
+//                   inspection. beta cannot change the steady answer -- the
+//                   continuity row is `beta div v = s_0` -- but it sets
+//                   `lambda_max = sqrt(beta)` on every face where v.n = 0.
+//                   lambda_max's error tracks the constant sqrt(beta) to
+//                   within 5-16% and *moves with beta*, while a fixed tau is
+//                   beta-independent to 0.02%. So lambda_max is a constant
+//                   sqrt(beta) in disguise on the faces that do the work: on
+//                   the along-flow faces, where it is larger, both exact
+//                   solutions are already representable and the stabilization
+//                   there does nothing. Its level is set by an arbitrary
+//                   parameter of the formulation rather than by the physics,
+//                   and the extra weight it carries is a penalty.
+//                 - It wins the other half. lambda_max converged on every one
+//                   of ~300 Kovasznay cases; every constant tau <= 1 diverges
+//                   somewhere, always on *coarse* meshes at high Re and
+//                   recovering under refinement. Cold on plane Poiseuille at
+//                   Re = 100 it converges in 9 iterations where tau in
+//                   [0.25, 2] all fail and only tau >= 5 recovers -- and since
+//                   lambda_max never exceeds 2.4 there, it is not the amount
+//                   of stabilization but where it is put. The accuracy optimum
+//                   sits exactly at that robustness boundary: at Re = 400 the
+//                   best converging tau is 0.375 at 48x32 and 0.5 at 24x16.
+//                 - The mesh aspect ratio changes none of it; lambda_max's
+//                   penalty is if anything largest on cells stretched along
+//                   the flow.
+//
+//               **What that does not settle, and the reason is about these two
+//               problems rather than about tau.** Both put their sharp
+//               structure across the flow and little or none along it, so the
+//               along-flow faces -- the only ones where lambda_max differs
+//               from sqrt(beta) -- are exactly the faces where the solution is
+//               easiest to represent. Kovasznay cannot repair that on its own
+//               window, because its decay rate
+//
+//                   lambda = Re/2 - sqrt(Re^2/4 + 4 pi^2)  ->  -4 pi^2 / Re,
+//
+//               so the parameter that makes it convective is the parameter
+//               that flattens its along-flow structure: `e^(lambda x)` varies
+//               by 94x across the standard window at Re = 10 and by **1.16x at
+//               Re = 400**, with the measured consequence that the errors are
+//               identical to four digits over a 16x range in nx. Pass
+//               `-sx 4 -re 40` when along-flow structure is wanted at a
+//               convective Reynolds number. A genuinely two-directional exact
+//               solution is what would settle the general question, and none
+//               of the four problems here is one.
+//
+//               **What is verified, and what a rate study needs.** Plane
+//               Poiseuille at order >= 2 comes back at 2.6e-15 / 2.5e-15 /
+//               3.8e-16 in q / p / v and is correctly inexact at order 1.
+//               Kovasznay at Re = 40 gives the optimal k+1 in the potential --
+//               v rate 2.11 at k = 1, 3.09 at k = 2, 4.11 at k = 3 over
+//               1/h = 4, 8, 16, 32 -- while the flux rates lag and are still
+//               climbing there, which is the roadmap's warning that rates must
+//               be taken asymptotically. Any rate study needs
+//               `-gm 0 -rtol 1e-8`: the default GS-preconditioned trace solve
+//               leaves the pressure error 13% off the converged value at 48x32
+//               (2.569e-5 against 2.274e-5) with Newton's *relative* test
+//               satisfied both times, so the comparison would be measuring the
+//               preconditioner rather than the discretisation.
 //
 //               Problem 1, plane Poiseuille, is an exact solution of the
 //               equations with **zero source term**, and it is a polynomial:
@@ -322,16 +394,24 @@ int main(int argc, char *argv[])
    args.AddOption(&beta, "-b", "--beta",
                   "Artificial compressibility. It does not change the steady "
                   "answer, only the pressure's characteristic speed and hence "
-                  "the stabilization floor. Negative picks U^2.");
+                  "the stabilization floor. Negative picks U^2. That "
+                  "documented no-op makes it the cheapest controlled "
+                  "experiment on the stabilization available here: at fixed "
+                  "-tau the answer is beta-independent to 0.02%, while under "
+                  "lambda_max it moves with beta and tracks the constant "
+                  "sqrt(beta) to 5-16%. See the header comment.");
    args.AddOption(&td, "-td", "--stab-diff",
                   "Diffusive stabilization factor, giving tau_d = td*nu/h.");
    args.AddOption(&tau_const, "-tau", "--stab-conv-const",
                   "Use the library's constant-Ctau HDGFlux with this value "
                   "instead of the state-dependent Lax-Friedrichs S = "
                   "lambda_max(u^,n) I. Negative (default) uses "
-                  "lambda_max. This is the section 5 knob: it replaces a "
-                  "stabilization that knows the face normal with one that "
-                  "does not.");
+                  "lambda_max. It replaces a stabilization that knows the "
+                  "face normal with one that does not, and the sweep in the "
+                  "header comment is what it was for: a constant near 0.5 is "
+                  "2-3.6x more accurate in the flux and the pressure, and "
+                  "diverges on coarse meshes at high Re where lambda_max does "
+                  "not.");
    args.AddOption(&stokes, "-stokes", "--stokes", "-ns", "--navier-stokes",
                   "Drop the v (x) v term, leaving the Stokes problem. The "
                   "system is then linear and Newton converges in one step; it "
@@ -954,5 +1034,8 @@ int main(int argc, char *argv[])
 // One thing that will need attention at step 2: MixedConductionNLFIntegrator's
 // HDG face stabilization for more than one equation is `face_w * TauVar(e)`, a
 // single constant per equation set once through SetVariableStabilization().
-// That cannot express a stabilization that depends on the state or the face
-// normal, which is the whole subject of section 5 of the roadmap.
+// That cannot express a stabilization that depends on the state or on the
+// face normal -- which is the whole subject of the tau question above. The
+// route taken here sidesteps it by carrying the convective stabilization on
+// the NumericalFlux instead; a *viscous* stabilization that varied with
+// direction would run straight into it.

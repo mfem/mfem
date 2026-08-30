@@ -1,127 +1,178 @@
 # HDG capabilities still wanted in `fem/darcy`
 
-What is left. Everything this file used to record about work already done has
-been removed; the code and its doxygen carry that now, and the history is in
-git. Sections are numbered as they were, so earlier commit messages that cite
-"§4" still point somewhere sensible.
+**This file, and every other `.md` here, is scratch.** It is a to-do list and
+nothing else, and it is expected to be deleted before this branch becomes a PR.
+Anything worth keeping must live in doxygen or in a source comment — the
+findings that used to be written up here have been moved into the code that
+they are about, and nothing in the code depends on a markdown file for its
+meaning.
+
+Sections keep the numbers they had, so earlier commit messages citing "§4"
+still point somewhere sensible. Where a section is gone it says why.
 
 ## 1. Extension and lifting — solving on a subdomain of the true domain
 
-Untouched. Sits on its own branch of the dependency graph: nothing in the
-completed work blocks it.
+**Built, on `gf-hdg-subdomains-dev`, not here.** `fem/darcy/extension_hdg.{hpp,cpp}`
+(nine classes, including `HDGExtensionIntegrator` and
+`TransferredDatumCoefficient`), `miniapps/hdg/extension.cpp`, and 27 unit test
+cases in `tests/unit/fem/test_darcy_extension.cpp`.
+
+What is left here is a **branch merge**, not development: the two branches are
+21/13 diverged and neither has been merged into the other. Three artefacts of
+§1 already sit on this branch and one of them is a bug:
+
+* `fem/darcy/darcyform.hpp:174` refers the reader to `extension_hdg.hpp`, which
+  does not exist here. `AssembleFluxMassBdrFaces()` exists solely to serve §1.
+* `miniapps/hdg/extension` — an **18 MB ELF binary is committed**, added by a
+  docs-only commit. That is an accident and should be removed whatever is
+  decided about the merge.
+
+**Two other sections are blocked on this merge and the dependency was not
+previously recorded**: §3's remedy and §7's `η₅`. See both.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
-Untouched, and independent of §1 in the same way.
+Untouched, and nothing in the tree touches it — no boundary-element machinery
+exists anywhere in MFEM, so this is a from-scratch build of the exterior
+representation rather than an HDG task. By a wide margin the largest item here.
 
 ## 3. Whether the degenerate order loss is asymptotic
 
-The practical answer is already known — floor the stabilisation — but whether
-the loss is asymptotic or pre-asymptotic was never settled.
+The practical answer is known — floor the stabilisation — but whether the loss
+is asymptotic or pre-asymptotic was never settled, and two things stand in the
+way that the entry did not previously name.
+
+* **The measurement cannot answer it as written.** `Rates()` in
+  `tests/unit/fem/test_darcy_degenerate.cpp` runs three meshes from n = 4 to
+  n = 16 and overwrites `rate_p` at each refinement, so it computes two rates
+  and reports the last. Settling the question needs a deeper sweep (n → 64 or
+  128) that keeps the whole rate sequence.
+* **The floor is not in the library on this branch.** `HDGFloorStabilization`
+  is on `gf-hdg-subdomains-dev`; here the only floor is a test-local
+  `class FloorTau` in that same test file. So §3 is blocked on §1's merge.
+
+The loss itself and the floor's repair are already pinned by regressions there.
 
 ## 4. Postprocessing for a system
 
-The reconstruction is scalar-only, so a two-equation study cannot be
-postprocessed and its superconvergence table is a single field. Making it
-general in `vdim` needs: the enriched spaces built with a `vdim`;
-`GetElementVDofs` throughout the kernel; a vector
-`DivergenceGridFunctionCoefficient`; a `vdim`-aware
-`DarcyHybridization::ReconstructTotalFlux` with a vector-valued callback; and a
-linearised potential constraint for a system stabilized by the nonlinear face
-integrator.
+**Smaller than it reads, and its motivation is largely retired.** The *classic*
+local postprocessing is already general in `vdim` —
+`HDGPotentialPostprocessor` in `fem/darcy/postprocess_hdg.hpp`, tested over
+`neq = 1, 2, 3` — and so is `DarcyHybridization::ReconstructTotalFlux` and the
+vector `VectorDivergenceGridFunctionCoefficient` the plan asked for. A
+two-equation superconvergence study is therefore possible today.
 
-Two things qualify it. The *classic* local postprocessing — the small
-per-element solve of CCSZ, not the branch's flux-and-potential reconstruction —
-is a loop over equations away from being general in `vdim`. And §9 below would
-remove the need entirely for the quantity that matters, since HDG (A) is
-superconvergent as solved.
+What remains is the **rich reconstruction only**: `DarcyForm::ReconstructFluxAndPot`,
+whose kernel has some forty distinct sites assuming `vdim == 1` — the closure
+row replaces exactly one equation of the local system, and the interior-dof
+count assumes a contiguous tail that `byNODES` does not give for `vdim > 1` —
+plus the enriched *potential* and *trace* spaces (`darcyform.cpp:1178, :1201`),
+which are built with no `vdim` argument while the flux space already takes one.
+The gates are `darcyform.cpp:1016` and `:1140`.
+
+Two consumers wait on it: the flux functional of the retired §6 below, which
+would read out of bounds if handed a system, and the Navier-Stokes miniapp,
+which cannot postprocess. A third thing would retire it entirely — §9.
+
+Separately and smaller: `miniapps/hdg/darcyop.cpp:370` and `:396` refuse
+`vdim > 1` for the H(div) flux time mass. The DG path handles `vdim` already.
+That is §8's, not §4's.
 
 ## 5. `τ` for problems that are convection- and diffusion-dominated at once
 
-**Measured, on the Navier-Stokes driver, and the headline answer is negative.**
-937 runs of `miniapps/hdg/navierstokes.cpp` — Kovasznay and plane Poiseuille,
-orders 1-3, `Re` 10 to 1000, cell aspect ratios 1/4 to 4, `τ` 0.125 to 10 and
-`β` over a factor of 16. The tables are in `doc/HDG-NAVIER-STOKES.md` under
-*The §5 measurement*; the three results are:
+**Measured; see the header comment of `miniapps/hdg/navierstokes.cpp`, which
+carries the tables and the mechanism.** The short version is that the
+direction-aware `S = λ_max(û,n) I` is 2.0–3.6× *worse* than the best constant
+`τ` in the flux and the pressure, better than any constant at keeping Newton
+alive on coarse meshes at high `Re`, and that its accuracy level is set by `β`
+— a free parameter of the formulation — rather than by the flow.
 
-1. **The direction-aware `S = λ_max(û,n) I` is 2.0-3.6x worse than the best
-   constant `τ` in the flux and the pressure, and indistinguishable from it in
-   the potential.** Over-stabilization also costs the flux its rate: 2.60 down
-   to 2.18 at `k = 2` as `τ` goes 0.5 to 5.
-2. **The mechanism, established by a `β` sweep rather than by inspection.**
-   `β` cannot change the steady answer — the continuity row is `β ∇·v = s_0` —
-   but it sets `λ_max = √β` on every face where `v·n = 0`. `λ_max`'s error
-   tracks the constant `√β` to within 5-16% and *moves with `β`*, while a fixed
-   `τ` is `β`-independent to 0.02%. So `λ_max` is a constant `√β` in disguise
-   on the faces that do the work, its level is set by an arbitrary parameter of
-   the formulation rather than by the physics, and the extra weight it carries
-   on the along-flow faces is a penalty.
-3. **It wins the other half.** `λ_max` converged on every one of ~300 cases;
-   every constant `τ ≤ 1` diverges somewhere, on *coarse* meshes at high `Re`,
-   recovering under refinement. Cold on plane Poiseuille at `Re = 100`, `λ_max`
-   converges in 9 iterations where `τ ∈ [0.25, 2]` all fail and only `τ ≥ 5`
-   recovers — so it is not the *amount* of stabilization but where it is put.
-   And the accuracy optimum sits exactly at that robustness boundary: at
-   `Re = 400` the best converging `τ` is 0.375 at 48x32 and 0.5 at 24x16.
+**What is left is a problem, not a method.** Both of that miniapp's exact
+solutions put their sharp structure across the flow and little or none along
+it, so the along-flow faces — the only ones where `λ_max` differs from `√β` —
+are exactly where the solution is easiest to represent. Kovasznay cannot repair
+that on its own window: its decay rate `λ = Re/2 − √(Re²/4 + 4π²) → −4π²/Re`,
+so the parameter that makes it convective flattens its along-flow structure.
+**A genuinely two-directional exact solution is what would settle the general
+question.** `anisodiff -p 11` on `gf-hdg-subdomains-dev` is the linear-diffusion
+shape of it, which makes this a second thing waiting on §1's merge.
 
-**The mesh aspect ratio changes none of it** — `λ_max`'s penalty is if anything
-largest on cells stretched along the flow.
-
-**What is still open, and why.** Both of the driver's exact solutions put their
-sharp structure across the flow and little or none along it, so the along-flow
-faces — the only ones where `λ_max` differs from `√β` — are exactly the faces
-where the solution is easiest to represent. Kovasznay cannot repair this on its
-own window, because its decay rate `λ = Re/2 − √(Re²/4 + 4π²) → −4π²/Re` means
-the parameter that makes it convective is the parameter that flattens its
-along-flow structure: 94x of variation at `Re = 10`, **1.16x at `Re = 400`**,
-with the measured consequence that errors are identical to four digits over a
-16x range in `nx`. A longer window at moderate `Re` is a partial repair and is
-what the aspect-ratio table above uses. **A genuinely two-directional solution
-is what would settle the general question, and this miniapp has none.**
-`anisodiff -p 11` on `gf-hdg-subdomains-dev` is the linear-diffusion shape of
-it.
-
-A constraint on how far the existing library can go:
+A library constraint that bounds how far this can go:
 `MixedConductionNLFIntegrator`'s HDG face stabilization for more than one
-equation is `face_w * TauVar(e)`, one constant per equation set once through
+equation is `face_w * TauVar(e)`, one constant per equation set through
 `SetVariableStabilization()`. It cannot express a stabilization depending on
 the state or the face normal. The Navier-Stokes driver sidesteps it by carrying
 the convective stabilization on the `NumericalFlux`; a *viscous* stabilization
-that varies with direction would not be able to.
+varying with direction could not.
 
-One methodological point survives from a withdrawn table because it cost a day:
-**rates must be taken asymptotically.** The same configurations read 1.6 rather
-than 2.5 on the coarsest pair of meshes, which is enough to condemn a correct
-`τ`.
+## 6. Functionals of the solution, evaluated from the numerical trace — DONE
 
-## 6. Functionals of the solution, evaluated from the numerical trace
+`ComputeOutwardFlux` and `ComputeBoundaryFlux` in
+`fem/darcy/functionals_hdg.{hpp,cpp}`, with two unit test cases over
+`dim = 2, 3` and `order = 0, 1, 2`. The header carries the reasoning, including
+why the implementation integrates the reconstructed total flux rather than the
+pointwise `q̂` this entry used to name — that expression is single-valued for a
+constant `τ` and **not** for a solution-dependent one.
 
-Independent of everything else and small. Compute a surface integral of the
-numerical flux `q̂ · ν` over a prescribed internal or boundary surface as a
-first-class quantity. `q̂ = q_h + τ(u_h - λ)ν` is single-valued on faces by
-construction — that is what hybridization is — so the integral is consistent
-with the discrete conservation statement rather than an after-the-fact
-diagnostic. For a problem whose answer *is* a small flux, that is the
-difference between an accurate result and catastrophic cancellation.
+Its limitations are `vdim == 1` (which is §4) and conforming matching meshes,
+and `ComputeBoundaryFlux` returns a rank-local sum with no `MPI_Allreduce`.
+Nothing outside its own tests calls it.
 
 ## 7. Adaptive refinement: `hp`, and the estimator's fifth term
 
-`hp` is open. So is `η₅` of the SSC estimator: it is buildable on `Γ_h` from
-`TransferredDatumCoefficient`, but `HDGErrorEstimator` takes an integrator, not
-a coefficient, so it needs an adapter or a second entry point.
+`h`-adaptivity is done and tested. **`p` is untouched** — nothing in the tree
+sets an element order or computes a smoothness indicator, so this is both the
+`p` mechanism and the `h`-versus-`p` decision.
 
-## 8. Time integration of the resulting DAE
+`η₅` of the SSC estimator is also open, and is blocked twice over.
+`HDGErrorEstimator` has exactly two terms (`Type::{Residual, Energy}`) and
+takes an integrator rather than a coefficient, so it needs an adapter or a
+second entry point — that much the entry already said. What it did not say is
+that **`TransferredDatumCoefficient`, the thing `η₅` would be built from, is
+not on this branch**: it is §1's. Third item waiting on that merge.
 
-Untouched, in its entirety.
+## 8. Time integration of the DAE
+
+**Not untouched, as this entry used to claim — the machinery exists and runs.**
+`DarcyOperator` is a `TimeDependentOperator(IMPLICIT)` with `ImplicitSolve`;
+`btime_u`/`btime_p` lift a `1/dt` mass onto either block, into the linear or
+the nonlinear form, rebuilding the hybridization where it must; `convdiff` has
+four ODE solvers behind `-ode` and four transient problems, one of them
+nonlinear.
+
+What is missing is everything that would make it trustworthy:
+
+* **No verification at all.** All 129 regression references use
+  `--ntimesteps 0` and exercise only steady problems, so the four transient
+  problems have no reference. There is no unit test touching `DarcyOperator`,
+  `btime_u`, `btime_p` or any ODE solver, and no temporal convergence table
+  exists anywhere in the tree. **A temporal convergence study on `convdiff -p 4`
+  is available today and is the cheapest genuinely new result on this list.**
+* **The DAE questions proper are untouched** — index, consistent initialisation
+  of the algebraic (trace/constraint) block, and stage-order reduction on the
+  constraint under an SDIRK method. That is the hard part and none of it is
+  addressed.
+* The `vdim == 1` refusal in the H(div) time mass, noted under §4.
 
 ## 9. Superconvergence at `k = 0` — the HHO-inspired methods
 
-Optional, and it subsumes §4's motivation if built.
+Optional, and it subsumes §4's remaining motivation if built. Cheaper than it
+reads: two of the three ingredients are already available. `τ ~ 1/h` is the
+built-in default scaling, and unequal flux/potential/trace orders are
+unconstrained — nothing in `fem/darcy` ties the spaces' orders together, so
+flux in `[P^k]^d`, potential in `P^{k+1}`, trace in `P^k` is constructible
+today. Missing is the third: a stabilisation acting on the **L2 projection of
+the potential onto the trace space** rather than on the potential itself.
+`HDGStabilization` is a scalar hook that can rescale `τ` but cannot change what
+`τ` multiplies, so this needs a new face integrator.
 
 ## 10. Interpolatory evaluation of the nonlinear coefficient
 
-Optional. Step 2 of it is also what makes the classic local postprocessing
-general in `vdim`; see §4.
+Optional, and now *purely* optional: the secondary payoff this entry used to
+claim — that its step 2 is what makes the classic local postprocessing general
+in `vdim` — has been overtaken, since that postprocessing is already general.
+Nothing in `fem/darcy` interpolates a coefficient or holds a
+`QuadratureFunction`.
 
 ## Deliberately not being done here
 
@@ -133,65 +184,30 @@ nothing in the suite exercises.
 
 ## References
 
-Cited by the short labels used above. Full bibliographic detail is given only
-where this file recorded it at the time; the rest are identified by author and
-subject.
+Only those an *open* section still needs. The rest were moved into the doxygen
+of the code that implements them, which is where they belong now.
 
-* **NPC-1** — Nguyen, Peraire & Cockburn, *An implicit high-order hybridizable
-  discontinuous Galerkin method for linear convection–diffusion equations*,
-  J. Comput. Phys. **228** (2009) 3232–3254. §3.6 gives the stabilisation
-  `s = s_d + s_c` with `η_c = |c·n|` and `η_d = κ/ℓ`, `ℓ` a fixed problem length
-  scale; Table 1 is the convergence study §5 reproduces; **§4 is the two-pass
-  reconstruction the branch implements**, and is what `DarcyHybridization`'s
-  header cites.
-* **NPC-2** — Nguyen, Peraire & Cockburn, *An implicit high-order hybridizable
-  discontinuous Galerkin method for nonlinear convection–diffusion equations*,
-  J. Comput. Phys. **228** (2009) 8841–8855. Eq. (5) is the numerical flux with a
-  solution-dependent `s`; Eq. (7) the positivity bound; Eq. (15)–(16) the Newton
-  linearisation and its block structure.
-* **CCSZ-I** — Chen, Cockburn, Singler & Zhang, *Superconvergent interpolatory
-  HDG methods for reaction diffusion equations I: an HDGk method*, J. Sci.
-  Comput. **81** (2019) 2188–2212. The nonlinear term is interpolated
-  elementwise and evaluated at the postprocessed solution, so the HDG matrices
-  assemble once; Table 1 is the convergence study §4 compares against, and
-  Theorem 3.19 the `k ≥ 1` hypothesis.
-* **CCSZ-II** — Chen, Cockburn, Singler & Zhang, *… II: HHO-inspired methods*,
-  Commun. Appl. Math. Comput. **4** (2022) 477–499. Table 1 there classifies
-  three variants: (A), the Lehrenfeld–Schöberl / HDG+ method with the scalar in
-  `P^{k+1}`, and (B), with an HHO stabilisation acting on the postprocessed
-  trace, both superconvergent from `k = 0`; (C) only from `k = 2`. All three
-  take `τ ~ 1/h`.
-* **CSZ-Interpolatory** — Cockburn, Singler & Zhang, *Interpolatory HDG method
-  for parabolic semilinear PDEs*, J. Sci. Comput. **79** (2019) 1777–1800. The
-  interpolatory method without the postprocessed argument — optimal rates, no
-  superconvergence, which is the loss CCSZ-I repairs.
-* **CDE-Bridge** — Cockburn, Di Pietro & Ern, *Bridging the hybrid high-order
-  and hybridizable discontinuous Galerkin methods*, ESAIM Math. Model. Numer.
-  Anal. **50** (2016) 635–650. Defines the HDG (ABC) family and the
-  reconstruction `𝔭^{k+1}` that Optional B uses.
-* **Lehrenfeld–Schöberl** — the HDG+ method, the same object as CCSZ-II's
-  HDG (A): flux in `[P^k]^d`, potential in `P^{k+1}`, trace in `P^k`, and a
-  stabilisation `h^{-1}` acting on the projected trace. **Oikawa**, *A
-  hybridized discontinuous Galerkin method with reduced stabilization*, J. Sci.
-  Comput., is the same idea arrived at independently. Optional B.
-* **NPC-Stokes** — Nguyen, Peraire & Cockburn, *A hybridizable discontinuous
-  Galerkin method for Stokes flow*, Comput. Methods Appl. Mech. Engrg. **199**
-  (2010) 582–597. The velocity–pressure–gradient formulation §9 follows; §3.2
-  is the augmented-Lagrangian reduction to the velocity trace alone, §4.1 the
-  stabilisation sweep §9 reproduces.
-* **PNC-NS** — Peraire, Nguyen & Cockburn, *A hybridizable discontinuous
-  Galerkin method for the compressible Euler and Navier-Stokes equations*,
-  AIAA 2010-363. Eq. (3) is the numerical flux `F(û)·n + S(u,û)(u−û)`, Eq. (5)
-  the eigen-decomposition stabilisation and Eq. (6) the local Lax-Friedrichs
-  one `S = λ_max I`; Eq. (8) the inflow/outflow boundary flux `B̂`; Eq. (13)-(14)
-  the Navier-Stokes first-order system and its HDG formulation. §5's driver,
-  `miniapps/hdg/navierstokes.cpp`, follows it; see `doc/HDG-NAVIER-STOKES.md`.
 * **CS-Extensions** — Cockburn & Solano, on solving problems posed on curved
   domains by extension from a polyhedral subdomain, reducing the boundary
   treatment to line integrals along transferring paths. §1.
-* **CSS-Coupling** — Cockburn, Sayas & Solano, on coupling an HDG interior solve
-  to an exterior boundary-integral representation across an unmeshed interface,
-  with **CSS-Analysis** its companion analysis, including the relaxed iteration
-  and the contraction estimate. §2.
-* **Persson & Peraire**, modal-decay smoothness sensor, cited in §7 as the
-  standard choice for an `hp` criterion.
+* **CSS-Coupling** — Cockburn, Sayas & Solano, on coupling an HDG interior
+  solve to an exterior boundary-integral representation across an unmeshed
+  interface, with **CSS-Analysis** its companion, including the relaxed
+  iteration and the contraction estimate. §2.
+* **CCSZ-I** — Chen, Cockburn, Singler & Zhang, *Superconvergent interpolatory
+  HDG methods for reaction diffusion equations I: an HDGk method*, J. Sci.
+  Comput. **81** (2019) 2188–2212. Table 1 is the study §4 would compare
+  against; the interpolatory idea is §10.
+* **CCSZ-II** — *… II: HHO-inspired methods*, Commun. Appl. Math. Comput. **4**
+  (2022) 477–499. Its Table 1 classifies the three variants; (A) and (B) are
+  superconvergent from `k = 0`, (C) only from `k = 2`, and all three take
+  `τ ~ 1/h`. §9.
+* **Lehrenfeld–Schöberl** — HDG+, the same object as CCSZ-II's HDG (A), with
+  **Oikawa**, *A hybridized discontinuous Galerkin method with reduced
+  stabilization*, J. Sci. Comput., arriving at it independently. §9.
+* **NPC-Stokes** — Nguyen, Peraire & Cockburn, *A hybridizable discontinuous
+  Galerkin method for Stokes flow*, Comput. Methods Appl. Mech. Engrg. **199**
+  (2010) 582–597. §3.2 is the augmented-Lagrangian reduction to the velocity
+  trace alone, §4.1 the stabilisation sweep. §9.
+* **Persson & Peraire**, modal-decay smoothness sensor — the standard choice
+  for the `hp` criterion of §7.
