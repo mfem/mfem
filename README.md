@@ -37,7 +37,7 @@ analysis, hybridization and Discontinuous Petrov-Galerkin (DPG) approaches.
 
 MFEM includes classes for dealing with a wide range of mesh types: triangular,
 quadrilateral, tetrahedral and hexahedral, as well as surface and topologically
-periodical meshes. It has general support for mesh refinement, including local
+periodic meshes. It has general support for mesh refinement, including local
 conforming and non-conforming (AMR) adaptive refinement. Arbitrary element
 transformations, allowing for high-order mesh elements with curved boundaries,
 are also supported.

@@ -8,7 +8,9 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-#pragma once
+
+#ifndef MFEM_MTOP_SOLVERS_HPP
+#define MFEM_MTOP_SOLVERS_HPP
 
 #include <memory>
 
@@ -17,16 +19,16 @@
 using real_t = mfem::real_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// \brief The IsoElasticyLambdaCoeff class converts E modulus of elasticity
+/// \brief The IsoElasticityLambdaCoeff class converts E modulus of elasticity
 /// and Poisson's ratio to Lame's lambda coefficient
-class IsoElasticyLambdaCoeff : public mfem::Coefficient
+class IsoElasticityLambdaCoeff : public mfem::Coefficient
 {
    mfem::Coefficient *E, *nu;
 
 public:
    /// Constructor - takes as inputs E modulus and Poisson's ratio
-   IsoElasticyLambdaCoeff(mfem::Coefficient *E,
-                          mfem::Coefficient *nu):
+   IsoElasticityLambdaCoeff(mfem::Coefficient *E,
+                            mfem::Coefficient *nu):
       E(E), nu(nu) { }
 
    /// Evaluates the Lame's lambda coefficient
@@ -44,29 +46,29 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-/// \brief The IsoElasticySchearCoeff class converts E modulus of elasticity
+/// \brief The IsoElasticityShearCoeff class converts E modulus of elasticity
 /// and Poisson's ratio to Shear coefficient
 ///
-class IsoElasticySchearCoeff : public mfem::Coefficient
+class IsoElasticityShearCoeff : public mfem::Coefficient
 {
    mfem::Coefficient *E, *nu;
 
 public:
    /// Constructor - takes as inputs E modulus and Poisson's ratio
-   IsoElasticySchearCoeff(mfem::Coefficient *E_, mfem::Coefficient *nu_):
+   IsoElasticityShearCoeff(mfem::Coefficient *E_, mfem::Coefficient *nu_):
       E(E_), nu(nu_) { }
 
-   /// Evaluates the shear coefficient coefficient
+   /// Evaluates the shear coefficient
    real_t Eval(mfem::ElementTransformation &T,
                const mfem::IntegrationPoint &ip) override
    {
       const real_t EE = E->Eval(T, ip);
       const real_t nn = nu->Eval(T, ip);
-      constexpr auto Schear = [](const real_t E, const real_t nu)
+      constexpr auto Shear = [](const real_t E, const real_t nu)
       {
          return E / (2.0 * (1.0 + nu));
       };
-      return Schear(EE, nn);
+      return Shear(EE, nn);
    }
 };
 
@@ -166,7 +168,7 @@ public:
    }
 
    /// Sets BC dofs, bilinear form, preconditioner and solver.
-   /// Should be called before calling Mult of MultTranspose
+   /// Should be called before calling Mult or MultTranspose
    virtual void Assemble();
 
    /// Forward solve with given RHS. x is the RHS vector.
@@ -187,8 +189,8 @@ public:
       delete bf; bf=nullptr;
       dop.release();
 
-      lambda = new IsoElasticyLambdaCoeff(E, nu);
-      mu = new IsoElasticySchearCoeff(E, nu);
+      lambda = new IsoElasticityLambdaCoeff(E, nu);
+      mu = new IsoElasticityShearCoeff(E, nu);
    }
 
    class NqptUniformParameterSpace : public
@@ -209,7 +211,7 @@ public:
    // the list is written in ess_dofs
    // The 'nvcc' compiler needs these SetEssTDofs functions to be public.
    void SetEssTDofs(mfem::Vector &bsol, mfem::Array<int> &ess_dofs);
-   void SetEssTDofs(const int j, mfem::ParFiniteElementSpace& scalar_space,
+   void SetEssTDofs(const int j, mfem::ParFiniteElementSpace &scalar_space,
                     mfem::Array<int> &ess_dofs);
 private:
    mfem::ParMesh *pmesh;
@@ -262,7 +264,7 @@ private:
    // surface loads
    using VectorCoefficientPtrMap = std::map<int, mfem::VectorCoefficient *>;
    VectorCoefficientPtrMap load_coeff; // internally generated load
-   VectorCoefficientPtrMap surf_loads; // external vector coeeficients
+   VectorCoefficientPtrMap surf_loads; // external vector coefficients
 
    class SurfaceLoad;
    std::unique_ptr<SurfaceLoad> lcsurf_load; // locally generated surface loads
@@ -273,7 +275,7 @@ private:
    ConstantCoefficientMap bcx, bcy, bcz;
 
    // holds BC in coefficient form
-   using CoefficientPtrMap = std::map<int, mfem::Coefficient*>;
+   using CoefficientPtrMap = std::map<int, mfem::Coefficient *>;
    CoefficientPtrMap bccx, bccy, bccz;
 
    // holds the displacement constrained DOFs
@@ -289,7 +291,7 @@ private:
 
    // beginning of dFEM definitions
    // U - displacements, Coords - nodal coordinates
-   // E modulud sampled on integration points
+   // E modulus sampled on integration points
    // Nu Poisson's ratio sampled on integration points
    static constexpr int U = 0, Coords = 1, LCoeff = 2, MuCoeff = 3;
    const mfem::FiniteElement *fe;
@@ -326,3 +328,5 @@ private:
       }
    };
 };
+
+#endif // MFEM_MTOP_SOLVERS_HPP

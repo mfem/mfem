@@ -211,7 +211,7 @@ private:
    /// Arrays of unique indices in @a slaveEdges, @a slaveFaces.
    Array<int> slaveEdgesUnique, slaveFacesUnique;
 
-   /// Maps from slaveEdges/slaveFaces to slaveEdgesUnique/slaveEdgesUnique.
+   /// Maps from slaveEdges/slaveFaces to slaveEdgesUnique/slaveFacesUnique.
    std::map<int,int> slaveEdgesToUnique, slaveFacesToUnique;
 
    /// Maps from masterEdges/masterFaces to their indices in an ordered list.

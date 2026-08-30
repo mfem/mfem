@@ -360,7 +360,10 @@ protected:
    inline       real_t &slice(int i, int j);
    inline const real_t &slice(int i, int j) const;
 
-   /// Copy constructor
+   /** @brief Construct a new patch, copying the KnotVectors of @a parent
+       except in direction @a dir, which gets a new KnotVector of order
+       @a Order with @a NCP control points (knots initialized to -1). The
+       control point data is allocated but not initialized. */
    NURBSPatch(NURBSPatch *parent, int dir, int Order, int NCP);
 
    /// Deletes own data, takes data from @a np, and deletes np.

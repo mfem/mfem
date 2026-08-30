@@ -54,6 +54,13 @@ static_assert(!std::is_void_v<gko_hypre_bigint>,
 #endif
 
 /**
+* @defgroup Ginkgo Ginkgo interface
+*
+* @brief Wrappers for using the Ginkgo library of high-performance linear
+* solvers and preconditioners with MFEM.
+*/
+
+/**
 * Helper class for a case where a wrapped MFEM Vector
 * should be owned by Ginkgo, and deleted when the wrapper
 * object goes out of scope.

@@ -42,20 +42,21 @@ Discretization improvements
 
 - Reworked GridFunction::ProjectCoefficient to support selectable projection
   types (ELEMENT nodal interpolation, GLOBAL_L2, and element-local ELEMENT_L2
-  based on Bezier projection) for Scalar, Vector, and VectorFE spaces, including
-  NURBS. NURBS elements now support nodal interpolation with proper parallel dof
+  based on Bézier projection) for Scalar, Vector, and VectorFE spaces, including
+  NURBS. NURBS elements now support nodal interpolation with proper parallel DOF
   communication. Default behavior for other spaces is unchanged.
 
 - Added support for INTEGRAL map type spaces to QuadratureInterpolator and
   MixedScalarCurlIntegrator.
 
-- Replaced legacy simplex quadrature rules with symmetric positive weight rules
+- Replaced legacy simplex quadrature rules with symmetric positive-weight rules
   for triangles (orders 0-25) and tetrahedra (orders 0-20). These rules
   guarantee all-positive weights and interior quadrature points, improving
   numerical stability. Higher orders fall back to Grundmann-Moller.
   * Triangle rules: Witherden and Vincent, DOI: 10.1016/j.camwa.2015.03.017
-  * Tet rules (d=1-13): Witherden and Vincent (same as above)
-  * Tet rules (d=14-20): Chuluunbaatar et al., DOI: 10.1016/j.camwa.2022.08.016
+  * Tetrahedron rules (d=1-13): Witherden and Vincent (same as above)
+  * Tetrahedron rules (d=14-20): Chuluunbaatar et al.,
+    DOI: 10.1016/j.camwa.2022.08.016
 
 - Added support for general 1D Gauss-Jacobi quadrature rules and Stroud conical
   quadrature rules on triangles and tetrahedra.

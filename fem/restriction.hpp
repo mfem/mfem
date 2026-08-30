@@ -580,14 +580,15 @@ public:
    virtual void AddFaceMatricesToElementMatrices(const Vector &fea_data,
                                                  Vector &ea_data) const;
 
-   /** @brief Scatter the degrees of freedom, i.e. goes from L-Vector to
-      face E-Vector.
+   /** @brief For each face, sets @a y to the partial derivative of @a x with
+      respect to the reference coordinate perpendicular to the face, see
+      FaceRestriction::NormalDerivativeMult().
 
       @param[in]  x The L-vector degrees of freedom.
-      @param[out] y The face E-Vector degrees of freedom with the given format:
-                    (face_dofs x vdim x 2 x nf) where nf is the number of
-                    interior or boundary faces requested by @a type in the
-                    constructor. The face_dofs are ordered according to the
+      @param[out] y The reference normal derivative degrees of freedom with the
+                    given format: (face_dofs x vdim x 2 x nf) where nf is the
+                    number of interior or boundary faces requested by @a type in
+                    the constructor. The face_dofs are ordered according to the
                     given ElementDofOrdering. */
    void NormalDerivativeMult(const Vector &x, Vector &y) const override;
 
@@ -837,7 +838,8 @@ public:
                                             int face_index);
 
    /** @brief Register the face with @a face and index @a face_index as a
-       conforming face for the interpolation of the degrees of freedom.
+       nonconforming (master-slave) face, computing or reusing the
+       coarse-to-fine interpolation of the degrees of freedom.
 
        @param[in] face The face information of the current face.
        @param[in] face_index The interior/boundary face index.

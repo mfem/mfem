@@ -28,22 +28,24 @@
 namespace mfem
 {
 
-/** This enumerated type describes the three main projection types:
-    - ELEMENT, assigns the degree of freedom per element, as specified in the
-      specific element
-    - GLOBAL_L2, solves a global L2 projection
-    - ELEMENT_L2, solves a element level L2 projection. Inter element
-      connectivity is dealt with similar as in:
-      Bezier-Projection : A unified approach for local projection and
-      quadrature-free refinement and coarsening of NURBS and T-splines with
-      particular application to isogeometric design and analysis
-      [CMAME (284) 2015 pg 55-105]
-    - DEFAULT, for NURBS spaces this is ELEMENT_L2, while for all other spaces
-      this ELEMENT.
-   Note 1: ELEMENT_L2 also works for non NURBS elements
-   Note 2: For NURBS elements the ELEMENT projection gives results without
-   over and undershoots. However, the gradient near the boundary does not
-   converge.*/
+/** @brief This enumerated type describes the main projection types used by
+    GridFunction::ProjectCoefficient():
+    - ELEMENT: assigns the degrees of freedom element by element, using the
+      nodal interpolation defined by the specific FiniteElement,
+    - GLOBAL_L2: solves a global L2 projection,
+    - ELEMENT_L2: solves element-local L2 projections, with inter-element
+      connectivity treated similarly to Bezier projection, see "Bezier
+      projection: A unified approach for local projection and quadrature-free
+      refinement and coarsening of NURBS and T-splines with particular
+      application to isogeometric design and analysis", CMAME 284 (2015),
+      pp. 55-105,
+    - DEFAULT: for NURBS spaces this is ELEMENT_L2, while for all other spaces
+      it is ELEMENT.
+
+    @note ELEMENT_L2 also works for non-NURBS elements.
+    @note For NURBS elements, the ELEMENT projection gives results without
+    overshoots and undershoots; however, the gradient near the boundary does
+    not converge. */
 enum class ProjectType { DEFAULT, ELEMENT, GLOBAL_L2, ELEMENT_L2 };
 
 /// Class for grid function - Vector with associated FE space.
@@ -607,7 +609,7 @@ protected:
     *  bounds on the sub-intervals.
     *  This process continues until (i) the maximum recursion depth is reached
     *  or (ii) the difference between the minimum upper bound and minimum lower
-    *  bound is less than a certain tolerance (\p tol * [initial maximum
+    *  bound is less than a certain tolerance (\p tol * [initial minimum
     *  upper bound - initial minimum lower bound]).
     *  The function also terminates if the lowest minima estimate is found
     *  to be above the given threshold \p min_threshold. This is useful when
@@ -628,7 +630,7 @@ protected:
                                                     real_t &min_threshold)const;
 
    /** @brief Estimate the maximum value of the GridFunction in element @a elem
-    *  if it is below a certain @a max_threshold.
+    *  if it is above a certain @a max_threshold.
     *
     *  @details For a given element \p elem and grid function component \p vdim
     *  an estimate of the function maximum is the maximum of the piecewise
@@ -1014,7 +1016,7 @@ public:
    ///
    /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
    ///                   values of the vector field, u_ex.
-   /// @param[in] exdiv  VectorCoefficient object reproducing the anticipated
+   /// @param[in] exdiv  Coefficient object reproducing the anticipated
    ///                   values of the divergence of the vector field, du_ex.
    /// @param[in] irs    Optional pointer to an array of custom integration
    ///                   rules e.g. higher order than the default rules. If

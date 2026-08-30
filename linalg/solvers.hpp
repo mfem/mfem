@@ -60,7 +60,7 @@ public:
    /// method on the first iteration.
    virtual void Reset() { converged = false; }
 
-   /// Monitor the solution vector r
+   /// Monitor the residual vector r
    virtual void MonitorResidual(int it, real_t norm, const Vector &r,
                                 bool final)
    {

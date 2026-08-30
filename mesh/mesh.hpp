@@ -517,7 +517,7 @@ protected:
                     const std::string &kvf);
 
    /** @brief Write the beginning of a NURBS mesh to @a os, specifying the NURBS
-       patch topology. Optional file comments can be provided in @a comments.
+       patch topology. Optional file comments can be provided in @a comment.
 
        @param[in] os  Output stream to which to write.
        @param[in] e_to_k  Map from edge to signed knotvector indices.

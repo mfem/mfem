@@ -93,10 +93,10 @@ public:
    Particle(int dim, const Array<int> &field_vdims, int num_tags);
 
    // Force default constructors and destructor
-   Particle(const Particle&) = default;
-   Particle& operator=(const Particle&) = default;
-   Particle(Particle&&) = default;
-   Particle& operator=(Particle&&) = default;
+   Particle(const Particle &) = default;
+   Particle &operator=(const Particle &) = default;
+   Particle(Particle &&) = default;
+   Particle &operator=(Particle &&) = default;
    ~Particle() = default;
 
    /// Get the spatial dimension of this particle.
@@ -112,25 +112,25 @@ public:
    int GetNTags() const { return tags.size(); }
 
    /// Get reference to particle coordinates Vector.
-   Vector& Coords() { return coords; }
+   Vector &Coords() { return coords; }
 
    /// Get const reference to particle coordinates Vector.
-   const Vector& Coords() const { return coords; }
+   const Vector &Coords() const { return coords; }
 
    /// Get reference to field \p f , component \p c value.
-   real_t& FieldValue(int f, int c=0)
+   real_t &FieldValue(int f, int c=0)
    {
       MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
-                  "Invalid field index");
+                  "invalid field index");
       MFEM_ASSERT(c >= 0 && c < fields[f].Size(),
-                  "Invalid component index");
+                  "invalid component index");
       return fields[f][c];
    }
 
    /// Get const reference to field \p f , component \p c value.
-   const real_t& FieldValue(int f, int c=0) const
+   const real_t &FieldValue(int f, int c=0) const
    {
-      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
                   "invalid field index");
       MFEM_ASSERT(c >= 0 && c < fields[f].Size(),
                   "invalid component index");
@@ -138,33 +138,33 @@ public:
    }
 
    /// Get reference to field \p f Vector.
-   Vector& Field(int f)
+   Vector &Field(int f)
    {
-      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
                   "invalid field index");
       return fields[f];
    }
 
    /// Get const reference to field \p f Vector.
-   const Vector& Field(int f) const
+   const Vector &Field(int f) const
    {
-      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) <  fields.size(),
+      MFEM_ASSERT(f >= 0 && static_cast<std::size_t>(f) < fields.size(),
                   "invalid field index");
       return fields[f];
    }
 
    /// Get reference to tag \p t .
-   int& Tag(int t)
+   int &Tag(int t)
    {
-      MFEM_ASSERT(t >= 0 && static_cast<std::size_t>(t) <  tags.size(),
+      MFEM_ASSERT(t >= 0 && static_cast<std::size_t>(t) < tags.size(),
                   "invalid tag index");
       return tags[t][0];
    }
 
    /// Get const reference to tag \p t .
-   const int& Tag(int t) const
+   const int &Tag(int t) const
    {
-      MFEM_ASSERT(t >= 0 && static_cast<std::size_t>(t) <  tags.size(),
+      MFEM_ASSERT(t >= 0 && static_cast<std::size_t>(t) < tags.size(),
                   "invalid tag index");
       return tags[t][0];
    }
@@ -205,7 +205,7 @@ public:
  *
  *  @par Fields:
  *  Fields represent scalar or vector \ref real_t data to be associated with
- *  each particles, such as mass, momentum, or moment. For a given field, all
+ *  each particle, such as mass, momentum, or moment. For a given field, all
  *  particle data is stored in a single ParticleVector with a given
  *  vector dimension (1 for scalar data) and Ordering::Type (byNODES or
  *  byVDIM). The unique_ptrs to all the ParticleVectors are stored in the
@@ -220,7 +220,7 @@ public:
  *  @par Tags:
  *  Tags represent integers associated with each particle. For a given tag,
  *  all particle data are stored in a single Array<int>. The unique_ptrs to all
- *  the Array<int> is stored in the std::vector \ref tags.
+ *  the Array<int> are stored in the std::vector \ref tags.
  *
  *  @par Names:
  *  Each field and tag can optionally be given a name (string) to be used when
@@ -563,7 +563,7 @@ public:
                bool use_device=false);
 
    /// Get the MPI communicator for this ParticleSet.
-   MPI_Comm GetComm() const { return comm; };
+   MPI_Comm GetComm() const { return comm; }
 #endif // MFEM_USE_MPI
    /// Get the global number of active particles across all ranks.
    IDType GetGlobalNParticles() const;
@@ -572,7 +572,7 @@ public:
    int GetDim() const { return coords.GetVDim(); }
 
    /// Get the global IDs of the active particles owned by this ParticleSet.
-   const Array<IDType>& GetIDs() const { return ids; }
+   const Array<IDType> &GetIDs() const { return ids; }
 
    /** @brief Add a field to the ParticleSet.
     *
@@ -585,14 +585,14 @@ public:
     *  @return Index of the newly-added field.
     */
    int AddField(int vdim, Ordering::Type field_ordering=Ordering::byVDIM,
-                const char* field_name=nullptr);
+                const char *field_name=nullptr);
 
    /** @brief Add a field to the ParticleSet.
     *
     *  @details Same as AddField() but with different parameter order
     *  for convenience
     */
-   int AddNamedField(int vdim, const char* field_name,
+   int AddNamedField(int vdim, const char *field_name,
                      Ordering::Type field_ordering=Ordering::byVDIM)
    {
       return AddField(vdim, field_ordering, field_name);
@@ -604,10 +604,10 @@ public:
     *
     *  @return Index of the newly-added tag.
     */
-   int AddTag(const char* tag_name=nullptr);
+   int AddTag(const char *tag_name=nullptr);
 
    /// Reserve memory for \p res particles.
-   /** Can help to avoid re-allocation for adding + removing particles. */
+   /** Can help to avoid reallocation when adding or removing particles. */
    void Reserve(int res);
 
    /// Get the number of active particles currently held by this ParticleSet.
@@ -619,7 +619,7 @@ public:
    /// Get an Array<int> of the field vector-dimensions registered to particles.
    const Array<int> GetFieldVDims() const;
 
-   /// Get Field vector-dimension
+   /// Get the vector dimension of field \p f .
    int FieldVDim(int f) const { return fields[f]->GetVDim(); }
 
    /// Get the number of tags registered to particles.
@@ -640,22 +640,22 @@ public:
    void RemoveParticles(const Array<int> &list);
 
    /// Get a reference to the coordinates ParticleVector.
-   ParticleVector& Coords() { return coords; }
+   ParticleVector &Coords() { return coords; }
 
    /// Get a const reference to the coordinates ParticleVector.
-   const ParticleVector& Coords() const { return coords; }
+   const ParticleVector &Coords() const { return coords; }
 
    /// Get a reference to field \p f 's ParticleVector.
-   ParticleVector& Field(int f) { return *fields[f]; }
+   ParticleVector &Field(int f) { return *fields[f]; }
 
    /// Get a const reference to field \p f 's ParticleVector.
-   const ParticleVector& Field(int f) const { return *fields[f]; }
+   const ParticleVector &Field(int f) const { return *fields[f]; }
 
    /// Get a reference to tag \p t 's Array<int>.
-   Array<int>& Tag(int t) { return *tags[t]; }
+   Array<int> &Tag(int t) { return *tags[t]; }
 
    /// Get a const reference to tag \p t 's Array<int>.
-   const Array<int>& Tag(int t) const { return *tags[t]; }
+   const Array<int> &Tag(int t) const { return *tags[t]; }
 
    /** @brief Get new Particle object with copy of data associated with
        particle \p i . */
@@ -688,7 +688,7 @@ public:
     *  owning rank (in parallel), coordinates, followed by all fields and
     *  tags.
     *
-    *  The output can be visualized in Paraview by loading the csv files, and
+    *  The output can be visualized in ParaView by loading the CSV files, and
     *  applying the "Table To Points" filter.
     */
    void PrintCSV(const char *fname, int precision=16);
@@ -712,8 +712,8 @@ public:
 
    /// Destructor
    ~ParticleSet();
-   ParticleSet(const ParticleSet&) = delete;
-   ParticleSet& operator=(const ParticleSet&) = delete;
+   ParticleSet(const ParticleSet &) = delete;
+   ParticleSet &operator=(const ParticleSet &) = delete;
 };
 
 } // namespace mfem
