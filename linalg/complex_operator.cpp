@@ -313,6 +313,11 @@ void ComplexUMFPackSolver::Init()
    mat = NULL;
    Numeric = NULL;
    AI = AJ = NULL;
+   Symbolic = NULL;
+   reuse_symbolic = false;
+   pattern.Clear();
+   num_symbolic = 0;
+   num_numeric = 0;
    if (!use_long_ints)
    {
       umfpack_zi_defaults(Control);
@@ -323,22 +328,36 @@ void ComplexUMFPackSolver::Init()
    }
 }
 
-void ComplexUMFPackSolver::SetOperator(const Operator &op)
+void ComplexUMFPackSolver::FreeSymbolic()
 {
-   void *Symbolic;
-
-   if (Numeric)
+   if (Symbolic)
    {
       if (!use_long_ints)
       {
-         umfpack_zi_free_numeric(&Numeric);
+         umfpack_zi_free_symbolic(&Symbolic);
       }
       else
       {
-         umfpack_zl_free_numeric(&Numeric);
+         umfpack_zl_free_symbolic(&Symbolic);
       }
+      Symbolic = NULL;
    }
+   pattern.Clear();
+}
 
+bool ComplexUMFPackSolver::CanReuseSymbolic(const SparseMatrix &A) const
+{
+   return reuse_symbolic && Symbolic && pattern.Matches(A);
+}
+
+void ComplexUMFPackSolver::SetReuseSymbolic(bool reuse)
+{
+   reuse_symbolic = reuse;
+   if (!reuse) { FreeSymbolic(); }
+}
+
+void ComplexUMFPackSolver::SetOperator(const Operator &op)
+{
    mat = const_cast<ComplexSparseMatrix *>
          (dynamic_cast<const ComplexSparseMatrix *>(&op));
    MFEM_VERIFY(mat, "not a ComplexSparseMatrix");
@@ -357,6 +376,25 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
    width = mat->real().Width();
    MFEM_VERIFY(width == height, "not a square matrix");
 
+   // Whether the retained symbolic analysis, if there is one, was made for this
+   // pattern. Checked against the pattern itself, never assumed; see
+   // SetReuseSymbolic(). Without reuse there is never one to retain, and this
+   // is false on every call.
+   const bool reuse = CanReuseSymbolic(mat->real());
+   if (!reuse) { FreeSymbolic(); }
+
+   if (Numeric)
+   {
+      if (!use_long_ints)
+      {
+         umfpack_zi_free_numeric(&Numeric);
+      }
+      else
+      {
+         umfpack_zl_free_numeric(&Numeric);
+      }
+   }
+
    const int * Ap =
       mat->real().HostReadI(); // assuming real and imag have the same sparsity
    const int * Ai = mat->real().HostReadJ();
@@ -365,14 +403,20 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
 
    if (!use_long_ints)
    {
-      int status = umfpack_zi_symbolic(width,width,Ap,Ai,Ax,Az,&Symbolic,
-                                       Control,Info);
-      if (status < 0)
+      int status;
+      if (!Symbolic)
       {
-         umfpack_zi_report_info(Control, Info);
-         umfpack_zi_report_status(Control, status);
-         mfem_error("ComplexUMFPackSolver::SetOperator :"
-                    " umfpack_zi_symbolic() failed!");
+         status = umfpack_zi_symbolic(width,width,Ap,Ai,Ax,Az,&Symbolic,
+                                      Control,Info);
+         if (status < 0)
+         {
+            umfpack_zi_report_info(Control, Info);
+            umfpack_zi_report_status(Control, status);
+            mfem_error("ComplexUMFPackSolver::SetOperator :"
+                       " umfpack_zi_symbolic() failed!");
+         }
+         num_symbolic++;
+         if (reuse_symbolic) { pattern.Set(mat->real()); }
       }
 
       status = umfpack_zi_numeric(Ap, Ai, Ax, Az, Symbolic, &Numeric,
@@ -384,33 +428,49 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
          mfem_error("ComplexUMFPackSolver::SetOperator :"
                     " umfpack_zi_numeric() failed!");
       }
-      umfpack_zi_free_symbolic(&Symbolic);
+      num_numeric++;
+      // Without reuse the analysis is discarded here, as it always has been;
+      // umfpack_zi_free_symbolic() sets Symbolic back to NULL.
+      if (!reuse_symbolic)
+      {
+         umfpack_zi_free_symbolic(&Symbolic);
+      }
    }
    else
    {
       SuiteSparse_long status;
 
-      delete [] AJ;
-      delete [] AI;
-      AI = new SuiteSparse_long[width + 1];
-      AJ = new SuiteSparse_long[Ap[width]];
-      for (int i = 0; i <= width; i++)
+      // The long copies of the pattern are the pattern: when it is unchanged,
+      // so are they, and rebuilding them would only copy it again.
+      if (!reuse)
       {
-         AI[i] = (SuiteSparse_long)(Ap[i]);
-      }
-      for (int i = 0; i < Ap[width]; i++)
-      {
-         AJ[i] = (SuiteSparse_long)(Ai[i]);
+         delete [] AJ;
+         delete [] AI;
+         AI = new SuiteSparse_long[width + 1];
+         AJ = new SuiteSparse_long[Ap[width]];
+         for (int i = 0; i <= width; i++)
+         {
+            AI[i] = (SuiteSparse_long)(Ap[i]);
+         }
+         for (int i = 0; i < Ap[width]; i++)
+         {
+            AJ[i] = (SuiteSparse_long)(Ai[i]);
+         }
       }
 
-      status = umfpack_zl_symbolic(width, width, AI, AJ, Ax, Az, &Symbolic,
-                                   Control, Info);
-      if (status < 0)
+      if (!Symbolic)
       {
-         umfpack_zl_report_info(Control, Info);
-         umfpack_zl_report_status(Control, status);
-         mfem_error("ComplexUMFPackSolver::SetOperator :"
-                    " umfpack_zl_symbolic() failed!");
+         status = umfpack_zl_symbolic(width, width, AI, AJ, Ax, Az, &Symbolic,
+                                      Control, Info);
+         if (status < 0)
+         {
+            umfpack_zl_report_info(Control, Info);
+            umfpack_zl_report_status(Control, status);
+            mfem_error("ComplexUMFPackSolver::SetOperator :"
+                       " umfpack_zl_symbolic() failed!");
+         }
+         num_symbolic++;
+         if (reuse_symbolic) { pattern.Set(mat->real()); }
       }
 
       status = umfpack_zl_numeric(AI, AJ, Ax, Az, Symbolic, &Numeric,
@@ -422,7 +482,11 @@ void ComplexUMFPackSolver::SetOperator(const Operator &op)
          mfem_error("ComplexUMFPackSolver::SetOperator :"
                     " umfpack_zl_numeric() failed!");
       }
-      umfpack_zl_free_symbolic(&Symbolic);
+      num_numeric++;
+      if (!reuse_symbolic)
+      {
+         umfpack_zl_free_symbolic(&Symbolic);
+      }
    }
 }
 
@@ -561,6 +625,7 @@ ComplexUMFPackSolver::~ComplexUMFPackSolver()
          umfpack_zl_free_numeric(&Numeric);
       }
    }
+   FreeSymbolic();
 }
 
 #endif

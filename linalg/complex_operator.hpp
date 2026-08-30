@@ -19,6 +19,7 @@
 #endif
 
 #ifdef MFEM_USE_SUITESPARSE
+#include "sparsitypattern.hpp"
 #include <umfpack.h>
 #endif
 
@@ -209,7 +210,26 @@ protected:
    void *Numeric;
    SuiteSparse_long *AI, *AJ;
 
+   /** @brief The symbolic analysis: retained between SetOperator() calls when
+       reuse is enabled, and NULL otherwise. */
+   void *Symbolic;
+   /// Whether #Symbolic may be retained and reused; see SetReuseSymbolic().
+   bool reuse_symbolic;
+   /// The pattern #Symbolic was computed from; empty unless reusing.
+   RetainedSparsityPattern pattern;
+   /// The number of symbolic analyses actually performed.
+   long num_symbolic;
+   /// The number of numeric factorizations actually performed.
+   long num_numeric;
+
    void Init();
+
+   /// Discard the retained symbolic analysis, and the pattern it was made for.
+   void FreeSymbolic();
+
+   /** @brief Whether the retained symbolic analysis applies to @a A, that is,
+       whether @a A has the sparsity pattern it was computed from. */
+   bool CanReuseSymbolic(const SparseMatrix &A) const;
 
 public:
    real_t Control[UMFPACK_CONTROL];
@@ -234,6 +254,40 @@ public:
        for real and imag parts of the ComplexSparseMatrix,
        modifying the matrices if the column indices are not already sorted. */
    void SetOperator(const Operator &op) override;
+
+   /** @brief Retain the symbolic factorization across SetOperator() calls and
+       reuse it whenever the sparsity pattern is unchanged. Off by default.
+
+       This is UMFPackSolver::SetReuseSymbolic() for the complex solver, and it
+       behaves the same way: the analysis is a fifth to a quarter of the cost of
+       a factorization and depends only on the pattern, so any caller that
+       refactorizes a matrix of fixed structure -- a Newton iteration, an
+       implicit time step, a continuation loop, a parameter sweep -- otherwise
+       recomputes it on every call and uses it once.
+
+       The pattern is checked, not assumed, by the exact comparison described in
+       UMFPackSolver::SetReuseSymbolic(), against the real part of the
+       ComplexSparseMatrix, which is the pattern UMFPACK is given. The class
+       already requires the imaginary part to share it.
+
+       @note umfpack_z*_symbolic() reads the values as well as the pattern, so a
+       retained analysis stays correct for any values but may carry a poorer
+       ordering than a fresh analysis of the current ones. A performance caveat,
+       not a correctness one. */
+   void SetReuseSymbolic(bool reuse = true);
+
+   /// Whether symbolic reuse is enabled; see SetReuseSymbolic().
+   bool GetReuseSymbolic() const { return reuse_symbolic; }
+
+   /** @brief The number of symbolic analyses actually performed, that is, of
+       umfpack_z*_symbolic() calls. Without reuse this is the number of
+       SetOperator() calls; with reuse it is the number of times the pattern
+       changed. */
+   long GetNumSymbolicFactorizations() const { return num_symbolic; }
+
+   /** @brief The number of numeric factorizations actually performed, that is,
+       of umfpack_z*_numeric() calls. Reuse never skips one of these. */
+   long GetNumNumericFactorizations() const { return num_numeric; }
 
    // Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }

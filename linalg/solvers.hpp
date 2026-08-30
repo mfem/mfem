@@ -23,6 +23,7 @@
 
 #ifdef MFEM_USE_SUITESPARSE
 #include "sparsemat.hpp"
+#include "sparsitypattern.hpp"
 #include <umfpack.h>
 #include <klu.h>
 #endif
@@ -1214,7 +1215,26 @@ protected:
    void *Numeric;
    SuiteSparse_long *AI, *AJ;
 
+   /** @brief The symbolic analysis: retained between SetOperator() calls when
+       reuse is enabled, and NULL otherwise. */
+   void *Symbolic;
+   /// Whether #Symbolic may be retained and reused; see SetReuseSymbolic().
+   bool reuse_symbolic;
+   /// The pattern #Symbolic was computed from; empty unless reusing.
+   RetainedSparsityPattern pattern;
+   /// The number of symbolic analyses actually performed.
+   long num_symbolic;
+   /// The number of numeric factorizations actually performed.
+   long num_numeric;
+
    void Init();
+
+   /// Discard the retained symbolic analysis, and the pattern it was made for.
+   void FreeSymbolic();
+
+   /** @brief Whether the retained symbolic analysis applies to @a A, that is,
+       whether @a A has the sparsity pattern it was computed from. */
+   bool CanReuseSymbolic(const SparseMatrix &A) const;
 
 public:
    real_t Control[UMFPACK_CONTROL];
@@ -1237,6 +1257,54 @@ public:
        modifying the matrix if the column indices are not already sorted. */
    void SetOperator(const Operator &op) override;
 
+   /** @brief Retain the symbolic factorization across SetOperator() calls and
+       reuse it whenever the sparsity pattern is unchanged. Off by default.
+
+       The symbolic analysis is a fifth to a quarter of the cost of a
+       factorization, and it depends only on the sparsity pattern. Any caller
+       that refactorizes a matrix whose pattern does not change -- a Newton
+       iteration, an implicit time step, a continuation loop, a parameter
+       sweep -- otherwise pays for it on every SetOperator() call and uses it
+       once.
+
+       The pattern is checked, not assumed: reuse is a request, and the
+       analysis is redone whenever the check fails. The check is exact -- the
+       size and the number of nonzeros, and then the pattern itself compared
+       entry by entry against a copy retained alongside the analysis. It costs
+       O(nnz) integer compares, a fraction of a percent of the factorization it
+       guards, and it accepts a matrix reassembled in place and a matrix
+       rebuilt into a fresh object with the same structure alike. It is
+       deliberately not the O(1) test of asking whether this is the same matrix
+       object with the same I and J arrays: a matrix destroyed and rebuilt with
+       a different structure but the same size and nnz readily lands on exactly
+       those addresses again, and the wrong answer that would follow would be a
+       silent one.
+
+       @note umfpack_*_symbolic() reads the values as well as the pattern:
+       under UMFPACK_STRATEGY_AUTO it uses them to choose between the symmetric
+       and unsymmetric strategies and to find singletons. A retained analysis
+       stays *correct* whatever the values become, but it may carry a poorer
+       ordering than a fresh analysis of the current values would have chosen.
+       This is a performance caveat, not a correctness one.
+
+       @note Retaining the analysis also retains a copy of the pattern: one int
+       array of length nnz, and one of length n+1. */
+   void SetReuseSymbolic(bool reuse = true);
+
+   /// Whether symbolic reuse is enabled; see SetReuseSymbolic().
+   bool GetReuseSymbolic() const { return reuse_symbolic; }
+
+   /** @brief The number of symbolic analyses actually performed, that is, of
+       umfpack_*_symbolic() calls. Without reuse this is the number of
+       SetOperator() calls; with reuse it is the number of times the pattern
+       changed. */
+   long GetNumSymbolicFactorizations() const { return num_symbolic; }
+
+   /** @brief The number of numeric factorizations actually performed, that is,
+       of umfpack_*_numeric() calls. Reuse never skips one of these: it is the
+       number of SetOperator() calls either way. */
+   long GetNumNumericFactorizations() const { return num_numeric; }
+
    /// Set the print level field in the #Control data member.
    void SetPrintLevel(int print_lvl) { Control[UMFPACK_PRL] = print_lvl; }
 
@@ -1257,7 +1325,24 @@ protected:
    klu_symbolic *Symbolic;
    klu_numeric *Numeric;
 
+   /// Whether #Symbolic may be reused; see SetReuseSymbolic().
+   bool reuse_symbolic;
+   /// Whether #Numeric may be refactorized; see SetReuseNumeric().
+   bool reuse_numeric;
+   /// The pattern #Symbolic was computed from; empty unless reusing.
+   RetainedSparsityPattern pattern;
+   /// The number of symbolic analyses actually performed.
+   long num_symbolic;
+   /// The number of full numeric factorizations actually performed.
+   long num_numeric;
+   /// The number of refactorizations actually performed.
+   long num_refactor;
+
    void Init();
+
+   /** @brief Whether the symbolic analysis in hand applies to @a A, that is,
+       whether @a A has the sparsity pattern it was computed from. */
+   bool CanReuseSymbolic(const SparseMatrix &A) const;
 
 public:
    KLUSolver()
@@ -1269,6 +1354,53 @@ public:
 
    // Works on sparse matrices only; calls SparseMatrix::SortColumnIndices().
    void SetOperator(const Operator &op) override;
+
+   /** @brief Reuse the symbolic analysis across SetOperator() calls whenever
+       the sparsity pattern is unchanged, instead of discarding it and calling
+       klu_analyze() again. Off by default.
+
+       The pattern is checked, not assumed, by the same exact comparison against
+       a retained copy that UMFPackSolver::SetReuseSymbolic() documents.
+
+       Turning reuse off also turns off numeric reuse, which requires it. */
+   void SetReuseSymbolic(bool reuse = true);
+
+   /** @brief Reuse the numeric factorization as well, through klu_refactor(),
+       whenever the sparsity pattern is unchanged. Off by default; turning it
+       on turns on SetReuseSymbolic(), which it requires.
+
+       This is the case KLU is written for and the larger of the two savings:
+       klu_refactor() keeps the pivot ordering and the nonzero structure of the
+       existing factorization and only recomputes its values.
+
+       @note Keeping the pivot ordering means no partial pivoting is done for
+       the new values, so the refactorization can be less accurate than a fresh
+       one, and for values far from those it was built for it can fail
+       outright. Failure is caught and falls back to a full klu_factor(); loss
+       of accuracy is not, so this is the flag to turn off first if a converging
+       iteration stops converging. */
+   void SetReuseNumeric(bool reuse = true);
+
+   /// Whether symbolic reuse is enabled; see SetReuseSymbolic().
+   bool GetReuseSymbolic() const { return reuse_symbolic; }
+
+   /// Whether numeric reuse is enabled; see SetReuseNumeric().
+   bool GetReuseNumeric() const { return reuse_numeric; }
+
+   /** @brief The number of symbolic analyses actually performed, that is, of
+       klu_analyze() calls. Without reuse this is the number of SetOperator()
+       calls; with reuse it is the number of times the pattern changed. */
+   long GetNumSymbolicFactorizations() const { return num_symbolic; }
+
+   /** @brief The number of full numeric factorizations actually performed,
+       that is, of klu_factor() calls. Refactorizations are not counted here;
+       see GetNumRefactorizations(). */
+   long GetNumNumericFactorizations() const { return num_numeric; }
+
+   /** @brief The number of refactorizations actually performed, that is, of
+       klu_refactor() calls that succeeded. One that fails falls back to a full
+       factorization and is counted there instead. */
+   long GetNumRefactorizations() const { return num_refactor; }
 
    /// Direct solution of the linear system using KLU
    void Mult(const Vector &b, Vector &x) const override;

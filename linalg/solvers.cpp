@@ -3355,6 +3355,11 @@ void UMFPackSolver::Init()
    mat = NULL;
    Numeric = NULL;
    AI = AJ = NULL;
+   Symbolic = NULL;
+   reuse_symbolic = false;
+   pattern.Clear();
+   num_symbolic = 0;
+   num_numeric = 0;
    if (!use_long_ints)
    {
       umfpack_di_defaults(Control);
@@ -3365,9 +3370,54 @@ void UMFPackSolver::Init()
    }
 }
 
+void UMFPackSolver::FreeSymbolic()
+{
+   if (Symbolic)
+   {
+      if (!use_long_ints)
+      {
+         umfpack_di_free_symbolic(&Symbolic);
+      }
+      else
+      {
+         umfpack_dl_free_symbolic(&Symbolic);
+      }
+      Symbolic = NULL;
+   }
+   pattern.Clear();
+}
+
+bool UMFPackSolver::CanReuseSymbolic(const SparseMatrix &A) const
+{
+   return reuse_symbolic && Symbolic && pattern.Matches(A);
+}
+
+void UMFPackSolver::SetReuseSymbolic(bool reuse)
+{
+   reuse_symbolic = reuse;
+   if (!reuse) { FreeSymbolic(); }
+}
+
 void UMFPackSolver::SetOperator(const Operator &op)
 {
-   void *Symbolic;
+   mat = const_cast<SparseMatrix *>(dynamic_cast<const SparseMatrix *>(&op));
+   MFEM_VERIFY(mat, "not a SparseMatrix");
+
+   // UMFPack requires that the column-indices in mat corresponding to each
+   // row be sorted.
+   // Generally, this will modify the ordering of the entries of mat.
+   mat->SortColumnIndices();
+
+   height = mat->Height();
+   width = mat->Width();
+   MFEM_VERIFY(width == height, "not a square matrix");
+
+   // Whether the retained symbolic analysis, if there is one, was made for this
+   // pattern. Checked against the pattern itself, never assumed; see
+   // SetReuseSymbolic(). Without reuse there is never one to retain, and this
+   // is false on every call.
+   const bool reuse = CanReuseSymbolic(*mat);
+   if (!reuse) { FreeSymbolic(); }
 
    if (Numeric)
    {
@@ -3381,32 +3431,26 @@ void UMFPackSolver::SetOperator(const Operator &op)
       }
    }
 
-   mat = const_cast<SparseMatrix *>(dynamic_cast<const SparseMatrix *>(&op));
-   MFEM_VERIFY(mat, "not a SparseMatrix");
-
-   // UMFPack requires that the column-indices in mat corresponding to each
-   // row be sorted.
-   // Generally, this will modify the ordering of the entries of mat.
-   mat->SortColumnIndices();
-
-   height = mat->Height();
-   width = mat->Width();
-   MFEM_VERIFY(width == height, "not a square matrix");
-
    const int * Ap = mat->HostReadI();
    const int * Ai = mat->HostReadJ();
    const real_t * Ax = mat->HostReadData();
 
    if (!use_long_ints)
    {
-      int status = umfpack_di_symbolic(width, width, Ap, Ai, Ax, &Symbolic,
-                                       Control, Info);
-      if (status < 0)
+      int status;
+      if (!Symbolic)
       {
-         umfpack_di_report_info(Control, Info);
-         umfpack_di_report_status(Control, status);
-         mfem_error("UMFPackSolver::SetOperator :"
-                    " umfpack_di_symbolic() failed!");
+         status = umfpack_di_symbolic(width, width, Ap, Ai, Ax, &Symbolic,
+                                      Control, Info);
+         if (status < 0)
+         {
+            umfpack_di_report_info(Control, Info);
+            umfpack_di_report_status(Control, status);
+            mfem_error("UMFPackSolver::SetOperator :"
+                       " umfpack_di_symbolic() failed!");
+         }
+         num_symbolic++;
+         if (reuse_symbolic) { pattern.Set(*mat); }
       }
 
       status = umfpack_di_numeric(Ap, Ai, Ax, Symbolic, &Numeric,
@@ -3418,33 +3462,49 @@ void UMFPackSolver::SetOperator(const Operator &op)
          mfem_error("UMFPackSolver::SetOperator :"
                     " umfpack_di_numeric() failed!");
       }
-      umfpack_di_free_symbolic(&Symbolic);
+      num_numeric++;
+      // Without reuse the analysis is discarded here, as it always has been;
+      // umfpack_di_free_symbolic() sets Symbolic back to NULL.
+      if (!reuse_symbolic)
+      {
+         umfpack_di_free_symbolic(&Symbolic);
+      }
    }
    else
    {
       SuiteSparse_long status;
 
-      delete [] AJ;
-      delete [] AI;
-      AI = new SuiteSparse_long[width + 1];
-      AJ = new SuiteSparse_long[Ap[width]];
-      for (int i = 0; i <= width; i++)
+      // The long copies of the pattern are the pattern: when it is unchanged,
+      // so are they, and rebuilding them would only copy it again.
+      if (!reuse)
       {
-         AI[i] = (SuiteSparse_long)(Ap[i]);
-      }
-      for (int i = 0; i < Ap[width]; i++)
-      {
-         AJ[i] = (SuiteSparse_long)(Ai[i]);
+         delete [] AJ;
+         delete [] AI;
+         AI = new SuiteSparse_long[width + 1];
+         AJ = new SuiteSparse_long[Ap[width]];
+         for (int i = 0; i <= width; i++)
+         {
+            AI[i] = (SuiteSparse_long)(Ap[i]);
+         }
+         for (int i = 0; i < Ap[width]; i++)
+         {
+            AJ[i] = (SuiteSparse_long)(Ai[i]);
+         }
       }
 
-      status = umfpack_dl_symbolic(width, width, AI, AJ, Ax, &Symbolic,
-                                   Control, Info);
-      if (status < 0)
+      if (!Symbolic)
       {
-         umfpack_dl_report_info(Control, Info);
-         umfpack_dl_report_status(Control, status);
-         mfem_error("UMFPackSolver::SetOperator :"
-                    " umfpack_dl_symbolic() failed!");
+         status = umfpack_dl_symbolic(width, width, AI, AJ, Ax, &Symbolic,
+                                      Control, Info);
+         if (status < 0)
+         {
+            umfpack_dl_report_info(Control, Info);
+            umfpack_dl_report_status(Control, status);
+            mfem_error("UMFPackSolver::SetOperator :"
+                       " umfpack_dl_symbolic() failed!");
+         }
+         num_symbolic++;
+         if (reuse_symbolic) { pattern.Set(*mat); }
       }
 
       status = umfpack_dl_numeric(AI, AJ, Ax, Symbolic, &Numeric,
@@ -3456,7 +3516,11 @@ void UMFPackSolver::SetOperator(const Operator &op)
          mfem_error("UMFPackSolver::SetOperator :"
                     " umfpack_dl_numeric() failed!");
       }
-      umfpack_dl_free_symbolic(&Symbolic);
+      num_numeric++;
+      if (!reuse_symbolic)
+      {
+         umfpack_dl_free_symbolic(&Symbolic);
+      }
    }
 }
 
@@ -3547,24 +3611,49 @@ UMFPackSolver::~UMFPackSolver()
          umfpack_dl_free_numeric(&Numeric);
       }
    }
+   FreeSymbolic();
 }
 
 void KLUSolver::Init()
 {
+   reuse_symbolic = false;
+   reuse_numeric = false;
+   pattern.Clear();
+   num_symbolic = 0;
+   num_numeric = 0;
+   num_refactor = 0;
    klu_defaults(&Common);
+}
+
+bool KLUSolver::CanReuseSymbolic(const SparseMatrix &A) const
+{
+   return reuse_symbolic && Symbolic && pattern.Matches(A);
+}
+
+void KLUSolver::SetReuseSymbolic(bool reuse)
+{
+   reuse_symbolic = reuse;
+   if (!reuse)
+   {
+      // Symbolic is not freed here: klu_solve() needs it, so it is held for the
+      // life of the factorization whether or not it is reused. Dropping the
+      // pattern is what stops it being reused: the next SetOperator() rebuilds
+      // it, exactly as it does without this flag.
+      pattern.Clear();
+      reuse_numeric = false;
+   }
+}
+
+void KLUSolver::SetReuseNumeric(bool reuse)
+{
+   reuse_numeric = reuse;
+   if (reuse) { SetReuseSymbolic(true); }
 }
 
 void KLUSolver::SetOperator(const Operator &op)
 {
-   if (Numeric)
-   {
-      MFEM_VERIFY(Symbolic != 0,
-                  "Had Numeric pointer in KLU, but not Symbolic");
-      klu_free_symbolic(&Symbolic, &Common);
-      Symbolic = 0;
-      klu_free_numeric(&Numeric, &Common);
-      Numeric = 0;
-   }
+   MFEM_VERIFY(Numeric == 0 || Symbolic != 0,
+               "Had Numeric pointer in KLU, but not Symbolic");
 
    mat = const_cast<SparseMatrix *>(dynamic_cast<const SparseMatrix *>(&op));
    MFEM_VERIFY(mat != NULL, "not a SparseMatrix");
@@ -3581,8 +3670,53 @@ void KLUSolver::SetOperator(const Operator &op)
    int * Ai = mat->GetJ();
    real_t * Ax = mat->GetData();
 
-   Symbolic = klu_analyze( height, Ap, Ai, &Common);
-   Numeric = klu_factor(Ap, Ai, Ax, Symbolic, &Common);
+   // Whether the analysis in hand was made for this pattern. Checked against
+   // the pattern itself, never assumed; see SetReuseSymbolic().
+   const bool reuse_sym = CanReuseSymbolic(*mat);
+   // klu_refactor() reuses the pivot ordering of the existing factorization as
+   // well as the analysis, so it needs both of them present.
+   const bool refactor = reuse_sym && reuse_numeric && Numeric != 0;
+
+   if (Numeric && !refactor)
+   {
+      klu_free_numeric(&Numeric, &Common);
+      Numeric = 0;
+   }
+   if (Symbolic && !reuse_sym)
+   {
+      klu_free_symbolic(&Symbolic, &Common);
+      Symbolic = 0;
+   }
+
+   if (!Symbolic)
+   {
+      Symbolic = klu_analyze(height, Ap, Ai, &Common);
+      num_symbolic++;
+      if (reuse_symbolic && Symbolic) { pattern.Set(*mat); }
+   }
+
+   if (refactor)
+   {
+      if (klu_refactor(Ap, Ai, Ax, Symbolic, Numeric, &Common) &&
+          Common.status == KLU_OK)
+      {
+         num_refactor++;
+      }
+      else
+      {
+         // A refactorization keeps the pivot order chosen for the previous
+         // values, so it can fail where a full factorization succeeds. Fall
+         // back to one rather than report a failure the caller did not ask for.
+         klu_free_numeric(&Numeric, &Common);
+         Numeric = 0;
+      }
+   }
+
+   if (!Numeric)
+   {
+      Numeric = klu_factor(Ap, Ai, Ax, Symbolic, &Common);
+      num_numeric++;
+   }
 }
 
 void KLUSolver::Mult(const Vector &b, Vector &x) const

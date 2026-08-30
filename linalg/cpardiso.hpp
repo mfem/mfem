@@ -19,6 +19,7 @@
 
 #include "mkl_cluster_sparse_solver.h"
 #include "operator.hpp"
+#include "sparsitypattern.hpp"
 
 namespace mfem
 {
@@ -80,6 +81,45 @@ public:
     */
    void SetMatrixType(MatType mat_type);
 
+   /**
+    * @brief Retain the analysis phase across SetOperator() calls and reuse it
+    * whenever the sparsity pattern is unchanged. Off by default.
+    *
+    * This is PardisoSolver::SetReuseSymbolic() for the cluster solver, and the
+    * saving is the same: phase 11, the reordering and symbolic factorization,
+    * depends only on the pattern, so a caller refactorizing a matrix of fixed
+    * structure otherwise repeats it on every SetOperator() call.
+    *
+    * The pattern compared is that of the local CSR matrix this rank builds
+    * from the HypreParMatrix -- the merged diagonal and off-diagonal blocks,
+    * with global column indices -- together with the index of its first row.
+    *
+    * @note The decision is reduced across the communicator: the analysis is
+    * reused only if every rank finds its own pattern unchanged. It has to be,
+    * because cluster_sparse_solver() is collective, and ranks that disagreed
+    * about whether to call phase 11 would deadlock.
+    *
+    * @param reuse Whether to reuse the analysis
+    */
+   void SetReuseSymbolic(bool reuse = true);
+
+   /// Whether analysis reuse is enabled; see SetReuseSymbolic().
+   bool GetReuseSymbolic() const { return reuse_symbolic; }
+
+   /**
+    * @brief The number of analyses actually performed, that is, of phase 11
+    * calls. Without reuse this is the number of SetOperator() calls; with
+    * reuse it is the number of times the pattern changed. The same on every
+    * rank, since the decision is collective.
+    */
+   long GetNumSymbolicFactorizations() const { return num_symbolic; }
+
+   /**
+    * @brief The number of numeric factorizations actually performed, that is,
+    * of phase 22 calls. Reuse never skips one of these.
+    */
+   long GetNumNumericFactorizations() const { return num_numeric; }
+
    ~CPardisoSolver();
 
 private:
@@ -117,6 +157,24 @@ private:
    // Dummy variables
    mutable int idum;
    mutable real_t ddum;
+
+   // Whether the analysis may be retained and reused; see SetReuseSymbolic()
+   bool reuse_symbolic = false;
+
+   // The pattern of the local CSR matrix the retained analysis was made for,
+   // and the first row index that went with it; empty unless reusing
+   RetainedSparsityPattern pattern;
+   int pattern_first_row = -1;
+
+   // Whether pt holds a factorization, and so has memory to release
+   bool factored = false;
+
+   // The number of phase 11 and phase 22 calls actually made
+   long num_symbolic = 0;
+   long num_numeric = 0;
+
+   // Release the memory held by pt, if there is any
+   void ReleaseFactorization();
 };
 } // namespace mfem
 

@@ -19,6 +19,7 @@
 #include "operator.hpp"
 #include "matrix.hpp"
 #include "sparsemat.hpp"
+#include "sparsitypattern.hpp"
 #include "complex_operator.hpp"
 #include "complex_densemat.hpp"
 #include "blockvector.hpp"

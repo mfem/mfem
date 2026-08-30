@@ -72,6 +72,7 @@ list(APPEND HDRS
   solvers.hpp
   sparsemat.hpp
   sparsesmoothers.hpp
+  sparsitypattern.hpp
   symmat.hpp
   tlayout.hpp
   tmatrix.hpp
