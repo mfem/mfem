@@ -3271,35 +3271,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
 
                REQUIRE( g_h1.ComputeL2Error(VF3_coef) < tol );
             }
-            // RT to H1 not supported yet
-            // SECTION("Compare FA to PA")
-            // {
-            //    if (type == Element::HEXAHEDRON)
-            //    {
-            //       Vector orig_vert;
-            //       PerturbMesh(mesh, orig_vert);
-            //       MixedBilinearForm blf_fa(&fespace_rt, &fespace_h1);
-            //       blf_fa.AddDomainIntegrator(
-            //          new MixedDotProductIntegrator(V3_coef));
-            //       blf_fa.Assemble();
-            //       blf_fa.Finalize();
-
-            //       MixedBilinearForm blf_pa(&fespace_rt, &fespace_h1);
-            //       blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-            //       blf_pa.AddDomainIntegrator(
-            //          new MixedDotProductIntegrator(V3_coef));
-            //       blf_pa.Assemble();
-
-            //       blf_fa.Mult(f_rt, g_h1);
-            //       blf_pa.Mult(f_rt, tmp_h1);
-            //       tmp_h1 -= g_h1;
-            //       REQUIRE(tmp_h1.Normlinf() < tol);
-
-            //       // Restore the mesh vertices to their original positions.
-            //       mesh.SetVertices(orig_vert);
-            //       mesh.NodesUpdated();
-            //    }
-            // }
+            // PA RT to H1 not supported yet
          }
          for (int map_type = (int)FiniteElement::VALUE;
               map_type <= (int)FiniteElement::INTEGRAL; map_type++)
@@ -3334,35 +3306,7 @@ TEST_CASE("3D Bilinear Vector Dot Product Integrators",
 
                   REQUIRE( g_l2.ComputeL2Error(VF3_coef) < tol );
                }
-               // RT to L2 not supported yet for PA
-               // SECTION("Compare FA to PA")
-               // {
-               //    if (type == Element::HEXAHEDRON)
-               //    {
-               //       Vector orig_vert;
-               //       PerturbMesh(mesh, orig_vert);
-               //       MixedBilinearForm blf_fa(&fespace_rt, &fespace_l2);
-               //       blf_fa.AddDomainIntegrator(
-               //          new MixedDotProductIntegrator(V3_coef));
-               //       blf_fa.Assemble();
-               //       blf_fa.Finalize();
-
-               //       MixedBilinearForm blf_pa(&fespace_rt, &fespace_l2);
-               //       blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-               //       blf_pa.AddDomainIntegrator(
-               //          new MixedDotProductIntegrator(V3_coef));
-               //       blf_pa.Assemble();
-
-               //       blf_fa.Mult(f_rt, g_l2);
-               //       blf_pa.Mult(f_rt, tmp_l2);
-               //       tmp_l2 -= g_l2;
-               //       REQUIRE(tmp_l2.Normlinf() < tol);
-
-               //       // Restore the mesh vertices to their original positions.
-               //       mesh.SetVertices(orig_vert);
-               //       mesh.NodesUpdated();
-               //    }
-               // }
+               // PA RT to L2 not supported yet
             }
          }
       }
