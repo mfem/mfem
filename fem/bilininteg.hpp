@@ -1760,11 +1760,13 @@ private:
    bool test_map_integral = false;
 };
 
-/** Class for integrating the bilinear form $a(u,v) := (\vec{V} \times u \hat{z}, v)$ in 2D and
-    where $\vec{V}$ is a vector coefficient $u$ is in $H^1$ or $L_2$ and $v$ is in $H(curl)$ or $H(div)$.
+/** @brief Class for integrating the bilinear form
+    $a(u,v) := (\vec{V} \times u \hat{z}, v)$ in 2D and where $\vec{V}$ is a
+    vector coefficient $u$ is in $H^1$ or $L_2$, $v$ is in $H(curl)$ or
+    $H(div)$, and $\hat{z}$ denotes the out-of-plane normal direction.
 
-    \todo Documentation what $\hat{z}$ is (also missing in https://mfem.org/bilininteg/).
-   */
+    @note The vector coefficient should be a 2D coefficient with implicit 0
+    third component. */
 class MixedScalarWeakCrossProductIntegrator : public MixedScalarVectorIntegrator
 {
 public:
