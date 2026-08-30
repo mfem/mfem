@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -585,7 +585,7 @@ void ChompNewline(istream &input)
 {
    if (input.peek() == '\r') { input.get(); }
    MFEM_VERIFY(input.get() == '\n', "Inconsistent newlines.");
-};
+}
 
 /// Enum for supported Gmsh mesh file versions.
 enum class GmshVersion { V2_2, V4_1 };

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2190,6 +2190,48 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
             delete blfT;
             delete diff;
          }
+         SECTION("MixedScalarWeakCrossProductIntegrator, "
+                 "PA vs FA self consistency")
+         {
+            // Slightly perturb the mesh vertices so that the Jacobians are not
+            // diagonal.
+            MFEM_VERIFY(mesh.GetNodes() == nullptr, "internal error");
+            Vector orig_vert;
+            mesh.GetVertices(orig_vert);
+            Vector new_vert(orig_vert.Size());
+            Vector vert_displ(orig_vert.Size());
+            vert_displ.Randomize(9753);
+            vert_displ -= 0.5_r;
+            add(orig_vert, 0.02_r, vert_displ, new_vert);
+            mesh.SetVertices(new_vert);
+            mesh.NodesUpdated();
+
+            MixedBilinearForm blf_fa(&fespace_h1, &fespace_ndp);
+            blf_fa.AddDomainIntegrator(
+               new MixedScalarWeakCrossProductIntegrator(V2_coef));
+            blf_fa.Assemble();
+            blf_fa.Finalize();
+
+            MixedBilinearForm blf_pa(&fespace_h1, &fespace_ndp);
+            blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blf_pa.AddDomainIntegrator(
+               new MixedScalarWeakCrossProductIntegrator(V2_coef));
+            blf_pa.Assemble();
+
+            GridFunction x_in(&fespace_h1);
+            GridFunction y_out_fa(&fespace_ndp), y_out_pa(&fespace_ndp);
+
+            x_in.Randomize(54092);
+
+            blf_fa.Mult(x_in, y_out_fa);
+            blf_pa.Mult(x_in, y_out_pa);
+            y_out_pa -= y_out_fa;
+            CHECK(y_out_pa.Normlinf() <= 1e-12);
+
+            // Restore the mesh vertices to their original positions.
+            mesh.SetVertices(orig_vert);
+            mesh.NodesUpdated();
+         }
       }
       SECTION("Mapping H1 to RT")
       {
@@ -2538,6 +2580,31 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
 
             delete blfT;
             delete diff;
+         }
+         SECTION("MixedScalarWeakGradientIntegrator, PA vs FA self consistency")
+         {
+            MixedBilinearForm blfw_fa(&fespace_h1, &fespace_rt);
+            blfw_fa.AddDomainIntegrator(
+               new MixedScalarWeakGradientIntegrator(q2_coef));
+            blfw_fa.Assemble();
+            blfw_fa.Finalize();
+
+            MixedBilinearForm blfw_pa(&fespace_h1, &fespace_rt);
+            blfw_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blfw_pa.AddDomainIntegrator(
+               new MixedScalarWeakGradientIntegrator(q2_coef));
+            blfw_pa.Assemble();
+
+            GridFunction x_in(&fespace_h1);
+            Vector y_out_fa(fespace_rt.GetVSize()),
+                   y_out_pa(fespace_rt.GetVSize());
+
+            x_in.Randomize(56789);
+
+            blfw_fa.Mult(x_in, y_out_fa);
+            blfw_pa.Mult(x_in, y_out_pa);
+            y_out_pa -= y_out_fa;
+            CHECK(y_out_pa.Normlinf() <= 1e-12);
          }
       }
    }
