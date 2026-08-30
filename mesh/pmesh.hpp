@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -565,6 +565,8 @@ public:
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
                      int ordering = 1, int pyrtype = 1) override;
 
+   /// @brief Create a ParGridFunction representing the Jacobian determinant.
+   /// Parallel counterpart of Mesh::GetJacobianDeterminantGF().
    std::unique_ptr<ParGridFunction> GetJacobianDeterminantGF() const;
 
    /** Replace the internal node GridFunction with a new GridFunction defined on

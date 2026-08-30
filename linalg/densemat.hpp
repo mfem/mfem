@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -355,6 +355,7 @@ public:
    /// Returns the diagonal of the matrix
    void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
+   /// @deprecated Use GetRowl1() instead.
    MFEM_DEPRECATED void Getl1Diag(Vector &l) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
    void GetRowl1(Vector &l) const;

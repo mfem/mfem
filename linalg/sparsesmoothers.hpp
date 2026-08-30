@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,7 +67,7 @@ public:
    /// @param[in]  it       Number of stationary iterations to perform
    GSSmoother(GSType t = SYMMETRIC, int it = 1) { type = t; iterations = it; }
 
-   /// @brief Create a Jacobi smoother using the SparseMatrix @a a.
+   /// @brief Create a Gauss-Seidel smoother using the SparseMatrix @a a.
    ///
    /// @param[in]  a        The underlying SparseMatrix
    /// @param[in]  t        Type of GS smoother (see GSSmoother::GSType)

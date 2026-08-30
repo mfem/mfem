@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -459,7 +459,7 @@ public:
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). For elements without a projection
        member function one could use ProjectCoefficientGlobalL2 instead.
-       NOTE: For parallel simulations with NURBS elements some dofs might
+       @note For parallel simulations with NURBS elements some dofs might
        not be defined, if the evaluation point does not reside on this rank.
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.
@@ -468,7 +468,7 @@ public:
                                    ProjectType type = ProjectType::DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
-       projection is a global L2 projection. This routine can be used a
+       projection is a global L2 projection. This routine can be used as a
        fallback for elements without a projection member function.*/
    virtual void ProjectCoefficientGlobalL2(Coefficient &coeff,
                                            real_t rtol = 1e-12,
@@ -476,9 +476,9 @@ public:
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is an element local L2 projection, with an appropriate
-       weighting for Dofs that are shared between elements. Inspired on
-       Bezier-Projection [CMAME (284) 2015 pg 55-105]
-       This routine can be used a fallback for elements without a projection
+       weighting for Dofs that are shared between elements. Inspired by
+       Bezier-Projection [CMAME (284) 2015 pg 55-105].
+       This routine can be used as a fallback for elements without a projection
        member function.*/
    virtual void ProjectCoefficientElementL2(Coefficient &coeff);
 
@@ -492,23 +492,26 @@ public:
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). For elements without a projection
        member function one could use ProjectCoefficientGlobalL2 instead.
-       NOTE: For parallel simulations with NURBS elements some dofs might
+       @note For parallel simulations with NURBS elements some dofs might
        not be defined, if the evaluation point does not reside on this rank.
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.*/
    virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
                                    ProjectType type = ProjectType::DEFAULT);
 
-   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
-       projection is a global L2 projection. This routine can be used a
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used as a
        fallback for elements without a projection member function.*/
    virtual void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                            real_t rtol = 1e-12,
                                            int iter = 1000);
 
-   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
-       projection is a global L2 projection. This routine can be used a
-       fallback for elements without a projection member function.*/
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection is an element local L2 projection, with an appropriate
+       weighting for Dofs that are shared between elements. Inspired by
+       Bezier-Projection [CMAME (284) 2015 pg 55-105].
+       This routine can be used as a fallback for elements without a projection
+       member function.*/
    virtual void ProjectCoefficientElementL2(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
@@ -1843,7 +1846,7 @@ public:
                                                      const int max_depth,
                                                      const real_t tol) const;
 
-   /** @brief Estimate the minimum value of the GridFunction in element @a elem.
+   /** @brief Estimate the maximum value of the GridFunction in element @a elem.
     *
     *  @details See the protected version of EstimateFunctionMaximum for
     *  details.
@@ -1978,10 +1981,10 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
-   /// Constructs an instance of VectorExtrudeCoefficient
+   /// Constructs an instance of ExtrudeCoefficient
    /**
     * @param m      1D mesh
-    * @param s      1D vector coefficient
+    * @param s      1D scalar coefficient
     * @param n_     number of transverse elements of the extruded mesh
     */
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)

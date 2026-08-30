@@ -417,9 +417,9 @@ public:
     Constructor for the surface linear form integrator to demonstrate the use
     of the surface integration rule by means of moment-fitting.
 
-    @param [in] q coefficient representing the inegrand
+    @param [in] q coefficient representing the integrand
     @param [in] levelset level-set defining the implicit interface
-    @param [in] ir surface integrtion rule to be used
+    @param [in] ir surface integration rule to be used
     */
    SurfaceLFIntegrator(Coefficient &q, Coefficient &levelset,
                        SIntegrationRule* ir)
@@ -487,9 +487,9 @@ public:
     Constructor for the subdomain linear form integrator to demonstrate the use
     of the volumetric subdomain integration rule by means of moment-fitting.
 
-    @param [in] q coefficient representing the inegrand
+    @param [in] q coefficient representing the integrand
     @param [in] levelset level-set defining the implicit interface
-    @param [in] ir subdomain integrtion rule to be used
+    @param [in] ir subdomain integration rule to be used
     */
    SubdomainLFIntegrator(Coefficient &q, Coefficient &levelset,
                          CIntegrationRule* ir)

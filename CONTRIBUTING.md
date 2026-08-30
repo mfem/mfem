@@ -731,6 +731,10 @@ In addition, developers can set local git hooks to run some quick checks on
 commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
 directory.
 
+The copyright year can be updated automatically by running
+`config/githooks/pre-push --update-copyright`. Third-party copyright
+notices are not affected.
+
 
 ### GitHub Actions smoke tests
 
