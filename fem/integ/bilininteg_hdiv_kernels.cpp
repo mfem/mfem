@@ -1096,41 +1096,54 @@ void PADivDivApply3D(const int D1D,
    }); // end of element loop
 }
 
-void PAHdivL2Setup2D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op)
+void PAHdivL2Setup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom)
 {
    const int NQ = Q1D*Q1D;
    auto W = w.Read();
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
+   bool have_detJ = (geom != nullptr);
+   auto detJ = Reshape(have_detJ ? geom->detJ.Read() : nullptr, NQ, NE);
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
-         y(q,e) = W[q] * coeff(q,e);
+         if (have_detJ)
+         {
+            y(q, e) = W[q] * coeff(q, e) / detJ(q, e);
+         }
+         else
+         {
+            y(q, e) = W[q] * coeff(q, e);
+         }
       }
    });
 }
 
-void PAHdivL2Setup3D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op)
+void PAHdivL2Setup3D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom)
 {
    const int NQ = Q1D*Q1D*Q1D;
    auto W = w.Read();
    auto coeff = Reshape(coeff_.Read(), NQ, NE);
    auto y = Reshape(op.Write(), NQ, NE);
 
+   bool have_detJ = (geom != nullptr);
+   auto detJ = Reshape(have_detJ ? geom->detJ.Read() : nullptr, NQ, NE);
+
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       for (int q = 0; q < NQ; ++q)
       {
-         y(q,e) = W[q] * coeff(q, e);
+         if (have_detJ)
+         {
+            y(q, e) = W[q] * coeff(q, e) / detJ(q, e);
+         }
+         else
+         {
+            y(q, e) = W[q] * coeff(q, e);
+         }
       }
    });
 }

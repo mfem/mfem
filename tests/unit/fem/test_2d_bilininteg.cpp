@@ -196,6 +196,21 @@ void GradVdotF2(const Vector & x, Vector & dvf)
    dvf += tmp;
 }
 
+static void PerturbMesh(Mesh &mesh, Vector &orig_vert)
+{
+   // Slightly perturb the mesh vertices so that the Jacobians are not
+   // diagonal. Only works on low order meshes
+   MFEM_VERIFY(mesh.GetNodes() == nullptr, "internal error");
+   mesh.GetVertices(orig_vert);
+   Vector new_vert(orig_vert.Size());
+   Vector vert_displ(orig_vert.Size());
+   vert_displ.Randomize(9753);
+   vert_displ -= 0.5_r;
+   add(orig_vert, 0.02_r, vert_displ, new_vert);
+   mesh.SetVertices(new_vert);
+   mesh.NodesUpdated();
+}
+
 const std::string MapTypeName(FiniteElement::MapType map_type)
 {
    switch (map_type)
@@ -2193,18 +2208,8 @@ TEST_CASE("2D Bilinear Scalar Weak Cross Product Integrators",
          SECTION("MixedScalarWeakCrossProductIntegrator, "
                  "PA vs FA self consistency")
          {
-            // Slightly perturb the mesh vertices so that the Jacobians are not
-            // diagonal.
-            MFEM_VERIFY(mesh.GetNodes() == nullptr, "internal error");
             Vector orig_vert;
-            mesh.GetVertices(orig_vert);
-            Vector new_vert(orig_vert.Size());
-            Vector vert_displ(orig_vert.Size());
-            vert_displ.Randomize(9753);
-            vert_displ -= 0.5_r;
-            add(orig_vert, 0.02_r, vert_displ, new_vert);
-            mesh.SetVertices(new_vert);
-            mesh.NodesUpdated();
+            PerturbMesh(mesh, orig_vert);
 
             MixedBilinearForm blf_fa(&fespace_h1, &fespace_ndp);
             blf_fa.AddDomainIntegrator(
@@ -3119,6 +3124,31 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
 
             REQUIRE( g_h1.ComputeL2Error(VF2_coef) < tol );
          }
+         SECTION("Compare FA to PA")
+         {
+            Vector orig_vert;
+            PerturbMesh(mesh, orig_vert);
+            MixedBilinearForm blf_fa(&fespace_nd, &fespace_h1);
+            blf_fa.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V2_coef));
+            blf_fa.Assemble();
+            blf_fa.Finalize();
+
+            MixedBilinearForm blf_pa(&fespace_nd, &fespace_h1);
+            blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blf_pa.AddDomainIntegrator(
+               new MixedDotProductIntegrator(V2_coef));
+            blf_pa.Assemble();
+
+            blf_fa.Mult(f_nd, tmp_h1);
+            blf_pa.Mult(f_nd, g_h1);
+            tmp_h1 -= g_h1;
+            REQUIRE(tmp_h1.Normlinf() < tol);
+
+            // Restore the mesh vertices to their original positions.
+            mesh.SetVertices(orig_vert);
+            mesh.NodesUpdated();
+         }
       }
       for (int map_type = (int)FiniteElement::VALUE;
            map_type <= (int)FiniteElement::INTEGRAL; map_type++)
@@ -3152,6 +3182,31 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
                CG(m_l2, tmp_l2, g_l2, 0, 200, cg_rtol * cg_rtol, 0.0);
 
                REQUIRE( g_l2.ComputeL2Error(VF2_coef) < tol );
+            }
+
+            SECTION("Compare FA to PA")
+            {
+               Vector orig_vert;
+               PerturbMesh(mesh, orig_vert);
+               MixedBilinearForm blf_fa(&fespace_nd, &fespace_l2);
+               blf_fa.AddDomainIntegrator(
+                  new MixedDotProductIntegrator(V2_coef));
+               blf_fa.Assemble();
+               blf_fa.Finalize();
+
+               MixedBilinearForm blf_pa(&fespace_nd, &fespace_l2);
+               blf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+               blf_pa.AddDomainIntegrator(
+                  new MixedDotProductIntegrator(V2_coef));
+               blf_pa.Assemble();
+
+               blf_fa.Mult(f_nd, g_l2);
+               blf_pa.Mult(f_nd, tmp_l2);
+               tmp_l2 -= g_l2;
+               REQUIRE(tmp_l2.Normlinf() < tol);
+               // Restore the mesh vertices to their original positions.
+               mesh.SetVertices(orig_vert);
+               mesh.NodesUpdated();
             }
          }
       }
@@ -3190,6 +3245,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
 
             REQUIRE( g_h1.ComputeL2Error(VF2_coef) < tol );
          }
+         // PA RT to H1 not supported yet
       }
       for (int map_type = (int)FiniteElement::VALUE;
            map_type <= (int)FiniteElement::INTEGRAL; map_type++)
@@ -3224,6 +3280,7 @@ TEST_CASE("2D Bilinear Dot Product Integrators",
 
                REQUIRE( g_l2.ComputeL2Error(VF2_coef) < tol );
             }
+            // PA RT to L2 not supported yet
          }
       }
    }
