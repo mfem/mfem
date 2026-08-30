@@ -2539,6 +2539,31 @@ TEST_CASE("2D Bilinear Scalar Weak Gradient Integrators",
             delete blfT;
             delete diff;
          }
+         SECTION("MixedScalarWeakGradientIntegrator, PA vs FA self consistency")
+         {
+            MixedBilinearForm blfw_fa(&fespace_h1, &fespace_rt);
+            blfw_fa.AddDomainIntegrator(
+               new MixedScalarWeakGradientIntegrator(q2_coef));
+            blfw_fa.Assemble();
+            blfw_fa.Finalize();
+
+            MixedBilinearForm blfw_pa(&fespace_h1, &fespace_rt);
+            blfw_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            blfw_pa.AddDomainIntegrator(
+               new MixedScalarWeakGradientIntegrator(q2_coef));
+            blfw_pa.Assemble();
+
+            GridFunction x_in(&fespace_h1);
+            Vector y_out_fa(fespace_rt.GetVSize()),
+                   y_out_pa(fespace_rt.GetVSize());
+
+            x_in.Randomize(56789);
+
+            blfw_fa.Mult(x_in, y_out_fa);
+            blfw_pa.Mult(x_in, y_out_pa);
+            y_out_pa -= y_out_fa;
+            CHECK(y_out_pa.Normlinf() <= 1e-12);
+         }
       }
    }
    for (int map_type = (int)FiniteElement::VALUE;
