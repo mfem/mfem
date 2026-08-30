@@ -38,38 +38,56 @@ superconvergent as solved.
 
 ## 5. `τ` for problems that are convection- and diffusion-dominated at once
 
-**The headline question is still open, but the driver now exists.**
-Everything measured so far is diffusion-dominated or mildly convective with a
-single `τ`. Nothing yet speaks to a `τ` serving convection in one coordinate
-direction and diffusion in another simultaneously.
+**Measured, on the Navier-Stokes driver, and the headline answer is negative.**
+937 runs of `miniapps/hdg/navierstokes.cpp` — Kovasznay and plane Poiseuille,
+orders 1-3, `Re` 10 to 1000, cell aspect ratios 1/4 to 4, `τ` 0.125 to 10 and
+`β` over a factor of 16. The tables are in `doc/HDG-NAVIER-STOKES.md` under
+*The §5 measurement*; the three results are:
 
-`miniapps/hdg/navierstokes.cpp` is that driver, and
-`doc/HDG-NAVIER-STOKES.md` records it. Plane Poiseuille flow is diffusive
-across the channel and convective along it, and in the
-artificial-compressibility form the stabilization the reference asks for is
-`S = λ_max(û,n) I` with
+1. **The direction-aware `S = λ_max(û,n) I` is 2.0-3.6x worse than the best
+   constant `τ` in the flux and the pressure, and indistinguishable from it in
+   the potential.** Over-stabilization also costs the flux its rate: 2.60 down
+   to 2.18 at `k = 2` as `τ` goes 0.5 to 5.
+2. **The mechanism, established by a `β` sweep rather than by inspection.**
+   `β` cannot change the steady answer — the continuity row is `β ∇·v = s_0` —
+   but it sets `λ_max = √β` on every face where `v·n = 0`. `λ_max`'s error
+   tracks the constant `√β` to within 5-16% and *moves with `β`*, while a fixed
+   `τ` is `β`-independent to 0.02%. So `λ_max` is a constant `√β` in disguise
+   on the faces that do the work, its level is set by an arbitrary parameter of
+   the formulation rather than by the physics, and the extra weight it carries
+   on the along-flow faces is a penalty.
+3. **It wins the other half.** `λ_max` converged on every one of ~300 cases;
+   every constant `τ ≤ 1` diverges somewhere, on *coarse* meshes at high `Re`,
+   recovering under refinement. Cold on plane Poiseuille at `Re = 100`, `λ_max`
+   converges in 9 iterations where `τ ∈ [0.25, 2]` all fail and only `τ ≥ 5`
+   recovers — so it is not the *amount* of stabilization but where it is put.
+   And the accuracy optimum sits exactly at that robustness boundary: at
+   `Re = 400` the best converging `τ` is 0.375 at 48x32 and 0.5 at 24x16.
 
-    λ_max = |v·n| + sqrt((v·n)^2 + β|n|^2),
+**The mesh aspect ratio changes none of it** — `λ_max`'s penalty is if anything
+largest on cells stretched along the flow.
 
-which is `|v| + sqrt(v²+β)` on a face whose normal lies along the flow and
-`sqrt(β)` on one across it. **That ratio is the question**, and it is set by
-the mesh aspect ratio and by the Reynolds number, both command-line knobs.
-`-tau <c>` swaps in the library's constant-`Ctau` `HDGFlux` so the
-direction-aware and direction-blind stabilizations can be measured against
-each other on the same problem. The measurement itself -- rates under each,
-swept in those two parameters -- has not been taken yet.
+**What is still open, and why.** Both of the driver's exact solutions put their
+sharp structure across the flow and little or none along it, so the along-flow
+faces — the only ones where `λ_max` differs from `√β` — are exactly the faces
+where the solution is easiest to represent. Kovasznay cannot repair this on its
+own window, because its decay rate `λ = Re/2 − √(Re²/4 + 4π²) → −4π²/Re` means
+the parameter that makes it convective is the parameter that flattens its
+along-flow structure: 94x of variation at `Re = 10`, **1.16x at `Re = 400`**,
+with the measured consequence that errors are identical to four digits over a
+16x range in `nx`. A longer window at moderate `Re` is a partial repair and is
+what the aspect-ratio table above uses. **A genuinely two-directional solution
+is what would settle the general question, and this miniapp has none.**
+`anisodiff -p 11` on `gf-hdg-subdomains-dev` is the linear-diffusion shape of
+it.
 
-`anisodiff -p 11` on `gf-hdg-subdomains-dev` remains the linear-diffusion
-shape of the same question.
-
-A constraint found while building that driver, which bounds how far the
-existing library can go: `MixedConductionNLFIntegrator`'s HDG face
-stabilization for more than one equation is `face_w * TauVar(e)`, one constant
-per equation set once through `SetVariableStabilization()`. It cannot express a
-stabilization depending on the state or the face normal. The Navier-Stokes
-driver sidesteps it by carrying the convective stabilization on the
-`NumericalFlux`; a *viscous* stabilization that varies with direction would
-not be able to.
+A constraint on how far the existing library can go:
+`MixedConductionNLFIntegrator`'s HDG face stabilization for more than one
+equation is `face_w * TauVar(e)`, one constant per equation set once through
+`SetVariableStabilization()`. It cannot express a stabilization depending on
+the state or the face normal. The Navier-Stokes driver sidesteps it by carrying
+the convective stabilization on the `NumericalFlux`; a *viscous* stabilization
+that varies with direction would not be able to.
 
 One methodological point survives from a withdrawn table because it cost a day:
 **rates must be taken asymptotically.** The same configurations read 1.6 rather
