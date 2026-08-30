@@ -1059,7 +1059,7 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    }
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*eltest, *eltest,
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*fel, *eltest,
                                                      *mesh->GetTypicalElementTransformation());
 
    auto map_type = eltest->GetMapType();
@@ -1165,7 +1165,7 @@ void MixedVectorCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *test_el,
                                                      *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
@@ -1324,7 +1324,7 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
+      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *test_el,
                                                      *mesh->GetTypicalElementTransformation());
    const int dims = trial_el->GetDim();
    MFEM_VERIFY(dims == 3, "");
@@ -1482,7 +1482,7 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
                "Only H(div) test spaces are supported!");
 
    const IntegrationRule *ir = IntRule ? IntRule : &MassIntegrator::GetRule(
-                                  *test_el, *test_el,
+                                  *trial_fel, *test_fel,
                                   *mesh->GetTypicalElementTransformation());
 
    const int dims = test_el->GetDim();
