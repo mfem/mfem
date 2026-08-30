@@ -1528,7 +1528,6 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
    {
       internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
    }
-   // should have a negative sign
    pa_data *= -1_r;
 }
 
