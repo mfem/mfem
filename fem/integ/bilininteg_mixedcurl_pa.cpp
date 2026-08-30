@@ -1528,6 +1528,8 @@ void MixedScalarWeakGradientIntegrator::AssemblePA(const FiniteElementSpace
    {
       internal::PAHdivL2Setup3D(quad1D, ne, ir->GetWeights(), coeff, pa_data);
    }
+   // should have a negative sign
+   // pa_data *= -1_r;
 }
 
 void MixedScalarWeakGradientIntegrator::AddMultPA(const Vector &x,
@@ -1712,7 +1714,7 @@ void MixedScalarWeakCrossProductIntegrator::AssemblePA(
                      geom->J, coeff, pa_data);
    // Match the extra sign introduced by the legacy assembled path's
    // MixedScalarWeakCrossProductIntegrator::CalcShape().
-   pa_data *= -1.0;
+   pa_data *= -1_r;
 }
 
 void MixedScalarWeakCrossProductIntegrator::AddMultPA(const Vector &x,
