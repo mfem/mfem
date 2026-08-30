@@ -686,6 +686,7 @@ public:
     */
    Mesh *GetBoundingBoxMesh(int type);
 
+   /// Return the internal vector of mesh node coordinates at the GLL points.
    virtual const Vector &GetGLLMesh()           const { return gsl_mesh; }
 };
 
@@ -900,11 +901,16 @@ public:
    void MapPointsToProcs(Vector &xyz, int ordering,
                          std::map<int, std::vector<int>> &pt_to_procs) const;
 
-   // Some getters
+   /// Return this rank's portion of the distributed map from grid cells to
+   /// candidate MPI ranks (CSR data, indexed by rank-local cell index).
    const Array<int> &GetGridMap() const { return ggrid_map; }
+   /// Return the number of grid cells per unit extent in each direction.
    const Vector &GetGridFac() const { return gmap_fac; }
+   /// Return the minimum extent of the grid in each direction.
    const Vector &GetGridMin() const { return gmap_bnd_min; }
+   /// Return the maximum extent of the grid in each direction.
    const Vector &GetGridMax() const { return gmap_bnd_max; }
+   /// Return the grid resolution (number of cells) in each direction.
    const Array<int> &GetGridN() const { return gmap_n; }
 
 private:

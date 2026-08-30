@@ -67,7 +67,7 @@ public:
    /// @param[in]  it       Number of stationary iterations to perform
    GSSmoother(GSType t = SYMMETRIC, int it = 1) { type = t; iterations = it; }
 
-   /// @brief Create a Jacobi smoother using the SparseMatrix @a a.
+   /// @brief Create a Gauss-Seidel smoother using the SparseMatrix @a a.
    ///
    /// @param[in]  a        The underlying SparseMatrix
    /// @param[in]  t        Type of GS smoother (see GSSmoother::GSType)

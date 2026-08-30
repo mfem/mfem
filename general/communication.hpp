@@ -597,51 +597,70 @@ public:
 };
 
 
-/// Auxiliary class used by class GroupCommunicator
+/** @brief Auxiliary class used by class GroupCommunicator implementing its
+    device (GPU) code paths for data passed as Array<T>. The operations are
+    performed on the configured mfem::Device and can use GPU-aware MPI, if
+    enabled for the device. */
 class DeviceGroupCommunicator
 {
 public:
    friend class GroupCommunicator;
 
+   /// Reduction operation applied at the receiving dofs.
    enum class Op { Sum, Min, Max };
 
+   /// Construct a device communicator based on the GroupCommunicator @a gc_.
    explicit DeviceGroupCommunicator(const GroupCommunicator &gc_);
 
+   /// Begin a group broadcast of the true-dof data @a x_tdof.
    template <typename T>
    void BcastBeginTDofs(Array<T> &x_tdof) const;
 
+   /// Begin a group broadcast of the local-dof data @a x_ldof.
    template <typename T>
    void BcastBeginLDofs(Array<T> &x_ldof) const;
 
+   /// Finalize a group broadcast into the local-dof data @a x_ldof.
    template <typename T>
    void BcastEndLDofs(Array<T> &x_ldof) const;
 
+   /// Begin a group reduction of the local-dof data @a x_ldof.
    template <typename T>
    void ReduceBeginLDofs(const Array<T> &x_ldof) const;
 
+   /** @brief Finalize a group reduction into the true-dof data @a x_tdof,
+       applying the reduction operation @a op. */
    template <typename T>
    void ReduceEndTDofs(Array<T> &x_tdof, Op op) const;
 
+   /** @brief Finalize a group reduction into the local-dof data @a x_ldof,
+       applying the reduction operation @a op. */
    template <typename T>
    void ReduceEndLDofs(Array<T> &x_ldof, Op op) const;
 
-   // Kernel: copy ltdofs from 'x_tdof' to ldofs in 'x_ldof'.
-   //         x_ldof[ltdof_ldof[i]] = x_tdof[i]
+   /** @brief Kernel: copy ltdofs from @a x_tdof to ldofs in @a x_ldof,
+       i.e. x_ldof[ltdof_ldof[i]] = x_tdof[i]. */
    template <typename T>
    void CopyTDofsToLDofs(const Array<T> &x_tdof, Array<T> &x_ldof) const;
 
+   /// Prolongate the true-dof data @a x_tdof to the local-dof data @a x_ldof.
    template <typename T>
    void Prolongate(const Array<T> &x_tdof, Array<T> &x_ldof) const;
 
+   /** @brief Transpose of Prolongate(): reduce the local-dof data @a x_ldof
+       into the true-dof data @a x_tdof, applying the operation @a op. */
    template <typename T>
    void ProlongateTranspose(const Array<T> &x_ldof,
                             Array<T> &x_tdof, Op op = Op::Sum) const;
 
-   // Kernel: copy owned ldofs from 'x_ldof' to ltdofs in 'x_tdof'.
-   //         x_tdof[i] = x_ldof[ltdof_ldof[i]]
+   /** @brief Kernel: copy owned ldofs from @a x_ldof to ltdofs in @a x_tdof,
+       i.e. x_tdof[i] = x_ldof[ltdof_ldof[i]]. */
    template <typename T>
    void Restrict(const Array<T> &x_ldof, Array<T> &x_tdof) const;
 
+   /** @brief Transpose of Restrict(): copy the true-dof data @a x_tdof into
+       the owned local dofs of @a x_ldof and set the remaining (external)
+       local dofs to zero. */
    template <typename T>
    void RestrictTranspose(const Array<T> &x_tdof, Array<T> &x_ldof) const;
 

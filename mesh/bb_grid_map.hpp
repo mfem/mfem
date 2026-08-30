@@ -156,11 +156,16 @@ public:
    /// Get list of elements corresponding to a grid cell.
    Array<int> GridCellToElements(int i) const;
 
-   // Some getters
+   /// Return the map from grid cells to candidate elements whose bounding
+   /// boxes intersect each cell.
    const Array<unsigned int> &GetGridMap() const { return lgrid_map; }
+   /// Return the number of grid cells per unit extent in each direction.
    const Vector &GetGridFac() const { return lmap_fac; }
+   /// Return the minimum extent of the grid in each direction.
    const Vector &GetGridMin() const { return lmap_bnd_min; }
+   /// Return the maximum extent of the grid in each direction.
    const Vector &GetGridMax() const { return lmap_bnd_max; }
+   /// Return the grid resolution (number of cells) in each direction.
    const Array<int> &GetGridN() const { return lmap_nx; }
 private:
    /** @brief Setup using the element-wise bounding boxes.

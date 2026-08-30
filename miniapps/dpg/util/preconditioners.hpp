@@ -38,7 +38,7 @@ public:
       y*=c;
    }
 
-   void MultTranspose (const Vector & x, Vector & y) const override
+   void MultTranspose(const Vector & x, Vector & y) const override
    {
       this->Mult(x,y);
    }
