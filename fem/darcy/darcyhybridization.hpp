@@ -876,10 +876,10 @@ public:
 
        What cannot be wrapped is an Operator on the TRACE ALONE: the flux and
        the potential are Newton state here, and a trace-only operator has
-       nowhere to put them. A mode that tried -- NLOrdering, and a
-       LineariseThenCondense that claimed to be this method -- is deleted; it
-       was a condensation in disguise, measurably slower than
-       CondenseThenLinearise and unable to solve problems it solved.
+       nowhere to put them. A mode that tried -- an NLOrdering enum whose
+       LineariseThenCondense claimed to be this method -- is deleted; it was a
+       condensation in disguise, measurably slower than the condensation it
+       was meant to beat and unable to solve problems that one solves.
 
        One step, given a state (@a x, @a x_tr) and the load @a b:
 
@@ -911,8 +911,8 @@ public:
        gradient modes agree at every iterate above round-off.
 
        And it solves stiff problems the deleted trace-only mode could not. Of
-       the four configurations where CondenseThenLinearise converges and that
-       mode did not, three fall to NPC with a backtracking line search on the
+       the four configurations where the reduced trace operator converges and
+       that mode did not, three fall to NPC with a backtracking line search on the
        full residual -- 13, 10 and 17 steps -- and the fourth stalls at
        2.9e-03, which is ordinary Newton stagnation. Undamped, NPC wanders on all four
        exactly as any cold Newton does: **the globalisation this method wants

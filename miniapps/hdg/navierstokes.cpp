@@ -129,19 +129,48 @@
 //               solution is what would settle the general question, and none
 //               of the four problems here is one.
 //
-//               **What is verified, and what a rate study needs.** Plane
-//               Poiseuille at order >= 2 comes back at 2.6e-15 / 2.5e-15 /
-//               3.8e-16 in q / p / v and is correctly inexact at order 1.
-//               Kovasznay at Re = 40 gives the optimal k+1 in the potential --
-//               v rate 2.11 at k = 1, 3.09 at k = 2, 4.11 at k = 3 over
-//               1/h = 4, 8, 16, 32 -- while the flux rates lag and are still
-//               climbing there, which is the roadmap's warning that rates must
-//               be taken asymptotically. Any rate study needs
-//               `-gm 0 -rtol 1e-8`: the default GS-preconditioned trace solve
-//               leaves the pressure error 13% off the converged value at 48x32
-//               (2.569e-5 against 2.274e-5) with Newton's *relative* test
-//               satisfied both times, so the comparison would be measuring the
-//               preconditioner rather than the discretisation.
+//               **The solve is NPC**, Newton on the full (q, u, u_hat)
+//               system with the Jacobian solved by hybridized elimination --
+//               DarcyNPCOperator and DarcyNPCSolver, see
+//               DarcyHybridization::NPCResidual(). It used to go through
+//               DarcyOperator, whose unknown is the TRACE alone and which
+//               rebuilds the fields from it afterwards; NPC keeps them as
+//               Newton state, so there is nothing to recover and the
+//               pseudo-time step a steady problem never wanted is gone.
+//               GetNumLocalNLIterations() prints 0, which is what says the
+//               method really changed.
+//
+//               **One consequence a caller has to know: the convergence test
+//               is now on the FULL residual, not the trace alone.** The local
+//               rows dominate its norm, so a given -rtol stops earlier in
+//               trace terms than it used to. Order 3 Poiseuille reads 8.9e-13
+//               at -rtol 1e-10 and 8.7e-15 at 1e-14; the answer was never
+//               wrong, the test was measuring half the system. An rtol that
+//               was adequate before may not be now.
+//
+//               **What is verified.** Both routes reach the same discrete
+//               solution, each run at a tolerance that stops it improving --
+//               relative error in q, old trace-only against NPC:
+//               8.09e-15 / 4.42e-15 on Poiseuille at order 2, 1.01e-14 /
+//               8.72e-15 at order 3, 4.26e-16 / 3.88e-16 on uniform flow,
+//               1.05e-14 / 9.68e-15 on Couette, and Kovasznay identical to
+//               every digit at 0.00853108, which is the case where the
+//               discretisation rather than the solver sets the error. NPC is
+//               not more accurate and should not be: it is the same discrete
+//               problem by a different method.
+//
+//               Plane Poiseuille at order >= 2 comes back at round-off and is
+//               correctly inexact at order 1. Kovasznay at Re = 40 gives the
+//               optimal k+1 in the potential -- v rate 2.11 at k = 1, 3.09 at
+//               k = 2, 4.11 at k = 3 over 1/h = 4, 8, 16, 32 -- while the flux
+//               rates lag and are still climbing there, which is the roadmap's
+//               warning that rates must be taken asymptotically. Any rate
+//               study needs `-gm 0` and a tight `-rtol`: the default
+//               GS-preconditioned trace solve leaves the pressure error 13%
+//               off the converged value at 48x32 (2.569e-5 against 2.274e-5)
+//               with Newton's *relative* test satisfied both times, so the
+//               comparison would be measuring the preconditioner rather than
+//               the discretisation.
 //
 //               Problem 1, plane Poiseuille, is an exact solution of the
 //               equations with **zero source term**, and it is a polynomial:
@@ -334,6 +363,36 @@ static void ExactFlux(const ProblemParams &pars, const Vector &x, Vector &q)
    }
 }
 
+/** @brief Newton with backtracking on the full residual, which is the
+    globalisation NPC asks for.
+
+    MFEM's NewtonSolver::ComputeScalingFactor is the hook and returns 1 by
+    default. Halving until the residual decreases is the crudest useful rule
+    and is enough here; what makes it meaningful under NPC rather than under a
+    reduced operator is that `c` spans the flux, the potential and the trace,
+    so scaling it scales the fields with the trace. A line search on an
+    operator over the trace alone scales the trace and leaves the field update
+    to whatever the substitution makes of it. */
+class NSBacktrackingNewton : public NewtonSolver
+{
+protected:
+   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override
+   {
+      Vector xt(x.Size()), rt(x.Size());
+      const real_t n0 = Norm(r);
+      real_t alpha = 1.0;
+      for (int k = 0; k < 20; k++)
+      {
+         add(x, -alpha, c, xt);
+         oper->Mult(xt, rt);
+         if (b.Size() == rt.Size()) { rt -= b; }
+         if (Norm(rt) < n0) { break; }
+         alpha *= 0.5;
+      }
+      return alpha;
+   }
+};
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -357,6 +416,8 @@ int main(int argc, char *argv[])
    int solver_type = (int) DarcyOperator::SolverType::Newton;
    real_t newton_rtol = -1.;
    real_t newton_atol = 0.;
+   int newton_iters = 1000;
+   bool line_search = false;
    int gradient_mode = -1;
    real_t hsign = -1.;
    bool bc_full = true;
@@ -442,6 +503,16 @@ int main(int argc, char *argv[])
                   "reduction is achievable, and Newton spins to max_iters -- "
                   "measured r0 = 3.7e-10 then 4.7e-10, 8.5e-10, 8.9e-10. A "
                   "floor is the fix there.");
+   args.AddOption(&newton_iters, "-nit", "--newton-iterations",
+                  "Outer Newton iteration cap.");
+   args.AddOption(&line_search, "-ls", "--line-search",
+                  "-no-ls", "--no-line-search",
+                  "Backtrack on the FULL residual. This is the globalisation "
+                  "NPC wants and it is well defined only because the flux, "
+                  "potential and trace are one Newton vector, so a step "
+                  "scales all three together. Off by default: it changes no "
+                  "converged answer, only whether a cold start reaches one, "
+                  "and -cont covers the same ground for the cases here.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -883,36 +954,116 @@ int main(int argc, char *argv[])
    fform.Update(&fes_u, rhs.GetBlock(1), 0);
    hform.Update(&fes_t, rhs.GetBlock(2), 0);
 
-   // 12. Solve.
+   // 12. Solve, by NPC: Newton on the FULL (q, u, u_hat) system with the
+   //     Jacobian solved by hybridized elimination. See
+   //     DarcyHybridization::NPCResidual().
+   //
+   //     This miniapp used to go through DarcyOperator and a single
+   //     backward-Euler step, which drives an unknown that is the TRACE alone
+   //     and then rebuilds the fields from it with RecoverFEMSolution(). NPC
+   //     does not want that back-substitution: q and u are Newton state, so
+   //     they are already in `x` when the solve returns, and the whole
+   //     pseudo-time apparatus for a steady problem goes with it.
+   //
+   //     What that buys, beyond being the method NPC actually is: the
+   //     convergence test is on the full residual rather than on the trace
+   //     alone, and a line search scales the fields and the trace together
+   //     because they are one vector. Every local operation is one linear
+   //     solve against one factorisation, and GetNumLocalNLIterations() stays
+   //     at zero, which is the acceptance signal that it really is NPC.
 
-   DarcyOperator op(ess_flux_tdofs, &darcy, {&gform, &fform, &hform}, {},
-                    (DarcyOperator::SolverType) solver_type, false, false);
-   op.SetTraceSolveLevel(gradient_mode);
-   op.SetTolerance((newton_rtol > 0.) ? newton_rtol : 1e-6, newton_atol);
+   darcy.Finalize();
+
+   //     The load is the (flux, potential) pair; the trace form rides in the
+   //     right-hand side of Newton's own Mult(), because the trace row of the
+   //     residual carries no load of its own.
+   BlockVector load(rhs, darcy.GetOffsets());
+   DarcyNPCOperator npc(*hyb, offsets, load);
+
+   BlockVector b(offsets);
+   b = 0.;
+   b.GetBlock(2) = rhs.GetBlock(2);
+
+   //     The reduced trace system, by -gm. Matrix-free has no matrix to
+   //     precondition with, so it gets a plain Krylov method.
+   unique_ptr<Solver> trace_solver;
+   unique_ptr<Solver> trace_prec;
+   if (gradient_mode == 2)
+   {
+      auto gmres = make_unique<GMRESSolver>();
+      gmres->SetKDim(200);
+      gmres->SetMaxIter(2000);
+      gmres->SetRelTol(1e-12);
+      gmres->SetAbsTol(0.);
+      gmres->SetPrintLevel(-1);
+      trace_solver = std::move(gmres);
+   }
+   else
+   {
+#ifdef MFEM_USE_SUITESPARSE
+      if (gradient_mode <= 0)
+      {
+         trace_solver = make_unique<UMFPackSolver>();
+      }
+      else
+#endif
+      {
+         trace_prec = make_unique<GSSmoother>();
+         auto gmres = make_unique<GMRESSolver>();
+         gmres->SetKDim(200);
+         gmres->SetMaxIter(2000);
+         gmres->SetRelTol(1e-12);
+         gmres->SetAbsTol(0.);
+         gmres->SetPrintLevel(-1);
+         gmres->SetPreconditioner(*trace_prec);
+         trace_solver = std::move(gmres);
+      }
+   }
+   DarcyNPCSolver lin(*trace_solver);
+
+   //     NPC needs a Jacobian solve, so a gradient-free outer solver has
+   //     nothing to do with the elimination. LBFGS and LBB never call
+   //     GetGradient(), so they are accepted by the operator and then diverge
+   //     -- measured, to NaN, on a case Newton solves in four steps -- and a
+   //     matrix-free Krylov method over the Jacobian is refused outright,
+   //     because the handle is solve-only. Refuse both here rather than let a
+   //     flag combination fail obscurely.
+   MFEM_VERIFY(solver_type == (int) DarcyOperator::SolverType::Newton ||
+               solver_type == (int) DarcyOperator::SolverType::KINSol,
+               "This miniapp is driven by NPC, which needs a Jacobian solve. "
+               "Use -nls 3 (Newton) or -nls 4 (KINSol); LBFGS and LBB cannot "
+               "drive it.");
+
+   unique_ptr<NewtonSolver> newton(line_search ? new NSBacktrackingNewton()
+                                   : new NewtonSolver());
+   newton->SetOperator(npc);
+   newton->SetSolver(lin);
+   newton->SetRelTol((newton_rtol > 0.) ? newton_rtol : 1e-6);
+   newton->SetAbsTol(newton_atol);
+   newton->SetMaxIter(newton_iters);
+   newton->SetPrintLevel(1);
 
    chrono.Clear();
    chrono.Start();
    {
-      real_t t = 0., dt = 1.;
-      BackwardEulerSolver ode;
-      ode.Init(op);
-
-      // The operator is steady, so a single backward-Euler step with no
-      // inertial term is one solve of the steady system; DarcyOperator returns
-      // the increment that lands on it. Two steps are therefore two solves,
-      // the second starting from the first's answer -- which is all Stokes
-      // continuation needs.
+      // Two solves for Stokes continuation, the second starting from the
+      // first's answer -- which under NPC is simply `x`, all three blocks of
+      // it, with nothing to recover in between.
       if (continuation && !stokes)
       {
          ac_flux.SetStokes(true);
-         ode.Step(x, t, dt);
+         newton->Mult(b, x);
          ac_flux.SetStokes(false);
          cout << "--- Stokes continuation done; continuing onto "
               "Navier-Stokes ---" << endl;
       }
-      ode.Step(x, t, dt);
+      newton->Mult(b, x);
    }
    chrono.Stop();
+
+   cout << "local nonlinear iterations: " << hyb->GetNumLocalNLIterations()
+        << " (NPC runs none; anything else means the ordering did not change)"
+        << endl;
 
    // 13. Errors.
 

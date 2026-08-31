@@ -3520,9 +3520,9 @@ void DarcyHybridization::NPCCheck() const
                "NPC does not support LocalOpType::FluxNL: ComputeElementH() "
                "does not write the Schur complement into Df_data in that mode, "
                "so the elimination would silently use the factored linear "
-               "potential mass instead. Use "
-               "NLOrdering::CondenseThenLinearise, or teach "
-               "ComputeElementH() to write it back.");
+               "potential mass instead. Drive the reduced trace operator "
+               "instead -- FormLinearSystem() and the hybridization as an "
+               "Operator -- or teach ComputeElementH() to write it back.");
 }
 
 void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,

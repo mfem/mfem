@@ -1,19 +1,21 @@
 # Nonlinear `DarcyHybridization`: the reduced operator, and NPC
 
 A technical reference for the two ways this class solves a nonlinear
-hybridized system: `NLOrdering::CondenseThenLinearise`, which reduces the
-problem to an `Operator` on the **trace**, and **NPC**
+hybridized system: the **reduced trace operator**, which condenses first and
+linearises second and hands the outer solver an `Operator` on the **trace**,
+and **NPC**
 (`NPCResidual`/`NPCGradient`/`NPCReduce`/`NPCRecover`, wrapped as
 `DarcyNPCOperator` + `DarcyNPCSolver`), which runs Newton on the **full**
 `(q, u, λ)` system with the Jacobian solved by hybridized elimination.
 
 **A third thing used to be here and is deleted.**
-`NLOrdering::LineariseThenCondense` was an `Operator` on the trace alone whose
+`NLOrdering::LineariseThenCondense` was an `Operator` on the trace alone
+whose
 local blocks were eliminated by a linear solve against a retained
 linearisation, and its comments claimed it was the NPC method of Nguyen,
 Peraire & Cockburn, JCP 228 (2009) 8841–8855, eqs (14)–(18). It was not: NPC's
 fields are Newton state and a trace-only operator has nowhere to keep them.
-Measured, it was *slower* than `CondenseThenLinearise` on stiff problems and
+Measured, it was *slower* than the plain condensation on stiff problems and
 failed four configurations that one solves. Sections 3, 4.3, 5.1 and 5.2 of
 this document were about it and are gone with it; what it taught is in the
 doxygen of the things that replaced it.
@@ -94,7 +96,7 @@ is nonlinear (`A` is inverted up front), `FluxNL` when only the flux mass is
 
 ---
 
-## 2. `CondenseThenLinearise` — the default
+## 2. The reduced trace operator — condense first, linearise second
 
 The unknown handed to the outer solver is the trace alone, and the *reduced
 residual* is a genuinely nonlinear function of it: eliminating `u` and `p` on
@@ -206,7 +208,8 @@ virtual, and backtracking on the full residual is what NPC wants — well
 defined here precisely because the fields and the trace are one vector and
 scale together. A dozen-line subclass converges three stiff configurations
 that the deleted trace-only mode could not, in 13, 10 and 17 steps. Nothing
-about it is Darcy-specific, so it is not in the library.
+about it is Darcy-specific, so it is not in the library;
+`miniapps/hdg/navierstokes.cpp` carries one behind `-ls` as a worked example.
 
 ### 3.2 The four raw calls
 
@@ -299,10 +302,15 @@ Two hard refusals, both `MFEM_VERIFY` in `NPCCheck()`:
 
 Missing rather than refused:
 
-* **no miniapp flag**, so nothing in the regression suite exercises NPC.
-  `DarcyOperator::ImplicitSolve` drives a trace-sized unknown and then calls
-  `RecoverFEMSolution` to rebuild the fields from the trace — the exact
-  back-substitution NPC does not want, since the fields are already state;
+* **`navierstokes` is driven by NPC and is the worked example**; nothing
+  else is. `convdiff` and `pconvdiff` still go through
+  `DarcyOperator::ImplicitSolve`, which drives a trace-sized unknown and then
+  calls `RecoverFEMSolution` to rebuild the fields from the trace — the exact
+  back-substitution NPC does not want, since the fields are already state.
+  Moving them needs that undone, a slot for the trace right-hand side, and a
+  guard for the H(div) flux they can be run with. Neither has an NPC
+  regression reference, and `navierstokes` has no regression reference at
+  all;
 * **the trace right-hand side has no slot.** `load` is `(flux, potential)`;
   a Neumann datum assembled on the trace has to ride in `b` of
   `NewtonSolver::Mult(b, x)`;
@@ -397,7 +405,7 @@ state.
 
 They asked whether `Mult` is a function of its argument, and what contract a
 solver had to honour. Both were properties of the deleted trace-only mode,
-which retained a linearisation between calls. `CondenseThenLinearise` solves
+which retained a linearisation between calls. The reduced operator solves
 its local problem afresh every evaluation and NPC holds no state between
 calls at all, so for both of them `Mult` is a function of its argument and
 there is no contract to state.
@@ -421,7 +429,7 @@ Both routes work with every outer solver MFEM offers, and neither places a
 requirement on one. The table that stood here was mostly a list of what the
 deleted mode broke.
 
-| solver | `CondenseThenLinearise` (trace) | NPC (full system) |
+| solver | reduced trace operator | NPC (full system) |
 |---|---|---|
 | `NewtonSolver` | works | works, and needs to know nothing |
 | Newton + line search | works | works, and the search scales the fields with the trace |
@@ -431,7 +439,7 @@ deleted mode broke.
 | JFNK / matrix-free outer solve | works | **unavailable** — it needs the Jacobian's action and the handle is solve-only |
 
 `SetLocalNLSolver()` configures the local nonlinear solve that
-`CondenseThenLinearise` runs per element. **NPC has no local nonlinear solve**,
+the reduced operator runs per element. **NPC has no local nonlinear solve**,
 so it is inert there, and `GetNumLocalNLIterations()` staying at zero is the
 acceptance signal that NPC is doing what it claims: one local *linear* solve
 per outer step.
@@ -451,8 +459,7 @@ Current callers:
 | call site | `with_bnl` |
 |---|---|
 | `MultNL(GradMult)` — the matrix-free gradient application, `cpp:2067` | `true` |
-| `MultInvLin` affine step, `cpp:3026` | `true` |
-| `MultInvLin` local correction, `cpp:3077` | `true` |
+| `NPCReduce` and `NPCRecover` | `true` — they eliminate with the *Jacobian*, so its (0,1) block is the one that belongs |
 | `ReduceRHS` (linear path), `cpp:3562` | default `false` — correct, `Bnl` is empty |
 | `ComputeSolution` (linear path), `cpp:3772` | default `false` — same |
 
@@ -500,7 +507,7 @@ These apply to the nonlinear hybridized operator generally.
    because it is free of side effects.
 3. **`GetGradient()` overwrites the local block storage.** After it,
    `Af_data`/`Df_data` hold the last Jacobian and its Schur complement, not the
-   forms. Under `CondenseThenLinearise` this is invisible, because the residual
+   forms. For the reduced operator this is invisible, because the residual
    reads `Af_lin_data`/`Df_lin_data`. Under NPC it is why the Jacobian handle
    is solve-only: there is nothing left to apply `J` out of.
 4. **The returned gradient does not outlive the next call.** `Assembled` resets
@@ -519,9 +526,8 @@ These apply to the nonlinear hybridized operator generally.
    wants; under NPC the fields are already Newton state and the
    back-substitution is redundant at best. Unchecked either way.
 
-7. **`SetNonlinearOrdering()` discards the linearisation** when the ordering
-   actually changes (`fem/darcy/darcyhybridization.cpp:2906-2919`), so it is
-   safe to call mid-life; it is a no-op when the ordering is unchanged.
+7. **Moot.** It described `SetNonlinearOrdering()`'s cache invalidation, and
+   both the method and the cache are deleted.
 
 ---
 
@@ -531,7 +537,9 @@ They are different methods reaching the same discrete solution, so the choice
 is about cost and robustness rather than correctness. Tests assert that both
 get there.
 
-**`CondenseThenLinearise`** is the default and every existing caller gets it.
+**The reduced trace operator** is what every existing caller gets, and there
+is no longer a switch: with `LineariseThenCondense` deleted the class has one
+condensation and NPC beside it.
 The outer unknown is the trace alone, which is much the smaller vector, and the
 local problem is solved to a tolerance you control. It is the only route that
 is **parallel** and the only one that accepts an **H(div) flux**. Reach for it
@@ -544,7 +552,7 @@ condensation; the price is that the unknown is the whole system and the
 convergence test with it. Measured on a stiff pedestal source: NPC with a
 backtracking line search converges three configurations that the deleted
 trace-only mode could not, in 13, 10 and 17 steps, and the fourth stalls at
-2.9e-03 — ordinary Newton stagnation, which `CondenseThenLinearise` also has
+2.9e-03 — ordinary Newton stagnation, which the reduced operator also has
 on some of these.
 
 **A caveat worth stating plainly**, because it is the reverse of what the

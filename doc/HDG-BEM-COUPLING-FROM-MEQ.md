@@ -223,46 +223,26 @@ fallback is not "assemble `B` and eliminate outside"; it is:
 * then solve the bordered system by block elimination against one factorisation,
   `M` backsolves, which `SetReuseSymbolic()` already makes affordable.
 
-**CORRECTION, 2026-08-30.** An earlier version of this section claimed that the
-fallback exists under `CondenseThenLinearise` and **not** under
-`LineariseThenCondense`, on the grounds that an auxiliary unknown enters only
-through a retained `r_lin` and so a difference of the reduced residual would
-return exactly zero. **That was read out of this header's own summary of the
-ordering and is not what the code does.** `darcyhybridization.hpp`'s description
-of `SetNonlinearOrdering()` prints the substitution as
+**CORRECTION, twice over.** An earlier version of this section claimed the
+fallback exists under one nonlinear ordering and not the other, on the grounds
+that an auxiliary unknown enters only through a retained local residual, so a
+difference of the reduced residual would return exactly zero. That was read
+out of a doxygen summary rather than out of the code, and it was wrong: the
+local residual is recomputed at the fields actually in use on every
+evaluation, so the difference is not zero. It was then measured — meq's
+`psi_ax` bordered Newton, border still obtained by differencing, agreeing to
+every digit printed between the two orderings at `k = 2` on an 8x8 mesh, one
+or two iterations apart.
 
-```
-(q, u)(L) = (q, u)_lin + M^-1( -r_lin - [C; E](L - L_lin) )
-```
-
-with `r_lin` among the quantities `GetGradient()` refreshes and retains.
-`Relinearise()` states the opposite in its own comment — the local residual at
-the linearisation point is *deliberately not retained*, because retaining it made
-it enter the substitution twice and cost the gradient its exactness — and
-`MultInvLin()`'s correction loop calls `LocalResidual()`, which constructs a
-`LocalNLOperator` and evaluates it at the current fields. Anything the source
-depends on is therefore read afresh on every residual evaluation.
-
-**So the difference is not zero, and it was measured before this was rewritten.**
-meq's `ψ_ax` bordered Newton, border still obtained by differencing, run under
-both orderings at `k = 2` on an 8×8 mesh:
-
-| case | condense-first | linearise-first |
-|---|---|---|
-| ν = 2, A = 1 | 3.058984e−01, 4 it | 3.058984e−01, 5 it |
-| ν = 2, A = 100 | 3.036075e+00, 4 it | 3.036075e+00, 5 it |
-| ν = 4, A = 1 | 2.834510e−01, 8 it | 2.834510e−01, 9 it |
-| ν = 4, A = 10 | 8.643745e−01, 11 it | 8.643745e−01, 13 it |
-
-Identical to every digit printed, self consistent to between 2e−16 and 7e−12,
-one or two iterations more. meq's refusal of that ordering has been lifted.
-
-**What that leaves of the fallback**, under either ordering: evaluate the reduced
-residual at `M` perturbed values of the auxiliary unknown and difference, then
-solve the bordered system by block elimination against one factorisation.
-`M` residual evaluations and `M` backsolves per Newton step. It works. It is
-fragile in the way §3.1 describes, because differencing a condensed residual is
-only as good as the local solves under it.
+**And the ordering it was hedging against no longer exists.**
+`LineariseThenCondense` is deleted. What remains is `CondenseThenLinearise`,
+under which the fallback plainly works, and **NPC**, under which it works and
+is cheaper to reason about: the fields are Newton state, so the auxiliary
+unknown's column is a derivative of a residual that is evaluated, not of one
+reconstructed from a linearisation. §3's assembled border would be cleaner
+still, and NPC is the natural place to build it — `NPCReduce()` and
+`NPCRecover()` are already the two directions of the local elimination that
+`meq/NORMALISED-LINEARISE-FIRST.md` asks for by name.
 
 **So §3 is an improvement on a route that already works, not a prerequisite.**
 That is a weaker claim than this document used to make and it is the correct one.

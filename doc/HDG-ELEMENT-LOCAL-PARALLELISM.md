@@ -69,9 +69,12 @@ outer step instead of a nonlinear solve that re-assembles and re-factorises —
 see `DarcyHybridization::NPCResidual()`. What is absent per local step is the
 Jacobian *assembly*, not the integrator calls: the residual still goes through
 `LocalNLOperator`. So the thread-safety obstacles above are not avoided by
-choosing NPC, only the factorisation work is. NPC is **serial only** today,
-which is the first thing to fix if this section is picked up: `NPCResidual()`
-calls the serial `MultNL` and sizes on L-dofs.
+choosing NPC, only the factorisation work is.
+
+NPC now runs in parallel, and how it does is the shape this section wants: the
+flux and potential are L2 and therefore rank-local, so **only the trace needs
+communication at all** — prolonged in, assembled out. The element loop itself
+is untouched by the rank count.
 
 ## 3. The remaining scatters
 

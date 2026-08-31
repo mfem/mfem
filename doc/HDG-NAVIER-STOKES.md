@@ -15,6 +15,12 @@ the code**, because that is what survives:
 | the dof ordering a system's HDG face blocks use | `HyperbolicFormIntegrator::AssembleHDGFaceGrad`, `fem/hyperbolic.cpp` |
 | extending to the compressible equations | foot of `navierstokes.cpp` |
 
+The solve is **NPC** — Newton on the full `(q, u, û)` system with the Jacobian
+solved by hybridized elimination — rather than `DarcyOperator`'s trace-only
+unknown. The header comment carries the comparison, including the one thing a
+caller has to know: the convergence test is now on the full residual, so an
+`-rtol` that was adequate before may not be.
+
 ## What is left
 
 * **`-bcphys` is wrong, and says so in the source.** A boundary trace component

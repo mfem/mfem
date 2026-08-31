@@ -17,18 +17,32 @@ still point somewhere sensible. Where a section is gone it says why.
 `TransferredDatumCoefficient`), `miniapps/hdg/extension.cpp`, and 27 unit test
 cases in `tests/unit/fem/test_darcy_extension.cpp`.
 
-What is left here is a **branch merge**, not development: the two branches are
-21/13 diverged and neither has been merged into the other. Both now descend
-from `gf-hdg-dev`, which they did not before — `gf-hdg-subdomains-dev` was
-rebased onto it — so the merge-base is a real common ancestor rather than a
-point either branch has moved past.
+**This is not a merge task, and an earlier version of this entry said it
+was.** The two branches are meant to be reviewed by upstream *separately*, so
+neither is waiting on the other and the divergence between them (32/13, and
+growing) is not a debt to pay down. Merging them is done elsewhere and for a
+different purpose: `meq-integration` in a separate working tree
+(`/home/ian/projects/mfem/mfem-src`) carries **all three** HDG branches on
+upstream master and is what `meq` builds against. So the machinery below is
+not unavailable in an absolute sense — it is unavailable *here*, and present
+there.
+
+What follows for the sections that want §1's machinery — §3's `τ` floor, §5's
+`anisodiff -p 11`, §7's `η₅` — is that they cannot be done **on this branch**
+at all, because `HDGFloorStabilization`, that driver and
+`TransferredDatumCoefficient` live on the other one. They are not blocked
+work; they are work that belongs to the other branch's PR, or to the
+integration tree. Nothing here should wait for them.
+
+One artefact remains on this branch either way: the branch is named
+`gf-hdg-linearise-first` after an ordering that has since been deleted.
 
 One artefact of §1 sits on this branch: `fem/darcy/darcyform.hpp:174` refers
 the reader to `extension_hdg.hpp`, which does not exist here, and
 `AssembleFluxMassBdrFaces()` exists solely to serve §1.
 
-**Three other sections are blocked on this merge**: §3's remedy, §5's remaining
-problem and §7's `η₅`. See each.
+**Three other sections want machinery that lives there**: §3's remedy, §5's
+remaining problem and §7's `η₅`. See each. None of them is actionable here.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -49,7 +63,8 @@ way that the entry did not previously name.
   128) that keeps the whole rate sequence.
 * **The floor is not in the library on this branch.** `HDGFloorStabilization`
   is on `gf-hdg-subdomains-dev`; here the only floor is a test-local
-  `class FloorTau` in that same test file. So §3 is blocked on §1's merge.
+  `class FloorTau` in that same test file. So §3 belongs to the other branch's
+  PR, not to this one.
 
 The loss itself and the floor's repair are already pinned by regressions there.
 
@@ -96,7 +111,8 @@ that on its own window: its decay rate `λ = Re/2 − √(Re²/4 + 4π²) → �
 so the parameter that makes it convective flattens its along-flow structure.
 **A genuinely two-directional exact solution is what would settle the general
 question.** `anisodiff -p 11` on `gf-hdg-subdomains-dev` is the linear-diffusion
-shape of it, which makes this a second thing waiting on §1's merge.
+shape of it, and it is on the other branch — so this half of §5 belongs
+there too.
 
 A library constraint that bounds how far this can go:
 `MixedConductionNLFIntegrator`'s HDG face stabilization for more than one
@@ -123,7 +139,7 @@ sets an element order or computes a smoothness indicator, so this is both the
 takes an integrator rather than a coefficient, so it needs an adapter or a
 second entry point — that much the entry already said. What it did not say is
 that **`TransferredDatumCoefficient`, the thing `η₅` would be built from, is
-not on this branch**: it is §1's. Third item waiting on that merge.
+not on this branch**: it is §1's, and so is this.
 
 ## 8. Time integration of the DAE
 
@@ -167,6 +183,43 @@ claim — that its step 2 is what makes the classic local postprocessing general
 in `vdim` — has been overtaken, since that postprocessing is already general.
 Nothing in `fem/darcy` interpolates a coefficient or holds a
 `QuadratureFunction`.
+
+## 11. NPC — Newton on the full system
+
+**Built**: `DarcyHybridization::NPCResidual/NPCGradient/NPCReduce/NPCRecover`,
+wrapped as `DarcyNPCOperator` + `DarcyNPCSolver`, serial and parallel, with
+`[NPC]` cases in `tests/unit/fem/test_darcy_npc.cpp` — including this tree's
+first `[Parallel]` Darcy test. `miniapps/hdg/navierstokes.cpp` is driven by it.
+**The mechanism and every measurement are in the code**, on `NPCResidual()`;
+`doc/HDG-ORDERING-API.md` §3 is the API reference for a caller.
+
+What is left:
+
+* **`convdiff` and `pconvdiff` still use `DarcyOperator`.** Moving them is the
+  one item with real substance: `ImplicitSolve` drives a *trace-sized* unknown
+  from `FormLinearSystem` and then calls `RecoverFEMSolution` to rebuild the
+  fields from it, which is exactly the back-substitution NPC does not want.
+  About fifteen sites, plus a slot for the trace right-hand side — NPC's load
+  is `(flux, potential)` and `convdiff` puts its Neumann datum in `hform` —
+  plus a guard, since both can be run with an H(div) flux that NPC refuses.
+  Until then **NPC has no regression coverage**: `navierstokes` has no
+  reference at all.
+* **H(div) flux.** Refused rather than attempted: the local rows would be a
+  conforming scatter with RT sign conventions that have not been checked.
+* **`LocalOpType::FluxNL`.** Refused, and the refusal is the interesting part
+  — `ComputeElementH()` does not write the Schur complement into `Df_data` in
+  that mode, so anything reading it back gets the factored linear potential
+  mass. Teaching `ComputeElementH()` to write it back would lift the
+  restriction for NPC *and* close §7.3 of the API document.
+* **`ComputeSolution()`** has never been run against an NPC solution, so the
+  postprocessing route is unchecked there.
+* **A regression case is on offer and has not been taken.** The caller's
+  transport barrier is the case that used to throw out of
+  `NewtonSolver::Mult`'s `IsFinite` check at iteration zero, and nothing here
+  reproduces that fault — the only evidence the divergence guard fixed it is
+  theirs. They have offered to extract it from
+  `tests/convergence/PedestalConvergence.cpp`. Worth taking before the guard is
+  ever touched.
 
 ## Deliberately not being done here
 

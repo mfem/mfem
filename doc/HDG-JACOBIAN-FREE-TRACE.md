@@ -5,14 +5,12 @@ three levels of trace solve are selectable at run time
 (`DarcyHybridization::SetGradientMode()`, `-gm 0|1|2`) and the matrix-free
 reduced gradient is complete.
 
-An entry stood here saying `KINSolver` had to be driven by hand — that
-`LineariseThenCondense` required `GetGradient()` once per accepted iterate,
-that `KINSolver::SetJFNK(true)` reached it only through `PrecSetup` at a
-frequency KINSOL chose, and that `KINSolver` should either honour the contract
-or refuse the combination. There is no contract now: `Mult()` linearises at its
-own argument, a Jacobian-free solve that never asks for a gradient reaches the
-reference answer to 2.5e-15, and the naming and guarding apparatus that entry
-pointed at has been removed. Nothing is owed to `KINSolver`.
+Two entries that stood here are gone. One said `KINSolver` had to be driven by
+hand to honour a contract `NLOrdering::LineariseThenCondense` imposed; that
+mode is deleted and no contract survives it. The other asked whether a
+Jacobian-free outer solve could drive the reduced operator — it can, and
+`KINSolver` drives NPC too, wanting only `SetMaxSetupCalls(1)` to be a true
+Newton rather than a lagged-Jacobian one.
 
 ## Preconditioning a trace system that is never assembled
 
