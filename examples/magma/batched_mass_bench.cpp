@@ -592,25 +592,32 @@ int main(int argc, char *argv[])
       tripack_inverse_setup_ms, tripack_apply_ms,
       (double)tripack_rel_res_max, tripack_rel_res_l2});
 #ifdef MFEM_USE_MAGMA
-   methods.push_back(
+   if (magma_supported_device)
    {
-      "MAGMA packed Cholesky solve", magma_supported_device,
-      assemble_packed_ms,
-      magma_factor_ms, magma_solve_ms,
-      (double)magma_rel_res_max, magma_rel_res_l2});
-   methods.push_back(
-   {
-      "MAGMA packed inverse (ppinv)",
-      magma_supported_device && magma_ppinv_enabled,
-      assemble_packed_ms,
-      magma_inverse_ms, magma_ppinv_apply_ms,
-      (double)magma_ppinv_rel_res_max, magma_ppinv_rel_res_l2});
-   methods.push_back(
-   {
-      "MFEM BatchedLinAlg MAGMA full LU solve", magma_supported_device,
-      assemble_full_ms,
-      magma_full_factor_ms, magma_full_solve_ms,
-      (double)magma_full_rel_res_max, magma_full_rel_res_l2});
+      methods.push_back(
+      {
+         "MAGMA packed Cholesky solve", true,
+         assemble_packed_ms,
+         magma_factor_ms, magma_solve_ms,
+         (double)magma_rel_res_max, magma_rel_res_l2});
+
+      if (magma_ppinv_enabled)
+      {
+         methods.push_back(
+         {
+            "MAGMA packed inverse (ppinv)", true,
+            assemble_packed_ms,
+            magma_inverse_ms, magma_ppinv_apply_ms,
+            (double)magma_ppinv_rel_res_max, magma_ppinv_rel_res_l2});
+      }
+
+      methods.push_back(
+      {
+         "MAGMA full LU solve", true,
+         assemble_full_ms,
+         magma_full_factor_ms, magma_full_solve_ms,
+         (double)magma_full_rel_res_max, magma_full_rel_res_l2});
+   }
 #endif
    PrintTimingTable(assemble_packed_ms, assemble_full_ms, reps, methods);
 
