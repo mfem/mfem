@@ -1058,9 +1058,17 @@ void MixedScalarCurlIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
       MFEM_ABORT("Unknown kernel.");
    }
 
-   const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*fel, *eltest,
-                                                     *mesh->GetTypicalElementTransformation());
+   // Use the same logic as the standard FA:
+   const IntegrationRule *ir;
+   {
+      auto &T = *mesh->GetTypicalElementTransformation();
+      ir = GetIntegrationRule(*fel, *eltest, T);
+      if (!ir)
+      {
+         const int ir_order = GetIntegrationOrder(*fel, *eltest, T);
+         ir = &IntRules.Get(fel->GetGeomType(), ir_order);
+      }
+   }
 
    auto map_type = eltest->GetMapType();
 
