@@ -856,22 +856,15 @@ int main(int argc, char *argv[])
          darcy->GetHybridization()->SetNonlinearOrdering(
             DarcyHybridization::NLOrdering::LineariseThenCondense);
 
-         // That ordering retains a linearisation and advances it only when a
-         // gradient is asked for. LBFGS and LBB never ask, so the point would
-         // stay where it was first formed and the iteration would converge
-         // onto the root of a frozen operator. Measured on -nlc -hdg 4:
-         // 113 residual evaluations, zero advances, and an answer that happens
-         // to be close only because this problem is mildly nonlinear.
-         const int stype = (solver_type == 0) ? 1 : solver_type;
-         if (stype == 1 || stype == 2)
-         {
-            cerr << "WARNING: --linearise-first with "
-                 << ((stype == 1) ? "LBFGS" : "LBB")
-                 << " is unsound: that solver never asks for a gradient, so "
-                 "the linearisation never advances. Use -nls 3 (Newton), or "
-                 "call DarcyHybridization::AdvanceLinearisation() once per "
-                 "accepted iterate." << endl;
-         }
+         // A warning used to stand here, and it is withdrawn rather than
+         // deleted because it was measured. It said that this ordering
+         // advances its linearisation only when a gradient is asked for, so
+         // LBFGS and LBB -- which never ask -- would converge onto the root
+         // of a frozen operator; measured on -nlc -hdg 4 as 113 residual
+         // evaluations, zero advances, and an answer close only because the
+         // problem is mildly nonlinear. Mult() now establishes the
+         // linearisation at its own argument, so those solvers are sound
+         // here and there is nothing to warn about.
       }
       if (gradient_mode >= 0)
       {

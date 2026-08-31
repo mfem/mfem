@@ -333,16 +333,29 @@ TEST_CASE("Linearise-then-condense reaches the same solution",
       // worst the square of the one before it, up to a constant. Only the
       // steps that are neither the first nor already at round-off say
       // anything, so the window is taken between those.
+      // The lower cut used to be 1e-11 and excluded every step once Mult()
+      // began linearising at its own argument: the history went from
+      // 7.375e-02 2.241e-05 9.08e-09 to 7.375e-02 2.241e-05 4.003e-12, which
+      // is CondenseThenLinearise's 4.00e-12 to three digits. A window that
+      // empties because the thing it measures improved reports a failure, so
+      // it is taken down to round-off instead.
       int checked = 0;
       for (size_t k = 1; k + 1 < new_way.norms.size(); k++)
       {
          const real_t r0 = new_way.norms[k-1], r1 = new_way.norms[k];
-         if (r0 > 1e-3 || r1 < 1e-11) { continue; }
+         if (r0 > 1e-3 || r1 < 1e-14) { continue; }
          CAPTURE(k, r0, r1);
          REQUIRE(r1 < 100.0 * r0 * r0);
          checked++;
       }
-      CAPTURE(new_way.norms.size());
+      std::string hist;
+      for (real_t v : new_way.norms)
+      {
+         char b[32];
+         std::snprintf(b, sizeof(b), " %.3e", v);
+         hist += b;
+      }
+      CAPTURE(new_way.norms.size(), hist);
       REQUIRE(checked >= 1);
    }
 }
@@ -597,6 +610,82 @@ TEST_CASE("The reduced gradient is the derivative of the reduced residual",
    // A central difference of an exact Jacobian is limited by round-off, which
    // grows as 1/h -- about 1e-12 at h = 1e-4 and 1e-11 at h = 1e-5 here. The
    // bound is set well above that and far below the 3.2e-03 the defect gave.
+   REQUIRE(rel < 1.0e-8);
+}
+
+TEST_CASE("The gradient matches a difference taken in the caller's order",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // The case above hoists GetGradient() above the difference, which is
+   // Newton's own order. This one does what a caller writing a gradient check
+   // naturally writes instead -- difference first, gradient afterwards -- and
+   // is here because a caller reported the two disagreeing by three orders:
+   // 3.968e-08 in this order against 4.023e-11 in the other, on a problem with
+   // no stiffness anywhere.
+   //
+   // The cause was that Mult() did not move the linearisation, so the two
+   // perturbed evaluations shared whichever linearisation happened to be
+   // retained and the gradient was taken at a third trace: the difference
+   // straddled three linearisation points. Mult() now linearises at its own
+   // argument, so each evaluation is self-consistent and the order no longer
+   // matters. That the two orders agree is the property; if they ever diverge
+   // again, the reduced residual has stopped being a function of its argument.
+   const real_t c = GENERATE(1.0, 1.0e1, 1.0e2);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   const real_t h = 1.0e-5;
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   CAPTURE(c, h, ordering == Ord::LineariseThenCondense,
+           gmode == GM::MatrixFree);
+
+   SemilinearHDG P(8, 1, c, ordering, gmode);
+   Operator &op = P.op();
+   const int m = op.Height();
+
+   Array<int> ess_marker(m);
+   ess_marker = 0;
+   for (int i = 0; i < P.ess().Size(); i++) { ess_marker[P.ess()[i]] = 1; }
+   REQUIRE(P.ess().Size() > 0);
+
+   Vector x(m), v(m);
+   x.Randomize(3);
+   x *= 0.05;
+   v.Randomize(7);
+   for (int i = 0; i < m; i++)
+   {
+      if (ess_marker[i]) { x(i) = 0.0; v(i) = 0.0; }
+   }
+   v *= 1.0/v.Norml2();
+
+   // The caller's order: both difference evaluations first, and only then the
+   // gradient. Nothing establishes a linearisation at x beforehand.
+   Vector xp(x), xm(x), rp(m), rm(m), Jv(m);
+   xp.Add(h, v);
+   xm.Add(-h, v);
+   op.Mult(xp, rp);
+   op.Mult(xm, rm);
+   Vector fd(rp);
+   fd -= rm;
+   fd *= 1.0/(2.0*h);
+
+   op.GetGradient(x).Mult(v, Jv);
+
+   real_t num = 0.0, den = 0.0;
+   for (int i = 0; i < m; i++)
+   {
+      if (ess_marker[i]) { continue; }
+      const real_t d = Jv(i) - fd(i);
+      num += d*d;
+      den += fd(i)*fd(i);
+   }
+   const real_t rel = std::sqrt(num)/std::max(real_t(1e-300), std::sqrt(den));
+
+   CAPTURE(rel, std::sqrt(den));
+   REQUIRE(std::sqrt(den) > 0.0);
    REQUIRE(rel < 1.0e-8);
 }
 
@@ -1011,9 +1100,10 @@ public:
    }
 };
 
-/// A Jacobian-free Newton-Krylov solve of the reduced system. @a advance says
-/// whether the caller honours the contract in AdvanceLinearisation().
-void SolveJFNK(SemilinearHDG &P, bool advance, int max_it = 30)
+/// A Jacobian-free Newton-Krylov solve of the reduced system: it differences
+/// the residual and never asks for a gradient, which used to be the case this
+/// ordering could not serve.
+void SolveJFNK(SemilinearHDG &P, int max_it = 30)
 {
    Operator &R = P.op();
    const int m = R.Height();
@@ -1027,7 +1117,6 @@ void SolveJFNK(SemilinearHDG &P, bool advance, int max_it = 30)
 
       // The whole of the contract, and the whole of what a matrix-based
       // NewtonSolver gets for free by asking for a gradient here.
-      if (advance) { P.darcy.GetHybridization()->AdvanceLinearisation(x); }
 
       DQJacobian J(R, x, r);
       GMRESSolver gmres;
@@ -1046,22 +1135,28 @@ void SolveJFNK(SemilinearHDG &P, bool advance, int max_it = 30)
 
 } // namespace darcy_linearise_first
 
-TEST_CASE("A Jacobian-free solve needs the linearisation advanced by hand",
+TEST_CASE("A Jacobian-free solve gets the right answer without being told",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
    using namespace darcy_linearise_first;
    using Ord = DarcyHybridization::NLOrdering;
    using GM = DarcyHybridization::GradientMode;
 
-   // LineariseThenCondense expands about a retained linearisation, and that
-   // point advances only in GetGradient(). A matrix-based NewtonSolver asks
-   // for a gradient once per accepted iterate, so it never has to know. A
-   // Jacobian-free Newton-Krylov solve does not ask at all: it differences the
-   // residual, and reaches GetGradient() only through a preconditioner setup,
-   // which KINSOL performs every tenth iterate by default.
+   // This used to be the sharpest statement of a caller obligation, and it is
+   // now the sharpest statement that there is no obligation.
    //
-   // Left alone it converges onto the root of a frozen operator. That is the
-   // dangerous shape: the residual reaches round-off and reports success.
+   // LineariseThenCondense expands about a retained linearisation. That point
+   // used to advance only in GetGradient(), so a Jacobian-free Newton-Krylov
+   // solve -- which differences the residual and asks for no gradient at all
+   // -- converged onto the root of a *frozen* operator: the residual reached
+   // round-off and reported success with an answer wrong in the fourth digit.
+   // The section below measured exactly that, and required the error to be
+   // large.
+   //
+   // Mult() now linearises at its own argument, so the frozen operator cannot
+   // arise, and the same solve lands on the reference. What the section
+   // requires is therefore inverted, and the error it now measures is 2.5e-15
+   // where it used to be over 1e-7.
    const real_t c = 5.0, src = 4.0;
 
    Vector p_ref;
@@ -1088,13 +1183,10 @@ TEST_CASE("A Jacobian-free solve needs the linearisation advanced by hand",
    }
    REQUIRE(p_ref.Normlinf() > 1e-4);
 
-   SECTION("without it the answer is wrong, and nothing says so")
+   SECTION("no gradient is ever asked for, and the answer is right anyway")
    {
       SemilinearHDG P(8, 1, c, Ord::LineariseThenCondense, GM::Assembled, src);
-      // The guard off, so that the failure itself can be measured rather than
-      // aborted on. This is what the guard exists to prevent.
-      P.darcy.GetHybridization()->SetMaxEvalsWithoutAdvance(0);
-      SolveJFNK(P, false);
+      SolveJFNK(P);
 
       Vector r(P.op().Height());
       P.op().Mult(P.X, r);
@@ -1104,112 +1196,21 @@ TEST_CASE("A Jacobian-free solve needs the linearisation advanced by hand",
       d -= p_ref;
       const real_t err = d.Norml2()/p_ref.Norml2();
 
-      // Converged by every measure the solver has, and wrong.
+      // Converged by every measure the solver has, and now also correct.
       CAPTURE(r.Norml2(), err);
       REQUIRE(r.Norml2() < 1e-11);
-      REQUIRE(err > 1e-7);
-   }
-
-   SECTION("with it the same solve is right")
-   {
-      SemilinearHDG P(8, 1, c, Ord::LineariseThenCondense, GM::Assembled, src);
-      SolveJFNK(P, true);
-
-      P.darcy.RecoverFEMSolution(P.X, P.sol);
-      Vector d(P.sol.GetBlock(1));
-      d -= p_ref;
-      CAPTURE(d.Norml2()/p_ref.Norml2());
-      REQUIRE(d.Norml2() < 1e-9 * p_ref.Norml2());
+      REQUIRE(err < 1e-10);
    }
 
    SECTION("the other ordering needs nothing, retaining nothing")
    {
       SemilinearHDG P(8, 1, c, Ord::CondenseThenLinearise, GM::Assembled, src);
-      SolveJFNK(P, false);
+      SolveJFNK(P);
 
       P.darcy.RecoverFEMSolution(P.X, P.sol);
       Vector d(P.sol.GetBlock(1));
       d -= p_ref;
       CAPTURE(d.Norml2()/p_ref.Norml2());
       REQUIRE(d.Norml2() < 1e-9 * p_ref.Norml2());
-      REQUIRE(P.darcy.GetHybridization()->GetEvalsSinceAdvance() == 0);
    }
-}
-
-TEST_CASE("The residual count guards the linearisation advance",
-          "[DarcyForm][NonlinearDarcy][HDG]")
-{
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
-   using GM = DarcyHybridization::GradientMode;
-
-   SECTION("it counts residuals and resets on an advance")
-   {
-      SemilinearHDG P(6, 1, 1.0, Ord::LineariseThenCondense, GM::Assembled);
-      DarcyHybridization *dh = P.darcy.GetHybridization();
-      Operator &op = P.op();
-      const int m = op.Height();
-      Vector x(m), r(m);
-      x.Randomize(3);
-      x *= 0.05;
-
-      op.Mult(x, r);
-      REQUIRE(dh->GetEvalsSinceAdvance() == 1);
-      op.Mult(x, r);
-      op.Mult(x, r);
-      REQUIRE(dh->GetEvalsSinceAdvance() == 3);
-
-      // Either route advances, and both reset the count.
-      op.GetGradient(x);
-      REQUIRE(dh->GetEvalsSinceAdvance() == 0);
-      op.Mult(x, r);
-      REQUIRE(dh->GetEvalsSinceAdvance() == 1);
-      dh->AdvanceLinearisation(x);
-      REQUIRE(dh->GetEvalsSinceAdvance() == 0);
-   }
-
-   SECTION("the other ordering is not counted, having no contract")
-   {
-      SemilinearHDG P(6, 1, 1.0, Ord::CondenseThenLinearise, GM::Assembled);
-      DarcyHybridization *dh = P.darcy.GetHybridization();
-      Operator &op = P.op();
-      Vector x(op.Height()), r(op.Height());
-      x.Randomize(3);
-      x *= 0.05;
-      op.Mult(x, r);
-      op.Mult(x, r);
-      REQUIRE(dh->GetEvalsSinceAdvance() == 0);
-      dh->AdvanceLinearisation(x);   // inert, and must not abort
-      REQUIRE(dh->GetEvalsSinceAdvance() == 0);
-   }
-
-#ifdef MFEM_USE_EXCEPTIONS
-   SECTION("past the limit it aborts rather than returning a wrong answer")
-   {
-      SemilinearHDG P(6, 1, 1.0, Ord::LineariseThenCondense, GM::Assembled);
-      DarcyHybridization *dh = P.darcy.GetHybridization();
-      dh->SetMaxEvalsWithoutAdvance(3);
-      Operator &op = P.op();
-      Vector x(op.Height()), r(op.Height());
-      x.Randomize(3);
-      x *= 0.05;
-
-      REQUIRE_NOTHROW(op.Mult(x, r));
-      REQUIRE_NOTHROW(op.Mult(x, r));
-      REQUIRE_NOTHROW(op.Mult(x, r));
-      REQUIRE_THROWS(op.Mult(x, r));
-   }
-
-   SECTION("zero disables it")
-   {
-      SemilinearHDG P(6, 1, 1.0, Ord::LineariseThenCondense, GM::Assembled);
-      DarcyHybridization *dh = P.darcy.GetHybridization();
-      dh->SetMaxEvalsWithoutAdvance(0);
-      Operator &op = P.op();
-      Vector x(op.Height()), r(op.Height());
-      x.Randomize(3);
-      x *= 0.05;
-      for (int i = 0; i < 20; i++) { REQUIRE_NOTHROW(op.Mult(x, r)); }
-   }
-#endif
 }
