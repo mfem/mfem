@@ -197,7 +197,7 @@ public:
    /// #ImplicitVariableType, @a var, and returns @a false otherwise.
    /// Default implementation returns @a true if @a var is
    /// ImplicitVariableType::SLOPE and @a false otherwise.
-   ///@warning Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
+   ///@warning Should be overridden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
    { return (var == ImplicitVariableType::SLOPE); };
 
