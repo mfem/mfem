@@ -1005,12 +1005,6 @@ class GmshReader
             }
             mesh.NumOfElements = mesh.elements.Size();
             mesh.NumOfBdrElements = mesh.boundary.Size();
-            MFEM_VERIFY(mesh.NumOfElements > 0,
-                        "Gmsh 4.1 reader: no elements of dimension " << mesh.Dim
-                        << " were found. The mesh dimension is inferred from"
-                        " the $Entities section; reading a mesh whose elements"
-                        " have lower dimension than its entities (e.g. a"
-                        " surface mesh of a 3D model) is not supported yet.");
          }
          else if (section == "Periodic")
          {
@@ -1044,6 +1038,15 @@ class GmshReader
          }
       }
       while (!section.empty());
+
+      // Note: this check is performed after all sections are read since the
+      // format allows repeated $Elements sections.
+      MFEM_VERIFY(mesh.NumOfElements > 0,
+                  "Gmsh 4.1 reader: no elements of dimension " << mesh.Dim
+                  << " were found. The mesh dimension is inferred from the"
+                  " $Entities section; reading a mesh whose elements have"
+                  " lower dimension than its entities (e.g. a surface mesh"
+                  " of a 3D model) is not supported yet.");
    }
 
    /// @brief Read the mesh in Gmsh 2.2 format from the input stream into the
