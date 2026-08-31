@@ -195,9 +195,11 @@ public:
 
    ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariableType, @a var, and returns @a false otherwise.
+   /// Default implementation returns @a true if @a var is
+   /// #ImplicitVariableType::SLOPE and @a false otherwise.
    ///@warning Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
-   { return false; };
+   { return (var == ImplicitVariableType::SLOPE); };
 
    /** @brief Compute the finite-difference slope, @a $\frac{du}{dt} \approx \frac{u(t+dt)-u(t)}{dt}$,
     * and store it in @a k.

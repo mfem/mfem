@@ -418,9 +418,7 @@ protected:
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
    ImplicitVariableType implicit_variable_type =
-      ImplicitVariableType::SLOPE; /**< @brief
-                                                        Return variable for
-                                                        ImplicitSolve()*/
+      ImplicitVariableType::SLOPE; /**< @brief Return variable for ImplicitSolve()*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
