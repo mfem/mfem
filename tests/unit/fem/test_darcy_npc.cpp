@@ -1100,8 +1100,8 @@ struct NPCOutcome
    bool converged = false;
 };
 
-/** @brief One NPC Newton loop, driven the way SetNonlinearOrdering()'s
-    doxygen sets it out: residual, gradient, reduce, trace solve, recover,
+/** @brief One NPC Newton loop, driven the way NPCResidual()'s doxygen sets it
+    out: residual, gradient, reduce, trace solve, recover,
     and advance all three blocks. Convergence is judged on the FULL residual,
     which is the half of NPC a reduced trace operator cannot express.
 
