@@ -563,12 +563,18 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 
    if (delta_c == NULL)
    {
-      (*this) = std::numeric_limits<real_t>::min();
-      GridFunction::ProjectCoefficient(coeff,type);
-
-      // Accumulate for all vdofs.
       if (pfes->GetNURBSext())
       {
+         // The serial ProjectCoefficient() may not initialize every dof. Such
+         // dofs will be set using the neighbor communication below.
+         (*this) = -infinity();
+      }
+
+      GridFunction::ProjectCoefficient(coeff,type);
+
+      if (pfes->GetNURBSext())
+      {
+         // Replace uninitialized values with real values from neighbor ranks.
          GroupCommunicator &gcomm = pfes->GroupComm();
          gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
          gcomm.Bcast<real_t>(HostReadWrite());
@@ -591,11 +597,18 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
                                          ProjectType type)
 {
-   GridFunction::ProjectCoefficient(vcoeff, type);
-
-   // Accumulate for all vdofs.
    if (pfes->GetNURBSext())
    {
+      // The serial ProjectCoefficient() may not initialize every dof. Such
+      // dofs will be set using the neighbor communication below.
+      (*this) = -infinity();
+   }
+
+   GridFunction::ProjectCoefficient(vcoeff, type);
+
+   if (pfes->GetNURBSext())
+   {
+      // Replace uninitialized values with real values from neighbor ranks.
       GroupCommunicator &gcomm = pfes->GroupComm();
       gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
       gcomm.Bcast<real_t>(HostReadWrite());

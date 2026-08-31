@@ -44,7 +44,7 @@ inline int CheckFinite(const real_t *v, const int n);
 
 /// Define a shortcut for std::numeric_limits<double>::infinity()
 #ifndef __CYGWIN__
-inline real_t infinity()
+inline constexpr real_t infinity()
 {
    return std::numeric_limits<real_t>::infinity();
 }
