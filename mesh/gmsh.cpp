@@ -978,9 +978,15 @@ class GmshReader
                   Skip<size_t>(input, 1, b); // Skip element tag
                   const auto [geom, el_order] = GetGeometryAndOrder(element_type);
 
-                  if (mesh_order < 0) { mesh_order = el_order; }
-                  MFEM_VERIFY(mesh_order == el_order,
-                              "Variable order Gmsh meshes are not supported");
+                  // We can encounter point elements if they are present in the
+                  // mesh as "physical points". These always have order 1, so we
+                  // don't use them to infer the order of the mesh.
+                  if (geom != Geometry::POINT)
+                  {
+                     if (mesh_order < 0) { mesh_order = el_order; }
+                     MFEM_VERIFY(mesh_order == el_order,
+                                 "Variable order Gmsh meshes are not supported");
+                  }
 
                   const int n_elem_nodes = NumNodesInElement(geom, el_order);
                   vector<size_t> node_tags(n_elem_nodes);
@@ -1020,7 +1026,7 @@ class GmshReader
                {
                   const size_t node_num = ReadBinaryOrASCII<size_t>(input, b);
                   const size_t primary_node_num = ReadBinaryOrASCII<size_t>(input, b);
-                  v2v[node_num - 1] = int(primary_node_num - 1);
+                  v2v[vertex_map.at(node_num)] = vertex_map.at(primary_node_num);
                }
             }
          }
@@ -1074,9 +1080,12 @@ class GmshReader
                auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
                                       int el_order, const vector<int> &el_nodes)
                {
-                  if (mesh_order < 0) { mesh_order = el_order; }
-                  MFEM_VERIFY(mesh_order == el_order,
-                              "Variable order Gmsh meshes are not supported");
+                  if (geom != Geometry::POINT)
+                  {
+                     if (mesh_order < 0) { mesh_order = el_order; }
+                     MFEM_VERIFY(mesh_order == el_order,
+                                 "Variable order Gmsh meshes are not supported");
+                  }
                   Element *e = NewElement(mesh, geom, el_order, el_nodes, el_phys_tag);
                   elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
                };
@@ -1184,7 +1193,7 @@ class GmshReader
                {
                   const int node_num = ReadBinaryOrASCII<int>(input, ASCII);
                   const int primary_node_num = ReadBinaryOrASCII<int>(input, ASCII);
-                  v2v[node_num - 1] = primary_node_num - 1;
+                  v2v[vertex_map.at(node_num)] = vertex_map.at(primary_node_num);
                }
             }
          }
