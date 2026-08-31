@@ -57,10 +57,12 @@ reach shared state outside `fem/darcy`:
 * **The mesh's transformation cache.** `Mesh` holds one `FaceElemTr`, one
   `Transformation`, one `Transformation2` and one `BdrTransformation`, and
   `GetFaceElementTransformations(f)` returns `&FaceElemTr`.
-  `DarcyHybridization::GetFaceTransformation()` goes through it, with ten call
-  sites in `darcyhybridization.cpp`. The repair is mechanical — the
-  caller-allocated overload already exists — but it is one edit per call site
-  and it is a precondition, not a detail.
+  `DarcyHybridization::GetFaceTransformation()` goes through it. That is one
+  funnel with five call sites, not the ten this entry used to claim, and the
+  caller-allocated overloads it would switch to all exist and are `const` —
+  `mesh.hpp:1920`, and `pmesh.hpp:626/646/666` for the shared-face and
+  by-local-index variants the parallel branch needs. So this half is a change
+  to one function inside `fem/darcy`, with none to `Mesh`.
 
 `NLOrdering::LineariseThenCondense` makes the local work a **linear** solve per
 element instead of a nonlinear one, which is both cheaper and far more uniform,
@@ -84,17 +86,22 @@ path uses a raw OpenMP pragma rather than `mfem::forall`, because its body is
 `DenseMatrix` and `LUFactors` work that cannot be a device lambda — so a device
 version is a rewrite of the body, not a backend switch.
 
-## Acceptance
+## Acceptance, for what is left
+
+§1's are met and are recorded in `SetLocalFactorMode()`'s doxygen: bit-for-bit
+agreement including pivots, a 1/2/4/8 thread sweep, scaling measured, the
+uniform-size fallback exercised both ways, and a serial build unchanged. What
+follows applies to §2 onward.
 
 * **Same answers**, against the serial loop on the same problem. Bitwise where
-  the work is element-local and reassociates nothing — true of `ComputeH()`,
-  expected of §1 and §2 — and to a tolerance only where a genuine reduction is
+  the work is element-local and reassociates nothing — true of `ComputeH()` and
+  measured true of §1 — and to a tolerance only where a genuine reduction is
   threaded. Assuming a tolerance is needed before checking costs a real test.
 * **A thread-count sweep**, 1/2/4/8, asserting the solution is unchanged.
-* **Scaling actually measured**, on a mesh large enough to mean something.
-* **The uniform-size fallback exercised** — a mixed-element or variable-order
-  case, *and* a case with essential flux dofs, must take the serial path and
-  give the right answer.
+* **Scaling actually measured**, on a mesh large enough to mean something —
+  and *in situ*, not only on the kernel. §1 scales 3.8–5.6x at eight threads
+  and moves a real assembly by nothing measurable, because it is the cold
+  path; a kernel number alone would have reported a speedup nobody got.
 * **A serial build unchanged.** Every existing caller is serial and none should
   pay for this.
 

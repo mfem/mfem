@@ -1,22 +1,20 @@
 # Jacobian-free trace solves: what is left
 
-Scratch. One ergonomic fix and one research question; everything else this plan
-raised is done. The three levels of trace solve are selectable at run time
-(`DarcyHybridization::SetGradientMode()`, `-gm 0|1|2`), the matrix-free reduced
-gradient is complete, and the state-advance contract has a name
-(`AdvanceLinearisation()`), a guard (`SetMaxEvalsWithoutAdvance()`) and its full
-statement in the doxygen of `SetNonlinearOrdering()`.
+Scratch. One research question; everything else this plan raised is done. The
+three levels of trace solve are selectable at run time
+(`DarcyHybridization::SetGradientMode()`, `-gm 0|1|2`) and the matrix-free
+reduced gradient is complete.
 
-## 1. `KINSolver` still has to be driven by hand
+An entry stood here saying `KINSolver` had to be driven by hand — that
+`LineariseThenCondense` required `GetGradient()` once per accepted iterate,
+that `KINSolver::SetJFNK(true)` reached it only through `PrecSetup` at a
+frequency KINSOL chose, and that `KINSolver` should either honour the contract
+or refuse the combination. There is no contract now: `Mult()` linearises at its
+own argument, a Jacobian-free solve that never asks for a gradient reaches the
+reference answer to 2.5e-15, and the naming and guarding apparatus that entry
+pointed at has been removed. Nothing is owed to `KINSolver`.
 
-`LineariseThenCondense` requires `GetGradient()` once per accepted iterate, and
-`KINSolver::SetJFNK(true)` reaches it only through `PrecSetup`, whose frequency
-KINSOL chooses. The requirement, the failure it produces and the workaround
-(`SetMaxSetupCalls(1)`) are in the doxygen. **What is open is the ergonomics**:
-`KINSolver` is untouched, and should either honour the contract itself or
-refuse the combination rather than leaving the caller to know.
-
-## 2. Preconditioning a trace system that is never assembled
+## Preconditioning a trace system that is never assembled
 
 `GradientMode::MatrixFree` never forms the global trace matrix, which is what
 makes the local work a uniform linear solve and therefore a good batched or

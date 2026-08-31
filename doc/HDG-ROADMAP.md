@@ -2,10 +2,10 @@
 
 **This file, and every other `.md` here, is scratch.** It is a to-do list and
 nothing else, and it is expected to be deleted before this branch becomes a PR.
-Anything worth keeping must live in doxygen or in a source comment — the
-findings that used to be written up here have been moved into the code that
-they are about, and nothing in the code depends on a markdown file for its
-meaning.
+Anything worth keeping lives in doxygen, in a source comment, or — where it is
+about how a miniapp is used — in `miniapps/hdg/README.md`. Nothing in the code
+depends on a markdown file for its meaning, and a section that is finished is
+cut down to a pointer rather than left here describing itself.
 
 Sections keep the numbers they had, so earlier commit messages citing "§4"
 still point somewhere sensible. Where a section is gone it says why.
@@ -18,17 +18,17 @@ still point somewhere sensible. Where a section is gone it says why.
 cases in `tests/unit/fem/test_darcy_extension.cpp`.
 
 What is left here is a **branch merge**, not development: the two branches are
-21/13 diverged and neither has been merged into the other. Three artefacts of
-§1 already sit on this branch and one of them is a bug:
+21/13 diverged and neither has been merged into the other. Both now descend
+from `gf-hdg-dev`, which they did not before — `gf-hdg-subdomains-dev` was
+rebased onto it — so the merge-base is a real common ancestor rather than a
+point either branch has moved past.
 
-* `fem/darcy/darcyform.hpp:174` refers the reader to `extension_hdg.hpp`, which
-  does not exist here. `AssembleFluxMassBdrFaces()` exists solely to serve §1.
-* `miniapps/hdg/extension` — an **18 MB ELF binary is committed**, added by a
-  docs-only commit. That is an accident and should be removed whatever is
-  decided about the merge.
+One artefact of §1 sits on this branch: `fem/darcy/darcyform.hpp:174` refers
+the reader to `extension_hdg.hpp`, which does not exist here, and
+`AssembleFluxMassBdrFaces()` exists solely to serve §1.
 
-**Two other sections are blocked on this merge and the dependency was not
-previously recorded**: §3's remedy and §7's `η₅`. See both.
+**Three other sections are blocked on this merge**: §3's remedy, §5's remaining
+problem and §7's `η₅`. See each.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -66,9 +66,10 @@ What remains is the **rich reconstruction only**: `DarcyForm::ReconstructFluxAnd
 whose kernel has some forty distinct sites assuming `vdim == 1` — the closure
 row replaces exactly one equation of the local system, and the interior-dof
 count assumes a contiguous tail that `byNODES` does not give for `vdim > 1` —
-plus the enriched *potential* and *trace* spaces (`darcyform.cpp:1178, :1201`),
-which are built with no `vdim` argument while the flux space already takes one.
-The gates are `darcyform.cpp:1016` and `:1140`.
+plus the enriched *potential* and *trace* spaces (`darcyform.cpp:1184`/`:1189`
+and `:1209`/`:1214`), which are built with no `vdim` argument while the
+enriched flux space at `:1160`/`:1165` already takes one. The gates are
+`darcyform.cpp:1017` and `:1141`.
 
 Two consumers wait on it: the flux functional of the retired §6 below, which
 would read out of bounds if handed a system, and the Navier-Stokes miniapp,
@@ -105,18 +106,11 @@ the state or the face normal. The Navier-Stokes driver sidesteps it by carrying
 the convective stabilization on the `NumericalFlux`; a *viscous* stabilization
 varying with direction could not.
 
-## 6. Functionals of the solution, evaluated from the numerical trace — DONE
+## 6. Functionals of the solution — DONE
 
-`ComputeOutwardFlux` and `ComputeBoundaryFlux` in
-`fem/darcy/functionals_hdg.{hpp,cpp}`, with two unit test cases over
-`dim = 2, 3` and `order = 0, 1, 2`. The header carries the reasoning, including
-why the implementation integrates the reconstructed total flux rather than the
-pointwise `q̂` this entry used to name — that expression is single-valued for a
-constant `τ` and **not** for a solution-dependent one.
-
-Its limitations are `vdim == 1` (which is §4) and conforming matching meshes,
-and `ComputeBoundaryFlux` returns a rank-local sum with no `MPI_Allreduce`.
-Nothing outside its own tests calls it.
+Nothing left. `fem/darcy/functionals_hdg.hpp` carries what it does and what it
+does not. The number is kept only so that commit messages citing "§6" land
+somewhere.
 
 ## 7. Adaptive refinement: `hp`, and the estimator's fifth term
 
