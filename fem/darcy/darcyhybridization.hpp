@@ -194,11 +194,26 @@ public:
           element per residual evaluation of the outer iteration, and the outer
           unknown is the trace alone. */
       CondenseThenLinearise,
-      /** @brief Linearise first, condense second: Newton on the full
-          (q, u, u_hat) system, with the resulting linear system hybridized.
-          Every local operation is then a linear solve, which is how the method
-          is defined -- Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855,
-          eqs (14)-(18). See SetNonlinearOrdering(). */
+      /** @brief Linearise first, condense second, expressed as an operator on
+          the trace alone: the local blocks are eliminated by a linear solve
+          against one factorisation, warm-started from a retained
+          linearisation.
+
+          **This is NOT the NPC method, and the comment here used to say it
+          was** -- "Newton on the full (q, u, u_hat) system, with the resulting
+          linear system hybridized ... which is how the method is defined,
+          Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855, eqs (14)-(18)".
+          NPC takes ONE Newton step on the full (q, u, u_hat) system: assemble
+          the local blocks and the local residual at the current state,
+          eliminate, solve the trace system, back-solve for the local
+          increments, and advance all three blocks. That is one local
+          factorisation and one local LINEAR solve per outer step, with no
+          local nonlinear iteration anywhere and therefore nothing to
+          globalise locally, and its convergence test is on the full residual.
+
+          This mode cannot be that, because the fields are a *function* of the
+          trace here and in NPC they are Newton state. See
+          SetNonlinearOrdering() for what it is instead and what that costs. */
       LineariseThenCondense,
    };
 
@@ -772,6 +787,19 @@ public:
        local Jacobian M are established at L by whichever of Mult() or
        GetGradient() reaches a trace they are not already at.
 
+       **What this amounts to, said plainly, because the name invites a wrong
+       reading.** Because the linearisation point is refreshed at whatever
+       trace it is asked about and its corrections are iterated to a tolerance,
+       the field map converges to *the local solve given the trace* -- which is
+       CondenseThenLinearise's field map. In that limit the two modes are the
+       same operator: same reduced residual, same reduced Jacobian. What is
+       left between them is the local solver (a frozen-Jacobian iteration
+       against one factorisation here, a full Newton that re-assembles there)
+       and the warm start. The timing below is the evidence: this mode is the
+       slower of the two on a stiff problem. NPC's actual advantage -- one
+       local linear solve per outer step, no local nonlinear iteration -- is
+       not available through a trace-only Operator and is not what this is.
+
        Evaluating takes one correction. ESTABLISHING the linearisation point
        iterates to the tolerance SetLocalNLSolver() carries, and that is not a
        detail: GetGradient() is the Schur complement of the Jacobian at the
@@ -830,13 +858,21 @@ public:
        ordering took fewer iterations in 15 and more in 10. Six further cases
        stopped converging, every one of them a case CondenseThenLinearise also
        fails -- so no parity was lost, though converging on a problem the
-       exact ordering cannot solve was never evidence of much.
+       other ordering cannot solve was never evidence of much.
 
        The caller re-ran their own Grad-Shafranov benchmarks against this and
        reports six of their seven converging, from four before, including one
        at 8 iterations against CondenseThenLinearise's 11. Their one survivor
        is an internal layer at k = 2 on a coarse mesh, cured by one refinement
        or by dropping an order, and of the same class as the three above.
+
+       **Those four are a property of THIS construction, not of the method it
+       is named after, and an earlier version of this comment mis-attributed
+       them.** They are the frozen-Jacobian local iteration failing to converge
+       where CondenseThenLinearise's full local Newton succeeds -- a local
+       solver quality problem. NPC has no local nonlinear iteration at all, so
+       it cannot have them; "closing them needs the local step globalised" was
+       answering the wrong question.
 
        **A consequence worth warning about, reported from that re-run.** A
        better Jacobian can converge to a DIFFERENT solution. Where a coarse

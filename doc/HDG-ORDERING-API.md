@@ -453,7 +453,7 @@ semilinear pedestal, three of seven benchmark configurations that converge
 under `CondenseThenLinearise` did not converge in sixty iterations under this
 ordering, landing at traces of norm 24.0, 26.5 and 54.8 against true values of
 11.3, 14.7 and 13.5. Two of the three now converge, in 9 and 8 iterations
-against the exact ordering's 8 and 10; every case that converged before now
+against CondenseThenLinearise's 8 and 10; every case that converged before now
 matches or beats it; one remains, stalling at 1.7e-03 where it used to diverge
 to 2.0e+03.
 
@@ -638,7 +638,7 @@ dominate, when they fail to converge and poison the outer iteration, or when
 you want the method as NPC defines it. Any outer solver will do, LBFGS and LBB
 included; the advice to avoid them belonged to the removed contract.
 
-**The exact ordering is still more solvable, though by less than it was.**
+**`CondenseThenLinearise` is still more solvable, though by less than it was.**
 The hard-coded correction count was measured and is gone, and all seven of the
 caller's benchmark configurations now converge. On a wider sweep of the same
 source -- 144 configurations, n = 8..24, k = 1..3, six widths from 0.02 to

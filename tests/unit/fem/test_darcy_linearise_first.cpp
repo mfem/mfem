@@ -1531,7 +1531,7 @@ TEST_CASE("A stiff source converges under both orderings",
    // more than a frozen Jacobian can give. Six further cases converged before
    // and no longer do, all of them ones where CondenseThenLinearise fails
    // too, so none is a parity failure -- but converging on a problem the
-   // exact ordering cannot solve was never evidence of anything, and losing
+   // other ordering cannot solve was never evidence of anything, and losing
    // it is not obviously a regression.
    const int idx = GENERATE(0, 1);
    const int n = (idx == 0) ? 24 : 32;
