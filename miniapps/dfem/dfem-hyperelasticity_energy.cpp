@@ -341,6 +341,12 @@ public:
 
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
       auto second_derivatives = SecondDerivatives<Pairs::All> {};
+      // Every material below is applied and Jacobi-preconditioned the same way.
+      // We only really need the action and assemblediagonal callbacks
+      constexpr auto kernels =
+         DerivativeKernels::Action |
+         DerivativeKernels::AssembleDiagonal;
+
       switch (material)
       {
          case MaterialType::NeoHookean:
@@ -349,7 +355,7 @@ public:
             // dFEM to build the first and second variations from this energy.
             // NOTE: the registration for functional will likely change in the future.
             NeoHookeanEnergy<dscalar_t> energy;
-            internal_energy_dop->AddDomainIntegrator<LocalQFBackend>(
+            internal_energy_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
@@ -361,7 +367,7 @@ public:
             // Linear elastic material, also expressed as an energy so it uses
             // exactly the same GetDerivative/GetSecondDerivative machinery.
             LinearElasticEnergy<dscalar_t> energy;
-            internal_energy_dop->AddDomainIntegrator<LocalQFBackend>(
+            internal_energy_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
@@ -373,7 +379,7 @@ public:
             // Compressible Mooney-Rivlin material with an isochoric invariant
             // split and logarithmic volumetric penalty.
             MooneyRivlinEnergy<dscalar_t> energy;
-            internal_energy_dop->AddDomainIntegrator<LocalQFBackend>(
+            internal_energy_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},
@@ -386,7 +392,7 @@ public:
             // the beam axis. The functional registration lets dFEM derive both
             // the residual and the Hessian-vector product from the energy.
             HolzapfelEnergy<dscalar_t> energy;
-            internal_energy_dop->AddDomainIntegrator<LocalQFBackend>(
+            internal_energy_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
                energy,
                Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
                Outputs<FunctionalValue<Energy>> {},

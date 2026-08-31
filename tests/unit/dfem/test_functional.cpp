@@ -87,7 +87,10 @@ public:
       dop = std::make_unique<DifferentiableOperator>(in_fds, out_fds, mesh);
       CubicH1Functional<dscalar_t, dim> apply;
       auto derivatives = std::integer_sequence<size_t, U> {};
-      dop->AddDomainIntegrator<LocalQFBackend>(
+      constexpr auto kernels =
+         DerivativeKernels::Apply |
+         DerivativeKernels::ApplyTranspose;
+      dop->AddDomainIntegrator<LocalQFBackend, kernels>(
          apply,
          tuple{Value<U>{}, Gradient<U>{}, Gradient<Coords>{}, Weight{}},
          tuple{Identity<Q>{}},
@@ -179,7 +182,7 @@ private:
    {
       MultiVector X{u, coords};
       MultiVector dY{q};
-      dop->GetDerivative(U, X)->Mult(du, dY);
+      dop->GetDerivative(U, X, true)->Mult(du, dY);
       return q.Sum();
    }
 
