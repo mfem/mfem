@@ -160,8 +160,8 @@ Miscellaneous
 - Added support for saving DataCollection output on the node-local storage,
   instead of requiring that the filesystem is shared among all the ranks.
 
-- Removed config/docker; MFEM's Docker images are now maintained in the
-  https://github.com/mfem/containers repository.
+- Removed config/docker and associated GHCR packages. The MFEM Docker containers
+  are now maintained in the https://github.com/mfem/containers repository.
 
 API changes
 -----------
