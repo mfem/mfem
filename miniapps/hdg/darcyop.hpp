@@ -75,6 +75,7 @@ public:
 private:
    Array<int> offsets;
    int trace_solve_level{-1};
+   bool npc{false};
    const Array<int> &ess_flux_tdofs_list;
    DarcyForm *darcy;
    LinearForm *g{};
@@ -307,6 +308,29 @@ public:
        caller sets the gradient mode itself, on the hybridization; this decides
        the preconditioner to match. */
    void SetTraceSolveLevel(int level) { trace_solve_level = level; }
+
+   /** @brief Solve by NPC instead of by the reduced trace system.
+
+       The default route hands the outer solver an Operator on the **trace**,
+       solves it, and then rebuilds the flux and potential from the answer with
+       RecoverFEMSolution(). NPC makes all three Newton state and solves the
+       Jacobian by hybridized elimination instead -- one local factorisation
+       and one local linear solve per outer step, no local nonlinear iteration,
+       and a convergence test on the full residual rather than on the trace
+       alone. See DarcyHybridization::NPCResidual().
+
+       Off by default: nothing existing changes. The solver built by
+       SetupNonlinearSolver() is reused as-is -- the outer NewtonSolver becomes
+       Newton on the full system and the trace solver it was given becomes the
+       one inside DarcyNPCSolver -- so -gm and the preconditioner choice mean
+       what they meant before.
+
+       Requires a **discontinuous flux space** and refuses
+       LocalOpType::FluxNL; DarcyHybridization::NPCCheck() states both, and
+       both abort rather than return something wrong. It also requires a
+       hybridized nonlinear problem: with no trace space, or a linear one,
+       this is ignored. */
+   void SetNPC(bool npc_ = true) { npc = npc_; }
 
    void EnableSolutionController(SolutionController::Type type) { sol_type = type; }
    void EnableIterationsVisualization(int vis_step = 0) { monitor_step = vis_step; }

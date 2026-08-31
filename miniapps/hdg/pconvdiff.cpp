@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
    bool nonlinear_flux = false;
    bool nonlinear_pot = false;
    bool nonlinear_conv = false;
+   bool use_npc = false;
    int gradient_mode = -1;
    real_t newton_rtol = -1.;
    bool nonlinear_diff = false;
@@ -258,6 +259,18 @@ int main(int argc, char *argv[])
                   "Negative keeps the default, which is 1e-6 and is loose "
                   "enough that a mildly nonlinear problem stops after one "
                   "step.");
+   args.AddOption(&use_npc, "-npc", "--npc", "-no-npc", "--no-npc",
+                  "Solve by NPC -- Newton on the full (q, u, u_hat) system "
+                  "with the Jacobian solved by hybridized elimination -- "
+                  "instead of on the trace alone. Every local operation is "
+                  "then one linear solve against one factorisation and "
+                  "GetNumLocalNLIterations() stays at zero, and the "
+                  "convergence test is on the FULL residual, so an -nrtol "
+                  "that was adequate before may not be. In parallel only the "
+                  "trace is communicated: the L2 flux and potential are "
+                  "rank-local. Needs -hb, a nonlinear problem, a Newton-type "
+                  "-nls, and a DISCONTINUOUS flux, so not with -brt or the "
+                  "H(div) default.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -1028,6 +1041,7 @@ int main(int argc, char *argv[])
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
    op.SetTraceSolveLevel(gradient_mode);
+   if (use_npc) { op.SetNPC(); }
    if (newton_rtol > 0.) { op.SetTolerance(newton_rtol); }
 
    // 15. Construct the time ODE solver

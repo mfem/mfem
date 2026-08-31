@@ -693,15 +693,71 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       if (verbose) { std::cout << "Preconditioner took " << chrono.RealTime() << "s.\n"; }
    }
 
-   // 11. Solve the linear system with GMRES.
-   //     Check the norm of the unpreconditioned residual.
+   // 11. Solve.
 
    chrono.Clear();
    chrono.Start();
 
-   solver->Mult(RHS, X);
+   if (npc && trace_space)
+   {
+      // NPC: Newton on the full (q, u, lambda) system, the Jacobian solved by
+      // hybridized elimination. FormLinearSystem() above is still what runs --
+      // it eliminates the essential flux dofs from the load and finalizes the
+      // hybridization -- but the reduced operator and right-hand side it
+      // produced are not used. `rhs` carries the (flux, potential) load and
+      // RHS the trace one.
+      //
+      // The solver stack is reused rather than rebuilt: `solver` is already
+      // the outer Newton and `prec` the trace linear solve, which is exactly
+      // NPC's pairing, so -gm and the preconditioner choice keep their
+      // meaning.
+      DarcyHybridization *hyb = darcy->GetHybridization();
+      MFEM_VERIFY(hyb, "NPC needs hybridization");
+      // NPC solves a Jacobian, so a gradient-free outer solver has nothing to
+      // do with the elimination. LBFGS and LBB never call GetGradient(), so
+      // they are accepted by the operator and then diverge -- measured here,
+      // to inf in 426 iterations on the case this miniapp runs by default.
+      // Refuse rather than let a flag combination fail obscurely.
+      MFEM_VERIFY(solver_type == SolverType::Newton ||
+                  solver_type == SolverType::KINSol,
+                  "NPC needs a Jacobian solve, so it needs a Newton-type "
+                  "outer solver: pass -nls 3 (Newton) or -nls 4 (KINSol). "
+                  "LBFGS and LBB never ask for a gradient and diverge on it.");
 
-   darcy->RecoverFEMSolution(X, rhs, x);
+      // The trace block is in TRUE dofs here and in L-dofs in the state
+      // vector, which is the only place the two representations meet.
+      Array<int> noffs(4);
+      noffs[0] = 0;
+      noffs[1] = darcy->FluxFESpace()->GetVSize();
+      noffs[2] = darcy->PotentialFESpace()->GetVSize();
+      noffs[3] = X.Size();
+      noffs.PartialSum();
+
+      BlockVector nx(noffs), nb(noffs);
+      nx.GetBlock(0) = x.GetBlock(0);
+      nx.GetBlock(1) = x.GetBlock(1);
+      nx.GetBlock(2) = X;
+      nb = 0.;
+      if (RHS.Size() == X.Size()) { nb.GetBlock(2) = RHS; }
+
+      BlockVector load(rhs, darcy->GetOffsets());
+      DarcyNPCOperator npc_op(*hyb, noffs, load);
+      DarcyNPCSolver npc_lin(*prec);
+
+      solver->SetOperator(npc_op);
+      solver->SetPreconditioner(npc_lin);
+      solver->Mult(nb, nx);
+
+      x.GetBlock(0) = nx.GetBlock(0);
+      x.GetBlock(1) = nx.GetBlock(1);
+      X = nx.GetBlock(2);
+   }
+   else
+   {
+      solver->Mult(RHS, X);
+
+      darcy->RecoverFEMSolution(X, rhs, x);
+   }
 
    if (trace_space)
    {

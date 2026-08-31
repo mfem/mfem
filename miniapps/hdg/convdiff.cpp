@@ -164,6 +164,7 @@ int main(int argc, char *argv[])
    bool nonlinear_flux = false;
    bool nonlinear_pot = false;
    bool nonlinear_conv = false;
+   bool use_npc = false;
    int gradient_mode = -1;
    bool threaded_assembly = false;
    real_t newton_rtol = -1.;
@@ -263,6 +264,16 @@ int main(int argc, char *argv[])
                   "and the errors are identical to the serial run whatever "
                   "OMP_NUM_THREADS says. Needs an MFEM_USE_OPENMP and "
                   "MFEM_THREAD_SAFE build and aborts without one.");
+   args.AddOption(&use_npc, "-npc", "--npc", "-no-npc", "--no-npc",
+                  "Solve by NPC -- Newton on the full (q, u, u_hat) system "
+                  "with the Jacobian solved by hybridized elimination -- "
+                  "instead of on the trace alone. Every local operation is "
+                  "then one linear solve against one factorisation and "
+                  "GetNumLocalNLIterations() stays at zero, and the "
+                  "convergence test is on the FULL residual, so an -nrtol "
+                  "that was adequate before may not be. Needs -hb and a "
+                  "nonlinear problem; needs a DISCONTINUOUS flux, so not with "
+                  "-brt or the H(div) default.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -1022,6 +1033,7 @@ int main(int argc, char *argv[])
    {&gcoeff, &fcoeff, &qtcoeff},
    (DarcyOperator::SolverType) solver_type, false, btime);
    op.SetTraceSolveLevel(gradient_mode);
+   if (use_npc) { op.SetNPC(); }
    if (newton_rtol > 0.) { op.SetTolerance(newton_rtol); }
 
    // 12. Construct the time ODE solver

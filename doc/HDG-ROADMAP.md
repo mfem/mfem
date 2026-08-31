@@ -195,15 +195,18 @@ first `[Parallel]` Darcy test. `miniapps/hdg/navierstokes.cpp` is driven by it.
 
 What is left:
 
-* **`convdiff` and `pconvdiff` still use `DarcyOperator`.** Moving them is the
-  one item with real substance: `ImplicitSolve` drives a *trace-sized* unknown
-  from `FormLinearSystem` and then calls `RecoverFEMSolution` to rebuild the
-  fields from it, which is exactly the back-substitution NPC does not want.
-  About fifteen sites, plus a slot for the trace right-hand side — NPC's load
-  is `(flux, potential)` and `convdiff` puts its Neumann datum in `hform` —
-  plus a guard, since both can be run with an H(div) flux that NPC refuses.
-  Until then **NPC has no regression coverage**: `navierstokes` has no
-  reference at all.
+* **~~`convdiff` and `pconvdiff` still use `DarcyOperator`.~~ Done.**
+  `DarcyOperator::SetNPC()` adds an NPC branch to `ImplicitSolve`, and both
+  miniapps expose it as `-npc`; `navierstokes` bypasses `DarcyOperator`
+  entirely. The trace right-hand side rides in the outer solver's own
+  `b`, and the solver stack is reused as-is — `solver` was already the outer
+  Newton and `prec` the trace solve, which is NPC's pairing — so `-gm` keeps
+  its meaning.
+
+  **There are still no NPC regression references**, though: the flag defaults
+  off and every one of the 129 + 98 references was generated without it.
+  Generating an NPC set is the next step, and is what would actually put the
+  method under the suite that guards this branch.
 * **H(div) flux.** Refused rather than attempted: the local rows would be a
   conforming scatter with RT sign conventions that have not been checked.
 * **`LocalOpType::FluxNL`.** Refused, and the refusal is the interesting part

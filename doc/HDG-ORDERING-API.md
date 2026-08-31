@@ -302,15 +302,11 @@ Two hard refusals, both `MFEM_VERIFY` in `NPCCheck()`:
 
 Missing rather than refused:
 
-* **`navierstokes` is driven by NPC and is the worked example**; nothing
-  else is. `convdiff` and `pconvdiff` still go through
-  `DarcyOperator::ImplicitSolve`, which drives a trace-sized unknown and then
-  calls `RecoverFEMSolution` to rebuild the fields from the trace — the exact
-  back-substitution NPC does not want, since the fields are already state.
-  Moving them needs that undone, a slot for the trace right-hand side, and a
-  guard for the H(div) flux they can be run with. Neither has an NPC
-  regression reference, and `navierstokes` has no regression reference at
-  all;
+* **No NPC regression reference exists.** `navierstokes` is driven by NPC
+  unconditionally and has no reference at all; `convdiff` and `pconvdiff` take
+  `-npc`, through `DarcyOperator::SetNPC()`, but the flag defaults off and
+  every one of the 129 + 98 references predates it. So the method is covered
+  by unit tests and by nothing else;
 * **the trace right-hand side has no slot.** `load` is `(flux, potential)`;
   a Neumann datum assembled on the trace has to ride in `b` of
   `NewtonSolver::Mult(b, x)`;
