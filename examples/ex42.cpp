@@ -16,8 +16,19 @@
 // Sample runs:  ex42
 //               ex42 -s 40
 //
-// Demonstrates exact checkpoint/replay of Forward Euler. A terminal state
-// reconstructed from the initial checkpoint is compared with a normal solve.
+// Description: This example demonstrates exact checkpoint/replay for an
+//              ODESolver-based integration. It advances the scalar equation
+//
+//                 du/dt = alpha u - u^3
+//
+//              with Forward Euler, first normally and then through a
+//              CheckpointController using StoreEverything scheduling.
+//
+//              To exercise replay rather than a direct restore, the example
+//              discards every persistent checkpoint except the initial one,
+//              clears the transient moving window, and reconstructs the
+//              terminal step from checkpoint 1. It succeeds only when the
+//              replayed and reference terminal states are bitwise identical.
 
 #include "mfem.hpp"
 
@@ -50,6 +61,9 @@ public:
 
 int main(int argc, char *argv[])
 {
+   // 1. Parse command-line options. The visualization option is accepted for
+   //    compatibility with MFEM's example test harness; this scalar example
+   //    produces terminal output only.
    int steps = 20;
    bool visualization = false;
    OptionsParser args(argc, argv);
@@ -71,11 +85,13 @@ int main(int argc, char *argv[])
       return 2;
    }
 
+   // 2. Define the scalar problem, fixed step size, and initial condition.
    const real_t parameter = 0.7;
    const real_t dt = 0.01;
    Vector initial(1);
    initial[0] = 0.4;
 
+   // 3. Compute an ordinary Forward Euler trajectory as the exact reference.
    CubicOperator reference_operator(parameter);
    ForwardEulerSolver reference_solver;
    reference_solver.Init(reference_operator);
@@ -87,6 +103,9 @@ int main(int argc, char *argv[])
       reference_solver.Step(reference_state, reference_time, reference_dt);
    }
 
+   // 4. Assemble the checkpoint/replay services. The adapter and propagator
+   //    borrow the solver and operator; the controller borrows all four
+   //    services and owns its active continuation state.
    CubicOperator checkpoint_operator(parameter);
    ForwardEulerSolver checkpoint_solver;
    ForwardEulerCheckpointAdapter adapter(checkpoint_solver,
@@ -95,14 +114,16 @@ int main(int argc, char *argv[])
    MemoryCheckpointStorage storage;
    ExactCheckpointWindow window(2);
    CheckpointController controller(adapter, propagator, storage, window);
+   // 5. StoreEverything assigns checkpoint ID step + 1 to every state from
+   //    the initial state through the terminal state.
    StoreEverythingSchedule schedule;
    schedule.Configure(steps, static_cast<size_t>(steps) + 1);
 
    controller.Initialize(initial, 0.0, dt);
    controller.ExecuteForward(schedule, steps);
 
-   // Retain only the initial persistent checkpoint and clear transient replay
-   // state, forcing RestoreStep() to replay the complete trajectory.
+   // 6. Retain only the initial persistent checkpoint and clear transient
+   //    replay state, forcing RestoreStep() to replay the complete trajectory.
    for (CheckpointId id = 2; id <= static_cast<CheckpointId>(steps) + 1; id++)
    {
       controller.Discard(id);
@@ -111,6 +132,7 @@ int main(int argc, char *argv[])
    controller.Restore(1);
    controller.RestoreStep(steps);
 
+   // 7. Exact deterministic replay must reproduce the reference bit for bit.
    const real_t replay_error =
       std::abs(controller.ActiveState().state[0] - reference_state[0]);
    cout << "terminal replay error: " << replay_error << '\n';

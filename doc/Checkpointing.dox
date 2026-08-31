@@ -129,8 +129,40 @@ fault-tolerant recovery.
 \section checkpointing_example Example
 
 Example 42 compares ordinary fixed-step Forward Euler integration with a
-trajectory replayed from its initial exact checkpoint. It reports
-`terminal replay error: 0` for the default deterministic run.
+trajectory replayed from its initial exact checkpoint. Build and run it with:
+
+\code{.sh}
+cd examples
+make ex42
+./ex42
+./ex42 -s 40
+\endcode
+
+The example integrates the scalar equation
+
+\f[
+\frac{du}{dt} = \alpha u - u^3
+\f]
+
+twice with the same fixed-step Forward Euler method. The first integration is
+the reference. The second uses ForwardEulerCheckpointAdapter,
+ODECheckpointPropagator, MemoryCheckpointStorage, ExactCheckpointWindow, and
+CheckpointController. StoreEverythingSchedule creates checkpoint ID
+`step + 1` for every accepted state.
+
+After the checkpointed forward run, the example removes checkpoints 2 through
+`steps + 1`, clears the transient window, restores checkpoint 1, and calls
+RestoreStep() for the terminal step. Consequently, the terminal state must be
+recomputed from the initial complete restart rather than restored directly.
+The program reports
+
+\code{.unparsed}
+terminal replay error: 0
+\endcode
+
+and returns success only when the replayed and reference terminal values are
+bitwise identical. The `-vis` and `-no-vis` options are accepted for consistency
+with MFEM's example test harness, but this example does not visualize output.
 
 The following concepts correspond to the standalone checkpoint library:
 
