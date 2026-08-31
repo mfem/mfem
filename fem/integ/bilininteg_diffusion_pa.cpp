@@ -29,6 +29,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    else
    {
       if (pa_data.Size() == 0) { AssemblePA(*fespace); }
+      MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
+                  "AssembleDiagonalPA not implemented for ragged tensor basis");
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Vector &Dv = pa_data;

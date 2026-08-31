@@ -143,6 +143,8 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
+      MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
+                  "AssembleDiagonalPA not implemented for ragged tensor basis");
       DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
                              diag, dofs1D, quad1D);
    }
