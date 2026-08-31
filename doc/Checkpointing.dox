@@ -1,0 +1,148 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+/** \page checkpointing Exact ODE checkpointing and replay
+
+MFEM's checkpointing API reconstructs exact primal states without requiring a
+complete forward trajectory to remain in memory. The initial implementation is
+synchronous and supports fixed-step ForwardEulerSolver through an opt-in
+ForwardEulerCheckpointAdapter.
+
+\section checkpointing_architecture Architecture
+
+\code{.unparsed}
+TimeDependentOperator / ODESolver
+                 |
+                 v
+      ODESolverCheckpointAdapter
+                 |
+                 v
+       CheckpointController
+          |             |
+          v             v
+ StoreEverything    exact replay
+                          |
+                          v
+              ExactCheckpointWindow
+                          |
+                    +-----+-----+
+                    |           |
+                 memory       files
+\endcode
+
+The controller and adapters borrow their dependencies. The application owns
+the ODESolver, TimeDependentOperator, adapter, propagator, storage backend, and
+moving window, and must keep them alive for the complete controller operation.
+The classes are not internally synchronized.
+
+The solution Vector is not assumed to be a complete restart. CheckpointState
+stores the Vector, an explicit TimePoint, the continuation step size, and opaque
+solver restart bytes. Forward Euler has no persistent stage history, so its
+restart payload is empty and Restore reinitializes the solver. Future adapters
+for adaptive or multistep solvers must capture their complete controller and
+history state in the restart payload.
+
+\section checkpointing_persistence Persistence
+
+Vector values are read through Vector::HostRead(), so checkpoint capture may
+synchronize device data to host. Restore writes through Vector::HostWrite().
+The MFEM-facing scalar type is real_t; persistent time, step-size, and Vector
+values use IEEE binary64. Conversion from single-precision real_t to binary64
+and back preserves every original value exactly.
+
+The version 1 format has a 64-byte, canonical little-endian header:
+
+\code{.unparsed}
+offset  bytes  field
+  0      8    magic 0x4d46454d43503100
+  8      4    format version (1)
+ 12      1    byte-order marker (1 = little-endian)
+ 13      1    scalar width (8 = IEEE binary64)
+ 14      2    reserved, zero
+ 16      8    logical CheckpointId
+ 24      8    StepId bit representation
+ 32      8    physical time
+ 40      8    continuation dt
+ 48      8    Vector length
+ 56      8    restart payload length
+ 64     ...   Vector entries followed by opaque restart bytes
+\endcode
+
+Decoding rejects unsupported versions, malformed lengths, ID mismatches,
+truncation, and trailing bytes. Invalid bytes raise InvalidCheckpointFormat;
+ordinary filesystem failures raise CheckpointStorageError.
+
+FileCheckpointStorage uses one deterministic file per logical checkpoint. An
+overwrite is written and closed in a same-directory temporary file and then
+renamed. A failed overwrite leaves the prior canonical file unchanged. Stale
+temporary files are ignored, and no fsync or crash-durability guarantee is
+made.
+
+\section checkpointing_replay Exact replay
+
+CheckpointController::Restore() restores exactly the requested logical
+CheckpointId. CheckpointController::RestoreStep() first uses an exact target if
+available; otherwise it selects the nearest preceding exact state in the
+transient moving window or persistent storage and advances with the normal
+ODESolver::Step() implementation. Failed restore or replay does not commit a
+partial active state or inconsistent moving-window entry.
+
+StoreEverythingSchedule provides the initial deterministic forward schedule.
+It stores the initial state and every accepted forward state. More advanced
+checkpoint schedules and reverse-time orchestration are intentionally outside
+this initial exact-replay interface.
+
+\section checkpointing_parallel Rank-local parallel compatibility
+
+The checkpoint core contains no MPI calls. A parallel application may create a
+separate storage root on each rank while using the same deterministic schedule
+and logical CheckpointId values:
+
+\code{.unparsed}
+             common logical schedule
+                       |
+              +--------+--------+
+              |        |        |
+             r0       r1       r2
+              |        |        |
+      rank_000000  rank_000001  rank_000002
+              local FileCheckpointStorage
+\endcode
+
+For logical checkpoint i on P ranks, the distributed application checkpoint is
+the collection C_i = { C_i^(0), ..., C_i^(P-1) }. Each payload contains that
+rank's local Vector portion. The application must create unique rank-local
+directories and coordinate errors around collective operators.
+
+This compatibility model does not provide collective commit, failure
+propagation, cross-rank rollback, MPI-IO, a shared-file format, or
+fault-tolerant recovery.
+
+\section checkpointing_example Example
+
+Example 42 compares ordinary fixed-step Forward Euler integration with a
+trajectory replayed from its initial exact checkpoint. It reports
+`terminal replay error: 0` for the default deterministic run.
+
+The following concepts correspond to the standalone checkpoint library:
+
+\code{.unparsed}
+Standalone                       MFEM
+StepId / CheckpointId            StepId / CheckpointId
+Snapshot                         Snapshot
+MemoryStorage / FileStorage      MemoryCheckpointStorage / FileCheckpointStorage
+SnapshotWindow<Vector>           ExactCheckpointWindow
+StoreEverythingSchedule          StoreEverythingSchedule
+IntegratorCheckpointAdapter      ODESolverCheckpointAdapter
+ForwardPropagator<Vector>        ODECheckpointPropagator
+CheckpointExecutionController    CheckpointController
+\endcode
+*/

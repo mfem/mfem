@@ -934,6 +934,7 @@ WARN_LOGFILE           = warnings.log
 # Note: If this tag is empty the current directory is searched.
 
 INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
+                         @MFEM_SOURCE_DIR@/doc/Checkpointing.dox \
                          @MFEM_SOURCE_DIR@/mfem.hpp \
                          @MFEM_SOURCE_DIR@/config \
                          @MFEM_SOURCE_DIR@/general \
