@@ -978,9 +978,14 @@ class GmshReader
                   Skip<size_t>(input, 1, b); // Skip element tag
                   const auto [geom, el_order] = GetGeometryAndOrder(element_type);
 
-                  if (mesh_order < 0) { mesh_order = el_order; }
-                  MFEM_VERIFY(mesh_order == el_order,
-                              "Variable order Gmsh meshes are not supported");
+                  // Point elements (Gmsh type 15) always decode as order 1 and
+                  // are therefore exempt from the mesh-order consistency check.
+                  if (geom != Geometry::POINT)
+                  {
+                     if (mesh_order < 0) { mesh_order = el_order; }
+                     MFEM_VERIFY(mesh_order == el_order,
+                                 "Variable order Gmsh meshes are not supported");
+                  }
 
                   const int n_elem_nodes = NumNodesInElement(geom, el_order);
                   vector<size_t> node_tags(n_elem_nodes);
@@ -1000,6 +1005,12 @@ class GmshReader
             }
             mesh.NumOfElements = mesh.elements.Size();
             mesh.NumOfBdrElements = mesh.boundary.Size();
+            MFEM_VERIFY(mesh.NumOfElements > 0,
+                        "Gmsh 4.1 reader: no elements of dimension " << mesh.Dim
+                        << " were found. The mesh dimension is inferred from"
+                        " the $Entities section; reading a mesh whose elements"
+                        " have lower dimension than its entities (e.g. a"
+                        " surface mesh of a 3D model) is not supported yet.");
          }
          else if (section == "Periodic")
          {
@@ -1020,7 +1031,14 @@ class GmshReader
                {
                   const size_t node_num = ReadBinaryOrASCII<size_t>(input, b);
                   const size_t primary_node_num = ReadBinaryOrASCII<size_t>(input, b);
-                  v2v[node_num - 1] = int(primary_node_num - 1);
+                  // Map the Gmsh node tags (which need not be contiguous or
+                  // 1-based) to vertex indices.
+                  const auto node_it = vertex_map.find(int(node_num));
+                  const auto primary_it = vertex_map.find(int(primary_node_num));
+                  MFEM_VERIFY(node_it != vertex_map.end() &&
+                              primary_it != vertex_map.end(),
+                              "Unknown node tag in the $Periodic section");
+                  v2v[node_it->second] = primary_it->second;
                }
             }
          }
@@ -1074,9 +1092,14 @@ class GmshReader
                auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
                                       int el_order, const vector<int> &el_nodes)
                {
-                  if (mesh_order < 0) { mesh_order = el_order; }
-                  MFEM_VERIFY(mesh_order == el_order,
-                              "Variable order Gmsh meshes are not supported");
+                  // Point elements (Gmsh type 15) always decode as order 1 and
+                  // are therefore exempt from the mesh-order consistency check.
+                  if (geom != Geometry::POINT)
+                  {
+                     if (mesh_order < 0) { mesh_order = el_order; }
+                     MFEM_VERIFY(mesh_order == el_order,
+                                 "Variable order Gmsh meshes are not supported");
+                  }
                   Element *e = NewElement(mesh, geom, el_order, el_nodes, el_phys_tag);
                   elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
                };
@@ -1184,7 +1207,14 @@ class GmshReader
                {
                   const int node_num = ReadBinaryOrASCII<int>(input, ASCII);
                   const int primary_node_num = ReadBinaryOrASCII<int>(input, ASCII);
-                  v2v[node_num - 1] = primary_node_num - 1;
+                  // Map the Gmsh node numbers (which need not be contiguous or
+                  // 1-based) to vertex indices.
+                  const auto node_it = vertex_map.find(node_num);
+                  const auto primary_it = vertex_map.find(primary_node_num);
+                  MFEM_VERIFY(node_it != vertex_map.end() &&
+                              primary_it != vertex_map.end(),
+                              "Unknown node number in the $Periodic section");
+                  v2v[node_it->second] = primary_it->second;
                }
             }
          }
