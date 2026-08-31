@@ -1049,17 +1049,32 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
-   if (dim == 2)
+   // We don't route thru DispatchHOKernelByDim() as for other callbacks
+   // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   if constexpr (QFDIM == 2)
    {
+      MFEM_VERIFY(dim == 2, "mesh dimension " << dim << " does not match the "
+                  "2D q-function signature this integrator was built from");
       return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
    }
-   else if (dim == 3)
+   else if constexpr (QFDIM == 3)
    {
+      MFEM_VERIFY(dim == 3, "mesh dimension " << dim << " does not match the "
+                  "3D q-function signature this integrator was built from");
       return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension");
+      if (dim == 2)
+      {
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
+      }
+      if (dim == 3)
+      {
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
+      }
+      MFEM_ABORT("Unsupported dimension " << dim);
       return nullptr;
    }
 }

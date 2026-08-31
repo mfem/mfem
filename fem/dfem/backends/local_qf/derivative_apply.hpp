@@ -682,19 +682,8 @@ DerivativeApplyLO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
-   if (dim == 2)
-   {
-      return DispatchLOKernelByQ1D<DerivativeApplyLO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchLOKernelByQ1D<DerivativeApplyLO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<DerivativeApplyLO, QFDIM>(dim, q1d);
 }
 
 template<int derivative_id,
@@ -723,19 +712,8 @@ DerivativeApplyHO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
-   if (dim == 2)
-   {
-      return DispatchHOKernelByQ1D<DerivativeApplyHO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchHOKernelByQ1D<DerivativeApplyHO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<DerivativeApplyHO, QFDIM>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

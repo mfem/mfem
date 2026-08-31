@@ -612,19 +612,8 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
 {
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    using ActionLO = typename action_t::ActionLO;
-   if (dim == 2)
-   {
-      return DispatchLOKernelByQ1D<ActionLO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchLOKernelByQ1D<ActionLO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<ActionLO, QFDIM>(dim, q1d);
 }
 
 // High Order kernels
@@ -644,19 +633,8 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int q1d)
 {
    using action_t = Action<qfunc_t, inputs_t, outputs_t>;
    using ActionHO = typename action_t::ActionHO;
-   if (dim == 2)
-   {
-      return DispatchHOKernelByQ1D<ActionHO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchHOKernelByQ1D<ActionHO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<ActionHO, QFDIM>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

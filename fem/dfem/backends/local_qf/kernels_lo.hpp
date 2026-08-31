@@ -1140,4 +1140,38 @@ DispatchLOKernelByQ1D(int q1d)
    return nullptr;
 }
 
+/// @brief Select the compile-time LO kernel for runtime @a dim.
+///
+/// QFDIM is deduced at compile-time from the q-function signature.
+/// If it is not possible to deduce the dimension (QFDIM=0), we fallback
+/// to the original runtime dispatching, which means we emit both 2D and 3D
+/// branches.
+template <typename LOKernelTable, int QFDIM, int MQ1 = LocalQFLOBackendMQ1()>
+inline typename LOKernelTable::KernelSignature
+DispatchLOKernelByDim(int dim, int q1d)
+{
+   if constexpr (QFDIM == 2 || QFDIM == 3)
+   {
+      MFEM_VERIFY(dim == QFDIM,
+                  "mesh dimension " << dim << " does not match the " << QFDIM
+                  << "D q-function signature this integrator was built from");
+      return DispatchLOKernelByQ1D<LOKernelTable, QFDIM, MQ1>(q1d);
+   }
+   else
+   {
+      // Couldn't deduce the dimension from the q-function signature,
+      // we fall back to original runtime dispatching.
+      if (dim == 2)
+      {
+         return DispatchLOKernelByQ1D<LOKernelTable, 2, MQ1>(q1d);
+      }
+      if (dim == 3)
+      {
+         return DispatchLOKernelByQ1D<LOKernelTable, 3, MQ1>(q1d);
+      }
+      MFEM_ABORT("Unsupported dimension " << dim);
+      return nullptr;
+   }
+}
+
 } // namespace mfem::future

@@ -181,6 +181,43 @@ struct qf_param_slot
    static constexpr auto extents = qf_param_shape<qf_decay_param_t>::extents;
 };
 
+///////////////////////////////////////////////////////////////////////////////
+/// Spatial dimension carried by fop slot `I`, or 0 when that slot is not a
+/// Gradient. Slot `I` indexes the fop tuple and the q-function parameter list
+/// alike, so the tuple must be the inputs and outputs concatenated in signature
+/// order.
+template <typename qfunc_t, typename fops_t, std::size_t I>
+constexpr int qf_slot_dim()
+{
+   using fop_t = tuple_element_t<I, fops_t>;
+   constexpr auto ext = qf_param_slot<qfunc_t, I>::extents;
+   if constexpr (is_gradient_fop<fop_t>::value && ext.size() > 0)
+   {
+      return ext[ext.size() - 1];
+   }
+   else { return 0; }
+}
+
+template <typename qfunc_t, typename fops_t, std::size_t... Is>
+constexpr int deduce_qf_dim_impl(std::index_sequence<Is...>)
+{
+   int dim = 0;
+   ((dim = dim ? dim : qf_slot_dim<qfunc_t, fops_t, Is>()), ...);
+   return dim;
+}
+
+/// Spatial dimension implied by the q-function signature, or 0 when it
+/// cannot be deduced.
+/// Deduced from the last extent of the first Gradient parameter across both
+/// inputs and outputs (that's why they're concatenated).
+template <typename qfunc_t, typename inputs_t, typename outputs_t = tuple<>>
+constexpr int deduce_qf_dim()
+{
+   using fops_t = tuple_cat_type_t<inputs_t, outputs_t>;
+   return deduce_qf_dim_impl<qfunc_t, fops_t>(
+             std::make_index_sequence<tuple_size<fops_t>::value> {});
+}
+
 /////////////////////////////////////////////////////////////////////////
 /// Tile size a kernel must be built at, given the runtime shapes.
 ///

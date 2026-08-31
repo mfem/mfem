@@ -866,19 +866,8 @@ DerivativeActionLO::Fallback(int dim, int q1d)
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeActionLO =
       typename derivative_action_t::DerivativeActionLO;
-   if (dim == 2)
-   {
-      return DispatchLOKernelByQ1D<DerivativeActionLO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchLOKernelByQ1D<DerivativeActionLO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<DerivativeActionLO, QFDIM>(dim, q1d);
 }
 
 // High Order kernels
@@ -911,19 +900,8 @@ DerivativeActionHO::Fallback(int dim, int q1d)
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeActionHO = typename derivative_action_t::DerivativeActionHO;
-   if (dim == 2)
-   {
-      return DispatchHOKernelByQ1D<DerivativeActionHO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchHOKernelByQ1D<DerivativeActionHO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<DerivativeActionHO, QFDIM>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl
