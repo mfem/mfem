@@ -30,7 +30,7 @@ namespace mfem
 
 Hybridization::Hybridization(FiniteElementSpace *fespace,
                              FiniteElementSpace *c_fespace)
-   : fes(*fespace), c_fes(*c_fespace)
+   : Operator(c_fespace->GetVSize()), fes(*fespace), c_fes(*c_fespace)
 {
 #ifdef MFEM_USE_MPI
    pH.SetType(Operator::Hypre_ParCSR);
@@ -963,6 +963,18 @@ void Hybridization::ReduceRHS(const Vector &b, Vector &b_r) const
    b_r.SetSize(Ct->Width());
    Ct->MultTranspose(bf, b_r);
 #endif
+}
+
+void Hybridization::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(H, "Hybridization must be finalized");
+   H->Mult(x, y);
+}
+
+Operator &Hybridization::GetGradient(const Vector &x) const
+{
+   MFEM_VERIFY(H, "Hybridization must be finalized");
+   return *H;
 }
 
 void Hybridization::ComputeSolution(const Vector &b, const Vector &sol_r,
