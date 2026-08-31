@@ -1,0 +1,75 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 0
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 6
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 0.25
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 4
+   --newton-rtol -1
+   --npc
+   --gradient-mode -1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+
+
+MFEM Warning: Upwinded flux is implemented only component-wise.
+ ... in function: mfem::ComponentwiseUpwindFlux::ComponentwiseUpwindFlux(const mfem::FluxFunction&)
+ ... in file: /home/ian/projects/mfem-hdg-dev/fem/hyperbolic.cpp:1472
+
+
+
+MFEM Warning: Upwinded flux is implemented only component-wise.
+ ... in function: mfem::ComponentwiseUpwindFlux::ComponentwiseUpwindFlux(const mfem::FluxFunction&)
+ ... in file: /home/ian/projects/mfem-hdg-dev/fem/hyperbolic.cpp:1472
+
+Hybridization init took 0.000712333s.
+***********************************************************
+dim(V) = 1592
+dim(W) = 796
+dim(M) = 858
+dim(V+W+M) = 3246
+***********************************************************
+Assembly took 0.000471622s.
+Preconditioner took 3.0667e-05s.
+Newton iteration  0 : ||r|| = 0.0312924
+Newton iteration  1 : ||r|| = 0.00293297, ||r||/||r_0|| = 0.0937277
+Newton iteration  2 : ||r|| = 1.37011e-05, ||r||/||r_0|| = 0.000437841
+Newton iteration  3 : ||r|| = 5.23583e-09, ||r||/||r_0|| = 1.67319e-07
+local nonlinear iterations: 0
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 3 iterations with a residual norm of 5.23583e-09.
+Solver took 0.0697403s.
+|| q_h - q_ex || / || q_ex || = 0.00611594
+|| t_h - t_ex || / || t_ex || = 0.00158347

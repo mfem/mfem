@@ -73,6 +73,7 @@ for i, filename in enumerate(filenames):
 	nonlin_pot = get_ref_option(filename, '--nonlinear-pot')
 	nonlin_conv = get_ref_option(filename, '--nonlinear-convection')
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
+	npc = get_ref_option(filename, '--npc')
 
 	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep '^   "+param+"' "+file+" | cut -d ' ' -f 5")
@@ -105,6 +106,19 @@ for i, filename in enumerate(filenames):
 	ref_iters_idx_a = ref_out[-4].find('converged in')
 	ref_iters_idx_b = ref_out[-4].find(' iterations')
 	ref_iters = int(ref_out[-4][ref_iters_idx_a+13:ref_iters_idx_b])
+
+	# The local nonlinear iteration count, when the reference records one. It
+	# is what distinguishes NPC from the reduced route -- NPC runs no local
+	# nonlinear solve, so it is identically zero -- and without comparing it an
+	# NPC reference would pass even if -npc became a no-op, the two routes
+	# converging to the same answer by design. References written before this
+	# line existed simply do not have it and are compared as they always were.
+	def get_local_nl(lines):
+		for l in lines:
+			if l.startswith('local nonlinear iterations:'):
+				return int(l.split(':')[1])
+		return None
+	ref_local_nl = get_local_nl(ref_out)
 
 	# Construct the command line
 	if parallel:
@@ -153,8 +167,15 @@ for i, filename in enumerate(filenames):
 		command_line += f' -k {kappa}'
 	if hdg != 1:
 		command_line += f' -hdg {hdg}'
-	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_diff):
+	# nonlin_conv was missing from this test, so a case that is -nlc and
+	# nothing else would have recorded -nls and been re-run without it. Every
+	# -nlc reference also carries -nl, so it never bit; it is fixed rather
+	# than left as a trap for the next one.
+	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_conv
+	                 or nonlin_diff):
 		command_line += f' -nls {nls}'
+	if npc:
+		command_line += ' -npc'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
 
@@ -177,10 +198,18 @@ for i, filename in enumerate(filenames):
 	except:
 		fail = True
 
+	test_local_nl = get_local_nl(split_cmd_out)
+
 	if not fail:
 		if test_solver == ref_solver and test_iters == ref_iters:
 			if equal(ref_L2_t, test_L2_t) and equal(ref_L2_q, test_L2_q):
-				print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
+				if ref_local_nl is not None and test_local_nl != ref_local_nl:
+					print(f"{bcolors.FAIL}FAILING:{bcolors.RESET} {command_line} → "
+					      f"local nonlinear iterations {test_local_nl}, reference "
+					      f"{ref_local_nl}")
+					failed += 1
+				else:
+					print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
 			else:
 				fail = True
 		elif test_solver != ref_solver:

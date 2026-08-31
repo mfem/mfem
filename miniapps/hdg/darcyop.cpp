@@ -781,6 +781,19 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
 
    if (verbose)
    {
+      // Printed BEFORE the solver line, so the last four lines the regression
+      // comparator indexes from the end are undisturbed and every reference
+      // written without it keeps working. It is the one signal that tells NPC
+      // from the reduced route: NPC runs no local nonlinear solve at all, so
+      // this is identically zero, where condensation's is not. Without it an
+      // NPC reference would pass even if -npc became a no-op -- the two
+      // routes converge to the same answer, which is the whole point of them.
+      if (darcy->GetHybridization())
+      {
+         std::cout << "local nonlinear iterations: "
+                   << darcy->GetHybridization()->GetNumLocalNLIterations()
+                   << "\n";
+      }
       std::cout << solver_str;
       if (!prec_str.empty()) { std::cout << "+" << prec_str; }
       if (!lin_prec_str.empty()) { std::cout << "+" << lin_prec_str; }
