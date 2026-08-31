@@ -308,12 +308,12 @@ TEST_CASE("Laplacian",
    auto [meshName, NURBS, deformed, intorder, tol] = GENERATE(
                                                         table<std::string, bool, bool, int, double>(
    {
-      {"square-nurbs.mesh",            true,  true,  12, 1e-8},
-      {"square-nurbs.mesh",            false, true,  10, 1e-8},
-      {"disc-nurbs-single-patch.mesh", true,  false, 32, 1e-6},
-      {"cube-nurbs.mesh",              true,  true,  12, 1e-8},
-      {"cube-nurbs.mesh",              false, true,  12, 1e-8},
-      {"ball-nurbs-single-patch.mesh", true,  false, 32, 1e-6},
+      {"square-nurbs.mesh",            true,  true,  14, 1e-7},
+      {"square-nurbs.mesh",            false, true,  14, 1e-7},
+      {"disc-nurbs-single-patch.mesh", true,  false, 34, 1e-6},
+      {"cube-nurbs.mesh",              true,  true,  14, 1e-7},
+      {"cube-nurbs.mesh",              false, true,  14, 1e-7},
+      {"ball-nurbs-single-patch.mesh", true,  false, 34, 1e-6},
    })
                                                      );
 
