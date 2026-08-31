@@ -3396,12 +3396,12 @@ void curve_current_source_tahi_i(const Vector &x, Vector &j)
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_tahi_r(x, j);
+   curve_current_source_v2_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_tahi_i(x, j);
+   curve_current_source_v2_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)
