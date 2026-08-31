@@ -411,7 +411,6 @@ TEST_CASE("Laplacian",
       eltrans = fes.GetElementTransformation (e);
 
       // Integrand involves non-polynomial mapping
-      //  const int intorder = 3*fes.GetFE(e)->GetOrder();
       const IntegrationRule *ir = &IntRules.Get(fes.GetFE(e)->GetGeomType(),
                                                 intorder);
 
