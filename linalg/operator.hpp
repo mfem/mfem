@@ -418,6 +418,8 @@ protected:
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
+private:
+   /// Restrict direct access to this member; use SetImplicitVariableType() instead.
    ImplicitVariableType implicit_variable_type =
       ImplicitVariableType::SLOPE; /**< @brief Return variable for ImplicitSolve()*/
 
@@ -467,7 +469,7 @@ protected:
    friend class ODESolver; // This is fine since friend is not inherited
 
    /** @brief Sets the #ImplicitVariableType for ImplicitSolve(). This should be
-    * called by the ODESolver after confirming the ODESolver supports the @a variable_type
+    * called by the #ODESolver after confirming the #ODESolver supports the @a variable_type
    */
    virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
    { implicit_variable_type = variable_type; }
