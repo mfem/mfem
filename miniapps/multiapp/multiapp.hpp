@@ -289,39 +289,39 @@ public:
 
 // @brief A GraphOperation that stores the internal state of the operator
 // and allows for state-dependent execution. Can be registered with the DAG
-template<typename OpType, typename StateType>
-struct StateDependentGraphOperation : GraphOperation
+template<typename OpType, typename AuxType>
+struct AbstractGraphOperation : GraphOperation
 {
-    using ExecuteFunc = std::function<void(StateType &state,
+    using ExecuteFunc = std::function<void(AuxType &aux_data,
                                            const MultiVector&, MultiVector&)>;
-    using GradFunc = std::function<void(StateType &state,
+    using GradFunc = std::function<void(AuxType &aux_data,
                                         const MultiVector&, const MultiVector&, MultiVector&)>;
 
-    mutable StateType *state; // State to be stored (not owned)
+    mutable AuxType *aux_data; // State to be stored (not owned)
     ExecuteFunc execute;
     GradFunc grad, grad_transpose;
 
     // Only use if OpType extended from mfem::Operator
     template<typename = std::enable_if_t<std::is_base_of<Operator, OpType>::value>>
-    StateDependentGraphOperation(OpType &oper, InputType in, OutputType out, StateType &state,
-                                 ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
-                                 GradFunc grad_transpose = nullptr) :
-                                 GraphOperation(oper, in, out, nullptr, nullptr, nullptr),
-                                 state(&state), execute(exec), grad(grad), grad_transpose(grad_transpose)
-                                 { }
+    AbstractGraphOperation(OpType &oper, InputType in, OutputType out, AuxType &aux_data,
+                           ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
+                           GradFunc grad_transpose = nullptr) :
+                           GraphOperation(oper, in, out, nullptr, nullptr, nullptr),
+                           aux_data(&aux_data), execute(exec), grad(grad), grad_transpose(grad_transpose)
+                           { }
 
-    StateDependentGraphOperation(ExecuteFunc exec, InputType in, OutputType out, StateType &state,
-                                 GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
-                                 GraphOperation(nullptr, in, out, nullptr, nullptr),
-                                 state(&state), execute(exec), grad(grad), grad_transpose(grad_transpose)
-                                 { }
+    AbstractGraphOperation(ExecuteFunc exec, InputType in, OutputType out, AuxType &aux_data,
+                           GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
+                           GraphOperation(nullptr, in, out, nullptr, nullptr),
+                           aux_data(&aux_data), execute(exec), grad(grad), grad_transpose(grad_transpose)
+                           { }
 
     void Execute() const override
     {
         auto get = [](const Field *f) -> Vector& { return *f->Data(); };
         IterableToMultiVector<Vector&>(inputs, xmv, get);
         IterableToMultiVector<Vector&>(outputs, ymv, get);
-        execute(*state, xmv, ymv);
+        execute(*aux_data, xmv, ymv);
     }
 };
 
@@ -411,17 +411,17 @@ public:
                                 GraphOperation::GradFunc grad = nullptr,
                                 GraphOperation::GradFunc grad_transpose = nullptr);
 
-    // Register fields with state-dependent execution
-    template<typename StateType,
-             typename GraphOpType = StateDependentGraphOperation<GraphNode, StateType>,
+    // Register fields with that takes additional, auxiliary information
+    template<typename AuxType,
+             typename GraphOpType = AbstractGraphOperation<GraphNode, AuxType>,
              typename ExecuteFunc = typename GraphOpType::ExecuteFunc,
              typename GradFunc =typename GraphOpType::GradFunc,
-            // Disable to avoid conflict with other RegisterFields method when StateType is a lambda
-             std::enable_if_t<!std::is_same_v<StateType, GraphOpType::ExecuteFunc>, bool> = true
+            // Disable to avoid conflict with other RegisterFields method when AuxType is a lambda
+             std::enable_if_t<!std::is_same_v<AuxType, GraphOpType::ExecuteFunc>, bool> = true
             >
     void RegisterFields(std::initializer_list<Field*> inputs,
                         std::initializer_list<Field*> outputs,
-                        StateType &state,
+                        AuxType &auxiliary_data,
                         ExecuteFunc execute = nullptr,
                         GradFunc grad = nullptr,
                         GradFunc grad_transpose = nullptr)
@@ -441,15 +441,15 @@ public:
         else if(tape->IsRecording()) // All tapes are the same and recording is active
         {
             // Default functions if not provided
-            auto def_exec = execute ? execute : [this](StateType &s, const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
-            auto def_grad = grad ? grad : [this](StateType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+            auto def_exec = execute ? execute : [this](AuxType &s, const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
+            auto def_grad = grad ? grad : [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
                                                 { this->GradientMult(x, dx, dy); };
             auto def_grad_transpose = grad_transpose ? grad_transpose :
-                                     [this](StateType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                     [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
                                            { this->GradientMultTranspose(x, dx, dy); };
 
             // Register the operation on the tape
-            auto *op = new StateDependentGraphOperation<GraphNode, StateType>(*this, inputs, outputs, state,
+            auto *op = new AbstractGraphOperation<GraphNode, AuxType>(*this, inputs, outputs, auxiliary_data,
                                                                               def_exec, def_grad, def_grad_transpose);
             tape->RegisterOperation(op);
         }
