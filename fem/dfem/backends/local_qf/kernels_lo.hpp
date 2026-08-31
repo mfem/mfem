@@ -1096,7 +1096,48 @@ DispatchLOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported LO quadrature order: " << q1d);
-   return LOKernelTable::template Kernel<DIM, MQ1>();
+   switch (q1d)
+   {
+      case 2: return LOKernelTable::template Kernel<DIM, 2>();
+      case 3:
+         if constexpr (MQ1 >= 3)
+         {
+            return LOKernelTable::template Kernel<DIM, 3>();
+         }
+         break;
+      case 4:
+         if constexpr (MQ1 >= 4)
+         {
+            return LOKernelTable::template Kernel<DIM, 4>();
+         }
+         break;
+      case 5:
+         if constexpr (MQ1 >= 5)
+         {
+            return LOKernelTable::template Kernel<DIM, 5>();
+         }
+         break;
+      case 6:
+         if constexpr (MQ1 >= 6)
+         {
+            return LOKernelTable::template Kernel<DIM, 6>();
+         }
+         break;
+      case 7:
+         if constexpr (MQ1 >= 7)
+         {
+            return LOKernelTable::template Kernel<DIM, 7>();
+         }
+         break;
+      case 8:
+         if constexpr (MQ1 >= 8)
+         {
+            return LOKernelTable::template Kernel<DIM, 8>();
+         }
+         break;
+      default: return nullptr;
+   }
+   return nullptr;
 }
 
 } // namespace mfem::future

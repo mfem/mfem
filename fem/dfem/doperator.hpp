@@ -435,6 +435,9 @@ public:
    DerivativeOperator(const DerivativeOperator &) = delete;
    DerivativeOperator &operator=(const DerivativeOperator &) = delete;
 
+   /// Fill the quadrature-point cache, if one is configured.
+   void SetupQpCache() const { EnsureQpCache(); }
+
    /// @brief Compute the action of the derivative operator on a given vector.
    ///
    /// @param x The direction vector in which to compute the derivative.

@@ -567,7 +567,7 @@ DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeSetupHO::Kernel()
 {
    using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return setup_t::template derivative_setup_callback<LocalQFHOBackend<DIM>,
+   return setup_t::template derivative_setup_callback<LocalQFHOBackend<DIM, Q1D>,
                                                       Q1D>;
 }
 

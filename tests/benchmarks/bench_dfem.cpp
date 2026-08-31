@@ -66,7 +66,7 @@ void info()
    mfem::out << "\x1b[33m";
    mfem::out << "name: BP<n>/B<m>D<c|q>[.ad]/S<f|gk>/<impl>/<order>/<dofs per side>"
              << std::endl;
-   mfem::out << "expression: parentheses mark fused launch/stage boundaries"
+   mfem::out << "expression: braces mark kernel launch boundaries"
              << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
@@ -89,31 +89,6 @@ enum class Version
    MF_dfem_local_get_derivative_cached,
 };
 
-// Benchmark naming spec
-// BP3/B2Dc.ad/Sg3/dfem/4/160
-//  |      |      |    |    |
-//  |      |      |    |    +-- args (order, dofs per side), appended by gbench
-//  |      |      |    +-- implementation under test
-//  |      |      +-- structure: Sf = fused, Sg<k> = staged over global qp arrays,
-//  |      |          with k parenthesized expression groups
-//  |      +-- class: B<n> = total number of B/G applications in the operator
-//  |          action, including transposes; Dc = cached q-data, Dq = q-data
-//  |          evaluated at quadrature points, .ad = obtained via get_derivative
-//  |          (provenance only)
-//  +-- problem
-//
-// Expression notation:
-//   Parentheses mark fused launch/stage boundaries.
-//   Square brackets group block quadrature inputs, not staging.
-//   Dq evaluates geometry/parameter data and therefore shows (G x); Dc uses
-//   cached data and omits (G x).
-//
-// Expression column examples:
-//   BP1/{B2Dc,B2Dc.ad}/Sf/*  -> (Bᵀ Dc B u)
-//   BP1/B4Dq.ad/Sg5/*        -> (Bᵀ (Dq [(B u); (G x); (B p)]))
-//   BP3/{B2Dc,B2Dc.ad}/Sf/*  -> (Gᵀ Dc G u)
-//   BP3/B4Dq.ad/Sg5/*        -> (Gᵀ (Dq [(G u); (G x); (G p)]))
-
 template <int BFI, Version VER>
 constexpr const char *BenchmarkPath() noexcept
 {
@@ -121,39 +96,39 @@ constexpr const char *BenchmarkPath() noexcept
    {
       if constexpr (VER == Version::PA_mfem_std)
       {
-         return "BP1/B2Dc/Sf/mfem_std";
+         return "BP1/mfem_std";
       }
       else if constexpr (VER == Version::MF_dfem_global)
       {
-         return "BP1/B3Dq/Sg4/dfem";
+         return "BP1/MF_dfem_global";
       }
       else if constexpr (VER == Version::PA_dfem_global)
       {
-         return "BP1/B2Dc/Sg2/dfem";
+         return "BP1/PA_manual_dfem_global";
       }
       else if constexpr (VER == Version::MF_dfem_local)
       {
-         return "BP1/B3Dq/Sf/dfem";
+         return "BP1/MF_dfem_local";
       }
       else if constexpr (VER == Version::PA_dfem_local)
       {
-         return "BP1/B2Dc/Sf/dfem";
+         return "BP1/PA_manual_dfem_local";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative)
       {
-         return "BP1/B4Dq.ad/Sg5/dfem";
+         return "BP1/MF_dfem_global_get_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative)
       {
-         return "BP1/B4Dq.ad/Sf/dfem";
+         return "BP1/MF_dfem_local_get_derivative";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
       {
-         return "BP1/B2Dc.ad/Sg2/dfem";
+         return "BP1/MF_dfem_global_get_derivative_cached";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
       {
-         return "BP1/B2Dc.ad/Sf/dfem";
+         return "BP1/MF_dfem_local_get_derivative_cached";
       }
    }
    else if constexpr (BFI == 3)
@@ -203,62 +178,80 @@ constexpr const char *BenchmarkExpression() noexcept
 {
    if constexpr (BFI == 1)
    {
-      if constexpr (VER == Version::PA_mfem_std ||
-                    VER == Version::PA_dfem_local ||
-                    VER == Version::MF_dfem_local_get_derivative_cached)
+      if constexpr (VER == Version::PA_mfem_std)
       {
-         return "(Bᵀ Dc B u)";
+         return "{Bᵀ D B u}";
+      }
+      else if constexpr (VER == Version::PA_dfem_local)
+      {
+         return "{Bᵀ D B u}";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
+      {
+         return "{Bᵀ D B du}";
       }
       else if constexpr (VER == Version::MF_dfem_local)
       {
-         return "(Bᵀ Dq [B u; G x])";
+         return "{Bᵀ Ql(B u, G x)}";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative)
       {
-         return "(Bᵀ Dq [B u; G x; B p])";
+         return "{Bᵀ Ql'(B u, G x) B du}";
       }
-      else if constexpr (VER == Version::PA_dfem_global ||
-                         VER == Version::MF_dfem_global_get_derivative_cached)
+      else if constexpr (VER == Version::PA_dfem_global)
       {
-         return "(Bᵀ (Dc B p))";
+         return "{Bᵀ {D {B u}}";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
+      {
+         return "{Bᵀ D {B du}}";
       }
       else if constexpr (VER == Version::MF_dfem_global)
       {
-         return "(Bᵀ (Dq [(B u); (G x)]))";
+         return "{Bᵀ {Qg({B u}, {G x})}}";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative)
       {
-         return "(Bᵀ (Dq [(B u); (G x); (B p)]))";
+         return "{Bᵀ {Qg'({B u}, {G x}) {B du}}}";
       }
    }
    else if constexpr (BFI == 3)
    {
-      if constexpr (VER == Version::PA_mfem_std ||
-                    VER == Version::PA_dfem_local ||
-                    VER == Version::MF_dfem_local_get_derivative_cached)
+      if constexpr (VER == Version::PA_mfem_std)
       {
-         return "(Gᵀ Dc G u)";
+         return "{Gᵀ D G u}";
+      }
+      else if constexpr (VER == Version::PA_dfem_local)
+      {
+         return "{Gᵀ Ql(G u)}";
+      }
+      else if constexpr (VER == Version::MF_dfem_local_get_derivative_cached)
+      {
+         return "{Gᵀ Ql'(G u) G du}";
       }
       else if constexpr (VER == Version::MF_dfem_local)
       {
-         return "(Gᵀ Dq [(G u); (G x)])";
+         return "{Gᵀ Ql(G u, G x)}";
       }
       else if constexpr (VER == Version::MF_dfem_local_get_derivative)
       {
-         return "(Gᵀ Dq [G u; G x; G p])";
+         return "{Gᵀ Ql'(G u, G x) G du}";
       }
-      else if constexpr (VER == Version::PA_dfem_global ||
-                         VER == Version::MF_dfem_global_get_derivative_cached)
+      else if constexpr (VER == Version::PA_dfem_global)
       {
-         return "(Gᵀ (Dc G p))";
+         return "{Gᵀ {Qg(G u)}}";
+      }
+      else if constexpr (VER == Version::MF_dfem_global_get_derivative_cached)
+      {
+         return "{Gᵀ {Qg'(G u) G du}}";
       }
       else if constexpr (VER == Version::MF_dfem_global)
       {
-         return "(Gᵀ (Dq [(G u); (G x)]))";
+         return "{Gᵀ {Qg({G u}, {G x})}}";
       }
       else if constexpr (VER == Version::MF_dfem_global_get_derivative)
       {
-         return "(Gᵀ (Dq [(G u); (G x); (G p)]))";
+         return "{Gᵀ {Qg'({G u}, {G x}) {G du}}}";
       }
    }
    return "";
@@ -268,9 +261,18 @@ constexpr const char *BenchmarkExpression() noexcept
 class ExpressionReporter : public bm::BenchmarkReporter
 {
    static constexpr int expression_width = 20;
+   static constexpr std::size_t counter_width = 10;
+   static constexpr std::size_t order_width = 2;
    std::size_t name_field_width = 0;
    bm::UserCounters prev_counters;
    bool printed_header = false;
+
+   static std::size_t CounterFieldWidth(const std::string &name)
+   {
+      return name == "p" ? order_width :
+             name == "Setup" ? 15 :
+             std::max<std::size_t>(counter_width, name.length());
+   }
 
    static std::string FormatTime(double time)
    {
@@ -327,6 +329,11 @@ class ExpressionReporter : public bm::BenchmarkReporter
          unit = "%";
          return os.str();
       }
+      if (counter.first == "Setup")
+      {
+         unit = " ms";
+         return FormatTime(counter.second.value);
+      }
       unit = (counter.second.flags & bm::Counter::kIsRate) != 0 ?
              ((counter.second.flags & bm::Counter::kInvert) != 0 ? "s" : "/s") :
              "";
@@ -338,15 +345,13 @@ class ExpressionReporter : public bm::BenchmarkReporter
       std::ostringstream os;
       os << std::left << std::setw(static_cast<int>(name_field_width))
          << "Benchmark" << " "
-         << std::right << std::setw(13) << "Time" << " "
-         << std::setw(15) << "CPU" << " "
-         << std::setw(12) << "Iterations";
+         << std::right << std::setw(15) << "Time";
       for (const auto &counter : run.counters)
       {
-         const auto width = std::max<std::size_t>(10, counter.first.length());
+         const auto width = CounterFieldWidth(counter.first);
          os << " " << std::setw(static_cast<int>(width)) << counter.first;
       }
-      os << " " << std::left << std::setw(expression_width) << "expression";
+      os << "  " << std::left << std::setw(expression_width) << "expression";
 
       const auto header = os.str();
       GetOutputStream() << std::string(header.length(), '-') << "\n"
@@ -369,30 +374,18 @@ class ExpressionReporter : public bm::BenchmarkReporter
 
       const char *time_unit = bm::GetTimeUnitString(run.time_unit);
       out << std::right << FormatTime(run.GetAdjustedRealTime()) << " "
-          << std::left << std::setw(4) << time_unit
-          << std::right << FormatTime(run.GetAdjustedCPUTime()) << " "
           << std::left << std::setw(4) << time_unit;
-
-      if (run.run_type != Run::RT_Aggregate ||
-          run.aggregate_unit == bm::StatisticUnit::kTime)
-      {
-         out << std::right << std::setw(10) << run.iterations;
-      }
-      else
-      {
-         out << std::right << std::setw(10) << "";
-      }
 
       for (const auto &counter : run.counters)
       {
          std::string unit;
          const std::string value = CounterValue(run, counter, unit);
-         const auto width = std::max<std::size_t>(10, counter.first.length());
+         const auto width = CounterFieldWidth(counter.first);
          const auto value_width = std::max<int>(1, static_cast<int>(width - unit.length()));
          out << " " << std::right << std::setw(value_width) << value << unit;
       }
 
-      out << " " << std::left << std::setw(expression_width)
+      out << "  " << std::left << std::setw(expression_width)
           << run.report_label << "\n";
    }
 
@@ -788,6 +781,7 @@ struct BakeOff
    std::unique_ptr<WrapDerivativeOp> dwop;
 
    double mdofs{};
+   double setup_time_ms{};
 
    BakeOff(int p, int side):
       p(p), c(side), q(2 * p + (GLL ? -1 : 3)), n((assert(c >= p), c / p)),
@@ -836,6 +830,16 @@ struct BakeOff
 
       // BilinearForm a
       const int height = pfes.GetVSize(), width = pfes.GetVSize();
+      const auto timeSetup = [&] (auto &&setup)
+      {
+         MFEM_DEVICE_SYNC;
+         StopWatch timer;
+         timer.Start();
+         setup();
+         MFEM_DEVICE_SYNC;
+         timer.Stop();
+         setup_time_ms += 1e3 * timer.RealTime();
+      };
       const auto formLinearSystem = [&] (Vector &arg1)
       {
          Operator *A_ptr = nullptr;
@@ -855,7 +859,7 @@ struct BakeOff
       {
          a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
          a.AddDomainIntegrator(integrator);
-         a.Assemble();
+         timeSetup([&] { a.Assemble(); });
          a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
       };
       // MF ∂FEM setup
@@ -900,6 +904,10 @@ struct BakeOff
          AddLocalQFDerivativeSpecializations<backend_t, DIM, U, QT, IT, OT>();
          MultiVector state{x, nodes};
          ddop = dop->GetDerivative(U, state, use_cached_setup);
+         if (use_cached_setup)
+         {
+            timeSetup([&] { ddop->SetupQpCache(); });
+         }
          formLinearSystemDerivative();
       };
       // PA ∂FEM setup
@@ -920,7 +928,7 @@ struct BakeOff
          using SetupOT = decltype(tuple{Identity<Q>{}});
          AddLocalQFActionSpecializations<backend_t, DIM, SetupQT, SetupIT, SetupOT>();
          MultiVector N{nodes}, D{qfct};
-         qdata_setup_dop->Mult(N, D);
+         timeSetup([&] { qdata_setup_dop->Mult(N, D); });
 
          const auto ifd1 = std::vector<FieldDescriptor> {{U, &pfes}, {Q, &vqspace}};
          const auto ofd1 = std::vector<FieldDescriptor> {{U, &pfes}};
@@ -1051,6 +1059,11 @@ struct BakeOff
 
    [[nodiscard]] double MDofs() const noexcept { return 1e-6 * dofs; }
 
+   [[nodiscard]] double SetupTimeMilliseconds() const noexcept
+   {
+      return setup_time_ms;
+   }
+
 };
 
 // Bake-off Problems (BPs)
@@ -1118,6 +1131,7 @@ static void Benchmark(bm::State& state) noexcept
    }
    state.counters["Dofs"] = bm::Counter(run->dofs);
    state.counters["MDof/s"] = bm::Counter(run->SumMdofs(), bm::Counter::kIsRate);
+   state.counters["Setup"] = bm::Counter(run->SetupTimeMilliseconds());
    state.counters["p"] = bm::Counter(state.range(0));
    state.SetLabel(BenchmarkExpression<T::bfi, T::version>());
 }
@@ -1125,46 +1139,58 @@ static void Benchmark(bm::State& state) noexcept
    BENCHMARK_TEMPLATE(Benchmark, PK<BFI, Version::VER>) \
    ->Name(BenchmarkPath<BFI, Version::VER>())->Apply(CustomArguments)->Unit(bm::kMillisecond)
 
-// BP1: (Bᵀ Dc B u)
+// BP1: {Bᵀ D B u}
 REGISTER(BP, 1, PA_mfem_std);
+
+// BP1: {Bᵀ Ql'(B u) B du}
 REGISTER(BP, 1, MF_dfem_local_get_derivative_cached);
+
+// BP1: {Bᵀ Ql(B u)}
 REGISTER(BP, 1, PA_dfem_local);
 
-// BP1: (Bᵀ (Dc B p))
+// BP1: {Bᵀ {Qg'(B u) B du}}
 REGISTER(BP, 1, MF_dfem_global_get_derivative_cached);
+
+// BP1: {Bᵀ {Qg(B u)}}
 REGISTER(BP, 1, PA_dfem_global);
 
-// BP1: (Bᵀ Dq [(B u); (G x)])
+// BP1: {Bᵀ Ql(B u, G x)}
 REGISTER(BP, 1, MF_dfem_local);
 
-// BP1: (Bᵀ Dq [(B u); (G x); (B p)])
+// BP1: {Bᵀ Ql'(B u, G x) B du}
 REGISTER(BP, 1, MF_dfem_local_get_derivative);
 
-// BP1: (Bᵀ (Dq [(B u); (G x)]))
+// BP1: {Bᵀ {Qg({B u}, {G x})}}
 REGISTER(BP, 1, MF_dfem_global);
 
-// BP1: (Bᵀ (Dq [(B u); (G x); (B p)]))
+// BP1: {Bᵀ {Qg'({B u}, {G x}) {B du}}}
 REGISTER(BP, 1, MF_dfem_global_get_derivative);
 
-// BP3: (Gᵀ Dc G u)
+// BP3: {Gᵀ D G u}
 REGISTER(BP, 3, PA_mfem_std);
+
+// BP3: {Gᵀ Ql'(G u) G du}
 REGISTER(BP, 3, MF_dfem_local_get_derivative_cached);
+
+// BP3: {Gᵀ Ql(G u)}
 REGISTER(BP, 3, PA_dfem_local);
 
-// BP3: (Gᵀ (Dc G p))
+// BP3: {Gᵀ {Qg'(G u) G du}}
 REGISTER(BP, 3, MF_dfem_global_get_derivative_cached);
+
+// BP3: {Gᵀ {Qg(G u)}}
 REGISTER(BP, 3, PA_dfem_global);
 
-// BP3: (Gᵀ Dq [(G u); (G x)])
+// BP3: {Gᵀ Ql(G u, G x)}
 REGISTER(BP, 3, MF_dfem_local);
 
-// BP3: (Gᵀ Dq [(G u); (G x); (G p)])
+// BP3: {Gᵀ Ql'(G u, G x) G du}
 REGISTER(BP, 3, MF_dfem_local_get_derivative);
 
-// BP3: (Gᵀ (Dq [(G u); (G x)]))
+// BP3: {Gᵀ {Qg({G u}, {G x})}}
 REGISTER(BP, 3, MF_dfem_global);
 
-// BP3: (Gᵀ (Dq [(G u); (G x); (G p)]))
+// BP3: {Gᵀ {Qg'({G u}, {G x}) {G du}}}
 REGISTER(BP, 3, MF_dfem_global_get_derivative);
 
 // main

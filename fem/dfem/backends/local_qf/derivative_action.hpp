@@ -892,7 +892,7 @@ DerivativeActionHO::Kernel()
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return derivative_action_t::
-          template derivative_action_callback<LocalQFHOBackend<DIM>, Q1D>;
+          template derivative_action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
 
 // High Order fallback

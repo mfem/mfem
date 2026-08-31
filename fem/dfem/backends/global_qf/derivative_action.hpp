@@ -78,6 +78,12 @@ struct DerivativeAction
       shadow_xq_offsets = xq_offsets;
       InitBlockVector(shadow_xq, shadow_xq_offsets);
 
+      constexpr_for<0, noutputs>([&](auto i)
+      {
+         primal_output_storage[i].UseDevice(true);
+         primal_output_storage[i].SetSize(yq.GetBlock(i).Size());
+      });
+
       dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
 
       const size_t direction_fd_idx = FindIdx(derivative_id, ctx.infds);
@@ -103,8 +109,6 @@ struct DerivativeAction
       restriction(direction_fd, direction_rcache, *de, direction_e,
                   dof_ordering);
 
-      shadow_xq = 0.0;
-      shadow_xq.SyncToBlocks();
       constexpr_for<0, ninputs>([&](auto i)
       {
          if (!input_active[i]) { return; }
@@ -117,8 +121,6 @@ struct DerivativeAction
                     "qfunc signature not supported by default backend Action");
 
       // Q -> Q
-      yq = 0.0;
-      yq.SyncToBlocks();
       if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
       {
          detail::fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t,
@@ -131,6 +133,7 @@ struct DerivativeAction
                    gnqp,
                    input_qlayouts,
                    output_qlayouts,
+                   primal_output_storage,
                    std::make_index_sequence<ninputs> {},
                    std::make_index_sequence<noutputs> {});
       }
@@ -144,6 +147,7 @@ struct DerivativeAction
             gnqp,
             input_qlayouts,
             output_qlayouts,
+            primal_output_storage,
             std::make_index_sequence<ninputs> {},
             std::make_index_sequence<noutputs> {});
       }
@@ -170,6 +174,7 @@ struct DerivativeAction
    int gnqp = 0;
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
+   mutable std::array<Vector, noutputs> primal_output_storage;
 
    FieldDescriptor direction_fd;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;

@@ -705,7 +705,7 @@ DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeApplyHO::Kernel()
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM>,
+   return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM, Q1D>,
                                                       Q1D>;
 }
 

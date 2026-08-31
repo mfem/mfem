@@ -797,7 +797,20 @@ DispatchHOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported HO quadrature order: " << q1d);
-   return HOKernelTable::template Kernel<DIM, MQ1>();
+   if (q1d <= 8) { return HOKernelTable::template Kernel<DIM, 8>(); }
+   if constexpr (MQ1 > 8)
+   {
+      if (q1d <= 10) { return HOKernelTable::template Kernel<DIM, 10>(); }
+   }
+   if constexpr (MQ1 > 10)
+   {
+      if (q1d <= 12) { return HOKernelTable::template Kernel<DIM, 12>(); }
+   }
+   if constexpr (MQ1 > 12)
+   {
+      return HOKernelTable::template Kernel<DIM, 16>();
+   }
+   return nullptr;
 }
 
 } // namespace mfem::future

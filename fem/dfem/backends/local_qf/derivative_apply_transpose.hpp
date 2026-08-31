@@ -601,7 +601,8 @@ inline typename DerivativeApplyTranspose<derivative_id,
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return transpose_t::
-          template derivative_apply_transpose_callback<LocalQFHOBackend<DIM>, Q1D>;
+          template derivative_apply_transpose_callback<
+             LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
 
 template<int derivative_id,

@@ -503,7 +503,7 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return diag_t::template derivative_assemble_diagonal_callback<
-             LocalQFHOBackend<DIM>,
+             LocalQFHOBackend<DIM, Q1D>,
              Q1D>;
 }
 

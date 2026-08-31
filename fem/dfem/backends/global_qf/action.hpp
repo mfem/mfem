@@ -74,6 +74,16 @@ struct Action
       });
       yq_offsets.PartialSum();
       InitBlockVector(yq, yq_offsets);
+
+      constexpr_for<0, ninputs>([&](auto i)
+      {
+         using input_t = std::decay_t<decltype(get<i>(inputs))>;
+         if constexpr (is_weight_fop<input_t>::value)
+         {
+            Vector empty;
+            input_bases[i].forward(empty, xq.GetBlock(i));
+         }
+      });
    }
 
    void operator()(
@@ -83,7 +93,17 @@ struct Action
       if (ctx.attr.Size() == 0) { return; }
 
       // E -> Q
-      interpolate(input_to_infd, input_bases, xe, xq);
+      constexpr auto interpolate_input = []
+      {
+         std::array<bool, ninputs> result {};
+         constexpr_for<0, ninputs>([&](auto i)
+         {
+            using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+            result[i] = !is_weight_fop<input_t>::value;
+         });
+         return result;
+      }();
+      interpolate(input_to_infd, input_bases, xe, xq, interpolate_input);
 
       // Q -> Q
       static_assert(
