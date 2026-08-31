@@ -1162,7 +1162,8 @@ StixCoefBase::StixCoefBase(const ParGridFunction & B,
                            int nuprof,
                            double res_lim,
                            bool realPart,
-                           bool thermal)
+                           bool thermal,
+                           bool nonTok)
    : B_(B),
      k_(k),
      nue_(nue),
@@ -1175,6 +1176,7 @@ StixCoefBase::StixCoefBase(const ParGridFunction & B,
      omega_(omega),
      realPart_(realPart),
      thermal_(thermal),
+     nonTok_(nonTok),
      nuprof_(nuprof),
      res_lim_(res_lim),
      BVec_(3),
@@ -1199,6 +1201,7 @@ StixCoefBase::StixCoefBase(StixCoefBase & s)
      omega_(s.GetOmega()),
      realPart_(s.GetRealPartFlag()),
      thermal_(s.GetthermalFlag()),
+     nonTok_(s.GetNonTokFlag()),
      nuprof_(s.GetNuProf()),
      res_lim_(s.GetResonanceLimitorFactor()),
      BVec_(3),
@@ -1262,10 +1265,11 @@ StixLCoef::StixLCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart,
-                     bool thermal)
+                     bool thermal,
+                     bool nonTok)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart, thermal)
+                  charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 double StixLCoef::Eval(ElementTransformation &T,
@@ -1288,6 +1292,13 @@ double StixLCoef::Eval(ElementTransformation &T,
 
    if (thermal_)
    {
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       complex<double> exx(1.0,0.0);
       complex<double> exy(0.0,0.0);
 
@@ -1332,10 +1343,11 @@ StixRCoef::StixRCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart,
-                     bool thermal)
+                     bool thermal,
+                     bool nonTok)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart, thermal)
+                  charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 double StixRCoef::Eval(ElementTransformation &T,
@@ -1359,6 +1371,13 @@ double StixRCoef::Eval(ElementTransformation &T,
 
    if (thermal_)
    {
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       complex<double> exx(1.0,0.0);
       complex<double> exy(0.0,0.0);
 
@@ -1403,10 +1422,11 @@ StixSCoef::StixSCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart,
-                     bool thermal)
+                     bool thermal,
+                     bool nonTok)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart, thermal)
+                  charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 double StixSCoef::Eval(ElementTransformation &T,
@@ -1436,6 +1456,13 @@ double StixSCoef::Eval(ElementTransformation &T,
    complex<double> exx(1.0,0.0);
    if (thermal_)
    {
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       for (int i=0; i<density_vals_.Size(); i++)
       {
          complex<double> exx_s = epxx_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
@@ -1473,10 +1500,11 @@ StixDCoef::StixDCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart,
-                     bool thermal)
+                     bool thermal,
+                     bool nonTok)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart, thermal)
+                  charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 double StixDCoef::Eval(ElementTransformation &T,
@@ -1507,7 +1535,14 @@ double StixDCoef::Eval(ElementTransformation &T,
    complex<double> exy(0.0,0.0);
 
    if (thermal_)
-   {      
+   {    
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }  
       for (int i=0; i<density_vals_.Size(); i++)
       {
          complex<double> exy_s = epxy_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
@@ -1545,10 +1580,11 @@ StixPCoef::StixPCoef(const ParGridFunction & B,
                      int nuprof,
                      double res_lim,
                      bool realPart,
-                     bool thermal)
+                     bool thermal,
+                     bool nonTok)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, realPart, thermal)
+                  charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 double StixPCoef::Eval(ElementTransformation &T,
@@ -1572,6 +1608,13 @@ double StixPCoef::Eval(ElementTransformation &T,
 
    if (thermal_)
    {
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag_, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       for (int i=0; i<density_vals_.Size(); i++)
       {
          complex<double> ezz_s = epzz_warm_plasma_by_species(omega_, Bmag_, kparallel, nue_vals_, density_vals_,
@@ -1608,9 +1651,10 @@ StixTensorBase::StixTensorBase(const ParGridFunction & B,
                                int nuprof,
                                double res_lim,
                                bool realPart,
-                               bool thermal)
+                               bool thermal,
+                               bool nonTok)
    : StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
-                  omega, charges, masses, nuprof, res_lim, realPart, thermal)
+                  omega, charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 void StixTensorBase::addParallelComp(double P, DenseMatrix & eps)
@@ -1672,11 +1716,12 @@ DielectricTensor::DielectricTensor(const ParGridFunction & B,
                                    int nuprof,
                                    double res_lim,
                                    bool realPart,
-                                   bool thermal)
+                                   bool thermal,
+                                   bool nonTok)
    : MatrixCoefficient(3),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart, thermal)
+                    charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -1714,6 +1759,13 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    
    if (thermal_)
    {  
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       complex<double> exx(1.0,0.0);
       complex<double> eyy(1.0,0.0);
       complex<double> ezz(1.0,0.0);
@@ -1876,11 +1928,12 @@ InverseDielectricTensor::InverseDielectricTensor(
    int nuprof,
    double res_lim,
    bool realPart,
-   bool thermal)
+   bool thermal,
+   bool nonTok)
    : MatrixCoefficient(3),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart, thermal)
+                    charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
@@ -1919,6 +1972,13 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
 
    if (thermal_)
    {
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       complex<double> exx(1.0,0.0);
       complex<double> eyy(1.0,0.0);
       complex<double> ezz(1.0,0.0);
@@ -2057,11 +2117,12 @@ SusceptibilityTensor::SusceptibilityTensor(const ParGridFunction & B,
                                    int nuprof,
                                    double res_lim,
                                    bool realPart,
-                                   bool thermal)
+                                   bool thermal,
+                                   bool nonTok)
    : MatrixCoefficient(3),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart, thermal)
+                    charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 {}
 
 void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
@@ -2104,6 +2165,13 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
  
    if (thermal_)
    {  
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       complex<double> exx(0.0,0.0);
       complex<double> eyy(0.0,0.0);
       complex<double> ezz(0.0,0.0);
@@ -2217,12 +2285,13 @@ SusceptibilityTensorbySpecies::SusceptibilityTensorbySpecies(const ParGridFuncti
                                    double res_lim,
                                    bool realPart,
                                    bool thermal,
+                                   bool nonTok,
                                    int species)
    : MatrixCoefficient(3),
     species_(species),
      StixTensorBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                     omega,
-                    charges, masses, nuprof, res_lim, realPart, thermal)
+                    charges, masses, nuprof, res_lim, realPart, thermal, nonTok)
 
 {}
 
@@ -2264,6 +2333,13 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
 
    if (thermal_)
    {  
+      if (nonTok_)
+      {
+         complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
+                                     density_vals_, charges_, masses_,
+                                     temp_vals_, 0.0, nuprof_, 0.0);
+         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+      }
       complex<double> exx = epxx_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                           density_vals_, charges_, masses_, temp_vals_, Ti_vals_, nuprof_, 
                                           R.real(),L.real(), species_);
@@ -2364,7 +2440,7 @@ SPDDielectricTensor::SPDDielectricTensor(
    : MatrixCoefficient(3),
      StixCoefBase(B, k, nue, nui, density, temp, iontemp, L2FESpace, H1FESpace,
                   omega,
-                  charges, masses, nuprof, res_lim, true, false)
+                  charges, masses, nuprof, res_lim, true, false, false)
 {}
 
 void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
@@ -2986,7 +3062,8 @@ double PlasmaProfile::EvalByType(Type type,
 
          double d = cyl_ ? rz_[0] : xyz_[0];
 
-         return nu0*exp(-(d-shift)/decay)+2e9*exp(pow(xyz_[1],2.0)/0.15)+2e9*exp(pow(xyz_[2],2.0)/0.05);
+         return nu0*exp(-(xyz_[0]-shift)/decay);
+               //2e8*exp(pow(xyz_[1],2.0)/0.07)+2e8*exp(pow(xyz_[2],2.0)/0.05);
                 //+ nu0_2*exp(-pow((d-2.45),2.0)/decay_2);
       }
       break;
@@ -3625,6 +3702,7 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case LDIP:
       {
+         // setting coordinates: ------------------
          // For stix2d:
          double r = cyl_ ? rz_[0] : xyz_[0];
          double z = cyl_ ? rz_[1] : xyz_[1];
@@ -3646,19 +3724,70 @@ double PlasmaProfile::EvalByType(Type type,
          Vector xTokVec(x_tok_data, 2);
          xTokVec[0] = r; xTokVec[1] = z;
 
+         // finding B field data: -----------------
+         double cosphi = xyz_[0] / rz_[0];
+         double sinphi = xyz_[1] / rz_[0];
+
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         eqdsk_->InterpBPolRZ(rz_, b_pol);
+         b_tor = eqdsk_->InterpBTorRZ(rz_);
+         double coros = params[2];
+         double fluxfactor = 1.0;
+         if (coros != 0) {fluxfactor = 2.0*M_PI;}
+
+         double Bmag = sqrt(b_pol[0]*b_pol[0] + b_pol[1]*b_pol[1] 
+            + (b_tor*b_tor*fluxfactor*fluxfactor))/fluxfactor;
+
+         // finding interpolated data: ------------
          double psiRZ = 0.0;
          psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
 
          double psiRZ_center = eqdsk_->GetPsiCenter();
          double psiRZ_edge = eqdsk_->GetPsiBdry();
-
          double norm_psi_ = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
          double value = 0.0;
-         value = interp_field_->InterpDataR(norm_psi_);
+         double floor_val = params[1];
 
-         double floor_val = params[0];
-         if (value < floor_val){value = 1e8;}
+         // density profile: ----------------------
+         if (params[0] == 0)
+         {
+            value = interp_field_->InterpDataR(norm_psi_);
+            if (value < floor_val){value = 1e8;}
+         }
+         /*
+         if (params[0] == 1)
+         {
+            value = interp_field_->InterpDataR(norm_psi_);
+            if (value < floor_val){value = 10.0;}
+         }
+         */
+
+         // artifical temp profile: ---------------
+         else
+         {
+            
+            double md = 1.66054e-27;
+            double q = 1.6022e-19;
+            double w_cd = q*Bmag/md;
+            double nw = (5.0e6*2.0*M_PI) / w_cd;
+            double gwidth = 0.01;
+            /*
+            value = 20 - 19.9999*exp(-pow((nw - 1.0),2.0)/gwidth) 
+                       - 19.999*exp(-pow((nw - 2.0),2.0)/gwidth) 
+                       - 19.99*exp(-pow((nw - 3.0),2.0)/gwidth)
+                       - 19.9*exp(-pow((nw - 4.0),2.0)/gwidth);
+            if (value < floor_val){value = 1.0;}
+            */
+            //double nu0 = 1e8;
+            value = floor_val*exp(-pow((nw - 1.0),2.0)/gwidth) 
+                       + floor_val*exp(-pow((nw - 2.0),2.0)/gwidth) 
+                       + floor_val*exp(-pow((nw - 3.0),2.0)/gwidth)
+                       + floor_val*exp(-pow((nw - 4.0),2.0)/gwidth);
+         }
 
          return value;
       }

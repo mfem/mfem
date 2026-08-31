@@ -461,7 +461,8 @@ public:
                 int nuprof,
                 double res_lim,
                 bool realPart,
-                bool thermal);
+                bool thermal,
+                bool nonTok);
 
    // Copy constructor
    StixCoefBase(StixCoefBase & s);
@@ -470,6 +471,7 @@ public:
    void SetImaginaryPart() { realPart_ = false; }
    bool GetRealPartFlag() const { return realPart_; }
    bool GetthermalFlag() const { return thermal_; }
+   bool GetNonTokFlag() const { return nonTok_; }
 
    void SetOmega(double omega) { omega_ = omega; }
    double GetOmega() const { return omega_; }
@@ -515,6 +517,7 @@ protected:
    double omega_;
    bool realPart_;
    bool thermal_;
+   bool nonTok_;
    int nuprof_;
    double res_lim_;
 
@@ -550,7 +553,8 @@ public:
              int nuprof,
              double res_lim,
              bool realPart,
-             bool thermal);
+             bool thermal,
+             bool nonTok);
 
    StixLCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -577,7 +581,8 @@ public:
              int nuprof,
              double res_lim,
              bool realPart,
-             bool thermal);
+             bool thermal,
+             bool nonTok);
 
    StixRCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -604,7 +609,8 @@ public:
              int nuprof,
              double res_lim,
              bool realPart,
-             bool thermal);
+             bool thermal,
+             bool nonTok);
 
    StixSCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -631,7 +637,8 @@ public:
              int nuprof,
              double res_lim,
              bool realPart,
-             bool thermal);
+             bool thermal,
+             bool nonTok);
 
    StixDCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -658,7 +665,8 @@ public:
              int nuprof,
              double res_lim,
              bool realPart,
-             bool thermal);
+             bool thermal,
+             bool nonTok);
 
    StixPCoef(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -685,7 +693,8 @@ public:
                   int nuprof,
                   double res_lim,
                   bool realPart,
-                  bool thermal);
+                  bool thermal,
+                  bool nonTok);
 
    StixTensorBase(StixCoefBase &s) : StixCoefBase(s) {}
 
@@ -715,7 +724,8 @@ public:
                     int nuprof,
                     double res_lim,
                     bool realPart,
-                    bool thermal);
+                    bool thermal,
+                    bool nonTok);
 
    DielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -745,7 +755,8 @@ public:
                            int nuprof,
                            double res_lim,
                            bool realPart,
-                           bool thermal);
+                           bool thermal,
+                           bool nonTok);
 
    InverseDielectricTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -774,7 +785,8 @@ public:
                     int nuprof,
                     double res_lim,
                     bool realPart,
-                    bool thermal);
+                    bool thermal,
+                    bool nonTok);
 
    SusceptibilityTensor(StixCoefBase &s)
       : MatrixCoefficient(3), StixTensorBase(s) {}
@@ -804,6 +816,7 @@ public:
                     double res_lim,
                     bool realPart,
                     bool thermal,
+                    bool nonTok,
                     int species);
 
    SusceptibilityTensorbySpecies(StixCoefBase &s)
@@ -994,7 +1007,7 @@ private:
    G_EQDSK_Data *eqdsk_;
    Interp_Data *interp_field_;
 
-   const int np_[20] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1,1,2,1};
+   const int np_[20] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1,1,2,3};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section

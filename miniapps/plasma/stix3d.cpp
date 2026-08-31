@@ -1607,12 +1607,12 @@ int main(int argc, char *argv[])
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true, thermal);
+                                           res_lim, true, thermal, false);
    DielectricTensor epsilon_imag(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, thermal);
+                                           res_lim, false, thermal, false);
    SPDDielectricTensor epsilon_abs(BField, ktherm_gf, nue_gf, nui_gf, density, temperature,
                                    iontemp_gf, L2FESpace, H1FESpace,
                                    omega, charges, masses, nuprof, res_lim);
@@ -1620,32 +1620,32 @@ int main(int argc, char *argv[])
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true, thermal);
+                                           res_lim, true, thermal, false);
    SusceptibilityTensor suscept_imag(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, thermal);
+                                           res_lim, false, thermal, false);
    SusceptibilityTensorbySpecies suscept_real_electrons(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true, thermal, 0);
+                                           res_lim, true, thermal, false, 0);
    SusceptibilityTensorbySpecies suscept_imag_electrons(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, thermal, 0);
+                                           res_lim, false, thermal, false, 0);
    SusceptibilityTensorbySpecies suscept_real_ion1(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true, thermal, 1);
+                                           res_lim, true, thermal, false, 1);
    SusceptibilityTensorbySpecies suscept_imag_ion1(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, thermal, 1);
+                                           res_lim, false, thermal, false, 1);
 
    SusceptibilityTensorbySpecies *suscept_real_ion2 = NULL;
    SusceptibilityTensorbySpecies *suscept_imag_ion2 = NULL;
@@ -1656,12 +1656,12 @@ int main(int argc, char *argv[])
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true, thermal, 2);
+                                           res_lim, true, thermal, false, 2);
       suscept_imag_ion2 = new SusceptibilityTensorbySpecies(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, thermal, 2);      
+                                           res_lim, false, thermal, false, 2);      
    }
 
    SusceptibilityTensorbySpecies *suscept_real_ion3 = NULL;
@@ -1673,12 +1673,12 @@ int main(int argc, char *argv[])
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, true, thermal, 3);
+                                           res_lim, true, thermal, false, 3);
       suscept_imag_ion3 = new SusceptibilityTensorbySpecies(BField, ktherm_gf, nue_gf, nui_gf, density,
                                            temperature, iontemp_gf,
                                            L2FESpace, H1FESpace,
                                            omega, charges, masses, nuprof,
-                                           res_lim, false, thermal, 3);
+                                           res_lim, false, thermal, false, 3);
    }
 
    CylRotMat epsilon_cyl(true); // rotation matrix to cylindrical coords
