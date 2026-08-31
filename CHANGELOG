@@ -237,6 +237,9 @@ Miscellaneous
 
 - Various other simplifications, extensions, and bugfixes in the code.
 
+- Removed config/docker and associated GHCR packages. The MFEM Docker containers
+  are now maintained in the https://github.com/mfem/containers repository.
+
 API changes
 -----------
 - Removed ProjectGrad from 2D RT elements. Users should use ProjectCurl instead.

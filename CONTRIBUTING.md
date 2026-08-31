@@ -110,7 +110,6 @@ The MFEM source code has the following structure:
   .
   ├── config
   │   ├── cmake
-  │   ├── docker
   │   ├── githooks
   │   └── vcpkg
   ├── data
