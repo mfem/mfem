@@ -306,15 +306,16 @@ TEST_CASE("Laplacian",
 {
 
    auto [meshName, NURBS, deformed, intorder, tol] = GENERATE(
-       table<std::string, bool, bool, int, double>({
-           {"square-nurbs.mesh",            true,  true,  12, 1e-8},
-           {"square-nurbs.mesh",            false, true,  10, 1e-8},
-           {"disc-nurbs-single-patch.mesh", true,  false, 32, 1e-6},
-           {"cube-nurbs.mesh",              true,  true,  12, 1e-8},
-           {"cube-nurbs.mesh",              false, true,  12, 1e-8},
-           {"ball-nurbs-single-patch.mesh", true,  false, 32, 1e-6},
-       })
-   );
+                                                        table<std::string, bool, bool, int, double>(
+   {
+      {"square-nurbs.mesh",            true,  true,  12, 1e-8},
+      {"square-nurbs.mesh",            false, true,  10, 1e-8},
+      {"disc-nurbs-single-patch.mesh", true,  false, 32, 1e-6},
+      {"cube-nurbs.mesh",              true,  true,  12, 1e-8},
+      {"cube-nurbs.mesh",              false, true,  12, 1e-8},
+      {"ball-nurbs-single-patch.mesh", true,  false, 32, 1e-6},
+   })
+                                                     );
 
    mfem::out<<"\nCheck laplacian for "<< meshName <<std::endl;
    if (NURBS) { mfem::out<<"Using NURBS"<<std::endl; }
@@ -346,7 +347,7 @@ TEST_CASE("Laplacian",
 
    // Distort mesh
    real_t distort_scale = 0.05;
-    if (deformed)
+   if (deformed)
    {
       Vector dx(mesh.GetNodes()->Size());
       dx.Randomize(1234);
@@ -410,7 +411,7 @@ TEST_CASE("Laplacian",
       eltrans = fes.GetElementTransformation (e);
 
       // Integrand involves non-polynomial mapping
-    //  const int intorder = 3*fes.GetFE(e)->GetOrder();
+      //  const int intorder = 3*fes.GetFE(e)->GetOrder();
       const IntegrationRule *ir = &IntRules.Get(fes.GetFE(e)->GetGeomType(),
                                                 intorder);
 
