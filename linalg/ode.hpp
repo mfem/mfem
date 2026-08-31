@@ -195,7 +195,7 @@ public:
 
    ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariableType, @a var, and returns @a false otherwise.
-   ///@note Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
+   ///@warning Should be overriden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
    { return false; };
 
@@ -1035,6 +1035,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 /// Second order, two-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1053,6 +1056,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 /// Second order, 2/3-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1070,6 +1076,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 /// Third order, 3/4-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1087,6 +1096,9 @@ public:
    void Init(TimeDependentOperator &f_) override;
 
    void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   bool SupportsImplicitVariableType(ImplicitVariableType var) const override
+   { return (var == ImplicitVariableType::SLOPE); };
 };
 
 

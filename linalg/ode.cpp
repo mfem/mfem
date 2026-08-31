@@ -181,6 +181,9 @@ void ODEStateDataVector::Print(std::ostream &os) const
 
 void ODESolver::Init(TimeDependentOperator &f_)
 {
+   auto implicit_type = f_.GetImplicitVariableType();
+   MFEM_ASSERT(SupportsImplicitVariableType(implicit_type),
+               "The ODE solver does not support the implicit variable type.");
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
 }
@@ -1402,6 +1405,9 @@ void IMEXExpImplEuler::Init(TimeDependentOperator &f_)
 
 void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
 {
+   MFEM_ASSERT(SupportsImplicitVariableType(f->GetImplicitVariableType()),
+               "The ODE solver does not support the implicit variable type.");
+
    f->SetTime(t);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1);
@@ -1428,6 +1434,9 @@ void IMEXRK2::Init(TimeDependentOperator &f_)
 
 void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
 {
+   MFEM_ASSERT(SupportsImplicitVariableType(f->GetImplicitVariableType()),
+               "The ODE solver does not support the implicit variable type.");
+
    double gamma = 1 - sqrt(2)/2;
    double delta = 1 - 1/(2*gamma);
 
@@ -1479,6 +1488,9 @@ void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
 
 void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
 {
+   MFEM_ASSERT(SupportsImplicitVariableType(f->GetImplicitVariableType()),
+               "The ODE solver does not support the implicit variable type.");
+
    double gamma = 1 - sqrt(2)/2;
    double delta = -2*sqrt(2)/3;
 
@@ -1538,6 +1550,9 @@ void IMEX_DIRK_RK3::Init(TimeDependentOperator &f_)
 
 void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
 {
+   MFEM_ASSERT(SupportsImplicitVariableType(f->GetImplicitVariableType()),
+               "The ODE solver does not support the implicit variable type.");
+
    double gamma = 0.4358665215;
    double b1 = 1.208496649;
    double b2 = -0.644363171;
