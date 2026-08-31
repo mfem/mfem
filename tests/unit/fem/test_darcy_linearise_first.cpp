@@ -1214,3 +1214,345 @@ TEST_CASE("A Jacobian-free solve gets the right answer without being told",
       REQUIRE(d.Norml2() < 1e-9 * p_ref.Norml2());
    }
 }
+
+namespace darcy_linearise_first
+{
+
+/** @brief The pedestal source of Sanchez-Vizuet, Solano & Cerfon, CPC 255
+    (2020) 107239 section 4.2, eqs (23)/(24), with c1 = 0.8 and c2 = 0.2:
+
+        p(u) = ( c1 + c2 u^2 )( 1 - e ),   e = exp( -u^2/sigma ),   f = dp/du
+
+    entered on the potential block as -(f(u), w). @a sigma is the pedestal
+    width and is the only thing varied.
+
+    A weaker source will not do, which is worth knowing before substituting
+    one. The obvious simplification A u exp(-u^2/s)/s converges under both
+    orderings at every configuration tried; the published expression carries
+    c1/sigma against a much larger prefactor, and only it reaches the regime.
+    Reported that way from a caller who lost most of a day to the simplified
+    form showing nothing. */
+class PedestalSource : public NonlinearFormIntegrator
+{
+public:
+   PedestalSource(real_t amp_, real_t sigma_) : amp(amp_), sigma(sigma_) { }
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 4);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcShape(ip, shape);
+         elvect.Add(-ip.weight * Tr.Weight() * f(shape * elfun), shape);
+      }
+   }
+
+   void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elmat.SetSize(dof);
+      elmat = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 4);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcShape(ip, shape);
+         AddMult_a_VVt(-ip.weight * Tr.Weight() * df(shape * elfun), shape,
+                       elmat);
+      }
+   }
+
+private:
+   real_t f(real_t u) const
+   {
+      const real_t e = std::exp(-u*u/sigma);
+      return amp * 2.0 * u * (0.2*(1.0 - e) + (0.8 + 0.2*u*u)*e/sigma);
+   }
+   /// Differenced rather than differentiated: this is a test source, and the
+   /// question asked of it is about the hybridization's Jacobian, not its own.
+   real_t df(real_t u) const
+   {
+      const real_t d = 1e-7;
+      return (f(u + d) - f(u - d))/(2.0*d);
+   }
+
+   real_t amp, sigma;
+   Vector shape;
+};
+
+/// tau = 1, constant, rather than the built-in {h^-1 Q}: the papers' choice,
+/// and what the caller's reproducer uses.
+class ConstantTau : public HDGStabilization
+{
+public:
+   explicit ConstantTau(real_t t) : tau(t) { }
+   bool IsConstant() const override { return true; }
+   real_t Eval(real_t, real_t, real_t, real_t,
+               ElementTransformation &) const override { return tau; }
+private:
+   real_t tau;
+};
+
+/** @brief The caller's reproducer, rebuilt: -div( grad u ) = f(u) on a
+    0.8 x 1.2 rectangle of triangles, HDG on DarcyForm with a LINEAR flux mass
+    and divergence and the whole nonlinearity on the potential mass nonlinear
+    form -- which is the shape a semilinear problem forces -- with a linear
+    ramp as both the Dirichlet datum and the initial guess.
+
+    The setup matters as much as the source does. SemilinearHDG above
+    evaluates at a randomised trace with no boundary data, and the pedestal
+    shows nothing there: both orderings sit at round-off for every width
+    tried, at every amplitude tried. It is the ramp datum driving the fields
+    to O(1) that puts the local problem in the regime at all. */
+struct PedestalHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   ConstantCoefficient one;
+   ConstantTau tau;
+   DarcyForm darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X, RHS;
+   OperatorPtr R;
+
+   PedestalHDG(int n, int order, real_t sigma,
+               DarcyHybridization::NLOrdering ordering)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
+        u_coll(order, 2, BasisType::GaussLobatto),
+        p_coll(order, 2, BasisType::GaussLobatto),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        one(1.0), tau(1.0), darcy(&Vh, &Wh), offs(4)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+
+      auto *interior = new HDGDiffusionIntegrator(one, 1.0);
+      auto *boundary = new HDGDiffusionIntegrator(one, 1.0);
+      interior->SetStabilization(tau);
+      boundary->SetStabilization(tau);
+
+      all.SetSize(mesh.bdr_attributes.Max());
+      all = 1;
+
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new PedestalSource(1.0, sigma));
+      Mnl_p->AddInteriorFaceIntegrator(interior);
+      Mnl_p->AddBdrFaceIntegrator(boundary, all);
+
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      darcy.GetHybridization()->SetEssentialBC(all);
+      // The reference has to be a reference: CondenseThenLinearise solves the
+      // local problem to this tolerance, and so, now, does the linearisation
+      // point of LineariseThenCondense. The default 1e-6 would put both at
+      // 1e-6 and hide everything smaller.
+      darcy.GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton, 100, 1e-12, 1e-16, -1);
+      darcy.GetHybridization()->SetNonlinearOrdering(ordering);
+      darcy.Assemble();
+
+      offs[0] = 0;
+      offs[1] = Vh.GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      FunctionCoefficient ramp([](const Vector &x)
+      { return 0.5*(x(1) - 0.6); });
+      GridFunction pgf, tgf;
+      pgf.MakeRef(&Wh, sol.GetBlock(1), 0);
+      pgf.ProjectCoefficient(ramp);
+      tgf.MakeRef(&Mh, sol.GetBlock(2), 0);
+      tgf.ProjectBdrCoefficient(ramp, all);
+
+      X.MakeRef(sol, offs[2], Mh.GetVSize());
+      RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+      BlockVector dsol(sol, darcy.GetOffsets()),
+                  drhs(rhs, darcy.GetOffsets());
+      darcy.FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+   }
+
+   Operator &op() { return *R.Ptr(); }
+   const Array<int> &ess() const
+   { return darcy.GetHybridization()->GetEssentialTrueDofs(); }
+};
+
+} // namespace darcy_linearise_first
+
+TEST_CASE("The reduced gradient survives a stiff local problem",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+
+   // The case above asks the same question of a c u^2 source and cannot reach
+   // this. Swept to c = 1e6 on that configuration, LineariseThenCondense stays
+   // at round-off until the local problem stops being solvable at all, so
+   // there is no window in it where the defect below is visible.
+   //
+   // What the defect was: the linearisation point took a FIXED two
+   // frozen-Jacobian local corrections, and GetGradient() is the Schur
+   // complement of the Jacobian at the fields that leaves behind. It is the
+   // derivative of Mult() only to the extent that those fields solve the local
+   // problem -- what is left over enters as d(trace row)/d(fields) evaluated
+   // at the wrong point -- so the gradient's accuracy was whatever two steps
+   // happened to buy. The bound below is crossed by four orders on the
+   // configuration this case runs: 1.086e-05 at sigma^2 = 0.05 and 9.299e-05
+   // at 0.02, the same to seven digits at h = 1e-4 and h = 1e-5, which is
+   // what says a Jacobian error rather than a differencing artefact.
+   //
+   // How it scales with the number of corrections, at n = 16:
+   //
+   //     steps   sigma^2 = 0.05    0.02        0.01
+   //       1       1.98e-05      1.48e-04    1.13e-03
+   //       2       2.99e-06      2.66e-05    3.06e-04     <- what shipped
+   //       4       5.63e-08      1.29e-06    6.16e-05
+   //       8       2.44e-11      6.25e-09    4.14e-06
+   //      16       1.22e-11      1.30e-11    3.56e-08
+   //
+   // against 1e-10 or better for CondenseThenLinearise throughout. So on a
+   // stiff source the outer Newton was solving with a Jacobian that did not
+   // belong to its residual, and that is what a caller reported as this
+   // ordering failing where the other one succeeds. The linearisation point
+   // now iterates to the local solver's tolerance instead.
+   const real_t sigma = GENERATE(0.05, 0.02);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   const real_t h = GENERATE(1.0e-4, 1.0e-5);
+   CAPTURE(sigma, h, ordering == Ord::LineariseThenCondense);
+
+   PedestalHDG P(12, 1, sigma, ordering);
+   Operator &op = P.op();
+   const int m = op.Height();
+
+   Array<int> ess_marker(m);
+   ess_marker = 0;
+   for (int i = 0; i < P.ess().Size(); i++) { ess_marker[P.ess()[i]] = 1; }
+   REQUIRE(P.ess().Size() > 0);
+
+   Vector v(m);
+   v.Randomize(11);
+   v -= 0.5;
+   for (int i = 0; i < m; i++) { if (ess_marker[i]) { v(i) = 0.0; } }
+   v *= 1.0/v.Norml2();
+
+   // Newton's own order, and the only order in which the question is well
+   // posed: the residual, then the gradient at that same trace, and the
+   // gradient applied BEFORE the difference perturbs anything.
+   //
+   // Taking it again afterwards -- which is what the case above does, and
+   // what a gradient check is naturally written as -- does not measure this.
+   // Each perturbed Mult() leaves the linearisation at its own argument, so a
+   // second GetGradient(x) drags it back to x and pays for more local
+   // corrections on the way; with the fixed count that was four more than the
+   // residual evaluations had, and it flattered the gradient by seven orders.
+   // On exactly the configuration below, at sigma^2 = 0.05, the old code
+   // reads 1.42e-12 with the gradient re-taken and 1.086e-05 without.
+   // Newton never gets the second call, so neither does this test.
+   Vector r0(m), Jv(m);
+   op.Mult(P.X, r0);
+   op.GetGradient(P.X).Mult(v, Jv);
+
+   Vector xp(P.X), xm(P.X), rp(m), rm(m);
+   xp.Add(h, v);
+   xm.Add(-h, v);
+   op.Mult(xp, rp);
+   op.Mult(xm, rm);
+   Vector fd(rp);
+   fd -= rm;
+   fd *= 1.0/(2.0*h);
+
+   real_t num = 0.0, den = 0.0;
+   for (int i = 0; i < m; i++)
+   {
+      if (ess_marker[i]) { continue; }
+      const real_t d = Jv(i) - fd(i);
+      num += d*d;
+      den += fd(i)*fd(i);
+   }
+   const real_t rel = std::sqrt(num)/std::max(real_t(1e-300), std::sqrt(den));
+
+   CAPTURE(rel, std::sqrt(den));
+   REQUIRE(std::sqrt(den) > 0.0);
+   // Round-off on a central difference grows as 1/h, so this sits well above
+   // the 1e-11 both orderings reach and far below the 3e-06 the fixed count
+   // gave at the milder of the two widths.
+   REQUIRE(rel < 1.0e-8);
+}
+
+TEST_CASE("A stiff source converges under both orderings",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+
+   // The acceptance a caller actually asked for, which is weaker than equal
+   // iteration counts and stronger than anything the suite had: no problem
+   // that converges under CondenseThenLinearise may fail under
+   // LineariseThenCondense. The second row below is where that failed --
+   // sixty iterations without converging against the other ordering's ten,
+   // with the residual oscillating by an order of magnitude rather than
+   // falling -- and it now takes eight. A direct trace solve, so the linear
+   // solver is not in question.
+   //
+   // The requirement is NOT met everywhere and this test does not pretend
+   // otherwise. Swept over 144 configurations (n = 8..24, k = 1..3, six
+   // widths from 0.02 down to 0.001), the cases where CondenseThenLinearise
+   // converges and this ordering does not went from six to three, with none
+   // added; the three that remain are at widths where the local problem needs
+   // more than a frozen Jacobian can give. Six further cases converged before
+   // and no longer do, all of them ones where CondenseThenLinearise fails
+   // too, so none is a parity failure -- but converging on a problem the
+   // exact ordering cannot solve was never evidence of anything, and losing
+   // it is not obviously a regression.
+   const int idx = GENERATE(0, 1);
+   const int n = (idx == 0) ? 24 : 32;
+   const real_t sigma = (idx == 0) ? 0.005 : 0.003;
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   CAPTURE(n, sigma, ordering == Ord::LineariseThenCondense);
+
+   PedestalHDG P(n, 1, sigma, ordering);
+
+   UMFPackSolver lin;
+   NewtonSolver newton;
+   newton.SetOperator(P.op());
+   newton.SetSolver(lin);
+   newton.SetRelTol(1e-10);
+   newton.SetAbsTol(1e-14);
+   newton.SetMaxIter(30);
+   newton.SetPrintLevel(-1);
+   newton.iterative_mode = true;
+   newton.Mult(P.RHS, P.X);
+
+   CAPTURE(newton.GetNumIterations(), newton.GetFinalNorm());
+   REQUIRE(newton.GetConverged());
+}

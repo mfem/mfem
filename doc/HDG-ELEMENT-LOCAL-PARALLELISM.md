@@ -64,9 +64,15 @@ reach shared state outside `fem/darcy`:
   by-local-index variants the parallel branch needs. So this half is a change
   to one function inside `fem/darcy`, with none to `Mesh`.
 
-`NLOrdering::LineariseThenCondense` makes the local work a **linear** solve per
-element instead of a nonlinear one, which is both cheaper and far more uniform,
-and therefore a much better threaded and batched workload.
+`NLOrdering::LineariseThenCondense` makes the local work **linear solves
+against one factorisation** instead of a nonlinear solve that re-assembles and
+re-factorises per step. On an evaluation that is exactly one such solve; on a
+gradient it iterates to `SetLocalNLSolver()`'s tolerance, by a count nobody has
+measured. What is absent per local step is the Jacobian *assembly* and
+re-factorisation, not the integrator calls: each correction still evaluates
+`LocalResidual()`, which builds a `LocalNLOperator` and applies it. So the
+thread-safety obstacles above are not avoided by choosing this ordering — only
+the factorisation work is.
 
 ## 3. The remaining scatters
 

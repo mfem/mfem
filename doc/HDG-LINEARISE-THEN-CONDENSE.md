@@ -12,14 +12,12 @@ which is where they survive this file.
   ordering changes. The largest hole.
 * **The default is not flipped** for nonlinear problems. Deliberately a later
   commit, and it wants the parallel test first.
-* **One parity case still fails.** A caller requires that no problem converging
-  under `CondenseThenLinearise` fails under this ordering. Of seven benchmark
-  configurations on a stiff pedestal source, six now meet that and one does
-  not: `n = 32, k = 1, sigma^2 = 0.003` stalls at 1.7e-03 in sixty iterations
-  where condense-first takes nine. It stalls near the answer rather than
-  diverging, and whether one more local correction per advance closes it — the
-  count is hard-coded at 1 to evaluate and 2 to advance — has not been
-  measured.
+* **The parity gap is narrowed, not closed.** A caller requires that no
+  problem converging under `CondenseThenLinearise` fails under this ordering.
+  All seven of that caller's benchmark configurations now meet it — the
+  hard-coded correction count was the cause and it is measured out; see
+  `MultInvLin()` — but a 144-case sweep still leaves three. They and the one
+  remaining unexplained failure mode are `HDG-LINEARISE-FIRST-STIFF-SOURCES.md`.
 
 Three entries that used to be here are gone because they were done or wrong:
 the solver contract (there is none now — `Mult()` linearises at its own

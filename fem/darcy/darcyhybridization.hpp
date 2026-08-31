@@ -401,7 +401,8 @@ private:
        The local residual here is deliberately not retained. Every evaluation
        recomputes it at the fields it is actually using, which is what keeps
        the reduced gradient the derivative of the reduced residual; see
-       MultInvLin(). */
+       MultInvLin(), which also records how completely these fields have to
+       solve the local problem for that to hold. */
    mutable Vector lin_trace, lin_u, lin_p;
    /// Scratch for the next linearisation point, swapped in when it is complete.
    mutable Vector lin_u_next, lin_p_next;
@@ -662,10 +663,14 @@ private:
        compared bit for bit: anything else is a different iterate. */
    bool LinearisedAt(const Vector &x) const;
    /** @a corrections is how many frozen-Jacobian local Newton steps follow the
-       affine prediction. Evaluating the reduced operator must use exactly one,
-       or its derivative stops being the assembled Schur complement; forming a
-       linearisation point is under no such constraint and uses one more, which
-       is what keeps the retained fields near the local solution. */
+       affine prediction, or a negative value to iterate to the tolerance
+       SetLocalNLSolver() carries, keeping the best iterate seen.
+
+       Evaluating the reduced operator uses one. Forming a linearisation point
+       iterates, because the retained fields' own local residual is what
+       limits the accuracy of the gradient: it used to take a fixed two steps
+       and the gradient was then wrong by 3e-04 on a stiff source that still
+       converges. MultInvLin() carries that measurement. */
    void MultInvLin(int el, const Array<int> &faces, const BlockVector &x_l,
                    const Vector &bu_l, const Vector &bp_l, Vector &u_l,
                    Vector &p_l, int corrections) const;
@@ -754,17 +759,27 @@ public:
 
        Under NLOrdering::LineariseThenCondense the object handed to the outer
        solver is the condensed Jacobian rather than the derivative of a
-       condensed residual, and no element ever runs a nonlinear solve:
-       GetNumLocalNLIterations() stays at zero. What the reduced operator
-       computes is
+       condensed residual, and no element assembles a local Jacobian per local
+       iteration: GetNumLocalNLIterations() stays at zero, because every local
+       step is a solve with the ONE factorisation M already holds. What the
+       reduced operator computes is
 
            (q, u)(L)  =  (q, u)_lin - M^-1 [C; E] (L - L_lin)
-                         followed by one frozen-Jacobian local correction
+                         followed by frozen-Jacobian local corrections
            F(L)       =  the trace residual at (L, q(L), u(L))
 
        where the linearisation point (L_lin, (q, u)_lin) and the factored
        local Jacobian M are established at L by whichever of Mult() or
        GetGradient() reaches a trace they are not already at.
+
+       Evaluating takes one correction. ESTABLISHING the linearisation point
+       iterates to the tolerance SetLocalNLSolver() carries, and that is not a
+       detail: GetGradient() is the Schur complement of the Jacobian at the
+       retained fields, so it is the derivative of Mult() only as far as those
+       fields solve the local problem. A fixed budget of two steps shipped for
+       a while and put the gradient 3e-04 out on a stiff source that still
+       converged; see MultInvLin() for the sweep, and the unit test "The
+       reduced gradient survives a stiff local problem" for the pin.
 
        The local residual is deliberately NOT retained and does not appear
        above. An earlier version of this comment carried a "- r_lin" in the
@@ -775,10 +790,21 @@ public:
 
        dF/dL is the condensed Jacobian, because (q, u)(L) solves the
        linearised local equations exactly and its sensitivity is the Schur
-       complement itself.
+       complement itself -- to the extent the retained fields solve the local
+       problem, which is what the paragraph above is about. Where the
+       frozen-Jacobian correction cannot converge, no number of steps recovers
+       it: the guard in MultInvLin() then keeps the best iterate and stops,
+       and the gradient is as good as that point is. Measured on a pedestal
+       source at n = 8, k = 1, that boundary sits between widths 0.05 and 0.02;
+       inside it the gradient matches a central difference to round-off, and
+       outside it neither ordering does.
 
-       SetLocalNLSolver() and SetLocalNLPreconditioner() are inert in this
-       mode: there is no local nonlinear solve for them to configure.
+       SetLocalNLSolver()'s iteration cap and tolerances govern the
+       correction loop that forms the linearisation point, and they matter for
+       the same reason they matter in the other mode: an inexact local solve is
+       itself an error, and here it is the gradient's. The solver TYPE and
+       SetLocalNLPreconditioner() are inert -- the correction is a Newton step
+       on the factors M already holds, so there is nothing to choose.
 
        **Mult() linearises at its own argument, and that is what makes an
        ordinary NewtonSolver work.** It did not always. The condition guarding
@@ -790,12 +816,21 @@ public:
        and a Jacobian belonging to different operators. On a stiff semilinear
        source that failed outright: reported from a caller, three of seven
        benchmark configurations converged under CondenseThenLinearise and did
-       not converge in sixty iterations under this ordering, landing at traces
-       of norm 24.0, 26.5 and 54.8 against true values of 11.3, 14.7 and 13.5.
-       Two of the three now converge, in 9 and 8 iterations against the exact
-       ordering's 8 and 10, and every case that converged before now matches
-       or beats it. One remains, stalling at 1.7e-03 where it used to diverge
-       to 2.0e+03.
+       not converge in sixty iterations under this ordering. Two were the
+       mismatched residual and gradient above. The third was the fixed
+       correction budget described earlier, and with both repaired all seven
+       converge -- 7, 6, 8, 7, 8, 6 and 9 iterations against the exact
+       ordering's 7, 6, 8, 7, 10, 7 and 10.
+
+       That is the caller's reproducer and not a general claim, and the wider
+       sweep is worth having beside it. Over 144 configurations of the same
+       source (n = 8..24, k = 1..3, six widths from 0.02 to 0.001), the cases
+       where CondenseThenLinearise converges and this ordering does not went
+       from six to three, with none added, and where both converge this
+       ordering took fewer iterations in 15 and more in 10. Six further cases
+       stopped converging, every one of them a case CondenseThenLinearise also
+       fails -- so no parity was lost, though converging on a problem the
+       exact ordering cannot solve was never evidence of much.
 
        It costs nothing in a plain Newton loop: the advance happens in Mult()
        instead of in GetGradient(), which then finds the linearisation already
@@ -811,6 +846,17 @@ public:
        be closed within this ordering: exactness there needs the local problem
        solved exactly, which is CondenseThenLinearise. Only the two smaller
        values are pinned by a test.
+
+       Making the linearisation point iterate did not remove that and was not
+       expected to; it moved where it bites. Measured on a pedestal source at
+       n = 16, k = 1 by evaluating at a trace, wandering, and returning: where
+       the correction converges the gap is round-off, 1.5e-16 at widths 0.05
+       and 0.02 as it was before. Where it does not converge, the guard
+       truncates at a step count that depends on the data, and that is a
+       discontinuity the fixed budget did not have -- 4.3e-08 at width 0.01
+       against 1.5e-16 before, and between 1e-03 and 4e-01 below that. Better
+       where the ordering works and worse where it does not, which is the
+       trade this mode is.
 
        @note This mode places no requirement on the SOLVER, and the API that
        used to exist for one is gone. There was a @warning here that the

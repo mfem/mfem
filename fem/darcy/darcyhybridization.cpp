@@ -2062,13 +2062,14 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                // trace, by substitution. No element runs a nonlinear solve in
                // this ordering; see SetNonlinearOrdering().
                //
-               // Evaluating the operator takes exactly one local correction,
-               // because that is what makes GetGradient() its derivative.
-               // Advancing the linearisation takes one more, because the
+               // Evaluating the operator takes one local correction.
+               // Advancing the linearisation iterates instead, because the
                // fields it retains are the point every later evaluation
-               // expands about. See MultInvLin().
+               // expands about, and how completely they solve the local
+               // problem is what sets the gradient's accuracy. See
+               // MultInvLin(), which carries the measurement.
                MultInvLin(el, faces, x_l, bu_l, bp_l, u_l, p_l,
-                          (mode == MultNlMode::Grad) ? 2 : 1);
+                          (mode == MultNlMode::Grad) ? -1 : 1);
             }
          }
          else
@@ -3075,28 +3076,99 @@ void DarcyHybridization::MultInvLin(int el, const Array<int> &faces,
    // order, and it evaluates a nonlinear trace term at the corrected fields
    // instead of at a linearisation of them.
    //
-   // It also has to be the *only* one when the operator is being evaluated.
-   // The prediction above once carried -M^-1 r_lin as well, so this correction
-   // was taken at fields a full local Newton step from the linearisation
-   // point, and d(residual)/dx picked up M^-1 (J(fields) - M) M^-1 [C; E] --
-   // zero only for a linear problem or an exact local solve. Measured against
-   // a central difference with the essential trace rows masked, on (c p^2, w)
-   // at k = 1 on 8x8 triangles: the relative error was independent of the step
-   // across four decades of h, and proportional to c times the length of that
-   // step. See the unit test "The reduced gradient is the derivative of the
-   // reduced residual".
+   // What must NOT happen is the prediction above carrying -M^-1 r_lin as
+   // well. It once did, so this correction was taken at fields a full local
+   // Newton step from the linearisation point, and d(residual)/dx picked up
+   // M^-1 (J(fields) - M) M^-1 [C; E] -- zero only for a linear problem or an
+   // exact local solve. Measured against a central difference with the
+   // essential trace rows masked, on (c p^2, w) at k = 1 on 8x8 triangles:
+   // the relative error was independent of the step across four decades of h,
+   // and proportional to c times the length of that step. See the unit test
+   // "The reduced gradient is the derivative of the reduced residual".
    //
-   // Forming a linearisation point is the other job and takes one step more
-   // (@a corrections = 2), because there the fields are not being fed to a
-   // derivative: they are being retained, and every later evaluation is an
-   // expansion about them. Retaining fields that carry a first-order local
-   // residual is what made the residual at one trace move when the
-   // linearisation advanced to it -- see the unit test "The reduced residual
-   // survives the linearisation advancing".
+   // This comment used to add that one correction "has to be the *only* one"
+   // here, and that is withdrawn: it was inferred from the paragraph above
+   // rather than measured, and measuring it says otherwise. With the
+   // linearisation point iterated to tolerance, zero, one, two and three
+   // corrections in an evaluation all give 1.2e-11 against a central
+   // difference; with it truncated at a fixed two they are equally wrong, to
+   // four digits. The evaluation count is not what governs the gradient --
+   // the retained fields are, which is the next paragraph.
+   //
+   // Forming a linearisation point is the other job and has no such
+   // constraint: the fields are not being fed to a derivative, they are being
+   // retained, and every later evaluation is an expansion about them. It
+   // therefore iterates to the local solver's tolerance (@a corrections < 0)
+   // rather than taking a fixed number of steps.
+   //
+   // It used to take exactly two, and that count was the accuracy of the
+   // gradient. GetGradient() is the Schur complement of the Jacobian at the
+   // retained fields, and it is the derivative of Mult() only to the extent
+   // that those fields solve the local problem: what is left over enters as
+   // d(trace row)/d(fields) evaluated at the wrong point. Measured against a
+   // central difference on the pedestal source of GS-2 eq (23)/(24) at
+   // n = 16, k = 1, and independent of the difference step across four
+   // decades -- which is what says a Jacobian error rather than a
+   // differencing artefact:
+   //
+   //     steps   sigma^2 = 0.05    0.02        0.01
+   //       1       1.98e-05      1.48e-04    1.13e-03
+   //       2       2.99e-06      2.66e-05    3.06e-04     <- the old value
+   //       4       5.63e-08      1.29e-06    6.16e-05
+   //       8       2.44e-11      6.25e-09    4.14e-06
+   //      16       1.22e-11      1.30e-11    3.56e-08
+   //
+   // against 1e-10 or better for CondenseThenLinearise on the same problem.
+   // So the error was not small on a stiff source -- it was 3e-04 on a
+   // problem that still converges, and O(1) past that -- and the outer Newton
+   // was solving with a Jacobian that did not belong to its residual. On
+   // n = 32, k = 1, sigma^2 = 0.003 the fixed count of two does not converge
+   // in sixty iterations and eight converges in three, where
+   // CondenseThenLinearise takes nine.
+   //
+   // The monotonicity guard is not decoration. These are frozen-Jacobian
+   // steps with no line search, and on a stiff element they run away rather
+   // than stall: taking eight of them blindly at sigma^2 = 0.005 drove the
+   // measurement above to 1.6e+27. Keeping the best iterate turns a runaway
+   // into a truncation, which is the behaviour a caller can reason about.
    Vector ru_l(a_dofs_size), rp_l(d_dofs_size);
-   for (int it = 0; it < corrections; it++)
+   const bool to_tol = (corrections < 0);
+   const int max_it = to_tol ? std::max(lsolve.iters, 1) : corrections;
+   Vector u_best, p_best;
+   real_t r_first = -1., r_prev = infinity(), r_best = infinity();
+   for (int it = 0; it < max_it; it++)
    {
       LocalResidual(el, faces, x_l, bu_l0, bp_l0, u_l, p_l, ru_l, rp_l);
+
+      if (to_tol)
+      {
+         const real_t r_norm = std::sqrt(ru_l*ru_l + rp_l*rp_l);
+         if (it == 0) { r_first = r_norm; }
+         if (r_norm < r_best)
+         {
+            r_best = r_norm;
+            u_best = u_l;
+            p_best = p_l;
+         }
+         // Converged is tested before diverging, and against the immediately
+         // preceding step rather than against the best seen: a converged
+         // element's residual wobbles at round-off, and a guard firing on any
+         // increase would roll it back to an earlier iterate for nothing.
+         // Reasoning rather than measurement -- the two orders gave the same
+         // numbers to four digits on every case measured here -- but rolling
+         // back an element that has converged cannot be right, and the cost
+         // of getting it wrong is paid somewhere this problem does not reach.
+         if (r_norm <= std::max(r_first * lsolve.rtol, lsolve.atol)) { break; }
+         if (r_norm > r_prev)
+         {
+            // Genuinely diverging: keep the best fields seen and stop.
+            u_l = u_best;
+            p_l = p_best;
+            break;
+         }
+         r_prev = r_norm;
+      }
+
       ru_l.Neg();
       rp_l.Neg();
       MultInv(el, ru_l, rp_l, du_l, dp_l, true);
