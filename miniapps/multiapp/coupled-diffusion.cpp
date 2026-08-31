@@ -250,6 +250,8 @@ class DiffusionCoefficient : public GraphNode
 {
 protected:
    ParFiniteElementSpace &fes;
+   Array<int> in_offsets, out_offsets;
+
    mutable ParNonlinearForm Nform;
    mutable Operator *J = nullptr; // Jacobian for the nonlinear form
 
@@ -266,14 +268,14 @@ public:
       Nform.SetGradientType(Operator::Type::Hypre_ParCSR);
       Nform.Setup();
 
-      SetInputOffsets(Array<int>({0, fes.GetTrueVSize()}));
-      SetOutputOffsets(Array<int>({0, fes.GetTrueVSize()}));
+      in_offsets = Array<int>({0, fes.GetTrueVSize()});
+      out_offsets = Array<int>({0, fes.GetTrueVSize()});
    }
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      BlockVector xb(x.GetData(), InputOffsets());
-      BlockVector yb(y.GetData(), OutputOffsets());
+      BlockVector xb(x.GetData(), in_offsets);
+      BlockVector yb(y.GetData(), out_offsets);
 
       MultiVector xmv(1), ymv(1);
       xmv.MakeRef(0, xb.GetBlock(0));
@@ -326,6 +328,8 @@ class FieldProduct : public GraphNode
 protected:
    int ninputs;
    ParFiniteElementSpace *nd_fes;
+   Array<int> in_offsets, out_offsets;
+
    mutable Vector dfdx, xdof;
    mutable ParGridFunction x_gf;
    mutable ParGridFunction y_gf;
@@ -337,24 +341,23 @@ public:
                 nd_fes(new ParFiniteElementSpace(fes.GetParMesh(), fes.FEColl(), n)),
                 x_gf(nd_fes), y_gf(&fes), prod_coeff(x_gf)
    {
-      Array<int> offsets(n+1);
-      offsets[0] = 0;
+      in_offsets.SetSize(n+1);
+      in_offsets[0] = 0;
       for (int i = 0; i < n; i++)
       {
-         offsets[i+1] = offsets[i] + fes.GetTrueVSize();
+         in_offsets[i+1] = in_offsets[i] + fes.GetTrueVSize();
       }
       x_gf = 0.0;
       y_gf = 0.0;
       x_gf.GetTrueDofs(xdof);
       y_gf.ProjectCoefficient(prod_coeff);
 
-      SetInputOffsets(offsets);
-      SetOutputOffsets(Array<int>({0, fes.GetTrueVSize()}));
+      out_offsets = Array<int>({0, fes.GetTrueVSize()});
    }
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      BlockVector yb(y.GetData(), OutputOffsets());
+      BlockVector yb(y.GetData(), out_offsets);
 
       x_gf.SetFromTrueDofs(x);
       y_gf.ProjectCoefficient(prod_coeff);
@@ -363,10 +366,9 @@ public:
 
    void MultMV(const MultiVector &x, MultiVector &y) const override
    {
-      auto offsets = InputOffsets();
       for (int i = 0; i < ninputs; i++)
       {
-         xdof.SetVector(x[i], offsets[i]);
+         xdof.SetVector(x[i], in_offsets[i]); // Set all x_i
       }
 
       Vector &y_dof = y[0];
@@ -379,22 +381,21 @@ public:
    {
       // Jacobian vector product for y = prod_i x_i is:
       // dy/dx = sum_i (prod_{j!=i} x_j * dx_i/dx)
-      auto offsets = InputOffsets();
       for (int i = 0; i < ninputs; i++)
       {
-         xdof.SetVector(x[i], offsets[i]); // Set all x_i
+         xdof.SetVector(x[i], in_offsets[i]); // Set all x_i
       }
 
       Vector &jvp = dy[0];
       jvp = 0.0;
       for (int i = 0; i < ninputs; i++)
       {
-         xdof.SetVector(dx[i], offsets[i]); // Set x_i = dx_i/dx for i-th term in the product
+         xdof.SetVector(dx[i], in_offsets[i]); // Set x_i = dx_i/dx for i-th term in the product
          x_gf.SetFromTrueDofs(xdof);
          y_gf.ProjectCoefficient(prod_coeff); // Recompute product with x_i replaced by dx_i/dx
          y_gf.GetTrueDofs(dfdx); // Get prod_{j!=i} x_j * dx_i/dx for i-th term
          jvp += dfdx; // Accumulate contribution from i-th term
-         xdof.SetVector(x[i], offsets[i]); // Reset x_i to original value
+         xdof.SetVector(x[i], in_offsets[i]); // Reset x_i to original value
       }
    }
 
@@ -417,6 +418,9 @@ public:
 
    /// Essential dof array.
    Array<int> ess_tdofs;
+
+   // Offsets if calling Mult
+   Array<int> in_offsets, out_offsets;
 
    /// Grid functions for the temperature and heat flux
    mutable ParGridFunction T, k, dk;
@@ -452,8 +456,8 @@ public:
       b.SetSize(fes.GetTrueVSize()); b = 0.0;
       Assemble();
 
-      SetInputOffsets(Array<int>({0, fes.GetTrueVSize(), 2*fes.GetTrueVSize()}));
-      SetOutputOffsets(Array<int>({0, fes.GetTrueVSize()}));
+      in_offsets = Array<int>({0, fes.GetTrueVSize(), 2*fes.GetTrueVSize()});
+      out_offsets = Array<int>({0, fes.GetTrueVSize()});
    }
 
    void Assemble()
@@ -480,8 +484,8 @@ public:
 
    void Mult(const Vector &x, Vector &y) const override
    {
-      BlockVector xb(x.GetData(), InputOffsets());
-      BlockVector yb(y.GetData(), OutputOffsets());
+      BlockVector xb(x.GetData(), in_offsets);
+      BlockVector yb(y.GetData(), out_offsets);
 
       MultiVector xmv(2), ymv(1);
       xmv.MakeRef(0, xb.GetBlock(0));
@@ -529,6 +533,10 @@ public:
    {
       MFEM_ABORT("GetGradient not implemented for DiffusionOperator");
    }
+   Operator& GetGradientMV(const MultiVector &x) const override
+   {
+      MFEM_ABORT("GetGradientMV not implemented for DiffusionOperator");
+   }
 
    void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
    {
@@ -557,7 +565,7 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   using GradMode = DAGraph::GradMode;
+   // using GradMode = DAGraph::GradMode;
 
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.order, "-o", "--order",
@@ -617,7 +625,6 @@ int main(int argc, char *argv[])
    DiffusionOperator diff_op2(fes);
    diff_op2.SetName("Div(k(T1,T2) grad(T2))");
 
-
    Vector k1vec(fes.GetTrueVSize()); k1vec = 0.0;
    Vector k1adj(fes.GetTrueVSize()); k1adj = 0.0;
    Vector kpvec(fes.GetTrueVSize()); kpvec = 0.0;
@@ -643,21 +650,8 @@ int main(int argc, char *argv[])
 
    // Define the DAG
    DAGraph dag;
-   GraphTape& tape = dag.GetTape();
-   bool use_tape = false; // Set to true to construct the DAG manually, false to use the tape-based approach
-
-   if(use_tape)
-   {
-      tape.Watch({T1_field, T2_field});
-      tape.StartRecording();
-   }
-   else
-   { // Manually add operators and input/output fields to the DAG
-      dag.AddOperators({&diff_coeff_1, &diff_op1,
-                        &diff_op2, &diff_coeff_2, &prod_coeff});
-
-      dag.RegisterFields({T1_field, T2_field}, {f1_field, f2_field});
-   }
+   dag.Watch({T1_field, T2_field}); // Track fields that are inputs to the DAG
+   dag.StartRecording();
 
    diff_coeff_1.RegisterFields({T1_field}, {k1_field});
    diff_coeff_2.RegisterFields({T2_field}, {k2_field});
@@ -666,7 +660,12 @@ int main(int argc, char *argv[])
    {
       prod_coeff.RegisterFields({k1_field, k2_field}, {kp_field});
       diff_op1.RegisterFields({T1_field, kp_field}, {f1_field});
-      diff_op2.RegisterFields({T2_field, kp_field}, {f2_field});
+      diff_op2.RegisterFields({T2_field, kp_field}, {f2_field}, // Possible to specify action lambdas
+  /* force const if needed */   [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
+  /* Default for GraphNode */   [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMult(x, dx, dy); },
+///* If using mfem::Operator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GetGradientMV(x).MultMV(dx, dy); },
+                                [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTranspose(x, dx, dy); }
+                              );
    }
    else
    {
@@ -674,15 +673,14 @@ int main(int argc, char *argv[])
       diff_op2.RegisterFields({T2_field, k2_field}, {f2_field});
    }
 
-   if(use_tape)
-   {
-      tape.Finalize({f1_field, f2_field});
-   }
+   // Stop recording and specify the output fields of the DAG
+   // Outputs can also be intermediate fields.
+   dag.StopRecording({f1_field, f2_field});
 
    int sz = fes.GetTrueVSize();
    // Needed to construct MultiVector from Vector in Mult()
-   dag.SetInputOffsets(Array<int>({0, sz, 2*sz}));
-   dag.SetOutputOffsets(Array<int>({0, sz, 2*sz}));
+   Array<int> dag_offsets({0, sz, 2*sz});
+   dag.SetOffsets(dag_offsets, dag_offsets);
 
    // Assemble DAG: topological sort (if needed), validate nodes, etc.
    dag.Assemble();
@@ -693,7 +691,7 @@ int main(int argc, char *argv[])
    {
       std::ofstream fout(output_prefix+"-dag.txt");
       fout << "{\n";
-      dag.Save(fout);
+      // dag.Save(fout);
       fout << "}\n";
       fout << std::flush;
       fout.close();
@@ -706,8 +704,8 @@ int main(int argc, char *argv[])
    int T1_idx = 0;
    int T2_idx = 1;
 
-   BlockVector xb(dag.InputOffsets());
-   BlockVector yb(dag.OutputOffsets());
+   BlockVector xb(dag_offsets);
+   BlockVector yb(dag_offsets);
 
    xb.GetBlock(T1_idx).Randomize();
    xb.GetBlock(T2_idx).Randomize();
@@ -725,8 +723,6 @@ int main(int argc, char *argv[])
    linear_solver.SetPrintLevel(1);
 
    // Set the gradient mode for the DAG and solve the coupled system
-   GradMode gm = static_cast<GradMode>(ctx.grad_mode);
-   dag.SetGradientMode(gm);
    newton_solver.SetOperator(dag);
    newton_solver.Mult(xb, yb);
 

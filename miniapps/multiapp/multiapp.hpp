@@ -20,27 +20,83 @@ namespace mfem
 
 /// Forward declarations needed below
 class Field;
-class FieldCollection;
 class GraphNode;
 class DAGraph;
-class GraphGradient;
-class GraphTape;
+class DualGraph;
+struct GraphOperation;
 
+
+
+
+// TODO: Should move these to a util namespace or a util file. 
+template <typename T, std::size_t... I>
+auto ArrayToTuple_impl( const Array<T>& v, std::index_sequence<I...>)
+{
+    return std::make_tuple(v[I]...);
+}
+
+template <int N, typename T>
+auto ArrayToTuple(const Array<T>& v)
+{
+    return ArrayToTuple_impl(v,std::make_index_sequence<N>{});
+}
+
+// Pack an iterable item into a MultiVector using template
+// Check if type is iterable has begin and end methods
+// Also take in a get function that fetches the vector from item
+template <typename R, typename T,
+          typename = decltype(std::begin(std::declval<T>())),
+          typename = decltype(std::end(std::declval<T>()))>
+void IterableToMultiVector(const T &items, MultiVector &mv,
+                           std::function<R(typename T::value_type)> get)
+{
+    int i = 0, nblocks = std::distance(std::begin(items), std::end(items));
+    mv.SetNumBlocks(nblocks);
+    for (auto &item : items) { mv.MakeRef(i++, get(item)); }
+}
+
+template <typename MV, typename I, typename Set>
+void MultiVectorToIterable( MV& mv, I& items, Set&& set)
+{
+    int i = 0;
+    for (auto& item : items) { set(item, mv[i++]); }
+}
+
+void BlockVectorToMultiVector(BlockVector &bv, MultiVector &mv);
+
+int GetValidID(int id, int& current, int lb=0, int ub = std::numeric_limits<int>::max());
 
 /// @brief Abstract base class for recording operations
-/// Declared here to avoid circular dependencies between GraphNode and GraphTape
 class AbstractTape
 {
 protected:
-    bool recording = false; ///< Flag to indicate if recording is active
+    bool is_recording = false; ///< Flag to indicate if recording is active
 
 public:
-    bool IsRecording() const { return recording; }
-    void StartRecording() { recording = true; }
-    void StopRecording() { recording = false; }
 
-    virtual void RegisterOperation(GraphNode &node) = 0;
-    virtual void Clear() = 0;
+    virtual void Watch(std::initializer_list<Field*> fields_list)
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+    }
+
+    bool IsRecording() const { return is_recording; }
+    virtual void StartRecording() { is_recording = true; }
+    virtual void PauseRecording() { is_recording = false; }
+
+    virtual void StopRecording(std::initializer_list<Field*> outputs_list)
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+    }
+
+    virtual void RegisterOperation(GraphOperation *operation)
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+    };
+
+    virtual void ClearTape() 
+    {
+        MFEM_ABORT("This method is not overridden for this class!");
+    };
 
     virtual ~AbstractTape() = default;
 };
@@ -67,16 +123,11 @@ protected:
     Operator *oper  = nullptr; // Operator that outputs this field
     AbstractTape *tape = nullptr; // Optional tape tracking this field
 
-    int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
-    {
-        return (id_ >= lb && id_ <= ub) ? id_ : next_id++;
-    }
-
 public:
 
     ///@brief Constructor for a Field of type Type with optional ID
     Field(Vector *field, Vector *adjoint, int id_ = -1) :
-          data(field), adjoint(adjoint), id(GetValidID(id_)),
+          data(field), adjoint(adjoint), id(GetValidID(id_,next_id)),
           name("Field_" + std::to_string(id)) { }
 
     ///@brief Constructor for an input field
@@ -150,10 +201,7 @@ public:
         tape = t;
     }
 
-    AbstractTape* GetTape() const
-    {
-        return tape;
-    }
+    AbstractTape* GetTape() const { return tape; }
 
     std::string Name() const { return name; }
     void SetName(const std::string &n) { name = n; }
@@ -172,259 +220,126 @@ public:
     }
 };
 
-/// @brief A collection of Fields, each identified by a name
-class FieldCollection
+
+struct GraphOperation
 {
-public:
-    using FieldMap = GenericFieldMap<int, Field*>; // ID -> Field
-    using StrToInt = GenericFieldMap<std::string, int>; // Name -> ID
-    using IntToBool = GenericFieldMap<int, bool>; // ID -> Ownership
+    using InputType = std::initializer_list<Field*>;
+    using OutputType = InputType;
+    using ExecuteFunc = std::function<void(const MultiVector&, MultiVector&)>;
+    using GradFunc = std::function<void(const MultiVector&, const MultiVector&, MultiVector&)>;
+    using IndexMap = GenericFieldMap<int, int>;
 
-private:
-    std::string name; /// Name of the collection
-    Operator *oper = nullptr; /// Operator associated with this collection (not owned)
-    FieldMap fields;  /// Map from field ID to Field pointer
-    StrToInt named_map; /// Map from field name to IDs
-    IntToBool ownership_map; /// Map from field ID to ownership flag
-
-    Array<Field*> input_fields;  // Input fields for this node
-    Array<Field*> output_fields; // Output fields for this node
+protected:
+    Operator *op;
 
 public:
+    Array<Field*> inputs, outputs;
+    IndexMap input_index, output_index; ///< Field::ID to Array index
+    ExecuteFunc execute;
+    GradFunc grad, grad_transpose;
+    mutable MultiVector xmv, ymv;
 
-    FieldCollection() = default;
-
-    /// @brief Constructor with collection name and optional associated operator
-    FieldCollection(std::string collection_name, Operator *op = nullptr):
-                    name(collection_name), oper(op) {}
-
-    /// @brief Constructor with associated operator and default collection name
-    FieldCollection(Operator *op) : name("FieldCollection"), oper(op) {}
-
-    /// @brief Get the number of fields in the collection
-    int Size() const { return fields.NumFields(); }
-
-    /// @brief Set the name of the collection
-    void SetName(const std::string &collection_name) { name = collection_name;}
-
-    /// @brief Get the name of the collection
-    std::string Name() const { return name; }
-
-    /// @brief Set the operator associated with this collection
-    void SetOperator(Operator *op){ oper = op; }
-
-    /// @brief Get the operator associated with this collection
-    const Operator* GetOperator() const { return oper; }
-
-    /// @brief Add a field and ownership flag to the collection
-    void AddField(Field *field, bool own = false)
+    GraphOperation(Operator &oper, InputType in, OutputType out,
+                   ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
+                   GradFunc grad_transpose = nullptr) :
+                   op(&oper), inputs(in), outputs(out),
+                   execute(exec), grad(grad), grad_transpose(grad_transpose),
+                   xmv(inputs.Size()), ymv(outputs.Size())
     {
-        if(fields.Has(field->ID()))
+        int i = 0, o = 0;
+        for(auto *f : in) { input_index.Register(f->ID(), i++); }
+        for(auto *f : out) { output_index.Register(f->ID(), o++); }
+        if(!exec)
         {
-            MFEM_ABORT("FieldCollection::AddField: Field with ID "
-                       << field->ID() << " already exists.");
+            execute = [this](const MultiVector &x, MultiVector &y)
+                            { op->MultMV(x, y); };
         }
-        fields.Register(field->ID(), field, own);
-        ownership_map.Register(field->ID(), own);
-    }
-
-    /// @brief Add a field to the collection with a given name and ownership flag
-    void AddField(const std::string &field_name,
-                  Field *field, bool own = false)
-    {
-        AddField(field, own);
-        named_map.Register(field_name, field->ID());
-    }
-
-    Field* Get(int id) const { return fields.Get(id); }
-
-    Field* Get(const std::string &field_name) const
-    {
-        if(!named_map.Has(field_name))
+        if(!grad)
         {
-            MFEM_ABORT("FieldCollection::Get: Field with name "
-                       << field_name << " does not exist.");
+            grad = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                          { op->GetGradientMV(x).MultMV(dx, dy); };
         }
-        return fields.Get(named_map.Get(field_name));
-    }
-
-    void SetFieldOwnership(int field_id, bool own)
-    {
-        if(!fields.Has(field_id))
+        if(!grad_transpose)
         {
-            MFEM_ABORT("FieldCollection::SetFieldOwnership: Field with ID "
-                       << field_id << " does not exist.");
-        }
-        ownership_map.Register(field_id, own);
-    }
-
-    void AddInput(Field *field, bool own = false)
-    {
-        AddField(field, own);
-        input_fields.push_back(field);
-    }
-    void AddInput(const std::string &field_name,
-                  Field *field, bool own = false)
-    {
-        AddField(field_name, field, own);
-        input_fields.push_back(field);
-    }
-
-    void AddOutput(Field *field, bool own = false)
-    {
-        AddField(field, own);
-        output_fields.push_back(field);
-    }
-    void AddOutput(const std::string &field_name,
-                   Field *field, bool own = false)
-    {
-        AddField(field_name, field, own);
-        output_fields.push_back(field);
-        if(field->GetOperator() == nullptr)
-        {
-            field->SetOperator(oper);
+            grad_transpose = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                    { op->GetGradientMV(x).MultTransposeMV(dx, dy); };
         }
     }
 
-    Array<Field*>& InputFields() { return input_fields; }
-    Array<Field*>& OutputFields() { return output_fields; }
-
-    Field* InputField(int i) const { return input_fields[i]; }
-    Field *InputField(const std::string &field_name) const
+    GraphOperation(ExecuteFunc exec, InputType in, OutputType out,
+                   GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
+                   op(nullptr), inputs(in), outputs(out), execute(exec),
+                   grad(grad), grad_transpose(grad_transpose),
+                   xmv(inputs.Size()), ymv(outputs.Size())
     {
-        return fields.Get(named_map.Get(field_name));
+        int i = 0, o = 0;
+        for(auto *f : in) { input_index.Register(f->ID(), i++); }
+        for(auto *f : out) { output_index.Register(f->ID(), o++); }
     }
 
-    Field* OutputField(int i) const { return output_fields[i]; }
-    Field *OutputField(const std::string &field_name) const
-    {
-        return fields.Get(named_map.Get(field_name));
-    }
+    virtual void Execute() const;
 
-    virtual void Save (std::ostream &out) const
-    {
-        out << "\"Fields\":\n";
-        out << "{\n";
-        for (auto f = fields.begin(); f != fields.end(); ++f)
-        {
-            std::string f_name = f->second->Name();
-            Field *f_obj = f->second;
-            out << '\"' << f_obj->ID() << "\": \"" << f_name << "\"";
-            if(f != std::prev(fields.end())) out << ",";
-            out << "\n";
-        }
-        out << "},\n";
+    GraphOperation *GetGradient() const;
 
-        out << "\"Inputs\":\n";
-        out << "{\n";
-        for (int i = 0; i < input_fields.Size(); ++i)
-        {
-            Field *f_obj = input_fields[i];
-            out << '\"' << f_obj->ID() << "\": \"" << f_obj->Name() << "\"";
-            if(i != input_fields.Size() - 1) out << ",";
-            out << "\n";
-        }
-        out << "},\n";
+    Operator &GetOperator() const { return *op; }
 
-        out << "\"Outputs\":\n";
-        out << "{\n";
-        for (int i = 0; i < output_fields.Size(); ++i)
-        {
-            Field *f_obj = output_fields[i];
-            out << '\"' << f_obj->ID() << "\": \"" << f_obj->Name() << "\"";
-            if(i != output_fields.Size() - 1) out << ",";
-            out << "\n";
-        }
-        out << "}\n";
-    }
-
-    Field* HasField(const Field &field) const
-    {
-        for (auto f = fields.begin(); f != fields.end(); ++f)
-        {
-            if(f->second == &field)
-            {
-                return f->second;
-            }
-        }
-        return nullptr;
-    }
-
-    Field* HasField(const std::string &field_name) const
-    {
-        return named_map.Has(field_name) ? fields.Get(named_map.Get(field_name)) : nullptr;
-    }
-
-    Field* HasField(const int id) const { return fields.Get(id); }
-
-    void ClearInputs()
-    {
-        for (auto f : input_fields)
-        {
-            int id = f->ID();
-            if(ownership_map.Has(id))
-            {
-                if(ownership_map.Get(id) && f) { delete f; }
-            }
-            fields.Deregister(id);
-            named_map.Deregister(f->Name());
-            ownership_map.Deregister(id);
-        }
-        input_fields.SetSize(0);
-    }
-
-    void ClearOutputs()
-    {
-        for (auto f : output_fields)
-        {
-            int id = f->ID();
-            if(ownership_map.Has(id))
-            {
-                if(ownership_map.Get(id) && f) { delete f; }
-            }
-            fields.Deregister(id);
-            named_map.Deregister(f->Name());
-            ownership_map.Deregister(id);
-        }
-        output_fields.SetSize(0);
-    }
-
-    void Clear()
-    {
-        for (auto f = fields.begin(); f != fields.end(); ++f)
-        {
-            int id = f->second->ID();
-            if(ownership_map.Has(id) && ownership_map.Get(id))
-            {
-                delete f->second;
-            }
-        }
-        fields.clear();
-        named_map.clear();
-        ownership_map.clear();
-        input_fields.SetSize(0);
-        output_fields.SetSize(0);
-    }
-
-    virtual ~FieldCollection()
-    {
-        Clear();
-    }
-
+    virtual ~GraphOperation() // Do NOT delete op, inputs or outputs - they are not owned;
+    { }
 };
 
-// TODO: Should move these to a util namespace or a util file. 
-template <typename T, std::size_t... I>
-auto ArrayToTuple_impl( const Array<T>& v, std::index_sequence<I...>)
+// @brief A GraphOperation that stores the internal state of the operator
+// and allows for state-dependent execution. Can be registered with the DAG
+template<typename OpType, typename StateType>
+struct StateDependentGraphOperation : GraphOperation
 {
-    return std::make_tuple(v[I]...);
-}
+    using StateGetFunc = std::function<void(StateType&)>;
+    using StateSetFunc = std::function<void(const StateType&)>;
 
-template <int N, typename T>
-auto ArrayToTuple(const Array<T>& v)
+    mutable StateType *state; // State to be stored (not owned)
+    StateGetFunc get_state;
+    StateSetFunc set_state;
+
+    // Only use if OpType extended from mfem::Operator
+    template<typename = std::enable_if_t<std::is_base_of<Operator, OpType>::value>>
+    StateDependentGraphOperation(OpType &oper, InputType in, OutputType out, StateType &state,
+                                 StateGetFunc get_state, StateSetFunc set_state,
+                                 ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
+                                 GradFunc grad_transpose = nullptr) :
+                                 GraphOperation(oper, in, out, exec, grad, grad_transpose),
+                                 state(&state), get_state(get_state), set_state(set_state)
+                                 { }
+
+    StateDependentGraphOperation(ExecuteFunc exec, InputType in, OutputType out, StateType &state,
+                                 StateGetFunc state_get, StateSetFunc state_set,
+                                 GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
+                                 GraphOperation(exec, in, out, grad, grad_transpose),
+                                 state(&state), get_state(state_get), set_state(state_set)
+                                 { }
+
+    void Execute() const override
+    {
+        set_state(*state); // Set the state of the operator before execution
+        GraphOperation::Execute();
+        get_state(*state); // Retrive and store the state of the operator after execution 
+    }
+};
+
+struct GraphOperationGradient : GraphOperation
 {
-    return ArrayToTuple_impl(v,std::make_index_sequence<N>{});
-}
+    ExecuteFunc execute_primal;
+    mutable Array<Vector*> primal;
+    mutable MultiVector pmv;
+
+    GraphOperationGradient(GraphOperation &oper);
+
+    void Execute() const override;
+
+    ~GraphOperationGradient()
+    {
+        primal.DeleteAll();
+        pmv.SetNumBlocks(0);
+    }
+};
 
 class GraphNode : public Operator
 {
@@ -440,656 +355,233 @@ private:
 
 protected:
     int id = -1;
-    int node_index = -1;
+    std::string name; ///< Optional name for the node
     mutable ExecutionMode exec_mode = DEFAULT_MODE;
-
-    std::string name;
-    mutable FieldCollection field_collection; ///< Collection of fields associated with this node
-
-    // Offsets to be used for operation on BlockVector
     Array<int> input_offsets;  ///< Offsets for input fields
     Array<int> output_offsets; ///< Offsets for output fields
 
-    int GetValidID(int id_, int lb=0, int ub = std::numeric_limits<int>::max())
-    {
-        return (id_ >= lb && id_ <= ub) ? id_ : next_id++;
-    }
-
 public:
 
-    GraphNode(int h, int w) : Operator(h,w), id(GetValidID(-1)),
-                              name("Node_" + std::to_string(id)),
-                              field_collection(this) { }
+    GraphNode(int h, int w) : Operator(h,w), id(GetValidID(-1,next_id)),
+                              name("GraphNode_" + std::to_string(id))
+                              { }
 
     GraphNode(int s = 0) : GraphNode(s, s) { }
-
-    void SetNodeIndex(int index){ node_index = index; }
-    int GetNodeIndex() const { return node_index; }
 
     void SetExecutionMode(ExecutionMode mode) { exec_mode = mode; }
     ExecutionMode GetExecutionMode() const { return exec_mode; }
 
-    void SetName(const std::string &name_) { name = name_; }
-    std::string Name() const { return name; }
-
     void SetID(int id_) { id = id_; }
     int ID() const { return id; }
 
-    FieldCollection& Fields() { return field_collection; }
-    const FieldCollection& Fields() const { return field_collection; }
-
-    Array<Field*>& InputFields() const { return field_collection.InputFields(); }
-    Array<Field*>& OutputFields() const { return field_collection.OutputFields(); }
-    Field* InputField(int i) const { return InputFields()[i]; }
-    Field* OutputField(int i) const { return OutputFields()[i]; }
+    void SetName(const std::string &n) { name = n; }
+    std::string Name() const { return name; }
 
 
-    virtual void AddInput(const std::string &field_name,
-                          Field *field, bool own = false)
-    { field_collection.AddInput(field_name, field, own); }
-
-    virtual void AddInput(Field *field, bool own = false)
-    { field_collection.AddInput(field, own); }
-
-    virtual void AddInputs(std::initializer_list<Field*> fields,
-                           bool own = false)
-    { for(auto &f : fields) { AddInput(f, own); } }
-
-    virtual void AddOutput(const std::string &field_name,
-                           Field *field, bool own = false)
-    { field_collection.AddOutput(field_name, field, own); }
-
-    virtual void AddOutput(Field *field, bool own = false)
-    { field_collection.AddOutput(field, own); }
-
-    virtual void AddOutputs(std::initializer_list<Field*> fields,
-                            bool own = false)
-    { for(auto &f : fields) { AddOutput(f, own); } }
-
-    /// @brief Return the input offsets for block starts.
-    Array<int>& InputOffsets() { return input_offsets; }
-
-    /// @brief Read only access to the input offsets for block starts.
-    const Array<int>& InputOffsets() const { return input_offsets; }
-
-    virtual void SetInputOffsets(const Array<int> &offsets) { input_offsets = offsets; }
-
-    /// @brief Return the output offsets for block starts.
-    Array<int>& OutputOffsets() { return output_offsets; }
-
-    /// @brief Read only access to the output offsets for block starts.
-    const Array<int>& OutputOffsets() const { return output_offsets; }
-
-    virtual void SetOutputOffsets(const Array<int> &offsets) { output_offsets = offsets; }
-
-    virtual void MultMV(const MultiVector &x, MultiVector &y) const
+    virtual void SetOffsets(const Array<int> &inoff, const Array<int> &outoff)
     {
-        MFEM_ABORT("This method is not overridden for this class!");
-        // Include a default implementation that calls Mult() with Vector arguments
+        input_offsets = inoff;
+        output_offsets = outoff;
     }
 
-    virtual void MultTransposeMV(const MultiVector &x, MultiVector &y) const
+    auto GetOffsets() const
     {
-        MFEM_ABORT("This method is not overridden for this class!");
-        // Include a default implementation that calls MultTranspose() with Vector arguments
+        return std::make_tuple(std::cref(input_offsets), std::cref(output_offsets));
     }
 
+    // Computes J(x) * dx = dy, where J is the Jacobian of the operator
     virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
     {
         MFEM_ABORT("This method is not overridden for this class!");
-        GetGradientMV(x).MultMV(dx, dy);
     }
 
+    // Computes J(x)^T * dx = dy, where J is the Jacobian of the operator
     virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
     {
         MFEM_ABORT("This method is not overridden for this class!");
-        GetGradientMV(x).MultTransposeMV(dx, dy); // Not yet implemented
     }
 
-    virtual void Save (std::ostream &out) const
-    {
-        out << "\"Node-" << id << "\" : " << std::endl;
-        out << "{\n";
-        out << "\"Name\": \"" << name << "\",\n";
-        field_collection.Save(out);
-        out << "}";
-    }
-
-    void RegisterFields(std::initializer_list<Field*> inputs,
-                        std::initializer_list<Field*> outputs,
-                        bool own_inputs = false,
-                        bool own_outputs = false)
-    {
-        // Clear any existing input and output fields before registering new ones
-        field_collection.ClearInputs();
-        field_collection.ClearOutputs();
-
-        AddInputs(inputs, own_inputs);
-        AddOutputs(outputs, own_outputs);
-
-        // Tape operations
-        // Check if all input fields have the same tape; if so, register this node with that tape
-        auto infields = InputFields();
-        bool same_tape = std::equal(infields.begin() + 1, infields.end(), infields.begin(),
-                                    [](Field *a, Field *b) { return a->GetTape() == b->GetTape(); });
-
-        if(AbstractTape *tape = infields[0]->GetTape(); tape && same_tape)
-        {
-            if(tape->IsRecording())
-            {
-                tape->RegisterOperation(*this);
-            }
-        }
-        else if(!same_tape)
-        {
-            bool any_recording = std::any_of(infields.begin(), infields.end(),
-                                            [](Field *f)
-                                            { return f->GetTape() ? f->GetTape()->IsRecording() : false; });
-            if(any_recording)
-            {
-                MFEM_ABORT("Input fields are being recorded on different tapes. Cannot register operation.");
-            }
-        }
-    }
+    virtual void RegisterFields(std::initializer_list<Field*> inputs,
+                                std::initializer_list<Field*> outputs);
+    
+    virtual void RegisterFields(std::initializer_list<Field*> inputs,
+                                std::initializer_list<Field*> outputs,
+                                GraphOperation::ExecuteFunc execute,
+                                GraphOperation::GradFunc grad = nullptr,
+                                GraphOperation::GradFunc grad_transpose = nullptr);
 
     virtual ~GraphNode()
-    {
-        // Clear collection of fields associated with this node
-        field_collection.Clear();
-    }
-};
-
-
-/**
-   @brief An abstract, type-erased class to define the interface for 
-   operators, not inherited from @a GraphNode. It performs SFINAE 
-   checks for stored operator's member functions and override the Mult
-   to call the stored object's functions.
- */
-template <typename OpType>
-class AbstractOperator : public GraphNode
-{
-protected:
-    /// Define a template class 'check' to test for the existence of member functions
-    template <typename C>
-    class CheckMember{
-        private:
-
-        /// @brief A type trait to check if the erased class has the function Mult
-        /// with the needed signatures.
-        template<class T>
-        using Mult = decltype(std::declval<T&>().Mult(std::declval<const Vector&>(),
-                                                      std::declval<Vector&>()));
-
-        template<class T>
-        using MultMV = decltype(std::declval<T&>().MultMV(std::declval<const MultiVector&>(),
-                                                          std::declval<MultiVector&>()));
-        // ---------------------------------------------------------------------
-        
-        template <typename T, template<typename> typename Func, typename R>
-        static constexpr auto Check(T*) -> typename std::is_same< Func<T>, R>::type;
-
-        template <typename, template<typename> typename, typename >
-        static constexpr std::false_type Check(...);
-
-        // --- Check for the existence of the member functions
-        typedef decltype(Check<C,Mult,void>(0)) Has_Mult;
-        typedef decltype(Check<C,MultMV,void>(0)) Has_MultMV;
-    public:
-        static constexpr bool HasMult = Has_Mult::value;
-        static constexpr bool HasMultMV = Has_MultMV::value;
-    };
-
-    OpType *op;  ///< Pointer to the operator
-
-public:
-
-    constexpr bool HasMultMV(){return CheckMember<OpType>::HasMultMV;}
-    constexpr bool HasMult(){return CheckMember<OpType>::HasMult;}
-
-    /// @brief Constructor for the type-erased AbstractOperator class
-    AbstractOperator(OpType *op_, int h, int w) : GraphNode(h,w), op(op_)
     { }
-
-    /// @brief Constructor for the type-erased AbstractOperator class.
-    AbstractOperator(OpType *op_, int s = 0) : AbstractOperator(op_,s,s) {}
-
-    /**
-       @brief Perform Mult operation with the stored operator, if it exists.
-     */
-    void Mult(const Vector &x, Vector &y) const override
-    {
-        if constexpr (CheckMember<OpType>::HasMult)
-        {
-            op->Mult(x,y);
-        }
-        else
-        {
-            MFEM_ABORT("The AbstractOperator does not have the function, "
-                       "Mult(const Vector&, Vector&) or "
-                       "Mult(int, double*, int, double*).");
-        }
-    }
-
-    /**
-       @brief Perform MultMV operation with the stored operator, if it exists.
-     */
-    void MultMV(const MultiVector &x, MultiVector &y) const override
-    {
-        if constexpr (CheckMember<OpType>::HasMultMV)
-        {
-            op->MultMV(x,y);
-        }
-        else
-        {
-            MFEM_ABORT("The AbstractOperator does not have the function, "
-                       "MultMV(const MultiVector&, MultiVector&).");
-        }
-    }
 };
 
 
 /**
    @brief A class to store and coupled multiple operators together.
  */
-class DAGraph : public GraphNode
+class DAGraph : public GraphNode, public AbstractTape
 {
 public:
+    inline static int max_ops = 1000;
+    inline static int max_fields = 1000;
+    inline static int max_derivatives = 1;
 
-    using IntToIntMap = GenericFieldMap<int, int>;
-    using IntToFieldMap = GenericFieldMap<int, Field*>;
-
-    enum class GradMode
-    {
-        FINITE_DIFF = 0,  ///< Finite difference Jacobian
-        MATRIX_FREE = 1,  ///< Matrix-free Jacobian
-        ASSEMBLED = 2,    ///< Assembled Jacobian
-        NONE = 3          ///< Not implemented
-    };
+    using IndexMap = GenericFieldMap<int, int>;
 
 protected:
-    Array<GraphNode*> nodes; ///< Vector of individual operators
-    Array<bool> node_owned; ///< Whether the operators are owned
-    Array<int> node_depth; ///< Depth of each operator in the graph
+    Array<GraphOperation*> operations; ///< List of operations in the graph
+    Array<bool> op_owned; ///< Ownership of operations (unused for now)
+    Array<int> op_depth;  ///< Depth of each operation in the graph
+    IndexMap id_to_op_index; ///< Map from field ID to operation index
 
-    int max_width  = 0;     ///< Largest operator width
-    int max_height = 0;     ///< Largest operator height
-    int nnodes     = 0;     ///< The number of nodes
-    bool sorted    = false; ///< True if the nodes are topologically sorted
-    bool assembled = false; ///< True if the graph is assembled
+    Array<Field*> fields;  ///< List of all fields used in operations (not owned)
+    IndexMap id_to_field_index; ///< Map from field ID to index in fields array
 
-    GraphTape *tape = nullptr; ///< Tape for recording operations on the graph
-    GradMode grad_mode = GradMode::MATRIX_FREE; ///< Gradient mode for the graph
-    mutable Operator *grad = nullptr; ///< Gradient operator
-    mutable MultiVector xmv_node, ymv_node; ///< Temporary multivectors for evaluating nodes
+    // Experimental state memory management by dag (not Field)
+    Array2D<Vector*> state_memory; ///< Owned: use id->field_index to index into this array
+                                   /// nfields x ngrad (to store primal and daul)
 
-    IntToIntMap fid_to_index; ///< Map from ID to index in an array; needed since ordering is not unique
+    int max_depth = 0; ///< Maximum depth of the graph
+    bool is_sorted = false; ///< Is the graph topologically sorted?
+    bool is_assembled = false; ///< Is the graph assembled?
 
-    friend class GraphGradient;
+    GraphOperation* dag_op = nullptr; ///< Pointer to the operation representing the entire DAG
+    mutable DualGraph *grad_dag = nullptr; ///< Gradient dag operator
 
+    std::function<void(Field *f, const Vector &v)> get_inputs_func; ///< Function to get inputs for the DAG
+    std::function<void(Field *f, Vector &v)> get_outputs_func; ///< Function to get outputs for the DAG
+
+    friend class DualGraph; ///< Allow DualGraph to access protected members
 public:
     /**
-       @brief Construct a new CoupledOperator object.
-       @param nop Total number of operators to couple
+       @brief Construct a new DAG with a total number of expected operators.
+       @param nop (Optional) Total number of expected operators
      */
-    DAGraph(const int nop = 0);
+    DAGraph(int nops = 0, int nfields = 0);
 
-    /**
-       @brief Construct a new CoupledOperator object for an 
-       abstract non/mfem operator.
-     */
-    template <class OpType>
-    DAGraph(const OpType &op) : DAGraph(1)
+protected:
+    // Force tape use for now
+    void AddOperation(GraphOperation *op)
     {
-        AddOperator(op);
-    }
-
-    /**
-       @brief Add an operator to the list of coupled operator and
-       return pointer to it. Not owned unless it's not derived from GraphNode.
-     */
-    template <class OpType>
-    GraphNode* AddOperator(OpType *op_, int h, int w)
-    {
-        // Add operator to list of operators
-        if constexpr(std::is_base_of<GraphNode, OpType>::value)
+        operations.push_back(op);
+        // Register input fields and id->index mapping
+        for(auto *f : op->inputs)
         {
-            nodes.push_back(op_);
-            node_owned.Append(false);
-        }
-        else
-        {
-            nodes.push_back(new AbstractOperator<OpType>(op_,h,w));
-            node_owned.Append(true);
-        }
-        nnodes++;
-
-        // Update size of the coupled operator and the block offsets
-        GraphNode* op = nodes.Last();
-        op->SetNodeIndex(nnodes-1); // Set the index of the operator
-
-        int ht = op->Height();
-        int wt = op->Width();
-
-        max_width = std::max(max_width, wt);
-        max_height = std::max(max_height, ht);
-        sorted = false;
-
-        return op;
-    }
-
-    /// @brief Add an operator to the list of coupled operator and return pointer to it.
-    template <class OpType>
-    GraphNode* AddOperator(OpType *op_, int s = 0) { return AddOperator(op_,s,s);}
-
-    void AddOperators(std::initializer_list<Operator*> ops)
-    {
-        for(auto *op : ops)
-        {
-            if(GraphNode *gn = dynamic_cast<GraphNode*>(op))
+            if(!id_to_field_index.Has(f->ID()))
             {
-                AddOperator(gn);
-            }
-            else
-            {
-                AddOperator(op);
+                fields.push_back(f);
+                id_to_field_index.Register(f->ID(), fields.Size() - 1);
             }
         }
+        // Register outputs fields and id->index mapping and
+        // id->operation that outputs the field
+        for(auto *f : op->outputs)
+        {
+            id_to_op_index.Register(f->ID(), operations.Size() - 1);
+            if(!id_to_field_index.Has(f->ID()))
+            {
+                fields.push_back(f);
+                id_to_field_index.Register(f->ID(), fields.Size() - 1);
+            }
+        }
+        op_owned.push_back(true); // For now, we own the operations
+        is_sorted = false;
+        is_assembled = false;
     }
-
-    /// @brief Add multiple operators to the list of coupled operators. Used for cases
-    /// where all operators are not derived from Operator. Ensure all are pointers.
-    template<typename... Args,
-             typename std::enable_if<(std::is_pointer<Args>::value && ...), bool>::type = true>
-    void AddOperators(Args... args)
-    {
-        (AddOperator(std::forward<Args>(args)), ...);
-    }
+public:
 
     /// @brief Get the number of coupled operators
-    int Size(){return nnodes;}
-
-    /// @brief Get the size of the largest operator
-    int MaxWidth() const {return max_width;}
-    int MaxHeight() const {return max_height;}
-
-    IntToIntMap &GetFieldIdToIndexMap() { return fid_to_index; }
-    IntToIntMap GetFieldIdToIndexMap() const { return fid_to_index; }
-
-    GraphTape& GetTape() { return *tape; }
+    int Size() const {return operations.Size();}
 
     /// @brief Get the operator at index @a i
-    GraphNode* GetNode(const int i)
+    GraphOperation &GetOperation(const int i)
     {
-        MFEM_ASSERT(i >= 0 && i < nnodes,
-               "index [" << i << "] is out of range [0," << nnodes << ")");
-        return nodes[i];
+        int nop = operations.Size();
+        MFEM_ASSERT(i >= 0 && i < nop,
+                    "index [" << i << "] is out of range [0," << nop << ")");
+        return *operations[i];
     }
 
-    Array<GraphNode*>& Nodes() { return nodes; }
+    virtual void Assemble();
+    bool IsAssembled() const { return is_assembled; }
 
-    /// @brief Specify whether the operator at index @a i is owned.
-    void OwnNode(const int i, bool own = true)
+    virtual void Sort();
+    bool IsSorted() const { return is_sorted; }
+
+    void ComputeDepth(bool reverse = false);
+
+protected:
+    // This changes intermediate state; restrict user call
+    virtual void UpdateState(const MultiVector &x);
+
+    // Experimental: Get state memory to copy and store primal in dual graph
+    // virtual void GetState(Field &field, Array<Vector*> &state, int igrad = 0)
+    virtual void GetState(Field &field, MultiVector &state, int igrad = 0)
     {
-        MFEM_ASSERT(i >= 0 && i < nnodes,
-               "index [" << i << "] is out of range [0," << nnodes << ")");
-        node_owned[i] = own;
-    }
+        MFEM_ASSERT(igrad >= 0, "The ith gradient must be non-negative.");
 
-    void Assemble();
-    bool IsAssembled() const { return assembled; }
+        // MFEM_ASSERT(state.Size() > igrad, "State size " << state.Size()
+        //             << " is less than the requested gradient indices " << igrad);
+        MFEM_ASSERT(state.NumBlocks() > igrad, "State size " << state.NumBlocks()
+                    << " is less than the requested gradient indices " << igrad);
 
-    void TopologicalSort();
-    bool IsSorted() const { return sorted; }
+        bool dag_has_field = id_to_field_index.Has(field.ID());
+        MFEM_ASSERT(dag_has_field, "Field with ID " << field.ID() << " is not registered in the DAG.");
 
-    void ComputeDepth();
+        int idx = id_to_field_index.Get(field.ID());
 
-    void ValidateOffsets();
+        // For now enforce the two are the same fields
+        MFEM_ASSERT(&field == fields[idx], "Field with ID " << field.ID()
+                    << " does not match the registered field in the DAG.");
 
-    void SetInputOffsets(const Array<int> &offsets) override
-    {
-        GraphNode::SetInputOffsets(offsets);
-        width = offsets.Last();
-    }
-
-    void SetOutputOffsets(const Array<int> &offsets) override
-    {
-        GraphNode::SetOutputOffsets(offsets);
-        height = offsets.Last();
-    }
-
-    void ValidateNode(GraphNode &node);
-
-    void CollectFieldMaps();
-
-    /// @brief Set the gradient mode for the coupled operator
-    void SetGradientMode(GradMode mode)
-    {
-        if(mode != grad_mode)
+        // Get all the gradients for this field upto igrad (0 for primal, 1 for primal & dual, etc.)
+        for(int i = 0; i <= igrad; ++i)
         {
-            if(grad) { delete grad; grad = nullptr; }
-            grad_mode = mode;
+            // Force storage as const to avoid accidental modification of the state memory
+            state.MakeRef(i, std::as_const(*state_memory(idx, i)));
+            // Possibly allocate new and copy to avoid changing the state memory in the DAG
+            // and handle the copy operation, if state is Array<Vector*> instead of MultiVector
+            // state[i] = field.CreateCopy(state_memory(idx, i));
         }
     }
+public:
 
-    /**
-       @brief Apply the operator to the vector @a x 
-       and return the result in @a y.
-     */
-    virtual void Mult(const Vector &x, Vector &y) const override;
-
-    virtual void MultMV(const MultiVector &x, MultiVector &y) const override;
-
-    virtual void Execute(const MultiVector &x, MultiVector &y) const;
-
-    virtual void Save (std::ostream &out) const
+    void SetOffsets(const Array<int> &inoff, const Array<int> &outoff) override
     {
-        out << "\"DAGraph\":\n";
-        out << "{\n";
-        // out << "\"nodes\" : " << nnodes << ",\n";
-        out << "\"Nodes\":\n";
-        out << "{\n";
-        for (int i = 0; i < nodes.Size(); i++)
-        {
-            nodes[i]->Save(out);
-            if(i != nodes.Size()-1) out << ",";
-            out << "\n";
-        }
-        out << "},\n"; // End of Nodes
-        field_collection.Save(out);
-        out << "}\n";
+        GraphNode::SetOffsets(inoff, outoff);
+        width = inoff.Last();
+        height = outoff.Last();
     }
+
+    void Mult(const Vector &x, Vector &y) const override;
+    void MultMV(const MultiVector &x, MultiVector &y) const override;
+
+    void MultTranspose(const Vector &x, Vector &y) const override;
+    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
 
     Operator& GetGradient(const Vector &x) const override;
+    Operator& GetGradientMV(const MultiVector &x) const override;
 
-    /// @brief Destroy the Coupled Application object
+    // Taping operations
+    void Watch(std::initializer_list<Field*> fields_list) override;
+    void StopRecording(std::initializer_list<Field*> outputs_list) override;
+    void ClearTape() override;
+protected: // This should be protected
+    void RegisterOperation(GraphOperation *op) override;
+public:
+
+    virtual void Reset();
     ~DAGraph();
 };
 
 
-
-class GraphGradient : public Operator
+class DualGraph : public DAGraph
 {
 protected:
-    mutable DAGraph *graph = nullptr; ///< Pointer to the DAGraph for which this is the gradient operator
-    Array<Vector*> x_arr; ///< Array to store linearization point (intermediate fields)
-    mutable MultiVector xlin; ///< Reference to Vectors in x_arr
-    mutable MultiVector x0_mv, dx_mv, dy_mv;
-
+    mutable const DAGraph *primal_dag = nullptr; ///< Pointer to the primal dag operator
 public:
-    GraphGradient(DAGraph &dag);
-
-    void Update(const Vector &x);
-
-    void Mult(const Vector &x, Vector &y) const override;
-
-    void MultMV(const MultiVector &x, MultiVector &y) const override;
-
-    void MultTranspose(const Vector &x, Vector &y) const override;
-
-    void MultTransposeMV(const MultiVector &x, MultiVector &y) const override;
-
-    Operator &GetGradient(const Vector &x) const override;
-
-    void Forward(const MultiVector &x, MultiVector &y) const;
-
-    void Reverse(const MultiVector &x, MultiVector &y) const;
-
-    ~GraphGradient()
-    {
-        for (auto &v : x_arr)
-        {
-            if(v) { delete v; v = nullptr; }
-        }
-        x_arr.DeleteAll();
-    }
-};
-
-/// @brief A tape for recording operations and fields in a computation graph
-class GraphTape : public AbstractTape
-{
-protected:
-    using FieldMap = GenericFieldMap<int, Field*>; // ID -> Field
-    FieldMap fields;  ///< All fields involved in the computation
-    DAGraph &graph; ///< Reference to the DAGraph for which this is the tape
-    Array<Field*> inputs;  ///< Input fields for the tape
-    Array<Field*> outputs; ///< Output fields for the tape
-
-public:
-    GraphTape(DAGraph &dag) : graph(dag)
-    { }
-
-    void Watch(std::initializer_list<Field*> fields_list)
-    {
-        // Clear the DAG's fields (inputs/outputs)
-        graph.Fields().Clear();
-
-        // Clear any previously recorded fields
-        fields.clear();
-
-        // Set the tape for each watched field
-        for(auto &f : fields_list)
-        {
-            f->SetTape(this);
-        }
-
-        // Store the watched fields in the tape's inputs array
-        inputs.SetSize(fields_list.size());
-        int idx = 0;
-        for(auto &f : fields_list)
-        {
-            inputs[idx++] = f;
-        }
-    }
-
-    void RegisterField(Field *field) // TODO: Possibly make this protected
-    {
-        if(field->GetTape() != nullptr && field->GetTape() != this)
-        {
-            MFEM_ABORT("GraphTape::RegisterField: Field is already associated with another tape.");
-        }
-
-        const int fid = field->ID();
-        if(!fields.Has(fid))
-        {
-            field->SetTape(this);
-            fields.Register(fid, field, false);
-        }
-    }
-
-    // Possibly make this protected, and have the GraphTape be a friend of GraphNode
-    void RegisterOperation(GraphNode &node) override
-    {
-        // if(recording) // TODO: Should this check be done here or by the caller?
-        // Record input and output fields of the node
-        for (auto &input_field : node.InputFields())
-        {
-            RegisterField(input_field);
-        }
-        for (auto &output_field : node.OutputFields())
-        {
-            RegisterField(output_field);
-        }
-
-        // Add the node to the DAG
-        graph.AddOperator(&node);
-    }
-
-    void Finalize(std::initializer_list<Field*> outputs_list)
-    {
-        // Ensure that some inputs were 'watched' before finalizing
-        if(inputs.Size() == 0)
-        {
-            MFEM_ABORT("No input fields were watched. Please call Watch() before Finalize().");
-        }
-
-        // Ensure that some outputs were provided before finalizing
-        if(outputs_list.size() == 0)
-        {
-            MFEM_ABORT("No output fields were provided. Please provide at least one output field to Finalize().");
-        }
-
-        // Store the output fields in the tape's outputs array
-        outputs.SetSize(outputs_list.size());
-        int idx = 0;
-        for(auto &f : outputs_list)
-        {
-            outputs[idx++] = f;
-        }
-
-        // Loop through tape's inputs and output to ensure they were used in computation
-        // if used, add to DAG's field collection; if not used, throw a warning
-        for (auto &input_field : inputs)
-        {
-            if(fields.Has(input_field->ID()))
-            {
-                graph.AddInput(input_field, false); // Add to DAG's field collection without ownership
-            }
-            else
-            {
-                MFEM_WARNING("GraphTape::Finalize: Input field " << input_field->Name()
-                             << " (ID: " << input_field->ID() << ") was not used in any recorded operation.");
-            }
-        }
-
-        for (auto &output_field : outputs)
-        {
-            if(fields.Has(output_field->ID()))
-            {
-                graph.AddOutput(output_field, false); // Add to DAG's field collection without ownership
-            }
-            else
-            {
-                MFEM_WARNING("GraphTape::Finalize: Output field " << output_field->Name()
-                             << " (ID: " << output_field->ID() << ") was not used in any recorded operation.");
-            }
-        }
-
-        // Clear the recorded fields after stopping recording and
-        // nullifying the tape association for each tracked field
-        recording = false;
-        Clear();
-    }
-
-    void Clear() override
-    {
-        for (auto f = fields.begin(); f != fields.end(); ++f)
-        {
-            Field *field = f->second;
-            if(field->GetTape() == this) // This should always be true, but check to be safe
-            {
-                field->SetTape(nullptr); // Nullify the tape association for the field
-            }
-        }
-        fields.clear();
-        inputs.SetSize(0);
-        outputs.SetSize(0);
-    }
-
-    ~GraphTape()
-    {
-        Clear();
-    }
+    DualGraph(const DAGraph &primal_dag);
+    void Assemble() override;
+    void UpdateState(const MultiVector &x) override;
 };
 
 } //mfem namespace
