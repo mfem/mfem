@@ -190,8 +190,8 @@ Linear and nonlinear solvers
   with ODESolver::SupportsImplicitVariableType(). See Examples 9 and 16.
 
 - Added new class MemoryView that enables the viewing of Vector objects as
-  Array<real_t> objects, and vice versa. See the new methods GetArrayView() in
-  class Vector.
+  Array<real_t> objects, and vice versa. Currently, viewing methods are
+  provided only for the first direction, see Vector::GetArrayView().
 
 New and updated examples and miniapps
 -------------------------------------

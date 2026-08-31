@@ -2492,7 +2492,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
                ProjectCoefficientGlobalL2(coeff);
                return;
             case ProjectType::ELEMENT:
-               constexpr real_t signal = std::numeric_limits<real_t>::min();
+               constexpr real_t signal = -infinity();
 
                for (int i = 0; i < fes->GetNE(); i++)
                {
@@ -2765,7 +2765,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
             ProjectCoefficientGlobalL2(vcoeff);
             return;
          case ProjectType::ELEMENT:
-            constexpr real_t signal = std::numeric_limits<real_t>::min();
+            constexpr real_t signal = -infinity();
             for (int i = 0; i < fes->GetNE(); i++)
             {
                fes->GetElementVDofs(i, vdofs, doftrans);

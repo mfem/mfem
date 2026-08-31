@@ -703,11 +703,11 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
 
                   y_pa -= y_mat;
                   real_t pa_error = y_pa.Norml2();
-                  REQUIRE(pa_error == MFEM_Approx(0, tol, tol));
+                  CHECK(pa_error == MFEM_Approx(0, tol, tol));
 
                   y_assembly -= y_mat;
                   real_t assembly_error = y_assembly.Norml2();
-                  REQUIRE(assembly_error == MFEM_Approx(0, tol, tol));
+                  CHECK(assembly_error == MFEM_Approx(0, tol, tol));
 
                   if (spaceType == HdivL2 || spaceType == HdivL2_Integral ||
                       spaceType == HcurlH1_2D ||
@@ -729,11 +729,11 @@ TEST_CASE("Hcurl/Hdiv Mixed PA Coefficient",
 
                      y_pa -= y_mat;
                      pa_error = y_pa.Norml2();
-                     REQUIRE(pa_error == MFEM_Approx(0, tol, tol));
+                     CHECK(pa_error == MFEM_Approx(0, tol, tol));
 
                      y_assembly -= y_mat;
                      assembly_error = y_assembly.Norml2();
-                     REQUIRE(assembly_error == MFEM_Approx(0, tol, tol));
+                     CHECK(assembly_error == MFEM_Approx(0, tol, tol));
                   }
 
                   delete paform;
