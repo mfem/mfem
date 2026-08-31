@@ -333,6 +333,29 @@ double TimeBatchedLinAlgFullLUSolve(
    sw.Stop();
    return 1000.0*sw.RealTime()/reps;
 }
+
+double TimeBatchedLinAlgFullInverseApply(
+   const DenseTensor &full_inverse,
+   const Vector &rhs,
+   const int reps,
+   Vector &x)
+{
+   StopWatch sw;
+
+   // Dry run to remove first-use MAGMA and output allocation costs.
+   BatchedLinAlg::Get(BatchedLinAlg::MAGMA).AddMult(full_inverse, rhs, x,
+                                                    1.0, 0.0);
+   MFEM_DEVICE_SYNC;
+   sw.Start();
+   for (int r = 0; r < reps; ++r)
+   {
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).AddMult(full_inverse, rhs, x,
+                                                       1.0, 0.0);
+   }
+   MFEM_DEVICE_SYNC;
+   sw.Stop();
+   return 1000.0*sw.RealTime()/reps;
+}
 #endif
 
 } // namespace
@@ -450,6 +473,8 @@ int main(int argc, char *argv[])
    DenseTensor magma_full_factor;
    Array<int> magma_full_pivots;
    double magma_full_factor_ms = 0.0;
+   DenseTensor magma_full_inverse;
+   double magma_full_inverse_ms = 0.0;
 
    if (magma_supported_device)
    {
@@ -510,6 +535,21 @@ int main(int argc, char *argv[])
       MFEM_DEVICE_SYNC;
       sw.Stop();
       magma_full_factor_ms = 1000.0*sw.RealTime()/setup_reps;
+
+      magma_full_inverse = full_ea;
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).Invert(magma_full_inverse);
+      MFEM_DEVICE_SYNC;
+
+      sw.Clear();
+      sw.Start();
+      for (int r = 0; r < setup_reps; ++r)
+      {
+         magma_full_inverse = full_ea;
+         BatchedLinAlg::Get(BatchedLinAlg::MAGMA).Invert(magma_full_inverse);
+      }
+      MFEM_DEVICE_SYNC;
+      sw.Stop();
+      magma_full_inverse_ms = 1000.0*sw.RealTime()/setup_reps;
    }
 #endif
 
@@ -534,8 +574,12 @@ int main(int argc, char *argv[])
    real_t magma_res_max = 0.0, magma_rel_res_max = 0.0;
    double magma_full_res_l2 = 0.0, magma_full_rel_res_l2 = 0.0;
    real_t magma_full_res_max = 0.0, magma_full_rel_res_max = 0.0;
+   double magma_full_inv_apply_ms = 0.0;
+   double magma_full_inv_res_l2 = 0.0, magma_full_inv_rel_res_l2 = 0.0;
+   real_t magma_full_inv_res_max = 0.0, magma_full_inv_rel_res_max = 0.0;
    Vector magma_x;
    Vector magma_full_x;
+   Vector magma_full_inv_x;
    if (magma_supported_device)
    {
       magma_x.SetSize(rhs.Size());
@@ -554,6 +598,17 @@ int main(int argc, char *argv[])
       ComputeLowerPackedResidual(packed_ea, magma_full_x, rhs,
                                  magma_full_res_l2, magma_full_rel_res_l2,
                                  magma_full_res_max, magma_full_rel_res_max);
+
+      magma_full_inv_x.SetSize(rhs.Size());
+      magma_full_inv_x.UseDevice(true);
+      magma_full_inv_apply_ms =
+         TimeBatchedLinAlgFullInverseApply(magma_full_inverse, rhs, reps,
+                                           magma_full_inv_x);
+      ComputeLowerPackedResidual(packed_ea, magma_full_inv_x, rhs,
+                                 magma_full_inv_res_l2,
+                                 magma_full_inv_rel_res_l2,
+                                 magma_full_inv_res_max,
+                                 magma_full_inv_rel_res_max);
    }
 
    double magma_ppinv_apply_ms = 0.0;
@@ -617,6 +672,13 @@ int main(int argc, char *argv[])
          assemble_full_ms,
          magma_full_factor_ms, magma_full_solve_ms,
          (double)magma_full_rel_res_max, magma_full_rel_res_l2});
+
+      methods.push_back(
+      {
+         "MAGMA full inverse + apply", true,
+         assemble_full_ms,
+         magma_full_inverse_ms, magma_full_inv_apply_ms,
+         (double)magma_full_inv_rel_res_max, magma_full_inv_rel_res_l2});
    }
 #endif
    PrintTimingTable(assemble_packed_ms, assemble_full_ms, reps, methods);
