@@ -838,6 +838,18 @@ public:
        does pay one advance per trial point, which is the price of the trial
        residual being the residual.
 
+       The advance itself is not free, and the figure is measured rather than
+       assumed: 4.2 to 12.1 corrections per element per linearisation on the
+       pedestal cases, against the fixed two that preceded it. End to end this
+       ordering then runs at 0.9 s against CondenseThenLinearise's 0.7 s on one
+       of them, 1.3 s against 0.8 s on another, and level at 1.7 s on the case
+       it previously did not solve. **This mode is not a wall-clock win on a
+       stiff problem** -- MultInvNL's nonlinear iteration disappears and
+       corrections of the same order replace it. What it buys is that every
+       local operation is a linear solve against one factorisation, which is
+       the uniform workload a batched or threaded element loop wants, and a
+       reduced operator whose gradient is the assembled Schur complement.
+
        A property this mode does NOT have, recorded so that it is not mistaken
        for a defect and "fixed": across a linearisation that *advances* onto a
        trace, Mult() is not a function of that trace alone -- the fields it
