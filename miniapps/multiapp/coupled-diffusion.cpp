@@ -666,6 +666,15 @@ int main(int argc, char *argv[])
 ///* If using mfem::Operator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GetGradientMV(x).MultMV(dx, dy); },
                                 [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTranspose(x, dx, dy); }
                               );
+
+   /* // If you want to use state-dependent operators
+      StateStruct app_state; // This is a user-defined struct that holds the state of the system
+      state_dep_op.RegisterFields({in1, in2}, {out1, out2}, app_state,
+                                 [&op=state_dep_op](StateStruct &state) { op.GetStateFunctionHere(state); }, // Function to get state
+                                 [&op=state_dep_op](const StateStruct &state) { op.SetStateFunctionHere(state); } // Function to set state
+                                 // Additionaly can provide lambdas for Mult, GradientMult, etc.
+                                 );
+   */
    }
    else
    {
