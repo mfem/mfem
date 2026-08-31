@@ -593,6 +593,12 @@ class DerivativeAssemble
    const std::array<DofToQuadMap, n_inputs> input_dtq_maps;
    const std::array<DofToQuadMap, n_outputs> output_dtq_maps;
    const std::array<bool, n_inputs> input_is_dependent;
+
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const
+   { return kernel_tile_size(q1d, input_dtq_maps, output_dtq_maps); }
+
    const size_t trial_field_uf;
    /// Column space of every row block. GetDerivative differentiates w.r.t. one
    /// field, so there is exactly one trial space. Null when that field is not
@@ -829,7 +835,7 @@ public:
          group_Ae_mem[g] = 0.0;
 
          DerivativeAssembleHO::Run(dim,
-                                   q1d,
+                                   tile_size(),
                                    ctx,
                                    qp_cache,
                                    group_Ae_mem[g],

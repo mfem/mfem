@@ -215,12 +215,16 @@ public:
                   "LocalQFBackend: unionfds size mismatch");
    }
 
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
                     std::vector<Vector *> &ye) const
    {
       Backend::Run(dim,
-                   q1d,
+                   tile_size(),
                    // arguments
                    ctx,
                    qfunc,
@@ -249,11 +253,11 @@ public:
    void operator()(const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye) const
    {
-      if (q1d <= LocalQFLOBackendMQ1())
+      if (tile_size() <= LocalQFLOBackendMQ1())
       {
          run_kernels<ActionLO>(xe, ye);
       }
-      else if (q1d <= LocalQFHOBackendMQ1())
+      else if (tile_size() <= LocalQFHOBackendMQ1())
       {
          run_kernels<ActionHO>(xe, ye);
       }

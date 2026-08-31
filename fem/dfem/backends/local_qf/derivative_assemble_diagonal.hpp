@@ -244,11 +244,15 @@ public:
       return output_groups->FindGroup(field_id);
    }
 
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const { return kernel_tile_size(q1d, input_dtq_maps, output_dtq_maps); }
+
    template<typename Backend>
    void run_kernels(const int g) const
    {
       Backend::Run(dim,
-                   q1d,
+                   tile_size(),
                    ctx,
                    qp_cache,
                    group_Ye_mem[g],
@@ -297,11 +301,11 @@ public:
 
       group_Ye_mem[g] = 0.0;
 
-      if (q1d <= LocalQFLOBackendMQ1())
+      if (tile_size() <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeAssembleDiagonalLO>(g);
       }
-      else if (q1d <= LocalQFHOBackendMQ1())
+      else if (tile_size() <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeAssembleDiagonalHO>(g);
       }

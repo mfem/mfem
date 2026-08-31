@@ -181,6 +181,49 @@ struct qf_param_slot
    static constexpr auto extents = qf_param_shape<qf_decay_param_t>::extents;
 };
 
+/////////////////////////////////////////////////////////////////////////
+/// Tile size a kernel must be built at, given the runtime shapes.
+///
+/// The shared basis arrays are square, B[MQ1][MQ1] and G[MQ1][MQ1],
+/// but they hold a q1d x d1d matrix. 
+/// This is used to size it appropriately also for cases in which 
+/// d1d > q1d.
+
+// For inputs
+template <std::size_t N>
+inline int kernel_tile_size(int q1d, const std::array<int, N> &d1d)
+{
+   if constexpr (N == 0) { return q1d; }
+   else { return std::max(q1d, *std::max_element(d1d.begin(), d1d.end())); }
+}
+
+// For inputs and outputs
+template <std::size_t NI, std::size_t NO>
+inline int kernel_tile_size(int q1d, const std::array<int, NI> &in_d1d,
+                          const std::array<int, NO> &out_d1d)
+{
+   return std::max(kernel_tile_size(q1d, in_d1d), kernel_tile_size(q1d, out_d1d));
+}
+
+/// For backends using DofToQuadMaps (d1d is the DOF extent of the B/G arrays)
+template <std::size_t N>
+inline int kernel_tile_size(int q1d, const std::array<DofToQuadMap, N> &maps)
+{
+   int s = q1d;
+   for (const auto &m : maps)
+   {
+      s = std::max(s, m.B.GetShape()[DofToQuadMap::DOF]);
+   }
+   return s;
+}
+
+template <std::size_t NI, std::size_t NO>
+inline int kernel_tile_size(int q1d, const std::array<DofToQuadMap, NI> &in_maps,
+                          const std::array<DofToQuadMap, NO> &out_maps)
+{
+   return std::max(kernel_tile_size(q1d, in_maps), kernel_tile_size(q1d, out_maps));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 /// Builds a register-bank tuple covering the q-function parameter slots
 /// `[K0, N)`. `K` is the recursion cursor and starts at `K0`; the resulting

@@ -193,13 +193,16 @@ public:
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
    }
 
-   //////////////////////////////////////////////////////////////////
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
                     std::vector<Vector *> &ye)
    {
       Backend::Run(dim,
-                   q1d,
+                   tile_size(),
                    // arguments
                    ctx,
                    qfunc,
@@ -242,11 +245,11 @@ public:
                   *direction_l,
                   direction_e,
                   ElementDofOrdering::LEXICOGRAPHIC);
-      if (q1d <= LocalQFLOBackendMQ1())
+      if (tile_size() <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeActionLO>(xe, ye);
       }
-      else if (q1d <= LocalQFHOBackendMQ1())
+      else if (tile_size() <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeActionHO>(xe, ye);
       }
