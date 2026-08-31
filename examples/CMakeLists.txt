@@ -123,7 +123,7 @@ if (MFEM_ENABLE_TESTING)
     string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
     set(THIS_TEST_OPTIONS "-no-vis")
-    if (${TEST_NAME} MATCHES "ex0p?")
+    if (${TEST_NAME} MATCHES "ex0p?" OR ${TEST_NAME} STREQUAL "ex42")
       set(THIS_TEST_OPTIONS)
     endif()
     if (${TEST_NAME} MATCHES "ex10p*")
