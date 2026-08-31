@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -322,7 +322,7 @@ public:
 };
 
 
-/// The classical explicit forth-order Runge-Kutta method, RK4
+/// The classical explicit fourth-order Runge-Kutta method, RK4
 class RK4Solver : public ODESolver
 {
 private:
@@ -1061,7 +1061,7 @@ public:
 
 /// Second order, two-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
 /** L-stable IMEX RK2 method adopted from "On the Stability of IMEX Upwind gSBP
-    Schemes for 1D Linear Advection‑Difusion Equations" by Sigrun Ortleb. Same
+    Schemes for 1D Linear Advection‑Diffusion Equations" by Sigrun Ortleb. Same
     as (2,2,2) from "Implicit-explicit Runge-Kutta methods for time-dependent
     partial differential equations" by Ascher, Ruuth and Spiteri, Applied
     Numerical Mathematics (1997). */

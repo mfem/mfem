@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,14 +34,14 @@ enum BinaryOrASCII : bool
 
 /// Write 'value' to stream.
 template<typename T>
-inline void write(std::ostream& os, T value)
+inline void write(std::ostream &os, T value)
 {
    os.write((char*) &value, sizeof(T));
 }
 
 /// Read a value from the stream and return it.
 template<typename T>
-inline T read(std::istream& is)
+inline T read(std::istream &is)
 {
    T value;
    is.read((char*) &value, sizeof(T));
