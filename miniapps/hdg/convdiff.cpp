@@ -1091,6 +1091,22 @@ int main(int argc, char *argv[])
          irs[i] = &(IntRules.Get(i, order_quad));
       }
 
+      // The exact solution has to be evaluated at the time the numerical one
+      // has reached, and it was not: only gcoeff, fcoeff and qtcoeff are
+      // handed to DarcyOperator, which is the only thing that called
+      // SetTime(). So every transient error this miniapp has ever printed
+      // compared the evolving solution against the exact one frozen at t = 0.
+      // For problem 4 that exact solution is a Gaussian rotating with
+      // cos(4*c*t*pi/4), so the comparison was meaningless -- which is why
+      // there has never been a transient reference and why a temporal
+      // refinement produced no order.
+      //
+      // Harmless for the steady problems, whose exact solutions ignore the
+      // argument, so no steady reference moves.
+      qcoeff.SetTime(t);
+      tcoeff.SetTime(t);
+      qtcoeff.SetTime(t);
+
       real_t err_q  = q_h.ComputeL2Error(qcoeff, irs);
       real_t norm_q = ComputeLpNorm(2., qcoeff, mesh, irs);
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);

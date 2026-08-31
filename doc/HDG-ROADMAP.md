@@ -143,26 +143,65 @@ not on this branch**: it is §1's, and so is this.
 
 ## 8. Time integration of the DAE
 
-**Not untouched, as this entry used to claim — the machinery exists and runs.**
-`DarcyOperator` is a `TimeDependentOperator(IMPLICIT)` with `ImplicitSolve`;
-`btime_u`/`btime_p` lift a `1/dt` mass onto either block, into the linear or
-the nonlinear form, rebuilding the hybridization where it must; `convdiff` has
-four ODE solvers behind `-ode` and four transient problems, one of them
-nonlinear.
+**Not untouched, and the reason it is unverified is now known rather than
+guessed.** `DarcyOperator` is a `TimeDependentOperator(IMPLICIT)` with
+`ImplicitSolve`; `btime_u`/`btime_p` lift a `1/dt` mass onto either block;
+`convdiff` has four ODE solvers behind `-ode` (backward Euler, and
+`SDIRK23Solver` at two options plus `SDIRK34Solver`, formally orders 1, 2, 3
+and 4) and four transient problems.
 
-What is missing is everything that would make it trustworthy:
+**One defect found and fixed.** `convdiff` never called `SetTime()` on the
+exact-solution coefficients used to compute the error — only `gcoeff`,
+`fcoeff` and `qtcoeff` are handed to `DarcyOperator`, which is the only thing
+that called it. So every transient error the miniapp has ever printed compared
+the evolving solution against the exact one **frozen at t = 0**, and problem
+4's exact solution is a Gaussian rotating with `cos(4 c t π/4)`. Fixed; no
+steady reference moves, their exact solutions ignoring the argument.
 
-* **No verification at all.** All 129 regression references use
-  `--ntimesteps 0` and exercise only steady problems, so the four transient
-  problems have no reference. There is no unit test touching `DarcyOperator`,
-  `btime_u`, `btime_p` or any ODE solver, and no temporal convergence table
-  exists anywhere in the tree. **A temporal convergence study on `convdiff -p 4`
-  is available today and is the cheapest genuinely new result on this list.**
-* **The DAE questions proper are untouched** — index, consistent initialisation
-  of the algebraic (trace/constraint) block, and stage-order reduction on the
-  constraint under an SDIRK method. That is the hard part and none of it is
-  addressed.
-* The `vdim == 1` refusal in the H(div) time mass, noted under §4.
+**The time integrators themselves work.** Measured on problem 4 with the
+spatial error made negligible, final-time potential error against `nt`:
+
+| `nt` | `-ode 1` | `-ode 2` | `-ode 3` | `-ode 4` |
+|---|---|---|---|---|
+| 16 | 0.00925 | 0.01262 | 0.01456 | 0.01243 |
+| 32 | 0.01081 | 0.01230 | 0.01226 | 0.01223 |
+| 64 | 0.01152 | 0.01222 | 0.01221 | 0.01220 |
+| 128 | 0.01186 | 0.01221 | 0.01220 | 0.01220 |
+
+All four converge, and the higher-order ones get there sooner — `-ode 4` is
+converged by `nt = 32` where backward Euler is still climbing at 128. That is
+the first evidence in this tree that the time-stepping does anything correct.
+
+**But they converge to the wrong answer, and that is what blocks a
+reference.** The limit is 0.0121998 and it is independent of the mesh as well
+as of `dt` — 0.01224 at `n = 8, k = 1` and 0.0121998 from `n = 16, k = 2`
+through `n = 32, k = 3`. Neither temporal nor spatial, and the error does go
+to zero as `t → 0`, so the initial condition is consistent. **Problem 4's
+exact solution is therefore not the solution of the discrete problem**: a
+source, boundary or exact-solution inconsistency in the problem definition,
+not a solver defect. Re-projecting the time-dependent Dirichlet trace datum at
+every step changes the numbers not at all, so it is not the boundary datum.
+
+**So §8's first task is not a reference, it is making one transient problem
+consistent.** Until the scheme converges to its own exact solution there is
+nothing to write a temporal convergence table against. Problems 5, 7 and 9 are
+the other `Nonsteady*` candidates and have not been checked.
+
+**ARKODE is present and not usable here.** `ARKStepSolver` in
+`linalg/sundials.hpp` offers `IMPLICIT` and `IMEX` DIRK methods, but its
+implicit path drives `RHS1` — the operator's `Mult`, i.e. an explicit
+`f(t, y)` — plus `LinSysSetup`/`LinSysSolve` for `I - γJ`, and runs its own
+Newton. `DarcyOperator` defines **no `Mult` at all**, only `ImplicitSolve`,
+which is MFEM's own DIRK interface; and it cannot meaningfully define one,
+the trace block having no time derivative. Reaching ARKODE means either
+ARKODE's mass-matrix/DAE facilities or a reformulation — which is exactly the
+"DAE questions proper" below, not a wiring job. MFEM's own SDIRK methods
+already give orders 1 through 4 and are what the table above uses.
+
+The DAE questions proper remain untouched: index, consistent initialisation of
+the algebraic trace block, and stage-order reduction on the constraint under a
+DIRK method. The `vdim == 1` refusal in the H(div) time mass, noted under §4,
+is also still there.
 
 ## 9. Superconvergence at `k = 0` — the HHO-inspired methods
 
