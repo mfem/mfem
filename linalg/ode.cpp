@@ -1408,7 +1408,6 @@ void IMEXExpImplEuler::Init(TimeDependentOperator &f_)
 
 void IMEXExpImplEuler::Step(Vector &x, real_t &t, real_t &dt)
 {
-
    f->SetTime(t);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1);
@@ -1435,7 +1434,6 @@ void IMEXRK2::Init(TimeDependentOperator &f_)
 
 void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
 {
-
    double gamma = 1 - sqrt(2)/2;
    double delta = 1 - 1/(2*gamma);
 
@@ -1487,7 +1485,6 @@ void IMEXRK2_3StageExplicit::Init(TimeDependentOperator &f_)
 
 void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
 {
-
    double gamma = 1 - sqrt(2)/2;
    double delta = -2*sqrt(2)/3;
 
@@ -1547,7 +1544,6 @@ void IMEX_DIRK_RK3::Init(TimeDependentOperator &f_)
 
 void IMEX_DIRK_RK3::Step(Vector &x, real_t &t, real_t &dt)
 {
-
    double gamma = 0.4358665215;
    double b1 = 1.208496649;
    double b2 = -0.644363171;
