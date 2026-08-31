@@ -185,8 +185,8 @@ struct qf_param_slot
 /// Tile size a kernel must be built at, given the runtime shapes.
 ///
 /// The shared basis arrays are square, B[MQ1][MQ1] and G[MQ1][MQ1],
-/// but they hold a q1d x d1d matrix. 
-/// This is used to size it appropriately also for cases in which 
+/// but they hold a q1d x d1d matrix.
+/// This is used to size it appropriately also for cases in which
 /// d1d > q1d.
 
 // For inputs
@@ -200,7 +200,7 @@ inline int kernel_tile_size(int q1d, const std::array<int, N> &d1d)
 // For inputs and outputs
 template <std::size_t NI, std::size_t NO>
 inline int kernel_tile_size(int q1d, const std::array<int, NI> &in_d1d,
-                          const std::array<int, NO> &out_d1d)
+                            const std::array<int, NO> &out_d1d)
 {
    return std::max(kernel_tile_size(q1d, in_d1d), kernel_tile_size(q1d, out_d1d));
 }
@@ -218,10 +218,12 @@ inline int kernel_tile_size(int q1d, const std::array<DofToQuadMap, N> &maps)
 }
 
 template <std::size_t NI, std::size_t NO>
-inline int kernel_tile_size(int q1d, const std::array<DofToQuadMap, NI> &in_maps,
-                          const std::array<DofToQuadMap, NO> &out_maps)
+inline int kernel_tile_size(int q1d,
+                            const std::array<DofToQuadMap, NI> &in_maps,
+                            const std::array<DofToQuadMap, NO> &out_maps)
 {
-   return std::max(kernel_tile_size(q1d, in_maps), kernel_tile_size(q1d, out_maps));
+   return std::max(kernel_tile_size(q1d, in_maps), kernel_tile_size(q1d,
+                                                                    out_maps));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -64,7 +64,8 @@ using future::Identity;
 void info()
 {
    mfem::out << "\x1b[33m";
-   mfem::out << "name: BP<n>/B<m>D<c|q>[.ad]/S<f|gk>/<impl>/<order>/<dofs per side>"
+   mfem::out <<
+             "name: BP<n>/B<m>D<c|q>[.ad]/S<f|gk>/<impl>/<order>/<dofs per side>"
              << std::endl;
    mfem::out << "expression: braces mark kernel launch boundaries"
              << std::endl;
@@ -381,7 +382,8 @@ class ExpressionReporter : public bm::BenchmarkReporter
          std::string unit;
          const std::string value = CounterValue(run, counter, unit);
          const auto width = CounterFieldWidth(counter.first);
-         const auto value_width = std::max<int>(1, static_cast<int>(width - unit.length()));
+         const auto value_width = std::max<int>(1,
+                                                static_cast<int>(width - unit.length()));
          out << " " << std::right << std::setw(value_width) << value << unit;
       }
 
