@@ -469,7 +469,7 @@ protected:
    friend class ODESolver; // This is fine since friend is not inherited
 
    /** @brief Sets the #ImplicitVariableType for ImplicitSolve(). This should be
-    * called by the #ODESolver after confirming the #ODESolver supports the @a variable_type
+    * called by the #ODESolver after confirming the #ODESolver supports the @a variable_type.
    */
    virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
    { implicit_variable_type = variable_type; }
