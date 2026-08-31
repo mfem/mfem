@@ -1,0 +1,162 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --ref-levels -1
+   --delta-random 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 3
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1e-07
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.0235011s.
+***********************************************************
+dim(V) = 3200
+dim(W) = 1600
+dim(M) = 1680
+dim(V+W+M) = 6480
+***********************************************************
+Assembly took 0.0346073s.
+Preconditioner took 6.9085e-05s.
+LBFGS iteration 0 : ||r|| = 0.0183123
+LBFGS iteration 1 : ||r|| = 0.0183897, ||r||/||r_0|| = 1.00422
+LBFGS iteration 2 : ||r|| = 0.01822, ||r||/||r_0|| = 0.994957
+LBFGS iteration 3 : ||r|| = 0.0185995, ||r||/||r_0|| = 1.01568
+LBFGS iteration 4 : ||r|| = 0.0635017, ||r||/||r_0|| = 3.4677
+LBFGS iteration 5 : ||r|| = 0.041188, ||r||/||r_0|| = 2.2492
+LBFGS iteration 6 : ||r|| = 0.0445004, ||r||/||r_0|| = 2.43008
+LBFGS iteration 7 : ||r|| = 0.0132524, ||r||/||r_0|| = 0.723686
+LBFGS iteration 8 : ||r|| = 0.00970717, ||r||/||r_0|| = 0.530089
+LBFGS iteration 9 : ||r|| = 0.0175908, ||r||/||r_0|| = 0.960601
+LBFGS iteration 10 : ||r|| = 0.0170105, ||r||/||r_0|| = 0.928911
+LBFGS iteration 11 : ||r|| = 0.0224613, ||r||/||r_0|| = 1.22657
+LBFGS iteration 12 : ||r|| = 0.019769, ||r||/||r_0|| = 1.07955
+LBFGS iteration 13 : ||r|| = 0.034024, ||r||/||r_0|| = 1.85798
+LBFGS iteration 14 : ||r|| = 0.0133646, ||r||/||r_0|| = 0.729816
+LBFGS iteration 15 : ||r|| = 0.0197056, ||r||/||r_0|| = 1.07608
+LBFGS iteration 16 : ||r|| = 0.0103753, ||r||/||r_0|| = 0.566572
+LBFGS iteration 17 : ||r|| = 0.00753398, ||r||/||r_0|| = 0.411416
+LBFGS iteration 18 : ||r|| = 0.00495109, ||r||/||r_0|| = 0.270369
+LBFGS iteration 19 : ||r|| = 0.00263672, ||r||/||r_0|| = 0.143986
+LBFGS iteration 20 : ||r|| = 0.00180552, ||r||/||r_0|| = 0.0985957
+LBFGS iteration 21 : ||r|| = 0.0010424, ||r||/||r_0|| = 0.0569234
+LBFGS iteration 22 : ||r|| = 0.000845398, ||r||/||r_0|| = 0.0461655
+LBFGS iteration 23 : ||r|| = 0.000878093, ||r||/||r_0|| = 0.0479509
+LBFGS iteration 24 : ||r|| = 0.00201061, ||r||/||r_0|| = 0.109795
+LBFGS iteration 25 : ||r|| = 0.00360275, ||r||/||r_0|| = 0.196739
+LBFGS iteration 26 : ||r|| = 0.00105085, ||r||/||r_0|| = 0.0573848
+LBFGS iteration 27 : ||r|| = 0.000468087, ||r||/||r_0|| = 0.0255613
+LBFGS iteration 28 : ||r|| = 0.000388526, ||r||/||r_0|| = 0.0212166
+LBFGS iteration 29 : ||r|| = 0.000715287, ||r||/||r_0|| = 0.0390604
+LBFGS iteration 30 : ||r|| = 0.00100084, ||r||/||r_0|| = 0.0546539
+LBFGS iteration 31 : ||r|| = 0.00129034, ||r||/||r_0|| = 0.0704626
+LBFGS iteration 32 : ||r|| = 0.00120511, ||r||/||r_0|| = 0.0658087
+LBFGS iteration 33 : ||r|| = 0.00103992, ||r||/||r_0|| = 0.0567878
+LBFGS iteration 34 : ||r|| = 0.000843674, ||r||/||r_0|| = 0.0460713
+LBFGS iteration 35 : ||r|| = 0.000552884, ||r||/||r_0|| = 0.0301919
+LBFGS iteration 36 : ||r|| = 0.000334244, ||r||/||r_0|| = 0.0182524
+LBFGS iteration 37 : ||r|| = 0.000323003, ||r||/||r_0|| = 0.0176386
+LBFGS iteration 38 : ||r|| = 0.000222634, ||r||/||r_0|| = 0.0121576
+LBFGS iteration 39 : ||r|| = 0.000117088, ||r||/||r_0|| = 0.00639392
+LBFGS iteration 40 : ||r|| = 4.52978e-05, ||r||/||r_0|| = 0.00247362
+LBFGS iteration 41 : ||r|| = 4.04359e-05, ||r||/||r_0|| = 0.00220812
+LBFGS iteration 42 : ||r|| = 3.7933e-05, ||r||/||r_0|| = 0.00207144
+LBFGS iteration 43 : ||r|| = 8.33918e-05, ||r||/||r_0|| = 0.00455386
+LBFGS iteration 44 : ||r|| = 0.000148679, ||r||/||r_0|| = 0.00811906
+LBFGS iteration 45 : ||r|| = 5.40368e-05, ||r||/||r_0|| = 0.00295084
+LBFGS iteration 46 : ||r|| = 2.26293e-05, ||r||/||r_0|| = 0.00123574
+LBFGS iteration 47 : ||r|| = 2.05696e-05, ||r||/||r_0|| = 0.00112326
+LBFGS iteration 48 : ||r|| = 8.11715e-05, ||r||/||r_0|| = 0.00443261
+LBFGS iteration 49 : ||r|| = 3.20458e-05, ||r||/||r_0|| = 0.00174996
+LBFGS iteration 50 : ||r|| = 2.57837e-05, ||r||/||r_0|| = 0.001408
+LBFGS iteration 51 : ||r|| = 2.86358e-05, ||r||/||r_0|| = 0.00156374
+LBFGS iteration 52 : ||r|| = 5.9723e-05, ||r||/||r_0|| = 0.00326135
+LBFGS iteration 53 : ||r|| = 1.08909e-05, ||r||/||r_0|| = 0.000594731
+LBFGS iteration 54 : ||r|| = 9.19918e-06, ||r||/||r_0|| = 0.000502349
+LBFGS iteration 55 : ||r|| = 1.28055e-05, ||r||/||r_0|| = 0.000699281
+LBFGS iteration 56 : ||r|| = 1.44712e-05, ||r||/||r_0|| = 0.000790244
+LBFGS iteration 57 : ||r|| = 1.80543e-05, ||r||/||r_0|| = 0.000985911
+LBFGS iteration 58 : ||r|| = 2.33861e-05, ||r||/||r_0|| = 0.00127707
+LBFGS iteration 59 : ||r|| = 2.26278e-05, ||r||/||r_0|| = 0.00123566
+LBFGS iteration 60 : ||r|| = 2.85492e-05, ||r||/||r_0|| = 0.00155901
+LBFGS iteration 61 : ||r|| = 2.3086e-05, ||r||/||r_0|| = 0.00126068
+LBFGS iteration 62 : ||r|| = 3.75703e-05, ||r||/||r_0|| = 0.00205164
+LBFGS iteration 63 : ||r|| = 2.69784e-05, ||r||/||r_0|| = 0.00147323
+LBFGS iteration 64 : ||r|| = 4.80657e-05, ||r||/||r_0|| = 0.00262477
+LBFGS iteration 65 : ||r|| = 1.4155e-05, ||r||/||r_0|| = 0.000772977
+LBFGS iteration 66 : ||r|| = 9.11738e-06, ||r||/||r_0|| = 0.000497882
+LBFGS iteration 67 : ||r|| = 3.81558e-06, ||r||/||r_0|| = 0.000208361
+LBFGS iteration 68 : ||r|| = 1.09276e-06, ||r||/||r_0|| = 5.96733e-05
+LBFGS iteration 69 : ||r|| = 1.08753e-06, ||r||/||r_0|| = 5.93879e-05
+LBFGS iteration 70 : ||r|| = 2.06719e-06, ||r||/||r_0|| = 0.000112885
+LBFGS iteration 71 : ||r|| = 2.35175e-06, ||r||/||r_0|| = 0.000128424
+LBFGS iteration 72 : ||r|| = 4.97008e-06, ||r||/||r_0|| = 0.000271406
+LBFGS iteration 73 : ||r|| = 1.69286e-06, ||r||/||r_0|| = 9.24436e-05
+LBFGS iteration 74 : ||r|| = 1.28607e-06, ||r||/||r_0|| = 7.02297e-05
+LBFGS iteration 75 : ||r|| = 1.14459e-06, ||r||/||r_0|| = 6.25036e-05
+LBFGS iteration 76 : ||r|| = 1.07463e-06, ||r||/||r_0|| = 5.86836e-05
+LBFGS iteration 77 : ||r|| = 1.09599e-06, ||r||/||r_0|| = 5.98498e-05
+LBFGS iteration 78 : ||r|| = 1.39936e-06, ||r||/||r_0|| = 7.64161e-05
+LBFGS iteration 79 : ||r|| = 1.48075e-06, ||r||/||r_0|| = 8.08608e-05
+LBFGS iteration 80 : ||r|| = 1.02717e-06, ||r||/||r_0|| = 5.60915e-05
+LBFGS iteration 81 : ||r|| = 9.24371e-07, ||r||/||r_0|| = 5.04781e-05
+LBFGS iteration 82 : ||r|| = 8.2563e-07, ||r||/||r_0|| = 4.5086e-05
+LBFGS iteration 83 : ||r|| = 6.64989e-07, ||r||/||r_0|| = 3.63137e-05
+LBFGS iteration 84 : ||r|| = 5.51189e-07, ||r||/||r_0|| = 3.00993e-05
+LBFGS iteration 85 : ||r|| = 5.94165e-07, ||r||/||r_0|| = 3.24461e-05
+LBFGS iteration 86 : ||r|| = 2.69407e-07, ||r||/||r_0|| = 1.47118e-05
+LBFGS iteration 87 : ||r|| = 1.95685e-07, ||r||/||r_0|| = 1.0686e-05
+LBFGS iteration 88 : ||r|| = 2.06271e-07, ||r||/||r_0|| = 1.1264e-05
+LBFGS iteration 89 : ||r|| = 1.24606e-07, ||r||/||r_0|| = 6.80449e-06
+LBFGS iteration 90 : ||r|| = 8.53157e-08, ||r||/||r_0|| = 4.65892e-06
+LBFGS iteration 91 : ||r|| = 9.56874e-08, ||r||/||r_0|| = 5.22529e-06
+LBFGS iteration 92 : ||r|| = 1.35141e-07, ||r||/||r_0|| = 7.37978e-06
+LBFGS iteration 93 : ||r|| = 2.48397e-07, ||r||/||r_0|| = 1.35644e-05
+LBFGS iteration 94 : ||r|| = 5.95303e-08, ||r||/||r_0|| = 3.25083e-06
+LBFGS iteration 95 : ||r|| = 4.57464e-08, ||r||/||r_0|| = 2.49812e-06
+LBFGS iteration 96 : ||r|| = 6.2361e-08, ||r||/||r_0|| = 3.40541e-06
+LBFGS iteration 97 : ||r|| = 8.44765e-08, ||r||/||r_0|| = 4.61309e-06
+LBFGS iteration 98 : ||r|| = 1.19509e-07, ||r||/||r_0|| = 6.52616e-06
+LBFGS iteration 99 : ||r|| = 8.96159e-08, ||r||/||r_0|| = 4.89374e-06
+LBFGS iteration 100 : ||r|| = 8.81824e-08, ||r||/||r_0|| = 4.81546e-06
+LBFGS iteration 101 : ||r|| = 6.40606e-08, ||r||/||r_0|| = 3.49822e-06
+LBFGS iteration 102 : ||r|| = 6.93547e-08, ||r||/||r_0|| = 3.78732e-06
+LBFGS iteration 103 : ||r|| = 5.93039e-08, ||r||/||r_0|| = 3.23847e-06
+LBFGS iteration 104 : ||r|| = 5.24686e-08, ||r||/||r_0|| = 2.8652e-06
+LBFGS iteration 105 : ||r|| = 3.62781e-08, ||r||/||r_0|| = 1.98107e-06
+LBFGS iteration 106 : ||r|| = 3.21457e-08, ||r||/||r_0|| = 1.75541e-06
+LBFGS iteration 107 : ||r|| = 1.77152e-08, ||r||/||r_0|| = 9.67389e-07
+LBFGS/Newton+GMRES converged in 107 iterations with a residual norm of 1.77152e-08.
+Solver took 6.39627s.
+|| q_h - q_ex || / || q_ex || = 0.329984
+|| t_h - t_ex || / || t_ex || = 0.0520583

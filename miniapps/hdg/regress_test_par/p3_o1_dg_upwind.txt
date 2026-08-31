@@ -1,0 +1,75 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 1
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 3
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1e-07
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 22
+***********************************************************
+dim(V) = 1584
+dim(W) = 792
+dim(V+W) = 2376
+***********************************************************
+Assembly took 0.0284392s.
+Preconditioner took 0.000803722s.
+   Pass :  1   Iteration :   0  ||B r|| = 17.2834
+   Pass :  1   Iteration :   1  ||B r|| = 1.90145
+   Pass :  1   Iteration :   2  ||B r|| = 0.494498
+   Pass :  1   Iteration :   3  ||B r|| = 0.158432
+   Pass :  1   Iteration :   4  ||B r|| = 0.111886
+   Pass :  1   Iteration :   5  ||B r|| = 0.106862
+   Pass :  1   Iteration :   6  ||B r|| = 0.106795
+   Pass :  1   Iteration :   7  ||B r|| = 0.0720382
+   Pass :  1   Iteration :   8  ||B r|| = 0.0635579
+   Pass :  1   Iteration :   9  ||B r|| = 0.0250497
+   Pass :  1   Iteration :  10  ||B r|| = 0.00603035
+   Pass :  1   Iteration :  11  ||B r|| = 0.00453087
+   Pass :  1   Iteration :  12  ||B r|| = 0.00123279
+   Pass :  1   Iteration :  13  ||B r|| = 0.000309783
+   Pass :  1   Iteration :  14  ||B r|| = 0.000226068
+   Pass :  1   Iteration :  15  ||B r|| = 0.000203109
+   Pass :  1   Iteration :  16  ||B r|| = 0.000116723
+   Pass :  1   Iteration :  17  ||B r|| = 0.000106742
+   Pass :  1   Iteration :  18  ||B r|| = 8.51387e-05
+   Pass :  1   Iteration :  19  ||B r|| = 2.26736e-05
+   Pass :  1   Iteration :  20  ||B r|| = 7.0588e-06
+GMRES+HypreAMG converged in 20 iterations with a residual norm of 7.0588e-06.
+solver took 0.020552s.
+|| q_h - q_ex || / || q_ex || = 0.330104
+|| t_h - t_ex || / || t_ex || = 0.052062

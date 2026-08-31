@@ -1,0 +1,51 @@
+Options used:
+   --mesh 
+   --ncells-x 10
+   --ncells-y 10
+   --size-x 1
+   --size-y 1
+   --order 2
+   --no-discontinuous
+   --no-broken-RT
+   --centered
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --no-nonlinear
+   --nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 3
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+Hybridization init took 0.0120959s.
+***********************************************************
+dim(V) = 1860
+dim(W) = 900
+dim(M) = 660
+dim(V+W+M) = 3420
+***********************************************************
+Assembly took 0.0368401s.
+Preconditioner took 2.697e-05s.
+Newton iteration  0 : ||r|| = 0.0531438
+Newton iteration  1 : ||r|| = 1.27508e-08, ||r||/||r_0|| = 2.3993e-07
+Newton+GMRES+GS/Newton+GMRES converged in 1 iterations with a residual norm of 1.27508e-08.
+solver took 0.475256s.
+|| q_h - q_ex || / || q_ex || = 1.67159e-05
+|| t_h - t_ex || / || t_ex || = 1.14189e-06

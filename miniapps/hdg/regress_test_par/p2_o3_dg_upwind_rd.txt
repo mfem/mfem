@@ -1,0 +1,129 @@
+Options used:
+   --mesh 
+   --ncells-x 10
+   --ncells-y 10
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 3
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --bc-neumann
+   --reduction
+   --no-hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 10
+Reduction init took 0.000447622s.
+***********************************************************
+dim(W) = 800
+***********************************************************
+Assembly took 0.124502s.
+Preconditioner took 4.662e-05s.
+
+
+ Num MPI tasks = 2
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 7
+
+ Strength Threshold = 0.100000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = Falgout-CLJP 
+ measures are determined locally
+
+ Interpolation = one-point
+ Restriction = local approximate ideal restriction (AIR-1.5)
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    1600    48640  0.019    16   56    30.4  -2.575e+00   6.742e+00
+  1     856    85712  0.117    13  206   100.1  -5.237e-01   2.634e+00
+  2     426    76425  0.421    53  306   179.4  -1.044e-01   3.385e+00
+  3     180    26529  0.819    76  180   147.4  -3.097e-03   3.700e+00
+  4      60     3595  0.999    58   60    59.9  -2.735e-09   1.383e+00
+  5      17      289  1.000    17   17    17.0   8.882e-03   1.432e+00
+  6       4       16  1.000     4    4     4.0   7.310e-01   1.486e+00
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  1600 x 856     0    1   0.9   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  1   856 x 426     0    1   1.0   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  2   426 x 180     0    1   1.0   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  3   180 x 60      0    1   1.0   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  4    60 x 17      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  5    17 x 4       0    1   0.9   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+
+
+     Complexity:   grid = 1.964375
+               operator = 4.959005
+                 memory = 5.022225
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            0    3     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:     10   10     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):
+                   Post-CG relaxation (up):  -1  -1   1
+                             Coarsest grid:   0
+
+   Pass :  1   Iteration :   0  ||B r|| = 2.19166
+   Pass :  1   Iteration :   1  ||B r|| = 0.100611
+   Pass :  1   Iteration :   2  ||B r|| = 0.00298428
+   Pass :  1   Iteration :   3  ||B r|| = 0.000180939
+   Pass :  1   Iteration :   4  ||B r|| = 1.00984e-05
+   Pass :  1   Iteration :   5  ||B r|| = 6.31839e-07
+GMRES+HypreAMG converged in 5 iterations with a residual norm of 6.31839e-07.
+solver took 0.053742s.
+|| q_h - q_ex || / || q_ex || = 2.05957e-06
+|| t_h - t_ex || / || t_ex || = 7.24561e-07

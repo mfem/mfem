@@ -18,7 +18,7 @@ CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = 
+SEQ_MINIAPPS = braginskii_hdg scatter
 PAR_MINIAPPS = 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -49,7 +49,7 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: %.cpp
 %.o: %.cpp
 
-all: $(MINIAPPS) $(SUBDIRS_ALL) 
+all: $(MINIAPPS) $(SUBDIRS_ALL)
 
 .PHONY: $(SUBDIRS_ALL) $(SUBDIRS_TEST) $(SUBDIRS_TEST_NOCLEAN) \
    $(SUBDIRS_CLEAN) $(SUBDIRS_TPRINT)
@@ -59,8 +59,25 @@ $(SUBDIRS_TPRINT):
 	@$(MAKE) -C $(@D) $(@F)
 
 # Rules for building the miniapps
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
+HDG_DEPS = $(SRC)../hdg/darcyop
+HDG_MINIAPPS = braginskii_hdg
+
+%: $(SRC)%.o $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(COMMON_LIB) $(MFEM_LIBS)
+
+$(HDG_MINIAPPS): $(HDG_MINIAPPS).o $(HDG_DEPS).o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $@.o $(HDG_DEPS).o \
+	  $(MFEM_LIBS)
+
+%.o: $(SRC)%.cpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+
+$(HDG_MINIAPPS).o: $(HDG_MINIAPPS).cpp $(HDG_DEPS).hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
+
+# Rules for compiling miniapp dependencies
+$(HDG_DEPS).o: $(HDG_DEPS).cpp $(HDG_DEPS).hpp $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $(<) -o $(@)
 
 # Rule for building lib-common
 lib-common:

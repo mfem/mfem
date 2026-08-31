@@ -529,7 +529,7 @@ real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
     this function. In particular, @a dst should be empty or deleted before
     calling this function. */
 template <typename T>
-void CopyMemory(Memory<T> &src, Memory<T> &dst, MemoryClass dst_mc,
+void CopyMemory(const Memory<T> &src, Memory<T> &dst, MemoryClass dst_mc,
                 bool dst_owner)
 {
    if (CanShallowCopy(src, dst_mc))
@@ -710,7 +710,7 @@ void HypreParMatrix::WrapHypreParCSRMatrix(hypre_ParCSRMatrix *a, bool owner)
    HypreRead();
 }
 
-signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
+signed char HypreParMatrix::CopyCSR(const SparseMatrix *csr,
                                     MemoryIJData &mem_csr,
                                     hypre_CSRMatrix *hypre_csr,
                                     bool mem_owner)
@@ -739,7 +739,7 @@ signed char HypreParMatrix::CopyCSR(SparseMatrix *csr,
           (mem_csr.data.OwnsHostPtr() ? 2 : 0);
 }
 
-signed char HypreParMatrix::CopyBoolCSR(Table *bool_csr,
+signed char HypreParMatrix::CopyBoolCSR(const Table *bool_csr,
                                         MemoryIJData &mem_csr,
                                         hypre_CSRMatrix *hypre_csr)
 {
@@ -3631,6 +3631,8 @@ HypreSmoother::HypreSmoother() : Solver()
    X0 = X1 = NULL;
    fir_coeffs = NULL;
    A_is_symmetric = false;
+
+   own_oper = false;
 }
 
 HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
@@ -3654,6 +3656,7 @@ HypreSmoother::HypreSmoother(const HypreParMatrix &A_, int type_,
    fir_coeffs = NULL;
    A_is_symmetric = false;
 
+   own_oper = false;
    SetOperator(A_);
 }
 
@@ -4089,6 +4092,7 @@ HypreSmoother::~HypreSmoother()
    }
    if (X0) { delete X0; }
    if (X1) { delete X1; }
+   if (own_oper && A) { delete A; }
 }
 
 
@@ -4100,6 +4104,7 @@ HypreSolver::HypreSolver()
    auxB.Reset();
    auxX.Reset();
    error_mode = ABORT_HYPRE_ERRORS;
+   own_oper = false;
 }
 
 HypreSolver::HypreSolver(const HypreParMatrix *A_)
@@ -4111,6 +4116,7 @@ HypreSolver::HypreSolver(const HypreParMatrix *A_)
    auxB.Reset();
    auxX.Reset();
    error_mode = ABORT_HYPRE_ERRORS;
+   own_oper = false;
 }
 
 bool HypreSolver::WrapVectors(const Vector &b, Vector &x) const
@@ -4235,6 +4241,7 @@ HypreSolver::~HypreSolver()
 {
    if (B) { delete B; }
    if (X) { delete X; }
+   if (own_oper && A) { delete A; }
    auxB.Delete();
    auxX.Delete();
 }

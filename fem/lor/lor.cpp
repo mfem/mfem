@@ -87,7 +87,7 @@ int LORBase::GetLOROrder() const
    return (type == L2 || type == RT) ? 0 : 1;
 }
 
-void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
+void LORBase::ConstructLocalDofPermutation() const
 {
    FESpaceType type = GetFESpaceType();
    MFEM_VERIFY(type != H1 && type != L2, "");
@@ -107,7 +107,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 
    using GeomRef = std::pair<Geometry::Type, int>;
    std::map<GeomRef, int> point_matrices_offsets;
-   perm_.SetSize(fes_lor.GetVSize());
+   l_perm.SetSize(fes_lor.GetVSize());
 
    Array<int> vdof_ho, vdof_lor;
    for (int ilor=0; ilor<mesh_lor.GetNE(); ++ilor)
@@ -134,7 +134,7 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
 
       if (type == L2)
       {
-         perm_[vdof_lor[0]] = vdof_ho[lor_index];
+         l_perm[vdof_lor[0]] = vdof_ho[lor_index];
          continue;
       }
 
@@ -166,8 +166,8 @@ void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const
                int s4 = idof_ho < 0 ? -1 : 1;
                int s = s1*s2*s3*s4;
                i = UnsignIndex(idof_ho);
-               perm_[UnsignIndex(idof_lor)] = s < 0 ? -1-UnsignIndex(i) :
-                                              UnsignIndex(i);
+               l_perm[UnsignIndex(idof_lor)] = s < 0 ? -1-UnsignIndex(i) :
+                                               UnsignIndex(i);
             }
          }
       };
@@ -218,6 +218,8 @@ void LORBase::ConstructDofPermutation() const
       return;
    }
 
+   ConstructLocalDofPermutation();
+
 #ifdef MFEM_USE_MPI
    ParFiniteElementSpace *pfes_ho
       = dynamic_cast<ParFiniteElementSpace*>(&fes_ho);
@@ -225,8 +227,6 @@ void LORBase::ConstructDofPermutation() const
       = dynamic_cast<ParFiniteElementSpace*>(&GetFESpace());
    if (pfes_ho && pfes_lor)
    {
-      Array<int> l_perm;
-      ConstructLocalDofPermutation(l_perm);
       perm.SetSize(pfes_lor->GetTrueVSize());
       for (int i=0; i<l_perm.Size(); ++i)
       {
@@ -246,7 +246,7 @@ void LORBase::ConstructDofPermutation() const
    else
 #endif
    {
-      ConstructLocalDofPermutation(perm);
+      perm = l_perm;
    }
 }
 
@@ -254,6 +254,12 @@ const Array<int> &LORBase::GetDofPermutation() const
 {
    if (perm.Size() == 0) { ConstructDofPermutation(); }
    return perm;
+}
+
+const Array<int> &LORBase::GetLocalDofPermutation() const
+{
+   if (l_perm.Size() == 0) { ConstructLocalDofPermutation(); }
+   return l_perm;
 }
 
 bool LORBase::HasSameDofNumbering() const
@@ -278,8 +284,7 @@ void LORBase::SetupProlongationAndRestriction()
 {
    if (!HasSameDofNumbering())
    {
-      Array<int> p;
-      ConstructLocalDofPermutation(p);
+      const Array<int> &p = GetLocalDofPermutation();
       fes->CopyProlongationAndRestriction(fes_ho, &p);
    }
    else

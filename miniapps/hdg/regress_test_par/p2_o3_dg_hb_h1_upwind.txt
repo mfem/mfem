@@ -1,0 +1,132 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --serial-ref-levels -1
+   --parallel-ref-levels 0
+   --order 3
+   --discontinuous
+   --no-broken-RT
+   --upwinded
+   --problem 2
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-H1
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 22
+Hybridization init took 0.0390543s.
+***********************************************************
+dim(V) = 6336
+dim(W) = 3168
+dim(M) = 1084
+dim(V+W+M) = 10588
+***********************************************************
+Assembly took 0.264511s.
+Preconditioner took 4.3662e-05s.
+
+
+ Num MPI tasks = 2
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 6
+
+ Strength Threshold = 0.100000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = Falgout-CLJP 
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = one-point interpolation 
+ Restriction = local approximate ideal restriction (AIR-1.5)
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    2121    45156  0.010     4   33    21.3  -2.793e+00   1.679e-01
+  1     780    54545  0.090    23   85    69.9  -1.192e+00   9.978e-04
+  2     219    17417  0.363    28  127    79.5  -1.393e+00   3.783e-06
+  3      58     2999  0.891    41   58    51.7  -1.476e+00   3.476e-08
+  4      14      196  1.000    14   14    14.0  -9.365e-01  -3.332e-02
+  5       2        4  1.000     2    2     2.0  -1.040e+00  -6.498e-01
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  2121 x 780     0    1   0.9   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  1   780 x 219     1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  2   219 x 58      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  3    58 x 14      1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+  4    14 x 2       1    1   1.0   1.000e+00   0.000e+00   1.000e+00   1.000e+00
+
+
+     Complexity:    grid = 1.505893
+                operator = 2.664474
+                memory = 2.731597
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            0    3     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:     10   10     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):
+                   Post-CG relaxation (up):  -1  -1   1
+                             Coarsest grid:   0
+
+   Pass :  1   Iteration :   0  ||B r|| = 2.44299
+   Pass :  1   Iteration :   1  ||B r|| = 0.121573
+   Pass :  1   Iteration :   2  ||B r|| = 0.0020955
+   Pass :  1   Iteration :   3  ||B r|| = 0.000103669
+   Pass :  1   Iteration :   4  ||B r|| = 3.20766e-06
+   Pass :  1   Iteration :   5  ||B r|| = 3.2171e-07
+GMRES+HypreAMG converged in 5 iterations with a residual norm of 3.2171e-07.
+solver took 0.0258926s.
+|| q_h - q_ex || / || q_ex || = 7.76921e-07
+|| t_h - t_ex || / || t_ex || = 1.27397e-07

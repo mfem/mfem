@@ -18,10 +18,10 @@
 //               non-symmetric discontinuous Galerkin (DG) formulation.
 //
 //               Specifically, we approximate the weak form of -div(sigma(u))=0
-//               where sigma(u)=lambda*div(u)*I+mu*(grad*u+u*grad) is the stress
-//               tensor corresponding to displacement field u, and lambda and mu
-//               are the material Lame constants. The boundary conditions are
-//               Dirichlet, u=u_D on the fixed part of the boundary, namely
+//               where sigma(u)=lambda*div(u)*I+mu*(grad(u)+grad(u)^T) is the
+//               stress tensor corresponding to displacement field u, and lambda
+//               and mu are the material Lame constants. The boundary conditions
+//               are Dirichlet, u=u_D on the fixed part of the boundary, namely
 //               boundary attributes 1 and 2; on the rest of the boundary we use
 //               sigma(u).n=0 b.c. The geometry of the domain is assumed to be
 //               as follows:

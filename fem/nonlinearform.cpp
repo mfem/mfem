@@ -190,7 +190,25 @@ real_t NonlinearForm::GetGridFunctionEnergy(const Vector &x) const
 
    if (fnfi.Size())
    {
-      MFEM_ABORT("TODO: add energy contribution from interior face terms");
+      const int nfaces = mesh->GetNumFaces();
+      const FiniteElement *fe1, *fe2;
+      Array<int> vdofs2;
+      FaceElementTransformations *FTr;
+      for (int f = 0; f < nfaces; f++)
+      {
+         if (!mesh->FaceIsInterior(f)) { continue; }
+         FTr = mesh->GetFaceElementTransformations(f);
+         fe1 = fes->GetFE(FTr->Elem1No);
+         fe2 = fes->GetFE(FTr->Elem2No);
+         fes->GetElementVDofs(FTr->Elem1No, vdofs);
+         fes->GetElementVDofs(FTr->Elem2No, vdofs2);
+         vdofs.Append(vdofs2);
+         x.GetSubVector(vdofs, el_x);
+         for (int k = 0; k < fnfi.Size(); k++)
+         {
+            energy += fnfi[k]->GetFaceEnergy(*fe1, *fe2, *FTr, el_x);
+         }
+      }
    }
 
    if (bfnfi.Size())
@@ -715,6 +733,12 @@ BlockNonlinearForm::BlockNonlinearForm() :
 
 void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 {
+   f.Copy(fes);
+   Update();
+}
+
+void BlockNonlinearForm::Update()
+{
    delete BlockGrad;
    BlockGrad = NULL;
    for (int i=0; i<Grads.NumRows(); ++i)
@@ -732,9 +756,8 @@ void BlockNonlinearForm::SetSpaces(Array<FiniteElementSpace *> &f)
 
    height = 0;
    width = 0;
-   f.Copy(fes);
-   block_offsets.SetSize(f.Size() + 1);
-   block_trueOffsets.SetSize(f.Size() + 1);
+   block_offsets.SetSize(fes.Size() + 1);
+   block_trueOffsets.SetSize(fes.Size() + 1);
    block_offsets[0] = 0;
    block_trueOffsets[0] = 0;
 
@@ -1414,6 +1437,7 @@ void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx,
       for (int i = 0; i < mesh->GetNumFaces(); ++i)
       {
          tr = mesh->GetInteriorFaceTransformations(i);
+         if (!tr) { continue; }
 
          for (int s=0; s < fes.Size(); ++s)
          {

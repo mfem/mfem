@@ -266,6 +266,9 @@ public:
    /// Evaluate the coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   const std::function<real_t(const Vector &)>& GetFunction() const { return Function; }
+   const std::function<real_t(const Vector &, real_t)>& GetTDFunction() const { return TDFunction; }
 };
 
 /// A common base class for returning individual components of the domain's
@@ -464,6 +467,7 @@ class DeltaCoefficient : public Coefficient
 protected:
    real_t center[3], scale, tol;
    Coefficient *weight;
+   bool own_weight;
    int sdim;
    real_t (*tdf)(real_t);
 
@@ -473,28 +477,28 @@ public:
    DeltaCoefficient()
    {
       center[0] = center[1] = center[2] = 0.; scale = 1.; tol = 1e-12;
-      weight = NULL; sdim = 0; tdf = NULL;
+      weight = NULL; own_weight = true; sdim = 0; tdf = NULL;
    }
 
    /// Construct a delta function scaled by @a s and centered at (x,0.0,0.0)
    DeltaCoefficient(real_t x, real_t s)
    {
       center[0] = x; center[1] = 0.; center[2] = 0.; scale = s; tol = 1e-12;
-      weight = NULL; sdim = 1; tdf = NULL;
+      weight = NULL; own_weight = true; sdim = 1; tdf = NULL;
    }
 
    /// Construct a delta function scaled by @a s and centered at (x,y,0.0)
    DeltaCoefficient(real_t x, real_t y, real_t s)
    {
       center[0] = x; center[1] = y; center[2] = 0.; scale = s; tol = 1e-12;
-      weight = NULL; sdim = 2; tdf = NULL;
+      weight = NULL; own_weight = true; sdim = 2; tdf = NULL;
    }
 
    /// Construct a delta function scaled by @a s and centered at (x,y,z)
    DeltaCoefficient(real_t x, real_t y, real_t z, real_t s)
    {
       center[0] = x; center[1] = y; center[2] = z; scale = s; tol = 1e-12;
-      weight = NULL; sdim = 3; tdf = NULL;
+      weight = NULL; own_weight = true; sdim = 3; tdf = NULL;
    }
 
    /// Set the time for internally stored coefficients
@@ -520,7 +524,7 @@ public:
        The weight Coefficient is also used as the L2-weight function when
        projecting the DeltaCoefficient onto a GridFunction, so that the weighted
        integral of the projection is exactly equal to the Scale(). */
-   void SetWeight(Coefficient *w) { weight = w; }
+   void SetWeight(Coefficient *w, bool own=true) { weight = w; own_weight = own; }
 
    /// Return a pointer to a c-array representing the center of the delta
    /// function.
@@ -546,7 +550,7 @@ public:
        cause an MFEM error, terminating the application. */
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
    { mfem_error("DeltaCoefficient::Eval"); return 0.; }
-   virtual ~DeltaCoefficient() { delete weight; }
+   virtual ~DeltaCoefficient() { if (own_weight) delete weight; }
 };
 
 /** @brief Derived coefficient that takes the value of the parent coefficient
@@ -778,6 +782,10 @@ public:
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
 
+   const std::function<void(const Vector &, Vector &)>& GetFunction() const { return Function; }
+   const std::function<void(const Vector &, real_t, Vector &)>& GetTDFunction()
+   const { return TDFunction; }
+
    virtual ~VectorFunctionCoefficient() { }
 };
 
@@ -1003,7 +1011,10 @@ public:
    DeltaCoefficient& GetDeltaCoefficient() { return d; }
 
    void SetScale(real_t s) { d.SetScale(s); }
+   void SetTol(real_t tol) { d.SetTol(tol); }
+
    void SetDirection(const Vector& d_);
+   void GetDirection(Vector &d_) { d_ = dir; }
 
    void SetDeltaCenter(const Vector& center) { d.SetDeltaCenter(center); }
    void GetDeltaCenter(Vector& center) { d.GetDeltaCenter(center); }

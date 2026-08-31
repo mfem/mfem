@@ -1,0 +1,127 @@
+Options used:
+   --mesh 
+   --ncells-x 20
+   --ncells-y 20
+   --size-x 1
+   --size-y 1
+   --order 1
+   --discontinuous
+   --upwinded
+   --problem 3
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1e-07
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --no-nonlinear
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --serial-format
+Device configuration: cpu
+Memory configuration: host-std
+Mesh::GeneratePartitioning(...): edgecut = 22
+Hybridization init took 0.00420976s.
+***********************************************************
+dim(V) = 1584
+dim(W) = 792
+dim(M) = 854
+dim(V+W+M) = 3230
+***********************************************************
+Assembly took 0.020144s.
+Preconditioner took 5.1914e-05s.
+
+
+ Num MPI tasks = 2
+
+ Num OpenMP threads = 1
+
+
+BoomerAMG SETUP PARAMETERS:
+
+ Max levels = 25
+ Num levels = 8
+
+ Strength Threshold = 0.100000
+ Interpolation Truncation Factor = 0.000000
+ Maximum Row Sum Threshold for Dependency Weakening = 0.900000
+
+ Coarsening Type = Falgout-CLJP 
+ measures are determined locally
+
+
+ No global partition option chosen.
+
+ Interpolation = one-point interpolation 
+ Restriction = local approximate ideal restriction (AIR-1.5)
+
+Operator Matrix Information:
+
+             nonzero            entries/row          row sums
+lev    rows  entries sparse   min  max     avg      min         max
+======================================================================
+  0    1680    21724  0.008     1   14    12.9  -2.474e-02   1.000e-07
+  1     868    12502  0.017     3   24    14.4  -2.657e-02   1.991e-03
+  2     468     8988  0.041     1   40    19.2  -2.771e-02   1.955e-03
+  3     266     6815  0.096     3   75    25.6  -2.517e-02   1.768e-03
+  4     142     3610  0.179     1   84    25.4  -2.411e-02   1.827e-03
+  5      71     1534  0.304     1   55    21.6  -2.292e-02   1.379e-03
+  6      21      209  0.474     2   21    10.0  -2.236e-02   3.594e-04
+  7       7       35  0.714     3    7     5.0  -1.974e-02   4.946e-04
+
+
+Interpolation Matrix Information:
+                    entries/row        min        max            row sums
+lev  rows x cols  min  max  avgW     weight      weight       min         max
+================================================================================
+  0  1680 x 868     0    1   0.8   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  1   868 x 468     0    1   0.8   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  2   468 x 266     0    1   0.6   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  3   266 x 142     0    1   0.6   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  4   142 x 71      0    1   0.5   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  5    71 x 21      0    1   0.5   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+  6    21 x 7       0    1   0.4   1.000e+00   0.000e+00   0.000e+00   1.000e+00
+
+
+     Complexity:    grid = 2.097024
+                operator = 2.550957
+                memory = 2.694485
+
+
+
+
+BoomerAMG SOLVER PARAMETERS:
+
+  Maximum number of cycles:         1 
+  Stopping Tolerance:               0.000000e+00 
+  Cycle type (1 = V, 2 = W, etc.):  1
+
+  Relaxation Parameters:
+   Visiting Grid:                     down   up  coarse
+            Number of sweeps:            0    3     1 
+   Type 0=Jac, 3=hGS, 6=hSGS, 9=GE:     10   10     9 
+   Point types, partial sweeps (1=C, -1=F):
+                  Pre-CG relaxation (down):
+                   Post-CG relaxation (up):  -1  -1   1
+                             Coarsest grid:   0
+
+   Pass :  1   Iteration :   0  ||B r|| = 16.8081
+   Pass :  1   Iteration :   1  ||B r|| = 0.0814133
+   Pass :  1   Iteration :   2  ||B r|| = 8.17027e-05
+   Pass :  1   Iteration :   3  ||B r|| = 2.34235e-07
+GMRES+HypreAMG converged in 3 iterations with a residual norm of 2.34235e-07.
+solver took 0.00731628s.
+|| q_h - q_ex || / || q_ex || = 0.329984
+|| t_h - t_ex || / || t_ex || = 0.0520583

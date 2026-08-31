@@ -1,0 +1,42 @@
+Options used:
+   --mesh 
+   --ncells-x 8
+   --ncells-y 8
+   --size-x 1
+   --size-y 1
+   --order 3
+   --no-discontinuous
+   --centered
+   --problem 1
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-hybridization
+   --no-partial-assembly
+   --device cpu
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+Device configuration: cpu
+Memory configuration: host-std
+***********************************************************
+dim(V) = 2112
+dim(W) = 1024
+dim(V+W) = 3136
+***********************************************************
+Assembly took 0.185992s.
+Preconditioner took 0.0221916s.
+   Pass :  1   Iteration :   0  ||B r|| = 41.2501
+   Pass :  1   Iteration :   1  ||B r|| = 41.2501
+   Pass :  1   Iteration :   2  ||B r|| = 0.000174926
+   Pass :  1   Iteration :   3  ||B r|| = 4.73276e-05
+   Pass :  1   Iteration :   4  ||B r|| = 5.87823e-06
+GMRES+UMFPack converged in 4 iterations with a residual norm of 5.87823e-06.
+GMRES solver took 0.0108975s.
+|| q_h - q_ex || / || q_ex || = 3.02391e-07
+|| t_h - t_ex || / || t_ex || = 1.63476e-07
