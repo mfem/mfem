@@ -3131,6 +3131,20 @@ void DarcyHybridization::MultInvLin(int el, const Array<int> &faces,
    // than stall: taking eight of them blindly at sigma^2 = 0.005 drove the
    // measurement above to 1.6e+27. Keeping the best iterate turns a runaway
    // into a truncation, which is the behaviour a caller can reason about.
+   //
+   // It also removed a fault nobody here could reproduce, which is the reason
+   // to keep it even where the accuracy argument does not bite. A caller
+   // reported a solve that threw out of NewtonSolver::Mult's
+   // MFEM_VERIFY(IsFinite(norm)) at iteration ZERO -- so the very first
+   // reduced residual came back non-finite, and under this ordering that call
+   // is the cold two-pass linearisation at the caller's raw initial guess,
+   // where the local Jacobian is under no constraint at all. It never
+   // reproduced on the pedestal source at any of 144 configurations down to
+   // sigma^2 = 0.001. The caller has since re-run against this loop and the
+   // throw is gone, on their problem: their Grad-Shafranov transport barrier
+   // at k = 2 went from failing at zero iterations to converging. So the
+   // runaway WAS the non-finite residual, and the evidence is theirs rather
+   // than ours -- worth stating that way round, because nothing here pins it.
    Vector ru_l(a_dofs_size), rp_l(d_dofs_size);
    const bool to_tol = (corrections < 0);
    const int max_it = to_tol ? std::max(lsolve.iters, 1) : corrections;

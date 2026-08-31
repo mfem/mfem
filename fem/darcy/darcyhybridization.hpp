@@ -832,6 +832,27 @@ public:
        fails -- so no parity was lost, though converging on a problem the
        exact ordering cannot solve was never evidence of much.
 
+       The caller re-ran their own Grad-Shafranov benchmarks against this and
+       reports six of their seven converging, from four before, including one
+       at 8 iterations against CondenseThenLinearise's 11. Their one survivor
+       is an internal layer at k = 2 on a coarse mesh, cured by one refinement
+       or by dropping an order, and of the same class as the three above.
+
+       **A consequence worth warning about, reported from that re-run.** A
+       better Jacobian can converge to a DIFFERENT solution. Where a coarse
+       discretisation carries more than one, the pre-fix iteration took 134
+       steps on a gradient that did not belong to its residual and drifted onto
+       the branch a Picard iteration finds; with the gradient right it converges
+       faster and stays on its own. The caller had a test pinning Newton against
+       Anderson-Picard on one mesh at 1e-6, and it now reads 9.1e-05 there --
+       bit identical when the tolerance is tightened by four orders, so both
+       iterations are fully converged and their fixed points genuinely differ,
+       at 1e-13 on two other meshes and 3e-06 on a third with no trend. This is
+       not a defect in the fix and it is not a regression in the discretisation:
+       it is a gate that was green for the wrong reason. A caller pinning
+       "two solvers agree" on a single coarse mesh should expect to have to
+       sweep instead.
+
        It costs nothing in a plain Newton loop: the advance happens in Mult()
        instead of in GetGradient(), which then finds the linearisation already
        at x and reuses it -- one advance per iterate either way. A line search
@@ -843,7 +864,9 @@ public:
        pedestal cases, against the fixed two that preceded it. End to end this
        ordering then runs at 0.9 s against CondenseThenLinearise's 0.7 s on one
        of them, 1.3 s against 0.8 s on another, and level at 1.7 s on the case
-       it previously did not solve. **This mode is not a wall-clock win on a
+       it previously did not solve; the caller who reported the defect measures
+       the same thing at suite scale, their stiff-source tests going from 351 s
+       to 572 s with no other change. **This mode is not a wall-clock win on a
        stiff problem** -- MultInvNL's nonlinear iteration disappears and
        corrections of the same order replace it. What it buys is that every
        local operation is a linear solve against one factorisation, which is
