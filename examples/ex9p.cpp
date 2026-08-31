@@ -544,11 +544,11 @@ int main(int argc, char *argv[])
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
                                   : ImplicitVariableType::SLOPE;
-   adv.SetImplicitVariableType(imp_var);
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
+   ode_solver->SetImplicitVariableType(imp_var);
 
    bool done = false;
    for (int ti = 0; !done; )
