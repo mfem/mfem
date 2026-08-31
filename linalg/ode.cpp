@@ -182,7 +182,7 @@ void ODEStateDataVector::Print(std::ostream &os) const
 void ODESolver::Init(TimeDependentOperator &f_)
 {
    auto implicit_type = f_.GetImplicitVariableType();
-   MFEM_ASSERT(SupportsImplicitVariableType(implicit_type),
+   MFEM_ASSERT(implicit_type,
                "The ODE solver does not support the implicit variable type.");
    this->f = &f_;
    mem_type = GetMemoryType(f_.GetMemoryClass());
