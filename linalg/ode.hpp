@@ -206,11 +206,15 @@ public:
    */
    void SetImplicitVariableType(const ImplicitVariableType variable_type)
    {
+      if (!f)
+      {
+         MFEM_ABORT("TimeDependentOperator is not set. Call Init() first.");
+      }
       if (!SupportsImplicitVariableType(variable_type))
       {
          MFEM_ABORT("The ODE solver does not support the implicit variable type.");
       }
-      if (f) { f->SetImplicitVariableType(variable_type); }
+      f->SetImplicitVariableType(variable_type);
    }
 
 
