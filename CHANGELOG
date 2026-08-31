@@ -85,6 +85,12 @@ Meshing improvements
 
 Linear and nonlinear solvers
 ----------------------------
+- Added native exact checkpoint/replay support for `Vector` and fixed-step
+  `ForwardEulerSolver` trajectories, including memory and transactional file
+  storage, exact moving-window caching, StoreEverything, Revolve, and online
+  Wang-Moin-Iaccarino schedules, and a scheduler-driven reverse callback API.
+  Example 42 demonstrates exact replay and a discrete adjoint calculation.
+
 - Added support for trace spaces in PRefinementTransferOperator. This is used in
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).

@@ -19,6 +19,7 @@ list(APPEND SRCS
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
+  checkpoint.cpp
   complex_densemat.cpp
   complex_operator.cpp
   constraints.cpp
@@ -49,6 +50,7 @@ list(APPEND HDRS
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
+  checkpoint.hpp
   complex_densemat.hpp
   complex_operator.hpp
   constraints.hpp

@@ -1,0 +1,84 @@
+// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+/** \page checkpointing Exact ODE checkpointing and replay
+
+MFEM's checkpointing API reconstructs exact primal states for reverse-time
+algorithms without requiring the complete forward trajectory to remain in
+memory. The initial implementation is serial, synchronous, and supports the
+fixed-step ForwardEulerSolver through ForwardEulerCheckpointAdapter.
+
+\code{.unparsed}
+TimeDependentOperator / ODESolver
+                 |
+                 v
+       CheckpointController ------> application ReverseStepHandler
+          |             |
+          v             v
+       Schedule      exact replay
+                          |
+                          v
+            ODESolverCheckpointAdapter
+                          |
+                    +-----+-----+
+                    |           |
+                 memory       files
+\endcode
+
+The controller and adapters borrow their dependencies. The application owns
+the ODESolver, TimeDependentOperator, adapter, propagator, storage backend,
+moving window, and reverse callback, and must keep them alive for the complete
+controller operation.
+
+The solution Vector is not assumed to be a complete restart. CheckpointState
+therefore stores the Vector, an explicit TimePoint, the continuation step size,
+and opaque solver restart bytes. Forward Euler has no persistent stage history,
+so its restart payload is empty and Restore reinitializes the solver.
+
+Vector values are read through Vector::HostRead(), so checkpoint capture may
+synchronize device data to host. Restore writes through Vector::HostWrite().
+No asynchronous or device-resident storage is provided.
+
+Persistent payloads use a 64-byte, versioned, canonical little-endian header.
+Times, step sizes, and vector entries use IEEE binary64. Conversion to and from
+single-precision real_t is exact for values originally captured from an MFEM
+single-precision build. Opaque restart bytes follow the vector data. Decoding
+rejects unsupported versions, malformed lengths, ID mismatches, truncation,
+and trailing bytes.
+
+FileCheckpointStorage uses one deterministic file per logical checkpoint. An
+overwrite is first written and closed in a same-directory temporary file and
+then renamed. A failed rename preserves the prior canonical file. Temporary
+files are ignored and no fsync or crash-durability guarantee is made.
+
+The following concepts correspond to the standalone checkpoint library:
+
+\code{.unparsed}
+Standalone                       MFEM
+StepId / CheckpointId            StepId / CheckpointId
+Snapshot                         Snapshot
+MemoryStorage / FileStorage      MemoryCheckpointStorage / FileCheckpointStorage
+SnapshotWindow<Vector>           ExactCheckpointWindow
+StoreEverythingSchedule          StoreEverythingSchedule
+RevolveSchedule                  RevolveSchedule
+WangMoinIaccarinoSchedule        WangMoinIaccarinoSchedule
+IntegratorCheckpointAdapter      ODESolverCheckpointAdapter
+ForwardPropagator<Vector>        ODECheckpointPropagator
+CheckpointExecutionController    CheckpointController
+ReverseStepHandler               ReverseStepHandler
+\endcode
+
+Checkpoint schedules are independent of storage and numerical physics.
+CheckpointController supplies exact predecessor and successor states to the
+application-owned ReverseStepHandler; it does not define adjoint mathematics.
+Example 42 demonstrates a discrete adjoint of the Forward Euler map and checks
+it against a full-trajectory reference.
+*/
