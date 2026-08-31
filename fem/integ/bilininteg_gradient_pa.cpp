@@ -819,6 +819,9 @@ static void PAGradientApplyTranspose3D(const int NE,
    });
 }
 
+#if 0
+// TODO: this is unused, was it supposed to be in some header or did this end up being slower?
+// for now, comment out
 // Shared memory PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPAGradientApply3D(const int NE,
@@ -1067,6 +1070,7 @@ static void SmemPAGradientApply3D(const int NE,
       }
    });
 }
+#endif
 
 static void PAGradientApply(const int dim,
                             const int TR_D1D,

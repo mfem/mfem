@@ -135,7 +135,7 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
 
 /// Return the first domain integrator in the form @a i of type @a T.
 template <typename T>
-static T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
+T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
 {
    if (integs != NULL)
    {
@@ -151,13 +151,13 @@ static T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
 }
 
 template <typename T>
-static T *GetIntegrator(BilinearForm &a)
+T *GetIntegrator(BilinearForm &a)
 {
    return GetIntegrator<T>(a.GetDBFI());
 }
 
 template <typename T>
-static T *GetInteriorFaceIntegrator(BilinearForm &a)
+T *GetInteriorFaceIntegrator(BilinearForm &a)
 {
    return GetIntegrator<T>(a.GetFBFI());
 }
