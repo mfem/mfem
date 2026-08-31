@@ -1880,7 +1880,7 @@ Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
 
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 const Vector &bp, const Vector &x, Vector &y,
-                                bool force_relin, BlockVector *r_local) const
+                                BlockVector *r_local) const
 {
    MFEM_ASSERT(mode != MultNlMode::AtFields || r_local,
                "MultNlMode::AtFields has nowhere to put the local residual");
@@ -1907,66 +1907,6 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    if (f_2_b.Size() == 0)
    {
       f_2_b = fes.GetMesh()->GetFaceToBdrElMap();
-   }
-
-   // The linearisation point advances when the trace does. A gradient asked
-   // for at the trace it was last taken at is the same gradient.
-   const bool relinearise = force_relin || !LinearisedAt(x);
-
-   if (nl_ordering == NLOrdering::LineariseThenCondense && relinearise &&
-       (mode == MultNlMode::Mult || mode == MultNlMode::Sol))
-   {
-      // The residual is a function of the trace only once there is something
-      // to linearise about *at that trace*, and NewtonSolver asks for the
-      // residual before it asks for the gradient -- on every step, not only
-      // the first. This condition used to be !lin_valid, which asks whether
-      // there is a linearisation anywhere rather than whether there is one
-      // here, and the difference is the whole of NewtonSolver's difficulty
-      // with this ordering: it would evaluate the residual at x_k about the
-      // linearisation retained at x_{k-1}, then take the gradient at x_k, and
-      // solve a step from a residual and a Jacobian that do not belong to the
-      // same operator.
-      //
-      // It costs nothing in a plain Newton loop. The advance happens here
-      // instead of in GetGradient(), which then finds LinearisedAt(x) true
-      // and reuses it -- one advance per iterate either way. A line search
-      // does pay, one advance per trial point, and that is the price of the
-      // trial residual being the residual.
-      //
-      // The blocks are allocated here as GetGradient() allocates them.
-      if (!Df_data.Size()) { AllocD(); }
-      if (!E_data.Size() || !G_data.Size()) { AllocEG(); }
-      if (!H_data.Size()) { AllocH(); }
-      else if (c_nlfi_p || c_nlfi) { H_data = 0.; }
-
-      Vector y_dummy;
-      MultNL(MultNlMode::Grad, bu, bp, x, y_dummy);
-
-      // ConstructGrad() leaves the blocks unfactored; it is ComputeH() that
-      // factors A and builds the Schur complement, and the substitution below
-      // needs both. Factor-only, in either gradient mode: this pass never
-      // wanted the assembled matrix, and used to build and discard one.
-      std::unique_ptr<SparseMatrix> H_unused;
-      ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
-
-      // And once more, which is the whole point of doing it here. The pass
-      // above had no factors to substitute with, so all it could retain was
-      // the caller's initial guess, whose local residual is O(1); this one
-      // corrects the fields and relinearises there. Everything the ordering
-      // does afterwards is an expansion about the retained point, so leaving
-      // it at the raw guess costs the FIRST Newton step both its residual and
-      // its gradient -- and the first step is where a stiff problem is lost.
-      // Measured, gradient against a central difference at a cold
-      // linearisation, (c p^2, w) at c = 100: 3.2e-03 without this pass,
-      // 1.1e-11 with it, against 8.9e-12 for the other ordering.
-      //
-      // It costs one extra local assembly and factorisation per solve, not
-      // per iteration, and it happens inside the first Mult() -- before any
-      // residual is handed back -- so the operator a caller sees is still a
-      // function of the trace.
-      if (c_nlfi_p || c_nlfi) { H_data = 0.; }
-      MultNL(MultNlMode::Grad, bu, bp, x, y_dummy, true);
-      ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
    }
 
    for (int el = 0; el < NE; el++)
@@ -2051,9 +1991,6 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
 
       if (mode != MultNlMode::GradMult)
       {
-         const bool lin_first =
-            (nl_ordering == NLOrdering::LineariseThenCondense);
-
          if (mode == MultNlMode::AtFields || mode == MultNlMode::GradAtFields)
          {
             // NPC. The fields are Newton state and arrive in darcy_u/darcy_p;
@@ -2079,37 +2016,6 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
             r_local->GetBlock(1).AddElementVector(p_dofs, rp_l);
             // and fall through to the trace row, which is the same assembly
             // every other mode uses.
-         }
-         else if (lin_first && lin_valid)
-         {
-            if (mode == MultNlMode::Grad && !relinearise)
-            {
-               // Re-linearising at a trace the linearisation is already at
-               // must not move the fields. Taking the substituted fields here
-               // instead would apply a local Newton step per GetGradient()
-               // call, so the operator would stop being a function of the
-               // trace, and on a stiff local problem those ungloablised steps
-               // run away: the residual at one trace grew from 1.9e+01 to
-               // 4.2e+03 between two calls. Covered by the unit test "The
-               // reduced operator is a function of the trace".
-               lin_u.GetSubVector(u_vdofs, u_l);
-               lin_p.GetSubVector(p_dofs, p_l);
-            }
-            else
-            {
-               // The flux and the potential the linearisation implies for this
-               // trace, by substitution. No element runs a nonlinear solve in
-               // this ordering; see SetNonlinearOrdering().
-               //
-               // Evaluating the operator takes one local correction.
-               // Advancing the linearisation iterates instead, because the
-               // fields it retains are the point every later evaluation
-               // expands about, and how completely they solve the local
-               // problem is what sets the gradient's accuracy. See
-               // MultInvLin(), which carries the measurement.
-               MultInvLin(el, faces, x_l, bu_l, bp_l, u_l, p_l,
-                          (mode == MultNlMode::Grad) ? -1 : 1);
-            }
          }
          else
          {
@@ -2138,14 +2044,8 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                p_l = 0.;//initial guess?
             }
 
-            if (!lin_first)
-            {
-               //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-               MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
-            }
-            // else: the first pass has nothing to substitute into, so the
-            // fields are the caller's initial guess, and this pass is what
-            // makes a linearisation point out of it.
+            //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+            MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
          }
 
          if (mode == MultNlMode::Sol)
@@ -2156,14 +2056,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          }
          else if (mode == MultNlMode::Grad)
          {
-            if (lin_first)
-            {
-               Relinearise(el, faces, x_l, u_l, p_l);
-            }
-            else
-            {
-               ConstructGrad(el, faces, x_l, u_l, p_l);
-            }
+            ConstructGrad(el, faces, x_l, u_l, p_l);
             continue;
          }
       }
@@ -2305,18 +2198,6 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       }
    }
 
-   if (nl_ordering == NLOrdering::LineariseThenCondense &&
-       mode == MultNlMode::Grad)
-   {
-      // The new linearisation point, committed only now that every element
-      // has been through: an element later in the loop reads the old fields,
-      // and in a conforming flux space its dofs overlap the ones an earlier
-      // element has already written.
-      lin_trace = x;
-      lin_u.Swap(lin_u_next);
-      lin_p.Swap(lin_p_next);
-      lin_valid = true;
-   }
 }
 
 void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
@@ -2968,21 +2849,6 @@ void DarcyHybridization::SetGradientMode(GradientMode mode)
    pGrad.Clear();
 }
 
-void DarcyHybridization::SetNonlinearOrdering(NLOrdering ordering)
-{
-   if (ordering == nl_ordering) { return; }
-
-   nl_ordering = ordering;
-
-   // The linearisation point belongs to the ordering that made it.
-   lin_valid = false;
-   lin_trace.SetSize(0);
-   lin_u.SetSize(0);
-   lin_p.SetSize(0);
-   lin_u_next.SetSize(0);
-   lin_p_next.SetSize(0);
-}
-
 void DarcyHybridization::SetAssemblyMode(AssemblyMode mode)
 {
    if (mode == AssemblyMode::Threaded)
@@ -3003,13 +2869,6 @@ void DarcyHybridization::SetAssemblyMode(AssemblyMode mode)
    }
 
    asm_mode = mode;
-}
-
-bool DarcyHybridization::LinearisedAt(const Vector &x) const
-{
-   return lin_valid && lin_trace.Size() == x.Size() &&
-          std::memcmp(lin_trace.GetData(), x.GetData(),
-                      x.Size()*sizeof(real_t)) == 0;
 }
 
 void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
@@ -3033,224 +2892,6 @@ void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
    ru_l -= bu_l;
    rp_l = rv.GetBlock(1);
    rp_l -= bp_l;
-}
-
-void DarcyHybridization::MultInvLin(int el, const Array<int> &faces,
-                                    const BlockVector &x_l, const Vector &bu_l0,
-                                    const Vector &bp_l0, Vector &u_l,
-                                    Vector &p_l, int corrections) const
-{
-   MFEM_ASSERT(lin_valid, "No linearisation point");
-
-   const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
-   const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-
-   // -[C; E] (x - x_lin), and nothing else. The linearisation's own residual
-   // does NOT belong here: the correction below applies it, and applying it
-   // twice is what stopped GetGradient() being the derivative of Mult(). At
-   // x = x_lin this prediction is the identity, so the correction's Jacobian
-   // is evaluated at the fields the stored factors were built at, where it is
-   // the stored factors; predicting -M^-1 r_lin first moves that evaluation a
-   // whole local Newton step away, and the gradient is then wrong by the
-   // change in the local Jacobian over that step. See MultInvLin's closing
-   // comment for the measurement.
-   Vector bu_l(a_dofs_size), bp_l(d_dofs_size);
-   bu_l = 0.;
-   bp_l = 0.;
-
-   Array<int> c_dofs;
-   Vector xlin_f, dx_f;
-
-   for (int f = 0; f < faces.Size(); f++)
-   {
-      int el1, el2;
-      fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-
-      c_fes.GetFaceVDofs(faces[f], c_dofs);
-      lin_trace.GetSubVector(c_dofs, xlin_f);
-
-      const Vector &x_f = x_l.GetBlock(f);
-      dx_f.SetSize(x_f.Size());
-      subtract(x_f, xlin_f, dx_f);
-
-      DenseMatrix Ct;
-      GetCtFaceMatrix(faces[f], el1 != el, Ct);
-      Ct.AddMult_a(-1., dx_f, bu_l);
-
-      if (E_data.Size() > 0)
-      {
-         DenseMatrix E;
-         GetEFaceMatrix(faces[f], el1 != el, E);
-         E.AddMult_a(-1., dx_f, bp_l);
-      }
-   }
-
-   // The increment, by the local elimination -- with the Jacobian's (0,1)
-   // block, which is what ComputeH(Gradient) put into these factors.
-   Vector du_l, dp_l;
-   MultInv(el, bu_l, bp_l, du_l, dp_l, true);
-
-   // and the fields it implies
-   Array<int> u_vdofs, p_dofs;
-   GetFDofs(el, u_vdofs);
-   fes_p.GetElementVDofs(el, p_dofs);
-
-   lin_u.GetSubVector(u_vdofs, u_l);
-   lin_p.GetSubVector(p_dofs, p_l);
-   u_l += du_l;
-   p_l += dp_l;
-
-   // One local Newton correction on top, which is what carries the local
-   // residual into the trace equation, and the only place the linearisation's
-   // own residual enters: at x = x_lin the fields above are still the
-   // linearisation's, so this evaluates to exactly -M^-1 r_lin.
-   //
-   // Without it the fields solve the linearised local equations exactly, and
-   // the trace residual is then an affine function of the trace -- the trace
-   // row is linear in the fields and the substitution above is affine -- so
-   // the outer Newton lands on its root in a single step and stops there, at
-   // the solution of the first linearisation rather than of the problem. This
-   // is the -[C' E'] M^-1 r_local term of NPC eq (18), applied to the fields
-   // rather than assembled into the right-hand side: the same thing to second
-   // order, and it evaluates a nonlinear trace term at the corrected fields
-   // instead of at a linearisation of them.
-   //
-   // What must NOT happen is the prediction above carrying -M^-1 r_lin as
-   // well. It once did, so this correction was taken at fields a full local
-   // Newton step from the linearisation point, and d(residual)/dx picked up
-   // M^-1 (J(fields) - M) M^-1 [C; E] -- zero only for a linear problem or an
-   // exact local solve. Measured against a central difference with the
-   // essential trace rows masked, on (c p^2, w) at k = 1 on 8x8 triangles:
-   // the relative error was independent of the step across four decades of h,
-   // and proportional to c times the length of that step. See the unit test
-   // "The reduced gradient is the derivative of the reduced residual".
-   //
-   // This comment used to add that one correction "has to be the *only* one"
-   // here, and that is withdrawn: it was inferred from the paragraph above
-   // rather than measured, and measuring it says otherwise. With the
-   // linearisation point iterated to tolerance, zero, one, two and three
-   // corrections in an evaluation all give 1.2e-11 against a central
-   // difference; with it truncated at a fixed two they are equally wrong, to
-   // four digits. The evaluation count is not what governs the gradient --
-   // the retained fields are, which is the next paragraph.
-   //
-   // Forming a linearisation point is the other job and has no such
-   // constraint: the fields are not being fed to a derivative, they are being
-   // retained, and every later evaluation is an expansion about them. It
-   // therefore iterates to the local solver's tolerance (@a corrections < 0)
-   // rather than taking a fixed number of steps.
-   //
-   // It used to take exactly two, and that count was the accuracy of the
-   // gradient. GetGradient() is the Schur complement of the Jacobian at the
-   // retained fields, and it is the derivative of Mult() only to the extent
-   // that those fields solve the local problem: what is left over enters as
-   // d(trace row)/d(fields) evaluated at the wrong point. Measured against a
-   // central difference on the pedestal source of GS-2 eq (23)/(24) at
-   // n = 16, k = 1, and independent of the difference step across four
-   // decades -- which is what says a Jacobian error rather than a
-   // differencing artefact:
-   //
-   //     steps   sigma^2 = 0.05    0.02        0.01
-   //       1       1.98e-05      1.48e-04    1.13e-03
-   //       2       2.99e-06      2.66e-05    3.06e-04     <- the old value
-   //       4       5.63e-08      1.29e-06    6.16e-05
-   //       8       2.44e-11      6.25e-09    4.14e-06
-   //      16       1.22e-11      1.30e-11    3.56e-08
-   //
-   // against 1e-10 or better for CondenseThenLinearise on the same problem.
-   // So the error was not small on a stiff source -- it was 3e-04 on a
-   // problem that still converges, and O(1) past that -- and the outer Newton
-   // was solving with a Jacobian that did not belong to its residual. On
-   // n = 32, k = 1, sigma^2 = 0.003 the fixed count of two does not converge
-   // in sixty iterations and eight converges in three, where
-   // CondenseThenLinearise takes nine.
-   //
-   // The monotonicity guard is not decoration. These are frozen-Jacobian
-   // steps with no line search, and on a stiff element they run away rather
-   // than stall: taking eight of them blindly at sigma^2 = 0.005 drove the
-   // measurement above to 1.6e+27. Keeping the best iterate turns a runaway
-   // into a truncation, which is the behaviour a caller can reason about.
-   //
-   // It also removed a fault nobody here could reproduce, which is the reason
-   // to keep it even where the accuracy argument does not bite. A caller
-   // reported a solve that threw out of NewtonSolver::Mult's
-   // MFEM_VERIFY(IsFinite(norm)) at iteration ZERO -- so the very first
-   // reduced residual came back non-finite, and under this ordering that call
-   // is the cold two-pass linearisation at the caller's raw initial guess,
-   // where the local Jacobian is under no constraint at all. It never
-   // reproduced on the pedestal source at any of 144 configurations down to
-   // sigma^2 = 0.001. The caller has since re-run against this loop and the
-   // throw is gone, on their problem: their Grad-Shafranov transport barrier
-   // at k = 2 went from failing at zero iterations to converging. So the
-   // runaway WAS the non-finite residual, and the evidence is theirs rather
-   // than ours -- worth stating that way round, because nothing here pins it.
-   Vector ru_l(a_dofs_size), rp_l(d_dofs_size);
-   const bool to_tol = (corrections < 0);
-   const int max_it = to_tol ? std::max(lsolve.iters, 1) : corrections;
-   Vector u_best, p_best;
-   real_t r_first = -1., r_prev = infinity(), r_best = infinity();
-   for (int it = 0; it < max_it; it++)
-   {
-      LocalResidual(el, faces, x_l, bu_l0, bp_l0, u_l, p_l, ru_l, rp_l);
-
-      if (to_tol)
-      {
-         const real_t r_norm = std::sqrt(ru_l*ru_l + rp_l*rp_l);
-         if (it == 0) { r_first = r_norm; }
-         if (r_norm < r_best)
-         {
-            r_best = r_norm;
-            u_best = u_l;
-            p_best = p_l;
-         }
-         // Converged is tested before diverging, and against the immediately
-         // preceding step rather than against the best seen: a converged
-         // element's residual wobbles at round-off, and a guard firing on any
-         // increase would roll it back to an earlier iterate for nothing.
-         // Reasoning rather than measurement -- the two orders gave the same
-         // numbers to four digits on every case measured here -- but rolling
-         // back an element that has converged cannot be right, and the cost
-         // of getting it wrong is paid somewhere this problem does not reach.
-         if (r_norm <= std::max(r_first * lsolve.rtol, lsolve.atol)) { break; }
-         if (r_norm > r_prev)
-         {
-            // Genuinely diverging: keep the best fields seen and stop.
-            u_l = u_best;
-            p_l = p_best;
-            break;
-         }
-         r_prev = r_norm;
-      }
-
-      ru_l.Neg();
-      rp_l.Neg();
-      MultInv(el, ru_l, rp_l, du_l, dp_l, true);
-      u_l += du_l;
-      p_l += dp_l;
-   }
-}
-
-void DarcyHybridization::Relinearise(int el, const Array<int> &faces,
-                                     const BlockVector &x_l,
-                                     const Vector &u_l, const Vector &p_l) const
-{
-   // The local residual at the linearisation point is deliberately not
-   // retained. It used to be, and MultInvLin() used it to predict; that made
-   // the retained residual enter the substitution twice and cost the gradient
-   // its exactness. It now enters once, where it belongs, as the correction
-   // MultInvLin() evaluates at the fields it is given.
-   if (lin_u_next.Size() != fes.GetVSize()) { lin_u_next.SetSize(fes.GetVSize()); }
-   if (lin_p_next.Size() != fes_p.GetVSize()) { lin_p_next.SetSize(fes_p.GetVSize()); }
-
-   // The fields go to the scratch copy: an element later in the loop still
-   // reads the old ones, and in a conforming flux space the two overlap.
-   Array<int> u_vdofs, p_dofs;
-   GetFDofs(el, u_vdofs);
-   fes_p.GetElementVDofs(el, p_dofs);
-   lin_u_next.SetSubVector(u_vdofs, u_l);
-   lin_p_next.SetSubVector(p_dofs, p_l);
-
-   ConstructGrad(el, faces, x_l, u_l, p_l);
 }
 
 void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,

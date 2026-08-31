@@ -358,7 +358,6 @@ int main(int argc, char *argv[])
    real_t newton_rtol = -1.;
    real_t newton_atol = 0.;
    int gradient_mode = -1;
-   bool linearise_first = false;
    real_t hsign = -1.;
    bool bc_full = true;
    bool continuation = false;
@@ -447,9 +446,6 @@ int main(int argc, char *argv[])
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
                   "precondition with GS, 2=matrix free. Negative leaves it.");
-   args.AddOption(&linearise_first, "-lfirst", "--linearise-first",
-                  "-no-lfirst", "--no-linearise-first",
-                  "DarcyHybridization::NLOrdering::LineariseThenCondense.");
    args.AddOption(&pgrad, "-pgrad", "--pressure-gradient",
                   "-no-pgrad", "--no-pressure-gradient",
                   "Give the pressure row a real gradient variable instead of "
@@ -752,11 +748,6 @@ int main(int argc, char *argv[])
    }
 
    DarcyHybridization *hyb = darcy.GetHybridization();
-   if (linearise_first)
-   {
-      hyb->SetNonlinearOrdering(
-         DarcyHybridization::NLOrdering::LineariseThenCondense);
-   }
    if (gradient_mode >= 0)
    {
       hyb->SetGradientMode((gradient_mode == 2)

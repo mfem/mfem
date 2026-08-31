@@ -110,12 +110,19 @@ set(UNIT_TESTS_SRCS
   fem/test_calchessian.cpp
   fem/test_coefficient.cpp
   fem/test_col_lag_der.cpp
+  fem/test_darcy_batched_factor.cpp
   fem/test_darcy_degenerate.cpp
+  fem/test_darcy_functionals.cpp
   fem/test_darcy_hybridization.cpp
   fem/test_darcy_nonlinear.cpp
   fem/test_darcy_nonlinear_mms.cpp
-  fem/test_darcy_system.cpp
+  fem/test_darcy_npc.cpp
+  fem/test_darcy_nullmode.cpp
+  fem/test_darcy_postprocess.cpp
+  fem/test_darcy_reconstruction.cpp
   fem/test_darcy_reduction.cpp
+  fem/test_darcy_system.cpp
+  fem/test_darcy_threaded_assembly.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
   fem/test_dgmassinv.cpp

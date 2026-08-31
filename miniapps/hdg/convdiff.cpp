@@ -165,7 +165,6 @@ int main(int argc, char *argv[])
    bool nonlinear_pot = false;
    bool nonlinear_conv = false;
    int gradient_mode = -1;
-   bool linearise_first = false;
    bool threaded_assembly = false;
    real_t newton_rtol = -1.;
    bool nonlinear_diff = false;
@@ -255,13 +254,6 @@ int main(int argc, char *argv[])
                   "Negative keeps the default, which is 1e-6 and is loose "
                   "enough that a mildly nonlinear problem stops after one "
                   "step.");
-   args.AddOption(&linearise_first, "-lfirst", "--linearise-first",
-                  "-no-lfirst", "--no-linearise-first",
-                  "Hybridize the Jacobian instead of eliminating nonlinearly: "
-                  "DarcyHybridization::NLOrdering::LineariseThenCondense. "
-                  "Every local operation is then a linear solve. Requires a "
-                  "solver that asks for a gradient once per iterate -- Newton "
-                  "does, LBFGS does not.");
    args.AddOption(&threaded_assembly, "-thr", "--threaded-assembly",
                   "-no-thr", "--no-threaded-assembly",
                   "Run the element-local half of the hybridized assembly on "
@@ -847,21 +839,6 @@ int main(int argc, char *argv[])
       {
          darcy->GetHybridization()->SetAssemblyMode(
             DarcyHybridization::AssemblyMode::Threaded);
-      }
-      if (linearise_first)
-      {
-         darcy->GetHybridization()->SetNonlinearOrdering(
-            DarcyHybridization::NLOrdering::LineariseThenCondense);
-
-         // A warning used to stand here, and it is withdrawn rather than
-         // deleted because it was measured. It said that this ordering
-         // advances its linearisation only when a gradient is asked for, so
-         // LBFGS and LBB -- which never ask -- would converge onto the root
-         // of a frozen operator; measured on -nlc -hdg 4 as 113 residual
-         // evaluations, zero advances, and an answer close only because the
-         // problem is mildly nonlinear. Mult() now establishes the
-         // linearisation at its own argument, so those solvers are sound
-         // here and there is nothing to warn about.
       }
       if (gradient_mode >= 0)
       {

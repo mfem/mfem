@@ -182,43 +182,6 @@ public:
       LU,
    };
 
-   /** @brief The order in which hybridization and linearisation are applied to
-       a nonlinear problem.
-
-       The two orderings solve the same discrete problem and agree at
-       convergence; they differ in what an element has to do. */
-   enum class NLOrdering
-   {
-      /** @brief Condense first, linearise second. Eliminating the flux and the
-          potential on an element is itself a nonlinear solve, run once per
-          element per residual evaluation of the outer iteration, and the outer
-          unknown is the trace alone. */
-      CondenseThenLinearise,
-      /** @brief Linearise first, condense second, expressed as an operator on
-          the trace alone: the local blocks are eliminated by a linear solve
-          against one factorisation, warm-started from a retained
-          linearisation.
-
-          **This is NOT the NPC method, and the comment here used to say it
-          was** -- "Newton on the full (q, u, u_hat) system, with the resulting
-          linear system hybridized ... which is how the method is defined,
-          Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855, eqs (14)-(18)".
-          NPC takes ONE Newton step on the full (q, u, u_hat) system: assemble
-          the local blocks and the local residual at the current state,
-          eliminate, solve the trace system, back-solve for the local
-          increments, and advance all three blocks. That is one local
-          factorisation and one local LINEAR solve per outer step, with no
-          local nonlinear iteration anywhere and therefore nothing to
-          globalise locally, and its convergence test is on the full residual.
-
-          This mode cannot be that, because the fields are a *function* of the
-          trace here and in NPC they are Newton state. See
-          SetNonlinearOrdering() for what it is instead and what that costs --
-          and NPCResidual() for the method itself, which is now built and does
-          not go through NLOrdering at all. */
-      LineariseThenCondense,
-   };
-
    /** @brief How the loop over elements that builds the reduced system is
        executed.
 
@@ -401,29 +364,12 @@ private:
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
 
-   NLOrdering nl_ordering{NLOrdering::CondenseThenLinearise};
    GradientMode grad_mode{GradientMode::Assembled};
    AssemblyMode asm_mode{AssemblyMode::Serial};
    LocalFactorMode lfac_mode{LocalFactorMode::Serial};
 
    mutable long num_local_nl_iters{0};
 
-   /** @brief The point the local Jacobian in @a Af_data, @a Df_data and
-       @a Bnl_data was assembled at.
-
-       Only used by NLOrdering::LineariseThenCondense, and refreshed only by
-       GetGradient(); see SetNonlinearOrdering(). @a lin_trace is a trace
-       L-vector, @a lin_u and @a lin_p are flux and potential L-vectors.
-
-       The local residual here is deliberately not retained. Every evaluation
-       recomputes it at the fields it is actually using, which is what keeps
-       the reduced gradient the derivative of the reduced residual; see
-       MultInvLin(), which also records how completely these fields have to
-       solve the local problem for that to hold. */
-   mutable Vector lin_trace, lin_u, lin_p;
-   /// Scratch for the next linearisation point, swapped in when it is complete.
-   mutable Vector lin_u_next, lin_p_next;
-   mutable bool lin_valid{false};
 
    std::unique_ptr<SparseMatrix> He;
    OperatorHandle pHe;
@@ -621,10 +567,6 @@ private:
        is what a reduced operator on the trace alone has to do and what NPC
        does not do. See NPCResidual(). */
    enum class MultNlMode { Mult, Sol, Grad, GradMult, AtFields, GradAtFields };
-   /** @a force_relin makes a MultNlMode::Grad pass re-substitute and
-       relinearise even at the trace it is already linearised about. Only the
-       initialisation below wants that; a gradient asked for twice at one trace
-       must be idempotent, which is why it is not the default. */
    /** @a r_local is where MultNlMode::AtFields writes the local rows of the
        full residual, and is required by that mode and ignored by every other.
        It is a parameter rather than a member because a member would smuggle
@@ -637,11 +579,11 @@ private:
        block and negate the potential block on the way in, both right for a
        linear system and wrong for a Jacobian. */
    void MultNL(MultNlMode mode, const Vector &bu, const Vector &bp,
-               const Vector &x, Vector &y, bool force_relin = false,
+               const Vector &x, Vector &y,
                BlockVector *r_local = nullptr) const;
    void MultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
                Vector &y, BlockVector *r_local = nullptr) const
-   { MultNL(mode, b.GetBlock(0), b.GetBlock(1), x, y, false, r_local); }
+   { MultNL(mode, b.GetBlock(0), b.GetBlock(1), x, y, r_local); }
    void ParMultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
                   Vector &y) const;
    /** @brief The half of a gradient that follows the fields existing: factor
@@ -703,38 +645,12 @@ private:
    void MultInvNL(int el, const Vector &bu_l, const Vector &bp_l,
                   const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
    /** @brief The flux and potential the linearisation implies for the trace
-       @a x_l, that is (q, u)(L) of SetNonlinearOrdering(). */
-   /** @brief Whether the retained linearisation belongs to the trace @a x,
-       compared bit for bit: anything else is a different iterate. */
-   bool LinearisedAt(const Vector &x) const;
-   /** @a corrections is how many frozen-Jacobian local Newton steps follow the
-       affine prediction, or a negative value to iterate to the tolerance
-       SetLocalNLSolver() carries, keeping the best iterate seen.
-
-       Evaluating the reduced operator uses one. Forming a linearisation point
-       iterates, because the retained fields' own local residual is what
-       limits the accuracy of the gradient: it used to take a fixed two steps
-       and the gradient was then wrong by 3e-04 on a stiff source that still
-       converges. MultInvLin() carries that measurement. */
-   void MultInvLin(int el, const Array<int> &faces, const BlockVector &x_l,
-                   const Vector &bu_l, const Vector &bp_l, Vector &u_l,
-                   Vector &p_l, int corrections) const;
-   /** @brief Record @a el's contribution to the linearisation point: the
-       fields and the local Jacobian there. */
-   void Relinearise(int el, const Array<int> &faces, const BlockVector &x_l,
-                    const Vector &u_l, const Vector &p_l) const;
+       @a x_l, by a local nonlinear solve. */
    /// The local nonlinear residual of @a el at (@a u_l, @a p_l).
    void LocalResidual(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &bu_l, const Vector &bp_l,
                       const Vector &u_l, const Vector &p_l,
                       Vector &ru_l, Vector &rp_l) const;
-   /** @brief Apply the inverse of the local block system to (@a bu, @a bp).
-
-       With @a with_bnl, the (0,1) block is taken to be the Jacobian's, that
-       is -/+B^T plus the solution-dependent d(flux residual)/dp of
-       @a Bnl_data, rather than the linear -/+B^T alone. The Schur complement
-       held in @a Df_data must have been built the same way, which is what
-       ComputeH(ComputeHMode::Gradient) does. */
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p, bool with_bnl = false) const;
    void ConstructGrad(int el, const Array<int> &faces, const BlockVector &x_l,
@@ -797,181 +713,21 @@ public:
       lsolve.prec.atol = atol;
    }
 
-   /** @brief Choose whether a nonlinear problem is condensed and then
-       linearised, or linearised and then condensed. The default is
-       NLOrdering::CondenseThenLinearise, which is what every caller written
-       before this had.
+   /** @brief A consequence of a correct Jacobian that a caller can mistake
+       for a regression, kept here because it cost one a day's debugging.
 
-       Under NLOrdering::LineariseThenCondense the object handed to the outer
-       solver is the condensed Jacobian rather than the derivative of a
-       condensed residual, and no element assembles a local Jacobian per local
-       iteration: GetNumLocalNLIterations() stays at zero, because every local
-       step is a solve with the ONE factorisation M already holds. What the
-       reduced operator computes is
-
-           (q, u)(L)  =  (q, u)_lin - M^-1 [C; E] (L - L_lin)
-                         followed by frozen-Jacobian local corrections
-           F(L)       =  the trace residual at (L, q(L), u(L))
-
-       where the linearisation point (L_lin, (q, u)_lin) and the factored
-       local Jacobian M are established at L by whichever of Mult() or
-       GetGradient() reaches a trace they are not already at.
-
-       **What this amounts to, said plainly, because the name invites a wrong
-       reading.** Because the linearisation point is refreshed at whatever
-       trace it is asked about and its corrections are iterated to a tolerance,
-       the field map converges to *the local solve given the trace* -- which is
-       CondenseThenLinearise's field map. In that limit the two modes are the
-       same operator: same reduced residual, same reduced Jacobian. What is
-       left between them is the local solver (a frozen-Jacobian iteration
-       against one factorisation here, a full Newton that re-assembles there)
-       and the warm start. The timing below is the evidence: this mode is the
-       slower of the two on a stiff problem. NPC's actual advantage -- one
-       local linear solve per outer step, no local nonlinear iteration -- is
-       not available through a trace-only Operator and is not what this is.
-
-       Evaluating takes one correction. ESTABLISHING the linearisation point
-       iterates to the tolerance SetLocalNLSolver() carries, and that is not a
-       detail: GetGradient() is the Schur complement of the Jacobian at the
-       retained fields, so it is the derivative of Mult() only as far as those
-       fields solve the local problem. A fixed budget of two steps shipped for
-       a while and put the gradient 3e-04 out on a stiff source that still
-       converged; see MultInvLin() for the sweep, and the unit test "The
-       reduced gradient survives a stiff local problem" for the pin.
-
-       The local residual is deliberately NOT retained and does not appear
-       above. An earlier version of this comment carried a "- r_lin" in the
-       prediction and listed r_lin among the things GetGradient() keeps.
-       Applying a retained residual there is precisely the defect that cost
-       the gradient its exactness, and it is fixed; the comment described the
-       bug rather than the code for some time after.
-
-       dF/dL is the condensed Jacobian, because (q, u)(L) solves the
-       linearised local equations exactly and its sensitivity is the Schur
-       complement itself -- to the extent the retained fields solve the local
-       problem, which is what the paragraph above is about. Where the
-       frozen-Jacobian correction cannot converge, no number of steps recovers
-       it: the guard in MultInvLin() then keeps the best iterate and stops,
-       and the gradient is as good as that point is. Measured on a pedestal
-       source at n = 8, k = 1, that boundary sits between widths 0.05 and 0.02;
-       inside it the gradient matches a central difference to round-off, and
-       outside it neither ordering does.
-
-       SetLocalNLSolver()'s iteration cap and tolerances govern the
-       correction loop that forms the linearisation point, and they matter for
-       the same reason they matter in the other mode: an inexact local solve is
-       itself an error, and here it is the gradient's. The solver TYPE and
-       SetLocalNLPreconditioner() are inert -- the correction is a Newton step
-       on the factors M already holds, so there is nothing to choose.
-
-       **Mult() linearises at its own argument, and that is what makes an
-       ordinary NewtonSolver work.** It did not always. The condition guarding
-       the establishing pass asked whether there was a linearisation anywhere
-       rather than whether there was one *here*, so NewtonSolver -- which
-       evaluates the residual before it asks for the gradient, on every step
-       and not only the first -- would take r at x_k about the linearisation
-       retained at x_{k-1}, then J at x_k, and solve a step from a residual
-       and a Jacobian belonging to different operators. On a stiff semilinear
-       source that failed outright: reported from a caller, three of seven
-       benchmark configurations converged under CondenseThenLinearise and did
-       not converge in sixty iterations under this ordering. Two were the
-       mismatched residual and gradient above. The third was the fixed
-       correction budget described earlier, and with both repaired all seven
-       converge -- 7, 6, 8, 7, 8, 6 and 9 iterations against the exact
-       ordering's 7, 6, 8, 7, 10, 7 and 10.
-
-       That is the caller's reproducer and not a general claim, and the wider
-       sweep is worth having beside it. Over 144 configurations of the same
-       source (n = 8..24, k = 1..3, six widths from 0.02 to 0.001), the cases
-       where CondenseThenLinearise converges and this ordering does not went
-       from six to three, with none added, and where both converge this
-       ordering took fewer iterations in 15 and more in 10. Six further cases
-       stopped converging, every one of them a case CondenseThenLinearise also
-       fails -- so no parity was lost, though converging on a problem the
-       other ordering cannot solve was never evidence of much.
-
-       The caller re-ran their own Grad-Shafranov benchmarks against this and
-       reports six of their seven converging, from four before, including one
-       at 8 iterations against CondenseThenLinearise's 11. Their one survivor
-       is an internal layer at k = 2 on a coarse mesh, cured by one refinement
-       or by dropping an order, and of the same class as the three above.
-
-       **Those four are a property of THIS construction, not of the method it
-       is named after, and an earlier version of this comment mis-attributed
-       them.** They are the frozen-Jacobian local iteration failing to converge
-       where CondenseThenLinearise's full local Newton succeeds -- a local
-       solver quality problem. NPC has no local nonlinear iteration at all, so
-       it cannot have them; "closing them needs the local step globalised" was
-       answering the wrong question.
-
-       **A consequence worth warning about, reported from that re-run.** A
-       better Jacobian can converge to a DIFFERENT solution. Where a coarse
-       discretisation carries more than one, the pre-fix iteration took 134
-       steps on a gradient that did not belong to its residual and drifted onto
-       the branch a Picard iteration finds; with the gradient right it converges
-       faster and stays on its own. The caller had a test pinning Newton against
-       Anderson-Picard on one mesh at 1e-6, and it now reads 9.1e-05 there --
-       bit identical when the tolerance is tightened by four orders, so both
-       iterations are fully converged and their fixed points genuinely differ,
-       at 1e-13 on two other meshes and 3e-06 on a third with no trend. This is
-       not a defect in the fix and it is not a regression in the discretisation:
-       it is a gate that was green for the wrong reason. A caller pinning
-       "two solvers agree" on a single coarse mesh should expect to have to
-       sweep instead.
-
-       It costs nothing in a plain Newton loop: the advance happens in Mult()
-       instead of in GetGradient(), which then finds the linearisation already
-       at x and reuses it -- one advance per iterate either way. A line search
-       does pay one advance per trial point, which is the price of the trial
-       residual being the residual.
-
-       The advance itself is not free, and the figure is measured rather than
-       assumed: 4.2 to 12.1 corrections per element per linearisation on the
-       pedestal cases, against the fixed two that preceded it. End to end this
-       ordering then runs at 0.9 s against CondenseThenLinearise's 0.7 s on one
-       of them, 1.3 s against 0.8 s on another, and level at 1.7 s on the case
-       it previously did not solve; the caller who reported the defect measures
-       the same thing at suite scale, their stiff-source tests going from 351 s
-       to 572 s with no other change. **This mode is not a wall-clock win on a
-       stiff problem** -- MultInvNL's nonlinear iteration disappears and
-       corrections of the same order replace it. What it buys is that every
-       local operation is a linear solve against one factorisation, which is
-       the uniform workload a batched or threaded element loop wants, and a
-       reduced operator whose gradient is the assembled Schur complement.
-
-       A property this mode does NOT have, recorded so that it is not mistaken
-       for a defect and "fixed": across a linearisation that *advances* onto a
-       trace, Mult() is not a function of that trace alone -- the fields it
-       starts the advance from are the previous point's. The gap was measured
-       at 5.0e-10, 4.8e-06 and 1.1e-02 as the nonlinearity grew, and it cannot
-       be closed within this ordering: exactness there needs the local problem
-       solved exactly, which is CondenseThenLinearise. Only the two smaller
-       values are pinned by a test.
-
-       Making the linearisation point iterate did not remove that and was not
-       expected to; it moved where it bites. Measured on a pedestal source at
-       n = 16, k = 1 by evaluating at a trace, wandering, and returning: where
-       the correction converges the gap is round-off, 1.5e-16 at widths 0.05
-       and 0.02 as it was before. Where it does not converge, the guard
-       truncates at a step count that depends on the data, and that is a
-       discontinuity the fixed budget did not have -- 4.3e-08 at width 0.01
-       against 1.5e-16 before, and between 1e-03 and 4e-01 below that. Better
-       where the ordering works and worse where it does not, which is the
-       trade this mode is.
-
-       @note This mode places no requirement on the SOLVER, and the API that
-       used to exist for one is gone. There was a @warning here that the
-       linearisation advanced only in GetGradient(), so an outer iteration had
-       to ask for a gradient once per accepted iterate: KINSolver::SetJFNK(true)
-       needed SetMaxSetupCalls(1) against KINSOL's default of ten, and a
-       gradient-free solver had to call AdvanceLinearisation() by hand, with
-       SetMaxEvalsWithoutAdvance() guarding the requirement. None of it holds
-       now, and all three methods have been removed rather than left as
-       no-ops. A Jacobian-free Newton-Krylov solve that never asks for a
-       gradient reaches the reference answer to 2.5e-15, where the same solve
-       previously converged to round-off on a frozen operator and was wrong in
-       the fourth digit. */
-   void SetNonlinearOrdering(NLOrdering ordering);
+       **A better Jacobian can converge to a DIFFERENT solution.** Where a
+       coarse discretisation carries more than one, an iteration driven by an
+       inaccurate gradient wanders and can settle on the branch a Picard
+       iteration finds; with the gradient right it converges faster and stays
+       on its own. A caller had a test pinning Newton against Anderson-Picard
+       on one mesh at 1e-6, and after a gradient fix it read 9.1e-05 --
+       bit identical when the tolerance was tightened by four orders, so both
+       iterations were fully converged and their fixed points genuinely
+       differed, at 1e-13 on two other meshes and 3e-06 on a third with no
+       trend. That is not a defect and not a discretisation regression: it is
+       a gate that was green for the wrong reason. Pinning "two solvers agree"
+       on a single coarse mesh should be a sweep. */
 
    /** @brief Choose how the element loop that builds the reduced system runs.
        AssemblyMode::Serial by default, so nothing existing changes.
@@ -1100,9 +856,10 @@ public:
 
        What cannot be wrapped is an Operator on the TRACE ALONE: the flux and
        the potential are Newton state here, and a trace-only operator has
-       nowhere to put them. NLOrdering::LineariseThenCondense is what that
-       compromise looks like, and SetNonlinearOrdering() records what it
-       costs.
+       nowhere to put them. A mode that tried -- NLOrdering, and a
+       LineariseThenCondense that claimed to be this method -- is deleted; it
+       was a condensation in disguise, measurably slower than
+       CondenseThenLinearise and unable to solve problems it solved.
 
        One step, given a state (@a x, @a x_tr) and the load @a b:
 
@@ -1133,11 +890,11 @@ public:
        2.3e-14, with GetNumLocalNLIterations() identically zero. The two
        gradient modes agree at every iterate above round-off.
 
-       And it solves problems NLOrdering::LineariseThenCondense cannot. Of the
-       four configurations where CondenseThenLinearise converges and that mode
-       does not, three fall to NPC with a backtracking line search on the full
-       residual -- 13, 10 and 17 steps -- and the fourth stalls at 2.9e-03,
-       which is ordinary Newton stagnation. Undamped, NPC wanders on all four
+       And it solves stiff problems the deleted trace-only mode could not. Of
+       the four configurations where CondenseThenLinearise converges and that
+       mode did not, three fall to NPC with a backtracking line search on the
+       full residual -- 13, 10 and 17 steps -- and the fourth stalls at
+       2.9e-03, which is ordinary Newton stagnation. Undamped, NPC wanders on all four
        exactly as any cold Newton does: **the globalisation this method wants
        is on the OUTER step and there is none to do locally**, which is the
        whole point of the ordering. A line search here is well defined for a
@@ -1189,9 +946,9 @@ public:
    /** @brief The number of local nonlinear iterations performed, summed over
        elements and over every residual and gradient evaluation.
 
-       Zero for a linear problem, and zero under
-       NLOrdering::LineariseThenCondense, which is what says the ordering
-       really changed rather than merely working. */
+       Zero for a linear problem, and zero under NPC -- see NPCResidual() --
+       which is the acceptance signal that NPC really is running a single
+       local linear solve per outer step rather than a condensation. */
    long GetNumLocalNLIterations() const { return num_local_nl_iters; }
 
    /// N/A, use SetConstraintIntegrators()

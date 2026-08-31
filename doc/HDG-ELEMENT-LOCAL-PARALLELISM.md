@@ -64,17 +64,14 @@ reach shared state outside `fem/darcy`:
   by-local-index variants the parallel branch needs. So this half is a change
   to one function inside `fem/darcy`, with none to `Mesh`.
 
-`NLOrdering::LineariseThenCondense` makes the local work **linear solves
-against one factorisation** instead of a nonlinear solve that re-assembles and
-re-factorises per step. On an evaluation that is exactly one such solve; on a
-gradient it iterates to `SetLocalNLSolver()`'s tolerance — measured at 4.2 to
-12.1 steps per element on stiff cases, which is enough that the ordering is
-*not* a wall-clock win there. What is absent per local step is the Jacobian
-*assembly* and
-re-factorisation, not the integrator calls: each correction still evaluates
-`LocalResidual()`, which builds a `LocalNLOperator` and applies it. So the
-thread-safety obstacles above are not avoided by choosing this ordering — only
-the factorisation work is.
+**NPC** makes the local work one linear solve against one factorisation per
+outer step instead of a nonlinear solve that re-assembles and re-factorises —
+see `DarcyHybridization::NPCResidual()`. What is absent per local step is the
+Jacobian *assembly*, not the integrator calls: the residual still goes through
+`LocalNLOperator`. So the thread-safety obstacles above are not avoided by
+choosing NPC, only the factorisation work is. NPC is **serial only** today,
+which is the first thing to fix if this section is picked up: `NPCResidual()`
+calls the serial `MultNL` and sizes on L-dofs.
 
 ## 3. The remaining scatters
 

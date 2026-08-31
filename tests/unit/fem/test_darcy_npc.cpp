@@ -9,6 +9,21 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+// The nonlinear hybridized Darcy operator, and NPC.
+//
+// Two subjects, together because the second is the alternative to the first.
+// CondenseThenLinearise reduces a nonlinear problem to an operator on the
+// TRACE, whose gradient is the Schur complement and whose three gradient modes
+// must agree; NPC (Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855)
+// instead runs Newton on the FULL (q, u, lambda) system with the Jacobian
+// solved by hybridized elimination.
+//
+// This file was test_darcy_linearise_first.cpp and tested a third thing, an
+// NLOrdering::LineariseThenCondense that claimed to be NPC and was not: it was
+// an operator on the trace alone, so its fields were a function of the trace
+// where NPC's are Newton state. It is deleted, and the cases that were about
+// it went with it.
+
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
@@ -17,7 +32,7 @@
 
 using namespace mfem;
 
-namespace darcy_linearise_first
+namespace darcy_npc
 {
 
 // A two-equation nonlinear system whose state dependence is scaled by eps, so
@@ -170,9 +185,8 @@ struct Outcome
    bool converged = false;
 };
 
-/// Solve the same hybridized nonlinear problem in one ordering or the other.
-Outcome Solve(Mesh &mesh, int order, real_t eps,
-              DarcyHybridization::NLOrdering ordering, int max_it = 20,
+/// Solve the hybridized nonlinear problem.
+Outcome Solve(Mesh &mesh, int order, real_t eps, int max_it = 20,
               DarcyHybridization::GradientMode gmode =
                  DarcyHybridization::GradientMode::Assembled)
 {
@@ -218,7 +232,6 @@ Outcome Solve(Mesh &mesh, int order, real_t eps,
    DarcyHybridization *dh = darcy.GetHybridization();
    dh->SetLocalNLSolver(DarcyHybridization::LSsolveType::Newton, 100, 1e-13,
                         1e-15, -1);
-   dh->SetNonlinearOrdering(ordering);
    dh->SetGradientMode(gmode);
 
    BlockVector x(darcy.GetOffsets());
@@ -260,183 +273,9 @@ Outcome Solve(Mesh &mesh, int order, real_t eps,
    return out;
 }
 
-} // namespace darcy_linearise_first
+} // namespace darcy_npc
 
-TEST_CASE("Linearise-then-condense reaches the same solution",
-          "[DarcyForm][NonlinearDarcy][HDG]")
-{
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
-
-   const int order = GENERATE(0, 1);
-   CAPTURE(order);
-
-   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
-                                     1.0, 1.0);
-
-   SECTION("a linear problem is solved in one step either way")
-   {
-      // With the state dependence switched off the local problems are linear,
-      // and the first Newton step has to land on the answer whichever way the
-      // two operations are ordered.
-      Outcome old_way = Solve(mesh, order, 0.0, Ord::CondenseThenLinearise);
-      Outcome new_way = Solve(mesh, order, 0.0, Ord::LineariseThenCondense);
-
-      REQUIRE(old_way.norms.size() >= 2);
-      REQUIRE(new_way.norms.size() >= 2);
-      CAPTURE(old_way.norms[0], old_way.norms[1]);
-      CAPTURE(new_way.norms[0], new_way.norms[1]);
-      REQUIRE(new_way.norms[0] > 1e-3);
-      REQUIRE(new_way.norms[1] < 1e-10 * new_way.norms[0]);
-      REQUIRE(new_way.p.Normlinf() > 1e-4);
-
-      Vector d(new_way.p);
-      d -= old_way.p;
-      REQUIRE(d.Norml2() < 1e-10 * old_way.p.Norml2());
-   }
-
-   SECTION("a nonlinear problem reaches the same discrete solution")
-   {
-      Outcome old_way = Solve(mesh, order, 0.5, Ord::CondenseThenLinearise);
-      Outcome new_way = Solve(mesh, order, 0.5, Ord::LineariseThenCondense);
-
-      REQUIRE(old_way.converged);
-      REQUIRE(new_way.converged);
-      REQUIRE(new_way.p.Normlinf() > 1e-4);
-
-      // The two orderings are two ways of solving one discrete problem, so
-      // where both converge they must agree on its solution.
-      Vector d(new_way.p);
-      d -= old_way.p;
-      CAPTURE(d.Norml2(), old_way.p.Norml2());
-      REQUIRE(d.Norml2() < 1e-9 * old_way.p.Norml2());
-   }
-
-   SECTION("no element runs a nonlinear solve")
-   {
-      // The count is what says the ordering really changed, rather than the
-      // answer merely coming out the same.
-      Outcome old_way = Solve(mesh, order, 0.5, Ord::CondenseThenLinearise);
-      Outcome new_way = Solve(mesh, order, 0.5, Ord::LineariseThenCondense);
-
-      CAPTURE(old_way.local_nl_iters, new_way.local_nl_iters);
-      REQUIRE(old_way.local_nl_iters > 0);
-      REQUIRE(new_way.local_nl_iters == 0);
-   }
-
-   SECTION("the outer iteration converges quadratically")
-   {
-      Outcome new_way = Solve(mesh, order, 0.5, Ord::LineariseThenCondense);
-      REQUIRE(new_way.converged);
-
-      // Once the iteration is in the asymptotic regime each residual is at
-      // worst the square of the one before it, up to a constant. Only the
-      // steps that are neither the first nor already at round-off say
-      // anything, so the window is taken between those.
-      // The lower cut used to be 1e-11 and excluded every step once Mult()
-      // began linearising at its own argument: the history went from
-      // 7.375e-02 2.241e-05 9.08e-09 to 7.375e-02 2.241e-05 4.003e-12, which
-      // is CondenseThenLinearise's 4.00e-12 to three digits. A window that
-      // empties because the thing it measures improved reports a failure, so
-      // it is taken down to round-off instead.
-      int checked = 0;
-      for (size_t k = 1; k + 1 < new_way.norms.size(); k++)
-      {
-         const real_t r0 = new_way.norms[k-1], r1 = new_way.norms[k];
-         if (r0 > 1e-3 || r1 < 1e-14) { continue; }
-         CAPTURE(k, r0, r1);
-         REQUIRE(r1 < 100.0 * r0 * r0);
-         checked++;
-      }
-      std::string hist;
-      for (real_t v : new_way.norms)
-      {
-         char b[32];
-         std::snprintf(b, sizeof(b), " %.3e", v);
-         hist += b;
-      }
-      CAPTURE(new_way.norms.size(), hist);
-      REQUIRE(checked >= 1);
-   }
-}
-
-TEST_CASE("The reduced operator is a function of the trace",
-          "[DarcyForm][NonlinearDarcy][HDG]")
-{
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
-
-   // A residual asked for twice at the same trace has to answer the same
-   // thing, whatever happened in between. It did not: every GetGradient()
-   // advanced the linearisation point, which is a local Newton step at fixed
-   // trace, so the operator was a function of its own history. On a stiff
-   // local problem those ungloablised steps ran away -- the residual grew from
-   // 1.9e+01 to 4.2e+03 between two calls at one trace, and again by 10^4 at
-   // the next. The nonlinearity here is on the potential mass form, which is
-   // the path that had no coverage.
-   const real_t c = GENERATE(1.0, 1.0e2, 1.0e4, 1.0e5);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   CAPTURE(c, ordering == Ord::LineariseThenCondense);
-
-   const int order = 1;
-   Mesh mesh = Mesh::MakeCartesian2D(8, 8, Element::TRIANGLE);
-   const int dim = mesh.Dimension();
-
-   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
-   L2_FECollection p_coll(order, dim);
-   DG_Interface_FECollection t_coll(order, dim);
-   FiniteElementSpace Vh(&mesh, &u_coll, dim);
-   FiniteElementSpace Wh(&mesh, &p_coll);
-   FiniteElementSpace Mh(&mesh, &t_coll);
-
-   DarcyForm darcy(&Vh, &Wh);
-   ConstantCoefficient one(1.0);
-
-   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
-   darcy.GetFluxDivForm()->AddDomainIntegrator(
-      new VectorDivergenceIntegrator());
-   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
-      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
-
-   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
-   Mnl_p->AddDomainIntegrator(new SquareSource(c));
-   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
-   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
-
-   Array<int> ess_bdr(mesh.bdr_attributes.Max()), ess_flux;
-   ess_bdr = 1;
-   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
-   darcy.GetHybridization()->SetNonlinearOrdering(ordering);
-   darcy.GetHybridization()->SetEssentialBC(ess_bdr);
-   darcy.Assemble();
-
-   BlockVector sol(darcy.GetOffsets()), rhs(darcy.GetOffsets());
-   sol = 0.0;
-   rhs = 0.0;
-
-   OperatorHandle R;
-   Vector X, B;
-   darcy.FormLinearSystem(ess_flux, sol, rhs, R, X, B, true);
-
-   Operator &op = *R.Ptr();
-   Vector x(op.Height()), r1(op.Height()), r2(op.Height()), r3(op.Height());
-   x.Randomize(1);
-   x *= 0.1;
-
-   op.Mult(x, r1);
-   op.GetGradient(x);            // the same trace
-   op.Mult(x, r2);
-   op.GetGradient(x);            // and again
-   op.Mult(x, r3);
-
-   CAPTURE(r1.Norml2(), r2.Norml2(), r3.Norml2());
-   REQUIRE(r1.Norml2() > 0.0);
-   REQUIRE(BitwiseEqual(r2, r1));
-   REQUIRE(BitwiseEqual(r3, r2));
-}
-
-namespace darcy_linearise_first
+namespace darcy_npc
 {
 
 /// The semilinear problem of the two tests below: (c p^2, w) on the potential
@@ -459,7 +298,6 @@ struct SemilinearHDG
    /// solution other than zero. The gradient tests below leave it at zero and
    /// evaluate at a randomised trace instead; only a solve needs it.
    SemilinearHDG(int n, int order, real_t c,
-                 DarcyHybridization::NLOrdering ordering,
                  DarcyHybridization::GradientMode gmode =
                     DarcyHybridization::GradientMode::Assembled,
                  real_t src_scale = 0.0)
@@ -492,7 +330,6 @@ struct SemilinearHDG
       ess_bdr = 1;
       darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
                                 ess_flux);
-      darcy.GetHybridization()->SetNonlinearOrdering(ordering);
       darcy.GetHybridization()->SetGradientMode(gmode);
       // The control has to be a control. CondenseThenLinearise solves the
       // local problem to this tolerance, and an inexact local solve is itself
@@ -513,13 +350,12 @@ struct SemilinearHDG
    { return darcy.GetHybridization()->GetEssentialTrueDofs(); }
 };
 
-} // namespace darcy_linearise_first
+} // namespace darcy_npc
 
 TEST_CASE("The reduced gradient is the derivative of the reduced residual",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // GetGradient() against a central difference of Mult(). Under
@@ -540,18 +376,16 @@ TEST_CASE("The reduced gradient is the derivative of the reduced residual",
    // independent of h across four decades -- which is what says a real
    // Jacobian error rather than a differencing artefact.
    const real_t c = GENERATE(1.0, 1.0e1, 1.0e2, 1.0e3);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
    const real_t h = GENERATE(1.0e-4, 1.0e-5);
    // Both ways of producing the gradient have to be the derivative of the same
    // residual. The matrix-free one applies the Schur complement instead of
    // assembling it, and used to leave out d(flux residual)/dp and the diagonal
    // policy's regularisation, either of which makes it a different operator.
    const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
-   CAPTURE(c, h, ordering == Ord::LineariseThenCondense,
+   CAPTURE(c, h,
            gmode == GM::MatrixFree);
 
-   SemilinearHDG P(8, 1, c, ordering, gmode);
+   SemilinearHDG P(8, 1, c, gmode);
    Operator &op = P.op();
    const int m = op.Height();
 
@@ -616,8 +450,7 @@ TEST_CASE("The reduced gradient is the derivative of the reduced residual",
 TEST_CASE("The gradient matches a difference taken in the caller's order",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // The case above hoists GetGradient() above the difference, which is
@@ -635,14 +468,12 @@ TEST_CASE("The gradient matches a difference taken in the caller's order",
    // matters. That the two orders agree is the property; if they ever diverge
    // again, the reduced residual has stopped being a function of its argument.
    const real_t c = GENERATE(1.0, 1.0e1, 1.0e2);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
    const real_t h = 1.0e-5;
    const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
-   CAPTURE(c, h, ordering == Ord::LineariseThenCondense,
+   CAPTURE(c, h,
            gmode == GM::MatrixFree);
 
-   SemilinearHDG P(8, 1, c, ordering, gmode);
+   SemilinearHDG P(8, 1, c, gmode);
    Operator &op = P.op();
    const int m = op.Height();
 
@@ -689,64 +520,10 @@ TEST_CASE("The gradient matches a difference taken in the caller's order",
    REQUIRE(rel < 1.0e-8);
 }
 
-TEST_CASE("The reduced residual survives the linearisation advancing",
-          "[DarcyForm][NonlinearDarcy][HDG]")
-{
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
-   using GM = DarcyHybridization::GradientMode;
-
-   // "The reduced operator is a function of the trace" asks for the residual
-   // twice at a trace the linearisation is already at, where GetGradient() is
-   // idempotent and the answers agree bit for bit. This asks the same thing at
-   // a trace the linearisation ADVANCES to, which is what happens at every
-   // Newton iteration after the first, and there the answers cannot agree
-   // exactly: the retained fields move, and the residual is evaluated at
-   // fields substituted from them.
-   //
-   // What can be required is that the move is second order -- that the
-   // retained fields carry a local residual small enough for the substitution
-   // to be insensitive to which of them it started from. That holds only
-   // because the linearisation is formed with a local correction applied,
-   // including the very first one; retaining the caller's raw initial guess
-   // instead put this at 3.3e-05 rather than 5.0e-10.
-   const real_t c = GENERATE(1.0, 1.0e1);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
-   CAPTURE(c, ordering == Ord::LineariseThenCondense,
-           gmode == GM::MatrixFree);
-
-   SemilinearHDG P(8, 1, c, ordering, gmode);
-   Operator &op = P.op();
-   const int m = op.Height();
-
-   Vector x0(m), x1(m), r(m), ra(m), rb(m);
-   x0.Randomize(1);
-   x0 *= 0.1;
-   x1.Randomize(5);
-   x1 *= 0.1;
-
-   op.Mult(x0, r);
-   op.GetGradient(x0);      // the linearisation sits at x0
-   op.Mult(x1, ra);         // a new trace, the old linearisation
-   op.GetGradient(x1);      // the linearisation advances to x1
-   op.Mult(x1, rb);         // the same trace as ra
-
-   Vector d(rb);
-   d -= ra;
-   const real_t rel = d.Norml2()/std::max(real_t(1e-300), ra.Norml2());
-
-   CAPTURE(rel, ra.Norml2(), rb.Norml2());
-   REQUIRE(ra.Norml2() > 0.0);
-   REQUIRE(rel < 1.0e-7);
-}
-
 TEST_CASE("The three trace solves reach the same solution",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // Hybridization leaves a choice of how much of the trace system to build,
@@ -767,16 +544,14 @@ TEST_CASE("The three trace solves reach the same solution",
    // of rows nothing contributes to, so it was a different operator from the
    // matrix its own GetGradient() would have assembled.
    const real_t c = GENERATE(1.0, 5.0);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
    const real_t src = 4.0;
-   CAPTURE(c, ordering == Ord::LineariseThenCondense);
+   CAPTURE(c);
 
    // The reference: assembled and solved directly.
    Vector p_ref;
    int ref_its = -1;
    {
-      SemilinearHDG P(6, 1, c, ordering, GM::Assembled, src);
+      SemilinearHDG P(6, 1, c, GM::Assembled, src);
       GSSmoother prec;
       GMRESSolver lin;
       lin.SetKDim(400);
@@ -802,7 +577,7 @@ TEST_CASE("The three trace solves reach the same solution",
    const int level = GENERATE(0, 1, 2);
    CAPTURE(level);
 
-   SemilinearHDG P(6, 1, c, ordering,
+   SemilinearHDG P(6, 1, c,
                    (level == 2) ? GM::MatrixFree : GM::Assembled, src);
 
    // Level 2 has no matrix, so it must be solved by something that needs only
@@ -850,8 +625,7 @@ TEST_CASE("The three trace solves reach the same solution",
 TEST_CASE("The trace solves agree where the matrix-free apply is hardest",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // "The three trace solves reach the same solution" drives a semilinear
@@ -867,13 +641,11 @@ TEST_CASE("The trace solves agree where the matrix-free apply is hardest",
    // unit diagonal in the assembled matrix that the apply has to reproduce.
    // Without either, this test fails.
    const real_t eps = GENERATE(0.0, 0.5, 5.0);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   CAPTURE(eps, ordering == Ord::LineariseThenCondense);
+   CAPTURE(eps);
 
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
-   Outcome assembled = Solve(mesh, 1, eps, ordering, 20, GM::Assembled);
-   Outcome matfree = Solve(mesh, 1, eps, ordering, 20, GM::MatrixFree);
+   Outcome assembled = Solve(mesh, 1, eps, 20, GM::Assembled);
+   Outcome matfree = Solve(mesh, 1, eps, 20, GM::MatrixFree);
 
    CAPTURE(assembled.converged, matfree.converged,
            assembled.norms.size(), matfree.norms.size());
@@ -887,7 +659,7 @@ TEST_CASE("The trace solves agree where the matrix-free apply is hardest",
    REQUIRE(d.Norml2() < 1e-9 * assembled.p.Norml2());
 }
 
-namespace darcy_linearise_first
+namespace darcy_npc
 {
 
 /// The block-nonlinear-form problem of Solve(), stopped before the solve so a
@@ -907,7 +679,6 @@ struct CoupledHDG
    BlockVector x;
 
    CoupledHDG(int n, int order, real_t eps,
-              DarcyHybridization::NLOrdering ordering,
               DarcyHybridization::GradientMode gmode)
       : mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL)),
         flux(2, eps), u_coll(order, 2), p_coll(order, 2), t_coll(order, 2),
@@ -941,7 +712,6 @@ struct CoupledHDG
       DarcyHybridization *dh = darcy.GetHybridization();
       dh->SetLocalNLSolver(DarcyHybridization::LSsolveType::Newton, 100, 1e-13,
                            1e-15, -1);
-      dh->SetNonlinearOrdering(ordering);
       dh->SetGradientMode(gmode);
 
       x.Update(darcy.GetOffsets());
@@ -950,13 +720,12 @@ struct CoupledHDG
    }
 };
 
-} // namespace darcy_linearise_first
+} // namespace darcy_npc
 
 TEST_CASE("Both reduced gradients are the derivative on a coupled flux law",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // This is the case that has teeth for the matrix-free apply, and a solve
@@ -968,13 +737,11 @@ TEST_CASE("Both reduced gradients are the derivative on a coupled flux law",
    // block is -/+B^T PLUS d(flux residual)/dp. The matrix-free Schur
    // complement applied the linear part alone and was wrong by the rest.
    const real_t eps = GENERATE(0.5, 5.0);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
    const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
-   CAPTURE(eps, ordering == Ord::LineariseThenCondense,
+   CAPTURE(eps,
            gmode == GM::MatrixFree);
 
-   CoupledHDG P(4, 1, eps, ordering, gmode);
+   CoupledHDG P(4, 1, eps, gmode);
    Operator &op = *P.op;
    const int m = op.Height();
 
@@ -1025,8 +792,7 @@ TEST_CASE("Both reduced gradients are the derivative on a coupled flux law",
 TEST_CASE("Assembling the reduced gradient and applying it give one operator",
           "[DarcyForm][NonlinearDarcy][HDG]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // The two gradient modes must be the same operator, not merely two things
@@ -1041,12 +807,10 @@ TEST_CASE("Assembling the reduced gradient and applying it give one operator",
    // 0.57 overall, on the 64 boundary trace rows of 160 that carry a unit
    // diagonal in the matrix and nothing at all in the apply.
    const real_t eps = GENERATE(0.0, 0.5, 5.0);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   CAPTURE(eps, ordering == Ord::LineariseThenCondense);
+   CAPTURE(eps);
 
-   CoupledHDG A(4, 1, eps, ordering, GM::Assembled);
-   CoupledHDG M(4, 1, eps, ordering, GM::MatrixFree);
+   CoupledHDG A(4, 1, eps, GM::Assembled);
+   CoupledHDG M(4, 1, eps, GM::MatrixFree);
    const int m = A.op->Height();
    REQUIRE(M.op->Height() == m);
 
@@ -1072,7 +836,7 @@ TEST_CASE("Assembling the reduced gradient and applying it give one operator",
    REQUIRE(rel < 1.0e-12);
 }
 
-namespace darcy_linearise_first
+namespace darcy_npc
 {
 
 /// J*v by a difference quotient of the residual, as a Jacobian-free Krylov
@@ -1133,89 +897,9 @@ void SolveJFNK(SemilinearHDG &P, int max_it = 30)
    P.X = x;
 }
 
-} // namespace darcy_linearise_first
+} // namespace darcy_npc
 
-TEST_CASE("A Jacobian-free solve gets the right answer without being told",
-          "[DarcyForm][NonlinearDarcy][HDG]")
-{
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
-   using GM = DarcyHybridization::GradientMode;
-
-   // This used to be the sharpest statement of a caller obligation, and it is
-   // now the sharpest statement that there is no obligation.
-   //
-   // LineariseThenCondense expands about a retained linearisation. That point
-   // used to advance only in GetGradient(), so a Jacobian-free Newton-Krylov
-   // solve -- which differences the residual and asks for no gradient at all
-   // -- converged onto the root of a *frozen* operator: the residual reached
-   // round-off and reported success with an answer wrong in the fourth digit.
-   // The section below measured exactly that, and required the error to be
-   // large.
-   //
-   // Mult() now linearises at its own argument, so the frozen operator cannot
-   // arise, and the same solve lands on the reference. What the section
-   // requires is therefore inverted, and the error it now measures is 2.5e-15
-   // where it used to be over 1e-7.
-   const real_t c = 5.0, src = 4.0;
-
-   Vector p_ref;
-   {
-      SemilinearHDG P(8, 1, c, Ord::CondenseThenLinearise, GM::Assembled, src);
-      GSSmoother prec;
-      GMRESSolver lin;
-      lin.SetKDim(400);
-      lin.SetMaxIter(2000);
-      lin.SetRelTol(1e-14);
-      lin.SetAbsTol(0.0);
-      lin.SetPreconditioner(prec);
-      NewtonSolver newton;
-      newton.SetSolver(lin);
-      newton.SetOperator(P.op());
-      newton.SetRelTol(1e-12);
-      newton.SetAbsTol(1e-14);
-      newton.SetMaxIter(30);
-      newton.SetPrintLevel(-1);
-      newton.Mult(P.B, P.X);
-      REQUIRE(newton.GetConverged());
-      P.darcy.RecoverFEMSolution(P.X, P.sol);
-      p_ref = P.sol.GetBlock(1);
-   }
-   REQUIRE(p_ref.Normlinf() > 1e-4);
-
-   SECTION("no gradient is ever asked for, and the answer is right anyway")
-   {
-      SemilinearHDG P(8, 1, c, Ord::LineariseThenCondense, GM::Assembled, src);
-      SolveJFNK(P);
-
-      Vector r(P.op().Height());
-      P.op().Mult(P.X, r);
-      r -= P.B;
-      P.darcy.RecoverFEMSolution(P.X, P.sol);
-      Vector d(P.sol.GetBlock(1));
-      d -= p_ref;
-      const real_t err = d.Norml2()/p_ref.Norml2();
-
-      // Converged by every measure the solver has, and now also correct.
-      CAPTURE(r.Norml2(), err);
-      REQUIRE(r.Norml2() < 1e-11);
-      REQUIRE(err < 1e-10);
-   }
-
-   SECTION("the other ordering needs nothing, retaining nothing")
-   {
-      SemilinearHDG P(8, 1, c, Ord::CondenseThenLinearise, GM::Assembled, src);
-      SolveJFNK(P);
-
-      P.darcy.RecoverFEMSolution(P.X, P.sol);
-      Vector d(P.sol.GetBlock(1));
-      d -= p_ref;
-      CAPTURE(d.Norml2()/p_ref.Norml2());
-      REQUIRE(d.Norml2() < 1e-9 * p_ref.Norml2());
-   }
-}
-
-namespace darcy_linearise_first
+namespace darcy_npc
 {
 
 /** @brief The pedestal source of Sanchez-Vizuet, Solano & Cerfon, CPC 255
@@ -1333,8 +1017,7 @@ struct PedestalHDG
 
    /// @a amp = 0 makes the whole problem linear without changing anything
    /// else, which is what the NPC cases below need.
-   PedestalHDG(int n, int order, real_t sigma,
-               DarcyHybridization::NLOrdering ordering, real_t amp = 1.0)
+   PedestalHDG(int n, int order, real_t sigma, real_t amp = 1.0)
       : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
         u_coll(order, 2, BasisType::GaussLobatto),
         p_coll(order, 2, BasisType::GaussLobatto),
@@ -1374,7 +1057,6 @@ struct PedestalHDG
       // 1e-6 and hide everything smaller.
       darcy.GetHybridization()->SetLocalNLSolver(
          DarcyHybridization::LSsolveType::Newton, 100, 1e-12, 1e-16, -1);
-      darcy.GetHybridization()->SetNonlinearOrdering(ordering);
       darcy.Assemble();
 
       offs[0] = 0;
@@ -1495,163 +1177,66 @@ NPCOutcome RunNPC(PedestalHDG &P, int max_it, bool line_search,
    return out;
 }
 
-} // namespace darcy_linearise_first
+} // namespace darcy_npc
 
-TEST_CASE("The reduced gradient survives a stiff local problem",
-          "[DarcyForm][NonlinearDarcy][HDG]")
+TEST_CASE("A stiff source converges by condensation and by NPC alike",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
+   using GM = DarcyHybridization::GradientMode;
 
-   // The case above asks the same question of a c u^2 source and cannot reach
-   // this. Swept to c = 1e6 on that configuration, LineariseThenCondense stays
-   // at round-off until the local problem stops being solvable at all, so
-   // there is no window in it where the defect below is visible.
+   // This case used to compare the two ORDERINGS, because a caller required
+   // that no problem converging under CondenseThenLinearise may fail under
+   // LineariseThenCondense. That mode is gone -- it was a condensation in
+   // disguise, measurably slower than the one it was meant to beat and unable
+   // to solve four configurations it solved -- so the comparison that is left
+   // is the one that matters: CondenseThenLinearise, an operator on the trace
+   // whose local problem is solved nonlinearly, against NPC, a Newton on the
+   // whole (q, u, lambda) system whose local work is one linear solve.
    //
-   // What the defect was: the linearisation point took a FIXED two
-   // frozen-Jacobian local corrections, and GetGradient() is the Schur
-   // complement of the Jacobian at the fields that leaves behind. It is the
-   // derivative of Mult() only to the extent that those fields solve the local
-   // problem -- what is left over enters as d(trace row)/d(fields) evaluated
-   // at the wrong point -- so the gradient's accuracy was whatever two steps
-   // happened to buy. The bound below is crossed by four orders on the
-   // configuration this case runs: 1.086e-05 at sigma^2 = 0.05 and 9.299e-05
-   // at 0.02, the same to seven digits at h = 1e-4 and h = 1e-5, which is
-   // what says a Jacobian error rather than a differencing artefact.
-   //
-   // How it scales with the number of corrections, at n = 16:
-   //
-   //     steps   sigma^2 = 0.05    0.02        0.01
-   //       1       1.98e-05      1.48e-04    1.13e-03
-   //       2       2.99e-06      2.66e-05    3.06e-04     <- what shipped
-   //       4       5.63e-08      1.29e-06    6.16e-05
-   //       8       2.44e-11      6.25e-09    4.14e-06
-   //      16       1.22e-11      1.30e-11    3.56e-08
-   //
-   // against 1e-10 or better for CondenseThenLinearise throughout. So on a
-   // stiff source the outer Newton was solving with a Jacobian that did not
-   // belong to its residual, and that is what a caller reported as this
-   // ordering failing where the other one succeeds. The linearisation point
-   // now iterates to the local solver's tolerance instead.
-   const real_t sigma = GENERATE(0.05, 0.02);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   const real_t h = GENERATE(1.0e-4, 1.0e-5);
-   CAPTURE(sigma, h, ordering == Ord::LineariseThenCondense);
-
-   PedestalHDG P(12, 1, sigma, ordering);
-   Operator &op = P.op();
-   const int m = op.Height();
-
-   Array<int> ess_marker(m);
-   ess_marker = 0;
-   for (int i = 0; i < P.ess().Size(); i++) { ess_marker[P.ess()[i]] = 1; }
-   REQUIRE(P.ess().Size() > 0);
-
-   Vector v(m);
-   v.Randomize(11);
-   v -= 0.5;
-   for (int i = 0; i < m; i++) { if (ess_marker[i]) { v(i) = 0.0; } }
-   v *= 1.0/v.Norml2();
-
-   // Newton's own order, and the only order in which the question is well
-   // posed: the residual, then the gradient at that same trace, and the
-   // gradient applied BEFORE the difference perturbs anything.
-   //
-   // Taking it again afterwards -- which is what the case above does, and
-   // what a gradient check is naturally written as -- does not measure this.
-   // Each perturbed Mult() leaves the linearisation at its own argument, so a
-   // second GetGradient(x) drags it back to x and pays for more local
-   // corrections on the way; with the fixed count that was four more than the
-   // residual evaluations had, and it flattered the gradient by seven orders.
-   // On exactly the configuration below, at sigma^2 = 0.05, the old code
-   // reads 1.42e-12 with the gradient re-taken and 1.086e-05 without.
-   // Newton never gets the second call, so neither does this test.
-   Vector r0(m), Jv(m);
-   op.Mult(P.X, r0);
-   op.GetGradient(P.X).Mult(v, Jv);
-
-   Vector xp(P.X), xm(P.X), rp(m), rm(m);
-   xp.Add(h, v);
-   xm.Add(-h, v);
-   op.Mult(xp, rp);
-   op.Mult(xm, rm);
-   Vector fd(rp);
-   fd -= rm;
-   fd *= 1.0/(2.0*h);
-
-   real_t num = 0.0, den = 0.0;
-   for (int i = 0; i < m; i++)
-   {
-      if (ess_marker[i]) { continue; }
-      const real_t d = Jv(i) - fd(i);
-      num += d*d;
-      den += fd(i)*fd(i);
-   }
-   const real_t rel = std::sqrt(num)/std::max(real_t(1e-300), std::sqrt(den));
-
-   CAPTURE(rel, std::sqrt(den));
-   REQUIRE(std::sqrt(den) > 0.0);
-   // Round-off on a central difference grows as 1/h, so this sits well above
-   // the 1e-11 both orderings reach and far below the 3e-06 the fixed count
-   // gave at the milder of the two widths.
-   REQUIRE(rel < 1.0e-8);
-}
-
-TEST_CASE("A stiff source converges under both orderings",
-          "[DarcyForm][NonlinearDarcy][HDG]")
-{
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
-
-   // The acceptance a caller actually asked for, which is weaker than equal
-   // iteration counts and stronger than anything the suite had: no problem
-   // that converges under CondenseThenLinearise may fail under
-   // LineariseThenCondense. The second row below is where that failed --
-   // sixty iterations without converging against the other ordering's ten,
-   // with the residual oscillating by an order of magnitude rather than
-   // falling -- and it now takes eight. A direct trace solve, so the linear
-   // solver is not in question.
-   //
-   // The requirement is NOT met everywhere and this test does not pretend
-   // otherwise. Swept over 144 configurations (n = 8..24, k = 1..3, six
-   // widths from 0.02 down to 0.001), the cases where CondenseThenLinearise
-   // converges and this ordering does not went from six to three, with none
-   // added; the three that remain are at widths where the local problem needs
-   // more than a frozen Jacobian can give. Six further cases converged before
-   // and no longer do, all of them ones where CondenseThenLinearise fails
-   // too, so none is a parity failure -- but converging on a problem the
-   // other ordering cannot solve was never evidence of anything, and losing
-   // it is not obviously a regression.
+   // They are different methods reaching the same discrete solution, so what
+   // is required of them is only that both get there. The second row is where
+   // the deleted mode failed at sixty iterations.
    const int idx = GENERATE(0, 1);
    const int n = (idx == 0) ? 24 : 32;
    const real_t sigma = (idx == 0) ? 0.005 : 0.003;
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   CAPTURE(n, sigma, ordering == Ord::LineariseThenCondense);
+   CAPTURE(n, sigma);
 
-   PedestalHDG P(n, 1, sigma, ordering);
+   SECTION("by condensation, on the trace alone")
+   {
+      PedestalHDG P(n, 1, sigma);
+      UMFPackSolver lin;
+      NewtonSolver newton;
+      newton.SetOperator(P.op());
+      newton.SetSolver(lin);
+      newton.SetRelTol(1e-10);
+      newton.SetAbsTol(1e-14);
+      newton.SetMaxIter(30);
+      newton.SetPrintLevel(-1);
+      newton.iterative_mode = true;
+      newton.Mult(P.RHS, P.X);
 
-   UMFPackSolver lin;
-   NewtonSolver newton;
-   newton.SetOperator(P.op());
-   newton.SetSolver(lin);
-   newton.SetRelTol(1e-10);
-   newton.SetAbsTol(1e-14);
-   newton.SetMaxIter(30);
-   newton.SetPrintLevel(-1);
-   newton.iterative_mode = true;
-   newton.Mult(P.RHS, P.X);
+      CAPTURE(newton.GetNumIterations(), newton.GetFinalNorm());
+      REQUIRE(newton.GetConverged());
+   }
 
-   CAPTURE(newton.GetNumIterations(), newton.GetFinalNorm());
-   REQUIRE(newton.GetConverged());
+   SECTION("by NPC, on the full system")
+   {
+      // Backtracking on the full residual, which is the globalisation NPC
+      // wants and which is well defined only because the fields are state:
+      // the step scales them and the trace together.
+      PedestalHDG P(n, 1, sigma);
+      const NPCOutcome out = RunNPC(P, 40, true, GM::Assembled);
+      CAPTURE(out.norms.size(), out.norms.back(), out.local_nl_iters);
+      REQUIRE(out.converged);
+      REQUIRE(out.local_nl_iters == 0);
+   }
 }
 
 TEST_CASE("One NPC step is exact on a linear problem",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // The check that falsifies the whole construction if the elimination
@@ -1668,13 +1253,9 @@ TEST_CASE("One NPC step is exact on a linear problem",
    // consistent-looking iteration that converges to the wrong thing, or not at
    // all, and nothing else in the suite would notice.
    const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
-   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
-                                  Ord::LineariseThenCondense);
-   CAPTURE(gmode == GM::MatrixFree, ordering == Ord::LineariseThenCondense);
+   CAPTURE(gmode == GM::MatrixFree);
 
-   // NLOrdering is generated to assert it is irrelevant: NPC uses neither
-   // ordering's field map, so setting one must not change the answer.
-   PedestalHDG P(8, 1, 0.05, ordering, 0.0);
+   PedestalHDG P(8, 1, 0.05, 0.0);
    const NPCOutcome out = RunNPC(P, 3, false, gmode);
 
    REQUIRE(out.norms.size() >= 2);
@@ -1689,8 +1270,7 @@ TEST_CASE("One NPC step is exact on a linear problem",
 TEST_CASE("NPC converges quadratically on the full residual",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // Quadratic convergence is what says the assembled Jacobian belongs to the
@@ -1708,7 +1288,7 @@ TEST_CASE("NPC converges quadratically on the full residual",
    const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
    CAPTURE(gmode == GM::MatrixFree);
 
-   PedestalHDG P(12, 1, 0.05, Ord::CondenseThenLinearise);
+   PedestalHDG P(12, 1, 0.05);
    const NPCOutcome out = RunNPC(P, 8, false, gmode);
 
    CAPTURE(out.norms.size(), out.local_nl_iters);
@@ -1729,16 +1309,15 @@ TEST_CASE("NPC converges quadratically on the full residual",
 TEST_CASE("NPC's two gradient modes are the same operator",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // GradientMode::MatrixFree never builds the global trace matrix -- it
    // applies S = H - C' M^-1 [C; E] one element at a time -- so a caller with
    // no room for the reduced matrix can still run NPC. Both modes must be the
    // same operator, or the choice is a change of method.
-   PedestalHDG Pa(12, 1, 0.05, Ord::CondenseThenLinearise);
-   PedestalHDG Pf(12, 1, 0.05, Ord::CondenseThenLinearise);
+   PedestalHDG Pa(12, 1, 0.05);
+   PedestalHDG Pf(12, 1, 0.05);
    const NPCOutcome a = RunNPC(Pa, 8, false, GM::Assembled);
    const NPCOutcome f = RunNPC(Pf, 8, false, GM::MatrixFree);
 
@@ -1763,8 +1342,7 @@ TEST_CASE("NPC's two gradient modes are the same operator",
 TEST_CASE("NPC solves stiff problems LineariseThenCondense cannot",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
    using GM = DarcyHybridization::GradientMode;
 
    // The payoff, and the reason the parity gap was mis-attributed. These are
@@ -1787,7 +1365,7 @@ TEST_CASE("NPC solves stiff problems LineariseThenCondense cannot",
    const real_t sg = (idx == 0) ? 0.003 : (idx == 1) ? 0.002 : 0.003;
    CAPTURE(n, order, sg);
 
-   PedestalHDG P(n, order, sg, Ord::CondenseThenLinearise);
+   PedestalHDG P(n, order, sg);
    const NPCOutcome out = RunNPC(P, 40, true, GM::Assembled);
 
    CAPTURE(out.norms.size(), out.norms.back(), out.local_nl_iters);
@@ -1798,8 +1376,7 @@ TEST_CASE("NPC solves stiff problems LineariseThenCondense cannot",
 TEST_CASE("NewtonSolver drives NPC with no special support",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
 {
-   using namespace darcy_linearise_first;
-   using Ord = DarcyHybridization::NLOrdering;
+   using namespace darcy_npc;
 
    // DarcyNPCOperator is an Operator over the FULL (q, u, lambda) vector, so
    // the fields are in x and an ordinary NewtonSolver carries them with no
@@ -1808,14 +1385,14 @@ TEST_CASE("NewtonSolver drives NPC with no special support",
    // fields and the trace together because they are one vector.
    //
    // What has nowhere to keep the fields is an operator on the TRACE alone.
-   // That is a statement about NLOrdering::LineariseThenCondense and not about
+   // That was a statement about the deleted trace-only mode and not about
    // NewtonSolver, and this file's own notes had it the wrong way round for a
    // while.
    //
    // The iterates must be the hand-written loop's, exactly: the wrapper is
    // bookkeeping, not a method.
-   PedestalHDG Pn(12, 1, 0.05, Ord::CondenseThenLinearise);
-   PedestalHDG Pr(12, 1, 0.05, Ord::CondenseThenLinearise);
+   PedestalHDG Pn(12, 1, 0.05);
+   PedestalHDG Pr(12, 1, 0.05);
 
    BlockVector load = Pn.load();
    DarcyNPCOperator npc(*Pn.darcy.GetHybridization(), Pn.offs, load);
