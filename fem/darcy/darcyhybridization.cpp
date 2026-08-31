@@ -1834,6 +1834,12 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 
    if (H) { return *H; }
 
+   return ReducedGradient(MultNlMode::Grad, x);
+}
+
+Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
+                                              const Vector &x_tr) const
+{
    if (!Df_data.Size()) { AllocD(); }// D is resetted in ConstructGrad()
    if (!E_data.Size() || !G_data.Size()) { AllocEG(); }// E and G are rewritten
    if (!H_data.Size()) { AllocH(); }
@@ -1844,7 +1850,7 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
    }
 
    Vector y;//dummy
-   MultNL(MultNlMode::Grad, darcy_rhs, x, y);
+   MultNL(mode, darcy_rhs, x_tr, y);
 
    if (grad_mode == GradientMode::Assembled)
    {
@@ -1874,8 +1880,10 @@ Operator &DarcyHybridization::GetGradient(const Vector &x) const
 
 void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                                 const Vector &bp, const Vector &x, Vector &y,
-                                bool force_relin) const
+                                bool force_relin, BlockVector *r_local) const
 {
+   MFEM_ASSERT(mode != MultNlMode::AtFields || r_local,
+               "MultNlMode::AtFields has nowhere to put the local residual");
    const int NE = fes.GetNE();
    const int dim = fes.GetMesh()->Dimension();
    DenseMatrix H;
@@ -1965,7 +1973,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
    {
       //Load RHS
 
-      if (mode != MultNlMode::GradMult)
+      if (mode != MultNlMode::GradMult && mode != MultNlMode::GradAtFields)
       {
          GetFDofs(el, u_vdofs);
          bu.GetSubVector(u_vdofs, bu_l);
@@ -1980,6 +1988,11 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       }
       else
       {
+         // GradMult has no right-hand side, and GradAtFields does not read
+         // one: ConstructGrad() ignores it. Both still need the dof lists,
+         // GradAtFields because that is how it reaches the retained fields.
+         GetFDofs(el, u_vdofs);
+         fes_p.GetElementVDofs(el, p_dofs);
          bu_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el]);
          bu_l = 0.;
          bp_l.SetSize(Df_f_offsets[el+1] - Df_f_offsets[el]);
@@ -2041,7 +2054,33 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
          const bool lin_first =
             (nl_ordering == NLOrdering::LineariseThenCondense);
 
-         if (lin_first && lin_valid)
+         if (mode == MultNlMode::AtFields || mode == MultNlMode::GradAtFields)
+         {
+            // NPC. The fields are Newton state and arrive in darcy_u/darcy_p;
+            // nothing here solves, substitutes or linearises. That is the
+            // whole difference from every other mode, and it is why NPC has no
+            // local nonlinear iteration to globalise.
+            darcy_u.GetSubVector(u_vdofs, u_l);
+            darcy_p.GetSubVector(p_dofs, p_l);
+
+            if (mode == MultNlMode::GradAtFields)
+            {
+               ConstructGrad(el, faces, x_l, u_l, p_l);
+               continue;
+            }
+
+            // The local rows of F, at exactly these fields. bu_l already
+            // carries -C^T x from the loop above and LocalNLOperator supplies
+            // E x on the potential row, so between them the trace coupling
+            // appears once on each row.
+            Vector ru_l, rp_l;
+            LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l);
+            r_local->GetBlock(0).AddElementVector(u_vdofs, ru_l);
+            r_local->GetBlock(1).AddElementVector(p_dofs, rp_l);
+            // and fall through to the trace row, which is the same assembly
+            // every other mode uses.
+         }
+         else if (lin_first && lin_valid)
          {
             if (mode == MultNlMode::Grad && !relinearise)
             {
@@ -3771,6 +3810,154 @@ void DarcyHybridization::ProjectSolution(const BlockVector &sol,
       }
 
       sol_r.SetSubVector(c_vdofs, val_tr.GetData());
+   }
+}
+
+// ----------------------------------------------------------------- NPC
+// Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855, eqs (14)-(18). One
+// Newton step on the full (q, u, lambda) system. See the doxygen on
+// NPCResidual() for what these four do together and why they are not wrapped
+// in an Operator.
+
+void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
+                                     const Vector &x_tr, BlockVector &r,
+                                     Vector &r_tr)
+{
+   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+   MFEM_VERIFY(fes.FEColl()->GetContType() ==
+               FiniteElementCollection::DISCONTINUOUS,
+               "NPC needs a discontinuous flux space; an H(div) flux makes the "
+               "local rows a conforming scatter this has not been checked "
+               "against. See the note on NPCResidual().");
+
+   r = 0.;
+   if (r_tr.Size() != c_fes.GetVSize()) { r_tr.SetSize(c_fes.GetVSize()); }
+
+   // The fields are state. MultNL reads them from here and does not touch
+   // them.
+   darcy_u = x.GetBlock(0);
+   darcy_p = x.GetBlock(1);
+
+   MultNL(MultNlMode::AtFields, b, x_tr, r_tr, &r);
+
+   // Essential trace dofs, carried exactly as Mult() carries them: the values
+   // ride in x_tr, the residual is zero on those rows, and NPCGradient()
+   // leaves a unit row to match.
+   r_tr.SetSubVector(ess_tdof_list, 0.);
+}
+
+Operator &DarcyHybridization::NPCGradient(const BlockVector &x,
+                                          const Vector &x_tr)
+{
+   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+
+   // The fields are state; the pass below assembles and factors the local
+   // blocks at them exactly once, and solves nothing.
+   darcy_u = x.GetBlock(0);
+   darcy_p = x.GetBlock(1);
+
+   return ReducedGradient(MultNlMode::GradAtFields, x_tr);
+}
+
+void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
+                                   Vector &b_tr) const
+{
+   // b_tr = -( F_lambda - C' M^-1 F_local ), which is eq (18)'s right-hand
+   // side. The trace row of the Jacobian is [C' G | H], so the potential
+   // enters through G here and through E in NPCRecover() -- the two are
+   // different blocks and swapping them is silent.
+   if (b_tr.Size() != c_fes.GetVSize()) { b_tr.SetSize(c_fes.GetVSize()); }
+   b_tr = 0.;
+
+   const int NE = fes.GetNE();
+   Array<int> u_vdofs, p_dofs, faces, c_dofs;
+   Vector ru_l, rp_l, du_l, dp_l, b_rl;
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetFDofs(el, u_vdofs);
+      r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
+      fes_p.GetElementVDofs(el, p_dofs);
+      r.GetBlock(1).GetSubVector(p_dofs, rp_l);
+
+      // M^-1 F_local, with the JACOBIAN's (0,1) block. ReduceRHS() passes the
+      // linear one, which is right for a linear system and would be a
+      // different operator from the Schur complement here.
+      MultInv(el, ru_l, rp_l, du_l, dp_l, true);
+
+      GetElementFaces(el, faces);
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         int el1, el2;
+         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         DenseMatrix Ct_l;
+         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+
+         b_rl.SetSize(Ct_l.Width());
+         Ct_l.MultTranspose(du_l, b_rl);
+
+         if (G_data.Size() > 0)
+         {
+            DenseMatrix G_l;
+            GetGFaceMatrix(faces[f], el1 != el, G_l);
+            G_l.AddMult(dp_l, b_rl);
+         }
+
+         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         b_tr.AddElementVector(c_dofs, b_rl);
+      }
+   }
+
+   // so far b_tr = C' M^-1 F_local
+   b_tr -= r_tr;
+   b_tr.SetSubVector(ess_tdof_list, 0.);
+}
+
+void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
+                                    BlockVector &dx) const
+{
+   // dx_local = -M^-1 ( F_local + [C; E] dtr ). The flux row takes C^T dtr and
+   // the potential row E dtr, which is the transpose pair of the blocks
+   // NPCReduce() used.
+   dx = 0.;
+
+   const int NE = fes.GetNE();
+   Array<int> u_vdofs, p_dofs, faces, c_dofs;
+   Vector ru_l, rp_l, du_l, dp_l, dtr_f;
+
+   for (int el = 0; el < NE; el++)
+   {
+      GetFDofs(el, u_vdofs);
+      r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
+      fes_p.GetElementVDofs(el, p_dofs);
+      r.GetBlock(1).GetSubVector(p_dofs, rp_l);
+
+      GetElementFaces(el, faces);
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         int el1, el2;
+         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         dtr.GetSubVector(c_dofs, dtr_f);
+
+         DenseMatrix Ct_l;
+         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+         Ct_l.AddMult(dtr_f, ru_l);
+
+         if (E_data.Size() > 0)
+         {
+            DenseMatrix E_l;
+            GetEFaceMatrix(faces[f], el1 != el, E_l);
+            E_l.AddMult(dtr_f, rp_l);
+         }
+      }
+
+      MultInv(el, ru_l, rp_l, du_l, dp_l, true);
+      du_l.Neg();
+      dp_l.Neg();
+
+      dx.GetBlock(0).SetSubVector(u_vdofs, du_l);
+      dx.GetBlock(1).SetSubVector(p_dofs, dp_l);
    }
 }
 

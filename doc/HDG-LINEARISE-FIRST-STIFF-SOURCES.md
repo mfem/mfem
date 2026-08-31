@@ -66,56 +66,36 @@ ordering does not solve. The caller's branch-selection finding, in
 `SetNonlinearOrdering()`'s doxygen, suggests what they probably were: a wrong
 gradient landing on a nearby solution the discretisation also admits.
 
-## 4. The real item: `LineariseThenCondense` is not NPC, and NPC is not built
+## 4. NPC is built
 
-The mode is an `Operator` on the trace alone, so the fields have to be a
-*function* of the trace. In NPC they are Newton state. The gap is bridged by
-retaining a linearisation point and reconstructing the fields, and the
-"correction" is where NPC eq (18)'s `-C' M⁻¹ F_local` ends up — applied to the
-fields instead of assembled into the right-hand side, which the source has
-always described as *"the same thing to second order"*. Second order, not
-equal. Everything §1 lists follows from that bridge.
+`DarcyHybridization::NPCResidual/NPCGradient/NPCReduce/NPCRecover`, and four
+cases tagged `[NPC]` in `tests/unit/fem/test_darcy_linearise_first.cpp`. **The
+measurements and the mechanism are in the code**, on `NPCResidual()`. One
+Newton step on the full `(q, u, λ)` system: one local factorisation, one local
+linear solve, no local nonlinear iteration, convergence judged on the full
+residual. `NPCGradient()` honours `SetGradientMode()`, so the reduced trace
+operator can be an assembled matrix or a matrix-free application of
+`S = H − C'M⁻¹[C;E]` with no global matrix built at all.
 
-Worse, the fix that closed most of the parity gap made the bridge *more* like
-the other mode: iterating the corrections drives the field map to the local
-solve given the trace, which is `CondenseThenLinearise`'s field map, and in
-that limit the two are the same operator. The timing says so — this mode is
-now the slower of the two on a stiff problem. The distinctive thing about NPC
-has been optimised away rather than delivered.
+It converges three of §1's four cases with a backtracking line search on the
+full residual — the fourth stalls at 2.9e-03, which is Newton stagnation. So
+**§1's four are not a limitation of the method**, as this file and the doxygen
+both used to imply; they are a limitation of expressing it as an operator on
+the trace alone.
 
-**NPC, for comparison**, per Nguyen, Peraire & Cockburn, JCP 228 (2009)
-8841–8855, eqs (14)–(18). Newton on `x = (q, u, λ)`:
+### What is left on it
 
-```
-assemble M and F_local at x_k          one factorisation per step
-S   = H - C' M⁻¹ B_λ
-rhs = -(F_λ - C' M⁻¹ F_local)          eq (18)
-solve S Δλ = rhs
-Δlocal = -M⁻¹ (F_local + B_λ Δλ)
-x_{k+1} = x_k + Δx                     all three blocks advance
-```
-
-One local factorisation, one local linear solve, **no local nonlinear
-iteration**, and the convergence test is on the full residual — which is the
-thing the caller's §3 pointed at when it said the reduced test "is judged on
-half of what it is solving", and which was filed as a suggestion rather than
-read as the diagnosis.
-
-**What it needs here.** Every per-element piece already exists:
-`ConstructGrad()` + `ComputeH()` assemble and factor the Jacobian at given
-fields; `LocalNLOperator` evaluates the local residual; `MultNL`'s tail
-assembles the trace row from given fields; the linear branches of
-`ReduceRHS()` and `ComputeSolution()` are exactly the elimination and the
-recovery. What is missing is a driver that treats `(q, u, λ)` as one Newton
-state, and one structural obstacle: `DarcyForm::GetGradient()` is documented
-*"can be used only after Finalize() without enabled hybridization or
-reduction"*, so the full-system Jacobian and hybridization are mutually
-exclusive today.
-
-**The acceptance test is the good part and should be built first.** Hybridized
-elimination is only a way of solving the same linear system, so an NPC Newton
-must produce **the same iterates** as a monolithic Newton on the same full
-system with a direct solve, to round-off. `DarcyForm` already supports the
-monolithic nonlinear route with hybridization off, so the reference exists
-today. Add to it: exactly one local factorisation per outer step, and
-`GetNumLocalNLIterations()` identically zero.
+* **No driver.** The four calls are raw and a caller writes the Newton loop,
+  including the line search. That is deliberate for now — the loop is a dozen
+  lines and wrapping it hides the one thing that matters, that the fields are
+  state — but a friendlier route is wanted, and MFEM's `NewtonSolver` cannot
+  drive this as it stands because it has nowhere to keep the fields.
+* **No line search in the library.** The backtracking above lives in the test.
+  It is the globalisation the method wants and belongs somewhere shared.
+* **Serial only, and discontinuous flux only.** `NPCResidual()` refuses an
+  H(div) flux rather than risk the conforming scatter and the RT sign
+  conventions. Nothing parallel has been attempted: the reduction and recovery
+  loops are serial and the trace solve would need the parallel matrix.
+* **No miniapp flag**, so nothing in the regression suite exercises it.
+* **`ComputeSolution()` is not involved**, so the postprocessing route has not
+  been checked against an NPC solution.

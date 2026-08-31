@@ -213,7 +213,9 @@ public:
 
           This mode cannot be that, because the fields are a *function* of the
           trace here and in NPC they are Newton state. See
-          SetNonlinearOrdering() for what it is instead and what that costs. */
+          SetNonlinearOrdering() for what it is instead and what that costs --
+          and NPCResidual() for the method itself, which is now built and does
+          not go through NLOrdering at all. */
       LineariseThenCondense,
    };
 
@@ -612,18 +614,46 @@ private:
    void AllocD() const;
    void AllocEG() const;
    void AllocH() const;
-   enum class MultNlMode { Mult, Sol, Grad, GradMult };
+   /** @a AtFields and @a GradAtFields are the NPC modes: the flux and
+       potential are Newton STATE, supplied in @a darcy_u and @a darcy_p, and
+       no local solve, substitution or linearisation happens at all. Every
+       other mode produces the fields from the trace one way or another, which
+       is what a reduced operator on the trace alone has to do and what NPC
+       does not do. See NPCResidual(). */
+   enum class MultNlMode { Mult, Sol, Grad, GradMult, AtFields, GradAtFields };
    /** @a force_relin makes a MultNlMode::Grad pass re-substitute and
        relinearise even at the trace it is already linearised about. Only the
        initialisation below wants that; a gradient asked for twice at one trace
        must be idempotent, which is why it is not the default. */
+   /** @a r_local is where MultNlMode::AtFields writes the local rows of the
+       full residual, and is required by that mode and ignored by every other.
+       It is a parameter rather than a member because a member would smuggle
+       state between calls, and because adding one to this class changes its
+       layout -- which, with no header dependency tracking in this build,
+       silently corrupts every translation unit that was not recompiled.
+
+       NPC's reduction and recovery have their own element loops rather than
+       sharing ReduceRHS()/ComputeSolution(): those two apply the LINEAR (0,1)
+       block and negate the potential block on the way in, both right for a
+       linear system and wrong for a Jacobian. */
    void MultNL(MultNlMode mode, const Vector &bu, const Vector &bp,
-               const Vector &x, Vector &y, bool force_relin = false) const;
+               const Vector &x, Vector &y, bool force_relin = false,
+               BlockVector *r_local = nullptr) const;
    void MultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
-               Vector &y) const
-   { MultNL(mode, b.GetBlock(0), b.GetBlock(1), x, y); }
+               Vector &y, BlockVector *r_local = nullptr) const
+   { MultNL(mode, b.GetBlock(0), b.GetBlock(1), x, y, false, r_local); }
    void ParMultNL(MultNlMode mode, const BlockVector &b, const Vector &x,
                   Vector &y) const;
+   /** @brief The half of a gradient that follows the fields existing: factor
+       the local blocks, form the Schur complement, and hand back the reduced
+       trace operator -- assembled or matrix-free according to
+       SetGradientMode().
+
+       @a mode selects how the element loop obtains the fields, and is the only
+       difference between GetGradient() (MultNlMode::Grad, fields produced from
+       the trace) and NPCGradient() (MultNlMode::GradAtFields, fields supplied
+       as Newton state). */
+   Operator &ReducedGradient(MultNlMode mode, const Vector &x_tr) const;
    void InvertA();
    void InvertD();
    /** @brief The size every element's block has in @a f_offsets, or -1
@@ -1058,6 +1088,99 @@ public:
        @a Df_data being occupied by the factored linear potential mass.
        GetGradient() aborts rather than returning something wrong. */
    void SetGradientMode(GradientMode mode);
+
+   /** @name The NPC method: Newton on the full (q, u, lambda) system
+
+       Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855, eqs (14)-(18).
+       These four calls are one Newton step of it, and they are deliberately
+       raw rather than wrapped in an Operator, because the thing that makes NPC
+       what it is cannot survive being wrapped: the flux and the potential are
+       Newton STATE, not a function of the trace, and an Operator on the trace
+       alone has no place to put them. NLOrdering::LineariseThenCondense is
+       what that compromise looks like, and SetNonlinearOrdering() records what
+       it costs.
+
+       One step, given a state (@a x, @a x_tr) and the load @a b:
+
+           NPCResidual (b, x, x_tr, r, r_tr)   F(q, u, lambda)
+           S = NPCGradient (x, x_tr)           factor J; S is the reduced
+                                               H - C' M^-1 [C; E], assembled
+                                               or matrix-free
+           NPCReduce   (r, r_tr, b_tr)         -(F_lambda - C' M^-1 F_local)
+           solve S dtr = b_tr                  the caller's linear solver
+           NPCRecover  (r, dtr, dx)            -M^-1 (F_local + [C; E] dtr)
+           x += dx;  x_tr += dtr
+
+       That is **one local factorisation and one local linear solve per outer
+       step**, no local nonlinear iteration anywhere, and therefore nothing to
+       globalise locally. The convergence test belongs on the full residual
+       (@a r together with @a r_tr), which is the other half of what makes it
+       NPC: a test on the trace residual alone is judging half the system.
+
+       Call NPCGradient() before NPCReduce() and NPCRecover(): both need the
+       factored local blocks and the Schur complement it leaves behind, and
+       both apply the Jacobian's (0,1) block rather than the linear one.
+
+       **What it delivers, measured.** On a problem whose full system is linear
+       one step is exact -- the residual goes 6.96e-01 to 6.22e-15, from any
+       starting point -- which is the check that falsifies the elimination
+       algebra if anything in it is wrong. On the pedestal source it converges
+       quadratically in the full residual: 6.7e-01, 1.5e-02, 2.8e-04, 1.2e-07,
+       2.3e-14, with GetNumLocalNLIterations() identically zero. The two
+       gradient modes agree at every iterate above round-off.
+
+       And it solves problems NLOrdering::LineariseThenCondense cannot. Of the
+       four configurations where CondenseThenLinearise converges and that mode
+       does not, three fall to NPC with a backtracking line search on the full
+       residual -- 13, 10 and 17 steps -- and the fourth stalls at 2.9e-03,
+       which is ordinary Newton stagnation. Undamped, NPC wanders on all four
+       exactly as any cold Newton does: **the globalisation this method wants
+       is on the OUTER step and there is none to do locally**, which is the
+       whole point of the ordering. A line search here is well defined for a
+       reason worth keeping in view -- the fields and the trace scale together
+       because both are state, where a line search on a trace-only operator
+       scales the trace and leaves the field update to whatever the
+       substitution makes of it.
+
+       @note The flux space must be discontinuous, which is the HDG case.
+       An H(div) flux makes the local rows of @a r a conforming scatter with
+       sign conventions this has not been checked against, and the RT paths are
+       deliberately left alone. */
+   ///@{
+   /** @brief The residual of the full system at the given state: no local
+       solve, no substitution, no linearisation.
+
+       @a r's potential block carries the sign convention of the symmetrized
+       system when that is in force, which is what NPCReduce() and
+       NPCRecover() consume; its norm is unaffected and nothing else should
+       read it. */
+   void NPCResidual(const BlockVector &b, const BlockVector &x,
+                    const Vector &x_tr, BlockVector &r, Vector &r_tr);
+   /** @brief Assemble and factor the Jacobian at the same state, and return
+       the reduced trace operator S = H - C' M^-1 [C; E].
+
+       **Whether S is assembled at all is SetGradientMode()'s choice**, exactly
+       as it is for GetGradient(). GradientMode::Assembled returns a
+       SparseMatrix, so a direct solve or an algebraic preconditioner works;
+       GradientMode::MatrixFree returns an Operator that applies S one element
+       at a time with nothing stored, for a Krylov method that needs only the
+       action. NPCReduce() and NPCRecover() work identically either way --
+       both modes factor the local blocks and form the Schur complement, and
+       it is only the global trace matrix that the matrix-free mode declines to
+       build.
+
+       Not available for LocalOpType::FluxNL in matrix-free mode, for the
+       reason SetGradientMode() gives.
+
+       The returned reference does not outlive the next call. */
+   Operator &NPCGradient(const BlockVector &x, const Vector &x_tr);
+   /// @brief The right-hand side of eq (18) for the trace increment.
+   void NPCReduce(const BlockVector &r, const Vector &r_tr,
+                  Vector &b_tr) const;
+   /// @brief The local increments implied by a trace increment @a dtr.
+   void NPCRecover(const BlockVector &r, const Vector &dtr,
+                   BlockVector &dx) const;
+   ///@}
 
    /** @brief The number of local nonlinear iterations performed, summed over
        elements and over every residual and gradient evaluation.

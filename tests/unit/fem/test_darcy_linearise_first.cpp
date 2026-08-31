@@ -1331,8 +1331,10 @@ struct PedestalHDG
    Vector X, RHS;
    OperatorPtr R;
 
+   /// @a amp = 0 makes the whole problem linear without changing anything
+   /// else, which is what the NPC cases below need.
    PedestalHDG(int n, int order, real_t sigma,
-               DarcyHybridization::NLOrdering ordering)
+               DarcyHybridization::NLOrdering ordering, real_t amp = 1.0)
       : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
         u_coll(order, 2, BasisType::GaussLobatto),
         p_coll(order, 2, BasisType::GaussLobatto),
@@ -1352,7 +1354,7 @@ struct PedestalHDG
       all = 1;
 
       NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
-      Mnl_p->AddDomainIntegrator(new PedestalSource(1.0, sigma));
+      Mnl_p->AddDomainIntegrator(new PedestalSource(amp, sigma));
       Mnl_p->AddInteriorFaceIntegrator(interior);
       Mnl_p->AddBdrFaceIntegrator(boundary, all);
 
@@ -1403,7 +1405,95 @@ struct PedestalHDG
    Operator &op() { return *R.Ptr(); }
    const Array<int> &ess() const
    { return darcy.GetHybridization()->GetEssentialTrueDofs(); }
+   /// The load, blocks (flux, potential), as NPCResidual() wants it.
+   BlockVector load() { return BlockVector(rhs, darcy.GetOffsets()); }
+   /// The field state, same blocks. The trace state is @a X.
+   BlockVector state() { return BlockVector(sol, darcy.GetOffsets()); }
 };
+
+struct NPCOutcome
+{
+   std::vector<real_t> norms;   ///< the FULL residual, per Newton step
+   long local_nl_iters = 0;
+   bool converged = false;
+};
+
+/** @brief One NPC Newton loop, driven the way SetNonlinearOrdering()'s
+    doxygen sets it out: residual, gradient, reduce, trace solve, recover,
+    and advance all three blocks. Convergence is judged on the FULL residual,
+    which is the half of NPC a reduced trace operator cannot express.
+
+    @a line_search backtracks on that same full residual. It is well defined
+    here precisely because the fields are Newton state, so the step scales the
+    fields and the trace together. */
+NPCOutcome RunNPC(PedestalHDG &P, int max_it, bool line_search,
+                  DarcyHybridization::GradientMode gmode)
+{
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+   dh.SetGradientMode(gmode);
+
+   BlockVector b = P.load(), x = P.state();
+   Vector &x_tr = P.X;
+   BlockVector r(P.darcy.GetOffsets()), dx(P.darcy.GetOffsets());
+   BlockVector xt(P.darcy.GetOffsets()), rt(P.darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr, xt_tr, rt_tr;
+
+   NPCOutcome out;
+   const long nl0 = dh.GetNumLocalNLIterations();
+
+   for (int it = 0; it <= max_it; it++)
+   {
+      dh.NPCResidual(b, x, x_tr, r, r_tr);
+      const real_t nrm = std::sqrt(r*r + r_tr*r_tr);
+      out.norms.push_back(nrm);
+      if (nrm < 1e-12) { out.converged = true; break; }
+      if (it == max_it) { break; }
+
+      Operator &S = dh.NPCGradient(x, x_tr);
+      dh.NPCReduce(r, r_tr, b_tr);
+
+      dtr.SetSize(b_tr.Size());
+      dtr = 0.0;
+      if (SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S))
+      {
+         UMFPackSolver lin(*Sm);
+         lin.Mult(b_tr, dtr);
+      }
+      else
+      {
+         GMRESSolver lin;
+         lin.SetOperator(S);
+         lin.SetKDim(300);
+         lin.SetMaxIter(3000);
+         lin.SetRelTol(1e-14);
+         lin.SetAbsTol(0.0);
+         lin.SetPrintLevel(-1);
+         lin.Mult(b_tr, dtr);
+      }
+
+      dh.NPCRecover(r, dtr, dx);
+
+      real_t alpha = 1.0;
+      if (line_search)
+      {
+         for (int k = 0; k < 20; k++)
+         {
+            xt = x;
+            xt.Add(alpha, dx);
+            xt_tr = x_tr;
+            xt_tr.Add(alpha, dtr);
+            dh.NPCResidual(b, xt, xt_tr, rt, rt_tr);
+            if (std::sqrt(rt*rt + rt_tr*rt_tr) < nrm) { break; }
+            alpha *= 0.5;
+         }
+      }
+      x.Add(alpha, dx);
+      x_tr.Add(alpha, dtr);
+   }
+
+   out.local_nl_iters = dh.GetNumLocalNLIterations() - nl0;
+   return out;
+}
 
 } // namespace darcy_linearise_first
 
@@ -1555,4 +1645,152 @@ TEST_CASE("A stiff source converges under both orderings",
 
    CAPTURE(newton.GetNumIterations(), newton.GetFinalNorm());
    REQUIRE(newton.GetConverged());
+}
+
+TEST_CASE("One NPC step is exact on a linear problem",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // The check that falsifies the whole construction if the elimination
+   // algebra is wrong, and the reason to run it first. NPC solves the
+   // JACOBIAN system exactly by hybridized elimination, so on a problem whose
+   // full (q, u, lambda) system is linear -- amp = 0 leaves the HDG face
+   // terms, which are linear in the potential -- one Newton step must land on
+   // the solution from any starting point, and the second residual must be
+   // round-off rather than merely small.
+   //
+   // It also pins the two blocks that are easy to swap silently: the trace row
+   // of the Jacobian is [C' G | H] and the local rows take [C; E], so
+   // NPCReduce() uses G and NPCRecover() uses E. Getting that wrong leaves a
+   // consistent-looking iteration that converges to the wrong thing, or not at
+   // all, and nothing else in the suite would notice.
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   const auto ordering = GENERATE(Ord::CondenseThenLinearise,
+                                  Ord::LineariseThenCondense);
+   CAPTURE(gmode == GM::MatrixFree, ordering == Ord::LineariseThenCondense);
+
+   // NLOrdering is generated to assert it is irrelevant: NPC uses neither
+   // ordering's field map, so setting one must not change the answer.
+   PedestalHDG P(8, 1, 0.05, ordering, 0.0);
+   const NPCOutcome out = RunNPC(P, 3, false, gmode);
+
+   REQUIRE(out.norms.size() >= 2);
+   CAPTURE(out.norms[0], out.norms[1]);
+   REQUIRE(out.norms[0] > 1e-3);        // there was something to solve
+   REQUIRE(out.norms[1] < 1e-12);       // and one step solved it
+   // No element ran a nonlinear solve. This is the acceptance item that says
+   // the method really is NPC and not a condensation in disguise.
+   REQUIRE(out.local_nl_iters == 0);
+}
+
+TEST_CASE("NPC converges quadratically on the full residual",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // Quadratic convergence is what says the assembled Jacobian belongs to the
+   // residual: a wrong Jacobian still converges, but linearly. Measured on the
+   // pedestal source at a width both orderings handle:
+   // 6.7e-01, 1.5e-02, 2.8e-04, 1.2e-07, 2.3e-14.
+   //
+   // Worth reading the split as well as the norm. After the first step the
+   // TRACE residual sits at round-off and everything left is in the local
+   // rows, every step, at every width. So an outer iteration judged on the
+   // trace residual alone would report convergence at step one -- which is
+   // what a caller meant by the reduced test being "judged on half of what it
+   // is solving", and it is a property of the system rather than of any
+   // implementation.
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   CAPTURE(gmode == GM::MatrixFree);
+
+   PedestalHDG P(12, 1, 0.05, Ord::CondenseThenLinearise);
+   const NPCOutcome out = RunNPC(P, 8, false, gmode);
+
+   CAPTURE(out.norms.size(), out.local_nl_iters);
+   REQUIRE(out.converged);
+   REQUIRE(out.local_nl_iters == 0);
+   REQUIRE(out.norms.size() <= 7);
+
+   // r_{k+1} <= C r_k^2 with a generous C, checked only while the iterate is
+   // far enough from round-off for the ratio to mean anything.
+   for (std::size_t k = 0; k + 1 < out.norms.size(); k++)
+   {
+      if (out.norms[k] < 1e-5) { continue; }
+      CAPTURE(k, out.norms[k], out.norms[k+1]);
+      REQUIRE(out.norms[k+1] < 20.0 * out.norms[k] * out.norms[k]);
+   }
+}
+
+TEST_CASE("NPC's two gradient modes are the same operator",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // GradientMode::MatrixFree never builds the global trace matrix -- it
+   // applies S = H - C' M^-1 [C; E] one element at a time -- so a caller with
+   // no room for the reduced matrix can still run NPC. Both modes must be the
+   // same operator, or the choice is a change of method.
+   PedestalHDG Pa(12, 1, 0.05, Ord::CondenseThenLinearise);
+   PedestalHDG Pf(12, 1, 0.05, Ord::CondenseThenLinearise);
+   const NPCOutcome a = RunNPC(Pa, 8, false, GM::Assembled);
+   const NPCOutcome f = RunNPC(Pf, 8, false, GM::MatrixFree);
+
+   REQUIRE(a.converged);
+   REQUIRE(f.converged);
+   REQUIRE(a.norms.size() == f.norms.size());
+   for (std::size_t k = 0; k < a.norms.size(); k++)
+   {
+      // Only while the residual is above round-off. Past that both iterations
+      // have converged and the difference between two round-off values is not
+      // a property of anything: the last iterate here is 2.2510e-14 against
+      // 2.2508e-14, which a relative test would call a four-order discrepancy.
+      if (a.norms[k] < 1e-12) { continue; }
+      CAPTURE(k, a.norms[k], f.norms[k]);
+      // The matrix-free trace solve is a Krylov method to 1e-14 rather than a
+      // direct one, so the iterates agree to that and not bitwise. In practice
+      // every iterate above round-off agrees to all six printed digits.
+      REQUIRE(std::abs(a.norms[k] - f.norms[k]) <= 1e-8 * a.norms[k]);
+   }
+}
+
+TEST_CASE("NPC solves stiff problems LineariseThenCondense cannot",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+   using GM = DarcyHybridization::GradientMode;
+
+   // The payoff, and the reason the parity gap was mis-attributed. These are
+   // configurations where CondenseThenLinearise converges and
+   // LineariseThenCondense does not, and the doxygen used to say closing them
+   // needed "the local step globalised". NPC has no local nonlinear iteration
+   // to globalise; what it needs is a line search on the OUTER step, which is
+   // well defined because the fields are Newton state and scale with it.
+   //
+   // Undamped, NPC wanders on these exactly as any cold Newton does. With
+   // backtracking on the full residual, three of the four fall: k = 2 n = 8 in
+   // 13 steps, k = 3 n = 12 in 10, k = 1 n = 32 in 17, all to below 1e-12 and
+   // all with zero local nonlinear iterations. The fourth, k = 1 n = 24 at
+   // 0.003, stalls at 2.9e-03 with the line search grinding -- ordinary Newton
+   // stagnation, not an artefact of the ordering, and CondenseThenLinearise
+   // needs 22 iterations there.
+   const int idx = GENERATE(0, 1, 2);
+   const int n     = (idx == 0) ? 8     : (idx == 1) ? 12    : 32;
+   const int order = (idx == 0) ? 2     : (idx == 1) ? 3     : 1;
+   const real_t sg = (idx == 0) ? 0.003 : (idx == 1) ? 0.002 : 0.003;
+   CAPTURE(n, order, sg);
+
+   PedestalHDG P(n, order, sg, Ord::CondenseThenLinearise);
+   const NPCOutcome out = RunNPC(P, 40, true, GM::Assembled);
+
+   CAPTURE(out.norms.size(), out.norms.back(), out.local_nl_iters);
+   REQUIRE(out.converged);
+   REQUIRE(out.local_nl_iters == 0);
 }
