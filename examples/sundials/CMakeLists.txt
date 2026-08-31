@@ -111,7 +111,7 @@ if (MFEM_ENABLE_TESTING)
       if (NOT (${TEST_NAME} MATCHES ".*p$"))
         add_test(NAME ${PFX}${TEST_NAME}_${MFEM_TEST_DEVICE}_ser
           COMMAND ${PFX}${TEST_NAME} ${THIS_TEST_OPTIONS})
-      else()
+      elseif (MFEM_USE_MPI)
         add_test(NAME ${PFX}${TEST_NAME}_${MFEM_TEST_DEVICE}_np=${MFEM_MPI_NP}
           COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
           ${MPIEXEC_PREFLAGS}
