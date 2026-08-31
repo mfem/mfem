@@ -247,6 +247,8 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                      const bool add)
 {
    AssemblePA(fes);
+   MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+               "AssembleEA not implemented for ragged tensor bases");
    ne = fes.GetMesh()->GetNE();
    const Array<real_t> &B = maps->B;
    const Array<real_t> &G = maps->G;

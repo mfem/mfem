@@ -143,6 +143,9 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
+      MFEM_VERIFY(maps && maps->mode != DofToQuad::RAGGED_TENSOR,
+                  "AssembleDiagonalPA requires AssemblePA to be called first,"
+                  " and is not implemented for ragged tensor bases");
       DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
                              diag, dofs1D, quad1D);
    }
