@@ -20,6 +20,7 @@ namespace mfem
 
 class ConstrainedOperator;
 class RectangularConstrainedOperator;
+class ODESolver;
 
 /// Abstract operator
 class Operator
@@ -462,10 +463,16 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
-   /** @brief Sets the #ImplicitVariableType for ImplicitSolve()*/
+protected:
+   friend class ODESolver; // This is fine since friend is not inherited
+
+   /** @brief Sets the #ImplicitVariableType for ImplicitSolve(). This should be
+    * called by the ODESolver after confirming the ODESolver supports the @a variable_type
+   */
    virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
    { implicit_variable_type = variable_type; }
 
+public:
    /** @brief Returns the #ImplicitVariableType for ImplicitSolve(). */
    virtual ImplicitVariableType GetImplicitVariableType() const
    { return implicit_variable_type; }

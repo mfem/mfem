@@ -201,6 +201,19 @@ public:
    virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
    { return (var == ImplicitVariableType::SLOPE); };
 
+   /** @brief Sets the #ImplicitVariableType for the TimeDependentOperator, if supported.
+       @note This should be called after Init().
+   */
+   void SetImplicitVariableType(const ImplicitVariableType variable_type)
+   {
+      if (!SupportsImplicitVariableType(variable_type))
+      {
+         MFEM_ABORT("The ODE solver does not support the implicit variable type.");
+      }
+      if (f) { f->SetImplicitVariableType(variable_type); }
+   }
+
+
    /** @brief Compute the finite-difference slope, @a $\frac{du}{dt} \approx \frac{u(t+dt)-u(t)}{dt}$,
     * and store it in @a k.
     * @param [in] dt Finite difference step size.
