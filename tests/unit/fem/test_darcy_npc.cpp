@@ -1433,3 +1433,173 @@ TEST_CASE("NewtonSolver drives NPC with no special support",
    }
 }
 
+
+#ifdef MFEM_USE_MPI
+
+namespace darcy_npc
+{
+
+/** @brief The pedestal problem on a ParMesh, for NPC on more than one rank.
+
+    The flux and the potential are L2, so they are rank-local and their L-dofs
+    are their true dofs; the trace lives on the skeleton and a face on the
+    partition boundary is shared. **So the only thing NPC has to get right in
+    parallel is the trace**, and that is what the case below is aimed at. */
+struct ParPedestalHDG
+{
+   Mesh serial;
+   ParMesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   ParFiniteElementSpace Vh, Wh, Mh;
+   ConstantCoefficient one;
+   ConstantTau tau;
+   ParDarcyForm darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X;
+
+   ParPedestalHDG(int n, int order, real_t sigma, real_t amp)
+      : serial(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
+        mesh(MPI_COMM_WORLD, serial),
+        u_coll(order, 2, BasisType::GaussLobatto),
+        p_coll(order, 2, BasisType::GaussLobatto),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        one(1.0), tau(1.0), darcy(&Vh, &Wh), offs(4)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+
+      auto *interior = new HDGDiffusionIntegrator(one, 1.0);
+      auto *boundary = new HDGDiffusionIntegrator(one, 1.0);
+      interior->SetStabilization(tau);
+      boundary->SetStabilization(tau);
+
+      all.SetSize(mesh.bdr_attributes.Max());
+      all = 1;
+
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new PedestalSource(amp, sigma));
+      Mnl_p->AddInteriorFaceIntegrator(interior);
+      Mnl_p->AddBdrFaceIntegrator(boundary, all);
+
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      darcy.GetHybridization()->SetEssentialBC(all);
+      darcy.GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton, 100, 1e-12, 1e-16, -1);
+      darcy.Assemble();
+      darcy.Finalize();
+
+      // The trace block is sized on TRUE dofs, which is what NPC's interface
+      // takes; the other two are L2 and are the same either way.
+      offs[0] = 0;
+      offs[1] = Vh.GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetTrueVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      FunctionCoefficient ramp([](const Vector &x)
+      { return 0.5*(x(1) - 0.6); });
+      ParGridFunction pgf(&Wh), tgf(&Mh);
+      pgf.ProjectCoefficient(ramp);
+      sol.GetBlock(1) = pgf;
+      tgf = 0.0;
+      tgf.ProjectBdrCoefficient(ramp, all);
+      tgf.ParallelProject(sol.GetBlock(2));
+
+      X.MakeRef(sol, offs[2], offs[3] - offs[2]);
+   }
+
+   BlockVector load() { return BlockVector(rhs, darcy.GetOffsets()); }
+   BlockVector state() { return BlockVector(sol, darcy.GetOffsets()); }
+};
+
+} // namespace darcy_npc
+
+TEST_CASE("One NPC step is exact on a linear problem, in parallel",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC][Parallel]")
+{
+   using namespace darcy_npc;
+
+   // The first [Parallel] Darcy case this branch has had, and it is aimed at
+   // the only thing NPC does differently on more than one rank: the trace row
+   // is shared, so it is prolonged on the way in and assembled on the way out,
+   // while the L2 flux and potential need no mapping at all.
+   //
+   // A linear problem is the sharp instrument for that. One NPC step must land
+   // on the solution exactly, so if any of the four prolongation/assembly
+   // steps is wrong -- residual, gradient, reduction, recovery -- the second
+   // residual is not round-off and this fails. A convergence-rate check could
+   // not tell a mis-assembled trace from a merely slow one.
+   CAPTURE(Mpi::WorldSize());
+
+   ParPedestalHDG P(8, 1, 0.05, 0.0);
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   BlockVector b = P.load(), x = P.state();
+   Vector &x_tr = P.X;
+   BlockVector r(P.darcy.GetOffsets()), dx(P.darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+
+   // The flux and potential dofs are rank-local and disjoint, and the trace is
+   // in true dofs, so a global sum of the local dot products is the norm.
+   auto full_norm = [](const BlockVector &rl, const Vector &rt)
+   {
+      return std::sqrt(InnerProduct(MPI_COMM_WORLD, rl, rl)
+                       + InnerProduct(MPI_COMM_WORLD, rt, rt));
+   };
+
+   dh.NPCResidual(b, x, x_tr, r, r_tr);
+   const real_t n0 = full_norm(r, r_tr);
+
+   Operator &S = dh.NPCGradient(x, x_tr);
+   dh.NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   HypreParMatrix *Sp = dynamic_cast<HypreParMatrix*>(&S);
+   REQUIRE(Sp != nullptr);
+   {
+      HypreBoomerAMG amg(*Sp);
+      amg.SetPrintLevel(0);
+      GMRESSolver gmres(MPI_COMM_WORLD);
+      gmres.SetOperator(*Sp);
+      gmres.SetPreconditioner(amg);
+      gmres.SetKDim(200);
+      gmres.SetMaxIter(2000);
+      gmres.SetRelTol(1e-14);
+      gmres.SetAbsTol(0.0);
+      gmres.SetPrintLevel(-1);
+      gmres.Mult(b_tr, dtr);
+   }
+
+   dh.NPCRecover(r, dtr, dx);
+   x += dx;
+   x_tr += dtr;
+
+   dh.NPCResidual(b, x, x_tr, r, r_tr);
+   const real_t n1 = full_norm(r, r_tr);
+
+   CAPTURE(n0, n1);
+   REQUIRE(n0 > 1e-3);                              // something to solve
+   // 1.0e-11 with headroom; it measures below 1e-13 here. A wrong
+   // prolongation or a missing assembly gives O(1), not 1e-10, so nothing is
+   // given up by not pinning the last two digits across hypre versions.
+   REQUIRE(n1 < 1e-11);
+   REQUIRE(dh.GetNumLocalNLIterations() == 0);
+}
+
+#endif // MFEM_USE_MPI

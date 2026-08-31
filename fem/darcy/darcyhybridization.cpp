@@ -1850,7 +1850,10 @@ Operator &DarcyHybridization::ReducedGradient(MultNlMode mode,
    }
 
    Vector y;//dummy
-   MultNL(mode, darcy_rhs, x_tr, y);
+   BlockVector zero_b;
+   const BlockVector &b = (mode == MultNlMode::GradAtFields)
+                          ? (ZeroLoad(zero_b, false), zero_b) : darcy_rhs;
+   MultNL(mode, b, x_tr, y);
 
    if (grad_mode == GradientMode::Assembled)
    {
@@ -2294,8 +2297,11 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
          yb_t.GetBlock(1) = yb.GetBlock(1);
       }
    }
-   else if (mode != MultNlMode::Grad)
+   else if (mode != MultNlMode::Grad && mode != MultNlMode::GradAtFields)
    {
+      // A gradient pass leaves nothing in y -- it writes the local blocks --
+      // so there is nothing to assemble and y_t is a dummy the caller sized
+      // at zero. GradAtFields is NPC's gradient pass and is the same case.
       if (!ParallelC())
       {
          if (tr_cP)
@@ -2869,6 +2875,35 @@ void DarcyHybridization::SetAssemblyMode(AssemblyMode mode)
    }
 
    asm_mode = mode;
+}
+
+/** @brief A correctly sized zero load, for the NPC gradient passes.
+
+    ConstructGrad() does not read the right-hand side, so a gradient pass has
+    no use for one -- but MultNL() and ParMultNL() both reach into the
+    BlockVector they are handed before dispatching, and @a darcy_rhs is only
+    filled as a side effect of ReduceRHS(), which NPC never calls. Depending on
+    that side effect worked in serial only because the tests happened to call
+    FormLinearSystem() first, and segfaulted in parallel the moment they did
+    not. */
+void DarcyHybridization::ZeroLoad(BlockVector &b, bool true_dofs) const
+{
+   Array<int> offs(3);
+   offs[0] = 0;
+   offs[1] = true_dofs ? fes.GetTrueVSize() : fes.GetVSize();
+   offs[2] = true_dofs ? fes_p.GetTrueVSize() : fes_p.GetVSize();
+   offs.PartialSum();
+   b.Update(offs);
+   b = 0.;
+}
+
+const Operator *DarcyHybridization::TraceProlongation() const
+{
+#ifdef MFEM_USE_MPI
+   if (ParallelC()) { return c_fes.GetProlongationMatrix(); }
+#endif
+   // NULL for a serial DG_Interface trace space, where true dofs are L-dofs.
+   return c_fes.GetConformingProlongation();
 }
 
 void DarcyHybridization::LocalResidual(int el, const Array<int> &faces,
@@ -3460,9 +3495,7 @@ void DarcyHybridization::ProjectSolution(const BlockVector &sol,
 // NPCResidual() for what these four do together and why they are not wrapped
 // in an Operator.
 
-void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
-                                     const Vector &x_tr, BlockVector &r,
-                                     Vector &r_tr)
+void DarcyHybridization::NPCCheck() const
 {
    MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
    MFEM_VERIFY(fes.FEColl()->GetContType() ==
@@ -3470,16 +3503,74 @@ void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
                "NPC needs a discontinuous flux space; an H(div) flux makes the "
                "local rows a conforming scatter this has not been checked "
                "against. See the note on NPCResidual().");
+   // LocalOpType::FluxNL is refused, and this is the guard the reduced
+   // operator never had. In that mode ComputeElementH() builds the Schur
+   // complement into a temporary and leaves Df_data holding the factored
+   // LINEAR potential mass -- while MultInv(), which NPCReduce() and
+   // NPCRecover() both use, reads the Schur complement out of Df_data. The
+   // only pre-existing check is MFEM_VERIFY(assemble, ...), which fires for
+   // GradientMode::MatrixFree and NOT for the default Assembled, so NPC would
+   // take the Assembled path without complaint and eliminate with the wrong
+   // operator: a silently wrong answer rather than an abort.
+   //
+   // The mode that preceded NPC hit that abort by accident, through a
+   // cold-start pass it happened to run, and so failed loudly with a message
+   // naming the wrong feature. NPC has no such accident, hence this.
+   MFEM_VERIFY(lop_type != LocalOpType::FluxNL,
+               "NPC does not support LocalOpType::FluxNL: ComputeElementH() "
+               "does not write the Schur complement into Df_data in that mode, "
+               "so the elimination would silently use the factored linear "
+               "potential mass instead. Use "
+               "NLOrdering::CondenseThenLinearise, or teach "
+               "ComputeElementH() to write it back.");
+}
+
+void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
+                                     const Vector &x_tr, BlockVector &r,
+                                     Vector &r_tr)
+{
+   NPCCheck();
+
+   const Operator *tr_P = TraceProlongation();
+
+   // The element loops work in L-dofs; the interface is in true dofs.
+   Vector x_tr_l;
+   if (tr_P)
+   {
+      x_tr_l.SetSize(c_fes.GetVSize());
+      tr_P->Mult(x_tr, x_tr_l);
+   }
+   else
+   {
+      x_tr_l.MakeRef(const_cast<Vector&>(x_tr), 0, x_tr.Size());
+   }
+
+   Vector r_tr_l;
+   if (tr_P)
+   {
+      r_tr_l.SetSize(c_fes.GetVSize());
+      if (r_tr.Size() != tr_P->Width()) { r_tr.SetSize(tr_P->Width()); }
+   }
+   else
+   {
+      if (r_tr.Size() != c_fes.GetVSize()) { r_tr.SetSize(c_fes.GetVSize()); }
+      r_tr_l.MakeRef(r_tr, 0, r_tr.Size());
+   }
 
    r = 0.;
-   if (r_tr.Size() != c_fes.GetVSize()) { r_tr.SetSize(c_fes.GetVSize()); }
 
    // The fields are state. MultNL reads them from here and does not touch
-   // them.
+   // them. They need no mapping: NPC refuses anything but a discontinuous
+   // flux space, so the local blocks are rank-local and their L-dofs are
+   // their true dofs.
    darcy_u = x.GetBlock(0);
    darcy_p = x.GetBlock(1);
 
-   MultNL(MultNlMode::AtFields, b, x_tr, r_tr, &r);
+   MultNL(MultNlMode::AtFields, b, x_tr_l, r_tr_l, &r);
+
+   // The trace row is the only one shared between ranks, so it is the only
+   // one that has to be assembled.
+   if (tr_P) { tr_P->MultTranspose(r_tr_l, r_tr); }
 
    // Essential trace dofs, carried exactly as Mult() carries them: the values
    // ride in x_tr, the residual is zero on those rows, and NPCGradient()
@@ -3487,16 +3578,61 @@ void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
    r_tr.SetSubVector(ess_tdof_list, 0.);
 }
 
+#ifdef MFEM_USE_MPI
+Operator &DarcyHybridization::ParReducedGradient(MultNlMode mode,
+                                                 const Vector &x_tr) const
+{
+   if (!Df_data.Size()) { AllocD(); }// D is resetted in ConstructGrad()
+   if (!E_data.Size() || !G_data.Size()) { AllocEG(); }// E and G are rewritten
+   if (!H_data.Size()) { AllocH(); }
+   else if (c_nlfi_p || c_nlfi) { H_data = 0.; }
+
+   Vector y;//dummy
+   BlockVector zero_b;
+   const BlockVector &b = (mode == MultNlMode::GradAtFields)
+                          ? (ZeroLoad(zero_b, true), zero_b) : darcy_rhs;
+   ParMultNL(mode, b, x_tr, y);
+
+   if (grad_mode == GradientMode::Assembled)
+   {
+      Grad.reset();
+      pGrad.SetType(pH.Type());
+      ComputeParH(ComputeHMode::Gradient, Grad, pGrad);
+      if (ess_tdof_list.Size() > 0)
+      {
+         // Rows and columns here, hypre offering no rows-with-unit-diagonal;
+         // the extra column elimination is harmless for the same reason the
+         // serial path can skip it.
+         delete pGrad.As<HypreParMatrix>()->EliminateRowsCols(ess_tdof_list);
+      }
+      return *pGrad;
+   }
+
+   // Matrix-free: factor the local blocks, assemble nothing.
+   Grad.reset();
+   std::unique_ptr<SparseMatrix> H_unused;
+   ComputeH(ComputeHMode::GradientFactorOnly, H_unused);
+   pGrad.Reset(new ParGradient(*this));
+   return *pGrad;
+}
+#endif //MFEM_USE_MPI
+
 Operator &DarcyHybridization::NPCGradient(const BlockVector &x,
                                           const Vector &x_tr)
 {
-   MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+   NPCCheck();
 
    // The fields are state; the pass below assembles and factors the local
    // blocks at them exactly once, and solves nothing.
    darcy_u = x.GetBlock(0);
    darcy_p = x.GetBlock(1);
 
+#ifdef MFEM_USE_MPI
+   if (ParallelC())
+   {
+      return ParReducedGradient(MultNlMode::GradAtFields, x_tr);
+   }
+#endif
    return ReducedGradient(MultNlMode::GradAtFields, x_tr);
 }
 
@@ -3507,8 +3643,20 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
    // side. The trace row of the Jacobian is [C' G | H], so the potential
    // enters through G here and through E in NPCRecover() -- the two are
    // different blocks and swapping them is silent.
-   if (b_tr.Size() != c_fes.GetVSize()) { b_tr.SetSize(c_fes.GetVSize()); }
-   b_tr = 0.;
+   const Operator *tr_P = TraceProlongation();
+
+   Vector b_tr_l;
+   if (tr_P)
+   {
+      b_tr_l.SetSize(c_fes.GetVSize());
+      if (b_tr.Size() != tr_P->Width()) { b_tr.SetSize(tr_P->Width()); }
+   }
+   else
+   {
+      if (b_tr.Size() != c_fes.GetVSize()) { b_tr.SetSize(c_fes.GetVSize()); }
+      b_tr_l.MakeRef(b_tr, 0, b_tr.Size());
+   }
+   b_tr_l = 0.;
 
    const int NE = fes.GetNE();
    Array<int> u_vdofs, p_dofs, faces, c_dofs;
@@ -3545,11 +3693,15 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
          }
 
          c_fes.GetFaceVDofs(faces[f], c_dofs);
-         b_tr.AddElementVector(c_dofs, b_rl);
+         b_tr_l.AddElementVector(c_dofs, b_rl);
       }
    }
 
-   // so far b_tr = C' M^-1 F_local
+   // C' M^-1 F_local, assembled across ranks: the trace row is the only one
+   // a face shares, and a face on the partition boundary is summed here.
+   if (tr_P) { tr_P->MultTranspose(b_tr_l, b_tr); }
+
+   // and r_tr is already in true dofs
    b_tr -= r_tr;
    b_tr.SetSubVector(ess_tdof_list, 0.);
 }
@@ -3561,6 +3713,18 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
    // the potential row E dtr, which is the transpose pair of the blocks
    // NPCReduce() used.
    dx = 0.;
+
+   const Operator *tr_P = TraceProlongation();
+   Vector dtr_l;
+   if (tr_P)
+   {
+      dtr_l.SetSize(c_fes.GetVSize());
+      tr_P->Mult(dtr, dtr_l);
+   }
+   else
+   {
+      dtr_l.MakeRef(const_cast<Vector&>(dtr), 0, dtr.Size());
+   }
 
    const int NE = fes.GetNE();
    Array<int> u_vdofs, p_dofs, faces, c_dofs;
@@ -3579,7 +3743,7 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
          int el1, el2;
          fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
          c_fes.GetFaceVDofs(faces[f], c_dofs);
-         dtr.GetSubVector(c_dofs, dtr_f);
+         dtr_l.GetSubVector(c_dofs, dtr_f);
 
          DenseMatrix Ct_l;
          GetCtFaceMatrix(faces[f], el1 != el, Ct_l);

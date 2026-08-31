@@ -596,6 +596,10 @@ private:
        the trace) and NPCGradient() (MultNlMode::GradAtFields, fields supplied
        as Newton state). */
    Operator &ReducedGradient(MultNlMode mode, const Vector &x_tr) const;
+#ifdef MFEM_USE_MPI
+   /// The same, assembling a HypreParMatrix. @a x_tr is in TRUE dofs.
+   Operator &ParReducedGradient(MultNlMode mode, const Vector &x_tr) const;
+#endif
    void InvertA();
    void InvertD();
    /** @brief The size every element's block has in @a f_offsets, or -1
@@ -646,6 +650,22 @@ private:
                   const BlockVector &x_l, Vector &u_l, Vector &p_l) const;
    /** @brief The flux and potential the linearisation implies for the trace
        @a x_l, by a local nonlinear solve. */
+   /** @brief The trace space's prolongation from true dofs to L-dofs, or
+       NULL when the two coincide and no mapping is needed.
+
+       NPC's element loops work in L-dofs, as every loop in this class does;
+       its public interface is in true dofs, as every MFEM Operator's is. This
+       is the one place the two meet. The flux and potential need no such
+       mapping under NPC because it refuses anything but a discontinuous flux
+       space, so their L-dofs are their true dofs. */
+   const Operator *TraceProlongation() const;
+   /** @brief NPC's shared precondition: finalized, a discontinuous flux
+       space, and not LocalOpType::FluxNL. The last is the guard the reduced
+       operator never had; the reason is at the definition. */
+   void NPCCheck() const;
+   /// A correctly sized zero load for a gradient pass; see the definition.
+   void ZeroLoad(BlockVector &b, bool true_dofs) const;
+
    /// The local nonlinear residual of @a el at (@a u_l, @a p_l).
    void LocalResidual(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &bu_l, const Vector &bp_l,

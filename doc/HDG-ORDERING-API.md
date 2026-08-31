@@ -146,47 +146,167 @@ through the converged local solve.
 
 ## 3. NPC — Newton on the full system
 
-Not an ordering, and not reached through `SetNonlinearOrdering()`: NPC's
-unknown is the whole `(q, u, λ)` vector rather than the trace, so it is a
-different `Operator` rather than a different mode of the same one. One Newton
-step, per `NPCResidual()`'s doxygen, which carries the detail and the
-measurements:
+Not an ordering, and not reached through any mode setter: NPC's unknown is the
+whole `(q, u, λ)` vector rather than the trace, so it is a different
+`Operator`. One Newton step, per Nguyen, Peraire & Cockburn eqs (14)–(18):
 
 ```
 assemble M and F_local at x_k          one factorisation per step
-S   = H - C' M^-1 B_λ
-rhs = -(F_λ - C' M^-1 F_local)          eq (18)
+S   = H - C' M⁻¹ B_λ
+rhs = -(F_λ - C' M⁻¹ F_local)          eq (18)
 solve S Δλ = rhs
-Δlocal = -M^-1 (F_local + B_λ Δλ)
-x_{k+1} = x_k + Δx                      all three blocks advance
+Δlocal = -M⁻¹ (F_local + B_λ Δλ)
+x_{k+1} = x_k + Δx                     all three blocks advance
 ```
 
 **One local factorisation and one local linear solve per outer step, no local
 nonlinear iteration anywhere**, and the convergence test is on the full
-residual — which is the half a trace-only operator cannot express, and the
-half a caller pointed at when they said the reduced test "is judged on half of
-what it is solving".
+residual — which is the half a trace-only operator cannot express.
 
-Three practical consequences of the unknown being one vector:
+### 3.1 The wrapper, which is what to use
 
-* an ordinary `NewtonSolver` drives it with no special support, and so does
-  `KINSolver` — the latter wants `SetMaxSetupCalls(1)`, or KINSOL's lazy
-  `LinSysSetup` makes it a lagged-Jacobian Newton (12 iterations against 4 on
-  one case, both converged);
-* a line search scales the fields and the trace **together**, because they are
-  one vector. `NewtonSolver::ComputeScalingFactor` is the hook;
-* `SetGradientMode()` still applies, so the reduced trace operator need not be
-  assembled at all — matrix-free applies `S` element by element.
+```cpp
+Array<int> offs(4);                    // {0, flux, potential, trace}
+offs[0] = 0;
+offs[1] = Vh.GetVSize();               // flux, L2 -> L-dofs are true dofs
+offs[2] = Wh.GetVSize();               // potential, likewise
+offs[3] = Mh.GetTrueVSize();           // trace: TRUE dofs, serial or parallel
+offs.PartialSum();
 
-`GetGradient()` returns a **solve-only** handle whose `Mult()` aborts: after
-`ComputeH()` the local arrays hold the factored blocks and the Schur
-complement, so `J` cannot be applied out of them without unfactored copies.
-`DarcyNPCSolver` is what inverts it.
+BlockVector load(rhs, darcy.GetOffsets());   // (flux, potential) only
+DarcyNPCOperator npc(*darcy.GetHybridization(), offs, load);
 
-**Restrictions.** Serial only — `NPCResidual()` calls the serial `MultNL` and
-sizes on L-dofs. Discontinuous flux only — an H(div) flux makes the local rows
-a conforming scatter with sign conventions this has not been checked against,
-and it refuses rather than risking them.
+UMFPackSolver    trace;                // or CG/GMRES+AMG, or matrix-free
+DarcyNPCSolver   lin(trace);
+
+NewtonSolver newton;
+newton.SetOperator(npc);
+newton.SetSolver(lin);
+newton.Mult(zero, x);                  // x is the full (q, u, λ) vector
+```
+
+`npc.Height()` is `offs.Last()`; `x` and the residual are that long.
+`npc.LocalOffsets()` gives `{0, flux, potential}` for a caller splitting the
+local half back out.
+
+`DarcyNPCSolver` takes **any** `Solver` for the reduced trace system and
+re-points it at the new `S` on every Newton step. Nothing else is needed:
+`NewtonSolver` and `KINSolver` both drive this with no special support,
+because the fields are in `x` where every outer solver already keeps its
+state.
+
+**`KINSolver` wants `SetMaxSetupCalls(1)`.** KINSOL calls `LinSysSetup` every
+tenth step by default, which makes this a lagged-Jacobian Newton — legitimate,
+and self-consistent because the reduction and recovery eliminate with whatever
+factorisation is currently held, but it costs iterations: 12 against 4 on one
+case, both converged to round-off.
+
+**The line search is the caller's.** `NewtonSolver::ComputeScalingFactor` is
+virtual, and backtracking on the full residual is what NPC wants — well
+defined here precisely because the fields and the trace are one vector and
+scale together. A dozen-line subclass converges three stiff configurations
+that the deleted trace-only mode could not, in 13, 10 and 17 steps. Nothing
+about it is Darcy-specific, so it is not in the library.
+
+### 3.2 The four raw calls
+
+The wrapper is bookkeeping over these; use them directly to see the shape, or
+to drive an iteration `NewtonSolver` cannot express.
+
+```cpp
+void      NPCResidual(const BlockVector &b, const BlockVector &x,
+                      const Vector &x_tr, BlockVector &r, Vector &r_tr);
+Operator &NPCGradient(const BlockVector &x, const Vector &x_tr);
+void      NPCReduce  (const BlockVector &r, const Vector &r_tr, Vector &b_tr);
+void      NPCRecover (const BlockVector &r, const Vector &dtr, BlockVector &dx);
+```
+
+`b`, `x`, `r` and `dx` are two-block `(flux, potential)`; `x_tr`, `r_tr`,
+`b_tr` and `dtr` are trace vectors in **true dofs**. One step is
+
+```cpp
+dh.NPCResidual(b, x, x_tr, r, r_tr);        // F(q, u, λ)
+Operator &S = dh.NPCGradient(x, x_tr);      // assemble + factor J
+dh.NPCReduce(r, r_tr, b_tr);                // eq (18) right-hand side
+solver.Mult(b_tr, dtr);                     // your trace solve
+dh.NPCRecover(r, dtr, dx);
+x += dx;  x_tr += dtr;
+```
+
+**Call `NPCGradient()` before `NPCReduce()` and `NPCRecover()`** — both need
+the factored local blocks and the Schur complement it leaves behind, and both
+apply the Jacobian's `(0,1)` block rather than the linear one.
+
+`r`'s potential block carries the symmetrized sign convention when that is in
+force. Its norm is unaffected and nothing but the calls above should read it.
+
+### 3.3 The gradient, and not assembling it
+
+`NPCGradient()` honours `SetGradientMode()`:
+
+| | `S` is | trace solver |
+|---|---|---|
+| `Assembled` (default) | `SparseMatrix`, or `HypreParMatrix` in parallel | anything, including direct and AMG |
+| `MatrixFree` | an `Operator` applying `S = H - C'M⁻¹[C;E]` element by element, **no global matrix** | a Krylov method needing only the action |
+
+Both factor the local blocks and form the local Schur complement, so the
+reduction and the recovery are identical either way; only the *global* trace
+matrix is declined. The two agree at every iterate above round-off.
+
+**The returned handle is solve-only and its `Mult()` aborts.** After
+`ComputeH()` the local arrays hold the *factored* blocks, so `J` cannot be
+applied out of them without unfactored copies of every block.
+`DarcyNPCSolver::SetOperator` dynamic-casts for it, so a plain Krylov method
+over `GetGradient()` fails loudly rather than silently — and **JFNK is
+therefore unavailable**, since it needs exactly that action.
+
+**A gradient-free outer solve is a different case and the answer is
+measured, not inferred.** `LBFGSSolver` and `LBBSolver` never call
+`GetGradient()` — they read `oper->Mult` only — so nothing stops a caller
+handing them `DarcyNPCOperator`; `DarcyNPCSolver` is then simply unused and
+the hybridized elimination never runs. Tried on a case `NewtonSolver` solves
+in four steps, LBFGS **diverges to NaN**. Whether that is L-BFGS wanting a
+gradient field the full residual does not provide, or a scaling between the
+local and trace rows, has not been established. Either way it is not a route
+to recommend.
+
+### 3.4 Parallel
+
+Supported, and the same calls. The flux and potential are L2, hence rank-local
+with L-dofs equal to true dofs and **no communication at all**; the trace lives
+on the skeleton and is the only thing shared, so it is prolonged on the way in
+and assembled on the way out. Size the trace block with `GetTrueVSize()` as
+above and everything else follows.
+
+Pinned by `[NPC][Parallel]` in `tests/unit/fem/test_darcy_npc.cpp`, the first
+`[Parallel]` Darcy case in this tree: on a problem whose full system is linear
+one NPC step is exact on two ranks, to below 1e-13. That is the sharp check —
+get any one of the four prolongation or assembly steps wrong and the second
+residual is O(1), not 1e-10.
+
+### 3.5 What it refuses, and what is missing
+
+Two hard refusals, both `MFEM_VERIFY` in `NPCCheck()`:
+
+* **an H(div) flux space.** The local rows would be a conforming scatter with
+  sign conventions this has not been checked against, and the RT paths are
+  deliberately left alone;
+* **`LocalOpType::FluxNL`** — only the flux mass nonlinear, with a potential
+  mass present. `ComputeElementH()` builds the Schur complement into a
+  temporary in that mode and leaves `Df_data` holding the factored *linear
+  potential mass*, which is what `MultInv()` reads. Without the guard NPC
+  returns a silently wrong answer; see §7.3.
+
+Missing rather than refused:
+
+* **no miniapp flag**, so nothing in the regression suite exercises NPC.
+  `DarcyOperator::ImplicitSolve` drives a trace-sized unknown and then calls
+  `RecoverFEMSolution` to rebuild the fields from the trace — the exact
+  back-substitution NPC does not want, since the fields are already state;
+* **the trace right-hand side has no slot.** `load` is `(flux, potential)`;
+  a Neumann datum assembled on the trace has to ride in `b` of
+  `NewtonSolver::Mult(b, x)`;
+* **`ComputeSolution()` has not been exercised** against an NPC solution.
 
 ## 4. Sizes
 
@@ -306,9 +426,9 @@ deleted mode broke.
 | `NewtonSolver` | works | works, and needs to know nothing |
 | Newton + line search | works | works, and the search scales the fields with the trace |
 | lagged Jacobian | works | works |
-| `LBFGSSolver`, `LBBSolver` | works | not applicable — the Jacobian handle is solve-only, so a gradient-free outer solve has nothing to pair with `DarcyNPCSolver` |
+| `LBFGSSolver`, `LBBSolver` | works | accepted but **diverges to NaN** where Newton takes four steps; they never ask for a gradient, so the elimination goes unused. See §3.3 |
 | `KINSolver`, matrix-based | works | works; **use `SetMaxSetupCalls(1)`** or KINSOL's lazy `LinSysSetup` gives a lagged-Jacobian Newton (12 iterations against 4, both converged) |
-| JFNK / matrix-free outer solve | works | not applicable, same reason as LBFGS |
+| JFNK / matrix-free outer solve | works | **unavailable** — it needs the Jacobian's action and the handle is solve-only |
 
 `SetLocalNLSolver()` configures the local nonlinear solve that
 `CondenseThenLinearise` runs per element. **NPC has no local nonlinear solve**,
