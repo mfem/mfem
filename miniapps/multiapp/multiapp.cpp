@@ -89,11 +89,13 @@ void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
     }
     else if(tape->IsRecording()) // All tapes are the same and recording is active
     {
+        // Register the operation on the tape
         auto op = new GraphOperation(*this, inputs, outputs, execute, grad, grad_transpose);
         tape->RegisterOperation(op);
     }
     else
     {   // Same tape but not recording, or no tape at all
+        // Should we abort or do nothing?
         // MFEM_ABORT("Input fields are not being recorded on a tape. Cannot register operation.");
     }
 }
@@ -105,7 +107,7 @@ void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
     auto grad_mult = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
                            { this->GradientMult(x, dx, dy); };
     auto grad_mult_transpose = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                      { this->GradientMultTranspose(x, dx, dy); };
+                                     { this->GradientMultTranspose(x, dx, dy); };
     RegisterFields(inputs, outputs, execute, grad_mult, grad_mult_transpose);
 }
 

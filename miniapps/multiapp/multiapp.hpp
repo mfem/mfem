@@ -403,12 +403,62 @@ public:
 
     virtual void RegisterFields(std::initializer_list<Field*> inputs,
                                 std::initializer_list<Field*> outputs);
-    
+
     virtual void RegisterFields(std::initializer_list<Field*> inputs,
                                 std::initializer_list<Field*> outputs,
                                 GraphOperation::ExecuteFunc execute,
                                 GraphOperation::GradFunc grad = nullptr,
                                 GraphOperation::GradFunc grad_transpose = nullptr);
+
+    // Register fields with state-dependent execution
+    template<typename StateType,
+            typename GraphOpType = StateDependentGraphOperation<GraphNode, StateType>,
+            typename StateGetFunc = typename GraphOpType::StateGetFunc,
+            typename StateSetFunc =typename GraphOpType::StateSetFunc,
+            // Disable to avoid conflict with other RegisterFields method when StateType is a lambda
+            std::enable_if_t<!std::is_same_v<StateType, GraphOpType::ExecuteFunc>, bool> = true
+            >
+    void RegisterFields(std::initializer_list<Field*> inputs,
+                        std::initializer_list<Field*> outputs,
+                        StateType &state, StateGetFunc get_state, StateSetFunc set_state,
+                        GraphOperation::ExecuteFunc execute = nullptr,
+                        GraphOperation::GradFunc grad = nullptr,
+                        GraphOperation::GradFunc grad_transpose = nullptr)
+    {
+        // Tape operations
+        // Check if all input fields have the same, non-null tape; if so, register this node with that tape
+        bool has_same_tape = std::empty(inputs) || std::equal(inputs.begin(), inputs.end(), inputs.begin(),
+                            [](const Field *a, const Field *b)
+                            { return (a->GetTape() && (a->GetTape() == b->GetTape())); });
+
+        auto in = inputs.begin();
+        auto tape = (*in)->GetTape();
+        if(!has_same_tape && tape)
+        {
+            MFEM_ABORT("Input fields are being recorded on different tapes. Cannot register operation.");
+        }
+        else if(tape->IsRecording()) // All tapes are the same and recording is active
+        {
+            // Default functions if not provided
+            auto def_exec = execute ? execute : [this](const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
+            auto def_grad = grad ? grad : [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                                { this->GradientMult(x, dx, dy); };
+            auto def_grad_transpose = grad_transpose ? grad_transpose :
+                                     [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                            { this->GradientMultTranspose(x, dx, dy); };
+
+            // Register the operation on the tape
+            auto *op = new StateDependentGraphOperation<GraphNode, StateType>(*this, inputs, outputs, state,
+                                                                              get_state, set_state,
+                                                                              def_exec, def_grad, def_grad_transpose);
+            tape->RegisterOperation(op);
+        }
+        else
+        {   // Same tape but not recording, or no tape at all
+            // Should we abort or do nothing?
+            // MFEM_ABORT("Input fields are not being recorded on a tape. Cannot register operation.");
+        }
+    }
 
     virtual ~GraphNode()
     { }
