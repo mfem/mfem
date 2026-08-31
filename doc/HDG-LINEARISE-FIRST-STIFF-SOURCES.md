@@ -85,13 +85,20 @@ the trace alone.
 
 ### What is left on it
 
-* **No driver.** The four calls are raw and a caller writes the Newton loop,
-  including the line search. That is deliberate for now — the loop is a dozen
-  lines and wrapping it hides the one thing that matters, that the fields are
-  state — but a friendlier route is wanted, and MFEM's `NewtonSolver` cannot
-  drive this as it stands because it has nowhere to keep the fields.
-* **No line search in the library.** The backtracking above lives in the test.
-  It is the globalisation the method wants and belongs somewhere shared.
+* **~~No driver.~~ Done.** `DarcyNPCOperator` + `DarcyNPCSolver`: an ordinary
+  MFEM `Operator` on the full `(q, u, λ)` vector, with the Jacobian solved by
+  hybridized elimination. `NewtonSolver` drives it with no special support and
+  reproduces the hand-written loop's iterates exactly. This entry used to say
+  `NewtonSolver` *could not* drive NPC "because it has nowhere to keep the
+  fields" — **wrong, and the wrong half of the earlier diagnosis**: it keeps
+  them in `x`. What has nowhere to keep them is an operator on the *trace
+  alone*, which is a statement about `LineariseThenCondense`, not about
+  `NewtonSolver`.
+* **The line search is the caller's, and MFEM already has the hook.**
+  `NewtonSolver::ComputeScalingFactor` is virtual; a dozen-line subclass
+  backtracking on the full residual converges the three stiff cases in 13, 10
+  and 17 steps, identical to the raw loop. Nothing about it is
+  Darcy-specific, so it is not in the library.
 * **Serial only, and discontinuous flux only.** `NPCResidual()` refuses an
   H(div) flux rather than risk the conforming scatter and the RT sign
   conventions. Nothing parallel has been attempted: the reduction and recovery

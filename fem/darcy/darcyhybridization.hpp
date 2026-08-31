@@ -1092,13 +1092,17 @@ public:
    /** @name The NPC method: Newton on the full (q, u, lambda) system
 
        Nguyen, Peraire & Cockburn, JCP 228 (2009) 8841-8855, eqs (14)-(18).
-       These four calls are one Newton step of it, and they are deliberately
-       raw rather than wrapped in an Operator, because the thing that makes NPC
-       what it is cannot survive being wrapped: the flux and the potential are
-       Newton STATE, not a function of the trace, and an Operator on the trace
-       alone has no place to put them. NLOrdering::LineariseThenCondense is
-       what that compromise looks like, and SetNonlinearOrdering() records what
-       it costs.
+       These four calls are one Newton step of it, exposed raw so that the
+       shape of the method is visible. **For ordinary use take
+       DarcyNPCOperator and DarcyNPCSolver instead**, which wrap them as an
+       MFEM Operator over the full (q, u, lambda) vector that NewtonSolver
+       drives with no special support.
+
+       What cannot be wrapped is an Operator on the TRACE ALONE: the flux and
+       the potential are Newton state here, and a trace-only operator has
+       nowhere to put them. NLOrdering::LineariseThenCondense is what that
+       compromise looks like, and SetNonlinearOrdering() records what it
+       costs.
 
        One step, given a state (@a x, @a x_tr) and the load @a b:
 
@@ -1571,6 +1575,111 @@ public:
    /** @note Assumes topology of the mesh does not change, otherwise recreate
        the object. */
    void Reset() override;
+};
+
+/** @brief The NPC method as an ordinary MFEM Operator on the full
+    (q, u, lambda) system, so that NewtonSolver or KINSolver can drive it.
+
+    Pair it with DarcyNPCSolver, which inverts the Jacobian by hybridized
+    elimination:
+
+        DarcyNPCOperator npc(*darcy.GetHybridization(), offsets, load);
+        DarcyNPCSolver   lin(trace_solver);
+        NewtonSolver newton;
+        newton.SetOperator(npc);
+        newton.SetSolver(lin);
+        newton.Mult(zero, x);        // x = (q, u, lambda)
+
+    @a offsets is size 4 and partial-summed over the flux, potential and trace
+    vector sizes; @a load is the (flux, potential) right-hand side.
+
+    **The unknown is the whole system, and that is the point.** A reduced
+    operator on the trace alone cannot be NPC, because the fields would have to
+    be a function of the trace and here they are Newton state -- which is
+    exactly what an Operator over all three blocks gives them. So the outer
+    solver needs no special support, its convergence test is on the full
+    residual by construction, and its line search scales the fields and the
+    trace together. An earlier version of this comment said NewtonSolver could
+    not drive NPC "because it has nowhere to keep the fields"; it keeps them in
+    @a x, and the claim was about a trace-only operator rather than about
+    NewtonSolver. */
+class DarcyNPCOperator : public Operator
+{
+public:
+   DarcyNPCOperator(DarcyHybridization &dh, const Array<int> &offsets,
+                    const BlockVector &load);
+
+   /// The full residual F(q, u, lambda). No local solve of any kind.
+   void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Assemble and factor the Jacobian at @a x.
+
+       The returned handle is **solve-only** and its Mult() aborts: after
+       ComputeH() the local arrays hold the FACTORED blocks and the Schur
+       complement, so the Jacobian can no longer be applied out of them. Only
+       DarcyNPCSolver understands it. That is a real constraint of hybridized
+       elimination and not an oversight -- applying J would need unfactored
+       copies of every local block. */
+   Operator &GetGradient(const Vector &x) const override;
+
+   /// The (q, u) sub-blocks of the full vector, for a caller splitting it.
+   const Array<int> &LocalOffsets() const { return loc_offsets; }
+
+   /// The handle GetGradient() returns; DarcyNPCSolver takes it.
+   class Jacobian : public Operator
+   {
+   public:
+      Jacobian(DarcyHybridization &dh_, Operator &S_, const Array<int> &offs,
+               const Array<int> &loc_offs)
+         : Operator(offs.Last()), dh(dh_), S(S_), offsets(offs),
+           loc_offsets(loc_offs) { }
+      void Mult(const Vector &, Vector &) const override
+      {
+         MFEM_ABORT("The NPC Jacobian is solve-only: the local blocks are "
+                    "factored in place, so it cannot be applied. Use "
+                    "DarcyNPCSolver.");
+      }
+      DarcyHybridization &dh;
+      Operator &S;                  ///< reduced trace operator, assembled or not
+      const Array<int> &offsets;    ///< {0, flux, potential, trace}
+      const Array<int> &loc_offsets;///< {0, flux, potential}
+   };
+
+private:
+   DarcyHybridization *dh;
+   const BlockVector &load;
+   Array<int> offsets, loc_offsets;
+   mutable BlockVector r_loc, x_loc;
+   mutable Vector r_tr;
+   mutable std::unique_ptr<Jacobian> jac;
+};
+
+/** @brief Solves the Jacobian of DarcyNPCOperator by hybridized elimination:
+    reduce to the trace, solve there, recover the local increments.
+
+    The trace solve is the caller's: pass any Solver. With
+    DarcyHybridization::GradientMode::Assembled it receives a SparseMatrix, so
+    a direct solver or an algebraic preconditioner works; with MatrixFree it
+    receives an operator that only applies S, so it must be a Krylov method
+    that needs no matrix. */
+class DarcyNPCSolver : public Solver
+{
+public:
+   /// @a trace_solver is used for the reduced trace system, once per step.
+   explicit DarcyNPCSolver(Solver &trace_solver);
+
+   /// Expects the handle from DarcyNPCOperator::GetGradient().
+   void SetOperator(const Operator &op) override;
+
+   /// @a b is the outer residual; @a x comes back as the Newton CORRECTION,
+   /// in that solver's convention of x_new = x - correction.
+   void Mult(const Vector &b, Vector &x) const override;
+
+private:
+   Solver &trace_solver;
+   const DarcyNPCOperator::Jacobian *jac{nullptr};
+   mutable BlockVector r_loc, dx_loc;
+   mutable Vector r_tr, b_tr, dtr;
 };
 
 }

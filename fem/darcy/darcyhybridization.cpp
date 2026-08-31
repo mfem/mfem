@@ -5163,4 +5163,96 @@ Operator &DarcyHybridization::LocalPotNLOperator::GetGradient(
    return grad_D;
 }
 
+// ------------------------------------------------- NPC as an MFEM Operator
+
+DarcyNPCOperator::DarcyNPCOperator(DarcyHybridization &dh_,
+                                   const Array<int> &offsets_,
+                                   const BlockVector &load_)
+   : Operator(offsets_.Last()), dh(&dh_), load(load_), offsets(offsets_)
+{
+   MFEM_VERIFY(offsets.Size() == 4,
+               "offsets must be {0, flux, potential, trace}, partial-summed");
+   loc_offsets.SetSize(3);
+   loc_offsets[0] = 0;
+   loc_offsets[1] = offsets[1] - offsets[0];
+   loc_offsets[2] = offsets[2] - offsets[1];
+   loc_offsets.PartialSum();
+}
+
+void DarcyNPCOperator::Mult(const Vector &x, Vector &y) const
+{
+   const BlockVector xb(const_cast<Vector&>(x), offsets);
+   BlockVector yb(y, offsets);
+
+   x_loc.Update(loc_offsets);
+   x_loc.GetBlock(0) = xb.GetBlock(0);
+   x_loc.GetBlock(1) = xb.GetBlock(1);
+   r_loc.Update(loc_offsets);
+
+   dh->NPCResidual(load, x_loc, xb.GetBlock(2), r_loc, r_tr);
+
+   yb.GetBlock(0) = r_loc.GetBlock(0);
+   yb.GetBlock(1) = r_loc.GetBlock(1);
+   yb.GetBlock(2) = r_tr;
+}
+
+Operator &DarcyNPCOperator::GetGradient(const Vector &x) const
+{
+   const BlockVector xb(const_cast<Vector&>(x), offsets);
+
+   x_loc.Update(loc_offsets);
+   x_loc.GetBlock(0) = xb.GetBlock(0);
+   x_loc.GetBlock(1) = xb.GetBlock(1);
+
+   Operator &S = dh->NPCGradient(x_loc, xb.GetBlock(2));
+   jac.reset(new Jacobian(*dh, S, offsets, loc_offsets));
+   return *jac;
+}
+
+DarcyNPCSolver::DarcyNPCSolver(Solver &trace_solver_)
+   : Solver(0), trace_solver(trace_solver_) { }
+
+void DarcyNPCSolver::SetOperator(const Operator &op)
+{
+   jac = dynamic_cast<const DarcyNPCOperator::Jacobian*>(&op);
+   MFEM_VERIFY(jac, "DarcyNPCSolver needs the handle from "
+               "DarcyNPCOperator::GetGradient()");
+   height = width = jac->Height();
+
+   // The trace system is a different matrix every Newton step, so the trace
+   // solver is re-pointed at it every step.
+   trace_solver.SetOperator(jac->S);
+}
+
+void DarcyNPCSolver::Mult(const Vector &b, Vector &x) const
+{
+   MFEM_VERIFY(jac, "SetOperator() first");
+
+   const BlockVector bb(const_cast<Vector&>(b), jac->offsets);
+   BlockVector xb(x, jac->offsets);
+
+   r_loc.Update(jac->loc_offsets);
+   r_loc.GetBlock(0) = bb.GetBlock(0);
+   r_loc.GetBlock(1) = bb.GetBlock(1);
+   r_tr = bb.GetBlock(2);
+
+   // eq (18): reduce to the trace, solve there, recover the local increments.
+   jac->dh.NPCReduce(r_loc, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.;
+   trace_solver.Mult(b_tr, dtr);
+
+   dx_loc.Update(jac->loc_offsets);
+   jac->dh.NPCRecover(r_loc, dtr, dx_loc);
+
+   // NPCRecover() and NPCReduce() give the increment to ADD; NewtonSolver and
+   // KINSolver both apply x_new = x - correction, so the sign flips here. The
+   // one place the two conventions meet.
+   xb.GetBlock(0) = dx_loc.GetBlock(0);
+   xb.GetBlock(1) = dx_loc.GetBlock(1);
+   xb.GetBlock(2) = dtr;
+   xb.Neg();
+}
+
 }

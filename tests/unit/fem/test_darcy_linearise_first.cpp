@@ -1794,3 +1794,65 @@ TEST_CASE("NPC solves stiff problems LineariseThenCondense cannot",
    REQUIRE(out.converged);
    REQUIRE(out.local_nl_iters == 0);
 }
+
+TEST_CASE("NewtonSolver drives NPC with no special support",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_linearise_first;
+   using Ord = DarcyHybridization::NLOrdering;
+
+   // DarcyNPCOperator is an Operator over the FULL (q, u, lambda) vector, so
+   // the fields are in x and an ordinary NewtonSolver carries them with no
+   // special support: its convergence test is on the full residual because
+   // that is what the operator returns, and its line search would scale the
+   // fields and the trace together because they are one vector.
+   //
+   // What has nowhere to keep the fields is an operator on the TRACE alone.
+   // That is a statement about NLOrdering::LineariseThenCondense and not about
+   // NewtonSolver, and this file's own notes had it the wrong way round for a
+   // while.
+   //
+   // The iterates must be the hand-written loop's, exactly: the wrapper is
+   // bookkeeping, not a method.
+   PedestalHDG Pn(12, 1, 0.05, Ord::CondenseThenLinearise);
+   PedestalHDG Pr(12, 1, 0.05, Ord::CondenseThenLinearise);
+
+   BlockVector load = Pn.load();
+   DarcyNPCOperator npc(*Pn.darcy.GetHybridization(), Pn.offs, load);
+   UMFPackSolver trace;
+   DarcyNPCSolver lin(trace);
+
+   NormHistory hist;
+   NewtonSolver nw;
+   nw.SetOperator(npc);
+   nw.SetSolver(lin);
+   nw.SetRelTol(0.0);
+   nw.SetAbsTol(1e-12);
+   nw.SetMaxIter(20);
+   nw.SetPrintLevel(-1);
+   nw.SetMonitor(hist);
+
+   Vector zero(npc.Height());
+   zero = 0.0;
+   Vector x(Pn.sol.GetData(), npc.Height());
+   nw.Mult(zero, x);
+
+   CAPTURE(nw.GetNumIterations(), nw.GetFinalNorm());
+   REQUIRE(nw.GetConverged());
+   REQUIRE(Pn.darcy.GetHybridization()->GetNumLocalNLIterations() == 0);
+
+   const NPCOutcome raw = RunNPC(Pr, 20, false,
+                                 DarcyHybridization::GradientMode::Assembled);
+   REQUIRE(raw.converged);
+   // NormHistory records NewtonSolver's extra call with final = true, so it
+   // holds one more entry than the loop's own list; the overlap is what is
+   // being compared.
+   REQUIRE(hist.norms.size() >= raw.norms.size());
+   for (std::size_t k = 0; k < raw.norms.size(); k++)
+   {
+      if (raw.norms[k] < 1e-12) { continue; }
+      CAPTURE(k, hist.norms[k], raw.norms[k]);
+      REQUIRE(std::abs(hist.norms[k] - raw.norms[k]) <= 1e-10 * raw.norms[k]);
+   }
+}
+
