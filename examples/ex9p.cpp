@@ -544,11 +544,11 @@ int main(int argc, char *argv[])
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
                                   : ImplicitVariableType::SLOPE;
-   adv.SetImplicitVariableType(imp_var);
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
+   ode_solver->SetImplicitVariableType(imp_var);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -686,17 +686,19 @@ FE_Evolution::FE_Evolution(ParBilinearForm &M_, ParBilinearForm &K_,
 void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
 {
    // Construct current right-hand side for stage state vs. slope solve
+   real_t c = 1.0;
    if (ImplicitVarTypeIsState())
    {
       // k, on return, is the stage value u
       M->Mult(x, z);
+      c = dt;
    }
    else
    {
       // k, on return, is the stage slope du/dt
       K->Mult(x, z);
    }
-   z += b;
+   z.Add(c, b);
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
 }
