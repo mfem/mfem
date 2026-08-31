@@ -668,11 +668,18 @@ int main(int argc, char *argv[])
                               );
 
    /* // If you want to use state-dependent operators
-      StateStruct app_state; // This is a user-defined struct that holds the state of the system
-      state_dep_op.RegisterFields({in1, in2}, {out1, out2}, app_state,
-                                 [&op=state_dep_op](StateStruct &state) { op.GetStateFunctionHere(state); }, // Function to get state
-                                 [&op=state_dep_op](const StateStruct &state) { op.SetStateFunctionHere(state); } // Function to set state
-                                 // Additionaly can provide lambdas for Mult, GradientMult, etc.
+      StateContainer app_state; // This is a user-defined struct that holds the state of the system
+      state_op.RegisterFields({in1, in2}, {out1, out2}, app_state,
+                                 [&op=std::as_const(state_op)](StateContainer &state, const MultiVector &x,
+                                                               const MultiVector &dx, MultiVector &dy)
+                                                               {
+                                                                  op.FunctionThatNeedsState(state, x, dx, dy);
+                                                                  // Or
+                                                                  // op.SetState(state);
+                                                                  // op.MultMV(x, y);
+                                                                  // op.GetState(state);
+                                                               },
+                                 // Can provide lambdas for GradientMult, etc.
                                  );
    */
    }

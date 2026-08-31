@@ -32,7 +32,7 @@ void GraphOperation::Execute() const
     auto get = [](const Field *f) -> Vector& { return *f->Data(); };
     IterableToMultiVector<Vector&>(inputs, xmv, get);
     IterableToMultiVector<Vector&>(outputs, ymv, get);
-    execute(xmv, ymv);
+    if (execute) { execute(xmv, ymv); }
 }
 
 GraphOperation *GraphOperation::GetGradient() const
@@ -64,7 +64,7 @@ void GraphOperationGradient::Execute() const
     auto get = [](const Field *f) -> Vector& { return *f->Adjoint(); };
     IterableToMultiVector<Vector&>(inputs, xmv, get);
     IterableToMultiVector<Vector&>(outputs, ymv, get);
-    execute(xmv, ymv);
+    if(execute) { execute(xmv, ymv); }
     // grad(pmv,xmv, ymv);
 }
 

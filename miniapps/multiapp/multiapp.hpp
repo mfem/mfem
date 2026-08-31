@@ -292,35 +292,36 @@ public:
 template<typename OpType, typename StateType>
 struct StateDependentGraphOperation : GraphOperation
 {
-    using StateGetFunc = std::function<void(StateType&)>;
-    using StateSetFunc = std::function<void(const StateType&)>;
+    using ExecuteFunc = std::function<void(StateType &state,
+                                           const MultiVector&, MultiVector&)>;
+    using GradFunc = std::function<void(StateType &state,
+                                        const MultiVector&, const MultiVector&, MultiVector&)>;
 
     mutable StateType *state; // State to be stored (not owned)
-    StateGetFunc get_state;
-    StateSetFunc set_state;
+    ExecuteFunc execute;
+    GradFunc grad, grad_transpose;
 
     // Only use if OpType extended from mfem::Operator
     template<typename = std::enable_if_t<std::is_base_of<Operator, OpType>::value>>
     StateDependentGraphOperation(OpType &oper, InputType in, OutputType out, StateType &state,
-                                 StateGetFunc get_state, StateSetFunc set_state,
                                  ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
                                  GradFunc grad_transpose = nullptr) :
-                                 GraphOperation(oper, in, out, exec, grad, grad_transpose),
-                                 state(&state), get_state(get_state), set_state(set_state)
+                                 GraphOperation(oper, in, out, nullptr, nullptr, nullptr),
+                                 state(&state), execute(exec), grad(grad), grad_transpose(grad_transpose)
                                  { }
 
     StateDependentGraphOperation(ExecuteFunc exec, InputType in, OutputType out, StateType &state,
-                                 StateGetFunc state_get, StateSetFunc state_set,
                                  GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
-                                 GraphOperation(exec, in, out, grad, grad_transpose),
-                                 state(&state), get_state(state_get), set_state(state_set)
+                                 GraphOperation(nullptr, in, out, nullptr, nullptr),
+                                 state(&state), execute(exec), grad(grad), grad_transpose(grad_transpose)
                                  { }
 
     void Execute() const override
     {
-        set_state(*state); // Set the state of the operator before execution
-        GraphOperation::Execute();
-        get_state(*state); // Retrive and store the state of the operator after execution 
+        auto get = [](const Field *f) -> Vector& { return *f->Data(); };
+        IterableToMultiVector<Vector&>(inputs, xmv, get);
+        IterableToMultiVector<Vector&>(outputs, ymv, get);
+        execute(*state, xmv, ymv);
     }
 };
 
@@ -412,18 +413,18 @@ public:
 
     // Register fields with state-dependent execution
     template<typename StateType,
-            typename GraphOpType = StateDependentGraphOperation<GraphNode, StateType>,
-            typename StateGetFunc = typename GraphOpType::StateGetFunc,
-            typename StateSetFunc =typename GraphOpType::StateSetFunc,
+             typename GraphOpType = StateDependentGraphOperation<GraphNode, StateType>,
+             typename ExecuteFunc = typename GraphOpType::ExecuteFunc,
+             typename GradFunc =typename GraphOpType::GradFunc,
             // Disable to avoid conflict with other RegisterFields method when StateType is a lambda
-            std::enable_if_t<!std::is_same_v<StateType, GraphOpType::ExecuteFunc>, bool> = true
+             std::enable_if_t<!std::is_same_v<StateType, GraphOpType::ExecuteFunc>, bool> = true
             >
     void RegisterFields(std::initializer_list<Field*> inputs,
                         std::initializer_list<Field*> outputs,
-                        StateType &state, StateGetFunc get_state, StateSetFunc set_state,
-                        GraphOperation::ExecuteFunc execute = nullptr,
-                        GraphOperation::GradFunc grad = nullptr,
-                        GraphOperation::GradFunc grad_transpose = nullptr)
+                        StateType &state,
+                        ExecuteFunc execute = nullptr,
+                        GradFunc grad = nullptr,
+                        GradFunc grad_transpose = nullptr)
     {
         // Tape operations
         // Check if all input fields have the same, non-null tape; if so, register this node with that tape
@@ -440,16 +441,15 @@ public:
         else if(tape->IsRecording()) // All tapes are the same and recording is active
         {
             // Default functions if not provided
-            auto def_exec = execute ? execute : [this](const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
-            auto def_grad = grad ? grad : [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+            auto def_exec = execute ? execute : [this](StateType &s, const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
+            auto def_grad = grad ? grad : [this](StateType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
                                                 { this->GradientMult(x, dx, dy); };
             auto def_grad_transpose = grad_transpose ? grad_transpose :
-                                     [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                            { this->GradientMultTranspose(x, dx, dy); };
+                                     [this](StateType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
+                                           { this->GradientMultTranspose(x, dx, dy); };
 
             // Register the operation on the tape
             auto *op = new StateDependentGraphOperation<GraphNode, StateType>(*this, inputs, outputs, state,
-                                                                              get_state, set_state,
                                                                               def_exec, def_grad, def_grad_transpose);
             tape->RegisterOperation(op);
         }
