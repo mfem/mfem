@@ -390,18 +390,6 @@ public:
         return std::make_tuple(std::cref(input_offsets), std::cref(output_offsets));
     }
 
-    // Computes J(x) * dx = dy, where J is the Jacobian of the operator
-    virtual void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
-    {
-        MFEM_ABORT("This method is not overridden for this class!");
-    }
-
-    // Computes J(x)^T * dx = dy, where J is the Jacobian of the operator
-    virtual void GradientMultTranspose(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const
-    {
-        MFEM_ABORT("This method is not overridden for this class!");
-    }
-
     virtual void RegisterFields(std::initializer_list<Field*> inputs,
                                 std::initializer_list<Field*> outputs);
 
@@ -443,10 +431,10 @@ public:
             // Default functions if not provided
             auto def_exec = execute ? execute : [this](AuxType &s, const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
             auto def_grad = grad ? grad : [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                                { this->GradientMult(x, dx, dy); };
+                                                { this->GradientMultMV(x, dx, dy); };
             auto def_grad_transpose = grad_transpose ? grad_transpose :
                                      [this](AuxType &s, const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                           { this->GradientMultTranspose(x, dx, dy); };
+                                           { this->GradientMultTransposeMV(x, dx, dy); };
 
             // Register the operation on the tape
             auto *op = new AbstractGraphOperation<GraphNode, AuxType>(*this, inputs, outputs, auxiliary_data,

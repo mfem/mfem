@@ -300,7 +300,7 @@ public:
       }
    }
 
-   void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
+   void GradientMultMV(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
    {
       const Vector &tdof = x[0];
       const Vector &xadj = dx[0];
@@ -377,7 +377,7 @@ public:
       y_gf.GetTrueDofs(y_dof);
    }
 
-   void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
+   void GradientMultMV(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
    {
       // Jacobian vector product for y = prod_i x_i is:
       // dy/dx = sum_i (prod_{j!=i} x_j * dx_i/dx)
@@ -538,7 +538,7 @@ public:
       MFEM_ABORT("GetGradientMV not implemented for DiffusionOperator");
    }
 
-   void GradientMult(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
+   void GradientMultMV(const MultiVector &x, const MultiVector &dx, MultiVector &dy) const override
    {
       const Vector &Tadj = dx[0];
       const Vector &kadj = dx[1];
@@ -662,9 +662,9 @@ int main(int argc, char *argv[])
       diff_op1.RegisterFields({T1_field, kp_field}, {f1_field});
       diff_op2.RegisterFields({T2_field, kp_field}, {f2_field}, // Possible to specify action lambdas
   /* force const if needed */   [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
-  /* Default for GraphNode */   [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMult(x, dx, dy); },
+  /* Default for GraphNode */   [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultMV(x, dx, dy); },
 ///* If using mfem::Operator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GetGradientMV(x).MultMV(dx, dy); },
-                                [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTranspose(x, dx, dy); }
+                                [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTransposeMV(x, dx, dy); }
                               );
 
    /* // If you want to use state-dependent operators

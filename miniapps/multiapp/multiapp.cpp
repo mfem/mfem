@@ -105,9 +105,9 @@ void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
 {
     auto execute = [this](const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
     auto grad_mult = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                           { this->GradientMult(x, dx, dy); };
+                           { this->GradientMultMV(x, dx, dy); };
     auto grad_mult_transpose = [this](const MultiVector &x, const MultiVector &dx, MultiVector &dy)
-                                     { this->GradientMultTranspose(x, dx, dy); };
+                                     { this->GradientMultTransposeMV(x, dx, dy); };
     RegisterFields(inputs, outputs, execute, grad_mult, grad_mult_transpose);
 }
 
