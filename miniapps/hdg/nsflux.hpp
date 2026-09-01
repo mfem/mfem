@@ -446,6 +446,21 @@ public:
     term and a problem whose exact solution lies in the discrete space comes
     back at round-off. That is the acceptance test, and it is sharp.
 
+    **A consistent datum is not a unique one, and on a face that also carries
+    an essential component it will not be.** Where `F` is nonlinear in the
+    components the trace leaves free, this row determines them only up to the
+    roots of that nonlinearity. On the Navier-Stokes outlet, with `p^`
+    essential and the momentum rows natural, the row is
+    `v^_x^2 + p^ + q.n + S(u - u^) = b` and fixes `v^.n` only up to SIGN --
+    per quadrature point, so the count of discrete roots is combinatorial
+    rather than two. Four were reached at order 2 on an 8x8 channel, all
+    converged to `||r||/||r_0||` of 1e-16, and the same fifteen initial states
+    under `-bcfull`, where no component is free, all reach one root. So this
+    is a property of the CONDITION, not of the integrator: the exact solution
+    is a root to 5.1e-16 either way. The account, the controls and what does
+    and does not repair it are at the boundary-condition step of
+    navierstokes.cpp.
+
     @a scale_F and @a scale_G exist because the sign convention of the trace
     row is not derivable from the documentation and was fixed here by
     measurement, exactly as `-hsign` was: see the `-bcsf`/`-bcsg` sweep
