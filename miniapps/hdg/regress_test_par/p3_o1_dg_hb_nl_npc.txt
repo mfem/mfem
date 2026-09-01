@@ -43,20 +43,19 @@ Options used:
    --serial-format
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.000773418s.
+Hybridization init took 0.000975717s.
 ***********************************************************
 dim(V) = 1592
 dim(W) = 796
 dim(M) = 858
 dim(V+W+M) = 3246
 ***********************************************************
-Assembly took 0.000417982s.
-Preconditioner took 3.8241e-05s.
+Assembly took 0.000437289s.
+Preconditioner took 3.3864e-05s.
 Newton iteration  0 : ||r|| = 0.155057
-Newton iteration  1 : ||r|| = 2.16692e-07, ||r||/||r_0|| = 1.3975e-06
-Newton iteration  2 : ||r|| = 9.81047e-11, ||r||/||r_0|| = 6.32699e-10
+Newton iteration  1 : ||r|| = 1.65306e-10, ||r||/||r_0|| = 1.06609e-09
 local nonlinear iterations: 0
-Newton+GMRES+HypreAMG/Newton+GMRES converged in 2 iterations with a residual norm of 9.81047e-11.
-Solver took 0.0248493s.
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 1.65306e-10.
+Solver took 0.0212529s.
 || q_h - q_ex || / || q_ex || = 0.351557
 || t_h - t_ex || / || t_ex || = 0.052059

@@ -43,51 +43,19 @@ Options used:
    --serial-format
 Device configuration: cpu
 Memory configuration: host-std
-Hybridization init took 0.000571841s.
+Hybridization init took 0.000733183s.
 ***********************************************************
 dim(V) = 900
 dim(W) = 450
 dim(M) = 345
 dim(V+W+M) = 1695
 ***********************************************************
-Assembly took 0.000287207s.
-Preconditioner took 3.0687e-05s.
+Assembly took 0.000340127s.
+Preconditioner took 2.8393e-05s.
 Newton iteration  0 : ||r|| = 0.111804
-Newton iteration  1 : ||r|| = 1.65195e-05, ||r||/||r_0|| = 0.000147754
-Newton iteration  2 : ||r|| = 4.7977e-06, ||r||/||r_0|| = 4.29117e-05
-Newton iteration  3 : ||r|| = 1.63891e-06, ||r||/||r_0|| = 1.46588e-05
-Newton iteration  4 : ||r|| = 1.00761e-06, ||r||/||r_0|| = 9.01226e-06
-Newton iteration  5 : ||r|| = 7.43156e-07, ||r||/||r_0|| = 6.64695e-06
-Newton iteration  6 : ||r|| = 6.22515e-07, ||r||/||r_0|| = 5.56792e-06
-Newton iteration  7 : ||r|| = 5.2978e-07, ||r||/||r_0|| = 4.73847e-06
-Newton iteration  8 : ||r|| = 4.68393e-07, ||r||/||r_0|| = 4.18941e-06
-Newton iteration  9 : ||r|| = 4.2318e-07, ||r||/||r_0|| = 3.78502e-06
-Newton iteration 10 : ||r|| = 3.89683e-07, ||r||/||r_0|| = 3.48541e-06
-Newton iteration 11 : ||r|| = 3.63155e-07, ||r||/||r_0|| = 3.24814e-06
-Newton iteration 12 : ||r|| = 3.41089e-07, ||r||/||r_0|| = 3.05077e-06
-Newton iteration 13 : ||r|| = 3.21818e-07, ||r||/||r_0|| = 2.87841e-06
-Newton iteration 14 : ||r|| = 3.04403e-07, ||r||/||r_0|| = 2.72265e-06
-Newton iteration 15 : ||r|| = 2.88293e-07, ||r||/||r_0|| = 2.57856e-06
-Newton iteration 16 : ||r|| = 2.73178e-07, ||r||/||r_0|| = 2.44336e-06
-Newton iteration 17 : ||r|| = 2.58884e-07, ||r||/||r_0|| = 2.31551e-06
-Newton iteration 18 : ||r|| = 2.45312e-07, ||r||/||r_0|| = 2.19412e-06
-Newton iteration 19 : ||r|| = 2.32404e-07, ||r||/||r_0|| = 2.07867e-06
-Newton iteration 20 : ||r|| = 2.20122e-07, ||r||/||r_0|| = 1.96882e-06
-Newton iteration 21 : ||r|| = 2.0844e-07, ||r||/||r_0|| = 1.86433e-06
-Newton iteration 22 : ||r|| = 1.97334e-07, ||r||/||r_0|| = 1.765e-06
-Newton iteration 23 : ||r|| = 1.86783e-07, ||r||/||r_0|| = 1.67063e-06
-Newton iteration 24 : ||r|| = 1.76768e-07, ||r||/||r_0|| = 1.58105e-06
-Newton iteration 25 : ||r|| = 1.67265e-07, ||r||/||r_0|| = 1.49606e-06
-Newton iteration 26 : ||r|| = 1.58255e-07, ||r||/||r_0|| = 1.41547e-06
-Newton iteration 27 : ||r|| = 1.49716e-07, ||r||/||r_0|| = 1.3391e-06
-Newton iteration 28 : ||r|| = 1.41625e-07, ||r||/||r_0|| = 1.26672e-06
-Newton iteration 29 : ||r|| = 1.33964e-07, ||r||/||r_0|| = 1.1982e-06
-Newton iteration 30 : ||r|| = 1.26711e-07, ||r||/||r_0|| = 1.13333e-06
-Newton iteration 31 : ||r|| = 1.19845e-07, ||r||/||r_0|| = 1.07192e-06
-Newton iteration 32 : ||r|| = 1.13348e-07, ||r||/||r_0|| = 1.01381e-06
-Newton iteration 33 : ||r|| = 1.072e-07, ||r||/||r_0|| = 9.5882e-07
+Newton iteration  1 : ||r|| = 9.77712e-10, ||r||/||r_0|| = 8.74488e-09
 local nonlinear iterations: 0
-Newton+GMRES+HypreAMG/Newton+GMRES converged in 33 iterations with a residual norm of 1.072e-07.
-Solver took 0.144634s.
-|| q_h - q_ex || / || q_ex || = 0.000108281
-|| t_h - t_ex || / || t_ex || = 2.05043e-05
+Newton+GMRES+HypreAMG/Newton+GMRES converged in 1 iterations with a residual norm of 9.77712e-10.
+Solver took 0.0132408s.
+|| q_h - q_ex || / || q_ex || = 0.000108104
+|| t_h - t_ex || / || t_ex || = 1.85876e-05
