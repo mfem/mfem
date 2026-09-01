@@ -242,17 +242,15 @@ What is left:
   Newton and `prec` the trace solve, which is NPC's pairing — so `-gm` keeps
   its meaning.
 
-  **There are still no NPC regression references**, though: the flag defaults
-  off and every one of the 129 + 98 references was generated without it.
-  Generating an NPC set is the next step, and is what would actually put the
-  method under the suite that guards this branch.
+  **The NPC reference set now exists**: 22 serial and 22 parallel `*_npc.txt`,
+  taking the suite from 129 + 98 to 151 + 120. They compare the local
+  nonlinear iteration count as well as the solver, the Krylov count and the
+  two error norms — without that an NPC reference would pass even if `-npc`
+  became a no-op, since both routes reach the same discrete solution. NPC runs
+  no local nonlinear solve, so the count is identically zero and the check
+  fails loudly if the flag stops taking effect.
 * **H(div) flux.** Refused rather than attempted: the local rows would be a
   conforming scatter with RT sign conventions that have not been checked.
-* **`LocalOpType::FluxNL`.** Refused, and the refusal is the interesting part
-  — `ComputeElementH()` does not write the Schur complement into `Df_data` in
-  that mode, so anything reading it back gets the factored linear potential
-  mass. Teaching `ComputeElementH()` to write it back would lift the
-  restriction for NPC *and* close §7.3 of the API document.
 * **`ComputeSolution()`** has never been run against an NPC solution, so the
   postprocessing route is unchecked there.
 * **A regression case is on offer and has not been taken.** The caller's

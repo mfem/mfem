@@ -5,6 +5,10 @@ three levels of trace solve are selectable at run time
 (`DarcyHybridization::SetGradientMode()`, `-gm 0|1|2`) and the matrix-free
 reduced gradient is complete.
 
+It was not until recently — `LocalOpType::FluxNL` had nowhere to put its Schur
+complement and refused — and that is fixed and written up where it happened
+(`Sf_data`, `SetGradientMode()`, `NPCCheck()`).
+
 Two entries that stood here are gone. One said `KINSolver` had to be driven by
 hand to honour a contract `NLOrdering::LineariseThenCondense` imposed; that
 mode is deleted and no contract survives it. The other asked whether a
@@ -28,3 +32,8 @@ scattering them saves little.
 Level 2 therefore pays off only with a preconditioner **not** built from `S`:
 p-multigrid on the trace space, a coarse-space auxiliary operator, or a
 trace-space operator assembled at low order and reused. Nothing has been tried.
+
+**Unpreconditioned it works and costs 8x at `nx = 40`, growing with the
+problem** — the table is on `SetGradientMode()`. So the question above is
+answered in the direction it expected: a never-assembled trace solve is
+feasible and is not yet worth choosing. What preconditions it is untouched.

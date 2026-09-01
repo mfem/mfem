@@ -345,6 +345,22 @@ private:
    Array<int> Df_offsets, Df_f_offsets;
    mutable Array<real_t> Df_data, Df_lin_data;
    mutable Array<int> Df_ipiv;
+   /** @brief The factored Schur complement, for LocalOpType::FluxNL only.
+
+       Everywhere else the Schur complement is built into @a Df_data, over the
+       potential block, because nothing else needs that storage. FluxNL is the
+       exception: the potential mass is LINEAR there, so @a Df_data holds its
+       factorisation and LocalFluxNLOperator::SolveP() needs it on every local
+       nonlinear iteration. The Schur complement used to be built into a
+       function-local temporary and thrown away, which is why the matrix-free
+       gradient was refused in that mode and why anything reading a Schur
+       complement back out of @a Df_data got the potential mass instead.
+
+       Allocated only when the mode calls for it. MultInv() reads these
+       whenever it is applying the JACOBIAN's blocks, which is exactly its
+       @a with_bnl argument. */
+   mutable Array<real_t> Sf_data;
+   mutable Array<int> Sf_ipiv;
    bool D_empty{true};
 
    Array<int> Ct_offsets;
@@ -659,9 +675,9 @@ private:
        mapping under NPC because it refuses anything but a discontinuous flux
        space, so their L-dofs are their true dofs. */
    const Operator *TraceProlongation() const;
-   /** @brief NPC's shared precondition: finalized, a discontinuous flux
-       space, and not LocalOpType::FluxNL. The last is the guard the reduced
-       operator never had; the reason is at the definition. */
+   /** @brief NPC's shared precondition: finalized and a discontinuous flux
+       space. LocalOpType::FluxNL was refused here too until its Schur
+       complement got somewhere to live (@a Sf_data); see the definition. */
    void NPCCheck() const;
    /// A correctly sized zero load for a gradient pass; see the definition.
    void ZeroLoad(BlockVector &b, bool true_dofs) const;
@@ -859,10 +875,34 @@ public:
        built from the matrix. GSSmoother, UMFPackSolver and the algebraic
        preconditioners all require a SparseMatrix and will abort.
 
-       Not supported when only the flux mass is nonlinear
-       (LocalOpType::FluxNL): the Schur complement has nowhere to live there,
-       @a Df_data being occupied by the factored linear potential mass.
-       GetGradient() aborts rather than returning something wrong. */
+       Supported in every LocalOpType. It was not: with only the flux mass
+       nonlinear (LocalOpType::FluxNL) the Schur complement had nowhere to
+       live, @a Df_data being occupied by the factored linear potential mass,
+       and GetGradient() aborted rather than return something wrong. It now
+       goes to @a Sf_data.
+
+       **"Matrix free" is about the GLOBAL trace matrix, not the Jacobian.**
+       The local blocks are still assembled and factored in every mode -- the
+       action of S is defined in terms of them -- so no mode here is
+       Jacobian-free in the stronger sense of forming no Jacobian at all.
+
+       **What the mode costs, measured rather than asserted.** convdiff
+       -p 2 -o 2 -dg -hb -up -nlu -nls 3, wall seconds, all three modes
+       agreeing to six digits in both error norms:
+
+       | nx | Assembled + UMFPack | Assembled + GS | MatrixFree |
+       | -- | ------------------- | -------------- | ---------- |
+       | 10 | 0.10 | 0.10 | 0.10 |
+       | 20 | 0.20 | 0.10 | 0.40 |
+       | 40 | 0.50 | 0.50 | 4.00 |
+
+       So it runs and it is 8x at nx = 40, growing with the problem, because
+       nothing preconditions it: with no assembled S there is no Gauss-Seidel,
+       no AMG and no factorisation, and the obvious block-Jacobi replacement
+       costs the same local solves that assembly costs. MatrixFree is for a
+       caller who cannot afford the memory, or who brings a preconditioner not
+       built from S. See doc/HDG-JACOBIAN-FREE-TRACE.md, which is where that
+       open question lives. */
    void SetGradientMode(GradientMode mode);
 
    /** @name The NPC method: Newton on the full (q, u, lambda) system
@@ -950,8 +990,8 @@ public:
        it is only the global trace matrix that the matrix-free mode declines to
        build.
 
-       Not available for LocalOpType::FluxNL in matrix-free mode, for the
-       reason SetGradientMode() gives.
+       Every LocalOpType works in both modes. LocalOpType::FluxNL did not
+       until @a Sf_data was added; see SetGradientMode().
 
        The returned reference does not outlive the next call. */
    Operator &NPCGradient(const BlockVector &x, const Vector &x_tr);

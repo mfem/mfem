@@ -1382,8 +1382,6 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    }
    LU_A.Solve(AiBt.Height(), AiBt.Width(), AiBt.GetData());
 
-   DenseMatrix S;
-   Array<int> S_ipiv;
    LUFactors LU_S;
    if (!gradient || lop_type != LocalOpType::FluxNL)
    {
@@ -1396,20 +1394,31 @@ void DarcyHybridization::ComputeElementH(int el, ComputeHMode mode,
    }
    else
    {
-      MFEM_VERIFY(assemble, "GradientMode::MatrixFree is not supported when "
-                  "only the flux mass is nonlinear: the Schur complement is "
-                  "built into a temporary here because Df_data holds the "
-                  "factored linear potential mass, so there is nothing for "
-                  "MultInv() to read back.");
+      // FluxNL: Df_data holds the FACTORED LINEAR potential mass, which
+      // LocalFluxNLOperator::SolveP() needs on every local iteration, so the
+      // Schur complement cannot go there. It goes to Sf_data, which exists
+      // for exactly this and which MultInv() reads whenever it applies the
+      // Jacobian's blocks.
+      //
+      // It used to be built into a function-local temporary and discarded.
+      // That made the matrix-free gradient unrepresentable in this mode --
+      // hence a refusal that named GradientMode::MatrixFree, which was the
+      // symptom rather than the cause -- and left MultInv() reading the
+      // potential mass where it expected a Schur complement. With the default
+      // Assembled gradient nothing complained and the answer was silently
+      // wrong; see HDG-ORDERING-API.md finding 3.
+      MFEM_VERIFY(Sf_data.Size() == Df_data.Size(),
+                  "FluxNL Schur storage was not allocated; it is sized in "
+                  "Finalize() where lop_type is decided.");
       const DenseMatrix D_lin(&Df_lin_data[Df_offsets[el]],
                               d_dofs_size, d_dofs_size);
-      S = D_lin;
-      mfem::AddMult(B, AiBt, S);
+      DenseMatrix S_el(&Sf_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
+      S_el = D_lin;
+      mfem::AddMult(B, AiBt, S_el);
 
       // Decompose Schur complement
-      LU_S.data = S.GetData();
-      S_ipiv.SetSize(d_dofs_size);
-      LU_S.ipiv = S_ipiv.GetData();
+      LU_S.data = S_el.GetData();
+      LU_S.ipiv = &Sf_ipiv[Df_f_offsets[el]];
       LU_S.Factor(d_dofs_size);
    }
 
@@ -2345,6 +2354,13 @@ void DarcyHybridization::Finalize()
          // backup the data for gradient construction
          Df_lin_data = Df_data;
          InvertD();
+         // Df_data now holds the FACTORED linear potential mass, which the
+         // local solve needs, so the Schur complement gets storage of its
+         // own. Allocated here rather than in AllocD(), which runs before
+         // lop_type is known.
+         Sf_data.SetSize(Df_offsets.Last());
+         Sf_data = 0.;
+         Sf_ipiv.SetSize(Df_f_offsets.Last());
       }
       else
       {
@@ -2943,7 +2959,16 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    // Load LU decomposition of A and Schur complement
 
    LUFactors LU_A(&Af_data[Af_offsets[el]], &Af_ipiv[Af_f_offsets[el]]);
-   LUFactors LU_S(&Df_data[Df_offsets[el]], &Df_ipiv[Df_f_offsets[el]]);
+   // @a with_bnl is exactly "these are the Jacobian's blocks", and under
+   // LocalOpType::FluxNL the Jacobian's Schur complement lives in Sf_data --
+   // Df_data being the factored linear potential mass there. Everywhere else
+   // the two coincide.
+   const bool fluxnl_schur = (with_bnl && lop_type == LocalOpType::FluxNL
+                              && Sf_data.Size() == Df_data.Size());
+   LUFactors LU_S(fluxnl_schur ? &Sf_data[Df_offsets[el]]
+                  : &Df_data[Df_offsets[el]],
+                  fluxnl_schur ? &Sf_ipiv[Df_f_offsets[el]]
+                  : &Df_ipiv[Df_f_offsets[el]]);
 
    // Load B
 
@@ -3503,26 +3528,11 @@ void DarcyHybridization::NPCCheck() const
                "NPC needs a discontinuous flux space; an H(div) flux makes the "
                "local rows a conforming scatter this has not been checked "
                "against. See the note on NPCResidual().");
-   // LocalOpType::FluxNL is refused, and this is the guard the reduced
-   // operator never had. In that mode ComputeElementH() builds the Schur
-   // complement into a temporary and leaves Df_data holding the factored
-   // LINEAR potential mass -- while MultInv(), which NPCReduce() and
-   // NPCRecover() both use, reads the Schur complement out of Df_data. The
-   // only pre-existing check is MFEM_VERIFY(assemble, ...), which fires for
-   // GradientMode::MatrixFree and NOT for the default Assembled, so NPC would
-   // take the Assembled path without complaint and eliminate with the wrong
-   // operator: a silently wrong answer rather than an abort.
-   //
-   // The mode that preceded NPC hit that abort by accident, through a
-   // cold-start pass it happened to run, and so failed loudly with a message
-   // naming the wrong feature. NPC has no such accident, hence this.
-   MFEM_VERIFY(lop_type != LocalOpType::FluxNL,
-               "NPC does not support LocalOpType::FluxNL: ComputeElementH() "
-               "does not write the Schur complement into Df_data in that mode, "
-               "so the elimination would silently use the factored linear "
-               "potential mass instead. Drive the reduced trace operator "
-               "instead -- FormLinearSystem() and the hybridization as an "
-               "Operator -- or teach ComputeElementH() to write it back.");
+   // LocalOpType::FluxNL used to be refused here, because ComputeElementH()
+   // discarded its Schur complement into a temporary and MultInv() then read
+   // the factored linear potential mass in its place. ComputeElementH() now
+   // writes it to Sf_data and MultInv() reads it back, so the mode is
+   // supported and the guard is gone.
 }
 
 void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,

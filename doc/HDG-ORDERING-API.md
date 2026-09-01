@@ -289,16 +289,15 @@ residual is O(1), not 1e-10.
 
 ### 3.5 What it refuses, and what is missing
 
-Two hard refusals, both `MFEM_VERIFY` in `NPCCheck()`:
+One hard refusal, a `MFEM_VERIFY` in `NPCCheck()`: **an H(div) flux space.**
+The local rows would be a conforming scatter with sign conventions this has not
+been checked against, and the RT paths are deliberately left alone.
 
-* **an H(div) flux space.** The local rows would be a conforming scatter with
-  sign conventions this has not been checked against, and the RT paths are
-  deliberately left alone;
-* **`LocalOpType::FluxNL`** — only the flux mass nonlinear, with a potential
-  mass present. `ComputeElementH()` builds the Schur complement into a
-  temporary in that mode and leaves `Df_data` holding the factored *linear
-  potential mass*, which is what `MultInv()` reads. Without the guard NPC
-  returns a silently wrong answer; see §7.3.
+`LocalOpType::FluxNL` was refused here too and no longer is. The Schur
+complement had nowhere to live in that mode — `Df_data` holds the factored
+*linear* potential mass, which the local solve needs — so `ComputeElementH()`
+built it in a temporary and dropped it. It now goes to `Sf_data`; see §7.3 for
+the withdrawal of what that entry claimed.
 
 Missing rather than refused:
 
@@ -474,10 +473,9 @@ operator and over NPC alike (`tests/unit/fem/test_darcy_npc.cpp`).
 
 What `MatrixFree` costs, in exchange: `GetGradient()` returns an `Operator`
 with no matrix, so `GSSmoother`, `UMFPackSolver` and the algebraic
-preconditioners abort (`fem/darcy/darcyhybridization.hpp:827-831`). It is also
-**refused for `LocalOpType::FluxNL`** — `Df_data` there holds the factored
-linear potential mass, so there is nothing for `MultInv()` to read back
-(`fem/darcy/darcyhybridization.cpp:1342-1347`). And two things the assembled
+preconditioners abort (`fem/darcy/darcyhybridization.hpp:827-831`). It used to
+be **refused for `LocalOpType::FluxNL`**, for the storage reason above; since
+`Sf_data` exists it works in every mode. And two things the assembled
 matrix gets for free have to be applied by hand: the unit row on essential
 trace dofs, and `SetDiagIdentity()`'s regularisation of rows nothing
 contributed to (`fem/darcy/darcyhybridization.cpp:4180-4205`, and
@@ -565,31 +563,26 @@ mid-build at the time and nothing was run.
 
 **Status.** 1, 2, 4, 5 and 6 are **gone or moot**: they were about the
 deleted mode, its plan document (also deleted) or the solver contract it
-imposed. **3 survived the deletion and got worse** — it now applies to NPC,
-and NPC is where it is silent rather than loud; see its entry. 7, 8, 9 and 10
-are **open**, and 8 is the one worth acting on: an accessor that returns the
-wrong member.
+imposed. **3 is fixed, and the entry that raised it was wrong about the
+danger** — see its withdrawal below. 7, 8, 9 and 10 are **open**, and 8 is the
+one worth acting on: an accessor that returns the wrong member.
 
 1. and 2. **Gone with the mode.** One was about
    `doc/HDG-LINEARISE-THEN-CONDENSE.md`, which is deleted; the other about
    `SetNonlinearOrdering()`'s doxygen, which is deleted with the method.
 
-3. **`LocalOpType::FluxNL` is unguarded, and NPC inherits it silently.**
-   In that mode `ComputeElementH()` does not write the Schur complement into
-   `Df_data` — it builds it in a temporary and leaves `Df_data` holding the
-   factored *linear potential mass* — while `MultInv()` reads the Schur
-   complement out of `Df_data`. The only check is
-   `MFEM_VERIFY(assemble, "GradientMode::MatrixFree is not supported...")`,
-   which fires for `MatrixFree` and **not** for the default `Assembled`.
-
-   The deleted mode hit that abort by accident, through its cold-start pass,
-   and so failed loudly with a misleading message. **NPC does not**:
-   `NPCGradient()` takes the `Assembled` path without complaint and then
-   `NPCReduce()` and `NPCRecover()` eliminate with the wrong operator. That is
-   a silent wrong answer in new code and is the first thing to fix here.
-   `FluxNL` is reachable whenever only the flux mass is nonlinear *and* a
-   potential mass is present; no miniapp flag combination producing it has
-   been confirmed.
+3. **Fixed — and this entry overstated it, which is worth recording.** It
+   said `LocalOpType::FluxNL` would let the *assembled* path eliminate with the
+   wrong operator and return a silent wrong answer. It could not: the only
+   readers of a Schur complement out of `Df_data` are the matrix-free gradient
+   and NPC, and **both were themselves refused in that mode**, so the hazard
+   was real in structure and unreachable in practice — held shut by the very
+   refusals the entry complained about. Measured: the assembled answer is
+   unchanged by the fix, to every digit, and its regression reference still
+   passes. The real defect was narrower: the Schur complement had nowhere to
+   live, so two capabilities were refused rather than one answer corrupted.
+   `Sf_data` now holds it and both refusals are lifted; the reason is on
+   `Sf_data`, `SetGradientMode()` and `NPCCheck()`.
 
 4. and 5. **Moot.** Both asked for warnings about the deleted mode's solver
    contract, on a `-lfirst` flag that no longer exists in any miniapp.
