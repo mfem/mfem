@@ -108,7 +108,7 @@ Operator& FDJacobian::GetGradient(const Vector &x0) const
    op.Mult(x, f);
    const real_t xnorm_local = x.Norml2();
    MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                  MPI_COMM_WORLD);
+                 MPI_COMM_WORLD);
 
    return const_cast<FDJacobian&>(*this);
 }
