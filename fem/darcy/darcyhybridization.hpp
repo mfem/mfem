@@ -216,6 +216,14 @@ protected:
    DiagonalPolicy diag_policy{DIAG_ONE};  ///< diagonal policy
    Array<int> ess_tdof_list;              ///< essential flux true DOFs
 
+   /** @brief Per-face polynomial degree of the trace, or empty for uniform.
+
+       Set by SetTraceOrders(); read only through TraceFE() and TraceVDofs(),
+       which fall through to the constraint space itself when this is empty, so
+       a caller that never sets it pays nothing and gets byte-identical
+       results. See SetTraceOrders() for what the entries mean. */
+   Array<int> tr_order;
+
 private:
    struct
    {
@@ -450,6 +458,21 @@ private:
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
    FaceElementTransformations *GetFaceTransformation(int f) const;
+
+   /** @brief The trace finite element on face @a f, at that face's degree.
+
+       Every read of the constraint space's face element goes through here
+       rather than through c_fes.GetFaceElement() directly, so that a per-face
+       degree reaches all of them at once. With no degrees set it *is*
+       c_fes.GetFaceElement(). */
+   const FiniteElement *TraceFE(int f) const;
+
+   /** @brief The trace vdofs of face @a f, truncated to that face's degree.
+
+       The face owns nt(p_max) slots per field in the uniform constraint space;
+       at degree p_f only the first nt(p_f) of each field's block are used, and
+       this returns those. With no degrees set it *is* c_fes.GetFaceVDofs(). */
+   void TraceVDofs(int f, Array<int> &vdofs) const;
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
@@ -749,6 +772,35 @@ public:
 
    /// Return a (read-only) list of all essential true DOFs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
+
+   /** @brief Give each face its own trace polynomial degree, for `p`-adaptivity.
+
+       @a face_order holds one degree per mesh face, and every entry must lie
+       between 0 and the degree of the constraint space, which stays a uniform
+       space at the maximum degree. A face of degree `p_f` then uses only the
+       first `nt(p_f)` of the `nt(p_max)` dof slots it owns, in each field; the
+       rest are surplus and the caller must make them essential, or they sit in
+       the system with nothing driving them.
+
+       The low-order face is **not** a subspace of the high-order one -- MFEM
+       has no hierarchical basis to make it one -- and it does not need to be.
+       It is a different basis in the same storage, and the HDG trace is
+       discontinuous face to face, so nothing outside that face ever reads
+       those slots.
+
+       The degrees are stored, not derived. A `p`-adaptive driver picks them
+       from the neighbouring element degrees by whatever rule it wants; note
+       that a face richer than *both* its neighbours is exactly redundant
+       rather than wrong (measured -- see the test "A trace richer than both
+       its elements is exactly redundant"), so `min` costs nothing that `max`
+       would have bought there.
+
+       Pass an empty array to return to a uniform trace. Must be called before
+       Finalize(), which is where the block sizes are fixed. */
+   void SetTraceOrders(const Array<int> &face_order);
+
+   /// Return the per-face trace degrees, empty when the trace is uniform.
+   const Array<int> &GetTraceOrders() const { return tr_order; }
 
    /// Not available, use a specific Assemble*MassMatrix() instead.
    void AssembleMatrix(int el, const DenseMatrix &A) override

@@ -382,7 +382,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    int ndof1, ndof2;
    bool save2 = false;
 
-   tr_fe = c_fes.GetFaceElement(face);
+   tr_fe = TraceFE(face);
    const int c_dof = tr_fe->GetDof() * c_fes.GetVDim();
 
    int el1, el2;
@@ -500,7 +500,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
    else if (face < num_faces)
    {
       Array<int> c_dofs;
-      c_fes.GetFaceVDofs(face, c_dofs);
+      TraceVDofs(face, c_dofs);
 
       if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
       DenseMatrix H_f;
@@ -514,7 +514,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       H_f.CopyMN(elmat, c_dof, c_dof, ndof1+ndof2, ndof1+ndof2);
       face_getter fx([this, &ItHI_f, &face_master](int f, DenseMatrix &m)
       {
-         const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+         const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
          ItHI_f.SetSize(c_size);
          m.Reset(ItHI_f.GetData(), c_size, c_size);
          face_master = f;
@@ -525,7 +525,7 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       if (face_master < 0) { return; } // ghost master?
       if (!H) { H.reset(new SparseMatrix(c_fes.GetVSize())); }
       Array<int> c_dofs;
-      c_fes.GetFaceVDofs(face_master, c_dofs);
+      TraceVDofs(face_master, c_dofs);
       H->AddSubMatrix(c_dofs, c_dofs, ItHI_f, skip_zeros);
    }
 }
@@ -539,8 +539,8 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    Array<int> c_dofs;
 
    const int face = mesh->GetBdrElementFaceIndex(bface);
-   tr_fe = c_fes.GetFaceElement(face);
-   c_fes.GetFaceVDofs(face, c_dofs);
+   tr_fe = TraceFE(face);
+   TraceVDofs(face, c_dofs);
    const int c_dof = c_dofs.Size();
 
    FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(face);
@@ -634,6 +634,70 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
+void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
+{
+   MFEM_VERIFY(!bfin, "Trace orders must be set before Finalize(), which is "
+               "where the local block sizes are fixed.");
+
+   if (face_order.Size() == 0) { tr_order.DeleteAll(); return; }
+
+   const Mesh *mesh = c_fes.GetMesh();
+   MFEM_VERIFY(face_order.Size() == mesh->GetNumFaces(),
+               "One trace order per mesh face is needed: got "
+               << face_order.Size() << " for " << mesh->GetNumFaces()
+               << " faces.");
+
+   // The constraint space stays uniform at its own degree and the per-face
+   // degrees index into the slots it already owns, so a face cannot ask for
+   // more than that space can store.
+   const int p_max = c_fes.FEColl()->GetOrder();
+   for (int f = 0; f < face_order.Size(); f++)
+   {
+      MFEM_VERIFY(face_order[f] >= 0 && face_order[f] <= p_max,
+                  "Trace order " << face_order[f] << " on face " << f
+                  << " is outside [0, " << p_max << "], the degree of the "
+                  "constraint space.");
+   }
+
+   face_order.Copy(tr_order);
+}
+
+const FiniteElement *DarcyHybridization::TraceFE(int f) const
+{
+   if (tr_order.Size() == 0) { return c_fes.GetFaceElement(f); }
+
+   return c_fes.FEColl()->GetFE(c_fes.GetMesh()->GetFaceGeometry(f),
+                                tr_order[f]);
+}
+
+void DarcyHybridization::TraceVDofs(int f, Array<int> &vdofs) const
+{
+   c_fes.GetFaceVDofs(f, vdofs);
+
+   if (tr_order.Size() == 0) { return; }
+
+   const int vdim = c_fes.GetVDim();
+   MFEM_ASSERT(vdofs.Size() % vdim == 0, "");
+   const int nt_max = vdofs.Size() / vdim;
+   const int nt_f = TraceFE(f)->GetDof();
+   if (nt_f == nt_max) { return; }
+   MFEM_ASSERT(nt_f < nt_max, "a face cannot carry more dofs than it owns");
+
+   // GetFaceVDofs() lays the fields out outermost whatever the space's
+   // Ordering is, so each field occupies its own run of nt_max slots and the
+   // face's degree keeps the first nt_f of each. Compacting in place is safe
+   // in this direction: the destination index k*nt_f + i never exceeds the
+   // source k*nt_max + i.
+   for (int k = 0; k < vdim; k++)
+   {
+      for (int i = 0; i < nt_f; i++)
+      {
+         vdofs[k*nt_f + i] = vdofs[k*nt_max + i];
+      }
+   }
+   vdofs.SetSize(nt_f * vdim);
+}
+
 FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
    int f) const
 {
@@ -669,7 +733,7 @@ void DarcyHybridization::AssembleCtFaceMatrix(int face,
 
    const int hat_size_1 = hat_offsets[el1+1] - hat_offsets[el1];
    const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
-   const int c_size = c_fes.GetFaceElement(face)->GetDof() * c_fes.GetVDim();
+   const int c_size = TraceFE(face)->GetDof() * c_fes.GetVDim();
 
    int inf1, inf2, nc;
    if (mesh->Nonconforming())
@@ -792,7 +856,7 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
       fx_H(slave.master, H_m);
    }
 
-   const FiniteElement *fe_m = c_fes.GetFaceElement(slave.master);
+   const FiniteElement *fe_m = TraceFE(slave.master);
    switch (geom_m)
    {
       case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
@@ -802,7 +866,7 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
    }
 
    nclist.OrientedPointMatrix(slave, T.GetPointMat());
-   const FiniteElement *fe_s = c_fes.GetFaceElement(slave.index);
+   const FiniteElement *fe_s = TraceFE(slave.index);
    fe_s->GetTransferMatrix(*fe_m, T, I);
 
    // get master/slave orientation and DOFs ordering
@@ -1000,7 +1064,7 @@ void DarcyHybridization::ConstructC()
       {
          f_size += Af_f_offsets[el2+1] - Af_f_offsets[el2];
       }
-      const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+      const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
       Ct_offsets[f+1] = Ct_offsets[f] + c_size * f_size;
    }
 
@@ -1019,7 +1083,7 @@ void DarcyHybridization::ConstructC()
          const FiniteElement *fe1 = fes.GetFE(FTr->Elem1No);
          const FiniteElement *fe2 = fes.GetFE(FTr->Elem2No);
 
-         c_bfi->AssembleFaceMatrix(*c_fes.GetFaceElement(f),
+         c_bfi->AssembleFaceMatrix(*TraceFE(f),
                                    *fe1, *fe2, *FTr, elmat);
          // zero-out small elements in elmat
          elmat.Threshold(mtol * elmat.MaxMaxNorm());
@@ -1047,7 +1111,7 @@ void DarcyHybridization::ConstructC()
             const FiniteElement *fe2 =
                (pfes)?(pfes->GetFaceNbrFE(FTr->Elem2No - NE)):(fe1);
 
-            c_bfi->AssembleFaceMatrix(*c_fes.GetFaceElement(f),
+            c_bfi->AssembleFaceMatrix(*TraceFE(f),
                                       *fe1, *fe2, *FTr, elmat);
             // zero-out small elements in elmat
             elmat.Threshold(mtol * elmat.MaxMaxNorm());
@@ -1093,7 +1157,7 @@ void DarcyHybridization::ConstructC()
             if (!FTr) { continue; }
 
             int iface = mesh->GetBdrElementFaceIndex(i);
-            face_el = c_fes.GetFaceElement(iface);
+            face_el = TraceFE(iface);
             fe1 = fes.GetFE (FTr -> Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
             // but we can't dereference a NULL pointer, and we don't want to
@@ -1150,7 +1214,7 @@ void DarcyHybridization::AllocEG() const
       {
          d_size += Df_f_offsets[el2+1] - Df_f_offsets[el2];
       }
-      const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+      const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
       E_offsets[f+1] = E_offsets[f] + c_size * d_size;
    }
 
@@ -1168,7 +1232,7 @@ void DarcyHybridization::AllocH() const
    H_offsets[0] = 0;
    for (int f = 0; f < num_faces; f++)
    {
-      const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+      const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
       H_offsets[f+1] = H_offsets[f] + c_size * c_size;
    }
 
@@ -1332,7 +1396,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
       // Mult C^T
       for (int f1 = 0; f1 < faces.Size(); f1++)
       {
-         c_fes.GetFaceVDofs(faces[f1], c_dofs_1);
+         TraceVDofs(faces[f1], c_dofs_1);
 
          int el1_1, el1_2;
          fes.GetMesh()->GetFaceElements(faces[f1], &el1_1, &el1_2);
@@ -1397,7 +1461,7 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
             }
             else
             {
-               c_fes.GetFaceVDofs(faces[f2], c_dofs_2);
+               TraceVDofs(faces[f2], c_dofs_2);
                H_->AddSubMatrix(c_dofs_2, c_dofs_1, H_l, skip_zeros);
             }
          }
@@ -1477,7 +1541,7 @@ void DarcyHybridization::GetCtFaceMatrix(
    int el1, el2;
    fes.GetMesh()->GetFaceElements(f, &el1, &el2);
 
-   const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+   const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
    const int f_size_1 = Af_f_offsets[el1+1] - Af_f_offsets[el1];
 
    if (side == 0)
@@ -1499,7 +1563,7 @@ void DarcyHybridization::GetEFaceMatrix(
    int el1, el2;
    fes.GetMesh()->GetFaceElements(f, &el1, &el2);
 
-   const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+   const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
    const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
 
    if (side == 0)
@@ -1520,7 +1584,7 @@ void DarcyHybridization::GetGFaceMatrix(
    int el1, el2;
    fes.GetMesh()->GetFaceElements(f, &el1, &el2);
 
-   const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+   const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
    const int d_size_1 = Df_f_offsets[el1+1] - Df_f_offsets[el1];
 
    if (side == 0)
@@ -1537,7 +1601,7 @@ void DarcyHybridization::GetGFaceMatrix(
 
 void DarcyHybridization::GetHFaceMatrix(int f, DenseMatrix &H) const
 {
-   const int c_size = c_fes.GetFaceElement(f)->GetDof() * c_fes.GetVDim();
+   const int c_size = TraceFE(f)->GetDof() * c_fes.GetVDim();
 
    H.Reset(&H_data[H_offsets[f]], c_size, c_size);
 }
@@ -1706,14 +1770,14 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       c_offsets[0] = 0;
       for (int f = 0; f < faces.Size(); f++)
       {
-         const int c_size = c_fes.GetFaceElement(faces[f])->GetDof() * c_fes.GetVDim();
+         const int c_size = TraceFE(faces[f])->GetDof() * c_fes.GetVDim();
          c_offsets[f+1] = c_offsets[f] + c_size;
       }
 
       x_l.Update(c_offsets);
       for (int f = 0; f < faces.Size(); f++)
       {
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         TraceVDofs(faces[f], c_dofs);
          x.GetSubVector(c_dofs, x_l.GetBlock(f));
       }
 
@@ -1833,7 +1897,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   if (FTr->Elem1No != el) { type |= 1; }
 
                   c_nlfi_p->AssembleHDGFaceVector(type,
-                                                  *c_fes.GetFaceElement(faces[f]),
+                                                  *TraceFE(faces[f]),
                                                   *fes_p.GetFE(el),
                                                   *FTr,
                                                   x_f, p_l, GpHx_l);
@@ -1851,7 +1915,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                          && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                      boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                     *c_fes.GetFaceElement(faces[f]),
+                                                                                     *TraceFE(faces[f]),
                                                                                      *fes_p.GetFE(el),
                                                                                      *FTr,
                                                                                      x_f, p_l, GpHx_l);
@@ -1881,7 +1945,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                   if (FTr->Elem1No != el) { type |= 1; }
 
                   c_nlfi->AssembleHDGFaceVector(type,
-                                                *c_fes.GetFaceElement(faces[f]),
+                                                *TraceFE(faces[f]),
                                                 fe_arr,
                                                 *FTr,
                                                 x_f, x_arr, y_arr);
@@ -1899,7 +1963,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                          && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                      boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                 *c_fes.GetFaceElement(faces[f]),
+                                                                                 *TraceFE(faces[f]),
                                                                                  fe_arr,
                                                                                  *FTr,
                                                                                  x_f, x_arr, y_arr);
@@ -1910,7 +1974,7 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
             }
          }
 
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         TraceVDofs(faces[f], c_dofs);
          y.AddElementVector(c_dofs, y_l);
       }
    }
@@ -2725,7 +2789,7 @@ void DarcyHybridization::AssembleHDGGrad(
    const Vector &x_f, const Vector &p_l) const
 {
    const int f = FTr->Face->ElementNo;
-   const FiniteElement *fe_c = c_fes.GetFaceElement(f);
+   const FiniteElement *fe_c = TraceFE(f);
    const FiniteElement *fe_p = fes_p.GetFE(el);
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
    const int c_dofs_size = x_f.Size();
@@ -2769,7 +2833,7 @@ void DarcyHybridization::AssembleHDGGrad(
    const Vector &x_f, const Vector &u_l, const Vector &p_l) const
 {
    const int f = FTr->Face->ElementNo;
-   const FiniteElement *fe_c = c_fes.GetFaceElement(f);
+   const FiniteElement *fe_c = TraceFE(f);
    const FiniteElement *fe_u = fes.GetFE(el);
    const FiniteElement *fe_p = fes_p.GetFE(el);
    const Array<const FiniteElement*> el_arr({fe_u, fe_p});
@@ -2977,7 +3041,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
             G.AddMult(p_l, b_rl);
          }
 
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         TraceVDofs(faces[f], c_dofs);
          b_r.AddElementVector(c_dofs, b_rl);
       }
    }
@@ -3032,9 +3096,9 @@ void DarcyHybridization::ProjectSolution(const BlockVector &sol,
    for (int f = 0; f < nfaces; f++)
    {
       FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(f);
-      const FiniteElement *c_fe = c_fes.GetFaceElement(f);
+      const FiniteElement *c_fe = TraceFE(f);
       const IntegrationRule &nodes = c_fe->GetNodes();
-      c_fes.GetFaceVDofs(f, c_vdofs);
+      TraceVDofs(f, c_vdofs);
       val_tr.SetSize(nodes.Size(), fes_p.GetVDim());
       MFEM_ASSERT(c_vdofs.Size() == nodes.Size() * fes_p.GetVDim(), "Internal error");
 
@@ -3146,7 +3210,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
          DenseMatrix Ct_l;
          GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
 
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
+         TraceVDofs(faces[f], c_dofs);
          sol_r.GetSubVector(c_dofs, sol_rl);
 
          Ct_l.AddMult_a(-1., sol_rl, bu_l);
@@ -3236,13 +3300,13 @@ void DarcyHybridization::ReconstructTotalFlux(
    for (int f = 0; f < nfaces; f++)
    {
       fes_ut.GetFaceVDofs(f, vdofs_ut);
-      MFEM_ASSERT(vdofs_ut.Size() == c_fes.GetFaceElement(f)->GetDof() *
+      MFEM_ASSERT(vdofs_ut.Size() == TraceFE(f)->GetDof() *
                   c_fes.GetVDim(), "Incompatible constraint and total flux spaces");
       bf.SetSize(vdofs_ut.Size());
       ut_f.SetSize(vdofs_ut.Size());
 
       FaceElementTransformations *ftr = mesh->GetFaceElementTransformations(f);
-      const FiniteElement *fe_c = c_fes.GetFaceElement(f);
+      const FiniteElement *fe_c = TraceFE(f);
 
 #ifdef MFEM_USE_MPI
       if (pmesh && pmesh->FaceIsTrueInterior(f) && ftr->Elem2No < 0)
@@ -3316,11 +3380,11 @@ void DarcyHybridization::ReconstructTotalFlux(
          // first side
          fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
          sol_p.GetSubVector(dofs1, p1);
-         c_fes.GetFaceVDofs(f, vdofs_xf);
+         TraceVDofs(f, vdofs_xf);
          x.GetSubVector(vdofs_xf, xf);
 
          const FiniteElement *fe1_p = fes_p.GetFE(ftr->Elem1No);
-         const FiniteElement *face_fe = c_fes.GetFaceElement(f);
+         const FiniteElement *face_fe = TraceFE(f);
 
          int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
                     | NonlinearFormIntegrator::HDGFaceType::FACE;
@@ -3373,11 +3437,11 @@ void DarcyHybridization::ReconstructTotalFlux(
                               | NonlinearFormIntegrator::HDGFaceType::FACE;
 
          const FiniteElement *fe_p = fes_p.GetFE(ftr->Elem1No);
-         const FiniteElement *face_fe = c_fes.GetFaceElement(f);
+         const FiniteElement *face_fe = TraceFE(f);
 
          fes_p.GetElementVDofs(ftr->Elem1No, dofs1);
          sol_p.GetSubVector(dofs1, p1);
-         c_fes.GetFaceVDofs(f, vdofs_xf);
+         TraceVDofs(f, vdofs_xf);
          x.GetSubVector(vdofs_xf, xf);
 
          const int bdr_attr = mesh->GetBdrAttribute(f_2_b[f]);
@@ -3764,7 +3828,7 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
             //interior
             if (FTr->Elem1No != el) { type |= 1; }
 
-            dh.c_nlfi->AssembleHDGFaceVector(type, *dh.c_fes.GetFaceElement(faces[f]),
+            dh.c_nlfi->AssembleHDGFaceVector(type, *dh.TraceFE(faces[f]),
                                              fe_arr, *FTr, trp_f, x_arr, y_arr);
 
             if (Au.Size() != 0) { bu += Au; }
@@ -3781,7 +3845,7 @@ void DarcyHybridization::LocalNLOperator::AddMultBlock(const Vector &u_l,
                    && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                              *dh.c_fes.GetFaceElement(faces[f]),
+                                                                              *dh.TraceFE(faces[f]),
                                                                               fe_arr,
                                                                               *FTr,
                                                                               trp_f, x_arr, y_arr);
@@ -3844,7 +3908,7 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
             //interior
             if (FTr->Elem1No != el) { type |= 1; }
 
-            dh.c_nlfi_p->AssembleHDGFaceVector(type, *dh.c_fes.GetFaceElement(faces[f]),
+            dh.c_nlfi_p->AssembleHDGFaceVector(type, *dh.TraceFE(faces[f]),
                                                *fe_p, *FTr, trp_f, p_l, DpEx);
 
             bp += DpEx;
@@ -3860,7 +3924,7 @@ void DarcyHybridization::LocalNLOperator::AddMultDE(const Vector &p_l,
                    && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                dh.boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                  *dh.c_fes.GetFaceElement(faces[f]),
+                                                                                  *dh.TraceFE(faces[f]),
                                                                                   *fe_p, *FTr, trp_f, p_l, DpEx);
 
                bp += DpEx;
@@ -3925,7 +3989,7 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
             //interior
             if (FTr->Elem1No != el) { type |= 1; }
 
-            dh.c_nlfi->AssembleHDGFaceGrad(type, *dh.c_fes.GetFaceElement(faces[f]),
+            dh.c_nlfi->AssembleHDGFaceGrad(type, *dh.TraceFE(faces[f]),
                                            fe_arr, *FTr, trp_f, x_arr, grad_arr);
 
             if (gA.Height() != 0) { grad_A += gA; }
@@ -3942,7 +4006,7 @@ void DarcyHybridization::LocalNLOperator::AddGradBlock(const Vector &u_l,
                    && (*dh.boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                dh.boundary_constraint_nonlin_integs[i]->AssembleHDGFaceGrad(type,
-                                                                            *dh.c_fes.GetFaceElement(faces[f]),
+                                                                            *dh.TraceFE(faces[f]),
                                                                             fe_arr,
                                                                             *FTr,
                                                                             trp_f, x_arr, grad_arr);
@@ -4007,7 +4071,7 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
             //interior
             if (FTr->Elem1No != el) { type |= 1; }
 
-            dh.c_nlfi_p->AssembleHDGFaceGrad(type, *dh.c_fes.GetFaceElement(faces[f]),
+            dh.c_nlfi_p->AssembleHDGFaceGrad(type, *dh.TraceFE(faces[f]),
                                              *fe_p, *FTr, trp_f, p_l, grad_Df);
 
             grad += grad_Df;
@@ -4023,7 +4087,7 @@ void DarcyHybridization::LocalNLOperator::AddGradDE(const Vector &p_l,
                    && (*dh.boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                dh.boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceGrad(type,
-                                                                                *dh.c_fes.GetFaceElement(faces[f]),
+                                                                                *dh.TraceFE(faces[f]),
                                                                                 *fe_p, *FTr, trp_f, p_l, grad_Df);
 
                grad += grad_Df;

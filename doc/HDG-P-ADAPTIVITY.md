@@ -71,6 +71,15 @@ one of them already a single face index, so the substitution is mechanical.
 *This adds a data member, so it is the class-layout trap: `make clean` in both
 trees, not a rebuild. Budget for it; a parameter cannot carry a persistent map.*
 
+*And one place outside `DarcyHybridization` reads the trace space directly:*
+`DarcyForm::ReconstructTotalFlux()` and `ReconstructFluxAndPot()` use
+`fes_tr->GetFaceElement(f)` and `fes_tr->GetFaceVDofs(f, ...)` (six sites in
+`darcyform.cpp`). With per-face degrees set those would read `p_max` elements
+against a solution occupying only `p_f` slots. `GetTraceOrders()` is public so
+the form can consult the hybridization; until it does, **reconstruction and a
+per-face trace must not be used together**, and that has to be a guard rather
+than a note.
+
 **2. Retire the surplus slots.**
 A face with `p_f < p_max` leaves `nt(p_max) - nt(p_f)` slots unused. Union them
 into the essential list through the existing `SetEssentialVDofs()`; `ComputeH`'s
