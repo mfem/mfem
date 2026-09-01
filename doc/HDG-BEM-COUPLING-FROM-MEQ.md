@@ -12,6 +12,36 @@ term. What is missing is the *coupling*: the artificial boundary's datum is an
 unknown, and there is currently no way for a hybridized system to carry an
 unknown that is not a trace dof.
 
+**REVISED 2026-09-01, AND THE REVISION WITHDRAWS MOST OF THE REQUEST.** This
+document was written against `NLOrdering::LineariseThenCondense`, which is now
+deleted, and meq has since ported to `NonlinearOrdering::NPC`. Under NPC the
+residual is **unreduced**, so an auxiliary unknown's border column is a raw block
+and there is no static condensation for it to survive. Re-examined stage by
+stage against meq's `FREE-BOUNDARY-PLAN.md` §6:
+
+* **§2.1 is withdrawn.** meq does not need `⟨φ_n ∘ a, v·n⟩_e`. The datum's data
+  half is an **essential trace value**, not a weak form: `ψ̂|_{Γ_h} = P a`, and
+  `P`'s columns are `ProjectBdrCoefficient` against the existing
+  `PathTraceCoefficient`, which already takes an arbitrary `PositionFunction`.
+  The rectangular integrator would be right if the datum entered weakly. It does
+  not. **This was meq's error, not a change on your side.**
+* **§2.2 stands, and is no longer blocking.** The boundary piece of the extension
+  quadrature — the `t = 1` face, with the measure on `Γ` — has nothing directly
+  behind it, but `TransferPath::Endpoint`, `ElementExtension::TransformBack` and
+  a central difference along the face reach it in about forty lines of caller
+  code. **meq will write one and come back with it, and with the tiling check
+  attached**; a version that has been used is a better request than this one.
+* **§3 is an optimisation, not a prerequisite**, and §3.2 below already says so
+  in its correction. The block elimination costs `M + 1` backsolves against one
+  factorisation — `DarcyNPCSolver::SetOperator` re-points the trace solver at
+  `S` and `Mult()` is reduce → backsolve → recover — which is what meq's `ψ_ax`
+  border already pays. It remains worth doing on §3.1's general grounds. **It
+  should not be built ahead of anything else on meq's account.**
+
+**Nothing in this tree needs to change for meq to start FB-0 through FB-3.** The
+paragraph below calling §3 structural is what this revision corrects; it is left
+standing so the change is visible.
+
 The request is in two parts of very different size, and **the small one is
 useful on its own** — it is asked for first for that reason.
 
@@ -142,7 +172,12 @@ special case of the rule.
 
 ---
 
-## 3. The structural ask: auxiliary globally-coupled unknowns
+## 3. The larger ask: auxiliary globally-coupled unknowns
+
+**Headed "the structural ask" when filed. It is not structural — see the
+revision note at the top — and the heading is corrected rather than the section
+rewritten, because §3.1's general case is unaffected and is the better argument
+for it.**
 
 **`DarcyHybridization` has no concept of a global unknown that is not a trace
 dof, and that is what stops §2's blocks from reaching the reduced system.**
