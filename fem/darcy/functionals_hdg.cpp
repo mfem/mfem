@@ -50,6 +50,28 @@ static real_t FaceNormalFlux(const GridFunction &ut,
    return sum;
 }
 
+/** @brief Refuse a total flux carrying more than one field.
+
+    Before DarcyForm::ReconstructTotalFlux() was general in vdim there was no
+    way to reach these functions with a system, so nothing checked. Now there
+    is, and what would happen is worse than an abort: FaceNormalFlux() reads
+    the flux through GridFunction::GetVectorValue(), whose H(div) branch does
+    vshape.MultTranspose(loc_data, val) with vshape of GetDof() rows against a
+    loc_data of GetDof()*vdim -- so it consumes field 0's block and returns
+    **field 0's flux alone**, with no indication that the other fields exist.
+    The size mismatch is an MFEM_ASSERT, so a debug build catches it and a
+    release build does not.
+
+    A per-field version of these functionals is the piece that is missing;
+    until it is written the refusal is loud. */
+static void VerifyOneField(const FiniteElementSpace *fes)
+{
+   MFEM_VERIFY(fes->GetVDim() == 1,
+               "the total flux carries " << fes->GetVDim() << " fields; this "
+               "functional is stated for one and would silently return the "
+               "first field's flux");
+}
+
 /// The quadrature order to integrate ut.n at, when the caller does not say.
 static int DefaultIROrder(const GridFunction &ut, int ir_order)
 {
@@ -63,6 +85,7 @@ real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
 {
    const FiniteElementSpace *fes = ut.FESpace();
    MFEM_VERIFY(fes, "the total flux has no finite element space");
+   VerifyOneField(fes);
    Mesh *mesh = fes->GetMesh();
    MFEM_VERIFY(elem_marker.Size() == mesh->GetNE(),
                "elem_marker must have one entry per element, got "
@@ -99,6 +122,7 @@ real_t ComputeBoundaryFlux(const GridFunction &ut,
 {
    const FiniteElementSpace *fes = ut.FESpace();
    MFEM_VERIFY(fes, "the total flux has no finite element space");
+   VerifyOneField(fes);
    Mesh *mesh = fes->GetMesh();
 
    const int iro = DefaultIROrder(ut, ir_order);

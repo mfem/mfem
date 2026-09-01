@@ -1010,13 +1010,19 @@ static bool IsOrWraps(NonlinearFormIntegrator *integ)
 void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
                                      const Vector &sol_r, GridFunction &ut) const
 {
-   // MFEM_VERIFY, not MFEM_ASSERT: an assert is compiled out of a release
-   // build, and a system reaching here would then be silently postprocessed
-   // as though it were one field rather than refused.
-   MFEM_VERIFY(fes_p->GetVDim() == 1,
-               "Reconstruction is implemented only for vdim == 1");
-
    if (!hybridization) { return; }
+
+   // One field or many. The total flux carries one block per equation and the
+   // block layout is the one the whole branch uses -- equation outermost --
+   // so the space below is built with vdim rather than as a scalar. The three
+   // spaces have to agree on the count: the flux law is stated per equation
+   // (see DarcyHybridization::total_flux_fun) and the constraint's face dofs
+   // are what the total flux's are matched against.
+   const int neq = fes_p->GetVDim();
+   MFEM_VERIFY(neq == hybridization->ConstraintFESpace()->GetVDim(),
+               "the potential carries " << neq << " field(s) and the trace "
+               << hybridization->ConstraintFESpace()->GetVDim()
+               << "; reconstruction needs them equal");
 
    // automatically set up the finite element space
    if (!ut.FESpace())
@@ -1033,12 +1039,12 @@ void DarcyForm::ReconstructTotalFlux(const BlockVector &sol,
       ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
       if (pmesh)
       {
-         ut_space = new ParFiniteElementSpace(pmesh, ut_coll);
+         ut_space = new ParFiniteElementSpace(pmesh, ut_coll, neq);
       }
       else
 #endif //MFEM_USE_MPI
       {
-         ut_space = new FiniteElementSpace(mesh, ut_coll);
+         ut_space = new FiniteElementSpace(mesh, ut_coll, neq);
       }
 
       ut.SetSpace(ut_space);
@@ -1134,13 +1140,15 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
                                       const GridFunction &ut, GridFunction &u,
                                       GridFunction &p, GridFunction &tr) const
 {
-   // MFEM_VERIFY, not MFEM_ASSERT: an assert is compiled out of a release
-   // build, and a system reaching here would then be silently postprocessed
-   // as though it were one field rather than refused.
-   MFEM_VERIFY(fes_p->GetVDim() == 1,
-               "Reconstruction is implemented only for vdim == 1");
-
    if (!hybridization) { return; }
+
+   // One field or many; see ReconstructTotalFlux() above for the layout and
+   // why the two counts have to agree.
+   const int neq = fes_p->GetVDim();
+   MFEM_VERIFY(neq == hybridization->ConstraintFESpace()->GetVDim(),
+               "the potential carries " << neq << " field(s) and the trace "
+               << hybridization->ConstraintFESpace()->GetVDim()
+               << "; reconstruction needs them equal");
 
    // flux space
    if (!u.FESpace())
@@ -1181,12 +1189,12 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
       if (pmesh)
       {
-         ps_space = new ParFiniteElementSpace(pmesh, ps_coll);
+         ps_space = new ParFiniteElementSpace(pmesh, ps_coll, neq);
       }
       else
 #endif //MFEM_USE_MPI
       {
-         ps_space = new FiniteElementSpace(mesh, ps_coll);
+         ps_space = new FiniteElementSpace(mesh, ps_coll, neq);
       }
       p.SetSpace(ps_space);
       p.MakeOwner(ps_coll);
@@ -1206,12 +1214,12 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
       ParMesh *pmesh = dynamic_cast<ParMesh*>(mesh);
       if (pmesh)
       {
-         trs_space = new ParFiniteElementSpace(pmesh, trs_coll);
+         trs_space = new ParFiniteElementSpace(pmesh, trs_coll, neq);
       }
       else
 #endif //MFEM_USE_MPI
       {
-         trs_space = new FiniteElementSpace(mesh, trs_coll);
+         trs_space = new FiniteElementSpace(mesh, trs_coll, neq);
       }
 
       tr.SetSpace(trs_space);
@@ -1394,6 +1402,20 @@ const
 #endif //MFEM_USE_MPI
    const int dim = mesh->Dimension();
 
+   // The number of fields, and the one thing that makes the local problem
+   // below a system rather than a scalar one. Every block of the element
+   // matrix is neq copies of a scalar block laid out equation outermost --
+   // that is what VectorBlockDiagonalIntegrator builds, what the base
+   // BilinearFormIntegrator::AssembleHDGFaceMatrix(int side, ...) slices, and
+   // what GetElementVDofs()/GetFaceVDofs() give locally under either
+   // Ordering. So the *slicing* below needs nothing new; only the sizes, the
+   // right-hand side and the closure rows do.
+   const int neq = fes_p->GetVDim();
+   MFEM_VERIFY(fes_tr->GetVDim() == neq && fes_ut->GetVDim() == neq,
+               "the enriched trace and the total flux must carry " << neq
+               << " field(s), got " << fes_tr->GetVDim() << " and "
+               << fes_ut->GetVDim());
+
    DenseMatrix elmat, Mu_z, Mp_z, B_z, Ct_f, Ct_fz, DEGH_f, D_fz, E_fz, G_fz, H_f,
                Mp_k, P_lift;
    DenseMatrixInverse inv;
@@ -1402,10 +1424,14 @@ const
    Vector p_lift, trfun_z;
    Array<int> faces, oris, vdofs_ut;
 
-   DivergenceGridFunctionCoefficient bp_coeff(&ut);
-   DomainLFIntegrator bp(bp_coeff);
+   // The element driver, per field. At neq == 1 this is bit for bit the
+   // scalar DomainLFIntegrator(DivergenceGridFunctionCoefficient) it replaced
+   // -- see the note in VectorDivergenceGridFunctionCoefficient::Eval(), which
+   // was written to divide rather than scale by a reciprocal so that it is.
+   VectorDivergenceGridFunctionCoefficient bp_coeff(&ut, neq);
+   VectorDomainLFIntegrator bp(bp_coeff);
 
-   Vector sol, sol_u, sol_p, sol_pc, sol_tr_f, elmat_e, rhs_e, mass_p;
+   Vector sol, sol_u, sol_p, sol_pc, sol_tr_f, elmat_e, rhs_e, mass_p, sum_pc;
    Array<int> vdofs_u, dofs_p, dofs_pc, vdofs_tr;
 
    u = 0.;
@@ -1415,9 +1441,12 @@ const
    for (int z = 0; z < mesh->GetNE(); z++)
    {
       fes_u->GetElementVDofs(z, vdofs_u);
-      fes_p->GetElementDofs(z, dofs_p);
+      fes_p->GetElementVDofs(z, dofs_p);
       const int ndof_u = vdofs_u.Size();
       const int ndof_p = dofs_p.Size();
+      // The scalar count, which is what every shape function and every
+      // per-field offset is stated in. ndof_p is neq of these.
+      const int ndof_p_s = ndof_p / neq;
 
       switch (dim)
       {
@@ -1435,7 +1464,7 @@ const
       int ndof_tr = 0;
       for (int f : faces)
       {
-         ndof_tr += fes_tr->GetFaceElement(f)->GetDof();
+         ndof_tr += neq * fes_tr->GetFaceElement(f)->GetDof();
       }
 
       const int elmat_w = ndof_u + ndof_p + ndof_tr;
@@ -1449,8 +1478,9 @@ const
       const FiniteElement *fe_p = fes_p->GetFE(z);
       ElementTransformation *Tr = mesh->GetElementTransformation(z);
 
-      fes_pc->GetElementDofs(z, dofs_pc);
+      fes_pc->GetElementVDofs(z, dofs_pc);
       pc.GetSubVector(dofs_pc, sol_pc);
+      const int ndof_pc_s = dofs_pc.Size() / neq;
 
       // The computed potential lifted onto the enriched space, the state that
       // a frozen non-linear block is taken at. The enriched space contains the
@@ -1458,9 +1488,16 @@ const
       // its own.
       if (pot_nl || c_nlfi_p)
       {
+         // Project() is between the two SCALAR elements, so the lift matrix
+         // is shared by every field and applied to each block in turn.
          fe_p->Project(*fes_pc->GetFE(z), *Tr, P_lift);
          p_lift.SetSize(ndof_p);
-         P_lift.Mult(sol_pc, p_lift);
+         for (int e = 0; e < neq; e++)
+         {
+            const Vector src(sol_pc.GetData() + e * ndof_pc_s, ndof_pc_s);
+            Vector dst(p_lift.GetData() + e * ndof_p_s, ndof_p_s);
+            P_lift.Mult(src, dst);
+         }
       }
 
       M_u->ComputeElementMatrix(z, Mu_z);
@@ -1513,7 +1550,8 @@ const
       for (int f : faces)
       {
          const FiniteElement *fe_tr = fes_tr->GetFaceElement(f);
-         const int ndof_tr_f = fe_tr->GetDof();
+         const int ndof_tr_fs = fe_tr->GetDof();
+         const int ndof_tr_f = neq * ndof_tr_fs;
          FaceElementTransformations *FTr = mesh->GetFaceElementTransformations(f);
 #ifdef MFEM_USE_MPI
          if (FTr->Elem2No < 0 && pmesh && pmesh->FaceIsTrueInterior(f))
@@ -1576,13 +1614,19 @@ const
          if (fe_tr->GetMapType() != FiniteElement::VALUE) { order += FTr->OrderW(); }
          const IntegrationRule &ir = IntRules.Get(fe_ut->GetGeomType(), order);
 
+         // Both shapes are scalar; the fields share them and differ only in
+         // which block of ut_f is contracted and which block of rhs_f is
+         // written.
          shape_ut.SetSize(ndof_ut_f);
-         shape_tr.SetSize(ndof_tr_f);
+         shape_tr.SetSize(ndof_tr_fs);
          rhs_f.MakeRef(rhs, off_tr, ndof_tr_f);
          rhs_f = 0.;
 
          fes_ut->GetFaceVDofs(f, vdofs_ut);
          ut.GetSubVector(vdofs_ut, ut_f);
+         MFEM_ASSERT(vdofs_ut.Size() == neq * ndof_ut_f,
+                     "the total flux has " << vdofs_ut.Size()
+                     << " face vdofs, expected " << neq * ndof_ut_f);
 
          MFEM_ASSERT(fe_ut->GetMapType() == FiniteElement::INTEGRAL,
                      "Non-integral face");
@@ -1591,17 +1635,27 @@ const
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             fe_ut->CalcShape(ip, shape_ut);
-            const real_t ut_q = shape_ut * ut_f;
-
             fe_tr->CalcShape(ip, shape_tr);
-            real_t w = ip.weight * ut_q;
-            if (fe_tr->GetMapType() == FiniteElement::INTEGRAL)
-            {
-               FTr->SetIntPoint(&ip);
-               w /= FTr->Weight();
-            }
 
-            rhs_f.Add(w, shape_tr);
+            for (int e = 0; e < neq; e++)
+            {
+               const Vector ut_fe(ut_f.GetData() + e * ndof_ut_f, ndof_ut_f);
+               const real_t ut_q = shape_ut * ut_fe;
+
+               // The arithmetic is written in exactly the order the scalar
+               // version used -- multiply by ut_q, then divide by the face
+               // weight -- because reassociating it moves the last bit and
+               // this path has to reproduce the one-field answer exactly.
+               real_t w = ip.weight * ut_q;
+               if (fe_tr->GetMapType() == FiniteElement::INTEGRAL)
+               {
+                  FTr->SetIntPoint(&ip);
+                  w /= FTr->Weight();
+               }
+
+               Vector rhs_fe(rhs_f.GetData() + e * ndof_tr_fs, ndof_tr_fs);
+               rhs_fe.Add(w, shape_tr);
+            }
          }
 
          if (FTr->Elem1No != z) { rhs_f.Neg(); }
@@ -1615,39 +1669,71 @@ const
       // it is in H(div), so the element's flux balance is already satisfied
       // and the potential is determined only up to a constant. There is
       // nothing to decide here, and so nothing to get wrong.
+      //
+      // **For a system there are neq constants, not one, and neq closure rows.**
+      // The count and the placement are both forced, and neither is a choice:
+      //
+      //  * The count. The right-hand side of the potential rows is driven
+      //    entirely by ut, and ut is in H(div) with vdim == neq, so field e's
+      //    own element balance int_K div ut_e = int_dK ut_e.n holds
+      //    identically for EACH e. Each field's potential rows are therefore
+      //    rank deficient by exactly one and its potential is fixed only up to
+      //    a constant. The null space is neq dimensional -- spanned by the
+      //    per-field constants -- so neq conditions are needed and neq
+      //    equations may be dropped.
+      //  * The placement. Row ndof_u + e*ndof_p_s + i belongs to field e; a
+      //    row of field e's block says nothing about field f's constant. Put
+      //    all neq closures in one block and neq-1 constants stay free while
+      //    that block is overdetermined -- a singular matrix, silently solved.
+      //    So one closure lands in each field's own block, and its datum is
+      //    that field's own element average, which is what makes each
+      //    component superconverge for the same reason the scalar one does.
+      //
+      // Which row within the block is free; the first is what the scalar code
+      // used, so e == 0 reproduces it exactly.
       {
          // adjust the element average of potential
          const FiniteElement *fe_pc = fes_pc->GetFE(z);
          const int order = fe_p->GetOrder() + Tr->OrderW();
          const IntegrationRule &ir = IntRules.Get(fe_p->GetGeomType(), order);
          Tr = mesh->GetElementTransformation(z);//just to be sure
-         shape_p.SetSize(ndof_p);
-         shape_pc.SetSize(fe_pc->GetDof());
+         shape_p.SetSize(ndof_p_s);
+         shape_pc.SetSize(ndof_pc_s);
 
-         real_t sum = 0.;
-         mass_p.SetSize(ndof_p);
+         // The mass row is the same for every field -- it is built from the
+         // scalar shape -- so only the datum is per field.
+         sum_pc.SetSize(neq);
+         sum_pc = 0.;
+         mass_p.SetSize(ndof_p_s);
          mass_p = 0.;
          for (int q = 0; q < ir.GetNPoints(); q++)
          {
             const IntegrationPoint &ip = ir.IntPoint(q);
             Tr->SetIntPoint(&ip);
             fe_pc->CalcShape(ip, shape_pc);
-            const real_t val = shape_pc * sol_pc;
             const real_t w = ip.weight * Tr->Weight();
-            sum += val * w;
+            for (int e = 0; e < neq; e++)
+            {
+               const Vector pc_e(sol_pc.GetData() + e * ndof_pc_s, ndof_pc_s);
+               const real_t val = shape_pc * pc_e;
+               sum_pc(e) += val * w;
+            }
 
             fe_p->CalcShape(ip, shape_p);
             mass_p.Add(w, shape_p);
          }
 
-         // replace a potential equation by the average
-         constexpr int i_p = 0;
-         elmat.SetRow(ndof_u + i_p, 0.);
-         for (int i = 0; i < ndof_p; i++)
+         // replace one potential equation per field by that field's average
+         for (int e = 0; e < neq; e++)
          {
-            elmat(ndof_u + i_p, ndof_u + i) = mass_p(i);
+            const int i_p = e * ndof_p_s;
+            elmat.SetRow(ndof_u + i_p, 0.);
+            for (int i = 0; i < ndof_p_s; i++)
+            {
+               elmat(ndof_u + i_p, ndof_u + i_p + i) = mass_p(i);
+            }
+            rhs(ndof_u + i_p) = sum_pc(e);
          }
-         rhs(ndof_u + i_p) = sum;
       }
 
       // LU decompose

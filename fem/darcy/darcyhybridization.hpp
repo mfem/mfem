@@ -1441,8 +1441,20 @@ public:
        space is assumed to have equal number of DOFs at faces as the trace
        variable. For the interiors of elements, the quadrature function must
        be provided to calculate the total flux from the provided flux and
-       potential values. Currrently, vector dimension of the system is not
-       supported.
+       potential values.
+
+       @note **Systems are supported**, and this note used to say they were
+       not. @a ut, the constraint space and the potential must all carry the
+       same number of fields; every block below is that many copies of a
+       scalar one, field outermost. Two things carried the generalisation and
+       both are worth knowing about, because neither shows up as an abort.
+       The face solve inverts the *scalar* face mass, which MassIntegrator
+       builds regardless of vdim, so it is factored once and applied once per
+       field rather than once against an neq-times-too-long right-hand side.
+       And the element interior's boundary/interior split is a scalar count:
+       GetNumElementInteriorDofs() counts one field's, and the interior dofs
+       are the tail of each field's block of the vdof list, not the tail of
+       the list -- which is the same thing only when there is one field.
        @param sol    solution of the mixed system
        @param sol_r  solution of the hybridized system
        @param ut_fx  total flux function
