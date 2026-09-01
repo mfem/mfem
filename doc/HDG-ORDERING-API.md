@@ -585,23 +585,54 @@ the shape `meq` reports. **What differs is severity.** Here a full step
 multiplies it by 77 (8.1e-02 -> 6.25e+00), so `alpha = 1` is rejected and the
 search retreats.
 
-**And then the reference implementation misbehaves, which is a defect here
-rather than a property of the method.** `NSBacktrackingNewton` in
-`miniapps/hdg/navierstokes.cpp` — which `meq` copied faithfully — accepts on
-`Norm(rt) < n0`, a monotone test with **no sufficient-decrease constant**. For
-Newton on an l2 merit the direction is always a descent direction, so
-merit(alpha) ~ merit(0)(1 - alpha) and *any* small enough alpha passes: swept
-here, alpha = 1.2e-4 is still "accepted", improving the merit by 1e-4 relative.
-So on a problem where alpha = 1 is rejected the search does not fail, it
-**creeps** — which is precisely the 1%-a-step crawl `meq` saw. An Armijo test,
-`Norm(rt) < (1 - c*alpha)*n0`, would reject those steps and report failure
-honestly. It would not make `meq`'s problem converge; it would stop the
-globalisation from disguising its own failure. Fixing it is open.
+**Why is there a hand-rolled backtracking Newton here at all?** There should
+not be. `KINSolver(KIN_LINESEARCH)` is KINSOL's Dennis & Schnabel line search
+with both the sufficient-decrease and curvature conditions, a minimum-step test
+that reports non-convergence instead of creeping, and a maximum-step
+constraint. `NSBacktrackingNewton` in `miniapps/hdg/navierstokes.cpp`
+reimplements a worse version of it, and exists only because **neither HDG tree
+here is configured with SUNDIALS**, so `KINSolver` is not compiled. That is a
+build reason, not a numerical one, and it is a bad reason to ship the worse one
+as the reference other people copy. `meq`'s build has SUNDIALS on and should
+use `KIN_LINESEARCH` rather than the copy.
 
-What would actually serve a potential-block nonlinearity is a step rule that
-respects the block structure — damping the nonlinear block without undoing the
-exact annihilation of the linear ones. `DarcyNPCOperator` is the object that
-knows which block is which. Nobody has tried it.
+It is a genuinely worse implementation: it accepts on `Norm(rt) < n0`, a
+monotone test with **no sufficient-decrease constant**. For Newton on an l2
+merit the direction is always a descent direction, so merit(a) ~ merit(0)(1-a)
+and any small enough `a` passes — swept here, `a = 1.2e-4` still "succeeds",
+improving the merit by 1e-4 relative. Where `a = 1` is rejected it therefore
+does not fail, it **creeps**, which is the 1%-a-step crawl `meq` saw.
+
+**But that defect is not what makes `meq`'s problem fail, and an earlier
+version of this section implied it was.** `meq` also ran `KIN_LINESEARCH` —
+the correct implementation, sufficient decrease and all — and reports it
+failing on exactly the same cases. So a proper Armijo test does not rescue it.
+Fixing ours would make the failure honest, not make it converge.
+
+**Nor does a block-aware merit, which is what both we and `meq` reached for
+next.** Take `meq`'s own numbers: the residual at `x` is (flux 7.93e-02,
+potential 8.13e-02, trace 0) and after a full step (1.14e-16, 6.25e+00,
+1.82e-13). For any diagonal merit with weights `(w_f, w_p, w_t)`, accepting
+`a = 1` needs
+
+    (w_p * 6.25)^2  <  (w_f * 0.0793)^2 + (w_p * 0.0813)^2   =>   w_f/w_p > 78.8
+
+— you would have to weight the **linear flux row 79x above the nonlinear
+potential row**, the opposite of damping the nonlinear block. And a merit that
+all but ignores the potential row is one a Newton step annihilates exactly, so
+the search accepts `a = 1` unconditionally and degenerates into no line search.
+KINSOL already exposes exactly this knob (`KINSolver::Mult(x, x_scale,
+fx_scale)`), so the idea is cheap to test and the arithmetic says not to
+bother.
+
+**What the evidence actually points at is non-monotonicity.** Undamped Newton
+converges five cases that every monotone search kills, which is the signature
+of an iteration that must be allowed uphill to reach the basin. The remedies
+are a non-monotone acceptance test (accept below the max of the last M
+merits), a trust region, or no line search — and KINSOL's own answer,
+Anderson-accelerated `KIN_PICARD`/`KIN_FP` (`KINSolver::EnableAndersonAcc()`),
+is precisely the production ladder `meq` already ships. None of that needs a
+new solver written here.
 
 ## 7. Suspected defects and inconsistencies
 

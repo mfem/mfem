@@ -994,8 +994,21 @@ public:
        helps or hurts turns on how badly the full step treats the potential
        block: here it improves it and the search helps, on meq's
        Grad-Shafranov discretisation it multiplies it by 77 and the search made
-       every case worse. doc/HDG-NPC-GLOBALISATION-FROM-MEQ.md has their
-       measurement and doc/HDG-ORDERING-API.md section 6 the caveat.
+       every case worse.
+
+       **Do not write a line search to fix that.** KINSolver(KIN_LINESEARCH) is
+       KINSOL's Dennis & Schnabel search, with the sufficient-decrease and
+       curvature conditions and a minimum-step test, and meq report it failing
+       on exactly the same cases -- so a correct backtracking implementation
+       does not rescue this, and a block-weighted merit does not either:
+       accepting a full step on meq's published residuals needs the LINEAR flux
+       row weighted 79x above the nonlinear potential row, which is a merit
+       that a Newton step annihilates by construction and hence no line search
+       at all. What the evidence points at is non-monotonicity -- undamped
+       Newton converges cases every monotone search kills -- for which KINSOL
+       offers Anderson-accelerated KIN_PICARD / KIN_FP. See
+       doc/HDG-NPC-GLOBALISATION-FROM-MEQ.md and section 6 of
+       doc/HDG-ORDERING-API.md.
 
        A line search here is well defined for a
        reason worth keeping in view -- the fields and the trace scale together
