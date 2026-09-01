@@ -42,10 +42,16 @@ add_mfem_miniapp(mfem-logo
     ${HDG_COMMON_FILES}
     LIBRARIES mfem)
 
-add_mfem_miniapp(navierstokes
-    MAIN navierstokes.cpp
-    ${HDG_COMMON_FILES}
-    LIBRARIES mfem)
+# navierstokes takes its globalisation from KINSolver's KIN_LINESEARCH rather
+# than carrying a backtracking Newton of its own, so it requires SUNDIALS and
+# is not built without it. The GNU makefile drops it from SEQ_MINIAPPS for the
+# same reason.
+if (MFEM_USE_SUNDIALS)
+  add_mfem_miniapp(navierstokes
+      MAIN navierstokes.cpp
+      ${HDG_COMMON_FILES}
+      LIBRARIES mfem)
+endif()
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(panisodiff

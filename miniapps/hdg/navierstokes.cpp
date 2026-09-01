@@ -198,6 +198,10 @@
 #include "darcyop.hpp"
 #include "nsflux.hpp"
 
+#ifndef MFEM_USE_SUNDIALS
+#error This miniapp requires that MFEM is built with MFEM_USE_SUNDIALS=YES
+#endif
+
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -363,36 +367,6 @@ static void ExactFlux(const ProblemParams &pars, const Vector &x, Vector &q)
    }
 }
 
-/** @brief Newton with backtracking on the full residual, which is the
-    globalisation NPC asks for.
-
-    MFEM's NewtonSolver::ComputeScalingFactor is the hook and returns 1 by
-    default. Halving until the residual decreases is the crudest useful rule
-    and is enough here; what makes it meaningful under NPC rather than under a
-    reduced operator is that `c` spans the flux, the potential and the trace,
-    so scaling it scales the fields with the trace. A line search on an
-    operator over the trace alone scales the trace and leaves the field update
-    to whatever the substitution makes of it. */
-class NSBacktrackingNewton : public NewtonSolver
-{
-protected:
-   real_t ComputeScalingFactor(const Vector &x, const Vector &b) const override
-   {
-      Vector xt(x.Size()), rt(x.Size());
-      const real_t n0 = Norm(r);
-      real_t alpha = 1.0;
-      for (int k = 0; k < 20; k++)
-      {
-         add(x, -alpha, c, xt);
-         oper->Mult(xt, rt);
-         if (b.Size() == rt.Size()) { rt -= b; }
-         if (Norm(rt) < n0) { break; }
-         alpha *= 0.5;
-      }
-      return alpha;
-   }
-};
-
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -507,12 +481,17 @@ int main(int argc, char *argv[])
                   "Outer Newton iteration cap.");
    args.AddOption(&line_search, "-ls", "--line-search",
                   "-no-ls", "--no-line-search",
-                  "Backtrack on the FULL residual. This is the globalisation "
-                  "NPC wants and it is well defined only because the flux, "
-                  "potential and trace are one Newton vector, so a step "
-                  "scales all three together. Off by default: it changes no "
-                  "converged answer, only whether a cold start reaches one, "
-                  "and -cont covers the same ground for the cases here.");
+                  "Globalise with KINSOL's KIN_LINESEARCH, which implies "
+                  "-nls 4. It backtracks on the FULL residual, well defined "
+                  "here only because the flux, potential and trace are one "
+                  "Newton vector so a step scales all three together. Off by "
+                  "default: it changes no converged answer, only whether a "
+                  "cold start reaches one, and -cont covers the same ground "
+                  "for the cases here. Note it is an l2 merit over all three "
+                  "blocks -- where the nonlinearity sits in the potential "
+                  "block and the flux and trace rows are linear, a full step "
+                  "is exactly optimal for two of the three and damping can be "
+                  "worse than none; see doc/HDG-ORDERING-API.md section 6.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -1034,8 +1013,32 @@ int main(int argc, char *argv[])
                "Use -nls 3 (Newton) or -nls 4 (KINSol); LBFGS and LBB cannot "
                "drive it.");
 
-   unique_ptr<NewtonSolver> newton(line_search ? new NSBacktrackingNewton()
-                                   : new NewtonSolver());
+   // Globalisation comes from KINSOL, not from anything written here. This
+   // miniapp used to carry a hand-rolled backtracking Newton, and it was a
+   // worse implementation of exactly what KIN_LINESEARCH already does:
+   // Dennis & Schnabel with the sufficient-decrease AND curvature conditions,
+   // a minimum-step test that reports non-convergence, and a maximum-step
+   // constraint. Ours accepted on `Norm(rt) < n0` with no sufficient-decrease
+   // constant, and since the Newton direction is always a descent direction
+   // for an l2 merit, ANY small enough step passed -- measured, alpha = 1.2e-4
+   // still "succeeding" for a 1e-4 relative improvement. So where a full step
+   // was rejected it did not fail, it crept. meq copied it and lost an
+   // afternoon to that. Section 6 of doc/HDG-ORDERING-API.md has the whole
+   // account, including why neither a correct line search nor a block-weighted
+   // merit rescues the case that motivated it.
+   unique_ptr<NewtonSolver> newton;
+   if (line_search || solver_type == (int) DarcyOperator::SolverType::KINSol)
+   {
+      auto *kin = new KINSolver(line_search ? KIN_LINESEARCH : KIN_NONE);
+      // A true Newton rather than a lagged-Jacobian one; without it KINSOL
+      // reuses a setup and the comparison against -nls 3 is not like for like.
+      kin->SetMaxSetupCalls(1);
+      newton.reset(kin);
+   }
+   else
+   {
+      newton.reset(new NewtonSolver());
+   }
    newton->SetOperator(npc);
    newton->SetSolver(lin);
    newton->SetRelTol((newton_rtol > 0.) ? newton_rtol : 1e-6);

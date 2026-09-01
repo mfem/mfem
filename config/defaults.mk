@@ -301,11 +301,17 @@ ifeq ($(MFEM_USE_HIP),YES)
 endif
 SUNDIALS_CORE_PAT = $(subst\
  @MFEM_DIR@,$(MFEM_DIR),$(SUNDIALS_DIR))/lib*/libsundials_core.*
-ifeq ($(MFEM_USE_SUNDIALS),YES)
-   ifneq ($(wildcard $(SUNDIALS_CORE_PAT)),)
-      SUNDIALS_LIB += -lsundials_core
-   endif
-endif
+# Deferred on purpose. config/user.mk is included AFTER this file, so neither
+# MFEM_USE_SUNDIALS nor SUNDIALS_DIR has its final value here: an immediate
+# test (ifeq plus ifneq $(wildcard ...)) sees SUNDIALS off and the default
+# SUNDIALS_DIR, so it never appends -lsundials_core for anyone who enables
+# SUNDIALS through user.mk rather than on the command line. The library still
+# builds -- only the link of an executable fails, much later and far from the
+# cause, as "libsundials_core.so.7: error adding symbols: DSO missing from
+# command line". Keeping this recursively expanded evaluates it at use time,
+# when both variables are final. SUNDIALS_LIB is unused when SUNDIALS is off,
+# so no guard on MFEM_USE_SUNDIALS is needed.
+SUNDIALS_LIB += $(if $(wildcard $(SUNDIALS_CORE_PAT)),-lsundials_core)
 # If SUNDIALS was built with KLU:
 # MFEM_USE_SUITESPARSE = YES
 

@@ -26,6 +26,12 @@ MFEM_LIB_FILE = mfem_is_not_built
 
 SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo navierstokes
 PAR_MINIAPPS = panisodiff pconvdiff
+# navierstokes is driven by KINSOL -- it takes its globalisation from
+# KIN_LINESEARCH rather than carrying a line search of its own -- so it needs
+# SUNDIALS and drops out of the build without it.
+ifeq ($(MFEM_USE_SUNDIALS),NO)
+   SEQ_MINIAPPS := $(filter-out navierstokes,$(SEQ_MINIAPPS))
+endif
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
