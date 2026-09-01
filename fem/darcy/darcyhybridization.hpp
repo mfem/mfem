@@ -942,6 +942,29 @@ public:
        factored local blocks and the Schur complement it leaves behind, and
        both apply the Jacobian's (0,1) block rather than the linear one.
 
+       **Where the step's time goes, and what that means for threading.** The
+       four calls split into loops that reach integrators and the Mesh
+       transformation cache (NPCResidual, through LocalResidual(); NPCGradient's
+       first pass, through ConstructGrad()) and loops that are dense linear
+       algebra alone (NPCReduce and NPCRecover, both only MultInv()). That
+       separation is real -- the deleted trace-only mode fused the two inside a
+       local Newton iteration and could not offer it -- but it is worth less
+       than it looks. Measured over six steps on the pedestal problem at
+       (n, k) = (32,1), (48,2), (64,2) and (32,3), one thread:
+
+           integrator-bound loops     60.8  59.7  59.4  63.2 %
+           integrator-free loops       6.2   5.4   5.5   5.7 %
+           trace solve                33.0  34.8  35.1  31.1 %
+
+       So the two loops that could be threaded with no integrator work at all
+       are **under 6% of the step**, flat in mesh size and order, and Amdahl
+       caps any gain there. Threading NPC usefully means integrator
+       thread-safety, exactly as it does for the reduced route;
+       doc/HDG-ELEMENT-LOCAL-PARALLELISM.md carries the plan. NPCRecover is
+       nonetheless the easiest loop in the class to thread -- it writes only
+       the calling element's L2 flux and potential dofs, so it needs neither
+       colouring nor atomics.
+
        **What it delivers, measured.** On a problem whose full system is linear
        one step is exact -- the residual goes 6.96e-01 to 6.22e-15, from any
        starting point -- which is the check that falsifies the elimination

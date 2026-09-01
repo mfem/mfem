@@ -64,15 +64,67 @@ reach shared state outside `fem/darcy`:
   by-local-index variants the parallel branch needs. So this half is a change
   to one function inside `fem/darcy`, with none to `Mesh`.
 
-**NPC** makes the local work one linear solve against one factorisation per
-outer step instead of a nonlinear solve that re-assembles and re-factorises —
-see `DarcyHybridization::NPCResidual()`. What is absent per local step is the
-Jacobian *assembly*, not the integrator calls: the residual still goes through
-`LocalNLOperator`. So the thread-safety obstacles above are not avoided by
-choosing NPC, only the factorisation work is.
+### How to thread NPC, and why the obvious answer is the wrong one
 
-NPC now runs in parallel, and how it does is the shape this section wants: the
-flux and potential are L2 and therefore rank-local, so **only the trace needs
+NPC looks like it should make this easy, and structurally it does. Where
+`MultNL` **fuses** integrator calls and dense linear algebra inside one local
+Newton loop — every local iteration re-evaluates the residual and re-assembles
+and re-factorises the Jacobian — NPC **separates** them into four top-level
+calls, two of which touch no integrator and no transformation at all:
+
+| NPC call | element-loop body | shared state it reaches | threadable |
+|---|---|---|---|
+| `NPCResidual` | `MultNL(AtFields)` → `LocalResidual()` | integrator scratch, `Mesh` transformation cache | blocked on §2 |
+| `NPCGradient` | `MultNL(GradAtFields)` → `ConstructGrad()` | the same | blocked on §2 |
+| | then `ComputeH()` → `ComputeElementH()` | none | **already threaded**, `SetAssemblyMode()` |
+| `NPCReduce` | `MultInv()`, then scatter to the trace | none; the scatter needs colouring | ready, needs §3 |
+| `NPCRecover` | `MultInv()`, then write its own blocks | **none whatever** | ready, needs nothing |
+
+`MultInv()` is `LUFactors::Solve` and `AddMult` and nothing else. `NPCRecover`
+writes only the calling element's flux and potential dofs, which are L2 and so
+disjoint by construction — no colouring, no atomics, no integrator work. It is
+the one loop here that could be threaded this afternoon.
+
+**And it would buy almost nothing, which is the finding.** Timed per phase over
+six NPC steps on the pedestal problem, one thread, shares rather than absolute
+times because the machine was busy:
+
+| | n=32 k=1 | n=48 k=2 | n=64 k=2 | n=32 k=3 |
+|---|---|---|---|---|
+| `NPCResidual` | 28.6% | 24.5% | 23.2% | 21.3% |
+| `NPCGradient` | 32.2% | 35.2% | 36.3% | 41.8% |
+| `NPCReduce` | 3.1% | 2.7% | 2.7% | 2.9% |
+| `NPCRecover` | 3.1% | 2.8% | 2.8% | 2.8% |
+| trace solve (not element-local) | 33.0% | 34.8% | 35.1% | 31.1% |
+| **integrator-bound loops** | **60.8%** | **59.7%** | **59.4%** | **63.2%** |
+| **integrator-free loops** | **6.2%** | **5.4%** | **5.5%** | **5.7%** |
+
+The two loops that need no infrastructure are **5.4–6.2% of the step**, flat in
+both mesh size and order. Threading them perfectly, at any thread count, is
+capped there by Amdahl. The 60% is exactly where §2 already said it was, and
+NPC does not shrink it — it only changes *which* loops need integrator
+thread-safety, from `MultNL`'s fused one to `NPCResidual` and `NPCGradient`'s
+first half.
+
+**So the plan for NPC is the plan for everything else: fix integrator
+thread-safety and the `Mesh` transformation funnel first.** Doing the cheap
+loops first is worth it only as a way of proving the harness — the
+thread-count sweep, the bitwise comparison — against work that cannot fail for
+an interesting reason, before pointing it at work that can.
+
+**One number would refine this and was not taken**: `NPCGradient`'s 32–42% is
+`ConstructGrad` (integrators, serial) *plus* `ComputeElementH` (dense, already
+threaded), and the probe did not separate them. If the second half dominates,
+that column is already largely parallel and the integrator-bound share is
+smaller than the table's bottom row says. Separating them is the next
+measurement, not a new mechanism.
+
+The probe is scratch and will vanish with the scratchpad; it timed the four
+public NPC calls around a `UMFPackSolver` trace solve on `PedestalHDG` from
+`tests/unit/fem/test_darcy_npc.cpp`.
+
+NPC's parallel shape is otherwise the one this section wants: the flux and
+potential are L2 and therefore rank-local, so **only the trace needs
 communication at all** — prolonged in, assembled out. The element loop itself
 is untouched by the rank count.
 
