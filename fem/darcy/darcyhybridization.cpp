@@ -3997,6 +3997,16 @@ void DarcyHybridization::ReconstructTotalFlux(
    MassIntegrator fbfi;
    DenseMatrixInverse Mfi;
 
+   // The number of fields. Every block below -- the constraint's rows, the
+   // total flux's dofs, the potential's -- is this many copies of a scalar
+   // one, equation outermost, which is the layout GetElementVDofs() and
+   // GetFaceVDofs() produce locally whatever the space's Ordering is.
+   const int neq = fes_ut.GetVDim();
+   MFEM_VERIFY(neq == c_fes.GetVDim() && neq == fes_p.GetVDim(),
+               "the total flux, the constraint and the potential must carry "
+               "the same number of fields, got " << neq << ", "
+               << c_fes.GetVDim() << " and " << fes_p.GetVDim());
+
    for (int f = 0; f < nfaces; f++)
    {
       fes_ut.GetFaceVDofs(f, vdofs_ut);
@@ -4172,11 +4182,24 @@ void DarcyHybridization::ReconstructTotalFlux(
       }
 
       //face
-      fbfi.AssembleElementMatrix2(*fes_ut.GetFaceElement(f), *fe_c,
-                                  *ftr, Mf);
+      const FiniteElement *fe_utf = fes_ut.GetFaceElement(f);
+      fbfi.AssembleElementMatrix2(*fe_utf, *fe_c, *ftr, Mf);
 
+      // Mf is the *scalar* face mass -- MassIntegrator knows nothing of vdim
+      // -- while bf and ut_f carry neq blocks. The mass is the same for every
+      // field, so factor once and solve neq times against it. Before this the
+      // solve was a single scalar one against an neq-times-too-long right-hand
+      // side, which for one field is right and for more is a read past the
+      // end of the factorisation.
+      const int nd_utf = fe_utf->GetDof();
+      const int nd_cf = fe_c->GetDof();
       Mfi.Factor(Mf);
-      Mfi.Mult(bf, ut_f);
+      for (int e = 0; e < neq; e++)
+      {
+         const Vector bf_e(bf.GetData() + e * nd_cf, nd_cf);
+         Vector ut_fe(ut_f.GetData() + e * nd_utf, nd_utf);
+         Mfi.Mult(bf_e, ut_fe);
+      }
       if (ftr->Elem2No >= 0)
       {
          // the face term should be double integrated to account for both sides
@@ -4196,11 +4219,12 @@ void DarcyHybridization::ReconstructTotalFlux(
    Array<int> vdofs, dofs, vdofs_ut_b, vdofs_ut_i;
    DenseMatrix Mut_z, Mut_zi;
    DenseMatrix vshape_u, vshape_ut;
-   // The potential is per equation, so the value handed to the flux law is a
-   // vector of neq entries rather than a number -- one field is the case
-   // neq == 1, not the only case.
-   const int neq_p = fes_p.GetVDim();
-   Vector shape_u, shape_ut, shape_p, u_q(dim), ut_q(dim), p_q(neq_p);
+   // The flux law is stated per equation throughout: the potential it is
+   // handed has neq entries and the flux and total flux neq*dim, the block of
+   // equation e occupying [e*dim, (e+1)*dim). One field is the case neq == 1,
+   // not the only case.
+   Vector shape_u, shape_ut, shape_p;
+   Vector u_q(neq * dim), ut_q(neq * dim), p_q(neq);
    Vector u_z, p_z, b_z, b_zi, ut_zb, ut_zi;
    DenseMatrixInverse Muti_zi;
 
@@ -4220,22 +4244,31 @@ void DarcyHybridization::ReconstructTotalFlux(
 
       fes_ut.GetElementVDofs(z, vdofs_ut);
       const int nvdofs = vdofs_ut.Size();
+      // Every shape below is the SCALAR one -- the element's, not the vdof
+      // list's. A shape matrix sized to the vdof count is not merely wasteful:
+      // CalcVShape() writes GetDof() rows, so the rest is uninitialised and
+      // the contraction that follows mixes fields together.
+      const int nd_u = fe_u->GetDof();
+      const int nd_p = fe_p->GetDof();
+      const int nd_ut = fe_ut->GetDof();
+      MFEM_ASSERT(nvdofs == nd_ut * neq, "unexpected total flux vdof count");
 
       //integrate rhs
 
-      if (fe_u->GetRangeType() == FiniteElement::VECTOR)
+      const bool u_is_vector = (fe_u->GetRangeType() == FiniteElement::VECTOR);
+      if (u_is_vector)
       {
-         vshape_u.SetSize(vdofs.Size(), dim);
+         vshape_u.SetSize(nd_u, dim);
       }
       else
       {
-         shape_u.SetSize(fe_u->GetDof());
+         shape_u.SetSize(nd_u);
       }
       // One scalar shape per potential dof; the equations share it, which is
       // why this is GetDof() and not the vdof count that fills p_z.
-      shape_p.SetSize(fe_p->GetDof());
-      vshape_ut.SetSize(nvdofs, dim);
-      shape_ut.SetSize(nvdofs);
+      shape_p.SetSize(nd_p);
+      vshape_ut.SetSize(nd_ut, dim);
+      shape_ut.SetSize(nd_ut);
 
       b_z.SetSize(nvdofs);
       b_z = 0.;
@@ -4251,31 +4284,47 @@ void DarcyHybridization::ReconstructTotalFlux(
 
          Tr->SetIntPoint(&ip);
 
-         if (fe_u->GetRangeType() == FiniteElement::VECTOR)
+         if (u_is_vector)
          {
+            // An H(div) flux carries the vector in the element, so vdim ==
+            // neq and field e is one scalar component: its coefficients are
+            // nd_u apart and share the one vector shape.
             fe_u->CalcVShape(*Tr, vshape_u);
-            vshape_u.MultTranspose(u_z, u_q);
+            for (int e = 0; e < neq; e++)
+            {
+               const Vector u_ze(u_z.GetData() + e * nd_u, nd_u);
+               Vector u_qe(u_q.GetData() + e * dim, dim);
+               vshape_u.MultTranspose(u_ze, u_qe);
+            }
          }
          else
          {
+            // A scalar-range flux carries it in vdim, so vdim == neq*dim and
+            // component e*dim+d is field e's d-th. One reshape covers every
+            // field at once, and at neq == 1 it is the reshape that was here.
             fe_u->CalcPhysShape(*Tr, shape_u);
-            DenseMatrix u_zm(u_z.GetData(), shape_u.Size(), dim);
+            DenseMatrix u_zm(u_z.GetData(), nd_u, neq * dim);
             u_zm.MultTranspose(shape_u, u_q);
          }
 
          fe_p->CalcShape(ip, shape_p);
          // p_z holds the element's potential vdofs, equation-major under
          // byNODES, so this reshape gives one value per equation.
-         const DenseMatrix p_zm(p_z.GetData(), shape_p.Size(), neq_p);
+         const DenseMatrix p_zm(p_z.GetData(), nd_p, neq);
          p_zm.MultTranspose(shape_p, p_q);
 
          ut_fx(*Tr, u_q, p_q, ut_q);
 
          fe_ut->CalcVShape(*Tr, vshape_ut);
-         vshape_ut.Mult(ut_q, shape_ut);
 
          const real_t w = ip.weight * Tr->Weight();
-         b_z.Add(w, shape_ut);
+         for (int e = 0; e < neq; e++)
+         {
+            const Vector ut_qe(ut_q.GetData() + e * dim, dim);
+            vshape_ut.Mult(ut_qe, shape_ut);
+            Vector b_ze(b_z.GetData() + e * nd_ut, nd_ut);
+            b_ze.Add(w, shape_ut);
+         }
       }
 
       //assemble mass matrix
@@ -4284,30 +4333,42 @@ void DarcyHybridization::ReconstructTotalFlux(
 
       //eliminate boundary rows
 
+      // GetNumElementInteriorDofs() is a SCALAR count, so the interior dofs
+      // are the tail of each FIELD's block of the vdof list, not the tail of
+      // the list. Taking them as `nvdofs - nidofs` and slicing from the front
+      // is right when there is one field and wrong for every other -- it puts
+      // most of field 0 in the "boundary" set and reads field neq-1's block as
+      // the interior. Both the elimination and the solve are therefore per
+      // field, against the one scalar mass, which is the same for all of them.
       const int nidofs = fes_ut.GetNumElementInteriorDofs(z);
-      const int nbdofs = nvdofs - nidofs;
-      vdofs_ut_b.MakeRef(vdofs_ut.GetData(), nbdofs);
-      ut.GetSubVector(vdofs_ut_b, ut_zb);
-
-      for (int j = 0; j < nbdofs; j++)
-      {
-         for (int i = 0; i < nidofs; i++)
-         {
-            b_z(i+nbdofs) -= Mut_z(i+nbdofs,j) * ut_zb(j);
-         }
-      }
+      const int nbdofs = nd_ut - nidofs;
 
       Mut_zi.CopyMN(Mut_z, nidofs, nidofs, nbdofs, nbdofs);
-
-      //solve for the interior dofs
-
       Muti_zi.Factor(Mut_zi);
-      ut_zi.SetSize(Mut_zi.Width());
-      b_zi.MakeRef(b_z, nbdofs, nidofs);
-      Muti_zi.Mult(b_zi, ut_zi);
 
-      vdofs_ut_i.MakeRef(vdofs_ut.GetData()+nbdofs, nidofs);
-      ut.SetSubVector(vdofs_ut_i, ut_zi);
+      for (int e = 0; e < neq; e++)
+      {
+         vdofs_ut_b.MakeRef(vdofs_ut.GetData() + e * nd_ut, nbdofs);
+         ut.GetSubVector(vdofs_ut_b, ut_zb);
+
+         Vector b_ze(b_z.GetData() + e * nd_ut, nd_ut);
+         for (int j = 0; j < nbdofs; j++)
+         {
+            for (int i = 0; i < nidofs; i++)
+            {
+               b_ze(i+nbdofs) -= Mut_z(i+nbdofs,j) * ut_zb(j);
+            }
+         }
+
+         //solve for the interior dofs
+
+         ut_zi.SetSize(Mut_zi.Width());
+         b_zi.MakeRef(b_ze, nbdofs, nidofs);
+         Muti_zi.Mult(b_zi, ut_zi);
+
+         vdofs_ut_i.MakeRef(vdofs_ut.GetData() + e * nd_ut + nbdofs, nidofs);
+         ut.SetSubVector(vdofs_ut_i, ut_zi);
+      }
    }
 }
 

@@ -70,25 +70,38 @@ The loss itself and the floor's repair are already pinned by regressions there.
 
 ## 4. Postprocessing for a system
 
-**Smaller than it reads, and its motivation is largely retired.** The *classic*
-local postprocessing is already general in `vdim` —
-`HDGPotentialPostprocessor` in `fem/darcy/postprocess_hdg.hpp`, tested over
-`neq = 1, 2, 3` — and so is `DarcyHybridization::ReconstructTotalFlux` and the
-vector `VectorDivergenceGridFunctionCoefficient` the plan asked for. A
-two-equation superconvergence study is therefore possible today.
+**Done for the linear diffusion path; three pieces are left, all named below.**
+Both reconstructions are now general in `vdim` — `DarcyForm::Reconstruct` and
+the `DarcyHybridization::ReconstructTotalFlux` under it — alongside the classic
+`HDGPotentialPostprocessor`, which always was. The measurement, the closure-row
+argument and the ordering argument are in the doxygen on those two methods and
+in `tests/unit/fem/test_darcy_reconstruction.cpp`; the four new `[System]`
+cases there are the pins.
 
-What remains is the **rich reconstruction only**: `DarcyForm::ReconstructFluxAndPot`,
-whose kernel has some forty distinct sites assuming `vdim == 1` — the closure
-row replaces exactly one equation of the local system, and the interior-dof
-count assumes a contiguous tail that `byNODES` does not give for `vdim > 1` —
-plus the enriched *potential* and *trace* spaces (`darcyform.cpp:1184`/`:1189`
-and `:1209`/`:1214`), which are built with no `vdim` argument while the
-enriched flux space at `:1160`/`:1165` already takes one. The gates are
-`darcyform.cpp:1017` and `:1141`.
+Two claims this entry used to make were wrong and are withdrawn rather than
+edited away. `ReconstructTotalFlux` was **not** already vdim-general: its face
+solve inverted the scalar face mass against an `neq`-times-too-long right-hand
+side, and its element-interior pass took the interior dofs as the tail of the
+whole vdof list. And the contiguous-tail problem was never in
+`ReconstructFluxAndPot` at all — that is where the entry said it was.
 
-Two consumers wait on it: the flux functional of the retired §6 below, which
-would read out of bounds if handed a system, and the Navier-Stokes miniapp,
-which cannot postprocess. A third thing would retire it entirely — §9.
+What is left:
+
+* **The flux functionals**, `ComputeOutwardFlux` and `ComputeBoundaryFlux` in
+  `fem/darcy/functionals_hdg.hpp`. They now *refuse* a system rather than
+  silently returning field 0's flux, which is what `GetVectorValue` gives them.
+  A per-field version is the piece to write, and it wants an API decision:
+  another argument, or a `Vector` of one value per field.
+* **The nonlinear branches of the rich reconstruction** — the frozen flux law
+  and the lifted `Mp_nl` gradient. They are written per field and compile, but
+  nothing exercises them with `neq > 1`; every new case is linear.
+* **A hyperbolic system is not covered by the closure argument.** The closure
+  drops one equation per field because the lifted local operator annihilates
+  per-field constants. A lifted `HyperbolicFormIntegrator` Jacobian does not,
+  so the local problem is then over-determined in exactly the way the scalar
+  path already is with such a term. That is what stands between this and
+  postprocessing `miniapps/hdg/navierstokes`, which does not call `Reconstruct`
+  at all today.
 
 Separately and smaller: `miniapps/hdg/darcyop.cpp:370` and `:396` refuse
 `vdim > 1` for the H(div) flux time mass. The DG path handles `vdim` already.

@@ -667,3 +667,435 @@ TEST_CASE("A potential term that contributes nothing changes nothing",
    // And the postprocessing is still doing its job in both.
    REQUIRE(with.err_ps < 0.5 * with.err_p);
 }
+
+// ---------------------------------------------------------------------------
+// The rich reconstruction for a system.
+//
+// The classic postprocessing (HDGPotentialPostprocessor) has always been
+// general in vdim, because its local problems do not couple and it can be run
+// one field at a time. The rich reconstruction cannot: it solves one mixed
+// local problem for the enriched flux, potential AND traces together, so the
+// fields share an element matrix and the generalisation is about where each
+// field's rows and columns are and about how many closure rows the problem
+// needs. Two things carry it, and both are measured below.
+//
+//  * **The closure count is neq, one per field, each in its own block.** The
+//    local problem is driven entirely by the total flux, which lives in an
+//    H(div) space with vdim == neq, so field e's own element balance holds
+//    identically for each e and each field's potential is fixed only up to a
+//    constant. The null space is therefore neq dimensional and neq equations
+//    may be dropped -- no fewer, or the matrix is singular, and no more, or
+//    information is lost. "Each field's own average in each field's own block"
+//    is what the last case here pins.
+//  * **Nothing needs to know the space's Ordering.** GetElementVDofs() and
+//    GetFaceVDofs() lay an element's or a face's vdofs out field-outermost
+//    whatever the global Ordering is, and every block the integrators build --
+//    VectorBlockDiagonalIntegrator's, and the base class's HDG face slicer --
+//    uses that same layout. So byNODES and byVDIM give the same answer, which
+//    the ordering case here checks rather than assumes.
+namespace darcy_reconstruction_system
+{
+
+/// Field e gets its own frequency, so a block read from the wrong place shows
+/// up as a wrong answer rather than as a plausible one.
+real_t pEx(int e, const Vector &x)
+{
+   real_t r = 1.0;
+   for (int i = 0; i < x.Size(); i++) { r *= std::sin((e + 1) * M_PI * x(i)); }
+   return r;
+}
+
+real_t gEx(int e, const Vector &x)
+{
+   return -x.Size() * (e + 1) * (e + 1) * M_PI * M_PI * pEx(e, x);
+}
+
+/** @brief A stabilization of size O(1) in place of the integrator's built-in
+    O(1/h), which is what makes superconvergence visible at all.
+
+    HDGDiffusionIntegrator's own stabilization is `beta {h^-1 Q}` -- see the
+    class comment -- and an LDG-H method stabilized at O(1/h) loses an order in
+    the flux, after which no postprocessing can reach k+2. Measured on the
+    problem below at k = 1 over 4x4 to 32x32, with the built-in stabilization:
+
+        ||p - p_h||  4.21e-2  6.72e-3  1.19e-3  2.65e-4   rate -> 2.17
+        ||p - p*||   1.12e-2  1.15e-3  1.62e-4  3.31e-5   rate -> 2.29
+        ||q - q_h||  1.50e-1  3.31e-2  1.11e-2  5.00e-3   rate -> 1.15
+
+    -- the flux at k and the postprocessed potential at k+1, with the classic
+    postprocessing giving 2.21 on the same run, so it is the discretisation and
+    not the reconstruction. With tau = 1 the same three columns come out at
+    2.04, 3.04 and 2.04. That is why this hook is here, and it is worth knowing
+    before reading a rate off this integrator's defaults. */
+class ConstTau : public HDGStabilization
+{
+   real_t t;
+public:
+   ConstTau(real_t t_) : t(t_) { }
+   real_t Eval(real_t, real_t, real_t, real_t,
+               ElementTransformation &) const override { return t; }
+};
+
+/// Everything one solve produces, kept whole so that two runs can be compared
+/// dof by dof and not only through an error norm.
+struct Sys
+{
+   std::unique_ptr<Mesh> mesh;
+   std::unique_ptr<L2_FECollection> u_coll, p_coll;
+   std::unique_ptr<DG_Interface_FECollection> t_coll;
+   std::unique_ptr<FiniteElementSpace> fes_u, fes_p, fes_t;
+   std::unique_ptr<DarcyForm> darcy;
+   std::unique_ptr<ConstTau> tau;
+   BlockVector x;
+   Vector X;
+   GridFunction ut, u_s, p_s, tr_s;
+   std::unique_ptr<GridFunction> q_h, p_h;
+   int neq{0};
+};
+
+/// L2 error of field @a e of a scalar-range grid function of `vdim == neq`
+/// under byNODES: field e is the contiguous dof range [e*nd, (e+1)*nd).
+real_t PotFieldError(const GridFunction &gf, int e)
+{
+   const FiniteElementSpace *fes = gf.FESpace();
+   const int nd = fes->GetNDofs();
+   FiniteElementSpace scalar(fes->GetMesh(), fes->FEColl());
+   GridFunction blk(&scalar);
+   for (int i = 0; i < nd; i++) { blk(i) = gf(e * nd + i); }
+
+   FunctionCoefficient c([e](const Vector &x) { return pEx(e, x); });
+   const int qo = 2 * fes->GetMaxElementOrder() + 6;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   { irs[i] = &(IntRules.Get(i, qo)); }
+   return blk.ComputeL2Error(c, irs);
+}
+
+/** @brief The integral of field @a e of @a gf over each element.
+
+    This is the quantity the closure row of the local problem sets, so it is
+    the direct read-out of whether each field got a closure of its own. Read
+    through GetElementVDofs(), which is field-outermost locally under either
+    Ordering, so it does not care which one the space has. */
+void ElementIntegrals(const GridFunction &gf, int e, Vector &vals)
+{
+   const FiniteElementSpace *fes = gf.FESpace();
+   Mesh *mesh = fes->GetMesh();
+   vals.SetSize(mesh->GetNE());
+
+   Array<int> vdofs;
+   Vector loc, shape;
+   for (int z = 0; z < mesh->GetNE(); z++)
+   {
+      const FiniteElement *fe = fes->GetFE(z);
+      ElementTransformation *T = mesh->GetElementTransformation(z);
+      const int nd = fe->GetDof();
+      fes->GetElementVDofs(z, vdofs);
+      gf.GetSubVector(vdofs, loc);
+      const Vector blk(loc.GetData() + e * nd, nd);
+      shape.SetSize(nd);
+
+      const IntegrationRule &ir =
+         IntRules.Get(fe->GetGeomType(), 2 * fe->GetOrder() + 4);
+      real_t s = 0.0;
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         fe->CalcShape(ip, shape);
+         s += ip.weight * T->Weight() * (shape * blk);
+      }
+      vals(z) = s;
+   }
+}
+
+/// @a neq copies of the scalar Darcy problem, block diagonal and with a source
+/// per field, hybridized, solved together and reconstructed. Block diagonal on
+/// purpose: field 0's discrete problem is then *the* scalar problem, so the
+/// scalar answer is available as a reference inside the system run.
+std::unique_ptr<Sys> Solve(int n, int order, int neq, real_t tau = 1.0,
+                           Ordering::Type ord = Ordering::byNODES)
+{
+   auto S = std::unique_ptr<Sys>(new Sys);
+   S->neq = neq;
+   const int dim = 2;
+   S->mesh.reset(new Mesh(Mesh::MakeCartesian2D(n, n,
+                                                Element::QUADRILATERAL)));
+   Mesh &mesh = *S->mesh;
+
+   S->u_coll.reset(new L2_FECollection(order, dim));
+   S->p_coll.reset(new L2_FECollection(order, dim));
+   S->t_coll.reset(new DG_Interface_FECollection(order, dim));
+   S->fes_u.reset(new FiniteElementSpace(&mesh, S->u_coll.get(), neq * dim,
+                                         ord));
+   S->fes_p.reset(new FiniteElementSpace(&mesh, S->p_coll.get(), neq, ord));
+   S->fes_t.reset(new FiniteElementSpace(&mesh, S->t_coll.get(), neq, ord));
+
+   ConstantCoefficient one(1.0);
+   RatioCoefficient ik(1.0, one);
+   VectorFunctionCoefficient gcoeff(neq, [neq](const Vector &x, Vector &v)
+   {
+      for (int e = 0; e < neq; e++) { v(e) = gEx(e, x); }
+   });
+
+   S->darcy.reset(new DarcyForm(S->fes_u.get(), S->fes_p.get()));
+   S->darcy->GetFluxMassForm()->AddDomainIntegrator(
+      new VectorBlockDiagonalIntegrator(neq, new VectorMassIntegrator(one)));
+   MixedBilinearForm *B = S->darcy->GetFluxDivForm();
+   B->AddDomainIntegrator(
+      new VectorBlockDiagonalIntegrator(neq, new VectorDivergenceIntegrator()));
+   B->AddInteriorFaceIntegrator(new VectorBlockDiagonalIntegrator(
+                                   neq, new TransposeIntegrator(
+                                      new DGNormalTraceIntegrator(-1.0))));
+
+   S->tau.reset(new ConstTau(tau));
+   std::vector<BilinearFormIntegrator*> hdgs;
+   for (int e = 0; e < neq; e++)
+   {
+      auto *hdg = new HDGDiffusionIntegrator(ik, 0.5);
+      if (tau > 0.0) { hdg->SetStabilization(*S->tau); }
+      hdgs.push_back(hdg);
+   }
+   S->darcy->GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new VectorBlockDiagonalIntegrator(hdgs));
+
+   auto *glf = new VectorDomainLFIntegrator(gcoeff);
+   glf->SetIntRule(&IntRules.Get(mesh.GetElementGeometry(0), 6 * order + 12));
+   S->darcy->GetPotentialRHS()->AddDomainIntegrator(glf);
+
+   Array<int> ess;
+   S->darcy->EnableHybridization(
+      S->fes_t.get(),
+      new VectorBlockDiagonalIntegrator(neq, new NormalTraceJumpIntegrator()),
+      ess);
+   S->darcy->Assemble();
+
+   S->x.Update(S->darcy->GetOffsets());
+   S->x = 0.0;
+   OperatorPtr A;
+   Vector RHS;
+   S->darcy->FormLinearSystem(ess, S->x, A, S->X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(20000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(1e-18);
+   lin.SetPreconditioner(prec);
+   lin.SetOperator(*A);
+   lin.Mult(RHS, S->X);
+   REQUIRE(lin.GetConverged());
+   S->darcy->RecoverFEMSolution(S->X, S->x);
+
+   S->q_h.reset(new GridFunction(S->fes_u.get(), S->x.GetBlock(0)));
+   S->p_h.reset(new GridFunction(S->fes_p.get(), S->x.GetBlock(1)));
+
+   S->darcy->Reconstruct(S->x, S->X, S->ut, S->u_s, S->p_s, S->tr_s);
+   return S;
+}
+
+} // namespace darcy_reconstruction_system
+
+TEST_CASE("The rich reconstruction superconverges field by field",
+          "[DarcyForm][Reconstruction][System]")
+{
+   using namespace darcy_reconstruction_system;
+
+   // The point of the reconstruction, for a system as for one field: the
+   // postprocessed potential gains an order over the computed one. Measured
+   // per field over 4x4 to 32x32 with tau = 1, and the whole reason the
+   // per-field figures differ is that field e carries frequency (e+1)pi and so
+   // is that much less resolved on the same mesh -- the rates are the same
+   // asymptotically and the fields are converging towards them from different
+   // distances.
+   //
+   //   k = 1        ||p-p_h||   rate    ||p-p*||   rate
+   //   field 0      1.15e-03    2.04    3.38e-05   3.04
+   //   field 1      7.63e-03    1.82    4.34e-04   2.82
+   //
+   //   k = 2        ||p-p_h||   rate    ||p-p*||   rate
+   //   field 0      7.94e-06    2.98    7.48e-08   3.96
+   //   field 1      1.13e-04    2.87    1.57e-06   3.92
+   //
+   // Two independent things make this a real check rather than a plausible
+   // one. The gain is a full order in every field, which is what k+2 against
+   // k+1 means. And the rich reconstruction's answer tracks the classic
+   // postprocessing's -- 2.82 against 2.82 and 3.92 against 3.92 in the rows
+   // above -- and that path is a different piece of code, general in vdim long
+   // before this one was.
+   const int neq = GENERATE(1, 2, 3);
+   const int order = GENERATE(1, 2);
+
+   // The mesh pair is chosen so that every field is in its asymptotic range,
+   // and at k = 1 that costs a refinement: field 2 carries frequency 3pi and
+   // over 8x8 to 16x16 gains only 0.59 of an order (1.72 against 2.31) where
+   // over 16x16 to 32x32 it gains 0.95 (1.65 against 2.60). Loosening the bar
+   // to admit the coarse pair would have made the case pass on a run that does
+   // not show the property, so the mesh moved instead of the threshold.
+   const int nc = (order == 1) ? 16 : 8;
+   CAPTURE(neq, order, nc);
+
+   auto c = Solve(nc, order, neq);
+   auto f = Solve(2 * nc, order, neq);
+
+   for (int e = 0; e < neq; e++)
+   {
+      const real_t p_c = PotFieldError(*c->p_h, e);
+      const real_t p_f = PotFieldError(*f->p_h, e);
+      const real_t s_c = PotFieldError(c->p_s, e);
+      const real_t s_f = PotFieldError(f->p_s, e);
+
+      const real_t rate_p = std::log2(p_c / p_f);
+      const real_t rate_s = std::log2(s_c / s_f);
+      CAPTURE(e, p_c, p_f, s_c, s_f, rate_p, rate_s);
+
+      // More accurate, and gaining an order rather than merely a constant --
+      // the second is the claim that matters and the first alone would not
+      // distinguish a better-scaled answer from a better-converging one.
+      REQUIRE(s_f < p_f);
+      REQUIRE(rate_p > order + 0.5);
+      REQUIRE(rate_s > rate_p + 0.7);
+   }
+}
+
+TEST_CASE("A block-diagonal system's first field is the scalar problem",
+          "[DarcyForm][Reconstruction][System]")
+{
+   using namespace darcy_reconstruction_system;
+
+   // The sharpest statement available about the generalisation, and it needs
+   // no rate: the neq fields here do not couple, so field 0's discrete problem
+   // *is* the one-field problem, and every quantity the reconstruction
+   // produces for field 0 has to come back the same whether it was solved
+   // alone or alongside others. Anything that mislaid a block -- a size that
+   // forgot vdim, a closure row in the wrong place, a face right-hand side
+   // that contracted the wrong slice of the total flux -- moves this.
+   //
+   // The agreement is to the linear solver rather than to the bit, and that is
+   // not slack in the reconstruction: the neq-field trace system is a
+   // different matrix, so GMRES takes a different path to it and stops a
+   // different distance from its root. Measured relative differences are
+   // ~1e-11 at a solver tolerance of 1e-14.
+   const int order = GENERATE(1, 2);
+   const int neq = GENERATE(2, 3);
+   CAPTURE(order, neq);
+
+   auto one = Solve(8, order, 1);
+   auto many = Solve(8, order, neq);
+
+   const real_t e1 = PotFieldError(one->p_s, 0);
+   const real_t en = PotFieldError(many->p_s, 0);
+   CAPTURE(e1, en);
+   REQUIRE(en == Approx(e1).epsilon(1e-8));
+
+   // And the computed solution too, so that a failure above cannot be blamed
+   // on the forward solve having landed somewhere else.
+   REQUIRE(PotFieldError(*many->p_h, 0)
+           == Approx(PotFieldError(*one->p_h, 0)).epsilon(1e-8));
+
+   // Dof by dof, on the enriched potential: the spaces are built by the
+   // reconstruction itself, one scalar and one of vdim == neq, so field 0 of
+   // the second is the leading dof range of the first under byNODES.
+   const int nd = one->p_s.FESpace()->GetNDofs();
+   REQUIRE(many->p_s.FESpace()->GetNDofs() == nd);
+   real_t dmax = 0.0, ref = 0.0;
+   for (int i = 0; i < nd; i++)
+   {
+      dmax = std::max(dmax, std::abs(many->p_s(i) - one->p_s(i)));
+      ref = std::max(ref, std::abs(one->p_s(i)));
+   }
+   CAPTURE(dmax, ref);
+   REQUIRE(dmax < 1e-8 * ref);
+}
+
+TEST_CASE("Each field of the reconstruction is closed by its own average",
+          "[DarcyForm][Reconstruction][System]")
+{
+   using namespace darcy_reconstruction_system;
+
+   // The closure row, read back directly. The local problem is pure Neumann
+   // per field, so one equation of each field's block is replaced by
+   //
+   //     (p*_e, 1)_K = (p_h,e, 1)_K
+   //
+   // and this walks every element and every field and checks that identity.
+   // It is the one place where the structural decision of the generalisation
+   // is visible as a number rather than as a rate.
+   //
+   // What it would catch: neq closure rows all placed in field 0's block --
+   // the obvious way to write the loop -- leaves fields 1..neq-1 with their
+   // constants free and field 0's block overdetermined. DenseMatrixInverse
+   // ::Factor() does not complain about that (its tolerance is an exact zero),
+   // so the failure is silent, and the *rates* of the other case here can
+   // still look plausible on a coarse mesh. This one cannot: the averages of
+   // the unclosed fields are then whatever the singular solve returned.
+   const int order = GENERATE(1, 2);
+   const int neq = GENERATE(1, 2, 3);
+   CAPTURE(order, neq);
+
+   auto S = Solve(4, order, neq);
+
+   for (int e = 0; e < neq; e++)
+   {
+      Vector got, want;
+      ElementIntegrals(S->p_s, e, got);
+      ElementIntegrals(*S->p_h, e, want);
+      REQUIRE(got.Size() == want.Size());
+
+      real_t dmax = 0.0, ref = 0.0;
+      for (int z = 0; z < got.Size(); z++)
+      {
+         dmax = std::max(dmax, std::abs(got(z) - want(z)));
+         ref = std::max(ref, std::abs(want(z)));
+      }
+      CAPTURE(e, dmax, ref);
+      REQUIRE(ref > 0.0);
+      REQUIRE(dmax < 1e-12 * ref);
+   }
+}
+
+TEST_CASE("The reconstruction does not depend on the dof ordering",
+          "[DarcyForm][Reconstruction][System]")
+{
+   using namespace darcy_reconstruction_system;
+
+   // byNODES puts all of field 0's dofs first and byVDIM interleaves them, so
+   // "the fields are contiguous blocks" is a statement about the *global*
+   // numbering that only one of the two satisfies. The reconstruction never
+   // relies on it: it reads through GetElementVDofs() and GetFaceVDofs(),
+   // which lay an element's or a face's vdofs out field-outermost under either
+   // Ordering, and it writes back through the same arrays. So neither has to
+   // be required and neither has to be special-cased.
+   //
+   // The comparison is by an error norm against a VectorCoefficient rather
+   // than dof by dof, because the two runs number their dofs differently and
+   // ComputeL2Error() reads the space instead of assuming a layout. As above,
+   // the agreement is the linear solver's: the two trace systems are
+   // permutations of each other and GMRES does not commute with a permutation.
+   const int order = GENERATE(1, 2);
+   const int neq = 2;
+   CAPTURE(order, neq);
+
+   auto a = Solve(8, order, neq, 1.0, Ordering::byNODES);
+   auto b = Solve(8, order, neq, 1.0, Ordering::byVDIM);
+
+   VectorFunctionCoefficient pall(neq, [neq](const Vector &x, Vector &v)
+   {
+      for (int e = 0; e < neq; e++) { v(e) = pEx(e, x); }
+   });
+   const int qo = 2 * order + 8;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   { irs[i] = &(IntRules.Get(i, qo)); }
+
+   const real_t ea = a->p_s.ComputeL2Error(pall, irs);
+   const real_t eb = b->p_s.ComputeL2Error(pall, irs);
+   CAPTURE(ea, eb);
+   REQUIRE(eb == Approx(ea).epsilon(1e-8));
+
+   // The unpostprocessed solve too, so that agreement above cannot be an
+   // accident of both runs having solved something else.
+   REQUIRE(b->p_h->ComputeL2Error(pall, irs)
+           == Approx(a->p_h->ComputeL2Error(pall, irs)).epsilon(1e-8));
+}

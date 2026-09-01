@@ -465,8 +465,17 @@ public:
        The definition of the total flux inside the elements is deduced from
        the potential integrators used. If no finite element space is assigned
        to the grid function, Raviart-Thomas space is constructed and owned by
-       the function.
-   */
+       the function, with `vdim` equal to the potential's.
+
+       @note **Systems.** Both this and ReconstructFluxAndPot() below are
+       general in `vdim`, and the potential's `vdim` is what the number of
+       fields is read from. The trace space must carry the same number; the
+       flux may carry it either way and which one is read from its range type,
+       `neq*dim` on a scalar-range space (L2, H1) and `neq` on an H(div) one.
+       Blocks are laid out as the rest of the branch lays them out -- field
+       outermost -- which is what GetElementVDofs() and GetFaceVDofs() produce
+       locally whatever the space's Ordering is, so neither ordering is
+       required or special-cased. */
    void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
                              GridFunction &ut) const;
 
@@ -474,8 +483,15 @@ public:
    /** The reconstructed quantities are in finite element spaces of one order
        higher than the original spaces. If no are assigned to the functions,
        they are automatically constructed from the primary ones and owned by
-       the functions.
-    */
+       the functions, carrying the same number of fields.
+
+       For a system the local problem is closed by **one average per field**,
+       each in that field's own block of rows -- see the note in the body,
+       which says why the count and the placement are both forced rather than
+       chosen. Measured on a block-diagonal two-field problem at k = 1 and
+       k = 2, the postprocessed potential gains a full order over the computed
+       one in every field, and field 0 of a system reproduces the same field
+       solved alone to the linear solver's tolerance. */
    void ReconstructFluxAndPot(const BlockVector &sol, const GridFunction &ut,
                               GridFunction &u, GridFunction &p, GridFunction &tr) const;
 
