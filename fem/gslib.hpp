@@ -159,7 +159,7 @@ protected:
    bool       obb_check = true;
 
    // Device specific data used for FindPoints
-   struct DEV_STRUCT
+   struct DevStruct
    {
       bool setup_device = false;
       bool find_device  = false;
@@ -179,7 +179,7 @@ protected:
    } DEV;
 
    // Helper function to setup and free gslib's crystal router.
-   void SetupCrystal(); // Called inside Setup and SetupSurf_base
+   void SetupCrystal(); // Called inside Setup and SetupSurfBase
    void FreeCrystal();  // Called inside FreeData
 
    /// Use GSLIB for communication and interpolation. Updates field_out on
@@ -323,27 +323,27 @@ protected:
                             const int dof1dsol, const int field_out_ordering);
 
    /// Preprocess 2D surface mesh needed for FindPoints.
-   void findptsedge_setup_2(DEV_STRUCT &devs,
-                            const double *const elx[2],
-                            const unsigned n,
-                            const unsigned int nel,
-                            const unsigned m,
-                            const double bbox_rel_size_inc,
-                            const unsigned int local_hash_size,
-                            const unsigned int global_hash_size,
-                            const Vector *aabb_sz_inc);
+   void FindPointsEdgeSetup2(DevStruct &devs,
+                             const double *const elx[2],
+                             const unsigned n,
+                             const unsigned int nel,
+                             const unsigned m,
+                             const double bbox_rel_size_inc,
+                             const unsigned int local_hash_size,
+                             const unsigned int global_hash_size,
+                             const Vector *aabb_sz_inc);
 
    /// Preprocess 3D surface mesh needed for FindPoints.
-   void findptssurf_setup_3(DEV_STRUCT &devs,
-                            const double *const elx[3],
-                            const unsigned n,
-                            const unsigned int nel,
-                            const unsigned m,
-                            const double bbox_rel_size_inc,
-                            const unsigned int local_hash_size,
-                            const unsigned int global_hash_size,
-                            const int rD,
-                            const Vector *aabb_sz_inc);
+   void FindPointsSurfSetup3(DevStruct &devs,
+                             const double *const elx[3],
+                             const unsigned n,
+                             const unsigned int nel,
+                             const unsigned m,
+                             const double bbox_rel_size_inc,
+                             const unsigned int local_hash_size,
+                             const unsigned int global_hash_size,
+                             const int rD,
+                             const Vector *aabb_sz_inc);
 
    /** @brief Shared implementation for the public surface-setup methods.
     *
@@ -370,10 +370,10 @@ protected:
     *  @param[in] newt_tol           Newton tolerance for the point-search
     *                                kernels.
     */
-   void SetupSurf_Base(Mesh &m,
-                       const double bbox_rel_size_inc,
-                       const Vector *aabb_sz_inc,
-                       const double newt_tol);
+   void SetupSurfBase(Mesh &m,
+                      const double bbox_rel_size_inc,
+                      const Vector *aabb_sz_inc,
+                      const double newt_tol);
 public:
    /// Serial constructor
    FindPointsGSLIB();

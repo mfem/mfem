@@ -149,7 +149,9 @@ public:
    /// Remove lost particles and return their indices
    Array<int> RemoveLostParticles();
 
-   /// Redistribute particles based on \p redist_mesh (0 - E field, 1 - B field)
+   /** Redistribute particles based on \p redist_mesh (0 - E field,
+    1 - B field). FindParticles() must be called afterward to update
+    corresponding FindPointsGSLIB data. */
    void Redistribute(int redist_mesh, Array<int> &removed_idxs);
 
    /// Get reference to the ParticleSet of charged particles
@@ -322,6 +324,7 @@ int main(int argc, char *argv[])
    Array<int> removed_idxs_dummy;
    boris.FindParticles();
    boris.Redistribute(ctx.redist_mesh, removed_idxs_dummy);
+   boris.FindParticles();
    boris.EvaluateFieldsAtParticles();
 
    real_t t = 0.0;
@@ -331,7 +334,8 @@ int main(int argc, char *argv[])
    char vishost[] = "localhost";
    socketstream pre_redist_sock, post_redist_sock;
    std::unique_ptr<ParticleTrajectories> traj_vis;
-   if (visualization)
+   bool do_vis = visualization && (vis_interval > 0);
+   if (do_vis)
    {
       const char *keys = "baaa";
       traj_vis = std::make_unique<ParticleTrajectories>(boris.GetParticles(),
@@ -359,7 +363,7 @@ int main(int argc, char *argv[])
       }
 
       // Visualize trajectories
-      if (visualization && step % vis_interval == 0)
+      if (do_vis && step % vis_interval == 0)
       {
          traj_vis->Visualize();
       }
@@ -367,13 +371,26 @@ int main(int argc, char *argv[])
       // Remove lost particles from particle set and output
       Array<int> removed_idxs = boris.RemoveLostParticles();
 
+      bool particles_removed = removed_idxs.Size() > 0;
+      MPI_Allreduce(MPI_IN_PLACE, &particles_removed, 1, MFEM_MPI_CXX_BOOL,
+                    MPI_LOR, boris.GetParticles().GetComm());
+
       // Redistribute
+      bool redistributed = false;
       if (ctx.redist_interval > 0 && step % ctx.redist_interval == 0 &&
           boris.GetParticles().GetGlobalNParticles() > 0)
       {
          // Redistribute particles - prior to redistribution, removed any lost
          // particles that were just removed from the set.
          boris.Redistribute(ctx.redist_mesh, removed_idxs);
+         redistributed = true;
+      }
+
+      // Keep FindPointsGSLIB data synchronized with the ParticleSet after
+      // particles have been removed or redistributed.
+      if (particles_removed || redistributed)
+      {
+         boris.FindParticles();
       }
    }
 }
@@ -673,10 +690,6 @@ void Boris::Redistribute(int redist_mesh, Array<int> &removed_idxs)
       proc_list.DeleteAt(removed_idxs);
       charged_particles->Redistribute(proc_list);
    }
-
-   // Find particles again since ParticleSet is not yet synced with
-   // FindPointsGSLIB objects.
-   FindParticles();
 }
 
 void display_banner(ostream & os)

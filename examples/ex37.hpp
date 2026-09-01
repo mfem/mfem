@@ -449,7 +449,7 @@ real_t proj(GridFunction &psi, GridFunction &alpha_grad, real_t target_volume,
    {
       c = (f_a * b - f_b * a) / (f_a - f_b);
 
-      if (abs(b - a) < tol * abs(b + a)) { done = true; break; }
+      if (std::fabs(b - a) < tol * std::fabs(b + a)) { done = true; break; }
 
       y = c;
       int_sigmoid_psi->Assemble();

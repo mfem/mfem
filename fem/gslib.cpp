@@ -1000,16 +1000,16 @@ void obboxedge_calc_3(Vector &bb,
    }
 }
 
-void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
-                                          const double *const elx[3],
-                                          const unsigned n,
-                                          const uint nel,
-                                          const unsigned m,
-                                          const double bbox_rel_size_inc,
-                                          const uint local_hash_size,
-                                          const uint global_hash_size,
-                                          const int rD,
-                                          const Vector *aabb_sz_inc)
+void FindPointsGSLIB::FindPointsSurfSetup3(DevStruct &devs,
+                                           const double *const elx[3],
+                                           const unsigned n,
+                                           const uint nel,
+                                           const unsigned m,
+                                           const double bbox_rel_size_inc,
+                                           const uint local_hash_size,
+                                           const uint global_hash_size,
+                                           const int rD,
+                                           const Vector *aabb_sz_inc)
 {
    // compute element bounding boxes.
    const bool store_obb = obb_check;
@@ -1026,7 +1026,7 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
    }
    else
    {
-      MFEM_ABORT("FindPointsGSLIB::findptssurf_setup_3: rD must be 1 or 2");
+      MFEM_ABORT("FindPointsGSLIB::FindPointsSurfSetup3: rD must be 1 or 2");
    }
 
    auto h_bb = devs.bb.HostReadWrite();
@@ -1090,15 +1090,15 @@ void FindPointsGSLIB::findptssurf_setup_3(DEV_STRUCT &devs,
 #endif
 }
 
-void FindPointsGSLIB::findptsedge_setup_2(DEV_STRUCT &devs,
-                                          const double *const elx[2],
-                                          const unsigned n,
-                                          const uint nel,
-                                          const unsigned m,
-                                          const double bbox_rel_size_inc,
-                                          const uint local_hash_size,
-                                          const uint global_hash_size,
-                                          const Vector *aabb_sz_inc)
+void FindPointsGSLIB::FindPointsEdgeSetup2(DevStruct &devs,
+                                           const double *const elx[2],
+                                           const unsigned n,
+                                           const uint nel,
+                                           const unsigned m,
+                                           const double bbox_rel_size_inc,
+                                           const uint local_hash_size,
+                                           const uint global_hash_size,
+                                           const Vector *aabb_sz_inc)
 {
    // compute element bounding boxes.
    const bool store_obb = obb_check;
@@ -1194,20 +1194,20 @@ void FindPointsGSLIB::SetupSurf(Mesh &m,
                                 const double bbox_rel_size_inc,
                                 const double newt_tol)
 {
-   SetupSurf_Base(m, bbox_rel_size_inc, nullptr, newt_tol);
+   SetupSurfBase(m, bbox_rel_size_inc, nullptr, newt_tol);
 }
 
 void FindPointsGSLIB::SetupSurfWithAABBExpansion(Mesh &m,
                                                  const Vector &aabb_sz_inc,
                                                  const double newt_tol)
 {
-   SetupSurf_Base(m, 0.0, &aabb_sz_inc, newt_tol);
+   SetupSurfBase(m, 0.0, &aabb_sz_inc, newt_tol);
 }
 
-void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
-                                     const double bbox_rel_size_inc,
-                                     const Vector *aabb_sz_inc,
-                                     const double newt_tol)
+void FindPointsGSLIB::SetupSurfBase(Mesh &m,
+                                    const double bbox_rel_size_inc,
+                                    const Vector *aabb_sz_inc,
+                                    const double newt_tol)
 {
    // EnsureNodes call could be useful if the mesh is 1st order and has no gridfunction defined
    MFEM_VERIFY(m.GetNodes() != nullptr, "Mesh nodes are required.");
@@ -1259,15 +1259,15 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(0),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt)
       };
-      findptsedge_setup_2(DEV,
-                          elx,
-                          nr,
-                          NE_split_total,
-                          mr,
-                          bbox_rel_size_inc,
-                          mesh_points_cnt,
-                          mesh_points_cnt,
-                          aabb_sz_inc);
+      FindPointsEdgeSetup2(DEV,
+                           elx,
+                           nr,
+                           NE_split_total,
+                           mr,
+                           bbox_rel_size_inc,
+                           mesh_points_cnt,
+                           mesh_points_cnt,
+                           aabb_sz_inc);
    }
    else if (spacedim==3)
    {
@@ -1277,16 +1277,16 @@ void FindPointsGSLIB::SetupSurf_Base(Mesh &m,
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(mesh_points_cnt),
          mesh_points_cnt == 0 ? nullptr : &gsl_mesh(2*mesh_points_cnt)
       };
-      findptssurf_setup_3(DEV,
-                          elx,
-                          nr,
-                          NE_split_total,
-                          mr,
-                          bbox_rel_size_inc,
-                          mesh_points_cnt,
-                          mesh_points_cnt,
-                          dim,
-                          aabb_sz_inc);
+      FindPointsSurfSetup3(DEV,
+                           elx,
+                           nr,
+                           NE_split_total,
+                           mr,
+                           bbox_rel_size_inc,
+                           mesh_points_cnt,
+                           mesh_points_cnt,
+                           dim,
+                           aabb_sz_inc);
    }
 
    // If we are applying absolute AABB expansion, compute bdr_tol such that

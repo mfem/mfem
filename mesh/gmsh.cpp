@@ -733,6 +733,26 @@ class GmshReader
       }
    }
 
+   void AddElements(Mesh &mesh, vector<vector<unique_ptr<Element>>> &elems_by_dim)
+   {
+      if (elems_by_dim[3].size() > 0) { mesh.Dim = 3; }
+      else if (elems_by_dim[2].size() > 0) { mesh.Dim = 2; }
+      else { mesh.Dim = 1; }
+
+      mesh.NumOfElements = elems_by_dim[mesh.Dim].size();
+      mesh.elements.SetSize(mesh.NumOfElements);
+      for (int i = 0; i < mesh.NumOfElements; ++i)
+      {
+         mesh.elements[i] = elems_by_dim[mesh.Dim][i].release();
+      }
+      mesh.NumOfBdrElements = elems_by_dim[mesh.Dim - 1].size();
+      mesh.boundary.SetSize(mesh.NumOfBdrElements);
+      for (int i = 0; i < mesh.NumOfBdrElements; ++i)
+      {
+         mesh.boundary[i] = elems_by_dim[mesh.Dim - 1][i].release();
+      }
+   }
+
    /// In the periodic vertex mapping @a v2v, there may be chains or cycles.
    /// This will simplify all chains so that they are one link only, and break
    /// any cycles.
@@ -892,10 +912,6 @@ class GmshReader
 
             const size_t n_entities[4] = {n_points, n_curves, n_surfaces, n_volumes};
 
-            if (n_volumes > 0) { mesh.Dim = 3; }
-            else if (n_surfaces > 0) { mesh.Dim = 2; }
-            else { mesh.Dim = 1; }
-
             for (int d = 0; d <= 3; ++d)
             {
                for (size_t i = 0; i < n_entities[d]; ++i)
@@ -906,11 +922,7 @@ class GmshReader
                   for (size_t iphys = 0; iphys < n_phys_tags; ++iphys)
                   {
                      const int phys_tag = ReadBinaryOrASCII<int>(input, b);
-                     // Keep track of codim-0 and codim-1 entities.
-                     if (d == mesh.Dim || d == mesh.Dim - 1)
-                     {
-                        entity_physical_tag[ {d, tag}] = phys_tag;
-                     }
+                     entity_physical_tag[ {d, tag}] = phys_tag;
                   }
                   if (d > 0)
                   {
@@ -966,6 +978,8 @@ class GmshReader
             const size_t n_blocks = ReadBinaryOrASCII<size_t>(input, b);
             Skip<size_t>(input, 3, b); // Skip n_elements and min/max tags.
 
+            vector<vector<unique_ptr<Element>>> elems_by_dim(4);
+
             for (size_t iblock = 0; iblock < n_blocks; ++iblock)
             {
                const int entity_dim = ReadBinaryOrASCII<int>(input, b);
@@ -978,9 +992,15 @@ class GmshReader
                   Skip<size_t>(input, 1, b); // Skip element tag
                   const auto [geom, el_order] = GetGeometryAndOrder(element_type);
 
-                  if (mesh_order < 0) { mesh_order = el_order; }
-                  MFEM_VERIFY(mesh_order == el_order,
-                              "Variable order Gmsh meshes are not supported");
+                  // We can encounter point elements if they are present in the
+                  // mesh as "physical points". These always have order 1, so we
+                  // don't use them to infer the order of the mesh.
+                  if (geom != Geometry::POINT)
+                  {
+                     if (mesh_order < 0) { mesh_order = el_order; }
+                     MFEM_VERIFY(mesh_order == el_order,
+                                 "Variable order Gmsh meshes are not supported");
+                  }
 
                   const int n_elem_nodes = NumNodesInElement(geom, el_order);
                   vector<size_t> node_tags(n_elem_nodes);
@@ -989,17 +1009,13 @@ class GmshReader
                      node_tags[inode] = ReadBinaryOrASCII<size_t>(input, b);
                   }
 
-                  // We only add codim-0 and codim-1 elements.
-                  if (entity_dim != mesh.Dim && entity_dim != mesh.Dim - 1) { continue; }
-
                   const int attribute = entity_physical_tag[ {entity_dim, entity_tag}];
                   auto e = NewElement(mesh, geom, el_order, node_tags, attribute);
-                  if (entity_dim == mesh.Dim) { mesh.elements.Append(e); }
-                  else if (entity_dim == mesh.Dim - 1) { mesh.boundary.Append(e); }
+                  elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
                }
             }
-            mesh.NumOfElements = mesh.elements.Size();
-            mesh.NumOfBdrElements = mesh.boundary.Size();
+
+            AddElements(mesh, elems_by_dim);
          }
          else if (section == "Periodic")
          {
@@ -1020,7 +1036,7 @@ class GmshReader
                {
                   const size_t node_num = ReadBinaryOrASCII<size_t>(input, b);
                   const size_t primary_node_num = ReadBinaryOrASCII<size_t>(input, b);
-                  v2v[node_num - 1] = int(primary_node_num - 1);
+                  v2v[vertex_map.at(node_num)] = vertex_map.at(primary_node_num);
                }
             }
          }
@@ -1074,9 +1090,12 @@ class GmshReader
                auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
                                       int el_order, const vector<int> &el_nodes)
                {
-                  if (mesh_order < 0) { mesh_order = el_order; }
-                  MFEM_VERIFY(mesh_order == el_order,
-                              "Variable order Gmsh meshes are not supported");
+                  if (geom != Geometry::POINT)
+                  {
+                     if (mesh_order < 0) { mesh_order = el_order; }
+                     MFEM_VERIFY(mesh_order == el_order,
+                                 "Variable order Gmsh meshes are not supported");
+                  }
                   Element *e = NewElement(mesh, geom, el_order, el_nodes, el_phys_tag);
                   elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
                };
@@ -1131,22 +1150,7 @@ class GmshReader
                }
             }
 
-            if (elems_by_dim[3].size() > 0) { mesh.Dim = 3; }
-            else if (elems_by_dim[2].size() > 0) { mesh.Dim = 2; }
-            else { mesh.Dim = 1; }
-
-            mesh.NumOfElements = elems_by_dim[mesh.Dim].size();
-            mesh.elements.SetSize(mesh.NumOfElements);
-            for (int i = 0; i < mesh.NumOfElements; ++i)
-            {
-               mesh.elements[i] = elems_by_dim[mesh.Dim][i].release();
-            }
-            mesh.NumOfBdrElements = elems_by_dim[mesh.Dim - 1].size();
-            mesh.boundary.SetSize(mesh.NumOfBdrElements);
-            for (int i = 0; i < mesh.NumOfBdrElements; ++i)
-            {
-               mesh.boundary[i] = elems_by_dim[mesh.Dim - 1][i].release();
-            }
+            AddElements(mesh, elems_by_dim);
          }
          else if (section == "PhysicalNames")
          {
@@ -1184,7 +1188,7 @@ class GmshReader
                {
                   const int node_num = ReadBinaryOrASCII<int>(input, ASCII);
                   const int primary_node_num = ReadBinaryOrASCII<int>(input, ASCII);
-                  v2v[node_num - 1] = primary_node_num - 1;
+                  v2v[vertex_map.at(node_num)] = vertex_map.at(primary_node_num);
                }
             }
          }

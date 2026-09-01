@@ -136,8 +136,13 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
    const int nidofs = idofs.Size();
    const int nbdofs = bdofs.Size();
 
-   MFEM_VERIFY(nidofs <= MID, "");
-   MFEM_VERIFY(nbdofs <= MBD, "");
+   static constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
+   static constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
+   static constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
+   static constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
+
+   MFEM_VERIFY(nidofs <= MAX_IDOFS, "");
+   MFEM_VERIFY(nbdofs <= MAX_BDOFS, "");
 
    Ahat_ii.SetSize(nidofs*nidofs*ne);
    Ahat_ib.SetSize(nidofs*nbdofs*ne);
@@ -170,11 +175,6 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
 
    mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
    {
-      constexpr int MD1D = DofQuadLimits::HDIV_MAX_D1D;
-      constexpr int MAX_DOFS = 3*MD1D*(MD1D-1)*(MD1D-1);
-      constexpr int MAX_IDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MID;
-      constexpr int MAX_BDOFS = (MID == 0 && MBD == 0) ? MAX_DOFS : MBD;
-
       LocalMemory<int,MAX_IDOFS> idofs_loc;
       LocalMemory<int,MAX_BDOFS> bdofs_loc;
       for (int i = 0; i < nidofs; i++) { idofs_loc[i] = d_idofs[i]; }
@@ -237,7 +237,7 @@ void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)
       LocalMemory<int,MBD> ipiv_bb_loc;
 
       auto ipiv_ii = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_ii_loc;
-      auto ipiv_bb = GLOBAL ? &d_ipiv_ii(0,e) : ipiv_bb_loc;
+      auto ipiv_bb = GLOBAL ? &d_ipiv_bb(0,e) : ipiv_bb_loc;
 
       kernels::LUFactor(A_ii, nidofs, ipiv_ii);
       kernels::BlockFactor(A_ii, nidofs, ipiv_ii, nbfdofs, A_ib, A_bi, A_bb);

@@ -24,6 +24,8 @@ void MassIntegrator::AssembleEA_(Vector &ea_data,
    using internal::EAMassAssemble2D;
    using internal::EAMassAssemble3D;
 
+   MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+               "AssembleEA not implemented for ragged tensor bases");
    const Array<real_t> &B = maps->B;
    if (dim == 1)
    {
