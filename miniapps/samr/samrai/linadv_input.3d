@@ -1,0 +1,211 @@
+/*************************************************************************
+ *
+ * SAMRAI input file for MFEM-SAMRAI Example 16 (3D)
+ * Linear advection on structured AMR grid
+ *
+ ************************************************************************/
+
+LinAdv {
+   // Linear advection velocity vector--vector of length dim
+   advection_velocity = 2.0e0 , 1.0e0 , 1.0e0
+
+   // order of Goduov slopes (1, 2, or 4)
+   godunov_order    = 2
+
+   // type of finite difference approximation for 3d transverse flux correction
+   corner_transport = "CORNER_TRANSPORT_1"
+
+   // General type of problem and its initial conditions.
+   data_problem      = "SPHERE"
+   Initial_data {
+      radius            = 2.9
+      center            = 5.5 , 5.5 , 5.5
+
+      uval_inside       = 80.0
+      uval_outside      = 5.0
+   }
+
+   // Refinement criteria
+   Refinement_data {
+      refine_criteria = "UVAL_GRADIENT", "UVAL_SHOCK"
+
+      UVAL_GRADIENT {
+         grad_tol = 10.0
+      }
+
+      UVAL_SHOCK {
+         shock_tol   = 10.0
+         shock_onset = 0.85
+      }
+   }
+
+   // Boundary condition data
+   Boundary_data {
+      boundary_face_xlo {
+         boundary_condition      = "FLOW"
+      }
+      boundary_face_xhi {
+         boundary_condition      = "FLOW"
+      }
+      boundary_face_ylo {
+         boundary_condition      = "FLOW"
+      }
+      boundary_face_yhi {
+         boundary_condition      = "FLOW"
+      }
+      boundary_face_zlo {
+         boundary_condition      = "FLOW"
+      }
+      boundary_face_zhi {
+         boundary_condition      = "FLOW"
+      }
+
+      boundary_edge_ylo_zlo {
+         boundary_condition      = "ZFLOW"
+      }
+      boundary_edge_yhi_zlo {
+         boundary_condition      = "ZFLOW"
+      }
+      boundary_edge_ylo_zhi {
+         boundary_condition      = "ZFLOW"
+      }
+      boundary_edge_yhi_zhi {
+         boundary_condition      = "ZFLOW"
+      }
+      boundary_edge_xlo_zlo {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_edge_xlo_zhi {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_edge_xhi_zlo {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_edge_xhi_zhi {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_edge_xlo_ylo {
+         boundary_condition      = "YFLOW"
+      }
+      boundary_edge_xhi_ylo {
+         boundary_condition      = "YFLOW"
+      }
+      boundary_edge_xlo_yhi {
+         boundary_condition      = "YFLOW"
+      }
+      boundary_edge_xhi_yhi {
+         boundary_condition      = "YFLOW"
+      }
+
+      boundary_node_xlo_ylo_zlo {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xhi_ylo_zlo {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xlo_yhi_zlo {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xhi_yhi_zlo {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xlo_ylo_zhi {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xhi_ylo_zhi {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xlo_yhi_zhi {
+         boundary_condition      = "XFLOW"
+      }
+      boundary_node_xhi_yhi_zhi {
+         boundary_condition      = "XFLOW"
+      }
+   }
+}
+
+Main {
+   // dimension of problem
+   dim = 3
+
+   // base name of log file
+   base_name = "ex16_samrai_3d"
+
+   // if true all nodes will log to individual files
+   // if false only node 0 will log
+   log_all_nodes    = FALSE
+
+   // visualization dump parameters
+   // frequency at which to dump viz output--zero to turn off
+   viz_dump_interval    = 5
+   // directory in which to place viz output
+   viz_dump_dirname     = "visit_samrai_3d"
+   // number of processors which write to each viz file
+   visit_number_procs_per_file = 1
+
+   // restart dump parameters
+   // frequency at which to dump restart output--zero to turn off
+   restart_interval     = 0
+}
+
+// Cartesian grid geometry
+CartesianGeometry {
+   domain_boxes = [ (0,0,0) , (29,19,19) ]
+
+   x_lo = 0.e0 , 0.e0 , 0.e0    // lower end of computational domain.
+   x_up = 30.e0 , 20.e0 , 20.e0 // upper end of computational domain.
+}
+
+// Patch hierarchy
+PatchHierarchy {
+   max_levels = 3        // Maximum number of levels in hierarchy.
+
+   ratio_to_coarser {             // vector ratio to next coarser level
+      level_1 = 2 , 2 , 2
+      level_2 = 2 , 2 , 2
+   }
+
+   largest_patch_size {
+      level_0 = 40 , 40 , 40
+   }
+
+   smallest_patch_size {
+      level_0 = 9 , 9 , 9
+   }
+}
+
+// Berger-Rigoutsos clustering algorithm
+BergerRigoutsos {
+   efficiency_tolerance   = 0.85e0
+   combine_efficiency     = 0.95e0
+}
+
+// Gridding algorithm
+GriddingAlgorithm {
+}
+
+// Standard tag and initialize
+StandardTagAndInitialize {
+   tagging_method = "GRADIENT_DETECTOR"
+}
+
+// Hyperbolic level integrator
+HyperbolicLevelIntegrator {
+   cfl                       = 0.9e0
+   cfl_init                  = 0.9e0
+   lag_dt_computation        = TRUE
+   use_ghosts_to_compute_dt  = TRUE
+}
+
+// Time refinement integrator
+TimeRefinementIntegrator {
+   start_time           = 0.e0
+   end_time             = 100.e0
+   grow_dt              = 1.1e0
+   max_integrator_steps = 25
+}
+
+// Load balancer
+LoadBalancer {
+   // using default CascadePartitioner configuration
+}
