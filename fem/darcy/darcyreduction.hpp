@@ -141,6 +141,17 @@ public:
    void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
                                       bool own = true);
 
+   /** @brief The nonlinear flux mass integrator, or NULL.
+
+       @note **This returned the *potential* mass integrator until this branch
+       fixed it**, i.e. exactly what GetPotMassNonlinearIntegrator() below
+       returns, so the two accessors were indistinguishable and this one never
+       gave the flux. The signature is unchanged, so a caller that depended on
+       the old value changes behaviour silently on upgrading; it wants
+       GetPotMassNonlinearIntegrator(). A deprecated alias is not offered
+       because it could only preserve the old value under this name, which is
+       the name being corrected -- and the old value is already reachable, and
+       correctly named, one line down. */
    NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_u; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 

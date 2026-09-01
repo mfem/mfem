@@ -3950,6 +3950,27 @@ void DarcyHybridization::ReconstructTotalFlux(
    const BlockVector &sol, const Vector &x, total_flux_fun ut_fx,
    GridFunction &ut) const
 {
+   // The scalar flux law adapted to the system one, so that the reconstruction
+   // itself exists once. A caller who wrote against the single-field signature
+   // is why this overload is here at all; giving it a system quietly, with
+   // only the first field's potential reaching its callback, would be worse
+   // than refusing.
+   MFEM_VERIFY(ut_fx, "No total flux function was supplied");
+   ReconstructTotalFlux(sol, x,
+                        [&ut_fx](ElementTransformation &Tr, const Vector &u,
+                                 const Vector &p, Vector &utq)
+   {
+      MFEM_VERIFY(p.Size() == 1, "A scalar total flux function cannot serve a "
+                  "system of " << p.Size() << " fields; use the "
+                  "total_flux_sys_fun overload.");
+      ut_fx(Tr, u, p(0), utq);
+   }, ut);
+}
+
+void DarcyHybridization::ReconstructTotalFlux(
+   const BlockVector &sol, const Vector &x, total_flux_sys_fun ut_fx,
+   GridFunction &ut) const
+{
    const Vector &sol_u = sol.GetBlock(0);
    const Vector &sol_p = sol.GetBlock(1);
 

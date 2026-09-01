@@ -1110,6 +1110,17 @@ public:
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p.get(); }
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
+   /** @brief The nonlinear flux mass integrator, or NULL.
+
+       @note **This returned the *potential* mass integrator until this branch
+       fixed it**, i.e. exactly what GetPotMassNonlinearIntegrator() below
+       returns, so the two accessors were indistinguishable and this one never
+       gave the flux. The signature is unchanged, so a caller that depended on
+       the old value changes behaviour silently on upgrading; it wants
+       GetPotMassNonlinearIntegrator(). A deprecated alias is not offered
+       because it could only preserve the old value under this name, which is
+       the name being corrected -- and the old value is already reachable, and
+       correctly named, one line down. */
    NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_u; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
@@ -1418,21 +1429,32 @@ public:
    void ComputeSolution(const BlockVector &b, const Vector &sol_r,
                         BlockVector &sol) const;
 
-   /// Total flux function
+   /// Total flux function, for one field.
    /** @param Tr  element transformation (with set integration point)
        @param u   flux at the integration point
        @param p   potential at the integration point
        @param ut  total flux at the integration point
    */
-   /** @brief The flux law, evaluated at a quadrature point, that turns the
-       computed flux and potential into the total flux.
+   using total_flux_fun =
+      std::function<void(ElementTransformation &Tr, const Vector &u, real_t p,
+                         Vector &ut)>;
 
-       @a u is the flux, @a p the potential and @a ut the total flux, all of
-       them per equation: for a system of `neq` equations in `dim` dimensions
+   /** @brief The flux law of a *system*, evaluated at a quadrature point.
+
+       As #total_flux_fun, but the potential is a vector with one entry per
+       equation. @a u is the flux, @a p the potential and @a ut the total
+       flux, all of them per equation: for `neq` equations in `dim` dimensions
        @a p has `neq` entries and @a u and @a ut have `neq*dim`, with the block
        of equation `e` occupying `[e*dim, (e+1)*dim)`. That is the layout the
-       block integrators build; see VectorBlockDiagonalIntegrator. */
-   using total_flux_fun =
+       block integrators build; see VectorBlockDiagonalIntegrator.
+
+       This is a second type rather than a widening of #total_flux_fun so that
+       a single-field caller written against the scalar signature goes on
+       compiling. The two overloads of ReconstructTotalFlux() below cannot be
+       ambiguous: `Vector(int)` is `explicit`, so a `real_t` argument never
+       converts to a `const Vector &`, and a callable taking one is viable for
+       exactly one of them. */
+   using total_flux_sys_fun =
       std::function<void(ElementTransformation &Tr, const Vector &u,
                          const Vector &p, Vector &ut)>;
 
@@ -1455,6 +1477,18 @@ public:
        GetNumElementInteriorDofs() counts one field's, and the interior dofs
        are the tail of each field's block of the vdof list, not the tail of
        the list -- which is the same thing only when there is one field.
+       @param sol    solution of the mixed system
+       @param sol_r  solution of the hybridized system
+       @param ut_fx  total flux function
+       @param ut     total flux
+   */
+   void ReconstructTotalFlux(const BlockVector &sol, const Vector &sol_r,
+                             total_flux_sys_fun ut_fx, GridFunction &ut) const;
+
+   /// Reconstruct the total flux of a single field.
+   /** Equivalent to the overload above with a one-entry potential; provided so
+       that a scalar flux law needs no reshaping. Aborts if the problem carries
+       more than one field, rather than silently using the first.
        @param sol    solution of the mixed system
        @param sol_r  solution of the hybridized system
        @param ut_fx  total flux function

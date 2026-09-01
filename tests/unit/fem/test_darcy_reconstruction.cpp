@@ -628,6 +628,114 @@ TEST_CASE("Reconstruction leaves the hybridization as it found it",
    REQUIRE(MaxDiff(tr0, tr1) == 0.0);
 }
 
+TEST_CASE("The scalar total flux law agrees with the system one",
+          "[DarcyHybridization]")
+{
+   using namespace darcy_reconstruction;
+
+   // ReconstructTotalFlux() takes the flux law either as total_flux_fun, whose
+   // potential is a real_t, or as total_flux_sys_fun, whose potential is a
+   // Vector with one entry per field. The scalar form is the signature this
+   // branch inherited; the system form is what the neq > 1 reconstruction
+   // needs. Keeping both means a caller written against the old one goes on
+   // compiling, and the scalar overload is an adapter, so the thing to pin is
+   // that the adapter changes no answer.
+   //
+   // The two are also required to be unambiguous as overloads, which holds
+   // because Vector(int) is explicit: a lambda taking a real_t is not callable
+   // with a const Vector &, and vice versa. That is a compile-time property
+   // and this file exercises it by having both call sites below.
+   const int order = GENERATE(1, 2);
+   const int nx = 3;
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim);
+   L2_FECollection p_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, &u_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient gcoeff(gExact);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   DG_Interface_FECollection trace_coll(order, dim);
+   FiniteElementSpace fes_t(&mesh, &trace_coll);
+   darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr A;
+   Vector X, RHS;
+   darcy.FormLinearSystem(ess, x, A, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(1e-16);
+   lin.SetPreconditioner(prec);
+   lin.SetOperator(*A);
+   lin.Mult(RHS, X);
+   REQUIRE(lin.GetConverged());
+   darcy.RecoverFEMSolution(X, x);
+
+   // A law with a term the potential actually reaches, so that the two forms
+   // are distinguishable: a constant velocity convects the potential.
+   Vector vel(dim);
+   vel(0) = 1.7;
+   vel(1) = -0.9;
+
+   RT_FECollection ut_coll(order, dim);
+   FiniteElementSpace fes_ut(&mesh, &ut_coll);
+
+   GridFunction ut_scalar(&fes_ut), ut_system(&fes_ut);
+   ut_scalar = 0.0;
+   ut_system = 0.0;
+
+   DarcyHybridization *h = darcy.GetHybridization();
+
+   h->ReconstructTotalFlux(x, X,
+                           [&vel](ElementTransformation &, const Vector &u,
+                                  real_t p, Vector &t)
+   {
+      t = u;
+      t.Add(p, vel);
+   }, ut_scalar);
+
+   h->ReconstructTotalFlux(x, X,
+                           [&vel](ElementTransformation &, const Vector &u,
+                                  const Vector &p, Vector &t)
+   {
+      t = u;
+      t.Add(p(0), vel);
+   }, ut_system);
+
+   // Not vacuous: the reconstruction has to have produced something.
+   REQUIRE(ut_system.Normlinf() > 1e-6);
+
+   Vector d(ut_scalar);
+   d -= ut_system;
+   INFO("max difference " << d.Normlinf() << " on " << ut_system.Normlinf());
+   REQUIRE(d.Normlinf() < 1e-14 * std::max(ut_system.Normlinf(), real_t(1.0)));
+}
+
 TEST_CASE("A potential term that contributes nothing changes nothing",
           "[DarcyForm][Reconstruction]")
 {
