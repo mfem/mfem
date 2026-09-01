@@ -529,6 +529,22 @@ inline MFEM_HOST_DEVICE void Copy2d(const int q1d,
    MFEM_SYNC_THREAD;
 }
 
+/// 3D scalar copy
+template <int MQ1 = 0>
+inline MFEM_HOST_DEVICE void Copy3d(const int n1d,
+                                    s_regs3d_t<MQ1> &X,
+                                    s_regs3d_t<MQ1> &Y)
+{
+   for (int z = 0; z < n1d; ++z)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(y, y, n1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(x, x, n1d) { Y[z][y][x] = X[z][y][x]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// 2D scalar contraction: X & Y directions, with additional copy
 template <bool Transpose, int MQ1>
 inline MFEM_HOST_DEVICE void Contract2d(const int d1d, const int q1d,
@@ -640,6 +656,71 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
       {
          MFEM_UNROLL(SDIM)
          for (int d = 0; d < SDIM; ++d) { Y[d][qy][qx] = Z[0][d][qy][qx]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// @brief 1D matrix to contract with in direction @a d for the second
+/// derivative with respect to reference directions @a i and @a j.
+///
+/// @n accumulates directions contributing to the Hessian, so that the correct matrix
+/// is returned for the contraction:
+///
+/// dir = { B  n=0, G  n=1, H  n=2 }
+template <int MQ1>
+inline MFEM_HOST_DEVICE auto HessDir(const int i, const int j, const int d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (*G)[MQ1],
+                                     const real_t (*H)[MQ1])
+-> const real_t (*)[MQ1]
+{
+   const int n = (i == d) + (j == d);
+   return (n == 2) ? H : ((n == 1) ? G : B);
+}
+
+/// @brief 2D scalar-field Hessian, stored as a DIM x DIM register block.
+///
+/// We assume:
+/// - Hessian is symmetric, contract only upper-triangle and mirror rest
+/// - As for gradient, Contract2d consumes its input so we need fresh copy in scratch
+///   (just 2 scalar registers instead of DIM x DIM bank prefilled with copies of dofs)
+///
+/// @TODO:: this is a WIP. When moving to vector hessian we might need to use a packed storage
+///         and discard the symmetric entries to save registers.
+///         For now we just use a DIM x DIM register to keep the tensor structure
+template <int DIM, int MQ1, bool Transpose = false>
+inline MFEM_HOST_DEVICE void Hess2d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    const real_t (*H)[MQ1],
+                                    s_regs2d_t<MQ1> &dofs,
+                                    s_regs2d_t<MQ1> &scratch,
+                                    vd_regs2d_t<DIM, DIM, MQ1> &Y)
+{
+   // Contract upper triangle entries of the Hessian
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = i; j < DIM; j++)
+      {
+         Copy2d(d1d, dofs, scratch);
+         Contract2d<Transpose>(d1d, q1d, smem,
+                               HessDir(i, j, 0, B, G, H),
+                               HessDir(i, j, 1, B, G, H),
+                               scratch, Y[i][j]);
+      }
+   }
+
+   // Copy symmetric entries to the lower triangle
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         for (int i = 1; i < DIM; i++)
+         {
+            for (int j = 0; j < i; j++) { Y[i][j][qy][qx] = Y[j][i][qy][qx]; }
+         }
       }
    }
    MFEM_SYNC_THREAD;
@@ -875,6 +956,53 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    {
       Grad3d<VDIM, DIM, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y, c);
    }
+}
+
+/// @brief 3D scalar-field Hessian, stored as a DIM x DIM register block.
+///
+/// Same assumptions as Hess2d apply, see above...
+template <int DIM, int MQ1, bool Transpose = false>
+inline MFEM_HOST_DEVICE void Hess3d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    const real_t (*H)[MQ1],
+                                    s_regs3d_t<MQ1> &dofs,
+                                    s_regs3d_t<MQ1> &scratch,
+                                    vd_regs3d_t<DIM, DIM, MQ1> &Y)
+{
+   /// Contract upper triangle entries of the Hessian
+   for (int i = 0; i < DIM; i++)
+   {
+      for (int j = i; j < DIM; j++)
+      {
+         Copy3d(d1d, dofs, scratch);
+         Contract3d<Transpose>(d1d, q1d, smem,
+                               HessDir(i, j, 0, B, G, H),
+                               HessDir(i, j, 1, B, G, H),
+                               HessDir(i, j, 2, B, G, H),
+                               scratch, Y[i][j]);
+      }
+   }
+
+   /// Copy symmetric entries to the lower triangle
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            for (int i = 1; i < DIM; i++)
+            {
+               for (int j = 0; j < i; j++)
+               {
+                  Y[i][j][qz][qy][qx] = Y[j][i][qz][qy][qx];
+               }
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
 }
 
 /// 3D scalar-field gradient stored as a value register with SDIM components

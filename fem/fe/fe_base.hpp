@@ -231,8 +231,8 @@ public:
    /** @brief Second derivatives of the basis functions evaluated at quadrature
        points. */
    /** Only filled when #mode is TENSOR and the 1D basis supports second
-       derivatives, see Poly_1D::Basis::HasSecondDerivatives(); we keep 
-       the arrays empty otherwise, so it can be checked. 
+       derivatives, see Poly_1D::Basis::HasSecondDerivatives(); we keep
+       the arrays empty otherwise, so it can be checked.
        The storage layout is column-major with dimensions #nqpt x #ndof
        (consistent with #B and #G).*/
    Array<real_t> H;
