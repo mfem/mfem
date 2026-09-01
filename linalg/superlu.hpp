@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,7 +78,7 @@ typedef enum
 /// Define how to do iterative refinement
 typedef enum
 {
-   /// No interative refinement
+   /// No iterative refinement
    NOREFINE,
    /// Iterative refinement accumulating residuals in a float.
    SLU_SINGLE=1,
@@ -97,8 +97,8 @@ typedef enum
    /** @brief Matrix A will be factored assuming the sparsity is the same as a
        previous factorization.  Column permutations will be reused. */
    SamePattern,
-   /** @brief Matrix A will be factored assuming the sparsity is the same and
-       the matrix as a previous are similar as a previous factorization.  Column
+   /** @brief Matrix A will be factored assuming the sparsity is the same as, and
+       the matrix values are similar to, a previous factorization.  Column
        permutations and row permutations will be reused. */
    SamePattern_SameRowPerm,
    /** @brief The matrix A was provided in fully factored form and no
@@ -205,7 +205,7 @@ public:
    /// Specify whether to print the solver statistics (default true)
    void SetPrintStatistics(bool print_stat);
 
-   /** @brief Specify whether to equibrate the system scaling to make
+   /** @brief Specify whether to equilibrate the system scaling to make
       the rows and columns have unit norms.  (default true) */
    void SetEquilibriate(bool equil);
 

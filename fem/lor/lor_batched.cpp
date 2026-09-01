@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -496,7 +496,7 @@ void BatchedLORAssembly::SparseIJToCSR_DG(OperatorHandle &A) const
       for (int n_idx = 0; n_idx < dim; ++n_idx)
       {
          // qi is the face lexicographic index, obtained by taking the
-         // lexicographic index of the coordinates ommiting n_idx.
+         // lexicographic index of the coordinates omitting n_idx.
          int qi = 0;
          int stride = 1;
          for (int d = 0; d < dim; ++d)
