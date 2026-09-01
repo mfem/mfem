@@ -15,7 +15,7 @@
 //               ex16 -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               ex16 -m ../data/amr-quad.mesh -o 4 -r 0
 //               ex16 -m ../data/amr-hex.mesh -o 2 -r 0
-//               ex16 -m ../data/amr-hex.mesh -o 2 -r 0 -imp-state
+//               ex16 -m ../data/amr-hex.mesh -o 2 -r 0  -s 21 -imp-state
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion
