@@ -191,7 +191,8 @@ constexpr int qf_slot_dim()
 {
    using fop_t = tuple_element_t<I, fops_t>;
    constexpr auto ext = qf_param_slot<qfunc_t, I>::extents;
-   if constexpr (is_gradient_fop<fop_t>::value && ext.size() > 0)
+   if constexpr ((is_gradient_fop<fop_t>::value ||
+                  is_hessian_fop<fop_t>::value) && ext.size() > 0)
    {
       return ext[ext.size() - 1];
    }
@@ -916,6 +917,15 @@ constexpr auto get_G(const Tuple& fields)
 }
 
 template<typename Tuple>
+constexpr auto get_H(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<const real_t*, sizeof...(f)> {f.H...};
+   }, fields);
+}
+
+template<typename Tuple>
 constexpr auto get_D1D(const Tuple& fields)
 {
    return future::apply([](const auto&... f)
@@ -1153,7 +1163,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_hessian_fop_v<FOP>)
       {
          t1d = std::max(t1d, in_d1d[ic.value]);
       }
@@ -1161,7 +1172,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_out>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, outputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_hessian_fop_v<FOP>)
       {
          t1d = std::max(t1d, out_d1d[ic.value]);
       }
@@ -1179,7 +1191,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_hessian_fop_v<FOP>)
       {
          t1d = std::max(t1d, in_d1d[ic.value]);
       }

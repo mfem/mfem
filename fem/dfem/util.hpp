@@ -2617,6 +2617,12 @@ void CheckCompatibility(const FieldDescriptor &f)
                         FiniteElement::MapType::VALUE,
                         "Gradient not compatible with FE");
          }
+         else if constexpr (std::is_same_v<field_operator_t, Hessian<>>)
+         {
+            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() ==
+                        FiniteElement::MapType::VALUE,
+                        "Hessian not compatible with FE");
+         }
          else
          {
             static_assert(dfem::always_false<T, field_operator_t>,
@@ -2662,6 +2668,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    else if constexpr (is_gradient_fop<field_operator_t>::value)
    {
       return GetVDim(f) * GetDimension<entity_t>(f);
+   }
+   else if constexpr (is_hessian_fop<field_operator_t>::value)
+   {
+      // Full, symmetric dim x dim block per vector component.
+      const int d = GetDimension<entity_t>(f);
+      return GetVDim(f) * d * d;
    }
    else if constexpr (is_identity_fop<field_operator_t>::value)
    {
@@ -2790,6 +2802,13 @@ struct DofToQuadMap
    /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
    DeviceTensor<3, const real_t> G;
 
+   /// @brief Second derivatives of the basis functions at quadrature points.
+   ///
+   /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
+   /// Only populated for field operators that need it (Hessian) and only for bases
+   /// that provide second derivatives; it is a null tensor otherwise.
+   DeviceTensor<3, const real_t> H;
+
    /// Reverse mapping indicating which input this map belongs to.
    int which_input = -1;
 };
@@ -2855,7 +2874,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       };
 
       if constexpr (is_value_fop<decltype(fop)>::value ||
-                    is_gradient_fop<decltype(fop)>::value)
+                    is_gradient_fop<decltype(fop)>::value ||
+                    is_hessian_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
          // ParameterSpace: dtq is non-null but has no B/G data (nqpt/ndof
@@ -2867,13 +2887,24 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             {
                DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
                DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
                -1
             };
          }
+         // Hessian only tabulated for bases that provide second derivatives.
+         // Avoid running Hessian kernel qirh null/unsupported H later
+         const bool needs_hess = is_hessian_fop<decltype(fop)>::value;
+         MFEM_VERIFY(!needs_hess || dtq->H.Size() > 0,
+                     "Hessian FieldOperator requires a finite element basis "
+                     "with second derivatives (nodal/Barycentric); the basis of "
+                     "field index " << field_map[idx] << " does not provide them.");
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
             DeviceTensor<3, const real_t>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
+            needs_hess
+            ? DeviceTensor<3, const real_t>(dtq->H.Read(), dtq->nqpt, grad_dim, dtq->ndof)
+            : DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
             static_cast<int>(idx)
          };
       }
@@ -2883,6 +2914,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          {
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
             -1
          };
       }
@@ -2926,6 +2958,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          {
             DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),
             DeviceTensor<3, const real_t>(nullptr, nqpt, grad_dim, ndof),
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
             -1
          };
       }
@@ -2936,6 +2969,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       return DofToQuadMap
       {
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
          -1
