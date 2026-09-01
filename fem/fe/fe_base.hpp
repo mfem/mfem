@@ -228,6 +228,19 @@ public:
        - #ndof x #nqpt x cdim, for H(curl) vector elements. */
    Array<real_t> Gt;
 
+   /** @brief Second derivatives of the basis functions evaluated at quadrature
+       points. */
+   /** Only filled when #mode is TENSOR and the 1D basis supports second
+       derivatives, see Poly_1D::Basis::HasSecondDerivatives(); we keep 
+       the arrays empty otherwise, so it can be checked. 
+       The storage layout is column-major with dimensions #nqpt x #ndof
+       (consistent with #B and #G).*/
+   Array<real_t> H;
+
+   /// Transpose of #H.
+   /** The storage layout is column-major with dimensions #ndof x #nqpt. */
+   Array<real_t> Ht;
+
    /// Returns absolute value of the maps
    DofToQuad Abs() const;
 
@@ -1124,6 +1137,10 @@ public:
       void ScaleIntegrated(bool scale_integrated_);
       /// Returns true if the basis is "integrated", false otherwise.
       bool IsIntegratedType() const { return etype == Integrated; }
+      /// @brief Returns true if Eval() with second derivatives is implemented
+      /// for this basis, false otherwise.
+      /// Second derivatives are available only for nodal (Barycentric) bases.
+      bool HasSecondDerivatives() const { return etype == Barycentric; }
       ~Basis();
    };
 
