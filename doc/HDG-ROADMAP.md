@@ -172,20 +172,27 @@ All four converge, and the higher-order ones get there sooner — `-ode 4` is
 converged by `nt = 32` where backward Euler is still climbing at 128. That is
 the first evidence in this tree that the time-stepping does anything correct.
 
-**But they converge to the wrong answer, and that is what blocks a
-reference.** The limit is 0.0121998 and it is independent of the mesh as well
-as of `dt` — 0.01224 at `n = 8, k = 1` and 0.0121998 from `n = 16, k = 2`
-through `n = 32, k = 3`. Neither temporal nor spatial, and the error does go
-to zero as `t → 0`, so the initial condition is consistent. **Problem 4's
-exact solution is therefore not the solution of the discrete problem**: a
-source, boundary or exact-solution inconsistency in the problem definition,
-not a solver defect. Re-projecting the time-dependent Dirichlet trace datum at
-every step changes the numbers not at all, so it is not the boundary datum.
+**~~But they converge to the wrong answer.~~ Fixed: problem 4's exact solution
+was wrong.** It spread as `2σ² + 4kt·π/4`, and the PDE requires `D' = 4k`, so
+`2σ² + 4kt`. The `π/4` belongs to the *rotation*, which carries it legitimately
+and where it recurs as a `4·X·π/4` idiom; in the diffusion it made the exact
+solution solve no equation the miniapp poses. The exact solution and the exact
+flux were mutually consistent — `q` really was `−k∇u` of that `u` — which is
+why it did not look wrong locally, and the source is zero so nothing absorbed
+it. Hence a limit independent of both `dt` and `h`, and an error vanishing as
+`t → 0` where the two denominators agree.
 
-**So §8's first task is not a reference, it is making one transient problem
-consistent.** Until the scheme converges to its own exact solution there is
-nothing to write a temporal convergence table against. Problems 5, 7 and 9 are
-the other `Nonsteady*` candidates and have not been checked.
+**Problem 4 is now the tree's one verified transient problem, and §8's first
+task is done.** Observed temporal orders 1, 2.00, 3 and 4 for `-ode 1…4`, and
+order 4 = `k+1` in space at `k = 3`. The table is in the header comment of
+`miniapps/hdg/convdiff.cpp`, which is where it belongs. Problems 5, 7 and 9
+remain unchecked.
+
+What is still open here is the DAE theory rather than the verification: index,
+consistent initialisation of the algebraic trace block, and stage-order
+reduction on the constraint under a DIRK method. A transient *regression
+reference* is now possible for the first time and has not been taken — every
+one of the 273 references still passes `--ntimesteps 0`.
 
 **ARKODE is present and not usable here.** `ARKStepSolver` in
 `linalg/sundials.hpp` offers `IMPLICIT` and `IMEX` DIRK methods, but its

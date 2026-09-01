@@ -1339,7 +1339,16 @@ TFunc GetTFun(const ProblemParams &params)
 
             constexpr real_t sigma = 0.1;
             constexpr real_t sigma2 = 2*sigma*sigma;
-            const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
+            // 2 sigma^2 + 4 k t, NOT 4 k t pi/4. A Gaussian under
+            // du/dt = k lap u spreads as D' = 4k -- substitute
+            // u = (A/D) exp(-r^2/D) and both sides come out as
+            // u (r^2/D - 1) times D'/D and 4k/D respectively -- so the pi/4
+            // that the rotation legitimately carries does not belong here.
+            // With it the exact solution is not a solution: the PDE residual
+            // is O(k) and the miniapp converged, in dt AND in h, to a limit
+            // 0.0121998 away from this function. See the note at the head of
+            // this file.
+            const real_t denom = sigma2 + 4.*k*t;
             return sigma2 / denom * exp(- (dx*dx) / denom);
          };
       case Problem::KovasznayFlow:
@@ -1458,7 +1467,16 @@ VecTFunc GetQFun(const ProblemParams &params)
             v.SetSize(vdim);
             constexpr real_t sigma = 0.1;
             constexpr real_t sigma2 = 2*sigma*sigma;
-            const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
+            // 2 sigma^2 + 4 k t, NOT 4 k t pi/4. A Gaussian under
+            // du/dt = k lap u spreads as D' = 4k -- substitute
+            // u = (A/D) exp(-r^2/D) and both sides come out as
+            // u (r^2/D - 1) times D'/D and 4k/D respectively -- so the pi/4
+            // that the rotation legitimately carries does not belong here.
+            // With it the exact solution is not a solution: the PDE residual
+            // is O(k) and the miniapp converged, in dt AND in h, to a limit
+            // 0.0121998 away from this function. See the note at the head of
+            // this file.
+            const real_t denom = sigma2 + 4.*k*t;
             const real_t u = sigma2 / denom * exp(- (dx*dx) / denom);
             const real_t v0 = 2. * k * u / denom;
             v(0) = xc(0) + cos(ct) * dx_x - sin(ct) * dx_y;

@@ -54,6 +54,39 @@
 //               4) non-steady advection(-diffusion) - blob circular advection
 //                                                     with diffusion with
 //                                                     Dirichlet temperature BCs
+//
+//               Problem 4 is the tree's ONE VERIFIED TRANSIENT PROBLEM, and it
+//               was not until its exact solution was corrected. It spread as
+//               2 sigma^2 + 4 k t pi/4; substituting u = (A/D) exp(-r^2/D)
+//               into du/dt = k lap u gives both sides as u (r^2/D - 1) times
+//               D'/D and 4k/D, so D' = 4k and the pi/4 -- which the ROTATION
+//               legitimately carries, and which recurs as a 4*X*pi/4 idiom
+//               through this problem -- does not belong in the diffusion. The
+//               exact solution and the exact flux were mutually consistent, q
+//               really being -k grad u of that u, which is why nothing looked
+//               wrong locally; but that u solves no PDE posed here, and the
+//               source is zero so nothing absorbed it. Every transient error
+//               this miniapp printed converged, in dt AND in h, to 0.0121998
+//               rather than to zero.
+//
+//               Corrected, and measured -- final-time trace error, n = 48,
+//               order 3, tf = 0.5, k = 0.01, c = 1:
+//
+//                 nt     -ode 1     -ode 2      -ode 3      -ode 4
+//                  8   0.206058  1.4113e-2   1.4201e-2   1.0627e-2
+//                 16   0.123107  3.5350e-3   2.2771e-3   1.2467e-3
+//                 32  0.0688748  8.8225e-4   3.1515e-4   1.0422e-4
+//                 64  0.0367485  2.2030e-4   4.0987e-5   7.6093e-6
+//                128  0.0190342  5.5039e-5   5.2449e-6   7.9990e-7
+//
+//               Observed orders 1, 2.00, 3 and 4 -- their formal ones.
+//               -ode 4's last rate reads 3.25 rather than 4 because 8.0e-7 is
+//               already at the spatial floor: at nt = 256, -ode 4, the mesh
+//               sweep n = 12, 24, 48 gives 1.3206e-4, 7.8611e-6, 4.4835e-7,
+//               which is order 4 = k+1 in space.
+//
+//               Use -p 4 for a temporal study; problems 5, 7 and 9 are the
+//               other Nonsteady* candidates and are still unchecked.
 //               5) Kovasznay flow - advection-diffusion of periodically
 //                                   injected contaminant concentration (repr.
 //                                   by T) with Dirichlet temperature inflow BC
@@ -1338,7 +1371,16 @@ TFunc GetTFun(const ProblemParams &params)
 
             constexpr real_t sigma = 0.1;
             constexpr real_t sigma2 = 2*sigma*sigma;
-            const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
+            // 2 sigma^2 + 4 k t, NOT 4 k t pi/4. A Gaussian under
+            // du/dt = k lap u spreads as D' = 4k -- substitute
+            // u = (A/D) exp(-r^2/D) and both sides come out as
+            // u (r^2/D - 1) times D'/D and 4k/D respectively -- so the pi/4
+            // that the rotation legitimately carries does not belong here.
+            // With it the exact solution is not a solution: the PDE residual
+            // is O(k) and the miniapp converged, in dt AND in h, to a limit
+            // 0.0121998 away from this function. See the note at the head of
+            // this file.
+            const real_t denom = sigma2 + 4.*k*t;
             return sigma2 / denom * exp(- (dx*dx) / denom);
          };
       case Problem::KovasznayFlow:
@@ -1457,7 +1499,16 @@ VecTFunc GetQFun(const ProblemParams &params)
             v.SetSize(vdim);
             constexpr real_t sigma = 0.1;
             constexpr real_t sigma2 = 2*sigma*sigma;
-            const real_t denom = sigma2 + 4.*k*t * M_PI/4.;
+            // 2 sigma^2 + 4 k t, NOT 4 k t pi/4. A Gaussian under
+            // du/dt = k lap u spreads as D' = 4k -- substitute
+            // u = (A/D) exp(-r^2/D) and both sides come out as
+            // u (r^2/D - 1) times D'/D and 4k/D respectively -- so the pi/4
+            // that the rotation legitimately carries does not belong here.
+            // With it the exact solution is not a solution: the PDE residual
+            // is O(k) and the miniapp converged, in dt AND in h, to a limit
+            // 0.0121998 away from this function. See the note at the head of
+            // this file.
+            const real_t denom = sigma2 + 4.*k*t;
             const real_t u = sigma2 / denom * exp(- (dx*dx) / denom);
             const real_t v0 = 2. * k * u / denom;
             v(0) = xc(0) + cos(ct) * dx_x - sin(ct) * dx_y;
