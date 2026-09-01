@@ -531,29 +531,77 @@ They are different methods reaching the same discrete solution, so the choice
 is about cost and robustness rather than correctness. Tests assert that both
 get there.
 
-**The reduced trace operator** is what every existing caller gets, and there
-is no longer a switch: with `LineariseThenCondense` deleted the class has one
-condensation and NPC beside it.
-The outer unknown is the trace alone, which is much the smaller vector, and the
-local problem is solved to a tolerance you control. It is the only route that
-is **parallel** and the only one that accepts an **H(div) flux**. Reach for it
-unless you have a reason not to.
+**Which to reach for depends on one thing: what the element-local nonlinear
+solve costs on your problem.** That is the whole of it, and an earlier version
+of this section gave "reach for the reduced trace operator unless you have a
+reason not to" as a general default. That was wrong as a default and `meq`
+measured it so — see `HDG-NPC-GLOBALISATION-FROM-MEQ.md`.
+
+**The reduced trace operator.** The outer unknown is the trace alone, much the
+smaller vector, and the local problem is solved to a tolerance you control. It
+is the only route that accepts an **H(div) flux**. Reach for it when the local
+problems are mild — then the per-element Newton is cheap and solving it
+properly is worth more than avoiding it.
 
 **NPC** when the per-element nonlinear solves are the cost or the thing that
 fails. Every local operation is one linear solve against one factorisation, so
 a stiff local problem cannot stall the outer iteration the way it can under
 condensation; the price is that the unknown is the whole system and the
-convergence test with it. Measured on a stiff pedestal source: NPC with a
-backtracking line search converges three configurations that the deleted
-trace-only mode could not, in 13, 10 and 17 steps, and the fourth stalls at
-2.9e-03 — ordinary Newton stagnation, which the reduced operator also has
-on some of these.
+convergence test with it.
 
-**A caveat worth stating plainly**, because it is the reverse of what the
-deleted mode promised: **NPC is not automatically faster.** Its advantage is
-uniformity of the local work — one linear solve per element per step, which is
-also what makes it the better batched or threaded workload — not fewer
-floating-point operations.
+**And it is often faster, which this section used to deny.** It said NPC's
+advantage was uniformity of the local work "not fewer floating-point
+operations". On a semilinear Grad-Shafranov discretisation `meq` measured 4.3x
+and 3.7x of wall clock at the same or fewer iterations, and a whole test suite
+at 872 s -> 499 s, because the element-local Newton the condensation runs per
+element per residual evaluation *is* most of the cost and NPC deletes it. When
+NPC fails it also fails 33x to 41x cheaper, having run no local nonlinear
+iterations at all — which makes it the better thing to try first even on
+problems it loses. The uniformity claim stands; the "not fewer operations"
+half is withdrawn.
+
+### The line search: read this before taking the recommendation
+
+Measured here on the Darcy pedestal, undamped against backtracking on the full
+residual, at the four configurations §7 used to cite:
+
+| | undamped | with backtracking |
+|---|---|---|
+| n=8 k=2 | fails, 2.4e+00 | **ok, 13 steps** |
+| n=12 k=3 | ok, 12 steps | ok, 10 steps |
+| n=32 k=1 | fails, 4.9e-01 | **ok, 17 steps** |
+| n=24 k=1 | fails, 1.4e+00 | fails, 2.9e-03 |
+
+So on *this* problem the line search earns its place, and the baseline is
+plain undamped `NewtonSolver` on NPC — not the deleted mode, which is what
+`meq` asked. **On `meq`'s problem the same line search made every case worse**,
+including five that converge undamped.
+
+Both are true and the block structure is not what separates them, because it
+is the same. Measured here: the flux row falls to 4e-17 and the trace row to
+3e-14 on a full step, with the entire remainder in the potential row — exactly
+the shape `meq` reports. **What differs is severity.** Here a full step
+*reduces* the potential residual (4.7e-01 -> 1.7e-01); on `meq`'s problem it
+multiplies it by 77 (8.1e-02 -> 6.25e+00), so `alpha = 1` is rejected and the
+search retreats.
+
+**And then the reference implementation misbehaves, which is a defect here
+rather than a property of the method.** `NSBacktrackingNewton` in
+`miniapps/hdg/navierstokes.cpp` — which `meq` copied faithfully — accepts on
+`Norm(rt) < n0`, a monotone test with **no sufficient-decrease constant**. For
+Newton on an l2 merit the direction is always a descent direction, so
+merit(alpha) ~ merit(0)(1 - alpha) and *any* small enough alpha passes: swept
+here, alpha = 1.2e-4 is still "accepted", improving the merit by 1e-4 relative.
+So on a problem where alpha = 1 is rejected the search does not fail, it
+**creeps** — which is precisely the 1%-a-step crawl `meq` saw. An Armijo test,
+`Norm(rt) < (1 - c*alpha)*n0`, would reject those steps and report failure
+honestly. It would not make `meq`'s problem converge; it would stop the
+globalisation from disguising its own failure. Fixing it is open.
+
+What would actually serve a potential-block nonlinearity is a step rule that
+respects the block structure — damping the nonlinear block without undoing the
+exact annihilation of the linear ones. `DarcyNPCOperator` is the object that
+knows which block is which. Nobody has tried it.
 
 ## 7. Suspected defects and inconsistencies
 

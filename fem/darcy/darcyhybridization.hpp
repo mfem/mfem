@@ -975,12 +975,29 @@ public:
 
        And it solves stiff problems the deleted trace-only mode could not. Of
        the four configurations where the reduced trace operator converges and
-       that mode did not, three fall to NPC with a backtracking line search on the
-       full residual -- 13, 10 and 17 steps -- and the fourth stalls at
-       2.9e-03, which is ordinary Newton stagnation. Undamped, NPC wanders on all four
-       exactly as any cold Newton does: **the globalisation this method wants
+       that mode did not, three fall to NPC with a backtracking line search on
+       the full residual -- 13, 10 and 17 steps -- and the fourth stalls at
+       2.9e-03, which is ordinary Newton stagnation. Undamped, NPC converges
+       one of the four (k = 3, n = 12, in 12 steps) and wanders on the other
+       three as any cold Newton does -- an earlier version of this paragraph
+       said all four, which a sweep of the four configurations disproved: **the globalisation this method wants
        is on the OUTER step and there is none to do locally**, which is the
-       whole point of the ordering. A line search here is well defined for a
+       whole point of the ordering.
+
+       **Do not read that as a general recommendation of a line search.** The
+       backtracking above is an l2 merit over all three blocks. Where the
+       nonlinearity sits in the potential block and the flux and trace rows are
+       linear -- the shape of every DarcyForm problem whose nonlinearity is in
+       Mnl_p, and measured true here: a full step takes the flux row to 4e-17
+       and the trace row to 3e-14 -- a full step is exactly optimal for two
+       blocks and any damping restores part of them. Whether backtracking then
+       helps or hurts turns on how badly the full step treats the potential
+       block: here it improves it and the search helps, on meq's
+       Grad-Shafranov discretisation it multiplies it by 77 and the search made
+       every case worse. doc/HDG-NPC-GLOBALISATION-FROM-MEQ.md has their
+       measurement and doc/HDG-ORDERING-API.md section 6 the caveat.
+
+       A line search here is well defined for a
        reason worth keeping in view -- the fields and the trace scale together
        because both are state, where a line search on a trace-only operator
        scales the trace and leaves the field update to whatever the
