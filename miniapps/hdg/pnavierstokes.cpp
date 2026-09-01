@@ -1120,6 +1120,17 @@ int main(int argc, char *argv[])
    gform.Update(&fes_q, rhs.GetBlock(0), 0);
    fform.Update(&fes_u, rhs.GetBlock(1), 0);
 
+   //     The trace form is EMPTY here, and that is the only reason this
+   //     miniapp can hand it to the solver as a right-hand side. `-bcphys` has not been given
+   //     the prescribed numerical flux yet (see the boundary conditions), so
+   //     the trace load is identically zero; when it is given one, the load
+   //     has to move into the OPERATOR rather than stay in `newton->Mult(b, x)`
+   //     -- `KINSolver::Mult(const Vector &b, Vector &x)` discards `b`, so
+   //     `-ls` and `-nls 4` would silently solve the zero-numerical-flux
+   //     problem. navierstokes.cpp's LoadedOperator is that fix, with the
+   //     measurement that established it; the serial miniapp had exactly this
+   //     fault and it went unseen because `-bcfull`, the set everything is
+   //     verified on, zeroes the load anyway.
    ParLinearForm hform(&fes_t);
    hform = 0.;
    hform.Assemble();
@@ -1216,13 +1227,11 @@ int main(int argc, char *argv[])
    // account, including why neither a correct line search nor a block-weighted
    // merit rescues the case that motivated it.
    unique_ptr<NewtonSolver> newton;
+   KINSolver *kin = nullptr;
    if (line_search || solver_type == (int) DarcyOperator::SolverType::KINSol)
    {
-      auto *kin = new KINSolver(MPI_COMM_WORLD,
-                                line_search ? KIN_LINESEARCH : KIN_NONE);
-      // A true Newton rather than a lagged-Jacobian one; without it KINSOL
-      // reuses a setup and the comparison against -nls 3 is not like for like.
-      kin->SetMaxSetupCalls(1);
+      kin = new KINSolver(MPI_COMM_WORLD,
+                          line_search ? KIN_LINESEARCH : KIN_NONE);
       newton.reset(kin);
    }
    else
@@ -1235,6 +1244,13 @@ int main(int argc, char *argv[])
    newton->SetAbsTol(newton_atol);
    newton->SetMaxIter(newton_iters);
    newton->SetPrintLevel(root ? 1 : -1);
+
+   // A true Newton rather than a lagged-Jacobian one; without it KINSOL reuses
+   // a setup and the comparison against -nls 3 is not like for like. It has to
+   // come AFTER SetOperator(), which is what creates `sundials_mem`; called
+   // before, it is a no-op behind an MFEM_ASSERT that a release build compiles
+   // out. See the fuller note at the same place in navierstokes.cpp.
+   if (kin) { kin->SetMaxSetupCalls(1); }
 
    chrono.Clear();
    chrono.Start();

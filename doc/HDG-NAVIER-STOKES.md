@@ -23,19 +23,21 @@ caller has to know: the convergence test is now on the full residual, so an
 
 ## What is left
 
-* **`-bcphys` is done**, by the Neumann-datum route, and the write-up is in the
-  boundary-condition step of `navierstokes.cpp` and in
-  `HDGPrescribedFluxLFIntegrator`'s doxygen in `nsflux.hpp`. What is left of it
-  is one thing that is a property of the condition rather than of the
-  implementation: the outflow datum is quadratic in the state, so the problem
-  has a second root and a cold Newton finds it. `-cont` lands on the right one.
-  Whether a characteristic outflow condition would remove that is open — it is
-  the standard cure — but it is not expressible on this interface without new
-  machinery in `DarcyHybridization`, for the reason recorded in the source.
-* **`-bcphys` at order 1 diverges**, cold and under `-cont` alike. The exact
-  solution is not in the space there, so the Stokes stage is not the
-  Navier–Stokes answer and the continuation has nothing to hand on. Not
-  investigated.
+* **A characteristic outflow condition.** `-bcphys` itself is done, and both
+  of the questions that were open against it are now answered *and written
+  into the source* — the boundary-condition step of `navierstokes.cpp` has the
+  measurements, `HDGPrescribedFluxLFIntegrator`'s doxygen has the one-paragraph
+  version. In short: the outflow datum fixes the free trace velocity only up to
+  sign at each quadrature point, so the discrete problem has a combinatorial
+  family of roots (four reached at order 2 on 8x8, all at round-off residual),
+  and the order-1 divergence was neither about order 1 nor about the exact
+  solution being out of the space — it is one chaotic point of that landscape.
+  Both are properties of the condition, not defects. What is LEFT is the cure:
+  the paper's characteristic condition
+  `B^ = A+_n(u - u^) - A-_n(u_inf - u^)`, which is not expressible here without
+  new machinery in `DarcyHybridization`, for the reason recorded in the source.
+  Dropping the essential outlet pressure instead has been tried and measured:
+  it makes the system singular.
 * **~~`BdrHyperbolicDirichletIntegrator` should abort under
   hybridization.~~ It does now.** It reads its prescribed state only when bit
   0 of `type` is set — which marks element 2's pass — and a boundary face has
@@ -56,7 +58,6 @@ caller has to know: the convergence test is now on the full residual, so an
   nowhere in the tree. The weak divergence in `(r,z)` is the Cartesian one
   under the measure `r dr dz`, so it needs the weight threaded through every
   integrator and a condition on the axis — but no new integrators.
-* **Parallel.** No `pnavierstokes.cpp`.
 * **No regression reference.** `navierstokes` is wired into the build and has a
   `navierstokes-test-seq` target, but nothing in `regress_test/` covers it, so
   none of the round-off checks above is run by the suite.

@@ -387,6 +387,53 @@ static void ExactFlux(const ProblemParams &pars, const Vector &x, Vector &q)
    }
 }
 
+/** @brief `F(x) - b`, so that a nonlinear solver which ignores its right-hand
+    side still solves the right problem.
+
+    **`KINSolver::Mult(const Vector &b, Vector &x)` discards `b`.** The
+    parameter is unnamed in `linalg/sundials.cpp` and nothing reads it, so the
+    KINSOL route solves `F(x) = 0` where `NewtonSolver::Mult` solves
+    `F(x) = b`. Here `b` is the prescribed boundary flux of step 11, and the
+    consequence was that `-ls` and `-nls 4` silently dropped the whole datum
+    and solved the zero-numerical-flux problem instead -- the state
+    `-no-bcflux` restores, and wrong by more than 100%.
+
+    That diagnosis was measured before it was acted on, by the prediction it
+    makes and nothing else could: `-ls` must then reproduce `-no-bcflux`
+    exactly. It does, to every printed digit, at three orders --
+    1.96933 / 2.14019 / 1.01017 in q/p/v at order 1, 2.83502 / 2.20303 /
+    1.00533 at order 2, 3.68725 / 2.48441 / 1.00333 at order 3 -- and `-ls`
+    agrees with plain Newton to every digit wherever the datum is zero, which
+    is every `-bcfull` run, because `SetSubVector(ess_tdofs, 0.)` leaves `b`
+    identically zero when every trace component is essential. That is why the
+    fault survived: the boundary set the miniapp verifies itself on is exactly
+    the one that cannot see it.
+
+    Folding the load into the operator makes both routes solve the same problem
+    and costs one vector subtraction per residual evaluation. The solvers are
+    then called with no right-hand side at all, so there is nothing left for
+    one of them to ignore. */
+class LoadedOperator : public Operator
+{
+   Operator &op;
+   const Vector &load;   ///< by reference: -cont re-assembles it between solves
+
+public:
+   LoadedOperator(Operator &op_, const Vector &load_)
+      : Operator(op_.Height(), op_.Width()), op(op_), load(load_) { }
+
+   void Mult(const Vector &x, Vector &y) const override
+   {
+      op.Mult(x, y);
+      y -= load;
+   }
+
+   Operator &GetGradient(const Vector &x) const override
+   {
+      return op.GetGradient(x);   // the load is constant, so it drops out
+   }
+};
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -527,7 +574,9 @@ int main(int argc, char *argv[])
                   "Newton vector so a step scales all three together. Off by "
                   "default: it changes no converged answer, only whether a "
                   "cold start reaches one, and -cont covers the same ground "
-                  "for the cases here. Note it is an l2 merit over all three "
+                  "for the cases here. On the multi-rooted -bcphys outflow it "
+                  "stops the divergence without choosing the root -- see the "
+                  "boundary-condition step. Note it is an l2 merit over all three "
                   "blocks -- where the nonlinearity sits in the potential "
                   "block and the flux and trace rows are linear, a full step "
                   "is exactly optimal for two of the three and damping can be "
@@ -570,8 +619,12 @@ int main(int argc, char *argv[])
                   "every trace component it leaves free; see the note at the "
                   "boundary conditions in main(). Plane Poiseuille then comes "
                   "back at round-off at order >= 2 like -bcfull, but it needs "
-                  "-cont to get there: the outflow datum is quadratic in the "
-                  "state and a cold Newton finds the other root.");
+                  "-cont to get there: the outflow datum is quadratic in each "
+                  "free trace velocity dof, so the discrete problem has a "
+                  "combinatorial FAMILY of roots -- four were reached at "
+                  "order 2 on 8x8 from fifteen starts, and a uniform stream at "
+                  "the channel's mean velocity is not one of the starts that "
+                  "finds the true one. See the boundary-condition step.");
    args.AddOption(&bc_flux, "-bcflux", "--bc-prescribed-flux",
                   "-no-bcflux", "--no-bc-prescribed-flux",
                   "Supply the prescribed numerical flux <(F+G).n, mu> on the "
@@ -595,7 +648,12 @@ int main(int argc, char *argv[])
                   "wall of the Poiseuille channel on the traction condition, "
                   "where G.n = nu dv_x/dy is the largest term in the datum, "
                   "and the solution is still a degree-2 polynomial so "
-                  "round-off is still the test.");
+                  "round-off is still the test. Use it on a WALL, not on the "
+                  "outlet: `-p 1 -bcnat 2` removes the only essential pressure "
+                  "dof in the problem and the system goes SINGULAR -- measured, "
+                  "the linear Stokes solve then converges to a wrong answer "
+                  "with the exact one still a root to 5.1e-16, and the "
+                  "nonlinear solve diverges from every start at every order.");
    args.AddOption(&bc_sf, "-bcsf", "--bc-flux-scale-inviscid",
                   "Scaling of the inviscid half of the prescribed boundary "
                   "flux. A diagnostic: 1 is right, and it was measured, not "
@@ -935,18 +993,84 @@ int main(int argc, char *argv[])
    //    in DarcyHybridization, while the datum is a linear form the interface
    //    already has. That, and not its accuracy, is the reason for the choice.
    //
-   //    **What the datum costs, measured.** On an outflow face the datum
-   //    F.n = v(v.n) + p n is QUADRATIC in the state, so the discrete problem
-   //    has a second root, and a cold Newton from rest finds it: plane
-   //    Poiseuille comes back at 5.63 / 3.43 / 0.518 rather than at round-off,
-   //    from every order and every mesh tried, and the wrong root moves with
-   //    beta (5.627, 5.612, 5.357 at beta = 1, 4, 16) which is what says it is
-   //    the second root of the stabilized quadratic and not a discretisation
-   //    error. It is the total-pressure outflow condition's own
-   //    non-uniqueness, not a defect in the datum: the exact solution is a
-   //    root to 2.4e-17, and -xinit or -cont both land on it and stay. So
-   //    -bcphys wants -cont on a convective problem, exactly as -bcfull does
-   //    on Kovasznay.
+   //    **What the datum costs, and it is a FAMILY of roots rather than a
+   //    second one.** This entry used to say "the discrete problem has a
+   //    second root"; a sweep of the initial state says otherwise. On the
+   //    outlet the pressure is essential and the momentum rows carry the
+   //    datum, so per quadrature point the row reads
+   //
+   //        v^_x^2 + p^ + q.n + S(u - u^) = b,      p^ prescribed,
+   //
+   //    which fixes v^.n only up to SIGN. Every free outlet velocity dof
+   //    therefore enters its own row quadratically and the count of roots is
+   //    combinatorial, not two. Measured at order 2 on 8x8, from fifteen
+   //    uniform-stream initial states: FOUR distinct roots, each converged
+   //    quadratically to ||r||/||r_0|| of 1e-16 to 1e-15, at 1.31, 3.30 and
+   //    5.63 relative in q besides the true one, and six divergences. The
+   //    cold start (uniform-stream 0) finds the 5.63 one.
+   //
+   //    **The attribution, which is the part worth keeping.** v (x) v is
+   //    quadratic in the volume as well, so the family could have been the
+   //    equations' rather than the boundary condition's. Two controls say it
+   //    is the boundary condition's. -bcfull -- same flux, same mesh, same
+   //    solver, every trace component essential and hence no free row --
+   //    converges to the SAME root at round-off from all fifteen of those
+   //    starts. And -stokes, which makes the datum linear in the state,
+   //    converges in one step from any of them. Neither shows a second root.
+   //    (The beta sweep this entry used to rest on is weak evidence by
+   //    comparison: 5.627, 5.612, 5.357 over a sixteenfold range.)
+   //
+   //    **They are not second solutions of the continuous problem.** Refining
+   //    does not converge them: the outlet trace velocity peaks at 2.62, 2.60,
+   //    3.11 and 3.88 as nx runs 4, 8, 16, 32 -- growing without bound, on a
+   //    profile whose true peak is 1 -- while the relative error goes 4.33,
+   //    5.63, 6.38, 6.60 and the boundary jump |u-u^|^2 falls only like h.
+   //    They are artefacts of a condition that fixes a sign nowhere.
+   //
+   //    **Physically sensible initial data does not protect.** A uniform
+   //    stream at the channel's mean velocity 2/3 lands on the 1.31 root at
+   //    order 2. Only -xinit and -cont reach the true one, which is a root to
+   //    5.1e-16 -- the datum is right, the condition is non-unique.
+   //
+   //    **Dropping the essential outlet pressure is NOT the cure**, though it
+   //    looks like it should be: with the whole outlet natural the continuity
+   //    row's datum beta v^.n = beta v_ex.n would fix v^.n linearly and the
+   //    momentum row would then fix p^. Measured, -bcnat 2 diverges from every
+   //    start at orders 1, 2 and 3 and on every mesh, and the giveaway is that
+   //    the LINEAR Stokes problem then converges to a wrong answer -- v off by
+   //    1.9e-3 where the exact solution is in the space -- with the exact
+   //    solution still a root to 5.1e-16. A linear system with two solutions
+   //    is a singular one: the outlet's essential pressure is what makes this
+   //    problem nonsingular, and it cannot simply be given up. The
+   //    characteristic condition above remains the only real cure, and it
+   //    still needs machinery DarcyHybridization does not have.
+   //
+   //    So -bcphys wants -cont on a convective problem, exactly as -bcfull
+   //    does on Kovasznay.
+   //
+   //    **And the order-1 entry that used to sit in the roadmap was wrong in
+   //    both halves.** It said "-bcphys at order 1 diverges, cold and under
+   //    -cont alike", because the exact solution is not in the space there so
+   //    the continuation has nothing to hand on. Cold at order 1 does not
+   //    diverge -- it converges, to the 3.89 member of the family above. And
+   //    the -cont divergence is not about order 1 and not about the exact
+   //    solution: at order 1 with -cont, nx = 4, 6, 10, 12, 16 and 32 all
+   //    reach the physical root, with q and v errors matching -bcfull's to
+   //    within 10-35% and converging at the expected O(h^2); only nx = 8
+   //    fails. The exact solution is equally unrepresentable at nx = 16, and
+   //    that case takes six Newton steps. At nx = 8 every Reynolds number in
+   //    20, 25, 28, 30, 32, 34, 36, 38 and 45 converges and only 40 does not.
+   //
+   //    The failure is CHAOTIC, and the cheapest proof is a parameter that
+   //    cannot change any root: beta. At (order 1, nx 8, Re 40), beta = 0.99,
+   //    0.999, 1.01 and 2 converge while 0.9, 1, 1.001 and 1.1 diverge. So do
+   //    ny = 7 and 9 against ny = 8, and Re = 39.9 against 40.1. That is a
+   //    Newton path wandering in a landscape with many roots, not a property
+   //    of the order-1 space -- the same finding as the family above, seen
+   //    from the solver's side. KINSOL's line search stops the divergence
+   //    without selecting the physical root: -ls -cont on that case converges
+   //    to a root at 0.175 / 0.0528 / 0.0165, stable over rtol 1e-10 to
+   //    1e-14 and about three times -bcfull's error there.
 
    Array<int> bdr_vel(mesh.bdr_attributes.Max());   // velocity prescribed
    Array<int> bdr_pres(mesh.bdr_attributes.Max());  // pressure prescribed
@@ -1110,6 +1234,12 @@ int main(int argc, char *argv[])
    };
    assemble_trace_load();
 
+   //     The trace load goes into the OPERATOR rather than into the solver's
+   //     right-hand side, because KINSolver::Mult() ignores the latter -- see
+   //     LoadedOperator above, and the measurement that established it.
+   LoadedOperator npc_b(npc, b);
+   const Vector no_rhs;   // size 0, so NewtonSolver's have_b is false
+
    //     The residual at the exact state, block by block. One norm over all
    //     three cannot say which row is wrong, and the boundary datum lives in
    //     the trace row alone -- so this is the instrument the -bcphys repair
@@ -1117,8 +1247,7 @@ int main(int argc, char *argv[])
    if (exact_init)
    {
       Vector r0(x.Size());
-      npc.Mult(x, r0);
-      r0 -= b;
+      npc_b.Mult(x, r0);
       const BlockVector r0b(r0, offsets);
       cout << "residual at the exact state: ||r_q|| = "
            << r0b.GetBlock(0).Norml2() << ", ||r_u|| = "
@@ -1190,24 +1319,37 @@ int main(int argc, char *argv[])
    // account, including why neither a correct line search nor a block-weighted
    // merit rescues the case that motivated it.
    unique_ptr<NewtonSolver> newton;
+   KINSolver *kin = nullptr;
    if (line_search || solver_type == (int) DarcyOperator::SolverType::KINSol)
    {
-      auto *kin = new KINSolver(line_search ? KIN_LINESEARCH : KIN_NONE);
-      // A true Newton rather than a lagged-Jacobian one; without it KINSOL
-      // reuses a setup and the comparison against -nls 3 is not like for like.
-      kin->SetMaxSetupCalls(1);
+      kin = new KINSolver(line_search ? KIN_LINESEARCH : KIN_NONE);
       newton.reset(kin);
    }
    else
    {
       newton.reset(new NewtonSolver());
    }
-   newton->SetOperator(npc);
+   newton->SetOperator(npc_b);
    newton->SetSolver(lin);
    newton->SetRelTol((newton_rtol > 0.) ? newton_rtol : 1e-6);
    newton->SetAbsTol(newton_atol);
    newton->SetMaxIter(newton_iters);
    newton->SetPrintLevel(1);
+
+   // A true Newton rather than a lagged-Jacobian one; without it KINSOL reuses
+   // a setup and the comparison against -nls 3 is not like for like.
+   //
+   // **It has to come after SetOperator(), and it used to come before.**
+   // KINSolver::SetMaxSetupCalls() writes straight into `sundials_mem`, which
+   // SetOperator() is what creates, so called first it is a no-op guarded only
+   // by an MFEM_ASSERT -- compiled out of this build. The whole visible symptom
+   // was one line of SUNDIALS' own stderr, `kinsol_mem = NULL illegal`, and
+   // -ls then ran with KINSOL's default of a Jacobian every ten steps.
+   // examples/sundials/ex10.cpp has the order right; both this miniapp and
+   // pnavierstokes.cpp had it wrong. Note the asymmetry in the library:
+   // EnableAndersonAcc() checks for the null and defers, SetMaxSetupCalls()
+   // does not.
+   if (kin) { kin->SetMaxSetupCalls(1); }
 
    chrono.Clear();
    chrono.Start();
@@ -1219,13 +1361,13 @@ int main(int argc, char *argv[])
       {
          ac_flux.SetStokes(true);
          assemble_trace_load();
-         newton->Mult(b, x);
+         newton->Mult(no_rhs, x);
          ac_flux.SetStokes(false);
          assemble_trace_load();
          cout << "--- Stokes continuation done; continuing onto "
               "Navier-Stokes ---" << endl;
       }
-      newton->Mult(b, x);
+      newton->Mult(no_rhs, x);
    }
    chrono.Stop();
 
