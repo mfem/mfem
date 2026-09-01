@@ -63,4 +63,14 @@ if (MFEM_USE_MPI)
     MAIN pconvdiff.cpp
     ${HDG_COMMON_FILES}
     LIBRARIES mfem)
+
+  # pnavierstokes carries navierstokes's SUNDIALS guard, so it is doubly
+  # conditional: MPI for the parallel spaces, SUNDIALS for KINSOL. The GNU
+  # makefile drops it from PAR_MINIAPPS for the same reason.
+  if (MFEM_USE_SUNDIALS)
+    add_mfem_miniapp(pnavierstokes
+      MAIN pnavierstokes.cpp
+      ${HDG_COMMON_FILES}
+      LIBRARIES mfem)
+  endif()
 endif()

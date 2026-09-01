@@ -25,12 +25,16 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = anisodiff anisodiff-hr convdiff mfem-logo navierstokes
-PAR_MINIAPPS = panisodiff pconvdiff
+PAR_MINIAPPS = panisodiff pconvdiff pnavierstokes
 # navierstokes is driven by KINSOL -- it takes its globalisation from
 # KIN_LINESEARCH rather than carrying a line search of its own -- so it needs
-# SUNDIALS and drops out of the build without it.
+# SUNDIALS and drops out of the build without it. pnavierstokes carries the
+# same #error guard and drops out for the same reason; note that an MPI build
+# needs an MPI-enabled SUNDIALS, because defaults.mk adds -lsundials_nvecparallel
+# and -lsundials_nvecmpiplusx whenever MFEM_USE_MPI=YES.
 ifeq ($(MFEM_USE_SUNDIALS),NO)
    SEQ_MINIAPPS := $(filter-out navierstokes,$(SEQ_MINIAPPS))
+   PAR_MINIAPPS := $(filter-out pnavierstokes,$(PAR_MINIAPPS))
 endif
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -89,6 +93,9 @@ panisodiff-test-par: panisodiff
 pconvdiff-test-par: pconvdiff
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG convection-diffusion miniapp,\
 	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -rs 1 -rp 1)
+pnavierstokes-test-par: pnavierstokes
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG Navier-Stokes miniapp,\
+	-p 1 -nx 8 -ny 8 -o 2 -hb)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -103,5 +110,5 @@ clean-build:
 clean-exec:
 	@rm -f anisodiff*.mesh sol_t*.gf sol_q*.gf mfem-logo.mesh convdiff*.mesh
 	@rm -f navierstokes*.mesh
-	@rm -f panisodiff*.mesh pconvdiff*.mesh
+	@rm -f panisodiff*.mesh pconvdiff*.mesh pnavierstokes*.mesh
 	@rm -rf Anisodiff* Convdiff* Mfem-logo* PAnisodiff* PConvdiff*

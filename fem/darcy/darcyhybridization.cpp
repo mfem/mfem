@@ -4376,8 +4376,24 @@ Operator &DarcyHybridization::ParOperator::GetGradient(const Vector &x) const
 
 void DarcyHybridization::ParGradient::Mult(const Vector &x, Vector &y) const
 {
-   //note that rhs is not used, it is only a dummy
-   dh.ParMultNL(MultNlMode::GradMult, dh.darcy_rhs, x, y);
+   // The load is a dummy -- GradMult applies the Jacobian and MultNL() zeroes
+   // its local right-hand sides rather than reading this one -- but it cannot
+   // be `darcy_rhs`, and that is the whole of the difference from the serial
+   // Gradient::Mult() above. ParMultNL() restricts b's blocks to L-dofs BEFORE
+   // it dispatches, so it dereferences the load whether the mode uses it or
+   // not, and `darcy_rhs` is sized only as a side effect of ReduceRHS(), which
+   // FormLinearSystem() calls. A caller that drives NPC directly -- as
+   // miniapps/hdg/pnavierstokes does -- never goes through that path, so this
+   // read an unsized BlockVector and segfaulted on the first matrix-free
+   // gradient. Serial escapes it because MultNL() takes bu and bp by reference
+   // and never touches them in this mode.
+   //
+   // A zero load of the right shape is the same substitution ParReducedGradient
+   // already makes for MultNlMode::GradAtFields, and it cannot change any
+   // answer: nothing in GradMult reads it.
+   BlockVector zero_b;
+   dh.ZeroLoad(zero_b, true);
+   dh.ParMultNL(MultNlMode::GradMult, zero_b, x, y);
 
    // The unit row; see the serial Gradient::Mult(). The assembled parallel
    // path eliminates the columns as well, which this does not -- harmless for
