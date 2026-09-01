@@ -251,8 +251,14 @@ What is left:
   fails loudly if the flag stops taking effect.
 * **H(div) flux.** Refused rather than attempted: the local rows would be a
   conforming scatter with RT sign conventions that have not been checked.
-* **`ComputeSolution()`** has never been run against an NPC solution, so the
-  postprocessing route is unchecked there.
+* **~~`ComputeSolution()`~~ checked.** It reconstructs the fields from the
+  trace, which under NPC is redundant — the fields are already Newton state —
+  but redundant is not wrong, and it was simply untested. "ComputeSolution
+  reproduces the fields NPC already holds" in
+  `tests/unit/fem/test_darcy_npc.cpp` pins the agreement, and the reason it
+  must hold: NPC converges when the FULL residual vanishes, and that
+  residual's local rows are exactly the problem `ComputeSolution()` solves
+  given the trace.
 * **A regression case is on offer and has not been taken.** The caller's
   transport barrier is the case that used to throw out of
   `NewtonSolver::Mult`'s `IsFinite` check at iteration zero, and nothing here

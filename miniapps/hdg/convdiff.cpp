@@ -272,8 +272,14 @@ int main(int argc, char *argv[])
                   "GetNumLocalNLIterations() stays at zero, and the "
                   "convergence test is on the FULL residual, so an -nrtol "
                   "that was adequate before may not be. Needs -hb and a "
-                  "nonlinear problem; needs a DISCONTINUOUS flux, so not with "
-                  "-brt or the H(div) default.");
+                  "nonlinear problem, and a DISCONTINUOUS flux -- so not the "
+                  "H(div) default, but -brt IS allowed and works: broken RT "
+                  "reports DISCONTINUOUS and has no inter-element continuity, "
+                  "so it is not the conforming scatter the guard is about. "
+                  "Measured on -p 2 -o 1 -brt -hb -nl: identical to the "
+                  "reduced route to every printed digit, 0 local nonlinear "
+                  "iterations against 256. This text used to claim -brt was "
+                  "refused; it never was.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "

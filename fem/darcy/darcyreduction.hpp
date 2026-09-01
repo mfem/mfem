@@ -141,7 +141,7 @@ public:
    void SetPotMassNonlinearIntegrator(NonlinearFormIntegrator *pot_integ,
                                       bool own = true);
 
-   NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_p; }
+   NonlinearFormIntegrator* GetFluxMassNonlinearIntegrator() const { return m_nlfi_u; }
    NonlinearFormIntegrator* GetPotMassNonlinearIntegrator() const { return m_nlfi_p; }
 
    /// Prepare the DarcyReduction object for assembly

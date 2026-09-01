@@ -877,6 +877,20 @@ void BdrHyperbolicDirichletIntegrator::AssembleHDGFaceVector(
    FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
    Vector &elvect)
 {
+   // Refuse rather than silently drop the prescribed state. The boundary datum
+   // is read only under `type & 1`, which marks element 2's pass, and a
+   // boundary face has no element 2 -- DarcyHybridization sets that bit only
+   // inside its interior-face branches. Registered on a hybridized form's
+   // BOUNDARY faces this integrator would take `state_out` from the interior
+   // element instead, degrading in silence to a plain HyperbolicFormIntegrator
+   // with the boundary condition dropped. Measured that way on plane
+   // Poiseuille it converges happily and is wrong by more than 100%.
+   MFEM_VERIFY(Tr.Elem2No >= 0 || (type & 1),
+               "BdrHyperbolicDirichletIntegrator cannot impose its state on a "
+               "boundary face under hybridization: it reads the prescribed "
+               "state only on element 2's pass, and a boundary face has none. "
+               "Prescribe the datum on the trace instead.");
+
    MFEM_ASSERT((type & HDGFaceType::ELEM && type & HDGFaceType::TRACE &&
                 !(type & 1)) ||
                (type & HDGFaceType::CONSTR && type & HDGFaceType::FACE),
@@ -992,6 +1006,20 @@ void BdrHyperbolicDirichletIntegrator::AssembleHDGFaceGrad(
    FaceElementTransformations &Tr, const Vector &trfun, const Vector &elfun,
    DenseMatrix &elmat)
 {
+   // Refuse rather than silently drop the prescribed state. The boundary datum
+   // is read only under `type & 1`, which marks element 2's pass, and a
+   // boundary face has no element 2 -- DarcyHybridization sets that bit only
+   // inside its interior-face branches. Registered on a hybridized form's
+   // BOUNDARY faces this integrator would take `state_out` from the interior
+   // element instead, degrading in silence to a plain HyperbolicFormIntegrator
+   // with the boundary condition dropped. Measured that way on plane
+   // Poiseuille it converges happily and is wrong by more than 100%.
+   MFEM_VERIFY(Tr.Elem2No >= 0 || (type & 1),
+               "BdrHyperbolicDirichletIntegrator cannot impose its state on a "
+               "boundary face under hybridization: it reads the prescribed "
+               "state only on element 2's pass, and a boundary face has none. "
+               "Prescribe the datum on the trace instead.");
+
    const int dof_el = fe.GetDof();
    const int dof_tr = trace_face_fe.GetDof();
 

@@ -669,18 +669,25 @@ one worth acting on: an accessor that returns the wrong member.
 6. **Moot.** It was about how much of the deleted mode's non-purity gap a
    test pinned.
 
-7. **The comparison in §6 exists only in a git commit message.** The residual
-   histories, the 192/304-to-zero local iteration counts and the 4.5e-16 /
-   7.4e-16 / 4.7e-16 agreement are in the message of `2e1752717f` and in no
-   comment, doxygen block or test. The project's own rule is that a finding
-   which lives only in markdown is thrown away; a finding that lives only in a
-   commit message is barely better, since nothing next to the code points at it.
+7. **Half moot, half fixed.** The numbers it complained about — the residual
+   histories, the 192/304-to-zero local iteration counts, the 4.5e-16 /
+   7.4e-16 / 4.7e-16 agreement in `2e1752717f` — compared
+   `CondenseThenLinearise` against `LineariseThenCondense`, and the second of
+   those is deleted, so there is nothing left for them to be evidence *of*.
 
-8. **`GetFluxMassNonlinearIntegrator()` returns the potential integrator.**
-   `fem/darcy/darcyhybridization.hpp:936-937` — both accessors return
-   `m_nlfi_p`; the flux one should return `m_nlfi_u`. The same pair appears at
-   `fem/darcy/darcyreduction.hpp:144-145`. Pre-existing, and nothing in the
-   tree calls either, so it is latent.
+   What replaced them in §6 is the undamped-versus-backtracking table, and
+   that **is** now runnable: "The line search earns its place on the pedestal,
+   and says which" in `tests/unit/fem/test_darcy_npc.cpp` asserts both halves
+   — backtracking converges and undamped does not — on the two configurations
+   where the line search decides the outcome. It is written to fail loudly if
+   undamped ever starts converging, because that would mean §6's
+   recommendation rests on nothing.
+
+8. **Fixed.** `GetFluxMassNonlinearIntegrator()` returned `m_nlfi_p`, the
+   *potential* integrator, in both `fem/darcy/darcyhybridization.hpp` and
+   `fem/darcy/darcyreduction.hpp`. It returns `m_nlfi_u` now. Pre-existing and
+   latent — nothing in the tree called either accessor, which is exactly why it
+   survived: an accessor nobody uses gets no test and no reader.
 
 9. **Two unrelated meanings of "lin" in adjacent members.**
    `Af_lin_data` / `Df_lin_data` mean *the linear form's data*

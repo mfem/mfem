@@ -1434,6 +1434,91 @@ TEST_CASE("NewtonSolver drives NPC with no special support",
 }
 
 
+TEST_CASE("The line search earns its place on the pedestal, and says which",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+   using GM = DarcyHybridization::GradientMode;
+
+   // Section 6 of doc/HDG-ORDERING-API.md recommends backtracking on the full
+   // residual, and until this case existed the evidence for that lived in a
+   // commit message and a scratch probe. It is here because meq measured the
+   // OPPOSITE on their discretisation -- the same line search made every case
+   // worse, including five that converge undamped -- so the recommendation is
+   // problem-dependent and the branch needs its half of that on record.
+   //
+   // These two configurations are the ones where the line search decides the
+   // outcome: undamped NPC wanders and backtracking reaches 1e-12. Note the
+   // third of the stiff set, k = 3 n = 12, converges BOTH ways in 12 and 10
+   // steps -- an earlier version of NPCResidual()'s doxygen claimed undamped
+   // NPC wanders on all four, and sweeping them is what disproved it.
+   //
+   // If someone improves NPC so that the undamped run converges here, this
+   // test fails, and that failure is the finding rather than a nuisance: it
+   // would mean section 6's recommendation no longer rests on anything and
+   // should be rewritten.
+   const int idx = GENERATE(0, 1);
+   const int n     = (idx == 0) ? 8     : 32;
+   const int order = (idx == 0) ? 2     : 1;
+   const real_t sg = 0.003;
+   CAPTURE(n, order, sg);
+
+   PedestalHDG Pd(n, order, sg);
+   const NPCOutcome damped = RunNPC(Pd, 40, true, GM::Assembled);
+   CAPTURE(damped.norms.size(), damped.norms.back());
+   REQUIRE(damped.converged);
+   REQUIRE(damped.local_nl_iters == 0);
+
+   PedestalHDG Pu(n, order, sg);
+   const NPCOutcome undamped = RunNPC(Pu, 40, false, GM::Assembled);
+   CAPTURE(undamped.norms.size(), undamped.norms.back());
+   REQUIRE_FALSE(undamped.converged);
+}
+
+TEST_CASE("ComputeSolution reproduces the fields NPC already holds",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+   using GM = DarcyHybridization::GradientMode;
+
+   // ComputeSolution() reconstructs the fields from the trace, which is what
+   // condensation wants and what NPC does not need -- under NPC the fields are
+   // Newton state and the back-substitution is redundant. Redundant is not the
+   // same as wrong, and until this case existed it was simply unchecked, which
+   // is what section 11 of doc/HDG-ROADMAP.md recorded.
+   //
+   // At the NPC solution the two must agree, and for a reason worth stating:
+   // NPC converges when the FULL residual vanishes, and the local rows of that
+   // residual are exactly the local problem ComputeSolution() solves given the
+   // trace. So agreement here is not a coincidence of this problem; a
+   // disagreement would mean one of the two is solving something else.
+   PedestalHDG P(12, 2, 0.02);
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   const NPCOutcome out = RunNPC(P, 40, true, GM::Assembled);
+   CAPTURE(out.norms.size(), out.norms.back());
+   REQUIRE(out.converged);
+
+   // RunNPC advances P.sol and P.X in place, so they now hold NPC's answer.
+   BlockVector npc_fields(P.darcy.GetOffsets());
+   npc_fields = P.state();
+
+   BlockVector recovered(P.darcy.GetOffsets());
+   recovered = 0.0;
+   BlockVector load = P.load();
+   dh.ComputeSolution(load, P.X, recovered);
+
+   for (int b = 0; b < 2; b++)
+   {
+      Vector diff(recovered.GetBlock(b));
+      diff -= npc_fields.GetBlock(b);
+      const real_t scale = std::max(npc_fields.GetBlock(b).Norml2(), 1e-30);
+      CAPTURE(b, diff.Norml2(), scale);
+      REQUIRE(diff.Norml2() <= 1e-8 * scale);
+   }
+}
+
+
 #ifdef MFEM_USE_MPI
 
 namespace darcy_npc

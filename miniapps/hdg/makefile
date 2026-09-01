@@ -71,9 +71,15 @@ anisodiff-test-seq: anisodiff
 convdiff-test-seq: convdiff
 	@$(call mfem-test,$<,, HDG convection-diffusion miniapp,\
 	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -r 2)
+# -rtol 1e-12 and -chk are both load-bearing. Plane Poiseuille at order >= 2
+# has a degree-2 exact solution that lies in the discrete space, so the errors
+# come back at round-off -- that is this miniapp's sharpest property, and
+# mfem-test grades on the exit code alone, so without -chk nothing checks it.
+# The default -rtol of 1e-6 stops the Newton far above the discretisation and
+# would fail the check for that reason rather than a real one.
 navierstokes-test-seq: navierstokes
 	@$(call mfem-test,$<,, HDG Navier-Stokes miniapp,\
-	-p 1 -nx 8 -ny 8 -o 2 -hb)
+	-p 1 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
 mfem-logo-test-seq: mfem-logo
 	@$(call mfem-test,$<,, HDG MFEM logo miniapp,\
 	-nx 50 -o 3 -hb -brt -a 1e3 -ks 1e-3 -c 2e4)

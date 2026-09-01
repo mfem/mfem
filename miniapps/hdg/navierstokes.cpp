@@ -391,6 +391,7 @@ int main(int argc, char *argv[])
    real_t newton_rtol = -1.;
    real_t newton_atol = 0.;
    int newton_iters = 1000;
+   real_t check_tol = -1.;
    bool line_search = false;
    int gradient_mode = -1;
    real_t hsign = -1.;
@@ -479,6 +480,21 @@ int main(int argc, char *argv[])
                   "floor is the fix there.");
    args.AddOption(&newton_iters, "-nit", "--newton-iterations",
                   "Outer Newton iteration cap.");
+   args.AddOption(&check_tol, "-chk", "--check-tolerance",
+                  "Grade the run: exit non-zero if any relative error exceeds "
+                  "this. Negative (the default) prints and always exits 0. It "
+                  "exists so `make test` can check a NUMBER rather than a "
+                  "return code -- mfem-test grades on the exit status alone "
+                  "and deletes the output, so without this the miniapp's "
+                  "sharpest property is unverified by any suite. Use an "
+                  "ABSOLUTE threshold: plane Poiseuille at order >= 2 is exact "
+                  "in the discrete space and lands at round-off, but WHERE in "
+                  "the 1e-15s moves with the BLAS (2.6e-15, 7.7e-15 and "
+                  "4.4e-15 have all been measured here), so a relative "
+                  "comparison against a stored number can never pass. Needs "
+                  "-rtol 1e-12: the default 1e-6 stops the Newton far above "
+                  "the discretisation and the check fails for that reason "
+                  "alone.");
    args.AddOption(&line_search, "-ls", "--line-search",
                   "-no-ls", "--no-line-search",
                   "Globalise with KINSOL's KIN_LINESEARCH, which implies "
@@ -1122,6 +1138,33 @@ int main(int argc, char *argv[])
    cout << "|| v_h - v_ex || / || v_ex || = "
         << ((norm_v > 0.) ? (err_v / norm_v) : err_v) << "\n";
 
+   // 13b. Grade the run, if asked. Returning non-zero is what lets the
+   // existing navierstokes-test-seq target check anything at all: mfem-test
+   // (config/test.mk) reads the exit status and then DELETES the output, so a
+   // number printed above reaches no suite. Deliberately a plain `return 1`
+   // rather than MFEM_ABORT -- without MFEM_USE_EXCEPTIONS that is a SIGABRT,
+   // and a clean exit with our own message is easier to read in a test log.
+   int failures = 0;
+   if (check_tol > 0.)
+   {
+      const real_t rel_q = (norm_q > 0.) ? (err_q / norm_q) : err_q;
+      const real_t rel_p = (norm_p > 0.) ? (err_p / norm_p) : err_p;
+      const real_t rel_v = (norm_v > 0.) ? (err_v / norm_v) : err_v;
+      const char *names[3] = { "q", "p", "v" };
+      const real_t vals[3] = { rel_q, rel_p, rel_v };
+      for (int i = 0; i < 3; i++)
+      {
+         if (!(vals[i] <= check_tol))
+         {
+            cout << "CHECK FAILED: " << names[i] << " relative error "
+                 << vals[i] << " exceeds " << check_tol << "\n";
+            failures++;
+         }
+      }
+      cout << (failures ? "CHECK FAILED" : "CHECK PASSED") << " at tolerance "
+           << check_tol << "\n";
+   }
+
    // 14. Visualisation.
 
    if (visualization)
@@ -1137,7 +1180,7 @@ int main(int argc, char *argv[])
              << "window_title 'Velocity'\nkeys vvv" << endl;
    }
 
-   return 0;
+   return failures ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------

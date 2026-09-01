@@ -33,13 +33,16 @@ caller has to know: the convergence test is now on the full residual, so an
   Neumann datum as a linear form on the trace, or the reference's
   characteristic `B̂ = A⁺_n(u−û) − A⁻_n(u_∞−û)`, which for this system needs the
   eigen-decomposition of `A_n`. **This is the next piece of work here.**
-* **`BdrHyperbolicDirichletIntegrator` should abort under hybridization.** It
-  reads its prescribed state only when bit 0 of `type` is set, and
-  `DarcyHybridization` never sets that bit on a boundary face — every
-  `type |= 1` site is inside an interior-face branch. Registered on the
-  hybridized form it silently degrades to an ordinary
-  `HyperbolicFormIntegrator`, using the interior state and dropping the
-  boundary datum. Either fix it or make it refuse.
+* **~~`BdrHyperbolicDirichletIntegrator` should abort under
+  hybridization.~~ It does now.** It reads its prescribed state only when bit
+  0 of `type` is set — which marks element 2's pass — and a boundary face has
+  no element 2, so registered on a hybridized form's boundary faces it took
+  the state from the interior element and degraded in silence to an ordinary
+  `HyperbolicFormIntegrator`. Both HDG face routines in `fem/hyperbolic.cpp`
+  now refuse that case by name. It still *works* on interior interfaces, which
+  its doxygen offers and which do set the bit; only the silently-wrong
+  boundary use is closed off. Imposing a real boundary datum still goes
+  through the trace — that is `-bcphys` above, and it is unchanged.
 * **A two-directional exact solution.** Neither plane Poiseuille nor Kovasznay
   has sharp structure both along and across the flow, which is what leaves the
   general form of the `τ` question open — see §5 of `HDG-ROADMAP.md` and the
