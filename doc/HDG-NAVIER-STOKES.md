@@ -23,16 +23,15 @@ caller has to know: the convergence test is now on the full residual, so an
 
 ## What is left
 
-* **`-bcphys` is wrong, and says so in the source.** A boundary trace component
-  that is not essential keeps the constraint row `⟨(F̂+q̂)·n, µ⟩ = 0`, which on a
-  boundary face has only one side and so imposes *zero numerical flux* — not
-  the intended condition. Measured on plane Poiseuille with the physical set,
-  the solve converges to 3e-13 and the answer is wrong by more than 100% at
-  every order, while `-bcfull` on the same problem is exact to 2.5e-15.
-  Repairing it needs the prescribed numerical flux on those faces: either the
-  Neumann datum as a linear form on the trace, or the reference's
-  characteristic `B̂ = A⁺_n(u−û) − A⁻_n(u_∞−û)`, which for this system needs the
-  eigen-decomposition of `A_n`. **This is the next piece of work here.**
+* **`-bcphys` is done**, by the Neumann-datum route, and the write-up is in the
+  boundary-condition step of `navierstokes.cpp` and in
+  `HDGPrescribedFluxLFIntegrator`'s doxygen in `nsflux.hpp`. What is left of it
+  is one thing that is a property of the condition rather than of the
+  implementation: the outflow datum is quadratic in the state, so the problem
+  has a second root and a cold Newton finds it. `-cont` lands on the right one.
+  Whether a characteristic outflow condition would remove that is open — it is
+  the standard cure — but it is not expressible on this interface without new
+  machinery in `DarcyHybridization`, for the reason recorded in the source.
 * **`BdrHyperbolicDirichletIntegrator` should abort under hybridization.** It
   reads its prescribed state only when bit 0 of `type` is set, and
   `DarcyHybridization` never sets that bit on a boundary face — every
@@ -40,6 +39,10 @@ caller has to know: the convergence test is now on the full residual, so an
   hybridized form it silently degrades to an ordinary
   `HyperbolicFormIntegrator`, using the interior state and dropping the
   boundary datum. Either fix it or make it refuse.
+* **`-bcphys` at order 1 diverges**, cold and under `-cont` alike. The exact
+  solution is not in the space there, so the Stokes stage is not the
+  Navier–Stokes answer and the continuation has nothing to hand on. Not
+  investigated.
 * **A two-directional exact solution.** Neither plane Poiseuille nor Kovasznay
   has sharp structure both along and across the flow, which is what leaves the
   general form of the `τ` question open — see §5 of `HDG-ROADMAP.md` and the

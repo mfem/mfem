@@ -404,6 +404,175 @@ public:
    }
 };
 
+
+/** @brief The prescribed HDG numerical flux on a boundary face, assembled as a
+    linear form on the TRACE space.
+
+    This is the Neumann half of a mixed HDG boundary condition. Per boundary
+    face and per equation the hybridized system offers exactly one of two
+    conditions: either the trace component is essential, and its constraint row
+    is replaced by the prescribed value, or the constraint row survives as
+
+    \verbatim
+        < (F^ + G^) . n , mu_e >  =  < b_e , mu_e >,
+    \endverbatim
+
+    and @a b_e is the datum this integrator supplies. **A row left with no
+    datum is not a free boundary; it is `b_e = 0`, i.e. zero numerical flux**,
+    and on a boundary face nothing cancels it because the row has only one
+    side. That is what made `navierstokes -bcphys` wrong by more than 100% --
+    see the boundary-condition step of navierstokes.cpp.
+
+    The datum assembled is the exact numerical flux of the problem,
+
+    \verbatim
+        b = F(u) . n + G(u, q) . n,        G_e . n = + q_e . n,
+    \endverbatim
+
+    **and that plus sign was measured, against a comment that said minus.**
+    navierstokes.cpp's header used to write the first-order form as
+    `q - nu grad u = 0` and hence `G = -q`; the code's flux is
+    `q = -nu grad u`, which its own ExactFlux() and the doxygen there both say,
+    and which `-bcfull` reproduces to 4.4e-15 -- a relative error that would be
+    2, not 4e-15, had the sign been the other one. So in this code `G = +q`,
+    the header was internally consistent and disagreed with the code it
+    describes, and it has been corrected in place.
+
+    with `F` taken from the FluxFunction itself -- so it follows `-stokes` and
+    every other setting of the flux without a second implementation -- and `u`
+    and `q` from coefficients the caller supplies. At the exact solution
+    `u = u^` on the boundary, the Lax-Friedrichs stabilization `S(u - u^)`
+    vanishes identically, so this datum is exactly the residual's own boundary
+    term and a problem whose exact solution lies in the discrete space comes
+    back at round-off. That is the acceptance test, and it is sharp.
+
+    @a scale_F and @a scale_G exist because the sign convention of the trace
+    row is not derivable from the documentation and was fixed here by
+    measurement, exactly as `-hsign` was: see the `-bcsf`/`-bcsg` sweep
+    recorded at the boundary conditions in navierstokes.cpp.
+
+    **The datum must be integrated with the RESIDUAL's quadrature rule, not
+    with an accurate one, and this is the whole of @a ioff.** The trace row's
+    own boundary term comes from HyperbolicFormIntegrator, whose rule is
+    `2*max(order_el, order_tr) + IntOrderOffset`; with the convective term
+    present the integrand `(v.n) v_i mu` is of degree `3k` on the outlet and
+    that rule does not integrate it exactly at `k = 2`. Two inexact integrals
+    of the same function cancel only if they are the same integral. Measured,
+    plane Poiseuille at `k = 2` with the state set exactly, `||r_tr||` against
+    the offset:
+
+    erbatim
+        ioff      -2        -1         0         1       2,3,5
+        ||r_tr||  2.00e-3   2.00e-3   2.4e-17   2.4e-17  4.03e-6
+    \endverbatim
+
+    The plateaus are where a Gauss rule on a segment changes point count, which
+    is why `0` and `1` agree; `0` is the one that matches. **A more accurate
+    datum is a wrong datum** -- `ioff = 3` was the first thing written here and
+    it left an error ten orders above round-off that looked like a missing
+    term. Two controls say it is the convective degree and nothing else:
+    at `k = 3` the residual's rule is already exact for the integrand and every
+    offset from 0 upward gives round-off, and under `-stokes`, which removes
+    `v (x) v`, `ioff = 0` and `ioff = 3` agree at 1.6e-17 and 5.7e-17.
+
+    @note The trace space must be `Ordering::byNODES` with `vdim = neq`, which
+    is what the rest of the miniapp requires anyway. The element vector is
+    written as a `(dof, neq)` column-major block, matching
+    `GetBdrElementVDofs`.
+
+    @note Registered with `LinearForm::AddBoundaryIntegrator()`, not
+    `AddBdrFaceIntegrator()`: the latter looks the test function up in the
+    *element* space, which for a trace space is the wrong space. The outward
+    normal therefore comes from the boundary element transformation, and MFEM's
+    `Mesh::CheckBdrElementOrientation()` is what makes `CalcOrtho()` outward
+    there. The inlet and the outlet of a channel carry opposite normals, so a
+    single global sign zeroing the residual at both is itself the check that
+    the orientation is right. */
+class HDGPrescribedFluxLFIntegrator : public LinearFormIntegrator
+{
+   const FluxFunction &fluxfn;
+   VectorCoefficient &ucoeff;    ///< the state, size num_equations
+   VectorCoefficient *qcoeff;    ///< the flux, size num_equations*dim, or NULL
+   real_t scale_F, scale_G;
+   int int_order_offset;
+
+   Vector shape, nor, state, qvec, bdotn;
+   DenseMatrix Fmat;
+
+public:
+   /** @param f     the same FluxFunction the residual uses
+       @param u     the prescribed state
+       @param q     the prescribed flux `q = -nu grad u`, or NULL for none
+       @param sF    scaling of the inviscid half, a diagnostic; 1 is right
+       @param sG    scaling of the viscous half, a diagnostic; 1 is right,
+                    and the sign it carries is `G.n = +q.n` -- see above
+       @param ioff  added to `2*order` when picking the integration rule. Zero
+                    is not a default to be tuned: it is what makes the rule the
+                    residual's own, and raising it breaks the cancellation. */
+   HDGPrescribedFluxLFIntegrator(const FluxFunction &f, VectorCoefficient &u,
+                                 VectorCoefficient *q = NULL,
+                                 real_t sF = 1., real_t sG = 1., int ioff = 0)
+      : fluxfn(f), ucoeff(u), qcoeff(q), scale_F(sF), scale_G(sG),
+        int_order_offset(ioff) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
+   {
+      const int neq = fluxfn.num_equations;
+      const int dim = fluxfn.dim;
+      const int dof = el.GetDof();
+
+      elvect.SetSize(dof * neq);
+      elvect = 0.;
+      DenseMatrix elvect_mat(elvect.GetData(), dof, neq);
+
+      shape.SetSize(dof);
+      nor.SetSize(dim);
+      bdotn.SetSize(neq);
+
+      const IntegrationRule *ir = IntRule;
+      if (!ir)
+      {
+         ir = &IntRules.Get(el.GetGeomType(),
+                            2 * el.GetOrder() + int_order_offset);
+      }
+
+      for (int i = 0; i < ir->GetNPoints(); i++)
+      {
+         const IntegrationPoint &ip = ir->IntPoint(i);
+         Tr.SetIntPoint(&ip);
+
+         // Unnormalised outward normal: it carries the face weight, exactly as
+         // BoundaryNormalLFIntegrator relies on, so only ip.weight is applied.
+         if (dim > 1) { CalcOrtho(Tr.Jacobian(), nor); }
+         else { nor(0) = 1.; }
+
+         el.CalcShape(ip, shape);
+         ucoeff.Eval(state, Tr, ip);
+
+         fluxfn.ComputeFlux(state, Tr, Fmat);
+         Fmat.Mult(nor, bdotn);
+         bdotn *= scale_F;
+
+         if (qcoeff)
+         {
+            qcoeff->Eval(qvec, Tr, ip);
+            for (int e = 0; e < neq; e++)
+            {
+               real_t qn = 0.;
+               for (int d = 0; d < dim; d++) { qn += qvec(e * dim + d) * nor(d); }
+               bdotn(e) += scale_G * qn;
+            }
+         }
+
+         AddMult_a_VWt(ip.weight, shape, bdotn, elvect_mat);
+      }
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
 } // namespace hdg
 } // namespace mfem
 
