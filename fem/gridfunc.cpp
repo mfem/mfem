@@ -2354,8 +2354,10 @@ void GridFunction::AccumulateAndCountTraceTangentValues(
    }
 }
 
-void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
+void GridFunction::ComputeMeans(AvgType type, const Array<int> &zones_per_vdof)
 {
+   HostReadWrite();
+   zones_per_vdof.HostRead();
    switch (type)
    {
       case ARITHMETIC:
