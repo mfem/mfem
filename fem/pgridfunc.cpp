@@ -570,8 +570,8 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
       if (pfes->GetNURBSext())
       {
          GroupCommunicator &gcomm = pfes->GroupComm();
-         gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
-         gcomm.Bcast<real_t>(data);
+         gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
+         gcomm.Bcast<real_t>(HostReadWrite());
       }
    }
    else
@@ -597,8 +597,8 @@ void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
    if (pfes->GetNURBSext())
    {
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(data, GroupCommunicator::Max);
-      gcomm.Bcast<real_t>(data);
+      gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
+      gcomm.Bcast<real_t>(HostReadWrite());
    }
 }
 
@@ -639,11 +639,11 @@ void ParGridFunction::ProjectCoefficientElementL2(Coefficient &coeff)
    ProjectCoefficientElementL2_(coeff, *this, Va);
 
    GroupCommunicator &gcomm = pfes->GroupComm();
-   gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(GetData());
+   gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(HostReadWrite());
 
-   gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(Va.GetData());
+   gcomm.Reduce<real_t>(Va.HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast<real_t>(Va.HostReadWrite());
    (*this)/=Va;
 }
 
@@ -695,11 +695,11 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
       ProjectCoefficientElementL2_(vcoeff, *this, Va);
 
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(GetData());
+      gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(HostReadWrite());
 
-      gcomm.Reduce<real_t>(Va.GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(Va.GetData());
+      gcomm.Reduce<real_t>(Va.HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(Va.HostReadWrite());
       (*this)/=Va;
    }
    else
@@ -719,11 +719,11 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
       }
 
       GroupCommunicator &gcomm = pfes->GroupComm();
-      gcomm.Reduce<real_t>(GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(GetData());
+      gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(HostReadWrite());
 
-      gcomm.Reduce<real_t>(gVa.GetData(), GroupCommunicator::Sum);
-      gcomm.Bcast<real_t>(gVa.GetData());
+      gcomm.Reduce<real_t>(gVa.HostReadWrite(), GroupCommunicator::Sum);
+      gcomm.Bcast<real_t>(gVa.HostReadWrite());
       *this /= gVa;
    }
 }
@@ -764,6 +764,7 @@ void ParGridFunction::ProjectDiscCoefficient(
    HypreParVector *tv = pfes->NewTrueDofVector();
    gcomm.Reduce<int>(gdof_attr, GroupCommunicator::Sum);
    gcomm.Bcast(gdof_attr);
+   HostReadWrite();
    for (int i = 0; i < fes->GetVSize(); i++)
    {
       (*this)(i) /= gdof_attr[i];
@@ -792,8 +793,8 @@ void ParGridFunction::ProjectDiscCoefficient(Coefficient &coeff, AvgType type)
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data);
+   gcomm.Reduce(HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(HostReadWrite());
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -816,8 +817,8 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
-   gcomm.Reduce<real_t>(data, GroupCommunicator::Sum);
-   gcomm.Bcast<real_t>(data);
+   gcomm.Reduce(HostReadWrite(), GroupCommunicator::Sum);
+   gcomm.Bcast(HostReadWrite());
 
    ComputeMeans(type, zones_per_vdof);
 }
