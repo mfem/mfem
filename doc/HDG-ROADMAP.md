@@ -143,9 +143,82 @@ somewhere.
 
 ## 7. Adaptive refinement: `hp`, and the estimator's fifth term
 
-`h`-adaptivity is done and tested. **`p` is untouched** — nothing in the tree
-sets an element order or computes a smoothness indicator, so this is both the
-`p` mechanism and the `h`-versus-`p` decision.
+`h`-adaptivity is done and tested. **`p` is scoped rather than untouched**, and
+the scoping moved almost all of it into one place.
+
+**The element spaces are already `p`-adaptive and need no library change.**
+Measured: `FiniteElementSpace::SetElementOrder()` on the L2 flux and potential
+spaces, `Update()`, and `DarcyHybridization` runs — its offsets are all built
+per entity from `GetFE(i)->GetDof()` and `GetFaceElement(f)->GetDof()`, and
+`LocalFactorMode::Batched` already asks `CanBatchLocalFactor()` whether the
+blocks happen to match. `convdiff` with half its elements raised one degree
+solves and converges. Two costs: the space must sit on an NC mesh
+(`Construct()` refuses variable order otherwise, even for L2, which needs no
+prolongation and gets `cP == nullptr`), and MFEM's own variable-order tests
+cover H1/ND/RT only, never L2 or a trace collection.
+
+**And it buys nothing on its own, because the trace order sets the rate.**
+Rates over `nx` = 4, 8, 16, 32 on `convdiff -p 1 -dg -hb`, potential then flux:
+
+| element / trace | dim M at nx=32 | flux | potential |
+|---|---|---|---|
+| 2 / 2 | 6336 | → 2 | 3.9 |
+| 3 / 2 | 6336 | 1.98 | 3.03 |
+| 4 / 2 | 6336 | 2.00 | 2.99 |
+| 3 / 3 | 8448 | 2.96 | 4.65 |
+
+Raising the element order above the trace order changes the constant (12x at
+`nx = 32`) and not the rate; raising it two above makes the constant worse. The
+global system is `dim M` and never moves. **So the whole of HDG `p`-adaptivity
+is a per-face trace order**, and the element side is already done.
+
+**What that needs, and it is not MFEM's variable-order machinery.** That
+machinery derives edge/face orders from element orders and keeps a *variant*
+per incident order, which is the `hp`-conformity mechanism; the HDG trace is
+discontinuous face to face and wants exactly one order per face. Measured on a
+`DG_Interface` space: `SetElementOrder()` does change the dof count (120 → 134
+on 4x4), `GetFaceElement()` then refuses outright ("not implemented"), and
+`GetFaceVDofs()` aborts in `FindDofs` because 2D `GetFaceDofs()` looks up the
+edge variant by the *base* order's dof count. Two routes:
+
+1. **Teach `FiniteElementSpace` a single-variant layout for trace
+   collections.** `MakeDofTable` already builds the table from a per-entity
+   order mask; collapsing the mask to one bit is most of it, plus
+   `GetFaceElement()` returning `fec->GetFE(geom, p_f)` — which exists and
+   caches. Upstream-quality, and it touches a core class shared with H1/ND/RT.
+2. **Keep the trace space uniform at `p_max` and use each face's slots only up
+   to `p_f`, with the surplus made essential.** `DarcyHybridization` reaches
+   the trace space through thirteen methods, of which only `GetFaceElement`
+   (37 call sites) and `GetFaceVDofs` (15) are per-entity, and both are a
+   mechanical substitution to a helper; `SetEssentialVDofs()` already takes an
+   explicit list, and `ComputeH`'s `DIAG_ONE` already leaves unit rows for
+   trace dofs outside the physical system. This works *despite* MFEM having no
+   hierarchical basis, because the low-order face is not a coordinate subspace
+   of the high-order one — it is a different basis in the same storage, and
+   nothing outside that face looks at it. Contained in `fem/darcy/`, costs
+   `O(p_max)` storage per face, and reuses the uniform parallel
+   `Dof_TrueDof` unchanged.
+
+Route 2 first is the recommendation: it is where the branch's other work lives
+and it answers the open question below at a fraction of the cost.
+
+**The rule, and what is still open about it.** `p_F = min` over the two
+neighbours is safe. `p_F = max` was *blocked* until this session — the HDG face
+quadrature took its order from the elements alone, so a richer trace was
+under-integrated into a rank-deficient trace-trace block and a singular reduced
+system (fixed; see the note at the top of `fem/darcy/bilininteg_hdg.cpp`). With
+it fixed, a trace richer than *both* its neighbours is exactly redundant —
+same answer to every digit, more unknowns, pinned by a test. Whether `max` buys
+anything at a genuine `p`-interface, where the richer element can reach the
+extra modes, cannot be answered until a per-face order exists.
+
+**Two things the mechanism will still not have.** A smoothness indicator, so
+the `h`-versus-`p` decision has nothing to make it on: `HDGErrorEstimator`
+gives an element error and no regularity estimate. And a problem that rewards
+`p`: every `convdiff` problem is analytic and uniform `p` already converges
+exponentially on them (`-p 2` at Peclet 100 goes 2.2e-3 → 1.7e-14 over orders
+1–6 with no sign of a layer), so the demonstrator has to be `anisodiff -p 5`
+(boundary layer) or `-p 6` (steady peak).
 
 `η₅` of the SSC estimator is also open, and is blocked twice over.
 `HDGErrorEstimator` has exactly two terms (`Type::{Residual, Energy}`) and
