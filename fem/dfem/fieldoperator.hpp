@@ -160,6 +160,50 @@ inline std::ostream& operator<<(std::ostream& out, Gradient<FIELD_ID>)
    return out << "Gradient<" << FIELD_ID << ">";
 }
 
+/// @brief Hessian FieldOperator.
+///
+/// This FieldOperator is used to signal that the field contains the second
+/// derivatives of the degrees of freedom at the quadrature points, taken with
+/// respect to the *reference* coordinates.
+///
+/// @note: 1 - This is the spatial Hessian of a finite element field, while the
+///            "Hessian" mentioned in DifferentiableOperator represents the
+///             second derivative of a functional with respect to the field itself.
+///
+/// @note: 2 - Like Value and Gradient, this operator provides reference-coordinate
+///            derivatives and does not apply the geometric mapping.
+///            The quadrature function is responsible for the pullback:
+///                  H(u) = J^{-T} ( Href(u) - Grad u : Href(x) ) J^{-1}
+///            with Href(u) the reference Hessian, Href(x) the reference Hessian
+///            of the mapping, and J the Jacobian of the mapping.
+///
+/// @note: 3 - Only supported for H1 nodal tensor-product elements whose 1D
+///            basis provides second derivatives; see Poly_1D::Basis::HasSecondDerivatives().
+///
+/// TODO: WIP extension to Vector Hessians.
+///
+template <int FIELD_ID = -1>
+class Hessian : public FieldOperator<FIELD_ID>
+{
+public:
+   constexpr Hessian() : FieldOperator<FIELD_ID>() {};
+};
+
+template< typename T >
+struct is_hessian_fop : std::false_type {};
+
+template <int FIELD_ID>
+struct is_hessian_fop<Hessian<FIELD_ID>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_hessian_fop_v = is_hessian_fop<T>::value;
+
+template <int FIELD_ID>
+inline std::ostream& operator<<(std::ostream& out, Hessian<FIELD_ID>)
+{
+   return out << "Hessian<" << FIELD_ID << ">";
+}
+
 /// @brief Sum FieldOperator.
 ///
 /// This FieldOperator is commonly used to signal that an output of a quadrature
