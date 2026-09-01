@@ -14,6 +14,41 @@
 using std::min;
 using std::max;
 
+/** @file
+    Quadrature for the HDG face terms, and why the trace element's order is in
+    every rule below.
+
+    Each routine here that takes a @a trace_el assembles three kinds of block on
+    one face: element-element, element-trace, and trace-trace. The last is a
+    mass-like matrix in the trace basis alone -- it is where the stabilization
+    `<tau*uhat, mu>` lands -- so it is of degree `2*p_trace`, and a rule chosen
+    from the element orders alone under-integrates it whenever the trace outruns
+    its elements.
+
+    That is not a lost digit, it is a rank failure. A Gauss rule of degree
+    `2*p_el` on a face carries `p_el + 1` points, and a Gram matrix built from
+    `n` points has rank at most `n`; the trace-trace block is
+    `(p_trace + 1) x (p_trace + 1)`. At `p_trace = p_el + 1` it is therefore
+    rank-deficient by exactly one per face and the reduced trace system is
+    singular. Measured before the fix: `convdiff -p 1 -dg -hb -o 2` with an
+    order-3 trace diverges (GMRES residual 1e21, relative errors of 1e4);
+    raising the rule to degree `2*p_trace` -- and nothing else -- converges it.
+    The threshold is exactly `2*p_trace`, degree `2*p_el` still fails.
+
+    So the max below spans the trace element too, which is what
+    `fem/hyperbolic.cpp`'s HDG routines and `NormalTraceJumpIntegrator` in
+    `fem/bilininteg.cpp` already do. Where `p_trace <= p_el` the expression is
+    arithmetically the old one, so no existing configuration moves; the one
+    committed case that does is `--order 0 --trace-H1`, whose trace collection is
+    `max(order, 1)` and so outruns its elements (errors move by 4-5% and no
+    regression reference covers it).
+
+    This matters beyond tidiness: a trace order that may exceed an element order
+    is exactly what `p`-adaptivity's max rule needs on a face between elements of
+    different degree, and this was what blocked it.
+
+    `AssembleFaceMatrix` below takes no trace element and is left alone. */
+
 namespace mfem
 {
 
@@ -46,10 +81,10 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
       // Assuming order(u)==order(mesh)
       if (Trans.Elem2No >= 0)
          order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
-                  2*max(el1.GetOrder(), el2.GetOrder()));
+                  2*max(max(el1.GetOrder(), el2.GetOrder()), trace_el.GetOrder()));
       else
       {
-         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+         order = Trans.Elem1->OrderW() + 2*max(el1.GetOrder(), trace_el.GetOrder());
       }
       if (el1.Space() == FunctionSpace::Pk)
       {
@@ -192,7 +227,7 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceMatrix(
       {
          order = Trans.Elem1->OrderW();
       }
-      order += 2*el.GetOrder();
+      order += 2*max(el.GetOrder(), trace_el.GetOrder());
       if (el.Space() == FunctionSpace::Pk)
       {
          order++;
@@ -326,7 +361,7 @@ void HDGConvectionCenteredIntegrator::AssembleHDGFaceVector(
       {
          order = Trans.Elem1->OrderW();
       }
-      order += 2*el.GetOrder();
+      order += 2*max(el.GetOrder(), trace_el.GetOrder());
       if (el.Space() == FunctionSpace::Pk)
       {
          order++;
@@ -466,10 +501,10 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
       // Assuming order(u)==order(mesh)
       if (Trans.Elem2No >= 0)
          order = (min(Trans.Elem1->OrderW(), Trans.Elem2->OrderW()) +
-                  2*max(el1.GetOrder(), el2.GetOrder()));
+                  2*max(max(el1.GetOrder(), el2.GetOrder()), trace_el.GetOrder()));
       else
       {
-         order = Trans.Elem1->OrderW() + 2*el1.GetOrder();
+         order = Trans.Elem1->OrderW() + 2*max(el1.GetOrder(), trace_el.GetOrder());
       }
       if (el1.Space() == FunctionSpace::Pk)
       {
@@ -607,7 +642,7 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceMatrix(
       {
          order = Trans.Elem1->OrderW();
       }
-      order += 2*el.GetOrder();
+      order += 2*max(el.GetOrder(), trace_el.GetOrder());
       if (el.Space() == FunctionSpace::Pk)
       {
          order++;
@@ -741,7 +776,7 @@ void HDGConvectionUpwindedIntegrator::AssembleHDGFaceVector(
       {
          order = Trans.Elem1->OrderW();
       }
-      order += 2*el.GetOrder();
+      order += 2*max(el.GetOrder(), trace_el.GetOrder());
       if (el.Space() == FunctionSpace::Pk)
       {
          order++;
@@ -886,7 +921,7 @@ void HDGDiffusionIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
+      // No trace element on this route, so the element orders are the whole rule.
       int order;
       if (ndof2)
       {
@@ -1052,15 +1087,16 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
+      // Degree 2*max(element, trace): see the note at the top of this file
+      // for why the trace element has to be in the max.
       int order;
       if (ndof2)
       {
-         order = 2*max(el1.GetOrder(), el2.GetOrder());
+         order = 2*max(max(el1.GetOrder(), el2.GetOrder()), trace_el.GetOrder());
       }
       else
       {
-         order = 2*el1.GetOrder();
+         order = 2*max(el1.GetOrder(), trace_el.GetOrder());
       }
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
@@ -1307,8 +1343,9 @@ void HDGDiffusionIntegrator::AssembleHDGFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
-      int order = 2*el.GetOrder();
+      // Degree 2*max(element, trace): see the note at the top of this file
+      // for why the trace element has to be in the max.
+      int order = 2*max(el.GetOrder(), trace_el.GetOrder());
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -1493,9 +1530,10 @@ void HDGDiffusionIntegrator::AssembleHDGFaceVector(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
+      // Degree 2*max(element, trace): see the note at the top of this file
+      // for why the trace element has to be in the max.
       int order;
-      order = 2*el.GetOrder();
+      order = 2*max(el.GetOrder(), trace_el.GetOrder());
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -1699,7 +1737,7 @@ void HDGDiffusionIntegrator::AssembleHDGFaceGrad(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      const int order = 2*el.GetOrder();
+      const int order = 2*max(el.GetOrder(), trace_el.GetOrder());
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
@@ -1886,9 +1924,10 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
+      // Degree 2*max(element, trace): see the note at the top of this file
+      // for why the trace element has to be in the max.
       int order;
-      order = 2*el.GetOrder();
+      order = 2*max(el.GetOrder(), trace_el.GetOrder());
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
 
