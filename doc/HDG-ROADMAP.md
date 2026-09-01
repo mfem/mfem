@@ -200,7 +200,8 @@ edge variant by the *base* order's dof count. Two routes:
    `Dof_TrueDof` unchanged.
 
 Route 2 first is the recommendation: it is where the branch's other work lives
-and it answers the open question below at a fraction of the cost.
+and it answers the open question below at a fraction of the cost. It is planned
+step by step in `doc/HDG-P-ADAPTIVITY.md`.
 
 **The rule, and what is still open about it.** `p_F = min` over the two
 neighbours is safe. `p_F = max` was *blocked* until this session — the HDG face
