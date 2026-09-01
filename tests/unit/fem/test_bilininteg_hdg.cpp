@@ -850,3 +850,102 @@ TEST_CASE("A floored stabilization lifts the small values and keeps the large",
       }
    }
 }
+
+TEST_CASE("The HDG face quadrature integrates the trace block exactly",
+          "[HDGIntegrator]")
+{
+   using namespace bilininteg_hdg;
+
+   // Each of these routines assembles a trace-trace block -- the stabilization
+   // <tau*uhat, mu> -- which is of degree 2*p_trace. The rule used to be chosen
+   // from the element orders alone, so a trace richer than its elements was
+   // under-integrated: a degree-2*p_el Gauss rule carries p_el + 1 points, a
+   // Gram matrix built from n points has rank at most n, and the block is
+   // (p_trace + 1) square. At p_trace = p_el + 1 that is a rank deficiency of
+   // exactly one per face, and the reduced trace system is singular -- measured
+   // as a GMRES residual of 1e21 rather than as anything subtle.
+   //
+   // The check is on the value rather than on the rank, because this build has
+   // no LAPACK to take singular values with, and it is the stronger statement
+   // anyway: the integrator's own rule must reproduce a generous one. The old
+   // rule is assembled alongside as a control, so the comparison is shown to be
+   // capable of failing.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 2);
+   const Element::Type type = (dim == 2) ? Element::QUADRILATERAL
+                              : Element::HEXAHEDRON;
+
+   CAPTURE(dim, order);
+
+   Faces fx(dim, order, type);
+   const int f = fx.InteriorFace();
+   FaceElementTransformations *Tr = fx.mesh.GetFaceElementTransformations(f);
+
+   // One degree above both neighbours: p-adaptivity's max rule at a face
+   // between elements of different degree.
+   DG_Interface_FECollection rich_coll(order + 1, dim);
+   FiniteElementSpace fes_rich(&fx.mesh, &rich_coll);
+
+   const FiniteElement &tr_fe = *fes_rich.GetFaceElement(f);
+   const FiniteElement &el1 = *fx.fes_el.GetFE(Tr->Elem1No);
+   const FiniteElement &el2 = *fx.fes_el.GetFE(Tr->Elem2No);
+
+   Vector vel(dim);
+   vel = 0.0;
+   vel(0) = 1.3;
+   vel(1) = -0.7;
+   VectorConstantCoefficient vcoeff(vel);
+   ConstantCoefficient q(2.5);
+
+   // The rule the pre-fix code computed, and one that is generous for every
+   // block present.
+   const int old_rule = 2 * std::max(el1.GetOrder(), el2.GetOrder());
+   const int fine_rule = 2 * tr_fe.GetOrder() + 6;
+
+   auto CheckExact = [&](BilinearFormIntegrator & own,
+                         BilinearFormIntegrator & forced_old,
+                         BilinearFormIntegrator & fine, const char *what)
+   {
+      forced_old.SetIntRule(&IntRules.Get(Tr->GetGeometryType(), old_rule));
+      fine.SetIntRule(&IntRules.Get(Tr->GetGeometryType(), fine_rule));
+
+      DenseMatrix a, b, c;
+      own.AssembleHDGFaceMatrix(tr_fe, el1, el2, *Tr, a);
+      forced_old.AssembleHDGFaceMatrix(tr_fe, el1, el2, *Tr, b);
+      fine.AssembleHDGFaceMatrix(tr_fe, el1, el2, *Tr, c);
+
+      const real_t scale = c.MaxMaxNorm();
+      REQUIRE(scale > 0.0);
+
+      DenseMatrix d(a);
+      d -= c;
+      INFO(what << ": own rule differs from the fine one by " << d.MaxMaxNorm()
+           << " on a matrix of size " << scale);
+      REQUIRE(d.MaxMaxNorm() < 1e-12 * scale);
+
+      // The control: the rule this replaced does not reproduce it, so the
+      // assertion above is not passing on a comparison that cannot fail.
+      DenseMatrix e(b);
+      e -= c;
+      INFO(what << ": the old rule differs by " << e.MaxMaxNorm());
+      REQUIRE(e.MaxMaxNorm() > 1e-3 * scale);
+   };
+
+   SECTION("diffusion")
+   {
+      HDGDiffusionIntegrator own(q), old(q), fine(q);
+      CheckExact(own, old, fine, "diffusion");
+   }
+
+   SECTION("convection, centered")
+   {
+      HDGConvectionCenteredIntegrator own(vcoeff), old(vcoeff), fine(vcoeff);
+      CheckExact(own, old, fine, "convection, centered");
+   }
+
+   SECTION("convection, upwinded")
+   {
+      HDGConvectionUpwindedIntegrator own(vcoeff), old(vcoeff), fine(vcoeff);
+      CheckExact(own, old, fine, "convection, upwinded");
+   }
+}

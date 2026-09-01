@@ -554,9 +554,18 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       else
 #endif
       {
-         if (trace_space->GetMesh()->Nonconforming())
+         // The mesh being nonconforming does not make the trace space's
+         // prolongation nontrivial, and GetConformingProlongation() returns
+         // null exactly when it would be the identity. An NC mesh with no
+         // hanging nodes -- EnsureNCMesh() on an unrefined mesh, or a
+         // refinement that split every element -- is conforming as far as the
+         // space is concerned, and testing the mesh instead of the matrix
+         // dereferenced null here and segfaulted. Attributed rather than
+         // guessed: a uniform-order run that only calls EnsureNCMesh() fails
+         // the same way, so it is the mesh flag and not variable order.
+         auto *cP = trace_space->GetConformingProlongation();
+         if (cP)
          {
-            auto *cP = trace_space->GetConformingProlongation();
             RHS.SetSize(cP->Width());
             cP->MultTranspose(*h, RHS);
 
@@ -669,10 +678,10 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       }
       else
 #endif
-         if (trace_space->GetMesh()->Nonconforming())
+         // Null when the prolongation would be the identity; see ImplicitSolve.
+         if (auto *cP = trace_space->GetConformingProlongation())
          {
             Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
-            auto *cP = trace_space->GetConformingProlongation();
             cP->Mult(X, x_r);
          }
    }
