@@ -39,6 +39,111 @@ public:
    }
 };
 
+struct ToyState
+{
+   StateId iteration = 0;
+   std::int64_t value = 0;
+   double parameter = 0.0;
+   bool mode = false;
+};
+
+struct ToyPayload
+{
+   StateId iteration;
+   std::int64_t value;
+   double parameter;
+   unsigned char mode;
+};
+
+class ToyStateAdapter : public CheckpointStateAdapter
+{
+private:
+   ToyState &state;
+
+public:
+   mutable StateId fail_capture_at = -1;
+   int restore_failures = 0;
+
+   explicit ToyStateAdapter(ToyState &state_) : state(state_) { }
+
+   Snapshot Capture(
+      StateId id,
+      std::optional<CheckpointId> checkpoint = std::nullopt) const override
+   {
+      (void) checkpoint;
+      if (id == fail_capture_at)
+      {
+         fail_capture_at = -1;
+         throw InvalidCheckpointState("injected ToyState capture failure");
+      }
+      if (state.iteration != id)
+      {
+         throw InvalidCheckpointState("ToyState ID mismatch during capture");
+      }
+      const ToyPayload payload{state.iteration, state.value, state.parameter,
+                               static_cast<unsigned char>(state.mode)};
+      Snapshot snapshot(sizeof(payload));
+      std::memcpy(snapshot.Data(), &payload, sizeof(payload));
+      return snapshot;
+   }
+
+   void Restore(
+      StateId id, const Snapshot &snapshot,
+      std::optional<CheckpointId> checkpoint = std::nullopt) override
+   {
+      (void) checkpoint;
+      if (snapshot.Size() != sizeof(ToyPayload))
+      {
+         throw InvalidCheckpointFormat("invalid ToyState snapshot size");
+      }
+      ToyPayload payload;
+      std::memcpy(&payload, snapshot.Data(), sizeof(payload));
+      if (payload.iteration != id || payload.mode > 1)
+      {
+         throw InvalidCheckpointFormat("invalid ToyState snapshot metadata");
+      }
+      if (restore_failures > 0)
+      {
+         --restore_failures;
+         state.value = payload.value + 1;
+         throw InvalidCheckpointState("injected ToyState restore failure");
+      }
+      state = ToyState{payload.iteration, payload.value, payload.parameter,
+                       payload.mode != 0};
+   }
+};
+
+class ToyStatePropagator : public StatePropagator
+{
+private:
+   ToyState &state;
+
+public:
+   bool fail_next_advance = false;
+
+   explicit ToyStatePropagator(ToyState &state_) : state(state_) { }
+
+   void Advance(StateId from, StateId to) override
+   {
+      if (state.iteration != from || to < from)
+      {
+         throw InvalidCheckpointState("invalid ToyState transition");
+      }
+      while (state.iteration < to)
+      {
+         state.value = 2 * state.value + 1;
+         state.parameter += 0.25;
+         state.mode = !state.mode;
+         ++state.iteration;
+         if (fail_next_advance)
+         {
+            fail_next_advance = false;
+            throw InvalidCheckpointState("injected ToyState advance failure");
+         }
+      }
+   }
+};
+
 class TrackingStorage : public CheckpointStorage
 {
 private:
@@ -124,11 +229,21 @@ void RequireSameVector(const Vector &actual, const Vector &expected)
                        sizeof(real_t) * actual.Size()) == 0);
 }
 
+void RequireSameToyState(const ToyState &actual, const ToyState &expected)
+{
+   REQUIRE(actual.iteration == expected.iteration);
+   REQUIRE(actual.value == expected.value);
+   REQUIRE(actual.parameter == expected.parameter);
+   REQUIRE(actual.mode == expected.mode);
+}
+
 } // namespace
 
 TEST_CASE("Checkpoint identity, time, and Snapshot semantics", "[Checkpoint]")
 {
+   STATIC_REQUIRE(std::is_same<StateId, std::int64_t>::value);
    STATIC_REQUIRE(std::is_same<StepId, std::int64_t>::value);
+   STATIC_REQUIRE(std::is_same<StateId, StepId>::value);
    STATIC_REQUIRE(std::is_same<CheckpointId, std::uint64_t>::value);
    STATIC_REQUIRE_FALSE(std::is_same<StepId, CheckpointId>::value);
 
@@ -153,21 +268,120 @@ TEST_CASE("Checkpoint identity, time, and Snapshot semantics", "[Checkpoint]")
    REQUIRE(moved.Data()[2] == 3);
 }
 
+TEST_CASE("Generic adapter restores complete non-time metadata", "[Checkpoint]")
+{
+   ToyState state{3, 17, 2.75, true};
+   ToyStateAdapter adapter(state);
+   const Snapshot exact = adapter.Capture(3);
+
+   state = ToyState{9, -1, -4.0, false};
+   adapter.Restore(3, exact);
+   REQUIRE(state.iteration == 3);
+   REQUIRE(state.value == 17);
+   REQUIRE(state.parameter == 2.75);
+   REQUIRE(state.mode);
+}
+
+TEST_CASE("Generic controller replays non-time application states",
+          "[Checkpoint]")
+{
+   ToyState state{0, 0, 1.25, true};
+   ToyStateAdapter adapter(state);
+   ToyStatePropagator propagator(state);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(2);
+   CheckpointController controller(adapter, propagator, storage, window);
+   StoreEverythingSchedule schedule;
+   schedule.Configure(5, 6);
+
+   controller.Initialize();
+   controller.ExecuteForward(schedule, 5);
+   const ToyState reference = state;
+   REQUIRE(reference.value == 31);
+
+   for (CheckpointId id = 2; id <= 6; id++)
+   {
+      controller.Discard(id);
+   }
+   window.Clear();
+   controller.Restore(1);
+   window.Clear();
+   controller.RestoreState(5);
+
+   REQUIRE(controller.ActiveState().id == 5);
+   REQUIRE(state.iteration == reference.iteration);
+   REQUIRE(state.value == reference.value);
+   REQUIRE(state.parameter == reference.parameter);
+   REQUIRE(state.mode == reference.mode);
+}
+
+TEST_CASE("Generic controller rolls back application failures",
+          "[Checkpoint]")
+{
+   ToyState state{0, 4, 0.5, true};
+   const ToyState initial = state;
+   ToyStateAdapter adapter(state);
+   ToyStatePropagator propagator(state);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(1);
+   CheckpointController controller(adapter, propagator, storage, window);
+   StoreEverythingSchedule schedule;
+   schedule.Configure(1, 2);
+   controller.Initialize();
+
+   SECTION("capture failure after propagation")
+   {
+      adapter.fail_capture_at = 1;
+      REQUIRE_THROWS_AS(controller.ExecuteForward(schedule, 1),
+                        InvalidCheckpointState);
+      REQUIRE(controller.ActiveState().id == 0);
+      RequireSameToyState(state, initial);
+   }
+
+   SECTION("propagation failure after partial mutation")
+   {
+      propagator.fail_next_advance = true;
+      REQUIRE_THROWS_AS(controller.ExecuteForward(schedule, 1),
+                        InvalidCheckpointState);
+      REQUIRE(controller.ActiveState().id == 0);
+      RequireSameToyState(state, initial);
+   }
+
+   SECTION("restore failure after partial mutation")
+   {
+      controller.Store(9);
+      adapter.restore_failures = 1;
+      REQUIRE_THROWS_AS(controller.Restore(9), InvalidCheckpointState);
+      REQUIRE(controller.ActiveState().id == 0);
+      RequireSameToyState(state, initial);
+   }
+
+   SECTION("failed rollback invalidates active state")
+   {
+      controller.Store(9);
+      adapter.restore_failures = 2;
+      REQUIRE_THROWS_AS(controller.Restore(9), CheckpointConsistencyError);
+      REQUIRE_THROWS_AS(controller.ActiveState(), InvalidCheckpointState);
+   }
+}
+
 TEST_CASE("Exact Vector checkpoint serialization", "[Checkpoint]")
 {
    LinearODE oper;
    ForwardEulerSolver solver;
-   ForwardEulerCheckpointAdapter adapter(solver, oper);
-   ODECheckpointPropagator propagator(solver);
-   MemoryCheckpointStorage storage;
-   ExactCheckpointWindow window(0);
-   CheckpointController controller(adapter, propagator, storage, window);
-
    Vector state(3);
    state[0] = 1.25;
    state[1] = -0.0;
    state[2] = -7.5;
-   controller.Initialize(state, 0.125, 0.03125, 17);
+   TimePoint time{17, 0.125};
+   real_t dt = 0.03125;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+   ODEStatePropagator propagator(solver, state, time, dt);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(0);
+   CheckpointController controller(adapter, propagator, storage, window);
+
+   controller.Initialize(17);
    controller.Store(9);
 
    const Snapshot encoded = storage.Restore(9);
@@ -179,26 +393,36 @@ TEST_CASE("Exact Vector checkpoint serialization", "[Checkpoint]")
    REQUIRE(ReadLittleEndian64(encoded, 48) == 3);
    REQUIRE(ReadLittleEndian64(encoded, 56) == 0);
 
+   state = 0.0;
+   time = TimePoint{3, 1.0};
+   dt = 1.0;
    controller.Restore(9);
-   REQUIRE(controller.ActiveState().time.step == 17);
-   REQUIRE(controller.ActiveState().time.time == 0.125);
-   REQUIRE(controller.ActiveState().dt == 0.03125);
-   RequireSameVector(controller.ActiveState().state, state);
+   REQUIRE(controller.ActiveState().id == 17);
+   REQUIRE(time.step == 17);
+   REQUIRE(time.time == 0.125);
+   REQUIRE(dt == 0.03125);
+   Vector expected(3);
+   expected[0] = 1.25;
+   expected[1] = -0.0;
+   expected[2] = -7.5;
+   RequireSameVector(state, expected);
 }
 
 TEST_CASE("Malformed exact checkpoints are rejected", "[Checkpoint]")
 {
    LinearODE oper;
    ForwardEulerSolver solver;
-   ForwardEulerCheckpointAdapter adapter(solver, oper);
-   ODECheckpointPropagator propagator(solver);
-   MemoryCheckpointStorage storage;
-   ExactCheckpointWindow window(0);
-   CheckpointController controller(adapter, propagator, storage, window);
    Vector state(2);
    state[0] = 1.0;
    state[1] = 2.0;
-   controller.Initialize(state, 0.0, 0.125);
+   TimePoint time{0, 0.0};
+   real_t dt = 0.125;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+   ODEStatePropagator propagator(solver, state, time, dt);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(0);
+   CheckpointController controller(adapter, propagator, storage, window);
+   controller.Initialize();
    controller.Store(9);
    const Snapshot valid = storage.Restore(9);
 
@@ -288,13 +512,15 @@ TEST_CASE("File checkpoint storage is persistent and transactional",
 
       LinearODE oper;
       ForwardEulerSolver solver;
-      ForwardEulerCheckpointAdapter adapter(solver, oper);
-      ODECheckpointPropagator propagator(solver);
-      ExactCheckpointWindow window(0);
-      CheckpointController controller(adapter, propagator, storage, window);
       Vector state(2);
       state = 1.0;
-      controller.Initialize(state, 0.0, 0.125);
+      TimePoint time{0, 0.0};
+      real_t dt = 0.125;
+      ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+      ODEStatePropagator propagator(solver, state, time, dt);
+      ExactCheckpointWindow window(0);
+      CheckpointController controller(adapter, propagator, storage, window);
+      controller.Initialize();
       controller.Store(8);
       {
          std::ofstream malformed(storage.PathFor(8),
@@ -312,18 +538,17 @@ TEST_CASE("File checkpoint storage is persistent and transactional",
 
 TEST_CASE("Exact moving window is bounded FIFO storage", "[Checkpoint]")
 {
-   CheckpointState state;
-   state.state.SetSize(1);
+   CheckpointState state{0, Snapshot(1)};
 
    ExactCheckpointWindow disabled(0);
    disabled.Insert(state);
    REQUIRE(disabled.Size() == 0);
 
    ExactCheckpointWindow window(2);
-   for (StepId step = 0; step < 3; step++)
+   for (StateId step = 0; step < 3; step++)
    {
-      state.time = TimePoint{step, static_cast<real_t>(step)};
-      state.state[0] = static_cast<real_t>(step);
+      state.id = step;
+      state.snapshot.Data()[0] = static_cast<unsigned char>(step);
       window.Insert(state);
    }
    REQUIRE(window.Size() == 2);
@@ -331,11 +556,11 @@ TEST_CASE("Exact moving window is bounded FIFO storage", "[Checkpoint]")
    REQUIRE(window.Find(1) != NULL);
    REQUIRE(window.Find(2) != NULL);
 
-   state.time = TimePoint{1, 7.0};
-   state.state[0] = 7.0;
+   state.id = 1;
+   state.snapshot.Data()[0] = 7;
    window.Insert(state);
    REQUIRE(window.Size() == 2);
-   REQUIRE(window.Find(1)->state[0] == 7.0);
+   REQUIRE(window.Find(1)->snapshot.Data()[0] == 7);
 }
 
 TEST_CASE("StoreEverything emits its canonical forward trace", "[Checkpoint]")
@@ -372,15 +597,17 @@ TEST_CASE("Forward Euler restart reproduces exact continuation", "[Checkpoint]")
 {
    LinearODE oper;
    ForwardEulerSolver solver;
-   ForwardEulerCheckpointAdapter adapter(solver, oper);
-   Vector initial(2);
-   initial[0] = 1.0;
-   initial[1] = 2.0;
-   const TimePoint initial_time{4, 0.5};
-   const real_t initial_dt = 0.125;
-   const CheckpointState checkpoint =
-      adapter.Capture(initial, initial_time, initial_dt);
-   REQUIRE(checkpoint.restart.Size() == 0);
+   Vector state(2);
+   state[0] = 1.0;
+   state[1] = 2.0;
+   const Vector initial(state);
+   TimePoint time{4, 0.5};
+   const TimePoint initial_time(time);
+   real_t dt = 0.125;
+   const real_t initial_dt = dt;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+   const Snapshot checkpoint = adapter.Capture(4, 7);
+   REQUIRE(ReadLittleEndian64(checkpoint, 56) == 0);
 
    Vector reference(initial);
    real_t reference_time = initial_time.time;
@@ -388,22 +615,23 @@ TEST_CASE("Forward Euler restart reproduces exact continuation", "[Checkpoint]")
    solver.Init(oper);
    solver.Step(reference, reference_time, reference_dt);
 
-   Vector restored;
-   TimePoint restored_time;
-   real_t restored_dt = 0.0;
-   adapter.Restore(checkpoint, restored, restored_time, restored_dt);
-   REQUIRE(restored_time.step == initial_time.step);
-   REQUIRE(restored_time.time == initial_time.time);
-   REQUIRE(restored_dt == initial_dt);
-   solver.Step(restored, restored_time.time, restored_dt);
-   RequireSameVector(restored, reference);
-   REQUIRE(restored_time.time == reference_time);
+   state = 0.0;
+   time = TimePoint{0, 0.0};
+   dt = 1.0;
+   adapter.Restore(4, checkpoint, 7);
+   REQUIRE(time.step == initial_time.step);
+   REQUIRE(time.time == initial_time.time);
+   REQUIRE(dt == initial_dt);
+   solver.Step(state, time.time, dt);
+   RequireSameVector(state, reference);
+   REQUIRE(time.time == reference_time);
 
-   CheckpointState invalid = checkpoint;
-   invalid.restart.SetSize(1);
-   REQUIRE_THROWS_AS(
-      adapter.Restore(invalid, restored, restored_time, restored_dt),
-      InvalidCheckpointState);
+   Snapshot invalid(checkpoint.Size() + 1);
+   std::memcpy(invalid.Data(), checkpoint.Data(), checkpoint.Size());
+   WriteLittleEndian64(invalid, 56, 1);
+   invalid.Data()[checkpoint.Size()] = 0;
+   REQUIRE_THROWS_AS(adapter.Restore(4, invalid, 7),
+                     InvalidCheckpointState);
 }
 
 TEST_CASE("Checkpoint controller restores and replays exact states",
@@ -411,15 +639,17 @@ TEST_CASE("Checkpoint controller restores and replays exact states",
 {
    LinearODE oper;
    ForwardEulerSolver solver;
-   ForwardEulerCheckpointAdapter adapter(solver, oper);
-   ODECheckpointPropagator propagator(solver);
-   TrackingStorage storage;
-   ExactCheckpointWindow window(3);
-   CheckpointController controller(adapter, propagator, storage, window);
    Vector initial(2);
    initial[0] = 1.0;
    initial[1] = 2.0;
-   const real_t dt = 0.125;
+   Vector state(initial);
+   TimePoint time{0, 0.0};
+   real_t dt = 0.125;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+   ODEStatePropagator propagator(solver, state, time, dt);
+   TrackingStorage storage;
+   ExactCheckpointWindow window(3);
+   CheckpointController controller(adapter, propagator, storage, window);
 
    Vector reference(initial);
    real_t reference_time = 0.0;
@@ -432,18 +662,20 @@ TEST_CASE("Checkpoint controller restores and replays exact states",
 
    StoreEverythingSchedule schedule;
    schedule.Configure(10, 11);
-   controller.Initialize(initial, 0.0, dt);
+   controller.Initialize();
    controller.ExecuteForward(schedule, 10);
-   RequireSameVector(controller.ActiveState().state, reference);
+   RequireSameVector(state, reference);
 
    controller.Restore(5);
-   REQUIRE(controller.ActiveState().time.step == 4);
+   REQUIRE(controller.ActiveState().id == 4);
+   REQUIRE(time.step == 4);
    REQUIRE(storage.last_restored == 5);
 
    controller.Discard(8);
    storage.ResetTracking();
    controller.RestoreStep(7);
-   REQUIRE(controller.ActiveState().time.step == 7);
+   REQUIRE(controller.ActiveState().id == 7);
+   REQUIRE(time.step == 7);
    REQUIRE(storage.last_restored == 7);
 
    for (CheckpointId id = 2; id <= 11; id++)
@@ -456,8 +688,8 @@ TEST_CASE("Checkpoint controller restores and replays exact states",
    storage.ResetTracking();
    controller.RestoreStep(10);
    REQUIRE(storage.last_restored == 1);
-   RequireSameVector(controller.ActiveState().state, reference);
-   REQUIRE(controller.ActiveState().time.time == reference_time);
+   RequireSameVector(state, reference);
+   REQUIRE(time.time == reference_time);
 }
 
 TEST_CASE("Controller storage failures do not commit metadata or state",
@@ -465,33 +697,36 @@ TEST_CASE("Controller storage failures do not commit metadata or state",
 {
    LinearODE oper;
    ForwardEulerSolver solver;
-   ForwardEulerCheckpointAdapter adapter(solver, oper);
-   ODECheckpointPropagator propagator(solver);
-   TrackingStorage storage;
-   ExactCheckpointWindow window(1);
-   CheckpointController controller(adapter, propagator, storage, window);
    Vector initial(2);
    initial[0] = 1.0;
    initial[1] = 2.0;
-   controller.Initialize(initial, 0.0, 0.125);
+   Vector state(initial);
+   TimePoint time{0, 0.0};
+   real_t dt = 0.125;
+   ForwardEulerCheckpointAdapter adapter(solver, oper, state, time, dt);
+   ODEStatePropagator propagator(solver, state, time, dt);
+   TrackingStorage storage;
+   ExactCheckpointWindow window(1);
+   CheckpointController controller(adapter, propagator, storage, window);
+   controller.Initialize();
 
    storage.fail_store = true;
    REQUIRE_THROWS_AS(controller.Store(3), CheckpointStorageError);
-   REQUIRE(controller.ActiveState().time.step == 0);
+   REQUIRE(controller.ActiveState().id == 0);
    storage.fail_store = false;
    REQUIRE_THROWS_AS(controller.Restore(3), CheckpointConsistencyError);
 
    controller.Store(3);
    storage.fail_restore = true;
    REQUIRE_THROWS_AS(controller.Restore(3), CheckpointStorageError);
-   REQUIRE(controller.ActiveState().time.step == 0);
+   REQUIRE(controller.ActiveState().id == 0);
    storage.fail_restore = false;
 
    storage.fail_erase = true;
    REQUIRE_THROWS_AS(controller.Discard(3), CheckpointStorageError);
    storage.fail_erase = false;
    controller.Restore(3);
-   REQUIRE(controller.ActiveState().time.step == 0);
+   REQUIRE(controller.ActiveState().id == 0);
    controller.Discard(3);
    REQUIRE_FALSE(storage.Contains(3));
 }

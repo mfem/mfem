@@ -9,56 +9,169 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-/** \page checkpointing Exact ODE checkpointing and replay
+/** \page checkpointing Exact application-state checkpointing and replay
 
-MFEM's checkpointing API reconstructs exact primal states without requiring a
-complete forward trajectory to remain in memory. The initial implementation is
-synchronous and supports fixed-step ForwardEulerSolver through an opt-in
-ForwardEulerCheckpointAdapter.
+MFEM checkpointing operates on arbitrary replayable application state. A
+checkpoint is complete only when it contains everything required to continue
+deterministic replay. A solution Vector can be one component of that state, but
+is not its generic definition.
+
+The initial built-in specialization supports fixed-step ForwardEulerSolver.
+The state-centric core is synchronous, independent of MPI and physical time,
+and can also be used by application-defined nonlinear, optimization,
+continuation, or adaptation iterations.
+
+\section checkpointing_state_model State model and exactness
+
+StateId is the ordered logical position of a replayable state. Depending on the
+application, it can denote a time step, Newton iteration, optimization
+iteration, continuation step, or mesh-adaptation cycle. StepId remains an alias
+for StateId for time-stepping source compatibility. Neither type stores or
+implies physical time.
+
+For states S_i and deterministic transitions F_i, exact replay requires
+
+\f[
+\operatorname{Restore}(S_i) + F_i + \cdots + F_{j-1} = S_j.
+\f]
+
+CheckpointStateAdapter::Capture() must therefore include every value that can
+affect continuation: primary fields, mesh or discretization state, time and
+step size when present, adaptive-controller or multistep history, nonlinear
+globalization state, material properties, continuation parameters, RNG state,
+and relevant application metadata. The generic core cannot determine which of
+these values are required.
+
+CheckpointStateAdapter owns the capture format, compatibility checks, and safe
+restore order. It borrows application objects; those objects must outlive the
+adapter and controller. For dependent MFEM objects, an application adapter may
+need to restore in an order such as
+
+\code{.unparsed}
+Mesh -> FiniteElementSpace -> GridFunction
+\endcode
+
+Mesh, ParMesh, FiniteElementSpace, and GridFunction serialization are not
+implemented by this initial interface.
+
+StatePropagator::Advance() applies the same deterministic transitions used in
+the original computation. Its precondition is that the application represents
+the supplied `from` state; on success the application represents `to`. The
+meaning of a transition is entirely application-defined.
 
 \section checkpointing_architecture Architecture
 
 \code{.unparsed}
-TimeDependentOperator / ODESolver
-                 |
-                 v
-      ODESolverCheckpointAdapter
-                 |
-                 v
-       CheckpointController
-          |             |
-          v             v
- StoreEverything    exact replay
-                          |
-                          v
+                 Arbitrary MFEM application
+                           |
+                           v
+                CheckpointStateAdapter
+              capture / restore full state
+                           |
+                           v
+                  CheckpointController
+                   /              \
+                  v                v
+        CheckpointSchedule     StatePropagator
+                   \              /
+                    \            /
+                     v          v
+                     exact replay
+                           |
+                           v
               ExactCheckpointWindow
-                          |
-                    +-----+-----+
-                    |           |
-                 memory       files
+                           |
+                           v
+                CheckpointStorage
+                  memory / files
 \endcode
 
-The controller and adapters borrow their dependencies. The application owns
-the ODESolver, TimeDependentOperator, adapter, propagator, storage backend, and
-moving window, and must keep them alive for the complete controller operation.
-The classes are not internally synchronized.
+CheckpointController, ExactCheckpointWindow, CheckpointSchedule, and the
+storage implementations operate only on StateId, CheckpointId, and opaque
+Snapshot values. They do not interpret Vector, ODESolver,
+TimeDependentOperator, or physical time.
 
-The solution Vector is not assumed to be a complete restart. CheckpointState
-stores the Vector, an explicit TimePoint, the continuation step size, and opaque
-solver restart bytes. Forward Euler has no persistent stage history, so its
-restart payload is empty and Restore reinitializes the solver. Future adapters
-for adaptive or multistep solvers must capture their complete controller and
-history state in the restart payload.
+The implemented ODE specialization is
+
+\code{.unparsed}
+Vector + ForwardEulerSolver + TimeDependentOperator + time/dt
+                  -> ForwardEulerCheckpointAdapter
+                  -> generic checkpoint core
+\endcode
+
+An application-defined specialization can use the same core without changing
+it. For example, a future adaptive application could provide
+
+\code{.unparsed}
+Mesh + FESpace + fields + properties
+                  -> application-defined adapter
+                  -> generic checkpoint core
+\endcode
+
+This adaptive adapter is conceptual and is not implemented here.
+
+\section checkpointing_components Core components
+
+Snapshot is an owning opaque byte sequence with value semantics. Zero-length
+snapshots are valid. MemoryCheckpointStorage and FileCheckpointStorage map a
+logical CheckpointId to Snapshot bytes without interpreting application state.
+
+ExactCheckpointWindow is a bounded FIFO cache of complete
+`{StateId, Snapshot}` states. Capacity zero disables caching. Insertions are
+staged so a failed copy does not commit a partial cache update.
+
+CheckpointController borrows a CheckpointStateAdapter, StatePropagator,
+CheckpointStorage, and ExactCheckpointWindow. Its active state means that the
+external application is synchronized to a committed complete snapshot at the
+reported StateId. CheckpointController::Restore() restores exactly the named
+CheckpointId. CheckpointController::RestoreState() uses an exact target when
+available, otherwise selects the nearest preceding cached or persisted state
+and propagates forward. RestoreStep() is a compatibility spelling for
+time-stepping applications.
+
+StoreEverythingSchedule stores the initial state and every accepted logical
+state. Scheduling is based on ordered state positions, never physical time.
+More advanced schedules and reverse orchestration remain follow-up work.
+
+Capture, restore, advance, and cache updates are staged around a committed
+snapshot. On failure, the controller restores the prior complete snapshot. If
+that rollback itself fails, the controller invalidates its active-state
+metadata and CheckpointConsistencyError reports that the application and
+controller can no longer be proven consistent. Capture is required to leave
+the application unchanged even when it throws; Restore and Advance may expose
+partial state only until controller rollback completes.
+
+The generic Snapshot boundary adds one complete active-state snapshot. Advance
+and restore transactions also make one rollback copy, and the moving window
+retains its configured number of complete snapshot copies. This is the cost of
+generic rollback without assuming an application-specific clone operation.
+
+\section checkpointing_ode ODE and Vector specialization
+
+ForwardEulerCheckpointAdapter binds externally owned Vector, TimePoint, `dt`,
+ForwardEulerSolver, and TimeDependentOperator objects to
+CheckpointStateAdapter. Its complete restart contains
+
+\code{.unparsed}
+Vector values + StateId + physical time + dt + solver restart bytes
+\endcode
+
+Forward Euler has no persistent stage history, so the solver restart bytes are
+empty. Restore resets the Vector, TimePoint, and `dt`, sets the operator time,
+and reinitializes the solver. ODEStatePropagator advances with the normal
+ODESolver::Step() implementation. ODECheckpointPropagator and
+ODESolverCheckpointAdapter remain compatibility names for the refined ODE
+types.
+
+Vector values are encoded by the ODE adapter using Vector::HostRead() and
+restored using Vector::HostWrite(). Capture can therefore synchronize device
+data to host. Persistent values use IEEE binary64; conversion from
+single-precision real_t to binary64 and back preserves every original value.
 
 \section checkpointing_persistence Persistence
 
-Vector values are read through Vector::HostRead(), so checkpoint capture may
-synchronize device data to host. Restore writes through Vector::HostWrite().
-The MFEM-facing scalar type is real_t; persistent time, step-size, and Vector
-values use IEEE binary64. Conversion from single-precision real_t to binary64
-and back preserves every original value exactly.
-
-The version 1 format has a 64-byte, canonical little-endian header:
+The ODE adapter preserves the version 1 persistent byte format exactly. Its
+64-byte canonical little-endian header is
 
 \code{.unparsed}
 offset  bytes  field
@@ -68,68 +181,51 @@ offset  bytes  field
  13      1    scalar width (8 = IEEE binary64)
  14      2    reserved, zero
  16      8    logical CheckpointId
- 24      8    StepId bit representation
+ 24      8    StateId (formerly StepId) bit representation
  32      8    physical time
  40      8    continuation dt
  48      8    Vector length
- 56      8    restart payload length
- 64     ...   Vector entries followed by opaque restart bytes
+ 56      8    solver restart payload length
+ 64     ...   Vector entries followed by solver restart bytes
 \endcode
 
-Decoding rejects unsupported versions, malformed lengths, ID mismatches,
-truncation, and trailing bytes. Invalid bytes raise InvalidCheckpointFormat;
-ordinary filesystem failures raise CheckpointStorageError.
+The meaning and byte positions are unchanged: StepId is now an alias for the
+same signed 64-bit StateId, and the remaining fields are the ODE adapter's
+opaque payload. Version 1 therefore remains valid. Generic application adapters
+define and validate their own Snapshot encodings.
+
+ODE decoding rejects unsupported versions, malformed lengths, ID or StateId
+mismatches, truncation, and trailing bytes. Invalid bytes raise
+InvalidCheckpointFormat; ordinary filesystem failures raise
+CheckpointStorageError.
 
 FileCheckpointStorage uses one deterministic file per logical checkpoint. An
 overwrite is written and closed in a same-directory temporary file and then
 renamed. A failed overwrite leaves the prior canonical file unchanged. Stale
-temporary files are ignored, and no fsync or crash-durability guarantee is
-made.
-
-\section checkpointing_replay Exact replay
-
-CheckpointController::Restore() restores exactly the requested logical
-CheckpointId. CheckpointController::RestoreStep() first uses an exact target if
-available; otherwise it selects the nearest preceding exact state in the
-transient moving window or persistent storage and advances with the normal
-ODESolver::Step() implementation. Failed restore or replay does not commit a
-partial active state or inconsistent moving-window entry.
-
-StoreEverythingSchedule provides the initial deterministic forward schedule.
-It stores the initial state and every accepted forward state. More advanced
-checkpoint schedules and reverse-time orchestration are intentionally outside
-this initial exact-replay interface.
+temporary files are ignored. The implementation does not promise fsync-based
+crash durability.
 
 \section checkpointing_parallel Rank-local parallel compatibility
 
-The checkpoint core contains no MPI calls. A parallel application may create a
-separate storage root on each rank while using the same deterministic schedule
-and logical CheckpointId values:
+The core contains no MPI calls. For a distributed state
+`S_i = {S_i^(0), ..., S_i^(P-1)}`, each rank's adapter captures its complete
+local portion. Logical StateId and CheckpointId values remain common while
+physical storage is rank-local, for example:
 
 \code{.unparsed}
-             common logical schedule
-                       |
-              +--------+--------+
-              |        |        |
-             r0       r1       r2
-              |        |        |
-      rank_000000  rank_000001  rank_000002
-              local FileCheckpointStorage
+checkpoints/rank_000000/
+checkpoints/rank_000001/
+checkpoints/rank_000002/
 \endcode
 
-For logical checkpoint i on P ranks, the distributed application checkpoint is
-the collection C_i = { C_i^(0), ..., C_i^(P-1) }. Each payload contains that
-rank's local Vector portion. The application must create unique rank-local
-directories and coordinate errors around collective operators.
-
-This compatibility model does not provide collective commit, failure
-propagation, cross-rank rollback, MPI-IO, a shared-file format, or
-fault-tolerant recovery.
+The application must coordinate errors around collective transitions. This
+model does not provide collective commit, failure propagation, cross-rank
+rollback, MPI-IO, a shared-file format, or fault-tolerant recovery.
 
 \section checkpointing_example Example
 
 Example 42 compares ordinary fixed-step Forward Euler integration with a
-trajectory replayed from its initial exact checkpoint. Build and run it with:
+trajectory replayed from its initial exact checkpoint:
 
 \code{.sh}
 cd examples
@@ -138,43 +234,27 @@ make ex42
 ./ex42 -s 40
 \endcode
 
-The example integrates the scalar equation
-
-\f[
-\frac{du}{dt} = \alpha u - u^3
-\f]
-
-twice with the same fixed-step Forward Euler method. The first integration is
-the reference. The second uses ForwardEulerCheckpointAdapter,
-ODECheckpointPropagator, MemoryCheckpointStorage, ExactCheckpointWindow, and
-CheckpointController. StoreEverythingSchedule creates checkpoint ID
-`step + 1` for every accepted state.
-
-After the checkpointed forward run, the example removes checkpoints 2 through
-`steps + 1`, clears the transient window, restores checkpoint 1, and calls
-RestoreStep() for the terminal step. Consequently, the terminal state must be
-recomputed from the initial complete restart rather than restored directly.
-The program reports
+It integrates `du/dt = alpha u - u^3`. StoreEverythingSchedule creates
+checkpoint ID `step + 1` for every accepted state. The example then removes all
+persistent checkpoints except the initial one, clears the transient window,
+restores checkpoint 1, and reconstructs the terminal state. It reports
 
 \code{.unparsed}
 terminal replay error: 0
 \endcode
 
-and returns success only when the replayed and reference terminal values are
-bitwise identical. The `-vis` and `-no-vis` options are accepted for consistency
-with MFEM's example test harness, but this example does not visualize output.
+and succeeds only when replay and ordinary integration are bitwise identical.
 
-The following concepts correspond to the standalone checkpoint library:
+\section checkpointing_compatibility Compatibility mapping
 
 \code{.unparsed}
-Standalone                       MFEM
-StepId / CheckpointId            StepId / CheckpointId
-Snapshot                         Snapshot
-MemoryStorage / FileStorage      MemoryCheckpointStorage / FileCheckpointStorage
-SnapshotWindow<Vector>           ExactCheckpointWindow
-StoreEverythingSchedule          StoreEverythingSchedule
-IntegratorCheckpointAdapter      ODESolverCheckpointAdapter
-ForwardPropagator<Vector>        ODECheckpointPropagator
-CheckpointExecutionController    CheckpointController
+Previous concept                 State-centric concept
+StepId                          StateId (StepId compatibility alias)
+TimePoint                       ODE-specific helper
+Vector CheckpointState          StateId + opaque Snapshot
+ODESolverCheckpointAdapter      ODECheckpointStateAdapter compatibility name
+ODECheckpointPropagator         ODEStatePropagator compatibility name
+Vector-centric controller       generic CheckpointController
+RestoreStep                     RestoreState (RestoreStep wrapper)
 \endcode
 */

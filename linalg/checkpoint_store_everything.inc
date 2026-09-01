@@ -22,7 +22,7 @@ public:
    /// Builds the deterministic store-everything trace.
    /// @throws std::invalid_argument for negative steps or insufficient slots.
    /// @throws std::length_error when size calculations exceed platform limits.
-   void Configure(StepId num_steps, std::size_t num_checkpoints) override
+   void Configure(StateId num_steps, std::size_t num_checkpoints) override
    {
       const std::size_t step_count = checkedStepCount(num_steps);
       if (step_count == std::numeric_limits<std::size_t>::max())
@@ -55,7 +55,7 @@ public:
       commands.reserve(command_count);
 
       commands.push_back(storageCommand(CheckpointAction::Store, 0));
-      for (StepId step = 0; step < num_steps; ++step)
+      for (StateId step = 0; step < num_steps; ++step)
       {
          commands.push_back(CheckpointCommand{CheckpointAction::Advance, step,
                                               step + 1, std::nullopt});
@@ -96,7 +96,7 @@ public:
    }
 
 private:
-   static std::size_t checkedStepCount(StepId num_steps)
+   static std::size_t checkedStepCount(StateId num_steps)
    {
       if (num_steps < 0)
       {
@@ -115,12 +115,13 @@ private:
       return static_cast<std::size_t>(unsigned_steps);
    }
 
-   static CheckpointId checkpointId(StepId step) noexcept
+   static CheckpointId checkpointId(StateId step) noexcept
    {
       return static_cast<CheckpointId>(step) + CheckpointId{1};
    }
 
-   static CheckpointCommand storageCommand(CheckpointAction action, StepId step)
+   static CheckpointCommand storageCommand(CheckpointAction action,
+                                           StateId step)
    {
       return CheckpointCommand{action, step, step, checkpointId(step)};
    }

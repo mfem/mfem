@@ -103,14 +103,19 @@ int main(int argc, char *argv[])
       reference_solver.Step(reference_state, reference_time, reference_dt);
    }
 
-   // 4. Assemble the checkpoint/replay services. The adapter and propagator
-   //    borrow the solver and operator; the controller borrows all four
-   //    services and owns its active continuation state.
+   // 4. Assemble the checkpoint/replay services. The ODE adapter binds the
+   //    generic state-centric core to this externally owned continuation.
    CubicOperator checkpoint_operator(parameter);
    ForwardEulerSolver checkpoint_solver;
+   Vector checkpoint_state(initial);
+   TimePoint checkpoint_time{0, 0.0};
+   real_t checkpoint_dt = dt;
    ForwardEulerCheckpointAdapter adapter(checkpoint_solver,
-                                          checkpoint_operator);
-   ODECheckpointPropagator propagator(checkpoint_solver);
+                                          checkpoint_operator,
+                                          checkpoint_state,
+                                          checkpoint_time, checkpoint_dt);
+   ODEStatePropagator propagator(checkpoint_solver, checkpoint_state,
+                                 checkpoint_time, checkpoint_dt);
    MemoryCheckpointStorage storage;
    ExactCheckpointWindow window(2);
    CheckpointController controller(adapter, propagator, storage, window);
@@ -119,7 +124,7 @@ int main(int argc, char *argv[])
    StoreEverythingSchedule schedule;
    schedule.Configure(steps, static_cast<size_t>(steps) + 1);
 
-   controller.Initialize(initial, 0.0, dt);
+   controller.Initialize();
    controller.ExecuteForward(schedule, steps);
 
    // 6. Retain only the initial persistent checkpoint and clear transient
@@ -134,7 +139,7 @@ int main(int argc, char *argv[])
 
    // 7. Exact deterministic replay must reproduce the reference bit for bit.
    const real_t replay_error =
-      std::abs(controller.ActiveState().state[0] - reference_state[0]);
+      std::abs(checkpoint_state[0] - reference_state[0]);
    cout << "terminal replay error: " << replay_error << '\n';
 
    return replay_error == 0.0 ? 0 : 3;

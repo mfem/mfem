@@ -85,10 +85,12 @@ Meshing improvements
 
 Linear and nonlinear solvers
 ----------------------------
-- Added native exact checkpoint/replay support for `Vector` and fixed-step
-  `ForwardEulerSolver` trajectories, including memory and transactional file
-  storage, exact moving-window caching, and StoreEverything scheduling.
-  Example 42 demonstrates exact deterministic replay from a stored restart.
+- Added native exact checkpoint/replay support for arbitrary ordered
+  application states, including memory and transactional file storage, exact
+  moving-window caching, and StoreEverything scheduling. The first built-in
+  adapter supports `Vector` state and fixed-step `ForwardEulerSolver`
+  trajectories. Example 42 demonstrates exact deterministic replay from a
+  stored restart.
 
 - Added support for trace spaces in PRefinementTransferOperator. This is used in
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the

@@ -29,18 +29,17 @@
 namespace mfem
 {
 
-/// Canonical discrete trajectory index; it is not a physical time value.
-using StepId = std::int64_t;
+/// Ordered logical position of a replayable application state.
+/** A state ID may denote a time step, nonlinear iteration, optimization
+    iteration, continuation step, adaptation cycle, or another deterministic
+    application-defined ordering. It has no intrinsic physical-time meaning. */
+using StateId = std::int64_t;
+
+/// Compatibility name for applications that use state IDs as time steps.
+using StepId = StateId;
 
 /// Logical checkpoint identity, independent of its physical representation.
 using CheckpointId = std::uint64_t;
-
-/// A trajectory index and its independently supplied physical time.
-struct TimePoint
-{
-   StepId step = 0;   ///< Canonical discrete trajectory index.
-   real_t time = 0.0; ///< Physical time associated with @a step.
-};
 
 /// Owning opaque byte container used for restart and persistent payloads.
 /** Copies are independent, moves transfer ownership, and zero-length snapshots
@@ -110,27 +109,24 @@ public:
    using CheckpointError::CheckpointError;
 };
 
-/// Complete exact continuation state at one accepted trajectory step.
-/** The solution vector is distinct from the opaque integrator restart payload.
-    The value of @a dt is the step size to use when continuing from @a time. */
+/// Complete opaque application state at one ordered logical position.
+/** The adapter defines the snapshot contents. A state is complete only when
+    it contains everything required to continue deterministic replay. */
 struct CheckpointState
 {
-   Vector state;       ///< Application solution vector.
-   TimePoint time;     ///< Discrete step and physical time.
-   real_t dt = 0.0;   ///< Continuation step size.
-   Snapshot restart;  ///< Solver-specific complete restart data.
+   StateId id = 0;     ///< Ordered logical application-state position.
+   Snapshot snapshot; ///< Complete adapter-defined application state.
+   /// Identity embedded by adapters that validate persistent checkpoint IDs.
+   std::optional<CheckpointId> checkpoint;
 
-   /// Exchange complete continuation states without allocating.
+   /// Exchange complete opaque states without allocating.
    void Swap(CheckpointState &other) noexcept
    {
-      state.Swap(other.state);
-      const TimePoint old_time = time;
-      time = other.time;
-      other.time = old_time;
-      const real_t old_dt = dt;
-      dt = other.dt;
-      other.dt = old_dt;
-      restart.Swap(other.restart);
+      const StateId old_id = id;
+      id = other.id;
+      other.id = old_id;
+      snapshot.Swap(other.snapshot);
+      checkpoint.swap(other.checkpoint);
    }
 };
 
@@ -221,7 +217,7 @@ public:
    std::string PathFor(CheckpointId id) const;
 };
 
-/// Bounded FIFO cache of complete exact restart states.
+/// Bounded FIFO cache of complete exact application states.
 class ExactCheckpointWindow
 {
 private:
@@ -239,17 +235,17 @@ public:
    /// Return the number of cached states.
    std::size_t Size() const { return entries.size(); }
 
-   /// Return a borrowed exact state at @a step, or NULL when absent.
+   /// Return a borrowed exact state at @a id, or NULL when absent.
    /** The pointer remains valid until the next mutation of this window. */
-   const CheckpointState *Find(StepId step) const;
+   const CheckpointState *Find(StateId id) const;
 
-   /// Return the newest cached exact state at or before @a step, or NULL.
+   /// Return the newest cached exact state at or before @a id, or NULL.
    /** The pointer remains valid until the next mutation of this window. */
-   const CheckpointState *FindAtOrBefore(StepId step) const;
+   const CheckpointState *FindAtOrBefore(StateId id) const;
 
    /// Insert or replace an exact state, evicting the oldest state when full.
    /** The update is committed only after all required copies succeed.
-       @throws InvalidCheckpointState if the trajectory step is negative. */
+       @throws InvalidCheckpointState if the state ID is negative. */
    void Insert(const CheckpointState &checkpoint);
 
    /// Remove all cached states.
@@ -270,8 +266,8 @@ enum class CheckpointAction
 struct CheckpointCommand
 {
    CheckpointAction action = CheckpointAction::Finished; ///< Operation kind.
-   StepId from_step = 0; ///< Required active trajectory step.
-   StepId to_step = 0;   ///< Resulting trajectory step.
+   StateId from_step = 0; ///< Required active logical state.
+   StateId to_step = 0;   ///< Resulting logical state.
    std::optional<CheckpointId> checkpoint; ///< Logical ID for storage actions.
 };
 
@@ -295,7 +291,7 @@ class OfflineCheckpointSchedule : public CheckpointSchedule
 public:
    /// Configure a known @a num_steps horizon and physical slot budget.
    /** StoreEverythingSchedule requires at least @a num_steps + 1 slots. */
-   virtual void Configure(StepId num_steps,
+   virtual void Configure(StateId num_steps,
                           std::size_t num_checkpoints) = 0;
 };
 
@@ -316,7 +312,7 @@ public:
    ~StoreEverythingSchedule() override;
 
    /// @copydoc OfflineCheckpointSchedule::Configure()
-   void Configure(StepId num_steps, std::size_t num_checkpoints) override;
+   void Configure(StateId num_steps, std::size_t num_checkpoints) override;
 
    /// @copydoc CheckpointSchedule::Next()
    CheckpointCommand Next() override;
@@ -325,79 +321,70 @@ public:
    void Reset() override;
 };
 
-/// Opt-in bridge between an ODESolver and complete checkpoint restart state.
-/** Implementations borrow their solver and operator; both must outlive the
-    adapter. */
-class ODESolverCheckpointAdapter
+/// Application-defined capture and restore of complete replayable state.
+/** The adapter owns knowledge of all replay-relevant objects, their lifetimes,
+    snapshot compatibility, and safe restoration order. It must capture hidden
+    state such as controller history, adaptation decisions, or RNG state when
+    those values affect deterministic replay. Dependencies are borrowed and
+    must outlive the adapter.
+
+    Capture must not change the application, including when it throws. Restore
+    may have partially modified the application when it throws; the controller
+    then restores its last committed snapshot. If that rollback also fails,
+    the controller invalidates its active-state metadata. */
+class CheckpointStateAdapter
 {
 public:
-   /// Destroy an adapter without destroying its borrowed solver or operator.
-   virtual ~ODESolverCheckpointAdapter() = default;
+   /// Destroy an adapter without destroying its borrowed application state.
+   virtual ~CheckpointStateAdapter() = default;
 
-   /// Capture the complete restart represented by @a state, @a time, and @a dt.
-   /// @throws InvalidCheckpointState if the supplied continuation is invalid.
-   virtual CheckpointState Capture(const Vector &state, const TimePoint &time,
-                                   real_t dt) const = 0;
+   /// Capture complete application state at @a state.
+   /** @a checkpoint identifies persistent encodings when present. Adapters may
+       ignore it; transient controller and moving-window captures pass no
+       identity. On success or failure, the application remains synchronized
+       to @a state. */
+   virtual Snapshot Capture(
+      StateId state,
+      std::optional<CheckpointId> checkpoint = std::nullopt) const = 0;
 
-   /// Restore @a checkpoint and reinitialize the borrowed solver as needed.
-   /// @throws InvalidCheckpointState if the restart is incomplete or invalid.
-   virtual void Restore(const CheckpointState &checkpoint, Vector &state,
-                        TimePoint &time, real_t &dt) = 0;
+   /// Restore complete application state @a state from @a snapshot.
+   /** Implementations validate compatibility and restore dependent objects in
+       a safe order. @a checkpoint has the same meaning as in Capture(). On
+       success the application represents @a state. A throwing implementation
+       may leave partial state; CheckpointController attempts rollback. */
+   virtual void Restore(
+      StateId state, const Snapshot &snapshot,
+      std::optional<CheckpointId> checkpoint = std::nullopt) = 0;
 };
 
-/// Exact restart adapter for MFEM's fixed-step ForwardEulerSolver.
-class ForwardEulerCheckpointAdapter : public ODESolverCheckpointAdapter
+/// Application-defined deterministic transitions between ordered states.
+class StatePropagator
 {
-private:
-   ForwardEulerSolver &solver;   ///< Borrowed solver to reinitialize.
-   TimeDependentOperator &oper;  ///< Borrowed time-dependent operator.
-
 public:
-   /// Borrow @a solver_ and @a oper_ for the lifetime of this adapter.
-   ForwardEulerCheckpointAdapter(ForwardEulerSolver &solver_,
-                                 TimeDependentOperator &oper_)
-      : solver(solver_), oper(oper_) { }
+   /// Destroy a propagator without destroying its borrowed application state.
+   virtual ~StatePropagator() = default;
 
-   /// @copydoc ODESolverCheckpointAdapter::Capture()
-   CheckpointState Capture(const Vector &state, const TimePoint &time,
-                           real_t dt) const override;
-
-   /// @copydoc ODESolverCheckpointAdapter::Restore()
-   void Restore(const CheckpointState &checkpoint, Vector &state,
-                TimePoint &time, real_t &dt) override;
+   /// Apply deterministic transitions from @a from through @a to.
+   /** The application must initially represent @a from and represents @a to
+       on success. Neither identifier has an intrinsic physical-time meaning.
+       Throw on failure; partial transitions are permitted because
+       CheckpointController restores the last committed snapshot. */
+   virtual void Advance(StateId from, StateId to) = 0;
 };
 
-/// Exact forward propagator using the normal ODESolver::Step() implementation.
-class ODECheckpointPropagator
-{
-private:
-   ODESolver &solver; ///< Borrowed solver used for all propagation.
-
-public:
-   /// Borrow @a solver_ for the lifetime of this propagator.
-   explicit ODECheckpointPropagator(ODESolver &solver_) : solver(solver_) { }
-
-   /// Advance exactly one canonical step using the borrowed ODESolver.
-   /// @throws InvalidCheckpointState if the solver does not advance time.
-   void Advance(Vector &state, TimePoint &time, real_t &dt);
-
-   /// Advance monotonically until @a target is active.
-   /// @throws InvalidCheckpointState if @a target precedes @a time.
-   void AdvanceTo(Vector &state, TimePoint &time, real_t &dt, StepId target);
-};
-
-/// Exact scheduler-driven checkpoint/replay controller for MFEM ODE solves.
+/// Exact scheduler-driven checkpoint/replay controller for application state.
 /** The controller borrows its adapter, propagator, storage, and moving window.
-    It owns the active primal state and is not thread-safe. */
+    The application remains externally owned and synchronized to the committed
+    active state. The controller is not thread-safe. */
 class CheckpointController
 {
 private:
-   ODESolverCheckpointAdapter &adapter; ///< Borrowed restart adapter.
-   ODECheckpointPropagator &propagator; ///< Borrowed exact propagator.
+   CheckpointStateAdapter &adapter;      ///< Borrowed state adapter.
+   StatePropagator &propagator;         ///< Borrowed exact propagator.
    CheckpointStorage &storage;          ///< Borrowed physical storage.
    ExactCheckpointWindow &window;       ///< Borrowed exact replay cache.
    std::optional<CheckpointState> active; ///< Committed active state.
-   std::map<CheckpointId, StepId> checkpoints; ///< Registered IDs and steps.
+   std::map<CheckpointId, StateId> checkpoints; ///< Registered state IDs.
 
    /// Validate and execute one scheduler command.
    void Execute(const CheckpointCommand &command);
@@ -416,22 +403,21 @@ private:
 
 public:
    /// Borrow all runtime services; each must outlive this controller.
-   CheckpointController(ODESolverCheckpointAdapter &adapter_,
-                        ODECheckpointPropagator &propagator_,
+   CheckpointController(CheckpointStateAdapter &adapter_,
+                        StatePropagator &propagator_,
                         CheckpointStorage &storage_,
                         ExactCheckpointWindow &window_)
       : adapter(adapter_), propagator(propagator_), storage(storage_),
         window(window_) { }
 
-   /// Initialize the committed active continuation state and clear metadata.
-   /** Existing physical objects are not erased. This operation provides the
-       strong guarantee for controller state if adapter validation fails. */
-   void Initialize(const Vector &state, real_t time, real_t dt,
-                   StepId step = 0);
+   /// Capture @a state as active and clear controller metadata and the window.
+   /** The application must already be synchronized to @a state. Existing
+       physical checkpoint objects are not erased. */
+   void Initialize(StateId state = 0);
 
-   /// Execute an offline schedule through Finished at @a terminal_step.
+   /// Execute an offline schedule through Finished at @a terminal_state.
    /// @throws InvalidCheckpointState for an inconsistent schedule trace.
-   void ExecuteForward(CheckpointSchedule &schedule, StepId terminal_step);
+   void ExecuteForward(CheckpointSchedule &schedule, StateId terminal_state);
 
    /// Store the committed active state under the new logical @a id.
    /** The physical object is written before metadata is committed. A failed
@@ -448,14 +434,88 @@ public:
    /** Physical erase occurs first; metadata removal is then non-throwing. */
    void Discard(CheckpointId id);
 
-   /// Restore or exactly replay the requested trajectory step.
+   /// Restore or exactly replay the requested logical application state.
    /** The exact target is preferred. Otherwise the nearest preceding cached or
        persisted restart is selected. Failure does not commit partial state. */
-   void RestoreStep(StepId target);
+   void RestoreState(StateId target);
 
-   /// Return the committed active continuation state.
+   /// Compatibility wrapper for time-stepping applications.
+   void RestoreStep(StepId target) { RestoreState(target); }
+
+   /// Return the committed active complete application state.
    const CheckpointState &ActiveState() const;
 };
+
+/// ODE-specific pairing of a logical step and physical time.
+struct TimePoint
+{
+   StepId step = 0;   ///< Ordered logical time-step position.
+   real_t time = 0.0; ///< Physical time associated with @a step.
+};
+
+/// Base for ODE adapters that bind externally owned continuation state.
+class ODECheckpointStateAdapter : public CheckpointStateAdapter
+{
+protected:
+   Vector &state;    ///< Borrowed solution state.
+   TimePoint &time;  ///< Borrowed logical step and physical time.
+   real_t &dt;       ///< Borrowed continuation step size.
+
+   /// Borrow externally owned ODE continuation state.
+   ODECheckpointStateAdapter(Vector &state_, TimePoint &time_, real_t &dt_)
+      : state(state_), time(time_), dt(dt_) { }
+};
+
+/// Compatibility name for the former ODE adapter abstraction.
+using ODESolverCheckpointAdapter = ODECheckpointStateAdapter;
+
+/// Exact state adapter for MFEM's fixed-step ForwardEulerSolver.
+class ForwardEulerCheckpointAdapter : public ODECheckpointStateAdapter
+{
+private:
+   ForwardEulerSolver &solver;   ///< Borrowed solver to reinitialize.
+   TimeDependentOperator &oper;  ///< Borrowed time-dependent operator.
+
+public:
+   /// Borrow ODE state, solver, and operator for the adapter lifetime.
+   ForwardEulerCheckpointAdapter(ForwardEulerSolver &solver_,
+                                 TimeDependentOperator &oper_, Vector &state_,
+                                 TimePoint &time_, real_t &dt_)
+      : ODECheckpointStateAdapter(state_, time_, dt_), solver(solver_),
+        oper(oper_) { }
+
+   /// @copydoc CheckpointStateAdapter::Capture()
+   Snapshot Capture(
+      StateId state_id,
+      std::optional<CheckpointId> checkpoint = std::nullopt) const override;
+
+   /// @copydoc CheckpointStateAdapter::Restore()
+   void Restore(
+      StateId state_id, const Snapshot &snapshot,
+      std::optional<CheckpointId> checkpoint = std::nullopt) override;
+};
+
+/// Exact ODE transitions using the normal ODESolver::Step() implementation.
+class ODEStatePropagator : public StatePropagator
+{
+private:
+   ODESolver &solver; ///< Borrowed solver used for all propagation.
+   Vector &state;     ///< Borrowed solution state.
+   TimePoint &time;   ///< Borrowed logical step and physical time.
+   real_t &dt;        ///< Borrowed continuation step size.
+
+public:
+   /// Borrow ODE continuation state and solver for the propagator lifetime.
+   ODEStatePropagator(ODESolver &solver_, Vector &state_, TimePoint &time_,
+                      real_t &dt_)
+      : solver(solver_), state(state_), time(time_), dt(dt_) { }
+
+   /// @copydoc StatePropagator::Advance()
+   void Advance(StateId from, StateId to) override;
+};
+
+/// Compatibility name for the former ODE propagator.
+using ODECheckpointPropagator = ODEStatePropagator;
 
 } // namespace mfem
 

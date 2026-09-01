@@ -29,12 +29,21 @@ namespace mfem
 namespace
 {
 
-/// Internal encoder/decoder for the stable exact checkpoint payload.
+/// Complete ODE continuation encoded by the built-in adapter.
+struct ODECheckpointData
+{
+   Vector state;
+   TimePoint time;
+   real_t dt = 0.0;
+   Snapshot restart;
+};
+
+/// Internal encoder/decoder for the stable exact ODE checkpoint payload.
 /** The 64-byte header contains, in order, an eight-byte magic value, version,
     byte-order and scalar-width markers, reserved bits, logical ID, trajectory
     step, physical time, continuation step size, Vector length, and restart
     length. Vector entries and restart bytes follow the header. */
-class CheckpointStateSerializer
+class ODECheckpointSerializer
 {
 public:
    /// Current persisted payload version.
@@ -44,11 +53,11 @@ public:
    static constexpr std::size_t HeaderSize = 64;
 
    /// Serialize @a checkpoint and record its logical @a id.
-   static Snapshot Encode(CheckpointId id, const CheckpointState &checkpoint);
+   static Snapshot Encode(CheckpointId id, const ODECheckpointData &checkpoint);
 
    /// Decode @a snapshot and verify that it contains @a expected_id.
-   static CheckpointState Decode(CheckpointId expected_id,
-                                 const Snapshot &snapshot);
+   static ODECheckpointData Decode(CheckpointId expected_id,
+                                   const Snapshot &snapshot);
 };
 
 const std::uint64_t checkpoint_magic = ///< Stable persisted format magic.
@@ -117,17 +126,17 @@ std::size_t CheckedSize(std::uint64_t value, const char *description)
 std::size_t CheckedPayloadSize(std::size_t states, std::size_t restart)
 {
    if (states > (std::numeric_limits<std::size_t>::max() -
-                 CheckpointStateSerializer::HeaderSize) / sizeof(double))
+                 ODECheckpointSerializer::HeaderSize) / sizeof(double))
    {
       throw InvalidCheckpointState("checkpoint state byte count overflows");
    }
    const std::size_t state_bytes = states * sizeof(double);
    if (restart > std::numeric_limits<std::size_t>::max() -
-       CheckpointStateSerializer::HeaderSize - state_bytes)
+       ODECheckpointSerializer::HeaderSize - state_bytes)
    {
       throw InvalidCheckpointState("checkpoint restart byte count overflows");
    }
-   return CheckpointStateSerializer::HeaderSize + state_bytes + restart;
+   return ODECheckpointSerializer::HeaderSize + state_bytes + restart;
 }
 
 /// Convert a logical checkpoint ID for diagnostics and filenames.
@@ -136,8 +145,8 @@ std::string IdString(CheckpointId id)
    return std::to_string(id);
 }
 
-Snapshot CheckpointStateSerializer::Encode(
-   CheckpointId id, const CheckpointState &checkpoint)
+Snapshot ODECheckpointSerializer::Encode(
+   CheckpointId id, const ODECheckpointData &checkpoint)
 {
    if (checkpoint.state.Size() < 0)
    {
@@ -163,7 +172,7 @@ Snapshot CheckpointStateSerializer::Encode(
 
    std::uint64_t step_bits = 0;
    static_assert(sizeof(step_bits) == sizeof(checkpoint.time.step),
-                 "StepId size mismatch");
+                 "StateId size mismatch");
    std::memcpy(&step_bits, &checkpoint.time.step, sizeof(step_bits));
    AppendLittleEndian(encoded, step_bits);
    AppendLittleEndian(encoded,
@@ -197,7 +206,7 @@ Snapshot CheckpointStateSerializer::Encode(
    return result;
 }
 
-CheckpointState CheckpointStateSerializer::Decode(
+ODECheckpointData ODECheckpointSerializer::Decode(
    CheckpointId expected_id, const Snapshot &snapshot)
 {
    if (snapshot.Size() < HeaderSize)
@@ -234,7 +243,7 @@ CheckpointState CheckpointStateSerializer::Decode(
 
    const std::uint64_t step_bits =
       ReadLittleEndian<std::uint64_t>(snapshot, offset);
-   StepId step = 0;
+   StateId step = 0;
    std::memcpy(&step, &step_bits, sizeof(step));
    if (step < 0)
    {
@@ -271,7 +280,7 @@ CheckpointState CheckpointStateSerializer::Decode(
          "checkpoint byte count disagrees with its header");
    }
 
-   CheckpointState checkpoint;
+   ODECheckpointData checkpoint;
    checkpoint.time.step = step;
    checkpoint.time.time = static_cast<real_t>(time);
    checkpoint.dt = static_cast<real_t>(dt);
@@ -473,22 +482,21 @@ std::string FileCheckpointStorage::PathFor(CheckpointId id) const
    return impl->Path(id).string();
 }
 
-const CheckpointState *ExactCheckpointWindow::Find(StepId step) const
+const CheckpointState *ExactCheckpointWindow::Find(StateId id) const
 {
    for (const CheckpointState &entry : entries)
    {
-      if (entry.time.step == step) { return &entry; }
+      if (entry.id == id) { return &entry; }
    }
    return NULL;
 }
 
-const CheckpointState *ExactCheckpointWindow::FindAtOrBefore(StepId step) const
+const CheckpointState *ExactCheckpointWindow::FindAtOrBefore(StateId id) const
 {
    const CheckpointState *result = NULL;
    for (const CheckpointState &entry : entries)
    {
-      if (entry.time.step <= step &&
-          (result == NULL || entry.time.step > result->time.step))
+      if (entry.id <= id && (result == NULL || entry.id > result->id))
       {
          result = &entry;
       }
@@ -498,15 +506,16 @@ const CheckpointState *ExactCheckpointWindow::FindAtOrBefore(StepId step) const
 
 void ExactCheckpointWindow::Insert(const CheckpointState &checkpoint)
 {
-   if (checkpoint.time.step < 0)
+   if (checkpoint.id < 0)
    {
-      throw InvalidCheckpointState("moving-window step must be non-negative");
+      throw InvalidCheckpointState(
+         "moving-window state ID must be non-negative");
    }
    if (capacity == 0) { return; }
    std::deque<CheckpointState> updated(entries);
    for (CheckpointState &entry : updated)
    {
-      if (entry.time.step == checkpoint.time.step)
+      if (entry.id == checkpoint.id)
       {
          entry = checkpoint;
          entries.swap(updated);
@@ -518,57 +527,67 @@ void ExactCheckpointWindow::Insert(const CheckpointState &checkpoint)
    entries.swap(updated);
 }
 
-CheckpointState ForwardEulerCheckpointAdapter::Capture(
-   const Vector &state, const TimePoint &time, real_t dt) const
+Snapshot ForwardEulerCheckpointAdapter::Capture(
+   StateId state_id, std::optional<CheckpointId> checkpoint) const
 {
-   if (time.step < 0 || dt <= 0.0)
+   if (state_id < 0 || time.step != state_id || dt <= 0.0)
    {
       throw InvalidCheckpointState("Forward Euler checkpoint requires a "
-                                   "non-negative step and positive dt");
+                                   "matching non-negative state ID and "
+                                   "positive dt");
    }
-   return CheckpointState{state, time, dt, Snapshot()};
+   const ODECheckpointData data{state, time, dt, Snapshot()};
+   return ODECheckpointSerializer::Encode(checkpoint.value_or(0), data);
 }
 
 void ForwardEulerCheckpointAdapter::Restore(
-   const CheckpointState &checkpoint, Vector &state, TimePoint &time,
-   real_t &dt)
+   StateId state_id, const Snapshot &snapshot,
+   std::optional<CheckpointId> checkpoint)
 {
-   if (checkpoint.restart.Size() != 0)
+   ODECheckpointData restored = ODECheckpointSerializer::Decode(
+                                   checkpoint.value_or(0), snapshot);
+   if (restored.time.step != state_id)
+   {
+      throw InvalidCheckpointFormat(
+         "checkpoint state ID disagrees with requested state");
+   }
+   if (restored.dt <= 0.0 || restored.restart.Size() != 0)
    {
       throw InvalidCheckpointState(
-         "Forward Euler restart payload must be empty");
+         "Forward Euler restart requires positive dt and no solver payload");
    }
-   state = checkpoint.state;
-   time = checkpoint.time;
-   dt = checkpoint.dt;
+   state = restored.state;
+   time = restored.time;
+   dt = restored.dt;
    oper.SetTime(time.time);
    solver.Init(oper);
 }
 
-void ODECheckpointPropagator::Advance(
-   Vector &state, TimePoint &time, real_t &dt)
+void ODEStatePropagator::Advance(StateId from, StateId to)
 {
-   if (time.step == std::numeric_limits<StepId>::max())
+   if (time.step != from)
    {
-      throw InvalidCheckpointState("trajectory step increment overflows");
+      throw InvalidCheckpointState(
+         "ODE application is not synchronized to the requested state");
    }
-   const real_t previous_time = time.time;
-   solver.Step(state, time.time, dt);
-   if (!(time.time > previous_time))
-   {
-      throw InvalidCheckpointState("ODESolver::Step did not advance time");
-   }
-   ++time.step;
-}
-
-void ODECheckpointPropagator::AdvanceTo(
-   Vector &state, TimePoint &time, real_t &dt, StepId target)
-{
-   if (target < time.step)
+   if (to < from)
    {
       throw InvalidCheckpointState("cannot replay backward");
    }
-   while (time.step < target) { Advance(state, time, dt); }
+   while (time.step < to)
+   {
+      if (time.step == std::numeric_limits<StateId>::max())
+      {
+         throw InvalidCheckpointState("ODE state increment overflows");
+      }
+      const real_t previous_time = time.time;
+      solver.Step(state, time.time, dt);
+      if (!(time.time > previous_time))
+      {
+         throw InvalidCheckpointState("ODESolver::Step did not advance time");
+      }
+      ++time.step;
+   }
 }
 
 const CheckpointState &CheckpointController::ActiveState() const
@@ -580,17 +599,13 @@ const CheckpointState &CheckpointController::ActiveState() const
    return *active;
 }
 
-void CheckpointController::Initialize(
-   const Vector &state, real_t time, real_t dt, StepId step)
+void CheckpointController::Initialize(StateId state)
 {
-   CheckpointState initial = adapter.Capture(state, TimePoint{step, time}, dt);
-   Vector restored;
-   TimePoint restored_time;
-   real_t restored_dt = 0.0;
-   adapter.Restore(initial, restored, restored_time, restored_dt);
-   initial.state = restored;
-   initial.time = restored_time;
-   initial.dt = restored_dt;
+   if (state < 0)
+   {
+      throw InvalidCheckpointState("initial state ID must be non-negative");
+   }
+   CheckpointState initial{state, adapter.Capture(state)};
    active = std::move(initial);
    checkpoints.clear();
    window.Clear();
@@ -598,15 +613,15 @@ void CheckpointController::Initialize(
 
 void CheckpointController::Store(CheckpointId id)
 {
-   const StepId step = ActiveState().time.step;
-   ExecuteStore(CheckpointCommand{CheckpointAction::Store, step, step, id});
+   const StateId state = ActiveState().id;
+   ExecuteStore(CheckpointCommand{CheckpointAction::Store, state, state, id});
 }
 
 void CheckpointController::ExecuteStore(const CheckpointCommand &command)
 {
    const CheckpointState &current = ActiveState();
    if (!command.checkpoint || command.from_step != command.to_step ||
-       command.to_step != current.time.step)
+       command.to_step != current.id)
    {
       throw InvalidCheckpointState("invalid scheduler Store command");
    }
@@ -614,12 +629,11 @@ void CheckpointController::ExecuteStore(const CheckpointCommand &command)
    {
       throw CheckpointConsistencyError("scheduler reused a live checkpoint ID");
    }
-   Snapshot snapshot = CheckpointStateSerializer::Encode(
-                          *command.checkpoint, current);
+   Snapshot snapshot = adapter.Capture(current.id, command.checkpoint);
    storage.Store(*command.checkpoint, std::move(snapshot));
    try
    {
-      checkpoints.emplace(*command.checkpoint, current.time.step);
+      checkpoints.emplace(*command.checkpoint, current.id);
    }
    catch (...)
    {
@@ -661,23 +675,11 @@ void CheckpointController::ExecuteRestore(const CheckpointCommand &command)
          "scheduler Restore does not name a registered checkpoint");
    }
    const CheckpointState previous = ActiveState();
+   const Snapshot stored = storage.Restore(*command.checkpoint);
    try
    {
-      CheckpointState restored = CheckpointStateSerializer::Decode(
-                                   *command.checkpoint,
-                                   storage.Restore(*command.checkpoint));
-      if (restored.time.step != command.to_step)
-      {
-         throw CheckpointConsistencyError(
-            "restored checkpoint has the wrong trajectory step");
-      }
-      Vector state;
-      TimePoint time;
-      real_t dt = 0.0;
-      adapter.Restore(restored, state, time, dt);
-      restored.state = state;
-      restored.time = time;
-      restored.dt = dt;
+      adapter.Restore(command.to_step, stored, command.checkpoint);
+      CheckpointState restored{command.to_step, stored, command.checkpoint};
       window.Insert(restored);
       active->Swap(restored);
    }
@@ -685,13 +687,11 @@ void CheckpointController::ExecuteRestore(const CheckpointCommand &command)
    {
       try
       {
-         Vector state;
-         TimePoint time;
-         real_t dt = 0.0;
-         adapter.Restore(previous, state, time, dt);
+         adapter.Restore(previous.id, previous.snapshot, previous.checkpoint);
       }
       catch (...)
       {
+         active.reset();
          throw CheckpointConsistencyError(
             "checkpoint Restore rollback failed");
       }
@@ -702,19 +702,17 @@ void CheckpointController::ExecuteRestore(const CheckpointCommand &command)
 void CheckpointController::ExecuteAdvance(const CheckpointCommand &command)
 {
    const CheckpointState previous = ActiveState();
-   if (command.checkpoint || command.from_step != previous.time.step ||
+   if (command.checkpoint || command.from_step != previous.id ||
        command.to_step <= command.from_step)
    {
       throw InvalidCheckpointState("invalid scheduler Advance command");
    }
    try
    {
-      Vector state;
-      TimePoint time;
-      real_t dt = 0.0;
-      adapter.Restore(previous, state, time, dt);
-      propagator.AdvanceTo(state, time, dt, command.to_step);
-      CheckpointState advanced = adapter.Capture(state, time, dt);
+      adapter.Restore(previous.id, previous.snapshot, previous.checkpoint);
+      propagator.Advance(command.from_step, command.to_step);
+      CheckpointState advanced{command.to_step,
+                               adapter.Capture(command.to_step)};
       window.Insert(advanced);
       active->Swap(advanced);
    }
@@ -722,13 +720,11 @@ void CheckpointController::ExecuteAdvance(const CheckpointCommand &command)
    {
       try
       {
-         Vector state;
-         TimePoint time;
-         real_t dt = 0.0;
-         adapter.Restore(previous, state, time, dt);
+         adapter.Restore(previous.id, previous.snapshot, previous.checkpoint);
       }
       catch (...)
       {
+         active.reset();
          throw CheckpointConsistencyError(
             "checkpoint Advance rollback failed");
       }
@@ -764,8 +760,7 @@ void CheckpointController::ExecuteDiscard(const CheckpointCommand &command)
    checkpoints.erase(found);
 }
 
-void CheckpointController::Execute(
-   const CheckpointCommand &command)
+void CheckpointController::Execute(const CheckpointCommand &command)
 {
    switch (command.action)
    {
@@ -778,9 +773,9 @@ void CheckpointController::Execute(
 }
 
 void CheckpointController::ExecuteForward(
-   CheckpointSchedule &schedule, StepId terminal_step)
+   CheckpointSchedule &schedule, StateId terminal_state)
 {
-   if (terminal_step < ActiveState().time.step)
+   if (terminal_state < ActiveState().id)
    {
       throw InvalidCheckpointState("invalid offline forward phase");
    }
@@ -789,28 +784,28 @@ void CheckpointController::ExecuteForward(
       const CheckpointCommand command = schedule.Next();
       if (command.action == CheckpointAction::Finished)
       {
-         if (active->time.step != terminal_step)
+         if (active->id != terminal_state)
          {
             throw InvalidCheckpointState(
-               "schedule ended before the requested terminal step");
+               "schedule ended before the requested terminal state");
          }
          return;
       }
       if (command.action == CheckpointAction::Advance &&
-          command.to_step > terminal_step)
+          command.to_step > terminal_state)
       {
          throw InvalidCheckpointState(
-            "schedule advances beyond the requested terminal step");
+            "schedule advances beyond the requested terminal state");
       }
       Execute(command);
    }
 }
 
-void CheckpointController::RestoreStep(StepId target)
+void CheckpointController::RestoreState(StateId target)
 {
    if (target < 0)
    {
-      throw InvalidCheckpointState("requested replay step is negative");
+      throw InvalidCheckpointState("requested replay state is negative");
    }
    const CheckpointState previous = ActiveState();
    std::optional<CheckpointState> origin;
@@ -818,19 +813,19 @@ void CheckpointController::RestoreStep(StepId target)
 
    const CheckpointState *cached = window.FindAtOrBefore(target);
    if (cached) { origin = *cached; }
-   StepId origin_step = origin ? origin->time.step : StepId(-1);
+   StateId origin_state = origin ? origin->id : StateId(-1);
    for (const auto &entry : checkpoints)
    {
-      if (entry.second <= target && entry.second > origin_step)
+      if (entry.second <= target && entry.second > origin_state)
       {
-         origin_step = entry.second;
+         origin_state = entry.second;
          stored_origin = entry.first;
       }
    }
    if (stored_origin)
    {
-      origin = CheckpointStateSerializer::Decode(
-                  *stored_origin, storage.Restore(*stored_origin));
+      origin = CheckpointState{origin_state, storage.Restore(*stored_origin),
+                               stored_origin};
    }
    if (!origin)
    {
@@ -840,12 +835,11 @@ void CheckpointController::RestoreStep(StepId target)
 
    try
    {
-      Vector state;
-      TimePoint time;
-      real_t dt = 0.0;
-      adapter.Restore(*origin, state, time, dt);
-      propagator.AdvanceTo(state, time, dt, target);
-      CheckpointState restored = adapter.Capture(state, time, dt);
+      adapter.Restore(origin->id, origin->snapshot, origin->checkpoint);
+      propagator.Advance(origin->id, target);
+      CheckpointState restored = target == origin->id ? *origin :
+                                 CheckpointState{target,
+                                    adapter.Capture(target)};
       window.Insert(restored);
       active->Swap(restored);
    }
@@ -853,13 +847,11 @@ void CheckpointController::RestoreStep(StepId target)
    {
       try
       {
-         Vector state;
-         TimePoint time;
-         real_t dt = 0.0;
-         adapter.Restore(previous, state, time, dt);
+         adapter.Restore(previous.id, previous.snapshot, previous.checkpoint);
       }
       catch (...)
       {
+         active.reset();
          throw CheckpointConsistencyError(
             "exact replay rollback failed");
       }
@@ -881,7 +873,7 @@ StoreEverythingSchedule::StoreEverythingSchedule()
 StoreEverythingSchedule::~StoreEverythingSchedule() = default;
 
 void StoreEverythingSchedule::Configure(
-   StepId num_steps, std::size_t num_checkpoints)
+   StateId num_steps, std::size_t num_checkpoints)
 {
    impl->schedule.Configure(num_steps, num_checkpoints);
 }
