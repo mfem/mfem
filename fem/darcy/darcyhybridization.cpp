@@ -647,19 +647,45 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
                << face_order.Size() << " for " << mesh->GetNumFaces()
                << " faces.");
 
-   // The constraint space stays uniform at its own degree and the per-face
-   // degrees index into the slots it already owns, so a face cannot ask for
-   // more than that space can store.
-   const int p_max = c_fes.FEColl()->GetOrder();
+   // The bound is the degree the constraint space actually puts on a face, and
+   // it is read off an element rather than from FEColl()->GetOrder(), because
+   // for the trace collections that matter here those two differ.
+   // DG_Interface_FECollection(p) inherits RT's convention and reports
+   // GetOrder() == p+1 while its face elements are of degree p, so a bound
+   // taken from the collection would be one too lenient -- and the extra
+   // degree does not fail loudly, see below.
+   const int p_max = c_fes.GetFaceElement(0)->GetOrder();
    for (int f = 0; f < face_order.Size(); f++)
    {
       MFEM_VERIFY(face_order[f] >= 0 && face_order[f] <= p_max,
                   "Trace order " << face_order[f] << " on face " << f
-                  << " is outside [0, " << p_max << "], the degree of the "
-                  "constraint space.");
+                  << " is outside [0, " << p_max << "], the degree the "
+                  "constraint space carries on a face.");
    }
 
    face_order.Copy(tr_order);
+
+   // FiniteElementCollection::GetFE(geom, q) takes the *collection's* order,
+   // which is not in general the degree of the element it returns -- its own
+   // doxygen says so. For these collections it happens to mean degree q at
+   // every q except q == GetOrder(), where it short-circuits to the base
+   // collection and returns degree q-1 instead. That case is excluded by the
+   // bound above, so passing the degree straight through is right; but it is
+   // right by a coincidence of conventions, and a coincidence is worth
+   // checking once, here, rather than discovering as a face that quietly
+   // carries a degree nobody asked for.
+   for (int f = 0; f < tr_order.Size(); f++)
+   {
+      const FiniteElement *fe = TraceFE(f);
+      MFEM_VERIFY(fe && fe->GetOrder() == tr_order[f],
+                  "The constraint collection returned a degree-"
+                  << (fe ? fe->GetOrder() : -1) << " element for face " << f
+                  << ", which asked for degree " << tr_order[f] << ".");
+      MFEM_VERIFY(fe->GetDof() <= c_fes.GetFaceElement(f)->GetDof(),
+                  "Face " << f << " asks for " << fe->GetDof()
+                  << " dofs but owns only "
+                  << c_fes.GetFaceElement(f)->GetDof() << ".");
+   }
 }
 
 const FiniteElement *DarcyHybridization::TraceFE(int f) const
