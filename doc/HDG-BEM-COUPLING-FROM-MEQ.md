@@ -276,8 +276,8 @@ is cheaper to reason about: the fields are Newton state, so the auxiliary
 unknown's column is a derivative of a residual that is evaluated, not of one
 reconstructed from a linearisation. §3's assembled border would be cleaner
 still, and NPC is the natural place to build it — `NPCReduce()` and
-`NPCRecover()` are already the two directions of the local elimination that
-`meq/NORMALISED-LINEARISE-FIRST.md` asks for by name.
+`NPCRecover()` are already the two directions of the local elimination it would
+need, and they are public.
 
 **So §3 is an improvement on a route that already works, not a prerequisite.**
 That is a weaker claim than this document used to make and it is the correct one.
@@ -288,11 +288,12 @@ sparse matrix and solve it once. Under `LineariseThenCondense` that expression i
 particularly clean, because the local elimination is a linear solve with the
 stored `M` and there is no converged nonlinear local state to differentiate at.
 
-meq has a design for the caller's half of that at
-`meq/NORMALISED-LINEARISE-FIRST.md`, which names the entry points it would want
-— an application of the local elimination in each direction — and argues they are
-smaller than the auxiliary-unknown machinery §3 describes. **Read that before
-acting on §3**, which may be more than is needed.
+meq had a design for the caller's half of that, written against
+`LineariseThenCondense`; it is **deleted along with the mode**, and the entry
+points it asked for by name — an application of the local elimination in each
+direction — turned out to exist already as `NPCReduce()` and `NPCRecover()`.
+**That is the argument for not acting on §3 yet**: the caller can already drive
+the elimination it needs.
 
 ---
 
