@@ -93,9 +93,12 @@ panisodiff-test-par: panisodiff
 pconvdiff-test-par: pconvdiff
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG convection-diffusion miniapp,\
 	-m ../../data/amr-quad.mesh -p 2 -o 3 -hb -dg -up -bcn -rs 1 -rp 1)
+# -rtol and -chk are load-bearing here for the same reason as the serial
+# target above: mfem-test grades on the exit code alone, so without -chk this
+# checks only that the binary ran.
 pnavierstokes-test-par: pnavierstokes
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel HDG Navier-Stokes miniapp,\
-	-p 1 -nx 8 -ny 8 -o 2 -hb)
+	-p 1 -nx 8 -ny 8 -o 2 -hb -rtol 1e-12 -chk 1e-11)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

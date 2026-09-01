@@ -461,6 +461,7 @@ int main(int argc, char *argv[])
    real_t newton_rtol = -1.;
    real_t newton_atol = 0.;
    int newton_iters = 1000;
+   real_t check_tol = -1.;
    bool line_search = false;
    int gradient_mode = -1;
    real_t trace_rtol = 1e-12;
@@ -552,6 +553,21 @@ int main(int argc, char *argv[])
                   "floor is the fix there.");
    args.AddOption(&newton_iters, "-nit", "--newton-iterations",
                   "Outer Newton iteration cap.");
+   args.AddOption(&check_tol, "-chk", "--check-tolerance",
+                  "Grade the run: exit non-zero if any relative error exceeds "
+                  "this. Negative (the default) prints and always exits 0. "
+                  "Same flag and same reasoning as the serial miniapp -- "
+                  "mfem-test grades on the exit status alone and deletes the "
+                  "output, so without this pnavierstokes-test-par checks "
+                  "nothing but that the binary ran. Use an ABSOLUTE threshold: "
+                  "plane Poiseuille at order >= 2 lies in the discrete space "
+                  "and lands at round-off, but WHERE in the 1e-15s moves with "
+                  "the BLAS and the partition, so a relative comparison "
+                  "against a stored number cannot pass. Needs -rtol 1e-12. "
+                  "Every rank computes this identically -- ComputeL2Error and "
+                  "ComputeGlobalLpNorm both return the GLOBAL value on all "
+                  "ranks -- so the exit code is the same everywhere and needs "
+                  "no broadcast.");
    args.AddOption(&line_search, "-ls", "--line-search",
                   "-no-ls", "--no-line-search",
                   "Globalise with KINSOL's KIN_LINESEARCH, which implies "
@@ -1323,6 +1339,36 @@ int main(int argc, char *argv[])
            << ((norm_v > 0.) ? (err_v / norm_v) : err_v) << "\n";
    }
 
+   //     Grade the run, if asked; see the -chk help. Computed on EVERY rank,
+   //     not just root, so that all of them return the same status -- the
+   //     norms above are global on every rank, so this needs no communication.
+   int failures = 0;
+   if (check_tol > 0.)
+   {
+      const real_t rels[3] = { (norm_q > 0.) ? (err_q / norm_q) : err_q,
+                               (norm_p > 0.) ? (err_p / norm_p) : err_p,
+                               (norm_v > 0.) ? (err_v / norm_v) : err_v
+                             };
+      const char *names[3] = { "q", "p", "v" };
+      for (int i = 0; i < 3; i++)
+      {
+         if (!(rels[i] <= check_tol))
+         {
+            failures++;
+            if (root)
+            {
+               cout << "CHECK FAILED: " << names[i] << " relative error "
+                    << rels[i] << " exceeds " << check_tol << "\n";
+            }
+         }
+      }
+      if (root)
+      {
+         cout << (failures ? "CHECK FAILED" : "CHECK PASSED")
+              << " at tolerance " << check_tol << "\n";
+      }
+   }
+
    // 16. Visualisation.
 
    if (visualization)
@@ -1341,7 +1387,7 @@ int main(int argc, char *argv[])
              << "window_title 'Velocity'\nkeys vvv" << endl;
    }
 
-   return 0;
+   return failures ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
