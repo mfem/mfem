@@ -350,6 +350,79 @@ struct SemilinearHDG
    { return darcy.GetHybridization()->GetEssentialTrueDofs(); }
 };
 
+
+/** @brief The semilinear problem again, with the boundary constraint carried
+    by @a bdr_td.size() integrators instead of one, and the boundary trace left
+    FREE.
+
+    Both halves matter. The boundary face integrators of a NonlinearForm reach
+    DarcyHybridization as a LIST and are applied one at a time, where the
+    interior ones arrive already summed into a single c_nlfi_p -- so a boundary
+    face is the only place where several constraint integrators write the same
+    E and G block, and those were written rather than accumulated. And an
+    essential trace dof gets a unit row and an eliminated column, so a wrong
+    boundary E and G never reaches the reduced system: with SetEssentialBC()
+    called, as everywhere else in this file, the defect is invisible.
+
+    HDGDiffusionIntegrator's built-in stabilization is `wq*beta` with beta the
+    constructor's argument and no state in it, so the integrators are exactly
+    linear in that argument and a split list is exactly the single integrator
+    whose argument is the sum. That is what makes the comparison below exact
+    rather than approximate. */
+struct SplitBdrStabHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   DarcyForm darcy;
+   ConstantCoefficient one;
+   Array<int> ess_flux;
+   OperatorHandle R;
+   Vector X, B;
+   BlockVector sol;
+
+   SplitBdrStabHDG(int n, int order, real_t c,
+                   const std::vector<real_t> &bdr_td,
+                   DarcyHybridization::GradientMode gmode =
+                      DarcyHybridization::GradientMode::Assembled)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE)),
+        u_coll(order, 2, BasisType::GaussLobatto), p_coll(order, 2),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        darcy(&Vh, &Wh), one(1.0)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+      darcy.GetFluxDivForm()->AddDomainIntegrator(
+         new VectorDivergenceIntegrator());
+      darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new SquareSource(c));
+      Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.5));
+      for (real_t td : bdr_td)
+      {
+         Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, td));
+      }
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      darcy.GetHybridization()->SetGradientMode(gmode);
+      darcy.GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton, 1000, 1e-14, 1e-30);
+      // No SetEssentialBC: see above.
+      darcy.Assemble();
+
+      sol.Update(darcy.GetOffsets());
+      sol = 0.0;
+      darcy.FormLinearSystem(ess_flux, sol, R, X, B, true);
+   }
+
+   Operator &op() { return *R.Ptr(); }
+};
+
 } // namespace darcy_npc
 
 TEST_CASE("The reduced gradient is the derivative of the reduced residual",
@@ -445,6 +518,102 @@ TEST_CASE("The reduced gradient is the derivative of the reduced residual",
    // grows as 1/h -- about 1e-12 at h = 1e-4 and 1e-11 at h = 1e-5 here. The
    // bound is set well above that and far below the 3.2e-03 the defect gave.
    REQUIRE(rel < 1.0e-8);
+}
+
+TEST_CASE("Every constraint integrator on a boundary face reaches the gradient",
+          "[DarcyForm][NonlinearDarcy][HDG]")
+{
+   using namespace darcy_npc;
+   using GM = DarcyHybridization::GradientMode;
+
+   // D and H accumulate over the integrators that touch a face; E and G were
+   // OVERWRITTEN, so a face reached by more than one kept only the last one's
+   // blocks. Interior faces never see it -- they arrive summed into one
+   // integrator -- and neither does an essential boundary trace, whose rows and
+   // columns are eliminated. What is left is exactly a FREE boundary trace with
+   // several boundary face integrators, which is what navierstokes -bcphys is
+   // and what found this.
+   //
+   // The symptom is not a wrong answer. It is a gradient that is not the
+   // derivative of its own residual, and under hybridization that gradient is
+   // never assembled globally, so nothing complains: Newton simply stops being
+   // Newton. On the miniapp's LINEAR Stokes problem, where one step is exact,
+   // it took 35 at a fixed residual ratio of 0.517 -- a fixed-point iteration.
+   const auto gmode = GENERATE(GM::Assembled, GM::MatrixFree);
+   const real_t c = GENERATE(1.0, 1.0e2);
+   CAPTURE(c, gmode == GM::MatrixFree);
+
+   // 1.0 + 0.5 is exactly 1.5 for this integrator, so the two problems are the
+   // same problem written two ways.
+   SplitBdrStabHDG one_integ(6, 1, c, {1.5}, gmode);
+   SplitBdrStabHDG two_integ(6, 1, c, {1.0, 0.5}, gmode);
+
+   Operator &op1 = one_integ.op();
+   Operator &op2 = two_integ.op();
+   const int m = op1.Height();
+   REQUIRE(op2.Height() == m);
+
+   Vector x(m), v(m);
+   x.Randomize(11);
+   x *= 0.05;
+   v.Randomize(13);
+   v *= 1.0/v.Norml2();
+
+   SECTION("the residual was never wrong")
+   {
+      // It adds every integrator, which is why the defect could not be seen in
+      // an answer and had to be seen in a convergence history.
+      Vector r1(m), r2(m);
+      op1.Mult(x, r1);
+      op2.Mult(x, r2);
+      r2 -= r1;
+      const real_t rel = r2.Norml2()/r1.Norml2();
+      CAPTURE(rel, r1.Norml2());
+      REQUIRE(rel < 1.0e-12);
+   }
+
+   SECTION("and the gradient now is not either")
+   {
+      // Split against unsplit. With the defect the split problem's gradient
+      // was missing the first integrator's E and G entirely.
+      Vector j1(m), j2(m);
+      op1.GetGradient(x).Mult(v, j1);
+      op2.GetGradient(x).Mult(v, j2);
+      j2 -= j1;
+      const real_t rel = j2.Norml2()/j1.Norml2();
+      CAPTURE(rel, j1.Norml2());
+      REQUIRE(j1.Norml2() > 0.0);
+      REQUIRE(rel < 1.0e-12);
+   }
+
+   SECTION("and it is the derivative of the split residual")
+   {
+      // The absolute check, which does not lean on the unsplit problem being
+      // right. Gradient first, then the difference: Mult() leaves the
+      // linearisation at its own argument, so taking it afterwards measures a
+      // different operator (see the case above).
+      const real_t h = 1.0e-5;
+      Vector r0(m);
+      op2.Mult(x, r0);
+      op2.GetGradient(x);
+
+      Vector xp(x), xm(x), rp(m), rm(m), Jv(m);
+      xp.Add(h, v);
+      xm.Add(-h, v);
+      op2.Mult(xp, rp);
+      op2.Mult(xm, rm);
+      Vector fd(rp);
+      fd -= rm;
+      fd *= 1.0/(2.0*h);
+
+      op2.GetGradient(x).Mult(v, Jv);
+      Vector d(Jv);
+      d -= fd;
+      const real_t rel = d.Norml2()/fd.Norml2();
+      CAPTURE(rel, fd.Norml2());
+      REQUIRE(fd.Norml2() > 0.0);
+      REQUIRE(rel < 1.0e-8);
+   }
 }
 
 TEST_CASE("The gradient matches a difference taken in the caller's order",

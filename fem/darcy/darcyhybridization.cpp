@@ -3108,6 +3108,32 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       D += D_lin;
    }
 
+   // D and H accumulate over every integrator that touches a face; E and G did
+   // not, because they hold one block per face and side and are rewritten
+   // rather than reset between passes. A face reached by MORE THAN ONE
+   // constraint integrator therefore kept only the LAST one's E and G, while
+   // the residual added all of them -- so the gradient stopped being the
+   // derivative of the residual. A boundary face is exactly that case: the
+   // interior integrators arrive already summed into c_nlfi_p / c_nlfi, while
+   // the boundary ones are kept as a list and applied one at a time.
+   //
+   // Measured on navierstokes -p 1 -stokes, a LINEAR problem where a correct
+   // Jacobian converges in one Newton step: 35 steps at a fixed residual ratio
+   // of 0.517, which is a fixed-point iteration rather than Newton. What named
+   // the mechanism was adding a THIRD boundary integrator that is identically
+   // zero -- it cannot change the residual by a bit -- and watching the case
+   // that took one step take 61.
+   //
+   // It was invisible until a boundary trace component was left free, because
+   // an essential trace dof gets a unit row and an eliminated column and a
+   // wrong boundary E and G never reach the reduced system: -bcfull converges
+   // in one step on the mesh where -bcphys took 35.
+   //
+   // The flag is per face and spans BOTH loops below, since c_nlfi_p and
+   // c_nlfi write the same block.
+   Array<bool> eg_written(faces.Size());
+   eg_written = false;
+
    if (c_nlfi_p)
    {
       //bp += E x
@@ -3120,7 +3146,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
          if (FTr->Elem2No >= 0)
          {
             //interior
-            AssembleHDGGrad(el, FTr, *c_nlfi_p, x_f, p_l);
+            AssembleHDGGrad(el, FTr, *c_nlfi_p, x_f, p_l, eg_written[f]);
          }
          else
          {
@@ -3133,7 +3159,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                    && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                AssembleHDGGrad(el, FTr, *boundary_constraint_pot_nonlin_integs[i], x_f,
-                               p_l);
+                               p_l, eg_written[f]);
             }
          }
       }
@@ -3151,7 +3177,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
          if (FTr->Elem2No >= 0)
          {
             //interior
-            AssembleHDGGrad(el, FTr, *c_nlfi, x_f, u_l, p_l);
+            AssembleHDGGrad(el, FTr, *c_nlfi, x_f, u_l, p_l, eg_written[f]);
          }
          else
          {
@@ -3164,7 +3190,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                    && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
 
                AssembleHDGGrad(el, FTr, *boundary_constraint_nonlin_integs[i], x_f,
-                               u_l, p_l);
+                               u_l, p_l, eg_written[f]);
             }
          }
       }
@@ -3180,7 +3206,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
 
 void DarcyHybridization::AssembleHDGGrad(
    int el, FaceElementTransformations *FTr, NonlinearFormIntegrator &nlfi,
-   const Vector &x_f, const Vector &p_l) const
+   const Vector &x_f, const Vector &p_l, bool &eg_written) const
 {
    const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes.GetFaceElement(f);
@@ -3205,15 +3231,22 @@ void DarcyHybridization::AssembleHDGGrad(
    elmat_D.CopyMN(elmat, d_dofs_size, d_dofs_size, 0, 0);
    D += elmat_D;
 
-   // assemble E constraint
+   // assemble E constraint -- clearing on the first writer of this face and
+   // side, accumulating after it. See the note in ConstructGrad().
    const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
    DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
-   E_f.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
+   DenseMatrix elmat_EG;
+   elmat_EG.CopyMN(elmat, d_dofs_size, c_dofs_size, 0, d_dofs_size);
+   if (!eg_written) { E_f = elmat_EG; }
+   else { E_f += elmat_EG; }
 
    // assemble G constraint
    const int G_off = E_off;
    DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
-   G_f.CopyMN(elmat, c_dofs_size, d_dofs_size, d_dofs_size, 0);
+   elmat_EG.CopyMN(elmat, c_dofs_size, d_dofs_size, d_dofs_size, 0);
+   if (!eg_written) { G_f = elmat_EG; }
+   else { G_f += elmat_EG; }
+   eg_written = true;
 
    // assemble H matrix
    DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
@@ -3224,7 +3257,8 @@ void DarcyHybridization::AssembleHDGGrad(
 
 void DarcyHybridization::AssembleHDGGrad(
    int el, FaceElementTransformations *FTr, BlockNonlinearFormIntegrator &nlfi,
-   const Vector &x_f, const Vector &u_l, const Vector &p_l) const
+   const Vector &x_f, const Vector &u_l, const Vector &p_l,
+   bool &eg_written) const
 {
    const int f = FTr->Face->ElementNo;
    const FiniteElement *fe_c = c_fes.GetFaceElement(f);
@@ -3264,17 +3298,23 @@ void DarcyHybridization::AssembleHDGGrad(
 
    // assemble E constraint
    //
-   // E and G are written, not accumulated. Only H is reset between gradient
-   // evaluations -- it takes a contribution from each side of a face -- while
-   // E and G hold one block per face and side, and every other writer in this
-   // file overwrites them. Accumulating here made GetGradient depend on how
-   // many times it had been called: the second Newton step of a hybridized
-   // nonlinear system got a doubled E and G, and the iteration diverged.
+   // E and G are neither simply written nor simply accumulated, and both of
+   // those were tried and are wrong. They hold one block per face and side and
+   // are not reset between gradient evaluations, so accumulating
+   // unconditionally made GetGradient depend on how many times it had been
+   // called -- the second Newton step of a hybridized nonlinear system got a
+   // doubled E and G and diverged. Overwriting, which is what replaced it,
+   // kept only the LAST integrator's blocks on a face reached by several.
+   // @a eg_written separates the two: clear on the first writer of this face
+   // and side, accumulate after it. See ConstructGrad().
    const int E_off = (FTr->Elem1No == el)?(0):(c_dofs_size*d_dofs_size);
    DenseMatrix E_f(&E_data[E_offsets[f] + E_off], d_dofs_size, c_dofs_size);
+   DenseMatrix elmat_EG;
    if (elmat_E.Height() != 0)
    {
-      E_f.CopyMN(elmat_E, d_dofs_size, c_dofs_size, 0, 0);
+      elmat_EG.CopyMN(elmat_E, d_dofs_size, c_dofs_size, 0, 0);
+      if (!eg_written) { E_f = elmat_EG; }
+      else { E_f += elmat_EG; }
    }
 
    // assemble G constraint
@@ -3282,8 +3322,12 @@ void DarcyHybridization::AssembleHDGGrad(
    DenseMatrix G_f(&G_data[G_offsets[f] + G_off], c_dofs_size, d_dofs_size);
    if (elmat_G.Height() != 0)
    {
-      G_f.CopyMN(elmat_G, c_dofs_size, d_dofs_size, 0, 0);
+      elmat_EG.CopyMN(elmat_G, c_dofs_size, d_dofs_size, 0, 0);
+      if (!eg_written) { G_f = elmat_EG; }
+      else { G_f += elmat_EG; }
    }
+
+   if (elmat_E.Height() != 0 || elmat_G.Height() != 0) { eg_written = true; }
 
    // assemble H matrix
    DenseMatrix H_f(&H_data[H_offsets[f]], c_dofs_size, c_dofs_size);
