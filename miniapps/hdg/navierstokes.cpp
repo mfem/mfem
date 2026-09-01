@@ -20,6 +20,8 @@
 //               navierstokes -p 2 -nx 24 -ny 16 -o 2 -re 40 -cont
 //               navierstokes -p 2 -nx 24 -ny 16 -o 2 -re 40 -cont -tau 1
 //               navierstokes -p 1 -nx 16 -ny 4 -sx 4 -o 2 -re 200 -cont
+//               navierstokes -p 1 -nx 8 -ny 8 -o 2 -bcphys -cont -rtol 1e-12 -atol 1e-12
+//               navierstokes -p 1 -nx 8 -ny 8 -o 2 -bcphys -bcnat 3 -cont -atol 1e-12
 //
 // Description:  This miniapp solves the steady incompressible Navier-Stokes
 //               equations by the HDG method of Peraire, Nguyen and Cockburn,
@@ -31,7 +33,7 @@
 //               The equations are put in the first-order form that paper's
 //               Eq. (13) uses,
 //
-//                   q - nu grad u          = 0,
+//                   q + nu grad u          = 0,
 //                   div (F(u) + G(u,q))    = s,
 //
 //               with the state written in Chorin's artificial-compressibility
@@ -42,7 +44,20 @@
 //               so that the inviscid flux F and the viscous flux G are
 //
 //                   F_{0,d}   = beta v_d,          G_{0,d}   = 0,
-//                   F_{1+i,d} = v_i v_d + p d_id,  G_{1+i,d} = -q_{1+i,d}.
+//                   F_{1+i,d} = v_i v_d + p d_id,  G_{1+i,d} = +q_{1+i,d}.
+//
+//               **Both of those signs are corrections, and the ones they
+//               replace were wrong.** This comment used to write the first
+//               equation as `q - nu grad u = 0` and hence `G = -q`. That pair
+//               is internally consistent but is not what the code does:
+//               ExactFlux() below, and its doxygen, define `q = -nu grad u`,
+//               and `-bcfull` reproduces it to 4.4e-15 -- a relative flux
+//               error that would be 2, not 4e-15, if the sign were the other
+//               way. The pair above is the code's. Nothing in the
+//               discretisation changed when this was corrected; what changed
+//               is that the boundary datum of step 11, which was written from
+//               this comment, had the viscous half backwards until a sweep of
+//               its scaling put the zero at -1 instead of +1.
 //
 //               The continuity row is then `beta div v = s_0`, so the
 //               incompressibility is *imposed*, not penalised: at a root of
@@ -160,7 +175,12 @@
 //               problem by a different method.
 //
 //               Plane Poiseuille at order >= 2 comes back at round-off and is
-//               correctly inexact at order 1. Kovasznay at Re = 40 gives the
+//               correctly inexact at order 1. That holds for BOTH boundary
+//               sets: -bcfull gives 4.6e-15 / 2.2e-15 / 3.8e-16 in q / p / v at
+//               order 2, and -bcphys -cont gives 1.1e-14 / 3.1e-14 / 2.4e-15,
+//               with -bcnat 3 -- which puts a whole wall on the traction
+//               condition, the only case here whose datum has a nonzero
+//               VISCOUS part -- at 2.1e-13 / 1.1e-13 / 1.2e-14. Kovasznay at Re = 40 gives the
 //               optimal k+1 in the potential -- v rate 2.11 at k = 1, 3.09 at
 //               k = 2, 4.11 at k = 3 over 1/h = 4, 8, 16, 32 -- while the flux
 //               rates lag and are still climbing there, which is the roadmap's
@@ -396,6 +416,10 @@ int main(int argc, char *argv[])
    int gradient_mode = -1;
    real_t hsign = -1.;
    bool bc_full = true;
+   bool bc_flux = true;
+   int bc_nat = 0;
+   real_t bc_sf = 1., bc_sg = 1.;
+   int bc_io = 0;
    bool continuation = false;
    bool pgrad = false;
    bool bface = false;
@@ -540,11 +564,51 @@ int main(int argc, char *argv[])
                   "Boundary treatment. -bcfull (default) makes every component "
                   "of the trace essential on every boundary, carrying the "
                   "exact solution: over-specified as a PDE, but it is the "
-                  "standard verification condition and it is the one that "
-                  "works. -bcphys uses the physical set (no-slip walls, "
-                  "velocity in at the inlet, pressure at the outlet) and is "
-                  "NOT yet correct -- see the note at the boundary conditions "
-                  "in main().");
+                  "standard verification condition. -bcphys uses the physical "
+                  "set -- no-slip walls, velocity in at the inlet, pressure at "
+                  "the outlet -- and takes the PRESCRIBED NUMERICAL FLUX on "
+                  "every trace component it leaves free; see the note at the "
+                  "boundary conditions in main(). Plane Poiseuille then comes "
+                  "back at round-off at order >= 2 like -bcfull, but it needs "
+                  "-cont to get there: the outflow datum is quadratic in the "
+                  "state and a cold Newton finds the other root.");
+   args.AddOption(&bc_flux, "-bcflux", "--bc-prescribed-flux",
+                  "-no-bcflux", "--no-bc-prescribed-flux",
+                  "Supply the prescribed numerical flux <(F+G).n, mu> on the "
+                  "boundary trace components that are not essential. On by "
+                  "default and a no-op under -bcfull, where there are none. "
+                  "Turning it off restores the state -bcphys was in before it "
+                  "existed -- a converged solve, at 3e-13, of a problem with "
+                  "zero numerical flux at the inlet and the outlet, whose "
+                  "answer is wrong by more than 100%. It is kept as the "
+                  "control that says the datum is what repairs that.");
+   args.AddOption(&bc_nat, "-bcnat", "--bc-natural-attribute",
+                  "Make this boundary attribute wholly natural: no essential "
+                  "trace component at all, every equation carrying the "
+                  "prescribed numerical flux instead. Zero (default) leaves "
+                  "the problem's own set alone. It exists because none of the "
+                  "four problems here has a nonzero VISCOUS datum on any row "
+                  "its physical set leaves free -- they are all unidirectional "
+                  "flows whose outlet normal lies along the flow, so q.n "
+                  "vanishes there -- and without it half of what -bcflux "
+                  "assembles is never exercised. `-p 1 -bcnat 3` puts the top "
+                  "wall of the Poiseuille channel on the traction condition, "
+                  "where G.n = nu dv_x/dy is the largest term in the datum, "
+                  "and the solution is still a degree-2 polynomial so "
+                  "round-off is still the test.");
+   args.AddOption(&bc_sf, "-bcsf", "--bc-flux-scale-inviscid",
+                  "Scaling of the inviscid half of the prescribed boundary "
+                  "flux. A diagnostic: 1 is right, and it was measured, not "
+                  "reasoned. Sweeping it and -bcsg separately is what "
+                  "distinguishes a mis-signed term from an absent one -- a "
+                  "sweep with a minimum that is not round-off means a term is "
+                  "missing.");
+   args.AddOption(&bc_sg, "-bcsg", "--bc-flux-scale-viscous",
+                  "Scaling of the viscous half, G.n = -q.n, of the prescribed "
+                  "boundary flux. See -bcsf.");
+   args.AddOption(&bc_io, "-bcio", "--bc-flux-int-order-offset",
+                  "Integration order offset of the prescribed boundary flux. "
+                  "A diagnostic, and the one that mattered.");
    args.AddOption(&hsign, "-hsign", "--hyperbolic-sign",
                   "Sign passed to HyperbolicFormIntegrator. A diagnostic: the "
                   "Darcy residual convention is not derivable from the "
@@ -839,21 +903,50 @@ int main(int argc, char *argv[])
    //    handed to SetEssentialTrueDofs, which is purely index-based and so is
    //    component-blind in the way that is wanted.
    //
-   //    **What -bcphys does not yet do, and it matters.** A boundary trace
-   //    component that is *not* essential keeps the constraint row
-   //    <(F^ + q^).n, mu> = 0, and on a boundary face that row has only one
-   //    side, so nothing cancels it: it imposes zero numerical flux, which is
-   //    not the intended condition. Measured on plane Poiseuille with the
-   //    physical set -- no-slip walls, profile in, pressure at the outlet --
-   //    the solve converges to 3e-13 and the answer is wrong by more than
-   //    100%, at every order. The interior discretisation is not at fault:
-   //    with -bcfull the same problem is exact to 2.5e-15. Making -bcphys
-   //    right needs the prescribed numerical flux on those faces, either as a
-   //    linear form on the trace (the Neumann datum, which convdiff supplies
-   //    through BoundaryNormalLFIntegrator) or as the reference's
-   //    characteristic B^ = A+_n (u - u^) - A-_n (u_inf - u^), which for the
-   //    artificial-compressibility system needs the eigen-decomposition of
-   //    A_n. That is the next piece of work, not a defect in what is here.
+   //    **A trace component left non-essential is not a free boundary.** It
+   //    keeps the constraint row <(F^ + q^).n, mu> = 0, and on a boundary face
+   //    that row has only one side, so nothing cancels it: it imposes ZERO
+   //    numerical flux. -bcphys used to stop there, and the result was a solve
+   //    that converged happily to 3e-13 and was wrong by more than 100% at
+   //    every order, on all four problems -- 2.84 / 2.20 / 1.01 relative in
+   //    q / p / v on plane Poiseuille, 0.28 / 2.47 / 1.07 on uniform flow,
+   //    6.31 / 1.25 / 0.98 on Couette, 4.34 / 10.7 / 0.96 on Kovasznay --
+   //    while -bcfull on the same problems was at round-off. `-no-bcflux`
+   //    restores exactly that state and is kept as the control.
+   //
+   //    What it needs is the other half of the mixed condition: the PRESCRIBED
+   //    NUMERICAL FLUX on the rows the trace does not fix. That is step 11's
+   //    HDGPrescribedFluxLFIntegrator, a linear form on the trace carrying
+   //    <(F + G).n, mu> from the exact solution -- the same shape as the
+   //    Neumann datum convdiff puts on its trace through
+   //    BoundaryNormalLFIntegrator. Per boundary face and per equation the
+   //    hybridized system offers exactly one of the two, so the physical set
+   //    is well posed: dim+1 conditions per face either way.
+   //
+   //    **Why not the reference's characteristic condition**, B^ = A+_n(u-u^)
+   //    - A-_n(u_inf-u^), which was the other candidate. It is not a datum on
+   //    this row; it REPLACES the row, and the row is a sum of contributions
+   //    from two different forms -- the inviscid part from the potential mass
+   //    nonlinear form and the viscous q^.n from the constraint block C, which
+   //    DarcyForm installs from B's boundary marker. A boundary integrator on
+   //    the potential mass form can add to that row but cannot cancel C's
+   //    contribution to it, because C is in q and that form is not. So the
+   //    characteristic condition is not expressible here without new machinery
+   //    in DarcyHybridization, while the datum is a linear form the interface
+   //    already has. That, and not its accuracy, is the reason for the choice.
+   //
+   //    **What the datum costs, measured.** On an outflow face the datum
+   //    F.n = v(v.n) + p n is QUADRATIC in the state, so the discrete problem
+   //    has a second root, and a cold Newton from rest finds it: plane
+   //    Poiseuille comes back at 5.63 / 3.43 / 0.518 rather than at round-off,
+   //    from every order and every mesh tried, and the wrong root moves with
+   //    beta (5.627, 5.612, 5.357 at beta = 1, 4, 16) which is what says it is
+   //    the second root of the stabilized quadratic and not a discretisation
+   //    error. It is the total-pressure outflow condition's own
+   //    non-uniqueness, not a defect in the datum: the exact solution is a
+   //    root to 2.4e-17, and -xinit or -cont both land on it and stay. So
+   //    -bcphys wants -cont on a convective problem, exactly as -bcfull does
+   //    on Kovasznay.
 
    Array<int> bdr_vel(mesh.bdr_attributes.Max());   // velocity prescribed
    Array<int> bdr_pres(mesh.bdr_attributes.Max());  // pressure prescribed
@@ -882,6 +975,14 @@ int main(int argc, char *argv[])
    }
 
    if (bc_full) { bdr_vel = 1; bdr_pres = 1; }
+
+   //    A wholly natural attribute, for the measurement -bcnat documents.
+   if (bc_nat > 0)
+   {
+      MFEM_VERIFY(bc_nat <= mesh.bdr_attributes.Max(), "-bcnat out of range");
+      bdr_vel[bc_nat - 1] = 0;
+      bdr_pres[bc_nat - 1] = 0;
+   }
 
    Array<int> ess_tdofs;
    {
@@ -949,6 +1050,21 @@ int main(int argc, char *argv[])
    fform.Update(&fes_u, rhs.GetBlock(1), 0);
    hform.Update(&fes_t, rhs.GetBlock(2), 0);
 
+   //     The trace form is the one that is not empty: it carries the Neumann
+   //     half of the boundary conditions, the prescribed numerical flux
+   //     <(F + G).n, mu> on the components the trace does not fix. See the
+   //     boundary-condition step above for what it repairs and how the sign
+   //     was measured. The datum is assembled on the WHOLE boundary and then
+   //     zeroed on the essential trace dofs, which is why -bcfull -- where
+   //     every component of every attribute is essential -- is untouched by
+   //     construction rather than by a branch.
+   if (bc_flux)
+   {
+      hform.AddBoundaryIntegrator(
+         new HDGPrescribedFluxLFIntegrator(ac_flux, state_coeff, &flux_coeff,
+                                           bc_sf, bc_sg, bc_io));
+   }
+
    // 12. Solve, by NPC: Newton on the FULL (q, u, u_hat) system with the
    //     Jacobian solved by hybridized elimination. See
    //     DarcyHybridization::NPCResidual().
@@ -977,7 +1093,38 @@ int main(int argc, char *argv[])
 
    BlockVector b(offsets);
    b = 0.;
-   b.GetBlock(2) = rhs.GetBlock(2);
+
+   //     The trace load is re-assembled before every solve rather than once,
+   //     because it reads the FLUX FUNCTION, and -cont flips that function
+   //     between the two solves. Assembling it once gave the Stokes stage the
+   //     full Navier-Stokes datum -- v (x) v included, on a solve that does
+   //     not have that term -- so the continuation landed on the wrong answer
+   //     and handed it to the second solve. Measured: -cont came back at 5.63
+   //     relative in the flux, the same wrong root a cold start finds, while
+   //     -stokes alone (whose datum happens to match) was exact.
+   auto assemble_trace_load = [&]()
+   {
+      hform.Assemble();
+      rhs.GetBlock(2).SetSubVector(ess_tdofs, 0.);
+      b.GetBlock(2) = rhs.GetBlock(2);
+   };
+   assemble_trace_load();
+
+   //     The residual at the exact state, block by block. One norm over all
+   //     three cannot say which row is wrong, and the boundary datum lives in
+   //     the trace row alone -- so this is the instrument the -bcphys repair
+   //     was measured with, and the -bcsf/-bcsg sweep reads out of it.
+   if (exact_init)
+   {
+      Vector r0(x.Size());
+      npc.Mult(x, r0);
+      r0 -= b;
+      const BlockVector r0b(r0, offsets);
+      cout << "residual at the exact state: ||r_q|| = "
+           << r0b.GetBlock(0).Norml2() << ", ||r_u|| = "
+           << r0b.GetBlock(1).Norml2() << ", ||r_tr|| = "
+           << r0b.GetBlock(2).Norml2() << endl;
+   }
 
    //     The reduced trace system, by -gm. Matrix-free has no matrix to
    //     precondition with, so it gets a plain Krylov method.
@@ -1071,8 +1218,10 @@ int main(int argc, char *argv[])
       if (continuation && !stokes)
       {
          ac_flux.SetStokes(true);
+         assemble_trace_load();
          newton->Mult(b, x);
          ac_flux.SetStokes(false);
+         assemble_trace_load();
          cout << "--- Stokes continuation done; continuing onto "
               "Navier-Stokes ---" << endl;
       }

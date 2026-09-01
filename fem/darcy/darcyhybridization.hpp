@@ -692,12 +692,22 @@ private:
    void ConstructGrad(int el, const Array<int> &faces, const BlockVector &x_l,
                       const Vector &u_l,
                       const Vector &p_l) const;
+   /** @brief One face integrator's contribution to D, E, G and H.
+
+       @a eg_written says whether E and G for this face and side have already
+       been written during this gradient pass: false overwrites them, true adds
+       to them, and it is set on the way out. It exists because E and G hold
+       one block per face and side and are *rewritten* rather than reset, so
+       the first writer has to clear whatever the previous pass left and every
+       writer after it has to accumulate. See ConstructGrad(). */
    void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
                         NonlinearFormIntegrator &nlfi,
-                        const Vector &x_f, const Vector &p_l) const;
+                        const Vector &x_f, const Vector &p_l,
+                        bool &eg_written) const;
    void AssembleHDGGrad(int el, FaceElementTransformations *FTr,
                         BlockNonlinearFormIntegrator &nlfi,
-                        const Vector &x_f, const Vector &u_l, const Vector &p_l) const;
+                        const Vector &x_f, const Vector &u_l, const Vector &p_l,
+                        bool &eg_written) const;
 
 public:
    /// Constructor
