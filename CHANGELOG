@@ -90,7 +90,8 @@ Linear and nonlinear solvers
   moving-window caching, and StoreEverything scheduling. The first built-in
   adapter supports `Vector` state and fixed-step `ForwardEulerSolver`
   trajectories. Example 42 demonstrates exact deterministic replay from a
-  stored restart.
+  stored restart. Checkpointing miniapps additionally demonstrate heterogeneous
+  scalar/string state and nonconforming Mesh state.
 
 - Added support for trace spaces in PRefinementTransferOperator. This is used in
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the

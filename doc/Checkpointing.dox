@@ -245,6 +245,136 @@ terminal replay error: 0
 
 and succeeds only when replay and ordinary integration are bitwise identical.
 
+\section checkpointing_miniapps State-centric miniapps
+
+Two serial miniapps demonstrate that the generic core is independent of Vector
+and physical time. Both use an interval schedule that stores state zero and
+selected nonterminal states. The terminal state is deliberately not stored, so
+successful reconstruction always requires restore plus replay. Snapshot
+headers, lengths, StateId values, and trailing bytes are validated during
+restore.
+
+\subsection checkpointing_heterogeneous Heterogeneous application state
+
+`miniapps/checkpointing/heterogeneous-state.cpp` owns this complete state:
+
+\code{.cpp}
+StateId iteration;
+uint64_t fibonacci;
+uint64_t next_fibonacci;
+real_t floating_value;
+std::string text;
+\endcode
+
+The two Fibonacci values are required to continue the recurrence. From state
+zero, where `(fibonacci, next_fibonacci) = (0, 1)`, one transition applies
+
+\f[
+(F_k,F_{k+1}) \longmapsto (F_{k+1},F_k+F_{k+1}).
+\f]
+
+The floating-point recurrence is
+
+\f[
+x_0=1, \qquad x_{k+1}=0.5x_k+0.125.
+\f]
+
+The text begins as `state-0`; transition `k` appends `|state-k`. The adapter
+encodes the iteration, both Fibonacci values, floating-point value, and complete
+string in one opaque Snapshot. No Vector, ODESolver, TimeDependentOperator, or
+physical time participates in this application state.
+
+After the original run, the miniapp saves the terminal values only for
+verification, overwrites the live state, restores the newest earlier interval
+checkpoint, and calls CheckpointController::RestoreState() to replay to the
+requested terminal StateId. Fibonacci and string values, including the hidden
+next Fibonacci value, are compared exactly. The serialized floating-point value
+and deterministic recurrence are also compared exactly.
+
+Useful options are:
+
+\code{.unparsed}
+-n, --num-states N          number of sequence transitions (1-92)
+-c, --checkpoint-interval C persist every C-th nonterminal state
+\endcode
+
+\subsection checkpointing_mesh Nonconforming Mesh state
+
+`miniapps/checkpointing/mesh-state.cpp` starts from a programmatically generated
+2-by-2 quadrilateral unit-square Mesh and calls Mesh::EnsureNCMesh(). StateId is
+the number of completed refinement cycles. At each transition it recomputes the
+valid target from the current mesh as
+
+\code{.unparsed}
+target = selection_index % mesh.GetNE()
+\endcode
+
+then refines that element and increments both `selection_index` and StateId. It
+never retains an element reference across refinement.
+
+The application adapter stores StateId, `selection_index`, and the result of
+Mesh::Print(). Restore reconstructs the mesh with the MFEM stream constructor
+and verifies that the payload is a nonempty two-dimensional nonconforming mesh.
+Thus the application adapter, rather than the checkpoint core, defines and
+restores the complete Mesh state.
+
+After restoring an earlier interval checkpoint, the miniapp replays the
+remaining refinement cycles and compares dimensions, element/vertex/boundary
+counts, edge and face counts, attributes, element geometries, and exact
+serialized mesh text. It then projects
+
+\f[
+c(x)=1+0.5x_0-0.25x_1
+\f]
+
+into order-`p` H1 spaces on both final meshes. Exact mesh replay gives identical
+DOF layouts, so the fields are compared with the coefficient-vector infinity
+norm using a tolerance of `100*epsilon`.
+
+Useful options are:
+
+\code{.unparsed}
+-r, --refinement-steps N    number of refinement cycles
+-c, --checkpoint-interval C persist every C-th nonterminal state
+-p, --order P               H1 projection order
+-o, --output-prefix PATH    parent ParaView output directory
+-pv, --paraview             enable ParaView output (default)
+-no-pv, --no-paraview       disable ParaView output
+\endcode
+
+When enabled, ParaViewDataCollection writes the mesh and the
+`projected_coefficient` field to separate collections:
+
+\code{.unparsed}
+<output-prefix>/reference/
+<output-prefix>/restored/
+\endcode
+
+The structural and projection comparisons determine success; ParaView output
+is diagnostic only.
+
+\subsection checkpointing_miniapps_running Building and testing
+
+Build and run them with:
+
+\code{.sh}
+cd miniapps/checkpointing
+make
+./checkpoint-heterogeneous-state -n 12 -c 4
+./checkpoint-mesh-state -r 4 -c 2 -o paraview
+\endcode
+
+For automated smoke tests, enable `MFEM_ENABLE_TESTING` in a CMake build and
+run:
+
+\code{.sh}
+ctest -R checkpoint- --output-on-failure
+\endcode
+
+The source directory also contains a makefile with corresponding sequential
+test targets. See `miniapps/checkpointing/README.md` for a compact standalone
+guide and expected default results.
+
 \section checkpointing_compatibility Compatibility mapping
 
 \code{.unparsed}
