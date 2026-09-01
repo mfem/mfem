@@ -159,6 +159,61 @@ public:
        The base class implementation for the method is to generate an error. */
    virtual Operator &GetGradientMV(const MultiVector &x) const;
 
+   /** @brief Action of the gradient operator, dy = J(x) * dx, at the point @a x, applied to the Vector @a dx
+       to produce the output Vector @a dy. This is should be equivalent to Operator::GetGradient(x).Mult(dx, dy).
+       It can be used to avoid constructing the gradient operator explicitly.
+
+       The base class implementation for the method is to generate an error.
+       */
+   virtual void GradientMult(const Vector &x, const Vector &dx, Vector &dy) const
+   {
+      MFEM_ABORT("Operator::GradientMult() is not overridden!");
+      GetGradient(x).Mult(dx, dy); // Default implementation
+   }
+
+   /** @brief Action of the gradient transpose operator, dy = J^T(x) * dx, at the point @a x,
+       applied to the Vector @a dx to produce the output Vector @a dy.
+       This is should be equivalent to Operator::GetGradient(x).MultTranspose(dx, dy).
+       It can be used to avoid constructing the gradient operator explicitly.
+
+       The base class implementation for the method is to generate an error.
+       */
+   virtual void GradientMultTranspose(const Vector &x, const Vector &dx,
+                                      Vector &dy) const
+   {
+      MFEM_ABORT("Operator::GradientMultTranspose() is not overridden!");
+      GetGradient(x).MultTranspose(dx, dy); // Default implementation
+   }
+
+   /** @brief Action of the gradient operator, dy = J(x) * dx, at the point @a x, applied to
+       the MultiVector @a dx to produce the output MultiVector @a dy. This is should be
+       equivalent to Operator::GetGradientMV(x).MultMV(dx, dy). It can be used to avoid
+       constructing the gradient operator explicitly.
+
+       The base class implementation for the method is to generate an error.
+       */
+   virtual void GradientMultMV(const MultiVector &x, const MultiVector &dx,
+                               MultiVector &dy) const
+   {
+      MFEM_ABORT("Operator::GradientMultMV() is not overridden!");
+      GetGradientMV(x).MultMV(dx, dy); // Default implementation
+   }
+
+   /** @brief Action of the gradient transpose operator, dy = J^T(x) * dx, at the point @a x,
+       applied to the MultiVector @a dx to produce the output MultiVector @a dy.
+       This is should be equivalent to Operator::GetGradientMV(x).MultTransposeMV(dx, dy).
+       It can be used to avoid constructing the gradient operator explicitly.
+
+       The base class implementation for the method is to generate an error.
+       */
+   virtual void GradientMultTransposeMV(const MultiVector &x,
+                                        const MultiVector &dx,
+                                        MultiVector &dy) const
+   {
+      MFEM_ABORT("Operator::GradientMultTransposeMV() is not overridden!");
+      GetGradientMV(x).MultTransposeMV(dx, dy); // Default implementation
+   }
+
    /** @brief Computes the diagonal entries into @a diag. Typically, this
        operation only makes sense for linear Operator%s. In some cases, only an
        approximation of the diagonal is computed. */
