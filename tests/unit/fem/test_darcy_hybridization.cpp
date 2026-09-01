@@ -94,9 +94,12 @@ struct Result
 /** @a m_u_bdr installs one flux-mass boundary face integrator per entry, of
     the given scale. Empty for every caller but the boundary-face assembly
     test below. */
+/** @a trace_order is the degree of the trace space; negative means @a order,
+    which is what every caller but the redundant-trace test below wants. */
 Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
              real_t td = 0.5, const std::vector<real_t> &m_u_bdr = {},
-             bool ess_trace = false, real_t marker_scale = -2.0)
+             bool ess_trace = false, real_t marker_scale = -2.0,
+             int trace_order = -1)
 {
    const int dim = mesh.Dimension();
 
@@ -186,7 +189,8 @@ Result Solve(Mesh &mesh, int order, bool hybridize, Form form = Form::RT,
 
    // The trace space is only built when it is used, but it must outlive the
    // DarcyForm's hybridization, hence the scope of these two.
-   DG_Interface_FECollection trace_coll(order, dim);
+   DG_Interface_FECollection trace_coll((trace_order < 0) ? order : trace_order,
+                                        dim);
    FiniteElementSpace fes_t(&mesh, &trace_coll);
    Array<int> bdr_all(mesh.bdr_attributes.Max());
    bdr_all = 1;
@@ -665,4 +669,56 @@ TEST_CASE("Raviart-Thomas takes its Dirichlet datum on an essential trace",
    Vector d2(other.u);
    d2 -= ess.u;
    REQUIRE(d2.Normlinf() < 1e-12 * std::max(ess.u.Normlinf(), real_t(1.0)));
+}
+
+TEST_CASE("A trace richer than both its elements is exactly redundant",
+          "[DarcyHybridization]")
+{
+   using namespace darcy_hybridization;
+
+   // Raising the trace degree above the element degree is what p-adaptivity's
+   // usual rule -- p_F = max over the two neighbours -- produces on a face
+   // between elements of different degree. On a face whose two neighbours are
+   // the SAME degree the extra trace modes buy nothing, and this says so
+   // exactly rather than approximately: the trace equation for a mode that is
+   // L2-orthogonal to everything the elements can put on the face reads
+   // -(tau_1 + tau_2) <uhat, mu> = 0, so that mode is annihilated, and the
+   // remaining discrete problem is the equal-order one unchanged.
+   //
+   // That is the measurement behind choosing p_F = min for a p-adaptive trace:
+   // max costs dofs and, wherever the two neighbours agree, returns nothing.
+   // It is not an argument against max at a genuine p-interface, where the
+   // richer element does reach the extra modes; only against paying for it
+   // where the degrees already match.
+   //
+   // This could not be run at all until the HDG face quadrature took the trace
+   // element's order into account -- before that the trace-trace block was
+   // rank-deficient by one per face and the reduced system was singular. See
+   // the note at the top of fem/darcy/bilininteg_hdg.cpp.
+   const int order = GENERATE(0, 1, 2);
+   const int nx = 4;
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian2D(nx, nx, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   const Result base = Solve(mesh, order, true, Form::DG);
+   const Result rich = Solve(mesh, order, true, Form::DG, 0.5, {}, false, -2.0,
+                             order + 1);
+
+   // The richer space really is bigger, or the comparison below is vacuous.
+   REQUIRE(rich.solved_size > base.solved_size);
+
+   INFO("errors " << base.err_u << " / " << base.err_p << " against "
+        << rich.err_u << " / " << rich.err_p);
+   REQUIRE(rich.err_u == Approx(base.err_u).margin(1e-12).epsilon(1e-10));
+   REQUIRE(rich.err_p == Approx(base.err_p).margin(1e-12).epsilon(1e-10));
+
+   // and the recovered fields agree, not merely their error norms
+   Vector du(rich.u);
+   du -= base.u;
+   Vector dp(rich.p);
+   dp -= base.p;
+   REQUIRE(du.Normlinf() < 1e-10 * std::max(base.u.Normlinf(), real_t(1.0)));
+   REQUIRE(dp.Normlinf() < 1e-10 * std::max(base.p.Normlinf(), real_t(1.0)));
 }
