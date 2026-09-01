@@ -15,6 +15,7 @@
 //               mpirun -np 8 ex16p -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               mpirun -np 4 ex16p -m ../data/amr-quad.mesh -o 4 -rs 0 -rp 0
 //               mpirun -np 4 ex16p -m ../data/amr-hex.mesh -o 2 -rs 0 -rp 0
+//               mpirun -np 4 ex16p -m ../data/amr-hex.mesh -o 2 -rs 0 -rp 0 -imp-state
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion

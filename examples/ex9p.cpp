@@ -19,6 +19,7 @@
 //    mpirun -np 4 ex9p -m ../data/periodic-square.msh -p 0 -rs 2 -dt 0.005 -tf 2
 //    mpirun -np 4 ex9p -m ../data/periodic-cube.msh -p 0 -rs 1 -o 2 -tf 2
 //    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5
+//    mpirun -np 3 ex9p -m ../data/amr-hex.mesh -p 1 -rs 1 -rp 0 -dt 0.005 -tf 0.5 -imp-state
 //
 // Device sample runs:
 //    mpirun -np 4 ex9p -pa
