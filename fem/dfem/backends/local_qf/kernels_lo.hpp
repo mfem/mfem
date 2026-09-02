@@ -460,16 +460,16 @@ inline MFEM_HOST_DEVICE void VectorGrad3d(const int d1d, const int q1d,
 // Reference Hessian of a scalar field.
 //
 // The Hessian is symmetric, so only its upper triangle is contracted and the
-// lower triangle is mirrored. 
-// As for the gradient, each stage is a tensor-product contraction in one reference direction. 
+// lower triangle is mirrored.
+// As for the gradient, each stage is a tensor-product contraction in one reference direction.
 // (HessX_ HessY_ HessZ_ calls).
 //
 // The LO workspace has only DIM component slots per tensor point, so it cannot
 // carry all unique Hessian entries at once (three in 2D and six in 3D).
-// Therefore it reuses the two shared buffers in batches. 
-// - In 2D: three X-stage states {B_x u, G_x u, H_x u} do not fit in two slots, 
-//          so X is split into HessX2dA and HessX2dB. 
-// - In 3D: three states fit exactly, HessX3d computes them once, 
+// Therefore it reuses the two shared buffers in batches.
+// - In 2D: three X-stage states {B_x u, G_x u, H_x u} do not fit in two slots,
+//          so X is split into HessX2dA and HessX2dB.
+// - In 3D: three states fit exactly, HessX3d computes them once,
 //          then two Y/Z batches form {xx, xy, yy} and {xz, yz, zz}.
 
 
