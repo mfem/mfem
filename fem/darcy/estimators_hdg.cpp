@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "estimators_hdg.hpp"
+#include "darcyhybridization.hpp"
 
 namespace mfem
 {
@@ -58,6 +59,12 @@ void HDGErrorEstimator::ComputeEstimates()
    const int num_nbe = mesh->GetNBE();
    for (int b = 0; b < num_nbe; b++)
    {
+      if (excl_bdr.Size() > 0)
+      {
+         const int attr = mesh->GetBdrAttribute(b);
+         if (attr <= excl_bdr.Size() && excl_bdr[attr-1] != 0) { continue; }
+      }
+
       const int bdr_face = mesh->GetBdrElementFaceIndex(b);
 
       ComputeFaceEstimate(bdr_face, false, d_error_estimates);
@@ -107,6 +114,44 @@ void HDGErrorEstimator::ComputeEstimates()
    current_sequence = sol_tr.FESpace()->GetMesh()->GetSequence();
 }
 
+void HDGErrorEstimator::ProjectOntoTrace(const FiniteElement &fe_tr,
+                                         const FiniteElement &el,
+                                         FaceElementTransformations &FTr,
+                                         int side, const Vector &elfun,
+                                         Vector &c)
+{
+   const int nt = fe_tr.GetDof();
+   DenseMatrix M(nt);
+   Vector b(nt), tr_shape(nt), el_shape(el.GetDof());
+   M = 0.;
+   b = 0.;
+
+   // Degree 2*max(element, trace), the rule the HDG face integrators take --
+   // the mass matrix is of degree 2*p_trace and a rule that cannot reach it
+   // returns one that is rank-deficient, which is the same counting argument
+   // as the note at the top of bilininteg_hdg.cpp.
+   const int order = 2*std::max(el.GetOrder(), fe_tr.GetOrder());
+   const IntegrationRule &ir = IntRules.Get(FTr.GetGeometryType(), order);
+
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      FTr.SetAllIntPoints(&ip);
+
+      fe_tr.CalcShape(ip, tr_shape);
+      ElementTransformation *ElTr = (side != 0) ? FTr.Elem2 : FTr.Elem1;
+      el.CalcPhysShape(*ElTr, el_shape);
+
+      const real_t w = ip.weight * FTr.Weight();
+      AddMult_a_VVt(w, tr_shape, M);
+      b.Add(w * (el_shape * elfun), tr_shape);
+   }
+
+   DenseMatrixInverse Mi(M);
+   c.SetSize(nt);
+   Mi.Mult(b, c);
+}
+
 void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
                                             Vector &d_error_estimates)
 {
@@ -141,8 +186,19 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
    else
 #endif
    {
-      fe_tr = fes_tr->GetFaceElement(face);
-      fes_tr->GetFaceVDofs(face, vdofs_tr);
+      // Through the hybridization when there is one, because a per-face trace
+      // degree lives there and nowhere else -- the constraint space is uniform
+      // at the ceiling whatever the faces carry.
+      if (hyb)
+      {
+         fe_tr = hyb->TraceFE(face);
+         hyb->TraceVDofs(face, vdofs_tr);
+      }
+      else
+      {
+         fe_tr = fes_tr->GetFaceElement(face);
+         fes_tr->GetFaceVDofs(face, vdofs_tr);
+      }
       sol_tr.GetSubVector(vdofs_tr, tr);
    }
 
@@ -171,13 +227,47 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
       {
          Vector d_en1, d_en2;
 
+         /* The projected comparison is carried out by moving the difference
+            into the trace space rather than by a second energy routine: with a
+            zero element function the integrand is (0 - (λ - P_M p̂))², which is
+            the number wanted, and the stabilization, its StabValue() hook and
+            the anisotropic split are then exactly the ones the four assembly
+            paths use. A second copy of that arithmetic here is how the energy
+            estimator came to ignore an installed SetStabilization() once
+            already.
+
+            The one thing the hook does see differently is its @a v_q and
+            @a tr_q arguments, which arrive shifted; a hook whose value depends
+            on them is therefore evaluated off its own state under
+            TraceComparison::Projected. */
+         Vector tr1, tr2, z1, z2;
+         const bool proj = (trcmp == TraceComparison::Projected);
+         if (proj)
+         {
+            Vector c;
+            ProjectOntoTrace(*fe_tr, fe1, FTr, 0, p1, c);
+            tr1.SetSize(tr.Size());
+            subtract(tr, c, tr1);
+            z1.SetSize(fe1.GetDof());
+            z1 = 0.;
+
+            if (FTr.Elem2No >= 0)
+            {
+               ProjectOntoTrace(*fe_tr, fe2, FTr, 1, p2, c);
+               tr2.SetSize(tr.Size());
+               subtract(tr, c, tr2);
+               z2.SetSize(fe2.GetDof());
+               z2 = 0.;
+            }
+         }
+
          error_estimates(FTr.Elem1No) += bfi.ComputeHDGFaceEnergy(0, *fe_tr, fe1, FTr,
-                                                                  tr, p1, (anisotropic)?(&d_en1):(NULL));
+                                                                  proj?tr1:tr, proj?z1:p1, (anisotropic)?(&d_en1):(NULL));
 
          if (FTr.Elem2No >= 0)
          {
             error_estimates(FTr.Elem2No) += bfi.ComputeHDGFaceEnergy(1, *fe_tr, fe2, FTr,
-                                                                     tr, p2, (anisotropic)?(&d_en2):(NULL));
+                                                                     proj?tr2:tr, proj?z2:p2, (anisotropic)?(&d_en2):(NULL));
          }
 
          if (anisotropic)

@@ -513,3 +513,243 @@ TEST_CASE("A hanging-node family takes the ceiling degree",
       REQUIRE(face_order[f] == (in_family[f] ? cap : 2));
    }
 }
+
+namespace darcy_padapt
+{
+
+/** @brief An HDG solve that keeps its spaces alive, so an estimator can be
+    built on the solution afterwards. @a ceiling raises the constraint space's
+    degree above @a order without changing what any face carries. */
+struct Solved
+{
+   std::unique_ptr<Mesh> mesh;
+   std::unique_ptr<L2_FECollection> q_coll, p_coll;
+   std::unique_ptr<DG_Interface_FECollection> t_coll;
+   std::unique_ptr<FiniteElementSpace> fes_q, fes_p, fes_t;
+   std::unique_ptr<DarcyForm> darcy;
+   BlockVector x;
+   Vector X;         ///< the reduced trace solution
+   GridFunction q_h, p_h, tr_h;
+};
+
+void SolveKeeping(int order, int n, int ceiling, Solved &s)
+{
+   s.mesh.reset(new Mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
+                                               false, 1.0, 1.0)));
+   const int dim = s.mesh->Dimension();
+
+   s.q_coll.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto));
+   s.p_coll.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto));
+   s.fes_q.reset(new FiniteElementSpace(s.mesh.get(), s.q_coll.get(), dim));
+   s.fes_p.reset(new FiniteElementSpace(s.mesh.get(), s.p_coll.get()));
+
+   static ConstantCoefficient one(1.0);
+   static FunctionCoefficient gcoeff(gExact);
+
+   s.darcy.reset(new DarcyForm(s.fes_q.get(), s.fes_p.get()));
+   s.darcy->GetFluxMassForm()->AddDomainIntegrator(
+      new VectorMassIntegrator(one));
+
+   MixedBilinearForm *B = s.darcy->GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   s.darcy->GetPotentialMassForm()->AddInteriorFaceIntegrator(
+      new HDGDiffusionIntegrator(one, 0.5));
+   s.darcy->GetPotentialRHS()->AddDomainIntegrator(
+      new DomainLFIntegrator(gcoeff, 6, 12));
+
+   Array<int> ess;
+   s.t_coll.reset(new DG_Interface_FECollection(ceiling, dim));
+   s.fes_t.reset(new FiniteElementSpace(s.mesh.get(), s.t_coll.get()));
+   s.darcy->EnableHybridization(s.fes_t.get(), new NormalTraceJumpIntegrator(),
+                                ess);
+
+   if (ceiling != order)
+   {
+      Array<int> elem_order(s.mesh->GetNE());
+      elem_order = order;
+      Array<int> face_order;
+      DarcyHybridization::FaceOrdersFromElementOrders(
+         *s.mesh, elem_order, DarcyHybridization::TraceOrderRule::Min, ceiling,
+         face_order);
+      // Every face at the element degree, which is BELOW the ceiling: the
+      // configuration whose answer must not depend on the ceiling.
+      for (int f = 0; f < face_order.Size(); f++) { face_order[f] = order; }
+      s.darcy->GetHybridization()->SetTraceOrders(face_order);
+   }
+
+   s.darcy->Assemble();
+
+   s.x.Update(s.darcy->GetOffsets());
+   s.x = 0.0;
+   OperatorPtr A;
+   Vector RHS;
+   s.darcy->FormLinearSystem(ess, s.x, A, s.X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(1e-16);
+   lin.SetPreconditioner(prec);
+   lin.SetOperator(*A);
+   lin.Mult(RHS, s.X);
+   REQUIRE(lin.GetConverged());
+
+   s.darcy->RecoverFEMSolution(s.X, s.x);
+
+   s.q_h.MakeRef(s.fes_q.get(), s.x.GetBlock(0), 0);
+   s.p_h.MakeRef(s.fes_p.get(), s.x.GetBlock(1), 0);
+
+   // DarcyForm::GetOffsets() is the two field blocks; the trace is the reduced
+   // unknown and comes back in X. The mesh here is conforming, so its true
+   // dofs and its vdofs are the same numbering and this is a copy rather than
+   // a prolongation.
+   REQUIRE(s.X.Size() == s.fes_t->GetVSize());
+   s.tr_h.SetSpace(s.fes_t.get());
+   s.tr_h = s.X;
+}
+
+} // namespace darcy_padapt
+
+TEST_CASE("The error estimate does not depend on the trace ceiling",
+          "[HDGErrorEstimator][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   // The estimator reads the trace solution face by face, and under a per-face
+   // degree the constraint space's own face element is the WRONG one: it is
+   // the ceiling's, and the coefficients it would be applied to are a coarser
+   // function's followed by the retired zeros. That is a different function
+   // rather than an approximation of one, because the two nodal bases sit at
+   // different points -- so the estimate comes out wrong without anything
+   // failing. SetHybridization() is what closes it, and this is the
+   // measurement: same problem, same solution, ceiling raised by three.
+   const int order = 2, n = 4;
+
+   Solved plain, raised;
+   SolveKeeping(order, n, order, plain);
+   SolveKeeping(order, n, order + 3, raised);
+
+   ConstantCoefficient one(1.0);
+
+   // The solutions must agree first, or the estimates could differ for an
+   // honest reason.
+   Vector dq(plain.q_h);
+   dq -= raised.q_h;
+   INFO("flux differs by " << dq.Normlinf());
+   REQUIRE(dq.Normlinf() < 1e-12);
+
+   HDGDiffusionIntegrator bfi_a(one, 0.5), bfi_b(one, 0.5);
+   HDGErrorEstimator est_plain(bfi_a, plain.tr_h, plain.p_h);
+   HDGErrorEstimator est_raised(bfi_b, raised.tr_h, raised.p_h);
+   est_raised.SetHybridization(*raised.darcy->GetHybridization());
+
+   const Vector &ea = est_plain.GetLocalErrors();
+   const Vector &eb = est_raised.GetLocalErrors();
+
+   REQUIRE(ea.Size() == eb.Size());
+   Vector d(ea);
+   d -= eb;
+   INFO("estimate " << est_plain.GetTotalError() << " against "
+        << est_raised.GetTotalError());
+   REQUIRE(d.Normlinf() < 1e-12 * ea.Normlinf());
+}
+
+TEST_CASE("Projecting the trace comparison changes nothing at equal degrees",
+          "[HDGErrorEstimator][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   // TraceComparison::Projected exists for the case where the potential
+   // carries a higher degree than the trace. Where it does not, an element's
+   // trace on a face is already in the trace space and the projection is the
+   // identity -- so this must be a no-op, and a difference here would mean the
+   // face mass matrix or its quadrature rule is wrong rather than that the
+   // idea is.
+   const int order = GENERATE(1, 2);
+   const int n = 4;
+   CAPTURE(order);
+
+   Solved s;
+   SolveKeeping(order, n, order, s);
+
+   ConstantCoefficient one(1.0);
+   HDGDiffusionIntegrator bfi_a(one, 0.5), bfi_b(one, 0.5);
+
+   HDGErrorEstimator literal(bfi_a, s.tr_h, s.p_h);
+   HDGErrorEstimator projected(bfi_b, s.tr_h, s.p_h);
+   projected.SetTraceComparison(HDGErrorEstimator::TraceComparison::Projected);
+
+   const Vector &ea = literal.GetLocalErrors();
+   const Vector &eb = projected.GetLocalErrors();
+
+   Vector d(ea);
+   d -= eb;
+   INFO("literal " << literal.GetTotalError() << ", projected "
+        << projected.GetTotalError());
+   REQUIRE(d.Normlinf() < 1e-11 * ea.Normlinf());
+}
+
+TEST_CASE("Excluding a boundary attribute removes its faces and nothing else",
+          "[HDGErrorEstimator][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   // The exclusion exists because |p^ - lambda| is not an error on a face
+   // whose Dirichlet datum is imposed weakly. What it must not do is reach any
+   // other face: an element away from the excluded attribute has to come back
+   // with the same number it had.
+   const int order = 2, n = 4;
+
+   Solved s;
+   SolveKeeping(order, n, order, s);
+
+   ConstantCoefficient one(1.0);
+   HDGDiffusionIntegrator bfi_a(one, 0.5), bfi_b(one, 0.5);
+
+   HDGErrorEstimator all(bfi_a, s.tr_h, s.p_h);
+   HDGErrorEstimator less(bfi_b, s.tr_h, s.p_h);
+
+   Array<int> marker(s.mesh->bdr_attributes.Max());
+   marker = 0;
+   marker[0] = 1;                     // attribute 1, the y = 0 side
+   less.SetExcludedBoundary(marker);
+
+   const Vector &ea = all.GetLocalErrors();
+   const Vector &eb = less.GetLocalErrors();
+
+   // Which elements touch attribute 1.
+   Array<int> touches(s.mesh->GetNE());
+   touches = 0;
+   for (int b = 0; b < s.mesh->GetNBE(); b++)
+   {
+      if (s.mesh->GetBdrAttribute(b) != 1) { continue; }
+      int e1, e2;
+      s.mesh->GetFaceElements(s.mesh->GetBdrElementFaceIndex(b), &e1, &e2);
+      touches[e1] = 1;
+   }
+   REQUIRE(touches.Sum() == n);
+
+   int changed = 0;
+   for (int e = 0; e < ea.Size(); e++)
+   {
+      CAPTURE(e, touches[e], ea(e), eb(e));
+      if (touches[e])
+      {
+         REQUIRE(eb(e) <= ea(e));
+         if (eb(e) < ea(e) * (1.0 - 1e-12)) { changed++; }
+      }
+      else
+      {
+         REQUIRE(eb(e) == Approx(ea(e)).margin(1e-14 * ea.Normlinf()));
+      }
+   }
+
+   // And it must actually have removed something, or the test passes for the
+   // wrong reason.
+   REQUIRE(changed == n);
+}

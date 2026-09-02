@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+class DarcyHybridization;
+
 /// (Anisotropic) error estimator for hybridized Darcy-like mixed systems
 /** HDGErrorEstimator is an error estimator for mixed systems with
     (anti)symmetric weak form hybridized as follows:
@@ -58,6 +60,33 @@ public:
       Energy,     ///< Energy-like norm ~ sqrt(pᵀDp + pᵀEλ - λᵀGp - λᵀHλ)
    };
 
+   /** @brief How the potential's trace is compared with λ on a face, which
+       only becomes a question when the potential carries a HIGHER degree than
+       the trace -- as it does when the estimate is built on the postprocessed
+       potential, which is the case worth building it on.
+
+       Write `M_h = P_k(e)` for the trace space on a face. A degree-`k+1`
+       trace has a component no element of `M_h` can represent, and
+       orthogonality splits the literal difference as
+
+           ||p̂ - λ||² = ||P_M p̂ - λ||² + ||(I - P_M) p̂||²
+
+       where the second piece is not an error: it survives when λ is the best
+       trace of the exact solution. Comparing a `P_k(e)` function with a
+       degree-`k+1` trace *as approximations to the same thing* means comparing
+       them in `P_k(e)`, which is what Projected does.
+
+       **Where the degrees agree the two are the same number, exactly**, since
+       an element's trace on a face is then already in `M_h` and the projection
+       is the identity -- so this changes nothing for a caller estimating on
+       the computed potential, and Literal remains the default only so that the
+       difference stays measurable rather than because it is ever wanted. */
+   enum class TraceComparison
+   {
+      Literal,    ///< ||p̂ - λ||, as written
+      Projected,  ///< ||P_M p̂ - λ||, inside the trace space
+   };
+
 private:
    BilinearFormIntegrator &bfi;
    const GridFunction &sol_tr, &sol_p;
@@ -66,6 +95,9 @@ private:
 #endif
    Type type;
 
+   Array<int> excl_bdr;
+   const DarcyHybridization *hyb {};
+   TraceComparison trcmp{TraceComparison::Literal};
    long current_sequence{-1};
    Vector error_estimates;
    real_t total_error{};
@@ -85,6 +117,13 @@ private:
 
    /// Compute the face error estimate
    void ComputeFaceEstimate(int face, bool side2, Vector &d_error_estimates);
+
+   /** @brief L2(e)-projection of one side's potential trace onto the trace
+       element, returned as trace-basis coefficients. */
+   static void ProjectOntoTrace(const FiniteElement &fe_tr,
+                                const FiniteElement &el,
+                                FaceElementTransformations &FTr, int side,
+                                const Vector &elfun, Vector &c);
 
 public:
    /// Constructor
@@ -114,6 +153,88 @@ public:
        parameter in its BilinearFormIntegrator::ComputeHDGFaceEnergy() method.
     */
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
+
+   /** @brief Boundary attributes whose faces the estimate leaves out. Marked
+       with a nonzero entry per attribute; an empty array, the default, leaves
+       nothing out and is what every caller had before this existed.
+
+       **This is an omission, not a repair, and it exists because |p̂-λ| is an
+       error only where λ is approximating the potential's trace.** It is not
+       on a boundary face whose Dirichlet datum is imposed WEAKLY -- through
+       `<T_D, v·n>` on the flux equation rather than by pinning λ -- because
+       nothing there ties λ to the potential, and the constraint is not even
+       assembled on such a face (MixedBilinearForm::AddBdrFaceIntegrator() is
+       what puts it there, and a weak-datum caller does not add one). λ then
+       settles somewhere unrelated to T and the term does not vanish with h.
+
+       Measured on `anisodiff -p 5 -ks 1 -o 2 -hb -dg`, splitting the estimate
+       by boundary attribute over nx = 8 and 16:
+
+       | | interior | attrs 1,3 (datum) | attrs 2,4 (no datum) |
+       |---|---|---|---|
+       | nx = 8  | 5.68e-6 | 1.994 each | 1.39e-6 each |
+       | nx = 16 | 2.49e-7 | 3.999 each | 4.25e-8 each |
+
+       The interior converges at `h²`, which is optimal at `k = 2`, and so do
+       the two boundaries carrying no datum. The two carrying one *double* --
+       exactly `1/h`, one fixed amount per face -- so eta grows under
+       refinement while the true error falls by 265x, and a refiner driven by
+       it chases the boundary instead of the solution. Leaving those two
+       attributes out restores `h²` for the total.
+
+       Nothing needs excluding where the datum is essential (the trace pinned
+       to it) or where it is zero: there λ and the potential's trace agree in
+       the limit and the term is a real error. */
+   void SetExcludedBoundary(const Array<int> &bdr_attr_marker)
+   { bdr_attr_marker.Copy(excl_bdr); Reset(); }
+
+   /** @brief Compare λ against the potential's trace literally, or against its
+       projection into the trace space. See TraceComparison.
+
+       **How much it is worth, measured rather than argued, and it is less than
+       the splitting suggests.** On
+       `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg --postprocessed-estimate`, where
+       the potential is degree 3 against a degree-2 trace, Projected moves eta
+       from 3.499 to 3.327 -- 5% -- and changes not one marking decision: the
+       same six elements are selected and the same six directional flags come
+       back. So on this problem the component `M_h` cannot represent is a small
+       part of the term rather than the whole of it, and dropping it is a
+       correction to eta's *size* rather than to what it points at.
+
+       **And it does not repair the one thing that looked like its doing.**
+       With the postprocessed potential the directional split of
+       GetAnisotropicFlags() points the wrong way -- six of six elements flagged
+       `x` on a problem whose layer is in `y`, where the computed potential
+       flags `y` -- and the adaptive loop then refines forever without touching
+       the layer. That was the reason this option was written, and it survives
+       the projection unchanged: same flags, same frozen loop. Whatever
+       misdirects the split is therefore something else, and is open. */
+   void SetTraceComparison(TraceComparison c) { trcmp = c; Reset(); }
+
+   /** @brief Read the per-face trace degrees from @a hyb_, for `p`-adaptivity.
+
+       **Required whenever DarcyHybridization::SetTraceOrders() was used, and
+       not merely advisable.** The constraint space stays uniform at the
+       ceiling degree and a coarser face uses only the first `nt(p_f)` of the
+       slots it owns; the rest are retired and hold zero. Reading such a face
+       through the constraint space's own element evaluates the CEILING basis
+       against a coefficient vector that is a coarser function's followed by
+       zeros -- which is a different function, not an approximation of it,
+       because the two bases are nodal at different points.
+
+       Measured on `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg`, one cycle, every
+       element at degree 2 and every face therefore at degree 2, changing only
+       the degree the constraint space was BUILT at:
+
+       | ceiling | eta |
+       |---|---|
+       | 2 (no ceiling) | 0.325 |
+       | 3 | 5.92 |
+       | 5 | 8.81 |
+
+       The solution is the same to six digits in all three; only the estimate
+       moves, and it moves by a factor of 27. */
+   void SetHybridization(const DarcyHybridization &hyb_) { hyb = &hyb_; Reset(); }
 
    /// Return the total error from the last error estimate.
    real_t GetTotalError() const override { return total_error; }
