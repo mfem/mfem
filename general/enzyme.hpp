@@ -51,7 +51,7 @@ MFEM_HOST_DEVICE
 return_type __enzyme_fwddiff(Args...);
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
-#define MFEM_ENZYME_INACTIVE   __attribute__((enzyme_inactive))
+#define MFEM_ENZYME_INACTIVE   __attribute__((annotate("enzyme_inactive")))
 #define MFEM_ENZYME_FN_LIKE(x)   __attribute__((enzyme_function_like(#x)))
 
 #else
