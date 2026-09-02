@@ -607,7 +607,13 @@ void CheckpointController::Initialize(StateId state)
    }
    CheckpointState initial{state, adapter.Capture(state)};
    active = std::move(initial);
+   terminal.reset();
+   successor.reset();
    checkpoints.clear();
+   pending.reset();
+   reverse_position.reset();
+   reverse_started = false;
+   reverse_finished = false;
    window.Clear();
 }
 
@@ -768,6 +774,9 @@ void CheckpointController::Execute(const CheckpointCommand &command)
       case CheckpointAction::Restore: ExecuteRestore(command); break;
       case CheckpointAction::Advance: ExecuteAdvance(command); break;
       case CheckpointAction::Discard: ExecuteDiscard(command); break;
+      case CheckpointAction::Reverse:
+         throw InvalidReverseState(
+            "Reverse command requires a reverse-state handler");
       case CheckpointAction::Finished: break;
    }
 }
@@ -775,6 +784,11 @@ void CheckpointController::Execute(const CheckpointCommand &command)
 void CheckpointController::ExecuteForward(
    CheckpointSchedule &schedule, StateId terminal_state)
 {
+   if (reverse_started || reverse_finished || pending)
+   {
+      throw InvalidCheckpointState(
+         "cannot execute forward commands after reverse begins");
+   }
    if (terminal_state < ActiveState().id)
    {
       throw InvalidCheckpointState("invalid offline forward phase");
@@ -782,6 +796,14 @@ void CheckpointController::ExecuteForward(
    while (true)
    {
       const CheckpointCommand command = schedule.Next();
+      if (active->id == terminal_state &&
+          command.action != CheckpointAction::Store &&
+          command.action != CheckpointAction::Discard &&
+          command.action != CheckpointAction::Finished)
+      {
+         pending = command;
+         return;
+      }
       if (command.action == CheckpointAction::Finished)
       {
          if (active->id != terminal_state)
@@ -791,6 +813,11 @@ void CheckpointController::ExecuteForward(
          }
          return;
       }
+      if (command.action == CheckpointAction::Reverse)
+      {
+         throw InvalidScheduleState(
+            "schedule entered reverse before reaching the terminal state");
+      }
       if (command.action == CheckpointAction::Advance &&
           command.to_step > terminal_state)
       {
@@ -799,6 +826,149 @@ void CheckpointController::ExecuteForward(
       }
       Execute(command);
    }
+}
+
+void CheckpointController::ExecuteOnlineForward(
+   OnlineCheckpointSchedule &schedule, StateId terminal_state)
+{
+   if (reverse_started || reverse_finished || pending ||
+       terminal_state < ActiveState().id)
+   {
+      throw InvalidCheckpointState("invalid online forward phase");
+   }
+   while (active->id < terminal_state)
+   {
+      const StateId from = active->id;
+      const std::vector<CheckpointCommand> commands =
+         schedule.BeforeForwardState(from);
+      for (const CheckpointCommand &command : commands)
+      {
+         if (command.action != CheckpointAction::Store &&
+             command.action != CheckpointAction::Discard)
+         {
+            throw InvalidScheduleState(
+               "online forward placement emitted an invalid command");
+         }
+         Execute(command);
+      }
+      ExecuteAdvance(CheckpointCommand{CheckpointAction::Advance, from,
+                                       from + StateId{1}, std::nullopt});
+   }
+   const std::vector<CheckpointCommand> commands =
+      schedule.ForwardComplete(terminal_state);
+   for (const CheckpointCommand &command : commands)
+   {
+      if (command.action != CheckpointAction::Store &&
+          command.action != CheckpointAction::Discard)
+      {
+         throw InvalidScheduleState(
+            "online forward completion emitted an invalid command");
+      }
+      Execute(command);
+   }
+}
+
+void CheckpointController::BeginReverse()
+{
+   if (reverse_started || reverse_finished)
+   {
+      throw InvalidReverseState("reverse execution has already begun");
+   }
+   terminal = ActiveState();
+   successor = *terminal;
+   reverse_position = terminal->id;
+   reverse_started = true;
+}
+
+void CheckpointController::ExecuteReverse(
+   const CheckpointCommand &command, ReverseStateHandler &handler)
+{
+   if (!reverse_started || reverse_finished || !reverse_position ||
+       !successor)
+   {
+      throw InvalidReverseState("reverse execution is not active");
+   }
+   if (command.checkpoint ||
+       command.from_step != command.to_step + StateId{1} ||
+       command.from_step != *reverse_position ||
+       successor->id != command.from_step)
+   {
+      throw InvalidScheduleState("invalid or out-of-order Reverse command");
+   }
+   if (ActiveState().id != command.to_step)
+   {
+      throw InvalidReverseState(
+         "Reverse predecessor is not the exact active application state");
+   }
+
+   try
+   {
+      handler.Apply(command.to_step, command.from_step);
+   }
+   catch (const std::exception &error)
+   {
+      throw ReverseExecutionFailure(std::string("reverse callback failed: ") +
+                                    error.what());
+   }
+   catch (...)
+   {
+      throw ReverseExecutionFailure("reverse callback failed");
+   }
+   successor = ActiveState();
+   reverse_position = command.to_step;
+}
+
+void CheckpointController::ExecuteReverse(
+   CheckpointSchedule &schedule, ReverseStateHandler &handler)
+{
+   if (!reverse_started || reverse_finished)
+   {
+      throw InvalidReverseState("reverse execution is not active");
+   }
+   while (true)
+   {
+      if (!pending) { pending = schedule.Next(); }
+      const CheckpointCommand command = *pending;
+      if (command.action == CheckpointAction::Finished)
+      {
+         if (!reverse_position || *reverse_position != 0)
+         {
+            throw InvalidScheduleState(
+               "reverse schedule finished before reaching state zero");
+         }
+         pending.reset();
+         reverse_started = false;
+         reverse_finished = true;
+         return;
+      }
+      if (command.action == CheckpointAction::Reverse)
+      {
+         ExecuteReverse(command, handler);
+      }
+      else
+      {
+         Execute(command);
+      }
+      pending.reset();
+   }
+}
+
+const CheckpointState &CheckpointController::TerminalState() const
+{
+   if (!terminal)
+   {
+      throw InvalidReverseState("terminal state has not been preserved");
+   }
+   return *terminal;
+}
+
+const CheckpointState &CheckpointController::SuccessorState() const
+{
+   if (!successor)
+   {
+      throw InvalidReverseState("reverse successor is not available");
+   }
+   return *successor;
 }
 
 void CheckpointController::RestoreState(StateId target)
@@ -860,6 +1030,8 @@ void CheckpointController::RestoreState(StateId target)
 }
 
 #include "checkpoint_store_everything.inc"
+#include "checkpoint_revolve.inc"
+#include "checkpoint_wmi.inc"
 
 class StoreEverythingSchedule::Implementation
 {
@@ -884,6 +1056,69 @@ CheckpointCommand StoreEverythingSchedule::Next()
 }
 
 void StoreEverythingSchedule::Reset()
+{
+   impl->schedule.Reset();
+}
+
+class RevolveSchedule::Implementation
+{
+public:
+   checkpoint_detail::RevolveScheduleImpl schedule;
+};
+
+RevolveSchedule::RevolveSchedule() : impl(new Implementation) { }
+RevolveSchedule::~RevolveSchedule() = default;
+
+void RevolveSchedule::Configure(StateId num_steps,
+                                std::size_t num_checkpoints)
+{
+   impl->schedule.Configure(num_steps, num_checkpoints);
+}
+
+CheckpointCommand RevolveSchedule::Next()
+{
+   return impl->schedule.Next();
+}
+
+void RevolveSchedule::Reset()
+{
+   impl->schedule.Reset();
+}
+
+class WangMoinIaccarinoSchedule::Implementation
+{
+public:
+   checkpoint_detail::WangMoinIaccarinoScheduleImpl schedule;
+};
+
+WangMoinIaccarinoSchedule::WangMoinIaccarinoSchedule()
+   : impl(new Implementation) { }
+
+WangMoinIaccarinoSchedule::~WangMoinIaccarinoSchedule() = default;
+
+void WangMoinIaccarinoSchedule::Configure(std::size_t num_checkpoints)
+{
+   impl->schedule.Configure(num_checkpoints);
+}
+
+std::vector<CheckpointCommand>
+WangMoinIaccarinoSchedule::BeforeForwardState(StateId state)
+{
+   return impl->schedule.BeforeForwardState(state);
+}
+
+std::vector<CheckpointCommand>
+WangMoinIaccarinoSchedule::ForwardComplete(StateId terminal_state)
+{
+   return impl->schedule.ForwardComplete(terminal_state);
+}
+
+CheckpointCommand WangMoinIaccarinoSchedule::Next()
+{
+   return impl->schedule.Next();
+}
+
+void WangMoinIaccarinoSchedule::Reset()
 {
    impl->schedule.Reset();
 }

@@ -109,6 +109,27 @@ public:
    using CheckpointError::CheckpointError;
 };
 
+/// Error raised for an invalid scheduler command or lifecycle operation.
+class InvalidScheduleState : public CheckpointError
+{
+public:
+   using CheckpointError::CheckpointError;
+};
+
+/// Error raised when reverse execution is not synchronized to exact states.
+class InvalidReverseState : public CheckpointError
+{
+public:
+   using CheckpointError::CheckpointError;
+};
+
+/// Error raised when application-owned reverse processing fails.
+class ReverseExecutionFailure : public CheckpointError
+{
+public:
+   using CheckpointError::CheckpointError;
+};
+
 /// Complete opaque application state at one ordered logical position.
 /** The adapter defines the snapshot contents. A state is complete only when
     it contains everything required to continue deterministic replay. */
@@ -258,11 +279,12 @@ enum class CheckpointAction
    Advance,  ///< Propagate from @a from_step through @a to_step.
    Store,    ///< Persist the active state under @a checkpoint.
    Restore,  ///< Restore @a checkpoint as the active state.
+   Reverse,  ///< Process one transition from successor to predecessor.
    Discard,  ///< Erase @a checkpoint from physical storage.
    Finished  ///< Mark successful completion of the schedule.
 };
 
-/// One storage or propagation command emitted by a schedule.
+/// One storage, propagation, or reverse command emitted by a schedule.
 struct CheckpointCommand
 {
    CheckpointAction action = CheckpointAction::Finished; ///< Operation kind.
@@ -289,10 +311,25 @@ public:
 class OfflineCheckpointSchedule : public CheckpointSchedule
 {
 public:
-   /// Configure a known @a num_steps horizon and physical slot budget.
+   /// Configure a known @a num_steps horizon and logical checkpoint budget.
    /** StoreEverythingSchedule requires at least @a num_steps + 1 slots. */
    virtual void Configure(StateId num_steps,
                           std::size_t num_checkpoints) = 0;
+};
+
+/// Interface for schedules whose forward horizon is not known in advance.
+class OnlineCheckpointSchedule : public CheckpointSchedule
+{
+public:
+   /// Configure the maximum number of simultaneously stored checkpoints.
+   virtual void Configure(std::size_t num_checkpoints) = 0;
+
+   /// Emit placement commands while @a state is active, before advancing it.
+   virtual std::vector<CheckpointCommand> BeforeForwardState(StateId state) = 0;
+
+   /// Finish original forward placement while @a terminal_state is active.
+   virtual std::vector<CheckpointCommand> ForwardComplete(
+      StateId terminal_state) = 0;
 };
 
 /// Offline reference schedule that stores every trajectory state.
@@ -318,6 +355,47 @@ public:
    CheckpointCommand Next() override;
 
    /// @copydoc CheckpointSchedule::Reset()
+   void Reset() override;
+};
+
+/// Canonical binomial offline Revolve checkpoint schedule.
+/** The budget counts simultaneously stored primal checkpoints. A stored S0
+    consumes one slot; the active state and retained reverse successor do not. */
+class RevolveSchedule : public OfflineCheckpointSchedule
+{
+private:
+   class Implementation;
+   std::unique_ptr<Implementation> impl;
+
+public:
+   RevolveSchedule();
+   ~RevolveSchedule() override;
+
+   void Configure(StateId num_steps,
+                  std::size_t num_checkpoints) override;
+   CheckpointCommand Next() override;
+   void Reset() override;
+};
+
+/// Online Wang--Moin--Iaccarino checkpoint schedule.
+/** The scheduler is prefix causal and requires no final horizon during the
+    original forward computation. Algorithmic placeholders do not consume
+    checkpoint slots. */
+class WangMoinIaccarinoSchedule : public OnlineCheckpointSchedule
+{
+private:
+   class Implementation;
+   std::unique_ptr<Implementation> impl;
+
+public:
+   WangMoinIaccarinoSchedule();
+   ~WangMoinIaccarinoSchedule() override;
+
+   void Configure(std::size_t num_checkpoints) override;
+   std::vector<CheckpointCommand> BeforeForwardState(StateId state) override;
+   std::vector<CheckpointCommand> ForwardComplete(
+      StateId terminal_state) override;
+   CheckpointCommand Next() override;
    void Reset() override;
 };
 
@@ -372,6 +450,21 @@ public:
    virtual void Advance(StateId from, StateId to) = 0;
 };
 
+/// Application-owned processing of one exactly reconstructed reverse step.
+/** Before Apply() the live application is synchronized to @a predecessor and
+    the controller has retained an exact snapshot of @a successor. Reverse
+    state and derivative logic remain entirely application-owned. A throwing
+    callback does not advance controller reverse position, but generic rollback
+    of mutations made inside the callback is not possible. */
+class ReverseStateHandler
+{
+public:
+   virtual ~ReverseStateHandler() = default;
+
+   /// Process the transition predecessor -> successor in reverse.
+   virtual void Apply(StateId predecessor, StateId successor) = 0;
+};
+
 /// Exact scheduler-driven checkpoint/replay controller for application state.
 /** The controller borrows its adapter, propagator, storage, and moving window.
     The application remains externally owned and synchronized to the committed
@@ -384,7 +477,13 @@ private:
    CheckpointStorage &storage;          ///< Borrowed physical storage.
    ExactCheckpointWindow &window;       ///< Borrowed exact replay cache.
    std::optional<CheckpointState> active; ///< Committed active state.
+   std::optional<CheckpointState> terminal; ///< Preserved terminal state.
+   std::optional<CheckpointState> successor; ///< Retained reverse successor.
    std::map<CheckpointId, StateId> checkpoints; ///< Registered state IDs.
+   std::optional<CheckpointCommand> pending; ///< Consumed, uncommitted command.
+   std::optional<StateId> reverse_position; ///< Next expected successor ID.
+   bool reverse_started = false; ///< True between BeginReverse and Finished.
+   bool reverse_finished = false; ///< True after a valid Finished command.
 
    /// Validate and execute one scheduler command.
    void Execute(const CheckpointCommand &command);
@@ -401,6 +500,10 @@ private:
    /// Erase the checkpoint named by @a command.
    void ExecuteDiscard(const CheckpointCommand &command);
 
+   /// Execute one application-owned reverse transition.
+   void ExecuteReverse(const CheckpointCommand &command,
+                       ReverseStateHandler &handler);
+
 public:
    /// Borrow all runtime services; each must outlive this controller.
    CheckpointController(CheckpointStateAdapter &adapter_,
@@ -415,9 +518,27 @@ public:
        physical checkpoint objects are not erased. */
    void Initialize(StateId state = 0);
 
-   /// Execute an offline schedule through Finished at @a terminal_state.
-   /// @throws InvalidCheckpointState for an inconsistent schedule trace.
+   /// Execute the forward prefix of a schedule at @a terminal_state.
+   /** A forward-only schedule is consumed through Finished. For a reverse
+       schedule, the first command that would replace the terminal active state
+       is retained for ExecuteReverse().
+       @throws InvalidCheckpointState for an inconsistent schedule trace. */
    void ExecuteForward(CheckpointSchedule &schedule, StateId terminal_state);
+
+   /// Drive an online schedule through its unknown-horizon forward phase.
+   void ExecuteOnlineForward(OnlineCheckpointSchedule &schedule,
+                             StateId terminal_state);
+
+   /// Preserve the exact terminal state and enter reverse execution.
+   /** Application reverse state, including a terminal adjoint, must be
+       initialized before this call. */
+   void BeginReverse();
+
+   /// Consume replay and reverse commands through Finished.
+   /** A failed callback leaves the Reverse command pending so a caller may
+       retry it after repairing application-owned reverse state. */
+   void ExecuteReverse(CheckpointSchedule &schedule,
+                       ReverseStateHandler &handler);
 
    /// Store the committed active state under the new logical @a id.
    /** The physical object is written before metadata is committed. A failed
@@ -444,6 +565,15 @@ public:
 
    /// Return the committed active complete application state.
    const CheckpointState &ActiveState() const;
+
+   /// Return the exact terminal state preserved for reverse execution.
+   const CheckpointState &TerminalState() const;
+
+   /// Return the retained exact successor for the next reverse transition.
+   const CheckpointState &SuccessorState() const;
+
+   /// Return true after the reverse schedule has completed successfully.
+   bool ReverseFinished() const { return reverse_finished; }
 };
 
 /// ODE-specific pairing of a logical step and physical time.

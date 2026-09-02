@@ -39,13 +39,13 @@ public:
             + std::to_string(num_steps) + " steps, but only "
             + std::to_string(num_checkpoints) + " were provided");
       }
-      if (step_count > (std::numeric_limits<std::size_t>::max() - 2) / 2)
+      if (step_count > (std::numeric_limits<std::size_t>::max() - 3) / 5)
       {
          throw std::length_error(
             "store-everything command-count calculation overflow");
       }
 
-      const std::size_t command_count = 2 * step_count + 2;
+      const std::size_t command_count = 5 * step_count + 3;
       std::vector<CheckpointCommand> commands;
       if (command_count > commands.max_size())
       {
@@ -61,6 +61,19 @@ public:
                                               step + 1, std::nullopt});
          commands.push_back(storageCommand(CheckpointAction::Store, step + 1));
       }
+
+      for (StateId from = num_steps; from > 0; --from)
+      {
+         const StateId predecessor = from - 1;
+         commands.push_back(storageCommand(CheckpointAction::Restore,
+                                           predecessor));
+         commands.push_back(CheckpointCommand{CheckpointAction::Reverse, from,
+                                              predecessor, std::nullopt});
+         commands.push_back(storageCommand(CheckpointAction::Discard,
+                                           predecessor));
+      }
+
+      commands.push_back(storageCommand(CheckpointAction::Discard, num_steps));
 
       commands.push_back(CheckpointCommand{CheckpointAction::Finished,
                                            num_steps, num_steps, std::nullopt});
