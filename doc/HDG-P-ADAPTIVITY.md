@@ -126,13 +126,14 @@ of this route. The one new requirement is that the two ranks either side of a
 shared face agree on `p_f`, which needs the neighbour's element order: one
 exchange, or a rule computable from data both sides already hold.
 
-**5. The demonstrator, and the indicator.**
-Every `convdiff` problem is analytic and uniform `p` already converges
-exponentially on them, so the case has to be `anisodiff -p 6` (steady peak) or
-`-p 5` (boundary layer). `HDGErrorEstimator` says *where*; nothing says *`h` or
-`p`*. Cheapest candidate for the smoothness half is the postprocessing gap
-`‖u*_h − u_h‖_K`, which the tree already computes — to be measured against a
-coefficient-decay indicator rather than assumed.
+**5. The demonstrator, and the indicator. DONE.**
+`anisodiff -p 5 -ks 1e2 -hb -dg -dorf -hp`, with `HDGErrorEstimator` saying
+where and `PerssonPeraireSmoothness` saying `h` or `p`. The table is in the
+miniapp's header comment; the short of it is 48x fewer globally coupled
+unknowns than uniform refinement and 2.3x fewer than `h`-adaptivity at a
+relative error of 1e-4, and three further decades where neither of the others
+can be run. What it cost was three defects in the estimate, all recorded on the
+methods that now carry the fixes.
 
 ## Driving it
 
@@ -193,50 +194,66 @@ flag is still worth having first as a *mechanism* test -- prescribed degrees,
 no adaptation -- because it puts the machinery under the regression suite
 before any indicator exists.
 
-## What is missing is a demonstrator, and it is the next thing to build
+## What is left
 
-Steps 1 to 4 are mechanism. Everything measured so far says the machinery is
-right -- the null tests are exact, the active dof count is arithmetic, the
-convergence rates hold -- and **none of it shows `p`-adaptivity is worth
-having**. `convdiff -pref` prescribes degrees from a geometric rule and adapts
-nothing; it belongs in the suite as a mechanism test and should not be mistaken
-for a result.
+The demonstrator exists and steps 1 to 5 are done. What follows is what it
+turned up and did not settle.
 
-A demonstrator has to produce one curve: **error against globally coupled dofs,
-`p`-adaptive versus uniform**, with the adaptive one below. Three things are in
-the way and only the first is small.
+**The anisotropic split is wrong under the postprocessed estimate, and nobody
+knows why.** `HDGErrorEstimator::GetAnisotropicFlags()` distributes each face's
+energy along the reference directions by geometry. Built on the computed
+potential it flags `y` on a problem whose layer is in `y`; built on the
+postprocessed potential it flags `x`, six of six, on the same conforming mesh
+and the same solution, and the loop then refines forever without touching the
+layer. `TraceComparison::Projected` was written on the theory that the
+component the trace space cannot represent was misdirecting it -- that theory
+is **wrong and measured wrong**: the projection moves eta by 5% and leaves all
+six flags where they were. This is the one open question with a demonstrator
+behind it.
 
-**The problem.** Every `convdiff` problem is analytic, and uniform `p` already
-converges exponentially on them -- measured, `-p 2` at Peclet 100 goes 2.2e-3
-to 1.7e-14 over orders 1 to 6 with no sign of a layer. There is nothing for
-adaptivity to win, and a demonstrator built there would be measuring noise.
-The case needs localised structure: `anisodiff -p 6` (steady peak) or `-p 5`
-(boundary layer).
+**A hanging-node family has to run at the ceiling**, which is where coarsening
+stops. The reason is in `SetTraceOrders()`: the constraint space's conforming
+prolongation interpolates in the ceiling basis, and this route's convention --
+coarse coefficients followed by retired zeros -- is a different function in
+that basis. Removing the restriction means constraining the surplus slots
+rather than retiring them, so that a face's coefficient vector is the coarse
+function *expressed at the ceiling*. That is a different mechanism, not an
+adjustment, and it is what would make `h` and `p` compose without a penalty at
+every hanging node.
 
-**The loop.** Solve, estimate, mark, set degrees, rebuild, re-solve. Nothing
-does this yet. `SetTraceOrders()` invalidates the assembly by design, so each
-pass wants a fresh `DarcyForm` rather than a `Reset()`, which is what
-`anisodiff`'s AMR loop already does after refining.
+**`min` against `max` at a genuine `p`-interface** is still unmeasured, and the
+demonstrator is now the place to measure it.
 
-**The policy, and the `h` half.** `HDGErrorEstimator` marks where;
-`PerssonPeraireSmoothness` says `h` or `p`. What is absent is the rule joining
-them and any `h` refinement on this branch at all -- and `anisodiff` is where
-the `ThresholdRefiner` and the refinement loop already live.
+**Parallel** still needs the one exchange of element degrees over face
+neighbours; `FaceOrdersFromElementOrders()` refuses a `ParMesh` with shared
+faces and non-uniform degrees rather than guessing.
 
-So the demonstrator belongs in **`anisodiff`, not `convdiff`**, and that is a
-larger piece of work than steps 1 to 4 together, because it is the first one
-whose success is a measurement rather than an identity.
+**`DarcyForm::Reconstruct()`** still reads the trace space directly at six
+sites, so `-pref` refuses `-rec`. `HDGPotentialPostprocessor` is the
+reconstruction that a per-face degree does not disturb and is what the
+demonstrator uses.
+
+**A regression reference for the `hp` loop.** `anisodiff` has none at all --
+`regression_test.py` drives `convdiff` only -- so the demonstrator is measured
+and not pinned.
 
 ## Acceptance
 
 1. **Null test**: every `p_f` equal to the uniform order reproduces every
-   existing answer bit-for-bit. If this is not exact, stop.
+   existing answer bit-for-bit. DONE, and it caught two defects that nothing
+   else would have -- the raised ceiling perturbing the error estimate, and
+   `SubDofOrder()` answering at the collection's degree.
 2. A mesh carrying two element orders converges at the rate its trace orders
    set, and reaches a given error at fewer global dofs than uniform `p_max`.
+   DONE; see the table in `anisodiff.cpp`.
 3. **`min` against `max` at a genuine `p`-interface.** The investigation showed
-   a trace richer than *both* neighbours is exactly redundant; whether it earns
-   its dofs where the neighbours differ is open, and this is the first thing
-   that can answer it. Measure it; do not pick a rule by argument.
+   a trace richer than *both* neighbours is exactly redundant -- **on a
+   conforming mesh, and that qualifier turned out to matter**: across a hanging
+   node the master sees several fine elements which between them do reach the
+   higher modes, so the extra degrees are determined rather than annihilated
+   and the answer changes, measured 0.118 against 0.098 for the worse. Whether
+   `max` earns its dofs at a genuine `p`-interface is still open. Measure it;
+   do not pick a rule by argument.
 4. Rank-count independence on `pconvdiff` at 1, 2, 3, 4 ranks.
 
 ## The cost of branching from the trunk, and how to settle it
