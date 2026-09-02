@@ -689,6 +689,48 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
    }
 }
 
+void DarcyHybridization::FaceOrdersFromElementOrders(
+   const Mesh &mesh, const Array<int> &elem_order, TraceOrderRule rule,
+   int cap, Array<int> &face_order)
+{
+   MFEM_VERIFY(elem_order.Size() == mesh.GetNE(),
+               "One element order per element is needed: got "
+               << elem_order.Size() << " for " << mesh.GetNE() << " elements.");
+
+#ifdef MFEM_USE_MPI
+   const ParMesh *pmesh = dynamic_cast<const ParMesh*>(&mesh);
+   if (pmesh && pmesh->GetNSharedFaces() > 0 && elem_order.Size() > 0)
+   {
+      const int p0 = elem_order[0];
+      bool uniform = true;
+      for (int e = 0; e < elem_order.Size(); e++)
+      {
+         if (elem_order[e] != p0) { uniform = false; break; }
+      }
+      MFEM_VERIFY(uniform,
+                  "Deriving face orders on a mesh with shared faces needs the "
+                  "neighbouring rank's element order, and nothing exchanges it "
+                  "yet. A shared face reports no second element, so each rank "
+                  "would take its own side's degree and the two could differ.");
+   }
+#endif
+
+   const int nf = mesh.GetNumFaces();
+   face_order.SetSize(nf);
+   for (int f = 0; f < nf; f++)
+   {
+      int el1, el2;
+      mesh.GetFaceElements(f, &el1, &el2);
+      int p = elem_order[el1];
+      if (el2 >= 0)
+      {
+         p = (rule == TraceOrderRule::Min) ? std::min(p, elem_order[el2])
+             : std::max(p, elem_order[el2]);
+      }
+      face_order[f] = std::min(p, cap);
+   }
+}
+
 void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
 {
    MFEM_VERIFY(!bfin, "Trace orders must be set before Finalize(), which is "

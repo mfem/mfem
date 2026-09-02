@@ -73,6 +73,8 @@ for i, filename in enumerate(filenames):
 	nonlin_pot = get_ref_option(filename, '--nonlinear-pot')
 	nonlin_conv = get_ref_option(filename, '--nonlinear-convection')
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
+	nc = get_ref_option(filename, '--nc-mesh')
+	pface_max = get_ref_option(filename, '--p-face-max')
 
 	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep '^   "+param+"' "+file+" | cut -d ' ' -f 5")
@@ -80,6 +82,21 @@ for i, filename in enumerate(filenames):
 			return ref_out.split()[0]
 		else:
 			return default
+
+	# Anchored on a trailing space, because the reader above is not: a bare
+	# '^   --p-refine' also matches '   --p-refine-x', and which value came
+	# back would then depend on the order OptionsParser happened to print
+	# them in. Used only by the options added below, to leave the reading of
+	# every existing reference exactly as it was.
+	def get_ref_param_exact(file, param, default=""):
+		ref_out = subprocess.getoutput("grep '^   "+param+" ' "+file+" | cut -d ' ' -f 5")
+		if len(ref_out) > 0:
+			return ref_out.split()[0]
+		else:
+			return default
+
+	pref = int(get_ref_param_exact(filename, '--p-refine', "0"))
+	prefx = float(get_ref_param_exact(filename, '--p-refine-x', "0.5"))
 
 	problem = int(get_ref_param(filename, '--problem'))
 	order = int(get_ref_param(filename, '--order'))
@@ -155,6 +172,15 @@ for i, filename in enumerate(filenames):
 		command_line += f' -hdg {hdg}'
 	if nls != 0 and (nonlin or nonlin_flux or nonlin_pot or nonlin_diff):
 		command_line += f' -nls {nls}'
+	if pref != 0:
+		command_line += f' -pref {pref}'
+		if prefx != 0.5:
+			command_line += f' -prefx {prefx}'
+		if pface_max:
+			command_line += ' -pmax'
+	elif nc:
+		# -pref implies it, so it is only worth passing on its own.
+		command_line += ' -nc'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
 

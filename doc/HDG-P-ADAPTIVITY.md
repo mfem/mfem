@@ -93,11 +93,26 @@ exactly right and the system was wrong. `SetTraceOrders()` therefore rebuilds
 them and calls `Reset()`, and must be called straight after
 `EnableHybridization()` and before `Assemble()`.
 
-**3. A knob to drive it.**
-`convdiff -pref` setting element orders from a rule, plus `-nc`, plus a face
-rule of `min` or `max` over the two neighbours. `-nc` is also the flag that
-pins the `DarcyOperator` NC fix, which currently has none because reaching it
-needs a flag the miniapp does not have.
+**3. A knob to drive it. DONE.**
+`convdiff -pref n [-prefx x] [-pmax|-pmin]` raises the element order on a
+region and derives the face degrees through
+`DarcyHybridization::FaceOrdersFromElementOrders()`; `-nc` puts the mesh in
+nonconforming mode on its own. Three references, and they discriminate:
+stripping `-pref` fails, and so does swapping `-pmax` for `-pmin` -- so at a
+genuine `p`-interface the rule is **not** a no-op, unlike the uniform case
+where `max` was measured to be exactly redundant. Which of the two is *better*
+still needs a convergence study.
+
+`regression_test.py` had to learn the new options, since it rebuilds each
+command from a fixed list rather than from the recorded line. Its parameter
+reader greps unanchored, so `--p-refine` also matches `--p-refine-x`; the new
+options use an anchored reader and the old ones are left exactly as they were.
+
+`-nc` is the flag that finally pins the `DarcyOperator` null-prolongation fix.
+Its reference does not discriminate on the *answer* -- an NC mesh with no
+hanging nodes is bit-for-bit the conforming one, which is the whole point --
+but it is the configuration that used to segfault, so the reference catches a
+crash rather than a number.
 
 **4. Parallel.**
 `dim M` per rank is unchanged and `Dof_TrueDof` is untouched — that is the point

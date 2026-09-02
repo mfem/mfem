@@ -269,7 +269,44 @@ int main(int argc, char *argv[])
                   "--no-analytic",
                   "Enable or disable analytic solution.");
 
+   int pref = 0;
+   args.AddOption(&pref, "-pref", "--p-refine",
+                  "Raise the element order by this much where the element "
+                  "centre has x below --p-refine-x. Needs -dg and -hb; the "
+                  "trace space is then built at order+this, the ceiling.");
+   real_t prefx = 0.5;
+   args.AddOption(&prefx, "-prefx", "--p-refine-x",
+                  "Where --p-refine applies: element centres with x below it.");
+   bool pref_max = false;
+   args.AddOption(&pref_max, "-pmax", "--p-face-max", "-pmin", "--p-face-min",
+                  "Face trace degree is the max of its two elements' degrees "
+                  "rather than the min. Both are legal; max is the usual "
+                  "choice in the literature and is exactly redundant wherever "
+                  "the two neighbours already agree.");
+   bool force_nc = false;
+   args.AddOption(&force_nc, "-nc", "--nc-mesh", "-no-nc", "--no-nc-mesh",
+                  "Put the mesh in nonconforming mode. Implied by --p-refine, "
+                  "which needs it: a variable-order space is refused on a "
+                  "conforming mesh. On its own it changes no answer.");
    args.ParseCheck();
+
+   MFEM_VERIFY(pref >= 0, "--p-refine cannot be negative");
+   if (pref > 0)
+   {
+      MFEM_VERIFY(dg && hybridization,
+                  "--p-refine needs -dg and -hb: the element spaces have to be "
+                  "L2 for a variable order, and the trace degrees are the "
+                  "hybridization's.");
+      MFEM_VERIFY(!reconstruct,
+                  "--p-refine and --reconstruct cannot be used together: "
+                  "DarcyForm's reconstruction reads the trace space directly "
+                  "at the uniform degree and would read past what a coarser "
+                  "face actually carries.");
+      MFEM_VERIFY(!trace_h1,
+                  "--p-refine needs the discontinuous trace (-trdg): an H1 "
+                  "trace shares nodal DOFs between faces, so a face has no "
+                  "degree of its own to set.");
+   }
 
    // 2. Set the problem options
    pars.prob = (Problem)iproblem;
@@ -431,6 +468,8 @@ int main(int argc, char *argv[])
       }
    }
 
+   if (pref > 0 || force_nc) { mesh.EnsureNCMesh(); }
+
    // 7. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas finite elements of the specified order for the
    //    heat flux or discontinuous Galerkin alternatively. The temperature is
@@ -467,6 +506,33 @@ int main(int argc, char *argv[])
                                      &mesh, V_coll_dg.get(), dim)):(nullptr);
    // Temperature FE space
    auto W_space = make_unique<FiniteElementSpace>(&mesh, W_coll.get());
+
+   // p-refinement of the element spaces. They are L2 here, so a variable
+   // order needs nothing but SetElementOrder and an update -- every offset
+   // DarcyHybridization builds is per entity already. The trace is what the
+   // hybridization has to be told about, below.
+   Array<int> elem_order(mesh.GetNE());
+   elem_order = order;
+   if (pref > 0)
+   {
+      int nhi = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         Vector c;
+         mesh.GetElementCenter(i, c);
+         if (c(0) < prefx)
+         {
+            elem_order[i] = order + pref;
+            V_space->SetElementOrder(i, order + pref);
+            W_space->SetElementOrder(i, order + pref);
+            nhi++;
+         }
+      }
+      V_space->Update(false);
+      W_space->Update(false);
+      cout << "p-refined " << nhi << " of " << mesh.GetNE()
+           << " elements to order " << order + pref << endl;
+   }
 
    // Darcy form
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
@@ -800,12 +866,52 @@ int main(int argc, char *argv[])
       }
       else
       {
-         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+         // The constraint space's degree is a ceiling, not a starting point:
+         // faces can only be set below it, so it is the highest degree this
+         // run will reach.
+         trace_coll = make_unique<DG_Interface_FECollection>(order + pref, dim);
       }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get());
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
+      if (pref > 0)
+      {
+         // Straight after EnableHybridization() and before Assemble(): that
+         // call has already built C, E, G and H at the ceiling, and stating
+         // the degrees rebuilds them.
+         Array<int> face_order;
+         DarcyHybridization::FaceOrdersFromElementOrders(
+            mesh, elem_order,
+            pref_max ? DarcyHybridization::TraceOrderRule::Max
+            : DarcyHybridization::TraceOrderRule::Min,
+            order + pref, face_order);
+         darcy->GetHybridization()->SetTraceOrders(face_order);
+
+         int lo = face_order[0], hi = face_order[0];
+         for (int f = 0; f < face_order.Size(); f++)
+         {
+            lo = min(lo, face_order[f]);
+            hi = max(hi, face_order[f]);
+         }
+         // What the run is actually buying. dim(M) below is the uniform
+         // storage at the ceiling; the slots a coarser face does not reach
+         // are retired into the essential list at Finalize(), which has not
+         // happened yet -- so this counts them from the degrees rather than
+         // reading an essential list that is still the caller's.
+         int active = 0;
+         for (int f = 0; f < face_order.Size(); f++)
+         {
+            active += trace_coll->GetFE(mesh.GetFaceGeometry(f),
+                                        face_order[f])->GetDof();
+         }
+         active *= trace_space->GetVDim();
+         cout << "trace degrees " << lo << " to " << hi << " over "
+              << face_order.Size() << " faces, by the "
+              << (pref_max ? "max" : "min") << " rule; "
+              << active << " of " << trace_space->GetVSize()
+              << " trace DOFs active" << endl;
+      }
       // Set essential BC
       if (trace_ess_bc)
       {

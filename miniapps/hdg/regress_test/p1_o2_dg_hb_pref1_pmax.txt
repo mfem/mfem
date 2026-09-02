@@ -1,0 +1,62 @@
+Options used:
+   --mesh 
+   --ncells-x 8
+   --ncells-y 8
+   --size-x 1
+   --size-y 1
+   --ref-levels -1
+   --delta-random 0
+   --order 2
+   --discontinuous
+   --no-broken-RT
+   --centered
+   --problem 1
+   --time-final 1
+   --ntimesteps 0
+   --ode-solver 1
+   --kappa 1
+   --velocity 1
+   --stab_diff 0.5
+   --no-bc-neumann
+   --no-reduction
+   --hybridization
+   --trace-DG
+   --no-trace-ess-bc
+   --no-nonlinear
+   --no-nonlinear-flux
+   --no-nonlinear-pot
+   --no-nonlinear-convection
+   --no-nonlinear-diffusion
+   --hdg_scheme 1
+   --nonlinear-solver 0
+   --no-partial-assembly
+   --device cpu
+   --no-reconstruct
+   --no-mfem
+   --no-visit
+   --no-paraview
+   --no-visualization
+   --no-analytic
+   --p-refine 1
+   --p-refine-x 0.5
+   --p-face-max
+   --no-nc-mesh
+Device configuration: cpu
+Memory configuration: host-std
+p-refined 32 of 64 elements to order 3
+trace degrees 2 to 3 over 144 faces, by the max rule; 508 of 576 trace DOFs active
+Hybridization init took 0.00185613s.
+***********************************************************
+dim(V) = 1600
+dim(W) = 800
+dim(M) = 576
+dim(V+W+M) = 2976
+***********************************************************
+Assembly took 0.00507689s.
+Preconditioner took 0.0252199s.
+   Pass :  1   Iteration :   0  ||B r|| = 30.327
+   Pass :  1   Iteration :   1  ||B r|| = 3.29801e-14
+GMRES+UMFPack converged in 1 iterations with a residual norm of 3.29801e-14.
+Solver took 0.000526524s.
+|| q_h - q_ex || / || q_ex || = 0.000529352
+|| t_h - t_ex || / || t_ex || = 0.000491633

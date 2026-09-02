@@ -799,6 +799,39 @@ public:
    /// Return a (read-only) list of all essential true DOFs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
 
+   /// How a face's trace degree follows the degrees of its two elements.
+   enum class TraceOrderRule
+   {
+      /** @brief The lower of the two, which is always safe: a trace at or
+          below both neighbours is the configuration every existing case
+          uses. */
+      Min,
+      /** @brief The higher of the two, which is the usual choice in the
+          literature. It needs the HDG face quadrature to take the trace
+          element's order into account, or the trace-trace block comes back
+          rank-deficient -- that is fixed, see the note at the top of
+          bilininteg_hdg.cpp. Measured to be *exactly redundant* on a face
+          whose two neighbours agree, so it can only pay at a genuine
+          `p`-interface, and whether it does there is open. */
+      Max,
+   };
+
+   /** @brief Derive one trace degree per face from one degree per element.
+
+       @a cap is the ceiling, normally the degree the constraint space was
+       built at. Boundary faces take their single neighbour's degree.
+
+       **Serial only, and it says so rather than being quietly wrong in
+       parallel.** A face shared between ranks reports no second element, so
+       each side would take its own element's degree and the two could differ,
+       leaving the ranks disagreeing about a shared face's trace space. Closing
+       that needs one exchange of element degrees over face neighbours; until
+       it exists this refuses a ParMesh whose degrees are not uniform. */
+   static void FaceOrdersFromElementOrders(const Mesh &mesh,
+                                           const Array<int> &elem_order,
+                                           TraceOrderRule rule, int cap,
+                                           Array<int> &face_order);
+
    /** @brief Give each face its own trace polynomial degree, for `p`-adaptivity.
 
        @a face_order holds one degree per mesh face, and every entry must lie
