@@ -17,7 +17,8 @@
     serializes every value needed to resume those recurrences. After the
     forward run, the live state is discarded and the terminal state is rebuilt
     by restoring an earlier interval checkpoint and replaying transitions.
-    Reference and reconstructed values must agree exactly. */
+    The state is discarded again and restored from the moving window. Reference
+    and reconstructed values must agree exactly in both demonstrations. */
 
 #include "mfem.hpp"
 #include "checkpoint_demo.hpp"
@@ -171,11 +172,14 @@ int main(int argc, char *argv[])
 {
    int num_states = 12;
    int checkpoint_interval = 4;
+   int window_size = 2;
    OptionsParser args(argc, argv);
    args.AddOption(&num_states, "-n", "--num-states",
                   "Number of logical sequence transitions (1-92).");
    args.AddOption(&checkpoint_interval, "-c", "--checkpoint-interval",
                   "Persist every c-th nonterminal state.");
+   args.AddOption(&window_size, "-w", "--window-size",
+                  "Number of complete states retained in the moving window.");
    args.Parse();
    if (!args.Good())
    {
@@ -183,10 +187,11 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
-   if (num_states < 1 || num_states > 92 || checkpoint_interval < 1)
+   if (num_states < 1 || num_states > 92 || checkpoint_interval < 1 ||
+       window_size < 1)
    {
       cerr << "num-states must be in [1, 92] and checkpoint-interval must "
-           << "be positive.\n";
+           << "be positive; window-size must also be positive.\n";
       return 2;
    }
 
@@ -196,13 +201,17 @@ int main(int argc, char *argv[])
       DemoStateAdapter adapter(state);
       DemoStatePropagator propagator(state);
       MemoryCheckpointStorage storage;
-      ExactCheckpointWindow window(0);
+      ExactCheckpointWindow window(static_cast<std::size_t>(window_size));
       CheckpointController controller(adapter, propagator, storage, window);
       IntervalCheckpointSchedule schedule(num_states, checkpoint_interval);
 
       controller.Initialize();
       controller.ExecuteForward(schedule, num_states);
       const DemoState reference = state;
+
+      // Remove the forward-run cache so the first reconstruction must start
+      // from persistent storage. Restore and replay then repopulate the window.
+      window.Clear();
 
       // Destroy every live value, restore the latest earlier checkpoint, then
       // replay deterministic transitions to the non-persisted terminal state.
@@ -211,15 +220,28 @@ int main(int argc, char *argv[])
       controller.RestoreState(num_states);
       const DemoState restored = state;
 
+      // The terminal state is not persistent. Destroy the live state again and
+      // recover the exact terminal snapshot retained by the moving window.
+      state = DemoState{-1, 101, 102, -2.0, "discarded-again"};
+      controller.RestoreState(num_states);
+      const DemoState window_restored = state;
+
       PrintState("Reference", reference);
       cout << '\n';
       PrintState("Restored", restored);
+      cout << '\n';
+      PrintState("Moving-window restored", window_restored);
       cout << "\nReplay checkpoint StateId = "
-           << schedule.LastCheckpointState() << '\n';
+           << schedule.LastCheckpointState() << '\n'
+           << "Moving-window capacity = " << window.Capacity() << '\n';
 
-      const bool passed = SameState(reference, restored);
-      cout << "Checkpoint restore: " << (passed ? "PASS" : "FAIL") << '\n';
-      return passed ? 0 : 3;
+      const bool replay_passed = SameState(reference, restored);
+      const bool window_passed = SameState(reference, window_restored);
+      cout << "Persistent checkpoint restore/replay: "
+           << (replay_passed ? "PASS" : "FAIL") << '\n'
+           << "Moving-window restore: "
+           << (window_passed ? "PASS" : "FAIL") << '\n';
+      return replay_passed && window_passed ? 0 : 3;
    }
    catch (const std::exception &error)
    {

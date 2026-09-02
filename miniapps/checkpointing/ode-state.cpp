@@ -9,12 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-//                                MFEM Example 42
+//                    MFEM Checkpointing Miniapp: ODE State
 //
-// Compile with: make ex42
+// Compile with: make checkpoint-ode-state
 //
-// Sample runs:  ex42
-//               ex42 -s 40
+// Sample runs:  checkpoint-ode-state
+//               checkpoint-ode-state -s 40
 //
 // Description: This example demonstrates exact checkpoint/replay for an
 //              ODESolver-based integration. It advances the scalar equation

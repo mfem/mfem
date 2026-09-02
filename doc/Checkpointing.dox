@@ -222,16 +222,17 @@ The application must coordinate errors around collective transitions. This
 model does not provide collective commit, failure propagation, cross-rank
 rollback, MPI-IO, a shared-file format, or fault-tolerant recovery.
 
-\section checkpointing_example Example
+\section checkpointing_ode_miniapp ODE miniapp
 
-Example 42 compares ordinary fixed-step Forward Euler integration with a
-trajectory replayed from its initial exact checkpoint:
+The `miniapps/checkpointing/ode-state.cpp` miniapp compares ordinary fixed-step
+Forward Euler integration with a trajectory replayed from its initial exact
+checkpoint:
 
 \code{.sh}
-cd examples
-make ex42
-./ex42
-./ex42 -s 40
+cd miniapps/checkpointing
+make checkpoint-ode-state
+./checkpoint-ode-state
+./checkpoint-ode-state -s 40
 \endcode
 
 It integrates `du/dt = alpha u - u^3`. StoreEverythingSchedule creates
@@ -249,10 +250,10 @@ and succeeds only when replay and ordinary integration are bitwise identical.
 
 Two serial miniapps demonstrate that the generic core is independent of Vector
 and physical time. Both use an interval schedule that stores state zero and
-selected nonterminal states. The terminal state is deliberately not stored, so
-successful reconstruction always requires restore plus replay. Snapshot
-headers, lengths, StateId values, and trailing bytes are validated during
-restore.
+selected nonterminal states. The terminal state is deliberately not stored.
+The heterogeneous miniapp separately demonstrates persistent restore plus
+replay and exact restoration from a moving window. Snapshot headers, lengths,
+StateId values, and trailing bytes are validated during restore.
 
 \subsection checkpointing_heterogeneous Heterogeneous application state
 
@@ -291,11 +292,19 @@ requested terminal StateId. Fibonacci and string values, including the hidden
 next Fibonacci value, are compared exactly. The serialized floating-point value
 and deterministic recurrence are also compared exactly.
 
+To keep the recovery paths distinct, the miniapp clears the forward-run moving
+window before persistent restore. Restore and replay repopulate it with the
+terminal state. The application state is then overwritten a second time, and
+RestoreState() recovers the exact non-persisted terminal snapshot from the
+moving window. This cache is an optimization over complete snapshots; it does
+not replace either Fibonacci continuation value.
+
 Useful options are:
 
 \code{.unparsed}
 -n, --num-states N          number of sequence transitions (1-92)
 -c, --checkpoint-interval C persist every C-th nonterminal state
+-w, --window-size W         complete states retained in the moving window
 \endcode
 
 \subsection checkpointing_mesh Nonconforming Mesh state
@@ -360,7 +369,8 @@ Build and run them with:
 \code{.sh}
 cd miniapps/checkpointing
 make
-./checkpoint-heterogeneous-state -n 12 -c 4
+./checkpoint-ode-state -s 40
+./checkpoint-heterogeneous-state -n 12 -c 4 -w 2
 ./checkpoint-mesh-state -r 4 -c 2 -o paraview
 \endcode
 

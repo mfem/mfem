@@ -47,7 +47,6 @@ list(APPEND ALL_EXE_SRCS
   ex39.cpp
   ex40.cpp
   ex41.cpp
-  ex42.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -123,7 +122,7 @@ if (MFEM_ENABLE_TESTING)
     string(REPLACE ".cpp" "" TEST_NAME ${SRC_FILENAME})
 
     set(THIS_TEST_OPTIONS "-no-vis")
-    if (${TEST_NAME} MATCHES "ex0p?" OR ${TEST_NAME} STREQUAL "ex42")
+    if (${TEST_NAME} MATCHES "ex0p?")
       set(THIS_TEST_OPTIONS)
     endif()
     if (${TEST_NAME} MATCHES "ex10p*")

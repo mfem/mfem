@@ -6,12 +6,15 @@ application supplies a `CheckpointStateAdapter` for capture and restore and a
 `StatePropagator` for deterministic transitions. The generic controller and
 storage see only an ordered `StateId` and an opaque `Snapshot`.
 
-Both examples persist state zero and interval states, but deliberately exclude
-the terminal state. Reconstruction therefore performs:
+The heterogeneous and mesh examples persist state zero and interval states,
+but deliberately exclude the terminal state. Reconstruction therefore performs:
 
 ```text
 restore newest earlier checkpoint + replay transitions = terminal state
 ```
+
+The directory also contains `checkpoint-ode-state`, the ODE-focused miniapp. It
+uses the same generic core through MFEM's `ForwardEulerCheckpointAdapter`.
 
 ## Building
 
@@ -23,7 +26,21 @@ make
 ```
 
 With CMake, build the targets `checkpoint-heterogeneous-state` and
-`checkpoint-mesh-state`.
+`checkpoint-mesh-state`, plus `checkpoint-ode-state` for the ODE demonstration.
+
+## Forward Euler ODE state
+
+`checkpoint-ode-state` integrates `du/dt = 0.7*u - u^3` with a fixed-step
+Forward Euler solver. Its complete state contains the solution vector, logical
+step, physical time, step size, and solver restart bytes. It retains only the
+initial persistent checkpoint, clears the moving window, and replays the full
+trajectory. The replayed terminal value must match an ordinary integration bit
+for bit.
+
+```sh
+./checkpoint-ode-state
+./checkpoint-ode-state -s 40
+```
 
 ## Heterogeneous state
 
@@ -49,21 +66,27 @@ text_0 = "state-0"; append "|state-k" at transition k
 
 The snapshot contains a format header and every field above. Restore rejects a
 bad header or version, truncation, an unexpected `StateId`, or trailing bytes.
-After the forward run, the live state is overwritten and reconstructed from an
-earlier checkpoint. Every final field is compared exactly.
+After the forward run, the miniapp clears the moving window, overwrites the live
+state, and reconstructs it from an earlier persistent checkpoint. This forces
+the first demonstration to use checkpoint restore plus replay. Replay
+repopulates the moving window with the terminal state. The live state is then
+overwritten a second time and the non-persisted terminal snapshot is restored
+directly from that window. Every final field is compared exactly in both paths.
 
 ```sh
-./checkpoint-heterogeneous-state -n 12 -c 4
+./checkpoint-heterogeneous-state -n 12 -c 4 -w 2
 ```
 
 The default run restores state 8, replays through state 12, and obtains
-Fibonacci value `144` and floating-point value `0.25018310546875`.
+Fibonacci value `144` and floating-point value `0.25018310546875`. It then
+restores that exact terminal state from a two-entry moving window.
 
 Options:
 
 ```text
 -n, --num-states N
 -c, --checkpoint-interval C
+-w, --window-size W
 ```
 
 ## Nonconforming mesh state

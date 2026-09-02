@@ -973,6 +973,7 @@ INPUT                  = @MFEM_SOURCE_DIR@/doc/CodeDocumentation.dox \
                          @MFEM_SOURCE_DIR@/examples/superlu \
                          @MFEM_SOURCE_DIR@/miniapps/adjoint \
                          @MFEM_SOURCE_DIR@/miniapps/autodiff \
+                         @MFEM_SOURCE_DIR@/miniapps/checkpointing \
                          @MFEM_SOURCE_DIR@/miniapps/common \
                          @MFEM_SOURCE_DIR@/miniapps/contact \
                          @MFEM_SOURCE_DIR@/miniapps/dfem \

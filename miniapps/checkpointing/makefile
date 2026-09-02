@@ -19,7 +19,8 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = checkpoint-heterogeneous-state checkpoint-mesh-state
+SEQ_MINIAPPS = checkpoint-heterogeneous-state checkpoint-mesh-state \
+   checkpoint-ode-state
 MINIAPPS = $(SEQ_MINIAPPS)
 
 .SUFFIXES:
@@ -37,13 +38,18 @@ checkpoint-mesh-state: $(SRC)mesh-state.cpp $(SRC)checkpoint_demo.hpp \
    $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
+checkpoint-ode-state: $(SRC)ode-state.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 checkpoint-heterogeneous-state-test-seq: checkpoint-heterogeneous-state
-	@$(call mfem-test,$<,,Checkpointing miniapp,-n 8 -c 3,explicit-options)
+	@$(call mfem-test,$<,,Checkpointing miniapp,-n 8 -c 3 -w 2,explicit-options)
 checkpoint-mesh-state-test-seq: checkpoint-mesh-state
 	@$(call mfem-test,$<,,Checkpointing miniapp,-r 3 -c 2 -no-pv,explicit-options)
+checkpoint-ode-state-test-seq: checkpoint-ode-state
+	@$(call mfem-test,$<,,Checkpointing miniapp,,explicit-options)
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)

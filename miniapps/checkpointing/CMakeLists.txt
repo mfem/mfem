@@ -19,9 +19,14 @@ add_mfem_miniapp(checkpoint-mesh-state
   checkpoint_demo.hpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(checkpoint-ode-state
+  MAIN ode-state.cpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME checkpoint-heterogeneous-state
-    COMMAND checkpoint-heterogeneous-state -n 8 -c 3)
+    COMMAND checkpoint-heterogeneous-state -n 8 -c 3 -w 2)
   add_test(NAME checkpoint-mesh-state
     COMMAND checkpoint-mesh-state -r 3 -c 2 -no-pv)
+  add_test(NAME checkpoint-ode-state COMMAND checkpoint-ode-state)
 endif()
