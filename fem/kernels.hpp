@@ -35,6 +35,9 @@ using v_regs2d_t = mfem::future::tensor<real_t, VDIM, 0, 0>;
 template <int VDIM, int DIM, int N = 0>
 using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
 
+template <int VDIM, int DIM, int N = 0>
+using vdd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, DIM, 0, 0>;
+
 template <int DIM, int N>
 struct regs2d_wrapper: mfem::future::tensor<real_t, 0, 0, DIM> {};
 
@@ -47,6 +50,13 @@ struct regs2d_vd_wrapper: mfem::future::tensor<real_t, 0, 0, VDIM, DIM> {};
 template <int VDIM, int DIM, int N>
 using regs2d_vd_t = regs2d_vd_wrapper<VDIM, DIM, N>;
 
+template <int VDIM, int DIM, int N>
+struct regs2d_vdd_wrapper:
+   mfem::future::tensor<real_t, 0, 0, VDIM, DIM, DIM> {};
+
+template <int VDIM, int DIM, int N>
+using regs2d_vdd_t = regs2d_vdd_wrapper<VDIM, DIM, N>;
+
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
 
@@ -55,6 +65,9 @@ using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, 0, 0>;
 
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
+
+template <int VDIM, int DIM, int N>
+using vdd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, DIM, N, 0, 0>;
 
 template <int DIM, int N>
 struct regs3d_wrapper: mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
@@ -68,6 +81,13 @@ struct regs3d_vd_wrapper: mfem::future::tensor<real_t, 0, 0, 0, VDIM, DIM> {};
 template <int VDIM, int DIM, int N>
 using regs3d_vd_t = regs3d_vd_wrapper<VDIM, DIM, N>;
 
+template <int VDIM, int DIM, int N>
+struct regs3d_vdd_wrapper:
+   mfem::future::tensor<real_t, 0, 0, 0, VDIM, DIM, DIM> {};
+
+template <int VDIM, int DIM, int N>
+using regs3d_vdd_t = regs3d_vdd_wrapper<VDIM, DIM, N>;
+
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
 #else
@@ -80,11 +100,17 @@ using v_regs2d_t = mfem::future::tensor<real_t, VDIM, N, N>;
 template <int VDIM, int DIM, int N>
 using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 
+template <int VDIM, int DIM, int N>
+using vdd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, DIM, N, N>;
+
 template <int DIM, int N>
 using regs2d_t = mfem::future::tensor<real_t, N, N, DIM>;
 
 template <int VDIM, int DIM, int N>
 using regs2d_vd_t = mfem::future::tensor<real_t, N, N, VDIM, DIM>;
+
+template <int VDIM, int DIM, int N>
+using regs2d_vdd_t = mfem::future::tensor<real_t, N, N, VDIM, DIM, DIM>;
 
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, N, N>;
@@ -95,11 +121,17 @@ using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
 
+template <int VDIM, int DIM, int N>
+using vdd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, DIM, N, N, N>;
+
 template <int DIM, int N>
 using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
 
 template <int VDIM, int DIM, int N>
 using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
+
+template <int VDIM, int DIM, int N>
+using regs3d_vdd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM, DIM>;
 
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>
