@@ -154,6 +154,19 @@
 //       elements come back flagged x where the computed potential flags y, and
 //       the h-adaptive loop then sits at 0.2839 through eleven cycles and 473
 //       elements, having started there.
+//
+//       WHY, as far as it has been measured, is in
+//       HDGErrorEstimator::SetAnisotropic(). Three explanations are dead: not
+//       the degree gap against the trace (--postprocessed-projected-down
+//       removes it entirely and every flag stays put), not the anisotropy (the
+//       same stall at -ks 1 and on problem 6, both isotropic), and not the
+//       marking (the two estimates select the same elements for two cycles,
+//       to every printed digit, under isotropic refinement). What is left is
+//       that the two measure different things: on the computed potential
+//       p^ - lambda is the scheme's own stabilization term, on a
+//       superconverged one it is essentially lambda's error, and attributing
+//       that to the direction NORMAL to the face is not the direction that
+//       would reduce it.
 //       Comparing lambda against the projection of the postprocessed trace
 //       into the trace space rather than against the trace itself -- which is
 //       what the published estimator asks for, and is
@@ -279,6 +292,71 @@ static void MarkMaximum(const Vector &local_err, real_t gamma,
    }
 }
 
+/** @brief Element-local L2 projection of @a src onto @a dst's space.
+
+    Exists for one measurement: the postprocessed potential differs from the
+    computed one in two ways at once -- a higher degree than the trace, and
+    different field content -- and the anisotropic split of the error estimate
+    goes wrong when it is used. Projecting it back down to the potential's own
+    degree keeps the field and removes the gap, so estimating on the result
+    separates the two. Both spaces must be scalar and discontinuous; the
+    projection is elementwise and means nothing across a continuous space. */
+static void ProjectDown(const GridFunction &src, GridFunction &dst)
+{
+   const FiniteElementSpace *fes_s = src.FESpace();
+   FiniteElementSpace *fes_d = dst.FESpace();
+   Mesh *mesh = fes_d->GetMesh();
+   MFEM_VERIFY(fes_s->GetVDim() == 1 && fes_d->GetVDim() == 1,
+               "scalar spaces only");
+   MFEM_VERIFY(fes_s->GetMesh() == mesh, "both spaces must be on one mesh");
+
+   Array<int> vd_s, vd_d;
+   Vector loc_s, shape_s, shape_d, b, c;
+   DenseMatrix M;
+   DenseMatrixInverse Mi;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe_s = fes_s->GetFE(e);
+      const FiniteElement *fe_d = fes_d->GetFE(e);
+      ElementTransformation *T = mesh->GetElementTransformation(e);
+
+      const int nd_s = fe_s->GetDof();
+      const int nd_d = fe_d->GetDof();
+      fes_s->GetElementVDofs(e, vd_s);
+      src.GetSubVector(vd_s, loc_s);
+
+      M.SetSize(nd_d);
+      M = 0.;
+      b.SetSize(nd_d);
+      b = 0.;
+      shape_s.SetSize(nd_s);
+      shape_d.SetSize(nd_d);
+
+      const int order = fe_s->GetOrder() + fe_d->GetOrder() + T->OrderW();
+      const IntegrationRule &ir = IntRules.Get(fe_d->GetGeomType(), order);
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         fe_s->CalcShape(ip, shape_s);
+         fe_d->CalcShape(ip, shape_d);
+
+         const real_t w = ip.weight * T->Weight();
+         AddMult_a_VVt(w, shape_d, M);
+         b.Add(w * (shape_s * loc_s), shape_d);
+      }
+
+      Mi.Factor(M);
+      c.SetSize(nd_d);
+      Mi.Mult(b, c);
+
+      fes_d->GetElementVDofs(e, vd_d);
+      dst.SetSubVector(vd_d, c);
+   }
+}
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -318,6 +396,7 @@ int main(int argc, char *argv[])
    int aniso = -1;
    bool est_pp = false;
    bool tproj = true;
+   bool pp_down = false;
    bool hp = false;
    int p_max = -1;
    real_t hp_shift = 0.;
@@ -414,6 +493,13 @@ int main(int argc, char *argv[])
                   "-no-ppest", "--no-postprocessed-estimate",
                   "Build the error estimate on the postprocessed potential\n\t\t"
                   "rather than on the computed one.");
+   args.AddOption(&pp_down, "-ppdown", "--postprocessed-projected-down",
+                  "-no-ppdown", "--no-postprocessed-projected-down",
+                  "Project the postprocessed potential back onto the\n\t\t"
+                  "potential's own degree before estimating on it. Keeps its\n\t\t"
+                  "field content and removes its degree gap against the trace,\n\t\t"
+                  "which is what separates the two as explanations for the\n\t\t"
+                  "anisotropic split going wrong under --postprocessed-estimate.");
    args.AddOption(&tproj, "-tproj", "--projected-trace-comparison",
                   "-no-tproj", "--literal-trace-comparison",
                   "Compare the trace unknown against the projection of the\n\t\t"
@@ -1133,14 +1219,21 @@ int main(int argc, char *argv[])
          element without being told about them. Computed once per cycle rather
          than again inside the refinement block, which is where it was needed
          first. */
-      GridFunction t_pp;
-      real_t err_tpp = -1.;
+      GridFunction t_pp, t_pd;
+      real_t err_tpp = -1., err_tpd = -1.;
       if (est_pp)
       {
          HDGPotentialPostprocessor pp(q_h, t_h);
          pp.SetDiffusionInverse(ikcoeff);
          pp.Compute(t_pp);
          err_tpp = t_pp.ComputeL2Error(tcoeff, irs);
+
+         if (pp_down)
+         {
+            t_pd.SetSpace(W_space.get());
+            ProjectDown(t_pp, t_pd);
+            err_tpd = t_pd.ComputeL2Error(tcoeff, irs);
+         }
       }
 
       if (amr_nrefs > 0)
@@ -1179,6 +1272,7 @@ int main(int argc, char *argv[])
               << "\tq_err:\t" << err_q / norm_q
               << "\tt_err:\t" << err_t / norm_t;
          if (err_tpp >= 0.) { cout << "\tpp_err:\t" << err_tpp / norm_t; }
+         if (err_tpd >= 0.) { cout << "\tpd_err:\t" << err_tpd / norm_t; }
          cout << endl;
       }
       else
@@ -1339,7 +1433,9 @@ int main(int argc, char *argv[])
             sequence, which does not move when only the degrees change, and it
             holds a reference to the potential -- whose space is a new object
             each cycle when the estimate is the postprocessed one. */
-         HDGErrorEstimator amr_err(*amr_bfi, tr_h, est_pp ? t_pp : t_h);
+         HDGErrorEstimator amr_err(*amr_bfi, tr_h,
+                                   (est_pp && pp_down) ? t_pd :
+                                   est_pp ? t_pp : t_h);
          amr_err.SetAnisotropic(aniso != 0);
 
          /* The Dirichlet datum is imposed WEAKLY here -- it enters the flux

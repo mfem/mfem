@@ -163,29 +163,48 @@ The helper signature, since this section had it wrong:
 The demonstrator exists and steps 1 to 5 are done. What follows is what it
 turned up and did not settle, most-open first.
 
-### The one open question
+### The one open question, now characterised
 
-**The anisotropic split is wrong under the postprocessed estimate, and nobody
-knows why.** `HDGErrorEstimator::GetAnisotropicFlags()` distributes each face's
-energy along the reference directions by geometry. Built on the computed
-potential it flags `y` on a problem whose layer is in `y`; built on the
-postprocessed potential it flags `x`, six of six, on the same conforming mesh
-and the same solution, and the loop then refines forever without touching the
-layer. `TraceComparison::Projected` was written on the theory that the
-component the trace space cannot represent was misdirecting it -- that theory
-is **wrong and measured wrong**: the projection moves eta by 5% and leaves all
-six flags where they were.
+**The anisotropic split cannot be used with the postprocessed estimate**, and
+four measurements say what that is and is not. The write-up is on
+`HDGErrorEstimator::SetAnisotropic()`; the short of it:
 
-Two things are known about the trigger and neither has been used yet.
-`--postprocessed-estimate` is the *only* switch that does it: `--trace-ess-bc`
-flags `y` correctly and its loop converges (7.3e-4 at M = 1272), with or
-without the exclusion, so this is not a general fragility of the split. And the
-postprocessed potential differs from the computed one in two ways at once --
-**a degree gap against the trace, and different field content** -- so the
-measurement to take is the one that separates them: project the postprocessed
-potential back onto the potential space and estimate on *that*. Same field, no
-degree gap. If the flags return to `y` it is the gap; if they stay `x` it is
-the field.
+* **Not the degree gap.** `--postprocessed-projected-down` projects the
+  postprocessed potential back onto the potential's own degree, removing the
+  gap against the trace entirely. Every one of the six flags stays at `x` and
+  eta moves by 0.5%. `TraceComparison::Projected`'s motivating theory is now
+  dead twice.
+* **Not the anisotropy.** The loop stalls the same way at `-ks 1` and on
+  problem 6, a radially localised peak, both isotropic.
+* **Not the marking.** Under isotropic refinement the two estimates select the
+  *same elements* for two cycles, agreeing to every printed digit.
+* **It is the directional energy, by up to seven orders.** Summed over the
+  mesh, `d_0`/`d_1` is 1.94 / 4.2e-4 / 2.4e-5 on the computed potential at
+  `-ks` 1 / 100 / 10000 and 3.57 / 1.6e5 / 1.9e7 on the postprocessed one. At
+  `-ks 100` the postprocessed total is nothing but that one component: eta² is
+  11.09 and `d_0` alone is 11.07.
+
+What is left is a decision rather than an investigation. `p̂ - λ` on the
+computed potential is the scheme's own stabilization term; on a superconverged
+potential it is essentially λ's own error -- a real quantity, but not the
+element's, and the geometric attribution sends it to the direction NORMAL to
+the face, which is not the direction that would reduce it. Two things follow
+and neither has been tried:
+
+1. **The flag rule is a hard threshold and converts a systematic bias into a
+   wrong answer.** A direction is refined when it holds more than
+   `0.15*3/dim` of the element's energy, 0.225 in 2D. At `-ks 1` the
+   postprocessed estimate's `y` share is 0.219 -- it misses by 3% -- where the
+   computed potential's is 0.34. A rule relative to the largest component
+   rather than to the sum would not be tipped by a uniform bias. Worth
+   measuring; the constant carries a `TODO: reorientation with the element`
+   already.
+2. **Or accept that the two fields answer different questions** and use the
+   computed potential for direction and the postprocessed one for magnitude,
+   which is one estimator object each and costs one extra face loop.
+
+Until one of those is measured, `--anisotropic-estimate` defaults off under
+`--hp-adaptivity`, which is what the demonstrator's numbers were taken with.
 
 ### Mechanism, and what it caps
 

@@ -151,7 +151,43 @@ public:
    /// Enable/disable anisotropic estimates.
    /** To enable this option, the HDG integrator must support the @p d_energy
        parameter in its BilinearFormIntegrator::ComputeHDGFaceEnergy() method.
-    */
+
+       **The directional split is only meaningful on the COMPUTED potential.**
+       Handed the postprocessed one it points the wrong way and an adaptive
+       loop then refines forever without touching the feature it is chasing.
+       Measured on `anisodiff -p 5 -o 2 -hb -dg`, summing `d_energy` over the
+       mesh, `d_0`/`d_1` with the layer in the `y` direction:
+
+       | `-ks` | computed potential | postprocessed |
+       |---|---|---|
+       | 1 | 1.94 | 3.57 |
+       | 100 | 4.2e-4 | 1.6e5 |
+       | 10000 | 2.4e-5 | 1.9e7 |
+
+       The computed potential puts the energy in `y`, correctly and more
+       sharply as the layer sharpens. The postprocessed one puts it in `x`, by
+       up to seven orders, and at `-ks 100` the total is nothing else: eta² is
+       11.09 and `d_0` alone is 11.07.
+
+       Three explanations are ruled out by measurement. It is not the degree
+       gap against the trace -- projecting the postprocessed potential back to
+       the potential's own degree leaves every flag where it was and moves eta
+       by 0.5%. It is not the anisotropy -- the loop stalls the same way at
+       `-ks 1` and on problem 6, a radially localised peak, both isotropic. And
+       it is not the marking: under isotropic refinement the two estimates
+       select the *same elements* for two cycles, agreeing to every printed
+       digit, so only the direction differs.
+
+       What is left is that the two are measuring different things.
+       `p̂ - λ` on the computed potential is the scheme's own stabilization
+       term; on a superconverged potential it is essentially λ's own error,
+       which is a real quantity but not the element's, and attributing it to
+       the direction NORMAL to the face is not the direction that would reduce
+       it. The flag rule then converts a systematic bias into a wrong answer,
+       because it is a hard threshold -- a direction is refined when it holds
+       more than `0.15*3/dim` of the element's energy, 0.225 in 2D -- and at
+       `-ks 1` the postprocessed estimate's `y` share is 0.219, missing it by
+       3%, where the computed potential's is 0.34 and passes. */
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
 
    /** @brief Boundary attributes whose faces the estimate leaves out. Marked
@@ -203,12 +239,14 @@ public:
 
        **And it does not repair the one thing that looked like its doing.**
        With the postprocessed potential the directional split of
-       GetAnisotropicFlags() points the wrong way -- six of six elements flagged
-       `x` on a problem whose layer is in `y`, where the computed potential
-       flags `y` -- and the adaptive loop then refines forever without touching
-       the layer. That was the reason this option was written, and it survives
-       the projection unchanged: same flags, same frozen loop. Whatever
-       misdirects the split is therefore something else, and is open. */
+       GetAnisotropicFlags() points the wrong way, and that was the reason this
+       option was written. It survives the projection unchanged: same six flags,
+       same frozen loop, eta moved by 5%. The measurement that settled it is
+       stronger still -- projecting the postprocessed potential back onto the
+       potential's own DEGREE, which removes the gap entirely rather than
+       removing one component of it, also leaves every flag where it was. So
+       the degree gap is not what misdirects the split; see SetAnisotropic()
+       for what is. */
    void SetTraceComparison(TraceComparison c) { trcmp = c; Reset(); }
 
    /** @brief Read the per-face trace degrees from @a hyb_, for `p`-adaptivity.
