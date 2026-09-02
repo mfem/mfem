@@ -100,22 +100,27 @@
 //    relative L2 error in the potential against the globally coupled unknowns
 //    -- the size of the trace solve, which is what a hybridized method costs:
 //
-//      || t - t_ex ||/|| t_ex ||    uniform M    h-adaptive M       hp M
-//      ---------------------------------------------------------------------
-//      1.0e-3                          24960            1704       1311
-//      1.0e-4                          99072            4812       2070
-//      3.0e-5                              -            9330       2891
-//      9.4e-8                              -               -      16668
+//      || t - t_ex ||        uniform M   h-adapt M   hp M (min)   hp M (max)
+//      -----------------------------------------------------------------------
+//      1.0e-3                   24960        1704         1311         1024
+//      1.0e-4                   99072        4812         2070         1565
+//      3.0e-5                       -        9330         2891         2125
+//      1.0e-7                       -           -        16668        13191
 //
-//    Read across a row: at 1e-4 the same error costs 48 times fewer globally
-//    coupled unknowns than uniform refinement and 2.3 times fewer than
+//    Read across a row: at 1e-4 the same error costs 63 times fewer globally
+//    coupled unknowns than uniform refinement and 3.1 times fewer than
 //    h-adaptivity, and hp keeps going three decades past where the others were
 //    stopped. The uniform column is nx = 64 and 128; the h-adaptive column is
-//    --doerfler-marking with the anisotropic split; the hp column is that plus
-//    --hp-adaptivity --max-order 5 --postprocessed-estimate. Each row is the
-//    nearest cycle rather than an interpolation, so the errors within a row
-//    are close but not equal: 1.0e-3 / 1.1e-3 / 6.8e-4, then 8.3e-5 / 1.1e-4 /
-//    8.2e-5, then 3.1e-5 / 3.8e-5.
+//    --doerfler-marking with the anisotropic split; both hp columns are that
+//    plus --hp-adaptivity --max-order 5 --postprocessed-estimate, differing
+//    only in --p-face-rule. Each row is the nearest cycle rather than an
+//    interpolation, so the errors within a row are close but not equal --
+//    1.0e-3 / 1.1e-3 / 6.8e-4 / 8.4e-4, then 8.3e-5 / 1.1e-4 / 8.2e-5 /
+//    1.05e-4, then 3.1e-5 / 3.8e-5 / 3.8e-5, then 9.4e-8 / 1.15e-7.
+//
+//    The max rule is 21 to 27 per cent cheaper than min at every one of those
+//    four levels, which is the fourth thing about the estimate and the trace
+//    that is not optional -- see (4) below.
 //
 //    THREE THINGS ABOUT THE ESTIMATE THAT ARE NOT OPTIONAL, each measured
 //    rather than reasoned about, and each of which silently stopped the loop
@@ -167,6 +172,20 @@
 //       superconverged one it is essentially lambda's error, and attributing
 //       that to the direction NORMAL to the face is not the direction that
 //       would reduce it.
+//
+//    4. THE FACE RULE MATTERS, AND ONLY WHERE THE INTERFACE SITS ON THE
+//       FEATURE. `min` -- the lower of a face's two element degrees, and the
+//       library's default -- is not merely conservative: on a PRESCRIBED
+//       interface it gets worse as the degree jump grows, the flux error going
+//       1.066e-2, 1.620e-2, 1.519e-2 on `convdiff -o 1 -nx 8` as the refined
+//       half is raised by one, two and three degrees, while `max` holds
+//       1.051e-2 throughout. That prescribed study also says the POTENTIAL
+//       never sees the rule -- ratios of 0.997 to 1.0005 at every jump and
+//       mesh. This loop says otherwise, by 21 to 27 per cent of the dofs at
+//       fixed potential error, and the two are not in conflict: on a
+//       prescribed interface the geometry decides where the p-jump goes and it
+//       lands away from the layer, while an adaptive loop puts it exactly on
+//       the feature. A rule can only matter where its interface does.
 //       Comparing lambda against the projection of the postprocessed trace
 //       into the trace space rather than against the trace itself -- which is
 //       what the published estimator asks for, and is
@@ -399,6 +418,7 @@ int main(int argc, char *argv[])
    bool pp_down = false;
    bool hp = false;
    int p_max = -1;
+   int pface_max = -1;
    real_t hp_shift = 0.;
    bool pa = false;
    const char *device_config = "cpu";
@@ -515,6 +535,13 @@ int main(int argc, char *argv[])
                   "It is also the degree the trace space is BUILT at, which is a\n\t\t"
                   "ceiling rather than a starting point, so raising it costs\n\t\t"
                   "trace storage on every face whether or not any face uses it.");
+   args.AddOption(&pface_max, "-pfmax", "--p-face-rule",
+                  "Give a face the higher of its two elements' degrees (1), the\n\t\t"
+                  "lower (0), or the higher whenever --hp-adaptivity is on (-1,\n\t\t"
+                  "the default). Measured 25% cheaper in dofs at fixed error in\n\t\t"
+                  "the hp loop, where the p-interface sits on the feature; a\n\t\t"
+                  "wash at a prescribed one-degree interface. See\n\t\t"
+                  "DarcyHybridization::TraceOrderRule.");
    args.AddOption(&hp_shift, "-hps", "--hp-sensor-shift",
                   "Shift of the smoothness threshold s_0 = -4 log10(p). Positive\n\t\t"
                   "calls more elements smooth and so spends more on p.");
@@ -582,6 +609,16 @@ int main(int argc, char *argv[])
       With the split off the same run reaches 3.3e-4 at M = 1854. Pass
       --anisotropic-estimate 1 to see it. */
    if (aniso < 0) { aniso = hp ? 0 : 1; }
+
+   /* The higher of a face's two element degrees under hp, and that default is
+      a measurement too. `min` is the safe-looking rule and it is measured to
+      get WORSE as the degree jump across an interface grows -- on
+      `convdiff -o 1 -nx 8`, the flux error goes 1.066e-2, 1.620e-2, 1.519e-2
+      as the refined half is raised by one, two and three degrees, where `max`
+      holds 1.051e-2, 1.051e-2, 1.054e-2 -- and an hp loop routinely reaches
+      jumps of two and three. In this loop it is worth about 25% of the dofs at
+      fixed error, uniformly across four decades. */
+   if (pface_max < 0) { pface_max = hp ? 1 : 0; }
 
    if (hp)
    {
@@ -969,7 +1006,9 @@ int main(int argc, char *argv[])
 
       Array<int> face_order;
       DarcyHybridization::FaceOrdersFromElementOrders(
-         mesh, elem_order, DarcyHybridization::TraceOrderRule::Min,
+         mesh, elem_order,
+         (pface_max != 0) ? DarcyHybridization::TraceOrderRule::Max
+         : DarcyHybridization::TraceOrderRule::Min,
          p_max, face_order);
       darcy->GetHybridization()->SetTraceOrders(face_order);
    };

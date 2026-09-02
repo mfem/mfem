@@ -788,9 +788,19 @@ public:
    /// How a face's trace degree follows the degrees of its two elements.
    enum class TraceOrderRule
    {
-      /** @brief The lower of the two, which is always safe: a trace at or
-          below both neighbours is the configuration every existing case
-          uses. */
+      /** @brief The lower of the two. It is the configuration every existing
+          case uses, and it is **not** the safe choice it looks like: it gets
+          WORSE as the degree jump across an interface grows. Measured on
+          `convdiff -o 1 -nx 8 -pref n`, which raises half the domain by `n`
+          degrees, the relative flux error goes
+
+              n = 1      n = 2      n = 3
+              1.066e-2   1.620e-2   1.519e-2
+
+          -- adding degrees to the refined half makes the answer worse, because
+          the interface trace is held at the coarse degree and becomes a
+          tighter bottleneck the richer its other side gets. Max holds
+          1.051e-2, 1.051e-2, 1.054e-2 over the same three. */
       Min,
       /** @brief The higher of the two, which is the usual choice in the
           literature. It needs the HDG face quadrature to take the trace
@@ -798,7 +808,28 @@ public:
           rank-deficient -- that is fixed, see the note at the top of
           bilininteg_hdg.cpp. Measured to be *exactly redundant* on a face
           whose two neighbours agree, so it can only pay at a genuine
-          `p`-interface, and whether it does there is open. */
+          `p`-interface -- and it does.
+
+          **Where the interface is put decides whether the rule matters, and
+          the two studies that look contradictory are not.** On a PRESCRIBED
+          interface (`convdiff -pref`, half the domain by geometry) Max costs
+          0.2 to 2.6 per cent more active dofs and returns, at a one-degree
+          jump, nothing outside the last digits -- net dof efficiency 0.998 to
+          1.004, exactly the wash the redundancy argument predicts. At a jump
+          of two or more it reaches Min's *flux* error at 12 to 35 per cent
+          fewer active dofs, and the *potential* still never sees it: ratios
+          0.997 to 1.0005 at every jump and mesh. Neither rule changes the
+          convergence rate; Min's penalty is an `O(h^(r+1))` term on an
+          `O(h^r)` error, so the gap closes -- 0.598, 0.640, 0.758, 0.857 over
+          four meshes at `-o 2 -pref 2`.
+
+          In an ADAPTIVE loop the potential does see it, by 21 to 27 per cent
+          of the dofs at fixed error over four decades
+          (`anisodiff -p 5 -ks 1e2 --hp-adaptivity`, table in that file). The
+          difference is not the metric but the placement: a geometric interface
+          lands wherever the domain is cut, which on that problem is away from
+          the layer, while an adaptive one is put exactly on the feature. A
+          rule can only matter where its interface does. */
       Max,
    };
 

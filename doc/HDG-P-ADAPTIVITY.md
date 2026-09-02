@@ -239,9 +239,6 @@ demonstrator uses.
 
 ### Measurements not taken
 
-**`min` against `max` at a genuine `p`-interface**, which the demonstrator is
-now the place to measure.
-
 **Essential against weak trace boundary conditions.** The table in
 `anisodiff.cpp` was taken with the weak datum, which is the miniapp's default.
 `--trace-ess-bc` is about **three times cheaper at fixed error** on the same
@@ -295,7 +292,12 @@ is worth having.
 2. A mesh carrying two element orders converges at the rate its trace orders
    set, and reaches a given error at fewer global dofs than uniform `p_max`.
    DONE; see the table in `anisodiff.cpp`.
-3. **`min` against `max` at a genuine `p`-interface.** The investigation showed
+3. **`min` against `max` at a genuine `p`-interface. DONE**, and `max` wins:
+   21-27% of the dofs at fixed potential error in the hp loop, and `min` is
+   measured to get *worse* as the degree jump grows. `anisodiff --p-face-rule`
+   now defaults to `max` under `--hp-adaptivity` for that reason, and
+   `TraceOrderRule`'s doxygen carries both studies and why they only look
+   contradictory. The original note read: The investigation showed
    a trace richer than *both* neighbours is exactly redundant -- **on a
    conforming mesh, and that qualifier turned out to matter**: across a hanging
    node the master sees several fine elements which between them do reach the
