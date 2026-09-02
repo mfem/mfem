@@ -193,6 +193,40 @@ flag is still worth having first as a *mechanism* test -- prescribed degrees,
 no adaptation -- because it puts the machinery under the regression suite
 before any indicator exists.
 
+## What is missing is a demonstrator, and it is the next thing to build
+
+Steps 1 to 4 are mechanism. Everything measured so far says the machinery is
+right -- the null tests are exact, the active dof count is arithmetic, the
+convergence rates hold -- and **none of it shows `p`-adaptivity is worth
+having**. `convdiff -pref` prescribes degrees from a geometric rule and adapts
+nothing; it belongs in the suite as a mechanism test and should not be mistaken
+for a result.
+
+A demonstrator has to produce one curve: **error against globally coupled dofs,
+`p`-adaptive versus uniform**, with the adaptive one below. Three things are in
+the way and only the first is small.
+
+**The problem.** Every `convdiff` problem is analytic, and uniform `p` already
+converges exponentially on them -- measured, `-p 2` at Peclet 100 goes 2.2e-3
+to 1.7e-14 over orders 1 to 6 with no sign of a layer. There is nothing for
+adaptivity to win, and a demonstrator built there would be measuring noise.
+The case needs localised structure: `anisodiff -p 6` (steady peak) or `-p 5`
+(boundary layer).
+
+**The loop.** Solve, estimate, mark, set degrees, rebuild, re-solve. Nothing
+does this yet. `SetTraceOrders()` invalidates the assembly by design, so each
+pass wants a fresh `DarcyForm` rather than a `Reset()`, which is what
+`anisodiff`'s AMR loop already does after refining.
+
+**The policy, and the `h` half.** `HDGErrorEstimator` marks where;
+`PerssonPeraireSmoothness` says `h` or `p`. What is absent is the rule joining
+them and any `h` refinement on this branch at all -- and `anisodiff` is where
+the `ThresholdRefiner` and the refinement loop already live.
+
+So the demonstrator belongs in **`anisodiff`, not `convdiff`**, and that is a
+larger piece of work than steps 1 to 4 together, because it is the first one
+whose success is a measurement rather than an identity.
+
 ## Acceptance
 
 1. **Null test**: every `p_f` equal to the uniform order reproduces every
