@@ -272,9 +272,52 @@ second-order: at `ks = 1e2` and `t_err = 1e-5`, hp needs M ~ 3700 where
 h-adaptivity needs M ~ 20700, a factor of 5.6, against `--trace-ess-bc`'s 1.1
 at the same point.
 
-**One order, one dimension.** Everything measured is 2D at `--order 2`. Orders
-0, 1 and 3 and a 3D case are unexercised by the loop, and the sensor's
-threshold `-4 log10(p)` is a 1D argument.
+**Orders and dimensions. DONE, and the headline is that the CEILING, not the
+sensor, is making the hp decision.**
+
+`hp` works at orders 1 to 4, with the largest gains away from order 2 -- 432x
+and 228x better than uniform at comparable `M` at orders 1 and 2, and 130x and
+42x better on four times fewer dofs at orders 3 and 4. Order 0 is a special
+case rather than a failure: the sensor reports the least-smooth value at
+degree 0 by design, so `0 < 0` is false, `p` is never chosen in any cycle, and
+`--hp-adaptivity` degenerates to plain h-AMR worth 2 to 3x.
+
+**But `spend_on_p` requires `p < p_max`, and that clause is doing most of the
+work.** Varying only the ceiling, the number of h-refinements collapses by 45
+to 100x -- 812 to 18 at order 2 as the ceiling goes from `K+1` to `K+5`, 600 to
+6 at order 3 -- and at matched `M = 1200` a generous ceiling is uniformly
+better per dof, by 53x at order 2 and 214x at order 4. Meanwhile `--hps` is
+nearly inert: the threshold sits **below the entire sensor distribution over
+marked elements**, so stricter hurts badly (10-35x at matched `M`) and more
+lenient does nothing at all at order 3, with `+1` and `+2` byte-identical. So
+the decision being taken is effectively *"p unless at the ceiling"*, `-4
+log10(p)` is not badly chosen but is not discriminating either, and **order 2
+is the only order measured so far at which the sensor discriminates at all**.
+
+Two things follow. The default ceiling `order+3` is conservative and the
+measurement says raise it -- held pending the wall-clock answer, since the
+ceiling costs `(pmax+1)/(order+1)` on *built* trace storage and whether that
+costs time is the open half. And the sensor deserves a problem that exercises
+it, because this one does not.
+
+**Three dimensions works, and getting there found a silent wrong answer that
+was not ours.** `anisodiff` set problem 5's Dirichlet faces by 2D attribute
+index; `Mesh::Make2D` numbers them 1=y0, 2=x1, 3=y1, 4=x0 and `Mesh::Make3D`
+numbers them 1=z0, 2=y0, 3=x1, 4=y1, 5=x0, 6=z1, so the 2D pair landed on
+`z = 0` and `x = 1` and the layer faces got no condition -- and it ran to
+completion returning 0.986 as though nothing were wrong. Set by geometry now.
+With that, 3D hp reaches 2.6e-2 at `M = 21289` against uniform's 7.6e-2 at
+`M = 117504`: 2.9x the accuracy on 5.5x fewer dofs.
+
+**And simplices were unreachable for one default argument.**
+`Mesh::EnsureNCMesh()` leaves simplex meshes conforming unless told otherwise,
+so `FiniteElementSpace::Construct()` refused every variable order on a
+triangle or tetrahedron mesh -- in 2D as much as 3D. `EnsureNCMesh(true)` fixes
+it, and the side effect is worth knowing: `--hp-adaptivity` now works on
+tetrahedra while plain `--amr-ref-levels` on the same mesh still aborts in
+`Mesh::LocalRefinement` wanting `Finalize(true)`, because hp needs the
+nonconforming representation and conforming tet refinement is what is broken.
+That h-only abort is upstream of this branch and left alone.
 
 **Nothing measures time.** Every curve is error against `dim M`, which is the
 right axis for a hybridized method and is not the whole cost: the ceiling makes

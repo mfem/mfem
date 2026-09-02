@@ -727,8 +727,25 @@ int main(int argc, char *argv[])
          }
          break;
       case Problem::BoundaryLayer:
-         bdr_is_dirichlet[0] = -1;
-         bdr_is_dirichlet[2] = -1;
+         /* The layer is at y = 0 and y = 1 and the solution is zero at
+            x = 0 and x = 1, so the datum belongs on every face except the two
+            normal to x. Mesh::Make2D numbers them 1=y0, 2=x1, 3=y1, 4=x0 and
+            Mesh::Make3D numbers them 1=z0, 2=y0, 3=x1, 4=y1, 5=x0, 6=z1, so
+            the two orderings share no index -- the 2D pair {1,3} lands on
+            z = 0 and x = 1 in 3D, leaving the layer faces with no condition
+            at all. That was not an abort: it ran to completion and returned a
+            relative error of 0.986 as though nothing were wrong. */
+         if (dim > 2)
+         {
+            bdr_is_dirichlet = -1;
+            bdr_is_dirichlet[2] = 0;    // x = 1
+            bdr_is_dirichlet[4] = 0;    // x = 0
+         }
+         else
+         {
+            bdr_is_dirichlet[0] = -1;   // y = 0
+            bdr_is_dirichlet[2] = -1;   // y = 1
+         }
          break;
       case Problem::SteadyVaryingAngle:
          bdr_is_dirichlet = -1;
@@ -762,7 +779,12 @@ int main(int argc, char *argv[])
    // no-op on the answer -- it carries no hanging nodes and its conforming
    // prolongation is the identity, which DarcyOperator reads as a null
    // pointer.
-   if (hp) { mesh.EnsureNCMesh(); }
+   // The `true` is for simplices: EnsureNCMesh() defaults to leaving them
+   // conforming, and FiniteElementSpace::Construct() then refuses the variable
+   // order with "Variable-order space requires a nonconforming mesh". That
+   // default made hp unreachable on every triangle and tetrahedron mesh, in
+   // 2D as well as 3D.
+   if (hp) { mesh.EnsureNCMesh(true); }
 
    // 7. Define a finite element space on the mesh. Here we use the
    //    (broken) Raviart-Thomas finite elements of the specified order for the
@@ -1543,13 +1565,17 @@ int main(int argc, char *argv[])
          // The split types are reported because on this problem they are what
          // decides whether the loop converges at all: the layer is in y, and
          // an estimate that flags x refines forever without touching it.
-         int nx_ref = 0, ny_ref = 0, niso_ref = 0;
+         // One counter per axis plus one for everything mixed, because a
+         // three-dimensional run has a Z type and four mixed ones and the
+         // tally used to drop all five into the isotropic bucket.
+         int n_ax[3] = {0, 0, 0}, niso_ref = 0;
          for (int i = 0; i < h_refs.Size(); i++)
          {
             switch (h_refs[i].GetType())
             {
-               case Refinement::X: nx_ref++; break;
-               case Refinement::Y: ny_ref++; break;
+               case Refinement::X: n_ax[0]++; break;
+               case Refinement::Y: n_ax[1]++; break;
+               case Refinement::Z: n_ax[2]++; break;
                default: niso_ref++; break;
             }
          }
@@ -1557,18 +1583,33 @@ int main(int argc, char *argv[])
          cout << "mark:\t" << marked.Size() << " / " << mesh.GetNE()
               << "\tp:\t" << p_refs.Size()
               << "\th:\t" << h_refs.Size()
-              << " (x" << nx_ref << " y" << ny_ref << " *" << niso_ref << ")"
+              << " (x" << n_ax[0] << " y" << n_ax[1]
+              << ((dim > 2) ? " z" : "") << ((dim > 2) ? std::to_string(
+                                                n_ax[2]) : string())
+              << " *" << niso_ref << ")"
               << "\teta:\t" << amr_err.GetTotalError();
          if (hp)
          {
+            // The threshold is per element, because it depends on that
+            // element's own degree, so the range is what can be printed. It
+            // used to print Threshold(order) -- the BASE order -- which is
+            // -1.204 where an element at degree 5 is actually judged against
+            // -2.796, so the printed pair understated the strictness applied
+            // and stayed constant while p: climbed. Reading the decision off
+            // it was not possible.
             real_t s_lo = s_e(marked[0]), s_hi = s_e(marked[0]);
-            for (int i = 1; i < marked.Size(); i++)
+            real_t t_lo = infinity(), t_hi = -infinity();
+            for (int i = 0; i < marked.Size(); i++)
             {
                s_lo = min(s_lo, s_e(marked[i]));
                s_hi = max(s_hi, s_e(marked[i]));
+               const real_t t = PerssonPeraireSmoothness::Threshold(
+                                   W_space->GetElementOrder(marked[i])) + hp_shift;
+               t_lo = min(t_lo, t);
+               t_hi = max(t_hi, t);
             }
             cout << "\ts:\t" << s_lo << " .. " << s_hi
-                 << "\ts0:\t" << PerssonPeraireSmoothness::Threshold(order) + hp_shift;
+                 << "\ts0:\t" << t_lo << " .. " << t_hi;
          }
          cout << endl;
 
