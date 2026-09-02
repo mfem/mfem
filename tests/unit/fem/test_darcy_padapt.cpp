@@ -349,3 +349,110 @@ TEST_CASE("Postprocessing enriches a p-adapted potential element by element",
    INFO("computed " << err_p << ", postprocessed " << err_s);
    REQUIRE(err_s < 0.5 * err_p);
 }
+
+TEST_CASE("The smoothness sensor reads the top degree's share of the energy",
+          "[DarcyHybridization][PAdapt]")
+{
+   // Persson & Peraire eq (7), which is the other half of an hp decision: an
+   // error estimator says where to spend, this says whether to spend it on h
+   // or on p.
+   const int dim = 2;
+   const int n = 4;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   SECTION("a function already of degree p-1 senses as perfectly smooth")
+   {
+      // The sharpest check available: if u is in P_{p-1} then the truncation
+      // is u itself and eq (7)'s numerator is *mathematically* zero. It is not
+      // numerically zero, and the tolerance is what says which -- the
+      // implementation forms |u|^2 - |Pu|^2 rather than |u - Pu|^2, leaning on
+      // the orthogonality of the projection, and a difference of two nearly
+      // equal norms floors at round-off however exact the algebra is. What
+      // this pins is that the floor is round-off and not a method error.
+      const int order = GENERATE(1, 2, 3);
+      CAPTURE(order);
+
+      L2_FECollection fec(order, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction u(&fes);
+
+      // Degree order-1 exactly, and not a constant, so it is not smooth by
+      // accident.
+      FunctionCoefficient c([order](const Vector &x)
+      { return pow(x(0) + 0.3 * x(1), order - 1) + 0.5; });
+      u.ProjectCoefficient(c);
+
+      PerssonPeraireSmoothness sm(u);
+      const Vector &S = sm.GetSensor();
+      REQUIRE(S.Size() == mesh.GetNE());
+      INFO("largest S_e " << S.Max());
+      REQUIRE(S.Max() < 1e-12);
+   }
+
+   SECTION("a jump inside one element is sensed there and not elsewhere")
+   {
+      const int order = 3;
+      L2_FECollection fec(order, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction u(&fes);
+
+      // A step at x = 0.4, which falls strictly inside the second column of
+      // elements rather than on a mesh line -- on a line every element would
+      // hold a smooth half of it and the sensor would be right to say so.
+      FunctionCoefficient c([](const Vector &x)
+      { return (x(0) < 0.4) ? 0.0 : 1.0; });
+      u.ProjectCoefficient(c);
+
+      PerssonPeraireSmoothness sm(u);
+      const Vector &S = sm.GetSensor();
+
+      real_t cut = 0.0, away = 0.0;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Vector ctr;
+         mesh.GetElementCenter(e, ctr);
+         const bool crossed = (ctr(0) > 0.25 && ctr(0) < 0.5);
+         if (crossed) { cut = std::max(cut, S(e)); }
+         else { away = std::max(away, S(e)); }
+      }
+      INFO("cut " << cut << ", away " << away);
+      REQUIRE(cut > 1e3 * away);
+   }
+
+   SECTION("it follows a variable order rather than the collection's")
+   {
+      mesh.EnsureNCMesh();
+      const int order = 1;
+      L2_FECollection fec(order, dim);
+      FiniteElementSpace fes(&mesh, &fec);
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Vector ctr;
+         mesh.GetElementCenter(e, ctr);
+         if (ctr(0) < 0.5) { fes.SetElementOrder(e, order + 2); }
+      }
+      fes.Update(false);
+      REQUIRE(fes.IsVariableOrder());
+
+      GridFunction u(&fes);
+      // Degree 2: inside P_{p-1} on the raised elements (p = 3), and not on
+      // the others (p = 1), so the sensor has to be reading each element's
+      // own degree to tell them apart.
+      FunctionCoefficient c([](const Vector &x)
+      { return x(0) * x(0) + 0.4 * x(1) * x(1) + 0.1; });
+      u.ProjectCoefficient(c);
+
+      PerssonPeraireSmoothness sm(u);
+      const Vector &S = sm.GetSensor();
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         Vector ctr;
+         mesh.GetElementCenter(e, ctr);
+         INFO("element " << e << " order " << fes.GetElementOrder(e)
+              << " S_e " << S(e));
+         if (ctr(0) < 0.5) { REQUIRE(S(e) < 1e-12); }
+         else              { REQUIRE(S(e) > 1e-6); }
+      }
+   }
+}

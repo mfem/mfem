@@ -167,14 +167,19 @@ every driver needs and it is testable on its own:
     void FaceOrdersFromElementOrders(const Mesh &, const Array<int> &elem_order,
                                      Array<int> &face_order, Rule rule, int cap);
 
-**4. The indicator, which is the part that does not exist.**
-`HDGErrorEstimator` gives an element error, so it says *where*. Nothing in the
-tree says *`h` or `p`* -- that needs a smoothness estimate, and the candidates
-are the postprocessing gap `‖u*_h − u_h‖_K`, which the tree already computes,
-and the decay of the local projection coefficients across degrees, which it
-does not. **A first driver should not choose**: mark on the estimator and
-raise the degree, `p` only, no `h`. That isolates the machinery from a
-question that deserves its own measurement.
+**4. The indicator. The sensor exists; the policy does not.**
+`HDGErrorEstimator` gives an element error, so it says *where*.
+`PerssonPeraireSmoothness` now says *`h` or `p`*: it is
+`S_e = (u − û, u − û)_e / (u, u)_e` with `û` the truncation one degree down,
+Persson & Peraire AIAA 2006-112 eq (7), and `Threshold(p)` is the paper's
+`s_0 ~ −4 log10 p`. It is deliberately **not** an `ErrorEstimator` and cannot
+be handed to a `ThresholdRefiner`: it measures how well an element resolves
+what it holds, not how wrong that is, and the two are opposite for a
+well-resolved discontinuity.
+
+What is left is the policy and the `h` half: mark on the estimator, then send
+smooth elements to `p` and the rest to `h`. Nothing here refines `h` yet, and
+`anisodiff` is where that machinery already lives.
 
 **5. Parallel.** Element degrees are rank-local and a shared face needs the
 neighbour's, so `min`/`max` both require one exchange of element degrees over

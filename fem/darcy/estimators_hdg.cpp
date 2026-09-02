@@ -199,4 +199,128 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
    }
 }
 
+
+PerssonPeraireSmoothness::PerssonPeraireSmoothness(const GridFunction &field,
+                                                   real_t zero_tol_)
+   : u(field), zero_tol(zero_tol_)
+{
+   const FiniteElementSpace *fes = u.FESpace();
+   MFEM_VERIFY(fes, "the field has no finite element space");
+   MFEM_VERIFY(fes->FEColl()->GetContType() ==
+               FiniteElementCollection::DISCONTINUOUS,
+               "The sensor truncates the expansion element by element, which "
+               "only means something on a discontinuous space; this one is "
+               "continuous across elements.");
+}
+
+const Vector &PerssonPeraireSmoothness::GetSensor()
+{
+   if (computed) { return S; }
+
+   const FiniteElementSpace *fes = u.FESpace();
+   const FiniteElementCollection *fec = fes->FEColl();
+   Mesh *mesh = fes->GetMesh();
+   const int NE = mesh->GetNE();
+   const int vdim = fes->GetVDim();
+
+   S.SetSize(NE);
+   S = 0.0;
+
+   MassIntegrator mass;
+   DenseMatrix M_pp, M_qp, M_qq;
+   Array<int> vdofs;
+   Vector loc, u_e, b, c;
+   Vector energy(NE);
+   energy = 0.0;
+
+   for (int e = 0; e < NE; e++)
+   {
+      const FiniteElement *fe_p = fes->GetFE(e);
+      const int p = fe_p->GetOrder();
+      fes->GetElementVDofs(e, vdofs);
+      u.GetSubVector(vdofs, loc);
+
+      // Nothing to truncate to: the element resolves nothing, and reporting it
+      // as maximally unresolved is what a driver should act on.
+      if (p == 0) { S(e) = 1.0; energy(e) = -1.0; continue; }
+
+      ElementTransformation *T = mesh->GetElementTransformation(e);
+      const FiniteElement *fe_q = fec->GetFE(mesh->GetElementGeometry(e), p - 1);
+      MFEM_VERIFY(fe_q && fe_q->GetOrder() == p - 1,
+                  "the collection returned degree " << (fe_q ? fe_q->GetOrder() : -1)
+                  << " when asked for " << p - 1);
+
+      mass.AssembleElementMatrix(*fe_p, *T, M_pp);
+      mass.AssembleElementMatrix(*fe_q, *T, M_qq);
+      mass.AssembleElementMatrix2(*fe_p, *fe_q, *T, M_qp);   // (trial p, test q)
+
+      const int ndof_p = fe_p->GetDof(), ndof_q = fe_q->GetDof();
+      DenseMatrixInverse M_qq_inv(M_qq);
+
+      // Per field, and the worst field wins: one unresolved component is
+      // enough to say the element is not resolved.
+      real_t worst = 0.0, tot = 0.0;
+      for (int k = 0; k < vdim; k++)
+      {
+         u_e.SetSize(ndof_p);
+         for (int i = 0; i < ndof_p; i++) { u_e(i) = loc(k * ndof_p + i); }
+
+         // DenseMatrix::Mult does not resize its output, and with asserts off
+         // an unsized one writes past the end -- segfault rather than a
+         // message.
+         c.SetSize(ndof_p);
+         M_pp.Mult(u_e, c);
+         const real_t nrm2 = u_e * c;                 // (u, u)_e
+         b.SetSize(ndof_q);
+         M_qp.Mult(u_e, b);                           // (u, phi_q)_e
+         Vector proj(ndof_q);
+         M_qq_inv.Mult(b, proj);
+         const real_t prj2 = b * proj;                // (Pu, Pu)_e
+
+         tot += nrm2;
+         if (nrm2 > 0.0)
+         {
+            // Orthogonality of the projection: |u - Pu|^2 = |u|^2 - |Pu|^2.
+            // Clamped because the two are equal to round-off wherever u is
+            // already of degree p-1, and the difference can come back at -1e-18.
+            const real_t num = std::max(nrm2 - prj2, real_t(0.0));
+            worst = std::max(worst, num / nrm2);
+         }
+      }
+      S(e) = worst;
+      energy(e) = tot;
+   }
+
+   // An element carrying essentially nothing has no expansion to judge, and
+   // 0/0 would otherwise come back as noise. Measured against the mean rather
+   // than an absolute, so the floor follows the field's own scale.
+   real_t mean = 0.0;
+   int counted = 0;
+   for (int e = 0; e < NE; e++)
+   {
+      if (energy(e) >= 0.0) { mean += energy(e); counted++; }
+   }
+   if (counted > 0) { mean /= counted; }
+   for (int e = 0; e < NE; e++)
+   {
+      if (energy(e) >= 0.0 && energy(e) < zero_tol * mean) { S(e) = 0.0; }
+   }
+
+   computed = true;
+   return S;
+}
+
+void PerssonPeraireSmoothness::GetLogSensor(Vector &s_e)
+{
+   const Vector &s = GetSensor();
+   s_e.SetSize(s.Size());
+   for (int e = 0; e < s.Size(); e++)
+   {
+      // A vanishing sensor is a perfectly resolved element; log10 of it is
+      // minus infinity, and a large negative number is what a threshold test
+      // wants instead.
+      s_e(e) = (s(e) > 0.0) ? std::log10(s(e)) : -std::numeric_limits<real_t>::max();
+   }
+}
+
 } // namespace mfem
