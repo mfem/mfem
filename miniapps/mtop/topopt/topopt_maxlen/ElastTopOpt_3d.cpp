@@ -504,6 +504,7 @@ int main(int argc, char *argv[])
     vector<unique_ptr<DG_FECollection>> sub_dg_fec(n_dir);
     vector<unique_ptr<ParFiniteElementSpace>> sub_dg_fes(n_dir);
     vector<unique_ptr<ParGridFunction>> alpha(n_dir);
+    vector<unique_ptr<SubMeshDualTransfer>> dualtransfer(n_dir);
 
     for (int r = 0; r < n_dir; r++)
     {
@@ -513,6 +514,8 @@ int main(int argc, char *argv[])
 
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
         *alpha[r] = domain_init;
+
+        dualtransfer[r] = make_unique<SubMeshDualTransfer>(*sub_dg_fes[r], dgfes);
     }
 
     // Lame constants and SIMP material coefficients
@@ -917,7 +920,7 @@ int main(int argc, char *argv[])
     // 9b. Paraview
     ParGridFunction phys_density(&filter_fes);
     std::ostringstream run_tag;
-    run_tag << "3dbeam_amax" << alpha_max << "_vf" << vol_fraction;
+    run_tag << "3d_amax" << alpha_max << "_vf" << vol_fraction;
     ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
@@ -1257,8 +1260,8 @@ int main(int argc, char *argv[])
 
             // transfer dGdrhoa back to the full-domain dgfes
             ParGridFunction g_sub(sub_dg_fes[r].get());  g_sub.SetFromTrueDofs(dGdrhoa);
-            ParGridFunction g_full(&dgfes);              g_full = 0.0;
-            outflow[r]->Transfer(g_sub, g_full);
+            ParGridFunction g_full(&dgfes);
+            dualtransfer[r]->MultTranspose(g_sub, g_full);
             Vector rhs_full;  g_full.GetTrueDofs(rhs_full);
 
             // chain rule adjoint solve: dG/drho = M_fc^T N^T g
@@ -1294,8 +1297,8 @@ int main(int argc, char *argv[])
         {
             for (int i = 0; i < m[r]; i++)
             {
-                tx_min[toffsets[1 + r] + i] = std::max(alpha_min, alpha_tv[r][i] - move);
-                tx_max[toffsets[1 + r] + i] = std::min(alpha_max, alpha_tv[r][i] + move);
+                tx_min[toffsets[1 + r] + i] = alpha_min;
+                tx_max[toffsets[1 + r] + i] = alpha_max;
             }
         }
 
@@ -1535,8 +1538,17 @@ static MeshProblem SetupCartesianBeam(Mesh &mesh)
 
     // attrs: 1 z=0, 2 y=0, 3 x=lx, 4 y=ly, 5 x=0 (clamped), 6 z=lz.
     p.outer_bdr_attrs = Array<int>({1, 2, 3, 4, 6});
-    p.ray_bdr_attrs   = p.outer_bdr_attrs;      // p.rays left empty -> n_dir = 0
+    p.ray_bdr_attrs = p.outer_bdr_attrs;   // outflow candidates {1,2,3,4,6}
 
+    // four parallel ray fields in the y-z cross-section: 0, 45, 90, 135 deg
+    const real_t s = 1.0 / std::sqrt(2.0);
+    const real_t d[4][3] = {{0,1,0}, {0,s,s}, {0,0,1}, {0,-s,s}};
+    for (int k = 0; k < 4; k++)
+    {
+        Vector v(3);  v(0) = d[k][0];  v(1) = d[k][1];  v(2) = d[k][2];
+        p.rays.push_back(std::make_unique<VectorConstantCoefficient>(v));
+    }
+    
     p.cases.resize(1);
     LoadCase &lc = p.cases[0];
     lc.clamp_attrs = Array<int>({ 5 });
