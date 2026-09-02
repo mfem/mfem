@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -350,7 +350,7 @@ public:
    void ApplyDofSigns(real_t *h_data) const;
 
    /** @brief Return -1 if the given (vector) DOF @a i has a sign opposite of
-       the DOF in the respecive serial FE space. Otherwise, return 1. */
+       the DOF in the respective serial FE space. Otherwise, return 1. */
    int GetDofSign(int i) const
    { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
 
@@ -528,10 +528,10 @@ public:
        that the number of DOFs is @a ndofs. */
    const FiniteElement *GetFaceNbrFE(int i, int ndofs = 0) const;
    const FiniteElement *GetFaceNbrFaceFE(int i) const;
-   const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() { return face_nbr_glob_dof_map; }
-   const HYPRE_BigInt *GetFaceNbrGlobalDofMap() { return face_nbr_glob_dof_map; }
    const Array<HYPRE_BigInt> &GetFaceNbrGlobalDofMapArray() const
    { return face_nbr_glob_dof_map; }
+   const HYPRE_BigInt *GetFaceNbrGlobalDofMap() const
+   { return face_nbr_glob_dof_map.HostRead(); }
    ElementTransformation *GetFaceNbrElementTransformation(int i) const
    { return pmesh->GetFaceNbrElementTransformation(i); }
 
@@ -640,50 +640,18 @@ public:
 };
 
 /// Auxiliary device class used by ParFiniteElementSpace.
-class DeviceConformingProlongationOperator: public
-   ConformingProlongationOperator
+class DeviceConformingProlongationOperator
+   : public ConformingProlongationOperator
 {
-protected:
-   bool mpi_gpu_aware;
-   Array<int> shr_ltdof, ext_ldof;
-   mutable Vector shr_buf, ext_buf;
-   Memory<int> shr_buf_offsets, ext_buf_offsets;
-   Array<int> ltdof_ldof, unq_ltdof;
-   Array<int> unq_shr_i, unq_shr_j;
-   MPI_Request *requests;
-
-   // Kernel: copy ltdofs from 'src' to 'shr_buf' - prepare for send.
-   //         shr_buf[i] = src[shr_ltdof[i]]
-   void BcastBeginCopy(const Vector &src) const;
-
-   // Kernel: copy ltdofs from 'src' to ldofs in 'dst'.
-   //         dst[ltdof_ldof[i]] = src[i]
-   void BcastLocalCopy(const Vector &src, Vector &dst) const;
-
-   // Kernel: copy ext. dofs from 'ext_buf' to 'dst' - after recv.
-   //         dst[ext_ldof[i]] = ext_buf[i]
-   void BcastEndCopy(Vector &dst) const;
-
-   // Kernel: copy ext. dofs from 'src' to 'ext_buf' - prepare for send.
-   //         ext_buf[i] = src[ext_ldof[i]]
-   void ReduceBeginCopy(const Vector &src) const;
-
-   // Kernel: copy owned ldofs from 'src' to ltdofs in 'dst'.
-   //         dst[i] = src[ltdof_ldof[i]]
-   void ReduceLocalCopy(const Vector &src, Vector &dst) const;
-
-   // Kernel: assemble dofs from 'shr_buf' into to 'dst' - after recv.
-   //         dst[shr_ltdof[i]] += shr_buf[i]
-   void ReduceEndAssemble(Vector &dst) const;
-
 public:
+   DeviceConformingProlongationOperator(
+      int lsize, const GroupCommunicator &gc_, bool local_=false);
+
    DeviceConformingProlongationOperator(
       const GroupCommunicator &gc_, const SparseMatrix *R, bool local_=false);
 
    DeviceConformingProlongationOperator(const ParFiniteElementSpace &pfes,
                                         bool local_=false);
-
-   virtual ~DeviceConformingProlongationOperator();
 
    void Mult(const Vector &x, Vector &y) const override;
 

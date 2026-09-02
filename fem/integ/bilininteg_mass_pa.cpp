@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -143,6 +143,9 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    }
    else
    {
+      MFEM_VERIFY(maps && maps->mode != DofToQuad::RAGGED_TENSOR,
+                  "AssembleDiagonalPA requires AssemblePA to be called first,"
+                  " and is not implemented for ragged tensor bases");
       DiagonalPAKernels::Run(dim, dofs1D, quad1D, ne, maps->B, pa_data,
                              diag, dofs1D, quad1D);
    }

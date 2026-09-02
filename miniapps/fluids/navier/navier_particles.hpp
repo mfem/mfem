@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -144,9 +144,9 @@ protected:
     *  @param[in] s1_end           First line segment end point.
     *  @param[in] s2_start         Second line segment start point.
     *  @param[in] s2_end           Second line segment end point.
-    *  @param[in] x_int            Computed intersection point (if it exists)
-    *  @param[in] t1_ptr           (Optional) Computed t1
-    *  @param[in] t2_ptr           (Optional) Computed t2
+    *  @param[out] x_int           Computed intersection point (if it exists)
+    *  @param[out] t1_ptr           (Optional) Computed t1
+    *  @param[out] t2_ptr           (Optional) Computed t2
     *
     *  @return *true* if intersection point exists, *false* otherwise
     */
@@ -271,7 +271,7 @@ public:
     *
     *  @param[in] line_start     Wall line segment start point.
     *  @param[in] line_end       Wall line segment end point.
-    *  @param[in] e              Boundary collision reconstitution constant.
+    *  @param[in] e              Boundary collision restitution constant.
     *                            1 for perfectly elastic.
     *  @param[in] invert_normal  True if left normal points out of domain.
     *                            False if left normal points into domain.
