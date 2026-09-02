@@ -35,12 +35,15 @@ struct Result
 {
    Vector tr;        ///< the trace solution, as solved for
    Vector q, p;      ///< the recovered flux and potential
-   int    size;      ///< size of the trace system
+   int    size;      ///< size of the trace system, storage included
+   int    ess;       ///< essential trace dofs, the retired surplus included
+   int    active() const { return size - ess; }   ///< what is actually solved
 };
 
 /// @a set says whether SetTraceOrders() is called at all, which is what
 /// separates "never configured" from "configured with an empty array".
-Result Solve(int order, int n, const Array<int> &trace_orders, bool set = true)
+Result Solve(int order, int n, const Array<int> &trace_orders, bool set = true,
+             int trace_ceiling = -1)
 {
    Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
@@ -68,7 +71,8 @@ Result Solve(int order, int n, const Array<int> &trace_orders, bool set = true)
       new DomainLFIntegrator(gcoeff, 6, 12));
 
    Array<int> ess;
-   DG_Interface_FECollection trace_coll(order, dim);
+   DG_Interface_FECollection trace_coll(
+      (trace_ceiling < 0) ? order : trace_ceiling, dim);
    FiniteElementSpace fes_t(&mesh, &trace_coll);
    darcy.EnableHybridization(&fes_t, new NormalTraceJumpIntegrator(), ess);
 
@@ -97,6 +101,7 @@ Result Solve(int order, int n, const Array<int> &trace_orders, bool set = true)
 
    Result res;
    res.size = X.Size();
+   res.ess = darcy.GetHybridization()->GetEssentialTrueDofs().Size();
    res.tr = X;
    res.q = x.GetBlock(0);
    res.p = x.GetBlock(1);
@@ -173,4 +178,97 @@ TEST_CASE("An empty trace order array is the uniform trace",
    Vector d(b.tr);
    d -= a.tr;
    REQUIRE(d.Normlinf() == 0.0);
+}
+
+TEST_CASE("A raised ceiling with every face at the old degree solves the old problem",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   // The acceptance test for retiring the surplus, and the one that makes the
+   // ceiling usable at all. Build the constraint space one degree above the
+   // elements and put every face back at the element degree: every face then
+   // carries surplus slots, so this exercises the retirement everywhere at
+   // once -- and the active space is face-for-face the one the plain uniform
+   // run uses, with the same basis, so it must return the same solution.
+   //
+   // Same solution, not the same vector: the trace is embedded in bigger
+   // storage under a different global numbering, so only the recovered fields
+   // are comparable, and only to the linear solver's tolerance rather than
+   // bitwise.
+   const int order = GENERATE(0, 1, 2);
+   const int n = 4;
+   CAPTURE(order);
+
+   Array<int> none;
+   const Result plain = Solve(order, n, none, false);
+
+   Mesh probe = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+   const int nfaces = probe.GetNumFaces();
+   Array<int> at_old(nfaces);
+   at_old = order;
+   const Result raised = Solve(order, n, at_old, true, order + 1);
+
+   // The storage really did grow, or the surplus is not being exercised.
+   REQUIRE(raised.size > plain.size);
+   REQUIRE(raised.ess > plain.ess);
+
+   // ...and what is left after retiring it is exactly the old system's size.
+   INFO("active " << raised.active() << " against " << plain.active());
+   REQUIRE(raised.active() == plain.active());
+
+   auto close = [](const Vector &a, const Vector &b, const char *what)
+   {
+      REQUIRE(a.Size() == b.Size());
+      Vector d(a);
+      d -= b;
+      INFO(what << ": max difference " << d.Normlinf() << " on "
+           << b.Normlinf());
+      CHECK(d.Normlinf() < 1e-10 * std::max(b.Normlinf(), real_t(1.0)));
+   };
+
+   close(raised.q, plain.q, "flux");
+   close(raised.p, plain.p, "potential");
+}
+
+TEST_CASE("A genuinely non-uniform trace solves, and its size is the sum of its faces",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   // Degrees that actually differ face to face. The arithmetic is the check
+   // worth having: with no essential boundary trace condition on this problem,
+   // every trace dof is free except the retired surplus, so the number of dofs
+   // actually solved for must come to sum over faces of nt(p_f) -- here p_f+1,
+   // the faces being segments. That is a statement about the whole machinery
+   // (degrees stored, elements chosen, slots retired) and it is exact.
+   const int order = GENERATE(1, 2);
+   const int n = 4;
+   CAPTURE(order);
+
+   Mesh probe = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                      1.0, 1.0);
+   const int nfaces = probe.GetNumFaces();
+
+   Array<int> mixed(nfaces);
+   int expected = 0;
+   for (int f = 0; f < nfaces; f++)
+   {
+      mixed[f] = (f % 2 == 0) ? order : (order - 1);
+      expected += mixed[f] + 1;          // nt(p) on a segment
+   }
+
+   const Result r = Solve(order, n, mixed);
+
+   INFO("active " << r.active() << ", expected " << expected);
+   REQUIRE(r.active() == expected);
+
+   // and it is a genuinely different discretisation, not a relabelling
+   Array<int> none;
+   const Result uniform = Solve(order, n, none, false);
+   REQUIRE(r.active() < uniform.active());
+   Vector d(r.p);
+   d -= uniform.p;
+   REQUIRE(d.Normlinf() > 1e-12);
 }

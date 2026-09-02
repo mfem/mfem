@@ -224,6 +224,15 @@ protected:
        results. See SetTraceOrders() for what the entries mean. */
    Array<int> tr_order;
 
+   /** @brief The essential trace true DOFs the *caller* asked for.
+
+       Finalize() computes ess_tdof_list as this united with the surplus slots
+       a per-face degree leaves unused, so it has to keep the caller's own list
+       separately: the surplus depends on tr_order, and a second Finalize()
+       after Reset() with different degrees must not inherit the first one's.
+       Empty and unused while the trace is uniform. */
+   Array<int> ess_tdof_user;
+
 private:
    struct
    {
@@ -466,6 +475,23 @@ private:
        degree reaches all of them at once. With no degrees set it *is*
        c_fes.GetFaceElement(). */
    const FiniteElement *TraceFE(int f) const;
+
+   /// Allocate everything whose size comes from the trace element.
+   void AllocTraceBlocks();
+
+   /// Convert a list of constraint-space VDOFs to true DOFs.
+   void TraceVDofsToTDofs(const Array<int> &vdofs, Array<int> &tdofs) const;
+
+   /** @brief Add the slots a per-face degree leaves unused to the essential
+       true DOFs, so that they carry a unit row and a zero and sit outside the
+       physical system.
+
+       A face of degree p_f uses the first nt(p_f) of the nt(p_max) slots it
+       owns in each field; the rest are driven by nothing, and without this the
+       trace system is singular in exactly that many directions. Called from
+       Finalize(), which is where the degrees stop changing, and idempotent
+       because it rebuilds ess_tdof_list from #ess_tdof_user each time. */
+   void RetireSurplusTraceDofs();
 
    /** @brief The trace vdofs of face @a f, truncated to that face's degree.
 
@@ -768,7 +794,7 @@ public:
 
    /// Specify essential true DOFs.
    void SetEssentialTrueDofs(const Array<int> &ess_tdof_list_)
-   { ess_tdof_list_.Copy(ess_tdof_list); }
+   { ess_tdof_list_.Copy(ess_tdof_list); ess_tdof_list_.Copy(ess_tdof_user); }
 
    /// Return a (read-only) list of all essential true DOFs.
    const Array<int> &GetEssentialTrueDofs() const { return ess_tdof_list; }
@@ -778,9 +804,11 @@ public:
        @a face_order holds one degree per mesh face, and every entry must lie
        between 0 and the degree of the constraint space, which stays a uniform
        space at the maximum degree. A face of degree `p_f` then uses only the
-       first `nt(p_f)` of the `nt(p_max)` dof slots it owns, in each field; the
-       rest are surplus and the caller must make them essential, or they sit in
-       the system with nothing driving them.
+       first `nt(p_f)` of the `nt(p_max)` dof slots it owns, in each field. The
+       rest are surplus and Finalize() makes them essential for you, so they
+       carry a unit row and a zero and sit outside the physical system; without
+       that the trace system would be singular in exactly that many
+       directions.
 
        The low-order face is **not** a subspace of the high-order one -- MFEM
        has no hierarchical basis to make it one -- and it does not need to be.
@@ -812,10 +840,12 @@ public:
        to a sparse direct solve -- is the reasonable expectation and has not
        been measured.
 
-       Pass an empty array to return to a uniform trace. Must be called before
-       Finalize(), which is where the block sizes are fixed; note that
-       DarcyForm reaches Finalize() from FormLinearSystem(), not from
-       Assemble(). */
+       **Call it straight after DarcyForm::EnableHybridization() and before
+       Assemble().** C, E, G and H are sized from the trace element and
+       EnableHybridization() has already built them at the uniform degree, so
+       this rebuilds them -- and calls Reset(), discarding anything assembled,
+       since those blocks are the wrong shape once the degrees change. Passing
+       an empty array returns to a uniform trace on the same terms. */
    void SetTraceOrders(const Array<int> &face_order);
 
    /// Return the per-face trace degrees, empty when the trace is uniform.

@@ -80,11 +80,18 @@ the form can consult the hybridization; until it does, **reconstruction and a
 per-face trace must not be used together**, and that has to be a guard rather
 than a note.
 
-**2. Retire the surplus slots.**
-A face with `p_f < p_max` leaves `nt(p_max) - nt(p_f)` slots unused. Union them
-into the essential list through the existing `SetEssentialVDofs()`; `ComputeH`'s
-`DIAG_ONE` already gives such dofs a unit row and `Mult()` already zeroes them.
-No new elimination path, and the *effective* system is the `p`-adaptive one.
+**2. Retire the surplus slots. DONE.**
+`Finalize()` unions the unused slots into `ess_tdof_list`, rebuilding it from
+the caller's own list each time so a second `Finalize()` after `Reset()` with
+different degrees does not inherit the first one's. `ComputeH`'s `DIAG_ONE`
+gives them a unit row and `Mult()` zeroes them; no new elimination path.
+
+The trap this step actually turned on was elsewhere. `Init()` runs from
+`EnableHybridization()`, so C, E, G and H were already built at the *uniform*
+degree before any caller could state a per-face one -- the dof count came out
+exactly right and the system was wrong. `SetTraceOrders()` therefore rebuilds
+them and calls `Reset()`, and must be called straight after
+`EnableHybridization()` and before `Assemble()`.
 
 **3. A knob to drive it.**
 `convdiff -pref` setting element orders from a rule, plus `-nc`, plus a face
@@ -105,6 +112,60 @@ exponentially on them, so the case has to be `anisodiff -p 6` (steady peak) or
 `p`*. Cheapest candidate for the smoothness half is the postprocessing gap
 `‖u*_h − u_h‖_K`, which the tree already computes — to be measured against a
 coefficient-decay indicator rather than assumed.
+
+## Driving it
+
+The hybridization stores degrees and derives nothing, so everything below is
+the caller's. Written out because "set some orders" hides four separate
+decisions and only the first is obvious.
+
+**1. The ceiling, chosen before anything else.** `p_ceiling` is fixed when the
+constraint space is built and faces can only go below it, so it is the highest
+degree the run will ever reach -- not the degree it starts at. Element degrees
+are capped there too: above the ceiling they buy nothing, because the trace
+order sets the rate.
+
+**2. Element degrees**, on the L2 flux and potential spaces:
+`SetElementOrder(e, p_e)` then `Update()`, on a mesh that has had
+`EnsureNCMesh()` called. This part needs no library change and is measured.
+
+**3. Face degrees from element degrees**, which is the step with a real choice
+in it:
+
+    p_F = rule(p_K1, p_K2)   interior,   p_F = p_K1   boundary,   capped at p_ceiling
+
+`min` is safe and is what a first driver should use. `max` is the literature's
+rule; it needs the face-quadrature fix (now on the trunk) and is measured to
+be *exactly redundant* where both neighbours agree, so it can only pay at a
+genuine `p`-interface. **Which rule wins there is the open question this whole
+branch exists to answer**, and both must be available for it to be answerable.
+
+Worth a helper rather than a miniapp loop, because it is the same three lines
+every driver needs and it is testable on its own:
+
+    void FaceOrdersFromElementOrders(const Mesh &, const Array<int> &elem_order,
+                                     Array<int> &face_order, Rule rule, int cap);
+
+**4. The indicator, which is the part that does not exist.**
+`HDGErrorEstimator` gives an element error, so it says *where*. Nothing in the
+tree says *`h` or `p`* -- that needs a smoothness estimate, and the candidates
+are the postprocessing gap `‖u*_h − u_h‖_K`, which the tree already computes,
+and the decay of the local projection coefficients across degrees, which it
+does not. **A first driver should not choose**: mark on the estimator and
+raise the degree, `p` only, no `h`. That isolates the machinery from a
+question that deserves its own measurement.
+
+**5. Parallel.** Element degrees are rank-local and a shared face needs the
+neighbour's, so `min`/`max` both require one exchange of element degrees over
+face neighbours. `dim M` per rank and `Dof_TrueDof` are untouched, which is
+the point of this route.
+
+**6. The demonstrator.** Every `convdiff` problem is analytic and uniform `p`
+already converges exponentially on them, so the case has to be
+`anisodiff -p 6` (steady peak) or `-p 5` (boundary layer). A `convdiff -pref`
+flag is still worth having first as a *mechanism* test -- prescribed degrees,
+no adaptation -- because it puts the machinery under the regression suite
+before any indicator exists.
 
 ## Acceptance
 

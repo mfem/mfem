@@ -241,6 +241,16 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    Be_data.SetSize(Be_offsets[NE]); Be_data = 0.;
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
+   AllocTraceBlocks();
+}
+
+/** @brief Allocate everything whose size comes from the trace element.
+
+    Split out of Init() because SetTraceOrders() has to redo it: Init() runs
+    from DarcyForm::EnableHybridization(), so it has already built C, E, G and
+    H at the uniform degree by the time any caller can state a per-face one. */
+void DarcyHybridization::AllocTraceBlocks()
+{
    if (c_bfi_p)
    {
       AllocEG();
@@ -254,35 +264,80 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
 void DarcyHybridization::SetEssentialBC(const Array<int> &bdr_attr_is_ess)
 {
    c_fes.GetEssentialTrueDofs(bdr_attr_is_ess, ess_tdof_list);
+   ess_tdof_list.Copy(ess_tdof_user);
+}
+
+void DarcyHybridization::TraceVDofsToTDofs(const Array<int> &vdofs,
+                                           Array<int> &tdofs) const
+{
+   if (c_fes.Conforming() && !ParallelC())
+   {
+      vdofs.Copy(tdofs);   // the two numberings coincide
+      return;
+   }
+
+   Array<int> vdof_marker, tdof_marker;
+   FiniteElementSpace::ListToMarker(vdofs, c_fes.GetVSize(), vdof_marker);
+   if (!ParallelC())
+   {
+      c_fes.ConvertToConformingVDofs(vdof_marker, tdof_marker);
+   }
+   else
+   {
+#ifdef MFEM_USE_MPI
+      tdof_marker.SetSize(c_pfes->GetTrueVSize());
+      c_pfes->Dof_TrueDof_Matrix()->BooleanMultTranspose(1, vdof_marker,
+                                                         0, tdof_marker);
+#else
+      MFEM_ABORT("internal MFEM error");
+#endif
+   }
+   FiniteElementSpace::MarkerToList(tdof_marker, tdofs);
 }
 
 void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
 {
-   if (c_fes.Conforming() && !ParallelC())
+   TraceVDofsToTDofs(ess_vdofs_list, ess_tdof_list);
+   ess_tdof_list.Copy(ess_tdof_user);
+}
+
+void DarcyHybridization::RetireSurplusTraceDofs()
+{
+   if (tr_order.Size() == 0) { return; }
+
+   // Rebuilt from the caller's own list rather than added to whatever is
+   // there, so that a second Finalize() after Reset() with different degrees
+   // does not inherit the first one's surplus.
+   ess_tdof_user.Copy(ess_tdof_list);
+
+   Array<int> vdofs, surplus;
+   const int vdim = c_fes.GetVDim();
+   for (int f = 0; f < tr_order.Size(); f++)
    {
-      ess_vdofs_list.Copy(ess_tdof_list); // ess_vdofs_list --> ess_tdof_list
-   }
-   else
-   {
-      Array<int> ess_vdof_marker, ess_tdof_marker;
-      FiniteElementSpace::ListToMarker(ess_vdofs_list, c_fes.GetVSize(),
-                                       ess_vdof_marker);
-      if (!ParallelC())
+      c_fes.GetFaceVDofs(f, vdofs);
+      const int nt_max = vdofs.Size() / vdim;
+      const int nt_f = TraceFE(f)->GetDof();
+      if (nt_f == nt_max) { continue; }
+
+      // Fields are outermost, so each occupies its own run of nt_max slots and
+      // the tail of each run is what the face's degree does not reach.
+      for (int k = 0; k < vdim; k++)
       {
-         c_fes.ConvertToConformingVDofs(ess_vdof_marker, ess_tdof_marker);
+         for (int i = nt_f; i < nt_max; i++)
+         {
+            const int vd = vdofs[k*nt_max + i];
+            surplus.Append((vd >= 0) ? vd : (-1 - vd));
+         }
       }
-      else
-      {
-#ifdef MFEM_USE_MPI
-         ess_tdof_marker.SetSize(c_pfes->GetTrueVSize());
-         c_pfes->Dof_TrueDof_Matrix()->BooleanMultTranspose(1, ess_vdof_marker,
-                                                            0, ess_tdof_marker);
-#else
-         MFEM_ABORT("internal MFEM error");
-#endif
-      }
-      FiniteElementSpace::MarkerToList(ess_tdof_marker, ess_tdof_list);
    }
+
+   if (surplus.Size() == 0) { return; }
+
+   Array<int> surplus_t;
+   TraceVDofsToTDofs(surplus, surplus_t);
+   ess_tdof_list.Append(surplus_t);
+   ess_tdof_list.Sort();
+   ess_tdof_list.Unique();
 }
 
 /** @brief Assemble an element matrix of @a Mu.
@@ -663,6 +718,10 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
                   "constraint space carries on a face.");
    }
 
+   MFEM_VERIFY(Ct_data.Size() > 0,
+               "SetTraceOrders() needs the hybridization initialised first; "
+               "call it after DarcyForm::EnableHybridization().");
+
    face_order.Copy(tr_order);
 
    // FiniteElementCollection::GetFE(geom, q) takes the *collection's* order,
@@ -686,6 +745,17 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
                   << " dofs but owns only "
                   << c_fes.GetFaceElement(f)->GetDof() << ".");
    }
+
+   // C, E, G and H are all sized from the trace element, and Init() built them
+   // at the uniform degree before this method could be reached -- Init() runs
+   // from EnableHybridization(). Rebuild them at the degrees just stated, and
+   // drop whatever has been assembled, because those blocks are now the wrong
+   // shape. Without this the dof *count* comes out right and the system does
+   // not: measured as a flux wrong by 4.4 to 6.9 in a problem whose own norm
+   // is 2.4 to 3.1.
+   ConstructC();
+   AllocTraceBlocks();
+   Reset();
 }
 
 const FiniteElement *DarcyHybridization::TraceFE(int f) const
@@ -2119,6 +2189,10 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
 void DarcyHybridization::Finalize()
 {
    if (bfin) { return; }
+
+   // Before anything reads ess_tdof_list: ComputeH() eliminates with it and
+   // EliminateTraceTrueDofs() gives it the diagonal policy.
+   RetireSurplusTraceDofs();
 
    if (!IsNonlinear())
    {
