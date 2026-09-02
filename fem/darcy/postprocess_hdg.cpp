@@ -105,6 +105,22 @@ void HDGPotentialPostprocessor::Compute(GridFunction &p_s) const
       {
          s_space = new FiniteElementSpace(mesh, s_coll, neq);
       }
+
+      // One order above the potential *element by element*, not one order
+      // above the collection, when the potential carries a degree per
+      // element. Everything below already reads GetFE(z) from all three
+      // spaces, so this is the only place the enrichment could have gone
+      // uniform -- and a uniform enrichment over a p-adapted potential
+      // silently postprocesses most elements at the wrong degree.
+      if (fes_p->IsVariableOrder())
+      {
+         for (int z = 0; z < mesh->GetNE(); z++)
+         {
+            s_space->SetElementOrder(z, fes_p->GetElementOrder(z) + 1);
+         }
+         s_space->Update(false);
+      }
+
       p_s.SetSpace(s_space);
       p_s.MakeOwner(s_coll);
    }

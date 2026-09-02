@@ -253,6 +253,14 @@ int main(int argc, char *argv[])
    args.AddOption(&reconstruct, "-rec", "--reconstruct", "-no-rec",
                   "--no-reconstruct",
                   "Enable or disable quantities reconstruction.");
+   bool postprocess = false;
+   args.AddOption(&postprocess, "-pp", "--postprocess", "-no-pp",
+                  "--no-postprocess",
+                  "Postprocess the potential by the classic HDG local problem "
+                  "(Nguyen, Peraire & Cockburn eq 25), which converges one "
+                  "order better. Element-local: it reads the flux and the "
+                  "potential on each element and nothing else, so unlike "
+                  "--reconstruct it works under --p-refine.");
    args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
                   "--no-mfem",
                   "Enable or disable MFEM output.");
@@ -299,9 +307,11 @@ int main(int argc, char *argv[])
                   "hybridization's.");
       MFEM_VERIFY(!reconstruct,
                   "--p-refine and --reconstruct cannot be used together: "
-                  "DarcyForm's reconstruction reads the trace space directly "
-                  "at the uniform degree and would read past what a coarser "
-                  "face actually carries.");
+                  "DarcyForm's reconstruction is driven by a total flux built "
+                  "from the traces, and reads the trace space at the uniform "
+                  "degree. Use --postprocess instead -- the classic local "
+                  "postprocessing reads only the flux and potential on each "
+                  "element, so a per-face trace degree cannot reach it.");
       MFEM_VERIFY(!trace_h1,
                   "--p-refine needs the discontinuous trace (-trdg): an H1 "
                   "trace shares nodal DOFs between faces, so a face has no "
@@ -1162,6 +1172,27 @@ int main(int argc, char *argv[])
       }
       else
       {
+         if (postprocess)
+         {
+            // Element-local, and that is the point of it here: it reads the
+            // flux and the potential on each element and never the trace
+            // space, so a per-face trace degree cannot reach it and
+            // --p-refine leaves it alone. Compute() builds the enriched space
+            // one degree above the potential element by element, so it
+            // follows the p-refinement without being told about it.
+            //
+            // Printed BEFORE the two lines below, because the regression
+            // comparator indexes the last four lines from the end and every
+            // reference written without this must keep working.
+            HDGPotentialPostprocessor pp(q_h, t_h);
+            pp.SetDiffusionInverse(ikcoeff);
+            GridFunction t_pp;
+            pp.Compute(t_pp);
+            const real_t err_tpp = t_pp.ComputeL2Error(tcoeff, irs);
+            cout << "|| t_pp - t_ex || / || t_ex || = " << err_tpp / norm_t
+                 << "\n";
+         }
+
          cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
          cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
       }

@@ -71,14 +71,20 @@ one of them already a single face index, so the substitution is mechanical.
 *This adds a data member, so it is the class-layout trap: `make clean` in both
 trees, not a rebuild. Budget for it; a parameter cannot carry a persistent map.*
 
-*And one place outside `DarcyHybridization` reads the trace space directly:*
-`DarcyForm::ReconstructTotalFlux()` and `ReconstructFluxAndPot()` use
-`fes_tr->GetFaceElement(f)` and `fes_tr->GetFaceVDofs(f, ...)` (six sites in
-`darcyform.cpp`). With per-face degrees set those would read `p_max` elements
-against a solution occupying only `p_f` slots. `GetTraceOrders()` is public so
-the form can consult the hybridization; until it does, **reconstruction and a
-per-face trace must not be used together**, and that has to be a guard rather
-than a note.
+*And on reconstruction, of which there are two kinds and only one is a
+problem.* `DarcyForm::Reconstruct()` solves a mixed local problem driven by a
+total flux built from the traces, and reads the trace space directly at six
+sites in `darcyform.cpp`; with per-face degrees it would read `p_max` elements
+against a solution occupying `p_f` slots, so `-pref` refuses `-rec`.
+
+`HDGPotentialPostprocessor` -- the classic local postprocessing, Nguyen,
+Peraire & Cockburn eq (25) -- has no such problem: it reads the flux and the
+potential on the element it is working on and nothing else, never the trace
+space and never a neighbour, so what degree the faces carry cannot reach it.
+Its `Compute()` already took `GetFE(z)` per element from all three spaces; the
+only thing that was uniform was the enriched space it builds by default, which
+now follows the potential element by element. That is `convdiff -pp`, it works
+under `-pref`, and it is what a `p`-adaptive run should use.
 
 **2. Retire the surplus slots. DONE.**
 `Finalize()` unions the unused slots into `ess_tdof_list`, rebuilding it from

@@ -90,7 +90,17 @@ public:
    /** @brief Compute the postprocessed potential into @a p_s.
 
        If @a p_s has no space, one is built for it and owned by it: the
-       potential's collection at one higher order, with `vdim = neq`. */
+       potential's collection at one higher order, with `vdim = neq`. When the
+       potential is a variable-order space that enrichment follows it *element
+       by element*, so a `p`-adapted potential is postprocessed one degree
+       above wherever it actually sits.
+
+       **This is the reconstruction a per-face trace degree does not disturb.**
+       It reads the flux and the potential on the element it is working on and
+       nothing else -- never the trace space, never a neighbour -- so what
+       degree the faces carry cannot reach it. DarcyForm::Reconstruct() is the
+       other kind: its local problem is driven by a total flux built from the
+       traces, and it does have to care. */
    void Compute(GridFunction &p_s) const;
 
    virtual ~HDGPotentialPostprocessor() { }

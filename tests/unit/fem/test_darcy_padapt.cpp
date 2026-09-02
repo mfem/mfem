@@ -272,3 +272,80 @@ TEST_CASE("A genuinely non-uniform trace solves, and its size is the sum of its 
    d -= uniform.p;
    REQUIRE(d.Normlinf() > 1e-12);
 }
+
+TEST_CASE("Postprocessing enriches a p-adapted potential element by element",
+          "[DarcyHybridization][PAdapt]")
+{
+   // The classic local postprocessing is the reconstruction a per-face trace
+   // degree cannot disturb: it reads the flux and the potential on the element
+   // it is working on and nothing else. What it *can* get wrong is its own
+   // enriched space -- built one degree above the collection, it would sit at
+   // the wrong degree on every element a p-adapted potential has moved.
+   //
+   // No solve here on purpose. The flux is handed the exact gradient, so the
+   // local problem's data is exact and any error left is the enrichment's own.
+   const int order = 1;
+   const int n = 4;
+
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   mesh.EnsureNCMesh();
+   const int dim = mesh.Dimension();
+
+   L2_FECollection q_coll(order + 1, dim), p_coll(order, dim);
+   FiniteElementSpace fes_q(&mesh, &q_coll, dim);
+   FiniteElementSpace fes_p(&mesh, &p_coll);
+
+   // Half the elements one degree up, the half a driver would have marked.
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      Vector c;
+      mesh.GetElementCenter(e, c);
+      if (c(0) < 0.5)
+      {
+         fes_p.SetElementOrder(e, order + 1);
+         fes_q.SetElementOrder(e, order + 2);
+      }
+   }
+   fes_p.Update(false);
+   fes_q.Update(false);
+   REQUIRE(fes_p.IsVariableOrder());
+
+   auto pfun = [](const Vector &x)
+   { return sin(M_PI * x(0)) * sin(M_PI * x(1)); };
+   FunctionCoefficient pcoeff(pfun);
+   VectorFunctionCoefficient qcoeff(dim, [](const Vector &x, Vector &q)
+   {
+      q(0) = -M_PI * cos(M_PI * x(0)) * sin(M_PI * x(1));
+      q(1) = -M_PI * sin(M_PI * x(0)) * cos(M_PI * x(1));
+   });
+
+   GridFunction q_h(&fes_q), p_h(&fes_p);
+   q_h.ProjectCoefficient(qcoeff);
+   p_h.ProjectCoefficient(pcoeff);
+
+   HDGPotentialPostprocessor pp(q_h, p_h);
+   GridFunction p_s;
+   pp.Compute(p_s);
+
+   // The enrichment followed the potential rather than the collection.
+   REQUIRE(p_s.FESpace()->IsVariableOrder());
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      INFO("element " << e);
+      REQUIRE(p_s.FESpace()->GetElementOrder(e) ==
+              fes_p.GetElementOrder(e) + 1);
+   }
+
+   // ...and it is worth having: one degree above a projection beats it.
+   const int quad = 2 * (order + 3) + 2;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   {
+      irs[i] = &(IntRules.Get(i, quad));
+   }
+   const real_t err_p = p_h.ComputeL2Error(pcoeff, irs);
+   const real_t err_s = p_s.ComputeL2Error(pcoeff, irs);
+   INFO("computed " << err_p << ", postprocessed " << err_s);
+   REQUIRE(err_s < 0.5 * err_p);
+}

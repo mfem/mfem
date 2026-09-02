@@ -15,6 +15,36 @@ class bcolors:
 	RESET = '\033[0m'
 
 tol = 1e-4
+# Locate the compared lines by what they say rather than by how far they are
+# from the end. Indexing from the end works only while nothing else is ever
+# printed after the solve, and --postprocess prints an extra error line; the
+# last matching line is the same line the old [-1]/[-2]/[-4] picked whenever
+# there is no such extra, so no existing reference reads differently.
+def last_line_with(lines, text):
+	for line in reversed(lines):
+		if text in line:
+			return line
+	raise ValueError(f"no line containing {text!r}")
+
+def parse_result(lines):
+	t_line = last_line_with(lines, '|| t_h - t_ex ||')
+	q_line = last_line_with(lines, '|| q_h - q_ex ||')
+	s_line = last_line_with(lines, 'converged in ')
+	L2_t = float(t_line[t_line.find('= ')+2::])
+	L2_q = float(q_line[q_line.find('= ')+2::])
+	solver = s_line[:s_line.find(' ')]
+	a = s_line.find('converged in ')
+	b = s_line.find(' iterations')
+	# The postprocessed potential, when --postprocess printed one. Compared
+	# like the other two rather than merely tolerated: a reference named for a
+	# flag whose value nothing checks is not coverage of that flag.
+	try:
+		pp_line = last_line_with(lines, '|| t_pp - t_ex ||')
+		L2_pp = float(pp_line[pp_line.find('= ')+2::])
+	except ValueError:
+		L2_pp = None
+	return solver, int(s_line[a+13:b]), L2_q, L2_t, L2_pp
+
 def equal(a, b):
 	return abs(a - b) / (abs(a) + abs(b)) < tol
 
@@ -75,6 +105,7 @@ for i, filename in enumerate(filenames):
 	nonlin_diff = get_ref_option(filename, '--nonlinear-diffusion')
 	nc = get_ref_option(filename, '--nc-mesh')
 	pface_max = get_ref_option(filename, '--p-face-max')
+	postproc = get_ref_option(filename, '--postprocess')
 
 	def get_ref_param(file, param, default=""):
 		ref_out = subprocess.getoutput("grep '^   "+param+"' "+file+" | cut -d ' ' -f 5")
@@ -113,15 +144,7 @@ for i, filename in enumerate(filenames):
 
 	file = open(filename, "r")
 	ref_out = file.readlines()
-	ref_L2_t_idx = ref_out[-1].find('= ')
-	ref_L2_q_idx = ref_out[-2].find('= ')
-	ref_L2_t = float(ref_out[-1][ref_L2_t_idx+2::])
-	ref_L2_q = float(ref_out[-2][ref_L2_q_idx+2::])
-	ref_solver_idx = ref_out[-4].find(' ')
-	ref_solver = ref_out[-4][:ref_solver_idx]
-	ref_iters_idx_a = ref_out[-4].find('converged in')
-	ref_iters_idx_b = ref_out[-4].find(' iterations')
-	ref_iters = int(ref_out[-4][ref_iters_idx_a+13:ref_iters_idx_b])
+	ref_solver, ref_iters, ref_L2_q, ref_L2_t, ref_L2_pp = parse_result(ref_out)
 
 	# Construct the command line
 	if parallel:
@@ -181,6 +204,8 @@ for i, filename in enumerate(filenames):
 	elif nc:
 		# -pref implies it, so it is only worth passing on its own.
 		command_line += ' -nc'
+	if postproc:
+		command_line += ' -pp'
 
 	print(f"RUNNING: {command_line}", end='\r', flush=True)
 
@@ -191,21 +216,16 @@ for i, filename in enumerate(filenames):
 	# Process the result
 	fail = False
 	try:
-		test_L2_t_idx = split_cmd_out[-1].find('= ')
-		test_L2_q_idx = split_cmd_out[-2].find('= ')
-		test_L2_t = float(split_cmd_out[-1][test_L2_t_idx+2::])
-		test_L2_q = float(split_cmd_out[-2][test_L2_q_idx+2::])
-		test_solver_idx = split_cmd_out[-4].find(' ')
-		test_solver = split_cmd_out[-4][:test_solver_idx]
-		test_iters_idx_a = split_cmd_out[-4].find('converged in ')
-		test_iters_idx_b = split_cmd_out[-4].find(' iterations')
-		test_iters = int(split_cmd_out[-4][test_iters_idx_a+13:test_iters_idx_b])
+		test_solver, test_iters, test_L2_q, test_L2_t, test_L2_pp = parse_result(split_cmd_out)
+		if (ref_L2_pp is None) != (test_L2_pp is None):
+			raise ValueError('one side postprocessed and the other did not')
 	except:
 		fail = True
 
 	if not fail:
 		if test_solver == ref_solver and test_iters == ref_iters:
-			if equal(ref_L2_t, test_L2_t) and equal(ref_L2_q, test_L2_q):
+			if equal(ref_L2_t, test_L2_t) and equal(ref_L2_q, test_L2_q) \
+			   and (ref_L2_pp is None or equal(ref_L2_pp, test_L2_pp)):
 				print(f"{bcolors.OKGREEN}SUCCESS:{bcolors.RESET} {command_line}", flush=True)
 			else:
 				fail = True
