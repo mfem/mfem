@@ -208,6 +208,18 @@ Until one of those is measured, `--anisotropic-estimate` defaults off under
 
 ### Mechanism, and what it caps
 
+**A coarsened boundary face cannot carry an essential datum, and the fix has
+two halves.** `RetireSurplusTraceDofs()` now refuses the combination rather
+than being wrong by 21x -- measured by sweeping the ceiling over a fixed mesh
+where every face sits at the element degree, so the answer cannot legitimately
+move: the weak datum gives 0.0225002 at every ceiling from 2 to 8, identical to
+every printed digit, and the essential one gives 0.0124, 0.0926, 0.196, 0.259.
+Closing it needs the surplus slots forced to zero regardless of what the
+caller's vector holds -- those dofs are this route's, not the caller's -- and
+the datum projected face by face at the face's own degree, which needs an
+entry point the constraint space does not offer. A ceiling equal to the element
+degree reproduces the essential answer exactly and is the way round it today.
+
 **A hanging-node family has to run at the ceiling**, which is where coarsening
 stops. The reason is in `SetTraceOrders()`: the constraint space's conforming
 prolongation interpolates in the ceiling basis, and this route's convention --
@@ -239,13 +251,26 @@ demonstrator uses.
 
 ### Measurements not taken
 
-**Essential against weak trace boundary conditions.** The table in
-`anisodiff.cpp` was taken with the weak datum, which is the miniapp's default.
-`--trace-ess-bc` is about **three times cheaper at fixed error** on the same
-problem -- h-adaptive 7.3e-4 at M = 1272 against 2.7e-3, and hp 2.1e-4 at
-M = 1139 against 6.8e-4 at M = 1311. Worth knowing which the table should be
-taken with, and it is a flag on the command line rather than a change of
-default: moving the miniapps onto the essential-trace route is not ours to do.
+**Essential against weak trace boundary conditions. SETTLED, and the earlier
+claim here was wrong.** It said `--trace-ess-bc` is "about three times cheaper
+at fixed error" and quoted 7.3e-4 against 2.7e-3 at M = 1272 and 2.1e-4
+against 6.8e-4 at M ~ 1130. Those pairs are at matched **M**, so 3.7x and 9.8x
+are ERROR ratios, not dof ratios; `t_err` falls like `M^-2` on these curves, so
+they are a **1.6x** dof saving. Read properly at matched error over three
+values of `ks`, four methods and thirty interpolated points, the ratio is
+**1.0 to 1.7, it decays with error, and it dips below 1 in six of the thirty**.
+
+It is also **not an adaptivity effect**: the same ratio appears on a uniform
+mesh. The uniform error ratio peaks at 1.9-2.0 exactly where `h` reaches the
+layer thickness and decays either side of that -- 1.23, 1.56, 1.92, 1.91,
+1.57, 1.27 over nx = 8 to 256 at `ks = 1e2`, layer 1/31 -- so it is a
+transient of the layer-resolution regime, and the dof saving underneath it is
+just the pinned boundary trace dofs, `1 + 1/nx`, which is 1.004 by nx = 256.
+
+So the table stays with the weak datum, and next to hp itself this is
+second-order: at `ks = 1e2` and `t_err = 1e-5`, hp needs M ~ 3700 where
+h-adaptivity needs M ~ 20700, a factor of 5.6, against `--trace-ess-bc`'s 1.1
+at the same point.
 
 **One order, one dimension.** Everything measured is 2D at `--order 2`. Orders
 0, 1 and 3 and a 3D case are unexercised by the loop, and the sensor's

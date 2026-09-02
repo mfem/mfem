@@ -320,6 +320,7 @@ void DarcyHybridization::RetireSurplusTraceDofs()
    // retired below and removes exactly the modes that were meant to go, so the
    // slaves are skipped rather than handled.
    const Mesh *c_mesh = c_fes.GetMesh();
+   Mesh *mesh_r = c_fes.GetMesh();
    const NCMesh::NCList *nclist = nullptr;
    if (c_mesh->Nonconforming() && c_mesh->ncmesh)
    {
@@ -337,6 +338,42 @@ void DarcyHybridization::RetireSurplusTraceDofs()
       const int nt_max = vdofs.Size() / vdim;
       const int nt_f = TraceFE(f)->GetDof();
       if (nt_f == nt_max) { continue; }
+
+      /* A COARSENED BOUNDARY FACE CANNOT CARRY A CALLER'S ESSENTIAL DATUM,
+         and this refuses rather than being wrong by a factor of twenty.
+
+         Two things break at once. The caller sets those values by projecting
+         onto the constraint space, whose face element is at the CEILING, while
+         the solve reads the first nt(p_f) slots as coefficients in the
+         degree-p_f basis -- and the two bases are nodal at different points,
+         so even the active slots mean something else. And the surplus slots
+         are retired here as essential but their VALUE comes from the caller's
+         vector, which the projection has just filled, so they impose a datum
+         instead of zero.
+
+         Measured on `anisodiff -p 5 -ks 1e1 -o 2 -hb -dg --hp-adaptivity
+         --trace-ess-bc`, sweeping the ceiling over a fixed 8x8 mesh on which
+         every face sits at degree 2 -- so the answer must not move at all.
+         Weak datum: 0.0225002 at every ceiling from 2 to 8, identical to every
+         printed digit, which is the control that says the retirement is
+         content-neutral. Essential datum: 0.0124, 0.0926, 0.196, 0.259 as the
+         ceiling goes 2, 3, 5, 8.
+
+         Closing it needs both halves -- the surplus forced to zero regardless
+         of what the vector holds, since those dofs are this route's and not
+         the caller's, and the datum projected face by face at the face's own
+         degree, which needs an entry point the constraint space does not
+         offer. Until then, a driver that wants both raises no ceiling: a
+         ceiling equal to the element degree reproduces the essential answer
+         exactly (0.0124172 at ceiling 2). */
+      MFEM_VERIFY(ess_tdof_user.Size() == 0 || mesh_r->FaceIsInterior(f),
+                  "Face " << f << " is a boundary face at degree "
+                  << tr_order[f] << ", below the trace ceiling, and essential "
+                  "trace DOFs have been set. Those values were projected in "
+                  "the ceiling's basis and this face reads a coarser one, so "
+                  "the datum imposed would not be the datum meant. Use a "
+                  "ceiling equal to the element degree, or impose the "
+                  "boundary datum weakly.");
 
       // Fields are outermost, so each occupies its own run of nt_max slots and
       // the tail of each run is what the face's degree does not reach.
