@@ -20,7 +20,7 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_MINIAPPS = checkpoint-heterogeneous-state checkpoint-mesh-state \
-   checkpoint-ode-state
+   checkpoint-ode-state checkpoint-backward-euler
 MINIAPPS = $(SEQ_MINIAPPS)
 
 .SUFFIXES:
@@ -41,6 +41,10 @@ checkpoint-mesh-state: $(SRC)mesh-state.cpp $(SRC)checkpoint_demo.hpp \
 checkpoint-ode-state: $(SRC)ode-state.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
 
+checkpoint-backward-euler: $(SRC)backward-euler.cpp \
+   $(SRC)checkpoint_demo.hpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS)
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
@@ -50,6 +54,8 @@ checkpoint-mesh-state-test-seq: checkpoint-mesh-state
 	@$(call mfem-test,$<,,Checkpointing miniapp,-r 3 -c 2 -no-pv,explicit-options)
 checkpoint-ode-state-test-seq: checkpoint-ode-state
 	@$(call mfem-test,$<,,Checkpointing miniapp,,explicit-options)
+checkpoint-backward-euler-test-seq: checkpoint-backward-euler
+	@$(call mfem-test,$<,,Checkpointing miniapp,-s 8 -r 3,explicit-options)
 
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)

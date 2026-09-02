@@ -13,8 +13,10 @@ but deliberately exclude the terminal state. Reconstruction therefore performs:
 restore newest earlier checkpoint + replay transitions = terminal state
 ```
 
-The directory also contains `checkpoint-ode-state`, the ODE-focused miniapp. It
-uses the same generic core through MFEM's `ForwardEulerCheckpointAdapter`.
+The directory also contains two ODE-focused miniapps. `checkpoint-ode-state`
+uses the generic core through MFEM's `ForwardEulerCheckpointAdapter`, while
+`checkpoint-backward-euler` demonstrates an application-specific adapter for
+an implicit solver.
 
 ## Building
 
@@ -25,8 +27,9 @@ cd miniapps/checkpointing
 make
 ```
 
-With CMake, build the targets `checkpoint-heterogeneous-state` and
-`checkpoint-mesh-state`, plus `checkpoint-ode-state` for the ODE demonstration.
+With CMake, build the targets `checkpoint-heterogeneous-state`,
+`checkpoint-mesh-state`, `checkpoint-ode-state`, and
+`checkpoint-backward-euler`.
 
 ## Forward Euler ODE state
 
@@ -40,6 +43,47 @@ for bit.
 ```sh
 ./checkpoint-ode-state
 ./checkpoint-ode-state -s 40
+```
+
+## Backward Euler ODE state
+
+`checkpoint-backward-euler` integrates the stiff diagonal system
+
+```text
+u_i' = -lambda_i*u_i,  lambda = (1, 50),  u(0) = (1, 1).
+```
+
+For the stage-slope form used by `BackwardEulerSolver`, its implicit solve is
+
+```text
+k_i = -lambda_i*u_i / (1 + gamma*lambda_i).
+```
+
+`StateId` counts completed fixed-size time steps. The miniapp-specific adapter
+captures the solution vector, StateId, physical time, step size, operator
+parameters, snapshot version, and optional persistent checkpoint identity. On
+restore it validates the complete payload and reinitializes the solver, which
+recreates its temporary stage vector.
+
+The forward run stores every state, then retains only the requested interior
+checkpoint and clears the moving window. Restoring that checkpoint and
+replaying the remaining implicit steps must reproduce an independently
+integrated terminal state bit for bit. With the defaults (`12` steps, restart
+at state `4`, and `dt = 0.1`), the final state is
+`(0.3186308177103569, 4.5939365799778107e-10)` and the observed replay error is
+zero.
+
+```sh
+./checkpoint-backward-euler
+./checkpoint-backward-euler -s 20 -r 7 -dt 0.05
+```
+
+Options:
+
+```text
+-s,  --steps N
+-r,  --restart-step R
+-dt, --time-step DT
 ```
 
 ## Heterogeneous state
@@ -155,6 +199,6 @@ With CMake testing enabled:
 ctest -R checkpoint- --output-on-failure
 ```
 
-The local makefile also defines sequential test targets for both miniapps. A
+The local makefile also defines sequential test targets for all miniapps. A
 successful comparison returns zero; invalid options, malformed snapshots,
 failed mesh restoration, output errors, or replay mismatches return nonzero.

@@ -246,6 +246,57 @@ terminal replay error: 0
 
 and succeeds only when replay and ordinary integration are bitwise identical.
 
+\subsection checkpointing_backward_euler Backward Euler miniapp
+
+The `miniapps/checkpointing/backward-euler.cpp` miniapp applies fixed-step
+Backward Euler to the stiff diagonal system
+
+\f[
+u_i'=-\lambda_i u_i, \qquad (\lambda_0,\lambda_1)=(1,50),
+\qquad u(0)=(1,1).
+\f]
+
+Its TimeDependentOperator implements the stage-slope solve exactly as
+
+\f[
+k_i=\frac{-\lambda_i u_i}{1+\gamma\lambda_i}.
+\f]
+
+Here StateId is the number of completed implicit steps. A miniapp-specific
+CheckpointStateAdapter captures the solution Vector, StateId, physical time,
+step size, immutable operator rates, snapshot version, and optional persistent
+checkpoint identity. The solver's internal stage Vector is temporary rather
+than continuation state; restore calls BackwardEulerSolver::Init() to recreate
+it after restoring the application state.
+
+StoreEverythingSchedule initially persists every state. The miniapp then keeps
+only a configurable interior checkpoint, clears the moving window, restores
+that checkpoint, and replays the remaining implicit transitions. The final
+solution, physical time, step size, and StateId must exactly match an
+independently integrated reference trajectory.
+
+\code{.sh}
+cd miniapps/checkpointing
+make checkpoint-backward-euler
+./checkpoint-backward-euler
+./checkpoint-backward-euler -s 20 -r 7 -dt 0.05
+\endcode
+
+The default run restores StateId 4, replays through StateId 12, and reports
+
+\code{.unparsed}
+Terminal replay error = 0
+Backward Euler checkpoint restore/replay: PASS
+\endcode
+
+Useful options are:
+
+\code{.unparsed}
+-s,  --steps N          number of fixed-size implicit steps
+-r,  --restart-step R   interior checkpoint StateId
+-dt, --time-step DT     fixed step size
+\endcode
+
 \section checkpointing_miniapps State-centric miniapps
 
 Two serial miniapps demonstrate that the generic core is independent of Vector
@@ -370,6 +421,7 @@ Build and run them with:
 cd miniapps/checkpointing
 make
 ./checkpoint-ode-state -s 40
+./checkpoint-backward-euler -s 20 -r 7 -dt 0.05
 ./checkpoint-heterogeneous-state -n 12 -c 4 -w 2
 ./checkpoint-mesh-state -r 4 -c 2 -o paraview
 \endcode

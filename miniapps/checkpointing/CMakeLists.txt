@@ -23,10 +23,17 @@ add_mfem_miniapp(checkpoint-ode-state
   MAIN ode-state.cpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(checkpoint-backward-euler
+  MAIN backward-euler.cpp
+  checkpoint_demo.hpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME checkpoint-heterogeneous-state
     COMMAND checkpoint-heterogeneous-state -n 8 -c 3 -w 2)
   add_test(NAME checkpoint-mesh-state
     COMMAND checkpoint-mesh-state -r 3 -c 2 -no-pv)
   add_test(NAME checkpoint-ode-state COMMAND checkpoint-ode-state)
+  add_test(NAME checkpoint-backward-euler
+    COMMAND checkpoint-backward-euler -s 8 -r 3)
 endif()

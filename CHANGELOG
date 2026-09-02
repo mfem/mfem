@@ -90,9 +90,10 @@ Linear and nonlinear solvers
   moving-window caching, and StoreEverything scheduling. The first built-in
   adapter supports `Vector` state and fixed-step `ForwardEulerSolver`
   trajectories. The ODE-state checkpointing miniapp demonstrates exact
-  deterministic replay from a stored restart. Additional checkpointing
-  miniapps demonstrate heterogeneous scalar/string state and nonconforming
-  Mesh state.
+  deterministic replay from a stored restart. A Backward Euler miniapp
+  demonstrates application-defined capture and exact replay of implicit ODE
+  steps. Additional checkpointing miniapps demonstrate heterogeneous
+  scalar/string state and nonconforming Mesh state.
 
 - Added support for trace spaces in PRefinementTransferOperator. This is used in
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
