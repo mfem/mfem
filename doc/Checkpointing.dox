@@ -73,17 +73,21 @@ meaning of a transition is entirely application-defined.
                    /              \
                   v                v
         CheckpointSchedule     StatePropagator
-                   \              /
-                    \            /
-                     v          v
-                     exact replay
+          /     |     \             |
+         v      v      v            |
+  StoreEverything Revolve WMI       |
+          \     |     /             |
+           v    v    v              v
+              exact reconstruction
                            |
                            v
-              ExactCheckpointWindow
+             predecessor / successor
                            |
                            v
-                CheckpointStorage
-                  memory / files
+                ReverseStateHandler
+                           |
+                           v
+             application reverse logic
 \endcode
 
 CheckpointController, ExactCheckpointWindow, CheckpointSchedule, and the
@@ -130,8 +134,19 @@ and propagates forward. RestoreStep() is a compatibility spelling for
 time-stepping applications.
 
 StoreEverythingSchedule stores the initial state and every accepted logical
-state. Scheduling is based on ordered state positions, never physical time.
-More advanced schedules and reverse orchestration remain follow-up work.
+state and is the reference reverse schedule. RevolveSchedule implements the
+canonical offline binomial schedule for a known number of transitions.
+WangMoinIaccarinoSchedule implements online minimal-repetition placement: its
+original-forward decisions require no terminal horizon and are prefix causal.
+Scheduling is based on ordered state positions, never physical time.
+
+The checkpoint budget is the maximum number of simultaneously stored logical
+primal checkpoints. A stored initial state consumes one slot. The active
+application state, retained reverse successor, and ExactCheckpointWindow
+entries do not consume scheduler slots. For states S0 through SN, N is the
+number of transitions. Revolve requires at least one slot for N greater than
+zero and has no recomputation once C is at least N. WMI requires at least one
+slot because its final horizon is unknown when configured.
 
 Capture, restore, advance, and cache updates are staged around a committed
 snapshot. On failure, the controller restores the prior complete snapshot. If
@@ -145,6 +160,37 @@ The generic Snapshot boundary adds one complete active-state snapshot. Advance
 and restore transactions also make one rollback copy, and the moving window
 retains its configured number of complete snapshot copies. This is the cost of
 generic rollback without assuming an application-specific clone operation.
+
+\section checkpointing_reverse Generic reverse reconstruction
+
+CheckpointController preserves the exact terminal state before any reverse
+Restore can replace the live application. During reverse traversal it retains
+an exact successor snapshot and requires the live application to be at the
+exact predecessor before invoking ReverseStateHandler::Apply(). The handler
+defines reverse processing and owns all reverse state; the checkpoint core
+does not assume Vector, ODESolver, a PDE, or an adjoint type.
+
+A successful callback advances controller reverse position and promotes the
+predecessor to the retained successor for the next transition. If a callback
+throws, the command remains pending and controller position is not advanced.
+Generic rollback of mutations made by the application-owned callback cannot be
+guaranteed, so handlers should stage their own updates when retry is required.
+
+For discrete ODE adjoints the application differentiates the executed map
+\f$u_{n+1}=\Phi_n(u_n,p)\f$:
+
+\f[
+\lambda_n = (\partial\Phi_n/\partial u_n)^T\lambda_{n+1}
+            + \partial\ell_n/\partial u_n,
+\qquad
+g_p \mathrel{+}= (\partial\Phi_n/\partial p)^T\lambda_{n+1}
+                 + \partial\ell_n/\partial p.
+\f]
+
+The runtime only reconstructs primal states. The reverse handler owns these
+derivatives, terminal-adjoint initialization, and gradient accumulation. The
+reverse/adjoint miniapp demonstrates this separation for Forward Euler and
+Backward Euler and differentiates the actual accepted discrete updates.
 
 \section checkpointing_ode ODE and Vector specialization
 
@@ -296,6 +342,33 @@ Useful options are:
 -r,  --restart-step R   interior checkpoint StateId
 -dt, --time-step DT     fixed step size
 \endcode
+
+\subsection checkpointing_reverse_adjoint Reverse/adjoint miniapp
+
+`miniapps/checkpointing/reverse-adjoint.cpp` applies StoreEverything, Revolve,
+or online WMI to the scalar model
+
+\f[
+u' = p u-u^3, \qquad J=\tfrac12 u_N^2.
+\f]
+
+It supports MFEM's ForwardEulerSolver and BackwardEulerSolver. Forward Euler
+uses derivatives of its explicit update. Backward Euler differentiates its
+accepted nonlinear residual; with
+\f$D_n=1-h(p-3u_{n+1}^2)\f$, its local derivatives are
+\f$\partial u_{n+1}/\partial u_n=1/D_n\f$ and
+\f$\partial u_{n+1}/\partial p=h u_{n+1}/D_n\f$. Exact replay uses the same
+residual, Newton initialization, convergence criterion, and solver
+reinitialization policy as the original forward computation.
+
+\code{.sh}
+./checkpoint-reverse-adjoint --solver forward-euler --schedule revolve
+./checkpoint-reverse-adjoint --solver backward-euler --schedule wmi
+\endcode
+
+The miniapp compares both the terminal state and parameter gradient with a
+full-trajectory discrete-adjoint reference. Its deterministic default tests
+require both reported errors to be exactly zero.
 
 \section checkpointing_miniapps State-centric miniapps
 

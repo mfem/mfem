@@ -13,10 +13,11 @@ but deliberately exclude the terminal state. Reconstruction therefore performs:
 restore newest earlier checkpoint + replay transitions = terminal state
 ```
 
-The directory also contains two ODE-focused miniapps. `checkpoint-ode-state`
+The directory also contains three ODE-focused miniapps. `checkpoint-ode-state`
 uses the generic core through MFEM's `ForwardEulerCheckpointAdapter`, while
 `checkpoint-backward-euler` demonstrates an application-specific adapter for
-an implicit solver.
+an implicit solver. `checkpoint-reverse-adjoint` compares bounded reverse
+reconstruction and discrete gradients for both solvers.
 
 ## Building
 
@@ -28,8 +29,8 @@ make
 ```
 
 With CMake, build the targets `checkpoint-heterogeneous-state`,
-`checkpoint-mesh-state`, `checkpoint-ode-state`, and
-`checkpoint-backward-euler`.
+`checkpoint-mesh-state`, `checkpoint-ode-state`,
+`checkpoint-backward-euler`, and `checkpoint-reverse-adjoint`.
 
 ## Forward Euler ODE state
 
@@ -190,6 +191,40 @@ ParaView output contains the mesh and `projected_coefficient` field in:
 
 Use `-no-pv` for automated tests or when output is not wanted. ParaView files
 are diagnostic; structural and numerical comparisons determine the exit code.
+
+## Reverse reconstruction and discrete adjoints
+
+`checkpoint-reverse-adjoint` solves `u' = p*u - u^3` with either Forward Euler
+or Backward Euler. Here `StateId` counts fixed-size forward transitions. The
+complete checkpoint state contains the solution, StateId, physical time, step
+size, parameter, selected solver, snapshot version, and optional checkpoint
+identity. Restoring reinitializes the selected MFEM ODE solver.
+
+The miniapp compares StoreEverything, canonical offline Revolve, or online WMI
+against a full-trajectory discrete-adjoint reference for the terminal objective
+`J = 0.5*u_N^2`. It checks both the terminal state and parameter gradient. The
+generic checkpoint runtime reconstructs exact predecessor/successor states;
+the application-owned reverse handler computes the discrete derivatives.
+
+```sh
+./checkpoint-reverse-adjoint --solver forward-euler --schedule store-all
+./checkpoint-reverse-adjoint --solver forward-euler --schedule revolve
+./checkpoint-reverse-adjoint --solver backward-euler --schedule wmi
+```
+
+Options:
+
+```text
+-s, --solver forward-euler|backward-euler
+-c, --schedule store-all|revolve|wmi
+-n, --num-steps N
+-m, --checkpoints C
+```
+
+The schedule budget counts stored logical checkpoints. Moving-window entries,
+the active state, and the retained reverse successor do not count. The core is
+MPI-independent and storage is rank-local; collective failure handling,
+cross-rank rollback, MPI-IO, and shared checkpoint files are not provided.
 
 ## Testing
 

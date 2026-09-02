@@ -95,6 +95,10 @@ Linear and nonlinear solvers
   steps. Additional checkpointing miniapps demonstrate heterogeneous
   scalar/string state and nonconforming Mesh state.
 
+- Added canonical Revolve and online Wang--Moin--Iaccarino checkpoint
+  schedules, generic exact reverse-state reconstruction with application-owned
+  callbacks, and Forward and Backward Euler discrete-adjoint demonstrations.
+
 - Added support for trace spaces in PRefinementTransferOperator. This is used in
   PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
   DPG miniapps).
