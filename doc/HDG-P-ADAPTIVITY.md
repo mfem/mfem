@@ -294,11 +294,9 @@ the decision being taken is effectively *"p unless at the ceiling"*, `-4
 log10(p)` is not badly chosen but is not discriminating either, and **order 2
 is the only order measured so far at which the sensor discriminates at all**.
 
-Two things follow. The default ceiling `order+3` is conservative and the
-measurement says raise it -- held pending the wall-clock answer, since the
-ceiling costs `(pmax+1)/(order+1)` on *built* trace storage and whether that
-costs time is the open half. And the sensor deserves a problem that exercises
-it, because this one does not.
+Two things follow. **The default ceiling is now `order+5`**, the wall-clock
+answer having come back and said the ceiling is nearly free -- see below. And
+the sensor deserves a problem that exercises it, because this one does not.
 
 **Three dimensions works, and getting there found a silent wrong answer that
 was not ours.** `anisodiff` set problem 5's Dirichlet faces by 2D attribute
@@ -319,11 +317,27 @@ tetrahedra while plain `--amr-ref-levels` on the same mesh still aborts in
 nonconforming representation and conforming tet refinement is what is broken.
 That h-only abort is upstream of this branch and left alone.
 
-**Nothing measures time.** Every curve is error against `dim M`, which is the
-right axis for a hybridized method and is not the whole cost: the ceiling makes
-the trace vector `nt(p_max)` per face whatever the degrees are, and whether a
-sparse direct solve follows the *active* size is the reasonable expectation and
-has never been checked.
+**Wall clock. DONE, and it does not rank the methods the way dofs do.**
+
+*The ceiling is nearly free, and the direct solve does follow the active size.*
+Holding the mesh and every face degree fixed and moving only the ceiling from 2
+to 7 -- a 2.67x storage ratio, with `M` and the error identical to every
+printed digit at all five mesh sizes, which is what says the probe isolates it
+-- assembly comes out 0.98-1.07x, the preconditioner 0.94-1.23x, the trace
+solve 1.03-1.19x, and peak RSS at most 1.15x. Only the hybridization's own
+setup scales, 1.46-1.64x, and it is about 5% of a run. So the ceiling costs
+roughly 2% of wall clock for its 2.67x of storage, and the default is now
+`order+5`: on the demonstrator that takes the dofs at 1e-7 from 13191 to 4189
+and the wall clock for 26 cycles from 10.8 s to 6.4 s, at a better error.
+
+*But hp does not win in seconds until about 1e-5.* An adaptive loop pays for
+every intermediate solve, and hp takes more cycles to reach a given error than
+h-adaptivity does. At 1e-4: h-adaptive 0.51 s, hp 0.81 s, uniform 2.22 s. hp
+overtakes below 1e-5 and then wins outright -- 4.8x faster than uniform at
+7e-6, 11x at 2e-6 -- where h-adaptivity cannot reach at all, dying on
+direct-solver memory at `M` around 1.4 million. **The dof ranking is not the
+time ranking, and a table quoting only dofs oversells hp at loose tolerances.**
+Both are in the miniapp's header now.
 
 ### Coverage
 

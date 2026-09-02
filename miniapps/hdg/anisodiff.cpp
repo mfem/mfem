@@ -100,27 +100,33 @@
 //    relative L2 error in the potential against the globally coupled unknowns
 //    -- the size of the trace solve, which is what a hybridized method costs:
 //
-//      || t - t_ex ||        uniform M   h-adapt M   hp M (min)   hp M (max)
-//      -----------------------------------------------------------------------
-//      1.0e-3                   24960        1704         1311         1024
-//      1.0e-4                   99072        4812         2070         1565
-//      3.0e-5                       -        9330         2891         2125
-//      1.0e-7                       -           -        16668        13191
+//      || t - t_ex ||          uniform M    h-adapt M       hp M
+//      ---------------------------------------------------------------
+//      1.0e-3                     24960         1704         953
+//      1.0e-4                     99072         4812        1351
+//      3.0e-5                         -         9330        1553
+//      1.0e-7                         -            -        4189
 //
-//    Read across a row: at 1e-4 the same error costs 63 times fewer globally
-//    coupled unknowns than uniform refinement and 3.1 times fewer than
+//    Read across a row: at 1e-4 the same error costs 73 times fewer globally
+//    coupled unknowns than uniform refinement and 3.6 times fewer than
 //    h-adaptivity, and hp keeps going three decades past where the others were
-//    stopped. The uniform column is nx = 64 and 128; the h-adaptive column is
-//    --doerfler-marking with the anisotropic split; both hp columns are that
-//    plus --hp-adaptivity --max-order 5 --postprocessed-estimate, differing
-//    only in --p-face-rule. Each row is the nearest cycle rather than an
-//    interpolation, so the errors within a row are close but not equal --
-//    1.0e-3 / 1.1e-3 / 6.8e-4 / 8.4e-4, then 8.3e-5 / 1.1e-4 / 8.2e-5 /
-//    1.05e-4, then 3.1e-5 / 3.8e-5 / 3.8e-5, then 9.4e-8 / 1.15e-7.
+//    stopped -- uniform would need nx beyond 1500 and h-adaptivity does not
+//    get there at all, dying on direct-solver memory at M around 1.4 million.
+//    The uniform column is nx = 64 and 128; the h-adaptive column is
+//    --doerfler-marking with the anisotropic split; the hp column is that plus
+//    --hp-adaptivity --postprocessed-estimate at the defaults. Each row is the
+//    nearest cycle rather than an interpolation, so the errors within a row
+//    are close but not equal -- 1.0e-3 / 1.1e-3 / 7.8e-4, then 8.3e-5 /
+//    1.1e-4 / 9.2e-5, then 3.1e-5 / 2.4e-5, then 9.4e-8.
 //
-//    The max rule is 21 to 27 per cent cheaper than min at every one of those
-//    four levels, which is the fourth thing about the estimate and the trace
-//    that is not optional -- see (4) below.
+//    IN SECONDS RATHER THAN DOFS the ranking is not the same, and that is
+//    worth knowing before quoting the table. At a relative error near 1e-4
+//    h-adaptivity is the fastest of the three -- 0.51 s against uniform's
+//    2.22 s and hp's 0.81 s -- because an adaptive loop pays for every
+//    intermediate solve and hp takes more cycles to get there. hp overtakes
+//    below about 1e-5 and then wins outright: 4.8 times faster than uniform at
+//    7e-6 and 11 times at 2e-6, where h-adaptivity can no longer reach at all.
+//    Two of the three defaults below were chosen on that curve.
 //
 //    THREE THINGS ABOUT THE ESTIMATE THAT ARE NOT OPTIONAL, each measured
 //    rather than reasoned about, and each of which silently stopped the loop
@@ -531,7 +537,7 @@ int main(int argc, char *argv[])
                   "smoothness sensor says it is resolved, and on h where it is\n\t\t"
                   "not. Off, every marked element is refined in h.");
    args.AddOption(&p_max, "-pmax", "--max-order",
-                  "Highest degree --hp-adaptivity may reach (default order+3).\n\t\t"
+                  "Highest degree --hp-adaptivity may reach (default order+5).\n\t\t"
                   "It is also the degree the trace space is BUILT at, which is a\n\t\t"
                   "ceiling rather than a starting point, so raising it costs\n\t\t"
                   "trace storage on every face whether or not any face uses it.");
@@ -659,7 +665,22 @@ int main(int argc, char *argv[])
               "that a per-face degree does not disturb." << endl;
          return 1;
       }
-      if (p_max < 0) { p_max = order + 3; }
+      /* order+5, and the +5 is measured on three axes rather than chosen.
+         Raising the ceiling from order+3 to order+5 on this problem takes the
+         dofs at a relative error of 1e-7 from 13191 to 4189 -- 3.3x -- and the
+         wall clock for the same 26 cycles from 10.8 s to 6.4 s, at a BETTER
+         error. It is nearly free because the retired unit rows cost almost
+         nothing: holding the mesh and every face degree fixed and moving only
+         the ceiling from 2 to 7, a 2.67x storage ratio, assembly comes out
+         0.98-1.07x, the preconditioner 0.94-1.23x, the trace solve 1.03-1.19x
+         and peak RSS at most 1.15x. Only the hybridization's own setup scales,
+         1.46-1.64x, and it is 5% of the run.
+
+         The reason the ceiling matters so much is that it, not the smoothness
+         sensor, is making the hp decision: spend_on_p requires p < p_max, so
+         an element at the ceiling goes to h whatever the sensor says. Raising
+         it moves the h-refinement count by 45 to 100x. */
+      if (p_max < 0) { p_max = order + 5; }
       if (p_max < order)
       {
          cerr << "--max-order is below --order, so there is nowhere to refine to"
