@@ -49,6 +49,15 @@ struct ho_qreg<KerOps, T, 2>
 };
 
 template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 3>
+{
+   // We assume extents[1] == extents[2] for Hessian q-function parameters
+   static constexpr int VDIM = qf_param_shape<T>::extents[0];
+   static constexpr int SDIM = qf_param_shape<T>::extents[1];
+   using type = typename KerOps::template hess_reg_t<VDIM, SDIM>;
+};
+
+template<typename KerOps, typename T>
 using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -73,7 +82,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(dd, qy, qx); }
          return t;
       }
-      else
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -83,6 +92,27 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          {
             MFEM_UNROLL(e1)
             for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qy, qx); }
+         }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         constexpr int e2 = qf_param_shape<T>::extents[2];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               MFEM_UNROLL(e2)
+               for (int k = 0; k < e2; ++k)
+               {
+                  t(i, j, k) = reg(i, j, k, qy, qx);
+               }
+            }
          }
          return t;
       }
@@ -98,7 +128,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(dd, qz, qy, qx); }
          return t;
       }
-      else
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -108,6 +138,27 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          {
             MFEM_UNROLL(e1)
             for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qz, qy, qx); }
+         }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         constexpr int e2 = qf_param_shape<T>::extents[2];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               MFEM_UNROLL(e2)
+               for (int k = 0; k < e2; ++k)
+               {
+                  t(i, j, k) = reg(i, j, k, qz, qy, qx);
+               }
+            }
          }
          return t;
       }
@@ -292,6 +343,11 @@ struct ho_ker_backend
    using del_reg_t = std::conditional_t<(DIM == 2),
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>,
          ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
+
+   template<int VDIM, int SDIM>
+   using hess_reg_t = std::conditional_t<(DIM == 2),
+         ker::vdd_regs2d_t<VDIM, SDIM, MQ1>,
+         ker::vdd_regs3d_t<VDIM, SDIM, MQ1>>;
 
    using s_reg_t = std::conditional_t<(DIM == 2),
          ker::s_regs2d_t<MQ1>,
@@ -621,16 +677,33 @@ struct LocalQFHOBackend
                                                    const XE_T &XE,
                                                    ArgRegT &rarg)
    {
-      static_assert(RNK == 2, "Hessian currently supported only for SCALAR fields.");
+      static_assert(RNK == 2 || RNK == 3);
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
       ker::LoadMatrix(d, q, H, s.H);
-      static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
-      static_assert(qf_param_shape<FieldParamT>::extents[0] == SDIM,
-                    "Hessian: q-function parameter must be square (dim x dim)");
-      if constexpr (SDIM == DIM)
+      if constexpr (RNK == 2)
       {
-         backend_t::template hess<SDIM>(e, d, q, s, XE, rarg);
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[0];
+         static_assert(qf_param_shape<FieldParamT>::extents[1] == SDIM,
+                       "Hessian q-function parameter must be square (dim x dim)");
+         if constexpr (SDIM == DIM)
+         {
+            backend_t::template hess<SDIM>(e, d, q, s, XE, rarg);
+         }
+      }
+      else
+      {
+         static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
+         static_assert(qf_param_shape<FieldParamT>::extents[2] == SDIM,
+                       "Hessian trailing q-function parameter dimensions must match");
+         if constexpr (SDIM == DIM)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               backend_t::template hess<SDIM>(e, d, q, s, XE, rarg[c]);
+            }
+         }
       }
    }
 
