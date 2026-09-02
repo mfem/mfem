@@ -13,11 +13,14 @@
 #include "unit_tests.hpp"
 
 #include <cstring>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <numeric>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -152,6 +155,8 @@ private:
 public:
    mutable CheckpointId last_restored = 0;
    mutable int restore_count = 0;
+   std::size_t live_count = 0;
+   std::size_t peak_count = 0;
    bool fail_store = false;
    bool fail_restore = false;
    bool fail_erase = false;
@@ -162,7 +167,13 @@ public:
       {
          throw CheckpointStorageError("injected Store failure");
       }
+      const bool inserted = !storage.Contains(id);
       storage.Store(id, std::move(snapshot));
+      if (inserted)
+      {
+         ++live_count;
+         peak_count = std::max(peak_count, live_count);
+      }
    }
 
    Snapshot Restore(CheckpointId id) const override
@@ -187,7 +198,9 @@ public:
       {
          throw CheckpointStorageError("injected Erase failure");
       }
+      const bool erased = storage.Contains(id);
       storage.Erase(id);
+      if (erased) { --live_count; }
    }
 
    void ResetTracking() const
@@ -578,6 +591,16 @@ TEST_CASE("StoreEverything emits its canonical forward trace", "[Checkpoint]")
       {CheckpointAction::Store, 2, 2, 3},
       {CheckpointAction::Advance, 2, 3, std::nullopt},
       {CheckpointAction::Store, 3, 3, 4},
+      {CheckpointAction::Restore, 2, 2, 3},
+      {CheckpointAction::Reverse, 3, 2, std::nullopt},
+      {CheckpointAction::Discard, 2, 2, 3},
+      {CheckpointAction::Restore, 1, 1, 2},
+      {CheckpointAction::Reverse, 2, 1, std::nullopt},
+      {CheckpointAction::Discard, 1, 1, 2},
+      {CheckpointAction::Restore, 0, 0, 1},
+      {CheckpointAction::Reverse, 1, 0, std::nullopt},
+      {CheckpointAction::Discard, 0, 0, 1},
+      {CheckpointAction::Discard, 3, 3, 4},
       {CheckpointAction::Finished, 3, 3, std::nullopt}
    };
    for (const CheckpointCommand &reference : expected)
@@ -729,4 +752,453 @@ TEST_CASE("Controller storage failures do not commit metadata or state",
    REQUIRE(controller.ActiveState().id == 0);
    controller.Discard(3);
    REQUIRE_FALSE(storage.Contains(3));
+}
+
+namespace
+{
+
+struct ScheduleMetrics
+{
+   std::uint64_t original = 0;
+   std::uint64_t replay = 0;
+   std::size_t peak = 0;
+};
+
+ScheduleMetrics ValidateOfflineTrace(CheckpointSchedule &schedule,
+                                     StateId steps, std::size_t budget)
+{
+   StateId active_state = 0;
+   StateId reverse_from = steps;
+   bool forward_complete = steps == 0;
+   std::unordered_map<CheckpointId, StateId> live;
+   ScheduleMetrics metrics;
+   std::size_t commands = 0;
+   while (true)
+   {
+      const CheckpointCommand command = schedule.Next();
+      REQUIRE(++commands < 1000000);
+      switch (command.action)
+      {
+         case CheckpointAction::Advance:
+         {
+            REQUIRE(command.from_step == active_state);
+            REQUIRE(command.to_step > command.from_step);
+            const std::uint64_t distance = static_cast<std::uint64_t>(
+                                             command.to_step - command.from_step);
+            if (forward_complete) { metrics.replay += distance; }
+            else { metrics.original += distance; }
+            active_state = command.to_step;
+            if (active_state == steps) { forward_complete = true; }
+            break;
+         }
+         case CheckpointAction::Store:
+            REQUIRE(command.checkpoint);
+            REQUIRE(command.to_step == active_state);
+            REQUIRE(live.emplace(*command.checkpoint, active_state).second);
+            metrics.peak = std::max(metrics.peak, live.size());
+            REQUIRE(live.size() <= budget);
+            break;
+         case CheckpointAction::Restore:
+         {
+            REQUIRE(command.checkpoint);
+            const auto found = live.find(*command.checkpoint);
+            REQUIRE(found != live.end());
+            REQUIRE(found->second == command.to_step);
+            active_state = command.to_step;
+            break;
+         }
+         case CheckpointAction::Reverse:
+            REQUIRE(forward_complete);
+            REQUIRE(command.from_step == reverse_from);
+            REQUIRE(command.to_step == reverse_from - 1);
+            REQUIRE(active_state == command.to_step);
+            --reverse_from;
+            break;
+         case CheckpointAction::Discard:
+            REQUIRE(command.checkpoint);
+            REQUIRE(live.erase(*command.checkpoint) == 1);
+            break;
+         case CheckpointAction::Finished:
+            REQUIRE(reverse_from == 0);
+            REQUIRE(live.empty());
+            REQUIRE(metrics.original == static_cast<std::uint64_t>(steps));
+            return metrics;
+      }
+   }
+}
+
+std::uint64_t OptimalRecomputation(std::size_t steps, std::size_t budget)
+{
+   std::vector<std::vector<std::uint64_t>> replay(
+      steps + 1, std::vector<std::uint64_t>(budget + 1, 0));
+   std::vector<std::vector<std::uint64_t>> initial = replay;
+   for (std::size_t length = 2; length <= steps; ++length)
+   {
+      const std::uint64_t triangular =
+         static_cast<std::uint64_t>(length) * (length - 1) / 2;
+      replay[length][1] = triangular;
+      initial[length][1] = triangular;
+   }
+   for (std::size_t checkpoints = 2; checkpoints <= budget; ++checkpoints)
+   {
+      for (std::size_t length = 2; length <= steps; ++length)
+      {
+         std::uint64_t best_replay =
+            std::numeric_limits<std::uint64_t>::max();
+         std::uint64_t best_initial = best_replay;
+         for (std::size_t split = 1; split < length; ++split)
+         {
+            best_replay = std::min(
+               best_replay,
+               static_cast<std::uint64_t>(split) +
+               replay[length - split][checkpoints - 1] +
+               replay[split][checkpoints]);
+            best_initial = std::min(
+               best_initial,
+               initial[length - split][checkpoints - 1] +
+               replay[split][checkpoints]);
+         }
+         replay[length][checkpoints] = best_replay;
+         initial[length][checkpoints] = best_initial;
+      }
+   }
+   return initial[steps][budget];
+}
+
+bool SameCommand(const CheckpointCommand &left,
+                 const CheckpointCommand &right)
+{
+   return left.action == right.action &&
+          left.from_step == right.from_step &&
+          left.to_step == right.to_step &&
+          left.checkpoint == right.checkpoint;
+}
+
+std::string NormalizeCommand(const CheckpointCommand &command)
+{
+   const std::string range = std::to_string(command.from_step) + ":" +
+                             std::to_string(command.to_step);
+   switch (command.action)
+   {
+      case CheckpointAction::Advance: return "A" + range;
+      case CheckpointAction::Store:
+         return "S" + std::to_string(command.to_step);
+      case CheckpointAction::Restore:
+         return "L" + std::to_string(command.to_step);
+      case CheckpointAction::Reverse: return "R" + range;
+      case CheckpointAction::Discard:
+      case CheckpointAction::Finished: return std::string();
+   }
+   return std::string();
+}
+
+class ToyReverseHandler : public ReverseStateHandler
+{
+private:
+   ToyState &state;
+   std::int64_t successor_value;
+
+public:
+   bool fail_once = false;
+   std::int64_t checksum = 0;
+   std::vector<StateId> predecessors;
+
+   ToyReverseHandler(ToyState &state_, std::int64_t terminal_value)
+      : state(state_), successor_value(terminal_value) { }
+
+   void Apply(StateId predecessor, StateId successor_id) override
+   {
+      REQUIRE(state.iteration == predecessor);
+      REQUIRE(successor_id == predecessor + 1);
+      REQUIRE(2 * state.value + 1 == successor_value);
+      if (fail_once)
+      {
+         fail_once = false;
+         throw std::runtime_error("injected reverse failure");
+      }
+      predecessors.push_back(predecessor);
+      checksum += state.value + successor_value;
+      successor_value = state.value;
+   }
+};
+
+std::int64_t ReferenceToyChecksum(StateId steps)
+{
+   std::vector<std::int64_t> values(static_cast<std::size_t>(steps) + 1, 0);
+   for (StateId state = 0; state < steps; ++state)
+   {
+      values[static_cast<std::size_t>(state + 1)] =
+         2 * values[static_cast<std::size_t>(state)] + 1;
+   }
+   std::int64_t result = 0;
+   for (StateId state = steps; state > 0; --state)
+   {
+      result += values[static_cast<std::size_t>(state)] +
+                values[static_cast<std::size_t>(state - 1)];
+   }
+   return result;
+}
+
+void RunOfflineToyReverse(CheckpointSchedule &schedule,
+                          CheckpointStorage &storage, StateId steps)
+{
+   ToyState state{0, 0, 1.25, true};
+   ToyStateAdapter adapter(state);
+   ToyStatePropagator propagator(state);
+   ExactCheckpointWindow window(2);
+   CheckpointController controller(adapter, propagator, storage, window);
+   controller.Initialize();
+   controller.ExecuteForward(schedule, steps);
+   const ToyState terminal_state = state;
+   ToyReverseHandler handler(state, terminal_state.value);
+   controller.BeginReverse();
+   REQUIRE(controller.TerminalState().id == steps);
+   REQUIRE(controller.SuccessorState().id == steps);
+   controller.ExecuteReverse(schedule, handler);
+   REQUIRE(controller.ReverseFinished());
+   REQUIRE(state.iteration == 0);
+   REQUIRE(handler.predecessors.size() == static_cast<std::size_t>(steps));
+   REQUIRE(handler.checksum == ReferenceToyChecksum(steps));
+}
+
+} // namespace
+
+TEST_CASE("Revolve traces obey budget and the recomputation oracle",
+          "[Checkpoint][Revolve]")
+{
+   RevolveSchedule invalid;
+   REQUIRE_THROWS_AS(invalid.Next(), std::logic_error);
+   REQUIRE_THROWS_AS(invalid.Configure(-1, 1), std::invalid_argument);
+   REQUIRE_THROWS_AS(invalid.Configure(1, 0), std::invalid_argument);
+
+   RevolveSchedule empty;
+   empty.Configure(0, 0);
+   REQUIRE(empty.Next().action == CheckpointAction::Finished);
+
+   RevolveSchedule fixture;
+   fixture.Configure(4, 2);
+   std::vector<std::string> normalized;
+   while (true)
+   {
+      const CheckpointCommand command = fixture.Next();
+      const std::string value = NormalizeCommand(command);
+      if (!value.empty()) { normalized.push_back(value); }
+      if (command.action == CheckpointAction::Finished) { break; }
+   }
+   const std::vector<std::string> expected{
+      "S0", "A0:2", "S2", "A2:4", "L2", "A2:3", "R4:3", "L2",
+      "R3:2", "L0", "A0:1", "S1", "L1", "R2:1", "L0", "R1:0"};
+   REQUIRE(normalized == expected);
+   fixture.Reset();
+   std::vector<std::string> reset_trace;
+   while (true)
+   {
+      const CheckpointCommand command = fixture.Next();
+      const std::string value = NormalizeCommand(command);
+      if (!value.empty()) { reset_trace.push_back(value); }
+      if (command.action == CheckpointAction::Finished) { break; }
+   }
+   REQUIRE(reset_trace == expected);
+
+   for (std::size_t steps = 1; steps <= 10; ++steps)
+   {
+      for (std::size_t budget = 1;
+           budget <= std::min<std::size_t>(steps, 4); ++budget)
+      {
+         RevolveSchedule schedule;
+         schedule.Configure(static_cast<StateId>(steps), budget);
+         const ScheduleMetrics metrics = ValidateOfflineTrace(
+                                            schedule,
+                                            static_cast<StateId>(steps), budget);
+         REQUIRE(metrics.replay == OptimalRecomputation(steps, budget));
+      }
+   }
+
+   RevolveSchedule saturated;
+   saturated.Configure(12, 12);
+   const ScheduleMetrics metrics = ValidateOfflineTrace(saturated, 12, 12);
+   REQUIRE(metrics.replay == 0);
+   REQUIRE(metrics.peak == 12);
+
+   RevolveSchedule near_limit;
+   near_limit.Configure(std::numeric_limits<StateId>::max(), 2);
+   REQUIRE(near_limit.Next().action == CheckpointAction::Store);
+   const CheckpointCommand advance = near_limit.Next();
+   REQUIRE(advance.action == CheckpointAction::Advance);
+   REQUIRE(advance.to_step > 0);
+   REQUIRE(advance.to_step < std::numeric_limits<StateId>::max());
+}
+
+TEST_CASE("WMI lifecycle and forward placement are prefix causal",
+          "[Checkpoint][WMI]")
+{
+   WangMoinIaccarinoSchedule invalid;
+   REQUIRE_THROWS_AS(invalid.Next(), std::logic_error);
+   REQUIRE_THROWS_AS(invalid.BeforeForwardState(0), std::logic_error);
+   REQUIRE_THROWS_AS(invalid.ForwardComplete(0), std::logic_error);
+   REQUIRE_THROWS_AS(invalid.Configure(0), std::invalid_argument);
+
+   WangMoinIaccarinoSchedule fixture;
+   fixture.Configure(2);
+   REQUIRE_THROWS_AS(fixture.Next(), std::logic_error);
+   const std::vector<CheckpointCommand> at_zero =
+      fixture.BeforeForwardState(0);
+   const std::vector<CheckpointCommand> at_one =
+      fixture.BeforeForwardState(1);
+   const std::vector<CheckpointCommand> at_two =
+      fixture.BeforeForwardState(2);
+   const std::vector<CheckpointCommand> at_three =
+      fixture.BeforeForwardState(3);
+   REQUIRE(at_zero.size() == 1);
+   REQUIRE(at_one.size() == 1);
+   REQUIRE(SameCommand(at_zero[0],
+                       {CheckpointAction::Store, 0, 0, 1}));
+   REQUIRE(SameCommand(at_one[0],
+                       {CheckpointAction::Store, 1, 1, 2}));
+   REQUIRE(at_two.empty());
+   REQUIRE(at_three.size() == 2);
+   REQUIRE(SameCommand(at_three[0],
+                       {CheckpointAction::Discard, 1, 1, 2}));
+   REQUIRE(SameCommand(at_three[1],
+                       {CheckpointAction::Store, 3, 3, 3}));
+
+   fixture.ForwardComplete(4);
+   const std::vector<CheckpointCommand> expected_reverse{
+      {CheckpointAction::Restore, 3, 3, 3},
+      {CheckpointAction::Discard, 3, 3, 3},
+      {CheckpointAction::Reverse, 4, 3, std::nullopt},
+      {CheckpointAction::Restore, 0, 0, 1},
+      {CheckpointAction::Discard, 0, 0, 1},
+      {CheckpointAction::Store, 0, 0, 4},
+      {CheckpointAction::Advance, 0, 1, std::nullopt},
+      {CheckpointAction::Store, 1, 1, 5},
+      {CheckpointAction::Advance, 1, 2, std::nullopt},
+      {CheckpointAction::Reverse, 3, 2, std::nullopt},
+      {CheckpointAction::Restore, 1, 1, 5},
+      {CheckpointAction::Discard, 1, 1, 5},
+      {CheckpointAction::Reverse, 2, 1, std::nullopt},
+      {CheckpointAction::Restore, 0, 0, 4},
+      {CheckpointAction::Discard, 0, 0, 4},
+      {CheckpointAction::Reverse, 1, 0, std::nullopt},
+      {CheckpointAction::Finished, 4, 4, std::nullopt}
+   };
+   for (const CheckpointCommand &expected : expected_reverse)
+   {
+      REQUIRE(SameCommand(fixture.Next(), expected));
+   }
+   REQUIRE_THROWS_AS(fixture.BeforeForwardState(4), std::logic_error);
+
+   WangMoinIaccarinoSchedule short_run;
+   WangMoinIaccarinoSchedule long_run;
+   short_run.Configure(3);
+   long_run.Configure(3);
+   for (StateId state = 0; state < 11; ++state)
+   {
+      const std::vector<CheckpointCommand> left =
+         short_run.BeforeForwardState(state);
+      const std::vector<CheckpointCommand> right =
+         long_run.BeforeForwardState(state);
+      REQUIRE(left.size() == right.size());
+      for (std::size_t i = 0; i < left.size(); ++i)
+      {
+         REQUIRE(SameCommand(left[i], right[i]));
+      }
+   }
+   short_run.ForwardComplete(11);
+   REQUIRE_THROWS_AS(short_run.BeforeForwardState(11), std::logic_error);
+   for (StateId state = 11; state < 17; ++state)
+   {
+      long_run.BeforeForwardState(state);
+   }
+   long_run.ForwardComplete(17);
+}
+
+TEST_CASE("Generic reverse reconstruction supports all schedules",
+          "[Checkpoint][Reverse]")
+{
+   const StateId steps = 9;
+   SECTION("StoreEverything")
+   {
+      StoreEverythingSchedule schedule;
+      schedule.Configure(steps, static_cast<std::size_t>(steps) + 1);
+      TrackingStorage storage;
+      RunOfflineToyReverse(schedule, storage, steps);
+      REQUIRE(storage.peak_count == static_cast<std::size_t>(steps) + 1);
+      REQUIRE(storage.live_count == 0);
+   }
+   SECTION("Revolve memory")
+   {
+      RevolveSchedule schedule;
+      schedule.Configure(steps, 3);
+      TrackingStorage storage;
+      RunOfflineToyReverse(schedule, storage, steps);
+      REQUIRE(storage.peak_count <= 3);
+      REQUIRE(storage.live_count == 0);
+   }
+   SECTION("Revolve file")
+   {
+      const std::filesystem::path directory =
+         std::filesystem::temp_directory_path() /
+         "mfem-checkpoint-reverse-unit-test";
+      std::filesystem::remove_all(directory);
+      {
+         RevolveSchedule schedule;
+         schedule.Configure(steps, 3);
+         FileCheckpointStorage storage(directory.string());
+         RunOfflineToyReverse(schedule, storage, steps);
+      }
+      std::filesystem::remove_all(directory);
+   }
+   SECTION("WMI")
+   {
+      for (const StateId online_steps : {StateId{0}, StateId{1}, StateId{3},
+                                        StateId{9}, StateId{17}})
+      {
+         ToyState state{0, 0, 1.25, true};
+         ToyStateAdapter adapter(state);
+         ToyStatePropagator propagator(state);
+         TrackingStorage storage;
+         ExactCheckpointWindow window(2);
+         CheckpointController controller(adapter, propagator, storage, window);
+         WangMoinIaccarinoSchedule schedule;
+         schedule.Configure(3);
+         controller.Initialize();
+         controller.ExecuteOnlineForward(schedule, online_steps);
+         ToyReverseHandler handler(state, state.value);
+         controller.BeginReverse();
+         controller.ExecuteReverse(schedule, handler);
+         REQUIRE(handler.checksum == ReferenceToyChecksum(online_steps));
+         REQUIRE(controller.ReverseFinished());
+         REQUIRE(storage.peak_count <= 3);
+         REQUIRE(storage.live_count == 0);
+      }
+   }
+}
+
+TEST_CASE("Reverse callback failure leaves the transition pending",
+          "[Checkpoint][Reverse]")
+{
+   ToyState state{0, 0, 1.25, true};
+   ToyStateAdapter adapter(state);
+   ToyStatePropagator propagator(state);
+   MemoryCheckpointStorage storage;
+   ExactCheckpointWindow window(1);
+   CheckpointController controller(adapter, propagator, storage, window);
+   RevolveSchedule schedule;
+   schedule.Configure(4, 2);
+   controller.Initialize();
+   controller.ExecuteForward(schedule, 4);
+   ToyReverseHandler handler(state, state.value);
+   handler.fail_once = true;
+   controller.BeginReverse();
+   REQUIRE_THROWS_AS(controller.ExecuteReverse(schedule, handler),
+                     ReverseExecutionFailure);
+   REQUIRE_FALSE(controller.ReverseFinished());
+   REQUIRE(handler.predecessors.empty());
+   REQUIRE(controller.TerminalState().id == 4);
+   REQUIRE(controller.SuccessorState().id == 4);
+   controller.ExecuteReverse(schedule, handler);
+   REQUIRE(controller.ReverseFinished());
+   REQUIRE(handler.predecessors.size() == 4);
+   REQUIRE(controller.SuccessorState().id == 0);
 }
