@@ -86,7 +86,8 @@ struct hessian_qf_2d
 ///
 /// WIP: rank-3 tensors are available on the algebra side, but not yet
 ///      in dfem. Hessian<Coord> is a vector Hessian, so for now we just pass
-///      it separately for each componentstruct hessian_qf_3d
+///      it separately for each component
+struct hessian_qf_3d
 {
    MFEM_HOST_DEVICE inline void operator()(
       const tensor<real_t, 3, 3> &dduxi,
@@ -266,8 +267,8 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
 
    if (affine_qf)
    {
-      const auto input_fields = {{U, &pfes}, {Coords, mfes}};
-      const auto output_fields = {{QData, &qspace_vec}};
+      const std::vector<FieldDescriptor> input_fields = {{U, &pfes}, {Coords, mfes}};
+      const std::vector<FieldDescriptor> output_fields = {{QData, &qspace_vec}};
       const auto input_fieldops = Inputs<Hessian<U>, Gradient<Coords>> {};
       const auto output_fieldops = Outputs<Identity<QData>> {};
 
@@ -289,9 +290,9 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
 
       if constexpr (DIM == 2)
       {
-         const auto input_fields =
+         const std::vector<FieldDescriptor> input_fields =
          {{U, &pfes}, {Coords, mfes}, {X0, &sfes}, {X1, &sfes}};
-         const auto output_fields = {{QData, &qspace_vec}};
+         const std::vector<FieldDescriptor> output_fields = {{QData, &qspace_vec}};
          const auto input_fieldops =
             Inputs<Hessian<U>, Gradient<U>, Gradient<Coords>,
             Hessian<X0>, Hessian<X1>> {};
@@ -310,12 +311,12 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
       }
       else
       {
-         const auto input_fields =
+         const std::vector<FieldDescriptor> input_fields =
          {
             {U, &pfes}, {Coords, mfes},
             {X0, &sfes}, {X1, &sfes}, {X2, &sfes}
          };
-         const auto output_fields = {{QData, &qspace_vec}};
+         const std::vector<FieldDescriptor> output_fields = {{QData, &qspace_vec}};
          const auto input_fieldops =
             Inputs<Hessian<U>, Gradient<U>, Gradient<Coords>,
             Hessian<X0>, Hessian<X1>, Hessian<X2>> {};
@@ -349,7 +350,7 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
 // ────────────────────────────────────────────────────────────────────────────
 
 /// Check the 1D second derivative map using central differences.
-TEST_CASE("dFEM Hessian DofToQuad 1D map", "[Parallel][dFEM]")
+TEST_CASE("dFEM Hessian DofToQuad 1D map", "[Parallel][dFEM][Hessian]")
 {
    // H1 requires a closed basis type.
    const int btype = GENERATE(BasisType::GaussLobatto,
@@ -368,8 +369,8 @@ TEST_CASE("dFEM Hessian DofToQuad 1D map", "[Parallel][dFEM]")
 
    REQUIRE(d2q.H.Size() == d2q.nqpt * d2q.ndof);
 
-   // Central difference of the 1D basis derivative. 
-   // Sanity check: we verify that Poly_1D::Basis::Barycentric 
+   // Central difference of the 1D basis derivative.
+   // Sanity check: we verify that Poly_1D::Basis::Barycentric
    // is flagged as having second derivatives.
    const Poly_1D::Basis &basis = poly1d.GetBasis(p, btype);
    REQUIRE(basis.HasSecondDerivatives());
@@ -410,9 +411,9 @@ TEST_CASE("dFEM Hessian DofToQuad 1D map", "[Parallel][dFEM]")
 }
 
 /// Check unsupported basis
-TEST_CASE("dFEM Hessian unsupported basis", "[Parallel][dFEM]")
+TEST_CASE("dFEM Hessian unsupported basis", "[Parallel][dFEM][Hessian]")
 {
-   // Bernstein and integrated GLL have no second derivative evaluation, 
+   // Bernstein and integrated GLL have no second derivative evaluation,
    // in the library we keep H empty for those, just check it as a sanity check.
    const int p = 3;
    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
@@ -434,9 +435,9 @@ TEST_CASE("dFEM Hessian unsupported basis", "[Parallel][dFEM]")
 // ────────────────────────────────────────────────────────────────────────────
 // 2. Physical Hessian (dFEM) against CalcPhysHessian.
 // ────────────────────────────────────────────────────────────────────────────
-TEST_CASE("dFEM Hessian 2D", "[Parallel][dFEM]")
+TEST_CASE("dFEM Hessian 2D", "[Parallel][dFEM][Hessian]")
 {
-   // Affine mesh tested with/without the correction term, 
+   // Affine mesh tested with/without the correction term,
    // In this case the correction term should vanish so both
    // tests should pass with the same result.
    SECTION("affine mesh, no mesh term")
@@ -455,8 +456,8 @@ TEST_CASE("dFEM Hessian 2D", "[Parallel][dFEM]")
               MFEM_Approx(0.0, 1e-10, 1e-10));
    }
 
-   // Non affine mesh,  the second test should fail if dropping 
-   // the mesh correction term 
+   // Non affine mesh,  the second test should fail if dropping
+   // the mesh correction term
    SECTION("curved mesh, full q-function")
    {
       const int p = GENERATE(3, 4);
@@ -480,7 +481,7 @@ TEST_CASE("dFEM Hessian 2D", "[Parallel][dFEM]")
    }
 }
 
-TEST_CASE("dFEM Hessian 3D", "[Parallel][dFEM]")
+TEST_CASE("dFEM Hessian 3D", "[Parallel][dFEM][Hessian]")
 {
    SECTION("affine mesh, no mesh term")
    {
