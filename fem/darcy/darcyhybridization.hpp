@@ -468,14 +468,6 @@ private:
    void GetEDofs(int el, Array<int> &edofs) const;
    FaceElementTransformations *GetFaceTransformation(int f) const;
 
-   /** @brief The trace finite element on face @a f, at that face's degree.
-
-       Every read of the constraint space's face element goes through here
-       rather than through c_fes.GetFaceElement() directly, so that a per-face
-       degree reaches all of them at once. With no degrees set it *is*
-       c_fes.GetFaceElement(). */
-   const FiniteElement *TraceFE(int f) const;
-
    /// Allocate everything whose size comes from the trace element.
    void AllocTraceBlocks();
 
@@ -493,12 +485,6 @@ private:
        because it rebuilds ess_tdof_list from #ess_tdof_user each time. */
    void RetireSurplusTraceDofs();
 
-   /** @brief The trace vdofs of face @a f, truncated to that face's degree.
-
-       The face owns nt(p_max) slots per field in the uniform constraint space;
-       at degree p_f only the first nt(p_f) of each field's block are used, and
-       this returns those. With no degrees set it *is* c_fes.GetFaceVDofs(). */
-   void TraceVDofs(int f, Array<int> &vdofs) const;
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
@@ -821,6 +807,16 @@ public:
        @a cap is the ceiling, normally the degree the constraint space was
        built at. Boundary faces take their single neighbour's degree.
 
+       **On a nonconforming mesh the unit is the hanging-node family, not the
+       face.** A family carries one trace unknown, on its master face; the
+       slaves reach it through FiniteElement::GetTransferMatrix(), which is
+       exact only where the slave can represent the master's restriction. So
+       the rule is applied over the coarse element and every fine one at once
+       and the whole family is given that degree -- taking it face by face
+       would give the master the coarse element's degree and each slave the
+       rule over one fine element and the coarse one, which is a family whose
+       members disagree.
+
        **Serial only, and it says so rather than being quietly wrong in
        parallel.** A face shared between ranks reports no second element, so
        each side would take its own element's degree and the two could differ,
@@ -873,6 +869,32 @@ public:
        to a sparse direct solve -- is the reasonable expectation and has not
        been measured.
 
+       **A HANGING-NODE FAMILY HAS TO RUN AT THE CEILING**, and that is a
+       property of this route rather than an oversight. A nonconforming trace
+       space carries a conforming prolongation, and the trace system is
+       `Pᵀ H P` with the solution `P X`; `P` interpolates a master face's
+       coefficients onto its slaves' nodes **in the ceiling basis**, because
+       the constraint space is uniform at the ceiling and `P` is built from it.
+       This route's convention is the opposite one -- the first `nt(p_f)` slots
+       hold the coarser basis's coefficients and the rest are retired to zero
+       -- and a zero tail in the ceiling basis is a different function, not the
+       coarse one. The two cannot both hold on a face `P` touches.
+
+       FaceOrdersFromElementOrders() therefore gives every member of a family
+       the ceiling degree, and this method refuses a `face_order` that does
+       not. Measured on `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg -amr 6` with the
+       family below the ceiling: the relative error goes 0.284, 1.06, 3.67 as
+       the mesh refines, against 0.284, 0.118, 0.091 with the family at it.
+
+       What it costs is that a hanging node is where coarsening stops, and --
+       less obviously -- that the trace is *enriched* there. The measured claim
+       that a trace above both its elements is exactly redundant was taken on a
+       conforming mesh and does not carry over: a master face sees several fine
+       elements, which between them do reach the higher modes, so the extra
+       degrees are determined rather than annihilated and the discretisation
+       really changes. On the problem above the enriched trace made the answer
+       *worse* at the same mesh, 0.118 against 0.098.
+
        **Call it straight after DarcyForm::EnableHybridization() and before
        Assemble().** C, E, G and H are sized from the trace element and
        EnableHybridization() has already built them at the uniform degree, so
@@ -883,6 +905,30 @@ public:
 
    /// Return the per-face trace degrees, empty when the trace is uniform.
    const Array<int> &GetTraceOrders() const { return tr_order; }
+
+   /** @brief The trace finite element on face @a f, at that face's degree.
+
+       Every read of the constraint space's face element goes through here
+       rather than through c_fes.GetFaceElement() directly, so that a per-face
+       degree reaches all of them at once. With no degrees set it *is*
+       c_fes.GetFaceElement().
+
+       **Public because a face's degree is a property of the solve, and
+       anything reading the trace solution has to know it.** The dofs a face's
+       degree does not reach are retired, so they are zero -- but a
+       nodal basis at the ceiling degree with a zero tail is not the coarser
+       function, it is a different one, and reading it that way is silently
+       wrong rather than merely inexact. HDGErrorEstimator is the reader that
+       found this out. */
+   const FiniteElement *TraceFE(int f) const;
+
+   /** @brief The trace vdofs of face @a f, truncated to that face's degree.
+
+       The face owns nt(p_max) slots per field in the uniform constraint space;
+       at degree p_f only the first nt(p_f) of each field's block are used, and
+       this returns those. With no degrees set it *is* c_fes.GetFaceVDofs().
+       Public for the same reason as TraceFE(). */
+   void TraceVDofs(int f, Array<int> &vdofs) const;
 
    /// Not available, use a specific Assemble*MassMatrix() instead.
    void AssembleMatrix(int el, const DenseMatrix &A) override

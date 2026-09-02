@@ -456,3 +456,60 @@ TEST_CASE("The smoothness sensor reads the top degree's share of the energy",
       }
    }
 }
+
+TEST_CASE("A hanging-node family takes the ceiling degree",
+          "[DarcyHybridization][PAdapt]")
+{
+   // A family's members reach one shared trace unknown through
+   // FiniteElement::GetTransferMatrix() and, one level below that, through the
+   // constraint space's conforming prolongation -- which interpolates in the
+   // CEILING basis and knows nothing of a per-face degree. So the family has
+   // to sit at the ceiling, and the derivation rule is what has to put it
+   // there; a family below it solves a different problem and, at the degrees
+   // this branch allows, an unstable one.
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   mesh.EnsureNCMesh();
+
+   Array<Refinement> refs;
+   refs.Append(Refinement(5));
+   mesh.GeneralRefinement(refs, 1, 0);
+
+   const int cap = 5;
+   Array<int> elem_order(mesh.GetNE());
+   elem_order = 2;
+
+   Array<int> face_order;
+   DarcyHybridization::FaceOrdersFromElementOrders(
+      mesh, elem_order, DarcyHybridization::TraceOrderRule::Min, cap,
+      face_order);
+
+   REQUIRE(face_order.Size() == mesh.GetNumFaces());
+
+   // Mark the faces the NC list knows about, so the assertion below is about
+   // every family member rather than about the ones that happened to be found.
+   Array<int> in_family(mesh.GetNumFaces());
+   in_family = 0;
+   const NCMesh::NCList &nclist = mesh.ncmesh->GetNCList(mesh.Dimension() - 1);
+   for (int m = 0; m < nclist.masters.Size(); m++)
+   {
+      const NCMesh::Master &master = nclist.masters[m];
+      if (master.index < 0 || master.index >= mesh.GetNumFaces()) { continue; }
+      in_family[master.index] = 1;
+      for (int s = master.slaves_begin; s < master.slaves_end; s++)
+      {
+         const int sf = nclist.slaves[s].index;
+         if (sf >= 0 && sf < mesh.GetNumFaces()) { in_family[sf] = 1; }
+      }
+   }
+
+   // Refining one quad of sixteen has to produce hanging nodes, or the test
+   // asserts nothing.
+   REQUIRE(in_family.Sum() > 0);
+
+   for (int f = 0; f < face_order.Size(); f++)
+   {
+      CAPTURE(f, in_family[f]);
+      REQUIRE(face_order[f] == (in_family[f] ? cap : 2));
+   }
+}

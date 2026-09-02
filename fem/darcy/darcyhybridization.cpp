@@ -310,10 +310,29 @@ void DarcyHybridization::RetireSurplusTraceDofs()
    // does not inherit the first one's surplus.
    ess_tdof_user.Copy(ess_tdof_list);
 
+   // A slave face of a hanging-node family owns no unknown. Its vdofs are
+   // interpolated from the master's, and the row of the conforming
+   // prolongation that carries one is dense over the master's whole face --
+   // the interpolation has no notion of which of the master's slots a given
+   // slave slot came from. TraceVDofsToTDofs() marks a true dof when ANY vdof
+   // depending on it is marked, so retiring a slave's surplus slot would
+   // retire EVERY true dof of that master face. The master's own surplus is
+   // retired below and removes exactly the modes that were meant to go, so the
+   // slaves are skipped rather than handled.
+   const Mesh *c_mesh = c_fes.GetMesh();
+   const NCMesh::NCList *nclist = nullptr;
+   if (c_mesh->Nonconforming() && c_mesh->ncmesh)
+   {
+      nclist = &c_mesh->ncmesh->GetNCList(c_mesh->Dimension() - 1);
+   }
+
    Array<int> vdofs, surplus;
    const int vdim = c_fes.GetVDim();
    for (int f = 0; f < tr_order.Size(); f++)
    {
+      if (nclist && nclist->GetMeshIdAndType(f).type ==
+          NCMesh::NCList::MeshIdType::SLAVE) { continue; }
+
       c_fes.GetFaceVDofs(f, vdofs);
       const int nt_max = vdofs.Size() / vdim;
       const int nt_f = TraceFE(f)->GetDof();
@@ -729,6 +748,27 @@ void DarcyHybridization::FaceOrdersFromElementOrders(
       }
       face_order[f] = std::min(p, cap);
    }
+
+   // A HANGING-NODE FAMILY IS HELD AT THE CEILING, and that is a limitation of
+   // this route rather than a choice. See the note on SetTraceOrders().
+   if (mesh.Nonconforming() && mesh.ncmesh)
+   {
+      const NCMesh::NCList &nclist =
+         mesh.ncmesh->GetNCList(mesh.Dimension() - 1);
+      for (int m = 0; m < nclist.masters.Size(); m++)
+      {
+         const NCMesh::Master &master = nclist.masters[m];
+         if (master.index < 0 || master.index >= nf) { continue; }  // ghost
+
+         face_order[master.index] = cap;
+         for (int s = master.slaves_begin; s < master.slaves_end; s++)
+         {
+            const int sf = nclist.slaves[s].index;
+            if (sf < 0 || sf >= nf) { continue; }
+            face_order[sf] = cap;
+         }
+      }
+   }
 }
 
 void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
@@ -763,6 +803,39 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
    MFEM_VERIFY(Ct_data.Size() > 0,
                "SetTraceOrders() needs the hybridization initialised first; "
                "call it after DarcyForm::EnableHybridization().");
+
+   // A hanging-node family must run at the ceiling, and this refuses rather
+   // than silently repairing, because the caller's own dof accounting would
+   // otherwise be wrong. FaceOrdersFromElementOrders() already does it.
+   const Mesh *nc_mesh = c_fes.GetMesh();
+   if (nc_mesh->Nonconforming() && nc_mesh->ncmesh)
+   {
+      const NCMesh::NCList &nclist =
+         nc_mesh->ncmesh->GetNCList(nc_mesh->Dimension() - 1);
+      const int nf = nc_mesh->GetNumFaces();
+      for (int m = 0; m < nclist.masters.Size(); m++)
+      {
+         const NCMesh::Master &master = nclist.masters[m];
+         if (master.index < 0 || master.index >= nf) { continue; }
+
+         MFEM_VERIFY(face_order[master.index] == p_max,
+                     "Face " << master.index << " masters a hanging-node "
+                     "family and asks for degree " << face_order[master.index]
+                     << "; such a family has to run at the ceiling degree "
+                     << p_max << ". See SetTraceOrders().");
+         for (int sl = master.slaves_begin; sl < master.slaves_end; sl++)
+         {
+            const int sf = nclist.slaves[sl].index;
+            if (sf < 0 || sf >= nf) { continue; }
+            MFEM_VERIFY(face_order[sf] == p_max,
+                        "Face " << sf << " is a slave of face "
+                        << master.index << " and asks for degree "
+                        << face_order[sf] << "; a hanging-node family has to "
+                        "run at the ceiling degree " << p_max
+                        << ". See SetTraceOrders().");
+         }
+      }
+   }
 
    face_order.Copy(tr_order);
 
@@ -1068,6 +1141,27 @@ void DarcyHybridization::AssembleNCSlaveFaceMatrix(int f,
       Array<int> dofs_m, dofs_s;
       c_fec->SubDofOrder(geom_m, Geometry::Dimension[geom_m], ori_m, dofs_m);
       c_fec->SubDofOrder(geom_s, Geometry::Dimension[geom_s], ori_s, dofs_s);
+
+      /* SubDofOrder() answers at the COLLECTION's degree, which under a
+         per-face trace degree need not be what this family carries. Where it
+         is not, the permutation has more entries than the transfer matrix has
+         rows and each is an index into a basis the face does not use, so the
+         loop below writes past the end of Io -- measured as
+         `malloc(): unaligned tcache chunk detected` inside the NEXT call,
+         which is how a silent overrun presents.
+
+         SetTraceOrders() holds that shut by refusing a hanging-node family
+         below the ceiling, so this cannot fire today and a collection cloned
+         at the family's degree, which does repair it, was removed again rather
+         than left as an unreachable branch. The check stays: it is what turns
+         relaxing that rule from heap corruption into a message. */
+      MFEM_VERIFY(dofs_s.Size() == I.Height() && dofs_m.Size() == I.Width(),
+                  "The trace dof ordering has " << dofs_s.Size() << " and "
+                  << dofs_m.Size() << " entries for a " << I.Height() << "x"
+                  << I.Width() << " transfer matrix on face " << slave.index
+                  << " of master " << slave.master << ". A hanging-node family "
+                  "below the trace ceiling would do this; SetTraceOrders() "
+                  "refuses one, so something else has.");
 
       for (int j = 0; j < I.Width(); j++)
          for (int i = 0; i < I.Height(); i++)
