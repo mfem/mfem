@@ -28,6 +28,11 @@ add_mfem_miniapp(checkpoint-backward-euler
   checkpoint_demo.hpp
   LIBRARIES mfem)
 
+add_mfem_miniapp(checkpoint-reverse-adjoint
+  MAIN reverse-adjoint.cpp
+  checkpoint_demo.hpp
+  LIBRARIES mfem)
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME checkpoint-heterogeneous-state
     COMMAND checkpoint-heterogeneous-state -n 8 -c 3 -w 2)
@@ -36,4 +41,11 @@ if (MFEM_ENABLE_TESTING)
   add_test(NAME checkpoint-ode-state COMMAND checkpoint-ode-state)
   add_test(NAME checkpoint-backward-euler
     COMMAND checkpoint-backward-euler -s 8 -r 3)
+  foreach(solver forward-euler backward-euler)
+    foreach(schedule store-all revolve wmi)
+      add_test(NAME checkpoint-adjoint-${solver}-${schedule}
+        COMMAND checkpoint-reverse-adjoint --solver ${solver}
+          --schedule ${schedule} --num-steps 12 --checkpoints 3)
+    endforeach()
+  endforeach()
 endif()
