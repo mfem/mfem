@@ -18,17 +18,41 @@ protected:
     real_t domain_volume = 0.0;
     real_t Vstar = 0.0;
 
+    Array<int> attr_marker;      // empty => integrate over the whole mesh
+    bool       restricted = false;
+
+    void AddIntegrator(ParLinearForm &lf, Coefficient *cf)
+    {
+        if (restricted)
+        {
+            lf.AddDomainIntegrator(new DomainLFIntegrator(*cf), attr_marker);
+        }
+        else
+        {
+            lf.AddDomainIntegrator(new DomainLFIntegrator(*cf));
+        }
+    }
+
 public:
+    // elem_marker (optional): 1-based element-attribute marker restricting every
+    // integral (and hence Vstar) to the marked attributes.  Pass nullptr / an
+    // empty array to integrate over the whole mesh.
     VolumeResidual(MPI_Comm comm_, ParFiniteElementSpace *fes_,
                    Coefficient *rho_design_, Coefficient *rho_design_grad_,
-                   real_t vol_fraction)
+                   real_t vol_fraction, const Array<int> *elem_marker = nullptr)
     : comm(comm_), fes(fes_), rho_design(rho_design_),
       rho_design_grad(rho_design_grad_)
     {
+        if (elem_marker && elem_marker->Size() > 0)
+        {
+            elem_marker->Copy(attr_marker);
+            restricted = true;
+        }
+
         ConstantCoefficient one_cf(1.0);
 
         ParLinearForm vol_form(fes);
-        vol_form.AddDomainIntegrator(new DomainLFIntegrator(one_cf));
+        AddIntegrator(vol_form, &one_cf);
         vol_form.Assemble();
         std::unique_ptr<HypreParVector> vol_w(vol_form.ParallelAssemble());
 
@@ -38,13 +62,13 @@ public:
     }
     ~VolumeResidual() { }
 
-    // G = ∫_Ω rho_design dΩ / Vstar
+    // G = ∫ rho_design / Vstar   (∫ over the marked attributes when restricted)
     real_t Eval() override
     {
         ParLinearForm lf(fes);
-        lf.AddDomainIntegrator(new DomainLFIntegrator(*rho_design));
+        AddIntegrator(lf, rho_design);
         lf.Assemble();
-        std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());   // ∫_Ω rho_design
+        std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());   // ∫ rho_design
 
         real_t loc, val;
         loc = v->Sum();
@@ -56,7 +80,7 @@ public:
     void GetGrad(Vector &grad) override
     {
         ParLinearForm lf(fes);
-        lf.AddDomainIntegrator(new DomainLFIntegrator(*rho_design_grad));
+        AddIntegrator(lf, rho_design_grad);
         lf.Assemble();
         std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());
 

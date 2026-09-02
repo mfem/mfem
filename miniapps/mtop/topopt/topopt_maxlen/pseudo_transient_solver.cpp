@@ -18,6 +18,9 @@ void PseudoTransientSolver::MarchToSteadyState(LinearEvolutionOperator &evol,
     MFEM_VERIFY(ode, "PseudoTransientSolver: ode solver is not set");
     ode->Init(evol);
 
+    int rank = 0;
+    if (print_level > 0) { MPI_Comm_rank(comm, &rank); }
+
     const real_t eps = 1e-12;
     Vector u_prev(u.Size());
 
@@ -36,6 +39,19 @@ void PseudoTransientSolver::MarchToSteadyState(LinearEvolutionOperator &evol,
 
         u_prev -= u;
         rate = ParNormlp(u_prev, 2.0, comm) / (step * (u_prev_norm + eps));
+
+        if (print_level > 1 && rank == 0)
+        {
+            mfem::out << "   pseudo-transient step " << iter_count
+                      << ": t = " << t << ", rate = " << rate << '\n';
+        }
+    }
+
+    if (print_level > 0 && rank == 0)
+    {
+        mfem::out << "   pseudo-transient: " << iter_count << " steps, final rate = "
+                  << rate << (rate <= tol ? "  (converged)" : "  (reached t_final)")
+                  << std::endl;
     }
 }
 

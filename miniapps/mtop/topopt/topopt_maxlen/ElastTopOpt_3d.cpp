@@ -1,11 +1,29 @@
 // Linear elasticity topology optimization with a max thickness constraint, 3D.
 // Thickness measure is calculated by solving an advection pde, one advection
-// direction per ray, giving one thickness constraint per direction.  The design
-// domain is a subdomain of the mesh, while the advection runs on the whole mesh.
+// direction per ray, giving one thickness constraint per direction.
 //
-// With no -m the built-in 3x1x1 Cartesian hex beam is used.
+// The elasticity/filter/optimizer all run on the full mesh (Option C): elements
+// outside domain_attr are frozen, either fixed solid (solid_attr, rho = 1) or
+// fixed void (rho = 0).  The volume budget covers only domain_attr.
+//
+// With no -m the built-in 3x1x1 Cartesian hex beam is used.  The
+// circular_plate_hex_sleeves_embedded_cylinder.msh setup is selected by name.
+//
+// Before the optimization every solver (filter, one elasticity solve per load
+// case, one advection solve per ray) is run once on the initial design and
+// timed (with its Krylov / pseudo-time iteration count).  -no-opt stops there
+// (initial timed evaluation only); -pv also writes the initial fields to
+// ParaView/<run_tag>_init.  -spl controls the live iterative-solver report
+// (default on; -spl 0 silences it, -spl 2 is verbose).
+//
+// The advection (thickness) solve dominates the cost.  Its evaluation space is
+// low-order DG (-dgo, default 1) and its operator is full/sparse-assembled by
+// default (-adv-fa; -adv-pa for matrix-free partial assembly, better at high
+// -dgo).  The pseudo-transient march is tuned with -cfl / -atf / -atol.
 //
 // Sample run:  mpirun -np 8 ./ElastTopOpt_3d -r 2 -rf 0.05 -vf 0.4
+// Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m circular_plate_hex_sleeves_embedded_cylinder.msh -vf 0.3 -pv
+// Sample run:  mpirun -np 8 ./ElastTopOpt_3d -m circular_plate_hex_sleeves_embedded_cylinder.msh -no-opt -pv
 
 #include "mfem.hpp"
 #include "ElastTopOpt.hpp"
@@ -19,7 +37,9 @@
 #include <memory>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <vector>
+#include <cmath>
 
 using namespace std;
 using namespace mfem;
@@ -30,7 +50,18 @@ struct LoadCase
     Array<int>    clamp_attrs;
     Array<int>    load_attrs;                          // surface tractions
     Array<real_t> fx, fy, fz;
-    void (*vol_load)(const Vector &, Vector &) = nullptr;   // optional body force
+
+    // Body-force-density loads.  Each entry loads a group of element attributes
+    // with either a constant vector (value) or a spatially varying field (fn);
+    // fn takes precedence when set.  One entry per attribute group lets each
+    // group carry its own amplitude.
+    struct VolumeLoad
+    {
+        Array<int> attrs;
+        Vector     value;                                    // constant body force
+        void      (*fn)(const Vector &, Vector &) = nullptr; // varying body force
+    };
+    std::vector<VolumeLoad> vol_loads;
 };
 
 // Full problem definition for one mesh
@@ -38,11 +69,24 @@ struct LoadCase
 struct MeshProblem
 {
     Array<int>            domain_attr;       // designable subdomain(s)
+    Array<int>            solid_attr;        // fixed-solid volumes: design rho pinned
+                                             // to 1 (E_max stiffness), not optimized
     Array<int>            outer_bdr_attrs;   // free surfaces: rho~ = 0 in the filter
+    Array<int>            neumann_bdr_attrs; // filter natural (zero-flux) BC: no
+                                             // Dirichlet value imposed there
+    Array<int>            ray_bdr_attrs;     // outflow candidate surfaces for the
+                                             // advection rays (thickness measure)
+    Array<int>            cut_faces;         // serial-mesh face ids on the design/void
+                                             // interface; each gets a boundary element
+                                             // so the filter pins rho~ = 1 there
+
+    // advection ray directions for the max-thickness measure (one QoI per ray);
+    // empty -> the thickness constraint is off (n_dir = 0)
+    std::vector<std::unique_ptr<VectorCoefficient>> rays;
+
     std::vector<LoadCase> cases;
 };
 
-std::vector<std::unique_ptr<VectorCoefficient>> SetupRays(int dim);
 MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh);
 
 // Extract Mesh with non-zero density
@@ -60,11 +104,24 @@ int main(int argc, char *argv[])
     // Timer
     double init_time = MPI_Wtime();
 
+    // Progress instrumentation: prints "[<elapsed>s] <stage>" on rank 0, flushed,
+    // so a long-running or stuck phase is always identifiable on screen.
+    auto stage = [&](const std::string &msg)
+    {
+        if (myid == 0)
+        {
+            mfem::out << "[" << fixed << setprecision(2)
+                      << (MPI_Wtime() - init_time) << "s] " << msg
+                      << defaultfloat << setprecision(6) << std::endl;
+        }
+    };
+
     // 1. Options.
     const char *mesh_file = "";       // empty: use the built-in Cartesian beam
     int    ref_levels   = 0;
     int    order        = 2;
-    real_t r_f          = 0.03;       // min filter length
+    real_t r_f          = 3.0;        // min filter length (mesh units; the
+                                     // circular plate spans ~120, so O(few))
     real_t alpha_min    = 1e-6;       // thickness variable lower bound
     real_t alpha_max    = 1.0;        // thickness variable upper bound
     real_t beta         = 2.0;        // Heaviside beta
@@ -75,6 +132,17 @@ int main(int argc, char *argv[])
     real_t move         = 0.1;        // MMA move limit
     real_t epsilon      = 1e-2;       // thickness residual tolerance
 
+    // advection (ray) thickness-solve controls -- this solve dominates the cost
+    int    dg_order     = 1;          // DG order of the advection eval space
+    bool   adv_pa       = false;      // advection operator: partial vs full assembly
+                                     // (PA wins at high order; full/sparse at p=1)
+    real_t adv_cfl      = 0.5;        // CFL number -> pseudo-time step
+    real_t adv_tfinal   = 100.0;     // absolute pseudo-time cap (steps = t_final/dt)
+    real_t adv_tol      = 1e-6;       // steady-state relative-rate tolerance
+    bool   minv_fa      = true;       // DG mass inverse: exact assembled block-
+                                     // diagonal (true) vs matrix-free per-elem CG
+    real_t minv_tol     = 1e-8;       // matrix-free DG mass-inverse CG rel tol
+
     int  cp          = 0;       // 0 = off, 1 = rho only, 2 = full state
     int  restart     = 0;       // 0 = off, 1 = rho only, 2 = full state
     int  pc_type     = 2;       // 0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG
@@ -83,8 +151,12 @@ int main(int argc, char *argv[])
 
     bool visualization = true;
     bool paraview      = false;
+    bool optimize      = true;   // run the optimization loop after the initial eval
+    int  solver_print  = 1;      // iterative-solver report: 0 off, 1 on
+                                 // (CG history / PT summary), 2 verbose
+                                 // (+ AMG, + every pseudo-time step)
 
-    const real_t E_min    = 1e-6;     // SIMP void stiffness
+    const real_t E_min    = 1e-3;     // SIMP void stiffness
     const real_t E_max    = 1.0;      // SIMP E max
     const real_t exponent = 1.0;      // SIMP exponent (applied to the projection)
     // --- PLAIN SIMP ---  use p = 3 when SIMP acts directly on rho~
@@ -130,6 +202,27 @@ int main(int argc, char *argv[])
                     "store solution in paraview");
     args.AddOption(&visualization, "-vis", "--visualization",
                     "-no-vis", "--no-visualization", "enable GLVis visualization");
+    args.AddOption(&optimize, "-opt", "--optimize", "-no-opt", "--no-optimize",
+                    "run the optimization loop (off: initial timed evaluation only)");
+    args.AddOption(&solver_print, "-spl", "--solver-print-level",
+                    "iterative-solver report (filter / elasticity / advection): "
+                    "0 = off, 1 = on, 2 = verbose");
+    args.AddOption(&dg_order, "-dgo", "--dg-order",
+                    "DG order of the advection (thickness) evaluation space");
+    args.AddOption(&adv_pa, "-adv-pa", "--advection-partial-assembly",
+                    "-adv-fa", "--advection-full-assembly",
+                    "advection operator assembly: partial (matrix-free) or full (sparse)");
+    args.AddOption(&adv_cfl, "-cfl", "--adv-cfl",
+                    "advection pseudo-transient CFL number (larger = bigger time step)");
+    args.AddOption(&adv_tfinal, "-atf", "--adv-terminal-time",
+                    "advection pseudo-transient absolute time cap");
+    args.AddOption(&adv_tol, "-atol", "--adv-tol",
+                    "advection pseudo-transient steady-state rate tolerance");
+    args.AddOption(&minv_fa, "-minv-fa", "--minv-full-assembly",
+                    "-minv-mf", "--minv-matrix-free",
+                    "DG mass inverse: exact assembled block-diagonal vs per-element CG");
+    args.AddOption(&minv_tol, "-mit", "--minv-tol",
+                    "matrix-free DG mass-inverse per-element CG relative tolerance");
     args.Parse();
     if (!args.Good())
     {
@@ -142,45 +235,92 @@ int main(int argc, char *argv[])
     const real_t domain_init = alpha_max * vol_fraction;
 
     // 2. Load the mesh and the problem description (domain, loads).
+    stage(std::string("loading mesh: ") +
+          (mesh_file[0] ? mesh_file : "<built-in Cartesian beam>"));
     Mesh mesh;
     MeshProblem prob = loadMesh(myid, mesh_file, mesh);
+    stage("mesh loaded (serial: " + std::to_string(mesh.GetNE()) + " elements, "
+          + std::to_string(mesh.GetNBE()) + " bdr elements)");
 
     const int n_elast_solve = static_cast<int>(prob.cases.size());
-    Array<int> &domain_attr     = prob.domain_attr;
-    Array<int> &outer_bdr_attrs = prob.outer_bdr_attrs;
+    Array<int> &domain_attr       = prob.domain_attr;
+    Array<int> &solid_attr        = prob.solid_attr;
+    Array<int> &outer_bdr_attrs   = prob.outer_bdr_attrs;
+    Array<int> &neumann_bdr_attrs = prob.neumann_bdr_attrs;
+    Array<int> &ray_bdr_attrs     = prob.ray_bdr_attrs;
+
+    // Give every listed design/void interface face a boundary element so the
+    // PDE filter can impose rho~ = 1 there.  Done on the serial mesh, before
+    // partitioning and refinement, so the ids refer to one global face
+    // numbering (mesh.GetFace) and the new boundary faces are distributed and
+    // refined with the rest of the mesh.  The interface faces get a fresh
+    // boundary attribute (max + 1); the filter BC loop below then treats it
+    // as solid (rho~ = 1) like any non-free-surface boundary.
+    if (prob.cut_faces.Size() > 0)
+    {
+        stage("tagging design/void interface faces");
+        const int cut_attr =
+            (mesh.bdr_attributes.Size() ? mesh.bdr_attributes.Max() : 0) + 1;
+        Array<Element *> new_be(prob.cut_faces.Size());
+        for (int k = 0; k < prob.cut_faces.Size(); k++)
+        {
+            const int f = prob.cut_faces[k];
+            MFEM_VERIFY(f >= 0 && f < mesh.GetNFaces(),
+                        "cut_faces: face id " << f << " out of range [0,"
+                        << mesh.GetNFaces() << ")");
+            new_be[k] = mesh.GetFace(f)->Duplicate(&mesh);
+            new_be[k]->SetAttribute(cut_attr);
+        }
+        mesh.AddBdrElements(new_be, prob.cut_faces);
+        mesh.SetAttributes();
+        if (myid == 0)
+        {
+            mfem::out << "interface: " << prob.cut_faces.Size()
+                      << " faces tagged bdr attribute " << cut_attr
+                      << " (filter rho~ = 1)\n";
+        }
+    }
 
     // 3. Refine the mesh and construct pmesh / the design subdomain.
     const int dim = mesh.Dimension();
 
-    vector<unique_ptr<VectorCoefficient>> ray_cf = SetupRays(dim);
+    vector<unique_ptr<VectorCoefficient>> &ray_cf = prob.rays;
     const int n_dir = static_cast<int>(ray_cf.size());
 
+    stage("partitioning mesh across " + std::to_string(num_procs) + " ranks");
     ParMesh pmesh(MPI_COMM_WORLD, mesh);
     mesh.Clear();
 
-    for (int l = 0; l < ref_levels; l++)
+    if (ref_levels > 0)
     {
-        pmesh.UniformRefinement();
+        stage("uniform refinement x " + std::to_string(ref_levels));
+        for (int l = 0; l < ref_levels; l++) { pmesh.UniformRefinement(); }
     }
 
-    ParSubMesh design_domain = ParSubMesh::CreateFromDomain(pmesh, domain_attr);
+    // Solve on the full mesh (Option C).  Elements whose attribute is listed in
+    // solid_attr are fixed solid (design rho pinned to 1); every other element
+    // outside domain_attr is fixed void (rho pinned to 0).  Both carry their
+    // pinned stiffness through SIMP and are excluded from the optimizer.
 
     // 3b. Mark the outflow boundary for each ray direction.
-    Array<int> candidate_be;        // extract only the outer boundary elements
+    Array<int> candidate_be;        // ray outflow candidate boundary elements
     Array<int> candidate_attr;
     for (int i = 0; i < pmesh.GetNBE(); i++)
     {
         const int el_attr = pmesh.GetBdrAttribute(i);
 
-        if (outer_bdr_attrs.Find(el_attr) < 0) continue;
+        if (ray_bdr_attrs.Find(el_attr) < 0) continue;
         candidate_be.Append(i);
         candidate_attr.Append(el_attr);
     }
 
     vector<unique_ptr<ParSubMesh>> outflow(n_dir);
+    if (n_dir > 0) { stage("building outflow submeshes for " +
+                           std::to_string(n_dir) + " ray direction(s)"); }
 
     for (int r = 0; r < n_dir; r++)
     {
+        stage("  outflow submesh for ray " + std::to_string(r));
         // mark outflow (v . n > 0) on the candidate boundary elements
         const int outflow_attr = 100 + r;
         for (int k = 0; k < candidate_be.Size(); k++)
@@ -214,40 +354,151 @@ int main(int argc, char *argv[])
         pmesh.SetAttributes();
     }
 
-    // 4. Define finite element collections and spaces
+    // 4. Define finite element collections and spaces.
+    stage("building finite element spaces");
+    // The design/control space is normally one order below the state and filter
+    // spaces; clamp it at 1 so -o 1 (linear elasticity) still has a valid H1
+    // control space (then control == filter order).
+    const int control_order = std::max(order - 1, 1);
     H1_FECollection state_fec(order, dim);
     H1_FECollection filter_fec(order, dim);
-    H1_FECollection control_fec(order-1, dim, BasisType::GaussLobatto);
-    ParFiniteElementSpace state_fes(&design_domain, &state_fec, dim, Ordering::byNODES);
-    ParFiniteElementSpace filter_fes(&design_domain, &filter_fec);
-    ParFiniteElementSpace control_fes(&design_domain, &control_fec);
+    H1_FECollection control_fec(control_order, dim, BasisType::GaussLobatto);
+    ParFiniteElementSpace state_fes(&pmesh, &state_fec, dim, Ordering::byNODES);
+    ParFiniteElementSpace filter_fes(&pmesh, &filter_fec);
+    ParFiniteElementSpace control_fes(&pmesh, &control_fec);
 
     // Printing all true dofs.
     HYPRE_BigInt state_size   = state_fes.GlobalTrueVSize();
     HYPRE_BigInt filter_size  = filter_fes.GlobalTrueVSize();
     HYPRE_BigInt control_size = control_fes.GlobalTrueVSize();
+    const long long global_ne = pmesh.GetGlobalNE();     // collective
+    long long global_nbe = pmesh.GetNBE();
+    MPI_Allreduce(MPI_IN_PLACE, &global_nbe, 1, MPI_LONG_LONG, MPI_SUM,
+                  MPI_COMM_WORLD);
     if (myid == 0)
     {
-        cout << "\nstate dofs = "   << state_size
+        cout << "\nmesh elements = " << global_ne
+             << ",  boundary elements = " << global_nbe << "\n"
+             << "state dofs = "   << state_size
              << ",  filter dofs = "  << filter_size
              << ",  design dofs = " << control_size << endl;
     }
 
+    stage("marking passive (fixed solid / void) regions");
+    // --- Option C: passive (non-design) regions ---------------------------
+    // Elements outside domain_attr are either fixed solid (attr in solid_attr,
+    // rho pinned to 1) or fixed void (rho pinned to 0).  Collect the control
+    // true dofs that carry a pinned value, together with that value.  Marking
+    // is done on gridfunctions and reduced through ParallelAssemble so it is
+    // independent of the mesh partition; a dof shared with a designable element
+    // stays free (design wins), and among the remainder solid wins over void.
+    Array<int>  passive_ctrl_tdofs;
+    Vector      passive_ctrl_vals;
+    {
+        ParGridFunction design_mark(&control_fes), solid_mark(&control_fes);
+        design_mark = 0.0;
+        solid_mark  = 0.0;
+        Array<int> edofs;
+        for (int e = 0; e < pmesh.GetNE(); e++)
+        {
+            const int attr = pmesh.GetAttribute(e);
+            ParGridFunction *mk = nullptr;
+            if      (domain_attr.Find(attr) >= 0) { mk = &design_mark; }
+            else if (solid_attr.Find(attr)  >= 0) { mk = &solid_mark;  }
+            else                                  { continue; }   // fixed void
+            control_fes.GetElementDofs(e, edofs);
+            for (int k = 0; k < edofs.Size(); k++)
+            {
+                const int d = edofs[k] < 0 ? -1 - edofs[k] : edofs[k];
+                (*mk)(d) = 1.0;
+            }
+        }
+        std::unique_ptr<HypreParVector> design_tv(design_mark.ParallelAssemble());
+        std::unique_ptr<HypreParVector> solid_tv(solid_mark.ParallelAssemble());
+        for (int t = 0; t < design_tv->Size(); t++)
+        {
+            if ((*design_tv)(t) < 0.5) { passive_ctrl_tdofs.Append(t); } // not designable
+        }
+        passive_ctrl_vals.SetSize(passive_ctrl_tdofs.Size());
+        for (int i = 0; i < passive_ctrl_tdofs.Size(); i++)
+        {
+            passive_ctrl_vals(i) =
+                (*solid_tv)(passive_ctrl_tdofs[i]) >= 0.5 ? 1.0 : 0.0;
+        }
+    }
+
+    // The volume budget is measured against the designable region only, so the
+    // fixed solid and void neither spend nor dilute it.  VolumeResidual is fed
+    // an element-attribute marker so its integrals (and Vstar) cover only
+    // domain_attr:  Vstar = vol_fraction * |design region|.
+    Array<int> design_elem_marker(pmesh.attributes.Size() ? pmesh.attributes.Max()
+                                                          : 0);
+    design_elem_marker = 0;
+    for (int a = 0; a < domain_attr.Size(); a++)
+    {
+        const int attr = domain_attr[a];
+        if (attr >= 1 && attr <= design_elem_marker.Size())
+        {
+            design_elem_marker[attr - 1] = 1;
+        }
+    }
+
+    real_t vol_design = 0.0, vol_full = 0.0;
+    for (int e = 0; e < pmesh.GetNE(); e++)
+    {
+        const real_t ve = pmesh.GetElementVolume(e);
+        vol_full += ve;
+        if (domain_attr.Find(pmesh.GetAttribute(e)) >= 0) { vol_design += ve; }
+    }
+    MPI_Allreduce(MPI_IN_PLACE, &vol_design, 1, MPITypeMap<real_t>::mpi_type,
+                  MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(MPI_IN_PLACE, &vol_full, 1, MPITypeMap<real_t>::mpi_type,
+                  MPI_SUM, MPI_COMM_WORLD);
+
+    if (myid == 0)
+    {
+        cout << "design / full mesh volume = " << vol_design << " / " << vol_full
+             << ",  passive control dofs = " << passive_ctrl_tdofs.Size() << endl;
+    }
+
     // 5. Initialize all the grid functions and coefficients
+    stage("initializing design field and coefficients");
     ParGridFunction rho(&control_fes);
     ParGridFunction rho_filter(&filter_fes);
 
-    rho.Randomize(seed);
-    rho -= 0.5;
-    rho *= 0.1;
-    rho += domain_init;
+    // Spatially varying initial design: a smooth field oscillating about
+    // domain_init (in xy radius and in z), clamped to (0,1), plus a small random
+    // perturbation to break symmetry.  The passive regions are overwritten with
+    // their pinned values further below, so this only seeds the design domain.
+    {
+        const real_t two_pi = 8.0 * std::atan(real_t(1));
+        FunctionCoefficient rho0_cf([=](const Vector &x) -> real_t
+        {
+            const real_t rr = std::sqrt(x[0]*x[0] + x[1]*x[1]);
+            const real_t z  = (x.Size() == 3) ? x[2] : real_t(0);
+            real_t s = domain_init
+                     + 0.25 * domain_init * std::sin(two_pi * rr / real_t(30))
+                     + 0.15 * domain_init * std::cos(two_pi * z  / real_t(20));
+            return std::min(real_t(1) - real_t(1e-3),
+                            std::max(real_t(1e-3), s));
+        });
+        rho.ProjectCoefficient(rho0_cf);
+
+        ParGridFunction rho_noise(&control_fes);
+        rho_noise.Randomize(seed);
+        rho_noise -= 0.5;
+        rho_noise *= 0.02;
+        rho += rho_noise;
+    }
     rho_filter = domain_init;
 
     GridFunctionCoefficient rho_cf(&rho);
 
     // 5b. Thickness design variables live on the outflow submeshes, one set per
-    //     ray direction.  Solving for rho_a requires DG, so alpha also lives in DG.
-    DG_FECollection dgfec(order, dim, BasisType::GaussLobatto);
+    //     ray direction.  Solving for rho_a requires DG, so alpha also lives in
+    //     DG.  The thickness measure is a line integral of density, so a low DG
+    //     order is plenty and much cheaper (see -dgo).
+    DG_FECollection dgfec(dg_order, dim, BasisType::GaussLobatto);
     ParFiniteElementSpace dgfes(&pmesh, &dgfec);
 
     vector<unique_ptr<DG_FECollection>> sub_dg_fec(n_dir);
@@ -257,7 +508,7 @@ int main(int argc, char *argv[])
     for (int r = 0; r < n_dir; r++)
     {
         const int sub_dim = outflow[r]->Dimension();
-        sub_dg_fec[r] = make_unique<DG_FECollection>(order, sub_dim, BasisType::Positive);
+        sub_dg_fec[r] = make_unique<DG_FECollection>(dg_order, sub_dim, BasisType::Positive);
         sub_dg_fes[r] = make_unique<ParFiniteElementSpace>(outflow[r].get(), sub_dg_fec[r].get());
 
         alpha[r] = make_unique<ParGridFunction>(sub_dg_fes[r].get());
@@ -266,7 +517,7 @@ int main(int argc, char *argv[])
 
     // Lame constants and SIMP material coefficients
     ConstantCoefficient one_cf(1.0);
-    ConstantCoefficient E_cf(3.0), nu_cf(0.3);
+    ConstantCoefficient E_cf(1.0), nu_cf(0.3);
     IsoElasticyLambdaCoeff lambda_cf(&E_cf, &nu_cf);
     IsoElasticySchearCoeff mu_cf(&E_cf, &nu_cf);
 
@@ -313,8 +564,12 @@ int main(int argc, char *argv[])
                     "0 = Jacobi, 1 = LOR diagonal AMG, 2 = LOR monolithic AMG");
     }
 
+    stage("configuring " + std::to_string(n_elast_solve) +
+          " elasticity solver(s) (loads / BCs / preconditioner)");
     vector<unique_ptr<LinearElasticitySolver>> elast(n_elast_solve);
-    vector<unique_ptr<VectorFunctionCoefficient>> vol_force(n_elast_solve);
+    // owns every body-force coefficient for the whole run (referenced by the
+    // elasticity linear forms)
+    vector<unique_ptr<VectorCoefficient>> vol_force;
     for (int i = 0; i < n_elast_solve; i++)
     {
         // apply boundary loads
@@ -331,14 +586,24 @@ int main(int argc, char *argv[])
             elast[i]->AddBoundaryLoad(lc.load_attrs[j], load_cf);
         }
 
-        // apply volume force if it exists
-        if (lc.vol_load)
+        // apply body-force-density loads (one coefficient per attribute group)
+        for (const LoadCase::VolumeLoad &vl : lc.vol_loads)
         {
-            vol_force[i] = make_unique<VectorFunctionCoefficient>(dim, lc.vol_load);
-            for (int a = 0; a < design_domain.attributes.Size(); a++)
+            unique_ptr<VectorCoefficient> cf;
+            if (vl.fn)
             {
-                elast[i]->AddVolumeLoad(design_domain.attributes[a], *vol_force[i]);
+                cf = make_unique<VectorFunctionCoefficient>(dim, vl.fn);
             }
+            else
+            {
+                MFEM_VERIFY(vl.value.Size() == dim, "VolumeLoad.value size != dim");
+                cf = make_unique<VectorConstantCoefficient>(vl.value);
+            }
+            for (int a = 0; a < vl.attrs.Size(); a++)
+            {
+                elast[i]->AddVolumeLoad(vl.attrs[a], *cf);
+            }
+            vol_force.push_back(std::move(cf));
         }
 
         // add fixed boundaries
@@ -353,8 +618,8 @@ int main(int argc, char *argv[])
         elast[i]->SetPreconditionerType(elast_pc);
         elast[i]->SetMonolithicLOROrdering(
             lor_by_vdim ? Ordering::byVDIM : Ordering::byNODES);
-        elast[i]->SetPrintLevel(0);
-        elast[i]->SetRelTol(1e-10);
+        elast[i]->SetPrintLevel(solver_print);
+        elast[i]->SetRelTol(1e-7);
         elast[i]->SetAbsTol(1e-14);
         elast[i]->SetMaxIter(1000);
     }
@@ -372,31 +637,40 @@ int main(int argc, char *argv[])
     // ProductCoefficient dcdrho_tilde_cf(-1.0, prod);
 
     // 6b. Min length scale filter solver (diffusion-mass PDE filter).
+    stage("setting up PDE filter (r_f = " + std::to_string(r_f) + ")");
     PDEFilter filter(control_fes, filter_fes);
     filter.SetFilterRadius(r_f);
     DiffusionMassSolver &filter_solver = filter.GetSolver();
-    for (int a = 1; a <= design_domain.bdr_attributes.Max(); a++)
+    filter_solver.SetPrintLevel(solver_print);   // before Assemble (marks dirty)
+    // Boundary attributes on the full mesh: the free surfaces in outer_bdr_attrs
+    // get rho~ = 0; attributes in neumann_bdr_attrs get a natural (zero-flux) BC
+    // and are left out of the Dirichlet set entirely; every other boundary
+    // attribute is solid (rho~ = 1).  That covers the design/void interface
+    // faces tagged above and any exterior boundary the mesh setup did not list.
+    // (pmesh.bdr_attributes is globally reduced, so every attribute is present
+    // on every rank and this loop stays collective even where no such face is
+    // owned.)
+    Array<int> filter_bdr_marker(pmesh.bdr_attributes.Size()
+                                 ? pmesh.bdr_attributes.Max() : 0);
+    filter_bdr_marker = 0;
+    for (int i = 0; i < pmesh.bdr_attributes.Size(); i++)
     {
-        bool is_outer = (outer_bdr_attrs.Find(a) >= 0);
-        if (is_outer)
-        {
-            filter_solver.Boundary().Add(a, 0.0);  // Outer boundaries: rho~ = 0
-        }
-        else
-        {
-            filter_solver.Boundary().Add(a, 1.0);  // Holes: rho~ = 1
-        }
+        const int a = pmesh.bdr_attributes[i];
+        if (neumann_bdr_attrs.Find(a) >= 0) { continue; }       // natural BC
+        const bool is_outer = (outer_bdr_attrs.Find(a) >= 0);
+        filter_solver.Boundary().Add(a, is_outer ? 0.0 : 1.0);  // free surface / solid
+        filter_bdr_marker[a - 1] = 1;
     }
+    stage("assembling PDE filter operator + preconditioner");
     filter.Assemble();
 
     // lifting for dirichlet bc
-    Array<int> filter_bdr_marker(design_domain.bdr_attributes.Max());
-    filter_bdr_marker = 1;
     Array<int> filter_ess_tdofs;
     filter_fes.GetEssentialTrueDofs(filter_bdr_marker, filter_ess_tdofs);
 
     Vector rho_filter_lift_tv;
     {
+        stage("filter Dirichlet-lift solve");
         ParGridFunction lift(&filter_fes);
         filter_solver.Solve(lift);
         lift.GetTrueDofs(rho_filter_lift_tv);
@@ -405,10 +679,38 @@ int main(int argc, char *argv[])
 
     // 6c. Advection solvers for the thickness measure, one per ray direction,
     //     with the pseudo-transient time step set from the CFL condition.
-    vector<unique_ptr<MaterialThicknessSolver>> advect(n_dir);
-    DGMassInverse minv(dgfes);
+    //
+    // DG mass inverse, applied 3x per RK step for thousands of pseudo-time steps.
+    // The DG mass is block-diagonal (no inter-element coupling), so with -minv-fa
+    // we assemble the exact block inverse once (InverseIntegrator: elmat = M_e,
+    // then M_e^{-1}) and each apply is a single sparse matvec -- much cheaper
+    // than the matrix-free per-element CG, especially at low order.  -minv-mf
+    // keeps the DGMassInverse (better at high order / on GPU); its per-element
+    // CG default tol (1e-12) far over-solves relative to -atol, so loosen it.
+    // (Minv only affects the pseudo-time path, not the converged rho_a.)
+    // Declared before `advect` so they outlive the solvers that borrow them.
+    if (n_dir > 0) { stage("setting up advection (ray) solvers + DG mass inverse"); }
+    std::unique_ptr<HypreParMatrix> minv_fa_mat;
+    std::unique_ptr<DGMassInverse>  minv_mf;
+    if (minv_fa)
+    {
+        if (n_dir > 0) { stage("assembling exact block-diagonal DG mass inverse"); }
+        ParBilinearForm minv_form(&dgfes);
+        minv_form.AddDomainIntegrator(new InverseIntegrator(new MassIntegrator));
+        minv_form.Assemble();
+        minv_form.Finalize();
+        minv_fa_mat.reset(minv_form.ParallelAssemble());
+    }
+    else
+    {
+        minv_mf = make_unique<DGMassInverse>(dgfes);
+        minv_mf->SetRelTol(minv_tol);
+        minv_mf->SetAbsTol(minv_tol * real_t(1e-2));
+        minv_mf->SetMaxIter(30);
+    }
 
-    real_t cfl = 0.5;
+    vector<unique_ptr<MaterialThicknessSolver>> advect(n_dir);
+
     real_t hmin = infinity();
     for (int i = 0; i < pmesh.GetNE(); i++)
     {
@@ -416,22 +718,37 @@ int main(int argc, char *argv[])
     }
     MPI_Allreduce(MPI_IN_PLACE, &hmin, 1,  MPITypeMap<real_t>::mpi_type, MPI_MIN,
                     pmesh.GetComm());
-    real_t dt = cfl * hmin / (2 * order + 1);
+    const real_t dt = adv_cfl * hmin / (2 * dg_order + 1);   // DG-CFL: degree dg_order
+    if (myid == 0 && n_dir > 0)
+    {
+        mfem::out << "advection: DG order " << dg_order << ", K "
+                  << (adv_pa ? "partial" : "full") << " assembly, Minv "
+                  << (minv_fa ? "exact block-diagonal" : "matrix-free CG")
+                  << "; pseudo-transient dt = " << dt << ", t_final = " << adv_tfinal
+                  << " (<= " << (int)std::ceil(adv_tfinal / dt) << " steps), tol = "
+                  << adv_tol << defaultfloat << setprecision(6) << std::endl;
+    }
 
     for (int r = 0; r < n_dir; r++)
     {
-        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r], true);
-        advect[r]->SetMinv(minv);
-        advect[r]->GetSolver().SetTimeStep(dt);      // pseudo-transient time step
-        advect[r]->GetSolver().SetTerminalTime(100); // absolute stopping condition
+        advect[r] = make_unique<MaterialThicknessSolver>(filter_fes, dgfes, *ray_cf[r],
+                                                         adv_pa);
+        if (minv_fa) { advect[r]->GetSolver().SetMinv(*minv_fa_mat); }
+        else         { advect[r]->SetMinv(*minv_mf); }
+        advect[r]->GetSolver().SetTimeStep(dt);          // pseudo-transient time step
+        advect[r]->GetSolver().SetTerminalTime(adv_tfinal); // absolute stopping condition
+        advect[r]->GetSolver().SetTol(adv_tol);          // steady-state rate tolerance
+        advect[r]->GetSolver().SetPrintLevel(solver_print);
     }
 
     // 7. Construct the quantity of interest objects
+    stage("constructing quantity-of-interest objects (compliance / volume / thickness)");
     Compliance comp(MPI_COMM_WORLD, &filter_fes, simp_cf, energy_cf);
 
-    // volume of the dilated field, measured against V* = vol_fraction |Omega|
+    // volume of the dilated field over domain_attr only, measured against
+    // V* = vol_fraction |design region|
     VolumeResidual vol_qoi(MPI_COMM_WORLD, &filter_fes, &rho_dila_cf,
-                           &rho_dila_grad_cf, vol_fraction);
+                           &rho_dila_grad_cf, vol_fraction, &design_elem_marker);
 
     // Max-thickness constraint residual per ray:  1/2 ∫_Gamma_out,r (rho_a − α_r)²
     vector<unique_ptr<AdvectThicknessResidual>> adv_res(n_dir);
@@ -527,6 +844,10 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Option C: pin the passive regions (fixed solid -> 1, fixed void -> 0)
+    // before they enter the optimizer (also overrides a restart file).
+    rho_tv.SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
+
     rho.SetFromTrueDofs(rho_tv);
     for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(alpha_tv[r]); }
 
@@ -536,6 +857,7 @@ int main(int argc, char *argv[])
 
     Vector a(num_con), c(num_con), d(num_con);
     a = 0.0; c = 1000.0; d = 0.0;
+    stage("initializing MMA optimizer (" + std::to_string(num_con) + " constraints)");
     mfem_mma::MMAOptimizerParallel mma(MPI_COMM_WORLD, toffsets.Last(), num_con, tx_local, a, c, d);
 
     // Restore MMA state if restarting
@@ -579,11 +901,13 @@ int main(int argc, char *argv[])
     socketstream sout;
 
     if (visualization) {
+        stage("opening GLVis connection to " + std::string(vishost) + ":"
+              + std::to_string(visport));
         sout.open(vishost, visport);
         sout.precision(8);
 
         sout << "parallel " << num_procs << " " << myid << "\n"
-            << "solution\n" << design_domain << rho_filter
+            << "solution\n" << pmesh << rho_filter
             << "window_title 'Projected density'\n"
             << "window_geometry 0 0 800 600\n"
             << "colorbar_numberformat '%.2f'\n"
@@ -594,7 +918,7 @@ int main(int argc, char *argv[])
     ParGridFunction phys_density(&filter_fes);
     std::ostringstream run_tag;
     run_tag << "3dbeam_amax" << alpha_max << "_vf" << vol_fraction;
-    ParaViewDataCollection paraview_dc(run_tag.str(), &design_domain);
+    ParaViewDataCollection paraview_dc(run_tag.str(), &pmesh);
 
     if (paraview) {
         paraview_dc.SetPrefixPath("ParaView");
@@ -610,7 +934,8 @@ int main(int argc, char *argv[])
     if (myid == 0)
     {
         mfem::out << "\nInitialization block runtime: " << fixed << setprecision(4)
-                   << init_block_time << " s\n";
+                   << init_block_time << " s\n"
+                   << defaultfloat << setprecision(6);   // restore stream format
     }
 
     // 9d. CSV convergence log (rank 0 only).
@@ -619,6 +944,171 @@ int main(int argc, char *argv[])
     {
         csv.open("convergence.csv");
         csv << "it,c,volume,max_rho_a,max_alpha,fival_max,eps,beta,iterErr,iter_time\n";
+    }
+
+    stage("setup complete");
+
+    // 9e. Pre-optimization evaluation of every physics on the initial design:
+    //     one PDE-filter solve, one linear-elasticity solve per load case, and
+    //     one advection (ray) solve per direction.  Each solver is timed and the
+    //     timings are reported.  With -pv the fields are also written to a
+    //     ParaView archive ("<run_tag>_init").  Runs whenever an archive is
+    //     wanted or the optimization is skipped (-no-opt).
+    if (paraview || !optimize)
+    {
+        stage("=== initial evaluation on the starting design ===");
+        rho.GetTrueDofs(rho_tv);
+        rho_tv.SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals);
+
+        double t_filter = 0.0;
+        std::vector<double> t_elast(n_elast_solve, 0.0);   // full Solve() wall time
+        std::vector<double> s_elast(n_elast_solve, 0.0);   // of which: setup (assembly + preconditioner)
+        std::vector<double> t_advect(n_dir, 0.0);
+        int it_filter = 0;
+        std::vector<int> it_elast(n_elast_solve, 0);
+        std::vector<int> it_advect(n_dir, 0);
+
+        // (a) PDE filter
+        stage("initial eval: PDE filter solve");
+        Vector rho_filter_tv(nf);
+        double t0 = MPI_Wtime();
+        filter.Mult(rho_tv, rho_filter_tv);
+        t_filter = MPI_Wtime() - t0;
+        it_filter = filter.GetSolver().GetNumIterations();
+        rho_filter_tv += rho_filter_lift_tv;
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
+        phys_density.ProjectCoefficient(rho_inter_cf);
+
+        ParGridFunction rho_dila_gf(&filter_fes);
+        rho_dila_gf.ProjectCoefficient(rho_dila_cf);
+        Vector rho_dila_tv(nf);
+        rho_dila_gf.GetTrueDofs(rho_dila_tv);
+
+        // raw design lifted to the filter space so every archived field is the
+        // same order
+        ParGridFunction rho_vis(&filter_fes);
+        rho_vis.ProjectCoefficient(rho_cf);
+
+        // one displacement field per load case, one accumulated rho_a per ray,
+        // one ray direction field per ray; declared before init_dc so they
+        // outlive it
+        std::vector<std::unique_ptr<ParGridFunction>> u_init(n_elast_solve);
+        std::vector<std::unique_ptr<ParGridFunction>> rho_a_init(n_dir);
+        std::vector<std::unique_ptr<ParGridFunction>> ray_init(n_dir);
+
+        ParaViewDataCollection init_dc(run_tag.str() + "_init", &pmesh);
+        init_dc.SetPrefixPath("ParaView");
+        init_dc.SetLevelsOfDetail(order);
+        init_dc.SetDataFormat(VTKFormat::BINARY);
+        init_dc.SetHighOrderOutput(true);
+        init_dc.RegisterField("rho", &rho_vis);
+        init_dc.RegisterField("rho_filter", &rho_filter);
+        init_dc.RegisterField("phys_density", &phys_density);
+
+        // (b) linear elasticity
+        for (int i = 0; i < n_elast_solve; i++)
+        {
+            stage("initial eval: elasticity solve, load case " + std::to_string(i)
+                  + "/" + std::to_string(n_elast_solve - 1));
+            elast[i]->SetNeedsAssembly();
+            t0 = MPI_Wtime();
+            elast[i]->Solve(u);
+            t_elast[i] = MPI_Wtime() - t0;
+            s_elast[i] = elast[i]->GetAssemblyTime()
+                       + elast[i]->GetPrecAssemblyTime();
+            it_elast[i] = elast[i]->GetNumIterations();
+            u_init[i] = make_unique<ParGridFunction>(&state_fes);
+            *u_init[i] = u;
+            init_dc.RegisterField("u_" + std::to_string(i), u_init[i].get());
+        }
+
+        // (c) advection thickness measure (+ the ray direction field)
+        for (int r = 0; r < n_dir; r++)
+        {
+            stage("initial eval: advection solve, ray " + std::to_string(r));
+
+            ray_init[r] = make_unique<ParGridFunction>(&state_fes);   // H1 vector, vdim = dim
+            ray_init[r]->ProjectCoefficient(*ray_cf[r]);
+            init_dc.RegisterField("ray_" + std::to_string(r), ray_init[r].get());
+
+            advect[r]->SetRhs(rho_dila_tv);
+            t0 = MPI_Wtime();
+            advect[r]->FSolve();
+            t_advect[r] = MPI_Wtime() - t0;
+            it_advect[r] = advect[r]->GetSolver().GetIterCount();
+            rho_a_init[r] = make_unique<ParGridFunction>(&dgfes);
+            *rho_a_init[r] = advect[r]->GetRhoA();
+            init_dc.RegisterField("rho_a_" + std::to_string(r), rho_a_init[r].get());
+        }
+
+        if (paraview)
+        {
+            stage("initial eval: writing ParaView archive");
+            init_dc.SetCycle(0);
+            init_dc.SetTime(0.0);
+            init_dc.Save();
+        }
+
+        if (myid == 0)
+        {
+            double t_total  = t_filter;
+            double s_total  = 0.0;
+            int    it_total = it_filter;
+            auto row = [](const std::string &name, double t, int nit,
+                          double setup = -1.0)
+            {
+                mfem::out << left << setw(30) << name
+                          << right << fixed << setprecision(4) << setw(10) << t
+                          << " s" << setw(8) << nit << " it";
+                if (setup >= 0.0)
+                {
+                    mfem::out << "   setup " << setprecision(4) << setup << " s";
+                }
+                mfem::out << '\n';
+            };
+            mfem::out << "\n--- initial evaluation: solver time / iterations ---\n";
+            row("  PDE filter", t_filter, it_filter);
+            for (int i = 0; i < n_elast_solve; i++)
+            {
+                t_total  += t_elast[i];
+                s_total  += s_elast[i];
+                it_total += it_elast[i];
+                row("  elasticity load case " + std::to_string(i),
+                    t_elast[i], it_elast[i], s_elast[i]);
+            }
+            for (int r = 0; r < n_dir; r++)
+            {
+                t_total  += t_advect[r];
+                it_total += it_advect[r];
+                row("  advection ray " + std::to_string(r),
+                    t_advect[r], it_advect[r]);
+            }
+            row("  total", t_total, it_total);
+            if (n_elast_solve > 0)
+            {
+                mfem::out << left << setw(30) << "  elasticity setup total"
+                          << right << fixed << setprecision(4) << setw(10)
+                          << s_total << " s   (assembly + preconditioner, "
+                          << "already included in the elasticity rows above)\n";
+            }
+            if (paraview)
+            {
+                mfem::out << "wrote initial-state ParaView archive: ParaView/"
+                          << run_tag.str() << "_init\n";
+            }
+            mfem::out << defaultfloat << setprecision(6)   // restore stream format
+                      << std::flush;
+        }
+    }
+
+    if (!optimize)
+    {
+        if (myid == 0)
+        {
+            if (csv.is_open()) { csv.close(); }
+            mfem::out << "\n-no-opt: skipping the optimization loop" << std::endl;
+        }
+        return 0;
     }
 
     // 10. Optimization loop.
@@ -650,13 +1140,22 @@ int main(int argc, char *argv[])
 
     double opt_start_time = MPI_Wtime();
 
+    stage("=== entering optimization loop (start iteration "
+          + std::to_string(start_iteration) + ") ===");
+
     int it = start_iteration;
     for (; (it <= init_it) || (it <= max_it && iterationError > tol); it++)
     {
         double iter_start_time = MPI_Wtime() - opt_start_time;
+        stage("[iteration " + std::to_string(it) + "] solving ...");
+        // finer sub-stage markers only on the first pass, to localize a hang
+        // without flooding every iteration:
+        const bool trace = (it == start_iteration);
 
         // (1) forward filter:  (r_f^2 K + M) ρ~ = M_fc ρ  (+ Dirichlet lifting)
+        if (trace) { stage("  it 1: forward filter"); }
         rho.GetTrueDofs(rho_tv);
+        rho_tv.SetSubVector(passive_ctrl_tdofs, passive_ctrl_vals); // Option C: pinned regions
         Vector rho_filter_tv(nf);
         filter.Mult(rho_tv, rho_filter_tv);
         rho_filter_tv += rho_filter_lift_tv;
@@ -681,6 +1180,7 @@ int main(int argc, char *argv[])
         double elast_runtime = MPI_Wtime();
         for (int i = 0; i < n_elast_solve; i++)
         {
+            if (trace) { stage("  it 1: elasticity solve " + std::to_string(i)); }
             elast[i]->SetNeedsAssembly();   // reset assembly flag
             elast[i]->Solve(u);
             compliance += comp.Eval();
@@ -698,6 +1198,7 @@ int main(int argc, char *argv[])
         // (3) adjoint filter + objective gradient:
         //     w~  = (r_f^2 K + M)^{-1} ∫ (-r'(ρ~) psi_0) φ_i
         //     dc/drho = M_fc^T w~
+        if (trace) { stage("  it 1: adjoint filter + volume QoI"); }
         filter.MultTranspose(adj_rhs_tv, dcdrho);
         df0dx.GetBlock(0) = dcdrho;                     // objective gradient
         for (int r = 0; r < n_dir; r++) { df0dx.GetBlock(1 + r) = 0.0; }
@@ -728,6 +1229,7 @@ int main(int argc, char *argv[])
         double adv_runtime = MPI_Wtime();
         for (int r = 0; r < n_dir; r++)
         {
+            if (trace) { stage("  it 1: advection fwd+adj, ray " + std::to_string(r)); }
             // forward
             advect[r]->SetRhs(rho_dila_tv);
             advect[r]->FSolve();
@@ -782,6 +1284,12 @@ int main(int argc, char *argv[])
             tx_min[i] = std::max(real_t(0), rho_tv[i] - move);
             tx_max[i] = std::min(real_t(1), rho_tv[i] + move);
         }
+        // Option C: freeze the passive regions (xmin = xmax = pinned value).
+        for (int k = 0; k < passive_ctrl_tdofs.Size(); k++)
+        {
+            tx_min[passive_ctrl_tdofs[k]] = passive_ctrl_vals(k);
+            tx_max[passive_ctrl_tdofs[k]] = passive_ctrl_vals(k);
+        }
         for (int r = 0; r < n_dir; r++)
         {
             for (int i = 0; i < m[r]; i++)
@@ -801,6 +1309,7 @@ int main(int argc, char *argv[])
         compliance /= init_comp;
         df0dx /= init_comp;
 
+        if (trace) { stage("  it 1: MMA update"); }
         mma.Update(tx_local, df0dx, compliance, fival, dfidx.data(), tx_min, tx_max);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
         for (int r = 0; r < n_dir; r++) { alpha[r]->SetFromTrueDofs(tx_local.GetBlock(1 + r)); }
@@ -908,7 +1417,7 @@ int main(int argc, char *argv[])
         if (visualization)
         {
             sout << "parallel " << num_procs << " " << myid << "\n"
-                << "solution\n" << design_domain << phys_density << flush;
+                << "solution\n" << pmesh << phys_density << flush;
         }
 
         // save every 50 iterations
@@ -920,6 +1429,7 @@ int main(int argc, char *argv[])
         // }
     }
 
+    stage("optimization loop finished");
     double total_runtime = MPI_Wtime() - init_time;
 
     if (myid == 0)
@@ -937,31 +1447,29 @@ int main(int argc, char *argv[])
     //     paraview_dc.Save();
     // }
 
-    // 11. Post process the solution mesh.
+    // 11. Post process the solution mesh.  Everything lives on the full mesh
+    // now; SaveSolidSubmesh thresholds by element so the passive void (rho~ ~ 0)
+    // drops out on its own.
     if (paraview)
     {
-        // phys_density lives on the design domain, so threshold that, not pmesh
-        SaveSolidSubmesh(design_domain, rho_filter, phys_density, run_tag.str(), order, 0.4);
+        stage("post-processing: extracting + saving solid submesh");
+        SaveSolidSubmesh(pmesh, rho_filter, phys_density, run_tag.str(), order, 0.4);
     }
 
+    stage("done");
     return 0;
 }
 
-// One advection direction field per ray. The 3D ray layout is problem specific
-// (not a sweep of a plane), so the directions are listed here explicitly.
-// An empty vector means n_dir = 0, i.e. the thickness constraint is off.
-std::vector<std::unique_ptr<VectorCoefficient>> SetupRays(int dim)
+// Unit vector field pointing away from the z-axis: v = (x, y, 0) / |(x, y)|.
+// The max-thickness measure advects the density along these straight radial
+// lines; rho_a accumulates from the central hole outward and is read on the
+// outer free surface where v.n > 0.
+static void RadialOutwardRay(const Vector &x, Vector &v)
 {
-    std::vector<std::unique_ptr<VectorCoefficient>> rays;
-
-    // placeholder: push one VectorConstantCoefficient (or VectorFunctionCoefficient
-    // for a diverging cone) per ray direction, e.g.
-    //
-    //   Vector axis(dim); axis = 0.0; axis(2) = 1.0;
-    //   rays.push_back(std::make_unique<VectorConstantCoefficient>(axis));
-
-    MFEM_CONTRACT_VAR(dim);
-    return rays;
+    v.SetSize(x.Size());
+    v = 0.0;
+    const real_t r = std::sqrt(x[0]*x[0] + x[1]*x[1]);
+    if (r > 1e-12) { v[0] = x[0]/r; v[1] = x[1]/r; }
 }
 
 // save the thresholded design by clipping from the max value
@@ -1027,13 +1535,16 @@ static MeshProblem SetupCartesianBeam(Mesh &mesh)
 
     // attrs: 1 z=0, 2 y=0, 3 x=lx, 4 y=ly, 5 x=0 (clamped), 6 z=lz.
     p.outer_bdr_attrs = Array<int>({1, 2, 3, 4, 6});
+    p.ray_bdr_attrs   = p.outer_bdr_attrs;      // p.rays left empty -> n_dir = 0
 
     p.cases.resize(1);
     LoadCase &lc = p.cases[0];
     lc.clamp_attrs = Array<int>({ 5 });
 
     // body force pushing down (-Z) on a small patch near the bottom right corner.
-    lc.vol_load = [](const Vector &x, Vector &f)
+    LoadCase::VolumeLoad vl;
+    vl.attrs = Array<int>({ 1 });
+    vl.fn = [](const Vector &x, Vector &f)
     {
         const int dim = x.Size();
 
@@ -1049,27 +1560,98 @@ static MeshProblem SetupCartesianBeam(Mesh &mesh)
 
         if (x_in_range && z_in_range) f(2) = -1.0;
     };
+    lc.vol_loads.push_back(vl);
 
     return p;
 }
 
-// placeholder for the first 3D mesh
-static MeshProblem SetupMesh3D(Mesh &mesh, const char *mesh_file)
+// Circular plate with an embedded cylinder and perimeter/top hex sleeves.
+// gmsh physical groups (first tag -> MFEM attribute):
+//   volumes  : 1  Plate                 -> design
+//              2  CentralHollowCylinder -> design
+//              3  EmbeddingCylinder     -> fixed void
+//              11-22  PerimeterSleeve_1..12 -> fixed solid
+//              31-36  TopSleeve_1..6        -> fixed solid + loaded
+//   surfaces : 1  NonSleeveBoundary               -> filter rho~ = 0
+//              2  EmbeddingCylinderOuterBoundary  -> filter natural BC, ray surface
+//              11-22  PerimeterSleeveSurface_1..12 -> u = 0
+//              31-36  TopSleeveSurface_1..6        -> filter rho~ = 1 (default)
+// The mesh is centred on the z-axis, so "radial" == outward from (0,0).
+static MeshProblem SetupCircularPlate(Mesh &mesh, const char *mesh_file)
 {
     mesh = Mesh(mesh_file);
 
     MeshProblem p;
-    // p.domain_attr     = Array<int>({ ... });   // designable subdomain(s)
-    // p.outer_bdr_attrs = Array<int>({ ... });   // free surfaces: rho~ = 0
 
-    // p.cases.resize(1);
+    // --- volumes ---------------------------------------------------------
+    p.domain_attr = Array<int>({ 1, 2 });
+    for (int a = 11; a <= 22; a++) { p.solid_attr.Append(a); }   // perimeter sleeves
+    for (int a = 31; a <= 36; a++) { p.solid_attr.Append(a); }   // top sleeves
+    // attribute 3 (embedding cylinder): not listed -> fixed void
 
-    // LoadCase &lc = p.cases[0];
-    // lc.clamp_attrs = Array<int>({ ... });
-    // lc.load_attrs  = Array<int>({ ... });
-    // lc.fx          = Array<real_t>({ ... });
-    // lc.fx          = Array<real_t>({ ... });
-    // lc.fx          = Array<real_t>({ ... });
+    // --- filter boundary conditions ------------------------------------
+    p.outer_bdr_attrs   = Array<int>({ 1 });   // rho~ = 0
+    p.neumann_bdr_attrs = Array<int>({ 2 });   // zero-flux (no Dirichlet)
+    p.ray_bdr_attrs     = Array<int>({ 1 });   // advection outflow surface (outer rim)
+    // every other surface -> rho~ = 1
+
+    // --- max-thickness rays ------------------------------------------------
+    // One radial-outward field: the advection accumulates from the central hole
+    // outward, and rho_a is read on the outer free surface (surface 1) where
+    // v.n > 0, giving the radial material span from hub to rim.
+    const int dim = mesh.Dimension();
+    p.rays.push_back(
+        std::make_unique<VectorFunctionCoefficient>(dim, RadialOutwardRay));
+
+    // --- load cases ----------------------------------------------------
+    Array<int> clamp_bdr;                       // u = 0 on the perimeter sleeves
+    for (int a = 11; a <= 22; a++) { clamp_bdr.Append(a); }
+
+    const int first_sleeve_attr = 31;
+    const int n_sleeve          = 6;            // TopSleeve_1..6 -> attr 31..36
+    Array<int> all_sleeves;
+    for (int k = 0; k < n_sleeve; k++) { all_sleeves.Append(first_sleeve_attr + k); }
+
+    p.cases.resize(3);
+
+    // LC1: outward radial body force, unit magnitude, on every top sleeve.
+    {
+        LoadCase &lc = p.cases[0];
+        lc.clamp_attrs = clamp_bdr;
+
+        LoadCase::VolumeLoad vl;
+        vl.attrs = all_sleeves;
+        vl.fn = [](const Vector &x, Vector &f)
+        {
+            f.SetSize(x.Size());
+            f = 0.0;
+            const real_t r = std::sqrt(x[0]*x[0] + x[1]*x[1]);
+            if (r > 1e-12) { f[0] = x[0]/r; f[1] = x[1]/r; }
+        };
+        lc.vol_loads.push_back(vl);
+    }
+
+    // LC2 / LC3: unit z body force on alternating top sleeves.
+    //   LC2 amplitudes over sleeves 1..6:  1 0 1 0 1 0   (odd sleeves)
+    //   LC3 amplitudes over sleeves 1..6:  0 1 0 1 0 1   (even sleeves)
+    for (int lc_idx = 1; lc_idx <= 2; lc_idx++)
+    {
+        LoadCase &lc = p.cases[lc_idx];
+        lc.clamp_attrs = clamp_bdr;
+
+        const int loaded_parity = (lc_idx == 1) ? 0 : 1;   // sleeve index k parity
+        for (int k = 0; k < n_sleeve; k++)
+        {
+            if (k % 2 != loaded_parity) { continue; }
+
+            LoadCase::VolumeLoad vl;
+            vl.attrs = Array<int>({ first_sleeve_attr + k });
+            vl.value.SetSize(3);
+            vl.value = 0.0;
+            vl.value(2) = 1.0;
+            lc.vol_loads.push_back(vl);
+        }
+    }
 
     return p;
 }
@@ -1083,9 +1665,9 @@ MeshProblem loadMesh(int myid, const char *mesh_file, Mesh &mesh)
         return SetupCartesianBeam(mesh);
     }
 
-    if (strstr(mesh_file, "placeholder.msh") != NULL)
+    if (strstr(mesh_file, "circular_plate_hex_sleeves_embedded_cylinder") != NULL)
     {
-        return SetupMesh3D(mesh, mesh_file);
+        return SetupCircularPlate(mesh, mesh_file);
     }
 
     if (myid == 0) { mfem::out << "invalid mesh file" << endl; }
