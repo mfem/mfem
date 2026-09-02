@@ -135,69 +135,35 @@ relative error of 1e-4, and three further decades where neither of the others
 can be run. What it cost was three defects in the estimate, all recorded on the
 methods that now carry the fixes.
 
-## Driving it
+## Driving it — now in the code, not here
 
-The hybridization stores degrees and derives nothing, so everything below is
-the caller's. Written out because "set some orders" hides four separate
-decisions and only the first is obvious.
+All six pieces this section used to specify exist, so what it said belongs
+where the change happened rather than in a plan:
 
-**1. The ceiling, chosen before anything else.** `p_ceiling` is fixed when the
-constraint space is built and faces can only go below it, so it is the highest
-degree the run will ever reach -- not the degree it starts at. Element degrees
-are capped there too: above the ceiling they buy nothing, because the trace
-order sets the rate.
+| what a driver has to know | where it says so |
+|---|---|
+| the ceiling is fixed at construction and faces only go below it | `SetTraceOrders()` doxygen |
+| call it straight after `EnableHybridization()` and before `Assemble()` | same |
+| a hanging-node family runs at the ceiling, and why | same |
+| the `min`/`max` rule, and that `max` is redundant where neighbours agree | `TraceOrderRule` doxygen |
+| how the face rule handles a nonconforming mesh | `FaceOrdersFromElementOrders()` doxygen |
+| element degrees before the mesh, and two `Update()`s not one | `anisodiff.cpp`, the refine block |
+| what the estimator has to be told under a per-face degree | `SetHybridization()` doxygen |
+| the `h`-or-`p` rule, and the sensor's threshold | `anisodiff.cpp` header, `PerssonPeraireSmoothness` |
 
-**2. Element degrees**, on the L2 flux and potential spaces:
-`SetElementOrder(e, p_e)` then `Update()`, on a mesh that has had
-`EnsureNCMesh()` called. This part needs no library change and is measured.
+The helper signature, since this section had it wrong:
 
-**3. Face degrees from element degrees**, which is the step with a real choice
-in it:
-
-    p_F = rule(p_K1, p_K2)   interior,   p_F = p_K1   boundary,   capped at p_ceiling
-
-`min` is safe and is what a first driver should use. `max` is the literature's
-rule; it needs the face-quadrature fix (now on the trunk) and is measured to
-be *exactly redundant* where both neighbours agree, so it can only pay at a
-genuine `p`-interface. **Which rule wins there is the open question this whole
-branch exists to answer**, and both must be available for it to be answerable.
-
-Worth a helper rather than a miniapp loop, because it is the same three lines
-every driver needs and it is testable on its own:
-
-    void FaceOrdersFromElementOrders(const Mesh &, const Array<int> &elem_order,
-                                     Array<int> &face_order, Rule rule, int cap);
-
-**4. The indicator. The sensor exists; the policy does not.**
-`HDGErrorEstimator` gives an element error, so it says *where*.
-`PerssonPeraireSmoothness` now says *`h` or `p`*: it is
-`S_e = (u − û, u − û)_e / (u, u)_e` with `û` the truncation one degree down,
-Persson & Peraire AIAA 2006-112 eq (7), and `Threshold(p)` is the paper's
-`s_0 ~ −4 log10 p`. It is deliberately **not** an `ErrorEstimator` and cannot
-be handed to a `ThresholdRefiner`: it measures how well an element resolves
-what it holds, not how wrong that is, and the two are opposite for a
-well-resolved discontinuity.
-
-What is left is the policy and the `h` half: mark on the estimator, then send
-smooth elements to `p` and the rest to `h`. Nothing here refines `h` yet, and
-`anisodiff` is where that machinery already lives.
-
-**5. Parallel.** Element degrees are rank-local and a shared face needs the
-neighbour's, so `min`/`max` both require one exchange of element degrees over
-face neighbours. `dim M` per rank and `Dof_TrueDof` are untouched, which is
-the point of this route.
-
-**6. The demonstrator.** Every `convdiff` problem is analytic and uniform `p`
-already converges exponentially on them, so the case has to be
-`anisodiff -p 6` (steady peak) or `-p 5` (boundary layer). A `convdiff -pref`
-flag is still worth having first as a *mechanism* test -- prescribed degrees,
-no adaptation -- because it puts the machinery under the regression suite
-before any indicator exists.
+    static void FaceOrdersFromElementOrders(const Mesh &mesh,
+                                            const Array<int> &elem_order,
+                                            TraceOrderRule rule, int cap,
+                                            Array<int> &face_order);
 
 ## What is left
 
 The demonstrator exists and steps 1 to 5 are done. What follows is what it
-turned up and did not settle.
+turned up and did not settle, most-open first.
+
+### The one open question
 
 **The anisotropic split is wrong under the postprocessed estimate, and nobody
 knows why.** `HDGErrorEstimator::GetAnisotropicFlags()` distributes each face's
@@ -208,8 +174,20 @@ and the same solution, and the loop then refines forever without touching the
 layer. `TraceComparison::Projected` was written on the theory that the
 component the trace space cannot represent was misdirecting it -- that theory
 is **wrong and measured wrong**: the projection moves eta by 5% and leaves all
-six flags where they were. This is the one open question with a demonstrator
-behind it.
+six flags where they were.
+
+Two things are known about the trigger and neither has been used yet.
+`--postprocessed-estimate` is the *only* switch that does it: `--trace-ess-bc`
+flags `y` correctly and its loop converges (7.3e-4 at M = 1272), with or
+without the exclusion, so this is not a general fragility of the split. And the
+postprocessed potential differs from the computed one in two ways at once --
+**a degree gap against the trace, and different field content** -- so the
+measurement to take is the one that separates them: project the postprocessed
+potential back onto the potential space and estimate on *that*. Same field, no
+degree gap. If the flags return to `y` it is the gap; if they stay `x` it is
+the field.
+
+### Mechanism, and what it caps
 
 **A hanging-node family has to run at the ceiling**, which is where coarsening
 stops. The reason is in `SetTraceOrders()`: the constraint space's conforming
@@ -221,21 +199,73 @@ function *expressed at the ceiling*. That is a different mechanism, not an
 adjustment, and it is what would make `h` and `p` compose without a penalty at
 every hanging node.
 
-**`min` against `max` at a genuine `p`-interface** is still unmeasured, and the
-demonstrator is now the place to measure it.
+**The route is shaped for coarsening and has only ever been driven upwards.**
+A face can go below the degree the constraint space was built at and never
+above, so a driver that starts uniform at `p_max` and *coarsens* where the
+sensor says the element is over-resolved uses the mechanism the way it is
+built, needs no ceiling raise, and starts with hanging-node families already
+at the degree they are stuck at. Nothing in the tree does this and it is the
+cheapest unexplored direction.
 
-**Parallel** still needs the one exchange of element degrees over face
-neighbours; `FaceOrdersFromElementOrders()` refuses a `ParMesh` with shared
-faces and non-uniform degrees rather than guessing.
+**Parallel is absent, not incomplete.** `FaceOrdersFromElementOrders()` refuses
+a `ParMesh` with shared faces and non-uniform degrees rather than guessing, and
+closing that needs one exchange of element degrees over face neighbours -- but
+beyond the library, neither `pconvdiff` nor `panisodiff` carries a single
+p-adaptivity flag, so there is nothing to drive it with either.
 
 **`DarcyForm::Reconstruct()`** still reads the trace space directly at six
 sites, so `-pref` refuses `-rec`. `HDGPotentialPostprocessor` is the
 reconstruction that a per-face degree does not disturb and is what the
 demonstrator uses.
 
-**A regression reference for the `hp` loop.** `anisodiff` has none at all --
-`regression_test.py` drives `convdiff` only -- so the demonstrator is measured
-and not pinned.
+### Measurements not taken
+
+**`min` against `max` at a genuine `p`-interface**, which the demonstrator is
+now the place to measure.
+
+**Essential against weak trace boundary conditions.** The table in
+`anisodiff.cpp` was taken with the weak datum, which is the miniapp's default.
+`--trace-ess-bc` is about **three times cheaper at fixed error** on the same
+problem -- h-adaptive 7.3e-4 at M = 1272 against 2.7e-3, and hp 2.1e-4 at
+M = 1139 against 6.8e-4 at M = 1311. Worth knowing which the table should be
+taken with, and it is a flag on the command line rather than a change of
+default: moving the miniapps onto the essential-trace route is not ours to do.
+
+**One order, one dimension.** Everything measured is 2D at `--order 2`. Orders
+0, 1 and 3 and a 3D case are unexercised by the loop, and the sensor's
+threshold `-4 log10(p)` is a 1D argument.
+
+**Nothing measures time.** Every curve is error against `dim M`, which is the
+right axis for a hybridized method and is not the whole cost: the ceiling makes
+the trace vector `nt(p_max)` per face whatever the degrees are, and whether a
+sparse direct solve follows the *active* size is the reasonable expectation and
+has never been checked.
+
+### Coverage
+
+**No regression reference for the `hp` loop at all** -- `regression_test.py`
+drives `convdiff` only, so the demonstrator is measured and not pinned. Either
+teach the script `anisodiff`, or add a `convdiff` case that runs the loop.
+
+**No `[Parallel]` p-adaptivity unit test**, which follows from parallel being
+absent.
+
+**The `h`-or-`p` junction has no test.** `HDGErrorEstimator` and
+`PerssonPeraireSmoothness` each have cases; the rule joining them lives only in
+`anisodiff` and is checked only by the demonstrator converging.
+
+**The estimator's caller-side setup is per-miniapp and easy to get wrong.**
+`SetExcludedBoundary()`, `SetHybridization()` and `SetTraceComparison()` all
+default to the old behaviour, so a caller that forgets one gets a quietly wrong
+estimate rather than an error -- which is exactly how all three were found.
+Only `anisodiff` sets them.
+
+### Deliberately not planned
+
+RT and broken-RT flux spaces, by standing instruction. And the other route --
+one variant per entity inside `FiniteElementSpace` -- which is what a genuinely
+minimal trace space needs and is not required to find out whether any of this
+is worth having.
 
 ## Acceptance
 
@@ -256,20 +286,17 @@ and not pinned.
    do not pick a rule by argument.
 4. Rank-count independence on `pconvdiff` at 1, 2, 3, 4 ranks.
 
-## The cost of branching from the trunk, and how to settle it
+## The cost of branching from the trunk
 
-`gf-hdg-linearise-first` has **four `c_fes` call sites this branch does not** —
-48 here against 52 there — two of them in `NPCReduce()` and `NPCRecover()`.
-Step 1's substitution cannot convert what is not here, so those four have to be
-converted when the two features meet in `meq-integration`.
-
-The optimistic reading is that an unconverted site is *loud*: the per-face and
-the uniform trace element would disagree on block size. **That is a guess and
-it has not been measured.** Settle it by building this branch, merging it with
-`gf-hdg-linearise-first` in a scratch integration, and running the `*_npc.txt`
-references: if it aborts, the gap is safe to leave until then; if those
-references pass with different numbers, it is not, and the four sites have to
-be converted before the merge rather than after.
+Settled, and it is **`doc/HDG-P-ADAPTIVITY-MEQ-MERGE.md`** now rather than
+here. What this section used to say -- that meeting `gf-hdg-linearise-first`
+in `meq-integration` costs "four `c_fes` call sites", and that an unconverted
+one would be loud -- was right about the count, wrong about the work, and
+never measured on the second point. The trial merge says the port is six named
+substitutions in five named functions, that 51 of this branch's 53 conversions
+merge cleanly, and that the conflict is two hunks where lf restructured
+`ComputeH`. Whether an unconverted site is loud is still a guess, and that
+file says how to find out.
 
 ## What this route does not do
 
