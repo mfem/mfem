@@ -187,7 +187,17 @@ public:
        because it is a hard threshold -- a direction is refined when it holds
        more than `0.15*3/dim` of the element's energy, 0.225 in 2D -- and at
        `-ks 1` the postprocessed estimate's `y` share is 0.219, missing it by
-       3%, where the computed potential's is 0.34 and passes. */
+       3%, where the computed potential's is 0.34 and passes.
+
+       **So take each from the field that answers it**, which needs no change
+       here: build a second estimator on the computed potential, read
+       GetAnisotropicFlags() from that one and GetLocalErrors() from the
+       postprocessed one. It costs one more pass over the faces. Measured on
+       the adaptive loop in `anisodiff`, which sat at 0.283893 through twelve
+       cycles and 5352 dofs with both taken from the postprocessed field and
+       reaches 2.5e-4 at M = 2217 with them separated -- and the postprocessed
+       magnitude is then worth a further 1.4x in dofs, which it is not worth at
+       all when it also supplies the direction. */
    void SetAnisotropic(bool aniso = true) { anisotropic = aniso; }
 
    /** @brief Boundary attributes whose faces the estimate leaves out. Marked

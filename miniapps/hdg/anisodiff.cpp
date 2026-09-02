@@ -102,22 +102,22 @@
 //
 //      || t - t_ex ||          uniform M    h-adapt M       hp M
 //      ---------------------------------------------------------------
-//      1.0e-3                     24960         1704         953
-//      1.0e-4                     99072         4812        1351
-//      3.0e-5                         -         9330        1553
+//      1.0e-3                     24960         1146         953
+//      1.0e-4                     99072         3501        1351
+//      3.0e-5                         -         6258        1553
 //      1.0e-7                         -            -        4189
 //
 //    Read across a row: at 1e-4 the same error costs 73 times fewer globally
-//    coupled unknowns than uniform refinement and 3.6 times fewer than
+//    coupled unknowns than uniform refinement and 2.6 times fewer than
 //    h-adaptivity, and hp keeps going three decades past where the others were
 //    stopped -- uniform would need nx beyond 1500 and h-adaptivity does not
 //    get there at all, dying on direct-solver memory at M around 1.4 million.
-//    The uniform column is nx = 64 and 128; the h-adaptive column is
-//    --doerfler-marking with the anisotropic split; the hp column is that plus
-//    --hp-adaptivity --postprocessed-estimate at the defaults. Each row is the
-//    nearest cycle rather than an interpolation, so the errors within a row
-//    are close but not equal -- 1.0e-3 / 1.1e-3 / 7.8e-4, then 8.3e-5 /
-//    1.1e-4 / 9.2e-5, then 3.1e-5 / 2.4e-5, then 9.4e-8.
+//    The uniform column is nx = 64 and 128; both adaptive columns are
+//    --doerfler-marking --postprocessed-estimate at the defaults, the hp one
+//    adding --hp-adaptivity. Each row is the nearest cycle rather than an
+//    interpolation, so the errors within a row are close but not equal --
+//    1.0e-3 / 1.2e-3 / 7.8e-4, then 8.3e-5 / 8.8e-5 / 9.2e-5, then 3.4e-5 /
+//    2.4e-5, then 9.4e-8.
 //
 //    IN SECONDS RATHER THAN DOFS the ranking is not the same, and that is
 //    worth knowing before quoting the table. At a relative error near 1e-4
@@ -141,30 +141,43 @@
 //       leaves those attributes out and the total then converges at h^2, which
 //       is optimal at k = 2.
 //
-//    2. The anisotropic split is a large win on its own: this problem's layer
-//       is in y, and refining only in y reaches 1.0e-3 on 640 elements where
-//       isotropic refinement needs 4096 for the same 1.0e-3. It is WRONG under
-//       hp, because a
-//       hanging-node family has to run at the ceiling degree, and the split
-//       then flags x every time and the loop refines forever without touching
-//       the layer. Hence --anisotropic-estimate defaults to off under --hp.
+//    2. THE SPLIT'S TWO JOBS COME FROM DIFFERENT FIELDS. Refining only the
+//       direction that carries the error is a large win -- this problem's
+//       layer is in y, and refining only in y reaches 1.0e-3 on 640 elements
+//       where isotropic refinement needs 4096 -- but the DIRECTION has to be
+//       taken from the computed potential and the MAGNITUDE from the
+//       postprocessed one. Taking both from the postprocessed field flags x,
+//       six of six, on a problem whose layer is in y, and the loop then sits
+//       at 0.283893 through twelve cycles and 5352 dofs having started there.
+//       Taking direction from the computed potential instead reaches 2.5e-4 at
+//       M = 2217 on the same problem. --anisotropic-estimate 1 is the old
+//       behaviour and is kept so that stays measured.
 //
-//    3. --postprocessed-estimate BUYS CYCLES RATHER THAN DOFS, which is not
-//       what it was added for. Both estimates trace the same error-against-M
-//       curve to within a factor of two, and neither dominates: at M ~ 2800
-//       the computed potential gives 2.2e-5 and the postprocessed one 3.8e-5,
-//       at M ~ 14000 they give 6.2e-8 and 1.5e-7. What changes is how fast the
-//       loop walks that curve -- 26 cycles to 9.4e-8 against 34, so about 30%
-//       fewer solves for the same answer. The reason to prefer it is the one
-//       the literature gives, that eta built on the postprocessed potential
-//       converges an order faster and so is worth reading as an error
-//       estimate; the marking it produces is no better.
+//       IT STILL DOES NOT WORK UNDER hp, and not for that reason. A
+//       hanging-node family has to run at the ceiling degree (see
+//       DarcyHybridization::SetTraceOrders()), which enriches the trace across
+//       every hanging node, and anisotropic refinement makes hanging nodes
+//       prolifically. Holding everything else fixed and moving only the
+//       ceiling: at --max-order equal to --order the hp loop reproduces the
+//       non-hp one to every printed digit, and one degree above it stalls at
+//       0.078. Every higher ceiling stalls, and so does the run with
+//       p-refinement disabled altogether -- so it is the ceiling at the
+//       hanging nodes, not the p-variation and not the direction field. Hence
+//       --anisotropic-estimate defaults to off under --hp and hp gives up the
+//       6x that the directional refinement is worth.
 //
-//       It is also incompatible with the anisotropic split -- independently of
-//       (2), and already on the conforming starting mesh. Six of six marked
-//       elements come back flagged x where the computed potential flags y, and
-//       the h-adaptive loop then sits at 0.2839 through eleven cycles and 473
-//       elements, having started there.
+//    3. --postprocessed-estimate IS WORTH ABOUT 1.4x IN DOFS, once (2) is in
+//       place, and that is a controlled comparison: both configurations take
+//       the direction from the computed potential, so the only difference is
+//       the magnitude field. h-adaptive reaches 8.8e-5 at M = 3501 against
+//       1.1e-4 at M = 4812, and 3.4e-5 at M = 6258 against 3.1e-5 at M = 9330.
+//
+//       Without (2) it looked worthless. Taking both jobs from the same field,
+//       the two estimates trace the same error-against-M curve to within a
+//       factor of two and neither dominates -- at M ~ 2800 the computed
+//       potential gives 2.2e-5 and the postprocessed one 3.8e-5 -- and all it
+//       bought was cycles, 26 against 34 for the same answer. Separating the
+//       jobs is what turned it into dofs.
 //
 //       WHY, as far as it has been measured, is in
 //       HDGErrorEstimator::SetAnisotropic(). Three explanations are dead: not
@@ -507,11 +520,13 @@ int main(int argc, char *argv[])
                   "large refines widely. The two run in opposite directions.");
    args.AddOption(&aniso, "-aniso", "--anisotropic-estimate",
                   "Split each element's estimate along the reference directions\n\t\t"
-                  "and refine only the ones that carry it (1=on, 0=off,\n\t\t"
-                  "-1=on unless --hp-adaptivity). It is a large win on its own --\n\t\t"
-                  "this problem's layer needs y and not x -- and it is wrong\n\t\t"
-                  "under hp, where a hanging-node family runs at the ceiling\n\t\t"
-                  "degree and the split then points along x every time.");
+                  "and refine only the ones that carry it. 0=off; 1=on, taking\n\t\t"
+                  "the direction from the same field as the magnitude, which is\n\t\t"
+                  "wrong whenever that field is the postprocessed potential;\n\t\t"
+                  "2=on, taking the direction from the computed potential and\n\t\t"
+                  "the magnitude from whichever field was asked for; -1 picks\n\t\t"
+                  "2. Refining only the direction that carries the error reaches\n\t\t"
+                  "1.0e-3 on 640 elements where isotropic refinement needs 4096.");
    args.AddOption(&doerfler, "-dorf", "--doerfler-marking",
                   "-maxm", "--maximum-marking",
                   "Doerfler (bulk) marking rather than the maximum criterion.");
@@ -606,15 +621,25 @@ int main(int argc, char *argv[])
       cerr << "Warning: A linear solver is used" << endl;
    }
 
-   /* Off under hp by default, and that default is a measurement rather than a
-      caution. A hanging-node family has to run at the CEILING degree (see
-      DarcyHybridization::SetTraceOrders()), which enriches the trace across
-      every hanging node; the estimate's directional split then flags x on this
-      problem, whose layer is in y, and the loop refines forever without
-      touching it -- 0.0742 at M = 494 and 0.0753 at M = 560 nine cycles later.
-      With the split off the same run reaches 3.3e-4 at M = 1854. Pass
-      --anisotropic-estimate 1 to see it. */
-   if (aniso < 0) { aniso = hp ? 0 : 1; }
+   /* 2 where the split works and 0 under hp where it does not, and the
+      boundary between them is a measurement. Splitting the estimator's two
+      jobs -- direction from the computed potential, magnitude from the
+      postprocessed one -- fixes the h-adaptive loop outright: it used to sit
+      at 0.283893 through twelve cycles and 5352 dofs and now reaches 2.5e-4 at
+      M = 2217, 2.5 times better than the best configuration that existed
+      before it.
+
+      It does NOT rescue hp, and the reason is not the estimate. A hanging-node
+      family has to run at the ceiling degree, which enriches the trace across
+      every hanging node, and anisotropic refinement makes hanging nodes
+      prolifically. Holding everything else fixed and moving only the ceiling:
+      at --max-order equal to --order the hp loop reproduces the non-hp one to
+      every printed digit, and at one degree above it stalls at 0.078. Every
+      higher ceiling stalls too, as does the run with p-refinement disabled
+      entirely, so it is the ceiling at the hanging nodes and neither the
+      p-variation nor the field the direction comes from. See
+      DarcyHybridization::SetTraceOrders(). */
+   if (aniso < 0) { aniso = hp ? 0 : 2; }
 
    /* The higher of a face's two element degrees under hp, and that default is
       a measurement too. `min` is the safe-looking rule and it is measured to
@@ -1518,7 +1543,14 @@ int main(int argc, char *argv[])
          HDGErrorEstimator amr_err(*amr_bfi, tr_h,
                                    (est_pp && pp_down) ? t_pd :
                                    est_pp ? t_pp : t_h);
-         amr_err.SetAnisotropic(aniso != 0);
+         /* The magnitude estimator carries the split only when it is also the
+            right field to take the direction from -- which it is whenever the
+            two fields are the same one, so `2` without a postprocessed
+            estimate is `1`. Getting this wrong made --anisotropic-estimate 2
+            mean ISOTROPIC whenever --postprocessed-estimate was off, silently.
+            */
+         const bool split_here = (aniso != 0) && !(aniso == 2 && est_pp);
+         amr_err.SetAnisotropic(split_here);
 
          /* The Dirichlet datum is imposed WEAKLY here -- it enters the flux
             equation as <T_D, v.n> and the constraint is not assembled on
@@ -1544,7 +1576,41 @@ int main(int argc, char *argv[])
          }
 
          const Vector &local_err = amr_err.GetLocalErrors();
-         const Array<int> &aniso_flags = amr_err.GetAnisotropicFlags();
+
+         /* DIRECTION FROM THE COMPUTED POTENTIAL, MAGNITUDE FROM WHICHEVER
+            FIELD WAS ASKED FOR.
+
+            The two answer different questions. |p^ - lambda| on the computed
+            potential is the scheme's own stabilization term, and its
+            directional split is right -- it flags y on a problem whose layer
+            is in y, and more sharply as the layer sharpens. On the
+            postprocessed potential the same difference is essentially
+            lambda's own error, which is a real quantity but is not the
+            element's, and attributing it to the direction NORMAL to the face
+            is not the direction that would reduce it; measured, it flags x at
+            every anisotropy over four decades and the loop then refines
+            forever without touching the layer. The magnitude is the other way
+            round: the postprocessed estimate is the one worth reading as an
+            error, converging an order faster.
+
+            So take each from the field that answers it. It costs one more pass
+            over the faces, which is nothing beside a solve, and it is only
+            built when the two fields differ. --anisotropic-estimate 1 keeps
+            both from the magnitude field, which is what this loop did before
+            and is kept so the difference stays measured. */
+         unique_ptr<HDGErrorEstimator> amr_dir;
+         if (aniso == 2 && est_pp)
+         {
+            amr_dir.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
+            amr_dir->SetAnisotropic();
+            if (!trace_ess_bc)
+            { amr_dir->SetExcludedBoundary(bdr_is_dirichlet); }
+            if (hp) { amr_dir->SetHybridization(*darcy->GetHybridization()); }
+         }
+
+         const Array<int> &aniso_flags = amr_dir
+                                         ? amr_dir->GetAnisotropicFlags()
+                                         : amr_err.GetAnisotropicFlags();
 
          Array<int> marked;
          if (doerfler) { MarkDoerfler(local_err, theta, marked); }

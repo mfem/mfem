@@ -163,48 +163,43 @@ The helper signature, since this section had it wrong:
 The demonstrator exists and steps 1 to 5 are done. What follows is what it
 turned up and did not settle, most-open first.
 
-### The one open question, now characterised
+### The open question, answered -- and it moves the blocker
 
-**The anisotropic split cannot be used with the postprocessed estimate**, and
-four measurements say what that is and is not. The write-up is on
-`HDGErrorEstimator::SetAnisotropic()`; the short of it:
+**The anisotropic split's two jobs come from different fields.** `p̂ - λ` on
+the computed potential is the scheme's own stabilization term and its
+directional split is right; on the postprocessed potential the same difference
+is essentially λ's own error, real but not the element's, and the geometric
+attribution sends it to the direction NORMAL to the face rather than the one
+that would reduce it. Four measurements ruled out everything else -- not the
+degree gap (`--postprocessed-projected-down` removes it entirely and every flag
+stays put), not the anisotropy (the same stall at `-ks 1` and on problem 6),
+not the marking (both estimates select the same elements for two cycles) -- and
+the directional energy differs by up to seven orders. It is written up on
+`HDGErrorEstimator::SetAnisotropic()`.
 
-* **Not the degree gap.** `--postprocessed-projected-down` projects the
-  postprocessed potential back onto the potential's own degree, removing the
-  gap against the trace entirely. Every one of the six flags stays at `x` and
-  eta moves by 0.5%. `TraceComparison::Projected`'s motivating theory is now
-  dead twice.
-* **Not the anisotropy.** The loop stalls the same way at `-ks 1` and on
-  problem 6, a radially localised peak, both isotropic.
-* **Not the marking.** Under isotropic refinement the two estimates select the
-  *same elements* for two cycles, agreeing to every printed digit.
-* **It is the directional energy, by up to seven orders.** Summed over the
-  mesh, `d_0`/`d_1` is 1.94 / 4.2e-4 / 2.4e-5 on the computed potential at
-  `-ks` 1 / 100 / 10000 and 3.57 / 1.6e5 / 1.9e7 on the postprocessed one. At
-  `-ks 100` the postprocessed total is nothing but that one component: eta² is
-  11.09 and `d_0` alone is 11.07.
+**The fix is to take each from the field that answers it**, and it needs no
+library change: a second estimator on the computed potential supplies
+GetAnisotropicFlags() while the postprocessed one supplies GetLocalErrors().
+`anisodiff --anisotropic-estimate 2`, now the default off hp. It works:
 
-What is left is a decision rather than an investigation. `p̂ - λ` on the
-computed potential is the scheme's own stabilization term; on a superconverged
-potential it is essentially λ's own error -- a real quantity, but not the
-element's, and the geometric attribution sends it to the direction NORMAL to
-the face, which is not the direction that would reduce it. Two things follow
-and neither has been tried:
+| h-adaptive | M at 1.1e-3 | at 1e-4 | at 3.2e-5 |
+|---|---|---|---|
+| before, both jobs from one field | 1704 | 4812 | 9330 |
+| direction from the computed potential | 1146 | 3501 | 6258 |
 
-1. **The flag rule is a hard threshold and converts a systematic bias into a
-   wrong answer.** A direction is refined when it holds more than
-   `0.15*3/dim` of the element's energy, 0.225 in 2D. At `-ks 1` the
-   postprocessed estimate's `y` share is 0.219 -- it misses by 3% -- where the
-   computed potential's is 0.34. A rule relative to the largest component
-   rather than to the sum would not be tipped by a uniform bias. Worth
-   measuring; the constant carries a `TODO: reorientation with the element`
-   already.
-2. **Or accept that the two fields answer different questions** and use the
-   computed potential for direction and the postprocessed one for magnitude,
-   which is one estimator object each and costs one extra face loop.
+-- and it turns `--postprocessed-estimate` from something that bought only
+cycles into something worth 1.4x in dofs, which is a controlled comparison
+since both rows above take the direction from the same place.
 
-Until one of those is measured, `--anisotropic-estimate` defaults off under
-`--hp-adaptivity`, which is what the demonstrator's numbers were taken with.
+**But hp still cannot use it, and the reason is the ceiling, not the estimate.**
+A hanging-node family has to run at the ceiling degree, which enriches the
+trace across every hanging node, and anisotropic refinement makes hanging
+nodes prolifically. Holding everything fixed and moving only the ceiling: at
+`--max-order` equal to `--order` the hp loop reproduces the non-hp one **to
+every printed digit**, and one degree above it stalls at 0.078. Every higher
+ceiling stalls, and so does the run with p-refinement disabled altogether. So
+the 6x that directional refinement is worth is now blocked by one thing, named
+below, rather than by an open question.
 
 ### Mechanism, and what it caps
 
