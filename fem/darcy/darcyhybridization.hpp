@@ -795,8 +795,27 @@ public:
        its elements is exactly redundant"), so `min` costs nothing that `max`
        would have bought there.
 
+       **The constraint space's degree is a ceiling, not a starting point.**
+       This route reuses that space's storage, so a face can only go *down*
+       from the degree it was constructed with; there is no way to enrich past
+       it. A driver that means to raise degrees must therefore build the
+       constraint space at the highest degree the run will ever reach and start
+       its faces below that, not at the degree it happens to start from. Every
+       caller in the tree today builds it at the element degree, which is
+       coarsening-only.
+
+       What that ceiling costs is worth being exact about, because it is less
+       than it sounds. The number of rows and the length of a trace vector go
+       as `nt(p_max)` per face whatever the degrees are. The *local* blocks do
+       not: they are sized from TraceFE(), so they follow `p_f`. Whether the
+       factorization follows the active size too -- unit rows being nearly free
+       to a sparse direct solve -- is the reasonable expectation and has not
+       been measured.
+
        Pass an empty array to return to a uniform trace. Must be called before
-       Finalize(), which is where the block sizes are fixed. */
+       Finalize(), which is where the block sizes are fixed; note that
+       DarcyForm reaches Finalize() from FormLinearSystem(), not from
+       Assemble(). */
    void SetTraceOrders(const Array<int> &face_order);
 
    /// Return the per-face trace degrees, empty when the trace is uniform.

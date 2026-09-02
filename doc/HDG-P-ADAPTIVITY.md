@@ -135,8 +135,14 @@ be converted before the merge rather than after.
 
 ## What this route does not do
 
-Storage stays `O(p_max)` per face, so a mesh with a few high-order faces pays
-for them everywhere. Making the trace space genuinely minimal means the other
+`p_max` is a **ceiling fixed at construction**, so faces can only be coarsened
+below the degree the constraint space was built with -- there is no enrichment
+past it. A driver that means to raise degrees builds the constraint space at
+the highest degree the run will ever reach and starts below it. Row count and
+trace-vector length are then `O(p_max)` per face whatever the degrees are,
+though the local blocks follow `p_f` because they are sized from `TraceFE()`;
+whether the factorization follows the active size as well is expected but
+unmeasured. Making the trace space genuinely minimal means the other
 route — one variant per entity inside `FiniteElementSpace` — which is not
 needed to find out whether any of this is worth having. Upstream has stale
 history for it on `origin/hpfem-var-order-space` (Dylan Copeland, 2021), whose
