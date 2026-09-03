@@ -123,8 +123,9 @@ EXAMPLE_SUBDIRS = amgx caliper ginkgo hiop petsc pumi sundials superlu moonolith
 EXAMPLE_DIRS := examples $(addprefix examples/,$(EXAMPLE_SUBDIRS))
 EXAMPLE_TEST_DIRS := examples
 
-MINIAPP_ALL_SUBDIRS = common electromagnetics meshing performance tools \
- toys nurbs gslib adjoint solvers shifted mtop parelag tribol autodiff dfem \
+MINIAPP_ALL_SUBDIRS = common checkpointing electromagnetics meshing \
+ performance tools toys nurbs gslib adjoint solvers shifted mtop parelag \
+ tribol autodiff dfem \
  hooke multidomain dpg hdiv-linear-solver spde diag-smoothers contact \
  fluids/navier fluids/schrodinger-flow plasma plasma/pic
 MINIAPP_RECURSIVE_SUBDIRS = plasma/pic

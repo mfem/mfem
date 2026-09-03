@@ -100,8 +100,25 @@ Meshing improvements
   parallel visualization, e.g. with GLVis. This is supported by both the Print
   and PrintAsOne methods of ParMesh. See ParMesh::SetPrintInterfaces().
 
-- Improved support for 1D NURBS meshes with variable order, including using
-  the patches construct for 1D NURBS meshes.
+Linear and nonlinear solvers
+----------------------------
+- Added native exact checkpoint/replay support for arbitrary ordered
+  application states, including memory and transactional file storage, exact
+  moving-window caching, and StoreEverything scheduling. The first built-in
+  adapter supports `Vector` state and fixed-step `ForwardEulerSolver`
+  trajectories. The ODE-state checkpointing miniapp demonstrates exact
+  deterministic replay from a stored restart. A Backward Euler miniapp
+  demonstrates application-defined capture and exact replay of implicit ODE
+  steps. Additional checkpointing miniapps demonstrate heterogeneous
+  scalar/string state and nonconforming Mesh state.
+
+- Added canonical Revolve and online Wang--Moin--Iaccarino checkpoint
+  schedules, generic exact reverse-state reconstruction with application-owned
+  callbacks, and Forward and Backward Euler discrete-adjoint demonstrations.
+
+- Added support for trace spaces in PRefinementTransferOperator. This is used in
+  PRefinement multigrid methods for problems posed on trace spaces (see e.g. the
+  DPG miniapps).
 
 - Added partial assembly (PA) support for TMOP's adaptive limiting. Multiple
   GridFunctions and Coefficients can be combined to form a composite term.
