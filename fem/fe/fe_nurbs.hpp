@@ -269,8 +269,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
-
+                   DenseMatrix &shape) const override
+   { CalcVShape_RT(Trans, shape); }
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
@@ -278,12 +278,33 @@ public:
    void CalcDivShape(const IntegrationPoint &ip,
                      Vector &divshape) const override;
 
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   void CalcDVShape(const IntegrationPoint &ip,
+                    DenseTensor &dvshape) const override;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   void CalcPhysDVShape(ElementTransformation &Trans,
+                        DenseTensor &dvshape) const override;
+
    using FiniteElement::Project;
 
    /** Evaluate the dofs that are defined on this element.
        Dofs that can not be evaluated will remain unmodified. */
    void Project(VectorCoefficient &vcoeff,
                 ElementTransformation &Trans, Vector &dofs) const override;
+
 
    ~NURBS_HDiv2DFiniteElement();
 };
@@ -370,14 +391,35 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
-
+                   DenseMatrix &shape) const override
+   { CalcVShape_RT(Trans, shape); }
    /** @brief Evaluate the divergence of all shape functions of a *vector*
        finite element in reference space at the given point @a ip. */
    /** The size (#dof) of the result Vector @a divshape must be set in advance.
     */
    void CalcDivShape(const IntegrationPoint &ip,
                      Vector &divshape) const override;
+
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   void CalcDVShape(const IntegrationPoint &ip,
+                    DenseTensor &dvshape) const override;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   void CalcPhysDVShape(ElementTransformation &Trans,
+                        DenseTensor &dvshape) const override;
 
    using FiniteElement::Project;
 
@@ -454,7 +496,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -464,6 +507,26 @@ public:
        CDim = 1 for #dim = 2. */
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   void CalcDVShape(const IntegrationPoint &ip,
+                    DenseTensor &dvshape) const override;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   void CalcPhysDVShape(ElementTransformation &Trans,
+                        DenseTensor &dvshape) const override;
 
    using FiniteElement::Project;
 
@@ -552,7 +615,8 @@ public:
        in advance, where SDim >= #dim is the physical space dimension as
        described by @a Trans. */
    void CalcVShape(ElementTransformation &Trans,
-                   DenseMatrix &shape) const override;
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
 
    /** @brief Evaluate the curl of all shape functions of a *vector* finite
        element in reference space at the given point @a ip. */
@@ -562,6 +626,26 @@ public:
        CDim = 1 for #dim = 2. */
    void CalcCurlShape(const IntegrationPoint &ip,
                       DenseMatrix &curl_shape) const override;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in reference space at the given point @a ip. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #dim), must be set in advance. */
+   void CalcDVShape(const IntegrationPoint &ip,
+                    DenseTensor &dvshape) const override;
+
+   /** @brief Evaluate the gradients of all shape functions of a vector finite
+       element in physical space at the point described by @a Trans. */
+   /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
+       the 2nd index selects the scalar component of this vector, the 3rd
+       index selects the direction of the derivative. The size of @a dvshape,
+       which should be (#dof x #dim x #vdim), must be set in advance,
+       where #vdim >= #dim is the physical space dimension as described
+       by @a Trans. */
+   void CalcPhysDVShape(ElementTransformation &Trans,
+                        DenseTensor &dvshape) const override;
 
    using FiniteElement::Project;
 

@@ -103,6 +103,18 @@ void FiniteElement::CalcPhysCurlShape(ElementTransformation &Trans,
    }
 }
 
+void FiniteElement::CalcDVShape(const IntegrationPoint &ip,
+                                DenseTensor &dvshape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
+void FiniteElement::CalcPhysDVShape(ElementTransformation &Trans,
+                                    DenseTensor &dvshape) const
+{
+   MFEM_ABORT("method is not implemented for this class");
+}
+
 void FiniteElement::GetFaceDofs(int face, int **dofs, int *ndofs) const
 {
    MFEM_ABORT("method is not overloaded");
