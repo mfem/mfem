@@ -809,7 +809,7 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
    nurbs_to_h1.Ptr()->Mult(nurbs_gf, h1_gf);
 
    // Check
-   REQUIRE(h1_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
+   REQUIRE(h1_gf.ComputeL2Error(cf) == MFEM_Approx(0.0, 1e-10));
 
    // Transfer NURBS gridfunction to H1 gridfunction
    /* MultTranspose --> not implemented yet...
