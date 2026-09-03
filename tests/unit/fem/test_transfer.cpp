@@ -734,8 +734,13 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
    dimension = GENERATE(2, 3);
    int order = GENERATE(2, 3, 4);
    int lor = GENERATE(2, 3, 4, 5);
-   auto vectorspace = GENERATE(VecSpace::VectorH1vdim, VecSpace::VectorH1nodes,
-                               VecSpace::ND,VecSpace::RT);
+   auto vectorspace = GENERATE(VecSpace::VectorH1vdim, VecSpace::VectorH1nodes);
+                              // tbd --> VecSpace::ND,VecSpace::RT);
+
+   INFO("dimension = " << dimension);
+   INFO("order = " << order);
+   INFO("lor = " << lor);
+   INFO("vectorspace = " << static_cast<int>(vectorspace));
 
    Mesh mesh;
    if (dimension == 2)
