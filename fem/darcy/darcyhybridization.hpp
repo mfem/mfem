@@ -923,8 +923,24 @@ public:
        conforming mesh and does not carry over: a master face sees several fine
        elements, which between them do reach the higher modes, so the extra
        degrees are determined rather than annihilated and the discretisation
-       really changes. On the problem above the enriched trace made the answer
-       *worse* at the same mesh, 0.118 against 0.098.
+       really changes. **On the same mesh it changes it for the BETTER** --
+       0.0818 against 0.0982 on an identical hanging-node mesh where the only
+       difference is four family faces at degree 3 instead of 2.
+
+       An earlier version of this note said the opposite, that the enriched
+       trace "made the answer worse, 0.118 against 0.098". That compared two
+       runs which had refined differently by then, not one mesh, and it is
+       withdrawn.
+
+       **What the enrichment does break is the adaptive loop, and how is
+       open.** With anisotropic refinement, which makes hanging nodes
+       prolifically, the error then climbs monotonically as dofs are added --
+       0.0982, 0.0771, 0.0768, 0.0778 at a ceiling equal to the element degree
+       against 0.0818, 0.0833, 0.0857, 0.0884 one degree above. Excluding the
+       enriched faces from the estimate was tried and is not the answer: it
+       removes the monotone worsening in that case but stalls the real hp loop
+       at 1.7e-3 where keeping them reaches 1.4e-6, so the term carries
+       information and the fix is correct attribution rather than exclusion.
 
        **Call it straight after DarcyForm::EnableHybridization() and before
        Assemble().** C, E, G and H are sized from the trace element and

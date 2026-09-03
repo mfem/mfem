@@ -197,9 +197,23 @@ trace across every hanging node, and anisotropic refinement makes hanging
 nodes prolifically. Holding everything fixed and moving only the ceiling: at
 `--max-order` equal to `--order` the hp loop reproduces the non-hp one **to
 every printed digit**, and one degree above it stalls at 0.078. Every higher
-ceiling stalls, and so does the run with p-refinement disabled altogether. So
-the 6x that directional refinement is worth is now blocked by one thing, named
-below, rather than by an open question.
+ceiling stalls, and so does the run with p-refinement disabled altogether, and
+so does the run with the direction taken from the computed potential. So it is
+the ceiling at the hanging nodes and nothing else.
+
+**Why it breaks the loop is open, and two explanations are already dead.** It
+is not that the enriched trace is a worse discretisation: on an identical
+hanging-node mesh, four family faces at degree 3 instead of 2 give 0.0818
+against 0.0982, which is *better*. And it is not a term that can simply be
+left out -- excluding the enriched faces from the estimate removes the monotone
+worsening in the pure-`h`-with-a-ceiling case but stalls the real hp loop at
+1.7e-3 where keeping them reaches 1.4e-6, so the term carries information and
+the fix has to be correct attribution rather than exclusion. That option was
+written, measured and removed rather than left as a knob.
+
+So the 6x that directional refinement is worth is blocked by one identified
+thing whose mechanism is not yet understood, rather than by an open question
+about the estimate.
 
 ### Mechanism, and what it caps
 
