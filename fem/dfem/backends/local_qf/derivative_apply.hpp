@@ -268,12 +268,15 @@ public:
       direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
    }
 
-   //////////////////////////////////////////////////////////////////
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+
    template<typename Backend>
    void run_kernels(std::vector<Vector *> &ye) const
    {
       Backend::Run(dim,
-                   q1d,
+                   tile_size(),
                    ctx,
                    qp_cache,
                    // inputs
@@ -320,11 +323,11 @@ public:
                   *direction_l,
                   direction_e,
                   ElementDofOrdering::LEXICOGRAPHIC);
-      if (q1d <= LocalQFLOBackendMQ1())
+      if (tile_size() <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeApplyLO>(ye);
       }
-      else if (q1d <= LocalQFHOBackendMQ1())
+      else if (tile_size() <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeApplyHO>(ye);
       }
@@ -679,19 +682,8 @@ DerivativeApplyLO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
-   if (dim == 2)
-   {
-      return DispatchLOKernelByQ1D<DerivativeApplyLO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchLOKernelByQ1D<DerivativeApplyLO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<DerivativeApplyLO, QFDIM>(dim, q1d);
 }
 
 template<int derivative_id,
@@ -705,7 +697,7 @@ DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
 DerivativeApplyHO::Kernel()
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
-   return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM>,
+   return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM, Q1D>,
                                                       Q1D>;
 }
 
@@ -720,19 +712,8 @@ DerivativeApplyHO::Fallback(int dim, int q1d)
 {
    using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
-   if (dim == 2)
-   {
-      return DispatchHOKernelByQ1D<DerivativeApplyHO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchHOKernelByQ1D<DerivativeApplyHO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<DerivativeApplyHO, QFDIM>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

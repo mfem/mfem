@@ -182,6 +182,89 @@ struct qf_param_slot
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+/// Spatial dimension carried by fop slot `I`, or 0 when that slot is not a
+/// Gradient. Slot `I` indexes the fop tuple and the q-function parameter list
+/// alike, so the tuple must be the inputs and outputs concatenated in signature
+/// order.
+template <typename qfunc_t, typename fops_t, std::size_t I>
+constexpr int qf_slot_dim()
+{
+   using fop_t = tuple_element_t<I, fops_t>;
+   constexpr auto ext = qf_param_slot<qfunc_t, I>::extents;
+   if constexpr ((is_gradient_fop<fop_t>::value ||
+                  is_hessian_fop<fop_t>::value) && ext.size() > 0)
+   {
+      return ext[ext.size() - 1];
+   }
+   else { return 0; }
+}
+
+template <typename qfunc_t, typename fops_t, std::size_t... Is>
+constexpr int deduce_qf_dim_impl(std::index_sequence<Is...>)
+{
+   int dim = 0;
+   ((dim = dim ? dim : qf_slot_dim<qfunc_t, fops_t, Is>()), ...);
+   return dim;
+}
+
+/// Spatial dimension implied by the q-function signature, or 0 when it
+/// cannot be deduced.
+/// Deduced from the last extent of the first Gradient parameter across both
+/// inputs and outputs (that's why they're concatenated).
+template <typename qfunc_t, typename inputs_t, typename outputs_t = tuple<>>
+constexpr int deduce_qf_dim()
+{
+   using fops_t = tuple_cat_type_t<inputs_t, outputs_t>;
+   return deduce_qf_dim_impl<qfunc_t, fops_t>(
+             std::make_index_sequence<tuple_size<fops_t>::value> {});
+}
+
+/////////////////////////////////////////////////////////////////////////
+/// Tile size a kernel must be built at, given the runtime shapes.
+///
+/// The shared basis arrays are square, B[MQ1][MQ1] and G[MQ1][MQ1],
+/// but they hold a q1d x d1d matrix.
+/// This is used to size it appropriately also for cases in which
+/// d1d > q1d.
+
+// For inputs
+template <std::size_t N>
+inline int kernel_tile_size(int q1d, const std::array<int, N> &d1d)
+{
+   if constexpr (N == 0) { return q1d; }
+   else { return std::max(q1d, *std::max_element(d1d.begin(), d1d.end())); }
+}
+
+// For inputs and outputs
+template <std::size_t NI, std::size_t NO>
+inline int kernel_tile_size(int q1d, const std::array<int, NI> &in_d1d,
+                            const std::array<int, NO> &out_d1d)
+{
+   return std::max(kernel_tile_size(q1d, in_d1d), kernel_tile_size(q1d, out_d1d));
+}
+
+/// For backends using DofToQuadMaps (d1d is the DOF extent of the B/G arrays)
+template <std::size_t N>
+inline int kernel_tile_size(int q1d, const std::array<DofToQuadMap, N> &maps)
+{
+   int s = q1d;
+   for (const auto &m : maps)
+   {
+      s = std::max(s, m.B.GetShape()[DofToQuadMap::DOF]);
+   }
+   return s;
+}
+
+template <std::size_t NI, std::size_t NO>
+inline int kernel_tile_size(int q1d,
+                            const std::array<DofToQuadMap, NI> &in_maps,
+                            const std::array<DofToQuadMap, NO> &out_maps)
+{
+   return std::max(kernel_tile_size(q1d, in_maps), kernel_tile_size(q1d,
+                                                                    out_maps));
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// Builds a register-bank tuple covering the q-function parameter slots
 /// `[K0, N)`. `K` is the recursion cursor and starts at `K0`; the resulting
 /// tuple is indexed from 0, so a bank starting at `K0 > 0` has its slot indices
@@ -834,6 +917,15 @@ constexpr auto get_G(const Tuple& fields)
 }
 
 template<typename Tuple>
+constexpr auto get_H(const Tuple& fields)
+{
+   return future::apply([](const auto&... f)
+   {
+      return std::array<const real_t*, sizeof...(f)> {f.H...};
+   }, fields);
+}
+
+template<typename Tuple>
 constexpr auto get_D1D(const Tuple& fields)
 {
    return future::apply([](const auto&... f)
@@ -1071,7 +1163,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_hessian_fop_v<FOP>)
       {
          t1d = std::max(t1d, in_d1d[ic.value]);
       }
@@ -1079,7 +1172,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_out>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, outputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_hessian_fop_v<FOP>)
       {
          t1d = std::max(t1d, out_d1d[ic.value]);
       }
@@ -1097,7 +1191,8 @@ inline int compute_kernel_thread_1d(
    for_constexpr<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
-      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+      if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                    is_hessian_fop_v<FOP>)
       {
          t1d = std::max(t1d, in_d1d[ic.value]);
       }

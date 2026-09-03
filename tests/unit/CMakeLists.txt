@@ -45,6 +45,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_hyperelasticity.cpp
   dfem/test_functional.cpp
   dfem/test_functional_gradient.cpp
+  dfem/test_hessian.cpp
   dfem/test_jvp_vjp.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp

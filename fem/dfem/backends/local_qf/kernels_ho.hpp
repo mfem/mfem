@@ -49,6 +49,15 @@ struct ho_qreg<KerOps, T, 2>
 };
 
 template<typename KerOps, typename T>
+struct ho_qreg<KerOps, T, 3>
+{
+   // We assume extents[1] == extents[2] for Hessian q-function parameters
+   static constexpr int VDIM = qf_param_shape<T>::extents[0];
+   static constexpr int SDIM = qf_param_shape<T>::extents[1];
+   using type = typename KerOps::template hess_reg_t<VDIM, SDIM>;
+};
+
+template<typename KerOps, typename T>
 using ho_qreg_t = typename ho_qreg<KerOps, T>::type;
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -73,7 +82,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(dd, qy, qx); }
          return t;
       }
-      else
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -83,6 +92,27 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          {
             MFEM_UNROLL(e1)
             for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qy, qx); }
+         }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         constexpr int e2 = qf_param_shape<T>::extents[2];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               MFEM_UNROLL(e2)
+               for (int k = 0; k < e2; ++k)
+               {
+                  t(i, j, k) = reg(i, j, k, qy, qx);
+               }
+            }
          }
          return t;
       }
@@ -98,7 +128,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          for (int dd = 0; dd < e0; ++dd) { t(dd) = reg(dd, qz, qy, qx); }
          return t;
       }
-      else
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -108,6 +138,27 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
          {
             MFEM_UNROLL(e1)
             for (int j = 0; j < e1; ++j) { t(i, j) = reg(i, j, qz, qy, qx); }
+         }
+         return t;
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         constexpr int e2 = qf_param_shape<T>::extents[2];
+         T t;
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               MFEM_UNROLL(e2)
+               for (int k = 0; k < e2; ++k)
+               {
+                  t(i, j, k) = reg(i, j, k, qz, qy, qx);
+               }
+            }
          }
          return t;
       }
@@ -293,9 +344,18 @@ struct ho_ker_backend
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>,
          ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 
+   template<int VDIM, int SDIM>
+   using hess_reg_t = std::conditional_t<(DIM == 2),
+         ker::vdd_regs2d_t<VDIM, SDIM, MQ1>,
+         ker::vdd_regs3d_t<VDIM, SDIM, MQ1>>;
+
+   using s_reg_t = std::conditional_t<(DIM == 2),
+         ker::s_regs2d_t<MQ1>,
+         ker::s_regs3d_t<MQ1>>;
+
    struct Shared
    {
-      real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1];
+      real_t M[MQ1][MQ1], B[MQ1][MQ1], G[MQ1][MQ1], H[MQ1][MQ1];
    };
 
    template<typename XE_t, typename Dofs>
@@ -337,6 +397,29 @@ struct ho_ker_backend
       else
       {
          ker::Grad3d(d, q, s.M, s.B, s.G, dofs, rarg);
+      }
+   }
+
+   /// Reference Hessian of component @a c of the field, into the DIM x DIM
+   /// block @a rarg. Scalar fields pass c = 0.
+   template<int SDIM, typename Smem, typename XE_t, typename ArgReg>
+   static MFEM_HOST_DEVICE void
+   hess(const int e, const int d, const int q, const int c, Smem &s,
+        const XE_t &XE, ArgReg &rarg)
+   {
+      static_assert(SDIM == DIM, "hessian spatial dim must match kernel DIM");
+      // The dofs are loaded once and copied per contraction, so
+      // we keep two scalar registers rather than a SDIM x SDIM bank.
+      s_reg_t dofs, scratch;
+      if constexpr (DIM == 2)
+      {
+         ker::LoadDofs2d<MQ1>(e, d, c, XE, dofs);
+         ker::Hess2d<SDIM, MQ1>(d, q, s.M, s.B, s.G, s.H, dofs, scratch, rarg);
+      }
+      else
+      {
+         ker::LoadDofs3d<MQ1>(e, d, c, XE, dofs);
+         ker::Hess3d<SDIM, MQ1>(d, q, s.M, s.B, s.G, s.H, dofs, scratch, rarg);
       }
    }
 
@@ -578,6 +661,55 @@ struct LocalQFHOBackend
    }
 
    // ─────────────────────────────────────────────────────
+   template<int RNK,
+            typename ArgRegT,
+            typename XE_T,
+            typename FieldParamT = ArgRegT>
+   static inline MFEM_HOST_DEVICE void LoadHessian(Shared &s,
+                                                   const int e,
+                                                   const int d,
+                                                   const int q,
+                                                   const int,
+                                                   const real_t *B,
+                                                   const real_t *G,
+                                                   const real_t *H,
+                                                   const XE_T &XE,
+                                                   ArgRegT &rarg)
+   {
+      static_assert(RNK == 2 || RNK == 3,
+                    "Hessian: the q-function parameter must be a rank-2 "
+                    "tensor<real_t,dim,dim> (scalar field) or a rank-3 "
+                    "tensor<real_t,vdim,dim,dim> (vector field)");
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadMatrix(d, q, G, s.G);
+      ker::LoadMatrix(d, q, H, s.H);
+      if constexpr (RNK == 2)
+      {
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[0];
+         static_assert(qf_param_shape<FieldParamT>::extents[1] == SDIM,
+                       "Hessian q-function parameter must be square (dim x dim)");
+         if constexpr (SDIM == DIM)
+         {
+            backend_t::template hess<SDIM>(e, d, q, 0, s, XE, rarg);
+         }
+      }
+      else
+      {
+         static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
+         static_assert(qf_param_shape<FieldParamT>::extents[2] == SDIM,
+                       "Hessian trailing q-function parameter dimensions must match");
+         if constexpr (SDIM == DIM)
+         {
+            for (int c = 0; c < VDIM; ++c)
+            {
+               backend_t::template hess<SDIM>(e, d, q, c, s, XE, rarg[c]);
+            }
+         }
+      }
+   }
+
+   // ─────────────────────────────────────────────────────
    template<typename T>
    static MFEM_HOST_DEVICE inline auto
    qp_pull(QReg<T> &reg, int qx, int qy, int qz)
@@ -797,7 +929,54 @@ DispatchHOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported HO quadrature order: " << q1d);
-   return HOKernelTable::template Kernel<DIM, MQ1>();
+   if (q1d <= 8) { return HOKernelTable::template Kernel<DIM, 8>(); }
+   if constexpr (MQ1 > 8)
+   {
+      if (q1d <= 10) { return HOKernelTable::template Kernel<DIM, 10>(); }
+   }
+   if constexpr (MQ1 > 10)
+   {
+      if (q1d <= 12) { return HOKernelTable::template Kernel<DIM, 12>(); }
+   }
+   if constexpr (MQ1 > 12)
+   {
+      return HOKernelTable::template Kernel<DIM, 16>();
+   }
+   return nullptr;
+}
+
+/// @brief Select the compile-time HO kernel for runtime @a dim.
+///
+/// QFDIM is deduced at compile-time from the q-function signature.
+/// If it is not possible to deduce the dimension (QFDIM=0), we fallback
+/// to the original runtime dispatching, which means we emit both 2D and 3D
+/// branches.
+template <typename HOKernelTable, int QFDIM, int MQ1 = LocalQFHOBackendMQ1()>
+inline typename HOKernelTable::KernelSignature
+DispatchHOKernelByDim(int dim, int q1d)
+{
+   if constexpr (QFDIM == 2 || QFDIM == 3)
+   {
+      MFEM_VERIFY(dim == QFDIM,
+                  "mesh dimension " << dim << " does not match the " << QFDIM
+                  << "D q-function signature this integrator was built from");
+      return DispatchHOKernelByQ1D<HOKernelTable, QFDIM, MQ1>(q1d);
+   }
+   else
+   {
+      // Couldn't deduce the dimension from the q-function signature,
+      // we fall back to original runtime dispatching.
+      if (dim == 2)
+      {
+         return DispatchHOKernelByQ1D<HOKernelTable, 2, MQ1>(q1d);
+      }
+      if (dim == 3)
+      {
+         return DispatchHOKernelByQ1D<HOKernelTable, 3, MQ1>(q1d);
+      }
+      MFEM_ABORT("Unsupported dimension " << dim);
+      return nullptr;
+   }
 }
 
 } // namespace mfem::future

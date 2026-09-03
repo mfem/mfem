@@ -251,6 +251,91 @@ static void Derivatives3D(const int NE,
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
    const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
+
+   if constexpr (Q_LAYOUT == QVectorLayout::byVDIM && !GRAD_PHYS &&
+                 T_VDIM == 3 && T_D1D == 2 && T_Q1D > 0)
+   {
+      constexpr int SDIM = 3;
+      constexpr int NQ = T_Q1D * T_Q1D * T_Q1D;
+      mfem::forall_3D(NE, Q1D, Q1D, Q1D,
+                      [=] MFEM_HOST_DEVICE(int e)
+      {
+         MFEM_SHARED real_t BG[2][T_Q1D*T_D1D];
+         MFEM_SHARED real_t X[T_D1D*T_D1D*T_D1D*T_VDIM];
+         MFEM_SHARED real_t Y[T_VDIM*SDIM*NQ];
+         kernels::internal::LoadBG<T_D1D,T_Q1D>(T_D1D,T_Q1D,b,g,BG);
+         DeviceMatrix B(BG[0], T_D1D, T_Q1D);
+         DeviceMatrix G(BG[1], T_D1D, T_Q1D);
+
+         MFEM_FOREACH_THREAD(c,z,T_VDIM)
+         {
+            MFEM_FOREACH_THREAD(dz,y,T_D1D)
+            {
+               MFEM_FOREACH_THREAD(dy,x,T_D1D)
+               {
+                  for (int dx = 0; dx < T_D1D; ++dx)
+                  {
+                     X[dx + T_D1D*(dy + T_D1D*(dz + T_D1D*c))] =
+                        x(dx,dy,dz,c,e);
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         MFEM_FOREACH_THREAD(qz,z,T_Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,T_Q1D)
+            {
+               MFEM_FOREACH_THREAD(qx,x,T_Q1D)
+               {
+                  real_t values[T_VDIM*SDIM] {};
+                  for (int dz = 0; dz < T_D1D; ++dz)
+                  {
+                     const real_t b_z = B(dz,qz);
+                     const real_t g_z = G(dz,qz);
+                     for (int dy = 0; dy < T_D1D; ++dy)
+                     {
+                        const real_t b_y = B(dy,qy);
+                        const real_t g_y = G(dy,qy);
+                        for (int dx = 0; dx < T_D1D; ++dx)
+                        {
+                           const real_t b_x = B(dx,qx);
+                           const real_t g_x = G(dx,qx);
+                           for (int c = 0; c < T_VDIM; ++c)
+                           {
+                              const real_t value =
+                                 X[dx + T_D1D*(dy + T_D1D*(dz + T_D1D*c))];
+                              values[c] += value * g_x * b_y * b_z;
+                              values[c + T_VDIM] += value * b_x * g_y * b_z;
+                              values[c + 2*T_VDIM] += value * b_x * b_y * g_z;
+                           }
+                        }
+                     }
+                  }
+
+                  const int q = qx + T_Q1D*(qy + T_Q1D*qz);
+                  for (int i = 0; i < T_VDIM*SDIM; ++i)
+                  {
+                     Y[i + T_VDIM*SDIM*q] = values[i];
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         const int tid = MFEM_THREAD_ID(x) + T_Q1D *
+                         (MFEM_THREAD_ID(y) + T_Q1D*MFEM_THREAD_ID(z));
+         const int num_threads = MFEM_THREAD_SIZE(x) * MFEM_THREAD_SIZE(y) *
+                                 MFEM_THREAD_SIZE(z);
+         for (int i = tid; i < T_VDIM*SDIM*NQ; i += num_threads)
+         {
+            y_[i + T_VDIM*SDIM*NQ*e] = Y[i];
+         }
+      });
+      return;
+   }
+
    auto y = Q_LAYOUT == QVectorLayout:: byNODES ?
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);

@@ -27,6 +27,8 @@ DofToQuad DofToQuad::Abs() const
    d2q.Bt.Abs();
    d2q.G.Abs();
    d2q.Gt.Abs();
+   d2q.H.Abs();
+   d2q.Ht.Abs();
    return d2q;
 }
 
@@ -2720,16 +2722,27 @@ const DofToQuad &TensorBasisElement::GetTensorDofToQuad(
          d2q->Bt.SetSize(ndof*nqpt);
          d2q->G.SetSize(nqpt*ndof);
          d2q->Gt.SetSize(ndof*nqpt);
-         Vector val(ndof), grad(ndof);
+         const bool has_hess = basis.HasSecondDerivatives();
+         if (has_hess)
+         {
+            d2q->H.SetSize(nqpt*ndof);
+            d2q->Ht.SetSize(ndof*nqpt);
+         }
+         Vector val(ndof), grad(ndof), hess(has_hess ? ndof : 0);
          for (int i = 0; i < nqpt; i++)
          {
             // The first 'nqpt' points in 'ir' have the same x-coordinates as those
             // of the 1D rule.
-            basis.Eval(ir.IntPoint(i).x, val, grad);
+            if (has_hess) { basis.Eval(ir.IntPoint(i).x, val, grad, hess); }
+            else { basis.Eval(ir.IntPoint(i).x, val, grad); }
             for (int j = 0; j < ndof; j++)
             {
                d2q->B[i+nqpt*j] = d2q->Bt[j+ndof*i] = val(j);
                d2q->G[i+nqpt*j] = d2q->Gt[j+ndof*i] = grad(j);
+               if (has_hess)
+               {
+                  d2q->H[i+nqpt*j] = d2q->Ht[j+ndof*i] = hess(j);
+               }
             }
          }
          dof2quad_array.Append(d2q);

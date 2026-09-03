@@ -132,10 +132,13 @@ public:
 
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
       auto second_derivatives = SecondDerivatives<Pairs::All> {};
+      // Both branches only apply the derivative, never assemble it.
+      constexpr auto kernels = DerivativeKernels::Action;
+
       if (use_energy)
       {
          NeoHookeanEnergy<dscalar_t> energy;
-         dop->AddDomainIntegrator<LocalQFBackend>(
+         dop->AddDomainIntegrator<LocalQFBackend, kernels>(
             energy,
             Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Energy>> {},
@@ -144,7 +147,7 @@ public:
       else
       {
          NeoHookeanStress<dscalar_t> stress;
-         dop->AddDomainIntegrator<LocalQFBackend>(
+         dop->AddDomainIntegrator<LocalQFBackend, kernels>(
             stress,
             Inputs<Gradient<Displacement>, Gradient<Coords>, Weight> {},
             Outputs<Gradient<Displacement>> {},

@@ -821,11 +821,11 @@ inline void enzyme_fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
    constexpr std::size_t ninputs  = sizeof...(Is);
-   constexpr std::size_t noutputs = sizeof...(Os);
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts  = typename qf_signature::parameter_ts;
@@ -844,10 +844,8 @@ inline void enzyme_fwddiff(
                      typename tuple_element<Is, qf_param_ts>::type>>>(
                         shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
 
-   std::array<Vector, noutputs> primal_storage;
    ((primal_storage[Os].UseDevice(true)), ...);
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
-   ((primal_storage[Os] = yq.GetBlock(Os)), ...);
 
    auto primals_out = std::make_tuple(
                          make_tensor_array<std::remove_cv_t<std::remove_reference_t<
@@ -912,6 +910,7 @@ inline void enzyme_fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)>& in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)>& out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -920,7 +919,7 @@ inline void enzyme_fwddiff(
    unused_qfunc_shadow qfunc_shadow;
    enzyme_fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t,
                   outputs_t>(qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
-                             in_layouts, out_layouts, is, os);
+                             in_layouts, out_layouts, primal_storage, is, os);
 }
 
 #endif // MFEM_USE_ENZYME
@@ -942,15 +941,17 @@ inline void fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
    enzyme_fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
-      is, os);
+      primal_storage, is, os);
 #else
    MFEM_CONTRACT_VAR(qfunc_shadow);
+   MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
       qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
 #endif
@@ -971,6 +972,7 @@ inline void fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Os)> &primal_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -980,8 +982,9 @@ inline void fwddiff(
    unused_qfunc_shadow qfunc_shadow;
    fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
-      is, os);
+      primal_storage, is, os);
 #else
+   MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
       qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
 #endif

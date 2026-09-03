@@ -358,7 +358,8 @@ TEST_CASE("dFEM Scratch scalar", "[Parallel][dFEM][Scratch-Scalar]")
 
    CubicQFWithScratch cubic_qf;
    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
-   dop.AddDomainIntegrator<GlobalQFBackend>(
+   constexpr auto kernels = DerivativeKernels::Action;
+   dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
       cubic_qf,
       Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight> {},
       Outputs<Value<Y>> {},
@@ -446,7 +447,8 @@ TEST_CASE("dFEM Scratch multiple sizes",
    // Requesting one scalar scratch vector per dimension
    CubicQFWithScratch cubic_qf;
    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1, DIM});
-   dop.AddDomainIntegrator<GlobalQFBackend>(
+   constexpr auto kernels = DerivativeKernels::Action;
+   dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
       cubic_qf,
       Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight> {},
       Outputs<Value<Y>> {},
@@ -538,7 +540,8 @@ TEST_CASE("dFEM Global Scratch with tuple objects",
    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
    cubic_qf.SetGlobalScratch(
       mfem::future::make_tuple(global_flag, global_scalar, global_vec));
-   dop.AddDomainIntegrator<GlobalQFBackend>(
+   constexpr auto kernels = DerivativeKernels::Action;
+   dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
       cubic_qf,
       Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight> {},
       Outputs<Value<Y>> {},
@@ -623,7 +626,10 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
 
    CubicQFWithScratch cubic_qf;
    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
-   dop.AddDomainIntegrator<GlobalQFBackend>(
+   constexpr auto kernels =
+      DerivativeKernels::Action |
+      DerivativeKernels::Apply;
+   dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
       cubic_qf,
       Inputs<Value<U>, Identity<COEF>, Gradient<COORDINATES>, Weight> {},
       Outputs<Value<Y>> {},

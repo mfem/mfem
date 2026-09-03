@@ -208,6 +208,9 @@ public:
          all_domain_attr = 1;
       }
 
+      // All three operators below are only ever applied, never assembled.
+      constexpr auto kernels = DerivativeKernels::Action;
+
       // Energy
       {
          const auto in = std::vector
@@ -224,7 +227,7 @@ public:
          MinimalSurfaceEnergyFunctional<dscalar_t, dim> energy;
          auto derivatives = std::integer_sequence<size_t, U> {};
          auto second_derivatives = SecondDerivatives<DerivativePair<U, U>> {}; // Or equivalently: SecondDerivatives<Pairs::All> {};
-         functional_dop->AddDomainIntegrator<LocalQFBackend>(
+         functional_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
             energy,
             Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Q>> {}, /* Value<U>, Gradient<U> */
@@ -246,7 +249,7 @@ public:
          residual_dop = std::make_unique<DifferentiableOperator>(in, out, pmesh);
          MinimalSurfaceResidual<dscalar_t, dim> residual;
          auto derivatives = std::integer_sequence<size_t, U> {};
-         residual_dop->AddDomainIntegrator<LocalQFBackend>(
+         residual_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
             residual,
             tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Gradient<U>{}},
@@ -275,7 +278,7 @@ public:
                  fd;
 
          auto derivatives = std::integer_sequence<size_t, U> {};
-         dfunctional_dop->AddDomainIntegrator<LocalQFBackend>(
+         dfunctional_dop->AddDomainIntegrator<LocalQFBackend, kernels>(
             fd,
             tuple{Gradient<U>{}, Gradient<Coords>{}, Weight{}},
             tuple{Gradient<U>{}},
@@ -569,7 +572,10 @@ void mixed_second_derivative(const char *filename, int p)
 
    DifferentiableOperator functional_dop(functional_in, functional_out, pmesh);
    MixedFunctional<dscalar_t, DIM> functional;
-   functional_dop.AddDomainIntegrator<LocalQFBackend>(
+   constexpr auto kernels =
+      DerivativeKernels::Action |
+      DerivativeKernels::AssembleMatrix;
+   functional_dop.AddDomainIntegrator<LocalQFBackend, kernels>(
       functional,
       Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
       Outputs<FunctionalValue<Q>> {},
@@ -726,7 +732,8 @@ std::array<bool, 4> registered_blocks(second_derivatives_t second_derivatives)
       std::vector{FieldDescriptor{Q, &qspace_vec}}, pmesh);
 
    MixedFunctional<dscalar_t, DIM> functional;
-   dop.AddDomainIntegrator<LocalQFBackend>(
+   constexpr auto kernels = DerivativeKernels::Action;
+   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
       functional,
       Inputs<Value<U>, Value<Rho>, Gradient<Coords>, Weight> {},
       Outputs<FunctionalValue<Q>> {},

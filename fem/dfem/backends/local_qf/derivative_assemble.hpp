@@ -593,6 +593,12 @@ class DerivativeAssemble
    const std::array<DofToQuadMap, n_inputs> input_dtq_maps;
    const std::array<DofToQuadMap, n_outputs> output_dtq_maps;
    const std::array<bool, n_inputs> input_is_dependent;
+
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const
+   { return kernel_tile_size(q1d, input_dtq_maps, output_dtq_maps); }
+
    const size_t trial_field_uf;
    /// Column space of every row block. GetDerivative differentiates w.r.t. one
    /// field, so there is exactly one trial space. Null when that field is not
@@ -829,7 +835,7 @@ public:
          group_Ae_mem[g] = 0.0;
 
          DerivativeAssembleHO::Run(dim,
-                                   q1d,
+                                   tile_size(),
                                    ctx,
                                    qp_cache,
                                    group_Ae_mem[g],
@@ -1043,17 +1049,32 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
-   if (dim == 2)
+   // We don't route thru DispatchHOKernelByDim() as for other callbacks
+   // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   if constexpr (QFDIM == 2)
    {
+      MFEM_VERIFY(dim == 2, "mesh dimension " << dim << " does not match the "
+                  "2D q-function signature this integrator was built from");
       return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
    }
-   else if (dim == 3)
+   else if constexpr (QFDIM == 3)
    {
+      MFEM_VERIFY(dim == 3, "mesh dimension " << dim << " does not match the "
+                  "3D q-function signature this integrator was built from");
       return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
    }
    else
    {
-      MFEM_ABORT("Unsupported dimension");
+      if (dim == 2)
+      {
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);
+      }
+      if (dim == 3)
+      {
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 3, 8>(q1d);
+      }
+      MFEM_ABORT("Unsupported dimension " << dim);
       return nullptr;
    }
 }

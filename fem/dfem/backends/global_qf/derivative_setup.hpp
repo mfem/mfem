@@ -80,6 +80,12 @@ struct DerivativeSetup
       yq_offsets.PartialSum();
       InitBlockVector(yq, yq_offsets);
 
+      constexpr_for<0, noutputs>([&](auto o)
+      {
+         primal_output_storage[o].UseDevice(true);
+         primal_output_storage[o].SetSize(yq.GetBlock(o).Size());
+      });
+
       total_out_size_on_qp = 0;
       constexpr_for<0, noutputs>([&](auto o)
       {
@@ -155,6 +161,7 @@ struct DerivativeSetup
                          inputs_t, outputs_t>(
                             qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
                             input_qlayouts, output_qlayouts,
+                            primal_output_storage,
                             std::make_index_sequence<ninputs> {},
                             std::make_index_sequence<noutputs> {});
                }
@@ -163,6 +170,7 @@ struct DerivativeSetup
                   detail::fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
                      qfunc, xq, shadow_xq, yq, gnqp,
                      input_qlayouts, output_qlayouts,
+                     primal_output_storage,
                      std::make_index_sequence<ninputs> {},
                      std::make_index_sequence<noutputs> {});
                }
@@ -229,6 +237,7 @@ struct DerivativeSetup
 
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
+   mutable std::array<Vector, noutputs> primal_output_storage;
 
    int total_out_size_on_qp = 0;
    int trial_vdim = 0;

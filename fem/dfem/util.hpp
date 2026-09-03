@@ -735,6 +735,74 @@ using Outputs = tuple<Ops...>;
 template <size_t... FieldIds>
 using Derivatives = std::integer_sequence<size_t, FieldIds...>;
 
+
+// Bit-mask selecting which derivative kernels are instantiated for an integrator.
+// Predefined families (MF, PA, AllAssembly, and All), individual kernels,
+// and bitwise combinations are supported.
+//
+// Usage:
+//
+// constexpr auto kernels = DerivativeKernels::PA; // Predefined family (MF, PA, AllAssembly, All)
+// constexpr auto kernels = DerivativeKernels::Action | DerivativeKernels::AssembleDiagonal; (combination of individual kernels)
+//
+// dop.AddDomainIntegrator<LocalQFBackend, kernels>(qfunc, inputs, outputs, ir, attributes, derivatives);
+//
+// By default, All kernels are requested. Selecting a smaller set reduces
+// compile time and binary size when the other operations are not needed.
+//
+// Setup is not explicitly requested but triggered by kernels that need that (see NeedsQpCache()).
+enum class DerivativeKernels : unsigned
+{
+   None             = 0,
+   Apply            = 1u << 0,  // DerivativeOperator::Mult
+   ApplyTranspose   = 1u << 1,  // DerivativeOperator::MultTranspose
+   AssembleMatrix   = 1u << 2,  // DerivativeOperator::Assemble
+   AssembleDiagonal = 1u << 3,  // DerivativeOperator::AssembleDiagonal
+   Action           = 1u << 4,  // matrix-free derivative action
+
+
+   // Convenience families of kernels
+   MF = Action,                 // Matrix free action (just an alias for Action)
+   PA = Apply | ApplyTranspose, // Partially-assembled action (setup+apply)
+   AllAssembly  = AssembleMatrix | AssembleDiagonal, // Enable all assembly callbacks
+   All = PA | AllAssembly | Action
+};
+
+constexpr DerivativeKernels operator|(DerivativeKernels a, DerivativeKernels b)
+{
+   return static_cast<DerivativeKernels>(static_cast<unsigned>(a) |
+                                         static_cast<unsigned>(b));
+}
+
+// True if @a set and @a requested have at least one kernel in common.
+// ( HasAnyKernel(A,B) --> A \cap B != emptyset )
+constexpr bool HasAnyKernel(DerivativeKernels set,
+                            DerivativeKernels requested)
+{
+   return (static_cast<unsigned>(set) &
+           static_cast<unsigned>(requested)) != 0;
+}
+
+// True if @a set contains every kernel in @a requested.
+// ( HasAllKernels(A,B) --> B \subseteq A )
+constexpr bool HasAllKernels(DerivativeKernels set,
+                             DerivativeKernels requested)
+{
+   return (static_cast<unsigned>(set) & static_cast<unsigned>(requested)) ==
+          static_cast<unsigned>(requested);
+}
+
+// The families below read the quadrature point cache filled by DerivativeSetup.
+constexpr bool NeedsQpCache(DerivativeKernels set)
+{
+   constexpr auto qp_cache_kernels =
+      DerivativeKernels::Apply |
+      DerivativeKernels::ApplyTranspose |
+      DerivativeKernels::AssembleMatrix |
+      DerivativeKernels::AssembleDiagonal;
+   return HasAnyKernel(set, qp_cache_kernels);
+}
+
 // A single second derivative (Hessian) block of a functional f, obtained by
 // differentiating the gradient grad_G f in the direction of the field D, i.e.
 // DerivativePair<G, D> denotes d/dD (grad_G f). The two ids play different
@@ -2549,6 +2617,12 @@ void CheckCompatibility(const FieldDescriptor &f)
                         FiniteElement::MapType::VALUE,
                         "Gradient not compatible with FE");
          }
+         else if constexpr (std::is_same_v<field_operator_t, Hessian<>>)
+         {
+            MFEM_ASSERT(arg->GetTypicalElement()->GetMapType() ==
+                        FiniteElement::MapType::VALUE,
+                        "Hessian not compatible with FE");
+         }
          else
          {
             static_assert(dfem::always_false<T, field_operator_t>,
@@ -2594,6 +2668,12 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    else if constexpr (is_gradient_fop<field_operator_t>::value)
    {
       return GetVDim(f) * GetDimension<entity_t>(f);
+   }
+   else if constexpr (is_hessian_fop<field_operator_t>::value)
+   {
+      // Full, symmetric dim x dim block per vector component.
+      const int d = GetDimension<entity_t>(f);
+      return GetVDim(f) * d * d;
    }
    else if constexpr (is_identity_fop<field_operator_t>::value)
    {
@@ -2722,6 +2802,13 @@ struct DofToQuadMap
    /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
    DeviceTensor<3, const real_t> G;
 
+   /// @brief Second derivatives of the basis functions at quadrature points.
+   ///
+   /// This is a 3D tensor with dimensions (num_qp, dim, num_dofs).
+   /// Only populated for field operators that need it (Hessian) and only for bases
+   /// that provide second derivatives; it is a null tensor otherwise.
+   DeviceTensor<3, const real_t> H;
+
    /// Reverse mapping indicating which input this map belongs to.
    int which_input = -1;
 };
@@ -2787,7 +2874,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       };
 
       if constexpr (is_value_fop<decltype(fop)>::value ||
-                    is_gradient_fop<decltype(fop)>::value)
+                    is_gradient_fop<decltype(fop)>::value ||
+                    is_hessian_fop<decltype(fop)>::value)
       {
          auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
          // ParameterSpace: dtq is non-null but has no B/G data (nqpt/ndof
@@ -2799,13 +2887,24 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             {
                DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
                DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
                -1
             };
          }
+         // Hessian only tabulated for bases that provide second derivatives.
+         // Avoid running Hessian kernel qirh null/unsupported H later
+         const bool needs_hess = is_hessian_fop<decltype(fop)>::value;
+         MFEM_VERIFY(!needs_hess || dtq->H.Size() > 0,
+                     "Hessian FieldOperator requires a finite element basis "
+                     "with second derivatives (nodal/Barycentric); the basis of "
+                     "field index " << field_map[idx] << " does not provide them.");
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
             DeviceTensor<3, const real_t>(dtq->G.Read(), dtq->nqpt, grad_dim, dtq->ndof),
+            needs_hess
+            ? DeviceTensor<3, const real_t>(dtq->H.Read(), dtq->nqpt, grad_dim, dtq->ndof)
+            : DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
             static_cast<int>(idx)
          };
       }
@@ -2815,6 +2914,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          {
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
             DeviceTensor<3, const real_t>(nullptr, 1, 1, 1),
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
             -1
          };
       }
@@ -2858,6 +2958,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          {
             DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),
             DeviceTensor<3, const real_t>(nullptr, nqpt, grad_dim, ndof),
+            DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
             -1
          };
       }
@@ -2868,6 +2969,7 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
       }
       return DofToQuadMap
       {
+         DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
          DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
          -1

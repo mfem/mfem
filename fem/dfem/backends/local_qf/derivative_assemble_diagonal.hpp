@@ -244,11 +244,15 @@ public:
       return output_groups->FindGroup(field_id);
    }
 
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const { return kernel_tile_size(q1d, input_dtq_maps, output_dtq_maps); }
+
    template<typename Backend>
    void run_kernels(const int g) const
    {
       Backend::Run(dim,
-                   q1d,
+                   tile_size(),
                    ctx,
                    qp_cache,
                    group_Ye_mem[g],
@@ -297,11 +301,11 @@ public:
 
       group_Ye_mem[g] = 0.0;
 
-      if (q1d <= LocalQFLOBackendMQ1())
+      if (tile_size() <= LocalQFLOBackendMQ1())
       {
          run_kernels<DerivativeAssembleDiagonalLO>(g);
       }
-      else if (q1d <= LocalQFHOBackendMQ1())
+      else if (tile_size() <= LocalQFHOBackendMQ1())
       {
          run_kernels<DerivativeAssembleDiagonalHO>(g);
       }
@@ -530,19 +534,8 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeAssembleDiagonalLO =
       typename diag_t::DerivativeAssembleDiagonalLO;
-   if (dim == 2)
-   {
-      return DispatchLOKernelByQ1D<DerivativeAssembleDiagonalLO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchLOKernelByQ1D<DerivativeAssembleDiagonalLO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<DerivativeAssembleDiagonalLO, QFDIM>(dim, q1d);
 }
 
 template<int derivative_id,
@@ -560,7 +553,7 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    return diag_t::template derivative_assemble_diagonal_callback<
-             LocalQFHOBackend<DIM>,
+             LocalQFHOBackend<DIM, Q1D>,
              Q1D>;
 }
 
@@ -579,19 +572,8 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
    using DerivativeAssembleDiagonalHO =
       typename diag_t::DerivativeAssembleDiagonalHO;
-   if (dim == 2)
-   {
-      return DispatchHOKernelByQ1D<DerivativeAssembleDiagonalHO, 2>(q1d);
-   }
-   else if (dim == 3)
-   {
-      return DispatchHOKernelByQ1D<DerivativeAssembleDiagonalHO, 3>(q1d);
-   }
-   else
-   {
-      MFEM_ABORT("Unsupported dimension");
-      return nullptr;
-   }
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<DerivativeAssembleDiagonalHO, QFDIM>(dim, q1d);
 }
 
 } // namespace mfem::future::LocalQFImpl

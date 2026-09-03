@@ -395,7 +395,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
          auto derivatives = Derivatives<U> {};
          auto mass_diffusion_qfunc = mass_diffusion_global_qf{};
-         dop.AddDomainIntegrator(
+         constexpr auto kernels = DerivativeKernels::Action;
+         dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             mass_diffusion_qfunc,
             Inputs<Value<U>, Gradient<U>, Gradient<COORDINATES>, Identity<S>, Weight, Value<L>> {},
             Outputs<Value<V>, Gradient<V>, Identity<S>> {},
@@ -567,7 +568,10 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          auto qf = mass_diffusion_local_qf{};
-         dop.AddDomainIntegrator<LocalQFBackend>(
+         constexpr auto kernels =
+            DerivativeKernels::AssembleMatrix |
+            DerivativeKernels::AssembleDiagonal;
+         dop.AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
             tuple{Value<V>{}, Gradient<V>{}},
@@ -653,7 +657,11 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          auto qf = two_field_local_qf{};
-         dop.AddDomainIntegrator<LocalQFBackend>(
+         constexpr auto kernels =
+            DerivativeKernels::Action |
+            DerivativeKernels::AssembleMatrix |
+            DerivativeKernels::AssembleDiagonal;
+         dop.AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
             tuple{Value<U>{}, Gradient<U>{}, Gradient<P>{}},
@@ -827,7 +835,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          auto qf = two_field_local_qf{};
-         dop.AddDomainIntegrator<LocalQFBackend>(
+         constexpr auto kernels = DerivativeKernels::AssembleDiagonal;
+         dop.AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
             tuple{Value<U>{}, Gradient<U>{}, Gradient<P>{}},
@@ -868,7 +877,7 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          ParBilinearForm blf_fa(&fes);
          blf_fa.AddDomainIntegrator(new MassIntegrator(ir));
          blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-         blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACYFULL);
+         blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
          blf_fa.Assemble();
          blf_fa.Finalize();
 
@@ -887,7 +896,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
          auto qf = mass_diffusion_qdata_local_qf{};
-         dop.AddDomainIntegrator<LocalQFBackend>(
+         constexpr auto kernels = DerivativeKernels::AssembleMatrix;
+         dop.AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
             tuple{Value<V>{}, Gradient<V>{}, Identity<S>{}},

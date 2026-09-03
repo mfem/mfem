@@ -172,13 +172,16 @@ void mass_action(const char *filename, int p)
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
       local_mf_mass_qf<DIM> local_qfn;
-      dop.AddDomainIntegrator<LocalQFBackend>(
+      constexpr auto kernels =
+         DerivativeKernels::Action |
+         DerivativeKernels::Apply;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
       if constexpr(!mfem_use_gpu)
       {
          global_mf_mass_qf<DIM> global_qfn;
-         dop.AddDomainIntegrator<GlobalQFBackend>(
+         dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
 
@@ -218,13 +221,14 @@ void mass_action(const char *filename, int p)
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
 
       local_mf_mass_qf<DIM> local_qfn;
-      dop.AddDomainIntegrator<LocalQFBackend>(
+      constexpr auto kernels = DerivativeKernels::AssembleDiagonal;
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
       if constexpr(!mfem_use_gpu)
       {
          global_mf_mass_qf<DIM> global_qfn;
-         dop.AddDomainIntegrator<GlobalQFBackend>(
+         dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
 
@@ -281,10 +285,12 @@ void mass_action(const char *filename, int p)
          };
 
          auto derivatives = std::integer_sequence<size_t, U> {};
-         dop.AddBoundaryIntegrator<QFBackend>(mf_mass_qf,
-                                              tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-                                              tuple{ Value<U>{} },
-                                              *ir, all_bdr_attr, derivatives);
+         constexpr auto kernels = DerivativeKernels::Action;
+         dop.AddBoundaryIntegrator<QFBackend, kernels>(
+            mf_mass_qf,
+            tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
+            tuple{ Value<U>{} },
+            *ir, all_bdr_attr, derivatives);
 
          pfes.GetRestrictionMatrix()->Mult(x, X);
 
@@ -436,7 +442,10 @@ void mass_mat_mixed(const char* filename, int p)
    { { P, &fes0 } }, pmesh);
 
    local_mf_mass_qf<DIM> local_qfn;
-   dop.AddDomainIntegrator<LocalQFBackend>(
+   constexpr auto kernels =
+      DerivativeKernels::Action |
+      DerivativeKernels::AssembleMatrix;
+   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
       local_qfn,
       Inputs<Value<U>, Gradient<Coords>, Weight> {},
       Outputs<Value<P>> {},

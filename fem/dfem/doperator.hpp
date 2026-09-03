@@ -458,6 +458,9 @@ public:
    DerivativeOperator(const DerivativeOperator &) = delete;
    DerivativeOperator &operator=(const DerivativeOperator &) = delete;
 
+   /// Fill the quadrature-point cache, if one is configured.
+   void SetupQpCache() const { EnsureQpCache(); }
+
    /// @brief Compute the action of the derivative operator on a given vector.
    ///
    /// @param x The direction vector in which to compute the derivative.
@@ -474,6 +477,12 @@ public:
    template <typename vector_t>
    void Mult(const Vector &x, vector_t &y) const
    {
+      // Checks that Mult is applicable: there is a MF or PA derivative action.
+      // A cached apply that was requested but never registered is rejected
+      // earlier, when DifferentiableOperator::GetDerivative() builds this.
+      MFEM_VERIFY(!derivative_actions.empty(),
+                  "derivative can't be applied: the integrator was registered "
+                  "without DerivativeKernels::Action");
       EnsureQpCache();
       prolongation(direction, x, direction_l, lvector_mode);
       restriction(infds, in_rcache, infields_l, infields_e);
@@ -534,8 +543,10 @@ public:
    template <typename direction_t, typename result_t>
    void MultTranspose(const direction_t &direction_mv, result_t &result_mv) const
    {
-      MFEM_ASSERT(!derivative_actions_transpose.empty(),
-                  "derivative can't be used in transpose mode");
+      MFEM_VERIFY(!derivative_actions_transpose.empty(),
+                  "derivative can't be applied in transpose mode: the "
+                  "integrator was registered without "
+                  "DerivativeKernels::ApplyTranspose");
       EnsureQpCache();
 
       // Prolong each output field from T-space to L-space into the
@@ -980,6 +991,7 @@ public:
    /// Called only from AddDomainIntegrator() and AddBoundaryIntegrator().
    template <
       typename backend_t = LocalQFBackend,
+      DerivativeKernels kernels = DerivativeKernels::All,
       typename entity_t,
       typename qfunc_t,
       typename input_t,
@@ -1015,6 +1027,7 @@ public:
    /// DerivativePair entries.
    template <
       typename backend_t = GlobalQFBackend,
+      DerivativeKernels kernels = DerivativeKernels::All,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -1045,6 +1058,7 @@ public:
    /// made available for this integrator, see AddDomainIntegrator().
    template <
       typename backend_t = GlobalQFBackend,
+      DerivativeKernels kernels = DerivativeKernels::All,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -1077,9 +1091,10 @@ public:
    /// operator and used to initialize the input field data needed for future
    /// derivative applications and assembly operations.
    ///
-   /// This overload accepts the state as a T-vector BlockVector. When cached
-   /// derivative-apply callbacks are available, they are preferred over the
-   /// uncached callbacks.
+   /// This overload accepts the state as a T-vector BlockVector and uses the
+   /// direct derivative-action callbacks. Use the MultiVector overload with
+   /// @a use_cached_setup set to request the cached derivative apply, which
+   /// additionally requires DerivativeKernels::Apply on the integrator.
    ///
    /// @param derivative_id The derivative ID to be computed.
    /// @param x Current state as a BlockVector stored through the Vector
@@ -1094,18 +1109,20 @@ public:
    /// @a x is captured by the returned operator and used to initialize the
    /// input field data needed for derivative applications and assembly.
    ///
-   /// When @a use_cached_setup is true and cached derivative-apply callbacks
-   /// are available, the returned operator uses them; otherwise it falls back
-   /// to the direct derivative-action callbacks.
+   /// The returned operator uses the direct derivative-action callbacks by
+   /// default. When @a use_cached_setup is true it uses the cached
+   /// derivative-apply callbacks instead, which requires the integrator to
+   /// have been registered with DerivativeKernels::Apply; asking for them
+   /// without it is an error reported by DerivativeOperator::Mult().
    ///
    /// @param derivative_id The derivative ID to be computed.
    /// @param x Current state stored in a MultiVector.
-   /// @param use_cached_setup Whether to prefer cached derivative-apply
-   /// callbacks over direct derivative actions.
+   /// @param use_cached_setup Whether to use the cached derivative-apply
+   /// callbacks instead of the direct derivative actions.
    /// @return A shared pointer to the configured DerivativeOperator.
    std::shared_ptr<DerivativeOperator> GetDerivative(
       size_t derivative_id, const MultiVector &x,
-      const bool use_cached_setup = true);
+      const bool use_cached_setup = false);
 
    /// @brief Create a first-derivative (gradient) operator for a functional.
    ///
@@ -1316,6 +1333,7 @@ private:
 
 template <
    typename backend_t,
+   DerivativeKernels kernels,
    typename qfunc_t,
    typename input_t,
    typename output_t,
@@ -1330,13 +1348,14 @@ void DifferentiableOperator::AddDomainIntegrator(
    derivative_ids_t derivative_ids,
    second_derivative_ids_t second_derivative_ids)
 {
-   AddIntegrator<backend_t, Entity::Element>(
+   AddIntegrator<backend_t, kernels, Entity::Element>(
       qfunc, inputs, outputs, integration_rule, domain_attributes,
       derivative_ids, second_derivative_ids);
 }
 
 template <
    typename backend_t,
+   DerivativeKernels kernels,
    typename qfunc_t,
    typename input_t,
    typename output_t,
@@ -1355,13 +1374,14 @@ void DifferentiableOperator::AddBoundaryIntegrator(
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
-   AddIntegrator<backend_t, Entity::BoundaryElement>(
+   AddIntegrator<backend_t, kernels, Entity::BoundaryElement>(
       qfunc, inputs, outputs, integration_rule, boundary_attributes,
       derivative_ids, second_derivative_ids);
 }
 
 template <
    typename backend_t,
+   DerivativeKernels kernels,
    typename entity_t,
    typename qfunc_t,
    typename input_t,
@@ -1588,14 +1608,16 @@ void DifferentiableOperator::AddIntegrator(
    {
       auto create_callbacks = [&](auto derivative_id,
                                   auto callback_key,
-                                  auto &setup_callbacks,
-                                  auto &apply_callbacks,
-                                  auto &transpose_callbacks,
-                                  auto &assemble_sparsematrix_callbacks,
-                                  auto &assemble_hypreparmatrix_callbacks,
-                                  auto &assemble_diagonal_cbs,
-                                  auto &action_cbs,
-                                  Vector &callback_qp_cache,
+                                  [[maybe_unused]] auto &setup_callbacks,
+                                  [[maybe_unused]] auto &apply_callbacks,
+                                  [[maybe_unused]] auto &transpose_callbacks,
+                                  [[maybe_unused]] auto
+                                  &assemble_sparsematrix_callbacks,
+                                  [[maybe_unused]] auto
+                                  &assemble_hypreparmatrix_callbacks,
+                                  [[maybe_unused]] auto &assemble_diagonal_cbs,
+                                  [[maybe_unused]] auto &action_cbs,
+                                  [[maybe_unused]] Vector &callback_qp_cache,
                                   const IntegratorContext &callback_ctx,
                                   auto &qf, auto outputs)
       {
@@ -1617,62 +1639,91 @@ void DifferentiableOperator::AddIntegrator(
             }
          }, std::make_index_sequence<tuple_size<callback_outputs_t>::value> {});
 
-         const bool disable_assemble = !any_assemblable_output;
+         [[maybe_unused]] const bool disable_assemble = !any_assemblable_output;
 
-         // Setup the qp cache for the derivative
-         setup_callbacks[callback_key].push_back(
-            MakeDerivativeSetupCallback(
-               backend_t::template MakeDerivativeSetup<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+         // Setup the qp cache for the derivative. Only for registered kernels that actually need it.
+         if constexpr (NeedsQpCache(kernels))
+         {
+            setup_callbacks[callback_key].push_back(
+               MakeDerivativeSetupCallback(
+                  backend_t::template MakeDerivativeSetup<derivative_idx>(
+                     callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+         }
 
          // Apply the derivative to the qp cache
-         apply_callbacks[callback_key].push_back(
-            derivative_action_t(
-               backend_t::template MakeDerivativeApply<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+         if constexpr (HasAllKernels(kernels, DerivativeKernels::Apply))
+         {
+            apply_callbacks[callback_key].push_back(
+               derivative_action_t(
+                  backend_t::template MakeDerivativeApply<derivative_idx>(
+                     callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+         }
 
          // Apply the transpose of the derivative to the qp cache
-         transpose_callbacks[callback_key].push_back(
-            derivative_action_t(
-               backend_t::template MakeDerivativeApplyTranspose<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache)));
-
-         if (!disable_assemble)
+         if constexpr (HasAllKernels(kernels,
+                                     DerivativeKernels::ApplyTranspose))
          {
-            const auto output_groups =
-               std::make_shared<const OutputFieldGroups<callback_outputs_t>>(
-                  callback_ctx, outputs);
+            transpose_callbacks[callback_key].push_back(
+               derivative_action_t(
+                  backend_t::template MakeDerivativeApplyTranspose<derivative_idx>(
+                     callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+         }
 
-            // Assemble the derivative into a SparseMatrix
-            assemble_sparsematrix_callbacks[callback_key].push_back(
-               backend_t::template MakeDerivativeAssemble<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache,
-                  output_groups));
-
-            // Assemble the derivative into a HypreParMatrix. This one runs
-            // every sparse callback registered under the key, so it is
-            // registered once and not once per integrator.
-            if (assemble_hypreparmatrix_callbacks[callback_key].empty())
+         if constexpr (HasAnyKernel(
+                          kernels,
+                          DerivativeKernels::AssembleMatrix |
+                          DerivativeKernels::AssembleDiagonal))
+         {
+            if (!disable_assemble)
             {
-               assemble_hypreparmatrix_callbacks[callback_key].push_back(
-                  MakeDerivativeHypreParMatrixAssemble(
-                     derivative_idx,
-                     assemble_sparsematrix_callbacks[callback_key],
-                     callback_ctx));
-            }
+               const auto output_groups =
+                  std::make_shared<const OutputFieldGroups<callback_outputs_t>>(
+                     callback_ctx, outputs);
 
-            // Assemble the diagonal of the derivative into an L-vector
-            assemble_diagonal_cbs[callback_key].push_back(
-               backend_t::template MakeDerivativeAssembleDiagonal<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs, callback_qp_cache,
-                  output_groups));
+               if constexpr (HasAllKernels(kernels,
+                                           DerivativeKernels::AssembleMatrix))
+               {
+                  // Assemble the derivative into a SparseMatrix
+                  assemble_sparsematrix_callbacks[callback_key].push_back(
+                     backend_t::template MakeDerivativeAssemble<derivative_idx>(
+                        callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                        output_groups));
+
+                  // Assemble the derivative into a HypreParMatrix. This one runs
+                  // every sparse callback registered under the key, so it is
+                  // registered once and not once per integrator.
+                  if (assemble_hypreparmatrix_callbacks[callback_key].empty())
+                  {
+                     assemble_hypreparmatrix_callbacks[callback_key].push_back(
+                        MakeDerivativeHypreParMatrixAssemble(
+                           derivative_idx,
+                           assemble_sparsematrix_callbacks[callback_key],
+                           callback_ctx));
+                  }
+               }
+
+               if constexpr (HasAllKernels(
+                                kernels,
+                                DerivativeKernels::AssembleDiagonal))
+               {
+                  // Assemble the diagonal of the derivative into an L-vector
+                  assemble_diagonal_cbs[callback_key].push_back(
+                     backend_t::template
+                     MakeDerivativeAssembleDiagonal<derivative_idx>(
+                        callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                        output_groups));
+               }
+            }
          }
 
          // Apply the derivative
-         action_cbs[callback_key].push_back(
-            MakeDerivativeActionCallback(
-               backend_t::template MakeDerivativeAction<derivative_idx>(
-                  callback_ctx, qf, inputs, outputs)));
+         if constexpr (HasAllKernels(kernels, DerivativeKernels::Action))
+         {
+            action_cbs[callback_key].push_back(
+               MakeDerivativeActionCallback(
+                  backend_t::template MakeDerivativeAction<derivative_idx>(
+                     callback_ctx, qf, inputs, outputs)));
+         }
       };
 
       constexpr size_t idx = decltype(i)::value;
