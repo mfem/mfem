@@ -296,7 +296,13 @@ own: `doc/HDG-P-ADAPTIVITY-CONSTRAIN.md`.** The surplus slots want constraining
 so that a face's coefficients are the coarse function expressed at the ceiling,
 rather than retiring so that they are not. The identity that says the repair
 cannot change any answer is measured, in `"A coarse trace basis is an exact
-combination of the ceiling's"`, and the work is eleven prolongation sites.
+combination of the ceiling's"`. The work is eleven prolongation sites, plus a
+choice the plan settles by counting flops rather than by taste: assembling the
+local blocks at the ceiling costs a predicted 4.0x on the trace-dependent
+element-local algebra at the demonstrator's ceiling, and saves at most 1.19x on
+the trace solve, so
+the cheap shape lands first and the local blocks stay at `p_f` only if the
+demonstrator says they must.
 
 **A hanging-node family has to run at the ceiling**, which is where coarsening
 stops. The reason is in `SetTraceOrders()`: the constraint space's conforming
