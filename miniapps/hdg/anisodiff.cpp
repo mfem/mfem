@@ -100,33 +100,25 @@
 //    relative L2 error in the potential against the globally coupled unknowns
 //    -- the size of the trace solve, which is what a hybridized method costs:
 //
-//      || t - t_ex ||        uniform M   h-adapt M   hp M   hp M, aniso
-//      ------------------------------------------------------------------
-//      1.0e-3                   24960        1146     953           718
-//      1.0e-4                   99072        3501    1351           921
-//      3.0e-5                       -        6258    1553          1025
-//      1.0e-7                       -           -    4189             -
+//      || t - t_ex ||          uniform M    h-adapt M       hp M
+//      ---------------------------------------------------------------
+//      1.0e-3                     24960         1146         696
+//      1.0e-4                     99072         3501         949
+//      3.0e-5                         -         6258        1066
+//      1.0e-7                         -            -        1969
+//      3.0e-9                         -            -        3022
 //
-//    Read across a row: at 1e-4 the same error costs 73 times fewer globally
-//    coupled unknowns than uniform refinement and 2.6 times fewer than
-//    h-adaptivity, and hp keeps going three decades past where the others were
+//    Read across a row: at 1e-4 the same error costs 104 times fewer globally
+//    coupled unknowns than uniform refinement and 3.7 times fewer than
+//    h-adaptivity, and hp keeps going four decades past where the others were
 //    stopped -- uniform would need nx beyond 1500 and h-adaptivity does not
 //    get there at all, dying on direct-solver memory at M around 1.4 million.
-//    The uniform column is nx = 64 and 128; the adaptive columns are
-//    --doerfler-marking --postprocessed-estimate at the defaults, the hp ones
+//    The uniform column is nx = 64 and 128; both adaptive columns are
+//    --doerfler-marking --postprocessed-estimate at the defaults, the hp one
 //    adding --hp-adaptivity. Each row is the nearest cycle rather than an
 //    interpolation, so the errors within a row are close but not equal --
-//    1.0e-3 / 1.2e-3 / 7.8e-4 / 1.0e-3, then 8.3e-5 / 8.8e-5 / 9.2e-5 /
-//    1.05e-4, then 3.4e-5 / 2.4e-5 / 3.4e-5, then 9.4e-8.
-//
-//    THE LAST COLUMN IS NOT THE DEFAULT, and the reason is the empty cell.
-//    --anisotropic-estimate 2 under hp is 1.5 to 1.9 times cheaper than the
-//    isotropic loop at every level it reaches, 108 times cheaper than uniform
-//    refinement at 1e-4 -- and then it plateaus at 8.7e-7 and goes no further,
-//    where the isotropic loop carries on to 5.9e-8. Since reaching further
-//    than the alternatives is most of hp's case, the default stays isotropic
-//    and the flag is there for anyone who wants the cheaper route to a
-//    moderate tolerance. Why it plateaus is not understood.
+//    1.0e-3 / 1.2e-3 / 8.5e-4, then 8.3e-5 / 8.8e-5 / 6.9e-5, then 3.4e-5 /
+//    3.0e-5, then 1.3e-7, then 3.0e-9.
 //
 //    IN SECONDS RATHER THAN DOFS the ranking is not the same, and that is
 //    worth knowing before quoting the table. At a relative error near 1e-4
@@ -206,19 +198,23 @@
 //       that to the direction NORMAL to the face is not the direction that
 //       would reduce it.
 //
-//    4. THE FACE RULE MATTERS, AND ONLY WHERE THE INTERFACE SITS ON THE
-//       FEATURE. `min` -- the lower of a face's two element degrees, and the
-//       library's default -- is not merely conservative: on a PRESCRIBED
-//       interface it gets worse as the degree jump grows, the flux error going
-//       1.066e-2, 1.620e-2, 1.519e-2 on `convdiff -o 1 -nx 8` as the refined
-//       half is raised by one, two and three degrees, while `max` holds
-//       1.051e-2 throughout. That prescribed study also says the POTENTIAL
-//       never sees the rule -- ratios of 0.997 to 1.0005 at every jump and
-//       mesh. This loop says otherwise, by 21 to 27 per cent of the dofs at
-//       fixed potential error, and the two are not in conflict: on a
-//       prescribed interface the geometry decides where the p-jump goes and it
-//       lands away from the layer, while an adaptive loop puts it exactly on
-//       the feature. A rule can only matter where its interface does.
+//    4. THE FACE RULE IS COUPLED TO (2), AND THAT DECIDES IT. `min` -- the
+//       lower of a face's two element degrees -- is not merely conservative:
+//       on a PRESCRIBED interface it gets worse as the degree jump grows, the
+//       flux error going 1.066e-2, 1.620e-2, 1.519e-2 on `convdiff -o 1 -nx 8`
+//       as the refined half is raised by one, two and three degrees, while
+//       `max` holds 1.051e-2 throughout. In the ISOTROPIC hp loop `max` is
+//       worth about 25 per cent of the dofs.
+//
+//       But `max` is what CREATES a face richer than one of its elements, and
+//       such a face hands the poorer element a magnitude it cannot reduce by
+//       any refinement of its own -- the same term as in (2), whose direction
+//       half is handled and whose magnitude half is not. With the anisotropic
+//       split, which is worth more than 25 per cent, the loop then marks those
+//       elements for ever: it plateaus at 8.8e-7 where the same run under
+//       `min` reaches 2.96e-9 on 3022 dofs, three decades further. `min`
+//       simply never makes such a face, so it is the default -- as a
+//       workaround for an unsolved problem, not as a preference.
 //       Comparing lambda against the projection of the postprocessed trace
 //       into the trace space rather than against the trace itself -- which is
 //       what the published estimator asks for, and is
@@ -643,35 +639,32 @@ int main(int argc, char *argv[])
       cerr << "Warning: A linear solver is used" << endl;
    }
 
-   /* 2 where the split works and 0 under hp where it does not, and the
-      boundary between them is a measurement. Splitting the estimator's two
-      jobs -- direction from the computed potential, magnitude from the
-      postprocessed one -- fixes the h-adaptive loop outright: it used to sit
-      at 0.283893 through twelve cycles and 5352 dofs and now reaches 2.5e-4 at
-      M = 2217, 2.5 times better than the best configuration that existed
-      before it.
+   /* Both jobs of the split, everywhere, now that each is taken from the
+      field that answers it and an enriched face contributes no direction. */
+   if (aniso < 0) { aniso = 2; }
 
-      It does NOT rescue hp, and the reason is not the estimate. A hanging-node
-      family has to run at the ceiling degree, which enriches the trace across
-      every hanging node, and anisotropic refinement makes hanging nodes
-      prolifically. Holding everything else fixed and moving only the ceiling:
-      at --max-order equal to --order the hp loop reproduces the non-hp one to
-      every printed digit, and at one degree above it stalls at 0.078. Every
-      higher ceiling stalls too, as does the run with p-refinement disabled
-      entirely, so it is the ceiling at the hanging nodes and neither the
-      p-variation nor the field the direction comes from. See
-      DarcyHybridization::SetTraceOrders(). */
-   if (aniso < 0) { aniso = hp ? 0 : 2; }
+   /* `min`, and the reason is a coupling with the split rather than anything
+      about the rule on its own.
 
-   /* The higher of a face's two element degrees under hp, and that default is
-      a measurement too. `min` is the safe-looking rule and it is measured to
-      get WORSE as the degree jump across an interface grows -- on
-      `convdiff -o 1 -nx 8`, the flux error goes 1.066e-2, 1.620e-2, 1.519e-2
-      as the refined half is raised by one, two and three degrees, where `max`
-      holds 1.051e-2, 1.051e-2, 1.054e-2 -- and an hp loop routinely reaches
-      jumps of two and three. In this loop it is worth about 25% of the dofs at
-      fixed error, uniformly across four decades. */
-   if (pface_max < 0) { pface_max = hp ? 1 : 0; }
+      `max` is the better rule where the trace can be enriched freely: on a
+      prescribed interface `min` is measured to get WORSE as the degree jump
+      grows -- the flux error on `convdiff -o 1 -nx 8` goes 1.066e-2, 1.620e-2,
+      1.519e-2 as the refined half is raised by one, two and three degrees
+      where `max` holds 1.051e-2 throughout -- and in the ISOTROPIC hp loop it
+      is worth about 25% of the dofs.
+
+      But `max` is what CREATES a face richer than one of its elements, and
+      that face hands the poorer element a magnitude it cannot reduce by any
+      refinement of its own. With the anisotropic split -- which is worth more
+      -- the loop then marks those elements for ever and goes nowhere: it
+      plateaus at 8.8e-7 where the same run under `min` reaches 2.96e-9, three
+      decades further, on 3022 dofs. `min` simply never makes such a face.
+
+      So this is a workaround for an unsolved problem rather than a preference,
+      and the problem is the magnitude at a degree mismatch -- the direction
+      half of it is handled, see
+      HDGErrorEstimator::SetSkipEnrichedDirection(). */
+   if (pface_max < 0) { pface_max = 0; }
 
    if (hp)
    {
