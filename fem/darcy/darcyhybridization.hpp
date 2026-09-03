@@ -21,6 +21,8 @@
 #endif //MFEM_USE_MPI
 
 #include <functional>
+#include <map>
+#include <utility>
 
 #define MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 #define MFEM_DARCY_HYBRIDIZATION_GRAD_MAT
@@ -232,6 +234,23 @@ protected:
        after Reset() with different degrees must not inherit the first one's.
        Empty and unused while the trace is uniform. */
    Array<int> ess_tdof_user;
+
+   /** @brief The constrained trace: the numbering, the two face maps, and the
+       prolongation composed out of them.
+
+       Built lazily by BuildTraceConstraint() and empty while the trace is
+       uniform, so a caller that never sets a per-face degree allocates
+       nothing and every accessor falls through to the constraint space's
+       own. Cleared by SetTraceOrders() and by Init(); nothing else can
+       change what they depend on, which is #tr_order and the space. */
+   mutable Array<int> ctr_offsets;
+   /// ctdof -> constraint-space true DOF, block diagonal over faces.
+   mutable std::unique_ptr<SparseMatrix> ctr_PE;
+   /// ctdof -> constraint-space VDOF, i.e. cP composed with #ctr_PE. Serial.
+   mutable std::unique_ptr<SparseMatrix> ctr_Pv;
+   /// E and R, keyed by (face geometry, degree) rather than by face.
+   mutable std::map<std::pair<int,int>,DenseMatrix> ctr_E, ctr_R;
+   mutable bool ctr_built{false};
 
 private:
    struct
@@ -484,6 +503,28 @@ private:
        Finalize(), which is where the degrees stop changing, and idempotent
        because it rebuilds ess_tdof_list from #ess_tdof_user each time. */
    void RetireSurplusTraceDofs();
+
+   /** @brief Build #ctr_offsets, #ctr_PE and #ctr_Pv. Idempotent, lazy. */
+   void BuildTraceConstraint() const;
+
+   /** @brief The face maps of face @a f: E embeds its degree in the ceiling,
+       R reads a ceiling function back at its nodes.
+
+       E(j,i) = phi_i^lo(node_j^hi) and R(i,j) = phi_j^hi(node_i^lo), so
+       R E = I exactly and a degree-p_f function has exactly nt(p_f) degrees
+       of freedom in the ceiling's storage. Cached by (geometry, degree),
+       because the rows of E are the ceiling element's nodes in the face's own
+       reference ordering -- which is the ordering GetFaceVDofs() returns --
+       so orientation never enters them. It enters the nonconforming transfer
+       and the parallel true-DOF map, and both act at the ceiling where the
+       space handles it already.
+
+       R E = I is CHECKED here, once per distinct key, rather than assumed:
+       it is what says the ceiling collection really is nodal and really does
+       contain the coarse space. A modal or non-nested collection fails it
+       loudly instead of quietly discretising something else. */
+   const DenseMatrix &TraceEmbedding(int f) const;
+   const DenseMatrix &TraceRestrictionMat(int f) const;
 
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
@@ -976,6 +1017,55 @@ public:
        this returns those. With no degrees set it *is* c_fes.GetFaceVDofs().
        Public for the same reason as TraceFE(). */
    void TraceVDofs(int f, Array<int> &vdofs) const;
+
+   /** @brief The number of trace unknowns the constrained route solves for.
+
+       Sum over the faces this process owns of nt(p_f) * vdim. With no
+       per-face degrees set it is the constraint space's own true size, so a
+       caller that never sets one sees no change. */
+   int GetTraceTrueVSize() const;
+
+   /** @brief The trace prolongation, from the constrained true DOFs to the
+       constraint space's VDOFs, or NULL when it would be the identity.
+
+       This is what every reader of the trace prolongation must go through
+       once a per-face degree is in play. With no degrees set it returns
+       **exactly** what FiniteElementSpace::GetConformingProlongation()
+       returns, the same pointer and the same null, so the uniform path is
+       unchanged by construction rather than by test.
+
+       Serial only; see GetParTraceProlongation() for the parallel one. */
+   const SparseMatrix *GetTraceProlongationMatrix() const;
+
+   /** @brief GetTraceProlongationMatrix(), or its parallel counterpart, as an
+       Operator. NULL only in the serial case where it would be the
+       identity. */
+   const Operator *GetTraceProlongation() const;
+
+   /** @brief Prolong a constrained trace vector to constraint-space VDOFs.
+
+       The result is a genuine ceiling-basis representation of a function of
+       each face's own degree, so anything that reads the trace space
+       generically -- a GridFunction, the error estimator, the
+       reconstruction, GLVis -- is then reading the right function. That is
+       the whole point of constraining rather than retiring. */
+   void ProlongTrace(const Vector &X_c, Vector &x) const;
+
+   /** @brief Read a constraint-space VDOF vector back at each face's own
+       degree.
+
+       The left inverse of ProlongTrace(), and **not** its transpose: it
+       interpolates at the coarse nodes, where the transpose would integrate
+       against the ceiling's. Use it for DATA -- a boundary datum, an initial
+       guess -- and the transpose for residuals.
+
+       The difference is the reason the essential-datum refusal exists. R is
+       a function of the function, so restricting one function represented at
+       two different ceilings gives the same answer twice; a least-squares
+       pseudo-inverse is a function of the ceiling's node set and does not.
+       Measured in "A coarse trace basis is an exact combination of the
+       ceiling's". */
+   void RestrictTrace(const Vector &x, Vector &X_c) const;
 
    /// Not available, use a specific Assemble*MassMatrix() instead.
    void AssembleMatrix(int el, const DenseMatrix &A) override

@@ -242,6 +242,11 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
 #endif //MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
 
    AllocTraceBlocks();
+
+   // The constrained trace depends on the space, which Init() is re-reading.
+   ctr_built = false;
+   ctr_E.clear();
+   ctr_R.clear();
 }
 
 /** @brief Allocate everything whose size comes from the trace element.
@@ -843,6 +848,10 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
    MFEM_VERIFY(!bfin, "Trace orders must be set before Finalize(), which is "
                "where the local block sizes are fixed.");
 
+   ctr_built = false;
+   ctr_E.clear();
+   ctr_R.clear();
+
    if (face_order.Size() == 0) { tr_order.DeleteAll(); return; }
 
    const Mesh *mesh = c_fes.GetMesh();
@@ -1026,6 +1035,279 @@ void DarcyHybridization::TraceVDofs(int f, Array<int> &vdofs) const
       }
    }
    vdofs.SetSize(nt_f * vdim);
+}
+
+const DenseMatrix &DarcyHybridization::TraceEmbedding(int f) const
+{
+   const Geometry::Type geom = c_fes.GetMesh()->GetFaceGeometry(f);
+   const auto key = std::make_pair((int)geom, tr_order[f]);
+   auto it = ctr_E.find(key);
+   if (it != ctr_E.end()) { return it->second; }
+
+   const FiniteElement *fe_hi = c_fes.GetFaceElement(f);
+   const FiniteElement *fe_lo = TraceFE(f);
+   const int n_hi = fe_hi->GetDof(), n_lo = fe_lo->GetDof();
+
+   DenseMatrix E(n_hi, n_lo), R(n_lo, n_hi);
+   Vector shape(n_lo);
+   for (int j = 0; j < n_hi; j++)
+   {
+      fe_lo->CalcShape(fe_hi->GetNodes().IntPoint(j), shape);
+      for (int i = 0; i < n_lo; i++) { E(j, i) = shape(i); }
+   }
+   shape.SetSize(n_hi);
+   for (int i = 0; i < n_lo; i++)
+   {
+      fe_hi->CalcShape(fe_lo->GetNodes().IntPoint(i), shape);
+      for (int j = 0; j < n_hi; j++) { R(i, j) = shape(j); }
+   }
+
+   /* R E = I, checked rather than assumed, once per distinct key.
+
+      It is the premise the whole constrained route rests on -- that the
+      coarse space is contained in the ceiling and that both are nodal, so
+      that embedding a coarse function and reading it back returns it. A
+      collection for which that is false would otherwise discretise something
+      else without saying so. */
+   DenseMatrix RE(n_lo);
+   mfem::Mult(R, E, RE);
+   real_t err = 0.;
+   for (int i = 0; i < n_lo; i++)
+      for (int j = 0; j < n_lo; j++)
+      {
+         err = std::max(err, std::abs(RE(i, j) - ((i == j) ? 1.0 : 0.0)));
+      }
+   MFEM_VERIFY(err < 1e-10,
+               "The degree-" << tr_order[f] << " trace element is not "
+               "contained in the ceiling's on face " << f << ": R E departs "
+               "from the identity by " << err << ". The constrained route "
+               "needs a nodal collection whose lower degrees are subspaces "
+               "of its higher ones.");
+
+   ctr_R.emplace(key, std::move(R));
+   return ctr_E.emplace(key, std::move(E)).first->second;
+}
+
+const DenseMatrix &DarcyHybridization::TraceRestrictionMat(int f) const
+{
+   TraceEmbedding(f);   // fills both
+   const Geometry::Type geom = c_fes.GetMesh()->GetFaceGeometry(f);
+   return ctr_R.at(std::make_pair((int)geom, tr_order[f]));
+}
+
+/** @brief Build the constrained trace numbering and its prolongation.
+
+    A face contributes constrained unknowns exactly when its slots are true
+    DOFs here, and that one rule covers all three cases: every face in serial
+    on a conforming space, every face that is not a hanging-node slave on a
+    nonconforming one, and every owned face in parallel. It relies on a face's
+    DOFs being all independent or all dependent, all owned or all not, which
+    holds because a DG_Interface face's DOFs are face-interior; the loop
+    asserts it rather than trusting it. */
+void DarcyHybridization::BuildTraceConstraint() const
+{
+   if (ctr_built) { return; }
+   ctr_built = true;
+
+   ctr_offsets.DeleteAll();
+   ctr_PE.reset();
+   ctr_Pv.reset();
+   if (tr_order.Size() == 0) { return; }
+
+   const int NF = tr_order.Size();
+   const int vdim = c_fes.GetVDim();
+   const int nvd = c_fes.GetVSize();
+
+   // VDOF -> true DOF, and the ceiling's true size with it.
+   Array<int> vdof2tdof(nvd);
+   int ntdof;
+   if (ParallelC())
+   {
+#ifdef MFEM_USE_MPI
+      for (int i = 0; i < nvd; i++)
+      {
+         vdof2tdof[i] = c_pfes->GetLocalTDofNumber(i);
+      }
+      ntdof = c_pfes->GetTrueVSize();
+#else
+      MFEM_ABORT("internal MFEM error");
+#endif
+   }
+   else if (const SparseMatrix *cR = c_fes.GetConformingRestriction())
+   {
+      vdof2tdof = -1;
+      const int *I = cR->GetI(), *J = cR->GetJ();
+      const real_t *V = cR->GetData();
+      for (int t = 0; t < cR->Height(); t++)
+      {
+         MFEM_VERIFY(I[t+1] == I[t] + 1 && V[I[t]] == 1.0,
+                     "The conforming restriction of the constraint space is "
+                     "not a plain selection on row " << t << "; the "
+                     "constrained trace numbering assumes it is.");
+         vdof2tdof[J[I[t]]] = t;
+      }
+      ntdof = cR->Height();
+   }
+   else
+   {
+      for (int i = 0; i < nvd; i++) { vdof2tdof[i] = i; }
+      ntdof = nvd;
+   }
+
+   Array<int> vdofs;
+   ctr_offsets.SetSize(NF + 1);
+   ctr_offsets[0] = 0;
+   for (int f = 0; f < NF; f++)
+   {
+      c_fes.GetFaceVDofs(f, vdofs);
+      int owned = 0;
+      for (int i = 0; i < vdofs.Size(); i++)
+      {
+         const int vd = (vdofs[i] >= 0) ? vdofs[i] : (-1 - vdofs[i]);
+         if (vdof2tdof[vd] >= 0) { owned++; }
+      }
+      MFEM_VERIFY(owned == 0 || owned == vdofs.Size(),
+                  "Face " << f << " has " << owned << " of " << vdofs.Size()
+                  << " slots as true DOFs. A trace face's DOFs are "
+                  "face-interior, so they are all independent or none are, "
+                  "and the constrained numbering counts them per face.");
+      ctr_offsets[f+1] = ctr_offsets[f]
+                         + ((owned > 0) ? TraceFE(f)->GetDof() * vdim : 0);
+   }
+
+   ctr_PE.reset(new SparseMatrix(ntdof, ctr_offsets[NF]));
+   for (int f = 0; f < NF; f++)
+   {
+      const int nt_f = (ctr_offsets[f+1] - ctr_offsets[f]) / vdim;
+      if (nt_f == 0) { continue; }
+
+      c_fes.GetFaceVDofs(f, vdofs);
+      const int nt_max = vdofs.Size() / vdim;
+      const DenseMatrix &E = TraceEmbedding(f);
+      MFEM_ASSERT(E.Height() == nt_max && E.Width() == nt_f, "");
+
+      /* Fields are outermost in GetFaceVDofs() whatever the space's Ordering,
+         so each occupies its own run of nt_max slots and E acts within it.
+
+         AND THE ORDER WITHIN A RUN IS NOT ASCENDING. GetFaceVDofs() returns a
+         face's DOFs in the face ELEMENT's dof order, which for a reversed
+         orientation is descending -- face 2 of a 3x3 Cartesian mesh comes back
+         as {5, 4}. Row j of E therefore has to go in at vdofs[j] and not at
+         some base plus j, which is what makes the constraint express the right
+         subspace on every face rather than on the ones that happen to point
+         the same way.
+
+         The columns are ours, and are numbered in the coarse element's own
+         order. That is a different numbering from the one a degree-p_f SPACE
+         would use -- it would apply the same orientation permutation -- and it
+         does not matter, because nothing outside this class names a
+         constrained unknown. It matters when comparing against such a space,
+         which is what the unit test "The constrained ceiling system IS the
+         coarse system" has to map through, and did not at first: the identity
+         read as broken by exactly that reversal. */
+      for (int k = 0; k < vdim; k++)
+      {
+         for (int j = 0; j < nt_max; j++)
+         {
+            const int vd = vdofs[k*nt_max + j];
+            const int t = vdof2tdof[(vd >= 0) ? vd : (-1 - vd)];
+            const real_t sgn = (vd >= 0) ? 1.0 : -1.0;
+            for (int i = 0; i < nt_f; i++)
+            {
+               if (E(j, i) != 0.0)
+               {
+                  ctr_PE->Add(t, ctr_offsets[f] + k*nt_f + i, sgn * E(j, i));
+               }
+            }
+         }
+      }
+   }
+   ctr_PE->Finalize();
+
+   if (!ParallelC())
+   {
+      // cP is null exactly when it would be the identity, and then ctr_PE
+      // already maps to VDOFs.
+      const SparseMatrix *cP = c_fes.GetConformingProlongation();
+      if (cP) { ctr_Pv.reset(mfem::Mult(*cP, *ctr_PE)); }
+   }
+}
+
+int DarcyHybridization::GetTraceTrueVSize() const
+{
+   if (tr_order.Size() == 0) { return c_fes.GetTrueVSize(); }
+   BuildTraceConstraint();
+   return ctr_offsets.Last();
+}
+
+const SparseMatrix *DarcyHybridization::GetTraceProlongationMatrix() const
+{
+   MFEM_ASSERT(!ParallelC(), "use GetParTraceProlongation() in parallel");
+   if (tr_order.Size() == 0) { return c_fes.GetConformingProlongation(); }
+   BuildTraceConstraint();
+   return ctr_Pv ? ctr_Pv.get() : ctr_PE.get();
+}
+
+const Operator *DarcyHybridization::GetTraceProlongation() const
+{
+   if (!ParallelC()) { return GetTraceProlongationMatrix(); }
+   MFEM_VERIFY(tr_order.Size() == 0,
+               "The parallel constrained prolongation is not built yet.");
+   return c_fes.GetProlongationMatrix();
+}
+
+void DarcyHybridization::ProlongTrace(const Vector &X_c, Vector &x) const
+{
+   x.SetSize(c_fes.GetVSize());
+   const Operator *P = GetTraceProlongation();
+   if (!P) { x = X_c; return; }
+   P->Mult(X_c, x);
+}
+
+void DarcyHybridization::RestrictTrace(const Vector &x, Vector &X_c) const
+{
+   if (tr_order.Size() == 0)
+   {
+      const SparseMatrix *cR = ParallelC() ? NULL
+                               : c_fes.GetConformingRestriction();
+      if (!cR) { X_c = x; return; }
+      X_c.SetSize(cR->Height());
+      cR->Mult(x, X_c);
+      return;
+   }
+
+   BuildTraceConstraint();
+   X_c.SetSize(ctr_offsets.Last());
+   X_c = 0.;
+
+   const int vdim = c_fes.GetVDim();
+   Array<int> vdofs;
+   Vector xf, cf;
+   for (int f = 0; f < tr_order.Size(); f++)
+   {
+      const int nt_f = (ctr_offsets[f+1] - ctr_offsets[f]) / vdim;
+      if (nt_f == 0) { continue; }
+
+      c_fes.GetFaceVDofs(f, vdofs);
+      const int nt_max = vdofs.Size() / vdim;
+      const DenseMatrix &R = TraceRestrictionMat(f);
+
+      xf.SetSize(nt_max);
+      cf.SetSize(nt_f);
+      for (int k = 0; k < vdim; k++)
+      {
+         for (int j = 0; j < nt_max; j++)
+         {
+            const int vd = vdofs[k*nt_max + j];
+            xf(j) = (vd >= 0) ? x(vd) : -x(-1 - vd);
+         }
+         R.Mult(xf, cf);
+         for (int i = 0; i < nt_f; i++)
+         {
+            X_c(ctr_offsets[f] + k*nt_f + i) = cf(i);
+         }
+      }
+   }
 }
 
 FaceElementTransformations *DarcyHybridization::GetFaceTransformation(

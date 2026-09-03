@@ -527,12 +527,16 @@ struct Solved
    std::unique_ptr<DG_Interface_FECollection> t_coll;
    std::unique_ptr<FiniteElementSpace> fes_q, fes_p, fes_t;
    std::unique_ptr<DarcyForm> darcy;
+   OperatorPtr A;    ///< the reduced trace system
    BlockVector x;
    Vector X;         ///< the reduced trace solution
    GridFunction q_h, p_h, tr_h;
 };
 
-void SolveKeeping(int order, int n, int ceiling, Solved &s)
+/// @a set_orders false leaves the trace uniform AT the ceiling, which is the
+/// ceiling discretisation itself rather than a face-by-face coarsening of it.
+void SolveKeeping(int order, int n, int ceiling, Solved &s,
+                  bool set_orders = true)
 {
    s.mesh.reset(new Mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
                                                false, 1.0, 1.0)));
@@ -566,7 +570,7 @@ void SolveKeeping(int order, int n, int ceiling, Solved &s)
    s.darcy->EnableHybridization(s.fes_t.get(), new NormalTraceJumpIntegrator(),
                                 ess);
 
-   if (ceiling != order)
+   if (ceiling != order && set_orders)
    {
       Array<int> elem_order(s.mesh->GetNE());
       elem_order = order;
@@ -584,9 +588,8 @@ void SolveKeeping(int order, int n, int ceiling, Solved &s)
 
    s.x.Update(s.darcy->GetOffsets());
    s.x = 0.0;
-   OperatorPtr A;
    Vector RHS;
-   s.darcy->FormLinearSystem(ess, s.x, A, s.X, RHS, true);
+   s.darcy->FormLinearSystem(ess, s.x, s.A, s.X, RHS, true);
 
    GSSmoother prec;
    GMRESSolver lin;
@@ -595,7 +598,7 @@ void SolveKeeping(int order, int n, int ceiling, Solved &s)
    lin.SetRelTol(1e-14);
    lin.SetAbsTol(1e-16);
    lin.SetPreconditioner(prec);
-   lin.SetOperator(*A);
+   lin.SetOperator(*s.A);
    lin.Mult(RHS, s.X);
    REQUIRE(lin.GetConverged());
 
@@ -608,12 +611,189 @@ void SolveKeeping(int order, int n, int ceiling, Solved &s)
    // unknown and comes back in X. The mesh here is conforming, so its true
    // dofs and its vdofs are the same numbering and this is a copy rather than
    // a prolongation.
+   // DarcyForm::GetOffsets() is the two field blocks; the trace is the reduced
+   // unknown and comes back in X. The mesh here is conforming, so its true
+   // dofs and its vdofs are the same numbering and this is a copy rather than
+   // a prolongation.
    REQUIRE(s.X.Size() == s.fes_t->GetVSize());
    s.tr_h.SetSpace(s.fes_t.get());
    s.tr_h = s.X;
 }
 
 } // namespace darcy_padapt
+
+TEST_CASE("The constrained ceiling system IS the coarse system",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   /* The acceptance test for the whole "constrain rather than retire"
+      redesign, and it is buildable before any of it is ported.
+
+      The claim is that a face of degree p_f under a ceiling p_max is the same
+      discretisation as a face of degree p_f under a ceiling p_f, in a
+      different basis -- so that constraining the ceiling's storage by
+      E(j,i) = phi_i^lo(node_j^hi) cannot change any answer. Written as
+      matrices, with Pi the prolongation from the constrained unknowns to the
+      constraint space:
+
+          Pi^T H(ceiling) Pi  ==  H(coarse)
+
+      entry for entry. The reduced trace matrix is what a hybridized solve
+      actually inverts, so this is not a proxy for the claim, it is the claim.
+
+      It holds because phi_i^lo = sum_j E(j,i) phi_j^hi POINTWISE, which makes
+      C_lo = C_hi E and H_face_lo = E^T H_face_hi E, and the element blocks
+      never see the trace at all. The two runs choose different quadrature
+      rules -- each follows its own trace degree -- and both are exact here,
+      which is the one assumption this test also happens to check: if either
+      rule were short, the two sides would differ. */
+   const int order = GENERATE(0, 1, 2);
+   const int gap = GENERATE(1, 2);
+   const int n = 3;
+   CAPTURE(order, gap);
+
+   // The coarse discretisation: trace space AT the element degree.
+   Solved lo;
+   SolveKeeping(order, n, order, lo);
+
+   // The ceiling discretisation: trace space at order+gap, nothing coarsened.
+   Solved hi;
+   SolveKeeping(order, n, order + gap, hi, false);
+
+   // And the constrained one, which is only here for its prolongation: every
+   // face at `order` under the ceiling of `order + gap`.
+   Solved con;
+   SolveKeeping(order, n, order + gap, con, true);
+
+   const SparseMatrix *P =
+      con.darcy->GetHybridization()->GetTraceProlongationMatrix();
+   REQUIRE(P != nullptr);
+
+   const SparseMatrix *H_hi = hi.A.As<SparseMatrix>();
+   const SparseMatrix *H_lo = lo.A.As<SparseMatrix>();
+   REQUIRE(H_hi != nullptr);
+   REQUIRE(H_lo != nullptr);
+
+   // The mesh is conforming, so the constraint space's true DOFs are its
+   // VDOFs and Pi is exactly the block-diagonal embedding.
+   REQUIRE(P->Height() == H_hi->Height());
+   REQUIRE(P->Width() == H_lo->Height());
+   REQUIRE(P->Width() ==
+           con.darcy->GetHybridization()->GetTraceTrueVSize());
+
+   std::unique_ptr<SparseMatrix> red(mfem::RAP(*P, *H_hi, *P));
+   std::unique_ptr<DenseMatrix> A1(red->ToDenseMatrix());
+   std::unique_ptr<DenseMatrix> A2(H_lo->ToDenseMatrix());
+
+   /* A BOUNDARY FACE CARRIES NO CONSTRAINT IN THIS PROBLEM, and its rows have
+      to come out of the comparison -- not because the identity fails there,
+      but because there is no identity to test.
+
+      The forms here register interior face integrators only, so nothing ever
+      reaches a boundary face's trace unknown: its row is empty, and DIAG_ONE
+      makes ComputeH() put a 1 on the diagonal afterwards so the system can be
+      solved at all. That 1 is a fix-up, not a discretisation, and restricting
+      a unit block gives E^T E rather than I -- for order 0 and a gap of 1, E
+      is a column of ones and E^T E is 2, so the difference is exactly 1. It
+      was, which is how this was attributed rather than guessed.
+
+      The exclusion is verified rather than asserted: each excluded row must be
+      exactly the fix-up, a single diagonal 1 and nothing else. */
+   /* THE CONSTRAINED NUMBERING IS NOT THE COARSE SPACE'S, and the comparison
+      has to go through the map rather than assume they coincide.
+
+      FiniteElementSpace::GetFaceVDofs() does not return a face's DOFs in
+      ascending order: it returns them in the face ELEMENT's dof order, and
+      where the face's orientation is reversed that list is descending. On the
+      3x3 mesh here, face 2 comes back as {5, 4}. The constrained unknowns are
+      ours and are numbered per face in the coarse element's own order, so the
+      two differ by exactly that per-face permutation.
+
+      It is a relabelling of our own unknowns and nothing more -- the rows of E
+      go in at vdofs[j], so the subspace being imposed is the right one either
+      way -- but a comparison that ignores it reads as a broken identity. This
+      one did, by exactly the reversal, which is how it was attributed. */
+   const int nfaces = lo.mesh->GetNumFaces();
+   const int nlo = A2->Height() / nfaces;
+   REQUIRE(nlo * nfaces == A2->Height());
+   Array<int> cmap(A2->Height()), vl;
+   for (int f = 0; f < nfaces; f++)
+   {
+      lo.fes_t->GetFaceVDofs(f, vl);
+      REQUIRE(vl.Size() == nlo);
+      for (int i = 0; i < nlo; i++) { cmap[f*nlo + i] = vl[i]; }
+   }
+   Array<int> keep(A2->Height());
+   keep = 1;
+   int excluded = 0;
+   for (int f = 0; f < nfaces; f++)
+   {
+      if (lo.mesh->FaceIsInterior(f)) { continue; }
+      for (int i = 0; i < nlo; i++)
+      {
+         const int r = f*nlo + i;
+         for (int c = 0; c < A2->Width(); c++)
+         {
+            const real_t want = (c == cmap[r]) ? 1.0 : 0.0;
+            REQUIRE(std::abs((*A2)(cmap[r], c) - want) < 1e-12);
+         }
+         keep[r] = 0;
+         excluded++;
+      }
+   }
+   REQUIRE(excluded > 0);
+   REQUIRE(excluded < A2->Height());
+
+   const real_t scale = A2->MaxMaxNorm();
+   REQUIRE(scale > 0.0);
+   real_t diff = 0.0;
+   for (int r = 0; r < A1->Height(); r++)
+   {
+      if (!keep[r]) { continue; }
+      for (int c = 0; c < A1->Width(); c++)
+      {
+         if (!keep[c]) { continue; }
+         diff = std::max(diff,
+                         std::abs((*A1)(r, c) - (*A2)(cmap[r], cmap[c])));
+      }
+   }
+   INFO("max difference " << diff << " on " << scale
+        << ", excluding " << excluded << " boundary rows");
+   REQUIRE(diff < 1e-10 * scale);
+
+   /* And the control, because "two matrices agree" is worth nothing unless
+      they could have disagreed. Restricting the ceiling matrix with the
+      WRONG embedding -- a plain selection of the first nt(p_f) slots, which
+      is what the retire route's storage convention amounts to reading in the
+      ceiling basis -- must not reproduce the coarse system. That selection is
+      exactly the thing this redesign replaces. */
+   const int nt_lo = P->Width() / con.mesh->GetNumFaces();
+   const int nt_hi = P->Height() / con.mesh->GetNumFaces();
+   REQUIRE(nt_hi > nt_lo);
+   SparseMatrix sel(P->Height(), P->Width());
+   for (int f = 0; f < con.mesh->GetNumFaces(); f++)
+      for (int i = 0; i < nt_lo; i++)
+      {
+         sel.Add(f*nt_hi + i, f*nt_lo + i, 1.0);
+      }
+   sel.Finalize();
+   std::unique_ptr<SparseMatrix> bad(mfem::RAP(sel, *H_hi, sel));
+   std::unique_ptr<DenseMatrix> B1(bad->ToDenseMatrix());
+   real_t bdiff = 0.0;
+   for (int r = 0; r < B1->Height(); r++)
+   {
+      if (!keep[r]) { continue; }
+      for (int c = 0; c < B1->Width(); c++)
+      {
+         if (!keep[c]) { continue; }
+         bdiff = std::max(bdiff,
+                          std::abs((*B1)(r, c) - (*A2)(cmap[r], cmap[c])));
+      }
+   }
+   INFO("the selection differs by " << bdiff);
+   REQUIRE(bdiff > 1e-8 * scale);
+}
 
 TEST_CASE("The error estimate does not depend on the trace ceiling",
           "[HDGErrorEstimator][PAdapt]")
