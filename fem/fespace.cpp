@@ -4081,7 +4081,7 @@ void FiniteElementSpace::GetTransferOperator(
    const FiniteElementSpace &coarse_fes, OperatorHandle &T) const
 {
    // Assumptions: see the declaration of the method.
-   if (coarse_fes.FEColl()->Name() != fec->Name())
+   if (strcmp(coarse_fes.FEColl()->Name(), fec->Name()) != 0 )
    {
       T.Reset(new GenericTransferOperator(coarse_fes, *this));
    }

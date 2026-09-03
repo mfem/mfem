@@ -729,14 +729,13 @@ TEST_CASE("Generic Transfer Operator", "[Dimension][Order][LOR]")
    }
 }
 
-/* This test requires PR #4326
 TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
 {
    dimension = GENERATE(2, 3);
    int order = GENERATE(2, 3, 4);
    int lor = GENERATE(2, 3, 4, 5);
-   auto vectorspace = GENERATE(VecSpace::VectorH1, VecSpace::ND,
-                               VecSpace::RT);
+   auto vectorspace = GENERATE(VecSpace::VectorH1vdim, VecSpace::VectorH1nodes,
+                               VecSpace::ND,VecSpace::RT);
 
    Mesh mesh;
    if (dimension == 2)
@@ -755,11 +754,18 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
    FiniteElementCollection* h1_fec = new H1_FECollection(order, dimension);
    FiniteElementCollection* nurbs_fec = nullptr;
    int vdim = 1;
+   Ordering::Type ordering = Ordering::byVDIM;
    switch (vectorspace)
    {
-      case VecSpace::VectorH1:
+      case VecSpace::VectorH1vdim:
          nurbs_fec = new NURBSFECollection(order);
          vdim = dimension;
+         ordering = Ordering::byVDIM;
+         break;
+      case VecSpace::VectorH1nodes:
+         nurbs_fec = new NURBSFECollection(order);
+         vdim = dimension;
+         ordering = Ordering::byNODES;
          break;
       case VecSpace::ND:
          nurbs_fec = new NURBS_HCurlFECollection(order);
@@ -773,7 +779,7 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
 
    // Define NURBS gridfunction
    FiniteElementSpace nurbs_fes(&mesh, new NURBSExtension(mesh.NURBSext, order),
-                                nurbs_fec, vdim);
+                                nurbs_fec, vdim, ordering);
    GridFunction nurbs_gf(&nurbs_fes);
 
    // Define H1 gridfunction on refined mesh
@@ -805,8 +811,8 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
    nurbs_to_h1.Ptr()->MultTranspose(h1_gf, nurbs_gf);
 
    // Check
-   REQUIRE(nurbs_gf).ComputeL2Error(cf) == MFEM_Approx(0.0));
-}*/
+   REQUIRE(nurbs_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
+}
 
 
 #ifdef MFEM_USE_MPI

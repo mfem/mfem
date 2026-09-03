@@ -140,23 +140,19 @@ const Operator &GridTransfer::MakeTrueOperator(
 
 const Operator &GenericGridTransfer::ForwardOperator()
 {
-   if (F.Ptr())
+   if (F.Ptr() == nullptr)
    {
-      return *F.Ptr();
+      F.Reset(new GenericTransferOperator(ran_fes, dom_fes));
    }
-
-   F.Reset(new GenericTransferOperator(ran_fes, dom_fes));
    return *F.Ptr();
 }
 
 const Operator &GenericGridTransfer::BackwardOperator()
 {
-   if (B.Ptr())
+   if (B.Ptr() == nullptr)
    {
-      return *B.Ptr();
+      B.Reset(new GenericTransferOperator(dom_fes, ran_fes));
    }
-
-   B.Reset(new GenericTransferOperator(dom_fes, ran_fes));
    return *B.Ptr();
 }
 
@@ -2205,35 +2201,33 @@ bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
    return ran_fes.GetTrueVSize() >= dom_fes.GetTrueVSize();
 }
 
-GenericTransferOperator::GenericTransferOperator(FiniteElementSpace& dom_fes,
-                                                 FiniteElementSpace& ran_fes)
+/*
+
+      :GenericTransferOperator(const_cast<FiniteElementSpace&>(dom_fes),
+                               const_cast<FiniteElementSpace&>(ran_fes)) {};
+
+*/
+
+GenericTransferOperator::GenericTransferOperator(const FiniteElementSpace&
+                                                 dom_fes,
+                                                 const FiniteElementSpace& ran_fes)
    : Operator(ran_fes.GetVSize(), dom_fes.GetVSize()),
-     dom_gf(new GridFunction(&dom_fes)),
-     ran_gf(new GridFunction(&ran_fes))
+     dom_gf(new GridFunction(const_cast<FiniteElementSpace*>(&dom_fes))),
+     ran_gf(new GridFunction(const_cast<FiniteElementSpace*>(&ran_fes)))
 {
    MFEM_VERIFY(dom_fes.GetVectorDim() == ran_fes.GetVectorDim(),
                "GenericTransferOperator: domainn and range VectorDim do not match");
 
    if (dom_fes.GetVectorDim() == 1)
    {
-      dom_cf = new GridFunctionCoefficient(dom_gf);
-      ran_cf = new GridFunctionCoefficient(ran_gf);
+      dom_cf = std::make_unique<GridFunctionCoefficient>(dom_gf.get());
+      ran_cf = std::make_unique<GridFunctionCoefficient>(ran_gf.get());
    }
    else
    {
-      dom_vcf = new VectorGridFunctionCoefficient(dom_gf);
-      ran_vcf = new VectorGridFunctionCoefficient(ran_gf);
+      dom_vcf = std::make_unique<VectorGridFunctionCoefficient>(dom_gf.get());
+      ran_vcf = std::make_unique<VectorGridFunctionCoefficient>(ran_gf.get());
    }
-}
-
-GenericTransferOperator::~GenericTransferOperator()
-{
-   delete dom_gf;
-   delete ran_gf;
-   if (dom_cf) { delete dom_cf; }
-   if (ran_cf) { delete ran_cf; }
-   if (dom_vcf) { delete dom_vcf; }
-   if (ran_vcf) { delete ran_vcf; }
 }
 
 void GenericTransferOperator::Mult(const Vector& x, Vector& y) const
@@ -2249,8 +2243,7 @@ void GenericTransferOperator::Mult(const Vector& x, Vector& y) const
    }
    else
    {
-      mfem_error("GenericTransferOperator::Mult\n"
-                 " coefficient not defined");
+      MFEM_ABORT("Coefficient not defined");
    }
    ran_gf->GetTrueDofs(y);
 }

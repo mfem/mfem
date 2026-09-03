@@ -132,8 +132,6 @@ public:
       : GridTransfer(dom_fes, ran_fes)
    { }
 
-   virtual ~GenericGridTransfer() {}
-
    const Operator &ForwardOperator() override;
 
    const Operator &BackwardOperator() override;
@@ -628,14 +626,14 @@ private:
 class GenericTransferOperator : public Operator
 {
 private:
-   GridFunction*  dom_gf = nullptr;
-   GridFunction*  ran_gf = nullptr;
+   std::unique_ptr<GridFunction>  dom_gf;
+   std::unique_ptr<GridFunction>  ran_gf;
 
-   Coefficient*  dom_cf = nullptr;
-   Coefficient*  ran_cf = nullptr;
+   std::unique_ptr<Coefficient>  dom_cf = nullptr;
+   std::unique_ptr<Coefficient>  ran_cf = nullptr;
 
-   VectorCoefficient*  dom_vcf = nullptr;
-   VectorCoefficient*  ran_vcf = nullptr;
+   std::unique_ptr<VectorCoefficient>  dom_vcf = nullptr;
+   std::unique_ptr<VectorCoefficient>  ran_vcf = nullptr;
 public:
    /// Constructs a transfer operator from \p dom_fes to \p ran_fes.
    /** No matrices are assembled, only the action to a vector is being computed.
@@ -643,16 +641,8 @@ public:
        or refined. This class leverages GridFunctionCoefficient or
        GridFunctionCoefficient. Both use RefinedToCoarse to establish a
        connection between the meshes.*/
-   GenericTransferOperator(FiniteElementSpace& dom_fes,
-                           FiniteElementSpace& ran_fes);
-
    GenericTransferOperator(const FiniteElementSpace& dom_fes,
-                           const FiniteElementSpace& ran_fes)
-      :GenericTransferOperator(const_cast<FiniteElementSpace&>(dom_fes),
-                               const_cast<FiniteElementSpace&>(ran_fes)) {};
-
-   /// Destructor
-   virtual ~GenericTransferOperator();
+                           const FiniteElementSpace& ran_fes);
 
    /// @brief Interpolation or prolongation of a vector \p x corresponding to
    /// the coarse space to the vector \p y corresponding to the fine space.
