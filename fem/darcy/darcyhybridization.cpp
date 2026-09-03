@@ -746,30 +746,12 @@ void DarcyHybridization::GetEDofs(int el, Array<int> &edofs) const
 }
 
 void DarcyHybridization::FaceOrdersFromElementOrders(
-   const Mesh &mesh, const Array<int> &elem_order, TraceOrderRule rule,
+   Mesh &mesh, const Array<int> &elem_order, TraceOrderRule rule,
    int cap, Array<int> &face_order)
 {
    MFEM_VERIFY(elem_order.Size() == mesh.GetNE(),
                "One element order per element is needed: got "
                << elem_order.Size() << " for " << mesh.GetNE() << " elements.");
-
-#ifdef MFEM_USE_MPI
-   const ParMesh *pmesh = dynamic_cast<const ParMesh*>(&mesh);
-   if (pmesh && pmesh->GetNSharedFaces() > 0 && elem_order.Size() > 0)
-   {
-      const int p0 = elem_order[0];
-      bool uniform = true;
-      for (int e = 0; e < elem_order.Size(); e++)
-      {
-         if (elem_order[e] != p0) { uniform = false; break; }
-      }
-      MFEM_VERIFY(uniform,
-                  "Deriving face orders on a mesh with shared faces needs the "
-                  "neighbouring rank's element order, and nothing exchanges it "
-                  "yet. A shared face reports no second element, so each rank "
-                  "would take its own side's degree and the two could differ.");
-   }
-#endif
 
    const int nf = mesh.GetNumFaces();
    face_order.SetSize(nf);
@@ -785,6 +767,54 @@ void DarcyHybridization::FaceOrdersFromElementOrders(
       }
       face_order[f] = std::min(p, cap);
    }
+
+#ifdef MFEM_USE_MPI
+   /* A SHARED FACE REPORTS NO SECOND ELEMENT, so the loop above gave it this
+      rank's degree alone and the two ranks either side could disagree -- which
+      would be two different trace spaces on one face. The neighbour's degree
+      is one number per element across a face neighbourhood, and
+      ParGridFunction already exchanges exactly that: an L2 space of order zero
+      has one dof per element, so its face-neighbour data IS the neighbouring
+      degrees and no new protocol is needed.
+
+      The rule is then applied on both sides of the face to the same pair, so
+      the ranks agree by construction rather than by convention -- min and max
+      are both symmetric. */
+   ParMesh *pmesh = dynamic_cast<ParMesh*>(&mesh);
+   if (pmesh && pmesh->GetNSharedFaces() > 0)
+   {
+      L2_FECollection l2_0(0, pmesh->Dimension());
+      ParFiniteElementSpace fes_0(pmesh, &l2_0);
+      ParGridFunction deg(&fes_0);
+
+      Array<int> dofs;
+      for (int e = 0; e < pmesh->GetNE(); e++)
+      {
+         fes_0.GetElementDofs(e, dofs);
+         deg(dofs[0]) = (real_t)elem_order[e];
+      }
+      deg.ExchangeFaceNbrData();
+      const Vector &nbr = deg.FaceNbrData();
+
+      const int NE = pmesh->GetNE();
+      for (int sf = 0; sf < pmesh->GetNSharedFaces(); sf++)
+      {
+         const int f = pmesh->GetSharedFace(sf);
+         if (f < 0 || f >= nf) { continue; }
+
+         FaceElementTransformations *FTr =
+            pmesh->GetSharedFaceTransformations(sf);
+         if (!FTr || FTr->Elem1No < 0 || FTr->Elem2No < NE) { continue; }
+
+         fes_0.GetFaceNbrElementVDofs(FTr->Elem2No - NE, dofs);
+         const int q = (int)std::lround(nbr(dofs[0]));
+
+         int p = elem_order[FTr->Elem1No];
+         p = (rule == TraceOrderRule::Min) ? std::min(p, q) : std::max(p, q);
+         face_order[f] = std::min(p, cap);
+      }
+   }
+#endif
 
    // A HANGING-NODE FAMILY IS HELD AT THE CEILING, and that is a limitation of
    // this route rather than a choice. See the note on SetTraceOrders().
@@ -873,6 +903,58 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
          }
       }
    }
+
+#ifdef MFEM_USE_MPI
+   /* A SHARED FACE CANNOT BE COARSENED, and this refuses rather than being
+      quietly wrong by a factor of a thousand.
+
+      The route reads a face's first nt(p_f) slots as coefficients of the
+      degree-p_f basis -- "a different basis in the same storage". That is well
+      defined while one process owns the interpretation. Across a shared face
+      it is not: the two ranks order that face's dofs by their own view of its
+      orientation, so "the first nt(p_f)" names a different subspace on each
+      side, and each retires slots the other is still using.
+
+      Measured on `pconvdiff -nx 8 -ny 8 -p 1 -o 2 -dg -hb --p-refine 1
+      --p-refine-x 0`, one fixed mesh with every face at degree 2 under a
+      degree-3 ceiling, so the retired set is a property of the discretisation
+      and cannot depend on the partition:
+
+      | ranks | retired + essential true dofs |
+      |---|---|
+      | 1 | 144, which is 144 faces x 1 surplus slot exactly |
+      | 2 | 152 |
+      | 3 | 162 |
+
+      The extra 8 and 18 are shared faces retired twice over, and the relative
+      L2 error goes from 5.9e-4 on one rank to 0.56 on two. With every face AT
+      the ceiling, where nothing is truncated, one and two ranks agree to five
+      digits (9.7801e-06 against 9.7785e-06) -- so the degree exchange is
+      right and it is the truncation that does not survive a partition.
+
+      Fixing it needs the same thing as a hanging-node family and an essential
+      datum on a coarsened face: the surplus CONSTRAINED so that a face's
+      coefficients are the coarse function expressed at the ceiling, which is
+      orientation-invariant, rather than retired so that they are not. */
+   if (ParallelC())
+   {
+      ParMesh *pm = c_pfes->GetParMesh();
+      const int nsf = pm->GetNSharedFaces();
+      for (int sf = 0; sf < nsf; sf++)
+      {
+         const int f = pm->GetSharedFace(sf);
+         if (f < 0 || f >= face_order.Size()) { continue; }
+         MFEM_VERIFY(face_order[f] == p_max,
+                     "Face " << f << " is shared between ranks and asks for "
+                     "degree " << face_order[f] << ", below the ceiling "
+                     << p_max << ". The two ranks order that face's dofs by "
+                     "their own view of its orientation, so truncating to the "
+                     "first nt(p_f) of them retires a different subspace on "
+                     "each side. A shared face has to run at the ceiling "
+                     "degree; see SetTraceOrders().");
+      }
+   }
+#endif
 
    face_order.Copy(tr_order);
 

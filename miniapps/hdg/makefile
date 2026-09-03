@@ -59,6 +59,13 @@ include $(MFEM_TEST_MK)
 
 # Testing: Specific execution options
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+# The hp demonstrator's acceptance, which is a relation between three runs
+# rather than one stored answer, so it cannot live in regress_test/. Serial
+# only: a shared face cannot be coarsened, see
+# DarcyHybridization::SetTraceOrders(). Takes about half a minute.
+hp-acceptance: anisodiff
+	@python3 $(SRC)hp_acceptance.py ./anisodiff
+
 anisodiff-test-seq: anisodiff
 	@$(call mfem-test,$<,, HDG anisotropic diffusion miniapp,\
 	-nx 20 -p 1 -o 3 -hb -dg -amr 2)

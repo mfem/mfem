@@ -848,13 +848,13 @@ public:
        rule over one fine element and the coarse one, which is a family whose
        members disagree.
 
-       **Serial only, and it says so rather than being quietly wrong in
-       parallel.** A face shared between ranks reports no second element, so
-       each side would take its own element's degree and the two could differ,
-       leaving the ranks disagreeing about a shared face's trace space. Closing
-       that needs one exchange of element degrees over face neighbours; until
-       it exists this refuses a ParMesh whose degrees are not uniform. */
-   static void FaceOrdersFromElementOrders(const Mesh &mesh,
+       **In parallel a shared face takes both ranks' degrees**, obtained by one
+       exchange over face neighbours. The mesh is taken by non-const reference
+       for that reason: the exchange builds face-neighbour data on it. The rule
+       is applied to the same pair of degrees on both sides and min and max are
+       both symmetric, so the two ranks agree by construction rather than by
+       convention. */
+   static void FaceOrdersFromElementOrders(Mesh &mesh,
                                            const Array<int> &elem_order,
                                            TraceOrderRule rule, int cap,
                                            Array<int> &face_order);

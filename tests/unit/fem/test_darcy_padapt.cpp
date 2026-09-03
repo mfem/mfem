@@ -753,3 +753,93 @@ TEST_CASE("Excluding a boundary attribute removes its faces and nothing else",
    // wrong reason.
    REQUIRE(changed == n);
 }
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("A shared face gets both ranks' element degrees",
+          "[DarcyHybridization][PAdapt][Parallel]")
+{
+   // The face rule needs the degree of the element on the far side of a
+   // shared face, and the far side belongs to another rank. What is checked
+   // here is not that the exchange runs but that it agrees with an
+   // INDEPENDENT computation of the same thing: the degrees are a function of
+   // the element centre, so every rank can work out what its neighbour must
+   // have had without being told, and the two answers must match on every
+   // face.
+   const int order = 2, cap = 5, n = 8;
+
+   Mesh serial = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                       1.0, 1.0);
+   ParMesh mesh(MPI_COMM_WORLD, serial);
+   serial.Clear();
+
+   // Degree by geometry, and deliberately not monotone in x, so that a
+   // partition cutting anywhere still produces faces whose two sides differ.
+   auto degree_at = [order](const Vector &c)
+   {
+      const int band = (int)(4.0 * c(0)) + (int)(4.0 * c(1));
+      return order + (band % 3);
+   };
+
+   Array<int> elem_order(mesh.GetNE());
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      Vector c;
+      mesh.GetElementCenter(e, c);
+      elem_order[e] = degree_at(c);
+   }
+
+   const auto rule = GENERATE(DarcyHybridization::TraceOrderRule::Min,
+                              DarcyHybridization::TraceOrderRule::Max);
+
+   Array<int> face_order;
+   DarcyHybridization::FaceOrdersFromElementOrders(mesh, elem_order, rule, cap,
+                                                   face_order);
+   REQUIRE(face_order.Size() == mesh.GetNumFaces());
+
+   // The shared faces are the ones that could not have been done locally.
+   int checked = 0;
+   for (int sf = 0; sf < mesh.GetNSharedFaces(); sf++)
+   {
+      const int f = mesh.GetSharedFace(sf);
+      if (f < 0 || f >= mesh.GetNumFaces()) { continue; }
+
+      FaceElementTransformations *FTr = mesh.GetSharedFaceTransformations(sf);
+      REQUIRE(FTr != nullptr);
+
+      // The neighbour's centre, from the face's own geometry rather than from
+      // anything the exchange produced: step across the face from this side's
+      // centre by twice the distance to the face.
+      Vector c_el, c_f;
+      mesh.GetElementCenter(FTr->Elem1No, c_el);
+      c_f.SetSize(c_el.Size());
+      {
+         IntegrationPoint ip;
+         ip.Set2(0.5, 0.0);
+         FTr->SetAllIntPoints(&ip);
+         FTr->Transform(ip, c_f);
+      }
+      Vector c_nbr(c_el.Size());
+      for (int d = 0; d < c_el.Size(); d++)
+      { c_nbr(d) = c_el(d) + 2.0 * (c_f(d) - c_el(d)); }
+
+      const int p_here = elem_order[FTr->Elem1No];
+      const int p_there = degree_at(c_nbr);
+      const int want = std::min(cap,
+                                (rule == DarcyHybridization::TraceOrderRule::Min)
+                                ? std::min(p_here, p_there)
+                                : std::max(p_here, p_there));
+
+      CAPTURE(f, p_here, p_there, face_order[f], want);
+      REQUIRE(face_order[f] == want);
+      checked++;
+   }
+
+   // On one rank there is nothing shared and the test is vacuous, which is
+   // fine and is worth saying; on more than one there must be something.
+   int total = checked;
+   MPI_Allreduce(MPI_IN_PLACE, &total, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   if (Mpi::WorldSize() > 1) { REQUIRE(total > 0); }
+}
+
+#endif // MFEM_USE_MPI

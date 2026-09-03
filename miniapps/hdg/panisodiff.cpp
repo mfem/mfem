@@ -86,6 +86,7 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <algorithm>
 
 using namespace std;
 using namespace mfem;
@@ -130,6 +131,167 @@ unique_ptr<MixedFluxFunction> GetHeatFluxFun(const ProblemParams &params,
 bool VisualizeField(socketstream &sout, const ParGridFunction &gf,
                     const char *name, int iter = 0, bool verbose = true);
 
+/** @brief Doerfler (bulk) marking: the smallest set carrying @a gamma of the
+    total squared estimate.
+
+    The set is built by sorting the elements by their estimate and taking the
+    largest until the bulk is reached, which is minimal because the
+    accumulation stops at the first index that reaches it rather than after
+    it. This is the criterion the HDG convergence analysis assumes -- Cockburn,
+    Nochetto & Zhang -- and it is the one that drove this problem's estimate
+    down; the maximum criterion below did not, and the two are kept side by
+    side so that difference stays measured rather than asserted.
+
+    @a local_err is eta_K itself, not the squares: this squares them, so that
+    both criteria take the same argument and neither can be fed the wrong one.
+    gamma near zero marks few elements and refines locally, gamma near one
+    approaches uniform refinement -- the opposite direction to MarkMaximum(). */
+static void MarkDoerfler(const Vector &local_err, real_t gamma,
+                         Array<int> &marked)
+{
+   MFEM_VERIFY(gamma > 0. && gamma <= 1.,
+               "the marking parameter must lie in (0, 1]");
+
+   /* COLLECTIVE, and by a threshold rather than by a sort. The serial version
+      takes the largest elements in order until the bulk is reached, which
+      needs a global ordering and so a global gather. Bisecting on the
+      threshold instead needs only a sum: g(t) = sum over eta_K > t of eta_K^2
+      is monotone, so forty bisections put it within 1e-12 of gamma*total, and
+      every rank marks against the same t. Each step is one MPI_Allreduce of a
+      single number, which is nothing beside a solve.
+
+      It selects a slightly larger set than the sorted rule where several
+      elements sit on the threshold; that is the price of not gathering, and
+      the set is still minimal to within those ties. */
+   const int ne = local_err.Size();
+
+   real_t total = 0., hi = 0.;
+   for (int e = 0; e < ne; e++)
+   {
+      total += local_err(e) * local_err(e);
+      hi = std::max(hi, local_err(e));
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &total, 1, MFEM_MPI_REAL_T, MPI_SUM,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &hi, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 MPI_COMM_WORLD);
+
+   marked.SetSize(0);
+   if (total <= 0.) { return; }
+
+   const real_t wanted = gamma * total;
+   real_t lo = 0.;
+   for (int it = 0; it < 40; it++)
+   {
+      const real_t mid = 0.5 * (lo + hi);
+      real_t acc = 0.;
+      for (int e = 0; e < ne; e++)
+      {
+         if (local_err(e) > mid) { acc += local_err(e) * local_err(e); }
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &acc, 1, MFEM_MPI_REAL_T, MPI_SUM,
+                    MPI_COMM_WORLD);
+      if (acc >= wanted) { lo = mid; }
+      else { hi = mid; }
+   }
+
+   for (int e = 0; e < ne; e++)
+   {
+      if (local_err(e) > lo) { marked.Append(e); }
+   }
+}
+
+/** @brief Maximum marking: every element whose estimate is at least @a gamma
+    times the largest.
+
+    This is what ThresholdRefiner does with SetTotalErrorFraction(gamma) and an
+    infinite total norm, which is its default, and this miniapp's adaptive loop
+    used it through that class until the hp work replaced the refiner with an
+    explicit mark-then-refine so that the marked set could be split between h
+    and p. Large gamma refines locally, small gamma approaches uniform. */
+static void MarkMaximum(const Vector &local_err, real_t gamma,
+                        Array<int> &marked)
+{
+   MFEM_VERIFY(gamma >= 0. && gamma <= 1.,
+               "the marking parameter must lie in [0, 1]");
+
+   marked.SetSize(0);
+   real_t largest = (local_err.Size() > 0) ? local_err.Max() : 0.;
+   MPI_Allreduce(MPI_IN_PLACE, &largest, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                 MPI_COMM_WORLD);
+   if (largest <= 0.) { return; }
+
+   for (int e = 0; e < local_err.Size(); e++)
+   {
+      if (local_err(e) > gamma * largest) { marked.Append(e); }
+   }
+}
+
+/** @brief Element-local L2 projection of @a src onto @a dst's space.
+
+    Exists for one measurement: the postprocessed potential differs from the
+    computed one in two ways at once -- a higher degree than the trace, and
+    different field content -- and the anisotropic split of the error estimate
+    goes wrong when it is used. Projecting it back down to the potential's own
+    degree keeps the field and removes the gap, so estimating on the result
+    separates the two. Both spaces must be scalar and discontinuous; the
+    projection is elementwise and means nothing across a continuous space. */
+static void ProjectDown(const GridFunction &src, GridFunction &dst)
+{
+   const FiniteElementSpace *fes_s = src.FESpace();
+   FiniteElementSpace *fes_d = dst.FESpace();
+   Mesh *mesh = fes_d->GetMesh();
+   MFEM_VERIFY(fes_s->GetVDim() == 1 && fes_d->GetVDim() == 1,
+               "scalar spaces only");
+   MFEM_VERIFY(fes_s->GetMesh() == mesh, "both spaces must be on one mesh");
+
+   Array<int> vd_s, vd_d;
+   Vector loc_s, shape_s, shape_d, b, c;
+   DenseMatrix M;
+   DenseMatrixInverse Mi;
+
+   for (int e = 0; e < mesh->GetNE(); e++)
+   {
+      const FiniteElement *fe_s = fes_s->GetFE(e);
+      const FiniteElement *fe_d = fes_d->GetFE(e);
+      ElementTransformation *T = mesh->GetElementTransformation(e);
+
+      const int nd_s = fe_s->GetDof();
+      const int nd_d = fe_d->GetDof();
+      fes_s->GetElementVDofs(e, vd_s);
+      src.GetSubVector(vd_s, loc_s);
+
+      M.SetSize(nd_d);
+      M = 0.;
+      b.SetSize(nd_d);
+      b = 0.;
+      shape_s.SetSize(nd_s);
+      shape_d.SetSize(nd_d);
+
+      const int order = fe_s->GetOrder() + fe_d->GetOrder() + T->OrderW();
+      const IntegrationRule &ir = IntRules.Get(fe_d->GetGeomType(), order);
+
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T->SetIntPoint(&ip);
+         fe_s->CalcShape(ip, shape_s);
+         fe_d->CalcShape(ip, shape_d);
+
+         const real_t w = ip.weight * T->Weight();
+         AddMult_a_VVt(w, shape_d, M);
+         b.Add(w * (shape_s * loc_s), shape_d);
+      }
+
+      Mi.Factor(M);
+      c.SetSize(nd_d);
+      Mi.Mult(b, c);
+
+      fes_d->GetElementVDofs(e, vd_d);
+      dst.SetSubVector(vd_d, c);
+   }
+}
+
 int main(int argc, char *argv[])
 {
    StopWatch chrono;
@@ -171,6 +333,18 @@ int main(int argc, char *argv[])
    int solver_type = (int)DarcyOperator::SolverType::LBFGS;
    int isol_ctrl = (int)DarcyOperator::SolutionController::Type::Native;
    int amr_nrefs = 0;
+   real_t theta = 0.7;
+   bool doerfler = false;
+   int aniso = -1;
+   bool est_pp = false;
+   bool tproj = true;
+   bool skip_edir = true;
+   bool cap_tr = true;
+   bool pp_down = false;
+   bool hp = false;
+   int p_max = -1;
+   int pface_max = -1;
+   real_t hp_shift = 0.;
    bool nc_simplices = true;
    bool rebalance = true;
    bool pa = false;
@@ -253,6 +427,72 @@ int main(int argc, char *argv[])
                   " refinement");
    args.AddOption(&rebalance, "-reb", "--rebalance", "-no-reb",
                   "--no-rebalance", "Load balance the nonconforming mesh.");
+   args.AddOption(&theta, "-theta", "--marking-fraction",
+                  "Marking parameter. Under the maximum criterion it refines\n\t\t"
+                  "every element whose estimate is at least this fraction of\n\t\t"
+                  "the largest, so LARGE refines locally; under Doerfler it is\n\t\t"
+                  "the bulk fraction of the total the marked set must carry, so\n\t\t"
+                  "large refines widely. The two run in opposite directions.");
+   args.AddOption(&aniso, "-aniso", "--anisotropic-estimate",
+                  "Split each element's estimate along the reference directions\n\t\t"
+                  "and refine only the ones that carry it. 0=off; 1=on, taking\n\t\t"
+                  "the direction from the same field as the magnitude, which is\n\t\t"
+                  "wrong whenever that field is the postprocessed potential;\n\t\t"
+                  "2=on, taking the direction from the computed potential and\n\t\t"
+                  "the magnitude from whichever field was asked for; -1 picks\n\t\t"
+                  "2. Refining only the direction that carries the error reaches\n\t\t"
+                  "1.0e-3 on 640 elements where isotropic refinement needs 4096.");
+   args.AddOption(&doerfler, "-dorf", "--doerfler-marking",
+                  "-maxm", "--maximum-marking",
+                  "Doerfler (bulk) marking rather than the maximum criterion.");
+   args.AddOption(&est_pp, "-ppest", "--postprocessed-estimate",
+                  "-no-ppest", "--no-postprocessed-estimate",
+                  "Build the error estimate on the postprocessed potential\n\t\t"
+                  "rather than on the computed one.");
+   args.AddOption(&cap_tr, "-captr", "--cap-trace-at-element",
+                  "-no-captr", "--no-cap-trace-at-element",
+                  "Where a face's trace degree exceeds the element's, compare\n\t\t"
+                  "that element against the trace projected down to its own\n\t\t"
+                  "degree.");
+   args.AddOption(&skip_edir, "-sed", "--skip-enriched-direction",
+                  "-no-sed", "--no-skip-enriched-direction",
+                  "Where a face's trace degree exceeds the element's, keep its\n\t\t"
+                  "contribution to that element's error but not to its\n\t\t"
+                  "direction. Inert unless a face outruns its element, which\n\t\t"
+                  "under hp is every hanging node -- and there it is what lets\n\t\t"
+                  "anisotropic refinement work at all.");
+   args.AddOption(&pp_down, "-ppdown", "--postprocessed-projected-down",
+                  "-no-ppdown", "--no-postprocessed-projected-down",
+                  "Project the postprocessed potential back onto the\n\t\t"
+                  "potential's own degree before estimating on it. Keeps its\n\t\t"
+                  "field content and removes its degree gap against the trace,\n\t\t"
+                  "which is what separates the two as explanations for the\n\t\t"
+                  "anisotropic split going wrong under --postprocessed-estimate.");
+   args.AddOption(&tproj, "-tproj", "--projected-trace-comparison",
+                  "-no-tproj", "--literal-trace-comparison",
+                  "Compare the trace unknown against the projection of the\n\t\t"
+                  "potential's trace into the trace space rather than against\n\t\t"
+                  "the trace itself. A no-op unless the two carry different\n\t\t"
+                  "degrees, which is what --postprocessed-estimate makes them.");
+   args.AddOption(&hp, "-hp", "--hp-adaptivity", "-no-hp", "--no-hp-adaptivity",
+                  "Spend a marked element's refinement on its degree where the\n\t\t"
+                  "smoothness sensor says it is resolved, and on h where it is\n\t\t"
+                  "not. Off, every marked element is refined in h.");
+   args.AddOption(&p_max, "-pmax", "--max-order",
+                  "Highest degree --hp-adaptivity may reach (default order+5).\n\t\t"
+                  "It is also the degree the trace space is BUILT at, which is a\n\t\t"
+                  "ceiling rather than a starting point, so raising it costs\n\t\t"
+                  "trace storage on every face whether or not any face uses it.");
+   args.AddOption(&pface_max, "-pfmax", "--p-face-rule",
+                  "Give a face the higher of its two elements' degrees (1), the\n\t\t"
+                  "lower (0), or the higher whenever --hp-adaptivity is on (-1,\n\t\t"
+                  "the default). Measured 25% cheaper in dofs at fixed error in\n\t\t"
+                  "the hp loop, where the p-interface sits on the feature; a\n\t\t"
+                  "wash at a prescribed one-degree interface. See\n\t\t"
+                  "DarcyHybridization::TraceOrderRule.");
+   args.AddOption(&hp_shift, "-hps", "--hp-sensor-shift",
+                  "Shift of the smoothness threshold s_0 = -4 log10(p). Positive\n\t\t"
+                  "calls more elements smooth and so spends more on p.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -310,6 +550,90 @@ int main(int argc, char *argv[])
    {
       cerr << "Warning: A linear solver is used" << endl;
    }
+
+   /* Both jobs of the split, everywhere, now that each is taken from the
+      field that answers it and an enriched face contributes no direction. */
+   if (aniso < 0) { aniso = 2; }
+
+   /* `max` under hp, which it can be now that the magnitude at a degree
+      mismatch is handled -- see HDGErrorEstimator::SetCapTraceAtElement(). It
+      is the better rule wherever it is usable: on a prescribed interface `min`
+      gets WORSE as the degree jump grows, the flux error on
+      `convdiff -o 1 -nx 8` going 1.066e-2, 1.620e-2, 1.519e-2 as the refined
+      half is raised by one, two and three degrees where `max` holds 1.051e-2
+      throughout, and in this loop it is worth about 10% of the dofs at every
+      matched error and reaches an order deeper in the same cycle budget --
+      4.5e-10 at M = 3264 against 3.0e-9 at M = 3022.
+
+      Without the cap it is unusable, because `max` is exactly what CREATES a
+      face richer than one of its elements: the loop then plateaus at 8.8e-7.
+      Off hp the two rules coincide, no element having a neighbour of a
+      different degree. */
+   if (pface_max < 0) { pface_max = hp ? 1 : 0; }
+
+   if (hp)
+   {
+      // Each of these is a property the per-face trace order relies on rather
+      // than a convenience.
+      if (amr_nrefs <= 0)
+      {
+         cerr << "--hp-adaptivity needs an adaptive loop: pass --amr-ref-levels"
+              << endl;
+         return 1;
+      }
+      if (!hybridization)
+      {
+         cerr << "--hp-adaptivity is a per-face TRACE degree, so it needs "
+              "--hybridization" << endl;
+         return 1;
+      }
+      if (!dg)
+      {
+         cerr << "--hp-adaptivity needs the discontinuous flux space (--dg). "
+              "A variable order on an L2 space needs nothing but "
+              "SetElementOrder(); on RT it is a different question and this "
+              "branch does not touch the RT pathways." << endl;
+         return 1;
+      }
+      if (trace_h1)
+      {
+         cerr << "--hp-adaptivity needs the DG trace space (--trace-DG); an H1 "
+              "trace is continuous across faces and has no per-face degree"
+              << endl;
+         return 1;
+      }
+      if (reconstruct)
+      {
+         cerr << "--reconstruct reads the trace space directly and would read "
+              "ceiling-degree face elements against a coarser solution. The "
+              "postprocessed potential the estimate uses is the reconstruction "
+              "that a per-face degree does not disturb." << endl;
+         return 1;
+      }
+      /* order+5, and the +5 is measured on three axes rather than chosen.
+         Raising the ceiling from order+3 to order+5 on this problem takes the
+         dofs at a relative error of 1e-7 from 13191 to 4189 -- 3.3x -- and the
+         wall clock for the same 26 cycles from 10.8 s to 6.4 s, at a BETTER
+         error. It is nearly free because the retired unit rows cost almost
+         nothing: holding the mesh and every face degree fixed and moving only
+         the ceiling from 2 to 7, a 2.67x storage ratio, assembly comes out
+         0.98-1.07x, the preconditioner 0.94-1.23x, the trace solve 1.03-1.19x
+         and peak RSS at most 1.15x. Only the hybridization's own setup scales,
+         1.46-1.64x, and it is 5% of the run.
+
+         The reason the ceiling matters so much is that it, not the smoothness
+         sensor, is making the hp decision: spend_on_p requires p < p_max, so
+         an element at the ceiling goes to h whatever the sensor says. Raising
+         it moves the h-refinement count by 45 to 100x. */
+      if (p_max < 0) { p_max = order + 5; }
+      if (p_max < order)
+      {
+         cerr << "--max-order is below --order, so there is nowhere to refine to"
+              << endl;
+         return 1;
+      }
+   }
+
 
    // 4. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -404,6 +728,14 @@ int main(int argc, char *argv[])
    {
       mesh.EnsureNCMesh(nc_simplices);
    }
+
+   /* A variable-order space is refused on a conforming mesh, even an L2 one
+      that needs no prolongation, so hp asks for the nonconforming
+      representation -- and it has to be asked for HERE, on the serial mesh:
+      ParMesh's constructor builds a ParNCMesh from an NC serial mesh, while
+      EnsureNCMesh() on the ParMesh afterwards would give it a serial one. The
+      `true` is for simplices, which the default leaves conforming. */
+   if (hp) { mesh.EnsureNCMesh(true); }
 
    // 9. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
@@ -635,6 +967,37 @@ int main(int argc, char *argv[])
    unique_ptr<FiniteElementCollection> trace_coll;
    unique_ptr<ParFiniteElementSpace> trace_space;
 
+   /** @brief Give the hybridization one trace degree per face, read off the
+       element degrees the spaces are actually carrying.
+
+       **Straight after EnableHybridization() and before Assemble().** That
+       call has already built C, E, G and H at the ceiling; stating the degrees
+       rebuilds them and resets the assembly. Getting this wrong does not
+       fail -- the DOF count comes out exactly right and the answer is wrong.
+
+       The rule is Min, the lower of a face's two elements. A trace above both
+       its neighbours is exactly redundant rather than unstable, so nothing is
+       lost there; whether Max pays at a genuine p-interface is open and needs
+       a convergence study rather than a preference. */
+   auto set_trace_orders = [&]()
+   {
+      if (!hp) { return; }
+
+      Array<int> elem_order(pmesh.GetNE());
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         elem_order[i] = W_space->GetElementOrder(i);
+      }
+
+      Array<int> face_order;
+      DarcyHybridization::FaceOrdersFromElementOrders(
+         pmesh, elem_order,
+         (pface_max != 0) ? DarcyHybridization::TraceOrderRule::Max
+         : DarcyHybridization::TraceOrderRule::Min,
+         p_max, face_order);
+      darcy->GetHybridization()->SetTraceOrders(face_order);
+   };
+
    if (hybridization)
    {
       // Hybridization
@@ -647,12 +1010,17 @@ int main(int argc, char *argv[])
       }
       else
       {
-         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+         // Under hp the constraint space's degree is a CEILING, not a
+         // starting point: SetTraceOrders() reuses its storage, so a face can
+         // be set below the degree it was built at and never above.
+         trace_coll = make_unique<DG_Interface_FECollection>(hp ? p_max : order,
+                                                             dim);
       }
       trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
+      set_trace_orders();
       // Set essential BC
       if (trace_ess_bc)
       {
@@ -812,30 +1180,20 @@ int main(int argc, char *argv[])
    //     ComputeHDGFaceEnergy() method.
 
    unique_ptr<BilinearFormIntegrator> amr_bfi;
-   unique_ptr<ErrorEstimator> amr_err;
 
    if (amr_nrefs > 0 && hybridization)
    {
       amr_bfi.reset(new HDGDiffusionIntegrator(kcoeff, td));
-      amr_err.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
-      static_cast<HDGErrorEstimator*>(amr_err.get())->SetAnisotropic();
    }
    else
    {
       amr_nrefs = 0;
    }
 
-   // 17. A refiner selects and refines elements based on a refinement strategy.
-   //     The strategy here is to refine elements with errors larger than a
-   //     fraction of the maximum element error. Other strategies are possible.
-   //     The refiner will call the given error estimator.
-   unique_ptr<ThresholdRefiner> amr_ref;
-
-   if (amr_nrefs > 0)
-   {
-      amr_ref.reset(new ThresholdRefiner(*amr_err));
-      amr_ref->SetTotalErrorFraction(0.7);
-   }
+   // 17. The marking strategy. This used to be a ThresholdRefiner, which
+   //     marks and refines in one call; hp needs the marked set in hand so it
+   //     can be split between h and p, so the two steps are explicit. Both
+   //     criteria are collective -- see MarkDoerfler().
 
    // 18. The main AMR loop. In each iteration we solve the problem on the
    //     current mesh, visualize the solution, and refine the mesh.
@@ -851,7 +1209,19 @@ int main(int argc, char *argv[])
 
       // 20. Compute the L2 error norms.
 
-      int order_quad = max(2, 2*order+1);
+      /* The rule follows the highest degree actually in the mesh, not the one
+         the run started at, or a p-refined element's error is measured with a
+         rule that cannot see it. The +1 is the postprocessed potential's
+         enrichment, which is measured here too. Collective, because the
+         highest degree may be on another rank. */
+      int max_order = order;
+      for (int e = 0; e < pmesh.GetNE(); e++)
+      {
+         max_order = max(max_order, W_space->GetElementOrder(e));
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &max_order, 1, MPI_INT, MPI_MAX,
+                    MPI_COMM_WORLD);
+      int order_quad = max(2, 2*(max_order + 1) + 1);
       const IntegrationRule *irs[Geometry::NumGeom];
       for (int i=0; i < Geometry::NumGeom; ++i)
       {
@@ -863,17 +1233,70 @@ int main(int argc, char *argv[])
       real_t err_t  = t_h.ComputeL2Error(tcoeff, irs);
       real_t norm_t = ComputeGlobalLpNorm(2., tcoeff, pmesh, irs);
 
+      /* The postprocessed potential, wanted twice over: it is what the error
+         estimate below is built on, and it is the quantity a p-adaptive run is
+         really buying. Element-local, so it needs no communication -- which is
+         also why a per-face trace degree cannot reach it. */
+      ParGridFunction t_pp;
+      real_t err_tpp = -1.;
+      if (est_pp)
+      {
+         HDGPotentialPostprocessor pp(q_h, t_h);
+         pp.SetDiffusionInverse(ikcoeff);
+         pp.Compute(t_pp);
+         err_tpp = t_pp.ComputeL2Error(tcoeff, irs);
+      }
+
+      int ne_g = pmesh.GetNE();
+      MPI_Allreduce(MPI_IN_PLACE, &ne_g, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      int p_lo = order, p_hi = order;
+      if (hp && pmesh.GetNE() > 0)
+      {
+         p_lo = p_hi = W_space->GetElementOrder(0);
+         for (int e = 1; e < pmesh.GetNE(); e++)
+         {
+            const int p = W_space->GetElementOrder(e);
+            p_lo = min(p_lo, p);
+            p_hi = max(p_hi, p);
+         }
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &p_lo, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+      MPI_Allreduce(MPI_IN_PLACE, &p_hi, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+      /* The globally coupled unknowns: the trace solve's size less the
+         essential list, which is where the slots a coarse face does not reach
+         are retired. dim(M) alone is storage at the ceiling and does not move
+         when a face is coarsened, so it is the wrong number. */
+      HYPRE_BigInt ndof_m = 0;
+      if (hybridization)
+      {
+         int ess = darcy->GetHybridization()->GetEssentialTrueDofs().Size();
+         HYPRE_BigInt ess_g = ess;
+         MPI_Allreduce(MPI_IN_PLACE, &ess_g, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
+                       MPI_COMM_WORLD);
+         ndof_m = trace_space->GlobalTrueVSize() - ess_g;
+      }
+
       if (root)
       {
          if (amr_nrefs > 0)
          {
             cout << "iter:\t" << amr_it
+                 << "\tne:\t" << ne_g
+                 << "\tM:\t" << ndof_m
+                 << "\tp:\t" << p_lo << "-" << p_hi
                  << "\tq_err:\t" << err_q / norm_q
-                 << "\tt_err:\t" << err_t / norm_t
-                 << endl;
+                 << "\tt_err:\t" << err_t / norm_t;
+            if (err_tpp >= 0.) { cout << "\tpp_err:\t" << err_tpp / norm_t; }
+            cout << endl;
          }
          else
          {
+            if (err_tpp >= 0.)
+            {
+               cout << "|| t_pp - t_ex || / || t_ex || = "
+                    << err_tpp / norm_t << "\n";
+            }
             cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
             cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
          }
@@ -1014,12 +1437,247 @@ int main(int argc, char *argv[])
          }
       }
 
-      // 27. Refine the mesh
+      // 27. Estimate, mark, and refine
 
       if (amr_it < amr_nrefs)
       {
-         amr_ref->Apply(pmesh);
-         if (amr_ref->Stop()) { break; }
+         /* THE ESTIMATE IS BUILT ON THE POSTPROCESSED POTENTIAL, when
+            --postprocessed-estimate asks for it -- computed above, since the
+            reported error wants it too.
+
+            HDGErrorEstimator compares the element's trace of the potential
+            against the trace unknown on each face. Built on t_h that
+            difference is the raw solution's, which is one order down; built on
+            the postprocessed potential -- which converges one order better
+            where the theory offers it -- it is the published estimator's
+            eta_5. It costs one element-local solve per element and reads
+            neither the trace space nor a neighbour, so a per-face trace degree
+            cannot reach it.
+
+            The switch is here rather than hard-wired so the difference stays a
+            measurement: --no-postprocessed-estimate recovers the estimate this
+            loop used before. */
+         /* Rebuilt every cycle on purpose. The estimator caches on the mesh
+            sequence, which does not move when only the degrees change, and it
+            holds a reference to the potential -- whose space is a new object
+            each cycle when the estimate is the postprocessed one. */
+         HDGErrorEstimator amr_err(*amr_bfi, tr_h,
+                                   est_pp ? t_pp : t_h);
+         /* The magnitude estimator carries the split only when it is also the
+            right field to take the direction from -- which it is whenever the
+            two fields are the same one, so `2` without a postprocessed
+            estimate is `1`. Getting this wrong made --anisotropic-estimate 2
+            mean ISOTROPIC whenever --postprocessed-estimate was off, silently.
+            */
+         const bool split_here = (aniso != 0) && !(aniso == 2 && est_pp);
+         amr_err.SetAnisotropic(split_here);
+
+         /* The Dirichlet datum is imposed WEAKLY here -- it enters the flux
+            equation as <T_D, v.n> and the constraint is not assembled on
+            those faces at all -- so on them lambda is not approximating the
+            potential's trace and |p^-lambda| is not an error. Left in, it is
+            one fixed amount per face and so grows like 1/h: measured on this
+            problem eta went 2.00, 2.83, 4.00 over nx = 8, 16, 32 while the
+            error fell by 265x, and every marked element was on the boundary.
+            With --trace-ess-bc the trace IS the datum and the term is real,
+            which is why the exclusion follows the flag rather than being
+            unconditional. */
+         if (!trace_ess_bc) { amr_err.SetExcludedBoundary(bdr_is_dirichlet); }
+
+         /* The per-face trace degrees live in the hybridization, so the
+            estimator has to be told where to find them; the constraint space
+            it would otherwise read is uniform at the ceiling. */
+         if (hp) { amr_err.SetHybridization(*darcy->GetHybridization()); }
+         if (!skip_edir) { amr_err.SetSkipEnrichedDirection(false); }
+         if (!cap_tr) { amr_err.SetCapTraceAtElement(false); }
+
+         if (tproj)
+         {
+            amr_err.SetTraceComparison(
+               HDGErrorEstimator::TraceComparison::Projected);
+         }
+
+         const Vector &local_err = amr_err.GetLocalErrors();
+
+         /* DIRECTION FROM THE COMPUTED POTENTIAL, MAGNITUDE FROM WHICHEVER
+            FIELD WAS ASKED FOR.
+
+            The two answer different questions. |p^ - lambda| on the computed
+            potential is the scheme's own stabilization term, and its
+            directional split is right -- it flags y on a problem whose layer
+            is in y, and more sharply as the layer sharpens. On the
+            postprocessed potential the same difference is essentially
+            lambda's own error, which is a real quantity but is not the
+            element's, and attributing it to the direction NORMAL to the face
+            is not the direction that would reduce it; measured, it flags x at
+            every anisotropy over four decades and the loop then refines
+            forever without touching the layer. The magnitude is the other way
+            round: the postprocessed estimate is the one worth reading as an
+            error, converging an order faster.
+
+            So take each from the field that answers it. It costs one more pass
+            over the faces, which is nothing beside a solve, and it is only
+            built when the two fields differ. --anisotropic-estimate 1 keeps
+            both from the magnitude field, which is what this loop did before
+            and is kept so the difference stays measured. */
+         unique_ptr<HDGErrorEstimator> amr_dir;
+         if (aniso == 2 && est_pp)
+         {
+            amr_dir.reset(new HDGErrorEstimator(*amr_bfi, tr_h, t_h));
+            amr_dir->SetAnisotropic();
+            if (!trace_ess_bc)
+            { amr_dir->SetExcludedBoundary(bdr_is_dirichlet); }
+            if (hp) { amr_dir->SetHybridization(*darcy->GetHybridization()); }
+            if (!skip_edir) { amr_dir->SetSkipEnrichedDirection(false); }
+            if (!cap_tr) { amr_dir->SetCapTraceAtElement(false); }
+         }
+
+         const Array<int> &aniso_flags = amr_dir
+                                         ? amr_dir->GetAnisotropicFlags()
+                                         : amr_err.GetAnisotropicFlags();
+
+         Array<int> marked;
+         if (doerfler) { MarkDoerfler(local_err, theta, marked); }
+         else { MarkMaximum(local_err, theta, marked); }
+
+         /* Collective: a rank that marked nothing must not leave the loop
+            while others refine, or the next Update() deadlocks. */
+         int n_marked = marked.Size();
+         MPI_Allreduce(MPI_IN_PLACE, &n_marked, 1, MPI_INT, MPI_SUM,
+                       MPI_COMM_WORLD);
+         if (n_marked == 0) { break; }
+
+         /* THE h-OR-p DECISION. The estimate says WHERE to spend; it cannot
+            say on what, because a badly under-resolved smooth region and a
+            well-resolved layer look alike to it. Persson & Peraire's sensor
+            answers the other half: it measures how much of an element's energy
+            sits in its top degree, so an element whose expansion is already
+            decaying gets another degree -- where convergence in p is
+            exponential -- and one whose is not gets another element. */
+         Array<Refinement> h_refs;
+         Array<int> p_refs;
+         Vector s_e;
+         if (hp)
+         {
+            PerssonPeraireSmoothness sensor(t_h);
+            sensor.GetLogSensor(s_e);
+         }
+
+         for (int i = 0; i < marked.Size(); i++)
+         {
+            const int e = marked[i];
+            const int p = hp ? W_space->GetElementOrder(e) : order;
+            const bool spend_on_p =
+               hp && p < p_max &&
+               s_e(e) < PerssonPeraireSmoothness::Threshold(p) + hp_shift;
+
+            if (spend_on_p) { p_refs.Append(e); continue; }
+
+            Refinement ref(e);
+            if (aniso_flags.Size() > 0) { ref.SetType(aniso_flags[e]); }
+            h_refs.Append(ref);
+         }
+
+         // The split types are reported because on this problem they are what
+         // decides whether the loop converges at all: the layer is in y, and
+         // an estimate that flags x refines forever without touching it.
+         // One counter per axis plus one for everything mixed, because a
+         // three-dimensional run has a Z type and four mixed ones and the
+         // tally used to drop all five into the isotropic bucket.
+         int n_ax[3] = {0, 0, 0}, niso_ref = 0;
+         for (int i = 0; i < h_refs.Size(); i++)
+         {
+            switch (h_refs[i].GetType())
+            {
+               case Refinement::X: n_ax[0]++; break;
+               case Refinement::Y: n_ax[1]++; break;
+               case Refinement::Z: n_ax[2]++; break;
+               default: niso_ref++; break;
+            }
+         }
+
+         /* Every number on this line is a global one, and the sensor range
+            has to be reduced rather than read off rank 0 -- a rank may have
+            marked nothing at all, which is also why the local extrema start
+            from infinities instead of from marked[0]. */
+         int nrp = p_refs.Size(), nrh = h_refs.Size(), nmk = marked.Size();
+         int nax[3] = {n_ax[0], n_ax[1], n_ax[2]}, niso_g = niso_ref;
+         MPI_Allreduce(MPI_IN_PLACE, &nrp, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(MPI_IN_PLACE, &nrh, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(MPI_IN_PLACE, &nmk, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(MPI_IN_PLACE, nax, 3, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(MPI_IN_PLACE, &niso_g, 1, MPI_INT, MPI_SUM,
+                       MPI_COMM_WORLD);
+
+         real_t s_lo = infinity(), s_hi = -infinity();
+         real_t t_lo = infinity(), t_hi = -infinity();
+         if (hp)
+         {
+            for (int i = 0; i < marked.Size(); i++)
+            {
+               s_lo = min(s_lo, s_e(marked[i]));
+               s_hi = max(s_hi, s_e(marked[i]));
+               const real_t t = PerssonPeraireSmoothness::Threshold(
+                                   W_space->GetElementOrder(marked[i])) + hp_shift;
+               t_lo = min(t_lo, t);
+               t_hi = max(t_hi, t);
+            }
+            MPI_Allreduce(MPI_IN_PLACE, &s_lo, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                          MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &t_lo, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                          MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &s_hi, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                          MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &t_hi, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                          MPI_COMM_WORLD);
+         }
+
+         if (root)
+         {
+            cout << "mark:\t" << nmk << " / " << ne_g
+                 << "\tp:\t" << nrp
+                 << "\th:\t" << nrh
+                 << " (x" << nax[0] << " y" << nax[1]
+                 << ((dim > 2) ? " z" : "")
+                 << ((dim > 2) ? std::to_string(nax[2]) : string())
+                 << " *" << niso_g << ")"
+                 << "\teta:\t" << amr_err.GetTotalError();
+            if (hp)
+            {
+               cout << "\ts:\t" << s_lo << " .. " << s_hi
+                    << "\ts0:\t" << t_lo << " .. " << t_hi;
+            }
+            cout << endl;
+         }
+
+         /* TWO UPDATES, NOT ONE, AND THE DEGREES BEFORE THE MESH.
+            SetElementOrder() insists the space is already in sync with the
+            mesh, so the degrees have to be stated while it is; and Update()
+            refuses to absorb both changes at once -- "Updating space after
+            both mesh change and element order change is not supported".
+            Refining afterwards is safe because UpdateElementOrders() carries a
+            parent's degree onto its children. */
+         /* THE GUARDS ARE ON THE GLOBAL COUNTS, NOT THE LOCAL ONES.
+            ParFiniteElementSpace::Update() and ParMesh::GeneralRefinement()
+            are both collective, so a rank whose own marked set happens to be
+            empty must still enter them. Guarding on p_refs.Size() and
+            h_refs.Size() deadlocked at three ranks and not at two, which is
+            exactly how a missing collective presents: it needs a partition
+            where some rank marks nothing. */
+         if (nrp > 0)
+         {
+            for (int i = 0; i < p_refs.Size(); i++)
+            {
+               const int e = p_refs[i];
+               const int p = W_space->GetElementOrder(e) + 1;
+               V_space->SetElementOrder(e, p);
+               W_space->SetElementOrder(e, p);
+            }
+            V_space->Update(false);
+            W_space->Update(false);
+         }
+
+         if (nrh > 0) { pmesh.GeneralRefinement(h_refs, -1, 0); }
 
          // Update FE spaces
          V_space->Update();
@@ -1099,6 +1757,7 @@ int main(int argc, char *argv[])
             darcy->EnableHybridization(trace_space.get(),
                                        new NormalTraceJumpIntegrator(),
                                        ess_flux_tdofs_list);
+            set_trace_orders();
             // Set essential b.c.
             if (trace_ess_bc)
             {

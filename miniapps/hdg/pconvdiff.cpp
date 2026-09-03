@@ -278,8 +278,71 @@ int main(int argc, char *argv[])
    args.AddOption(&par_format, "-pf", "--parallel-format", "-sf",
                   "--serial-format",
                   "Format to use when saving the results for VisIt.");
+   bool postprocess = false;
+   args.AddOption(&postprocess, "-pp", "--postprocess", "-no-pp",
+                  "--no-postprocess",
+                  "Postprocess the potential by the classic HDG local problem "
+                  "(Nguyen, Peraire & Cockburn eq 25), which converges one "
+                  "order better. Element-local: it reads the flux and the "
+                  "potential on each element and nothing else, so unlike "
+                  "--reconstruct it works under --p-refine.");
+   args.AddOption(&mfem, "-mfem", "--mfem", "-no-mfem",
+                  "--no-mfem",
+                  "Enable or disable MFEM output.");
+   args.AddOption(&visit, "-visit", "--visit", "-no-visit",
+                  "--no-visit",
+                  "Enable or disable Visit output.");
+   args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
+                  "--no-paraview",
+                  "Enable or disable ParaView output.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization",
+                  "Enable or disable GLVis visualization.");
+   args.AddOption(&analytic, "-anal", "--analytic", "-no-anal",
+                  "--no-analytic",
+                  "Enable or disable analytic solution.");
+
+   int pref = 0;
+   args.AddOption(&pref, "-pref", "--p-refine",
+                  "Raise the element order by this much where the element "
+                  "centre has x below --p-refine-x. Needs -dg and -hb; the "
+                  "trace space is then built at order+this, the ceiling.");
+   real_t prefx = 0.5;
+   args.AddOption(&prefx, "-prefx", "--p-refine-x",
+                  "Where --p-refine applies: element centres with x below it.");
+   bool pref_max = false;
+   args.AddOption(&pref_max, "-pmax", "--p-face-max", "-pmin", "--p-face-min",
+                  "Face trace degree is the max of its two elements' degrees "
+                  "rather than the min. Both are legal; max is the usual "
+                  "choice in the literature and is exactly redundant wherever "
+                  "the two neighbours already agree.");
+   bool force_nc = false;
+   args.AddOption(&force_nc, "-nc", "--nc-mesh", "-no-nc", "--no-nc-mesh",
+                  "Put the mesh in nonconforming mode. Implied by --p-refine, "
+                  "which needs it: a variable-order space is refused on a "
+                  "conforming mesh. On its own it changes no answer.");
 
    args.ParseCheck();
+
+   MFEM_VERIFY(pref >= 0, "--p-refine cannot be negative");
+   if (pref > 0)
+   {
+      MFEM_VERIFY(dg && hybridization,
+                  "--p-refine needs -dg and -hb: the element spaces have to be "
+                  "L2 for a variable order, and the trace degrees are the "
+                  "hybridization's.");
+      MFEM_VERIFY(!reconstruct,
+                  "--p-refine and --reconstruct cannot be used together: "
+                  "DarcyForm's reconstruction is driven by a total flux built "
+                  "from the traces, and reads the trace space at the uniform "
+                  "degree. Use --postprocess instead -- the classic local "
+                  "postprocessing reads only the flux and potential on each "
+                  "element, so a per-face trace degree cannot reach it.");
+      MFEM_VERIFY(!trace_h1,
+                  "--p-refine needs the discontinuous trace (-trdg): an H1 "
+                  "trace shares nodal DOFs between faces, so a face has no "
+                  "degree of its own to set.");
+   }
 
    // 3. Set the problem options
    pars.prob = (Problem)iproblem;
@@ -437,6 +500,14 @@ int main(int argc, char *argv[])
       }
    }
 
+   /* The nonconforming representation has to be asked for on the SERIAL mesh,
+      before partitioning: ParMesh's constructor builds a ParNCMesh from an NC
+      serial mesh, whereas calling EnsureNCMesh() on the ParMesh afterwards
+      would give it a serial NCMesh. A variable-order space is refused on a
+      conforming mesh even though L2 needs no prolongation, which is the only
+      reason this is here; on an unrefined mesh it changes no answer. */
+   if (pref > 0 || force_nc) { mesh.EnsureNCMesh(true); }
+
    // 8. Define a parallel mesh by a partitioning of the serial mesh. Refine
    //    this mesh further in parallel to increase the resolution. Once the
    //    parallel mesh is defined, the serial mesh can be deleted.
@@ -485,6 +556,34 @@ int main(int argc, char *argv[])
                                      &pmesh, V_coll_dg.get(), dim)):(nullptr);
    // Temperature FE space
    auto W_space = make_unique<ParFiniteElementSpace>(&pmesh, W_coll.get());
+
+   // p-refinement of the element spaces. They are L2 here, so a variable
+   // order needs nothing but SetElementOrder and an update -- every offset
+   // DarcyHybridization builds is per entity already. The trace is what the
+   // hybridization has to be told about, below.
+   Array<int> elem_order(pmesh.GetNE());
+   elem_order = order;
+   if (pref > 0)
+   {
+      int nhi = 0;
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         Vector c;
+         pmesh.GetElementCenter(i, c);
+         if (c(0) < prefx)
+         {
+            elem_order[i] = order + pref;
+            V_space->SetElementOrder(i, order + pref);
+            W_space->SetElementOrder(i, order + pref);
+            nhi++;
+         }
+      }
+      V_space->Update(false);
+      W_space->Update(false);
+      cout << "p-refined " << nhi << " of " << pmesh.GetNE()
+           << " elements to order " << order + pref << endl;
+   }
+
 
    // Darcy form
    auto darcy = make_unique<ParDarcyForm>(V_space.get(), W_space.get());
@@ -818,12 +917,45 @@ int main(int argc, char *argv[])
       }
       else
       {
-         trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
+         // The constraint space's degree is a ceiling, not a starting point:
+         // faces can only be set below it, so it is the highest degree this
+         // run will reach.
+         trace_coll = make_unique<DG_Interface_FECollection>(order + pref, dim);
       }
       trace_space = make_unique<ParFiniteElementSpace>(&pmesh, trace_coll.get());
       darcy->EnableHybridization(trace_space.get(),
                                  new NormalTraceJumpIntegrator(),
                                  ess_flux_tdofs_list);
+      if (pref > 0)
+      {
+         /* Straight after EnableHybridization() and before Assemble(): that
+            call has already built C, E, G and H at the ceiling, and stating
+            the degrees rebuilds them. In parallel the derivation exchanges the
+            neighbouring rank's element degrees over face neighbours, so the
+            two ranks either side of a shared face agree on it. */
+         Array<int> face_order;
+         DarcyHybridization::FaceOrdersFromElementOrders(
+            pmesh, elem_order,
+            pref_max ? DarcyHybridization::TraceOrderRule::Max
+            : DarcyHybridization::TraceOrderRule::Min,
+            order + pref, face_order);
+         darcy->GetHybridization()->SetTraceOrders(face_order);
+
+         int lo = order + pref, hi = 0;
+         for (int f = 0; f < face_order.Size(); f++)
+         {
+            lo = min(lo, face_order[f]);
+            hi = max(hi, face_order[f]);
+         }
+         MPI_Allreduce(MPI_IN_PLACE, &lo, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+         MPI_Allreduce(MPI_IN_PLACE, &hi, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+         if (root)
+         {
+            cout << "trace degrees " << lo << " to " << hi << " by the "
+                 << (pref_max ? "max" : "min") << " rule; dim(M) = "
+                 << trace_space->GlobalTrueVSize() << " at the ceiling" << endl;
+         }
+      }
       // Set essential BC
       if (trace_ess_bc)
       {
@@ -1079,6 +1211,30 @@ int main(int argc, char *argv[])
          }
          else
          {
+            if (postprocess)
+            {
+               // Element-local, and that is the point of it here: it reads the
+               // flux and the potential on each element and never the trace
+               // space, so a per-face trace degree cannot reach it and
+               // --p-refine leaves it alone. Compute() builds the enriched space
+               // one degree above the potential element by element, so it
+               // follows the p-refinement without being told about it.
+               //
+               // Printed BEFORE the two lines below, because the regression
+               // comparator indexes the last four lines from the end and every
+               // reference written without this must keep working.
+               HDGPotentialPostprocessor pp(q_h, t_h);
+               pp.SetDiffusionInverse(ikcoeff);
+               GridFunction t_pp;
+               pp.Compute(t_pp);
+               const real_t err_tpp = t_pp.ComputeL2Error(tcoeff, irs);
+               if (root)
+               {
+                  cout << "|| t_pp - t_ex || / || t_ex || = "
+                       << err_tpp / norm_t << "\n";
+               }
+            }
+
             cout << "|| q_h - q_ex || / || q_ex || = " << err_q / norm_q << "\n";
             cout << "|| t_h - t_ex || / || t_ex || = " << err_t / norm_t << "\n";
          }

@@ -309,11 +309,40 @@ built, needs no ceiling raise, and starts with hanging-node families already
 at the degree they are stuck at. Nothing in the tree does this and it is the
 cheapest unexplored direction.
 
-**Parallel is absent, not incomplete.** `FaceOrdersFromElementOrders()` refuses
-a `ParMesh` with shared faces and non-uniform degrees rather than guessing, and
-closing that needs one exchange of element degrees over face neighbours -- but
-beyond the library, neither `pconvdiff` nor `panisodiff` carries a single
-p-adaptivity flag, so there is nothing to drive it with either.
+**Parallel: the ports are done, the degree exchange works, and a SHARED FACE
+STILL CANNOT BE COARSENED.**
+
+`FaceOrdersFromElementOrders()` now takes both ranks' degrees over a shared
+face, by one exchange of an L2 order-zero `ParGridFunction` -- one dof per
+element, so its face-neighbour data *is* the neighbouring degrees and no new
+protocol was needed. `pconvdiff` carries `--p-refine` and `panisodiff` the
+whole hp loop. The discretisation is rank-independent: 0.0789929 at 1, 2, 3
+and 4 ranks, identical to every digit and to the serial answer.
+
+What does not survive a partition is the truncation. The route reads a face's
+first `nt(p_f)` slots as the coarser basis, and the two ranks either side order
+that face's dofs by their own view of its orientation, so each retires slots
+the other is still using. Measured on one fixed mesh where the retired set is a
+property of the discretisation and cannot depend on the partition: 144 retired
+true dofs on one rank -- exactly 144 faces times one surplus slot -- against
+152 on two and 162 on three, and the error going 5.9e-4 to 0.56. With every
+face AT the ceiling one and two ranks agree to five digits, which is what says
+the exchange is right and the truncation is not. `SetTraceOrders()` refuses it.
+
+**So it is the same root cause a third time** -- hanging-node families, an
+essential datum on a coarsened face, and now a shared face. All three want the
+surplus CONSTRAINED, so a face's coefficients are the coarse function expressed
+at the ceiling and orientation stops mattering, rather than retired so that it
+is not.
+
+The adaptive *path* is a separate matter and is not bitwise rank-independent:
+cycle 0 is identical at every rank count, and the bulk-marking threshold is
+found by bisection on a global sum whose last bits depend on summation order,
+so a tie -- and this problem is symmetric, so there are many -- can fall either
+way. 1, 2 and 4 ranks agree exactly here and 3 diverges after the first cycle,
+ending at 1.7e-3 against 2.1e-3. Marking is a heuristic and the solve is not,
+which is the distinction that matters, but it is worth knowing before treating
+a parallel adaptive run as reproducible.
 
 **`DarcyForm::Reconstruct()`** still reads the trace space directly at six
 sites, so `-pref` refuses `-rec`. `HDGPotentialPostprocessor` is the
@@ -412,12 +441,21 @@ Both are in the miniapp's header now.
 
 ### Coverage
 
-**No regression reference for the `hp` loop at all** -- `regression_test.py`
-drives `convdiff` only, so the demonstrator is measured and not pinned. Either
-teach the script `anisodiff`, or add a `convdiff` case that runs the loop.
+**The `hp` loop now has an acceptance test**, `miniapps/hdg/hp_acceptance.py`,
+run by `make hp-acceptance`. It is not a stored answer, because the thing worth
+defending is a RELATION between three runs rather than one number: hp must
+reach 1e-9 at all, and must need at most two thirds of `h`-adaptivity's
+globally coupled unknowns and a fifth of uniform refinement's at each of two
+tolerances. Currently 4.5e-10, and ratios of 0.555 and 0.272 against `h`,
+0.0075 and 0.0096 against uniform. It is shown to be able to fail rather than
+assumed to be: `HP_ARGS=... -no-cap-trace-at-element` makes the loop plateau at
+8.7e-7 and the reach check trips. Serial only, for the reason above.
 
-**No `[Parallel]` p-adaptivity unit test**, which follows from parallel being
-absent.
+**The `[Parallel]` p-adaptivity unit test covers the exchange only.** It checks
+the derived face degree against an INDEPENDENT computation -- the degrees are a
+function of the element centre, so each rank works out what its neighbour must
+have had without being told -- at 2, 3 and 4 ranks, both rules. What it cannot
+cover is the refusal, `MFEM_ABORT` not being catchable in this build.
 
 **The `h`-or-`p` junction has no test.** `HDGErrorEstimator` and
 `PerssonPeraireSmoothness` each have cases; the rule joining them lives only in
