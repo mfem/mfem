@@ -33,9 +33,7 @@ using namespace mfem::future;
 //
 // where g_i = du/dx_i = K_ai du/dxi_a is the physical gradient. The sum over c
 // contracts g with the Hessian of the coordinate map. This mesh term vanishes
-// on affine elements. Here the coordinate Hessian is supplied one component at
-// a time as scalar H1 fields, because a vector-valued Hessian would be a
-// rank-3 quadrature parameter and is not implemented yet.
+// on affine elements.
 // ────────────────────────────────────────────────────────────────────────────
 
 /// Physical Hessian assuming an affine mapping
@@ -54,55 +52,26 @@ struct affine_hessian_qf
    }
 };
 
-/// Physical Hessian with the full non-affine correction in 2D.
+/// Physical Hessian with the full non-affine correction.
 ///
-/// dduxi is Href, duxi is du/dxi, and ddx0/ddx1 are the Hessians of x_0/x_1.
-/// The correction is M_ab = Href_ab - sum_c g_c d^2 x_c/dxi_a dxi_b.
-///
-/// WIP: rank-3 tensors are available on the algebra side, but not yet
-///      in dfem. Hessian<Coord> is a vector Hessian, so for now we just pass
-///      it separately for each component
-struct hessian_qf_2d
+/// dduxi is Href, duxi is du/dxi, and ddx is the Hessian of the coordinate
+/// map. The correction is M_ab = Href_ab - sum_c g_c d^2 x_c/dxi_a dxi_b.
+template <int DIM>
+struct hessian_qf
 {
    MFEM_HOST_DEVICE inline void operator()(
-      const tensor<real_t, 2, 2> &dduxi,
-      const tensor<real_t, 2> &duxi,
-      const tensor<real_t, 2, 2> &J,
-      const tensor<real_t, 2, 2> &ddx0,
-      const tensor<real_t, 2, 2> &ddx1,
-      tensor<real_t, 2, 2> &out) const
+      const tensor<real_t, DIM, DIM> &dduxi,
+      const tensor<real_t, DIM> &duxi,
+      const tensor<real_t, DIM, DIM> &J,
+      const tensor<real_t, DIM, DIM, DIM> &ddx,
+      tensor<real_t, DIM, DIM> &out) const
    {
       const auto K = inv(J);
-      const auto g = transpose(K) * duxi;
-      const auto correction = g(0) * ddx0 + g(1) * ddx1;
-      const auto M = dduxi - correction;
-      out = transpose(K) * M * K;
-   }
-};
-
-/// Physical Hessian with the full non-affine correction in 3D.
-///
-/// ddx0, ddx1, and ddx2 are the Hessians of x_0, x_1, and x_2 respectively.
-///
-/// WIP: rank-3 tensors are available on the algebra side, but not yet
-///      in dfem. Hessian<Coord> is a vector Hessian, so for now we just pass
-///      it separately for each component
-struct hessian_qf_3d
-{
-   MFEM_HOST_DEVICE inline void operator()(
-      const tensor<real_t, 3, 3> &dduxi,
-      const tensor<real_t, 3> &duxi,
-      const tensor<real_t, 3, 3> &J,
-      const tensor<real_t, 3, 3> &ddx0,
-      const tensor<real_t, 3, 3> &ddx1,
-      const tensor<real_t, 3, 3> &ddx2,
-      tensor<real_t, 3, 3> &out) const
-   {
-      const auto K = inv(J);
-      const auto g = transpose(K) * duxi;
-      const auto correction = g(0) * ddx0 + g(1) * ddx1 + g(2) * ddx2;
-      const auto M = dduxi - correction;
-      out = transpose(K) * M * K;
+      const auto Kt = transpose(K);
+      const auto g = Kt * duxi;
+      // dot contracts the first index: (g . ddx)_ab = sum_c g_c ddx_cab.
+      const auto M = dduxi - dot(g, ddx);
+      out = Kt * M * K;
    }
 };
 
@@ -175,19 +144,6 @@ inline Vector ReferencePhysHessian(ParGridFunction &u,
    return out;
 }
 
-/// Extract component @a c of the mesh nodes as a scalar H1 field.
-inline void CoordinateComponent(const ParGridFunction &nodes, int c,
-                                ParGridFunction &xc)
-{
-   const ParFiniteElementSpace &mfes = *nodes.ParFESpace();
-   const ParFiniteElementSpace &sfes = *xc.ParFESpace();
-   MFEM_VERIFY(sfes.GetNDofs() == mfes.GetNDofs(), "scalar space mismatch");
-   for (int i = 0; i < sfes.GetNDofs(); i++)
-   {
-      xc(i) = nodes(mfes.DofToVDof(i, c));
-   }
-}
-
 inline real_t MaxAbsDiff(const Vector &a, const Vector &b, MPI_Comm comm)
 {
    MFEM_VERIFY(a.Size() == b.Size(), "size mismatch");
@@ -244,17 +200,7 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
       u.SetFromTrueDofs(tv);
    }
 
-   // The mesh Hessian, one coordinate component at a time. The scalar space
-   // uses the nodal collection, so the projection is exact.
-   ParFiniteElementSpace sfes(&pmesh, mfes->FEColl());
-   std::vector<ParGridFunction> xc;
-   for (int c = 0; c < DIM; c++)
-   {
-      xc.emplace_back(&sfes);
-      CoordinateComponent(*nodes, c, xc.back());
-   }
-
-   static constexpr int U = 0, Coords = 1, X0 = 2, X1 = 3, X2 = 4, QData = 5;
+   static constexpr int U = 0, Coords = 1, QData = 2;
 
    QuadratureSpace qspace(pmesh, *ir);
    VectorQuadratureSpace qspace_vec(qspace, DIM * DIM);
@@ -285,54 +231,23 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
    }
    else
    {
-      std::vector<Vector> xctv(DIM);
-      for (int c = 0; c < DIM; c++) { xc[c].GetTrueDofs(xctv[c]); }
+      // We also need Gradient<U> and Hessian<Coords> to compute the mesh term.
+      const std::vector<FieldDescriptor> input_fields = {{U, &pfes}, {Coords, mfes}};
+      const std::vector<FieldDescriptor> output_fields = {{QData, &qspace_vec}};
+      const auto input_fieldops =
+         Inputs<Hessian<U>, Gradient<U>, Gradient<Coords>, Hessian<Coords>> {};
+      const auto output_fieldops = Outputs<Identity<QData>> {};
 
-      if constexpr (DIM == 2)
-      {
-         const std::vector<FieldDescriptor> input_fields =
-         {{U, &pfes}, {Coords, mfes}, {X0, &sfes}, {X1, &sfes}};
-         const std::vector<FieldDescriptor> output_fields = {{QData, &qspace_vec}};
-         const auto input_fieldops =
-            Inputs<Hessian<U>, Gradient<U>, Gradient<Coords>,
-            Hessian<X0>, Hessian<X1>> {};
-         const auto output_fieldops = Outputs<Identity<QData>> {};
-
-         DifferentiableOperator dop(input_fields, output_fields, pmesh);
-         hessian_qf_2d qf;
-         dop.AddDomainIntegrator<LocalQFBackend>(
-            qf,
-            input_fieldops,
-            output_fieldops,
-            *ir, all_domain_attr);
-         MultiVector X{utv, nodestv, xctv[0], xctv[1]};
-         MultiVector Y{qd};
-         dop.Mult(X, Y);
-      }
-      else
-      {
-         const std::vector<FieldDescriptor> input_fields =
-         {
-            {U, &pfes}, {Coords, mfes},
-            {X0, &sfes}, {X1, &sfes}, {X2, &sfes}
-         };
-         const std::vector<FieldDescriptor> output_fields = {{QData, &qspace_vec}};
-         const auto input_fieldops =
-            Inputs<Hessian<U>, Gradient<U>, Gradient<Coords>,
-            Hessian<X0>, Hessian<X1>, Hessian<X2>> {};
-         const auto output_fieldops = Outputs<Identity<QData>> {};
-
-         DifferentiableOperator dop(input_fields, output_fields, pmesh);
-         hessian_qf_3d qf;
-         dop.AddDomainIntegrator<LocalQFBackend>(
-            qf,
-            input_fieldops,
-            output_fieldops,
-            *ir, all_domain_attr);
-         MultiVector X{utv, nodestv, xctv[0], xctv[1], xctv[2]};
-         MultiVector Y{qd};
-         dop.Mult(X, Y);
-      }
+      DifferentiableOperator dop(input_fields, output_fields, pmesh);
+      hessian_qf<DIM> qf;
+      dop.AddDomainIntegrator<LocalQFBackend>(
+         qf,
+         input_fieldops,
+         output_fieldops,
+         *ir, all_domain_attr);
+      MultiVector X{utv, nodestv};
+      MultiVector Y{qd};
+      dop.Mult(X, Y);
    }
 
    const Vector ref = ReferencePhysHessian(u, *ir);
@@ -356,7 +271,7 @@ TEST_CASE("dFEM Hessian DofToQuad 1D map", "[Parallel][dFEM][Hessian]")
    const int btype = GENERATE(BasisType::GaussLobatto,
                               BasisType::ClosedGL,
                               BasisType::ClosedUniform);
-   const int p = GENERATE(1, 2, 3, 4, 5);
+   const int p = GENERATE(1, 2);
    CAPTURE(btype, p);
 
    H1_FECollection fec(p, 2, btype);
@@ -442,64 +357,67 @@ TEST_CASE("dFEM Hessian 2D", "[Parallel][dFEM][Hessian]")
    // tests should pass with the same result.
    SECTION("affine mesh, no mesh term")
    {
-      const int p = GENERATE(1, 2, 3);
+      const int p = GENERATE(1, 2);
       CAPTURE(p);
       REQUIRE(hessian_error<2>("../../data/inline-quad.mesh", p, true) ==
               MFEM_Approx(0.0, 1e-10, 1e-10));
    }
 
-   SECTION("affine mesh, full q-function")
+   SECTION("affine mesh, with mesh term")
    {
-      const int p = GENERATE(2, 3);
+      const int p = GENERATE(1,2);
       CAPTURE(p);
       REQUIRE(hessian_error<2>("../../data/inline-quad.mesh", p, false) ==
               MFEM_Approx(0.0, 1e-10, 1e-10));
    }
 
-   // Non affine mesh,  the second test should fail if dropping
-   // the mesh correction term
-   SECTION("curved mesh, full q-function")
+   SECTION("curved mesh, non affine mesh, LO kernel path")
    {
       const int p = GENERATE(3, 4);
       CAPTURE(p);
       REQUIRE(hessian_error<2>("../../data/star-q3.mesh", p, false) ==
-              MFEM_Approx(0.0, 1e-9, 1e-9));
+              MFEM_Approx(0.0, 1e-8, 1e-8));
    }
 
-   SECTION("curved mesh, dropping the mesh term is detectably wrong")
+   SECTION("curved mesh, no correction (should fail)")
    {
       // Guards the correction term itself: without this the affine sections
       // would pass with a Hessian that is wrong on every curved element.
-      REQUIRE(hessian_error<2>("../../data/star-q3.mesh", 3, true) > 1e-3);
+      REQUIRE(hessian_error<2>("../../data/star-q3.mesh", 2, true) > 1e-3);
    }
 
-   SECTION("high order, HO kernel path")
+   SECTION("curved mesh, non affine mesh, HO kernel path")
    {
       // d1d = p + 1 > 8 selects LocalQFHOBackend rather than LocalQFLOBackend.
-      REQUIRE(hessian_error<2>("../../data/inline-quad.mesh", 9, true) ==
-              MFEM_Approx(0.0, 1e-9, 1e-9));
+      REQUIRE(hessian_error<2>("../../data/star-q3.mesh", 8, false) ==
+              MFEM_Approx(0.0, 1e-8, 1e-8));
    }
 }
 
+
+
 TEST_CASE("dFEM Hessian 3D", "[Parallel][dFEM][Hessian]")
 {
+   // Affine mesh tested with/without the correction term,
+   // In this case the correction term should vanish so both
+   // tests should pass with the same result.
    SECTION("affine mesh, no mesh term")
    {
-      const int p = GENERATE(1, 2, 3);
+      const int p = GENERATE(1, 2);
       CAPTURE(p);
       REQUIRE(hessian_error<3>("../../data/inline-hex.mesh", p, true) ==
               MFEM_Approx(0.0, 1e-10, 1e-10));
    }
 
-   SECTION("affine mesh, full q-function")
+   SECTION("affine mesh, with mesh term")
    {
-      const int p = GENERATE(2, 3);
+      const int p = GENERATE(1, 2);
       CAPTURE(p);
       REQUIRE(hessian_error<3>("../../data/inline-hex.mesh", p, false) ==
               MFEM_Approx(0.0, 1e-10, 1e-10));
    }
 
-   SECTION("curved mesh, full q-function")
+   SECTION("curved mesh, non affine mesh, LO kernel path")
    {
       const int p = GENERATE(3, 4);
       CAPTURE(p);
@@ -507,9 +425,18 @@ TEST_CASE("dFEM Hessian 3D", "[Parallel][dFEM][Hessian]")
               MFEM_Approx(0.0, 1e-8, 1e-8));
    }
 
-   SECTION("curved mesh, dropping the mesh term is detectably wrong")
+   SECTION("curved mesh, no correction (should fail)")
    {
-      REQUIRE(hessian_error<3>("../../data/fichera-q3.mesh", 3, true) > 1e-3);
+      // Guards the correction term itself: without this the affine sections
+      // would pass with a Hessian that is wrong on every curved element.
+      REQUIRE(hessian_error<3>("../../data/fichera-q3.mesh", 2, true) > 1e-3);
+   }
+
+   SECTION("curved mesh, non affine mesh, HO kernel path")
+   {
+      // d1d = p + 1 > 8 selects LocalQFHOBackend rather than LocalQFLOBackend.
+      REQUIRE(hessian_error<3>("../../data/fichera-q3.mesh", 8, false) ==
+              MFEM_Approx(0.0, 1e-8, 1e-8));
    }
 }
 

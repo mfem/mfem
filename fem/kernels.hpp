@@ -1433,14 +1433,14 @@ inline MFEM_HOST_DEVICE void VectorGrad2d(const int d1d, const int q1d,
 // ────────────────────────────────────────────────────────────────────────────
 // 2D Hessian.
 //
-// Similar to the gradient kernel, for LO we split into tensor-product contraction 
+// Similar to the gradient kernel, for LO we split into tensor-product contraction
 // in one direction at the time (X,Y,Z).
 //
 // In 2D we also need to split each step in two, because the LO workspace
 // uses only DIM=2 component slots, and the intermediate stages require
 // 3 for the hessian contraction.
 //
-// X_A: sm0 = u --> sm1 = {H_x u, G_x u} 
+// X_A: sm0 = u --> sm1 = {H_x u, G_x u}
 // Y_A:     sm1 --> reg = {B_y H_x u, G_y G_x u} = {u_xx, u_xy}
 // X_B: sm0 = u --> sm1 = {B_x u}
 // Y_B:     sm1 --> reg = {H_y B_x u} = {u_yy}
@@ -1476,7 +1476,7 @@ inline MFEM_HOST_DEVICE void HessX2dA(
 }
 
 /// 2D Hessian, batch A Y contraction.
-/// - sm1 = {H_x u, G_x u} from HessX2dA. 
+/// - sm1 = {H_x u, G_x u} from HessX2dA.
 /// - reg = {B_y H_x u, G_y G_x u} = {u_xx, u_xy}.
 template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void HessY2dA(
@@ -1531,7 +1531,7 @@ inline MFEM_HOST_DEVICE void HessX2dB(
 
 /// 2D Hessian, batch B Y contraction.
 /// - sm1[...,0] = {B_x u} from HessX2dB.
-/// - reg[1][1] = H_y B_x u = u_yy. 
+/// - reg[1][1] = H_y B_x u = u_yy.
 template<int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void HessY2dB(
    const int d1d, const int q1d, const real_t (*H)[MQ1],
