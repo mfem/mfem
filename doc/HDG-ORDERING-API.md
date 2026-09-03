@@ -538,8 +538,12 @@ reason not to" as a general default. That was wrong as a default and `meq`
 measured it so — see `HDG-NPC-GLOBALISATION-FROM-MEQ.md`.
 
 **The reduced trace operator.** The outer unknown is the trace alone, much the
-smaller vector, and the local problem is solved to a tolerance you control. It
-is the only route that accepts an **H(div) flux**. Reach for it when the local
+smaller vector, and the local problem is solved to a tolerance you control. Of the two
+**nonlinear** routes it is the only one that accepts an **H(div) flux** — NPC
+refuses it and potential reduction refuses nonlinear integrators. Read as an
+absolute statement it would be wrong: potential reduction and the unreduced
+monolithic solve both take an H(div) flux for a *linear* problem, and
+`tests/unit/fem/test_darcy_reduction.cpp` runs both. Reach for it when the local
 problems are mild — then the per-element Newton is cheap and solving it
 properly is worth more than avoiding it.
 
@@ -585,29 +589,30 @@ the shape `meq` reports. **What differs is severity.** Here a full step
 multiplies it by 77 (8.1e-02 -> 6.25e+00), so `alpha = 1` is rejected and the
 search retreats.
 
-**Why is there a hand-rolled backtracking Newton here at all?** There should
-not be. `KINSolver(KIN_LINESEARCH)` is KINSOL's Dennis & Schnabel line search
+**There was a hand-rolled backtracking Newton here, and it is deleted.**
+`NSBacktrackingNewton` in `miniapps/hdg/navierstokes.cpp` reimplemented a worse
+version of `KINSolver(KIN_LINESEARCH)` — KINSOL's Dennis & Schnabel search,
 with both the sufficient-decrease and curvature conditions, a minimum-step test
 that reports non-convergence instead of creeping, and a maximum-step
-constraint. `NSBacktrackingNewton` in `miniapps/hdg/navierstokes.cpp`
-reimplements a worse version of it, and exists only because **neither HDG tree
-here is configured with SUNDIALS**, so `KINSolver` is not compiled. That is a
-build reason, not a numerical one, and it is a bad reason to ship the worse one
-as the reference other people copy. `meq`'s build has SUNDIALS on and should
-use `KIN_LINESEARCH` rather than the copy.
+constraint. It existed only because neither HDG tree was then configured with
+SUNDIALS, so `KINSolver` was not compiled; **both trees carry
+`MFEM_USE_SUNDIALS=YES` now, and the miniapp `#error`s without it**, so the
+build reason is gone along with the class. Globalisation there comes from
+KINSOL.
 
-It is a genuinely worse implementation: it accepts on `Norm(rt) < n0`, a
-monotone test with **no sufficient-decrease constant**. For Newton on an l2
+Why it was worth deleting rather than keeping: it accepted on `Norm(rt) < n0`,
+a monotone test with **no sufficient-decrease constant**. For Newton on an l2
 merit the direction is always a descent direction, so merit(a) ~ merit(0)(1-a)
-and any small enough `a` passes — swept here, `a = 1.2e-4` still "succeeds",
+and any small enough `a` passes — swept, `a = 1.2e-4` still "succeeded",
 improving the merit by 1e-4 relative. Where `a = 1` is rejected it therefore
-does not fail, it **creeps**, which is the 1%-a-step crawl `meq` saw.
+did not fail, it **crept**, which is the 1%-a-step crawl `meq` saw. A
+reference implementation other people copy should not have that in it.
 
 **But that defect is not what makes `meq`'s problem fail, and an earlier
 version of this section implied it was.** `meq` also ran `KIN_LINESEARCH` —
 the correct implementation, sufficient decrease and all — and reports it
-failing on exactly the same cases. So a proper Armijo test does not rescue it.
-Fixing ours would make the failure honest, not make it converge.
+failing on exactly the same cases. So a proper Armijo test does not rescue it:
+deleting ours made the failure honest, not convergent.
 
 **Nor does a block-aware merit, which is what both we and `meq` reached for
 next.** Take `meq`'s own numbers: the residual at `x` is (flux 7.93e-02,
@@ -636,81 +641,56 @@ new solver written here.
 
 ## 7. Suspected defects and inconsistencies
 
-Recorded here because they were found while writing this and are the reason
-some of the sections above are hedged. They were found by reading; the tree was
-mid-build at the time and nothing was run.
+**Nine of the eleven entries that stood here are gone**, and this section is
+what is left. They were originally found by reading rather than by running,
+which is why the sections above used to be hedged; the hedging is gone with
+them.
 
-**Status.** 1, 2, 4, 5 and 6 are **gone or moot**: they were about the
-deleted mode, its plan document (also deleted) or the solver contract it
-imposed. **3 is fixed, and the entry that raised it was wrong about the
-danger** — see its withdrawal below. 7, 8, 9 and 10 are **open**, and 8 is the
-one worth acting on: an accessor that returns the wrong member.
+Items 1, 2, 4, 5 and 6 were about `NLOrdering::LineariseThenCondense`, its plan
+document or the solver contract it imposed, and are moot with the mode. Item 7
+compared that mode against the condensation and has nothing left to be evidence
+of; what replaced it in §6 — the undamped-versus-backtracking table — is
+runnable as "The line search earns its place on the pedestal, and says which"
+in `tests/unit/fem/test_darcy_npc.cpp`, written to fail loudly if undamped ever
+starts converging. Item 8 is **fixed**:
+`GetFluxMassNonlinearIntegrator()` returned `m_nlfi_p`, the *potential*
+integrator, in both `darcyhybridization.hpp` and `darcyreduction.hpp`, and
+returns `m_nlfi_u` now — pre-existing and latent, because nothing in the tree
+called either accessor. Item 9 is moot: it noted two senses of "lin" in
+adjacent members, and the linearisation-point half (`lin_trace`, `lin_u`,
+`lin_p`, `lin_valid`) went with the mode, leaving only `Af_lin_data` /
+`Df_lin_data`, the linear form's data.
 
-1. and 2. **Gone with the mode.** One was about
-   `doc/HDG-LINEARISE-THEN-CONDENSE.md`, which is deleted; the other about
-   `SetNonlinearOrdering()`'s doxygen, which is deleted with the method.
+**Item 3 is fixed, and how it was wrong is the part worth keeping.** It said
+`LocalOpType::FluxNL` would let the *assembled* path eliminate with the wrong
+operator and return a silent wrong answer. It could not: the only readers of a
+Schur complement out of `Df_data` are the matrix-free gradient and NPC, and
+**both were themselves refused in that mode** — a hazard real in structure and
+unreachable in practice, held shut by the very refusals the entry complained
+about. Measured: the assembled answer is unchanged by the fix to every digit
+and its regression reference still passes. The real defect was narrower — the
+Schur complement had nowhere to live, so two capabilities were refused rather
+than one answer corrupted. `Sf_data` holds it now and both refusals are lifted;
+the reason is on `Sf_data`, `SetGradientMode()` and `NPCCheck()`. **"X is
+unguarded" is two claims — that the guard is missing, and that something
+reaches the gap — and the second is the one nobody checks.**
 
-3. **Fixed — and this entry overstated it, which is worth recording.** It
-   said `LocalOpType::FluxNL` would let the *assembled* path eliminate with the
-   wrong operator and return a silent wrong answer. It could not: the only
-   readers of a Schur complement out of `Df_data` are the matrix-free gradient
-   and NPC, and **both were themselves refused in that mode**, so the hazard
-   was real in structure and unreachable in practice — held shut by the very
-   refusals the entry complained about. Measured: the assembled answer is
-   unchanged by the fix, to every digit, and its regression reference still
-   passes. The real defect was narrower: the Schur complement had nowhere to
-   live, so two capabilities were refused rather than one answer corrupted.
-   `Sf_data` now holds it and both refusals are lifted; the reason is on
-   `Sf_data`, `SetGradientMode()` and `NPCCheck()`.
+Two remain open, both pre-existing and neither reachable with this tree's
+spaces:
 
-4. and 5. **Moot.** Both asked for warnings about the deleted mode's solver
-   contract, on a `-lfirst` flag that no longer exists in any miniapp.
+**10. The trace prolongation is applied inconsistently.** `Operator::Height()`
+is `c_fes.GetVSize()` (`fem/hybridization.cpp:33`), `ReduceRHS()` sizes the
+reduced right-hand side to the *conforming* width, and the serial
+`Mult()`/`GetGradient()` index `x` by face VDofs with no prolongation, while
+`ParMultNL()` does prolong. For a `DG_Interface` trace space the conforming
+prolongation is null and all four agree, which is every case in this tree; for
+an `H1_Trace` (EDG) trace space with a nonlinear problem they would not.
+`doc/HDG-HDIV-OPTIONAL.md` §6 has the current line numbers.
 
-6. **Moot.** It was about how much of the deleted mode's non-purity gap a
-   test pinned.
-
-7. **Half moot, half fixed.** The numbers it complained about — the residual
-   histories, the 192/304-to-zero local iteration counts, the 4.5e-16 /
-   7.4e-16 / 4.7e-16 agreement in `2e1752717f` — compared
-   `CondenseThenLinearise` against `LineariseThenCondense`, and the second of
-   those is deleted, so there is nothing left for them to be evidence *of*.
-
-   What replaced them in §6 is the undamped-versus-backtracking table, and
-   that **is** now runnable: "The line search earns its place on the pedestal,
-   and says which" in `tests/unit/fem/test_darcy_npc.cpp` asserts both halves
-   — backtracking converges and undamped does not — on the two configurations
-   where the line search decides the outcome. It is written to fail loudly if
-   undamped ever starts converging, because that would mean §6's
-   recommendation rests on nothing.
-
-8. **Fixed.** `GetFluxMassNonlinearIntegrator()` returned `m_nlfi_p`, the
-   *potential* integrator, in both `fem/darcy/darcyhybridization.hpp` and
-   `fem/darcy/darcyreduction.hpp`. It returns `m_nlfi_u` now. Pre-existing and
-   latent — nothing in the tree called either accessor, which is exactly why it
-   survived: an accessor nobody uses gets no test and no reader.
-
-9. **Two unrelated meanings of "lin" in adjacent members.**
-   `Af_lin_data` / `Df_lin_data` mean *the linear form's data*
-   (`hpp:313`, `:346`); `lin_trace` / `lin_u` / `lin_p` / `lin_valid` mean *the
-   linearisation point* (`hpp:388-391`). `ConstructGrad()` reads both senses
-   within twenty lines (`cpp:3241-3256`).
-
-10. **Pre-existing and not ordering-specific: the trace prolongation is applied
-    inconsistently.** `Operator::Height()` is `c_fes.GetVSize()`
-    (`fem/hybridization.cpp:33`), `ReduceRHS()` sizes the reduced RHS to the
-    *conforming* width (`cpp:3469-3494`), and serial `Mult()`/`GetGradient()`
-    index `x` by face VDofs with no prolongation (`cpp:1940-1946`), while
-    `ParMultNL()` does prolong (`cpp:2216-2240`). For a `DG_Interface` trace
-    space the conforming prolongation is null and the three agree, which is
-    every case in the tree. For an `H1_Trace` (EDG) trace space with a
-    nonlinear problem they would not.
-
-11. **Low confidence, probably unreachable:** `ParOperator::GetGradient()`
-    passes an empty dummy `Vector y` to `ParMultNL()`
-    (`cpp:4238-4240`), which for `!ParallelC()` and a null trace restriction
-    does `y.MakeRef(y_t, 0, c_fes.GetVSize())` on that empty vector
-    (`cpp:2278-2282`). Nothing subsequently reads or writes `y` on a `Grad`
-    pass, so the alias itself is the only hazard, and it needs a `ParOperator`
-    over a serial trace space — which `ParDarcyForm` should never build. The
-    serial `GetGradient()` avoids it because `MultNL` never touches `y` in
-    `Grad` mode.
+**11. Low confidence, probably unreachable:** `ParOperator::GetGradient()`
+passes an empty dummy `Vector y` to `ParMultNL()`, which for `!ParallelC()` and
+a null trace restriction does `y.MakeRef(y_t, 0, c_fes.GetVSize())` on that
+empty vector. Nothing subsequently reads or writes `y` on a `Grad` pass, so the
+alias itself is the only hazard, and it needs a `ParOperator` over a serial
+trace space — which `ParDarcyForm` should never build. The serial
+`GetGradient()` avoids it because `MultNL` never touches `y` in `Grad` mode.

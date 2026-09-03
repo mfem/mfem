@@ -1,44 +1,46 @@
 # Threading and offloading the element-local work: what is left
 
-Scratch. `ComputeH()`'s element loop is done — `SetAssemblyMode()`, whose
-doxygen carries what it established: why the scatter cannot be threaded, why
-element colouring does not make it safe, and why the two modes agree bit for
-bit. That reasoning is in the code and does not depend on this file.
+Scratch. Two of the seven element-local loops are done and the findings are in
+the code, not here: `SetAssemblyMode()` for `ComputeH()`'s loop — why the
+scatter cannot be threaded and why element colouring does not make it safe —
+and `SetLocalFactorMode()` / `CanBatchLocalFactor()` for the two local
+factorisations, with the bit-for-bit result, the LAPACK caveat, the 1/2/4/8
+thread scaling, and the fact that they are the **cold** path.
 
-`DarcyHybridization` still does these loops on one core, and every one of them
-is embarrassingly parallel by construction — each element's flux and potential
-being eliminable independently of every other is what static condensation *is*.
+Every loop below is embarrassingly parallel by construction — each element's
+flux and potential being eliminable independently of every other is what static
+condensation *is*.
 
-| function | shape | what it needs |
-|---|---|---|
-| `InvertA` | pure local write | `BatchedLinAlg`, uniform block sizes |
-| `InvertD` | pure local write | as above |
-| `ComputeSolution` | pure local write | as above |
-| `MultNL` | local nonlinear solve + scatter to a `Vector` | integrator thread-safety |
-| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring or atomics |
-| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring or atomics |
-| `ReduceRHS` | local + scatter to a `Vector` | colouring or atomics |
+| function | shape | what it needs | state |
+|---|---|---|---|
+| `InvertA` | pure local write | `BatchedLinAlg`, uniform block sizes | **done**, §1 |
+| `InvertD` | pure local write | as above | **done**, §1 |
+| `ComputeSolution` | pure local write | as above | open |
+| `MultNL` | local nonlinear solve + scatter to a `Vector` | integrator thread-safety | open, §2 |
+| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring or atomics | open, §3 |
+| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring or atomics | open, §3 |
+| `ReduceRHS` | local + scatter to a `Vector` | colouring or atomics | open, §3 |
 
 Offset construction and allocation (prefix sums over `NE`) run once and are not
-worth touching.
+worth touching. Batching the factorisation that runs once per *linearisation*
+is a different job from §1's: it lives inside `ComputeElementH()`, already in
+the threaded loop, and would need a pre-pass before it.
 
-## 1. `InvertA` and `InvertD` via `BatchedLinAlg` -- DONE
+## 0. Neither tree here can compile the threaded path
 
-`SetLocalFactorMode()`, off by default, plus `CanBatchLocalFactor()` and
-`tests/unit/fem/test_darcy_batched_factor.cpp`. The doxygen carries what it
-established: bit-for-bit agreement and why it is exact without LAPACK and only
-approximate with it, the 1/2/4/8 thread scaling, and -- the part that matters
-for what to do next -- that these two routines are the **cold** path. They run
-once, from `Finalize()`, and only for `PotNL` and `FluxNL`; the factorisation
-that runs once per linearisation is inside `ComputeElementH()`, which is
-already in the threaded loop. Batching *that* means a pre-pass before
-`ComputeH()`'s element loop, and is not done.
+`MFEM_USE_OPENMP` and `MFEM_THREAD_SAFE` are both `NO` in
+`/home/ian/projects/mfem-hdg-dev` and `/home/ian/projects/mfem-hdg-par-dev`, so:
 
-The uniform-size trap the plan warned about is real and is now checked from
-`Af_f_offsets` rather than from the mesh, but it is subtler than the warning
-said in one direction and blunter in another: essential flux dofs do break
-uniformity as predicted, and a **mixed-element mesh does not** at order 0,
-where a triangle and a quadrilateral carry the same number of `L2` dofs.
+* `SetAssemblyMode(Threaded)` **aborts** rather than downgrading, by design;
+* `tests/unit/fem/test_darcy_threaded_assembly.cpp` compiles to a bare `WARN`,
+  so **the threaded path has no coverage in the suite as configured**;
+* `LocalFactorMode::Batched` runs, but only `BatchedLinAlg`'s NATIVE backend
+  (no CUDA, no HIP, no MAGMA), which is an `mfem::forall` reducing to a serial
+  host loop — so batching is covered for correctness and not for speed.
+
+`CLAUDE.md` carries the recipe for a third, OpenMP-enabled tree. Any timing
+claim about §1 or `AssemblyMode::Threaded` needs it; the numbers in the doxygen
+were taken in one and it is gone.
 
 ## 2. `MultNL`, which is the one that matters for stiff problems
 
@@ -47,86 +49,52 @@ A stiff problem spends almost all its time here, and it is a bigger job than
 **no integrator and constructs no transformation**, which is what made it
 separable. `MultNL` calls `ConstructGrad()`, hence
 `m_nlfi->AssembleElementGrad()` and `fes.GetElementTransformation(el)`, and both
-reach shared state outside `fem/darcy`:
+reach shared state outside `fem/darcy`.
 
-* **Integrator scratch.** `fem/darcy/bilininteg_hdg.hpp:215` carries
-  `// these are not thread-safe!` over `tr_shape`, `shape1`, `shape2`, `vu`,
-  `nor`, `nh`, `ni` and the `DenseMatrix` beside them. Per-thread integrator
-  instances, or stateless integrators — a decision reaching well beyond
-  `fem/darcy`.
-* **The mesh's transformation cache.** `Mesh` holds one `FaceElemTr`, one
-  `Transformation`, one `Transformation2` and one `BdrTransformation`, and
-  `GetFaceElementTransformations(f)` returns `&FaceElemTr`.
-  `DarcyHybridization::GetFaceTransformation()` goes through it. That is one
-  funnel with five call sites, not the ten this entry used to claim, and the
-  caller-allocated overloads it would switch to all exist and are `const` —
-  `mesh.hpp:1920`, and `pmesh.hpp:626/646/666` for the shared-face and
-  by-local-index variants the parallel branch needs. So this half is a change
-  to one function inside `fem/darcy`, with none to `Mesh`.
+**Integrator scratch, and this entry used to name the wrong integrator.** It
+cited `fem/darcy/bilininteg_hdg.hpp:215`, whose `// these are not thread-safe!`
+is the only such marker in the whole directory — but it belongs to
+`HDGDiffusionIntegrator`, which this loop does not call. What
+`ConstructGrad()` reaches is `m_nlfi`, i.e. `MixedConductionNLFIntegrator` in
+**`fem/nonlininteg_mixed.hpp`**, whose `vshape_u`, `shape_u`, `shape_p`,
+`shape1`, `shape2`, `shape_tr` (`:116-117`) and mutable `state`, `flux`, `J_u`
+(`:214-215`) are equally unguarded. Both need doing; only the second is on the
+path this section is about.
 
-### How to thread NPC, and why the obvious answer is the wrong one
+**And it is not a design decision, which this entry also used to imply.** It
+offered "per-thread integrator instances, or stateless integrators — a decision
+reaching well beyond `fem/darcy`". MFEM already has the convention: member
+scratch inside `#ifndef MFEM_THREAD_SAFE`, declared method-local otherwise —
+sixteen instances in `fem/bilininteg.hpp` alone, and `fem/darcy` uses it
+nowhere. So this is a mechanical port to an existing pattern, and the reach
+beyond `fem/darcy` is one file.
 
-NPC looks like it should make this easy, and structurally it does. Where
-`MultNL` **fuses** integrator calls and dense linear algebra inside one local
-Newton loop — every local iteration re-evaluates the residual and re-assembles
-and re-factorises the Jacobian — NPC **separates** them into four top-level
-calls, two of which touch no integrator and no transformation at all:
+**The mesh's transformation cache**, and this half is cheaper than it reads.
+`Mesh` holds one `FaceElemTr`, one `Transformation`, one `Transformation2` and
+one `BdrTransformation`; `GetFaceElementTransformations(f)` returns
+`&FaceElemTr` and `GetElementTransformation(i)` returns `&Transformation`.
+`DarcyHybridization::GetFaceTransformation()` is one funnel with **four** call
+sites (this entry has said ten, then five), and every caller-allocated overload
+it would switch to exists and is `const`: `FiniteElementSpace::
+GetElementTransformation(i, IsoparametricTransformation*)` at `fespace.hpp:907`
+— whose own doxygen warns about the shared cache — plus `mesh.hpp:1787/1920`
+and `pmesh.hpp:626/646/666` for the shared-face and by-local-index variants the
+parallel branch needs. So this is a change to two functions inside `fem/darcy`,
+with none to `Mesh`.
 
-| NPC call | element-loop body | shared state it reaches | threadable |
-|---|---|---|---|
-| `NPCResidual` | `MultNL(AtFields)` → `LocalResidual()` | integrator scratch, `Mesh` transformation cache | blocked on §2 |
-| `NPCGradient` | `MultNL(GradAtFields)` → `ConstructGrad()` | the same | blocked on §2 |
-| | then `ComputeH()` → `ComputeElementH()` | none | **already threaded**, `SetAssemblyMode()` |
-| `NPCReduce` | `MultInv()`, then scatter to the trace | none; the scatter needs colouring | ready, needs §3 |
-| `NPCRecover` | `MultInv()`, then write its own blocks | **none whatever** | ready, needs nothing |
-
-`MultInv()` is `LUFactors::Solve` and `AddMult` and nothing else. `NPCRecover`
-writes only the calling element's flux and potential dofs, which are L2 and so
-disjoint by construction — no colouring, no atomics, no integrator work. It is
-the one loop here that could be threaded this afternoon.
-
-**And it would buy almost nothing, which is the finding.** Timed per phase over
-six NPC steps on the pedestal problem, one thread, shares rather than absolute
-times because the machine was busy:
-
-| | n=32 k=1 | n=48 k=2 | n=64 k=2 | n=32 k=3 |
-|---|---|---|---|---|
-| `NPCResidual` | 28.6% | 24.5% | 23.2% | 21.3% |
-| `NPCGradient` | 32.2% | 35.2% | 36.3% | 41.8% |
-| `NPCReduce` | 3.1% | 2.7% | 2.7% | 2.9% |
-| `NPCRecover` | 3.1% | 2.8% | 2.8% | 2.8% |
-| trace solve (not element-local) | 33.0% | 34.8% | 35.1% | 31.1% |
-| **integrator-bound loops** | **60.8%** | **59.7%** | **59.4%** | **63.2%** |
-| **integrator-free loops** | **6.2%** | **5.4%** | **5.5%** | **5.7%** |
-
-The two loops that need no infrastructure are **5.4–6.2% of the step**, flat in
-both mesh size and order. Threading them perfectly, at any thread count, is
-capped there by Amdahl. The 60% is exactly where §2 already said it was, and
-NPC does not shrink it — it only changes *which* loops need integrator
-thread-safety, from `MultNL`'s fused one to `NPCResidual` and `NPCGradient`'s
-first half.
-
-**So the plan for NPC is the plan for everything else: fix integrator
-thread-safety and the `Mesh` transformation funnel first.** Doing the cheap
-loops first is worth it only as a way of proving the harness — the
-thread-count sweep, the bitwise comparison — against work that cannot fail for
-an interesting reason, before pointing it at work that can.
+**Threading NPC does not avoid any of it**, and the measurement saying so is on
+the `NPCResidual` doxygen group: the two loops that reach no integrator and no
+transformation (`NPCReduce`, `NPCRecover`, both only `MultInv()`) are under 6%
+of a step, flat in mesh size and order, so Amdahl caps them. `NPCRecover` is
+still the easiest loop in the class to thread — it writes only its own
+element's L2 dofs, needing neither colouring nor atomics — and is worth doing
+first only to prove the harness against work that cannot fail interestingly.
 
 **One number would refine this and was not taken**: `NPCGradient`'s 32–42% is
 `ConstructGrad` (integrators, serial) *plus* `ComputeElementH` (dense, already
 threaded), and the probe did not separate them. If the second half dominates,
-that column is already largely parallel and the integrator-bound share is
-smaller than the table's bottom row says. Separating them is the next
-measurement, not a new mechanism.
-
-The probe is scratch and will vanish with the scratchpad; it timed the four
-public NPC calls around a `UMFPackSolver` trace solve on `PedestalHDG` from
-`tests/unit/fem/test_darcy_npc.cpp`.
-
-NPC's parallel shape is otherwise the one this section wants: the flux and
-potential are L2 and therefore rank-local, so **only the trace needs
-communication at all** — prolonged in, assembled out. The element loop itself
-is untouched by the rank count.
+the integrator-bound share is smaller than the doxygen's table says.
+Separating them is the next measurement, not a new mechanism.
 
 ## 3. The remaining scatters
 
@@ -144,14 +112,13 @@ backends make §1 nearly free on device; the scatter loops need `mfem::forall`
 and device-capable local kernels, which is the real work. `ComputeH()`'s host
 path uses a raw OpenMP pragma rather than `mfem::forall`, because its body is
 `DenseMatrix` and `LUFactors` work that cannot be a device lambda — so a device
-version is a rewrite of the body, not a backend switch.
+version is a rewrite of the body, not a backend switch. **Nothing in
+`fem/darcy` is device-aware today**: no `mfem::forall`, no kernel, and the
+local blocks are host `Array<real_t>` reached by `GetData()`.
 
-## Acceptance, for what is left
+## Acceptance, for §2 onward
 
-§1's are met and are recorded in `SetLocalFactorMode()`'s doxygen: bit-for-bit
-agreement including pivots, a 1/2/4/8 thread sweep, scaling measured, the
-uniform-size fallback exercised both ways, and a serial build unchanged. What
-follows applies to §2 onward.
+§1's are met and are recorded in `SetLocalFactorMode()`'s doxygen.
 
 * **Same answers**, against the serial loop on the same problem. Bitwise where
   the work is element-local and reassociates nothing — true of `ComputeH()` and
@@ -165,20 +132,22 @@ follows applies to §2 onward.
 * **A serial build unchanged.** Every existing caller is serial and none should
   pay for this.
 
-## A defect found while testing section 1, unrelated to it
+## A defect found while testing section 1, and it is not ours to fix
 
 `DarcyHybridization`'s Jacobian is wrong on a **mixed-element mesh** at order
->= 1. On `data/square-mixed.mesh` (8 triangles, 12 squares) with a semilinear
-potential mass, Newton falls by a constant factor of about 1.7 per step and
-stalls at 1.2e-08, with a *direct* trace solve so the linear solver is not in
-question; LBFGS, which never asks for a gradient, reaches 5.5e-14 in 36
-iterations and lands on the same solution to six digits. The same problem on
-all-quadrilateral and on all-triangle meshes converges in three Newton steps to
-2e-16, and the mixed mesh converges at order 0 -- which is exactly the order at
-which the two element types have equal dof counts.
+>= 1 -- residual right, gradient wrong, correlating exactly with unequal
+per-element dof counts. The measurement and the reasoning are in
+`tests/unit/fem/test_darcy_batched_factor.cpp`, on the mixed-mesh section that
+carries the reproduction, so nothing here is needed to understand it.
 
-So the residual is right and the gradient is not, and the correlation with
-unequal per-element dof counts points at indexing that assumes them equal.
-Nothing else in the suite runs Darcy on a mixed mesh, which is why it had not
-been seen. `tests/unit/fem/test_darcy_batched_factor.cpp` carries the
-reproduction in a comment and deliberately does not assert convergence there.
+**`gf-hdg-p-adaptivity` owns the repair** -- it wants mixed meshes, variable
+order needing an NC mesh and its `hp` work reaching simplices and 3D -- and the
+fix arrives with that branch rather than with anything on this one.
+
+What is left here is one thing, and it is a merge task. That test file is this
+branch's alone and does not exist on the p-adaptivity branch, so the fix and
+the reproduction first coexist in the `meq-integration` tree. At that point the
+section is asserting the wrong property: it caps Newton at five steps and says
+nothing about convergence *because* the Jacobian is wrong, and once it is right
+it should converge and be asserted to. The comment there says so; this entry
+exists only so the merge is expected rather than discovered.

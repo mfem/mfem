@@ -238,8 +238,9 @@ Result Solve(Mesh &mesh, int order, int neq, bool hybridize, int only = -1,
    VectorFunctionCoefficient natcoeff(neq, nat), gcoeff(neq, src);
 
    // The Dirichlet datum. The two spaces take it differently, and which one
-   // is used is not a free choice -- see the boundary treatment sweep in
-   // section 7 of doc/HDG-ROADMAP.md.
+   // is used is not a free choice. (A comment here used to cite a "boundary
+   // treatment sweep" in section 7 of doc/HDG-ROADMAP.md; no such passage has
+   // ever existed in that file. The reasoning below is the whole of it.)
    //
    //   RT   weakly, through the flux equation's natural term. The datum would
    //        otherwise have to arrive through C^T, and C is assembled on

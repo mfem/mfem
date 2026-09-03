@@ -244,6 +244,23 @@ TEST_CASE("The batched local factorisation gives the serial one's answer",
       // meshes converges in three Newton steps to 2e-16. Nothing else in the
       // suite runs Darcy on a mixed mesh, which is why it had not been seen.
       //
+      // FIXING IT IS NOT THIS BRANCH'S, AND THE TWO HALVES NEVER MEET HERE.
+      // gf-hdg-p-adaptivity wants a mixed mesh -- variable order needs an NC
+      // mesh, and its hp work reaches simplices and 3D -- so the repair
+      // belongs there and arrives with that branch. But that branch is off
+      // the trunk and this file is this branch's alone: it does not exist
+      // there, so whoever fixes the Jacobian will not see this comment, and
+      // the fix and this reproduction first coexist in the meq-integration
+      // tree, which carries both.
+      //
+      // So this section is the thing to revisit at that merge, and it will
+      // then be asserting the wrong property. `max_it` of five and a
+      // deliberate silence about convergence are here only because the
+      // Jacobian is wrong; once it is right, this section should converge and
+      // be asserted to, the way every other section in this file is. Do not
+      // read a passing run as evidence either way in the meantime -- what is
+      // asserted below is only that requesting Batched changes nothing.
+      //
       // What this section can still assert, and does, is that requesting
       // Batched on a problem that cannot batch changes nothing at all --
       // which is the whole content of the fallback, since the code executed

@@ -1029,7 +1029,21 @@ public:
        @note The flux space must be discontinuous, which is the HDG case.
        An H(div) flux makes the local rows of @a r a conforming scatter with
        sign conventions this has not been checked against, and the RT paths are
-       deliberately left alone. */
+       deliberately left alone.
+
+       @note **A parity test against the reduced trace operator must run on a
+       resolved mesh.** The two routes reach the same discrete solution, and
+       the tests here assert it -- but on an UNDER-resolved mesh a semilinear
+       source can give the discrete system more than one solution, and which
+       one a solve lands on is then a property of the route rather than of the
+       discretisation. Reported by meq on a Grad-Shafranov benchmark: three
+       fully converged solves of the same system to rel_tol 1e-12 gave
+       max psi_h of 3.1831e-01 (NPC), 3.4779e-01 (reduced operator) and
+       3.1514e-01 (NPC after Anderson-accelerated Picard) -- a spread of 9.4%,
+       collapsing under one refinement. So a disagreement between the two
+       orderings on a coarse mesh is not evidence that either is wrong, and a
+       test that asserts agreement to a tight tolerance has to be posed where
+       both converge quickly or it measures this instead. */
    ///@{
    /** @brief The residual of the full system at the given state: no local
        solve, no substitution, no linearisation.

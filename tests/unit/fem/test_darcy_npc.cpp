@@ -1653,8 +1653,7 @@ TEST_CASE("ComputeSolution reproduces the fields NPC already holds",
    // ComputeSolution() reconstructs the fields from the trace, which is what
    // condensation wants and what NPC does not need -- under NPC the fields are
    // Newton state and the back-substitution is redundant. Redundant is not the
-   // same as wrong, and until this case existed it was simply unchecked, which
-   // is what section 11 of doc/HDG-ROADMAP.md recorded.
+   // same as wrong, and until this case existed it was simply unchecked.
    //
    // At the NPC solution the two must agree, and for a reason worth stating:
    // NPC converges when the FULL residual vanishes, and the local rows of that
