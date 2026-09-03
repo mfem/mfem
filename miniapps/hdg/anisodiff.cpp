@@ -1591,8 +1591,8 @@ int main(int argc, char *argv[])
             estimator has to be told where to find them; the constraint space
             it would otherwise read is uniform at the ceiling. */
          if (hp) { amr_err.SetHybridization(*darcy->GetHybridization()); }
-         if (skip_edir) { amr_err.SetSkipEnrichedDirection(); }
-         if (cap_tr) { amr_err.SetCapTraceAtElement(); }
+         if (!skip_edir) { amr_err.SetSkipEnrichedDirection(false); }
+         if (!cap_tr) { amr_err.SetCapTraceAtElement(false); }
 
          if (tproj)
          {
@@ -1631,8 +1631,8 @@ int main(int argc, char *argv[])
             if (!trace_ess_bc)
             { amr_dir->SetExcludedBoundary(bdr_is_dirichlet); }
             if (hp) { amr_dir->SetHybridization(*darcy->GetHybridization()); }
-            if (skip_edir) { amr_dir->SetSkipEnrichedDirection(); }
-            if (cap_tr) { amr_dir->SetCapTraceAtElement(); }
+            if (!skip_edir) { amr_dir->SetSkipEnrichedDirection(false); }
+            if (!cap_tr) { amr_dir->SetCapTraceAtElement(false); }
          }
 
          const Array<int> &aniso_flags = amr_dir

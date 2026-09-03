@@ -423,11 +423,16 @@ absent.
 `PerssonPeraireSmoothness` each have cases; the rule joining them lives only in
 `anisodiff` and is checked only by the demonstrator converging.
 
-**The estimator's caller-side setup is per-miniapp and easy to get wrong.**
-`SetExcludedBoundary()`, `SetHybridization()` and `SetTraceComparison()` all
-default to the old behaviour, so a caller that forgets one gets a quietly wrong
-estimate rather than an error -- which is exactly how all three were found.
-Only `anisodiff` sets them.
+**The estimator's caller-side setup is per-miniapp and easy to get wrong**, and
+this is the one piece of it that got worse rather than better. Five of the six
+things a `p`-adaptive caller must ask for default to the old behaviour, so
+forgetting one gives a quietly wrong estimate rather than an error -- which is
+how every one of them was found. Two are now implied by `SetHybridization()`,
+since they can only bite where per-face degrees exist and are measured inert
+otherwise; `SetExcludedBoundary()`, `SetTraceComparison()`, `SetAnisotropic()`
+and the choice of which field supplies the direction are still the caller's,
+and only `anisodiff` gets them all right. A driver-side helper that sets them
+together is the obvious answer and does not exist.
 
 ### Deliberately not planned
 
@@ -445,12 +450,15 @@ is worth having.
 2. A mesh carrying two element orders converges at the rate its trace orders
    set, and reaches a given error at fewer global dofs than uniform `p_max`.
    DONE; see the table in `anisodiff.cpp`.
-3. **`min` against `max` at a genuine `p`-interface. DONE**, and `max` wins:
-   21-27% of the dofs at fixed potential error in the hp loop, and `min` is
-   measured to get *worse* as the degree jump grows. `anisodiff --p-face-rule`
-   now defaults to `max` under `--hp-adaptivity` for that reason, and
-   `TraceOrderRule`'s doxygen carries both studies and why they only look
-   contradictory. The original note read: The investigation showed
+3. **`min` against `max` at a genuine `p`-interface. DONE**, and `max` wins,
+   but only once the estimate stops charging an element for modes it cannot
+   represent -- without that, `max` is what creates such faces and the loop
+   plateaus. With both halves handled it is worth about 10% of the dofs at
+   every matched error and reaches an order deeper in the same cycle budget,
+   and `min` is separately measured to get *worse* as the degree jump grows.
+   `anisodiff --p-face-rule` defaults to `max` under `--hp-adaptivity`.
+   `TraceOrderRule`'s doxygen carries the studies. The original note read:
+   The investigation showed
    a trace richer than *both* neighbours is exactly redundant -- **on a
    conforming mesh, and that qualifier turned out to matter**: across a hanging
    node the master sees several fine elements which between them do reach the

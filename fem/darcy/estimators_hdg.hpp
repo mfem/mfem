@@ -291,7 +291,21 @@ public:
 
        The solution is the same to six digits in all three; only the estimate
        moves, and it moves by a factor of 27. */
-   void SetHybridization(const DarcyHybridization &hyb_) { hyb = &hyb_; Reset(); }
+   void SetHybridization(const DarcyHybridization &hyb_)
+   {
+      hyb = &hyb_;
+      /* Both of the below are wanted exactly when per-face trace degrees
+         exist, and per-face trace degrees exist exactly when there is a
+         hybridization to read them from -- so this turns them on rather than
+         leaving a caller to discover, from an adaptive loop that quietly goes
+         nowhere, that it had to. Each is measured inert where no face outruns
+         its element: the h-adaptive loop is identical to every printed digit
+         with and without. Call either setter afterwards to measure the
+         difference. */
+      skip_enriched_dir = true;
+      cap_at_element = true;
+      Reset();
+   }
 
    /** @brief Where a face's trace degree exceeds the element's, keep that
        face's contribution to the element's error but not to its DIRECTION.
