@@ -34,9 +34,10 @@ real_t gExact(const Vector &x)
 struct Result
 {
    Vector tr;        ///< the trace solution, as solved for
+   Vector tr_v;      ///< the same, prolonged onto the constraint space
    Vector q, p;      ///< the recovered flux and potential
-   int    size;      ///< size of the trace system, storage included
-   int    ess;       ///< essential trace dofs, the retired surplus included
+   int    size;      ///< size of the trace system
+   int    ess;       ///< essential trace dofs
    int    active() const { return size - ess; }   ///< what is actually solved
 };
 
@@ -103,6 +104,7 @@ Result Solve(int order, int n, const Array<int> &trace_orders, bool set = true,
    res.size = X.Size();
    res.ess = darcy.GetHybridization()->GetEssentialTrueDofs().Size();
    res.tr = X;
+   darcy.GetHybridization()->ProlongTrace(X, res.tr_v);
    res.q = x.GetBlock(0);
    res.p = x.GetBlock(1);
    return res;
@@ -119,12 +121,27 @@ TEST_CASE("Setting every trace order to the uniform one changes nothing",
    // hold before any of it is worth anything: asking for the degree the space
    // already has must reproduce the uniform answer exactly, not nearly.
    //
-   // It is not vacuous, because SetTraceOrders() with a non-empty array takes
-   // the *other* branch of both accessors. TraceFE() goes through
-   // FiniteElementCollection::GetFE(geom, p) instead of
-   // FiniteElementSpace::GetFaceElement(f), and this is what says those two
-   // agree; TraceVDofs() runs its nt_f == nt_max early return, which is what
-   // says the truncation is a no-op at full degree rather than an off-by-one.
+   // It is not vacuous: a non-empty array builds the constraint, so this is
+   // what says an identity constraint really is one -- E square, R E = I, and
+   // every face's block placed where the space put it.
+   //
+   /* "The same answer", not "the same vector", and to round-off rather than
+      bitwise. Both weakenings are the same fact and it is worth stating
+      rather than hiding in a tolerance.
+
+      The constrained unknowns are ours and are numbered per face in the
+      coarse element's own order, while the space numbers them in an order
+      that carries the face orientation -- GetFaceVDofs() comes back as {5, 4}
+      on a reversed face. At a uniform degree E is the identity, so the
+      constraint is exactly that permutation: the reduced system is
+      Pi^T H Pi with load Pi^T b, a symmetric permutation of the old one.
+      Prolonging undoes the relabelling exactly, so the trace is comparable as
+      a FUNCTION; but GMRES on a permuted system reaches the same answer only
+      to round-off, so nothing here can be bitwise.
+
+      "An empty trace order array is the uniform trace" below is still
+      bitwise, and that is the pair: an empty array configures nothing at all,
+      so there is not even a permutation. */
    const int order = GENERATE(0, 1, 2);
    const int n = 4;
    CAPTURE(order);
@@ -147,10 +164,10 @@ TEST_CASE("Setting every trace order to the uniform one changes nothing",
       d -= b;
       INFO(what << ": max difference " << d.Normlinf() << " on "
            << b.Normlinf());
-      REQUIRE(d.Normlinf() == 0.0);
+      REQUIRE(d.Normlinf() < 1e-13 * std::max(b.Normlinf(), real_t(1.0)));
    };
 
-   same(stated.tr, uniform.tr, "trace");
+   same(stated.tr_v, uniform.tr_v, "trace");
    same(stated.q, uniform.q, "flux");
    same(stated.p, uniform.p, "potential");
 }
@@ -178,6 +195,8 @@ TEST_CASE("An empty trace order array is the uniform trace",
    Vector d(b.tr);
    d -= a.tr;
    REQUIRE(d.Normlinf() == 0.0);
+   // Bitwise on the reduced vector here, unlike the test above: an empty
+   // array configures nothing at all, so there is not even a relabelling.
 }
 
 TEST_CASE("A raised ceiling with every face at the old degree solves the old problem",
@@ -185,17 +204,23 @@ TEST_CASE("A raised ceiling with every face at the old degree solves the old pro
 {
    using namespace darcy_padapt;
 
-   // The acceptance test for retiring the surplus, and the one that makes the
-   // ceiling usable at all. Build the constraint space one degree above the
-   // elements and put every face back at the element degree: every face then
-   // carries surplus slots, so this exercises the retirement everywhere at
-   // once -- and the active space is face-for-face the one the plain uniform
-   // run uses, with the same basis, so it must return the same solution.
-   //
-   // Same solution, not the same vector: the trace is embedded in bigger
-   // storage under a different global numbering, so only the recovered fields
-   // are comparable, and only to the linear solver's tolerance rather than
-   // bitwise.
+   /* The acceptance test for the ceiling, and the one that makes it usable at
+      all. Build the constraint space one degree above the elements and put
+      every face back at the element degree: every face then has a surplus, so
+      this exercises the constraint everywhere at once -- and the constrained
+      space is face-for-face the one the plain uniform run uses, so it must
+      return the same solution.
+
+      Same solution, not the same vector: the trace lives in bigger storage
+      under a different numbering, so only the recovered fields are comparable,
+      and only to the linear solver's tolerance rather than bitwise.
+
+      AND THE REDUCED SYSTEM DOES NOT GROW. This used to assert the opposite
+      -- that raising the ceiling grew the trace system and the essential list
+      with it, the surplus being retired into unit rows. Constraining it
+      instead means the ceiling costs nothing the solver ever sees: the same
+      number of unknowns, none of them essential, and only the local blocks
+      and the trace vector's storage follow the ceiling. */
    const int order = GENERATE(0, 1, 2);
    const int n = 4;
    CAPTURE(order);
@@ -210,12 +235,15 @@ TEST_CASE("A raised ceiling with every face at the old degree solves the old pro
    at_old = order;
    const Result raised = Solve(order, n, at_old, true, order + 1);
 
-   // The storage really did grow, or the surplus is not being exercised.
-   REQUIRE(raised.size > plain.size);
-   REQUIRE(raised.ess > plain.ess);
+   // The ceiling really is raised, or nothing is being exercised: the
+   // constraint space carries more storage per face than the faces use.
+   REQUIRE(raised.tr_v.Size() > plain.tr_v.Size());
 
-   // ...and what is left after retiring it is exactly the old system's size.
-   INFO("active " << raised.active() << " against " << plain.active());
+   // And it costs the solver nothing at all.
+   INFO("size " << raised.size << " against " << plain.size << ", essential "
+        << raised.ess << " against " << plain.ess);
+   REQUIRE(raised.size == plain.size);
+   REQUIRE(raised.ess == plain.ess);
    REQUIRE(raised.active() == plain.active());
 
    auto close = [](const Vector &a, const Vector &b, const char *what)
@@ -457,16 +485,21 @@ TEST_CASE("The smoothness sensor reads the top degree's share of the energy",
    }
 }
 
-TEST_CASE("A hanging-node family takes the ceiling degree",
+TEST_CASE("A hanging-node family takes ONE degree, and not the ceiling",
           "[DarcyHybridization][PAdapt]")
 {
-   // A family's members reach one shared trace unknown through
-   // FiniteElement::GetTransferMatrix() and, one level below that, through the
-   // constraint space's conforming prolongation -- which interpolates in the
-   // CEILING basis and knows nothing of a per-face degree. So the family has
-   // to sit at the ceiling, and the derivation rule is what has to put it
-   // there; a family below it solves a different problem and, at the degrees
-   // this branch allows, an unstable one.
+   /* A family carries one trace unknown, on its master face, so it has one
+      degree -- the rule taken over its members. The master's own entry says
+      nothing, a master face never being integrated directly.
+
+      This asserted the opposite until the surplus was constrained rather than
+      retired: the family had to sit AT THE CEILING, because the conforming
+      prolongation interpolates master onto slave in the ceiling basis and the
+      retired route's slots held a coarser basis's coefficients, so the two
+      could not both hold on a face the prolongation touches. Storing ceiling
+      coefficients removes the conflict, and with it the rule. What is left is
+      the requirement that the family agree with itself, which is what this
+      now checks -- along with the coarsening it was blocking. */
    Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, false,
                                      1.0, 1.0);
    mesh.EnsureNCMesh();
@@ -507,10 +540,30 @@ TEST_CASE("A hanging-node family takes the ceiling degree",
    // asserts nothing.
    REQUIRE(in_family.Sum() > 0);
 
+   // Every face is at the element degree, family members included, and the
+   // ceiling of 5 is not reached anywhere: that is the coarsening the old
+   // rule forbade.
    for (int f = 0; f < face_order.Size(); f++)
    {
       CAPTURE(f, in_family[f]);
-      REQUIRE(face_order[f] == (in_family[f] ? cap : 2));
+      REQUIRE(face_order[f] == 2);
+   }
+   REQUIRE(cap > 2);
+
+   // And a family agrees with itself, which is the one thing still required
+   // of it: the master's degree is the unknown's, and a slave that disagreed
+   // would size its local block against a basis nothing else uses.
+   for (int m = 0; m < nclist.masters.Size(); m++)
+   {
+      const NCMesh::Master &master = nclist.masters[m];
+      if (master.index < 0 || master.index >= mesh.GetNumFaces()) { continue; }
+      for (int sl = master.slaves_begin; sl < master.slaves_end; sl++)
+      {
+         const int sf = nclist.slaves[sl].index;
+         if (sf < 0 || sf >= mesh.GetNumFaces()) { continue; }
+         CAPTURE(master.index, sf);
+         REQUIRE(face_order[sf] == face_order[master.index]);
+      }
    }
 }
 
@@ -536,10 +589,17 @@ struct Solved
 /// @a set_orders false leaves the trace uniform AT the ceiling, which is the
 /// ceiling discretisation itself rather than a face-by-face coarsening of it.
 void SolveKeeping(int order, int n, int ceiling, Solved &s,
-                  bool set_orders = true)
+                  bool set_orders = true, bool hanging = false)
 {
    s.mesh.reset(new Mesh(Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
                                                false, 1.0, 1.0)));
+   if (hanging)
+   {
+      s.mesh->EnsureNCMesh(true);
+      Array<int> refs;
+      refs.Append(0);
+      s.mesh->GeneralRefinement(refs, -1, 0);
+   }
    const int dim = s.mesh->Dimension();
 
    s.q_coll.reset(new L2_FECollection(order, dim, BasisType::GaussLobatto));
@@ -611,16 +671,89 @@ void SolveKeeping(int order, int n, int ceiling, Solved &s,
    // unknown and comes back in X. The mesh here is conforming, so its true
    // dofs and its vdofs are the same numbering and this is a copy rather than
    // a prolongation.
-   // DarcyForm::GetOffsets() is the two field blocks; the trace is the reduced
-   // unknown and comes back in X. The mesh here is conforming, so its true
-   // dofs and its vdofs are the same numbering and this is a copy rather than
-   // a prolongation.
-   REQUIRE(s.X.Size() == s.fes_t->GetVSize());
+   /* DarcyForm::GetOffsets() is the two field blocks; the trace is the
+      reduced unknown and comes back in X. Through ProlongTrace() rather than
+      by copying, because the reduced unknowns stop being the space's VDOFs
+      the moment a face is constrained -- and what lands is then a genuine
+      ceiling-basis representation, which is what lets an estimator read it. */
+   Vector tv;
+   s.darcy->GetHybridization()->ProlongTrace(s.X, tv);
+   REQUIRE(tv.Size() == s.fes_t->GetVSize());
    s.tr_h.SetSpace(s.fes_t.get());
-   s.tr_h = s.X;
+   s.tr_h = tv;
 }
 
 } // namespace darcy_padapt
+
+TEST_CASE("A hanging-node family can sit below the trace ceiling",
+          "[DarcyHybridization][PAdapt]")
+{
+   using namespace darcy_padapt;
+
+   /* The first of the three refusals turned round.
+
+      A nonconforming trace space carries a conforming prolongation, and the
+      trace system is P^T H P with the solution P X; P interpolates a master
+      face's coefficients onto its slaves' nodes IN THE CEILING BASIS. The
+      retired route's convention was the opposite -- the first nt(p_f) slots
+      held a coarser basis's coefficients and the rest were zeroed -- and a
+      zero tail in the ceiling basis is a different function, not the coarse
+      one. The two cannot both hold on a face P touches, so a family had to
+      run at the ceiling; ignoring that gave errors of 0.284, 1.06, 3.67 as
+      the mesh refined, against 0.284, 0.118, 0.091.
+
+      Constraining stores ceiling-basis coefficients, so P is right and a
+      family can be coarsened like anything else. The check is the one that
+      would have caught the old failure: raising the ceiling, with every face
+      still at the element degree, must not move the answer -- on a mesh
+      whose hanging-node families are among the faces below it. */
+   const int order = GENERATE(0, 1, 2);
+   const int gap = GENERATE(1, 3);
+   const int n = 4;
+   CAPTURE(order, gap);
+
+   Solved base, raised;
+   SolveKeeping(order, n, order, base, true, true);
+   SolveKeeping(order, n, order + gap, raised, true, true);
+
+   // The mesh really does have hanging nodes, or this asserts nothing.
+   REQUIRE(base.mesh->Nonconforming());
+   REQUIRE(base.mesh->ncmesh != nullptr);
+   REQUIRE(base.mesh->ncmesh->GetNCList(1).slaves.Size() > 0);
+
+   // And the families really are below the ceiling in the raised run.
+   {
+      const Array<int> &ord =
+         raised.darcy->GetHybridization()->GetTraceOrders();
+      REQUIRE(ord.Size() == raised.mesh->GetNumFaces());
+      const NCMesh::NCList &nc = raised.mesh->ncmesh->GetNCList(1);
+      int below = 0;
+      for (int i = 0; i < nc.slaves.Size(); i++)
+      {
+         const int f = nc.slaves[i].index;
+         if (f >= 0 && f < ord.Size() && ord[f] < order + gap) { below++; }
+      }
+      REQUIRE(below > 0);
+   }
+
+   // The recovered fields are the same discretisation, so they agree to
+   // round-off and not merely to the discretisation error.
+   const Vector &bq = base.x.GetBlock(0), &bp = base.x.GetBlock(1);
+   const Vector &rq = raised.x.GetBlock(0), &rp = raised.x.GetBlock(1);
+   REQUIRE(bq.Size() == rq.Size());
+   REQUIRE(bp.Size() == rp.Size());
+   Vector dq(bq); dq -= rq;
+   Vector dp(bp); dp -= rp;
+   INFO("flux differs by " << dq.Normlinf() << " on " << bq.Normlinf()
+        << ", potential by " << dp.Normlinf() << " on " << bp.Normlinf());
+   REQUIRE(dq.Normlinf() < 1e-10 * std::max(bq.Normlinf(), (real_t)1.0));
+   REQUIRE(dp.Normlinf() < 1e-10 * std::max(bp.Normlinf(), (real_t)1.0));
+
+   // And the reduced system is the size the degrees say, not the ceiling's.
+   REQUIRE(raised.X.Size() ==
+           raised.darcy->GetHybridization()->GetTraceTrueVSize());
+   REQUIRE(raised.X.Size() < raised.fes_t->GetTrueVSize());
+}
 
 TEST_CASE("The constrained ceiling system IS the coarse system",
           "[DarcyHybridization][PAdapt]")
@@ -800,14 +933,20 @@ TEST_CASE("The error estimate does not depend on the trace ceiling",
 {
    using namespace darcy_padapt;
 
-   // The estimator reads the trace solution face by face, and under a per-face
-   // degree the constraint space's own face element is the WRONG one: it is
-   // the ceiling's, and the coefficients it would be applied to are a coarser
-   // function's followed by the retired zeros. That is a different function
-   // rather than an approximation of one, because the two nodal bases sit at
-   // different points -- so the estimate comes out wrong without anything
-   // failing. SetHybridization() is what closes it, and this is the
-   // measurement: same problem, same solution, ceiling raised by three.
+   /* The estimator reads the trace solution face by face, and it used to need
+      telling about the hybridization to do it: the retired route stored a
+      coarse function as COARSE coefficients in the ceiling's slots, so
+      applying the constraint space's own face element to them evaluated a
+      different function -- not an approximation of one, because the two nodal
+      bases sit at different points. Without SetHybridization() the estimate
+      came out 1.957 against 0.0269, wrong with nothing failing.
+
+      Constraining rather than retiring removes the need. The slots hold
+      ceiling-basis coefficients now, so the space's own face element IS the
+      right one and a generic reader is right by default. This checks both
+      halves: the estimate does not move when the ceiling is raised, AND it
+      does not move when the estimator is told nothing -- which is the
+      workaround going away rather than being satisfied. */
    const int order = 2, n = 4;
 
    Solved plain, raised;
@@ -823,20 +962,28 @@ TEST_CASE("The error estimate does not depend on the trace ceiling",
    INFO("flux differs by " << dq.Normlinf());
    REQUIRE(dq.Normlinf() < 1e-12);
 
-   HDGDiffusionIntegrator bfi_a(one, 0.5), bfi_b(one, 0.5);
+   HDGDiffusionIntegrator bfi_a(one, 0.5), bfi_b(one, 0.5), bfi_c(one, 0.5);
    HDGErrorEstimator est_plain(bfi_a, plain.tr_h, plain.p_h);
    HDGErrorEstimator est_raised(bfi_b, raised.tr_h, raised.p_h);
    est_raised.SetHybridization(*raised.darcy->GetHybridization());
+   HDGErrorEstimator est_bare(bfi_c, raised.tr_h, raised.p_h);
 
    const Vector &ea = est_plain.GetLocalErrors();
    const Vector &eb = est_raised.GetLocalErrors();
+   const Vector &ec = est_bare.GetLocalErrors();
 
    REQUIRE(ea.Size() == eb.Size());
+   REQUIRE(ea.Size() == ec.Size());
    Vector d(ea);
    d -= eb;
    INFO("estimate " << est_plain.GetTotalError() << " against "
-        << est_raised.GetTotalError());
+        << est_raised.GetTotalError() << " and, told nothing, "
+        << est_bare.GetTotalError());
    REQUIRE(d.Normlinf() < 1e-12 * ea.Normlinf());
+
+   Vector d2(ea);
+   d2 -= ec;
+   REQUIRE(d2.Normlinf() < 1e-12 * ea.Normlinf());
 }
 
 TEST_CASE("Projecting the trace comparison changes nothing at equal degrees",
@@ -935,6 +1082,107 @@ TEST_CASE("Excluding a boundary attribute removes its faces and nothing else",
 }
 
 #ifdef MFEM_USE_MPI
+
+TEST_CASE("The constrained trace size does not depend on the rank count",
+          "[DarcyHybridization][PAdapt][Parallel]")
+{
+   /* The third refusal turned round, and the one that had no repair short of
+      this redesign.
+
+      The retired route read a face's first nt(p_f) slots as coefficients of
+      the coarse basis. Across a shared face the two ranks order that face's
+      DOFs by their own view of its orientation, so "the first nt(p_f)" named
+      a different subspace on each side and each retired slots the other was
+      still using. Measured on a fixed mesh with every face at degree 2 under
+      a degree-3 ceiling, so the answer is a property of the discretisation
+      and cannot depend on the partition: 144 retired true DOFs at one rank,
+      152 at two, 162 at three, and the relative L2 error going from 5.9e-4 to
+      0.56. SetTraceOrders() refused it outright.
+
+      Constraining removes the question. The constraint acts on TRUE DOFs, so
+      only the owner of a face builds an E for it, in its own ordering, and
+      every other rank receives values through the space's map exactly as it
+      does for a uniform trace.
+
+      Checked against the SERIAL answer rather than against another rank
+      count, which is what makes it independent: the same mesh and the same
+      degrees, built serially on every rank, must give the same global total
+      as the parallel run's ranks summed. */
+   const int order = 2, cap = 3, n = 8, dim = 2;
+
+   auto degree_at = [order](const Vector &c)
+   {
+      const int band = (int)(4.0 * c(0)) + (int)(4.0 * c(1));
+      return order + (band % 2);   // 2 or 3, so faces really are coarsened
+   };
+
+   // Build a hybridization on @a m with degrees from the geometry, and return
+   // the number of trace unknowns it would solve for.
+   ConstantCoefficient one(1.0);   // outlives every form built below
+   auto constrained_size = [&](Mesh &m, FiniteElementSpace &fq,
+                               FiniteElementSpace &fp, FiniteElementSpace &ft,
+                               DarcyForm &darcy)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+      Array<int> ess;
+      darcy.EnableHybridization(&ft, new NormalTraceJumpIntegrator(), ess);
+
+      Array<int> elem_order(m.GetNE());
+      for (int e = 0; e < m.GetNE(); e++)
+      {
+         Vector c;
+         m.GetElementCenter(e, c);
+         elem_order[e] = degree_at(c);
+      }
+      Array<int> face_order;
+      DarcyHybridization::FaceOrdersFromElementOrders(
+         m, elem_order, DarcyHybridization::TraceOrderRule::Min, cap,
+         face_order);
+      darcy.GetHybridization()->SetTraceOrders(face_order);
+      return darcy.GetHybridization()->GetTraceTrueVSize();
+   };
+
+   HYPRE_BigInt serial_size = 0;
+   {
+      Mesh m = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+      L2_FECollection qc(order, dim, BasisType::GaussLobatto);
+      L2_FECollection pc(order, dim, BasisType::GaussLobatto);
+      FiniteElementSpace fq(&m, &qc, dim), fp(&m, &pc);
+      DG_Interface_FECollection tc(cap, dim);
+      FiniteElementSpace ft(&m, &tc);
+      DarcyForm darcy(&fq, &fp);
+      serial_size = constrained_size(m, fq, fp, ft, darcy);
+   }
+
+   HYPRE_BigInt par_size = 0;
+   {
+      Mesh serial = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                          1.0, 1.0);
+      ParMesh m(MPI_COMM_WORLD, serial);
+      serial.Clear();
+      L2_FECollection qc(order, dim, BasisType::GaussLobatto);
+      L2_FECollection pc(order, dim, BasisType::GaussLobatto);
+      ParFiniteElementSpace fq(&m, &qc, dim), fp(&m, &pc);
+      DG_Interface_FECollection tc(cap, dim);
+      ParFiniteElementSpace ft(&m, &tc);
+      ParDarcyForm darcy(&fq, &fp);
+      par_size = constrained_size(m, fq, fp, ft, darcy);
+   }
+
+   MPI_Allreduce(MPI_IN_PLACE, &par_size, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+
+   // The degrees really do coarsen, or nothing is being exercised: at the
+   // ceiling everywhere the total would be the space's own size.
+   const int nfaces_flat = 2 * n * (n + 1);
+   REQUIRE(serial_size < (HYPRE_BigInt)(nfaces_flat * (cap + 1)));
+   REQUIRE(serial_size > 0);
+
+   INFO("serial " << serial_size << " against " << par_size << " summed");
+   REQUIRE(par_size == serial_size);
+}
 
 TEST_CASE("A shared face gets both ranks' element degrees",
           "[DarcyHybridization][PAdapt][Parallel]")

@@ -306,99 +306,59 @@ void DarcyHybridization::SetEssentialVDofs(const Array<int> &ess_vdofs_list)
    ess_tdof_list.Copy(ess_tdof_user);
 }
 
-void DarcyHybridization::RetireSurplusTraceDofs()
+void DarcyHybridization::MapEssentialTraceDofs()
 {
-   if (tr_order.Size() == 0) { return; }
-
-   // Rebuilt from the caller's own list rather than added to whatever is
-   // there, so that a second Finalize() after Reset() with different degrees
-   // does not inherit the first one's surplus.
-   ess_tdof_user.Copy(ess_tdof_list);
-
-   // A slave face of a hanging-node family owns no unknown. Its vdofs are
-   // interpolated from the master's, and the row of the conforming
-   // prolongation that carries one is dense over the master's whole face --
-   // the interpolation has no notion of which of the master's slots a given
-   // slave slot came from. TraceVDofsToTDofs() marks a true dof when ANY vdof
-   // depending on it is marked, so retiring a slave's surplus slot would
-   // retire EVERY true dof of that master face. The master's own surplus is
-   // retired below and removes exactly the modes that were meant to go, so the
-   // slaves are skipped rather than handled.
-   const Mesh *c_mesh = c_fes.GetMesh();
-   Mesh *mesh_r = c_fes.GetMesh();
-   const NCMesh::NCList *nclist = nullptr;
-   if (c_mesh->Nonconforming() && c_mesh->ncmesh)
+   if (tr_order.Size() == 0)
    {
-      nclist = &c_mesh->ncmesh->GetNCList(c_mesh->Dimension() - 1);
+      // The constraint space's true DOFs are the reduced unknowns, so the
+      // caller's list is already in the right numbering.
+      ess_tdof_user.Copy(ess_tdof_list);
+      return;
    }
 
-   Array<int> vdofs, surplus;
+   BuildTraceConstraint();
+
+   Array<int> mark;
+   FiniteElementSpace::ListToMarker(ess_tdof_user, ctr_ntdof, mark);
+
+   ess_tdof_list.DeleteAll();
    const int vdim = c_fes.GetVDim();
+   Array<int> vdofs;
    for (int f = 0; f < tr_order.Size(); f++)
    {
-      if (nclist && nclist->GetMeshIdAndType(f).type ==
-          NCMesh::NCList::MeshIdType::SLAVE) { continue; }
+      const int nt_f = (ctr_offsets[f+1] - ctr_offsets[f]) / vdim;
+      if (nt_f == 0) { continue; }
 
       c_fes.GetFaceVDofs(f, vdofs);
       const int nt_max = vdofs.Size() / vdim;
-      const int nt_f = TraceFE(f)->GetDof();
-      if (nt_f == nt_max) { continue; }
-
-      /* A COARSENED BOUNDARY FACE CANNOT CARRY A CALLER'S ESSENTIAL DATUM,
-         and this refuses rather than being wrong by a factor of twenty.
-
-         Two things break at once. The caller sets those values by projecting
-         onto the constraint space, whose face element is at the CEILING, while
-         the solve reads the first nt(p_f) slots as coefficients in the
-         degree-p_f basis -- and the two bases are nodal at different points,
-         so even the active slots mean something else. And the surplus slots
-         are retired here as essential but their VALUE comes from the caller's
-         vector, which the projection has just filled, so they impose a datum
-         instead of zero.
-
-         Measured on `anisodiff -p 5 -ks 1e1 -o 2 -hb -dg --hp-adaptivity
-         --trace-ess-bc`, sweeping the ceiling over a fixed 8x8 mesh on which
-         every face sits at degree 2 -- so the answer must not move at all.
-         Weak datum: 0.0225002 at every ceiling from 2 to 8, identical to every
-         printed digit, which is the control that says the retirement is
-         content-neutral. Essential datum: 0.0124, 0.0926, 0.196, 0.259 as the
-         ceiling goes 2, 3, 5, 8.
-
-         Closing it needs both halves -- the surplus forced to zero regardless
-         of what the vector holds, since those dofs are this route's and not
-         the caller's, and the datum projected face by face at the face's own
-         degree, which needs an entry point the constraint space does not
-         offer. Until then, a driver that wants both raises no ceiling: a
-         ceiling equal to the element degree reproduces the essential answer
-         exactly (0.0124172 at ceiling 2). */
-      MFEM_VERIFY(ess_tdof_user.Size() == 0 || mesh_r->FaceIsInterior(f),
-                  "Face " << f << " is a boundary face at degree "
-                  << tr_order[f] << ", below the trace ceiling, and essential "
-                  "trace DOFs have been set. Those values were projected in "
-                  "the ceiling's basis and this face reads a coarser one, so "
-                  "the datum imposed would not be the datum meant. Use a "
-                  "ceiling equal to the element degree, or impose the "
-                  "boundary datum weakly.");
-
-      // Fields are outermost, so each occupies its own run of nt_max slots and
-      // the tail of each run is what the face's degree does not reach.
       for (int k = 0; k < vdim; k++)
       {
-         for (int i = nt_f; i < nt_max; i++)
+         int n_ess = 0;
+         for (int j = 0; j < nt_max; j++)
          {
-            const int vd = vdofs[k*nt_max + i];
-            surplus.Append((vd >= 0) ? vd : (-1 - vd));
+            const int vd = vdofs[k*nt_max + j];
+            const int t = ctr_vdof2tdof[(vd >= 0) ? vd : (-1 - vd)];
+            if (t >= 0 && mark[t]) { n_ess++; }
+         }
+         /* All of a face's slots in a field or none of them. A trace face's
+            DOFs are its own -- nothing else on the mesh shares them -- so an
+            essential boundary condition takes the whole face, and the
+            constrained unknowns of that face are then all essential. A
+            partial marking would mean the datum is being imposed on a
+            subspace this route cannot name. */
+         MFEM_VERIFY(n_ess == 0 || n_ess == nt_max,
+                     "Face " << f << " has " << n_ess << " of " << nt_max
+                     << " slots essential in field " << k << ". A trace "
+                     "face's DOFs are face-interior, so an essential "
+                     "condition takes all of them or none.");
+         if (n_ess == 0) { continue; }
+         for (int i = 0; i < nt_f; i++)
+         {
+            ess_tdof_list.Append(ctr_offsets[f] + k*nt_f + i);
          }
       }
    }
-
-   if (surplus.Size() == 0) { return; }
-
-   Array<int> surplus_t;
-   TraceVDofsToTDofs(surplus, surplus_t);
-   ess_tdof_list.Append(surplus_t);
    ess_tdof_list.Sort();
-   ess_tdof_list.Unique();
 }
 
 /** @brief Assemble an element matrix of @a Mu.
@@ -821,8 +781,20 @@ void DarcyHybridization::FaceOrdersFromElementOrders(
    }
 #endif
 
-   // A HANGING-NODE FAMILY IS HELD AT THE CEILING, and that is a limitation of
-   // this route rather than a choice. See the note on SetTraceOrders().
+   /* A HANGING-NODE FAMILY CARRIES ONE TRACE UNKNOWN, on its master face, so
+      it has one degree and the whole family is given it.
+
+      The master face is never integrated directly -- its own entry above says
+      nothing -- while each slave's does, having seen a fine element and the
+      coarse one. So the family's degree is the rule taken over the slaves.
+
+      This used to force the family to `cap` instead, and that was a real
+      limitation rather than a choice: the retired route stored a coarse
+      function as coarse coefficients, while the conforming prolongation
+      interpolates master onto slave in the CEILING basis, and the two cannot
+      both hold on a face it touches. Constraining rather than retiring stores
+      ceiling coefficients, so the prolongation is right and a family can be
+      coarsened like any other face. */
    if (mesh.Nonconforming() && mesh.ncmesh)
    {
       const NCMesh::NCList &nclist =
@@ -832,12 +804,23 @@ void DarcyHybridization::FaceOrdersFromElementOrders(
          const NCMesh::Master &master = nclist.masters[m];
          if (master.index < 0 || master.index >= nf) { continue; }  // ghost
 
-         face_order[master.index] = cap;
-         for (int s = master.slaves_begin; s < master.slaves_end; s++)
+         int p = -1;
+         for (int sl = master.slaves_begin; sl < master.slaves_end; sl++)
          {
-            const int sf = nclist.slaves[s].index;
+            const int sf = nclist.slaves[sl].index;
             if (sf < 0 || sf >= nf) { continue; }
-            face_order[sf] = cap;
+            p = (p < 0) ? face_order[sf]
+                : ((rule == TraceOrderRule::Min) ? std::min(p, face_order[sf])
+                   : std::max(p, face_order[sf]));
+         }
+         if (p < 0) { continue; }
+
+         face_order[master.index] = p;
+         for (int sl = master.slaves_begin; sl < master.slaves_end; sl++)
+         {
+            const int sf = nclist.slaves[sl].index;
+            if (sf < 0 || sf >= nf) { continue; }
+            face_order[sf] = p;
          }
       }
    }
@@ -880,90 +863,18 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
                "SetTraceOrders() needs the hybridization initialised first; "
                "call it after DarcyForm::EnableHybridization().");
 
-   // A hanging-node family must run at the ceiling, and this refuses rather
-   // than silently repairing, because the caller's own dof accounting would
-   // otherwise be wrong. FaceOrdersFromElementOrders() already does it.
-   const Mesh *nc_mesh = c_fes.GetMesh();
-   if (nc_mesh->Nonconforming() && nc_mesh->ncmesh)
-   {
-      const NCMesh::NCList &nclist =
-         nc_mesh->ncmesh->GetNCList(nc_mesh->Dimension() - 1);
-      const int nf = nc_mesh->GetNumFaces();
-      for (int m = 0; m < nclist.masters.Size(); m++)
-      {
-         const NCMesh::Master &master = nclist.masters[m];
-         if (master.index < 0 || master.index >= nf) { continue; }
+   /* The two refusals that used to stand here -- a hanging-node family below
+      the ceiling, and a face shared between ranks below it -- are gone, and
+      so is the retirement they protected. Both said the same thing: the
+      route stored a coarse function as coarse coefficients in the ceiling's
+      slots, which is a private convention, and the conforming prolongation
+      and the parallel true-DOF map are both public readers of those slots.
+      Constraining rather than retiring makes the stored coefficients the
+      ceiling's own, so both readers are right and neither case needs a rule.
 
-         MFEM_VERIFY(face_order[master.index] == p_max,
-                     "Face " << master.index << " masters a hanging-node "
-                     "family and asks for degree " << face_order[master.index]
-                     << "; such a family has to run at the ceiling degree "
-                     << p_max << ". See SetTraceOrders().");
-         for (int sl = master.slaves_begin; sl < master.slaves_end; sl++)
-         {
-            const int sf = nclist.slaves[sl].index;
-            if (sf < 0 || sf >= nf) { continue; }
-            MFEM_VERIFY(face_order[sf] == p_max,
-                        "Face " << sf << " is a slave of face "
-                        << master.index << " and asks for degree "
-                        << face_order[sf] << "; a hanging-node family has to "
-                        "run at the ceiling degree " << p_max
-                        << ". See SetTraceOrders().");
-         }
-      }
-   }
-
-#ifdef MFEM_USE_MPI
-   /* A SHARED FACE CANNOT BE COARSENED, and this refuses rather than being
-      quietly wrong by a factor of a thousand.
-
-      The route reads a face's first nt(p_f) slots as coefficients of the
-      degree-p_f basis -- "a different basis in the same storage". That is well
-      defined while one process owns the interpretation. Across a shared face
-      it is not: the two ranks order that face's dofs by their own view of its
-      orientation, so "the first nt(p_f)" names a different subspace on each
-      side, and each retires slots the other is still using.
-
-      Measured on `pconvdiff -nx 8 -ny 8 -p 1 -o 2 -dg -hb --p-refine 1
-      --p-refine-x 0`, one fixed mesh with every face at degree 2 under a
-      degree-3 ceiling, so the retired set is a property of the discretisation
-      and cannot depend on the partition:
-
-      | ranks | retired + essential true dofs |
-      |---|---|
-      | 1 | 144, which is 144 faces x 1 surplus slot exactly |
-      | 2 | 152 |
-      | 3 | 162 |
-
-      The extra 8 and 18 are shared faces retired twice over, and the relative
-      L2 error goes from 5.9e-4 on one rank to 0.56 on two. With every face AT
-      the ceiling, where nothing is truncated, one and two ranks agree to five
-      digits (9.7801e-06 against 9.7785e-06) -- so the degree exchange is
-      right and it is the truncation that does not survive a partition.
-
-      Fixing it needs the same thing as a hanging-node family and an essential
-      datum on a coarsened face: the surplus CONSTRAINED so that a face's
-      coefficients are the coarse function expressed at the ceiling, which is
-      orientation-invariant, rather than retired so that they are not. */
-   if (ParallelC())
-   {
-      ParMesh *pm = c_pfes->GetParMesh();
-      const int nsf = pm->GetNSharedFaces();
-      for (int sf = 0; sf < nsf; sf++)
-      {
-         const int f = pm->GetSharedFace(sf);
-         if (f < 0 || f >= face_order.Size()) { continue; }
-         MFEM_VERIFY(face_order[f] == p_max,
-                     "Face " << f << " is shared between ranks and asks for "
-                     "degree " << face_order[f] << ", below the ceiling "
-                     << p_max << ". The two ranks order that face's dofs by "
-                     "their own view of its orientation, so truncating to the "
-                     "first nt(p_f) of them retires a different subspace on "
-                     "each side. A shared face has to run at the ceiling "
-                     "degree; see SetTraceOrders().");
-      }
-   }
-#endif
+      What is still required of a family is that it carry ONE degree, because
+      it carries one unknown; FaceOrdersFromElementOrders() gives it one and
+      BuildTraceConstraint() only ever reads the master's. */
 
    face_order.Copy(tr_order);
 
@@ -978,7 +889,7 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
    // carries a degree nobody asked for.
    for (int f = 0; f < tr_order.Size(); f++)
    {
-      const FiniteElement *fe = TraceFE(f);
+      const FiniteElement *fe = FaceDegreeFE(f);
       MFEM_VERIFY(fe && fe->GetOrder() == tr_order[f],
                   "The constraint collection returned a degree-"
                   << (fe ? fe->GetOrder() : -1) << " element for face " << f
@@ -989,19 +900,27 @@ void DarcyHybridization::SetTraceOrders(const Array<int> &face_order)
                   << c_fes.GetFaceElement(f)->GetDof() << ".");
    }
 
-   // C, E, G and H are all sized from the trace element, and Init() built them
-   // at the uniform degree before this method could be reached -- Init() runs
-   // from EnableHybridization(). Rebuild them at the degrees just stated, and
-   // drop whatever has been assembled, because those blocks are now the wrong
-   // shape. Without this the dof *count* comes out right and the system does
-   // not: measured as a flux wrong by 4.4 to 6.9 in a problem whose own norm
-   // is 2.4 to 3.1.
+   /* C, E, G and H are sized from the trace element, and this rebuilds them.
+      Under the present sizing that is a no-op -- TraceFE() is the ceiling's
+      element whatever the degrees, so Init() already built them at the right
+      size -- and it is kept for two reasons. Taking the local blocks back
+      down to p_f would need it back, and a contract that tightens again
+      later is worse than one that never loosened. And it was a real defect
+      once: Init() runs from EnableHybridization(), before any caller can
+      state a degree, so when the blocks DID follow p_f nothing rebuilt them
+      and the dof count came out right while the system did not -- a flux
+      wrong by 4.4 to 6.9 in a problem whose own norm is 2.4 to 3.1. */
    ConstructC();
    AllocTraceBlocks();
    Reset();
 }
 
 const FiniteElement *DarcyHybridization::TraceFE(int f) const
+{
+   return c_fes.GetFaceElement(f);
+}
+
+const FiniteElement *DarcyHybridization::FaceDegreeFE(int f) const
 {
    if (tr_order.Size() == 0) { return c_fes.GetFaceElement(f); }
 
@@ -1012,29 +931,6 @@ const FiniteElement *DarcyHybridization::TraceFE(int f) const
 void DarcyHybridization::TraceVDofs(int f, Array<int> &vdofs) const
 {
    c_fes.GetFaceVDofs(f, vdofs);
-
-   if (tr_order.Size() == 0) { return; }
-
-   const int vdim = c_fes.GetVDim();
-   MFEM_ASSERT(vdofs.Size() % vdim == 0, "");
-   const int nt_max = vdofs.Size() / vdim;
-   const int nt_f = TraceFE(f)->GetDof();
-   if (nt_f == nt_max) { return; }
-   MFEM_ASSERT(nt_f < nt_max, "a face cannot carry more dofs than it owns");
-
-   // GetFaceVDofs() lays the fields out outermost whatever the space's
-   // Ordering is, so each field occupies its own run of nt_max slots and the
-   // face's degree keeps the first nt_f of each. Compacting in place is safe
-   // in this direction: the destination index k*nt_f + i never exceeds the
-   // source k*nt_max + i.
-   for (int k = 0; k < vdim; k++)
-   {
-      for (int i = 0; i < nt_f; i++)
-      {
-         vdofs[k*nt_f + i] = vdofs[k*nt_max + i];
-      }
-   }
-   vdofs.SetSize(nt_f * vdim);
 }
 
 const DenseMatrix &DarcyHybridization::TraceEmbedding(int f) const
@@ -1045,7 +941,7 @@ const DenseMatrix &DarcyHybridization::TraceEmbedding(int f) const
    if (it != ctr_E.end()) { return it->second; }
 
    const FiniteElement *fe_hi = c_fes.GetFaceElement(f);
-   const FiniteElement *fe_lo = TraceFE(f);
+   const FiniteElement *fe_lo = FaceDegreeFE(f);
    const int n_hi = fe_hi->GetDof(), n_lo = fe_lo->GetDof();
 
    DenseMatrix E(n_hi, n_lo), R(n_lo, n_hi);
@@ -1118,9 +1014,12 @@ void DarcyHybridization::BuildTraceConstraint() const
    const int vdim = c_fes.GetVDim();
    const int nvd = c_fes.GetVSize();
 
-   // VDOF -> true DOF, and the ceiling's true size with it.
-   Array<int> vdof2tdof(nvd);
-   int ntdof;
+   // VDOF -> true DOF, and the ceiling's true size with it. Kept, because
+   // MapEssentialTraceDofs() needs the same map to place the caller's
+   // essential DOFs in the constrained numbering.
+   Array<int> &vdof2tdof = ctr_vdof2tdof;
+   vdof2tdof.SetSize(nvd);
+   int &ntdof = ctr_ntdof;
    if (ParallelC())
    {
 #ifdef MFEM_USE_MPI
@@ -1172,7 +1071,7 @@ void DarcyHybridization::BuildTraceConstraint() const
                   "face-interior, so they are all independent or none are, "
                   "and the constrained numbering counts them per face.");
       ctr_offsets[f+1] = ctr_offsets[f]
-                         + ((owned > 0) ? TraceFE(f)->GetDof() * vdim : 0);
+                         + ((owned > 0) ? FaceDegreeFE(f)->GetDof() * vdim : 0);
    }
 
    ctr_PE.reset(new SparseMatrix(ntdof, ctr_offsets[NF]));
@@ -1230,8 +1129,50 @@ void DarcyHybridization::BuildTraceConstraint() const
       // already maps to VDOFs.
       const SparseMatrix *cP = c_fes.GetConformingProlongation();
       if (cP) { ctr_Pv.reset(mfem::Mult(*cP, *ctr_PE)); }
+      return;
    }
+
+#ifdef MFEM_USE_MPI
+   /* In parallel the composition is the other way round -- the constraint
+      acts on TRUE DOFs and the space's own map carries those to LDOFs -- and
+      that ordering is what makes a shared face work at all.
+
+      Only the owner of a face has true DOFs there, so only the owner builds
+      an E for it, in its own reference ordering; the other rank never sees a
+      coarse basis and receives LDOF values through Dof_TrueDof exactly as it
+      always did. Orientation therefore stops being this route's problem: it
+      is handled at the ceiling, by the space, as it is for a uniform trace.
+      That is the whole of the shared-face repair, and it is why the retired
+      route could not have one -- there the interpretation of a slot was
+      per-rank, and no exchange can fix a disagreement about what a number
+      means. */
+   ParMesh *pm = c_pfes->GetParMesh();
+   HYPRE_BigInt loc = ctr_offsets.Last();
+   Array<HYPRE_BigInt> *offs[1] = { &ctr_col_starts };
+   pm->GenerateOffsets(1, &loc, offs);
+
+   OperatorHandle Pc(Operator::Hypre_ParCSR);
+   Pc.MakeRectangularBlockDiag(c_pfes->GetComm(), c_pfes->GlobalTrueVSize(),
+                               ctr_col_starts.Last(),
+                               c_pfes->GetTrueDofOffsets(),
+                               ctr_col_starts.GetData(), ctr_PE.get());
+   ctr_pP.reset(mfem::ParMult(c_pfes->Dof_TrueDof_Matrix(),
+                              Pc.As<HypreParMatrix>()));
+   ctr_pP->CopyRowStarts();
+   ctr_pP->CopyColStarts();
+   Pc.Clear();
+#endif
 }
+
+#ifdef MFEM_USE_MPI
+HypreParMatrix *DarcyHybridization::GetParTraceProlongation() const
+{
+   MFEM_ASSERT(ParallelC(), "use GetTraceProlongationMatrix() in serial");
+   if (tr_order.Size() == 0) { return c_pfes->Dof_TrueDof_Matrix(); }
+   BuildTraceConstraint();
+   return ctr_pP.get();
+}
+#endif
 
 int DarcyHybridization::GetTraceTrueVSize() const
 {
@@ -1251,9 +1192,11 @@ const SparseMatrix *DarcyHybridization::GetTraceProlongationMatrix() const
 const Operator *DarcyHybridization::GetTraceProlongation() const
 {
    if (!ParallelC()) { return GetTraceProlongationMatrix(); }
-   MFEM_VERIFY(tr_order.Size() == 0,
-               "The parallel constrained prolongation is not built yet.");
-   return c_fes.GetProlongationMatrix();
+#ifdef MFEM_USE_MPI
+   return GetParTraceProlongation();
+#else
+   MFEM_ABORT("internal MFEM error");
+#endif
 }
 
 void DarcyHybridization::ProlongTrace(const Vector &X_c, Vector &x) const
@@ -1268,8 +1211,7 @@ void DarcyHybridization::RestrictTrace(const Vector &x, Vector &X_c) const
 {
    if (tr_order.Size() == 0)
    {
-      const SparseMatrix *cR = ParallelC() ? NULL
-                               : c_fes.GetConformingRestriction();
+      const Operator *cR = c_fes.GetRestrictionOperator();
       if (!cR) { X_c = x; return; }
       X_c.SetSize(cR->Height());
       cR->Mult(x, X_c);
@@ -2118,20 +2060,47 @@ void DarcyHybridization::ComputeH(ComputeHMode mode,
 
    if (!ParallelC())
    {
-      const SparseMatrix *cP = c_fes.GetConformingProlongation();
-      if (cP)
+      /* Through the hybridization's own prolongation, which IS the space's
+         while the trace is uniform and is the space's composed with the
+         per-face constraint once it is not. The reduced system is then in
+         the constrained unknowns -- one per degree of freedom a face
+         actually has -- rather than in the ceiling's slots with the surplus
+         carrying unit rows. */
+      /* Guarded on the ROW size, not on the columns.
+
+         This read `H_->Height() != P->Width()`, which was a safe way to ask
+         "has this already been reduced?" while P was the conforming
+         prolongation and could only ever shrink. The constrained prolongation
+         need not: at a uniform degree it is square -- E is the identity and
+         all it does is carry each face's block to where the space put it,
+         which is a permutation, because GetFaceVDofs() is not ascending on a
+         reversed face. The old test then said "already reduced" and skipped
+         the RAP, leaving H in the space's numbering while the right-hand side
+         had been reduced into ours. Measured as the null test failing by 0.28
+         and 0.54 with the fields recovered from a system that did not match
+         its load. */
+      const SparseMatrix *P = GetTraceProlongationMatrix();
+      if (P && H_->Height() == P->Height())
       {
-         if (H_->Height() != cP->Width())
-         {
-            SparseMatrix *cH = mfem::RAP(*cP, *H_, *cP);
-            H_.reset(cH);
-         }
+         H_.reset(mfem::RAP(*P, *H_, *P));
       }
 
-      // ensure diagonal is non-zero
+      /* Ensure the diagonal is non-zero, and through EliminateZeroRows()
+         rather than SetDiagIdentity(), which cannot do it after a RAP.
+
+         SetDiagIdentity() only fixes a row with EXACTLY ONE entry that is
+         zero, which is what a row untouched by any integrator looks like once
+         ComputeH() has inserted an explicit zero on its diagonal. Restricting
+         by the constraint spreads that row over the face's constrained
+         unknowns, so it comes back with nt(p_f) entries, all zero, and the
+         fix-up silently did nothing: the reduced matrix was singular and
+         UMFPack returned a NaN that surfaced as GMRES aborting on IsFinite.
+         EliminateZeroRows() is the general form -- it is what the parallel
+         branch has always used -- and it agrees with SetDiagIdentity() on the
+         single-entry rows that were the only ones reachable before. */
       if (diag_policy == DIAG_ONE)
       {
-         H_->SetDiagIdentity();
+         H_->EliminateZeroRows(0.0);
       }
    }
 }
@@ -2152,7 +2121,7 @@ void DarcyHybridization::ComputeParH(ComputeHMode mode,
       dH.MakeSquareBlockDiag(c_pfes->GetComm(), c_pfes->GlobalVSize(),
                              c_pfes->GetDofOffsets(), H_.get());
       // TODO - construct Dof_TrueDof_Matrix directly in the pS format
-      pP.ConvertFrom(c_pfes->Dof_TrueDof_Matrix());
+      pP.ConvertFrom(GetParTraceProlongation());
       pH_.MakePtAP(dH, pP);
       dH.Clear();
       pP.Clear();
@@ -2621,7 +2590,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
 
    if (!ParallelC())
    {
-      tr_cP = c_fes.GetConformingProlongation();
+      tr_cP = GetTraceProlongationMatrix();
       if (!tr_cP)
       {
          x.MakeRef(const_cast<Vector&>(x_t), 0, x_t.Size());
@@ -2635,7 +2604,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
    else
    {
       x.SetSize(c_fes.GetVSize());
-      c_fes.GetProlongationMatrix()->Mult(x_t, x);
+      GetTraceProlongation()->Mult(x_t, x);
    }
 
    Vector bu;
@@ -2718,7 +2687,7 @@ void DarcyHybridization::ParMultNL(MultNlMode mode, const BlockVector &b_t,
       }
       else
       {
-         c_fes.GetProlongationMatrix()->MultTranspose(y, y_t);
+         GetTraceProlongation()->MultTranspose(y, y_t);
       }
    }
 }
@@ -2729,7 +2698,15 @@ void DarcyHybridization::Finalize()
 
    // Before anything reads ess_tdof_list: ComputeH() eliminates with it and
    // EliminateTraceTrueDofs() gives it the diagonal policy.
-   RetireSurplusTraceDofs();
+   MapEssentialTraceDofs();
+
+   /* And the Operator size, which is the reduced system's and not the
+      constraint space's. DarcyForm::FormSystemMatrix() hands `this` to the
+      caller as the operator for a nonlinear hybridized solve, so a wrong
+      size here is a wrong size in the Newton solver. It was
+      c_fes.GetVSize(), which is right only when the space is conforming and
+      serial; constraining a face makes the two differ in every case. */
+   width = height = GetTraceTrueVSize();
 
    if (!IsNonlinear())
    {
@@ -3563,14 +3540,14 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
       //initialize reduced rhs
       if (ParallelC())
       {
-         const Operator *tr_P = c_fes.GetProlongationMatrix();
+         const Operator *tr_P = GetTraceProlongation();
          if (b_tr.Size() != tr_P->Width())
          {
             b_tr.SetSize(tr_P->Width());
             b_tr = 0.;
          }
       }
-      else if ((tr_cP = c_fes.GetConformingProlongation()))
+      else if ((tr_cP = GetTraceProlongationMatrix()))
       {
          if (b_tr.Size() != tr_cP->Width())
          {
@@ -3615,7 +3592,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 
    Vector b_r;
 
-   if (!ParallelC() && !(tr_cP = c_fes.GetConformingProlongation()))
+   if (!ParallelC() && !(tr_cP = GetTraceProlongationMatrix()))
    {
       if (b_tr.Size() != c_fes.GetVSize())
       {
@@ -3700,7 +3677,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    }
    else
    {
-      const Operator *tr_P = c_fes.GetProlongationMatrix();
+      const Operator *tr_P = GetTraceProlongation();
 
       if (b_tr.Size() != tr_P->Width())
       {
@@ -3769,7 +3746,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
    Vector sol_r;
    if (!ParallelC())
    {
-      const SparseMatrix *tr_cP = c_fes.GetConformingProlongation();
+      const SparseMatrix *tr_cP = GetTraceProlongationMatrix();
       if (!tr_cP)
       {
          sol_r.SetDataAndSize(sol_tr.GetData(), sol_tr.Size());
@@ -3783,7 +3760,7 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
    else
    {
       sol_r.SetSize(c_fes.GetVSize());
-      c_fes.GetProlongationMatrix()->Mult(sol_tr, sol_r);
+      GetTraceProlongation()->Mult(sol_tr, sol_r);
    }
 
    Vector bu, u;

@@ -102,32 +102,52 @@
 //
 //      || t - t_ex ||          uniform M    h-adapt M       hp M
 //      ---------------------------------------------------------------
-//      1.0e-3                     24960         1146         717
-//      1.0e-4                     99072         3501         952
-//      3.0e-5                         -         6258        1054
-//      1.0e-7                         -            -        1847
-//      4.5e-10                        -            -        3264
+//      1.0e-3                     24960         1146         727
+//      1.0e-4                     99072         3501         967
+//      3.0e-5                         -         6258        1057
+//      1.0e-7                         -            -        2016
+//      9.9e-10                        -            -        3365
 //
-//    Read across a row: at 1e-4 the same error costs 104 times fewer globally
-//    coupled unknowns than uniform refinement and 3.7 times fewer than
+//    Read across a row: at 1e-4 the same error costs 102 times fewer globally
+//    coupled unknowns than uniform refinement and 3.6 times fewer than
 //    h-adaptivity, and hp keeps going four decades past where the others were
 //    stopped -- uniform would need nx beyond 1500 and h-adaptivity does not
 //    get there at all, dying on direct-solver memory at M around 1.4 million.
+//
+//    The hp column moved when the trace surplus stopped being retired and
+//    started being constrained, and the uniform and h columns did not -- they
+//    are bit-identical, which is what says the change is in the hp path and
+//    nowhere else. A hanging-node family used to be forced to the CEILING
+//    degree, because the retired route could not coarsen through a conforming
+//    prolongation that interpolates in the ceiling basis; it now takes the
+//    same rule as any other face. That enrichment was worth something -- 717
+//    against 727 at 1e-3, 952 against 967 at 1e-4, 1847 against 2016 at 1e-7,
+//    so 1 to 9 per cent -- and the last row is the clearest: hp reached
+//    4.5e-10 at M = 3264 with families enriched and reaches 9.9e-10 at 3365
+//    without. What it buys is that the configuration is no longer refused,
+//    which is what makes the boundary datum and the parallel runs work.
 //    The uniform column is nx = 64 and 128; both adaptive columns are
 //    --doerfler-marking --postprocessed-estimate at the defaults, the hp one
 //    adding --hp-adaptivity. Each row is the nearest cycle rather than an
 //    interpolation, so the errors within a row are close but not equal --
-//    1.0e-3 / 1.2e-3 / 1.05e-3, then 8.3e-5 / 8.8e-5 / 8.0e-5, then 3.4e-5 /
-//    2.2e-5, then 9.7e-8.
+//    1.0e-3 / 1.2e-3 / 8.7e-4, then 8.3e-5 / 8.8e-5 / 8.8e-5, then 3.4e-5 /
+//    2.6e-5, then 1.1e-7.
 //
 //    IN SECONDS RATHER THAN DOFS the ranking is not the same, and that is
 //    worth knowing before quoting the table. At a relative error near 1e-4
-//    h-adaptivity is the fastest of the three -- 0.51 s against uniform's
-//    2.22 s and hp's 0.81 s -- because an adaptive loop pays for every
+//    h-adaptivity is the fastest of the three -- 0.38 s against uniform's
+//    2.12 s and hp's 0.67 s -- because an adaptive loop pays for every
 //    intermediate solve and hp takes more cycles to get there. hp overtakes
 //    below about 1e-5 and then wins outright: 4.8 times faster than uniform at
 //    7e-6 and 11 times at 2e-6, where h-adaptivity can no longer reach at all.
 //    Two of the three defaults below were chosen on that curve.
+//
+//    Those three seconds figures were 0.51 / 2.22 / 0.81 when first measured,
+//    on the same machine and with two of the three paths unchanged since. So
+//    the drift is the machine and not the method, and only the RANKING should
+//    be quoted from here; where the ceiling's cost is wanted as a number, the
+//    controlled sweep in DarcyHybridization::SetTraceOrders() varies nothing
+//    but the ceiling and is the one to use.
 //
 //    THREE THINGS ABOUT THE ESTIMATE THAT ARE NOT OPTIONAL, each measured
 //    rather than reasoned about, and each of which silently stopped the loop
@@ -707,10 +727,12 @@ int main(int argc, char *argv[])
       }
       if (reconstruct)
       {
-         cerr << "--reconstruct reads the trace space directly and would read "
-              "ceiling-degree face elements against a coarser solution. The "
-              "postprocessed potential the estimate uses is the reconstruction "
-              "that a per-face degree does not disturb." << endl;
+         cerr << "--reconstruct builds a local problem whose shapes assume "
+              "one trace degree per element and aborts in "
+              "DenseMatrixInverse::Factor when they differ -- tried, not "
+              "assumed. The postprocessed potential the estimate uses is the "
+              "reconstruction that a per-face degree does not disturb."
+              << endl;
          return 1;
       }
       /* order+5, and the +5 is measured on three axes rather than chosen.
@@ -1380,18 +1402,17 @@ int main(int argc, char *argv[])
             }
          }
 
-         /* The globally coupled unknowns, which is the cost an adaptive method
-            has to be judged against. dim(M) is the trace space's own size and
-            does not move when a face is coarsened -- the storage stays at the
-            ceiling -- so it is the wrong number here. The slots a face's
-            degree does not reach are retired into the essential list at
-            Finalize(), carrying a unit row and standing outside the physical
-            system, so subtracting that list is what the trace solve actually
-            carries. */
+         /* The globally coupled unknowns, which is the cost an adaptive
+            method has to be judged against. dim(M) is the trace space's own
+            size and does not move when a face is coarsened -- the storage
+            stays at the ceiling -- so it is the wrong number here.
+            GetTraceTrueVSize() is what the trace solve actually carries: one
+            unknown per degree of freedom a face has, the ceiling's surplus
+            constrained away rather than retired into a unit row. */
          int ndof_m = 0;
          if (hybridization)
          {
-            ndof_m = trace_space->GetTrueVSize()
+            ndof_m = darcy->GetHybridization()->GetTraceTrueVSize()
                      - darcy->GetHybridization()->GetEssentialTrueDofs().Size();
          }
 

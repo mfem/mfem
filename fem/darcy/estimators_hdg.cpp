@@ -237,6 +237,22 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
    const FiniteElement &fe2 = (FTr.Elem2No >= 0)?(*fes_p->GetFE(FTr.Elem2No)):
                               (fe1);
 
+   /* THE FACE'S DEGREE IS NOT ITS ELEMENT'S ORDER, and the two questions
+      below are about the degree.
+
+      The trace is stored in the constraint space's basis, which is uniform at
+      the ceiling, and constrained to the face's own degree; so fe_tr is the
+      ceiling's element on every face and reading a degree off it would call
+      every face enriched the moment a ceiling is raised. The degree lives in
+      the hybridization and nowhere else. On a face-neighbour face there is no
+      such array and the element's order is the best available. */
+   int tr_deg = fe_tr->GetOrder();
+   if (hyb && face < mesh->GetNumFaces() &&
+       hyb->GetTraceOrders().Size() > face)
+   {
+      tr_deg = hyb->GetTraceOrders()[face];
+   }
+
    switch (type)
    {
       case Type::Residual:
@@ -264,12 +280,12 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
          {
             const FiniteElementCollection *c_fec = fes_tr->FEColl();
             const Geometry::Type geom = mesh->GetFaceGeometry(face);
-            if (fe_tr->GetOrder() > fe1.GetOrder())
+            if (tr_deg > fe1.GetOrder())
             {
                fe_tr1 = c_fec->GetFE(geom, fe1.GetOrder());
                ProjectTraceDown(*fe_tr, *fe_tr1, FTr, tr, cap1);
             }
-            if (FTr.Elem2No >= 0 && fe_tr->GetOrder() > fe2.GetOrder())
+            if (FTr.Elem2No >= 0 && tr_deg > fe2.GetOrder())
             {
                fe_tr2 = c_fec->GetFE(geom, fe2.GetOrder());
                ProjectTraceDown(*fe_tr, *fe_tr2, FTr, tr, cap2);
@@ -327,10 +343,9 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
                -- that mismatch is real and the element is the one carrying it
                -- but contributes no DIRECTION, because the direction it would
                contribute is the wrong one. See SetSkipEnrichedDirection(). */
-            const bool dir1 = !(skip_enriched_dir &&
-                                fe_tr->GetOrder() > fe1.GetOrder());
+            const bool dir1 = !(skip_enriched_dir && tr_deg > fe1.GetOrder());
             const bool dir2 = !(skip_enriched_dir && FTr.Elem2No >= 0 &&
-                                fe_tr->GetOrder() > fe2.GetOrder());
+                                tr_deg > fe2.GetOrder());
 
             if (dir1)
             {

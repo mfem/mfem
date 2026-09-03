@@ -547,9 +547,22 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       {
          if (ph)
          {
-            RHS.SetSize(trace_space->GetTrueVSize());
-            ph->ParallelAssemble(RHS);
+            /* Not ParLinearForm::ParallelAssemble(), which reduces with the
+               SPACE's prolongation. Once a face carries its own degree the
+               reduced unknowns are the constrained ones, and the trace load
+               has to be reduced with the same map the system was. */
+            auto *hyb = darcy->GetHybridization();
+            RHS.SetSize(hyb->GetTraceTrueVSize());
+            hyb->GetTraceProlongation()->MultTranspose(*ph, RHS);
          }
+
+         /* And the initial guess, which this branch never set: X was left
+            empty, FormLinearSystem() then sized it from the right-hand side
+            and zeroed it, and an essential trace datum came out as zero. The
+            serial branch had always restricted it. Pre-existing, and cheap
+            enough to close while the restriction is being written. */
+         const Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
+         darcy->GetHybridization()->RestrictTrace(x_r, X);
       }
       else
 #endif
@@ -563,16 +576,23 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
          // dereferenced null here and segfaulted. Attributed rather than
          // guessed: a uniform-order run that only calls EnsureNCMesh() fails
          // the same way, so it is the mesh flag and not variable order.
-         auto *cP = trace_space->GetConformingProlongation();
-         if (cP)
+         auto *hyb = darcy->GetHybridization();
+         auto *P = hyb->GetTraceProlongationMatrix();
+         if (P)
          {
-            RHS.SetSize(cP->Width());
-            cP->MultTranspose(*h, RHS);
+            RHS.SetSize(P->Width());
+            // Guarded, where the old code dereferenced h unconditionally in
+            // this branch: nothing forces a trace load to exist.
+            if (h) { P->MultTranspose(*h, RHS); }
+            else { RHS = 0.; }
 
-            auto *cR = trace_space->GetConformingRestriction();
-            X.SetSize(cR->Height());
+            /* RestrictTrace(), not the space's conforming restriction: the
+               initial guess has to be read back at each face's own degree,
+               which interpolates at that face's nodes. The transpose of the
+               prolongation would integrate against the ceiling's instead,
+               and the answer would then depend on the ceiling. */
             const Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
-            cR->Mult(x_r, X);
+            hyb->RestrictTrace(x_r, X);
          }
          else
          {
@@ -674,15 +694,20 @@ void DarcyOperator::ImplicitSolve(const real_t dt, const Vector &x_v,
       if (pdarcy)
       {
          Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
-         trace_space->GetProlongationMatrix()->Mult(X, x_r);
+         darcy->GetHybridization()->ProlongTrace(X, x_r);
       }
       else
 #endif
-         // Null when the prolongation would be the identity; see ImplicitSolve.
-         if (auto *cP = trace_space->GetConformingProlongation())
+         /* Through the hybridization, so that what lands in the trace
+            GridFunction is a genuine ceiling-basis representation of a
+            function of each face's own degree. Everything downstream --
+            GLVis, the error estimator, the reconstruction -- then reads the
+            right function without having to know the degrees. Null when the
+            prolongation would be the identity; see ImplicitSolve. */
+         if (darcy->GetHybridization()->GetTraceProlongationMatrix())
          {
             Vector x_r(dx_v, offsets[2], trace_space->GetVSize());
-            cP->Mult(X, x_r);
+            darcy->GetHybridization()->ProlongTrace(X, x_r);
          }
    }
 

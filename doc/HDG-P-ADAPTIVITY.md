@@ -74,8 +74,11 @@ trees, not a rebuild. Budget for it; a parameter cannot carry a persistent map.*
 *And on reconstruction, of which there are two kinds and only one is a
 problem.* `DarcyForm::Reconstruct()` solves a mixed local problem driven by a
 total flux built from the traces, and reads the trace space directly at six
-sites in `darcyform.cpp`; with per-face degrees it would read `p_max` elements
-against a solution occupying `p_f` slots, so `-pref` refuses `-rec`.
+sites in `darcyform.cpp`. `-pref` still refuses `-rec`, but the reason has
+changed: the basis problem went with the retirement, and what is left is that
+the local problem's shapes assume one trace degree per element. Tried rather
+than assumed -- with the guard removed it aborts in
+`DenseMatrixInverse::Factor` with "DenseMatrix is not square".
 
 `HDGPotentialPostprocessor` -- the classic local postprocessing, Nguyen,
 Peraire & Cockburn eq (25) -- has no such problem: it reads the flux and the
@@ -86,18 +89,21 @@ only thing that was uniform was the enriched space it builds by default, which
 now follows the potential element by element. That is `convdiff -pp`, it works
 under `-pref`, and it is what a `p`-adaptive run should use.
 
-**2. Retire the surplus slots. DONE.**
-`Finalize()` unions the unused slots into `ess_tdof_list`, rebuilding it from
-the caller's own list each time so a second `Finalize()` after `Reset()` with
-different degrees does not inherit the first one's. `ComputeH`'s `DIAG_ONE`
-gives them a unit row and `Mult()` zeroes them; no new elimination path.
+**2. Constrain the surplus slots. DONE, and it replaced retiring them.**
+A face's slots hold the CEILING basis's coefficients of a function of the
+face's own degree, and a per-face `E` says so; the reduced system is in the
+constrained unknowns, so it is the sum of `nt(p_f)` and carries no unit rows
+at all. Retiring them into `ess_tdof_list` came first and is gone -- it is
+what the three closed limits below were all about.
 
 The trap this step actually turned on was elsewhere. `Init()` runs from
 `EnableHybridization()`, so C, E, G and H were already built at the *uniform*
 degree before any caller could state a per-face one -- the dof count came out
 exactly right and the system was wrong. `SetTraceOrders()` therefore rebuilds
 them and calls `Reset()`, and must be called straight after
-`EnableHybridization()` and before `Assemble()`.
+`EnableHybridization()` and before `Assemble()`. Under the present sizing that
+rebuild is a no-op; the contract is kept because taking the local blocks back
+down to `p_f` would need it back.
 
 **3. A knob to drive it. DONE.**
 `convdiff -pref n [-prefx x] [-pmax|-pmin]` raises the element order on a
@@ -259,108 +265,28 @@ and only the direction matters, at a `p`-interface the cap is the whole of it.
 
 With both, the `max` face rule is usable and is the default under hp again:
 about 10% of the dofs at every matched error and an order deeper in the same
-cycle budget, 4.5e-10 at M = 3264 against `min`'s 3.0e-9 at M = 3022. That is
+cycle budget, 4.5e-10 at M = 3264 against `min`'s 3.0e-9 at M = 3022 -- both
+measured before hanging-node families were freed from the ceiling, which cost
+`max` 1 to 9 per cent of its dofs. That is
 consistent with what a prescribed interface says about the rule on its own,
 where `min` gets worse as the degree jump grows.
 
-**So every question about the estimate is closed.** The table at the defaults:
-
-| ‖t−t_ex‖ | uniform M | h-adapt M | hp M |
-|---|---|---|---|
-| 1.0e-3 | 24960 | 1146 | 717 |
-| 1.0e-4 | 99072 | 3501 | 952 |
-| 3.0e-5 | — | 6258 | 1054 |
-| 1.0e-7 | — | — | 1847 |
-| 4.5e-10 | — | — | 3264 |
-
-104 times fewer globally coupled unknowns than uniform refinement at 1e-4 and
-3.7 times fewer than `h`-adaptivity, and four decades past where either can be
-run.
+**So every question about the estimate is closed.** The demonstrator's table
+lives in `miniapps/hdg/anisodiff.cpp`'s header, where it is maintained; the
+copy that used to sit here went stale the moment the hp column moved, which is
+the whole reason for the rule about where findings live.
 
 ### Mechanism, and what it caps
 
-**A coarsened boundary face cannot carry an essential datum, and the fix has
-two halves.** `RetireSurplusTraceDofs()` now refuses the combination rather
-than being wrong by 21x -- measured by sweeping the ceiling over a fixed mesh
-where every face sits at the element degree, so the answer cannot legitimately
-move: the weak datum gives 0.0225002 at every ceiling from 2 to 8, identical to
-every printed digit, and the essential one gives 0.0124, 0.0926, 0.196, 0.259.
-Closing it needs the surplus slots forced to zero regardless of what the
-caller's vector holds -- those dofs are this route's, not the caller's -- and
-the datum projected face by face at the face's own degree, which needs an
-entry point the constraint space does not offer. A ceiling equal to the element
-degree reproduces the essential answer exactly and is the way round it today.
-
-**All three of the limits below are one thing, and it now has a plan of its
-own: `doc/HDG-P-ADAPTIVITY-CONSTRAIN.md`.** The surplus slots want constraining
-so that a face's coefficients are the coarse function expressed at the ceiling,
-rather than retiring so that they are not. The identity that says the repair
-cannot change any answer is measured, in `"A coarse trace basis is an exact
-combination of the ceiling's"`. The work is eleven prolongation sites, plus a
-choice the plan settles by counting flops rather than by taste: assembling the
-local blocks at the ceiling costs a predicted 4.0x on the trace-dependent
-element-local algebra at the demonstrator's ceiling, and saves at most 1.19x on
-the trace solve, so
-the cheap shape lands first and the local blocks stay at `p_f` only if the
-demonstrator says they must.
-
-**A hanging-node family has to run at the ceiling**, which is where coarsening
-stops. The reason is in `SetTraceOrders()`: the constraint space's conforming
-prolongation interpolates in the ceiling basis, and this route's convention --
-coarse coefficients followed by retired zeros -- is a different function in
-that basis. Removing the restriction means constraining the surplus slots
-rather than retiring them, so that a face's coefficient vector is the coarse
-function *expressed at the ceiling*. That is a different mechanism, not an
-adjustment, and it is what would make `h` and `p` compose without a penalty at
-every hanging node.
-
-**The route is shaped for coarsening and has only ever been driven upwards.**
-A face can go below the degree the constraint space was built at and never
-above, so a driver that starts uniform at `p_max` and *coarsens* where the
-sensor says the element is over-resolved uses the mechanism the way it is
-built, needs no ceiling raise, and starts with hanging-node families already
-at the degree they are stuck at. Nothing in the tree does this and it is the
-cheapest unexplored direction.
-
-**Parallel: the ports are done, the degree exchange works, and a SHARED FACE
-STILL CANNOT BE COARSENED.**
-
-`FaceOrdersFromElementOrders()` now takes both ranks' degrees over a shared
-face, by one exchange of an L2 order-zero `ParGridFunction` -- one dof per
-element, so its face-neighbour data *is* the neighbouring degrees and no new
-protocol was needed. `pconvdiff` carries `--p-refine` and `panisodiff` the
-whole hp loop. The discretisation is rank-independent: 0.0789929 at 1, 2, 3
-and 4 ranks, identical to every digit and to the serial answer.
-
-What does not survive a partition is the truncation. The route reads a face's
-first `nt(p_f)` slots as the coarser basis, and the two ranks either side order
-that face's dofs by their own view of its orientation, so each retires slots
-the other is still using. Measured on one fixed mesh where the retired set is a
-property of the discretisation and cannot depend on the partition: 144 retired
-true dofs on one rank -- exactly 144 faces times one surplus slot -- against
-152 on two and 162 on three, and the error going 5.9e-4 to 0.56. With every
-face AT the ceiling one and two ranks agree to five digits, which is what says
-the exchange is right and the truncation is not. `SetTraceOrders()` refuses it.
-
-**So it is the same root cause a third time** -- hanging-node families, an
-essential datum on a coarsened face, and now a shared face. All three want the
-surplus CONSTRAINED, so a face's coefficients are the coarse function expressed
-at the ceiling and orientation stops mattering, rather than retired so that it
-is not.
-
-The adaptive *path* is a separate matter and is not bitwise rank-independent:
-cycle 0 is identical at every rank count, and the bulk-marking threshold is
-found by bisection on a global sum whose last bits depend on summation order,
-so a tie -- and this problem is symmetric, so there are many -- can fall either
-way. 1, 2 and 4 ranks agree exactly here and 3 diverges after the first cycle,
-ending at 1.7e-3 against 2.1e-3. Marking is a heuristic and the solve is not,
-which is the distinction that matters, but it is worth knowing before treating
-a parallel adaptive run as reproducible.
-
-**`DarcyForm::Reconstruct()`** still reads the trace space directly at six
-sites, so `-pref` refuses `-rec`. `HDGPotentialPostprocessor` is the
-reconstruction that a per-face degree does not disturb and is what the
-demonstrator uses.
+**ALL THREE OF THE LIMITS THIS SECTION USED TO DESCRIBE ARE CLOSED**, and
+what closed them is one change: the trace surplus is CONSTRAINED rather than
+retired, so a face's slots hold the ceiling basis's coefficients of a function
+of the face's own degree instead of a coarser basis's coefficients followed by
+zeros. A hanging-node family can sit below the ceiling, an essential datum can
+sit on a coarsened boundary face, and a shared face can be coarsened; the
+measurements that justified each refusal are turned round in
+`DarcyHybridization::SetTraceOrders()`'s doxygen, next to where the refusal
+used to be. `doc/HDG-P-ADAPTIVITY-CONSTRAIN.md` is what is left of the plan.
 
 ### Measurements not taken
 
@@ -459,16 +385,19 @@ run by `make hp-acceptance`. It is not a stored answer, because the thing worth
 defending is a RELATION between three runs rather than one number: hp must
 reach 1e-9 at all, and must need at most two thirds of `h`-adaptivity's
 globally coupled unknowns and a fifth of uniform refinement's at each of two
-tolerances. Currently 4.5e-10, and ratios of 0.555 and 0.272 against `h`,
-0.0075 and 0.0096 against uniform. It is shown to be able to fail rather than
+tolerances. Currently 9.9e-10, and ratios of 0.540 and 0.276 against `h`,
+0.0073 and 0.0098 against uniform. It is shown to be able to fail rather than
 assumed to be: `HP_ARGS=... -no-cap-trace-at-element` makes the loop plateau at
 8.7e-7 and the reach check trips. Serial only, for the reason above.
 
-**The `[Parallel]` p-adaptivity unit test covers the exchange only.** It checks
-the derived face degree against an INDEPENDENT computation -- the degrees are a
-function of the element centre, so each rank works out what its neighbour must
-have had without being told -- at 2, 3 and 4 ranks, both rules. What it cannot
-cover is the refusal, `MFEM_ABORT` not being catchable in this build.
+**The `[Parallel]` p-adaptivity unit tests are two.** One checks the derived
+face degree against an INDEPENDENT computation -- the degrees are a function of
+the element centre, so each rank works out what its neighbour must have had
+without being told -- at 2, 3 and 4 ranks, both rules. The other checks that
+the constrained trace size summed over ranks equals the SERIAL answer for the
+same mesh and degrees, which is the shared-face refusal turned round; it is run
+at 1, 2, 3 and 4 ranks and `pconvdiff --p-refine` agrees to five digits at all
+four.
 
 **The `h`-or-`p` junction has no test.** `HDGErrorEstimator` and
 `PerssonPeraireSmoothness` each have cases; the rule joining them lives only in

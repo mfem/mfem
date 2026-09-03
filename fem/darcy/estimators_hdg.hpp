@@ -270,27 +270,28 @@ public:
 
    /** @brief Read the per-face trace degrees from @a hyb_, for `p`-adaptivity.
 
-       **Required whenever DarcyHybridization::SetTraceOrders() was used, and
-       not merely advisable.** The constraint space stays uniform at the
-       ceiling degree and a coarser face uses only the first `nt(p_f)` of the
-       slots it owns; the rest are retired and hold zero. Reading such a face
-       through the constraint space's own element evaluates the CEILING basis
-       against a coefficient vector that is a coarser function's followed by
-       zeros -- which is a different function, not an approximation of it,
-       because the two bases are nodal at different points.
+       **No longer required for the estimate to be right, and that is worth
+       saying because it used to be.** While the surplus slots were RETIRED, a
+       coarser face held a coarser basis's coefficients in the ceiling's
+       storage, and reading it through the constraint space's own element
+       evaluated the ceiling basis against them -- a different function, not
+       an approximation of one, since the two bases are nodal at different
+       points. Measured on `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg`, one cycle,
+       every face at degree 2, changing only the degree the constraint space
+       was BUILT at: eta went 0.325, 5.92, 8.81 at ceilings 2, 3, 5, while the
+       solution was the same to six digits. A factor of 27 from a parameter
+       that must be inert.
 
-       Measured on `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg`, one cycle, every
-       element at degree 2 and every face therefore at degree 2, changing only
-       the degree the constraint space was BUILT at:
+       The surplus is CONSTRAINED now, so those coefficients are the ceiling's
+       own and a generic reader is right by default. The unit test "The error
+       estimate does not depend on the trace ceiling" pins both halves: the
+       estimate does not move when the ceiling is raised, and it does not move
+       when the estimator is told nothing.
 
-       | ceiling | eta |
-       |---|---|
-       | 2 (no ceiling) | 0.325 |
-       | 3 | 5.92 |
-       | 5 | 8.81 |
-
-       The solution is the same to six digits in all three; only the estimate
-       moves, and it moves by a factor of 27. */
+       What this still buys is the DEGREE, which the constraint space does not
+       carry and which two things below need: a face richer than its element
+       is a real configuration, and both flags are about exactly that. Without
+       the degrees a raised ceiling would make every face look enriched. */
    void SetHybridization(const DarcyHybridization &hyb_)
    {
       hyb = &hyb_;

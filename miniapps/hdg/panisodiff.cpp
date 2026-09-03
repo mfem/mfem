@@ -1263,18 +1263,19 @@ int main(int argc, char *argv[])
       MPI_Allreduce(MPI_IN_PLACE, &p_lo, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
       MPI_Allreduce(MPI_IN_PLACE, &p_hi, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-      /* The globally coupled unknowns: the trace solve's size less the
-         essential list, which is where the slots a coarse face does not reach
-         are retired. dim(M) alone is storage at the ceiling and does not move
-         when a face is coarsened, so it is the wrong number. */
+      /* The globally coupled unknowns: what the trace solve carries, which
+         is one unknown per degree of freedom a face has. dim(M) alone is
+         storage at the ceiling and does not move when a face is coarsened,
+         so it is the wrong number. */
       HYPRE_BigInt ndof_m = 0;
       if (hybridization)
       {
-         int ess = darcy->GetHybridization()->GetEssentialTrueDofs().Size();
-         HYPRE_BigInt ess_g = ess;
-         MPI_Allreduce(MPI_IN_PLACE, &ess_g, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
+         HYPRE_BigInt loc =
+            darcy->GetHybridization()->GetTraceTrueVSize()
+            - darcy->GetHybridization()->GetEssentialTrueDofs().Size();
+         MPI_Allreduce(MPI_IN_PLACE, &loc, 1, HYPRE_MPI_BIG_INT, MPI_SUM,
                        MPI_COMM_WORLD);
-         ndof_m = trace_space->GlobalTrueVSize() - ess_g;
+         ndof_m = loc;
       }
 
       if (root)

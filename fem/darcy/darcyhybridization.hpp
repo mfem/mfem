@@ -220,19 +220,22 @@ protected:
 
    /** @brief Per-face polynomial degree of the trace, or empty for uniform.
 
-       Set by SetTraceOrders(); read only through TraceFE() and TraceVDofs(),
-       which fall through to the constraint space itself when this is empty, so
-       a caller that never sets it pays nothing and gets byte-identical
-       results. See SetTraceOrders() for what the entries mean. */
+       Set by SetTraceOrders(). Empty means a uniform trace and every accessor
+       then falls through to the constraint space itself, returning the same
+       pointers and the same nulls, so a caller that never sets a degree pays
+       nothing and gets byte-identical results. See SetTraceOrders() for what
+       the entries mean. */
    Array<int> tr_order;
 
-   /** @brief The essential trace true DOFs the *caller* asked for.
+   /** @brief The essential trace true DOFs the *caller* asked for, in the
+       CONSTRAINT SPACE's numbering.
 
-       Finalize() computes ess_tdof_list as this united with the surplus slots
-       a per-face degree leaves unused, so it has to keep the caller's own list
-       separately: the surplus depends on tr_order, and a second Finalize()
-       after Reset() with different degrees must not inherit the first one's.
-       Empty and unused while the trace is uniform. */
+       That is the numbering a caller can name, being the space's own;
+       #ess_tdof_list is the same set in the constrained numbering, which
+       depends on the degrees. Finalize() rebuilds one from the other through
+       MapEssentialTraceDofs(), so a second Finalize() after Reset() with
+       different degrees does not inherit the first one's map. The two
+       coincide while the trace is uniform. */
    Array<int> ess_tdof_user;
 
    /** @brief The constrained trace: the numbering, the two face maps, and the
@@ -250,7 +253,15 @@ protected:
    mutable std::unique_ptr<SparseMatrix> ctr_Pv;
    /// E and R, keyed by (face geometry, degree) rather than by face.
    mutable std::map<std::pair<int,int>,DenseMatrix> ctr_E, ctr_R;
+   /// Constraint-space VDOF -> its true DOF, or -1 when it has none here.
+   mutable Array<int> ctr_vdof2tdof;
+   mutable int ctr_ntdof{0};
    mutable bool ctr_built{false};
+#ifdef MFEM_USE_MPI
+   /// ctdof -> constraint-space LDOF, i.e. Dof_TrueDof composed with #ctr_PE.
+   mutable std::unique_ptr<HypreParMatrix> ctr_pP;
+   mutable Array<HYPRE_BigInt> ctr_col_starts;
+#endif
 
 private:
    struct
@@ -493,16 +504,17 @@ private:
    /// Convert a list of constraint-space VDOFs to true DOFs.
    void TraceVDofsToTDofs(const Array<int> &vdofs, Array<int> &tdofs) const;
 
-   /** @brief Add the slots a per-face degree leaves unused to the essential
-       true DOFs, so that they carry a unit row and a zero and sit outside the
-       physical system.
+   /** @brief Express the caller's essential trace DOFs in the constrained
+       numbering.
 
-       A face of degree p_f uses the first nt(p_f) of the nt(p_max) slots it
-       owns in each field; the rest are driven by nothing, and without this the
-       trace system is singular in exactly that many directions. Called from
-       Finalize(), which is where the degrees stop changing, and idempotent
-       because it rebuilds ess_tdof_list from #ess_tdof_user each time. */
-   void RetireSurplusTraceDofs();
+       #ess_tdof_user holds them as the constraint space's own true DOFs,
+       which is what the caller can name; the reduced system is in the
+       constrained ones. A trace face's DOFs are face-interior, so a face is
+       essential in a given field or it is not, and the map is per face rather
+       than per DOF. Called from Finalize(), which is where the degrees stop
+       changing, and idempotent because it rebuilds #ess_tdof_list from
+       #ess_tdof_user each time. */
+   void MapEssentialTraceDofs();
 
    /** @brief Build #ctr_offsets, #ctr_PE and #ctr_Pv. Idempotent, lazy. */
    void BuildTraceConstraint() const;
@@ -525,6 +537,13 @@ private:
        loudly instead of quietly discretising something else. */
    const DenseMatrix &TraceEmbedding(int f) const;
    const DenseMatrix &TraceRestrictionMat(int f) const;
+
+   /** @brief The trace element of face @a f's own DEGREE, as against
+       TraceFE(), which is the ceiling's and is where its DOFs live.
+
+       Private, and needed only to build the constraint: nothing outside this
+       class has a use for a basis the stored coefficients are not in. */
+   const FiniteElement *FaceDegreeFE(int f) const;
 
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
@@ -880,14 +899,15 @@ public:
        built at. Boundary faces take their single neighbour's degree.
 
        **On a nonconforming mesh the unit is the hanging-node family, not the
-       face.** A family carries one trace unknown, on its master face; the
-       slaves reach it through FiniteElement::GetTransferMatrix(), which is
-       exact only where the slave can represent the master's restriction. So
-       the rule is applied over the coarse element and every fine one at once
-       and the whole family is given that degree -- taking it face by face
-       would give the master the coarse element's degree and each slave the
-       rule over one fine element and the coarse one, which is a family whose
-       members disagree.
+       face.** A family carries one trace unknown, on its master face, so it
+       has one degree: the rule taken over the slaves, each of which has seen
+       a fine element and the coarse one. The master's own entry says nothing,
+       because a master face is never integrated directly.
+
+       This used to force the family to the ceiling instead, and that was a
+       limitation of the retired route rather than a choice -- see
+       SetTraceOrders() for why, and for the 0.284 / 1.06 / 3.67 it cost to
+       ignore. Constraining the surplus removes it.
 
        **In parallel a shared face takes both ranks' degrees**, obtained by one
        exchange over face neighbours. The mesh is taken by non-const reference
@@ -904,25 +924,64 @@ public:
 
        @a face_order holds one degree per mesh face, and every entry must lie
        between 0 and the degree of the constraint space, which stays a uniform
-       space at the maximum degree. A face of degree `p_f` then uses only the
-       first `nt(p_f)` of the `nt(p_max)` dof slots it owns, in each field. The
-       rest are surplus and Finalize() makes them essential for you, so they
-       carry a unit row and a zero and sit outside the physical system; without
-       that the trace system would be singular in exactly that many
-       directions.
+       space at the maximum degree. A face of degree `p_f` then carries
+       `nt(p_f)` unknowns instead of the `nt(p_max)` slots it owns, and the
+       difference is **constrained away, not retired**: the slots hold the
+       ceiling-basis coefficients of a function that happens to be of degree
+       `p_f`, and
 
-       The low-order face is **not** a subspace of the high-order one -- MFEM
-       has no hierarchical basis to make it one -- and it does not need to be.
-       It is a different basis in the same storage, and the HDG trace is
-       discontinuous face to face, so nothing outside that face ever reads
-       those slots.
+           E(j, i) = phi_i^{p_f}( node_j^{p_max} )
+
+       is the per-face matrix that says so. The reduced system is in the
+       constrained unknowns, so its size really is the sum of `nt(p_f)`; there
+       are no unit rows standing in for the surplus.
+
+       **Why it is constrained rather than truncated, which is what this used
+       to do.** Storing a coarse function as coarse coefficients in the first
+       `nt(p_f)` slots is well defined inside DarcyHybridization, which knows
+       the degrees, and wrong for every reader that does not -- and the
+       space's own machinery is exactly such a reader. Three things followed
+       from that and all three are gone:
+
+       | was refused | because | cost measured then | and now |
+       |---|---|---|---|
+       | a hanging-node family below the ceiling | the conforming prolongation interpolates master onto slave in the ceiling basis | the error went 0.284, 1.06, 3.67 as the mesh refined | works; the demonstrator runs families below the ceiling every cycle |
+       | an essential datum on a coarsened boundary face | the caller projects the datum in the ceiling basis | 21x, 0.0124 to 0.259 as the ceiling went 2, 3, 5, 8 | 0.0124172 at every one of those ceilings, to every printed digit |
+       | a face shared between ranks | the two ranks order its slots by their own view of the orientation | 144 retired true DOFs at one rank, 152 at two, 162 at three | 432 constrained true DOFs at every rank count, and `pconvdiff --p-refine 1 --p-refine-x 0` gives 5.867e-4 at 1, 2, 3 and 4 ranks where it gave 5.9e-4 and 0.56 |
+
+       All three are one cause and the constraint is one repair. The stored
+       coefficients are the ceiling's own, so the prolongation, the dof
+       ordering and the true-dof numbering all apply unchanged, and
+       orientation stops being this route's problem: only the OWNER of a face
+       builds an `E` for it, in its own ordering, and every other rank
+       receives values through the space's map as it always did.
+
+       **That it cannot change the discretisation is measured, not argued.**
+       `phi_i^lo = sum_j E(j,i) phi_j^hi` POINTWISE, so a face matrix
+       assembled against the coarse trace equals the ceiling one restricted by
+       `E`, under any quadrature rule applied to both. The unit tests
+       `"A coarse trace basis is an exact combination of the ceiling's"` and
+       `"The constrained ceiling system IS the coarse system"` check the two
+       halves -- the identity on one face, and `E^T H(ceiling) E == H(coarse)`
+       on the assembled reduced system, with a plain slot selection alongside
+       as the control that says the comparison can fail.
+
+       The low-order face is a genuine subspace of the high-order one here,
+       and BuildTraceConstraint() verifies that once per (geometry, degree)
+       rather than assuming it: `R E == I`, where `R` reads a ceiling function
+       back at the coarse nodes. A collection that is modal, or whose lower
+       degrees are not nested, fails loudly instead of quietly discretising
+       something else.
 
        The degrees are stored, not derived. A `p`-adaptive driver picks them
        from the neighbouring element degrees by whatever rule it wants; note
        that a face richer than *both* its neighbours is exactly redundant
        rather than wrong (measured -- see the test "A trace richer than both
        its elements is exactly redundant"), so `min` costs nothing that `max`
-       would have bought there.
+       would have bought there. A hanging-node family is the exception to
+       "one degree per face": it carries one unknown, on its master, so
+       FaceOrdersFromElementOrders() gives the whole family one degree and
+       only the master's is ever read.
 
        **The constraint space's degree is a ceiling, not a starting point.**
        This route reuses that space's storage, so a face can only go *down*
@@ -933,109 +992,128 @@ public:
        caller in the tree today builds it at the element degree, which is
        coarsening-only.
 
-       What that ceiling costs is worth being exact about, because it is less
-       than it sounds. The number of rows and the length of a trace vector go
-       as `nt(p_max)` per face whatever the degrees are. The *local* blocks do
-       not: they are sized from TraceFE(), so they follow `p_f`. Whether the
-       factorization follows the active size too -- unit rows being nearly free
-       to a sparse direct solve -- is the reasonable expectation and has not
-       been measured.
+       **What that ceiling costs, measured rather than predicted.** The stored
+       blocks and a constraint-space vector go as `nt(p_max)` per face
+       whatever the degrees are, and so do the local blocks: they are sized
+       from TraceFE(), which is the ceiling's element. The trace-dependent
+       element-local work is `n_el^2 n_c + n_el n_c^2`, so it should grow as
+       `r` and `r^2` in `r = nt(p_max)/nt(p_f)` -- a predicted 4.0x at the
+       demonstrator's configuration, 2D quads at element degree 2 under a
+       ceiling of 7, where `r = 8/3`.
 
-       **A HANGING-NODE FAMILY HAS TO RUN AT THE CEILING**, and that is a
-       property of this route rather than an oversight. A nonconforming trace
-       space carries a conforming prolongation, and the trace system is
-       `Pᵀ H P` with the solution `P X`; `P` interpolates a master face's
-       coefficients onto its slaves' nodes **in the ceiling basis**, because
-       the constraint space is uniform at the ceiling and `P` is built from it.
-       This route's convention is the opposite one -- the first `nt(p_f)` slots
-       hold the coarser basis's coefficients and the rest are retired to zero
-       -- and a zero tail in the ceiling basis is a different function, not the
-       coarse one. The two cannot both hold on a face `P` touches.
+       The controlled experiment is a fixed mesh with every face at degree 2,
+       sweeping only the ceiling, so the answer cannot move and does not
+       (t_err 1.6883e-05 at every one). Seconds, 64x64:
 
-       FaceOrdersFromElementOrders() therefore gives every member of a family
-       the ceiling degree, and this method refuses a `face_order` that does
-       not. Measured on `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg -amr 6` with the
-       family below the ceiling: the relative error goes 0.284, 1.06, 3.67 as
-       the mesh refines, against 0.284, 0.118, 0.091 with the family at it.
+       | ceiling | hybridization | assembly | trace solve |
+       |---|---|---|---|
+       | 2 | 0.056 | 0.204 | 0.0626 |
+       | 3 | 0.071 | 0.268 | 0.0627 |
+       | 5 | 0.079 | 0.392 | 0.0623 |
+       | 7 | 0.100 | 0.659 | 0.0634 |
 
-       What it costs is that a hanging node is where coarsening stops, and --
-       less obviously -- that the trace is *enriched* there. The measured claim
-       that a trace above both its elements is exactly redundant was taken on a
-       conforming mesh and does not carry over: a master face sees several fine
-       elements, which between them do reach the higher modes, so the extra
-       degrees are determined rather than annihilated and the discretisation
-       really changes. **On the same mesh it changes it for the BETTER** --
-       0.0818 against 0.0982 on an identical hanging-node mesh where the only
-       difference is four family faces at degree 3 instead of 2.
+       So 3.2x on assembly at the extreme ceiling -- the prediction's shape,
+       a little below its size, since assembly also carries trace-independent
+       element work -- and **the solve is flat to the third digit**, which is
+       what constraining bought: the reduced system is the same size at every
+       ceiling. Under the retired route it was not, and the ceiling cost 1.03
+       to 1.19x there instead.
 
-       An earlier version of this note said the opposite, that the enriched
-       trace "made the answer worse, 0.118 against 0.098". That compared two
-       runs which had refined differently by then, not one mesh, and it is
-       withdrawn.
+       Keeping the local blocks at `p_f` is possible -- it means applying `E`
+       at each of the twelve gather and scatter sites instead of once in the
+       prolongation -- and this measurement does not justify it. End to end
+       the demonstrator's hp path is 0.67 s to 8.8e-5 and 1.32 s to 5.3e-6,
+       against 0.81 s recorded before the change; but an UNCHANGED path moved
+       too on the same machine (h-adaptivity 0.51 s to 0.38 s), so the
+       end-to-end comparison is inside the drift and only the controlled table
+       above should be quoted. At the modest ceiling a coarsening-only driver
+       needs, `p_max = order + 1` and `r = 4/3`, none of this is measurable.
 
-       **What the enrichment does break is the adaptive loop, and how is
-       open.** With anisotropic refinement, which makes hanging nodes
-       prolifically, the error then climbs monotonically as dofs are added --
-       0.0982, 0.0771, 0.0768, 0.0778 at a ceiling equal to the element degree
-       against 0.0818, 0.0833, 0.0857, 0.0884 one degree above. Excluding the
-       enriched faces from the estimate was tried and is not the answer: it
-       removes the monotone worsening in that case but stalls the real hp loop
-       at 1.7e-3 where keeping them reaches 1.4e-6, so the term carries
-       information and the fix is correct attribution rather than exclusion.
+       **A face richer than its element is a real thing and stays one.** The
+       measured claim that a trace above both its elements is exactly
+       redundant was taken on a conforming mesh and does not carry over to a
+       hanging node: a master face sees several fine elements, which between
+       them do reach the higher modes, so the extra degrees are determined
+       rather than annihilated. On the same mesh that is BETTER -- 0.0818
+       against 0.0982 on an identical hanging-node mesh whose only difference
+       is four family faces at degree 3 instead of 2. An earlier note said the
+       opposite, comparing two runs that had refined differently by then; it
+       is withdrawn.
 
        **Call it straight after DarcyForm::EnableHybridization() and before
-       Assemble().** C, E, G and H are sized from the trace element and
-       EnableHybridization() has already built them at the uniform degree, so
-       this rebuilds them -- and calls Reset(), discarding anything assembled,
-       since those blocks are the wrong shape once the degrees change. Passing
-       an empty array returns to a uniform trace on the same terms. */
+       Assemble().** C, E, G and H are sized from the trace element and this
+       rebuilds them, calling Reset() and discarding anything assembled. Under
+       the present sizing that rebuild is a no-op, since those blocks follow
+       the ceiling either way; the contract is kept as it is because keeping
+       the local blocks at `p_f` would need it back, and a contract that
+       tightens again later is worse than one that never loosened. Passing an
+       empty array returns to a uniform trace on the same terms. */
    void SetTraceOrders(const Array<int> &face_order);
 
    /// Return the per-face trace degrees, empty when the trace is uniform.
    const Array<int> &GetTraceOrders() const { return tr_order; }
 
-   /** @brief The trace finite element on face @a f, at that face's degree.
+   /** @brief The trace finite element the DOFs of face @a f live in.
 
-       Every read of the constraint space's face element goes through here
-       rather than through c_fes.GetFaceElement() directly, so that a per-face
-       degree reaches all of them at once. With no degrees set it *is*
-       c_fes.GetFaceElement().
+       Always the constraint space's own, which is the CEILING's element, and
+       that is the point: a face's coefficients are ceiling-basis
+       coefficients, of a function constrained to its own degree. Anything
+       reading a trace vector -- an estimator, a reconstruction, a
+       GridFunction -- therefore reads the right function without knowing the
+       degrees, which is what constraining buys over truncating.
 
-       **Public because a face's degree is a property of the solve, and
-       anything reading the trace solution has to know it.** The dofs a face's
-       degree does not reach are retired, so they are zero -- but a
-       nodal basis at the ceiling degree with a zero tail is not the coarser
-       function, it is a different one, and reading it that way is silently
-       wrong rather than merely inexact. HDGErrorEstimator is the reader that
-       found this out. */
+       The face's own DEGREE, which is a different question, is
+       GetTraceOrders()[f]; FaceDegreeFE() is its element and is private,
+       being needed only to build the constraint. The local blocks are sized
+       from here, so they follow the ceiling; see SetTraceOrders() for what
+       that costs and what the alternative would be. */
    const FiniteElement *TraceFE(int f) const;
 
-   /** @brief The trace vdofs of face @a f, truncated to that face's degree.
+   /** @brief The constraint-space VDOFs of face @a f.
 
-       The face owns nt(p_max) slots per field in the uniform constraint space;
-       at degree p_f only the first nt(p_f) of each field's block are used, and
-       this returns those. With no degrees set it *is* c_fes.GetFaceVDofs().
-       Public for the same reason as TraceFE(). */
+       All of them: a face's storage is the ceiling's whatever its degree.
+       Kept as a method rather than folded back into
+       FiniteElementSpace::GetFaceVDofs() so that the twelve places which
+       gather and scatter a face's block have one door to go through, which is
+       where the per-face degree would re-enter if the local blocks were ever
+       taken back down to it. */
    void TraceVDofs(int f, Array<int> &vdofs) const;
 
-   /** @brief The number of trace unknowns the constrained route solves for.
+   /** @brief The number of trace unknowns the reduced system solves for.
 
-       Sum over the faces this process owns of nt(p_f) * vdim. With no
-       per-face degrees set it is the constraint space's own true size, so a
-       caller that never sets one sees no change. */
+       The sum over the faces this process owns of nt(p_f) * vdim -- one per
+       degree of freedom a face actually has, the ceiling's surplus
+       constrained away rather than retired into a unit row. With no per-face
+       degrees set it is the constraint space's own true size. */
    int GetTraceTrueVSize() const;
 
    /** @brief The trace prolongation, from the constrained true DOFs to the
        constraint space's VDOFs, or NULL when it would be the identity.
 
-       This is what every reader of the trace prolongation must go through
-       once a per-face degree is in play. With no degrees set it returns
-       **exactly** what FiniteElementSpace::GetConformingProlongation()
-       returns, the same pointer and the same null, so the uniform path is
-       unchanged by construction rather than by test.
+       This is what every reader of a trace prolongation goes through once a
+       per-face degree is in play. With no degrees set it returns **exactly**
+       what FiniteElementSpace::GetConformingProlongation() returns, the same
+       pointer and the same null, so the uniform path is unchanged by
+       construction rather than by test.
 
        Serial only; see GetParTraceProlongation() for the parallel one. */
    const SparseMatrix *GetTraceProlongationMatrix() const;
+
+#ifdef MFEM_USE_MPI
+   /** @brief The trace prolongation in parallel: constrained true DOFs to
+       constraint-space LDOFs, i.e. Dof_TrueDof composed with the per-face
+       constraint. Never null.
+
+       The composition is in that order, and that ordering is the whole of the
+       shared-face repair: the constraint acts on TRUE DOFs, so only the owner
+       of a face builds an E for it, in its own ordering, and every other rank
+       receives LDOF values through the space's map exactly as it did for a
+       uniform trace. Orientation stops being this route's problem, which is
+       what the retired route could never manage -- there the meaning of a
+       slot was per-rank, and no exchange repairs a disagreement about what a
+       number means. */
+   HypreParMatrix *GetParTraceProlongation() const;
+#endif
 
    /** @brief GetTraceProlongationMatrix(), or its parallel counterpart, as an
        Operator. NULL only in the serial case where it would be the
@@ -1045,25 +1123,27 @@ public:
    /** @brief Prolong a constrained trace vector to constraint-space VDOFs.
 
        The result is a genuine ceiling-basis representation of a function of
-       each face's own degree, so anything that reads the trace space
-       generically -- a GridFunction, the error estimator, the
-       reconstruction, GLVis -- is then reading the right function. That is
-       the whole point of constraining rather than retiring. */
+       each face's own degree, so anything reading the trace space generically
+       -- a GridFunction, the error estimator, the reconstruction, GLVis --
+       reads the right function. That is what constraining buys over
+       truncating, where the same slots would have held a coarser basis's
+       coefficients and every such reader would have been silently wrong. */
    void ProlongTrace(const Vector &X_c, Vector &x) const;
 
    /** @brief Read a constraint-space VDOF vector back at each face's own
        degree.
 
-       The left inverse of ProlongTrace(), and **not** its transpose: it
-       interpolates at the coarse nodes, where the transpose would integrate
+       A left inverse of ProlongTrace(), and **not** its transpose: it
+       interpolates at the coarse nodes where the transpose would integrate
        against the ceiling's. Use it for DATA -- a boundary datum, an initial
        guess -- and the transpose for residuals.
 
-       The difference is the reason the essential-datum refusal exists. R is
-       a function of the function, so restricting one function represented at
+       The difference is why the essential-datum refusal existed. This map is
+       a function of the FUNCTION, so restricting one function represented at
        two different ceilings gives the same answer twice; a least-squares
-       pseudo-inverse is a function of the ceiling's node set and does not.
-       Measured in "A coarse trace basis is an exact combination of the
+       pseudo-inverse is a function of the ceiling's NODE SET and does not.
+       Both are left inverses, so only the second property separates them, and
+       it is measured in "A coarse trace basis is an exact combination of the
        ceiling's". */
    void RestrictTrace(const Vector &x, Vector &X_c) const;
 

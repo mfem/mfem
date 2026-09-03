@@ -305,13 +305,31 @@ int main(int argc, char *argv[])
                   "--p-refine needs -dg and -hb: the element spaces have to be "
                   "L2 for a variable order, and the trace degrees are the "
                   "hybridization's.");
+      /* Still refused, and the reason has changed under it.
+
+         It used to be that the reconstruction "reads the trace space at the
+         uniform degree", which was the retired route's basis problem: the
+         slots held a coarser basis's coefficients and reading them through
+         the ceiling's face element evaluated a different function. That is
+         gone -- the trace is stored in the ceiling's basis now, so every
+         generic reader of it is right.
+
+         What is left is a sizing problem, and it is separate. Tried rather
+         than assumed: with the guard removed, `-p 1 -o 2 -dg -hb -rec
+         -pref 1` reaches the reconstruction and aborts in
+         DenseMatrixInverse::Factor with "DenseMatrix is not square", so the
+         local problem it builds does not have consistent shapes when the
+         faces of an element carry different degrees. Six sites in
+         DarcyForm read the trace space directly to build it. Use
+         --postprocess, which is element-local and cannot see a face degree
+         at all. */
       MFEM_VERIFY(!reconstruct,
                   "--p-refine and --reconstruct cannot be used together: "
-                  "DarcyForm's reconstruction is driven by a total flux built "
-                  "from the traces, and reads the trace space at the uniform "
-                  "degree. Use --postprocess instead -- the classic local "
-                  "postprocessing reads only the flux and potential on each "
-                  "element, so a per-face trace degree cannot reach it.");
+                  "DarcyForm's reconstruction builds a local problem whose "
+                  "shapes assume one trace degree per element, and aborts in "
+                  "DenseMatrixInverse::Factor when they differ. Use "
+                  "--postprocess instead, which reads only the flux and "
+                  "potential on each element.");
       MFEM_VERIFY(!trace_h1,
                   "--p-refine needs the discontinuous trace (-trdg): an H1 "
                   "trace shares nodal DOFs between faces, so a face has no "
