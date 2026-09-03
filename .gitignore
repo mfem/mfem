@@ -238,6 +238,7 @@ miniapps/gslib/schwarz_ex1
 miniapps/gslib/schwarz_ex1p
 miniapps/gslib/interpolated.gf
 miniapps/gslib/particles_redist
+miniapps/gslib/particles_redist_native
 
 miniapps/meshing/mobius-strip
 miniapps/meshing/klein-bottle

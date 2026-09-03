@@ -31,14 +31,13 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
                   "CrystalRouter: field size does not match rank_list size");
    }
 
-   const bool use_dev = Device::IsEnabled();
-
-   if (use_dev) { for (auto *f : fields) { f->ToHost(); } }
+   // Routing runs entirely on the host, so pull down any device-resident field.
+   // Nothing is done on the way back up: ToHost() leaves the host copy valid and
+   // the device copy stale, and the caller's next device access transfers lazily.
+   for (auto *f : fields) { f->ToHost(); }
 
    Array<unsigned int> ranks(rank_list);
    RouteInternal(ranks, fields);
-
-   if (use_dev) { for (auto *f : fields) { f->ToDevice(); } }
 }
 
 // PRIVATE METHODS
@@ -109,7 +108,10 @@ void CrystalRouter::Move(Array<unsigned int> &ranks,
    for (const auto *f : fields) { field_bytes += f->RowBytes(); }
    const size_t total_bytes = sizeof(unsigned int) + field_bytes;
 
-   send_buf.SetSize(nsend * total_bytes);
+   const size_t send_bytes = (size_t)nsend * total_bytes;
+   MFEM_VERIFY(send_bytes <= (size_t)INT_MAX,
+               "CrystalRouter send buffer exceeds Array size limit");
+   send_buf.SetSize((int)send_bytes);
 
    // gather sends: pack each particle's columns into one contiguous byte row
    for (int i = 0; i < nsend; i++) {
