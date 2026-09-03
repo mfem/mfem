@@ -98,6 +98,7 @@ private:
    Array<int> excl_bdr;
    const DarcyHybridization *hyb {};
    bool skip_enriched_dir {false};
+   bool cap_at_element {false};
    TraceComparison trcmp{TraceComparison::Literal};
    long current_sequence{-1};
    Vector error_estimates;
@@ -119,19 +120,19 @@ private:
    /// Compute the face error estimate
    void ComputeFaceEstimate(int face, bool side2, Vector &d_error_estimates);
 
-   /** @brief L2(e)-projection of one side's potential trace onto the trace
-       element, returned as trace-basis coefficients. */
-   static void ProjectOntoTrace(const FiniteElement &fe_tr,
-                                const FiniteElement &el,
-                                FaceElementTransformations &FTr, int side,
-                                const Vector &elfun, Vector &c);
-
    /** @brief L2(e)-projection of a trace function from @a fe_hi onto the
        coarser trace element @a fe_lo, both on the same face. */
    static void ProjectTraceDown(const FiniteElement &fe_hi,
                                 const FiniteElement &fe_lo,
                                 FaceElementTransformations &FTr,
                                 const Vector &tr_hi, Vector &tr_lo);
+
+   /** @brief L2(e)-projection of one side's potential trace onto the trace
+       element, returned as trace-basis coefficients. */
+   static void ProjectOntoTrace(const FiniteElement &fe_tr,
+                                const FiniteElement &el,
+                                FaceElementTransformations &FTr, int side,
+                                const Vector &elfun, Vector &c);
 
 public:
    /// Constructor
@@ -340,6 +341,48 @@ public:
        understood. */
    void SetSkipEnrichedDirection(bool skip = true)
    { skip_enriched_dir = skip; Reset(); }
+
+   /** @brief Where a face's trace degree exceeds the element's, compare that
+       element against λ projected down to its own degree.
+
+       **The magnitude half of what SetSkipEnrichedDirection() handles the
+       direction half of**, and both are needed. A face richer than the element
+       on one side carries modes that element cannot represent; charging them
+       to it makes the estimate diverge from the truth, and -- because
+       refinement makes it worse -- diverge further the more the loop acts on
+       it.
+
+       Measured on `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg --hp-adaptivity` with
+       the `max` face rule, comparing the estimate against the TRUE per-element
+       error at the point where the loop had stopped moving. It was marking a
+       cluster of degree-2 elements next to degree-5 ones, at `x ~ 0.63` in the
+       middle of the domain:
+
+       | cycle | η on the marked cluster | true error there | ratio |
+       |---|---|---|---|
+       | 22 | 4.7e-6 | 1.1e-8 | 443 |
+       | 24 | 9.3e-6 | 5.4e-9 | 1700 |
+       | 25 | 1.2e-5 | 3.8e-9 | 3000 |
+
+       The estimate is wrong by three orders and getting worse, while the
+       elements actually carrying the error -- five times more of it, at
+       `x = 0.812` -- go unmarked. It is self-feeding: splitting those elements
+       in `x` makes them narrower, `τ ~ 1/h` on their vertical faces grows, and
+       η grows with it, so the refinement the estimate triggers is what makes
+       the estimate bigger.
+
+       With this the loop reaches 4.5e-10 where it had plateaued at 8.8e-7, and
+       the `max` face rule becomes usable -- worth about 10% of the dofs at
+       every matched error and an order deeper in the same cycle budget.
+
+       **Where it does not bite, and why that is not a contradiction.** At a
+       hanging-node family whose elements are all the same degree, projecting λ
+       down moves eta by 2% and changes no flag: the excess there is not in λ's
+       high modes but in where λ sits, and the direction half is what matters.
+       At a genuine `p`-interface one element really is coarser than what λ
+       carries, and then this is the whole of it. Both were measured; neither
+       alone is enough. */
+   void SetCapTraceAtElement(bool cap = true) { cap_at_element = cap; Reset(); }
 
    /// Return the total error from the last error estimate.
    real_t GetTotalError() const override { return total_error; }

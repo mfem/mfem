@@ -152,6 +152,37 @@ void HDGErrorEstimator::ProjectOntoTrace(const FiniteElement &fe_tr,
    Mi.Mult(b, c);
 }
 
+void HDGErrorEstimator::ProjectTraceDown(const FiniteElement &fe_hi,
+                                         const FiniteElement &fe_lo,
+                                         FaceElementTransformations &FTr,
+                                         const Vector &tr_hi, Vector &tr_lo)
+{
+   const int n_hi = fe_hi.GetDof(), n_lo = fe_lo.GetDof();
+   DenseMatrix M(n_lo);
+   Vector b(n_lo), sh_hi(n_hi), sh_lo(n_lo);
+   M = 0.;
+   b = 0.;
+
+   const int order = 2*std::max(fe_hi.GetOrder(), fe_lo.GetOrder());
+   const IntegrationRule &ir = IntRules.Get(FTr.GetGeometryType(), order);
+
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      FTr.SetAllIntPoints(&ip);
+      fe_hi.CalcShape(ip, sh_hi);
+      fe_lo.CalcShape(ip, sh_lo);
+
+      const real_t w = ip.weight * FTr.Weight();
+      AddMult_a_VVt(w, sh_lo, M);
+      b.Add(w * (sh_hi * tr_hi), sh_lo);
+   }
+
+   DenseMatrixInverse Mi(M);
+   tr_lo.SetSize(n_lo);
+   Mi.Mult(b, tr_lo);
+}
+
 void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
                                             Vector &d_error_estimates)
 {
@@ -227,6 +258,26 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
       {
          Vector d_en1, d_en2;
 
+         const FiniteElement *fe_tr1 = fe_tr, *fe_tr2 = fe_tr;
+         Vector cap1, cap2;
+         if (cap_at_element)
+         {
+            const FiniteElementCollection *c_fec = fes_tr->FEColl();
+            const Geometry::Type geom = mesh->GetFaceGeometry(face);
+            if (fe_tr->GetOrder() > fe1.GetOrder())
+            {
+               fe_tr1 = c_fec->GetFE(geom, fe1.GetOrder());
+               ProjectTraceDown(*fe_tr, *fe_tr1, FTr, tr, cap1);
+            }
+            if (FTr.Elem2No >= 0 && fe_tr->GetOrder() > fe2.GetOrder())
+            {
+               fe_tr2 = c_fec->GetFE(geom, fe2.GetOrder());
+               ProjectTraceDown(*fe_tr, *fe_tr2, FTr, tr, cap2);
+            }
+         }
+         const Vector &tr_1 = (fe_tr1 != fe_tr) ? cap1 : tr;
+         const Vector &tr_2 = (fe_tr2 != fe_tr) ? cap2 : tr;
+
          /* The projected comparison is carried out by moving the difference
             into the trace space rather than by a second energy routine: with a
             zero element function the integrand is (0 - (λ - P_M p̂))², which is
@@ -245,29 +296,29 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
          if (proj)
          {
             Vector c;
-            ProjectOntoTrace(*fe_tr, fe1, FTr, 0, p1, c);
-            tr1.SetSize(tr.Size());
-            subtract(tr, c, tr1);
+            ProjectOntoTrace(*fe_tr1, fe1, FTr, 0, p1, c);
+            tr1.SetSize(tr_1.Size());
+            subtract(tr_1, c, tr1);
             z1.SetSize(fe1.GetDof());
             z1 = 0.;
 
             if (FTr.Elem2No >= 0)
             {
-               ProjectOntoTrace(*fe_tr, fe2, FTr, 1, p2, c);
-               tr2.SetSize(tr.Size());
-               subtract(tr, c, tr2);
+               ProjectOntoTrace(*fe_tr2, fe2, FTr, 1, p2, c);
+               tr2.SetSize(tr_2.Size());
+               subtract(tr_2, c, tr2);
                z2.SetSize(fe2.GetDof());
                z2 = 0.;
             }
          }
 
-         error_estimates(FTr.Elem1No) += bfi.ComputeHDGFaceEnergy(0, *fe_tr, fe1, FTr,
-                                                                  proj?tr1:tr, proj?z1:p1, (anisotropic)?(&d_en1):(NULL));
+         error_estimates(FTr.Elem1No) += bfi.ComputeHDGFaceEnergy(0, *fe_tr1, fe1, FTr,
+                                                                  proj?tr1:tr_1, proj?z1:p1, (anisotropic)?(&d_en1):(NULL));
 
          if (FTr.Elem2No >= 0)
          {
-            error_estimates(FTr.Elem2No) += bfi.ComputeHDGFaceEnergy(1, *fe_tr, fe2, FTr,
-                                                                     proj?tr2:tr, proj?z2:p2, (anisotropic)?(&d_en2):(NULL));
+            error_estimates(FTr.Elem2No) += bfi.ComputeHDGFaceEnergy(1, *fe_tr2, fe2, FTr,
+                                                                     proj?tr2:tr_2, proj?z2:p2, (anisotropic)?(&d_en2):(NULL));
          }
 
          if (anisotropic)

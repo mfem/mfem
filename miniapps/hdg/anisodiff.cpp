@@ -102,11 +102,11 @@
 //
 //      || t - t_ex ||          uniform M    h-adapt M       hp M
 //      ---------------------------------------------------------------
-//      1.0e-3                     24960         1146         696
-//      1.0e-4                     99072         3501         949
-//      3.0e-5                         -         6258        1066
-//      1.0e-7                         -            -        1969
-//      3.0e-9                         -            -        3022
+//      1.0e-3                     24960         1146         717
+//      1.0e-4                     99072         3501         952
+//      3.0e-5                         -         6258        1054
+//      1.0e-7                         -            -        1847
+//      4.5e-10                        -            -        3264
 //
 //    Read across a row: at 1e-4 the same error costs 104 times fewer globally
 //    coupled unknowns than uniform refinement and 3.7 times fewer than
@@ -117,8 +117,8 @@
 //    --doerfler-marking --postprocessed-estimate at the defaults, the hp one
 //    adding --hp-adaptivity. Each row is the nearest cycle rather than an
 //    interpolation, so the errors within a row are close but not equal --
-//    1.0e-3 / 1.2e-3 / 8.5e-4, then 8.3e-5 / 8.8e-5 / 6.9e-5, then 3.4e-5 /
-//    3.0e-5, then 1.3e-7, then 3.0e-9.
+//    1.0e-3 / 1.2e-3 / 1.05e-3, then 8.3e-5 / 8.8e-5 / 8.0e-5, then 3.4e-5 /
+//    2.2e-5, then 9.7e-8.
 //
 //    IN SECONDS RATHER THAN DOFS the ranking is not the same, and that is
 //    worth knowing before quoting the table. At a relative error near 1e-4
@@ -198,23 +198,32 @@
 //       that to the direction NORMAL to the face is not the direction that
 //       would reduce it.
 //
-//    4. THE FACE RULE IS COUPLED TO (2), AND THAT DECIDES IT. `min` -- the
-//       lower of a face's two element degrees -- is not merely conservative:
-//       on a PRESCRIBED interface it gets worse as the degree jump grows, the
-//       flux error going 1.066e-2, 1.620e-2, 1.519e-2 on `convdiff -o 1 -nx 8`
-//       as the refined half is raised by one, two and three degrees, while
-//       `max` holds 1.051e-2 throughout. In the ISOTROPIC hp loop `max` is
-//       worth about 25 per cent of the dofs.
+//    4. A FACE RICHER THAN ITS ELEMENT NEEDS BOTH HALVES HANDLING, and with
+//       them the `max` face rule is usable and is the default under hp. The
+//       DIRECTION half is (2). The MAGNITUDE half is
+//       --cap-trace-at-element: compare such an element against lambda
+//       projected down to its own degree, so the modes it cannot represent are
+//       not charged to it.
 //
-//       But `max` is what CREATES a face richer than one of its elements, and
-//       such a face hands the poorer element a magnitude it cannot reduce by
-//       any refinement of its own -- the same term as in (2), whose direction
-//       half is handled and whose magnitude half is not. With the anisotropic
-//       split, which is worth more than 25 per cent, the loop then marks those
-//       elements for ever: it plateaus at 8.8e-7 where the same run under
-//       `min` reaches 2.96e-9 on 3022 dofs, three decades further. `min`
-//       simply never makes such a face, so it is the default -- as a
-//       workaround for an unsolved problem, not as a preference.
+//       Without the cap the loop runs away, and the numbers are worth keeping
+//       because nothing about them is subtle. At the plateau it marked a
+//       cluster of degree-2 elements sitting next to degree-5 ones, at
+//       x ~ 0.63 in the middle of the domain, with eta = 1.2e-5 against a TRUE
+//       element error of 3.8e-9 -- a ratio of 3000, and rising 443, 1700, 3000
+//       over three cycles -- while the elements actually carrying the error,
+//       five times more of it, went unmarked. Splitting them in x makes them
+//       narrower, tau ~ 1/h on their vertical faces grows, and eta grows with
+//       it: the refinement the estimate triggers is what makes the estimate
+//       bigger.
+//
+//       With both halves, `max` is worth about 10 per cent of the dofs at
+//       every matched error and reaches an order deeper in the same cycle
+//       budget -- 4.5e-10 at M = 3264 against `min`'s 3.0e-9 at M = 3022 --
+//       which is consistent with what a prescribed interface says about the
+//       rule on its own: `min` gets WORSE as the degree jump grows, the flux
+//       error going 1.066e-2, 1.620e-2, 1.519e-2 on `convdiff -o 1 -nx 8` as
+//       the refined half is raised by one, two and three degrees, where `max`
+//       holds 1.051e-2 throughout.
 //       Comparing lambda against the projection of the postprocessed trace
 //       into the trace space rather than against the trace itself -- which is
 //       what the published estimator asks for, and is
@@ -445,6 +454,7 @@ int main(int argc, char *argv[])
    bool est_pp = false;
    bool tproj = true;
    bool skip_edir = true;
+   bool cap_tr = true;
    bool pp_down = false;
    bool hp = false;
    int p_max = -1;
@@ -545,6 +555,11 @@ int main(int argc, char *argv[])
                   "-no-ppest", "--no-postprocessed-estimate",
                   "Build the error estimate on the postprocessed potential\n\t\t"
                   "rather than on the computed one.");
+   args.AddOption(&cap_tr, "-captr", "--cap-trace-at-element",
+                  "-no-captr", "--no-cap-trace-at-element",
+                  "Where a face's trace degree exceeds the element's, compare\n\t\t"
+                  "that element against the trace projected down to its own\n\t\t"
+                  "degree.");
    args.AddOption(&skip_edir, "-sed", "--skip-enriched-direction",
                   "-no-sed", "--no-skip-enriched-direction",
                   "Where a face's trace degree exceeds the element's, keep its\n\t\t"
@@ -643,28 +658,21 @@ int main(int argc, char *argv[])
       field that answers it and an enriched face contributes no direction. */
    if (aniso < 0) { aniso = 2; }
 
-   /* `min`, and the reason is a coupling with the split rather than anything
-      about the rule on its own.
+   /* `max` under hp, which it can be now that the magnitude at a degree
+      mismatch is handled -- see HDGErrorEstimator::SetCapTraceAtElement(). It
+      is the better rule wherever it is usable: on a prescribed interface `min`
+      gets WORSE as the degree jump grows, the flux error on
+      `convdiff -o 1 -nx 8` going 1.066e-2, 1.620e-2, 1.519e-2 as the refined
+      half is raised by one, two and three degrees where `max` holds 1.051e-2
+      throughout, and in this loop it is worth about 10% of the dofs at every
+      matched error and reaches an order deeper in the same cycle budget --
+      4.5e-10 at M = 3264 against 3.0e-9 at M = 3022.
 
-      `max` is the better rule where the trace can be enriched freely: on a
-      prescribed interface `min` is measured to get WORSE as the degree jump
-      grows -- the flux error on `convdiff -o 1 -nx 8` goes 1.066e-2, 1.620e-2,
-      1.519e-2 as the refined half is raised by one, two and three degrees
-      where `max` holds 1.051e-2 throughout -- and in the ISOTROPIC hp loop it
-      is worth about 25% of the dofs.
-
-      But `max` is what CREATES a face richer than one of its elements, and
-      that face hands the poorer element a magnitude it cannot reduce by any
-      refinement of its own. With the anisotropic split -- which is worth more
-      -- the loop then marks those elements for ever and goes nowhere: it
-      plateaus at 8.8e-7 where the same run under `min` reaches 2.96e-9, three
-      decades further, on 3022 dofs. `min` simply never makes such a face.
-
-      So this is a workaround for an unsolved problem rather than a preference,
-      and the problem is the magnitude at a degree mismatch -- the direction
-      half of it is handled, see
-      HDGErrorEstimator::SetSkipEnrichedDirection(). */
-   if (pface_max < 0) { pface_max = 0; }
+      Without the cap it is unusable, because `max` is exactly what CREATES a
+      face richer than one of its elements: the loop then plateaus at 8.8e-7.
+      Off hp the two rules coincide, no element having a neighbour of a
+      different degree. */
+   if (pface_max < 0) { pface_max = hp ? 1 : 0; }
 
    if (hp)
    {
@@ -1584,6 +1592,7 @@ int main(int argc, char *argv[])
             it would otherwise read is uniform at the ceiling. */
          if (hp) { amr_err.SetHybridization(*darcy->GetHybridization()); }
          if (skip_edir) { amr_err.SetSkipEnrichedDirection(); }
+         if (cap_tr) { amr_err.SetCapTraceAtElement(); }
 
          if (tproj)
          {
@@ -1623,6 +1632,7 @@ int main(int argc, char *argv[])
             { amr_dir->SetExcludedBoundary(bdr_is_dirichlet); }
             if (hp) { amr_dir->SetHybridization(*darcy->GetHybridization()); }
             if (skip_edir) { amr_dir->SetSkipEnrichedDirection(); }
+            if (cap_tr) { amr_dir->SetCapTraceAtElement(); }
          }
 
          const Array<int> &aniso_flags = amr_dir

@@ -233,35 +233,49 @@ degree -- which removes exactly the modes it cannot represent -- moves eta by
 2% and changes no flag: the excess is not in λ's high modes, it is in where λ
 sits, and λ sits where the fine side puts it.
 
-**And the plateau that left behind is the SAME term again, at a `p`-interface
-instead of a hanging node.** The anisotropic hp loop stopped at 8.7e-7, marking
-four to nine elements a cycle, all flagged `x`, all at degree 2 -- `s0` printed
-as a single value -- while eta *grew* from 9.7e-6 to 4.3e-5 and the true error
-did not move. Under `max`, a face between a degree-2 and a degree-7 element
-takes degree 7, so the degree-2 element carries a magnitude it cannot reduce by
-refining itself. The direction half of that is already dropped; the magnitude
-half is not, and it is enough to pin the marking.
+**And the plateau that left behind was the same term at a `p`-interface, which
+is now closed too.** Comparing the estimate against the TRUE per-element error
+-- the diagnostic that should have been reached for first, three times -- the
+stalled loop was marking a cluster of degree-2 elements next to degree-5 ones,
+in the middle of the domain, nowhere near the layer:
 
-`min` never makes such a face, and the controlled test is the rule itself --
-same loop, one switch:
+| cycle | η on the marked cluster | true error there | ratio |
+|---|---|---|---|
+| 22 | 4.7e-6 | 1.1e-8 | 443 |
+| 24 | 9.3e-6 | 5.4e-9 | 1700 |
+| 25 | 1.2e-5 | 3.8e-9 | 3000 |
 
-| face rule | reaches |
-|---|---|
-| `max` | plateaus at 8.8e-7, M = 1539 |
-| `min` | 2.96e-9 at M = 3022, still falling |
+Wrong by three orders and getting worse, while the elements actually carrying
+the error -- five times more of it -- went unmarked. And self-feeding:
+splitting them in `x` makes them narrower, `τ ~ 1/h` on their vertical faces
+grows, and η grows with it, so the refinement the estimate triggers is what
+makes the estimate bigger.
 
-Three decades. So `--p-face-rule` now defaults to `min` **as a workaround for
-an unsolved problem rather than a preference** -- `max` is genuinely the better
-rule where the trace can be enriched freely, worth 25% in the isotropic loop
-and measurably better on a prescribed interface, and it is unusable with the
-split that is worth more.
+`HDGErrorEstimator::SetCapTraceAtElement()` compares such an element against λ
+projected down to its own degree. **The two halves together -- direction
+skipped, magnitude capped -- are what a face richer than its element needs**,
+and neither alone is enough: at a hanging-node family the cap moves eta by 2%
+and only the direction matters, at a `p`-interface the cap is the whole of it.
 
-**What is actually open is the magnitude at a degree mismatch**, which is one
-statement covering both symptoms: a face richer than one of its elements hands
-that element an error it cannot reduce. Dropping it was measured to fail
-(1.7e-3 against 1.4e-6) and projecting λ down was measured not to touch it
-(eta 0.250 to 0.245, no flag changed). Attributing it to the *rich* side, which
-is the side that determines it, has not been tried.
+With both, the `max` face rule is usable and is the default under hp again:
+about 10% of the dofs at every matched error and an order deeper in the same
+cycle budget, 4.5e-10 at M = 3264 against `min`'s 3.0e-9 at M = 3022. That is
+consistent with what a prescribed interface says about the rule on its own,
+where `min` gets worse as the degree jump grows.
+
+**So every question about the estimate is closed.** The table at the defaults:
+
+| ‖t−t_ex‖ | uniform M | h-adapt M | hp M |
+|---|---|---|---|
+| 1.0e-3 | 24960 | 1146 | 717 |
+| 1.0e-4 | 99072 | 3501 | 952 |
+| 3.0e-5 | — | 6258 | 1054 |
+| 1.0e-7 | — | — | 1847 |
+| 4.5e-10 | — | — | 3264 |
+
+104 times fewer globally coupled unknowns than uniform refinement at 1e-4 and
+3.7 times fewer than `h`-adaptivity, and four decades past where either can be
+run.
 
 ### Mechanism, and what it caps
 
