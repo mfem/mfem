@@ -26,9 +26,11 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
    for (const auto &g : field_groups) {
       for (const auto &f : g.cols) { fields.push_back(f.get()); }
    }
-   for (const auto *f : fields) {
-      MFEM_VERIFY(f->Size() == rank_list.Size(),
-                  "CrystalRouter: field size does not match rank_list size");
+   for (std::size_t i = 0; i < fields.size(); i++) {
+      MFEM_VERIFY(fields[i]->Size() == rank_list.Size(),
+                  "CrystalRouter: field " << i << " has size "
+                  << fields[i]->Size() << " but rank_list has size "
+                  << rank_list.Size());
    }
 
    // Routing runs entirely on the host, so pull down any device-resident field.
