@@ -279,8 +279,8 @@ inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
                                         const DeviceTensor<5, const real_t> &XE,
                                         real_t (&sm)[MQ1][MQ1][MQ1][DIM])
 {
-   if constexpr (VDIM == 1) { LoadDofs3d<DIM, MQ1>(e, d1d, 0, XE, sm); }
-   else { LoadDofs3d<DIM, MQ1>(e, d1d, XE, sm); }
+   if constexpr (VDIM == 1) { loz::LoadDofs3d<DIM, MQ1>(e, d1d, 0, XE, sm); }
+   else { loz::LoadDofs3d<DIM, MQ1>(e, d1d, XE, sm); }
 }
 
 template<int VDIM, int DIM, int MQ1>
@@ -733,10 +733,10 @@ inline MFEM_HOST_DEVICE void VectorHess3d(
    loz::HessX<DIM, MQ1>(d1d, q1d, B, G, H, sm0, sm1);
    const int ij_a[3][2] = {{0, 0}, {0, 1}, {1, 1}};
    loz::HessY<DIM, MQ1>(d1d, q1d, B, 2, G, 1, H, 0, sm1, sm0);
-   VectorHessZ<VDIM, DIM, MQ1>(d1d, q1d, c, B, B, B, ij_a, sm0, reg);
+   loz::VectorHessZ<VDIM, DIM, MQ1>(d1d, q1d, c, B, B, B, ij_a, sm0, reg);
    const int ij_b[3][2] = {{0, 2}, {1, 2}, {2, 2}};
    loz::HessY<DIM, MQ1>(d1d, q1d, B, 1, G, 0, B, 0, sm1, sm0);
-   VectorHessZ<VDIM, DIM, MQ1>(d1d, q1d, c, G, G, H, ij_b, sm0, reg);
+   loz::VectorHessZ<VDIM, DIM, MQ1>(d1d, q1d, c, G, G, H, ij_b, sm0, reg);
 }
 
 } // namespace loz
