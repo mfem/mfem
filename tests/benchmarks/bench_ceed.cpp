@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -32,7 +32,11 @@
 // Custom benchmark arguments generator
 static void CustomArguments(bm::Benchmark *b) noexcept
 {
-   constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+   constexpr int MAX_NDOFS = 16 * 1024 * 1024;
+#else
+   constexpr int MAX_NDOFS = 16 * 1024 * 8;
+#endif
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 

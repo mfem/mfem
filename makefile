@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -10,7 +10,7 @@
 # CONTRIBUTING.md for details.
 
 # The current MFEM version as an integer, see also `CMakeLists.txt`.
-MFEM_VERSION = 40901
+MFEM_VERSION = 41000
 MFEM_VERSION_STRING = $(shell printf "%06d" $(MFEM_VERSION) | \
   sed -e 's/^0*\(.*.\)\(..\)\(..\)$$/\1.\2.\3/' -e 's/\.0/./g' -e 's/\.0$$//')
 
@@ -810,6 +810,7 @@ MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners \
    hooke/materials hooke/kernels
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)
 FORMAT_FILES += $(foreach dir,$(UNIT_TESTS_SUBDIRS),tests/unit/$(dir)/*.?pp)
+FORMAT_FILES += tests/unit/fem/specializations/*.?pp
 FORMAT_FILES += $(foreach dir,$(MINIAPPS_SUBDIRS),miniapps/$(dir)/*.?pp)
 FORMAT_FILES += config/cmake/config.hpp.in config/config.hpp.in mfem*.hpp
 FORMAT_EXCLUDE = general/tinyxml2.cpp tests/unit/catch.hpp
