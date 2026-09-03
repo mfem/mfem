@@ -272,11 +272,23 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
 
          if (anisotropic)
          {
-            for (int k = 0; k < dim; k++)
+            /* A face richer than the element on one side keeps its MAGNITUDE
+               -- that mismatch is real and the element is the one carrying it
+               -- but contributes no DIRECTION, because the direction it would
+               contribute is the wrong one. See SetSkipEnrichedDirection(). */
+            const bool dir1 = !(skip_enriched_dir &&
+                                fe_tr->GetOrder() > fe1.GetOrder());
+            const bool dir2 = !(skip_enriched_dir && FTr.Elem2No >= 0 &&
+                                fe_tr->GetOrder() > fe2.GetOrder());
+
+            if (dir1)
             {
-               d_error_estimates(FTr.Elem1No * dim + k) += d_en1(k);
+               for (int k = 0; k < dim; k++)
+               {
+                  d_error_estimates(FTr.Elem1No * dim + k) += d_en1(k);
+               }
             }
-            if (FTr.Elem2No >= 0)
+            if (FTr.Elem2No >= 0 && dir2)
             {
                for (int k = 0; k < dim; k++)
                {

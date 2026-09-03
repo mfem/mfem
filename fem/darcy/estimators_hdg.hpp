@@ -97,6 +97,7 @@ private:
 
    Array<int> excl_bdr;
    const DarcyHybridization *hyb {};
+   bool skip_enriched_dir {false};
    TraceComparison trcmp{TraceComparison::Literal};
    long current_sequence{-1};
    Vector error_estimates;
@@ -124,6 +125,13 @@ private:
                                 const FiniteElement &el,
                                 FaceElementTransformations &FTr, int side,
                                 const Vector &elfun, Vector &c);
+
+   /** @brief L2(e)-projection of a trace function from @a fe_hi onto the
+       coarser trace element @a fe_lo, both on the same face. */
+   static void ProjectTraceDown(const FiniteElement &fe_hi,
+                                const FiniteElement &fe_lo,
+                                FaceElementTransformations &FTr,
+                                const Vector &tr_hi, Vector &tr_lo);
 
 public:
    /// Constructor
@@ -283,6 +291,55 @@ public:
        The solution is the same to six digits in all three; only the estimate
        moves, and it moves by a factor of 27. */
    void SetHybridization(const DarcyHybridization &hyb_) { hyb = &hyb_; Reset(); }
+
+   /** @brief Where a face's trace degree exceeds the element's, keep that
+       face's contribution to the element's error but not to its DIRECTION.
+
+       **The excess is real, belongs to that element, and points the wrong
+       way.** A face richer than the element on one side carries modes that
+       element cannot represent. On a conforming face they are zero, because a
+       trace above *both* its neighbours is exactly redundant. Across a hanging
+       node they are not: the master trace fits the several fine elements
+       better than it fits the one coarse element, so `p̂ - λ` on the coarse
+       side genuinely grows -- and under `p`-adaptivity that is every hanging
+       node, because a family has to run at the ceiling degree
+       (DarcyHybridization::SetTraceOrders()).
+
+       As a magnitude that is right: the coarse element IS the mismatched one.
+       As a direction it is exactly wrong. Refining an element in `y` puts
+       hanging nodes on its *vertical* faces, the geometric split attributes a
+       vertical face's energy to `x`, and the neighbour is then split in `x` --
+       when what would actually match its neighbours is another `y`. So the
+       loop alternates and never resolves anything. Measured on
+       `anisodiff -p 5 -ks 1e2 -o 2 -hb -dg`, one identical hanging-node mesh,
+       changing only the ceiling from 2 to 3, summed over the twelve elements
+       next to a hanging node against the other 58:
+
+       | | Σd₀ at ceiling 2 | at 3 | Σd₁ at 2 | at 3 |
+       |---|---|---|---|---|
+       | next to a hanging node | 1.11e-4 | **5.45e-2** | 6.55e-3 | 4.51e-3 |
+       | everything else | 2.91e-5 | 2.83e-5 | 6.93e-3 | 3.60e-3 |
+
+       A factor of 490, confined to those twelve elements, and entirely in
+       `d₀`. Four of them flip from `y` to `x` with their estimate up by 17x.
+
+       **Two other repairs were tried and measured to fail**, which is why this
+       one is worth its lines. Dropping the face altogether stalls the hp loop
+       at 1.7e-3 against 1.4e-6: it discards the part of `p̂ - λ` the element
+       CAN see along with the part it cannot. And projecting λ down to the
+       element's own degree before comparing -- which removes exactly the modes
+       the element cannot represent -- moves eta by 2%, from 0.250 to 0.245,
+       and changes no flag: the excess is not in λ's high modes at all, it is
+       in where λ sits, and λ sits where the fine side puts it.
+
+       With this, anisotropic refinement works under `p`-adaptivity, which it
+       otherwise cannot: on the demonstrator it reaches 1.05e-4 at M = 921
+       against the isotropic loop's 1351, and 1.8e-6 at M = 1302 against 2473,
+       1.5 to 1.9 times fewer unknowns throughout. It then plateaus at 8.7e-7
+       where the isotropic loop carries on to 5.9e-8, and that plateau is not
+       understood. */
+   void SetSkipEnrichedDirection(bool skip = true)
+   { skip_enriched_dir = skip; Reset(); }
 
    /// Return the total error from the last error estimate.
    real_t GetTotalError() const override { return total_error; }

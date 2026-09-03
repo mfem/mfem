@@ -100,24 +100,33 @@
 //    relative L2 error in the potential against the globally coupled unknowns
 //    -- the size of the trace solve, which is what a hybridized method costs:
 //
-//      || t - t_ex ||          uniform M    h-adapt M       hp M
-//      ---------------------------------------------------------------
-//      1.0e-3                     24960         1146         953
-//      1.0e-4                     99072         3501        1351
-//      3.0e-5                         -         6258        1553
-//      1.0e-7                         -            -        4189
+//      || t - t_ex ||        uniform M   h-adapt M   hp M   hp M, aniso
+//      ------------------------------------------------------------------
+//      1.0e-3                   24960        1146     953           718
+//      1.0e-4                   99072        3501    1351           921
+//      3.0e-5                       -        6258    1553          1025
+//      1.0e-7                       -           -    4189             -
 //
 //    Read across a row: at 1e-4 the same error costs 73 times fewer globally
 //    coupled unknowns than uniform refinement and 2.6 times fewer than
 //    h-adaptivity, and hp keeps going three decades past where the others were
 //    stopped -- uniform would need nx beyond 1500 and h-adaptivity does not
 //    get there at all, dying on direct-solver memory at M around 1.4 million.
-//    The uniform column is nx = 64 and 128; both adaptive columns are
-//    --doerfler-marking --postprocessed-estimate at the defaults, the hp one
+//    The uniform column is nx = 64 and 128; the adaptive columns are
+//    --doerfler-marking --postprocessed-estimate at the defaults, the hp ones
 //    adding --hp-adaptivity. Each row is the nearest cycle rather than an
 //    interpolation, so the errors within a row are close but not equal --
-//    1.0e-3 / 1.2e-3 / 7.8e-4, then 8.3e-5 / 8.8e-5 / 9.2e-5, then 3.4e-5 /
-//    2.4e-5, then 9.4e-8.
+//    1.0e-3 / 1.2e-3 / 7.8e-4 / 1.0e-3, then 8.3e-5 / 8.8e-5 / 9.2e-5 /
+//    1.05e-4, then 3.4e-5 / 2.4e-5 / 3.4e-5, then 9.4e-8.
+//
+//    THE LAST COLUMN IS NOT THE DEFAULT, and the reason is the empty cell.
+//    --anisotropic-estimate 2 under hp is 1.5 to 1.9 times cheaper than the
+//    isotropic loop at every level it reaches, 108 times cheaper than uniform
+//    refinement at 1e-4 -- and then it plateaus at 8.7e-7 and goes no further,
+//    where the isotropic loop carries on to 5.9e-8. Since reaching further
+//    than the alternatives is most of hp's case, the default stays isotropic
+//    and the flag is there for anyone who wants the cheaper route to a
+//    moderate tolerance. Why it plateaus is not understood.
 //
 //    IN SECONDS RATHER THAN DOFS the ranking is not the same, and that is
 //    worth knowing before quoting the table. At a relative error near 1e-4
@@ -153,18 +162,23 @@
 //       M = 2217 on the same problem. --anisotropic-estimate 1 is the old
 //       behaviour and is kept so that stays measured.
 //
-//       IT STILL DOES NOT WORK UNDER hp, and not for that reason. A
-//       hanging-node family has to run at the ceiling degree (see
-//       DarcyHybridization::SetTraceOrders()), which enriches the trace across
-//       every hanging node, and anisotropic refinement makes hanging nodes
-//       prolifically. Holding everything else fixed and moving only the
-//       ceiling: at --max-order equal to --order the hp loop reproduces the
-//       non-hp one to every printed digit, and one degree above it stalls at
-//       0.078. Every higher ceiling stalls, and so does the run with
-//       p-refinement disabled altogether -- so it is the ceiling at the
-//       hanging nodes, not the p-variation and not the direction field. Hence
-//       --anisotropic-estimate defaults to off under --hp and hp gives up the
-//       6x that the directional refinement is worth.
+//       AND UNDER hp IT NEEDS ONE MORE THING, which is
+//       --skip-enriched-direction and is on by default. A hanging-node family
+//       has to run at the ceiling degree (see
+//       DarcyHybridization::SetTraceOrders()), so its master trace fits the
+//       several fine elements better than the one coarse element and the
+//       coarse element's |p^ - lambda| genuinely grows. As a MAGNITUDE that is
+//       right -- it is the mismatched element. As a DIRECTION it is exactly
+//       wrong: refining in y puts hanging nodes on VERTICAL faces, whose
+//       energy the geometric split attributes to x, so the neighbour is split
+//       in x when another y is what would match it, and the loop alternates
+//       forever. Measured on one identical hanging-node mesh, moving only the
+//       ceiling from 2 to 3, the twelve elements next to a hanging node carry
+//       a d0 sum of 1.11e-4 against 5.45e-2 -- a factor of 490, entirely in
+//       d0, with four of them flipping y to x at 17 times their estimate --
+//       while the other 58 elements are unchanged. Keeping the magnitude and
+//       dropping the direction is what makes the last column of the table
+//       exist at all.
 //
 //    3. --postprocessed-estimate IS WORTH ABOUT 1.4x IN DOFS, once (2) is in
 //       place, and that is a controlled comparison: both configurations take
@@ -434,6 +448,7 @@ int main(int argc, char *argv[])
    int aniso = -1;
    bool est_pp = false;
    bool tproj = true;
+   bool skip_edir = true;
    bool pp_down = false;
    bool hp = false;
    int p_max = -1;
@@ -534,6 +549,13 @@ int main(int argc, char *argv[])
                   "-no-ppest", "--no-postprocessed-estimate",
                   "Build the error estimate on the postprocessed potential\n\t\t"
                   "rather than on the computed one.");
+   args.AddOption(&skip_edir, "-sed", "--skip-enriched-direction",
+                  "-no-sed", "--no-skip-enriched-direction",
+                  "Where a face's trace degree exceeds the element's, keep its\n\t\t"
+                  "contribution to that element's error but not to its\n\t\t"
+                  "direction. Inert unless a face outruns its element, which\n\t\t"
+                  "under hp is every hanging node -- and there it is what lets\n\t\t"
+                  "anisotropic refinement work at all.");
    args.AddOption(&pp_down, "-ppdown", "--postprocessed-projected-down",
                   "-no-ppdown", "--no-postprocessed-projected-down",
                   "Project the postprocessed potential back onto the\n\t\t"
@@ -1568,6 +1590,7 @@ int main(int argc, char *argv[])
             estimator has to be told where to find them; the constraint space
             it would otherwise read is uniform at the ceiling. */
          if (hp) { amr_err.SetHybridization(*darcy->GetHybridization()); }
+         if (skip_edir) { amr_err.SetSkipEnrichedDirection(); }
 
          if (tproj)
          {
@@ -1606,6 +1629,7 @@ int main(int argc, char *argv[])
             if (!trace_ess_bc)
             { amr_dir->SetExcludedBoundary(bdr_is_dirichlet); }
             if (hp) { amr_dir->SetHybridization(*darcy->GetHybridization()); }
+            if (skip_edir) { amr_dir->SetSkipEnrichedDirection(); }
          }
 
          const Array<int> &aniso_flags = amr_dir

@@ -201,19 +201,43 @@ ceiling stalls, and so does the run with p-refinement disabled altogether, and
 so does the run with the direction taken from the computed potential. So it is
 the ceiling at the hanging nodes and nothing else.
 
-**Why it breaks the loop is open, and two explanations are already dead.** It
-is not that the enriched trace is a worse discretisation: on an identical
-hanging-node mesh, four family faces at degree 3 instead of 2 give 0.0818
-against 0.0982, which is *better*. And it is not a term that can simply be
-left out -- excluding the enriched faces from the estimate removes the monotone
-worsening in the pure-`h`-with-a-ceiling case but stalls the real hp loop at
-1.7e-3 where keeping them reaches 1.4e-6, so the term carries information and
-the fix has to be correct attribution rather than exclusion. That option was
-written, measured and removed rather than left as a knob.
+**FOUND, and fixed: the excess is a magnitude, not a direction.** A
+per-element dump on one identical hanging-node mesh, changing only the ceiling
+from 2 to 3, puts the whole difference on the twelve elements next to a
+hanging node and entirely in `d₀`:
 
-So the 6x that directional refinement is worth is blocked by one identified
-thing whose mechanism is not yet understood, rather than by an open question
-about the estimate.
+| | Σd₀ at ceiling 2 | at 3 | Σd₁ at 2 | at 3 |
+|---|---|---|---|---|
+| next to a hanging node | 1.11e-4 | **5.45e-2** | 6.55e-3 | 4.51e-3 |
+| everything else | 2.91e-5 | 2.83e-5 | 6.93e-3 | 3.60e-3 |
+
+A factor of 490. The master trace at the ceiling fits the several fine
+elements better than the one coarse element, so the coarse element's
+`|p̂ - λ|` genuinely grows -- right as a magnitude, since it *is* the
+mismatched element, and exactly wrong as a direction. Refining in `y` puts
+hanging nodes on **vertical** faces, whose energy the geometric split
+attributes to `x`, so the neighbour is split in `x` when another `y` is what
+would match it, and the loop alternates forever. Four elements in the layer
+flip `y` to `x` at seventeen times their estimate.
+
+`HDGErrorEstimator::SetSkipEnrichedDirection()` keeps such a face's magnitude
+and drops its direction. Anisotropic refinement then works under hp, at 1.5 to
+1.9 times fewer unknowns than the isotropic loop -- 1.05e-4 at M = 921 against
+1351, 1.8e-6 at M = 1302 against 2473.
+
+**Two other repairs were tried and measured to fail**, and both are recorded
+next to the fix so nobody spends them again. Dropping the face altogether
+stalls the hp loop at 1.7e-3 against 1.4e-6, because it discards the part of
+`p̂ - λ` the element *can* see. And projecting λ down to the element's own
+degree -- which removes exactly the modes it cannot represent -- moves eta by
+2% and changes no flag: the excess is not in λ's high modes, it is in where λ
+sits, and λ sits where the fine side puts it.
+
+**What is left of it: the anisotropic hp loop plateaus at 8.7e-7** where the
+isotropic one carries on to 5.9e-8, so the default stays isotropic and the flag
+is there for a moderate tolerance. That plateau is the new open thread, and it
+has the same shape as the one just closed -- a loop adding dofs with no effect
+-- so the per-element dump is the tool for it too.
 
 ### Mechanism, and what it caps
 
