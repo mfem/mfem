@@ -843,3 +843,104 @@ TEST_CASE("A shared face gets both ranks' element degrees",
 }
 
 #endif // MFEM_USE_MPI
+
+TEST_CASE("A coarse trace basis is an exact combination of the ceiling's",
+          "[DarcyHybridization][PAdapt]")
+{
+   /* The identity the "constrain rather than retire" redesign rests on, and
+      the reason that redesign cannot change any answer.
+
+      This route stores a degree-p_f face function as p_f-basis coefficients in
+      the first nt(p_f) of the face's ceiling-degree slots. Everything that has
+      gone wrong with it -- a hanging-node family, an essential datum on a
+      coarsened face, a face shared between ranks -- is one thing: an outside
+      reader of those slots assumes the CEILING basis, because that is the
+      space's own. The proposed repair is to store the same function as its
+      ceiling-basis coefficients, constrained to the degree-p_f subspace by
+      E, whose columns are the coarse basis functions written in the fine one:
+
+          E(j,i) = phi_i^lo( node_j^hi )
+
+      For that to be a change of representation and not of discretisation, the
+      face matrix assembled against the coarse trace must equal the one
+      assembled against the ceiling trace, restricted by E. It does, because a
+      degree-p_f polynomial IS a degree-p_max polynomial and so
+      phi_i^lo = sum_j E(j,i) phi_j^hi exactly -- but that is an argument, and
+      the argument is worth one test, because it is what says the port has
+      nothing to prove beyond bookkeeping. */
+   const int dim = 2;
+   const int p_lo = GENERATE(0, 1, 2), gap = GENERATE(1, 2, 3);
+   const int p_hi = p_lo + gap;
+   CAPTURE(p_lo, p_hi);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+   L2_FECollection fec(2, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   DG_Interface_FECollection tr_coll(p_hi, dim);
+
+   // An interior face, and the two elements it separates.
+   int face = -1;
+   for (int f = 0; f < mesh.GetNumFaces(); f++)
+   {
+      if (mesh.FaceIsInterior(f)) { face = f; break; }
+   }
+   REQUIRE(face >= 0);
+
+   FaceElementTransformations *FTr =
+      mesh.GetInteriorFaceTransformations(face);
+   REQUIRE(FTr != nullptr);
+
+   const Geometry::Type geom = mesh.GetFaceGeometry(face);
+   const FiniteElement *fe_lo = tr_coll.GetFE(geom, p_lo);
+   const FiniteElement *fe_hi = tr_coll.GetFE(geom, p_hi);
+   REQUIRE(fe_lo->GetOrder() == p_lo);
+   REQUIRE(fe_hi->GetOrder() == p_hi);
+
+   const FiniteElement *el1 = fes.GetFE(FTr->Elem1No);
+   const FiniteElement *el2 = fes.GetFE(FTr->Elem2No);
+
+   NormalTraceJumpIntegrator integ;
+   DenseMatrix M_lo, M_hi;
+   integ.AssembleFaceMatrix(*fe_lo, *el1, *el2, *FTr, M_lo);
+   integ.AssembleFaceMatrix(*fe_hi, *el1, *el2, *FTr, M_hi);
+
+   const int n_lo = fe_lo->GetDof(), n_hi = fe_hi->GetDof();
+   REQUIRE(M_lo.Width() == n_lo);
+   REQUIRE(M_hi.Width() == n_hi);
+   REQUIRE(M_lo.Height() == M_hi.Height());
+
+   // E: the coarse basis functions evaluated at the ceiling element's nodes.
+   DenseMatrix E(n_hi, n_lo);
+   const IntegrationRule &nodes = fe_hi->GetNodes();
+   Vector shape(n_lo);
+   for (int j = 0; j < n_hi; j++)
+   {
+      fe_lo->CalcShape(nodes.IntPoint(j), shape);
+      for (int i = 0; i < n_lo; i++) { E(j, i) = shape(i); }
+   }
+
+   DenseMatrix prod(M_hi.Height(), n_lo);
+   mfem::Mult(M_hi, E, prod);
+
+   prod -= M_lo;
+   const real_t scale = std::max(M_lo.MaxMaxNorm(), (real_t)1.0);
+   INFO("max difference " << prod.MaxMaxNorm() << " on " << scale);
+   REQUIRE(prod.MaxMaxNorm() < 1e-12 * scale);
+
+   /* And E has full column rank, which is the other half of the constraint
+      being well posed: the constrained face carries exactly nt(p_f) unknowns,
+      neither fewer -- which would lose the function -- nor more. E^T E is
+      then invertible, and DenseMatrixInverse is the check available here,
+      MFEM_USE_LAPACK being off so SingularValues() aborts. */
+   DenseMatrix EtE(n_lo);
+   MultAtB(E, E, EtE);
+   DenseMatrixInverse EtEi(EtE);
+   DenseMatrix I(n_lo), should_be_I(n_lo);
+   EtEi.GetInverseMatrix(I);
+   mfem::Mult(EtE, I, should_be_I);
+   for (int i = 0; i < n_lo; i++) { should_be_I(i, i) -= 1.0; }
+   INFO("E^T E inverse residual " << should_be_I.MaxMaxNorm());
+   REQUIRE(should_be_I.MaxMaxNorm() < 1e-10);
+}

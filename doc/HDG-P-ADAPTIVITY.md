@@ -291,6 +291,13 @@ the datum projected face by face at the face's own degree, which needs an
 entry point the constraint space does not offer. A ceiling equal to the element
 degree reproduces the essential answer exactly and is the way round it today.
 
+**All three of the limits below are one thing, and it now has a plan of its
+own: `doc/HDG-P-ADAPTIVITY-CONSTRAIN.md`.** The surplus slots want constraining
+so that a face's coefficients are the coarse function expressed at the ceiling,
+rather than retiring so that they are not. The identity that says the repair
+cannot change any answer is measured, in `"A coarse trace basis is an exact
+combination of the ceiling's"`, and the work is eleven prolongation sites.
+
 **A hanging-node family has to run at the ceiling**, which is where coarsening
 stops. The reason is in `SetTraceOrders()`: the constraint space's conforming
 prolongation interpolates in the ceiling basis, and this route's convention --
