@@ -15,6 +15,7 @@
 //               ex16 -m ../data/beam-tet.mesh -tf 10 -dt 0.1
 //               ex16 -m ../data/amr-quad.mesh -o 4 -r 0
 //               ex16 -m ../data/amr-hex.mesh -o 2 -r 0
+//               ex16 -m ../data/amr-hex.mesh -o 2 -r 0  -s 21 -imp-state
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion
@@ -183,11 +184,6 @@ int main(int argc, char *argv[])
 
    // 7. Initialize the conduction operator and the visualization.
    ConductionOperator oper(fespace, alpha, kappa, u);
-   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
-   ImplicitVariableType imp_var = solve_implicit_state ?
-                                  ImplicitVariableType::STATE
-                                  : ImplicitVariableType::SLOPE;
-   oper.SetImplicitVariableType(imp_var);
 
    u_gf.SetFromTrueDofs(u);
    {
@@ -232,9 +228,15 @@ int main(int argc, char *argv[])
       }
    }
 
+   using ImplicitVariableType = ConductionOperator::ImplicitVariableType;
+   ImplicitVariableType imp_var = solve_implicit_state ?
+                                  ImplicitVariableType::STATE
+                                  : ImplicitVariableType::SLOPE;
+
    // 8. Perform time-integration (looping over the time iterations, ti, with a
    //    time-step dt).
    ode_solver->Init(oper);
+   ode_solver->SetImplicitVariableType(imp_var);
    real_t t = 0.0;
 
    bool last_step = false;

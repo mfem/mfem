@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -36,7 +36,7 @@ namespace mfem
  * a1 = max(a1, b1)
  * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^2)
  *
- * This form is resiliant against overflow/underflow, similar to std::hypot
+ * This form is resilient against overflow/underflow, similar to std::hypot
  */
 struct L2Reducer
 {
@@ -69,7 +69,7 @@ struct L2Reducer
  * a1 = max(a1, b1)
  * a0 = (a1 == 0 ? 0 : sum_{k in union(i,j)} (|v_k|/a1)^p)
  *
- * This form is resiliant against overflow/underflow, similar to std::hypot
+ * This form is resilient against overflow/underflow, similar to std::hypot
  */
 struct LpReducer
 {

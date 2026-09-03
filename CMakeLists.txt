@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.9.1)
+set(${PROJECT_NAME}_VERSION 4.10.0)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -302,7 +302,7 @@ endif()
 if (DEFINED FETCH_TPLS)
   message(STATUS "Setting MFEM_FETCH_TPLS to user-provided value of FETCH_TPLS (i.e., MFEM_FETCH_TPLS=${FETCH_TPLS})")
   set (MFEM_FETCH_TPLS FETCH_TPLS)
-  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
+  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in a future version. Please use MFEM_FETCH_TPLS instead.")
 endif()
 
   # Umpire (must be included before hypre, so hypre can use it if needed)
