@@ -943,4 +943,136 @@ TEST_CASE("A coarse trace basis is an exact combination of the ceiling's",
    for (int i = 0; i < n_lo; i++) { should_be_I(i, i) -= 1.0; }
    INFO("E^T E inverse residual " << should_be_I.MaxMaxNorm());
    REQUIRE(should_be_I.MaxMaxNorm() < 1e-10);
+
+   /* R, the other half of the pair, and the identity that makes it usable.
+
+      E embeds a coarse function in the ceiling; R reads a ceiling function
+      back at the coarse nodes:
+
+          R(i,j) = phi_j^hi( node_i^lo )
+
+      and R E = I exactly, because interpolating a degree-p_f polynomial at
+      the ceiling's nodes and then evaluating it at the coarse ones returns
+      the polynomial. E is the solution map and E^T the residual map; R is
+      the DATA map, and it is NOT the transpose of either.
+
+      That distinction is the whole reason to build R rather than reach for
+      E^+ = (E^T E)^-1 E^T, which the block above has just shown exists. A
+      least-squares fit over the CEILING's nodes depends on where those nodes
+      are, so restricting a boundary datum with it would give a different
+      answer at every ceiling -- and "the answer does not move when the
+      ceiling moves" is the property the essential-datum refusal exists to
+      protect. R interpolates at the coarse nodes and so cannot depend on the
+      ceiling at all. */
+   DenseMatrix R(n_lo, n_hi);
+   {
+      const IntegrationRule &nodes_lo = fe_lo->GetNodes();
+      Vector shape_hi(n_hi);
+      for (int i = 0; i < n_lo; i++)
+      {
+         fe_hi->CalcShape(nodes_lo.IntPoint(i), shape_hi);
+         for (int j = 0; j < n_hi; j++) { R(i, j) = shape_hi(j); }
+      }
+   }
+
+   DenseMatrix RE(n_lo);
+   mfem::Mult(R, E, RE);
+   for (int i = 0; i < n_lo; i++) { RE(i, i) -= 1.0; }
+   INFO("R E - I is " << RE.MaxMaxNorm());
+   REQUIRE(RE.MaxMaxNorm() < 1e-12);
+
+   /* And the property that picks R over E^+, stated so that it can fail.
+
+      Both are left inverses, so both are exact on the coarse space and no
+      test restricted to it can tell them apart. The difference shows on a
+      datum the coarse space cannot represent, and it is this: R is a
+      function of the FUNCTION -- interpolate it at the coarse nodes -- while
+      E^+ is a function of the ceiling's NODE SET, being least squares over
+      those nodes. So take one function, represent it exactly at two
+      different ceilings, and restrict it both ways. R must give the same
+      answer twice. E^+ need not, and does not.
+
+      That is what "the answer must not move when the ceiling moves" means
+      for a boundary datum, and it is the whole reason the essential-datum
+      refusal exists. A datum of degree p_hi is representable at ceiling
+      p_hi and at p_hi + 1 both, which is what makes the comparison exact
+      rather than asymptotic. */
+   /* A SECOND collection, not tr_coll.GetFE(geom, p_hi + 1). GetFE() takes
+      the collection's order, DG_Interface_FECollection(p)::GetOrder() is
+      p + 1, and at q == GetOrder() it short-circuits to the base collection
+      and hands back degree q - 1 -- silently, which is how this first
+      presented: 5 == 6. */
+   DG_Interface_FECollection tr_coll2(p_hi + 1, dim);
+   const FiniteElement *fe_hi2 = tr_coll2.GetFE(geom, p_hi + 1);
+   REQUIRE(fe_hi2->GetOrder() == p_hi + 1);
+   const int n_hi2 = fe_hi2->GetDof();
+
+   // A polynomial of degree p_hi in the face's reference coordinate, so both
+   // ceilings carry it exactly and neither is approximating anything.
+   auto datum = [p_hi](const IntegrationPoint &ip)
+   { return std::pow(0.3 + 0.7 * ip.x, p_hi); };
+
+   Vector g_hi(n_hi), g_hi2(n_hi2);
+   for (int j = 0; j < n_hi; j++)
+   { g_hi(j) = datum(fe_hi->GetNodes().IntPoint(j)); }
+   for (int j = 0; j < n_hi2; j++)
+   { g_hi2(j) = datum(fe_hi2->GetNodes().IntPoint(j)); }
+
+   auto restrict_R = [&](const FiniteElement &fe_h, const Vector &g,
+                         Vector &c)
+   {
+      DenseMatrix Rm(n_lo, fe_h.GetDof());
+      Vector sh(fe_h.GetDof());
+      for (int i = 0; i < n_lo; i++)
+      {
+         fe_h.CalcShape(fe_lo->GetNodes().IntPoint(i), sh);
+         for (int j = 0; j < fe_h.GetDof(); j++) { Rm(i, j) = sh(j); }
+      }
+      c.SetSize(n_lo);
+      Rm.Mult(g, c);
+   };
+
+   Vector c1, c2;
+   restrict_R(*fe_hi, g_hi, c1);
+   restrict_R(*fe_hi2, g_hi2, c2);
+   Vector dc(c1); dc -= c2;
+   INFO("R at two ceilings differs by " << dc.Normlinf());
+   REQUIRE(dc.Normlinf() < 1e-12);
+
+   /* The control, and it is the point: the same comparison with E^+ moves.
+      Without it "R is ceiling-independent" is a property nothing was shown
+      to lack.
+
+      One combination cannot show it, and the reason is structural rather
+      than a tolerance being missed: a least-squares CONSTANT is the mean of
+      the nodal values, Gauss-Lobatto nodes are symmetric about the midpoint,
+      and the mean of a LINEAR function over a symmetric node set is its
+      midpoint value whatever the set. So at p_lo = 0 with a degree-1 datum
+      the two ceilings agree exactly, for both maps. Every other combination
+      here separates them. */
+   auto restrict_Eplus = [&](const FiniteElement &fe_h, const Vector &g,
+                             Vector &c)
+   {
+      const int nh = fe_h.GetDof();
+      DenseMatrix Em(nh, n_lo);
+      Vector sh(n_lo);
+      for (int j = 0; j < nh; j++)
+      {
+         fe_lo->CalcShape(fe_h.GetNodes().IntPoint(j), sh);
+         for (int i = 0; i < n_lo; i++) { Em(j, i) = sh(i); }
+      }
+      DenseMatrix G(n_lo);
+      MultAtB(Em, Em, G);
+      Vector rhs(n_lo);
+      Em.MultTranspose(g, rhs);
+      c.SetSize(n_lo);
+      DenseMatrixInverse(G).Mult(rhs, c);
+   };
+
+   Vector e1, e2;
+   restrict_Eplus(*fe_hi, g_hi, e1);
+   restrict_Eplus(*fe_hi2, g_hi2, e2);
+   Vector de(e1); de -= e2;
+   INFO("E^+ at two ceilings differs by " << de.Normlinf());
+   if (!(p_lo == 0 && p_hi == 1)) { REQUIRE(de.Normlinf() > 1e-8); }
 }
