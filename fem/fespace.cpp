@@ -2654,7 +2654,7 @@ void FiniteElementSpace::OwnNURBSext(NURBSExtension *ext)
 {
    MFEM_VERIFY(!own_ext, "FESpace already owns the NURBSExtension");
 
-   if (ext)
+   if (NURBSext)
    {
       MFEM_VERIFY(ext == NURBSext, "Different NURBSExtensions!");
    }

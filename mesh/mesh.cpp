@@ -11391,9 +11391,7 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    if (non_geometry)
    {
-      // mfem::Swap(NURBSext, other.NURBSext);
       mfem::Swap(ncmesh, other.ncmesh);
-
       mfem::Swap(Nodes, other.Nodes);
       if (Nodes) { Nodes->FESpace()->UpdateMeshPointer(this); }
       if (other.Nodes) { other.Nodes->FESpace()->UpdateMeshPointer(&other); }

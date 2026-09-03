@@ -1369,7 +1369,7 @@ public:
                            real_t &kappa_min, real_t &kappa_max,
                            Vector *Vh = NULL, Vector *Vk = NULL);
 
-   /// Return true if the face is a conforming face.
+   /// Return true if the mesh is a NURBS mesh.
    bool IsNURBS() const;
 
    NURBSExtension* NURBSExt();
