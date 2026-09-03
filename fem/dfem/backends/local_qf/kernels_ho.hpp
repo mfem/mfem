@@ -400,27 +400,26 @@ struct ho_ker_backend
       }
    }
 
+   /// Reference Hessian of component @a c of the field, into the DIM x DIM
+   /// block @a rarg. Scalar fields pass c = 0.
    template<int SDIM, typename Smem, typename XE_t, typename ArgReg>
    static MFEM_HOST_DEVICE void
-   hess(const int e, const int d, const int q, Smem &s, const XE_t &XE,
-        ArgReg &rarg)
+   hess(const int e, const int d, const int q, const int c, Smem &s,
+        const XE_t &XE, ArgReg &rarg)
    {
       static_assert(SDIM == DIM, "hessian spatial dim must match kernel DIM");
       // The dofs are loaded once and copied per contraction, so
       // we keep two scalar registers rather than a SDIM x SDIM bank.
-      val_reg_t<1> dofs;
-      s_reg_t scratch;
+      s_reg_t dofs, scratch;
       if constexpr (DIM == 2)
       {
-         ker::LoadDofs2d<1, MQ1>(e, d, XE, dofs);
-         ker::Hess2d<SDIM, MQ1>(d, q, s.M, s.B, s.G, s.H, dofs[0], scratch,
-                                rarg);
+         ker::LoadDofs2d<MQ1>(e, d, c, XE, dofs);
+         ker::Hess2d<SDIM, MQ1>(d, q, s.M, s.B, s.G, s.H, dofs, scratch, rarg);
       }
       else
       {
-         ker::LoadDofs3d<1, MQ1>(e, d, XE, dofs);
-         ker::Hess3d<SDIM, MQ1>(d, q, s.M, s.B, s.G, s.H, dofs[0], scratch,
-                                rarg);
+         ker::LoadDofs3d<MQ1>(e, d, c, XE, dofs);
+         ker::Hess3d<SDIM, MQ1>(d, q, s.M, s.B, s.G, s.H, dofs, scratch, rarg);
       }
    }
 
@@ -677,7 +676,10 @@ struct LocalQFHOBackend
                                                    const XE_T &XE,
                                                    ArgRegT &rarg)
    {
-      static_assert(RNK == 2 || RNK == 3);
+      static_assert(RNK == 2 || RNK == 3,
+                    "Hessian: the q-function parameter must be a rank-2 "
+                    "tensor<real_t,dim,dim> (scalar field) or a rank-3 "
+                    "tensor<real_t,vdim,dim,dim> (vector field)");
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
       ker::LoadMatrix(d, q, H, s.H);
@@ -688,7 +690,7 @@ struct LocalQFHOBackend
                        "Hessian q-function parameter must be square (dim x dim)");
          if constexpr (SDIM == DIM)
          {
-            backend_t::template hess<SDIM>(e, d, q, s, XE, rarg);
+            backend_t::template hess<SDIM>(e, d, q, 0, s, XE, rarg);
          }
       }
       else
@@ -701,7 +703,7 @@ struct LocalQFHOBackend
          {
             for (int c = 0; c < VDIM; ++c)
             {
-               backend_t::template hess<SDIM>(e, d, q, s, XE, rarg[c]);
+               backend_t::template hess<SDIM>(e, d, q, c, s, XE, rarg[c]);
             }
          }
       }
