@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,13 +25,18 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
    real_t norm_local = v.Norml2(), norm_global = 0.0;
    MPI_Allreduce(&norm_local, &norm_global, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, MPI_COMM_WORLD);
+#ifdef MFEM_USE_SINGLE
+   constexpr real_t tol = 1e-4;
+#else
+   constexpr real_t tol = 1e-8;
+#endif
    if (small)
    {
-      REQUIRE(norm_global < 1e-8);
+      REQUIRE(norm_global < tol);
    }
    else
    {
-      REQUIRE(norm_global > 1e-8);
+      REQUIRE(norm_global > tol);
    }
 };
 

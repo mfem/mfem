@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -151,6 +151,10 @@ if (MFEM_USE_MPI)
     MAIN phpref.cpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(pref321
+    MAIN pref321.cpp
+    LIBRARIES mfem)
+
   # Add parallel tests.
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
@@ -160,6 +164,7 @@ if (MFEM_USE_MPI)
       fit-node-position
       pminimal-surface
       phpref
+      pref321
     )
     # Meshing miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)

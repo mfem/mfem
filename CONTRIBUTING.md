@@ -6,7 +6,6 @@
 <a href="https://github.com/mfem/mfem/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/badge/License-BSD-blue.svg"></a>
 <a href="https://github.com/mfem/mfem/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/v/release/mfem/mfem"></a>
 <a href="https://github.com/mfem/mfem/actions/workflows/repo-check.yml?query=branch%3Amaster"><img alt="Repo check" src="https://github.com/mfem/mfem/actions/workflows/repo-check.yml/badge.svg?branch=master"></a>
-<a href="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml?query=branch%3Amaster"><img alt="Build Analysis" src="https://github.com/mfem/mfem/actions/workflows/mfem-analysis.yml/badge.svg?branch=master"></a>
 <a href="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml?query=branch%3Amaster"><img alt="Builds and Tests" src="https://github.com/mfem/mfem/actions/workflows/builds-and-tests.yml/badge.svg?branch=master"></a>
 <a href="https://ci.appveyor.com/project/mfem/mfem"><img alt="Build Status" src="https://ci.appveyor.com/api/projects/status/19non9sqm6msi2wy?svg=true"></a>
 <a href="https://docs.mfem.org/html/index.html"><img alt="Documentation" src="https://img.shields.io/badge/code-documented-brightgreen.svg"></a>
@@ -111,7 +110,6 @@ The MFEM source code has the following structure:
   .
   ├── config
   │   ├── cmake
-  │   ├── docker
   │   ├── githooks
   │   └── vcpkg
   ├── data
@@ -244,7 +242,7 @@ device/host memory manager.
 
 #### Examples and tests
 - `examples` and `miniapps` respectively gather simple and more fully-featured
-  demonstrations of the usage on MFEM. They both rely on `data/` for the
+  demonstrations of the usage of MFEM. They both rely on `data/` for the
   collection of meshes.
 - The `tests/` directory contains a unit test suite, additional tests, and
   benchmarks.
@@ -485,7 +483,7 @@ The current list of MFEM editors is:
 
 6. To take a final look and complete the PR merge in *master*. The final look step is optional and shouldn't take more than 3 days.
 
-7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign much shorter review window.
+7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign a much shorter review window.
 
 #### Responsibilities of Reviewers
 
@@ -731,6 +729,10 @@ local Mac and Linux workstations, and Livermore Computing clusters at LLNL.
 In addition, developers can set local git hooks to run some quick checks on
 commit or push, see the [README](config/githooks/README.md) in the `config/githooks`
 directory.
+
+The copyright year can be updated automatically by running
+`config/githooks/pre-push --update-copyright`. Third-party copyright
+notices are not affected.
 
 
 ### GitHub Actions smoke tests

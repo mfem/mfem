@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2281,8 +2281,108 @@ void GridFunction::AccumulateAndCountBdrTangentValues(
    }
 }
 
-void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
+void GridFunction::AccumulateAndCountTraceValues(
+   Coefficient *coeff[], VectorCoefficient *vcoeff,
+   Array<int> &values_counter)
 {
+   if (vcoeff)
+   {
+      MFEM_VERIFY(fes->GetVDim() == vcoeff->GetVDim(),
+                  "vcoeff vdim != fes VDim");
+      MFEM_VERIFY(fes->GetTypicalTraceElement()->GetMapType() ==
+                  FiniteElement::VALUE &&
+                  fes->GetTypicalTraceElement()->GetRangeType() ==
+                  FiniteElement::SCALAR,
+                  "Can only call ProjectTraceCoefficient on scalar value-type "
+                  "trace elements. "
+                  "Use ProjectTraceCoefficientNormal for RT and "
+                  "ProjectTraceCoefficientTangent for ND finite elements.");
+   }
+
+   Array<int> vdofs;
+   Vector vc;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   const int vdim = fes->GetVDim();
+   HostReadWrite();
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+
+      const FiniteElement *fe = fes->GetFaceElement(i);
+      const int fdof = fe->GetDof();
+      ElementTransformation *transf = fes->GetMesh()->GetFaceTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      fes->GetFaceVDofs(i, vdofs);
+
+      for (int j = 0; j < fdof; j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         transf->SetIntPoint(&ip);
+         if (vcoeff) { vcoeff->Eval(vc, *transf, ip); }
+         for (int d = 0; d < vdim; d++)
+         {
+            if (!vcoeff && !coeff[d]) { continue; }
+
+            real_t val = vcoeff ? vc(d) : coeff[d]->Eval(*transf, ip);
+            int ind = vdofs[fdof*d+j];
+            if ( ind < 0 )
+            {
+               val = -val, ind = -1-ind;
+            }
+            if (++values_counter[ind] == 1)
+            {
+               (*this)(ind) = val;
+            }
+            else
+            {
+               (*this)(ind) += val;
+            }
+         }
+      }
+   }
+}
+
+void GridFunction::AccumulateAndCountTraceTangentValues(
+   VectorCoefficient &vcoeff, Array<int> &values_counter)
+{
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()
+               ->GetRangeType() == FiniteElement::VECTOR &&
+               fes->GetTypicalTraceElement()
+               ->GetMapType() == FiniteElement::H_CURL,
+               "Not an ND FE space!");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()->GetPhysRangeDim(
+                  fes->GetMesh()->SpaceDimension()) == vcoeff.GetVDim(),
+               "vcoeff vdim != PhysRangeDim");
+
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   Vector lvec;
+
+   values_counter.SetSize(Size());
+   values_counter = 0;
+
+   HostReadWrite();
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fe = fes->GetFaceElement(i);
+      T = fes->GetMesh()->GetFaceTransformation(i);
+      fes->GetFaceVDofs(i, dofs);
+      lvec.SetSize(fe->GetDof());
+      fe->Project(vcoeff, *T, lvec);
+      accumulate_dofs(dofs, lvec, *this, values_counter);
+   }
+}
+
+void GridFunction::ComputeMeans(AvgType type, const Array<int> &zones_per_vdof)
+{
+   HostReadWrite();
+   zones_per_vdof.HostRead();
    switch (type)
    {
       case ARITHMETIC:
@@ -2417,7 +2517,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
                ProjectCoefficientGlobalL2(coeff);
                return;
             case ProjectType::ELEMENT:
-               constexpr real_t signal = std::numeric_limits<real_t>::min();
+               constexpr real_t signal = -infinity();
 
                for (int i = 0; i < fes->GetNE(); i++)
                {
@@ -2690,7 +2790,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
             ProjectCoefficientGlobalL2(vcoeff);
             return;
          case ProjectType::ELEMENT:
-            constexpr real_t signal = std::numeric_limits<real_t>::min();
+            constexpr real_t signal = -infinity();
             for (int i = 0; i < fes->GetNE(); i++)
             {
                fes->GetElementVDofs(i, vdofs, doftrans);
@@ -2721,6 +2821,74 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
             }
       }
    }
+}
+
+void GridFunction::ProjectTraceCoefficient(Coefficient *coeff[])
+{
+   Array<int> values_counter;
+   AccumulateAndCountTraceValues(coeff, NULL, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+}
+
+void GridFunction::ProjectTraceCoefficient(Coefficient &coeff)
+{
+   MFEM_VERIFY(FESpace()->GetVDim() == 1, "ProjectTraceCoefficient(Coefficient&)"
+               "is only valid for scalar GridFunction");
+   Coefficient *coeff_p = &coeff;
+   ProjectTraceCoefficient(&coeff_p);
+}
+
+void GridFunction::ProjectTraceCoefficient(VectorCoefficient &vcoeff)
+{
+   MFEM_VERIFY(FESpace()->GetVDim() == vcoeff.GetVDim(),
+               "Incompatible vcoeff vdim and fes vdim");
+   Array<int> values_counter;
+   AccumulateAndCountTraceValues(NULL, &vcoeff, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
+}
+
+void GridFunction::ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff)
+{
+   MFEM_VERIFY(fes->GetVDim() == 1, "fespace VDim != 1");
+   MFEM_VERIFY(fes->GetTypicalTraceElement()->GetRangeType() ==
+               FiniteElement::SCALAR &&
+               fes->GetTypicalTraceElement()->GetMapType() ==
+               FiniteElement::INTEGRAL, "Not an RT FE space!");
+   MFEM_VERIFY(vcoeff.GetVDim() == fes->GetMesh()->SpaceDimension(),
+               "vcoeff vdim (" << vcoeff.GetVDim()
+               << ") != SpaceDimension ("
+               << fes->GetMesh()->SpaceDimension() << ")");
+
+   const FiniteElement *fe;
+   ElementTransformation *T;
+   Array<int> dofs;
+   int dim = vcoeff.GetVDim();
+   Vector vc(dim), nor(dim), lvec;
+
+   for (int i = 0; i < fes->GetMesh()->GetNumFaces(); i++)
+   {
+      fe = fes->GetFaceElement(i);
+      T = fes->GetMesh()->GetFaceTransformation(i);
+      const IntegrationRule &ir = fe->GetNodes();
+      lvec.SetSize(fe->GetDof());
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T->SetIntPoint(&ip);
+         vcoeff.Eval(vc, *T, ip);
+         CalcOrtho(T->Jacobian(), nor);
+         lvec(j) = (vc * nor);
+      }
+      fes->GetFaceVDofs(i, dofs);
+      SetSubVector(dofs, lvec);
+   }
+}
+
+void GridFunction::ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff)
+{
+   Array<int> values_counter;
+   AccumulateAndCountTraceTangentValues(vcoeff, values_counter);
+   ComputeMeans(ARITHMETIC, values_counter);
 }
 
 void GridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
@@ -5311,6 +5479,7 @@ PLBound GridFunction::GetBounds(Vector &lower, Vector &upper,
 {
    int max_order = fes->GetMaxElementOrder();
    PLBound plb(fes, ref_factor*(max_order+1));
+
    Vector lel, uel;
    GetElementBounds(plb, lel, uel, vdim);
 

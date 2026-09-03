@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -19,6 +19,8 @@
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
 
+#include "bilininteg_mass_pa_simplices.hpp"
+
 namespace mfem
 {
 
@@ -28,11 +30,8 @@ namespace internal
 {
 
 // PA Mass Diagonal 1D kernel
-static void PAMassAssembleDiagonal1D(const int NE,
-                                     const Array<real_t> &b,
-                                     const Vector &d,
-                                     Vector &y,
-                                     const int D1D,
+inline void PAMassAssembleDiagonal1D(const int NE, const Array<real_t> &b,
+                                     const Vector &d, Vector &y, const int D1D,
                                      const int Q1D)
 {
    auto B = Reshape(b.Read(), Q1D, D1D);
@@ -102,13 +101,9 @@ void PAMassApply1D_Element(const int e,
 }
 
 // PA Mass Apply 1D kernel
-static void PAMassApply1D(const int NE,
-                          const Array<real_t> &b_,
-                          const Array<real_t> &bt_,
-                          const Vector &d_,
-                          const Vector &x_,
-                          Vector &y_,
-                          const int d1d = 0,
+inline void PAMassApply1D(const int NE, const Array<real_t> &b_,
+                          const Array<real_t> &bt_, const Vector &d_,
+                          const Vector &x_, Vector &y_, const int d1d = 0,
                           const int q1d = 0)
 {
    MFEM_VERIFY(d1d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -1408,51 +1403,57 @@ using ApplyKernelType = MassIntegrator::ApplyKernelType;
 using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassApply1D; }
-   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<T_D1D,T_Q1D>; }
+   else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<D1D, Q1D>; }
    else if constexpr (DIM == 3)
    {
-      constexpr int MDQ = T_D1D >= T_Q1D ? T_D1D : T_Q1D;
+      constexpr int MDQ = D1D >= Q1D ? D1D : Q1D;
       // max 64 threads in z limit in cuda and hip
       if constexpr (MDQ > 0)
       {
-         return internal::SmemPAMassApply3D<T_D1D, T_Q1D,
+         return internal::SmemPAMassApply3D<D1D, Q1D,
                 internal::mass::NBZ3D(MDQ)>;
       }
    }
-   MFEM_ABORT("");
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 1) { return internal::PAMassApply1D; }
-   else if (DIM == 2) { return internal::PAMassApply2D; }
-   else if (DIM == 3) { return internal::PAMassApply3D; }
+   if (dim == 1) { return internal::PAMassApply1D; }
+   else if (dim == 2) { return internal::PAMassApply2D; }
+   else if (dim == 3) { return internal::PAMassApply3D; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
-template<int DIM, int T_D1D, int T_Q1D>
+template<int DIM, int D1D, int Q1D>
 DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<T_D1D,T_Q1D>; }
-   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<T_D1D, T_Q1D>; }
-   MFEM_ABORT("");
+   else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<D1D, Q1D>; }
+   else if constexpr (DIM == 3) { return internal::SmemPAMassAssembleDiagonal3D<D1D, Q1D>; }
+   else { MFEM_ABORT(""); }
+   return nullptr;
 }
 
 inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
-   int DIM, int, int)
+   int dim, int, int)
 {
-   if (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
-   else if (DIM == 2) { return internal::PAMassAssembleDiagonal2D; }
-   else if (DIM == 3) { return internal::PAMassAssembleDiagonal3D; }
+   if (dim == 1) { return internal::PAMassAssembleDiagonal1D; }
+   else if (dim == 2) { return internal::PAMassAssembleDiagonal2D; }
+   else if (dim == 3) { return internal::PAMassAssembleDiagonal3D; }
    else { MFEM_ABORT(""); }
+   return nullptr;
 }
+
 /// \endcond DO_NOT_DOCUMENT
+
 } // namespace mfem
 
 #endif

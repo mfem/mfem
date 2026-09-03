@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -28,22 +28,24 @@
 namespace mfem
 {
 
-/** This enumerated type describes the three main projection types:
-    - ELEMENT, assigns the degree of freedom per element, as specified in the
-      specific element
-    - GLOBAL_L2, solves a global L2 projection
-    - ELEMENT_L2, solves a element level L2 projection. Inter element
-      connectivity is dealt with similar as in:
-      Bezier-Projection : A unified approach for local projection and
-      quadrature-free refinement and coarsening of NURBS and T-splines with
-      particular application to isogeometric design and analysis
-      [CMAME (284) 2015 pg 55-105]
-    - DEFAULT, for NURBS spaces this is ELEMENT_L2, while for all other spaces
-      this ELEMENT.
-   Note 1: ELEMENT_L2 also works for non NURBS elements
-   Note 2: For NURBS elements the ELEMENT projection gives results without
-   over and undershoots. However, the gradient near the boundary does not
-   converge.*/
+/** @brief This enumerated type describes the main projection types used by
+    GridFunction::ProjectCoefficient():
+    - ELEMENT: assigns the degrees of freedom element by element, using the
+      nodal interpolation defined by the specific FiniteElement,
+    - GLOBAL_L2: solves a global L2 projection,
+    - ELEMENT_L2: solves element-local L2 projections, with inter-element
+      connectivity treated similarly to Bezier projection, see "Bezier
+      projection: A unified approach for local projection and quadrature-free
+      refinement and coarsening of NURBS and T-splines with particular
+      application to isogeometric design and analysis", CMAME 284 (2015),
+      pp. 55-105,
+    - DEFAULT: for NURBS spaces this is ELEMENT_L2, while for all other spaces
+      it is ELEMENT.
+
+    @note ELEMENT_L2 also works for non-NURBS elements.
+    @note For NURBS elements, the ELEMENT projection gives results without
+    overshoots and undershoots; however, the gradient near the boundary does
+    not converge. */
 enum class ProjectType { DEFAULT, ELEMENT, GLOBAL_L2, ELEMENT_L2 };
 
 /// Class for grid function - Vector with associated FE space.
@@ -414,7 +416,7 @@ public:
        @param[in] ir     Quadrature points at which the gradients are to be
                          evaluated.
        @param[out] grad  Output vector of size `SDIM*VDIM*NQ*NE` where `SDIM` is
-                         the spatial dimention of the mesh, `VDIM` is the vector
+                         the spatial dimension of the mesh, `VDIM` is the vector
                          dimension of the GridFunction, `NQ` is the number of
                          quadrature points in @a ir, and `NE` is the number of
                          elements in the mesh. The layout of @a grad is
@@ -467,7 +469,7 @@ public:
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). For elements without a projection
        member function one could use ProjectCoefficientGlobalL2 instead.
-       NOTE: For parallel simulations with NURBS elements some dofs might
+       @note For parallel simulations with NURBS elements some dofs might
        not be defined, if the evaluation point does not reside on this rank.
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.
@@ -476,7 +478,7 @@ public:
                                    ProjectType type = ProjectType::DEFAULT);
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
-       projection is a global L2 projection. This routine can be used a
+       projection is a global L2 projection. This routine can be used as a
        fallback for elements without a projection member function.*/
    virtual void ProjectCoefficientGlobalL2(Coefficient &coeff,
                                            real_t rtol = 1e-12,
@@ -484,9 +486,9 @@ public:
 
    /** @brief Project @a coeff Coefficient to @a this GridFunction. The
        projection is an element local L2 projection, with an appropriate
-       weighting for Dofs that are shared between elements. Inspired on
-       Bezier-Projection [CMAME (284) 2015 pg 55-105]
-       This routine can be used a fallback for elements without a projection
+       weighting for Dofs that are shared between elements. Inspired by
+       Bezier-Projection [CMAME (284) 2015 pg 55-105].
+       This routine can be used as a fallback for elements without a projection
        member function.*/
    virtual void ProjectCoefficientElementL2(Coefficient &coeff);
 
@@ -500,23 +502,26 @@ public:
        #fes. Note that this is usually interpolation at the degrees of freedom
        in each element (not L2 projection). For elements without a projection
        member function one could use ProjectCoefficientGlobalL2 instead.
-       NOTE: For parallel simulations with NURBS elements some dofs might
+       @note For parallel simulations with NURBS elements some dofs might
        not be defined, if the evaluation point does not reside on this rank.
        If that is the case it is defined on another rank, and the issue is
        rectified with the appropriate communication, see in ParGridFunction.*/
    virtual void ProjectCoefficient(VectorCoefficient &vcoeff,
                                    ProjectType type = ProjectType::DEFAULT);
 
-   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
-       projection is a global L2 projection. This routine can be used a
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection is a global L2 projection. This routine can be used as a
        fallback for elements without a projection member function.*/
    virtual void ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
                                            real_t rtol = 1e-12,
                                            int iter = 1000);
 
-   /** @brief Project @a coeff Coefficient to @a this GridFunction. The
-       projection is a global L2 projection. This routine can be used a
-       fallback for elements without a projection member function.*/
+   /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction. The
+       projection is an element local L2 projection, with an appropriate
+       weighting for Dofs that are shared between elements. Inspired by
+       Bezier-Projection [CMAME (284) 2015 pg 55-105].
+       This routine can be used as a fallback for elements without a projection
+       member function.*/
    virtual void ProjectCoefficientElementL2(VectorCoefficient &vcoeff);
 
    /** @brief Project @a vcoeff VectorCoefficient to @a this GridFunction, using
@@ -586,9 +591,16 @@ protected:
                                            const Array<int> &bdr_attr,
                                            Array<int> &values_counter);
 
+   void AccumulateAndCountTraceValues(Coefficient *coeff[],
+                                      VectorCoefficient *vcoeff,
+                                      Array<int> &values_counter);
+
+   void AccumulateAndCountTraceTangentValues(VectorCoefficient &vcoeff,
+                                             Array<int> &values_counter);
+
    // Complete the computation of averages; called e.g. after
    // AccumulateAndCountZones().
-   void ComputeMeans(AvgType type, Array<int> &zones_per_vdof);
+   void ComputeMeans(AvgType type, const Array<int> &zones_per_vdof);
 
    /// P-refinement version of Update().
    void UpdatePRef();
@@ -605,7 +617,7 @@ protected:
     *  bounds on the sub-intervals.
     *  This process continues until (i) the maximum recursion depth is reached
     *  or (ii) the difference between the minimum upper bound and minimum lower
-    *  bound is less than a certain tolerance (\p tol * [initial maximum
+    *  bound is less than a certain tolerance (\p tol * [initial minimum
     *  upper bound - initial minimum lower bound]).
     *  The function also terminates if the lowest minima estimate is found
     *  to be above the given threshold \p min_threshold. This is useful when
@@ -626,7 +638,7 @@ protected:
                                                     real_t &min_threshold)const;
 
    /** @brief Estimate the maximum value of the GridFunction in element @a elem
-    *  if it is below a certain @a max_threshold.
+    *  if it is above a certain @a max_threshold.
     *
     *  @details For a given element \p elem and grid function component \p vdim
     *  an estimate of the function maximum is the maximum of the piecewise
@@ -670,6 +682,23 @@ public:
       Coefficient *coeff_p = &coeff;
       ProjectBdrCoefficient(&coeff_p, attr);
    }
+
+   /// Project a Coefficient on a GridFunction defined on H1 trace space
+   void ProjectTraceCoefficient(Coefficient *coeff[]);
+   void ProjectTraceCoefficient(Coefficient &coeff);
+
+   /** @brief Project a VectorCoefficient @a vcoeff on a GridFunction
+       defined on a Vector H1 trace space. Note that this also works
+       for a scalar H1 trace space, where only the first component of
+       @a vcoeff is used. */
+   void ProjectTraceCoefficient(VectorCoefficient &vcoeff);
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an RT trace space */
+   void ProjectTraceCoefficientNormal(VectorCoefficient &vcoeff);
+   /** @brief Project a VectorCoefficient on a GridFunction
+       defined on an ND trace space */
+   void ProjectTraceCoefficientTangent(VectorCoefficient &vcoeff);
+
 
    /** @brief Project a VectorCoefficient on the GridFunction, modifying only
        DOFs on the boundary associated with the boundary attributes marked in
@@ -995,7 +1024,7 @@ public:
    ///
    /// @param[in] exsol  VectorCoefficient object reproducing the anticipated
    ///                   values of the vector field, u_ex.
-   /// @param[in] exdiv  VectorCoefficient object reproducing the anticipated
+   /// @param[in] exdiv  Coefficient object reproducing the anticipated
    ///                   values of the divergence of the vector field, du_ex.
    /// @param[in] irs    Optional pointer to an array of custom integration
    ///                   rules e.g. higher order than the default rules. If
@@ -1827,7 +1856,7 @@ public:
                                                      const int max_depth,
                                                      const real_t tol) const;
 
-   /** @brief Estimate the minimum value of the GridFunction in element @a elem.
+   /** @brief Estimate the maximum value of the GridFunction in element @a elem.
     *
     *  @details See the protected version of EstimateFunctionMaximum for
     *  details.
@@ -1962,10 +1991,10 @@ private:
    Mesh *mesh_in;
    Coefficient &sol_in;
 public:
-   /// Constructs an instance of VectorExtrudeCoefficient
+   /// Constructs an instance of ExtrudeCoefficient
    /**
     * @param m      1D mesh
-    * @param s      1D vector coefficient
+    * @param s      1D scalar coefficient
     * @param n_     number of transverse elements of the extruded mesh
     */
    ExtrudeCoefficient(Mesh *m, Coefficient &s, int n_)

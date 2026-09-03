@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -94,10 +94,10 @@ void BatchedLOR_AMS::Form2DEdgeToVertex_RT(Array<int> &edge2vert)
          const int iv0 = ix + iy*op1;
          const int iv1 = ix1 + iy1*op1;
 
-         // Rotated gradient in 2D (-dy, dx), so flip the sign for the first
-         // component (c == 0).
-         e2v(0, iedge) = (c == 1) ? iv0 : iv1;
-         e2v(1, iedge) = (c == 1) ? iv1 : iv0;
+         // 2D curl (dy, -dx), so flip the sign for the second
+         // component (c == 1).
+         e2v(0, iedge) = (c == 0) ? iv0 : iv1;
+         e2v(1, iedge) = (c == 0) ? iv1 : iv0;
       }
    }
 }

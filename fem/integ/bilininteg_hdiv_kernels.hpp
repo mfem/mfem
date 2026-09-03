@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -66,58 +66,29 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
                                   const Vector &op_,
                                   Vector &diag_);
 
-void PAHdivMassApply(const int dim,
-                     const int D1D,
-                     const int Q1D,
-                     const int NE,
-                     const bool symmetric,
-                     const Array<real_t> &Bo,
-                     const Array<real_t> &Bc,
-                     const Array<real_t> &Bot,
-                     const Array<real_t> &Bct,
-                     const Vector &op,
-                     const Vector &x,
-                     Vector &y);
-
 // PA H(div) Mass Apply 2D kernel
-void PAHdivMassApply2D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const bool symmetric,
-                       const Array<real_t> &Bo_,
-                       const Array<real_t> &Bc_,
-                       const Array<real_t> &Bot_,
-                       const Array<real_t> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_);
+void PAHdivMassApply2D(const int NE, const bool symmetric,
+                       const bool scalar_coeff, const Array<real_t> &Bo_,
+                       const Array<real_t> &Bc_, const Array<real_t> &Bot_,
+                       const Array<real_t> &Bct_, const Vector &op_,
+                       const Vector &x_, Vector &y_, const int D1D,
+                       const int TestD1D, const int Q1D);
 
 // PA H(div) Mass Apply 3D kernel
-void PAHdivMassApply3D(const int D1D,
-                       const int Q1D,
-                       const int NE,
-                       const bool symmetric,
-                       const Array<real_t> &Bo_,
-                       const Array<real_t> &Bc_,
-                       const Array<real_t> &Bot_,
-                       const Array<real_t> &Bct_,
-                       const Vector &op_,
-                       const Vector &x_,
-                       Vector &y_);
+void PAHdivMassApply3D(const int NE, const bool symmetric,
+                       const bool scalar_coeff, const Array<real_t> &Bo_,
+                       const Array<real_t> &Bc_, const Array<real_t> &Bot_,
+                       const Array<real_t> &Bct_, const Vector &op_,
+                       const Vector &x_, Vector &y_, const int D1D,
+                       const int TestD1D, const int Q1D);
 
 // Shared memory PA H(div) Mass Apply 2D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAHdivMassApply2D(const int NE,
-                                  const bool symmetric,
-                                  const Array<real_t> &Bo_,
-                                  const Array<real_t> &Bc_,
-                                  const Array<real_t> &Bot_,
-                                  const Array<real_t> &Bct_,
-                                  const Vector &op_,
-                                  const Vector &x_,
-                                  Vector &y_,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void SmemPAHdivMassApply2D(
+   const int NE, const bool symmetric, const bool, const Array<real_t> &Bo_,
+   const Array<real_t> &Bc_, const Array<real_t> &Bot_,
+   const Array<real_t> &Bct_, const Vector &op_, const Vector &x_, Vector &y_,
+   const int d1d = 0, const int = 0, const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(Bot_);
    MFEM_CONTRACT_VAR(Bct_);
@@ -280,18 +251,13 @@ inline void SmemPAHdivMassApply2D(const int NE,
 }
 
 // Shared memory PA H(div) Mass Apply 3D kernel
-template<int T_D1D = 0, int T_Q1D = 0>
-inline void SmemPAHdivMassApply3D(const int NE,
-                                  const bool symmetric,
-                                  const Array<real_t> &Bo_,
-                                  const Array<real_t> &Bc_,
-                                  const Array<real_t> &Bot_,
-                                  const Array<real_t> &Bct_,
-                                  const Vector &op_,
-                                  const Vector &x_,
-                                  Vector &y_,
-                                  const int d1d = 0,
-                                  const int q1d = 0)
+template <int T_D1D = 0, int T_Q1D = 0>
+inline void
+SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
+                      const Array<real_t> &Bo_, const Array<real_t> &Bc_,
+                      const Array<real_t> &Bot_, const Array<real_t> &Bct_,
+                      const Vector &op_, const Vector &x_, Vector &y_,
+                      const int d1d = 0, const int = 0, const int q1d = 0)
 {
    MFEM_CONTRACT_VAR(Bot_);
    MFEM_CONTRACT_VAR(Bct_);
@@ -627,18 +593,14 @@ void PADivDivApply3D(const int D1D,
                      Vector &y_);
 
 // PA H(div)-L2 Assemble 2D kernel
-void PAHdivL2Setup2D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op);
+// if geom != nullptr, then coeff_ is divided by detJ
+void PAHdivL2Setup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom);
 
 // PA H(div)-L2 Assemble 3D kernel
-void PAHdivL2Setup3D(const int Q1D,
-                     const int NE,
-                     const Array<real_t> &w,
-                     Vector &coeff_,
-                     Vector &op);
+// if geom != nullptr, then coeff_ is divided by detJ
+void PAHdivL2Setup3D(const int Q1D, const int NE, const Array<real_t> &w,
+                     Vector &coeff_, Vector &op, const GeometricFactors *geom);
 
 // PA H(div)-L2 Diagonal 2D kernel
 void PAHdivL2AssembleDiagonal_ADAt_2D(const int D1D,

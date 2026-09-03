@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2015,18 +2015,37 @@ void ParMesh::DeleteFaceNbrData()
    send_face_nbr_vertices.Clear();
 }
 
-void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering)
+std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF() const
+{
+   int mesh_poly_deg =
+      Nodes != NULL ? Nodes->FESpace()->GetMaxElementOrder() : 1;
+   // determinant order is d*p-1 for tensor product elements and
+   // d*(p-1) for simplices. We use the former here for simplicity.
+   int det_order = Dim*mesh_poly_deg-1;
+   L2_FECollection *fec_det = new L2_FECollection(det_order, Dim,
+                                                  BasisType::GaussLobatto);
+   ParFiniteElementSpace *fespace_det =
+      new ParFiniteElementSpace(const_cast<ParMesh *>(this), fec_det);
+   auto detgf = std::make_unique<ParGridFunction>(fespace_det);
+   detgf->MakeOwner(fec_det);
+   Mesh::UpdateJacobianDeterminantGF(*detgf.get());
+   return detgf;
+}
+
+void ParMesh::SetCurvature(int order, bool discont, int space_dim, int ordering,
+                           int pyrtype)
 {
    DeleteFaceNbrData();
    space_dim = (space_dim == -1) ? spaceDim : space_dim;
    FiniteElementCollection* nfec;
    if (discont)
    {
-      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto);
+      nfec = new L2_FECollection(order, Dim, BasisType::GaussLobatto,
+                                 FiniteElement::VALUE, pyrtype);
    }
    else
    {
-      nfec = new H1_FECollection(order, Dim);
+      nfec = new H1_FECollection(order, Dim, BasisType::GaussLobatto, pyrtype);
    }
    ParFiniteElementSpace* nfes = new ParFiniteElementSpace(this, nfec, space_dim,
                                                            ordering);
@@ -2701,7 +2720,7 @@ ParMesh::AddTriFaces(const Array<int> &elem_vertices,
       // Check amongst the faces of elements local to this rank for this set of vertices
       const int lf = faces->Index(elem_fv.v[0], elem_fv.v[1], elem_fv.v[2]);
 
-      // If the face wasn't found amonst processor local elements, search the
+      // If the face wasn't found amongst processor local elements, search the
       // ghosts for this set of vertices.
       const int sf = lf < 0 ? shared_faces->Index(elem_fv.v[0], elem_fv.v[1],
                                                   elem_fv.v[2]) : -1;
@@ -4845,6 +4864,13 @@ void ParMesh::Print(std::ostream &os, const std::string &comments) const
    if (IsNURBS())
    {
       Printer(os, "", comments); // does not print shared boundary
+      return;
+   }
+
+   if (pncmesh && pncmesh->using_scaling)
+   {
+      // For nodes scaling, we write the file in the format MFEM NC mesh v1.1.
+      Printer(os, "", comments);
       return;
    }
 

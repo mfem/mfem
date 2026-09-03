@@ -29,15 +29,11 @@ Runs a number of static repository-level sanity checks.
 
 - `branch-history` guards against accidental commits of large files using the `--history` option of the `config/githooks/pre-push` script.
 
-## `mfem-analysis.yml` (`build-analysis`)
-
-Checks if the code builds and satisfies minimal requirements.
-
-- `gitignore` builds hypre, METIS, and MFEM using `mfem/github-actions/build-hypre`, `mfem/github-actions/build-metis`, and `mfem/github-actions/build-mfem` and checks for correct `.gitignore` settings by running the `tests/scripts/gitignore` script.
-
 ## `builds-and-tests.yml`
 
 Runs a matrix of builds and tests runs with different compilers, OS, mfem/hypre settings, etc. Also processes and upload Codecov reports.
+
+One matrix job runs `tests/scripts/gitignore` after `make test-noclean` to check generated artifacts against `.gitignore`.
 
 Uses the following GitHub Actions from <https://github.com/mfem/github-actions>:
 

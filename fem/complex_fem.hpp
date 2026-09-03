@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -166,6 +166,75 @@ public:
       return sqrt(err_r * err_r + err_i * err_i);
    }
 
+   /// @brief Returns Max|u_ex - u_h| error for complex-valued H1 or L2 elements
+   ///
+   /// Compute the $L_\infty$ error across the entire domain.
+   ///
+   /// @param[in] exsolr  Coefficient object reproducing the real part of the
+   ///                    anticipated values of the scalar field, Re(u_ex).
+   /// @param[in] exsoli  Coefficient object reproducing the imaginary part of
+   ///                    the anticipated values of the scalar field, Im(u_ex).
+   /// @param[in] irs        Optional pointer to an array of custom integration
+   ///                       rules e.g. higher order than the default rules. If
+   ///                       present the array will be indexed by
+   ///                       Geometry::Type.
+   ///
+   /// @note Uses ComputeLpError internally. See the ComputeLpError
+   ///       documentation for generalizations of this error computation.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   virtual real_t ComputeMaxError(Coefficient &exsolr,
+                                  Coefficient &exsoli,
+                                  const IntegrationRule *irs[] = NULL) const
+   {
+      return ComputeLpError(infinity(), exsolr, exsoli, NULL, irs);
+   }
+
+   /// @brief Returns ||u_ex - u_h||_Lp for complex-valued H1 or L2 elements
+   ///
+   /// Computes:
+   ///    $$(\sum_{elems} \int_{elem} w \, |u_{ex} - u_h|^p)^{1/p}$$
+   /// Where:
+   ///    $$|u_{ex} - u_h| = \sqrt{Re(u_{ex} - u_h)^2 + Im(u_{ex} - u_h)^2}$$
+   ///
+   /// @param[in] p       Real value indicating the exponent of the $L^p$ norm.
+   ///                    To avoid domain errors p should have a positive value,
+   ///                    either finite or infinite.
+   /// @param[in] exsolr  Coefficient object reproducing the real part of the
+   ///                    anticipated values of the scalar field, Re(u_ex).
+   /// @param[in] exsoli  Coefficient object reproducing the imaginary part of
+   ///                    the anticipated values of the scalar field, Im(u_ex).
+   /// @param[in] weight  Optional pointer to a Coefficient object reproducing
+   ///                    a weighting function, w.
+   /// @param[in] irs     Optional pointer to an array of custom integration
+   ///                    rules e.g. higher order than the default rules. If
+   ///                    present the array will be indexed by Geometry::Type.
+   /// @param[in] elems   Optional pointer to a marker array, with a length
+   ///                    equal to the number of local elements, indicating
+   ///                    which elements to integrate over. Only those elements
+   ///                    corresponding to non-zero entries in @a elems will
+   ///                    contribute to the computed L2 error.
+   ///
+   /// @note If an array of integration rules is provided through @a irs, be
+   ///       sure to include valid rules for each element type that may occur
+   ///       in the list of elements.
+   ///
+   /// @note Quadratures with negative weights (as in some simplex integration
+   ///       rules in MFEM) can produce negative integrals even with
+   ///       non-negative integrands. To avoid returning negative errors this
+   ///       function uses the absolute values of the element-wise integrals.
+   ///       This may lead to results which are not entirely consistent with
+   ///       such integration rules.
+   virtual real_t ComputeLpError(const real_t p,
+                                 Coefficient &exsolr,
+                                 Coefficient &exsoli,
+                                 Coefficient *weight = NULL,
+                                 const IntegrationRule *irs[] = NULL,
+                                 const Array<int> *elems = NULL) const;
+
    /// Save the ComplexGridFunction to an output stream.
    virtual void Save(std::ostream &out) const;
 
@@ -323,6 +392,9 @@ private:
    bool RealInteg();
    bool ImagInteg();
 
+   void BuildComplexOperator(OperatorHandle &A_r, OperatorHandle &A_i,
+                             OperatorHandle &A) const;
+
 public:
    SesquilinearForm(FiniteElementSpace *fes,
                     ComplexOperator::Convention
@@ -434,6 +506,186 @@ public:
    Matrix::DiagonalPolicy GetDiagonalPolicy() const {return diag_policy;}
 
    virtual ~SesquilinearForm();
+};
+
+/** Class for a mixed sesquilinear form
+
+    A mixed sesquilinear form is a generalization of a mixed bilinear form to
+    complex-valued fields. Mixed sesquilinear forms are linear in the second
+    argument but the first argument involves a complex conjugate in the sense
+    that:
+
+                a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the MixedSesquilinearForm either the real or
+    imaginary integrator can be NULL. This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
+class MixedSesquilinearForm
+{
+private:
+   ComplexOperator::Convention conv;
+
+   MixedBilinearForm * mblfr;
+   MixedBilinearForm * mblfi;
+
+   /* These methods check if the real/imag parts of the sesqulinear form are not
+      empty */
+   bool RealInteg();
+   bool ImagInteg();
+
+public:
+   MixedSesquilinearForm(
+      FiniteElementSpace * trial_fes,
+      FiniteElementSpace * test_fes,
+      ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
+
+   /** @brief Create a MixedSesquilinearForm on the given trial and test
+       FiniteElementSpaces, using the same integrators as the
+       MixedBilinearForms @a bfr and @a bfi.
+
+       The FiniteElementSpace pointers are not owned by the newly constructed
+       object.
+
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed MixedSesquilinearForm. */
+   MixedSesquilinearForm(
+      FiniteElementSpace * trial_fes,
+      FiniteElementSpace * test_fes,
+      MixedBilinearForm * bfr,
+      MixedBilinearForm * bfi,
+      ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
+
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention & convention) { conv = convention; }
+
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      mblfr->SetAssemblyLevel(assembly_level);
+      mblfi->SetAssemblyLevel(assembly_level);
+   }
+
+   MixedBilinearForm & real() { return *mblfr; }
+   MixedBilinearForm & imag() { return *mblfi; }
+   const MixedBilinearForm & real() const { return *mblfr; }
+   const MixedBilinearForm & imag() const { return *mblfi; }
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                            BilinearFormIntegrator * bfi_imag);
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                            BilinearFormIntegrator * bfi_imag,
+                            Array<int> & elem_marker);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
+                              BilinearFormIntegrator * bfi_imag);
+
+   /** @brief Adds new boundary Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The mfem::array @a bdr_marker is stored internally as a pointer to the given
+       mfem::Array<int> object. */
+   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
+                              BilinearFormIntegrator * bfi_imag,
+                              Array<int> & bdr_marker);
+
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                             BilinearFormIntegrator * bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The mfem::array @a bdr_marker is stored internally as a pointer to the given
+       mfem::Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                             BilinearFormIntegrator * bfi_imag,
+                             Array<int> & bdr_marker);
+
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
+       This type of integrator assembles terms over all faces of the mesh using
+       the face FE from the trial space and the two adjacent volume FEs from
+       the test space. */
+   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                               BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag,
+                                  Array<int> &bdr_marker);
+
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+
+   /// Finalizes the matrix initialization.
+   void Finalize(int skip_zeros = 1);
+
+   /// Updates the internal mixed forms with the new finite element space.
+   virtual void Update();
+
+   /** @brief Return a ComplexSparseMatrix wrapping the local (L-dof) real
+       and imaginary matrices of the form.
+
+       The returned wrapper has to be deleted by the caller, but it does not
+       own the wrapped real and imaginary matrices, which remain owned by
+       this form. */
+   ComplexSparseMatrix *AssembleComplexSparseMatrix();
+
+   /// Return the trial FE space associated with the MixedSesquilinearForm.
+   FiniteElementSpace *TrialFESpace() { return mblfr->TrialFESpace(); }
+
+   /// Read-only access to the associated trial FiniteElementSpace.
+   const FiniteElementSpace *TrialFESpace() const { return mblfr->TrialFESpace(); }
+
+   /// Return the test FE space associated with the MixedSesquilinearForm.
+   FiniteElementSpace *TestFESpace() { return mblfr->TestFESpace(); }
+
+   /// Read-only access to the associated test FiniteElementSpace.
+   const FiniteElementSpace *TestFESpace() const { return mblfr->TestFESpace(); }
+
+
+   void FormRectangularLinearSystem(const Array<int> & ess_trial_tdof_list,
+                                    const Array<int> & ess_test_tdof_list,
+                                    Vector & x,
+                                    Vector & b,
+                                    OperatorHandle & A,
+                                    Vector & X,
+                                    Vector & B);
+
+   void FormRectangularSystemMatrix(const Array<int> & ess_trial_tdof_list,
+                                    const Array<int> & ess_test_tdof_list,
+                                    OperatorHandle & A);
+
+   virtual ~MixedSesquilinearForm();
 };
 
 #ifdef MFEM_USE_MPI
@@ -737,6 +989,12 @@ private:
    bool RealInteg();
    bool ImagInteg();
 
+   void SetImaginaryEssentialDiagonalToZero(
+      const Array<int> &ess_tdof_list, OperatorHandle &A);
+
+   void BuildComplexOperator(OperatorHandle &A_r, OperatorHandle &A_i,
+                             OperatorHandle &A) const;
+
 public:
    ParSesquilinearForm(ParFiniteElementSpace *pf,
                        ComplexOperator::Convention
@@ -850,6 +1108,169 @@ public:
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
    virtual ~ParSesquilinearForm();
+};
+
+/** Class for a parallel mixed sesquilinear form
+
+    A mixed sesquilinear form is a generalization of a mixed bilinear form to
+    complex-valued fields. Mixed sesquilinear forms are linear in the second
+    argument but the first argument involves a complex conjugate in the sense
+    that:
+
+                a(alpha u, beta v) = conj(alpha) beta a(u, v)
+
+    The @a convention argument in the class's constructor is documented in the
+    mfem::ComplexOperator class found in linalg/complex_operator.hpp.
+
+    When supplying integrators to the ParMixedSesquilinearForm either the real
+    or imaginary integrator can be NULL. This indicates that the corresponding
+    portion of the complex-valued material coefficient is equal to zero.
+*/
+class ParMixedSesquilinearForm
+{
+private:
+   ComplexOperator::Convention conv;
+
+   ParMixedBilinearForm * pmblfr;
+   ParMixedBilinearForm * pmblfi;
+
+   /* These methods check if the real/imag parts of the sesqulinear form are
+    not empty */
+   bool RealInteg();
+   bool ImagInteg();
+
+public:
+   ParMixedSesquilinearForm(
+      ParFiniteElementSpace * trial_fes,
+      ParFiniteElementSpace * test_fes,
+      ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
+
+   /** @brief Create a ParMixedSesquilinearForm on the given trial and test
+       ParFiniteElementSpaces, using the same integrators as the
+       ParMixedBilinearForms @a pbfr and @a pbfi.
+
+       The ParFiniteElementSpace pointers are not owned by the newly
+       constructed object.
+
+       The integrators are copied as pointers and they are not owned by the
+       newly constructed ParMixedSesquilinearForm. */
+   ParMixedSesquilinearForm(
+      ParFiniteElementSpace * trial_fes,
+      ParFiniteElementSpace * test_fes,
+      ParMixedBilinearForm * pbfr,
+      ParMixedBilinearForm * pbfi,
+      ComplexOperator::Convention convention = ComplexOperator::HERMITIAN);
+
+   ComplexOperator::Convention GetConvention() const { return conv; }
+   void SetConvention(const ComplexOperator::Convention & convention) { conv = convention; }
+
+   /// Set the desired assembly level.
+   /** Valid choices are:
+
+       - AssemblyLevel::LEGACY (default)
+       - AssemblyLevel::FULL
+       - AssemblyLevel::PARTIAL
+       - AssemblyLevel::ELEMENT
+       - AssemblyLevel::NONE
+
+       This method must be called before assembly. */
+   void SetAssemblyLevel(AssemblyLevel assembly_level)
+   {
+      pmblfr->SetAssemblyLevel(assembly_level);
+      pmblfi->SetAssemblyLevel(assembly_level);
+   }
+
+   ParMixedBilinearForm & real() { return *pmblfr; }
+   ParMixedBilinearForm & imag() { return *pmblfi; }
+   const ParMixedBilinearForm & real() const { return *pmblfr; }
+   const ParMixedBilinearForm & imag() const { return *pmblfi; }
+
+   /// Adds new Domain Integrator.
+   void AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                            BilinearFormIntegrator * bfi_imag);
+
+   /// Adds new Domain Integrator, restricted to specific attributes.
+   void AddDomainIntegrator(BilinearFormIntegrator * bfi_real,
+                            BilinearFormIntegrator * bfi_imag,
+                            Array<int> & elem_marker);
+
+   /// Adds new Boundary Integrator.
+   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
+                              BilinearFormIntegrator * bfi_imag);
+
+   /** @brief Adds new boundary Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The mfem::array @a bdr_marker is stored internally as a pointer to the given
+       mfem::Array<int> object. */
+   void AddBoundaryIntegrator(BilinearFormIntegrator * bfi_real,
+                              BilinearFormIntegrator * bfi_imag,
+                              Array<int> & bdr_marker);
+
+   /// Adds new interior Face Integrator. Assumes ownership of @a bfi.
+   void AddInteriorFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag);
+
+   /// Adds new boundary Face Integrator. Assumes ownership of @a bfi.
+   void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                             BilinearFormIntegrator * bfi_imag);
+
+   /** @brief Adds new boundary Face Integrator, restricted to specific boundary
+       attributes.
+
+       Assumes ownership of @a bfi.
+
+       The mfem::array @a bdr_marker is stored internally as a pointer to the given
+       mfem::Array<int> object. */
+   void AddBdrFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                             BilinearFormIntegrator * bfi_imag,
+                             Array<int> & bdr_marker);
+
+   /** @brief Add a trace face integrator. Assumes ownership of @a bfi.
+
+      This type of integrator assembles terms over all faces of the mesh using
+      the face FE from the trial space and the two adjacent volume FEs from
+      the test space. */
+   void AddTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                               BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag);
+
+   /// Adds a boundary trace face integrator. Assumes ownership of @a bfi.
+   void AddBdrTraceFaceIntegrator(BilinearFormIntegrator * bfi_real,
+                                  BilinearFormIntegrator * bfi_imag,
+                                  Array<int> &bdr_marker);
+
+   /// Assemble the local matrix
+   void Assemble(int skip_zeros = 1);
+
+   /// Finalizes the matrix initialization.
+   void Finalize(int skip_zeros = 1);
+
+   /// Updates the internal mixed forms with the new finite element space.
+   virtual void Update();
+
+   /// Returns the matrix assembled on the true dofs, i.e. P^t A P.
+   /** The returned matrix has to be deleted by the caller. */
+   ComplexHypreParMatrix * ParallelAssemble();
+
+   void FormRectangularLinearSystem(const Array<int> & ess_trial_tdof_list,
+                                    const Array<int> & ess_test_tdof_list,
+                                    Vector & x,
+                                    Vector & b,
+                                    OperatorHandle & A,
+                                    Vector & X,
+                                    Vector & B);
+
+   void FormRectangularSystemMatrix(const Array<int> & ess_trial_tdof_list,
+                                    const Array<int> & ess_test_tdof_list,
+                                    OperatorHandle & A);
+
+   virtual ~ParMixedSesquilinearForm();
 };
 
 #endif // MFEM_USE_MPI

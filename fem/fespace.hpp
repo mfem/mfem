@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,7 @@
 #include "restriction.hpp"
 #include <iostream>
 #include <unordered_map>
+#include <vector>
 
 namespace mfem
 {
@@ -1108,7 +1109,7 @@ public:
    /// default value), then the number of Dofs is <determined by the
    /// FiniteElementSpace::GetNDofs().
    ///
-   /// @note The @a dofs array is overwritten and resized to accomodate the
+   /// @note The @a dofs array is overwritten and resized to accommodate the
    /// new values.
    void DofsToVDofs(Array<int> &dofs, int ndofs = -1) const;
 
@@ -1400,6 +1401,80 @@ public:
    virtual void GetExteriorTrueDofs(Array<int> &exterior_dofs,
                                     int component = -1) const;
 
+   /** @brief Extract the edge degrees of freedom of a boundary "loop".
+
+       Here a "loop" is the set of boundary edges bounding the region covered by
+       @a boundary_element_indices: in 3D the outer edges of a patch of boundary
+       faces, in 2D the boundary segments themselves. An edge that is shared by
+       two (or more) of the selected boundary elements is interior to that region
+       rather than on its bounding loop, so its DOFs are excluded from the result.
+       This exclusion of interior DOFs is the defining feature of the method.
+
+       The three output arrays share a single indexing: for each valid index @a i,
+       @a dof_edges[i] and @a dof_boundary_elements[i] describe the DOF
+       @a boundary_edge_dofs[i].
+
+       @param[in]  boundary_element_indices Boundary element indices spanning a
+                   boundary surface (3D) or curve (2D).
+       @param[out] boundary_edge_dofs Local DOF indices on the boundary loop.
+       @param[out] dof_edges Optional; local edge index carrying each DOF.
+       @param[out] dof_boundary_elements Optional; a boundary element containing
+                   each DOF.
+
+       @note In 3D the edge DOFs are extracted from the 1D edges of the 2D
+       boundary faces; in 2D they come directly from the 1D boundary segments, so
+       @a dof_edges then holds the boundary element (segment) edge indices.
+       @note This method uses GetEdgeDofs internally, which returns both vertex and
+       edge DOFs. Standard Nédélec elements (ND_FECollection) have no vertex DOFs,
+       so only genuine edge DOFs appear. Collections that carry vertex DOFs (e.g.
+       ND_R2D_FECollection) additionally contribute the vertex DOFs at loop
+       endpoints.
+       @note This is the serial version. For parallel meshes, use the parallel
+       version in ParFiniteElementSpace which handles processor boundaries
+       correctly.
+       @note Requires a 2D or 3D mesh to identify edge objects. The method will
+       assert if called on 1D meshes.
+       @note Only supports conforming meshes; non-conforming meshes are not
+       supported. */
+   void GetBoundaryLoopEdgeDofs(const Array<int> &boundary_element_indices,
+                                Array<int> &boundary_edge_dofs,
+                                Array<int> *dof_edges = nullptr,
+                                Array<int> *dof_boundary_elements = nullptr) const;
+
+   /** @brief Get boundary elements grouped by attribute.
+
+       For each attribute in @a bdr_attrs, collect the indices of all boundary
+       elements carrying that attribute. The result is indexed to match
+       @a bdr_attrs: @a attr_to_elements[i] holds the boundary elements with
+       attribute @a bdr_attrs[i]. */
+   void GetBoundaryElementsByAttribute(
+      const Array<int> &bdr_attrs,
+      std::vector<Array<int>> &attr_to_elements) const;
+
+   /** @brief Get all boundary elements with a specific attribute. */
+   void GetBoundaryElementsByAttribute(int bdr_attr,
+                                       Array<int> &boundary_elements) const;
+
+   /** @brief Compute edge orientations relative to a boundary loop direction.
+
+       For each boundary-loop DOF described by @a dof_edges and
+       @a dof_boundary_elements (see GetBoundaryLoopEdgeDofs), determine whether
+       the carrying edge is
+       traversed in the direction consistent with @a loop_normal, following the
+       right-hand rule. Intended for 3D meshes.
+
+       @param[in]  dof_edges Local edge index of each DOF (parallel-indexed with
+                   the boundary_edge_dofs output of GetBoundaryLoopEdgeDofs).
+       @param[in]  dof_boundary_elements A boundary element containing each DOF,
+                   using the same indexing as @a dof_edges.
+       @param[in]  loop_normal Normal vector defining the loop orientation.
+       @param[out] dof_orientations Orientation (+1 or -1) for each DOF, using the
+                   same indexing as @a dof_edges. */
+   void ComputeLoopEdgeOrientations(const Array<int> &dof_edges,
+                                    const Array<int> &dof_boundary_elements,
+                                    const Vector &loop_normal,
+                                    Array<int> &dof_orientations) const;
+
    /// Convert a Boolean marker array to a list containing all marked indices.
    static void MarkerToList(const Array<int> &marker, Array<int> &list);
 
@@ -1523,6 +1598,18 @@ public:
    bool IsDGSpace() const
    {
       return dynamic_cast<const L2_FECollection*>(fec) != NULL;
+   }
+
+   /// @brief Return true if the mesh contains only one topology, the elements are
+   /// all triangles or tetrahedrons, and the elements are ragged tensor elements
+   /// i.e. Bernstein/positive basis.
+   bool UsesRaggedTensorBasis() const
+   {
+      bool simplex = this->GetMesh()->IsSimplexMesh();
+      bool positive =
+         dynamic_cast<const mfem::H1Pos_TriangleElement *>(this->GetTypicalFE()) ||
+         dynamic_cast<const mfem::H1Pos_TetrahedronElement *>(this->GetTypicalFE());
+      return simplex && positive;
    }
 
    /** In variable-order spaces on nonconforming (NC) meshes, this function

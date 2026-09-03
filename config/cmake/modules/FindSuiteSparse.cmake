@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -22,15 +22,15 @@ include(MfemCmakeUtilities)
 mfem_find_package(SuiteSparse SuiteSparse SuiteSparse_DIR "" "" "" ""
   "Paths to headers required by SuiteSparse."
   "Libraries required by SuiteSparse."
-  ADD_COMPONENT "UMFPACK" "include;suitesparse" umfpack.h "lib" umfpack
-  ADD_COMPONENT "KLU" "include;suitesparse" klu.h "lib" klu
-  ADD_COMPONENT "AMD" "include;suitesparse" amd.h "lib" amd
-  ADD_COMPONENT "BTF" "include;suitesparse" btf.h "lib" btf
-  ADD_COMPONENT "CHOLMOD" "include;suitesparse" cholmod.h "lib" cholmod
-  ADD_COMPONENT "COLAMD" "include;suitesparse" colamd.h "lib" colamd
-  ADD_COMPONENT "CAMD" "include;suitesparse" camd.h "lib" camd
-  ADD_COMPONENT "CCOLAMD" "include;suitesparse" ccolamd.h "lib" ccolamd
-  ADD_COMPONENT "config" "include;suitesparse" SuiteSparse_config.h "lib"
+  ADD_COMPONENT "UMFPACK" "include;include/suitesparse;suitesparse" umfpack.h "lib" umfpack
+  ADD_COMPONENT "KLU" "include;include/suitesparse;suitesparse" klu.h "lib" klu
+  ADD_COMPONENT "AMD" "include;include/suitesparse;suitesparse" amd.h "lib" amd
+  ADD_COMPONENT "BTF" "include;include/suitesparse;suitesparse" btf.h "lib" btf
+  ADD_COMPONENT "CHOLMOD" "include;include/suitesparse;suitesparse" cholmod.h "lib" cholmod
+  ADD_COMPONENT "COLAMD" "include;include/suitesparse;suitesparse" colamd.h "lib" colamd
+  ADD_COMPONENT "CAMD" "include;include/suitesparse;suitesparse" camd.h "lib" camd
+  ADD_COMPONENT "CCOLAMD" "include;include/suitesparse;suitesparse" ccolamd.h "lib" ccolamd
+  ADD_COMPONENT "config" "include;include/suitesparse;suitesparse" SuiteSparse_config.h "lib"
     suitesparseconfig)
 
 if (SuiteSparse_FOUND AND METIS_VERSION_5)

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,6 +16,9 @@
 #include "../general/array.hpp"
 #include "operator.hpp"
 #include "blockvector.hpp"
+#ifdef MFEM_USE_MPI
+#include "hypre.hpp"
+#endif
 
 namespace mfem
 {
@@ -104,6 +107,15 @@ public:
 
    /// Action of the transpose operator
    void MultTranspose (const Vector & x, Vector & y) const override;
+
+#ifdef MFEM_USE_MPI
+   /** @brief Returns a monolithic HypreParMatrix formed by merging the blocks of
+       this BlockOperator, assuming every block is a HypreParMatrix.
+
+       The returned matrix is newly allocated and owned by the caller, who is
+       responsible for deleting it. */
+   HypreParMatrix * GetMonolithicHypreParMatrix() const;
+#endif
 
    ~BlockOperator();
 

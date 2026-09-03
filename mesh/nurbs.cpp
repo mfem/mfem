@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1354,22 +1354,27 @@ NURBSPatch::NURBSPatch(std::istream &input)
    int pdim, dim, size = 1;
    string ident;
 
+   skip_comment_lines(input, '#');
    input >> ws >> ident >> pdim; // knotvectors
    kv.SetSize(pdim);
    for (int i = 0; i < pdim; i++)
    {
+      skip_comment_lines(input, '#');
       kv[i] = new KnotVector(input);
       size *= kv[i]->GetNCP();
    }
 
+   skip_comment_lines(input, '#');
    input >> ws >> ident >> dim; // dimension
    init(dim + 1);
 
+   skip_comment_lines(input, '#');
    input >> ws >> ident; // controlpoints (homogeneous coordinates)
    if (ident == "controlpoints" || ident == "controlpoints_homogeneous")
    {
       for (int j = 0, i = 0; i < size; i++)
       {
+         skip_comment_lines(input, '#');
          for (int d = 0; d <= dim; d++, j++)
          {
             input >> data[j];
@@ -1380,6 +1385,7 @@ NURBSPatch::NURBSPatch(std::istream &input)
    {
       for (int j = 0, i = 0; i < size; i++)
       {
+         skip_comment_lines(input, '#');
          for (int d = 0; d <= dim; d++)
          {
             input >> data[j+d];
