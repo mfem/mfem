@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -69,12 +69,14 @@ void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
    nblocks = fes.Size();
    rblocks = 0;
    tr_fes.SetSize(nblocks);
+   tr_fec.SetSize(nblocks);
    mesh = fes[0]->GetMesh();
 
    IsTraceSpace.SetSize(nblocks);
    const FiniteElementCollection * fec;
    for (int i = 0; i < nblocks; i++)
    {
+      tr_fec[i] = nullptr;
       fec = fes[i]->FEColl();
       IsTraceSpace[i] =
          (dynamic_cast<const H1_Trace_FECollection*>(fec) ||
@@ -86,21 +88,24 @@ void BlockStaticCondensation::SetSpaces(Array<FiniteElementSpace*> & fes_)
          pmesh = dynamic_cast<ParMesh *>(mesh);
          tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                      nullptr : (IsTraceSpace[i]) ? fes[i] :
-                     new ParFiniteElementSpace(pmesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                     new ParFiniteElementSpace(pmesh, tr_fec[i] = fec->GetTraceCollection(),
+                                               fes[i]->GetVDim(),
                                                fes[i]->GetOrdering());
       }
       else
       {
          tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                      nullptr : (IsTraceSpace[i]) ? fes[i] :
-                     new FiniteElementSpace(mesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                     new FiniteElementSpace(mesh, tr_fec[i] = fec->GetTraceCollection(),
+                                            fes[i]->GetVDim(),
                                             fes[i]->GetOrdering());
       }
 #else
       // skip if it's an L2 space (no trace space to construct)
       tr_fes[i] = (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ?
                   nullptr : (IsTraceSpace[i]) ? fes[i] :
-                  new FiniteElementSpace(mesh, fec->GetTraceCollection(), fes[i]->GetVDim(),
+                  new FiniteElementSpace(mesh, tr_fec[i] = fec->GetTraceCollection(),
+                                         fes[i]->GetVDim(),
                                          fes[i]->GetOrdering());
 #endif
       if (tr_fes[i]) { rblocks++; }
@@ -431,7 +436,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
    }
 
    // Assemble global mat and rhs
-   DofTransformation * doftrans_i, *doftrans_j;
+   DofTransformation doftrans_i, doftrans_j;
 
    Array<int> faces, ori;
    int dim = mesh->Dimension();
@@ -459,7 +464,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
    {
       if (!tr_fes[i]) { continue; }
       Array<int> vdofs_i;
-      doftrans_i = nullptr;
+      doftrans_i.SetDofTransformation(nullptr);
       if (IsTraceSpace[i])
       {
          Array<int> face_vdofs;
@@ -472,14 +477,14 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
       }
       else
       {
-         doftrans_i = tr_fes[i]->GetElementVDofs(el, vdofs_i);
+         tr_fes[i]->GetElementVDofs(el, vdofs_i, doftrans_i);
       }
       int skip_j=0;
       for (int j = 0; j<tr_fes.Size(); j++)
       {
          if (!tr_fes[j]) { continue; }
          Array<int> vdofs_j;
-         doftrans_j = nullptr;
+         doftrans_j.SetDofTransformation(nullptr);
 
          if (IsTraceSpace[j])
          {
@@ -493,16 +498,13 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
          }
          else
          {
-            doftrans_j = tr_fes[j]->GetElementVDofs(el, vdofs_j);
+            tr_fes[j]->GetElementVDofs(el, vdofs_j, doftrans_j);
          }
 
          DenseMatrix Ae;
          rmatptr->GetSubMatrix(offsets[i],offsets[i+1],
                                offsets[j],offsets[j+1], Ae);
-         if (doftrans_i || doftrans_j)
-         {
-            TransformDual(doftrans_i, doftrans_j, Ae);
-         }
+         TransformDual(doftrans_i, doftrans_j, Ae);
          S->GetBlock(skip_i,skip_j).AddSubMatrix(vdofs_i,vdofs_j, Ae);
          skip_j++;
       }
@@ -513,10 +515,7 @@ void BlockStaticCondensation::AssembleReducedSystem(int el,
       // ref subvector
       vec1.SetDataAndSize(&data[offsets[i]],
                           offsets[i+1]-offsets[i]);
-      if (doftrans_i)
-      {
-         doftrans_i->TransformDual(vec1);
-      }
+      doftrans_i.TransformDual(vec1);
       y->GetBlock(skip_i).AddElementVector(vdofs_i,vec1);
       skip_i++;
    }
@@ -981,6 +980,15 @@ BlockStaticCondensation::~BlockStaticCondensation()
    {
       delete lmat[i]; lmat[i] = nullptr;
       delete lvec[i]; lvec[i] = nullptr;
+   }
+
+   for (int i = 0; i<tr_fes.Size(); i++)
+   {
+      if (tr_fec[i])
+      {
+         delete tr_fes[i];
+         delete tr_fec[i];
+      }
    }
 }
 

@@ -16,9 +16,15 @@
 //               multi-physics applications.
 //
 //               This particular example is only for serial runtimes.
+//               For non-conforming meshes please have a look at example
+//               "ex2p.cpp".
 
 #include "example_utils.hpp"
 #include "mfem.hpp"
+
+#ifndef MFEM_USE_MOONOLITH
+#error This example requires that MFEM is built with MFEM_USE_MOONOLITH=YES
+#endif
 
 using namespace mfem;
 using namespace std;
@@ -215,8 +221,8 @@ int main(int argc, char *argv[])
          mfem::out << "l2 error: src: " << src_err << ", dest: " << dest_err
                    << std::endl;
 
-         plot(*src_mesh, src_fun, "source");
-         plot(*dest_mesh, dest_fun, "destination");
+         plot(*src_mesh, src_fun, "source", 0);
+         plot(*dest_mesh, dest_fun, "destination", 1);
       }
    }
    else

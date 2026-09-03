@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -25,6 +25,9 @@ if [[ "${option}" == "--help" ]]; then
   echo "  --style"
   echo "  --history"
   echo ""
+  echo "The copyright year can be updated automatically with"
+  echo "  --update-copyright"
+  echo ""
   echo "As a githook, the script is used without options."
   echo "In that case, it will run all the checks except style."
   echo ""
@@ -33,11 +36,24 @@ fi
 
 cd $(git rev-parse --show-toplevel)
 
-# copyright check
+# Copyright template used below to avoid third-party notices
+copyright_template="Copyright (c) 2010-20[0-9][0-9], Lawrence Livermore"
+
+# copyright update: set the current year (from date +%Y) in the Copyright line
+if [[ "${option}" == "--update-copyright" ]]; then
+  git grep -l "${copyright_template}" | \
+    xargs perl -pi -e \
+      "s/Copyright \(c\) 2010-20\d\d, Lawrence Livermore/Copyright (c) 2010-$(date +%Y), Lawrence Livermore/"
+  exit $?
+fi
+
+# copyright check: check that all copyright years agree with the one from LICENSE
+copyright_year=$(grep -o "2010-20[0-9][0-9]" LICENSE | cut -d- -f2)
 copyright=true
 if [[ "${option}" == "--copyright" || "${option}" == "" ]]; then
-  if git grep -n "^\(#\|//\).*Copyright.*2010-20\(2[^4]\|[^2].\)" > matches.txt; then
-    echo "Please update the following files to Copyright (c) 2010-2024:"
+  if git grep -n "^\(#\|//\).*${copyright_template}" | grep -v "2010-${copyright_year}" > matches.txt; then
+    echo "Please update the following files to Copyright (c) 2010-${copyright_year},"
+    echo "e.g. by running this script with the --update-copyright option:"
     cat matches.txt
     copyright=false
   fi

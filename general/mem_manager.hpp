@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,8 +18,14 @@
 #include <cstring> // std::memcpy
 #include <type_traits> // std::is_const
 #include <cstddef> // std::max_align_t
+
 #ifdef MFEM_USE_MPI
-#include <HYPRE_config.h> // HYPRE_USING_GPU
+// Enable internal hypre timing routines
+#define HYPRE_TIMING
+#include <HYPRE_utilities.h> // for HYPRE_GetMemoryLocation() and others
+#if (21400 <= MFEM_HYPRE_VERSION) && (MFEM_HYPRE_VERSION < 21900)
+#include <_hypre_utilities.h> // for HYPRE_MEMORY_HOST and others
+#endif
 #endif
 
 namespace mfem
@@ -162,7 +168,9 @@ class Memory
 {
 protected:
    friend class MemoryManager;
+   template <class U> friend class Memory;
    friend void MemoryPrintFlags(unsigned flags);
+   template <typename VT> friend class MemoryView;
 
    enum FlagMask: unsigned
    {
@@ -203,27 +211,27 @@ public:
    Memory() { Reset(); }
 
    /// Copy constructor: default.
-   Memory(const Memory &orig) = default;
+   Memory(const Memory &) = default;
 
    /** Move constructor. Sets the pointers and associated ownership of validity
        flags of @a *this to those of @a other. Resets @a other. */
-   Memory(Memory &&orig)
+   Memory(Memory &&other)
    {
-      *this = orig;
-      orig.Reset();
+      *this = other;
+      other.Reset();
    }
 
    /// Copy-assignment operator: default.
-   Memory &operator=(const Memory &orig) = default;
+   Memory &operator=(const Memory &) = default;
 
    /** Move assignment operator. Sets the pointers and associated ownership of
        validity flags of @a *this to those of @a other. Resets @a other. */
-   Memory &operator=(Memory &&orig)
+   Memory &operator=(Memory &&other)
    {
       // Guard self-assignment:
-      if (this == &orig) { return *this; }
-      *this = orig;
-      orig.Reset();
+      if (this == &other) { return *this; }
+      *this = other;
+      other.Reset();
       return *this;
    }
 
@@ -231,6 +239,9 @@ public:
    /** The allocation uses the current host memory type returned by
        MemoryManager::GetHostMemoryType(). */
    explicit Memory(int size) { New(size); }
+
+   /// Creates a new empty Memory object with host MemoryType @a mt.
+   explicit Memory(MemoryType mt) { Reset(mt); }
 
    /** @brief Allocate memory for @a size entries with the given MemoryType
        @a mt. */
@@ -270,6 +281,14 @@ public:
    /// Destructor: default.
    /** @note The destructor will NOT delete the current memory. */
    ~Memory() = default;
+
+   /// Swap without using move assignment, avoiding Reset() calls.
+   void Swap(Memory &other)
+   {
+      Memory tmp(*this);
+      *this = other;
+      other = tmp;
+   }
 
    /** @brief Return true if the host pointer is owned. Ownership indicates
        whether the pointer will be deleted by the method Delete(). */
@@ -315,8 +334,7 @@ public:
    void Reset(MemoryType host_mt);
 
    /// Return true if the Memory object is empty, see Reset().
-   /** Default-constructed objects are uninitialized, so they are not guaranteed
-       to be empty. */
+   /** Default-constructed objects are guaranteed to be empty. */
    bool Empty() const { return h_ptr == NULL; }
 
    /** @brief Allocate host memory for @a size entries with the current host
@@ -396,6 +414,11 @@ public:
 
        @note The current memory is NOT deleted by this method. */
    inline void MakeAlias(const Memory &base, int offset, int size);
+
+   /// For internal use only.
+   /// U* must be reinterpret_cast-able to T*
+   template <class U>
+   inline void CopyConvertPtr(const Memory<U> &base);
 
    /// Set the device MemoryType to be used by the Memory object.
    /** If the specified @a d_mt is not a device MemoryType, i.e. not one of the
@@ -590,6 +613,83 @@ private:
       return Alloc<new_align_bytes>::New(size);
    }
 };
+
+
+/** @brief Type that enables viewing Vector objects as Array<real_t> objects and
+    vice versa. Currently, viewing methods are provided only for the first
+    direction, see Vector::GetArrayView(). */
+template <typename ViewedType>
+class MemoryView
+{
+   friend class Vector;
+
+protected:
+   static constexpr bool is_const_view = std::is_const_v<ViewedType>;
+   using T =
+      std::remove_reference_t<decltype((std::remove_cv_t<ViewedType> {})[0])>;
+   using MemoryType =
+      std::conditional_t<is_const_view, const Memory<T>, Memory<T>>;
+   using SizeType =
+      std::conditional_t<is_const_view, const int, int>;
+
+   std::remove_cv_t<ViewedType> view;
+   MemoryType &base_mem;
+   SizeType &base_size;  // if is_const_view, this is initialized but not used
+
+   // Keep the constructor private, for now.
+   inline MemoryView(MemoryType &mem, SizeType &size)
+      : base_mem(mem), base_size(size)
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      view.data = mem;
+      view.size = size;
+   }
+
+public:
+   MemoryView(const MemoryView &) = delete;
+   MemoryView(MemoryView &&) = delete;
+   MemoryView &operator=(const MemoryView &) = delete;
+   MemoryView &operator=(MemoryView &&) = delete;
+
+   inline ~MemoryView()
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      if constexpr (!is_const_view)
+      {
+         base_mem = view.data;
+         base_size = view.size;
+      }
+      else
+      {
+         base_mem.flags = view.data.flags;
+      }
+      view.data.Reset();
+   }
+
+   /** @brief Implicit conversion function to `ViewedType &`.
+
+       Implicit conversion may not work automatically when the returned type is
+       used for template parameter deduction. In such cases, use the prefix
+       operator*() to explicitly perform the conversion to `ViewedType &`. */
+   inline operator ViewedType &() { return view; }
+
+   /** @brief Return the view object by reference, `ViewedType &`.
+
+       This is an explicit way to return the view object, alternative to the
+       implicit conversion function to `ViewedType &`. */
+   inline ViewedType &operator*() { return view; }
+};
+
+
+/** @brief Swap of Memory<T> objects for use with standard library algorithms.
+    Also, used by mfem::Swap(). */
+template <typename T>
+void swap(Memory<T> &a, Memory<T> &b)
+{
+   a.Swap(b);
+}
 
 
 /** The MFEM memory manager class. Host-side pointers are inserted into this
@@ -869,6 +969,46 @@ public:
 };
 
 
+#ifdef MFEM_USE_MPI
+
+#if MFEM_HYPRE_VERSION < 21400
+#define HYPRE_MEMORY_DEVICE (0)
+#define HYPRE_MEMORY_HOST   (1)
+#endif
+#if MFEM_HYPRE_VERSION < 21900
+typedef int HYPRE_MemoryLocation;
+#endif
+
+/// Return the configured HYPRE_MemoryLocation
+inline HYPRE_MemoryLocation GetHypreMemoryLocation()
+{
+#if !defined(HYPRE_USING_GPU)
+   return HYPRE_MEMORY_HOST;
+#elif MFEM_HYPRE_VERSION < 23100
+   return HYPRE_MEMORY_DEVICE;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   if (!HYPRE_Initialized()) { return HYPRE_MEMORY_HOST; }
+   HYPRE_MemoryLocation loc;
+   HYPRE_GetMemoryLocation(&loc);
+   return loc;
+#endif
+}
+
+/// Return true if HYPRE is configured to use GPU
+inline bool HypreUsingGPU()
+{
+#if !defined(HYPRE_USING_GPU)
+   return false;
+#elif MFEM_HYPRE_VERSION < 23100
+   return true;
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+   return GetHypreMemoryLocation() != HYPRE_MEMORY_HOST;
+#endif
+}
+
+#endif // MFEM_USE_MPI
+
+
 // Inline methods
 
 template <typename T>
@@ -1004,10 +1144,13 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          // If the following condition is true then MemoryManager::Exists()
          // should also be true:
          IsDeviceMemory(MemoryManager::GetDeviceMemoryType())
-#else
-         // When HYPRE_USING_GPU is defined we always register the 'base' if
-         // the MemoryManager::Exists():
+#elif MFEM_HYPRE_VERSION < 23100
+         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+         // register the 'base' if the MemoryManager::Exists():
          MemoryManager::Exists()
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+         IsDeviceMemory(MemoryManager::GetDeviceMemoryType()) ||
+         (MemoryManager::Exists() && HypreUsingGPU())
 #endif
       )
       {
@@ -1027,6 +1170,16 @@ inline void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
    const size_t s_bytes = size*sizeof(T);
    const size_t o_bytes = offset*sizeof(T);
    MemoryManager::Alias_(base.h_ptr, o_bytes, s_bytes, base.flags, flags);
+}
+
+template <typename T>
+template <class U>
+inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
+{
+   h_ptr = reinterpret_cast<T*>(base.h_ptr); // can also use (T*)base
+   capacity = base.capacity;
+   h_mt = base.h_mt;
+   flags = base.flags;
 }
 
 template <typename T>
@@ -1213,9 +1366,10 @@ template <typename T>
 inline void Memory<T>::CopyFrom(const Memory &src, int size)
 {
    MFEM_VERIFY(src.capacity>=size && capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered) && !(src.flags & Registered))
    {
-      if (h_ptr != src.h_ptr && size != 0)
+      if (h_ptr != src.h_ptr)
       {
          MFEM_ASSERT(h_ptr + size <= src.h_ptr || src.h_ptr + size <= h_ptr,
                      "data overlaps!");
@@ -1233,9 +1387,10 @@ template <typename T>
 inline void Memory<T>::CopyFromHost(const T *src, int size)
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered))
    {
-      if (h_ptr != src && size != 0)
+      if (h_ptr != src)
       {
          MFEM_ASSERT(h_ptr + size <= src || src + size <= h_ptr,
                      "data overlaps!");
@@ -1252,7 +1407,6 @@ inline void Memory<T>::CopyFromHost(const T *src, int size)
 template <typename T>
 inline void Memory<T>::CopyTo(Memory &dest, int size) const
 {
-   MFEM_VERIFY(capacity>=size, "Incorrect size");
    dest.CopyFrom(*this, size);
 }
 
@@ -1260,9 +1414,10 @@ template <typename T>
 inline void Memory<T>::CopyToHost(T *dest, int size) const
 {
    MFEM_VERIFY(capacity>=size, "Incorrect size");
+   if (size <= 0) { return; }
    if (!(flags & Registered))
    {
-      if (h_ptr != dest && size != 0)
+      if (h_ptr != dest)
       {
          MFEM_ASSERT(h_ptr + size <= dest || dest + size <= h_ptr,
                      "data overlaps!");

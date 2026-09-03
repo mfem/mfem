@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -12,11 +12,10 @@
 # Use the MFEM build directory
 MFEM_DIR ?= ../..
 MFEM_BUILD_DIR ?= ../..
+MFEM_INSTALL_DIR ?= ../../mfem
 SRC = $(if $(MFEM_DIR:../..=),$(MFEM_DIR)/miniapps/multidomain/,)
-CONFIG_MK = $(MFEM_BUILD_DIR)/config/config.mk
-# Use the MFEM install directory
-# MFEM_INSTALL_DIR = ../../mfem
-# CONFIG_MK = $(MFEM_INSTALL_DIR)/share/mfem/config.mk
+CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
+   $(wildcard $(MFEM_INSTALL_DIR)/share/mfem/config.mk))
 
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
@@ -55,6 +54,9 @@ MESH_FILES = $(notdir $(wildcard $(SRC)*.mesh))
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
 multidomain: | $(MESH_FILES)
+# The target 'copy-data' is used by the makefile in ../../tests/unit
+.PHONY: copy-data
+copy-data: | $(MESH_FILES)
 endif
 
 MFEM_TESTS = MINIAPPS
@@ -66,7 +68,7 @@ multidomain-test-par: multidomain
 multidomain_nd-test-par: multidomain_nd
 	@$(call mfem-test,$<, $(RUN_MPI), Multidomain ND miniapp,-tf 0.001)
 multidomain_rt-test-par: multidomain_rt
-	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT iniapp,-tf 0.001)
+	@$(call mfem-test,$<, $(RUN_MPI), Multidomain RT miniapp,-tf 0.001)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

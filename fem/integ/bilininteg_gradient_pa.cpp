@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -202,9 +202,9 @@ void GradientIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                "PA Only supports Ordering::byNODES!");
    // Assuming the same element type
    Mesh *mesh = trial_fes.GetMesh();
-   const FiniteElement &trial_fe = *trial_fes.GetFE(0); // H1
-   const FiniteElement &test_fe = *test_fes.GetFE(0); // H1^d or L2^d
-   ElementTransformation *trans = mesh->GetElementTransformation(0);
+   const FiniteElement &trial_fe = *trial_fes.GetTypicalFE(); // H1
+   const FiniteElement &test_fe = *test_fes.GetTypicalFE(); // H1^d or L2^d
+   ElementTransformation *trans = mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(trial_fe, test_fe,
                                                             *trans);
    const int dims = trial_fe.GetDim();
@@ -819,6 +819,9 @@ static void PAGradientApplyTranspose3D(const int NE,
    });
 }
 
+#if 0
+// TODO: this is unused, was it supposed to be in some header or did this end up being slower?
+// for now, comment out
 // Shared memory PA Gradient Apply 3D kernel
 template<const int T_TR_D1D = 0, const int T_TE_D1D = 0, const int T_Q1D = 0>
 static void SmemPAGradientApply3D(const int NE,
@@ -1067,6 +1070,7 @@ static void SmemPAGradientApply3D(const int NE,
       }
    });
 }
+#endif
 
 static void PAGradientApply(const int dim,
                             const int TR_D1D,

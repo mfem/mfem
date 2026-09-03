@@ -9,6 +9,7 @@
 //               ex4 -m ../data/beam-hex.mesh -o 2 -pa
 //               ex4 -m ../data/escher.mesh
 //               ex4 -m ../data/fichera.mesh -o 2 -hb
+//               ex4 -m ../data/fichera.mesh -o 2 -hb -ea
 //               ex4 -m ../data/fichera-q2.vtk
 //               ex4 -m ../data/fichera-q3.mesh -o 2 -sc
 //               ex4 -m ../data/square-disc-nurbs.mesh
@@ -18,6 +19,7 @@
 //               ex4 -m ../data/amr-quad.mesh
 //               ex4 -m ../data/amr-hex.mesh
 //               ex4 -m ../data/amr-hex.mesh -o 2 -hb
+//               ex4 -m ../data/amr-hex.mesh -o 2 -hb -ea
 //               ex4 -m ../data/fichera-amr.mesh -o 2 -sc
 //               ex4 -m ../data/ref-prism.mesh -o 1
 //               ex4 -m ../data/octahedron.mesh -o 1
@@ -25,6 +27,8 @@
 //
 // Device sample runs:
 //               ex4 -m ../data/star.mesh -pa -d cuda
+//               ex4 -m ../data/star.mesh -hb -ea -d cuda
+//               ex4 -m ../data/amr-quad.mesh -hb -ea -d cuda
 //               ex4 -m ../data/star.mesh -pa -d raja-cuda
 //               ex4 -m ../data/star.mesh -pa -d raja-omp
 //               ex4 -m ../data/beam-hex.mesh -pa -d cuda
@@ -65,6 +69,7 @@ int main(int argc, char *argv[])
    bool static_cond = false;
    bool hybridization = false;
    bool pa = false;
+   bool ea = false;
    const char *device_config = "cpu";
    bool visualization = 1;
 
@@ -83,18 +88,14 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
+   args.AddOption(&ea, "-ea", "--element-assembly", "-no-ea",
+                  "--no-element-assembly", "Enable Element Assembly.");
    args.AddOption(&device_config, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
-   args.Parse();
-   if (!args.Good())
-   {
-      args.PrintUsage(cout);
-      return 1;
-   }
-   args.PrintOptions(cout);
+   args.ParseCheck();
    kappa = freq * M_PI;
 
    // 2. Enable hardware devices such as GPUs, and programming models such as
@@ -166,6 +167,7 @@ int main(int argc, char *argv[])
    Coefficient *beta  = new ConstantCoefficient(1.0);
    BilinearForm *a = new BilinearForm(fespace);
    if (pa) { a->SetAssemblyLevel(AssemblyLevel::PARTIAL); }
+   if (ea) { a->SetAssemblyLevel(AssemblyLevel::ELEMENT); }
    a->AddDomainIntegrator(new DivDivIntegrator(*alpha));
    a->AddDomainIntegrator(new VectorFEMassIntegrator(*beta));
 
@@ -195,7 +197,7 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A->Height() << endl;
 
    // 11. Solve the linear system A X = B.
-   if (!pa)
+   if (!pa && (!ea || hybridization))
    {
 #ifndef MFEM_USE_SUITESPARSE
       // Use a simple symmetric Gauss-Seidel preconditioner with PCG.

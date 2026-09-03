@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -406,7 +406,7 @@ public:
 #ifdef MFEM_DEBUG
       if (Width() != Height())
       {
-         mfem_error("DenseMatrix::Symmetrize() : not a square matrix!");
+         mfem_error("TAutoDiffDenseMatrix::Symmetrize() : not a square matrix!");
       }
 #endif
 

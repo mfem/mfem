@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,17 +16,19 @@
 #include "coefficient.hpp"
 #include "bilininteg.hpp"
 #include <random>
+#include "integrator.hpp"
+
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
 
 /// Abstract base class LinearFormIntegrator
-class LinearFormIntegrator
+class LinearFormIntegrator : public Integrator
 {
 protected:
-   const IntegrationRule *IntRule;
 
-   LinearFormIntegrator(const IntegrationRule *ir = NULL) { IntRule = ir; }
+   LinearFormIntegrator(const IntegrationRule *ir = NULL) : Integrator(ir) {}
 
 public:
 
@@ -50,9 +52,6 @@ public:
                                        const FiniteElement &el2,
                                        FaceElementTransformations &Tr,
                                        Vector &elvect);
-
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
-   const IntegrationRule* GetIntRule() { return IntRule; }
 
    virtual ~LinearFormIntegrator() { }
 };
@@ -112,33 +111,47 @@ class DomainLFIntegrator : public DeltaLFIntegrator
    int oa, ob;
 public:
    /// Constructs a domain integrator with a given Coefficient
-   DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0)
-   // the old default was a = 1, b = 1
-   // for simple elliptic problems a = 2, b = -2 is OK
-      : DeltaLFIntegrator(QF), Q(QF), oa(a), ob(b) { }
+   /// the old default was a = 1, b = 1
+   /// for simple elliptic problems a = 2, b = -2 is OK
+   DomainLFIntegrator(Coefficient &QF, int a = 2, int b = 0);
 
    /// Constructs a domain integrator with a given Coefficient
-   DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir)
-      : DeltaLFIntegrator(QF, ir), Q(QF), oa(1), ob(1) { }
+   DomainLFIntegrator(Coefficient &QF, const IntegrationRule *ir);
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// args: vdim, ne, d1d, q1d, map_type, markers, B, detJ, W, coeff, y
+   using AssembleKernelType = void (*)(const int, const int, const int,
+                                       const int, const int, const int *,
+                                       const real_t *, const real_t *,
+                                       const real_t *, const Vector &coeff,
+                                       real_t *y);
+
+   /// parameters: use DIM, T_D1D, T_Q1D
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /// Class for domain integrator $ L(v) := (f, \nabla v) $
@@ -151,25 +164,25 @@ private:
 
 public:
    /// Constructs the domain integrator $ (Q, \nabla v) $
-   DomainLFGradIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   DomainLFGradIntegrator(VectorCoefficient &QF, const IntegrationRule *ir = NULL)
+      : DeltaLFIntegrator(QF, ir), Q(QF) { }
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -187,21 +200,21 @@ public:
    BoundaryLFIntegrator(Coefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -217,16 +230,16 @@ public:
    BoundaryNormalLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -242,9 +255,9 @@ public:
    BoundaryTangentialLFIntegrator(VectorCoefficient &QG, int a = 1, int b = 1)
       : Q(QG), oa(a), ob(b) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -259,27 +272,32 @@ private:
 
 public:
    /// Constructs a domain integrator with a given VectorCoefficient
-   VectorDomainLFIntegrator(VectorCoefficient &QF)
-      : DeltaLFIntegrator(QF), Q(QF) { }
+   VectorDomainLFIntegrator(VectorCoefficient &QF,
+                            const IntegrationRule *ir = nullptr);
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
+                       Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      // uses the same kernels for assembly
+      DomainLFIntegrator::AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /** Class for domain integrator $ L(v) := (f, \nabla v) $, where
@@ -296,22 +314,22 @@ public:
    VectorDomainLFGradIntegrator(VectorCoefficient &QF)
       : DeltaLFIntegrator(QF), Q(QF) { }
 
-   virtual bool SupportsDevice() const override { return true; }
+   bool SupportsDevice() const override { return true; }
 
    /// Method defining assembly on device
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b) override;
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect) override;
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -330,14 +348,14 @@ public:
 
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    // For DG spaces
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -351,24 +369,59 @@ private:
    Vector vec;
 
 public:
-   VectorFEDomainLFIntegrator(VectorCoefficient &F)
-      : DeltaLFIntegrator(F), QF(F) { }
+   VectorFEDomainLFIntegrator(VectorCoefficient &F,
+                              const IntegrationRule *ir = nullptr);
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// @param NE number of elements
+   /// @param markers array where entry markers[e] == 0 to skip assembly over
+   /// element e
+   /// @param jac Spatial Jacobians evaluated at all quadrature points
+   /// @param weights 1D quadrature weights
+   /// @param testBO 1D open basis test functions
+   /// @param testBC 1D closed basis test functions
+   /// @param coeff coefficient values evaluated at quadrature points, possibly
+   /// compressed.
+   /// @param y output E-vector of assembled contributions
+   /// @param testd1d number of 1D closed dofs
+   /// @param q1d number of 1D quadrature points
+   using AssembleKernelType = void (*)(const int NE, const Array<int> &markers,
+                                       const Vector &jac,
+                                       const Array<real_t> &weights,
+                                       const Array<real_t> &testBO,
+                                       const Array<real_t> &testBC,
+                                       const Vector &coeff, Vector &y,
+                                       const int testd1d, const int q1d);
+
+   /// parameters: test_fetype, ndims, test_d1d, q1d
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType,
+                         (FiniteElement::DerivType, int, int, int));
+
+   struct Kernels
+   {
+      Kernels();
+   };
+
+   template <FiniteElement::DerivType TestType, int DIM, int TEST_D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<TestType, DIM, TEST_D1D, Q1D>::Add();
+   }
 };
 
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
@@ -384,13 +437,13 @@ public:
    VectorFEDomainLFCurlIntegrator(VectorCoefficient &F)
       : DeltaLFIntegrator(F), QF(&F) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -408,13 +461,13 @@ public:
 
    /** Given a particular Finite Element and a transformation (Tr)
        computes the element right hand side element vector, elvect. */
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void AssembleDeltaElementVect(const FiniteElement &fe,
-                                         ElementTransformation &Trans,
-                                         Vector &elvect);
+   void AssembleDeltaElementVect(const FiniteElement &fe,
+                                 ElementTransformation &Trans,
+                                 Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -434,9 +487,9 @@ public:
                                   const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), Sign(s), F(&f) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -457,17 +510,36 @@ public:
    VectorFEBoundaryFluxLFIntegrator(Coefficient &f, int a = 2, int b = 0)
       : F(&f), oa(a), ob(b) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 
-   virtual bool SupportsDevice() const { return true; }
+   bool SupportsDevice() const override { return true; }
 
-   virtual void AssembleDevice(const FiniteElementSpace &fes,
-                               const Array<int> &markers,
-                               Vector &b);
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
+};
+
+/** Class for boundary integration of (f.n, v.n) for vector coefficient f and
+    RT vector test function v. This integrator works with RT spaces defined
+    using the RT_FECollection class. */
+class VectorFEBoundaryNormalLFIntegrator : public LinearFormIntegrator
+{
+private:
+   VectorCoefficient &F;
+   Vector shape;
+
+public:
+   VectorFEBoundaryNormalLFIntegrator(VectorCoefficient &f) : F(f) { }
+
+   virtual void AssembleRHSElementVect(const FiniteElement &el,
+                                       ElementTransformation &Tr,
+                                       Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
 };
 
 /// Class for boundary integration $ L(v) = (n \times f, v) $
@@ -482,9 +554,9 @@ public:
                                        int a = 2, int b = 0)
       : f(QG), oa(a), ob(b) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -512,12 +584,12 @@ public:
                           real_t a, real_t b)
    { f = &f_; u = &u_; alpha = a; beta = b; }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -528,7 +600,7 @@ public:
     Specifically, given the Dirichlet data $u_D$, the linear form assembles the
     following integrals on the boundary:
    $$
-    \sigma \langle u_D, (Q \nabla v)) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
+    \sigma \langle u_D, (Q \nabla v) \cdot n \rangle + \kappa \langle {h^{-1} Q} u_D, v \rangle,
    $$
     where Q is a scalar or matrix diffusion coefficient and v is the test
     function. The parameters $\sigma$ and $\kappa$ should be the same as the ones
@@ -554,12 +626,12 @@ public:
                            const real_t s, const real_t k)
       : uD(&u), Q(NULL), MQ(&q), sigma(s), kappa(k) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -599,12 +671,12 @@ public:
                                      real_t alpha_, real_t kappa_)
       : uD(uD_), lambda(&lambda_), mu(&mu_), alpha(alpha_), kappa(kappa_) { }
 
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       FaceElementTransformations &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               FaceElementTransformations &Tr,
+                               Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
 };
@@ -657,7 +729,7 @@ public:
       int myid;
       MPI_Comm_rank(comm, &myid);
 
-      int seed = (seed_ > 0) ? seed_ + myid : time(0) + myid;
+      int seed = (seed_ > 0) ? seed_ + myid : time(nullptr) + myid;
       SetSeed(seed);
    }
 #else
@@ -676,9 +748,9 @@ public:
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &el,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
    /** @brief Saves the lower triangular matrices in the element-wise Cholesky
        decomposition. The parameter @a NE should be the number of elements in
@@ -739,11 +811,11 @@ public:
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &fe,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &fe,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void SetIntRule(const IntegrationRule *ir)
+   void SetIntRule(const IntegrationRule *ir) override
    {
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");
@@ -771,11 +843,11 @@ public:
    }
 
    using LinearFormIntegrator::AssembleRHSElementVect;
-   virtual void AssembleRHSElementVect(const FiniteElement &fe,
-                                       ElementTransformation &Tr,
-                                       Vector &elvect);
+   void AssembleRHSElementVect(const FiniteElement &fe,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override;
 
-   virtual void SetIntRule(const IntegrationRule *ir)
+   void SetIntRule(const IntegrationRule *ir) override
    {
       MFEM_WARNING("Integration rule not used in this class. "
                    "The QuadratureFunction integration rules are used instead");

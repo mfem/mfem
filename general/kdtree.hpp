@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -219,7 +219,7 @@ public:
       return FindClosestPoint(PointND(xx));
    }
 
-   /// Finds the nearest neighbour index and return the clossest point in clp
+   /// Finds the nearest neighbour index and return the closest point in clp
    Tindex FindClosestPoint(const PointND &pt, const PointND &clp) const
    {
       PointS best_candidate;
@@ -259,7 +259,7 @@ public:
    }
 
 
-   /// Brute force search - please, use it only for debuging purposes
+   /// Brute force search - please, use it only for debugging purposes
    void FindClosestPointSlow(const PointND &pt, Tindex &ind, Tfloat &dist) const
    {
       PointS best_candidate;
@@ -283,7 +283,7 @@ public:
    }
 
    /// Finds all points within a distance R from point pt. The indices are
-   /// returned in the vector res and the correponding distances in vector dist.
+   /// returned in the vector res and the corresponding distances in vector dist.
    void FindNeighborPoints(const PointND &pt,Tfloat R, std::vector<Tindex> & res,
                            std::vector<Tfloat> & dist)
    {
@@ -291,13 +291,13 @@ public:
    }
 
    /// Finds all points within a distance R from point pt. The indices are
-   /// returned in the vector res and the correponding distances in vector dist.
+   /// returned in the vector res and the corresponding distances in vector dist.
    void FindNeighborPoints(const PointND &pt,Tfloat R, std::vector<Tindex> & res)
    {
       FindNeighborPoints(pt,R,data.begin(),data.end(),0,res);
    }
 
-   /// Brute force search - please, use it only for debuging purposes
+   /// Brute force search - please, use it only for debugging purposes
    void FindNeighborPointsSlow(const PointND &pt,Tfloat R,
                                std::vector<Tindex> &res,
                                std::vector<Tfloat> &dist)
@@ -314,7 +314,7 @@ public:
       }
    }
 
-   /// Brute force search - please, use it only for debuging purposes
+   /// Brute force search - please, use it only for debugging purposes
    void FindNeighborPointsSlow(const PointND &pt,Tfloat R,
                                std::vector<Tindex> &res)
    {

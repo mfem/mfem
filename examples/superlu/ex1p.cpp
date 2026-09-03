@@ -26,7 +26,7 @@
 //               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
-//               simple finite element discretization of the Laplace problem
+//               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
 //               Specifically, we discretize using a FE space of the specified
 //               order, or if order < 1 using an isoparametric/isogeometric
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
                   "SuperLU Iterative Refinement:  0-NOREFINE, 1-Single, "
                   "2-Double, 3-Extra");
    args.AddOption(&slu_npdep, "-npdep", "--npdepth",
-                  "Depth of 3D parition for SuperLU (>= 7.2.0)");
+                  "Depth of 3D partition for SuperLU (>= 7.2.0)");
 
    args.Parse();
    if (!args.Good())

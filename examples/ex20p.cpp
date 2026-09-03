@@ -84,14 +84,14 @@ class GradT : public Operator
 {
 public:
    GradT() : Operator(1) {}
-   void Mult(const Vector &x, Vector &y) const { y.Set(1.0/m_, x); }
+   void Mult(const Vector &x, Vector &y) const override { y.Set(1.0/m_, x); }
 };
 
 class NegGradV : public TimeDependentOperator
 {
 public:
    NegGradV() : TimeDependentOperator(1) {}
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
 };
 
 int main(int argc, char *argv[])

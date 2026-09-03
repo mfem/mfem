@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,7 +14,7 @@
 
 #include "../config/config.hpp"
 
-#ifdef MFEM_USE_CUDA
+#if defined(MFEM_USE_CUDA)
 #include <cusparse.h>
 #include <library_types.h>
 #include <cuda_runtime.h>
@@ -22,7 +22,7 @@
 #endif
 #include "cuda.hpp"
 
-#ifdef MFEM_USE_HIP
+#if defined(MFEM_USE_HIP)
 #include <hip/hip_runtime.h>
 #endif
 #include "hip.hpp"
@@ -37,35 +37,59 @@
 // removed in a future release).
 #define CUB_IGNORE_DEPRECATED_CPP_DIALECT
 #define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
+
 #include "RAJA/RAJA.hpp"
 #if defined(RAJA_ENABLE_CUDA) && !defined(MFEM_USE_CUDA)
 #error When RAJA is built with CUDA, MFEM_USE_CUDA=YES is required
 #endif
 #endif
 
-#if !(defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
-#define MFEM_DEVICE
-#define MFEM_LAMBDA
-// #define MFEM_HOST_DEVICE // defined in config/config.hpp
+#if !defined(MFEM_USE_CUDA_OR_HIP)
 // MFEM_DEVICE_SYNC is made available for debugging purposes
 #define MFEM_DEVICE_SYNC
 // MFEM_STREAM_SYNC is used for UVM and MPI GPU-Aware kernels
 #define MFEM_STREAM_SYNC
 #endif
 
+#if !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+#define MFEM_DEVICE
+#define MFEM_HOST
+#define MFEM_LAMBDA
+// #define MFEM_HOST_DEVICE // defined in config/config.hpp
+#define MFEM_LAUNCH_BOUNDS(...)
+#endif
+
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0
 #define MFEM_THREAD_SIZE(k) 1
 #define MFEM_FOREACH_THREAD(i,k,N) for(int i=0; i<N; i++)
+#define MFEM_FOREACH_THREAD_DIRECT(i,k,N) MFEM_FOREACH_THREAD(i,k,N)
+// Assigns a thread block shaped (SX,SY,SZ) contiguous in x.
+// Example (3,2,1) block:
+// 0 (0,0), 1 (1,0), 2 (2,0)
+// 3 (1,0), 4 (1,1), 5 (2,1)
+#define MFEM_FOREACH_THREAD_DIRECT_3D(ix, iy, iz, k, SX, SY, SZ)               \
+   for (int iz = 0; iz < SZ; ++iz)                                             \
+      for (int iy = 0; iy < SY; ++iy)                                          \
+         for (int ix = 0; ix < SX; ++ix)
+// Assigns a thread block shaped (OX,OY,OZ) to work on items (SX,SY,SZ),
+// contiguous in x. This intentionally offsets threads within the block to avoid
+// shared memory bank conflicts.
+// Example (3,2,1) block assigned to work on (2,2,1) items:
+// 0 (0,0), 1 (1,0), 2 (N/A)
+// 3 (1,0), 4 (1,1), 5 (N/A)
+#define MFEM_FOREACH_THREAD_DIRECT_3D_OFFSET(ix, iy, iz, k, SX, SY, SZ, OX,    \
+                                             OY, OZ)                           \
+   MFEM_FOREACH_THREAD_DIRECT_3D(ix, iy, iz, k, SX, SY, SZ)
 #endif
 
-// 'double' atomicAdd implementation for previous versions of CUDA
-#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-MFEM_DEVICE inline real_t atomicAdd(real_t *add, real_t val)
+// 'double' and 'float' atomicAdd implementation for previous versions of CUDA
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 600)
+MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val)
 {
    unsigned long long int *ptr = (unsigned long long int *) add;
    unsigned long long int old = *ptr, reg;
@@ -92,7 +116,7 @@ template <typename T>
 MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 {
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-     (defined(MFEM_USE_HIP)  && defined(__HIP_DEVICE_COMPILE__)))
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
    return atomicAdd(&add,val);
 #else
    T old = add;
@@ -102,6 +126,25 @@ MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
    add += val;
    return old;
 #endif
+}
+
+namespace mfem::internal
+{
+
+#if defined(MFEM_USE_CUDA_OR_HIP) && !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+static constexpr bool can_compile_kernels = false;
+#else
+static constexpr bool can_compile_kernels = true;
+#endif
+
+template <bool can_compile_kernels = can_compile_kernels>
+void RequireKernelCompilation()
+{
+   static_assert(
+      can_compile_kernels,
+      "The calling function needs to be compiled with CUDA/HIP language!");
+}
+
 }
 
 #endif // MFEM_BACKENDS_HPP

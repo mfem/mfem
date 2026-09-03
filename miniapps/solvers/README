@@ -80,7 +80,7 @@ The solvers for the above block system include:
 
    [1] Bramble, James H., and Joseph E. Pasciak. A preconditioning technique
        for indefinite systems resulting from mixed approximations of elliptic
-       problems. Mathematics of Computation 50.181 (1988): 1-17. 
+       problems. Mathematics of Computation 50.181 (1988): 1-17.
 
 # Low-Order Refined Solvers
 

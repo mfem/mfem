@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,7 +13,7 @@
 //         Metric Magnitude Miniapp: track changes in TMOP metrics
 //         -------------------------------------------------------
 //
-// This miniapp can be used to track how TMPOP metrics change under geometric
+// This miniapp can be used to track how TMOP metrics change under geometric
 // perturbations.
 //
 // Compile with: make tmop-metric-magnitude
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
       // A-metrics
       case 11: metric = new TMOP_AMetric_011; break;
       case 36: metric = new TMOP_AMetric_036; break;
-      case 107: metric = new TMOP_AMetric_107a; break;
+      case 107: metric = new TMOP_AMetric_107; break;
       default: cout << "Unknown metric_id: " << metric_id << endl; return 3;
    }
 

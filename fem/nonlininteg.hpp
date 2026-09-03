@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,8 @@
 #include "coefficient.hpp"
 #include "fespace.hpp"
 #include "ceed/interface/operator.hpp"
+#include "integrator.hpp"
+#include "kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -24,7 +26,7 @@ namespace mfem
 /** @brief This class is used to express the local action of a general nonlinear
     finite element operator. In addition it may provide the capability to
     assemble the local gradient operator and to compute the local energy. */
-class NonlinearFormIntegrator
+class NonlinearFormIntegrator : public Integrator
 {
 public:
    enum Mode
@@ -36,12 +38,7 @@ public:
    };
 
 protected:
-   const IntegrationRule *IntRule;
-
    Mode integrationMode = Mode::ELEMENTWISE;
-
-   // Prescribed integration rules (not reduced approximate rules).
-   NURBSMeshRules *patchRules = nullptr;
 
    // CEED extension
    ceed::Operator* ceedOp;
@@ -49,30 +46,19 @@ protected:
    MemoryType pa_mt = MemoryType::DEFAULT;
 
    NonlinearFormIntegrator(const IntegrationRule *ir = NULL)
-      : IntRule(ir), ceedOp(NULL) { }
+      : Integrator(ir), ceedOp(NULL) { }
 
 public:
-   /** @brief Prescribe a fixed IntegrationRule to use (when @a ir != NULL) or
-       let the integrator choose (when @a ir == NULL). */
-   virtual void SetIntRule(const IntegrationRule *ir) { IntRule = ir; }
 
    void SetIntegrationMode(Mode m) { integrationMode = m; }
 
-   /// For patchwise integration, SetNURBSPatchIntRule must be called.
-   void SetNURBSPatchIntRule(NURBSMeshRules *pr) { patchRules = pr; }
-   bool HasNURBSPatchIntRule() const { return patchRules != nullptr; }
 
    bool Patchwise() const { return integrationMode != Mode::ELEMENTWISE; }
-
-   /// Prescribe a fixed IntegrationRule to use.
-   void SetIntegrationRule(const IntegrationRule &ir) { SetIntRule(&ir); }
 
    /// Set the memory type used for GeometricFactors and other large allocations
    /// in PA extensions.
    void SetPAMemoryType(MemoryType mt) { pa_mt = mt; }
 
-   /// Get the integration rule of the integrator (possibly NULL).
-   const IntegrationRule *GetIntegrationRule() const { return IntRule; }
 
    /// Perform the local action of the NonlinearFormIntegrator
    virtual void AssembleElementVector(const FiniteElement &el,
@@ -267,12 +253,12 @@ protected:
    mutable DenseMatrix G, C; // dof x dim
 
 public:
-   virtual real_t EvalW(const DenseMatrix &J) const;
+   real_t EvalW(const DenseMatrix &J) const override;
 
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &J, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 
@@ -301,12 +287,12 @@ public:
       : mu(0.0), K(0.0), g(1.0), c_mu(&mu_), c_K(&K_), c_g(g_),
         have_coeffs(true) { }
 
-   virtual real_t EvalW(const DenseMatrix &J) const;
+   real_t EvalW(const DenseMatrix &J) const override;
 
-   virtual void EvalP(const DenseMatrix &J, DenseMatrix &P) const;
+   void EvalP(const DenseMatrix &J, DenseMatrix &P) const override;
 
-   virtual void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
-                          const real_t weight, DenseMatrix &A) const;
+   void AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
+                  const real_t weight, DenseMatrix &A) const override;
 };
 
 
@@ -342,17 +328,22 @@ public:
        @param[in] el     Type of FiniteElement.
        @param[in] Ttr    Represents ref->target coordinates transformation.
        @param[in] elfun  Physical coordinates of the zone. */
-   virtual real_t GetElementEnergy(const FiniteElement &el,
-                                   ElementTransformation &Ttr,
-                                   const Vector &elfun);
+   real_t GetElementEnergy(const FiniteElement &el,
+                           ElementTransformation &Ttr,
+                           const Vector &elfun) override;
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &Ttr,
-                                      const Vector &elfun, Vector &elvect);
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Ttr,
+                              const Vector &elfun, Vector &elvect) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &Ttr,
-                                    const Vector &elfun, DenseMatrix &elmat);
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Ttr,
+                            const Vector &elfun, DenseMatrix &elmat) override;
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override;
 };
 
 /** Hyperelastic incompressible Neo-Hookean integrator with the PK1 stress
@@ -369,21 +360,21 @@ private:
 public:
    IncompressibleNeoHookeanIntegrator(Coefficient &mu_) : c_mu(&mu_) { }
 
-   virtual real_t GetElementEnergy(const Array<const FiniteElement *>&el,
-                                   ElementTransformation &Tr,
-                                   const Array<const Vector *> &elfun);
+   real_t GetElementEnergy(const Array<const FiniteElement *>&el,
+                           ElementTransformation &Tr,
+                           const Array<const Vector *> &elfun) override;
 
    /// Perform the local action of the NonlinearFormIntegrator
-   virtual void AssembleElementVector(const Array<const FiniteElement *> &el,
-                                      ElementTransformation &Tr,
-                                      const Array<const Vector *> &elfun,
-                                      const Array<Vector *> &elvec);
+   void AssembleElementVector(const Array<const FiniteElement *> &el,
+                              ElementTransformation &Tr,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvec) override;
 
    /// Assemble the local gradient matrix
-   virtual void AssembleElementGrad(const Array<const FiniteElement*> &el,
-                                    ElementTransformation &Tr,
-                                    const Array<const Vector *> &elfun,
-                                    const Array2D<DenseMatrix *> &elmats);
+   void AssembleElementGrad(const Array<const FiniteElement*> &el,
+                            ElementTransformation &Tr,
+                            const Array<const Vector *> &elfun,
+                            const Array2D<DenseMatrix *> &elmats) override;
 };
 
 
@@ -394,43 +385,99 @@ private:
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
-   Vector pa_data;
+   int dim, ne, nq, d1d, q1d;
+   Vector pa_adj, pa_u;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
-   int dim, ne, nq;
 
 public:
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { }
+   struct Kernels { Kernels(); };
 
-   VectorConvectionNLFIntegrator() = default;
+   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { static Kernels kernels; }
+
+   VectorConvectionNLFIntegrator() { static Kernels kernels; }
 
    static const IntegrationRule &GetRule(const FiniteElement &fe,
-                                         ElementTransformation &T);
+                                         const ElementTransformation &T);
 
-   virtual void AssembleElementVector(const FiniteElement &el,
-                                      ElementTransformation &trans,
-                                      const Vector &elfun,
-                                      Vector &elvect);
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &trans,
+                              const Vector &elfun,
+                              Vector &elvect) override;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat);
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
 
    using NonlinearFormIntegrator::AssemblePA;
 
-   virtual void AssemblePA(const FiniteElementSpace &fes);
+   void AssemblePA(const FiniteElementSpace &fes) override;
 
-   virtual void AssembleMF(const FiniteElementSpace &fes);
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
 
-   virtual void AddMultPA(const Vector &x, Vector &y) const;
+   void AddMultPA(const Vector &x, Vector &y) const override;
 
-   virtual void AddMultMF(const Vector &x, Vector &y) const;
+   using AddMultPAType =
+      void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
+              const real_t *x, real_t *y,
+              const int d1d, const int q1d);
+   MFEM_REGISTER_KERNELS(AddMultPAKernels, AddMultPAType, (int, int, int));
+
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+
+   using AddMultGradPAType =
+      void(*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
+              const real_t *u, const real_t *x, real_t *y,
+              const int d1d, const int q1d);
+
+   MFEM_REGISTER_KERNELS(AddMultGradPA2D, AddMultGradPAType, (int, int));
+   MFEM_REGISTER_KERNELS(AddMultGradPA3D, AddMultGradPAType, (int, int));
+
+   void AssembleGradDiagonalPA(Vector &) const override;
+
+   using GradDiagPAType =
+      void (*)(const int ne, const real_t *B, const real_t *G, const real_t *A,
+               const real_t *u, real_t *y,
+               const int d1d, const int q1d);
+
+   MFEM_REGISTER_KERNELS(GradDiagPA2D, GradDiagPAType, (int, int));
+   MFEM_REGISTER_KERNELS(GradDiagPA3D, GradDiagPAType, (int, int));
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSpecialization()
+   {
+      AddMultPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+      if constexpr (DIM == 2)
+      {
+         AddMultGradPA2D::Specialization<D1D, Q1D>::Add();
+         GradDiagPA2D::Specialization<D1D, Q1D>::Add();
+      }
+      else if constexpr (DIM == 3)
+      {
+         AddMultGradPA3D::Specialization<D1D, Q1D>::Add();
+         GradDiagPA3D::Specialization<D1D, Q1D>::Add();
+      }
+   }
+
+   void AssembleMF(const FiniteElementSpace &fes) override;
+
+   void AddMultMF(const Vector &x, Vector &y) const override;
+
+protected:
+   const IntegrationRule* GetDefaultIntegrationRule(
+      const FiniteElement& trial_fe,
+      const FiniteElement& test_fe,
+      const ElementTransformation& trans) const override
+   {
+      return &GetRule(test_fe, trans);
+   }
 };
 
 
 /** This class is used to assemble the convective form of the nonlinear term
-    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$ */
+    arising in the Navier-Stokes equations $(u \cdot \nabla v, w )$.
+    Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
 class ConvectiveVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -444,16 +491,24 @@ public:
 
    ConvectiveVectorConvectionNLFIntegrator() = default;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat);
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
 
 /** This class is used to assemble the skew-symmetric form of the nonlinear term
     arising in the Navier-Stokes equations
-    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$ */
+    $.5*(u \cdot \nabla v, w ) - .5*(u \cdot \nabla w, v )$.
+    Partial assembly is not supported; use VectorConvectionNLFIntegrator. */
 class SkewSymmetricVectorConvectionNLFIntegrator :
    public VectorConvectionNLFIntegrator
 {
@@ -467,10 +522,17 @@ public:
 
    SkewSymmetricVectorConvectionNLFIntegrator() = default;
 
-   virtual void AssembleElementGrad(const FiniteElement &el,
-                                    ElementTransformation &trans,
-                                    const Vector &elfun,
-                                    DenseMatrix &elmat);
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &trans,
+                            const Vector &elfun,
+                            DenseMatrix &elmat) override;
+
+   using NonlinearFormIntegrator::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddMultGradPA(const Vector &x, Vector &y) const override;
+   void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
 }

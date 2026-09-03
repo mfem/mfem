@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -56,7 +56,7 @@ public:
    /// parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
    /// The parameters vector should have size param_size. The state_vector
    /// should have size state_size, and the result vector should have size
-   /// vector_size. All size parameters are teplate parameters in
+   /// vector_size. All size parameters are template parameters in
    /// VectorFuncAutoDiff.
    VectorFuncAutoDiff(
       std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
@@ -438,7 +438,7 @@ namespace mfem
 namespace ad
 {
 /// MFEM native forward AD-type
-typedef internal::dual<real_t, real_t> ADFloatType;
+typedef future::dual<real_t, real_t> ADFloatType;
 /// Vector type for AD-type numbers
 typedef TAutoDiffVector<ADFloatType> ADVectorType;
 /// Matrix type for AD-type numbers
@@ -456,10 +456,10 @@ class VectorFuncAutoDiff
 public:
    /// F_ is user implemented function to be differentiated by
    /// VectorFuncAutoDiff. The signature of the function is: F_(mfem::Vector&
-   /// parameters, ad::ADVectroType& state_vector, ad::ADVectorType& result).
+   /// parameters, ad::ADVectorType& state_vector, ad::ADVectorType& result).
    /// The parameters vector should have size param_size. The state_vector
    /// should have size state_size, and the result vector should have size
-   /// vector_size. All size parameters are teplate parameters in
+   /// vector_size. All size parameters are template parameters in
    /// VectorFuncAutoDiff.
    VectorFuncAutoDiff(
       std::function<void(mfem::Vector&, ad::ADVectorType&, ad::ADVectorType&)> F_)
@@ -532,7 +532,7 @@ class QVectorFuncAutoDiff
 {
 private:
    /// MFEM native forward AD-type
-   typedef internal::dual<real_t, real_t> ADFType;
+   typedef future::dual<real_t, real_t> ADFType;
    /// Vector type for AD-type numbers
    typedef TAutoDiffVector<ADFType> ADFVector;
    /// Matrix type for AD-type numbers
@@ -617,13 +617,13 @@ class QFunctionAutoDiff
 {
 private:
    /// MFEM native AD-type for first derivatives
-   typedef internal::dual<real_t, real_t> ADFType;
+   typedef future::dual<real_t, real_t> ADFType;
    /// Vector type for AD-numbers(first derivatives)
    typedef TAutoDiffVector<ADFType> ADFVector;
    /// Matrix type for AD-numbers(first derivatives)
    typedef TAutoDiffDenseMatrix<ADFType> ADFDenseMatrix;
    /// MFEM native AD-type for second derivatives
-   typedef internal::dual<ADFType, ADFType> ADSType;
+   typedef future::dual<ADFType, ADFType> ADSType;
    /// Vector type for AD-numbers (second derivatives)
    typedef TAutoDiffVector<ADSType> ADSVector;
    /// Vector type for AD-numbers (second derivatives)

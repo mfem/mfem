@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -41,7 +41,7 @@ protected:
    /// Form the local elementwise discrete curl matrix.
    void Form3DFaceToEdge(Array<int> &face2edge);
 public:
-   /// @brief Construct the BatchedLOR_AMS object associated with the 3D RT
+   /// @brief Construct the BatchedLOR_ADS object associated with the 3D RT
    /// space @a pfes_ho_.
    ///
    /// The vector @a X_vert represents the LOR mesh coordinates in E-vector

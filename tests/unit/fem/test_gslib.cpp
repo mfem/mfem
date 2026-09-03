@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2024, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,6 +11,8 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+
+#include <random>
 
 using namespace mfem;
 #ifdef MFEM_USE_GSLIB
@@ -36,6 +38,165 @@ void F_exact(const Vector &p, Vector &F)
 
 enum class Space { H1, L2 };
 
+enum class SurfaceMeshType { Segment2D, Segment3D, Quad3D, Tri3D };
+
+const char *SurfaceMeshName(const SurfaceMeshType type)
+{
+   switch (type)
+   {
+      case SurfaceMeshType::Segment2D: return "segment-2d";
+      case SurfaceMeshType::Segment3D: return "segment-3d";
+      case SurfaceMeshType::Quad3D:    return "quad-3d";
+      case SurfaceMeshType::Tri3D:     return "tri-3d";
+   }
+   return "unknown";
+}
+
+int SurfaceSpaceDim(const SurfaceMeshType type)
+{
+   switch (type)
+   {
+      case SurfaceMeshType::Segment2D: return 2;
+      case SurfaceMeshType::Segment3D: return 3;
+      case SurfaceMeshType::Quad3D:    return 3;
+      case SurfaceMeshType::Tri3D:     return 3;
+   }
+   return -1;
+}
+
+Mesh MakeSurfaceMesh(const SurfaceMeshType type, const int ne)
+{
+   switch (type)
+   {
+      case SurfaceMeshType::Segment2D:
+         return Mesh::MakeCartesian1D(ne);
+      case SurfaceMeshType::Segment3D:
+         return Mesh::MakeCartesian1D(ne);
+      case SurfaceMeshType::Quad3D:
+         return Mesh::MakeCartesian2D(ne, ne, Element::QUADRILATERAL);
+      case SurfaceMeshType::Tri3D:
+         return Mesh::MakeCartesian2D(ne, ne, Element::TRIANGLE);
+   }
+   MFEM_ABORT("Unknown surface mesh type.");
+   return Mesh();
+}
+
+void GetSurfaceInteriorPoints(Mesh &mesh, const int npt_per_el,
+                              const int ordering, Vector &xyz,
+                              const int p0 = 0)
+{
+   MFEM_VERIFY(mesh.GetNodes() != nullptr, "Mesh nodes are required.");
+
+   const int sdim = mesh.SpaceDimension();
+   const int npt = xyz.Size()/sdim;
+   MFEM_VERIFY((p0 + mesh.GetNE()*npt_per_el)*sdim <= xyz.Size(),
+               "Output vector is too small.");
+   Vector point(sdim);
+   std::mt19937 gen(123);
+   std::uniform_real_distribution<double> uni(0.01, 0.99);
+   int p = p0;
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      const Geometry::Type geom = mesh.GetElementBaseGeometry(e);
+      for (int j = 0; j < npt_per_el; j++)
+      {
+         IntegrationPoint ip;
+         real_t xv = uni(gen);
+         if (geom == Geometry::SEGMENT)
+         {
+            ip.x = xv;
+         }
+         else if (geom == Geometry::SQUARE)
+         {
+            ip.Set2(xv, uni(gen));
+         }
+         else
+         {
+            MFEM_VERIFY(geom == Geometry::TRIANGLE,
+                        "Unsupported surface element geometry.");
+            ip.Set2(xv, uni(gen)*(1.0 - xv));
+         }
+         T->Transform(ip, point);
+         for (int d = 0; d < sdim; d++)
+         {
+            const int idx = (ordering == Ordering::byNODES) ?
+                            d*npt + p :
+                            p*sdim + d;
+            xyz(idx) = point(d);
+         }
+         p++;
+      }
+   }
+}
+
+void GetSurfaceBoundaryPoints(Mesh &mesh, const int npt_per_el,
+                              const int ordering, Vector &xyz,
+                              const int p0 = 0)
+{
+   MFEM_VERIFY(mesh.GetNodes() != nullptr, "Mesh nodes are required.");
+
+   const int sdim = mesh.SpaceDimension();
+   const int npt = xyz.Size()/sdim;
+   MFEM_VERIFY((p0 + mesh.GetNE()*npt_per_el)*sdim <= xyz.Size(),
+               "Output vector is too small.");
+   Vector point(sdim);
+   std::mt19937 gen(246);
+   std::uniform_real_distribution<double> uni(0.01, 0.99);
+   int p = p0;
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      const Geometry::Type geom = mesh.GetElementBaseGeometry(e);
+      for (int j = 0; j < npt_per_el; j++)
+      {
+         IntegrationPoint ip;
+         if (geom == Geometry::SEGMENT)
+         {
+            MFEM_VERIFY(npt_per_el == 2,
+                        "Segment boundary sampling requires npt_per_el = 2.");
+            ip.x = (j == 0) ? 0.0 : 1.0;
+         }
+         else
+         {
+            const double t = uni(gen);
+            if (geom == Geometry::SQUARE)
+            {
+               switch (j % 4)
+               {
+                  case 0: ip.Set2(t, 0.0);     break;
+                  case 1: ip.Set2(1.0, t);     break;
+                  case 2: ip.Set2(t, 1.0);     break;
+                  case 3: ip.Set2(0.0, t);     break;
+               }
+            }
+            else
+            {
+               MFEM_VERIFY(geom == Geometry::TRIANGLE,
+                           "Unsupported surface element geometry.");
+               switch (j % 3)
+               {
+                  case 0: ip.Set2(t, 0.0);     break;
+                  case 1: ip.Set2(t, 1.0 - t); break;
+                  case 2: ip.Set2(0.0, t);     break;
+               }
+            }
+         }
+         T->Transform(ip, point);
+         for (int d = 0; d < sdim; d++)
+         {
+            const int idx = (ordering == Ordering::byNODES) ?
+                            d*npt + p :
+                            p*sdim + d;
+            xyz(idx) = point(d);
+         }
+         p++;
+      }
+   }
+}
+
 TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
 {
    auto space               = GENERATE(Space::H1, Space::L2);
@@ -47,13 +208,14 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    int point_ordering       = GENERATE(0, 1);
    int ncomp                = GENERATE(1, 2);
    int gf_ordering          = GENERATE(0, 1);
+   int func_out_ordering    = GENERATE(0, 1);
    bool href                = GENERATE(true, false);
    bool pref                = GENERATE(true, false);
 
    int ne = 4;
 
    CAPTURE(space, simplex, dim, func_order, mesh_order, mesh_node_ordering,
-           point_ordering, ncomp, gf_ordering, href, pref);
+           point_ordering, ncomp, gf_ordering, func_out_ordering, href, pref);
 
    if (ncomp == 1 && gf_ordering == 1)
    {
@@ -145,7 +307,8 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
    FindPointsGSLIB finder;
    finder.Setup(mesh);
    finder.SetL2AvgType(FindPointsGSLIB::NONE);
-   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering,
+                      func_out_ordering);
    Array<unsigned int> code_out    = finder.GetCode();
    Vector dist_p_out = finder.GetDist();
 
@@ -168,7 +331,7 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
       {
          if (code_out[i] < 2)
          {
-            err = gf_ordering == Ordering::byNODES ?
+            err = func_out_ordering == Ordering::byNODES ?
                   fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
                   fabs(exact_val(j) - interp_vals[i*ncomp + j]);
             max_err  = std::max(max_err, err);
@@ -186,6 +349,92 @@ TEST_CASE("GSLIBInterpolate", "[GSLIBInterpolate][GSLIB]")
 
    finder.FreeData();
    delete c_fec;
+}
+
+TEST_CASE("GSLIBSurfInterpolate", "[GSLIBSurfInterpolate][GSLIB]")
+{
+   auto surface_mesh_type   = GENERATE(SurfaceMeshType::Segment2D,
+                                       SurfaceMeshType::Segment3D,
+                                       SurfaceMeshType::Quad3D,
+                                       SurfaceMeshType::Tri3D);
+   func_order               = GENERATE(1, 2);
+   int mesh_order           = GENERATE(1, 2);
+   int mesh_node_ordering   = GENERATE(0, 1);
+   int point_ordering       = GENERATE(0, 1);
+   int ncomp                = GENERATE(1, 2);
+   int gf_ordering          = GENERATE(0, 1);
+   int func_out_ordering    = GENERATE(0, 1);
+
+   const char *mesh_name = SurfaceMeshName(surface_mesh_type);
+   CAPTURE(mesh_name, func_order, mesh_order, mesh_node_ordering,
+           point_ordering, ncomp, gf_ordering, func_out_ordering);
+
+   if (ncomp == 1 && gf_ordering == 1)
+   {
+      return;
+   }
+
+   Mesh mesh = MakeSurfaceMesh(surface_mesh_type, 4);
+   const int sdim = SurfaceSpaceDim(surface_mesh_type);
+   mesh.SetCurvature(mesh_order, false, sdim, mesh_node_ordering);
+
+   H1_FECollection c_fec(func_order, mesh.Dimension());
+   FiniteElementSpace c_fespace(&mesh, &c_fec, ncomp, gf_ordering);
+   GridFunction field_vals(&c_fespace);
+
+   VectorFunctionCoefficient F(ncomp, F_exact);
+   field_vals.ProjectCoefficient(F);
+
+   const int npt_per_el = 8;
+   const int pts_cnt = mesh.GetNE()*npt_per_el;
+   Vector vxyz(pts_cnt*sdim);
+   GetSurfaceInteriorPoints(mesh, npt_per_el, point_ordering, vxyz);
+
+   Vector interp_vals(pts_cnt*ncomp);
+   FindPointsGSLIB finder;
+   finder.SetupSurf(mesh);
+   finder.SetL2AvgType(FindPointsGSLIB::NONE);
+   finder.Interpolate(vxyz, field_vals, interp_vals, point_ordering,
+                      func_out_ordering);
+
+   Array<unsigned int> code_out = finder.GetCode();
+   Vector dist_p_out = finder.GetDist();
+
+   int not_found = 0;
+   double err = 0.0, max_err = 0.0, max_dist = 0.0;
+   Vector pos(sdim);
+   Vector exact_val(ncomp);
+
+   for (int i = 0; i < pts_cnt; i++)
+   {
+      max_dist = std::max(max_dist, dist_p_out(i));
+      for (int d = 0; d < sdim; d++)
+      {
+         const int idx = (point_ordering == Ordering::byNODES) ?
+                         d*pts_cnt + i :
+                         i*sdim + d;
+         pos(d) = vxyz(idx);
+      }
+      F_exact(pos, exact_val);
+      for (int j = 0; j < ncomp; j++)
+      {
+         if (code_out[i] < 2)
+         {
+            err = func_out_ordering == Ordering::byNODES ?
+                  fabs(exact_val(j) - interp_vals[i + j*pts_cnt]) :
+                  fabs(exact_val(j) - interp_vals[i*ncomp + j]);
+            max_err = std::max(max_err, err);
+         }
+         else if (j == 0)
+         {
+            not_found++;
+         }
+      }
+   }
+
+   REQUIRE(max_err < 1e-12);
+   REQUIRE(max_dist < 1e-10);
+   REQUIRE(not_found == 0);
 }
 
 // Generates meshes with different element types, followed by points at
@@ -255,9 +504,8 @@ TEST_CASE("GSLIBFindAtElementBoundary",
       int nptface = xyz.Size()/dim;
 
       // Generate points inside each element
-      FiniteElementCollection *l2_fec = new L2_FECollection(l2_order, dim);
-      FiniteElementSpace l2_fespace =
-         FiniteElementSpace(&mesh, l2_fec, 1);
+      L2_FECollection l2_fec(l2_order, dim);
+      FiniteElementSpace l2_fespace(&mesh, &l2_fec, 1);
       DenseMatrix vals;
       DenseMatrix tr;
       for (int e = 0; e < mesh.GetNE(); e++)
@@ -293,7 +541,92 @@ TEST_CASE("GSLIBFindAtElementBoundary",
          cmax = std::max(code_out[i], cmax);
       }
       REQUIRE((cmin == 0 && cmax == 0)); // should be found inside element
-      delete l2_fec;
+   }
+}
+
+TEST_CASE("GSLIBSurfFindAtElementBoundary",
+          "[GSLIBSurfFindAtElementBoundary][GSLIB]")
+{
+   auto surface_mesh_type = GENERATE(SurfaceMeshType::Segment2D,
+                                     SurfaceMeshType::Segment3D,
+                                     SurfaceMeshType::Quad3D,
+                                     SurfaceMeshType::Tri3D);
+   const char *mesh_name = SurfaceMeshName(surface_mesh_type);
+   CAPTURE(mesh_name);
+
+   Mesh mesh = MakeSurfaceMesh(surface_mesh_type, 4);
+   const int sdim = SurfaceSpaceDim(surface_mesh_type);
+   mesh.SetCurvature(2, false, sdim);
+
+   const int nptface_per_el = (mesh.Dimension() == 1) ? 2 : 8;
+   const int nptint_per_el = 8;
+   const int nptface = mesh.GetNE()*nptface_per_el;
+   const int nptint = mesh.GetNE()*nptint_per_el;
+   Vector xyz((nptface + nptint)*sdim);
+   GetSurfaceBoundaryPoints(mesh, nptface_per_el, Ordering::byVDIM, xyz, 0);
+   GetSurfaceInteriorPoints(mesh, nptint_per_el, Ordering::byVDIM, xyz,
+                            nptface);
+
+   FindPointsGSLIB finder;
+   finder.SetupSurf(mesh);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+   Array<unsigned int> code_out = finder.GetCode();
+
+   for (int i = 0; i < nptface; i++)
+   {
+      REQUIRE(code_out[i] == 1);
+   }
+   for (int i = nptface; i < nptface + nptint; i++)
+   {
+      REQUIRE(code_out[i] == 0);
+   }
+}
+
+TEST_CASE("GSLIBSurfAABBExpansion", "[GSLIBSurfAABBExpansion][GSLIB]")
+{
+   auto surface_mesh_type = GENERATE(SurfaceMeshType::Segment2D,
+                                     SurfaceMeshType::Segment3D,
+                                     SurfaceMeshType::Quad3D,
+                                     SurfaceMeshType::Tri3D);
+   const char *mesh_name = SurfaceMeshName(surface_mesh_type);
+   CAPTURE(mesh_name);
+
+   constexpr double offset = 1.0e-3;
+   const int npt_per_el = 8;
+
+   Mesh mesh = MakeSurfaceMesh(surface_mesh_type, 4);
+   const int sdim = SurfaceSpaceDim(surface_mesh_type);
+   mesh.SetCurvature(2, false, sdim);
+
+   const int npt = mesh.GetNE()*npt_per_el;
+   Vector xyz(npt*sdim);
+   GetSurfaceInteriorPoints(mesh, npt_per_el, Ordering::byVDIM, xyz);
+   // offset them to move away from the surface
+   const int off_d = (surface_mesh_type == SurfaceMeshType::Segment2D) ? 1 : 2;
+   for (int i = 0; i < npt; i++)
+   {
+      xyz(i*sdim + off_d) += offset;
+   }
+
+   FindPointsGSLIB finder;
+   finder.SetupSurf(mesh, 0.0);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+   Array<unsigned int> code_no_pad = finder.GetCode();
+
+   for (int i = 0; i < code_no_pad.Size(); i++)
+   {
+      REQUIRE(code_no_pad[i] == 2);
+   }
+
+   // make aabb at least big enough to include the offset points
+   Vector aabb_sz_inc({2.1*offset});
+   finder.SetupSurfWithAABBExpansion(mesh, aabb_sz_inc);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+   Array<unsigned int> code_with_pad = finder.GetCode();
+
+   for (int i = 0; i < npt; i++)
+   {
+      REQUIRE(code_with_pad[i] == 1);
    }
 }
 
@@ -320,10 +653,8 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    mesh.SetCurvature(mesh_order);
 
    // Set GridFunction to be interpolated
-   int func_order = 3;
-   FiniteElementCollection *c_fec = new L2_FECollection(func_order, dim);
-   FiniteElementSpace c_fespace =
-      FiniteElementSpace(&mesh, c_fec, 1);
+   L2_FECollection c_fec(3, dim);
+   FiniteElementSpace c_fespace(&mesh, &c_fec, 1);
    GridFunction field_vals(&c_fespace);
    Array<int> dofs;
    double leftval = 1.0;
@@ -365,8 +696,196 @@ TEST_CASE("GSLIBInterpolateL2ElementBoundary",
    REQUIRE(interp_vals(0) == MFEM_Approx(0.5*(leftval+rightval)));
 
    finder.FreeData();
-   delete c_fec;
 }
+
+#ifdef MFEM_USE_MPI
+// Custom interpolation procedure with gslib
+TEST_CASE("GSLIBCustomInterpolation",
+          "[GSLIBCustomInterpolation][Parallel][GSLIB]")
+{
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   int dim      = GENERATE(2, 3);
+   bool simplex = GENERATE(true, false);
+
+   CAPTURE(dim, simplex);
+
+   int nex = 4;
+   int mesh_order = 2;
+   Mesh mesh;
+   if (dim == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(nex, nex, type);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(nex, nex, nex, type);
+   }
+
+   mesh.SetCurvature(mesh_order);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   // f(x,y,z) = x^2 + y^2 + z^2
+   auto func = [](const Vector &x)
+   {
+      const int dim = x.Size();
+      double res = 0.0;
+      for (int d = 0; d < dim; d++) { res += std::pow(x(d), 2); }
+      return res;
+   };
+
+   // \nabla f(x,y,z) = [2*x,2*y,2*z]
+   auto func_grad = [](const Vector &x, Vector &p)
+   {
+      const int dim = x.Size();
+      p.SetSize(dim);
+      for (int d = 0; d < dim; d++) { p(d) = 2.0*x(d); }
+   };
+
+   // Set GridFunction to be interpolated
+   H1_FECollection c_fec(3, dim);
+   FiniteElementSpace c_fespace(&pmesh, &c_fec, 1);
+   GridFunction field_vals(&c_fespace);
+
+   FunctionCoefficient f(func);
+   field_vals.ProjectCoefficient(f);
+
+   // Generate randomized points in [0, 1]^D. Assume ordering by VDIM.
+   int npt = 101;
+   Vector xyz(npt*dim);
+   xyz.Randomize(myid + 1);
+   if (myid == 1) // zero out # of points on rank 1
+   {
+      xyz.SetSize(0);
+   }
+
+   // Find points on the ParMesh
+   Vector interp_vals(npt);
+   FindPointsGSLIB finder;
+   finder.Setup(pmesh);
+   finder.FindPoints(xyz, Ordering::byVDIM);
+
+   /** Interpolate gradient using custom interpolation procedure. */
+   // We first send information to MPI ranks that own the element corresponding
+   // to each point.
+   Array<unsigned int> recv_elem, recv_code;
+   Vector recv_rst;
+   finder.DistributePointInfoToOwningMPIRanks(recv_elem, recv_rst, recv_code);
+   int npt_recv = recv_elem.Size();
+   // Compute gradient locally
+   Vector grad(npt_recv*dim);
+   for (int i = 0; i < npt_recv; i++)
+   {
+      const int e = recv_elem[i];
+
+      IntegrationPoint ip;
+      if (dim == 2)
+      {
+         ip.Set2(recv_rst(dim*i + 0),recv_rst(dim*i + 1));
+      }
+      else
+      {
+         ip.Set3(recv_rst(dim*i + 0),recv_rst(dim*i + 1),
+                 recv_rst(dim*i + 2));
+      }
+      ElementTransformation *Tr = c_fespace.GetElementTransformation(e);
+      Tr->SetIntPoint(&ip);
+
+      Vector gradloc(grad.GetData()+i*dim,dim);
+      field_vals.GetGradient(*Tr, gradloc);
+   }
+
+   // Send the computed gradient back to the ranks that requested it.
+   Vector recv_grad;
+   finder.DistributeInterpolatedValues(grad, dim, Ordering::byVDIM, recv_grad);
+
+   // Check if the received gradient matched analytic gradient.
+   for (int i = 0; i < npt && myid == 0; i++)
+   {
+      Vector x(xyz.GetData()+i*dim,dim);
+      Vector grad_exact(dim);
+      func_grad(x, grad_exact);
+
+      Vector recv_grad_i(recv_grad.GetData()+i*dim,dim);
+
+      for (int d = 0; d < dim; d++)
+      {
+         REQUIRE(grad_exact(d) == Approx(recv_grad(i*dim + d)));
+      }
+   }
+
+   finder.FreeData();
+}
+
+TEST_CASE("GSLIBGSOP", "[GSLIBGSOP][Parallel][GSLIB]")
+{
+   int myid;
+   MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+
+   int nlen = 5 + rand() % 1000;
+   MPI_Allreduce(MPI_IN_PLACE, &nlen, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+   Array<long long> ids(nlen);
+   Vector vals(nlen);
+   vals.Randomize(myid+1);
+
+   // Force minimum values based on the identifier for deterministic behavior
+   // on rank 0 and randomize the identifier on other ranks.
+   if (myid == 0)
+   {
+      for (int i = 0; i < nlen; i++)
+      {
+         ids[i] = i+1;
+         vals(i) = -ids[i];
+      }
+   }
+   else
+   {
+      for (int i = 0; i < nlen; i++)
+      {
+         int num = rand() % nlen + 1;
+         ids[i] = num;
+      }
+   }
+
+   // Test GSOp::MIN
+   GSOPGSLIB gs = GSOPGSLIB(MPI_COMM_WORLD, ids);
+   gs.GS(vals, GSOPGSLIB::GSOp::MIN);
+
+   // Check for minimum value
+   for (int i = 0; i < nlen; i++)
+   {
+      int id = ids[i];
+      REQUIRE(vals(i) == -1.0*id);
+   }
+
+   // Test GSOp::ADD
+   // Set all values to 0 except on rank 0, and then add them.
+   if (myid != 0) { vals = 0.0; }
+   gs.GS(vals, GSOPGSLIB::GSOp::ADD);
+
+   // Check for added value to match what was originally set on rank 0.
+   for (int i = 0; i < nlen; i++)
+   {
+      int id = ids[i];
+      REQUIRE(vals(i) == -1.0*id);
+   }
+
+   // Test GSOp::MUL
+   // Randomize values on all ranks except rank 0 such that they are positive.
+   if (myid != 0) { vals.Randomize(); }
+   gs.GS(vals, GSOPGSLIB::GSOp::MUL);
+
+   // Check for multiplied values to be negative
+   for (int i = 0; i < nlen; i++)
+   {
+      REQUIRE(vals(i) < 0);
+   }
+}
+#endif // MFEM_USE_MPI
 
 } //namespace_gslib
 #endif
