@@ -345,19 +345,11 @@ TEST_CASE("Laplacian",
       mesh.SetNode(i, x1.GetData());
    }
 
-   // Distort mesh
-   real_t distort_scale = 0.05;
-   if (deformed)
-   {
-      Vector dx(mesh.GetNodes()->Size());
-      dx.Randomize(1234);
-      dx *= 2.0; dx -= 1.0; dx *= distort_scale;
-      mesh.MoveNodes(dx);
-   }
-
+   // Refine NURBS mesh
    if (NURBS)
    {
       // We need a C1 smooth mesh
+      // otherwise the no-ibp matrix does not match the ibp matrix
       if (deformed)
       {
          mesh.DegreeElevate(1);
@@ -365,16 +357,16 @@ TEST_CASE("Laplacian",
 
       // Refine mesh
       mesh.UniformRefinement();
+   }
 
-      // Distort mesh
-      distort_scale = 0.01;
-      if (deformed)
-      {
-         Vector dx(mesh.GetNodes()->Size());
-         dx.Randomize(1234);
-         dx *= 2.0; dx -= 1.0; dx *= distort_scale;
-         mesh.MoveNodes(dx);
-      }
+   // Distort the mesh
+   real_t distort_scale = 0.1;
+   if (deformed)
+   {
+      Vector dx(mesh.GetNodes()->Size());
+      dx.Randomize(1234);
+      dx *= distort_scale;
+      mesh.MoveNodes(dx);
    }
 
    // Create Space

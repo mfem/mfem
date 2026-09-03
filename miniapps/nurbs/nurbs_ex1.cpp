@@ -22,10 +22,10 @@
 //               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2 -no-ibp
 //               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2
 //               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m meshes/disc-nurbs-single-patc.mesh -o 2
-//               nurbs_ex1 -m meshes/disc-nurbs-single-patc.mesh -o 2 -no-ibp
-//               nurbs_ex1 -m meshes/ball-nurbs-single-patc.mesh -o 4 -r 2
-//               nurbs_ex1 -m meshes/ball-nurbs-single-patc.mesh -o 4 -r 2 -no-ibp
+//               nurbs_ex1 -m meshes/disc-nurbs-single-patch.mesh -o 2
+//               nurbs_ex1 -m meshes/disc-nurbs-single-patch.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m meshes/ball-nurbs-single-patch.mesh -o 4 -r 2
+//               nurbs_ex1 -m meshes/ball-nurbs-single-patch.mesh -o 4 -r 2 -no-ibp
 
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
