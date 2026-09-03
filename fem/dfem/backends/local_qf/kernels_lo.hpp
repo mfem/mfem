@@ -50,6 +50,15 @@ struct lo_qreg<KerOps, T, 2>
 };
 
 template<typename KerOps, typename T>
+struct lo_qreg<KerOps, T, 3>
+{
+   // Here we assume that extents[1] == extents[2] for Hessian q-function parameters
+   static constexpr int VDIM = qf_param_shape<T>::extents[0];
+   static constexpr int SDIM = qf_param_shape<T>::extents[1];
+   using type = typename KerOps::template qreg_vdd_t<VDIM, SDIM>;
+};
+
+template<typename KerOps, typename T>
 using lo_qreg_t = typename lo_qreg<KerOps, T>::type;
 
 template<typename T, int rank = qf_param_shape<T>::rank>
@@ -99,7 +108,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
       for (int dd = 0; dd < e0; ++dd) { t(dd) = qp[dd]; }
       return t;
    }
-   else
+   else if constexpr (RNK == 2)
    {
       constexpr int e0 = qf_param_shape<T>::extents[0];
       constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -109,6 +118,24 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
       {
          MFEM_UNROLL(e1)
          for (int j = 0; j < e1; ++j) { t(i, j) = qp[i][j]; }
+      }
+      return t;
+   }
+   else
+   {
+      constexpr int e0 = qf_param_shape<T>::extents[0];
+      constexpr int e1 = qf_param_shape<T>::extents[1];
+      constexpr int e2 = qf_param_shape<T>::extents[2];
+      T t;
+      MFEM_UNROLL(e0)
+      for (int i = 0; i < e0; ++i)
+      {
+         MFEM_UNROLL(e1)
+         for (int j = 0; j < e1; ++j)
+         {
+            MFEM_UNROLL(e2)
+            for (int k = 0; k < e2; ++k) { t(i, j, k) = qp[i][j][k]; }
+         }
       }
       return t;
    }
@@ -197,9 +224,64 @@ pull_directional(Reg &preg, Reg &sreg, int qx, int qy, int qz, bool dependent)
 } // namespace lok
 
 // ────────────────────────────────────────────────────────────────────────────
-/// LO tensor-product kernels
+/// LO tensor-product kernels for the LOOP_Z thread mapping.
+/// (less ZTHREADS than Q1D, so o thread strides over z rather than own single slice)
+
 namespace loz
 {
+
+/// Mirror ker::LoadDofs2d/3d but uses same thread mapping as loz:: kernels
+
+/// Load component @a c of the element dofs into shared memory.
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            sm[dz][dy][dx][0] = XE(dx, dy, dz, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load all DIM components of the element dofs into shared memory.
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD(dz, z, d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            MFEM_UNROLL(DIM)
+            for (int c = 0; c < DIM; ++c)
+            {
+               sm[dz][dy][dx][c] = XE(dx, dy, dz, c, e);
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   if constexpr (VDIM == 1) { LoadDofs3d<DIM, MQ1>(e, d1d, 0, XE, sm); }
+   else { LoadDofs3d<DIM, MQ1>(e, d1d, XE, sm); }
+}
 
 template<int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
@@ -457,161 +539,25 @@ inline MFEM_HOST_DEVICE void VectorGrad3d(const int d1d, const int q1d,
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Reference Hessian of a scalar field.
+// Reference Hessian, LOOP_Z variants of the LO ker:: kernels.
 //
 // The Hessian is symmetric, so only its upper triangle is contracted and the
-// lower triangle is mirrored.
-// As for the gradient, each stage is a tensor-product contraction in one reference direction.
-// (HessX_ HessY_ HessZ_ calls).
+// lower triangle is mirrored. As for the gradient, each stage is a
+// tensor-product contraction in one reference direction (HessX, HessY, HessZ).
 //
-// The LO workspace has only DIM component slots per tensor point, so it cannot
-// carry all unique Hessian entries at once (three in 2D and six in 3D).
-// Therefore it reuses the two shared buffers in batches.
-// - In 2D: three X-stage states {B_x u, G_x u, H_x u} do not fit in two slots,
-//          so X is split into HessX2dA and HessX2dB.
-// - In 3D: three states fit exactly, HessX3d computes them once,
-//          then two Y/Z batches form {xx, xy, yy} and {xz, yz, zz}.
-
-
-// 2D scalar Hessian, batch A X contraction.
-// Assumes sm0[...,0] holds u at the tensor-product dofs. Produces
-// sm1 = {H_x u, G_x u}; Y contraction completes {u_xx, u_xy}.
-template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessX2dA(const int d1d, const int q1d,
-                                      const real_t (*G)[MQ1],
-                                      const real_t (*H)[MQ1],
-                                      const real_t (&sm0)[MQ1][MQ1][DIM],
-                                      real_t (&sm1)[MQ1][MQ1][DIM])
-{
-   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-   {
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-      {
-         real_t u = 0.0, v = 0.0;
-         MFEM_UNROLL(MQ1)
-         for (int dx = 0; dx < d1d; ++dx)
-         {
-            const real_t x = sm0[dy][dx][0];
-            u = std::fma(H[dx][qx], x, u); // H_x u
-            v = std::fma(G[dx][qx], x, v); // G_x u
-         }
-         sm1[dy][qx][0] = u;
-         sm1[dy][qx][1] = v;
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/// 2D scalar Hessian, batch A Y contraction.
-/// Assumes sm1 = {H_x u, G_x u} from HessX2dA. Produces
-/// reg = {B_y H_x u, G_y G_x u} = {u_xx, u_xy}.
-template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessY2dA(const int d1d, const int q1d,
-                                      const real_t (*B)[MQ1],
-                                      const real_t (*G)[MQ1],
-                                      const real_t (&sm1)[MQ1][MQ1][DIM],
-                                      ker::regs2d_vd_t<DIM, DIM, MQ1> &reg)
-{
-   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-   {
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-      {
-         real_t u = 0.0, v = 0.0;
-         MFEM_UNROLL(MQ1)
-         for (int dy = 0; dy < d1d; ++dy)
-         {
-            u = std::fma(B[dy][qy], sm1[dy][qx][0], u); // B_y H_x u = u_xx
-            v = std::fma(G[dy][qy], sm1[dy][qx][1], v); // G_y G_x u = u_xy
-         }
-         reg[qy][qx][0][0] = u;
-         reg[qy][qx][0][1] = v;
-         reg[qy][qx][1][0] = v;
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/// 2D scalar Hessian, batch B X contraction.
-/// Assumes sm0[...,0] still holds u. Produces sm1[...,0] = B_x u;
-/// the following Y contraction completes u_yy.
-template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessX2dB(const int d1d, const int q1d,
-                                      const real_t (*B)[MQ1],
-                                      const real_t (&sm0)[MQ1][MQ1][DIM],
-                                      real_t (&sm1)[MQ1][MQ1][DIM])
-{
-   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
-   {
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-      {
-         real_t u = 0.0;
-         MFEM_UNROLL(MQ1)
-         for (int dx = 0; dx < d1d; ++dx)
-         {
-            u = std::fma(B[dx][qx], sm0[dy][dx][0], u); // B_x u
-         }
-         sm1[dy][qx][0] = u;
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-/// 2D scalar Hessian, batch B Y contraction.
-/// Assumes sm1[...,0] holds B_x u from HessX2dB. Produces
-/// reg[1][1] = H_y B_x u = u_yy.
-template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessY2dB(const int d1d, const int q1d,
-                                      const real_t (*H)[MQ1],
-                                      const real_t (&sm1)[MQ1][MQ1][DIM],
-                                      ker::regs2d_vd_t<DIM, DIM, MQ1> &reg)
-{
-   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
-   {
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
-      {
-         real_t u = 0.0;
-         MFEM_UNROLL(MQ1)
-         for (int dy = 0; dy < d1d; ++dy)
-         {
-            u = std::fma(H[dy][qy], sm1[dy][qx][0], u); // H_y B_x u = u_yy
-         }
-         reg[qy][qx][1][1] = u;
-      }
-   }
-   MFEM_SYNC_THREAD;
-}
-
-template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void Hess2d(const int d1d, const int q1d,
-                                    const real_t (*B)[MQ1],
-                                    const real_t (*G)[MQ1],
-                                    const real_t (*H)[MQ1],
-                                    const real_t (&sm0)[MQ1][MQ1][DIM],
-                                    real_t (&sm1)[MQ1][MQ1][DIM],
-                                    ker::regs2d_vd_t<DIM, DIM, MQ1> &reg)
-{
-   static_assert(DIM == 2, "loz::Hess2d requires DIM == 2");
-   // Batch A: sm1 = {H_x u, G_x u}.
-   HessX2dA<DIM, MQ1>(d1d, q1d, G, H, sm0, sm1);
-   // reg = {B_y H_x u, G_y G_x u} = {u_xx, u_xy}.
-   HessY2dA<DIM, MQ1>(d1d, q1d, B, G, sm1, reg);
-   // Batch B: sm1 = {B_x u}.
-   HessX2dB<DIM, MQ1>(d1d, q1d, B, sm0, sm1);
-   // reg[1][1] = H_y B_x u = u_yy --> reg = {u_xx, u_xy, u_yy}.
-   HessY2dB<DIM, MQ1>(d1d, q1d, H, sm1, reg);
-}
 
 /// 3D scalar Hessian, X contraction.
-/// Assumes sm0[...,0] holds u at the tensor-product dofs. Produces
-/// sm1 = {B_x u, G_x u, H_x u}, reused by both Y/Z Hessian batches.
+/// - sm0[...,0] u
+/// - sm1 = {B_x u, G_x u, H_x u}, reused by both Y/Z Hessian batches.
 template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessX3d(const int d1d, const int q1d,
-                                     const real_t (*B)[MQ1],
-                                     const real_t (*G)[MQ1],
-                                     const real_t (*H)[MQ1],
-                                     const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
-                                     real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+inline MFEM_HOST_DEVICE void HessX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (*H)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
 {
+   static_assert(DIM == 3, "loz::HessX requires DIM == 3");
    MFEM_FOREACH_THREAD(dz, z, d1d)
    {
       MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
@@ -636,19 +582,19 @@ inline MFEM_HOST_DEVICE void HessX3d(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
-/// @brief 3D scalar Hessian, Y contraction.
+/// 3D scalar Hessian, Y contraction.
 ///
-/// Assumes sm1 holds {B_x u, G_x u, H_x u}; @a c0, @a c1, and @a c2 select
-/// those components. Contracts them with @a M0, @a M1, and @a M2 respectively,
-/// producing the three selected Y-stage states in sm0.
+/// - sm1 = {B_x u, G_x u, H_x u};
+/// - sm0 = {M0_y sm1[c0], M1_y sm1[c1], M2_y sm1[c2]}.
 template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessY3d(const int d1d, const int q1d,
-                                     const real_t (*M0)[MQ1], const int c0,
-                                     const real_t (*M1)[MQ1], const int c1,
-                                     const real_t (*M2)[MQ1], const int c2,
-                                     const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
-                                     real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+inline MFEM_HOST_DEVICE void HessY(const int d1d, const int q1d,
+                                   const real_t (*M0)[MQ1], const int c0,
+                                   const real_t (*M1)[MQ1], const int c1,
+                                   const real_t (*M2)[MQ1], const int c2,
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
 {
+   static_assert(DIM == 3, "loz::HessY requires DIM == 3");
    MFEM_FOREACH_THREAD(dz, z, d1d)
    {
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
@@ -672,20 +618,19 @@ inline MFEM_HOST_DEVICE void HessY3d(const int d1d, const int q1d,
    MFEM_SYNC_THREAD;
 }
 
-/// @brief 3D scalar Hessian, Z contraction.
-///
-/// Assumes sm0 holds the three Y-stage states from HessY3d. Contracts them with
-/// @a M0, @a M1, and @a M2, then scatters the results into the (i,j) entries
-/// given by @a ij, mirroring the transposes.
+/// 3D scalar Hessian, Z contraction.
+/// - sm0 = {M0_z Y[0], M1_z Y[1], M2_z Y[2]};
+/// - reg = {u_xx, u_xy, u_yy, u_xz, u_yz, u_zz} (upper triangle of Hessian)
 template<int DIM, int MQ1>
-inline MFEM_HOST_DEVICE void HessZ3d(const int d1d, const int q1d,
-                                     const real_t (*M0)[MQ1],
-                                     const real_t (*M1)[MQ1],
-                                     const real_t (*M2)[MQ1],
-                                     const int (&ij)[3][2],
-                                     const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
-                                     ker::regs3d_vd_t<DIM, DIM, MQ1> &reg)
+inline MFEM_HOST_DEVICE void HessZ(const int d1d, const int q1d,
+                                   const real_t (*M0)[MQ1],
+                                   const real_t (*M1)[MQ1],
+                                   const real_t (*M2)[MQ1],
+                                   const int (&ij)[3][2],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   ker::regs3d_vd_t<DIM, DIM, MQ1> &reg)
 {
+   static_assert(DIM == 3, "loz::HessZ requires DIM == 3");
    MFEM_FOREACH_THREAD(qz, z, q1d)
    {
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
@@ -700,6 +645,7 @@ inline MFEM_HOST_DEVICE void HessZ3d(const int d1d, const int q1d,
                u[1] = std::fma(M1[dz][qz], sm0[dz][qy][qx][1], u[1]); // M1_z Y[1]
                u[2] = std::fma(M2[dz][qz], sm0[dz][qy][qx][2], u[2]); // M2_z Y[2]
             }
+            MFEM_UNROLL(3)
             for (int k = 0; k < 3; ++k)
             {
                reg[qz][qy][qx][ij[k][0]][ij[k][1]] = u[k];
@@ -723,19 +669,74 @@ inline MFEM_HOST_DEVICE void Hess3d(const int d1d, const int q1d,
    static_assert(DIM == 3, "loz::Hess3d requires DIM == 3");
    // sm1 = {B_x u, G_x u, H_x u}; it survives both batches, which reuse sm0
    // (dead after the X pass) as their Y-stage target.
-   HessX3d<DIM, MQ1>(d1d, q1d, B, G, H, sm0, sm1);
+   loz::HessX<DIM, MQ1>(d1d, q1d, B, G, H, sm0, sm1);
 
    // Batch A: Y states = {B_y H_x u, G_y G_x u, H_y B_x u}; B_z completes
    // {u_xx, u_xy, u_yy}.
    const int ij_a[3][2] = {{0, 0}, {0, 1}, {1, 1}};
-   HessY3d<DIM, MQ1>(d1d, q1d, B, 2, G, 1, H, 0, sm1, sm0);
-   HessZ3d<DIM, MQ1>(d1d, q1d, B, B, B, ij_a, sm0, reg);
+   loz::HessY<DIM, MQ1>(d1d, q1d, B, 2, G, 1, H, 0, sm1, sm0);
+   loz::HessZ<DIM, MQ1>(d1d, q1d, B, B, B, ij_a, sm0, reg);
 
    // Batch B: Y states = {B_y G_x u, G_y B_x u, B_y B_x u}; {G_z, G_z, H_z}
    // completes {u_xz, u_yz, u_zz}.
    const int ij_b[3][2] = {{0, 2}, {1, 2}, {2, 2}};
-   HessY3d<DIM, MQ1>(d1d, q1d, B, 1, G, 0, B, 0, sm1, sm0);
-   HessZ3d<DIM, MQ1>(d1d, q1d, G, G, H, ij_b, sm0, reg);
+   loz::HessY<DIM, MQ1>(d1d, q1d, B, 1, G, 0, B, 0, sm1, sm0);
+   loz::HessZ<DIM, MQ1>(d1d, q1d, G, G, H, ij_b, sm0, reg);
+}
+
+/// 3D vector Hessian, Z contraction.
+/// - sm0 = {M0_z Y[0], M1_z Y[1], M2_z Y[2]};
+/// - reg[c][ij[k][0]][ij[k][1]] = reg[c][ij[k][1]][ij[k][0]] = u[k].
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHessZ(
+   const int d1d, const int q1d, const int c,
+   const real_t (*M0)[MQ1], const real_t (*M1)[MQ1], const real_t (*M2)[MQ1],
+   const int (&ij)[3][2], const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   ker::regs3d_vdd_t<VDIM, DIM, MQ1> &reg)
+{
+   static_assert(DIM == 3, "loz::VectorHessZ requires DIM == 3");
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u[0] = std::fma(M0[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(M1[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(M2[dz][qz], sm0[dz][qy][qx][2], u[2]);
+            }
+            MFEM_UNROLL(3)
+            for (int k = 0; k < 3; ++k)
+            {
+               reg[qz][qy][qx][c][ij[k][0]][ij[k][1]] = u[k];
+               reg[qz][qy][qx][c][ij[k][1]][ij[k][0]] = u[k];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorHess3d(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1], const real_t (*G)[MQ1], const real_t (*H)[MQ1],
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM], real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   ker::regs3d_vdd_t<VDIM, DIM, MQ1> &reg)
+{
+   static_assert(DIM == 3, "loz::VectorHess3d requires DIM == 3");
+   // Same two batches as loz::Hess3d; only the Z stage carries the component.
+   loz::HessX<DIM, MQ1>(d1d, q1d, B, G, H, sm0, sm1);
+   const int ij_a[3][2] = {{0, 0}, {0, 1}, {1, 1}};
+   loz::HessY<DIM, MQ1>(d1d, q1d, B, 2, G, 1, H, 0, sm1, sm0);
+   VectorHessZ<VDIM, DIM, MQ1>(d1d, q1d, c, B, B, B, ij_a, sm0, reg);
+   const int ij_b[3][2] = {{0, 2}, {1, 2}, {2, 2}};
+   loz::HessY<DIM, MQ1>(d1d, q1d, B, 1, G, 0, B, 0, sm1, sm0);
+   VectorHessZ<VDIM, DIM, MQ1>(d1d, q1d, c, G, G, H, ij_b, sm0, reg);
 }
 
 } // namespace loz
@@ -756,6 +757,11 @@ struct lo_ker_backend
          ker::regs2d_vd_t<VDIM, SDIM, MQ1>,
          ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
 
+   template<int VDIM, int SDIM>
+   using qreg_vdd_t = std::conditional_t<(DIM == 2),
+         ker::regs2d_vdd_t<VDIM, SDIM, MQ1>,
+         ker::regs3d_vdd_t<VDIM, SDIM, MQ1>>;
+
    struct Shared2d
    {
       real_t M[2][MQ1][MQ1][DIM];
@@ -769,6 +775,26 @@ struct lo_ker_backend
    };
 
    using Shared = std::conditional_t<(DIM == 2), Shared2d, Shared3d>;
+
+   /// Stage the 3D element dofs in shared memory, using the same z thread
+   /// mapping as the contractions that consume them. See namespace loz.
+   template<int VDIM, typename XE_T, typename SM_T>
+   static MFEM_HOST_DEVICE void load_dofs3d(const int e, const int d,
+                                            const XE_T &XE, SM_T &sm)
+   {
+      if constexpr (LOOP_Z) { loz::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, sm); }
+      else { ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, sm); }
+   }
+
+   /// Component @a c only.
+   template<typename XE_T, typename SM_T>
+   static MFEM_HOST_DEVICE void load_dofs3d(const int e, const int d,
+                                            const int c, const XE_T &XE,
+                                            SM_T &sm)
+   {
+      if constexpr (LOOP_Z) { loz::LoadDofs3d<DIM, MQ1>(e, d, c, XE, sm); }
+      else { ker::LoadDofs3d<DIM, MQ1>(e, d, c, XE, sm); }
+   }
 
    template<typename FieldParamT, typename ArgRegT, typename XE_T>
    static MFEM_HOST_DEVICE void load_value(Shared &s,
@@ -789,7 +815,7 @@ struct lo_ker_backend
       }
       else
       {
-         ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
+         load_dofs3d<VDIM>(e, d, XE, s.M[0]);
          if constexpr (LOOP_Z)
          {
             loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
@@ -829,7 +855,7 @@ struct lo_ker_backend
             }
             else
             {
-               ker::LoadDofs3d(e, d, 0, XE, s.M[0]);
+               load_dofs3d(e, d, 0, XE, s.M[0]);
                if constexpr (LOOP_Z)
                {
                   loz::Grad3d<DIM, MQ1>(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
@@ -856,7 +882,7 @@ struct lo_ker_backend
                }
                else
                {
-                  ker::LoadDofs3d(e, d, c, XE, s.M[0]);
+                  load_dofs3d(e, d, c, XE, s.M[0]);
                   if constexpr (LOOP_Z)
                   {
                      loz::VectorGrad3d<VDIM, DIM, MQ1>(
@@ -887,26 +913,72 @@ struct lo_ker_backend
                                              const XE_T &XE,
                                              ArgRegT &rarg)
    {
-      static_assert(RNK == 2,
-                    "Hessian: only scalar fields (rank-2 tensor<real_t,dim,dim>"
-                    " q-function parameters) are supported so far");
+      static_assert(RNK == 2 || RNK == 3,
+                    "Hessian: the q-function parameter must be a rank-2 "
+                    "tensor<real_t,dim,dim> (scalar field) or a rank-3 "
+                    "tensor<real_t,vdim,dim,dim> (vector field)");
       ker::LoadMatrix(d, q, B, s.B);
       ker::LoadMatrix(d, q, G, s.G);
       ker::LoadMatrix(d, q, H, s.H);
-      static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
-      static_assert(qf_param_shape<FieldParamT>::extents[0] == SDIM,
-                    "Hessian: q-function parameter must be square (dim x dim)");
-      if constexpr (SDIM == DIM)
+      if constexpr (RNK == 2)
       {
-         if constexpr (DIM == 2)
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
+         static_assert(qf_param_shape<FieldParamT>::extents[0] == SDIM,
+                       "Hessian: q-function parameter must be square (dim x dim)");
+         if constexpr (SDIM == DIM)
          {
-            ker::LoadDofs2d(e, d, 0, XE, s.M[0]);
-            loz::Hess2d<DIM, MQ1>(d, q, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+            if constexpr (DIM == 2)
+            {
+               ker::LoadDofs2d(e, d, 0, XE, s.M[0]);
+               ker::Hess2d<DIM, MQ1>(d, q, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+            }
+            else
+            {
+               load_dofs3d(e, d, 0, XE, s.M[0]);
+               if constexpr (LOOP_Z)
+               {
+                  loz::Hess3d<DIM, MQ1>(
+                     d, q, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+               }
+               else
+               {
+                  ker::Hess3d<DIM, MQ1>(
+                     d, q, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+               }
+            }
          }
-         else
+      }
+      else
+      {
+         static constexpr int VDIM = qf_param_shape<FieldParamT>::extents[0];
+         static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[1];
+         static_assert(qf_param_shape<FieldParamT>::extents[2] == SDIM,
+                       "Hessian: trailing q-function parameter dimensions must match");
+         if constexpr (SDIM == DIM)
          {
-            ker::LoadDofs3d(e, d, 0, XE, s.M[0]);
-            loz::Hess3d<DIM, MQ1>(d, q, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+            for (int c = 0; c < VDIM; ++c)
+            {
+               if constexpr (DIM == 2)
+               {
+                  ker::LoadDofs2d(e, d, c, XE, s.M[0]);
+                  ker::VectorHess2d<VDIM, DIM, MQ1>(
+                     d, q, c, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+               }
+               else
+               {
+                  load_dofs3d(e, d, c, XE, s.M[0]);
+                  if constexpr (LOOP_Z)
+                  {
+                     loz::VectorHess3d<VDIM, DIM, MQ1>(
+                        d, q, c, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+                  }
+                  else
+                  {
+                     ker::VectorHess3d<VDIM, DIM, MQ1>(
+                        d, q, c, s.B, s.G, s.H, s.M[0], s.M[1], rarg);
+                  }
+               }
+            }
          }
       }
    }
@@ -1203,6 +1275,14 @@ struct LocalQFLOBackend
             constexpr int e1 = qf_param_shape<T>::extents[1];
             return as_tensor<real_t, e0, e1>(
                       &lok::at<DIM>(reg, qx, qy, qz)[0][0]);
+         }
+         else if constexpr (RNK == 3)
+         {
+            constexpr int e0 = qf_param_shape<T>::extents[0];
+            constexpr int e1 = qf_param_shape<T>::extents[1];
+            constexpr int e2 = qf_param_shape<T>::extents[2];
+            return as_tensor<real_t, e0, e1, e2>(
+                      &lok::at<DIM>(reg, qx, qy, qz)[0][0][0]);
          }
          else
          {
