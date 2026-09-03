@@ -353,7 +353,18 @@ public:
        against the isotropic loop's 1351, and 1.8e-6 at M = 1302 against 2473,
        1.5 to 1.9 times fewer unknowns throughout. It then plateaus at 8.7e-7
        where the isotropic loop carries on to 5.9e-8, and that plateau is not
-       understood. */
+       understood.
+
+       **How much this and SetCapTraceAtElement() are worth fell by three
+       orders when the trace surplus stopped being retired**, and the reason is
+       worth knowing rather than the number. Turning the cap off used to
+       plateau the demonstrator at 8.7e-7; it now reaches 1.02e-9, against
+       9.9e-10 with it on. Neither flag's own logic changed -- both still
+       trigger on a face whose degree exceeds its element's -- but a
+       hanging-node family is no longer forced to the CEILING degree, and that
+       was where most faces richer than their elements came from. The flags
+       still discriminate, and only just; a driver that leaves them off is now
+       merely slightly worse rather than stopped. */
    void SetSkipEnrichedDirection(bool skip = true)
    { skip_enriched_dir = skip; Reset(); }
 

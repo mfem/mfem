@@ -387,8 +387,12 @@ reach 1e-9 at all, and must need at most two thirds of `h`-adaptivity's
 globally coupled unknowns and a fifth of uniform refinement's at each of two
 tolerances. Currently 9.9e-10, and ratios of 0.540 and 0.276 against `h`,
 0.0073 and 0.0098 against uniform. It is shown to be able to fail rather than
-assumed to be: `HP_ARGS=... -no-cap-trace-at-element` makes the loop plateau at
-8.7e-7 and the reach check trips. Serial only, for the reason above.
+assumed to be: `HP_ARGS=... -no-captr` takes the loop to 1.02e-9 and the reach
+check trips. That margin used to be three orders -- the cap was worth 8.7e-7
+against 5.9e-8 -- and shrank when hanging-node families stopped being forced
+to the ceiling, which was where most faces richer than their elements came
+from. The check still discriminates, and only just; it is worth watching.
+Serial only, for the reason above.
 
 **The `[Parallel]` p-adaptivity unit tests are two.** One checks the derived
 face degree against an INDEPENDENT computation -- the degrees are a function of
