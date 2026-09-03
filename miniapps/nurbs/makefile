@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -20,10 +20,11 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex24 \
-   nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh nurbs_surface \
-   nurbs_vector_diffusion nurbs_stokes
-PAR_MINIAPPS = nurbs_ex1p nurbs_ex11p
+SEQ_MINIAPPS = nurbs_ex1 nurbs_patch_ex1 nurbs_ex3 nurbs_ex5 nurbs_ex10 \
+   nurbs_ex24 nurbs_curveint nurbs_printfunc nurbs_solenoidal nurbs_naca_cmesh \
+   nurbs_mesh_info nurbs_vector_diffusion nurbs_stokes
+PAR_MINIAPPS = nurbs_ex1p nurbs_ex10p nurbs_ex11p
+
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -218,7 +219,9 @@ clean-build:
 
 clean-exec:
 	@rm -f refined.mesh sin-fit.mesh ex5.mesh exsol.mesh mesh.* sol.* mode_*
-	@rm -f naca-cmesh.mesh sol_?.gf *-Surface.mesh vdif.mesh stokes.mesh
+	@rm -f naca-cmesh.mesh sol_?.gf k?_*.dat *-Surface.mesh
 	@rm -rf Example1* Example3* Example5* Solenoidal_* ParaView
 	@rm -rf CurveInt Naca_cmesh glvis_naca-cmesh.mesh solution.dat
-	@rm -rf Stokes* VectorDiffusion*
+	@rm -rf velocity.* elastic_energy.* deformed.*
+	@rm -rf vdif.mesh stokes.mesh Stokes* VectorDiffusion*
+

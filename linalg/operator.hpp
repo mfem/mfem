@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,12 +13,14 @@
 #define MFEM_OPERATOR
 
 #include "vector.hpp"
+#include "multivector.hpp"
 
 namespace mfem
 {
 
 class ConstrainedOperator;
 class RectangularConstrainedOperator;
+class ODESolver;
 
 /// Abstract operator
 class Operator
@@ -129,6 +131,20 @@ public:
    virtual void ArrayAddMultTranspose(const Array<const Vector *> &X,
                                       Array<Vector *> &Y, const real_t a = 1.0) const;
 
+   /** @brief Operator application, y = A(x), where the input @a x and the
+       output @a y are MultiVector objects, i.e. they generally use
+       non-contiguous memory representation.
+
+       The base class implementation for the method is to generate an error. */
+   virtual void MultMV(const MultiVector &x, MultiVector &y) const;
+
+   /** @brief Action of the transpose operator, y = A^t(x), where the input @a x
+       and the output @a y are MultiVector objects, i.e. they generally use
+       non-contiguous memory representation.
+
+       The base class implementation for this method is to generate an error. */
+   virtual void MultTransposeMV(const MultiVector &x, MultiVector &y) const;
+
    /** @brief Evaluate the gradient operator at the point @a x. The default
        behavior in class Operator is to generate an error. */
    virtual Operator &GetGradient(const Vector &x) const
@@ -136,6 +152,13 @@ public:
       MFEM_ABORT("Operator::GetGradient() is not overridden!");
       return const_cast<Operator &>(*this);
    }
+
+   /** @brief Evaluate the gradient operator at the point @a x. The input @a x
+       is provided as a MultiVector, i.e. it generally uses non-contiguous
+       memory representation.
+
+       The base class implementation for the method is to generate an error. */
+   virtual Operator &GetGradientMV(const MultiVector &x) const;
 
    /** @brief Computes the diagonal entries into @a diag. Typically, this
        operation only makes sense for linear Operator%s. In some cases, only an
@@ -381,11 +404,24 @@ public:
       ADDITIVE_TERM_2
    };
 
+   /** Used to specify the variable being returned by ImplicitSolve(). This can
+    * be queried by ODESolver to identify the variable being solved for.
+    * @warning Not all ODESolver may support all options. See ODESolver::SupportsImplicitVariableType() */
+   enum ImplicitVariableType
+   {
+      SLOPE, ///< stage slope, $k = \frac{du}{dt}$.
+      STATE  ///< stage state, $k = u$.
+   };
+
 protected:
    real_t t;  ///< Current time.
    Type type; /**< @brief Describes the form of the TimeDependentOperator, see
                    the documentation of #Type. */
    EvalMode eval_mode; ///< Current evaluation mode.
+private:
+   /// Restrict direct access to this member; use SetImplicitVariableType() instead.
+   ImplicitVariableType implicit_variable_type =
+      ImplicitVariableType::SLOPE; /**< @brief Return variable for ImplicitSolve()*/
 
 public:
    /** @brief Construct a "square" TimeDependentOperator (u,t) -> k(u,t), where
@@ -429,6 +465,30 @@ public:
    virtual void SetEvalMode(const EvalMode new_eval_mode)
    { eval_mode = new_eval_mode; }
 
+protected:
+   friend class ODESolver; // This is fine since friend is not inherited
+
+   /** @brief Sets the #ImplicitVariableType for ImplicitSolve(). This is
+    * called by the #ODESolver after confirming the #ODESolver supports the @a variable_type.
+   */
+   virtual void SetImplicitVariableType(const ImplicitVariableType variable_type)
+   { implicit_variable_type = variable_type; }
+
+public:
+   /** @brief Returns the #ImplicitVariableType for ImplicitSolve(). */
+   virtual ImplicitVariableType GetImplicitVariableType() const
+   { return implicit_variable_type; }
+
+   /** @brief Returns @a true if implicit variable is #STATE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarTypeIsState() const
+   { return (implicit_variable_type == ImplicitVariableType::STATE); }
+
+   /** @brief Returns @a true if implicit variable is #SLOPE and @a false otherwise.
+    * Used by ODESolver to identify the stage variable returned by ImplicitSolve() */
+   virtual bool ImplicitVarTypeIsSlope() const
+   { return (implicit_variable_type == ImplicitVariableType::SLOPE); }
+
    /** @brief Perform the action of the explicit part of the operator, G:
        @a v = G(@a u, t) where t is the current time.
 
@@ -462,7 +522,8 @@ public:
 
    /** @brief Solve for the unknown @a k, at the current time t, the following
        equation:
-       F(@a u + @a gamma @a k, @a k, t) = G(@a u + @a gamma @a k, t).
+        1. $F( u + \gamma k, k, t) = G( u +  \gamma k, t)$, if solving for stage-slope (default)
+        2. $F( u , \frac{k-u}{\gamma}, t) = G(k, t)$, if solving for stage-state
 
        For solving an ordinary differential equation of the form
        $ M \frac{dy}{dt} = g(y,t) $, recall that F and G can be defined in
@@ -472,8 +533,9 @@ public:
          2. F(u,k,t) = M k and G(u,t) = g(u,t)
          3. F(u,k,t) = M k - g(u,t) and G(u,t) = 0
 
-       Regardless of the choice of F and G, this function should solve for @a k
-       in M @a k = g(@a u + @a gamma @a k, t).
+        Regardless of the choice of F and G, this function should solve for @a k:
+        - $~Mk = g( u + \gamma k, t)~$, if solving for stage-slope.
+        - $~Mk  = \gamma g(k, t) + Mu~$, if solving for stage-state
 
        To see how @a k can be useful, consider the backward Euler method defined
        by $ y(t + \Delta t) = y(t) + \Delta t k_0 $ where
@@ -491,6 +553,7 @@ public:
        $ y(t) + \Delta t \sum_{j=1}^{i-1} a_{ij} k_j $ and @a gamma set to
        $ a_{ii} \Delta t $, for $ k_i $. For example, see class SDIRK33Solver.
 
+       See SetImplicitVariableType() to switch between different variable modes.
        If not re-implemented, this method simply generates an error. */
    virtual void ImplicitSolve(const real_t gamma, const Vector &u, Vector &k);
 

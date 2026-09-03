@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -80,6 +80,15 @@ public:
             (*this)(i,j) = values[i][j];
          }
       }
+   }
+
+   /// Make the DenseMatrix to reference the given sub-Memory of @a base.
+   /** The DenseMatrix does not assume ownership of the data array, i.e. it will
+       not delete the @a base Memory. */
+   void MakeRef(Memory<real_t> &base, int offset, int h, int w)
+   {
+      data.MakeRef(base, offset, h*w);
+      height = h; width = w;
    }
 
    /// Change the data array and the size of the DenseMatrix.
@@ -346,8 +355,13 @@ public:
    /// Returns the diagonal of the matrix
    void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
-   void Getl1Diag(Vector &l) const;
-   /// Compute the row sums of the DenseMatrix
+   /// @deprecated Use GetRowl1() instead.
+   MFEM_DEPRECATED void Getl1Diag(Vector &l) const;
+   /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
+   void GetRowl1(Vector &l) const;
+   /// Returns the l2norm of the rows of the DenseMatrix
+   void GetRowl2(Vector &l) const;
+   /// Returns the row sums of the DenseMatrix
    void GetRowSums(Vector &l) const;
 
    /// Creates n x n diagonal matrix with diagonal elements c
@@ -461,7 +475,13 @@ public:
    void GetFromVector(int offset, const Vector &v);
    /** If (dofs[i] < 0 and dofs[j] >= 0) or (dofs[i] >= 0 and dofs[j] < 0)
        then (*this)(i,j) = -(*this)(i,j).  */
-   void AdjustDofDirection(Array<int> &dofs);
+   void AdjustDofDirection(const Array<int> &dofs);
+
+   /** If (row_dofs[i] < 0) xor (col_dofs[j] < 0) then
+    (*this)(i,j) = -(*this)(i,j). This method also converts
+    row_dofs/col_dofs to unsigned indices (d -> -d-1). */
+   void AdjustDofDirection(Array<int> &row_dofs,
+                           Array<int> &col_dofs);
 
    /// Replace small entries, abs(a_ij) <= eps, with zero.
    void Threshold(real_t eps);
@@ -979,7 +999,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the parameters for
+    and right singular vectors can be chosen according to the parameters for
     the LAPACK DGESVD.
 
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
@@ -997,7 +1017,7 @@ public:
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
     and right singular
-    vectors can be choosen according to the parameters for the LAPACK DGESVD.
+    vectors can be chosen according to the parameters for the LAPACK DGESVD.
 
     @param [in] h height of the matrix
     @param [in] w width of the matrix
@@ -1014,7 +1034,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the parameters for
+    and right singular vectors can be chosen according to the parameters for
     the LAPACK DGESVD.
 
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
@@ -1039,7 +1059,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the
+    and right singular vectors can be chosen according to the
     parameters for the LAPACK DGESVD.
 
     @param [in] h height of the matrix
@@ -1117,6 +1137,17 @@ private:
 public:
    DenseTensor() : ni(0), nj(0), nk(0) { }
 
+   DenseTensor(const DenseTensor &other)
+      : tdata(other.tdata), ni(other.ni), nj(other.nj), nk(other.nk) { }
+
+   DenseTensor(DenseTensor &&other)
+      : tdata(std::move(other.tdata)), ni(other.ni), nj(other.nj), nk(other.nk)
+   {
+      // Reset other; other.tdata is reset in Array<T> move constructror.
+      other.Mk.ClearExternalData();
+      other.ni = other.nj = other.nk = 0;
+   }
+
    DenseTensor(int i, int j, int k) : tdata(i*j*k), ni(i), nj(j), nk(k) { }
 
    DenseTensor(real_t *d, int i, int j, int k)
@@ -1124,6 +1155,33 @@ public:
 
    DenseTensor(int i, int j, int k, MemoryType mt)
       : tdata(i*j*k, mt), ni(i), nj(j), nk(k) { }
+
+   DenseTensor &operator=(const DenseTensor &other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = other.tdata;
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+      return *this;
+   }
+
+   DenseTensor &operator=(DenseTensor &&other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = std::move(other.tdata);
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+
+      // Reset other; other.tdata is reset in Array<T> move assignment.
+      other.Mk.ClearExternalData();
+      other.ni = other.nj = other.nk = 0;
+
+      return *this;
+   }
 
    int SizeI() const { return ni; }
    int SizeJ() const { return nj; }
@@ -1250,7 +1308,7 @@ public:
    void Clear()
    { UseExternalData(NULL, 0, 0, 0); }
 
-   std::size_t MemoryUsage() const { return tdata.Capacity(); }
+   std::size_t MemoryUsage() const { return tdata.MemoryUsage(); }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
    const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }

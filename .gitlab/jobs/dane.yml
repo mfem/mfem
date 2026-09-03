@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -85,3 +85,8 @@ opt_par_gcc_10_pumi:
   extends: .mfem_job_on_dane
   variables:
     SPEC: "%gcc@10.3.1 +pumi"
+
+opt_par_gcc_10_gslib:
+  extends: .mfem_job_on_dane
+  variables:
+    SPEC: "%gcc@10.3.1 +gslib"

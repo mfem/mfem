@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -51,6 +51,9 @@ public:
 
    /// Get the time for time dependent coefficients
    real_t GetTime() { return time; }
+
+   /// Returns dimension of the vector.
+   int GetVDim() { return 1; }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip. */
@@ -114,11 +117,10 @@ public:
    /// Construct the constant coefficient using a vector of constants.
    /** @a c should be a vector defined by attributes, so for region with
        attribute @a i @a c[i-1] is the coefficient in that region */
-   PWConstCoefficient(Vector &c)
-   { constants.SetSize(c.Size()); constants=c; }
+   PWConstCoefficient(const Vector &c) { UpdateConstants(c); }
 
    /// Update the constants with vector @a c.
-   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
+   void UpdateConstants(const Vector &c) { constants = c; }
 
    /// Return a reference to the i-th constant
    real_t &operator()(int i) { return constants(i-1); }
@@ -1053,7 +1055,8 @@ public:
 
 typedef VectorCoefficient DiagonalMatrixCoefficient;
 
-/// Base class for Matrix Coefficients that optionally depend on time and space.
+/** Base class for matrix-valued coefficients that optionally depend on time
+    and space. */
 class MatrixCoefficient
 {
 protected:
@@ -1099,6 +1102,9 @@ public:
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
+   ///
+   /// The stored entries use the same row/column convention as `Eval()`,
+   /// unless `transpose == true`, in which case `K^T` is stored instead.
    ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
@@ -1332,8 +1338,8 @@ public:
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   /** @brief Set the coefficient located at (i,j) in the matrix.  By default by
-       default this will take ownership of the Coefficient passed in, but this
+   /** @brief Set the coefficient located at (i,j) in the matrix.  By default
+       this will take ownership of the Coefficient passed in, but this
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
@@ -1869,6 +1875,87 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the trace coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a vector coefficient
+class VectorComponentCoefficient : public Coefficient
+{
+private:
+   VectorCoefficient *a = nullptr;
+
+   mutable Vector va;
+   int component;
+
+public:
+   /// Construct with a vector coefficient.
+   VectorComponentCoefficient(VectorCoefficient &A)
+      : a(&A), va(A.GetVDim()), component(0) {};
+
+   /// Construct with a vector coefficient and a component index @a c.
+   VectorComponentCoefficient(VectorCoefficient &A, int c);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the vector coefficient
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() const { return a; }
+
+   /// Set the component
+   void SetComponent(int c);
+
+   /// Return the component
+   int GetComponent() const { return component; }
+
+   /// Evaluate the component coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a matrix coefficient
+class MatrixComponentCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient *a = nullptr;
+
+   mutable DenseMatrix ma;
+   int row_idx,col_idx;
+
+public:
+   /// Construct with a matrix coefficient.
+   MatrixComponentCoefficient(MatrixCoefficient &A)
+      : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {};
+
+   /// Construct with the matrix coefficient.
+   MatrixComponentCoefficient(MatrixCoefficient &A, int ri, int ci);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the index
+   void SetRowIndex(int ri);
+
+   /// Return the index
+   int GetRowIndex() const { return row_idx; }
+
+   /// Reset the index
+   void SetColumnIndex(int ci);
+
+   /// Return the index
+   int GetColumnIndex() const { return col_idx; }
+
+
+   /// Evaluate the component coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
 };
@@ -2520,7 +2607,7 @@ public:
    void SetConstant(const Vector &constant);
 
    /// Set this vector to the given constant matrix.
-   void SetConstant(const DenseMatrix &constant);
+   void SetConstant(const DenseMatrix &constant, bool transpose=false);
 
    /// Set this vector to the given constant symmetric matrix.
    void SetConstant(const DenseSymmetricMatrix &constant);

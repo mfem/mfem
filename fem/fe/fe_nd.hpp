@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -303,8 +303,7 @@ public:
    /** @brief Construct the ND_SegmentElement of order @a p and open
        BasisType @a ob_type */
    ND_SegmentElement(const int p, const int ob_type = BasisType::GaussLegendre);
-   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override
-   { obasis1d.Eval(ip.x, shape); }
+   void CalcShape(const IntegrationPoint &ip, Vector &shape) const override;
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
    void CalcVShape(ElementTransformation &Trans,
@@ -325,7 +324,10 @@ public:
    using FiniteElement::Project;
    void Project(VectorCoefficient &vc,
                 ElementTransformation &Trans, Vector &dofs) const override
-   { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(vc, Trans, dofs); }
+      else { Project_ND(tk, dof2tk, vc, Trans, dofs); }
+   }
    void ProjectMatrixCoefficient(MatrixCoefficient &mc,
                                  ElementTransformation &T,
                                  Vector &dofs) const override
@@ -338,6 +340,11 @@ public:
                     ElementTransformation &Trans,
                     DenseMatrix &grad) const override
    { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+
+protected:
+   void ProjectIntegrated(VectorCoefficient &vc,
+                          ElementTransformation &Trans,
+                          Vector &dofs) const;
 };
 
 class ND_WedgeElement : public VectorFiniteElement
@@ -663,6 +670,9 @@ public:
                          const int cb_type = BasisType::GaussLobatto,
                          const int ob_type = BasisType::GaussLegendre);
 
+   int GetPhysRangeDim(int space_dim) const override { return 2; }
+   int GetPhysCurlDim(int space_dim) const override { return 1; }
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
 
@@ -705,6 +715,9 @@ private:
                            DenseMatrix &I) const;
 
 public:
+   int GetPhysRangeDim(int space_dim) const override { return 3; }
+   int GetPhysCurlDim(int space_dim) const override { return 3; }
+
    using FiniteElement::CalcVShape;
    using FiniteElement::CalcPhysCurlShape;
 

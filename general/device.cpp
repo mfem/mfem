@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,8 @@
 
 #include <unordered_map>
 #include <map>
+#include <sstream>
+#include <iomanip>
 
 namespace mfem
 {
@@ -579,7 +581,9 @@ void Device::Setup(const std::string &device_option, const int device_id)
    if (Allows(Backend::CUDA)) { CudaDeviceSetup(dev, ngpu); }
    if (Allows(Backend::HIP)) { HipDeviceSetup(dev, ngpu); }
    if (Allows(Backend::RAJA_CUDA) || Allows(Backend::RAJA_HIP))
-   { RajaDeviceSetup(dev, ngpu); }
+   {
+      RajaDeviceSetup(dev, ngpu);
+   }
    // The check for MFEM_USE_OCCA is in the function OccaDeviceSetup().
    if (Allows(Backend::OCCA_MASK)) { OccaDeviceSetup(dev); }
    if (Allows(Backend::CEED_MASK))
@@ -651,18 +655,18 @@ MemoryType Device::QueryMemoryType(const void* ptr)
 #elif defined(MFEM_USE_HIP)
    struct hipPointerAttribute_t attr;
 
-   hipError_t err = hipPointerGetAttributes(&attr, ptr);
-   if (err != hipSuccess)
+   hipError_t error = hipPointerGetAttributes(&attr, ptr);
+   if (error != hipSuccess)
    {
-      if (err == hipErrorInvalidValue)
+      if (error == hipErrorInvalidValue)
       {
          // host memory
          /* clear the error */
-         hipGetLastError();
+         (void)hipGetLastError();
       }
       else
       {
-         MFEM_GPU_CHECK(err);
+         MFEM_GPU_CHECK(error);
       }
    }
    else if (attr.isManaged)
@@ -702,7 +706,7 @@ void Device::DeviceMem(size_t *free, size_t *total)
 #if defined(MFEM_USE_CUDA)
    cudaMemGetInfo(free, total);
 #elif defined(MFEM_USE_HIP)
-   hipMemGetInfo(free, total);
+   MFEM_GPU_CHECK(hipMemGetInfo(free, total));
 #else
    // not compiled with GPU support
    if (free)
@@ -716,6 +720,29 @@ void Device::DeviceMem(size_t *free, size_t *total)
 #endif
 }
 
+std::string Device::GetUUID(const int device_id)
+{
+   std::stringstream res;
+#if defined(MFEM_USE_CUDA)
+   cudaDeviceProp prop;
+   MFEM_GPU_CHECK(cudaGetDeviceProperties(&prop, device_id));
+   for (int i = 0; i < 16; ++i)
+   {
+      const unsigned b = static_cast<unsigned char>(prop.uuid.bytes[i]);
+      res << std::setfill('0') << std::setw(2) << std::hex << b;
+   }
+#elif defined(MFEM_USE_HIP)
+   hipUUID uuid;
+   MFEM_GPU_CHECK(hipDeviceGetUuid(&uuid, device_id));
+   for (int i = 0; i < 16; ++i)
+   {
+      const unsigned b = static_cast<unsigned char>(uuid.bytes[i]);
+      res << std::setfill('0') << std::setw(2) << std::hex << b;
+   }
+#endif
+   return res.str();
+}
+
 int Device::NumMultiprocessors(int dev)
 {
 #if defined(MFEM_USE_CUDA)
@@ -724,7 +751,8 @@ int Device::NumMultiprocessors(int dev)
    return res;
 #elif defined(MFEM_USE_HIP)
    int res;
-   hipDeviceGetAttribute(&res, hipDeviceAttributeMultiprocessorCount, dev);
+   MFEM_GPU_CHECK(
+      hipDeviceGetAttribute(&res, hipDeviceAttributeMultiprocessorCount, dev));
    return res;
 #else
    // not compiled with GPU support
@@ -739,7 +767,7 @@ int Device::NumMultiprocessors()
 #if defined(MFEM_USE_CUDA)
    cudaGetDevice(&dev);
 #elif defined(MFEM_USE_HIP)
-   hipGetDevice(&dev);
+   MFEM_GPU_CHECK(hipGetDevice(&dev));
 #endif
    return NumMultiprocessors(dev);
 }
@@ -752,7 +780,7 @@ int Device::WarpSize(int dev)
    return res;
 #elif defined(MFEM_USE_HIP)
    int res;
-   hipDeviceGetAttribute(&res, hipDeviceAttributeWarpSize, dev);
+   MFEM_GPU_CHECK(hipDeviceGetAttribute(&res, hipDeviceAttributeWarpSize, dev));
    return res;
 #else
    // not compiled with GPU support
@@ -767,7 +795,7 @@ int Device::WarpSize()
 #if defined(MFEM_USE_CUDA)
    cudaGetDevice(&dev);
 #elif defined(MFEM_USE_HIP)
-   hipGetDevice(&dev);
+   MFEM_GPU_CHECK(hipGetDevice(&dev));
 #endif
    return WarpSize(dev);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,29 +40,29 @@ public:
    }
 
    /// Resets the patch and element data stored in the element
-   void                 Reset      ()         const { patch = elem = -1; }
+   void Reset() const { patch = elem = -1; }
    /// Set which IJK in patch should be evaluated
-   void                 SetIJK     (const int *IJK) const { ijk = IJK; }
+   void SetIJK(const int *IJK) const { ijk = IJK; }
    /// Get which patch is currently considered
-   int                  GetPatch   ()         const { return patch; }
+   int GetPatch() const { return patch; }
    /// Set which patch should be evaluated
-   void                 SetPatch   (int p)    const { patch = p; }
-   /// Set which element should be evaluated
-   int                  GetElement ()         const { return elem; }
+   void SetPatch(int p) const { patch = p; }
    /// Get which element is currently considered
-   void                 SetElement (int e)    const { elem = e; }
-   /// Get the KnotVectors
-   Array <const KnotVector*> &KnotVectors()   const { return kv; }
-   /// Get the Weights
-   Vector              &Weights    ()         const { return weights; }
+   int GetElement() const { return elem; }
+   /// Set which element should be evaluated
+   void SetElement(int e) const { elem = e; }
+   /// Get the knot vectors.
+   Array<const KnotVector*> &KnotVectors() const { return kv; }
+   /// Get the weights.
+   Vector &Weights() const { return weights; }
    /// Update the polynomial order according to the currently set knotvectors
    /// Resizes all internal data members to have the correct size
    /// related to the polynomial order
-   virtual void         SetOrder   ()         const { }
+   virtual void SetOrder() const { }
 
    /// Returns the indices (i,j) in 2D or (i,j,k) in 3D of this element in the
    /// tensor product ordering of the patch.
-   const int* GetIJK() const { return ijk; }
+   const int *GetIJK() const { return ijk; }
 };
 
 
@@ -86,6 +86,18 @@ public:
                    DenseMatrix &dshape) const override;
    void CalcHessian (const IntegrationPoint &ip,
                      DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// An arbitrary order 2D NURBS element on a square
@@ -121,6 +133,18 @@ public:
                    DenseMatrix &dshape) const override;
    void CalcHessian (const IntegrationPoint &ip,
                      DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 /// An arbitrary order 3D NURBS element on a cube
@@ -161,6 +185,18 @@ public:
                    DenseMatrix &dshape) const override;
    void CalcHessian (const IntegrationPoint &ip,
                      DenseMatrix &hessian) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 };
 
 
@@ -262,6 +298,14 @@ public:
    void CalcPhysDVShape(ElementTransformation &Trans,
                         DenseTensor &dvshape) const override;
 
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
+
    ~NURBS_HDiv2DFiniteElement();
 };
 
@@ -356,6 +400,7 @@ public:
    void CalcDivShape(const IntegrationPoint &ip,
                      Vector &divshape) const override;
 
+
    /** @brief Evaluate the gradients of all shape functions of a vector finite
        element in reference space at the given point @a ip. */
    /** The 1st index of DenseTensor @a dvshape refers to a vector shapefunction,
@@ -375,6 +420,13 @@ public:
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans,
                         DenseTensor &dvshape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HDiv3DFiniteElement();
 };
@@ -475,6 +527,13 @@ public:
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans,
                         DenseTensor &dvshape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HCurl2DFiniteElement();
 };
@@ -587,6 +646,13 @@ public:
        by @a Trans. */
    void CalcPhysDVShape(ElementTransformation &Trans,
                         DenseTensor &dvshape) const override;
+
+   using FiniteElement::Project;
+
+   /** Evaluate the dofs that are defined on this element.
+       Dofs that can not be evaluated will remain unmodified. */
+   void Project(VectorCoefficient &vcoeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
 
    ~NURBS_HCurl3DFiniteElement();
 };
