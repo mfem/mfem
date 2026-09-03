@@ -20,3 +20,12 @@ So level 2 pays off only with a preconditioner **not** built from `S`:
 p-multigrid on the trace space, a coarse-space auxiliary operator, or a
 trace-space operator assembled at low order and reused. **Nothing has been
 tried.**
+
+**And the prize is bigger than a memory argument makes it look.** Threading
+work on NPC measured what the assembly of `S` actually costs: the scatter into
+the `SparseMatrix` is **40–47% of `NPCGradient`**, and `MatrixFree` deletes all
+of it — the mode difference at a fixed state *is* the scatter, which is how it
+was measured. So a preconditioner that works without `S` would buy back a
+substantial fraction of every Jacobian as well as the memory. What it pays
+today is an unpreconditioned trace solve at 8x, so it still loses; the tables
+are on `SetGradientMode()` and on the `NPCResidual` doxygen group.

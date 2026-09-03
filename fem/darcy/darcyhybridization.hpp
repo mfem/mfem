@@ -968,12 +968,46 @@ public:
 
        So the two loops that could be threaded with no integrator work at all
        are **under 6% of the step**, flat in mesh size and order, and Amdahl
-       caps any gain there. Threading NPC usefully means integrator
-       thread-safety, exactly as it does for the reduced route;
-       doc/HDG-ELEMENT-LOCAL-PARALLELISM.md carries the plan. NPCRecover is
-       nonetheless the easiest loop in the class to thread -- it writes only
-       the calling element's L2 flux and potential dofs, so it needs neither
-       colouring nor atomics.
+       caps any gain there. NPCRecover is nonetheless the easiest loop in the
+       class to thread -- it writes only the calling element's L2 flux and
+       potential dofs, so it needs neither colouring nor atomics.
+
+       **NPCGradient's column is three parts, not the two this used to name.**
+       It said the column was ConstructGrad (integrators, serial) plus
+       ComputeElementH (dense, already threaded by AssemblyMode::Threaded) and
+       that separating them was the next measurement. Taken, in a build with
+       MFEM_USE_OPENMP and MFEM_THREAD_SAFE, on the same four cases:
+       GradientMode::MatrixFree runs the same threaded ComputeElementH and
+       skips the scatter, so the mode difference *is* the scatter, and a thread
+       fit on MatrixFree separates the other two. Shares of NPCGradient:
+
+           ConstructGrad (integrators, serial)   58  50  50  45 %
+           ComputeElementH (already threaded)     2   6   4  12 %
+           scatter into the SparseMatrix         40  43  47  43 %
+
+       **The part nobody had counted is the scatter, and it is serial by
+       design** -- see SetAssemblyMode(), which explains why a SparseMatrix
+       target cannot be threaded even with element colouring. The
+       already-threaded half is 2-12% of the column, so the answer to the
+       question this used to pose is that ComputeElementH does *not* dominate
+       and the integrator-bound share is essentially as the table above says.
+
+       **End to end, AssemblyMode::Threaded buys 1.4 to 7.7% of an NPC step**
+       (1/2/4/8 threads, best of; the answer is bit-identical at every thread
+       count and in both assembly modes, to every digit of the solution norm
+       and the final residual). Recomposing a step with the scatter taken out
+       of NPCGradient's column: integrator-bound 46-53%, threadable with no
+       new infrastructure 7-10%, serial assembly 12-17%, trace solve 26-31%.
+       So the ceiling on threading an NPC step -- with perfect integrator
+       thread-safety and a perfectly threaded ComputeElementH -- is about 2.3x,
+       and the two items outside it are the scatter and the trace solve.
+
+       One consequence for GradientMode::MatrixFree, which is not only a memory
+       play: it deletes 40-47% of NPCGradient. What it pays for that is an
+       unpreconditioned trace solve, so it still loses overall -- but the prize
+       behind "what preconditions a never-assembled trace system" is larger
+       than a memory argument makes it look. doc/HDG-JACOBIAN-FREE-TRACE.md and
+       doc/HDG-ELEMENT-LOCAL-PARALLELISM.md carry those two open questions.
 
        **What it delivers, measured.** On a problem whose full system is linear
        one step is exact -- the residual goes 6.96e-01 to 6.22e-15, from any

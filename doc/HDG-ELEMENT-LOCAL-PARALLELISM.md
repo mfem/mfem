@@ -26,21 +26,23 @@ worth touching. Batching the factorisation that runs once per *linearisation*
 is a different job from §1's: it lives inside `ComputeElementH()`, already in
 the threaded loop, and would need a pre-pass before it.
 
-## 0. Neither tree here can compile the threaded path
+## 0. Neither *committed* tree can compile the threaded path
 
 `MFEM_USE_OPENMP` and `MFEM_THREAD_SAFE` are both `NO` in
-`/home/ian/projects/mfem-hdg-dev` and `/home/ian/projects/mfem-hdg-par-dev`, so:
+`/home/ian/projects/mfem-hdg-dev` and `/home/ian/projects/mfem-hdg-par-dev`, so
+there `SetAssemblyMode(Threaded)` **aborts** rather than downgrading, by design;
+`tests/unit/fem/test_darcy_threaded_assembly.cpp` compiles to a bare `WARN`,
+leaving **the threaded path with no coverage in the suite as configured**; and
+`LocalFactorMode::Batched` runs only `BatchedLinAlg`'s NATIVE backend (no CUDA,
+no HIP, no MAGMA), an `mfem::forall` reducing to a serial host loop — so
+batching is covered for correctness and not for speed.
 
-* `SetAssemblyMode(Threaded)` **aborts** rather than downgrading, by design;
-* `tests/unit/fem/test_darcy_threaded_assembly.cpp` compiles to a bare `WARN`,
-  so **the threaded path has no coverage in the suite as configured**;
-* `LocalFactorMode::Batched` runs, but only `BatchedLinAlg`'s NATIVE backend
-  (no CUDA, no HIP, no MAGMA), which is an `mfem::forall` reducing to a serial
-  host loop — so batching is covered for correctness and not for speed.
-
-`CLAUDE.md` carries the recipe for a third, OpenMP-enabled tree. Any timing
-claim about §1 or `AssemblyMode::Threaded` needs it; the numbers in the doxygen
-were taken in one and it is gone.
+**A third tree fixes all of that and the recipe is in `CLAUDE.md`.** Built
+out of source with `MFEM_USE_OPENMP=YES MFEM_THREAD_SAFE=YES`, the threaded
+assembly case runs **71,024 assertions** instead of warning, and the whole
+element-local programme becomes measurable. Every number in §2 below was taken
+in one. **Any timing claim here needs that tree**; a claim taken in a committed
+tree is a claim about a serial loop.
 
 ## 2. `MultNL`, which is the one that matters for stiff problems
 
@@ -90,11 +92,25 @@ still the easiest loop in the class to thread — it writes only its own
 element's L2 dofs, needing neither colouring nor atomics — and is worth doing
 first only to prove the harness against work that cannot fail interestingly.
 
-**One number would refine this and was not taken**: `NPCGradient`'s 32–42% is
-`ConstructGrad` (integrators, serial) *plus* `ComputeElementH` (dense, already
-threaded), and the probe did not separate them. If the second half dominates,
-the integrator-bound share is smaller than the doxygen's table says.
-Separating them is the next measurement, not a new mechanism.
+**The one number this entry said was missing has been taken, and it found a
+third part rather than settling a two-way split.** The question was whether
+`NPCGradient`'s 32–42% is mostly `ConstructGrad` (serial) or mostly
+`ComputeElementH` (already threaded), with the worry that the column might
+already be largely parallel. It is neither: `GradientMode::MatrixFree` runs the
+same threaded `ComputeElementH` and skips the scatter, so the mode difference
+*is* the scatter, and it is **40–47% of the column** — serial by design, for
+the reason `SetAssemblyMode()`'s doxygen gives. `ConstructGrad` is 45–58% and
+`ComputeElementH` only 2–12%. The full tables are on the `NPCResidual` doxygen
+group; the conclusion for this file is that **the integrator-bound share is
+essentially as claimed, and §2 is still the right next job.**
+
+Two things that came with it. **End to end, `AssemblyMode::Threaded` buys
+1.4–7.7% of an NPC step**, bit-identically at 1/2/4/8 threads — so the already
+finished work is worth single digits on this workload, which is what it was
+predicted to be and is now measured rather than inferred. And the **ceiling on
+threading an NPC step is about 2.3x** even with §2 and §3 done perfectly,
+because 12–17% of a step is the serial scatter and 26–31% is the trace solve.
+Anyone weighing §2's cost against its payoff should start from that number.
 
 ## 3. The remaining scatters
 
