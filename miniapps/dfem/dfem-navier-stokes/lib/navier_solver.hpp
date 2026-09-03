@@ -321,7 +321,12 @@ NavierStokesOperator<DIM>::NavierStokesOperator(
    auto register_rheology = [&](auto qf)
    {
       // Add the q-function specified by selected Rheology to the differentiable operator
-      dop->AddDomainIntegrator<LocalQFBackend>(
+
+      // We never apply dRdU and dRdP blocks matrix free, but only assemble them.
+      // Therefore the only kernel we need is AssembleMatrix, and we can internally
+      // avoid requesting the others
+      constexpr auto kernels = DerivativeKernels::AssembleMatrix;
+      dop->AddDomainIntegrator<LocalQFBackend, kernels>(
          qf,
          Inputs<Value<U>, Gradient<U>, Value<P>, Gradient<Coords>, Weight> {},
          Outputs<Gradient<U>, Value<U>, Value<P>> {}, ir, domain_attributes,

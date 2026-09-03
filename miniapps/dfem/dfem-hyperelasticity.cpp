@@ -299,11 +299,9 @@ public:
 
       auto derivatives = std::integer_sequence<size_t, Displacement> {};
       auto second_derivatives = SecondDerivatives<Pairs::All> {};
-      // Every material below is applied and Jacobi-preconditioned the same way.
-      // We only really need the action and assemblediagonal callbacks
       constexpr auto kernels =
          DerivativeKernels::Action |
-         DerivativeKernels::AssembleDiagonal;
+         DerivativeKernels::AllAssembly;
 
       switch (material)
       {
@@ -443,14 +441,7 @@ public:
       A = nullptr;
       H->AssembleHessian(A);
       amg.SetOperator(*A);
-      // Tell BoomerAMG this is a dim-component displacement system rather than
-      // a scalar one. order_bynodes MUST be true: the state space is built as
-      // ParFiniteElementSpace(&pmesh, &fec, dim, Ordering::byNODES), while
-      // hypre's default assumes byVDIM. Getting this flag wrong hands hypre a
-      // bogus dof -> function map and converges *worse* than passing no systems
-      // options at all. Must follow SetOperator: the dof map is sized from
-      // height, which SetOperator establishes.
-      amg.SetSystemsOptions(fes->GetVDim(), /*order_bynodes=*/true);
+      amg.SetSystemsOptions(fes->GetVDim(), true);
    }
 
    void Mult(const Vector &x, Vector &y) const override { amg.Mult(x, y); }
@@ -463,10 +454,6 @@ private:
    HypreBoomerAMG amg;
 };
 
-// Build the preconditioner selected by -pc. Newton hands the current tangent to
-// the Krylov solver on every iteration, and IterativeSolver::SetOperator
-// forwards it to the preconditioner, so the AMG hierarchy is rebuilt from the
-// freshly assembled Hessian at each Newton step.
 std::unique_ptr<Solver> MakePreconditioner(PreconditionerType type,
                                            ParFiniteElementSpace *fes)
 {

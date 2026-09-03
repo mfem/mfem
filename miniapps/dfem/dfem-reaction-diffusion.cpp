@@ -222,7 +222,12 @@ public:
                inputs, outputs, *fes.GetParMesh());
 
       ReactionDiffusion<DIM> qf{kappa, alpha, beta, source};
-      dop->AddDomainIntegrator<LocalQFBackend>(
+      // We need the action, AssembleDiagonal and AssembleMatrix
+      // (for jacobi, AMG preconditioning). AllAssembly is a convenience for both.
+      constexpr auto kernels =
+         DerivativeKernels::Action |
+         DerivativeKernels::AllAssembly;
+      dop->AddDomainIntegrator<LocalQFBackend, kernels>(
          qf,
          Inputs < Value<Solution>, Gradient<Solution>,
          Gradient<Coords>, Weight > {},

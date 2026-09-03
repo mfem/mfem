@@ -283,6 +283,12 @@ public:
 
       auto derivatives = std::integer_sequence<size_t, Solution> {};
 
+      // We need the action, AssembleDiagonal and AssembleMatrix
+      // (for jacobi, AMG preconditioning). AllAssembly is a convenience for both.
+      constexpr auto kernels =
+         DerivativeKernels::Action |
+         DerivativeKernels::AllAssembly;
+
       if (form == FormType::Energy)
       {
          // A single scalar per quadrature point, summed by dFEM into the value
@@ -295,7 +301,7 @@ public:
          // tangent available later through GetSecondDerivative.
          auto second_derivatives = SecondDerivatives<Pairs::All> {};
          typename NonlinearPoisson<DIM>::EnergyBased qf;
-         dop->AddDomainIntegrator<LocalQFBackend>(
+         dop->AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             Inputs<Gradient<Solution>, Gradient<Coords>, Weight> {},
             Outputs<FunctionalValue<Energy>> {},
@@ -322,14 +328,14 @@ public:
          {
             typename NonlinearPoisson<DIM>::template
             ResidualBased<KappaType::GradientDependent> qf;
-            dop->AddDomainIntegrator<LocalQFBackend>(
+            dop->AddDomainIntegrator<LocalQFBackend, kernels>(
                qf, in, out, ir, all_domain_attr, derivatives);
          }
          else
          {
             typename NonlinearPoisson<DIM>::template
             ResidualBased<KappaType::SolutionDependent> qf;
-            dop->AddDomainIntegrator<LocalQFBackend>(
+            dop->AddDomainIntegrator<LocalQFBackend, kernels>(
                qf, in, out, ir, all_domain_attr, derivatives);
          }
       }

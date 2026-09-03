@@ -165,7 +165,11 @@ public:
       // Requesting the derivative with respect to Temperature is what makes
       // J_F available later through GetDerivative.
       auto derivatives = std::integer_sequence<size_t, Temperature> {};
-      dop->AddDomainIntegrator<LocalQFBackend>(
+      // We need the action and AssembleDiagonal for jacobi preconditioning
+      constexpr auto kernels =
+         DerivativeKernels::Action |
+         DerivativeKernels::AssembleDiagonal;
+      dop->AddDomainIntegrator<LocalQFBackend, kernels>(
          qf,
          Inputs < Value<Temperature>, Gradient<Temperature>,
          Gradient<Coords>, Weight > {},
