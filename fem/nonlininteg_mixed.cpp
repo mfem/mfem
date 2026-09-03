@@ -177,6 +177,10 @@ void MixedConductionNLFIntegrator::AssembleElementVector(
    const Array<const FiniteElement*> &el, ElementTransformation &Tr,
    const Array<const Vector*> &elfun, const Array<Vector*> &elvect)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape_u;
+   Vector shape_u, shape_p;
+#endif
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
    const int ndof_u = fe_u.GetDof();
@@ -289,6 +293,9 @@ void MixedConductionNLFIntegrator::AssembleFaceVector(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array<Vector *> &elvect)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
    // The face terms are still single-equation. Generalizing them is not the
    // index bookkeeping the element terms were: the HDG stabilization here is
    // built from the inverse of the flux Jacobian contracted with the face
@@ -440,6 +447,10 @@ void MixedConductionNLFIntegrator::AssembleElementGrad(
    const Array<const FiniteElement *> &el, ElementTransformation &Tr,
    const Array<const Vector *> &elfun, const Array2D<DenseMatrix *> &elmats)
 {
+#ifdef MFEM_THREAD_SAFE
+   DenseMatrix vshape_u;
+   Vector shape_u, shape_p;
+#endif
    const FiniteElement &fe_u = *el[0];
    const FiniteElement &fe_p = *el[1];
    const int ndof_u = fe_u.GetDof();
@@ -643,6 +654,9 @@ void MixedConductionNLFIntegrator::AssembleFaceGrad(
    FaceElementTransformations &Trans, const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape1, shape2;
+#endif
    // The face terms are still single-equation. Generalizing them is not the
    // index bookkeeping the element terms were: the HDG stabilization here is
    // built from the inverse of the flux Jacobian contracted with the face
@@ -814,6 +828,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceVector(
    const Vector &trfun, const Array<const Vector *> &elfun,
    const Array<Vector *> &elvect)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_u, shape_p, shape_tr;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }
@@ -1009,6 +1026,9 @@ void mfem::MixedConductionNLFIntegrator::AssembleHDGFaceGrad(
    const Vector &trfun, const Array<const Vector *> &elfun,
    const Array2D<DenseMatrix *> &elmats)
 {
+#ifdef MFEM_THREAD_SAFE
+   Vector shape_u, shape_p, shape_tr;
+#endif
    MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
 
    if (Trans.Elem2No < 0) { type &= ~1; }

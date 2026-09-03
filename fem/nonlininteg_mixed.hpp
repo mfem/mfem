@@ -113,8 +113,22 @@ class MixedConductionNLFIntegrator : public BlockNonlinearFormIntegrator
    real_t alpha, beta;
    const IntegrationRule *IntRule;
 
+   /** @brief Per-point scratch, and it is a MEMBER only in a build that
+       cannot thread.
+
+       This integrator is on the element-local hot path: MultNL() and
+       NPCResidual()/NPCGradient() reach it through
+       DarcyHybridization::ConstructGrad() and LocalResidual(), once per
+       element per residual or Jacobian evaluation. Threading that loop
+       therefore needs these to be per-thread, and MFEM's convention for that
+       is to hold them as members only when MFEM_THREAD_SAFE is off and to
+       declare them in the method otherwise -- see
+       FluxFunction::ComputeFluxDotN() for the same pattern. Every method sizes
+       what it uses, so the local declarations are bare. */
+#ifndef MFEM_THREAD_SAFE
    DenseMatrix vshape_u;
    Vector shape_u, shape_p, shape1, shape2, shape_tr;
+#endif
 
    /** @brief Per-variable stabilization for the HDG face terms of a system.
 

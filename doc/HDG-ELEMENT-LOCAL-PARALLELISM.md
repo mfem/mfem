@@ -53,23 +53,26 @@ separable. `MultNL` calls `ConstructGrad()`, hence
 `m_nlfi->AssembleElementGrad()` and `fes.GetElementTransformation(el)`, and both
 reach shared state outside `fem/darcy`.
 
-**Integrator scratch, and this entry used to name the wrong integrator.** It
-cited `fem/darcy/bilininteg_hdg.hpp:215`, whose `// these are not thread-safe!`
-is the only such marker in the whole directory — but it belongs to
-`HDGDiffusionIntegrator`, which this loop does not call. What
-`ConstructGrad()` reaches is `m_nlfi`, i.e. `MixedConductionNLFIntegrator` in
-**`fem/nonlininteg_mixed.hpp`**, whose `vshape_u`, `shape_u`, `shape_p`,
-`shape1`, `shape2`, `shape_tr` (`:116-117`) and mutable `state`, `flux`, `J_u`
-(`:214-215`) are equally unguarded. Both need doing; only the second is on the
-path this section is about.
+**The integrator half is DONE.** Scratch is now a member only when
+`MFEM_THREAD_SAFE` is off and method-local when it is on, MFEM's own
+convention — `FluxFunction::ComputeFluxDotN()` is the pattern. Ported:
+`MixedConductionNLFIntegrator` (`fem/nonlininteg_mixed.*`, six methods) and,
+in `fem/darcy/bilininteg_hdg.*`, `HDGDiffusionIntegrator` and the two
+`HDGConvection*Integrator`s (twelve methods across three classes, retiring the
+`// these are not thread-safe!` marker). `HyperbolicFormIntegrator` and
+`FluxFunction` were already guarded, so `navierstokes`'s hot path needed
+nothing.
 
-**And it is not a design decision, which this entry also used to imply.** It
-offered "per-thread integrator instances, or stateless integrators — a decision
-reaching well beyond `fem/darcy`". MFEM already has the convention: member
-scratch inside `#ifndef MFEM_THREAD_SAFE`, declared method-local otherwise —
-sixteen instances in `fem/bilininteg.hpp` alone, and `fem/darcy` uses it
-nowhere. So this is a mechanical port to an existing pattern, and the reach
-beyond `fem/darcy` is one file.
+**Two things it turned up.** `HDGDiffusionIntegrator` is on the element-local
+hot path, which is not obvious and which an earlier note here got backwards: a
+`BilinearFormIntegrator` derives from `NonlinearFormIntegrator`, and
+`DarcyForm::Assemble()` collects the *nonlinear* potential form's face
+integrators into `c_nlfi_p`, which `ConstructGrad()` calls per element per
+evaluation. And **a caller's own integrators must be ported too** — the source
+term in a caller's problem sits in `m_nlfi_p` and is called on the same loop;
+the tree's own pedestal harness needed it.
+
+**What is left of §2 is the transformation half**, below.
 
 **The mesh's transformation cache**, and this half is cheaper than it reads.
 `Mesh` holds one `FaceElemTr`, one `Transformation`, one `Transformation2` and

@@ -37,7 +37,9 @@ namespace mfem
     */
 class HDGConvectionCenteredIntegrator : public DGTraceIntegrator
 {
+#ifndef MFEM_THREAD_SAFE
    Vector tr_shape, shape1, shape2;
+#endif
 
 public:
    HDGConvectionCenteredIntegrator(VectorCoefficient &u_, real_t a = 1.)
@@ -82,7 +84,9 @@ public:
     */
 class HDGConvectionUpwindedIntegrator : public DGTraceIntegrator
 {
+#ifndef MFEM_THREAD_SAFE
    Vector tr_shape, shape1, shape2;
+#endif
 
 public:
    /// Construct integrator with $\beta = \alpha/2$.
@@ -212,10 +216,32 @@ protected:
       return face_w * stab->Eval(s_diff, un, u, uhat, Tr);
    }
 
-   // these are not thread-safe!
+   /** @brief Per-point scratch, and a MEMBER only in a build that cannot
+       thread.
+
+       This used to read "these are not thread-safe!", which was true and is
+       now handled the way MFEM handles it everywhere else: members when
+       MFEM_THREAD_SAFE is off, method-local declarations when it is on -- see
+       FluxFunction::ComputeFluxDotN() for the same pattern. Each method sizes
+       what it uses, so the local declarations are bare.
+
+       **And this IS on the element-local hot path, which is not obvious.**
+       A first version of this comment said the opposite -- that a
+       BilinearFormIntegrator is evaluated when the forms are assembled and not
+       once per residual. It is wrong twice over: BilinearFormIntegrator
+       derives from NonlinearFormIntegrator, so one can be registered on the
+       nonlinear potential form, and DarcyForm::Assemble() collects that form's
+       interior face integrators into a SumNLFIntegrator and hands it to
+       SetConstraintIntegrators() as c_nlfi_p. DarcyHybridization's
+       ConstructGrad() and LocalResidual() then call AssembleHDGFaceGrad() and
+       AssembleHDGFaceVector() on it once per element per evaluation. That is
+       exactly how every nonlinear HDG diffusion problem in this tree is posed
+       -- the unit tests' pedestal included. */
+#ifndef MFEM_THREAD_SAFE
    Vector tr_shape, shape1, shape2, vu, nor, nh, ni;
    Vector nor_Jt, nor_Ji, ni_Jt, ni_Ji;
    DenseMatrix mq;
+#endif
 
 public:
    /// Construct integrator with $\alpha = 0$ and $\beta = a$.
