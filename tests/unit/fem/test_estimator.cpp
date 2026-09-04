@@ -720,3 +720,90 @@ TEST_CASE("Kelly Error Estimator on 3D NCMesh",
 }
 
 #endif
+
+TEST_CASE("Kelly Error Estimator on 2D NCMesh L2 Crash Test",
+          "[NCMesh]")
+{
+   // Setup
+   const auto order = GENERATE(1, 3, 5);
+   const auto element = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL);
+   CAPTURE(order, element);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, element);
+
+   // Make the mesh NC
+   mesh.EnsureNCMesh();
+   {
+      Array<int> elements_to_refine(1);
+      elements_to_refine[0] = 1;
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   }
+
+   L2_FECollection fe_coll(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fe_coll);
+
+   L2_FECollection flux_fec(order-1, mesh.Dimension());
+   FiniteElementSpace flux_fes(&mesh, &flux_fec, mesh.SpaceDimension());
+
+   FunctionCoefficient u_analytic(testhelper::SmoothSolutionX);
+   GridFunction u_gf(&fespace);
+   u_gf.ProjectCoefficient(u_analytic);
+
+   DiffusionIntegrator di;
+   KellyErrorEstimator estimator(di, u_gf, flux_fes);
+
+#ifdef MFEM_USE_EXCEPTIONS
+   // When MFEM is built with exceptions, MFEM_ABORT throws mfem::ErrorException
+   mfem::ErrorAction prev = mfem::get_error_action();
+   mfem::set_error_action(mfem::MFEM_ERROR_THROW);
+   REQUIRE_THROWS_AS(estimator.GetLocalErrors(), mfem::ErrorException);
+   mfem::set_error_action(prev);
+#else
+   // Without exceptions MFEM_ABORT calls std::abort() (or MPI_Abort) and cannot
+   // be caught in-process. Skip the expectation in non-exception builds.
+   SUCCEED("MFEM built without exceptions; cannot assert MFEM_ABORT as exception");
+#endif
+
+}
+
+TEST_CASE("Kelly Error Estimator on 3D NCMesh L2 Crash Test",
+          "[NCMesh]")
+{
+   // Setup
+   const auto order = GENERATE(1, 3, 5);
+   const auto element = GENERATE(Element::TETRAHEDRON, Element::HEXAHEDRON);
+   CAPTURE(order, element);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, element);
+
+   // Make the mesh NC
+   mesh.EnsureNCMesh();
+   {
+      Array<int> elements_to_refine(1);
+      elements_to_refine[0] = 1;
+      mesh.GeneralRefinement(elements_to_refine, 1, 0);
+   }
+
+   L2_FECollection fe_coll(order, mesh.Dimension());
+   FiniteElementSpace fespace(&mesh, &fe_coll);
+
+   L2_FECollection flux_fec(order-1, mesh.Dimension());
+   FiniteElementSpace flux_fes(&mesh, &flux_fec, mesh.SpaceDimension());
+
+   FunctionCoefficient u_analytic(testhelper::SmoothSolutionX);
+   GridFunction u_gf(&fespace);
+   u_gf.ProjectCoefficient(u_analytic);
+
+   DiffusionIntegrator di;
+   KellyErrorEstimator estimator(di, u_gf, flux_fes);
+
+#ifdef MFEM_USE_EXCEPTIONS
+   // When MFEM is built with exceptions, MFEM_ABORT throws mfem::ErrorException
+   mfem::ErrorAction prev = mfem::get_error_action();
+   mfem::set_error_action(mfem::MFEM_ERROR_THROW);
+   REQUIRE_THROWS_AS(estimator.GetLocalErrors(), mfem::ErrorException);
+   mfem::set_error_action(prev);
+#else
+   // Without exceptions MFEM_ABORT calls std::abort() (or MPI_Abort) and cannot
+   // be caught in-process. Skip the expectation in non-exception builds.
+   SUCCEED("MFEM built without exceptions; cannot assert MFEM_ABORT as exception");
+#endif
+}
