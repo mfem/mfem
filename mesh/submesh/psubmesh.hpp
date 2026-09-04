@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -167,7 +167,7 @@ public:
    }
 
    /**
-    * @brief Get the submesh vertex corresponding to a parent element. -1 == not
+    * @brief Get the submesh vertex corresponding to a parent vertex. -1 == not
     * present.
     * @param pv The parent vertex id.
     * @return int
@@ -179,7 +179,7 @@ public:
    }
 
    /**
-    * @brief Get the submesh edge corresponding to a parent element. -1 == not
+    * @brief Get the submesh edge corresponding to a parent edge. -1 == not
     * present.
     * @param pe The parent edge id.
     * @return int
@@ -191,7 +191,7 @@ public:
    }
 
    /**
-    * @brief Get the submesh face corresponding to a parent element. -1 == not
+    * @brief Get the submesh face corresponding to a parent face. -1 == not
     * present.
     * @param pf The parent face id.
     * @return int
