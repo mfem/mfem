@@ -163,14 +163,87 @@ The question this raises is scope, and the answer differs per phase:
   allocator are `linalg/sparsemat.*`. Fixing it means either an `AssembleEA`
   style element-matrix array plus an assembly kernel, or never assembling
   (`GradientMode::MatrixFree`).
-* **`DarcyForm::Assemble`, 15% and it does not thread at all (0.97x).** This is
-  the next real element loop, and it is *not* one of this file's seven: it is
-  `darcyform.cpp:408`, building the element matrices. Its body calls
-  `M_u->AssembleElementMatrix(i, elmat, skip_zeros)` — `BilinearForm`, in
-  `fem/bilinearform.cpp` — before handing the result to the hybridization. **So
-  yes, threading that one reaches outside the darcy branch**, into
-  `BilinearForm` and whatever scratch it keeps, on top of the integrator
-  thread-safety already done here.
+* **`DarcyForm::Assemble`, 15% and it does not thread at all (0.97x)** — the
+  next real element loop, and *not* one of this file's seven. See below.
+
+### Threading `DarcyForm::Assemble`: what it would entail
+
+`darcyform.cpp:408`, three element loops (flux mass, divergence, potential
+mass) plus the separate face routines `AssembleFluxMassBdrFaces`,
+`AssembleDivLDGFaces` and `AssemblePotHDGFaces`. The body of each is
+
+```
+M_u->ComputeElementMatrix(i, elmat);        // integrators
+hybridization->AssembleFluxMassMatrix(i, elmat);   // per-element write
+```
+
+**One piece of good news first: there is no `SparseMatrix` scatter to fight.**
+The `M_u->AssembleElementMatrix(i, elmat, skip_zeros)` call between those two
+is inside `#ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS`, and that macro *is*
+defined (`darcyhybridization.hpp:25`), so on the hybridized path it is compiled
+out. The hybridization's own `Assemble*Matrix` writes per element. So unlike
+`ComputeH`, this loop has no serial tail — it is embarrassingly parallel in
+shape.
+
+**Inside `fem/darcy`, and small**: `DenseMatrix elmat` is declared outside the
+loop and must become per-thread; then the three loops and the three face
+routines take the same treatment §2 and §3 took.
+
+**Outside `fem/darcy`, and this is the cost:**
+
+* `BilinearForm::ComputeElementMatrix()` accumulates the second and later
+  domain integrators through `elemmat`, a **`mutable DenseMatrix` member**
+  (`fem/bilinearform.hpp:122`). It needs MFEM's own
+  `#ifndef MFEM_THREAD_SAFE` treatment, in `fem/bilinearform.*`.
+* The same function calls `fes->GetElementTransformation(i)`, so the shared
+  `Mesh` cache problem recurs one level up. It needs either an overload taking
+  a caller-allocated transformation or the `TransWorkspace` trick applied
+  inside `BilinearForm`.
+* **Four of the five upstream integrators these problems use are unguarded**:
+  `VectorMassIntegrator`, `VectorDivergenceIntegrator`,
+  `DGNormalTraceIntegrator` and `NormalTraceJumpIntegrator` carry plain member
+  scratch; only `VectorFEMassIntegrator` is guarded. Each needs the port
+  already done for the HDG integrators.
+
+**A cheaper place to solve the same problem.** `ComputeElementMatrix()` has a
+fast path: when `BilinearForm::ComputeElementMatrices()` has filled the
+`element_matrices` `DenseTensor`, it is a pure copy and thread-safe as it
+stands. That does not make the work go away — the precompute is the same serial
+integrator loop — but it moves the whole problem into one upstream function
+that everything else in MFEM would also benefit from having threaded.
+
+**And the payoff is smaller than 15% suggests.** Like §3, `Assemble` runs once
+per solve, so against a Newton loop's `2N` passes through `MultNL` it is
+`O(1/2N)` and worth nothing. The 15% is a **linear** solve, where perfect
+threading would take about 13% off. So: an upstream change to `BilinearForm`
+plus four upstream integrators, for ~13% of a linear solve and ~0% of a
+nonlinear one. That is the trade, and it is why this is recorded rather than
+done.
+
+**And two of the four loops are threaded where they have no work, which
+checking the assertions turned up.** `EliminateVDofsInRHS` and
+`EliminateTrueDofsInRHS` both open with `GetEDofs(el, edofs); if
+(edofs.Size() == 0) { continue; }`, and an essential hat dof exists only where
+the flux space has essential true dofs. Measured: an `L2` flux space has
+**zero** (0 against RT's 32 and 48 at orders 1 and 2 on a 4x4 quad mesh), and
+`convdiff` only populates that list at all `if (!dg && !brt)`. So with a
+discontinuous flux those two loops **do nothing**, and `CanThreadFieldLoop()`
+threads them only with a discontinuous flux. They are threaded exactly when
+they are empty and serial exactly when they are not.
+
+That is dead code rather than wrong code — the parallel region costs a
+fork/join on a loop that immediately `continue`s, once per solve — and it is
+left in place because it is correct and would work if a caller ever did hand a
+discontinuous flux an essential list by hand. But **the measured ~4% is
+`ReduceRHS` and `ComputeSolution` alone**, and §3 delivered two loops, not
+four. It also explains why the RT guard's necessity cannot be tested from a
+discontinuous-flux problem: the loops it guards have no work there.
+
+**The assertions do discriminate, checked rather than assumed.** Sharing
+`ComputeSolution`'s scratch between threads instead of declaring it per thread
+segfaults the case at 2 threads on the DG form. Removing the discontinuity
+guard, by contrast, changes nothing — for the reason just given, not because
+the guard is idle.
 
 The nonlinear case is unchanged and still negligible: these run once per solve
 against `2N` passes through `MultNL`, so `O(1/2N)`.
