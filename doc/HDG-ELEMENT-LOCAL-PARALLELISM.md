@@ -119,25 +119,58 @@ which element wins. `CanThreadFieldLoop()` therefore threads them only for
 discontinuous spaces and leaves the RT pathway on the loop it has always had,
 which is also what the standing instruction on this branch requires.
 
-**Measured, order 2 quads, medians of five, against the serial mode:**
+**Measured, order 2 quads, medians of five, against the serial mode — and
+the first version of this table was WRONG, in the way this branch keeps
+records of.** It read `FormLinearSystem` at 1.7–1.9x and the whole linear
+solve at 1.12–1.22x, and credited both to §3. But `FormLinearSystem` calls
+`FormSystemMatrix`, which calls `Finalize()`, which is `ComputeH` — **already
+threaded before §3 existed** — so most of that was §1's work being re-measured.
+`Finalize()` is guarded by `bfin`, so calling it explicitly first splits it out
+and settles the attribution properly:
 
-| | n=64 | n=96 | n=128 |
-|---|---|---|---|
-| `RecoverFEMSolution` (`ComputeSolution` alone) | 4.3x | 5.2x | 4.0x |
-| `FormLinearSystem` (`ComputeH` + the two eliminations + `ReduceRHS`) | 1.80x | 1.68x | 1.89x |
-| **the whole linear solve** | **1.12x** | **1.12x** | **1.22x** |
+| phase | n=96 serial | thr@8 | speedup | share of solve |
+|---|---|---|---|---|
+| `DarcyForm::Assemble` (integrators) | 115 ms | 118 | **0.97x** | 15% |
+| `Finalize` → `ComputeH` | 232 ms | 134 | 1.73x | 29% |
+| `FormLinearSystem`, the rest | 21 ms | 10 | 2.20x | 2.7% |
+| trace solve (UMFPACK) | 399 ms | 380 | 1.05x | 51% |
+| `Recover` → `ComputeSolution` | 22 ms | 4 | **5.46x** | 2.8% |
 
-**And this settles the attribution the previous entry could not make.** The
-21% figure was an upper bound — the part of `FormLinearSystem` that did not
-thread, which included any other serial work in it. Threading §3 took 11-18%
-off the solve, so at `n = 128` the bound was about right and at the smaller
-sizes it was generous. The tell is that `FormLinearSystem` reaches only
-1.7-1.9x: **a substantial serial remainder lives in it that is NOT §3's
-element loops**, where `ComputeSolution`, which is nothing but an element
-loop, gets 4-5.2x. Naming that remainder is the next measurement for anyone
-who wants the rest — candidates are the `SparseMatrix::Finalize()` and
-diagonal-policy passes at the end of `ComputeH`, the `AllocEG`/`AllocH`
-zeroing, and the prolongation products.
+**So §3 is 5.5% of a linear solve and threading it saves about 3.8%**, at both
+n = 96 and n = 128 — not the 11–18% the previous entry claimed. The 21% upper
+bound that motivated the work was about four times too generous, and the reason
+is now identified: it was the part of `FormLinearSystem` that did not thread,
+which is dominated by **`ComputeH`'s own serial scatter** (40–47% of that call)
+rather than by anything in §3.
+
+The work is still right — every element-local loop in the class is threaded,
+`ComputeSolution` gets 5.5x, and nothing regressed — but it bought a few
+percent of a linear solve, not a fifth. **Sweeping the factors separately was
+the whole lesson of an earlier round and I repeated the mistake anyway**:
+comparing serial mode against threaded mode measures every loop the mode
+touches, not the loop just added.
+
+### What is left serial, and how far out it reaches
+
+The question this raises is scope, and the answer differs per phase:
+
+* **The trace solve, ~51%.** A solver, not a loop. UMFPACK is host-serial;
+  an iterative solve already threads through `SparseMatrix`'s kernels. Outside
+  `fem/darcy` entirely, and §4's group 4.
+* **`ComputeH`'s serial half, ~13% of the solve.** Inside `fem/darcy`, but the
+  thing that cannot be threaded is the scatter into an unfinalized
+  `SparseMatrix` — `current_row`, the column-pointer scratch and the RowNode
+  allocator are `linalg/sparsemat.*`. Fixing it means either an `AssembleEA`
+  style element-matrix array plus an assembly kernel, or never assembling
+  (`GradientMode::MatrixFree`).
+* **`DarcyForm::Assemble`, 15% and it does not thread at all (0.97x).** This is
+  the next real element loop, and it is *not* one of this file's seven: it is
+  `darcyform.cpp:408`, building the element matrices. Its body calls
+  `M_u->AssembleElementMatrix(i, elmat, skip_zeros)` — `BilinearForm`, in
+  `fem/bilinearform.cpp` — before handing the result to the hybridization. **So
+  yes, threading that one reaches outside the darcy branch**, into
+  `BilinearForm` and whatever scratch it keeps, on top of the integrator
+  thread-safety already done here.
 
 The nonlinear case is unchanged and still negligible: these run once per solve
 against `2N` passes through `MultNL`, so `O(1/2N)`.
