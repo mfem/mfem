@@ -1,0 +1,32 @@
+This directory contains an MFEM example focused on benchmarking MAGMA batched
+element-mass-matrix inverses/solves on GPU backends (CUDA/HIP).
+
+- `batched_mass_bench.cpp`: Assemble packed element mass matrices and compare:
+  - MFEM tripack inverse apply (packed lower-triangular)
+  - MAGMA packed Cholesky factor + solve
+  - MAGMA full (dense) batched Cholesky factor + solve
+
+Build and run from this directory (after building MFEM with MAGMA enabled):
+
+- `make batched_mass_bench`
+- `./batched_mass_bench -m ../../data/beam-hex.mesh -o 3 -r 2 -d hip -reps 100`
+
+Plotting / throughput curves
+----------------------------
+
+The script `plot_magma_results.py` can sweep parameters, collect timings, and
+generate runtime/throughput/memory plots (or just write CSV/JSONL if matplotlib
+is not available).
+
+Examples:
+
+- Sweep `batched_mass_bench` over orders/refinements:
+  - `python3 plot_magma_results.py --mode batched_mass_bench --devices hip --orders 2,3,4 --refines 1,2,3 --magma-modes no-magma,magma`
+
+- Sweep the hdiv linear-solver miniapp L2 inverse choices (requires the miniapp
+  binary; run from this directory):
+  - `python3 plot_magma_results.py --mode hdiv_linear_solver --miniapp darcy --devices hip --miniapp-order 2,3,4 --l2inv cg,magma-packed,magma-full --l2bench --l2reps 200 --report-memory`
+
+Notes:
+- Host memory uses `/usr/bin/time -v` (RSS max) when available.
+- GPU memory is best-effort and currently only auto-detected via `nvidia-smi`.

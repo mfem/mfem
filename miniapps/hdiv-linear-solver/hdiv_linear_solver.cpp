@@ -15,6 +15,174 @@
 namespace mfem
 {
 
+namespace
+{
+
+#ifdef MFEM_USE_MAGMA
+
+class MagmaPackedL2MassInverse final : public Solver
+{
+private:
+   const FiniteElementSpace &fes;
+   Coefficient &coeff;
+   const IntegrationRule &ir;
+
+   TriPackLowerMatrix L_factor;
+   mutable MagmaPackedLowerCholesky ws;
+
+public:
+   MagmaPackedL2MassInverse(const FiniteElementSpace &fes_,
+                            Coefficient &coeff_,
+                            const IntegrationRule &ir_)
+      : Solver(fes_.GetTrueVSize()),
+        fes(fes_),
+        coeff(coeff_),
+        ir(ir_)
+   {
+      MFEM_VERIFY(fes.IsDGSpace(), "MagmaPackedL2MassInverse requires DG.");
+      MFEM_VERIFY(UsesTensorBasis(fes),
+                  "MagmaPackedL2MassInverse requires a tensor basis.");
+      MFEM_VERIFY(Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK),
+                  "MAGMA L2 inverse requires CUDA or HIP device backend.");
+      Update();
+   }
+
+   void Update()
+   {
+      MassIntegrator mass(coeff, &ir);
+      mass.AssembleEATriangular(fes, L_factor, false);
+      tripack::magma::ComputeCholeskyLower(L_factor, L_factor, ws);
+   }
+
+   void Mult(const Vector &b, Vector &u) const override
+   {
+      u = b;
+      u.UseDevice(true);
+      tripack::magma::SolveCholeskyLowerInPlace(L_factor, u, ws);
+   }
+
+   void SetOperator(const Operator &) override
+   {
+      MFEM_ABORT("SetOperator not supported with MagmaPackedL2MassInverse.");
+   }
+};
+
+class MagmaPackedPpInvL2MassInverse final : public Solver
+{
+private:
+   const FiniteElementSpace &fes;
+   Coefficient &coeff;
+   const IntegrationRule &ir;
+
+   TriPackLowerMatrix packed_mass;
+   TriPackLowerMatrix mass_inv;
+   mutable MagmaPackedLowerInverse ws;
+
+public:
+   MagmaPackedPpInvL2MassInverse(const FiniteElementSpace &fes_,
+                                 Coefficient &coeff_,
+                                 const IntegrationRule &ir_)
+      : Solver(fes_.GetTrueVSize()),
+        fes(fes_),
+        coeff(coeff_),
+        ir(ir_)
+   {
+      MFEM_VERIFY(fes.IsDGSpace(), "MagmaPackedPpInvL2MassInverse requires DG.");
+      MFEM_VERIFY(UsesTensorBasis(fes),
+                  "MagmaPackedPpInvL2MassInverse requires a tensor basis.");
+      MFEM_VERIFY(Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK),
+                  "MAGMA L2 inverse requires CUDA or HIP device backend.");
+      Update();
+   }
+
+   void Update()
+   {
+      MassIntegrator mass(coeff, &ir);
+      mass.AssembleEATriangular(fes, packed_mass, false);
+      tripack::magma::ComputeInverseLower(packed_mass, mass_inv, ws);
+   }
+
+   void Mult(const Vector &b, Vector &u) const override
+   {
+      u = b;
+      u.UseDevice(true);
+      tripack::magma::ApplyInverseLowerInPlace(mass_inv, u, ws);
+   }
+
+   void SetOperator(const Operator &) override
+   {
+      MFEM_ABORT("SetOperator not supported with MagmaPackedPpInvL2MassInverse.");
+   }
+};
+
+class MagmaFullL2MassInverse final : public Solver
+{
+private:
+   const FiniteElementSpace &fes;
+   Coefficient &coeff;
+   const IntegrationRule &ir;
+
+   DenseTensor A_factor;
+   Array<int> pivots;
+
+public:
+   MagmaFullL2MassInverse(const FiniteElementSpace &fes_,
+                          Coefficient &coeff_,
+                          const IntegrationRule &ir_)
+      : Solver(fes_.GetTrueVSize()),
+        fes(fes_),
+        coeff(coeff_),
+        ir(ir_)
+   {
+      MFEM_VERIFY(fes.IsDGSpace(), "MagmaFullL2MassInverse requires DG.");
+      MFEM_VERIFY(UsesTensorBasis(fes),
+                  "MagmaFullL2MassInverse requires a tensor basis.");
+      MFEM_VERIFY(Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK),
+                  "MAGMA L2 inverse requires CUDA or HIP device backend.");
+      Update();
+   }
+
+   void Update()
+   {
+      MassIntegrator mass(coeff, &ir);
+
+      const int n = fes.GetTypicalFE()->GetDof();
+      const int batch_size = fes.GetMesh()->GetNE();
+
+      // MassIntegrator::AssembleEA expects the output Vector to be sized by
+      // the caller (unlike AssembleEATriangular which sizes its output).
+      A_factor.SetSize(n, n, batch_size, Device::GetDeviceMemoryType());
+      Vector A_factor_vec;
+      A_factor_vec.NewMemoryAndSize(A_factor.GetMemory(),
+                                    A_factor.TotalSize(), false);
+      A_factor_vec.UseDevice(true);
+      mass.AssembleEA(fes, A_factor_vec, false);
+
+      MFEM_VERIFY(A_factor.TotalSize() == batch_size*n*n,
+                  "Unexpected element matrix storage size.");
+
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUFactor(A_factor, pivots);
+   }
+
+   void Mult(const Vector &b, Vector &u) const override
+   {
+      MFEM_VERIFY(b.Size() == height, "Invalid RHS size.");
+
+      u = b;
+      u.UseDevice(true);
+      BatchedLinAlg::Get(BatchedLinAlg::MAGMA).LUSolve(A_factor, pivots, u);
+   }
+
+   void SetOperator(const Operator &) override
+   {
+      MFEM_ABORT("SetOperator not supported with MagmaFullL2MassInverse.");
+   }
+};
+
+#endif // MFEM_USE_MAGMA
+
+} // namespace
+
 /// Replace x[i] with 1.0/x[i] for all i.
 void Reciprocal(Vector &x)
 {
@@ -65,7 +233,7 @@ const IntegrationRule &GetMassIntRule(FiniteElementSpace &fes_l2)
 HdivSaddlePointSolver::HdivSaddlePointSolver(
    ParMesh &mesh, ParFiniteElementSpace &fes_rt_, ParFiniteElementSpace &fes_l2_,
    Coefficient &L_coeff_, Coefficient &R_coeff_, const Array<int> &ess_rt_dofs_,
-   Mode mode_)
+   Mode mode_, L2InverseType l2_inv_type_)
    : minres(mesh.GetComm()),
      order(fes_rt_.GetMaxElementOrder()),
      fec_l2(order - 1, mesh.Dimension(), b2, mt),
@@ -81,6 +249,7 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
      L_coeff(L_coeff_),
      R_coeff(R_coeff_),
      mode(mode_),
+     l2_inv_type(l2_inv_type_),
      qs(mesh, GetMassIntRule(fes_l2)),
      W_coeff_qf(qs),
      W_mix_coeff_qf(qs),
@@ -154,9 +323,10 @@ HdivSaddlePointSolver::HdivSaddlePointSolver(
 
 HdivSaddlePointSolver::HdivSaddlePointSolver(
    ParMesh &mesh, ParFiniteElementSpace &fes_rt_, ParFiniteElementSpace &fes_l2_,
-   Coefficient &R_coeff_, const Array<int> &ess_rt_dofs_)
+   Coefficient &R_coeff_, const Array<int> &ess_rt_dofs_,
+   L2InverseType l2_inv_type_)
    : HdivSaddlePointSolver(mesh, fes_rt_, fes_l2_, zero, R_coeff_,
-                           ess_rt_dofs_, Mode::DARCY)
+                           ess_rt_dofs_, Mode::DARCY, l2_inv_type_)
 { }
 
 void HdivSaddlePointSolver::Setup()
@@ -189,7 +359,36 @@ void HdivSaddlePointSolver::Setup()
       });
    }
 
-   L_inv.reset(new DGMassInverse(fes_l2, W_mix_coeff));
+   switch (l2_inv_type)
+   {
+      case L2InverseType::CG:
+         L_inv.reset(new DGMassInverse(fes_l2, W_mix_coeff));
+         break;
+      case L2InverseType::MAGMA_PACKED:
+#ifdef MFEM_USE_MAGMA
+         L_inv.reset(new MagmaPackedL2MassInverse(fes_l2, W_mix_coeff,
+                                                  qs.GetIntRule(0)));
+#else
+         MFEM_ABORT("MFEM was built without MAGMA support.");
+#endif
+         break;
+      case L2InverseType::MAGMA_PACKED_PPINV:
+#ifdef MFEM_USE_MAGMA
+         L_inv.reset(new MagmaPackedPpInvL2MassInverse(fes_l2, W_mix_coeff,
+                                                       qs.GetIntRule(0)));
+#else
+         MFEM_ABORT("MFEM was built without MAGMA support.");
+#endif
+         break;
+      case L2InverseType::MAGMA_FULL:
+#ifdef MFEM_USE_MAGMA
+         L_inv.reset(new MagmaFullL2MassInverse(fes_l2, W_mix_coeff,
+                                                qs.GetIntRule(0)));
+#else
+         MFEM_ABORT("MFEM was built without MAGMA support.");
+#endif
+         break;
+   }
 
    if (zero_l2_block)
    {

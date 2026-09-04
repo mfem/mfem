@@ -40,8 +40,15 @@
 //    mpirun -np 4 darcy -m ../../data/fichera-q2.mesh
 
 #include "mfem.hpp"
+#include <cstring>
 #include <iostream>
 #include <memory>
+#include <iomanip>
+
+#ifdef MFEM_USE_UMPIRE
+#include <umpire/Allocator.hpp>
+#include <umpire/ResourceManager.hpp>
+#endif
 
 #include "discrete_divergence.hpp"
 #include "hdiv_linear_solver.hpp"
@@ -52,6 +59,132 @@ using namespace std;
 using namespace mfem;
 
 ParMesh LoadParMesh(const char *mesh_file, int ser_ref = 0, int par_ref = 0);
+
+namespace
+{
+
+HdivSaddlePointSolver::L2InverseType ParseL2InverseType(const char *name)
+{
+   if (!name || strcmp(name, "cg") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::CG;
+   }
+   if (strcmp(name, "magma-packed") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED;
+   }
+   if (strcmp(name, "magma-packed-ppinv") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV;
+   }
+   if (strcmp(name, "magma-full") == 0)
+   {
+      return HdivSaddlePointSolver::L2InverseType::MAGMA_FULL;
+   }
+   MFEM_ABORT("Unknown -l2inv value: " << name
+              << " (expected: cg | magma-packed | magma-packed-ppinv | magma-full)");
+   return HdivSaddlePointSolver::L2InverseType::CG;
+}
+
+const char *L2InverseTypeLabel(HdivSaddlePointSolver::L2InverseType type)
+{
+   switch (type)
+   {
+      case HdivSaddlePointSolver::L2InverseType::CG: return "cg";
+      case HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED:
+         return "magma-packed";
+      case HdivSaddlePointSolver::L2InverseType::MAGMA_PACKED_PPINV:
+         return "magma-packed-ppinv";
+      case HdivSaddlePointSolver::L2InverseType::MAGMA_FULL:
+         return "magma-full";
+   }
+   return "unknown";
+}
+
+#ifdef MFEM_USE_UMPIRE
+void ReportUmpireAllocator(const char *label, const char *alloc_name)
+{
+   auto &rm = umpire::ResourceManager::getInstance();
+   const int has_allocator = rm.isAllocator(alloc_name) ? 1 : 0;
+   unsigned long long cur = 0;
+   unsigned long long hwm = 0;
+   if (has_allocator)
+   {
+      auto alloc = rm.getAllocator(alloc_name);
+      cur = alloc.getCurrentSize();
+      hwm = alloc.getHighWatermark();
+   }
+
+   unsigned long long cur_sum = 0, cur_max = 0;
+   unsigned long long hwm_sum = 0, hwm_max = 0;
+   int allocator_count = 0;
+
+   MPI_Reduce(&has_allocator, &allocator_count, 1, MPI_INT, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&cur, &cur_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&cur, &cur_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &hwm_sum, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &hwm_max, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+              MPI_COMM_WORLD);
+
+   if (Mpi::Root())
+   {
+      if (allocator_count == 0)
+      {
+         cout << label << ": allocator '" << alloc_name
+              << "' not found (no allocations yet?)\n";
+      }
+      else
+      {
+         cout << label << " (Umpire '" << alloc_name << "'): "
+              << "current(sum/max)=(" << cur_sum << "/" << cur_max
+              << ") bytes, "
+              << "hwm(sum/max)=(" << hwm_sum << "/" << hwm_max << ") bytes\n";
+      }
+   }
+}
+
+void ReportUmpireMemory(const char *label)
+{
+   if (Mpi::Root()) { cout << label << '\n'; }
+   ReportUmpireAllocator("  host", MemoryManager::GetUmpireHostAllocatorName());
+   ReportUmpireAllocator("  device",
+                         MemoryManager::GetUmpireDeviceAllocatorName());
+}
+
+struct UmpireStats
+{
+   unsigned long long current_max_bytes = 0;
+   unsigned long long hwm_max_bytes = 0;
+};
+
+UmpireStats GetUmpireStatsMax(const char *alloc_name)
+{
+   auto &rm = umpire::ResourceManager::getInstance();
+   unsigned long long cur = 0;
+   unsigned long long hwm = 0;
+   if (rm.isAllocator(alloc_name))
+   {
+      auto alloc = rm.getAllocator(alloc_name);
+      cur = alloc.getCurrentSize();
+      hwm = alloc.getHighWatermark();
+   }
+
+   UmpireStats stats;
+   MPI_Reduce(&cur, &stats.current_max_bytes, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX,
+              0, MPI_COMM_WORLD);
+   MPI_Reduce(&hwm, &stats.hwm_max_bytes, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX,
+              0, MPI_COMM_WORLD);
+   return stats;
+}
+#else
+void ReportUmpireMemory(const char *) { }
+#endif
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -64,6 +197,11 @@ int main(int argc, char *argv[])
    int par_ref = 1;
    int order = 3;
    real_t alpha = 0.0;
+   const char *l2inv = "cg";
+   bool bench_l2inv = false;
+   int l2inv_reps = 100;
+   bool use_umpire_pool = false;
+   bool report_umpire_mem = false;
 
    OptionsParser args(argc, argv);
    args.AddOption(&device_config, "-d", "--device",
@@ -75,7 +213,31 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh in parallel.");
    args.AddOption(&order, "-o", "--order", "Polynomial degree.");
    args.AddOption(&alpha, "-a", "--alpha", "Value of alpha coefficient.");
+   args.AddOption(&l2inv, "-l2inv", "--l2-inverse",
+                  "Local L2 mass inverse: cg | magma-packed | magma-packed-ppinv | magma-full.");
+   args.AddOption(&bench_l2inv, "-l2bench", "--l2-bench",
+                  "-no-l2bench", "--no-l2-bench",
+                  "Benchmark the local L2 inverse apply.");
+   args.AddOption(&l2inv_reps, "-l2reps", "--l2-repetitions",
+                  "Repetitions for -l2bench timing.");
+   args.AddOption(&use_umpire_pool, "-umpire-pool", "--umpire-pool",
+                  "-no-umpire-pool", "--no-umpire-pool",
+                  "Use Umpire QuickPool allocators for MFEM allocations.");
+   args.AddOption(&report_umpire_mem, "-mem", "--report-memory",
+                  "-no-mem", "--no-report-memory",
+                  "Report Umpire allocator memory usage.");
    args.ParseCheck();
+
+#ifdef MFEM_USE_UMPIRE
+   if (use_umpire_pool)
+   {
+      MemoryManager::SetUmpireHostAllocatorName("mfem_host_pool");
+      MemoryManager::SetUmpireDeviceAllocatorName("mfem_device_pool");
+   }
+#else
+   MFEM_VERIFY(!use_umpire_pool, "MFEM was built without Umpire support.");
+   MFEM_VERIFY(!report_umpire_mem, "MFEM was built without Umpire support.");
+#endif
 
    Device device(device_config);
    if (Mpi::Root()) { device.Print(); }
@@ -140,8 +302,26 @@ int main(int argc, char *argv[])
    ConstantCoefficient one(1.0);
    ConstantCoefficient alpha_coeff(alpha);
    const auto solver_mode = HdivSaddlePointSolver::Mode::DARCY;
+   const auto l2inv_type = ParseL2InverseType(l2inv);
+
+   StopWatch setup_sw;
+   setup_sw.Start();
    HdivSaddlePointSolver saddle_point_solver(
-      mesh, fes_rt, fes_l2, alpha_coeff, one, ess_rt_dofs, solver_mode);
+      mesh, fes_rt, fes_l2, alpha_coeff, one, ess_rt_dofs, solver_mode, l2inv_type);
+   MFEM_DEVICE_SYNC;
+   setup_sw.Stop();
+
+   if (Mpi::Root())
+   {
+      const int n = fes_l2.GetTypicalFE()->GetDof();
+      const int ne = mesh.GetNE();
+      const size_t full_bytes = static_cast<size_t>(ne)*n*n*sizeof(real_t);
+      const size_t packed_bytes = static_cast<size_t>(ne)*n*(n+1)/2*sizeof(real_t);
+      cout << "Setup time: " << setup_sw.RealTime() << " s\n"
+           << "Local element matrices (theoretical): full=" << full_bytes
+           << " bytes, packed=" << packed_bytes << " bytes\n";
+   }
+   if (report_umpire_mem) { ReportUmpireMemory("After setup"); }
 
    const Array<int> &offsets = saddle_point_solver.GetOffsets();
    BlockVector X_block(offsets), B_block(offsets);
@@ -159,6 +339,113 @@ int main(int argc, char *argv[])
       cout << "Done.\nIterations: "
            << saddle_point_solver.GetNumIterations()
            << "\nElapsed: " << tic_toc.RealTime() << endl;
+   }
+   if (report_umpire_mem) { ReportUmpireMemory("After solve"); }
+
+   double l2_apply_ms_max = -1.0;
+   if (bench_l2inv)
+   {
+      const int n_l2 = offsets[1];
+      Vector rhs(n_l2), x_l2(n_l2);
+      rhs.UseDevice(true);
+      x_l2.UseDevice(true);
+      rhs.Randomize(1);
+      rhs.Read();
+      MFEM_DEVICE_SYNC;
+
+      // Warm up and time repeated applications.
+      saddle_point_solver.GetL2Inverse().Mult(rhs, x_l2);
+      MFEM_DEVICE_SYNC;
+
+      StopWatch sw;
+      sw.Start();
+      for (int r = 0; r < l2inv_reps; ++r)
+      {
+         saddle_point_solver.GetL2Inverse().Mult(rhs, x_l2);
+      }
+      MFEM_DEVICE_SYNC;
+      sw.Stop();
+
+      const double local_ms = 1000.0*sw.RealTime()/l2inv_reps;
+      double max_ms = 0.0;
+      MPI_Reduce(&local_ms, &max_ms, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+      l2_apply_ms_max = max_ms;
+      if (Mpi::Root())
+      {
+         cout << "L2 inverse apply (ms/apply, max over ranks): " << max_ms << '\n';
+      }
+   }
+
+   // Summary row for scripting / benchmarking.
+   if (Mpi::Root())
+   {
+      const double setup_ms = 1000.0*setup_sw.RealTime();
+      const double apply_tot_ms =
+         (l2_apply_ms_max >= 0.0) ? l2_apply_ms_max*l2inv_reps : -1.0;
+      const double total_ms =
+         (l2_apply_ms_max >= 0.0) ? (setup_ms + apply_tot_ms) : setup_ms;
+
+      cout << "\nLocal L2 inverse summary (times in ms";
+      if (!bench_l2inv) { cout << "; enable -l2bench for apply timing"; }
+      cout << ")\n";
+
+      cout << left << setw(26) << "Method"
+           << right << setw(14) << "Setup"
+           << setw(14) << "Apply"
+           << setw(14) << "ApplyTot"
+           << setw(14) << "Total";
+#ifdef MFEM_USE_UMPIRE
+      cout << setw(16) << "HostHWM(MB)"
+           << setw(16) << "DevHWM(MB)";
+#endif
+      cout << '\n';
+
+      int width = 26 + 4*14;
+#ifdef MFEM_USE_UMPIRE
+      width += 2*16;
+#endif
+      cout << string(width, '-') << '\n';
+
+      cout << left << setw(26) << L2InverseTypeLabel(l2inv_type) << right
+           << setw(14) << fixed << setprecision(3) << setup_ms;
+      if (l2_apply_ms_max >= 0.0)
+      {
+         cout << setw(14) << fixed << setprecision(6) << l2_apply_ms_max
+              << setw(14) << fixed << setprecision(3) << apply_tot_ms
+              << setw(14) << fixed << setprecision(3) << total_ms;
+      }
+      else
+      {
+         cout << setw(14) << "n/a"
+              << setw(14) << "n/a"
+              << setw(14) << fixed << setprecision(3) << total_ms;
+      }
+
+#ifdef MFEM_USE_UMPIRE
+      const auto host_stats =
+         GetUmpireStatsMax(MemoryManager::GetUmpireHostAllocatorName());
+      const auto dev_stats =
+         GetUmpireStatsMax(MemoryManager::GetUmpireDeviceAllocatorName());
+      cout << setw(16) << fixed << setprecision(3)
+           << (host_stats.hwm_max_bytes / (1024.0*1024.0))
+           << setw(16) << fixed << setprecision(3)
+           << (dev_stats.hwm_max_bytes / (1024.0*1024.0));
+#endif
+      cout << '\n';
+
+      // Machine-readable line for scripts.
+      cout << "HDIV_L2INV_SUMMARY_JSON: {"
+           << "\"method\":\"" << L2InverseTypeLabel(l2inv_type) << "\","
+           << "\"setup_ms\":" << std::fixed << std::setprecision(6) << setup_ms << ","
+           << "\"solve_s\":" << std::fixed << std::setprecision(6) << tic_toc.RealTime() << ","
+           << "\"iters\":" << saddle_point_solver.GetNumIterations() << ","
+           << "\"l2_reps\":" << l2inv_reps << ","
+           << "\"l2_apply_ms_max\":" << std::fixed << std::setprecision(9) << l2_apply_ms_max;
+#ifdef MFEM_USE_UMPIRE
+      cout << ",\"host_hwm_max_bytes\":" << host_stats.hwm_max_bytes
+           << ",\"device_hwm_max_bytes\":" << dev_stats.hwm_max_bytes;
+#endif
+      cout << "}\n";
    }
 
    ParGridFunction x(&fes_l2);

@@ -44,6 +44,9 @@
 #endif // MFEM_USE_MPI
 
 #include "linalg/linalg.hpp"
+#ifdef MFEM_USE_MAGMA
+#include "linalg/tripack_magma.hpp"
+#endif
 
 #include "mesh/mesh_headers.hpp"
 
