@@ -30,16 +30,23 @@ construction. Why broken-RT exists at all is in the class doxygen at
 
 ## 1. NPC refuses a flux space that is not discontinuous
 
-`DarcyHybridization::NPCCheck()`, the `MFEM_VERIFY` at
-`fem/darcy/darcyhybridization.cpp:3572`, called from `NPCResidual()` and
-`NPCGradient()` so both entry points are covered. The reasoning is on the
-declaration and in the `@note` on the `NPCResidual` group: an H(div) flux makes
-the local rows of the residual a conforming scatter with sign conventions that
-have not been checked against.
+`DarcyHybridization::NPCCheck()`, called from `NPCResidual()` and
+`NPCGradient()` so both entry points are covered.
 
-**Unknown**: whether those sign conventions actually differ. The refusal is a
-refusal to guess, not a finding that it is wrong. Nobody has written the
-scatter and compared it.
+**No longer unknown, and the entry that stood here was wrong about what the
+obstacle is.** It said the refusal was a refusal to guess about sign
+conventions, and that nobody had written the scatter and compared. The scatter
+has now been written and compared, and the sign conventions are not the issue:
+NPC iterates on the *broken* state and a conforming space is one dof per
+interior face too small to hold it, so both elements read the same value and
+the trace row is annihilated for **every** conforming state, not just the ones
+an iteration visits. The measurement is on `NPCCheck()` and in the `@note` on
+the `NPCResidual` group.
+
+**Nothing is left to investigate; what is left is a choice nobody has asked
+for.** Lifting the refusal means carrying the flux unknown in the hat space,
+which is a different operator size and a different caller contract, not a bug
+fix. `BrokenRT_FECollection` reaches an H(div) element under NPC today.
 
 The consequence in the suite is exactly one reference:
 `regress_test/p2_o2_hb_nlu_newton.txt` is hybridized, nonlinear in the flux and
@@ -48,15 +55,20 @@ H(div), so it is the one `-nlu` case NPC can never take;
 
 **Broken-RT is admitted and works** — settled, measured, and the measurement
 now lives in the `-npc` help string of both `convdiff` and `pconvdiff`, which
-used to claim the opposite. `BrokenRT_FECollection::GetContType()` returns
-`DISCONTINUOUS` and broken RT has no inter-element continuity, so it is not the
-conforming scatter the guard is about.
+used to claim the opposite, and in "An H(div) element reaches NPC through a
+broken space" in `tests/unit/fem/test_darcy_npc.cpp`.
+`BrokenRT_FECollection::GetContType()` returns `DISCONTINUOUS`, and its element
+dof counts sum to its space size, which is the property the guard is really
+about.
 
 ## 2. Broken-RT and the H(div) reduction have no reference coverage
 
 The cheapest items here, and both are a reference set rather than new code.
 
-* **Zero of the 152 serial and 121 parallel references use `--broken-RT`.**
+* **Zero of the 152 serial and 121 parallel references use `--broken-RT`**, and
+  the unit coverage is no longer quite zero at the `DarcyForm` level — the NPC
+  case above hybridizes a broken-RT flux and checks it against a conforming-RT
+  reduced solve — but no *reference* exercises it.
   What exercises it at all: `tests/unit/fem/test_brokenrt.cpp` (four cases, all
   collection-level, no `DarcyForm` anywhere), one solve in
   `tests/unit/fem/test_darcy_reduction.cpp` (`SolveBRT()`), and

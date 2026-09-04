@@ -289,9 +289,18 @@ residual is O(1), not 1e-10.
 
 ### 3.5 What it refuses, and what is missing
 
-One hard refusal, a `MFEM_VERIFY` in `NPCCheck()`: **an H(div) flux space.**
-The local rows would be a conforming scatter with sign conventions this has not
-been checked against, and the RT paths are deliberately left alone.
+One hard refusal, a `MFEM_VERIFY` in `NPCCheck()`: **a conforming H(div) flux
+space** — and it is now a measured refusal rather than a precautionary one.
+The reason is representational, not the sign conventions this entry used to
+name: NPC iterates on the *broken* state, a conforming space is one dof per
+interior face too small to hold it, so both elements read the same value and
+the trace row cancels identically. The measurement, the numbers and the way
+around it are on `NPCCheck()` and in the `@note` on the `NPCResidual` group;
+`doc/HDG-HDIV-OPTIONAL.md` §1 says what is left.
+
+**`BrokenRT_FECollection` is the H(div)-shaped space NPC does take**, already
+admitted and now covered by "An H(div) element reaches NPC through a broken
+space" in `tests/unit/fem/test_darcy_npc.cpp`.
 
 `LocalOpType::FluxNL` was refused here too and no longer is. The Schur
 complement had nowhere to live in that mode — `Df_data` holds the factored
@@ -299,17 +308,20 @@ complement had nowhere to live in that mode — `Df_data` holds the factored
 built it in a temporary and dropped it. It now goes to `Sf_data`; see §7.3 for
 the withdrawal of what that entry claimed.
 
-Missing rather than refused:
+Missing rather than refused — **and two of the three entries that stood here
+were stale, both overtaken by work that had already been done**:
 
-* **No NPC regression reference exists.** `navierstokes` is driven by NPC
-  unconditionally and has no reference at all; `convdiff` and `pconvdiff` take
-  `-npc`, through `DarcyOperator::SetNPC()`, but the flag defaults off and
-  every one of the 129 + 98 references predates it. So the method is covered
-  by unit tests and by nothing else;
-* **the trace right-hand side has no slot.** `load` is `(flux, potential)`;
-  a Neumann datum assembled on the trace has to ride in `b` of
-  `NewtonSolver::Mult(b, x)`;
-* **`ComputeSolution()` has not been exercised** against an NPC solution.
+* **the trace right-hand side has no slot**, and this is `DarcyForm`'s rather
+  than NPC's: it offers `GetFluxRHS()` and `GetPotentialRHS()` and nothing for
+  the skeleton, so neither route carries a load assembled on the trace. What
+  the caller does instead is no longer guesswork — it is measured against the
+  reduced route and written on the `NPCResidual` group, and pinned by "A
+  trace-assembled load reaches NPC through the residual". Adding a real slot
+  would move the reduced route too, and nobody has asked;
+* ~~No NPC regression reference exists~~ — **there are 23 serial and 23
+  parallel `*_npc.txt`**, which is what takes the suite to 152 + 121;
+* ~~`ComputeSolution()` has not been exercised~~ — "ComputeSolution reproduces
+  the fields NPC already holds" does exactly that.
 
 ## 4. Sizes
 

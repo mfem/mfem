@@ -1185,10 +1185,43 @@ public:
        scales the trace and leaves the field update to whatever the
        substitution makes of it.
 
-       @note The flux space must be discontinuous, which is the HDG case.
-       An H(div) flux makes the local rows of @a r a conforming scatter with
-       sign conventions this has not been checked against, and the RT paths are
-       deliberately left alone.
+       @note **The flux space must be discontinuous, and the reason is
+       representational rather than a matter of sign conventions -- an earlier
+       version of this note said it was, and had not been measured.** The state
+       NPC iterates on is the BROKEN one: each element owns its own copy of the
+       flux dofs on a shared face, and the trace row is what makes the two
+       copies agree. A conforming H(div) space has no room for that -- summing
+       the element vdof counts of an RT space gives 192 against a space size of
+       144 on a 4x4 quad mesh at order 1, one dof short per interior face -- so
+       both elements read the SAME value, their Ct blocks carry opposite signs,
+       and their contributions cancel identically. Measured on RT at five
+       random states of (q, u, lambda): |C' q| = 3.2e-16 against a flux row of
+       9.8, where the same problem gives 7.9-9.0 with an L2 flux and 7.1-8.0
+       with a broken-RT one. **So the trace row is annihilated for every
+       conforming state, not merely for the ones an iteration visits**, lambda
+       is never driven, and NPC stalls: on a 6x6 triangle mesh it stops at
+       |F| = 0.0804 and lands 12% off in the flux and 44% off in the trace,
+       while the reduced route on the same problem converges in 6 steps.
+
+       The route to an H(div)-shaped discretisation under NPC is therefore
+       BrokenRT_FECollection, which is already admitted -- its GetContType()
+       is DISCONTINUOUS, its element vdof counts sum to its space size, and it
+       carries the same RT element on a space with room for the broken state.
+       Measured on the problem above: quadratic convergence in 7 steps to the
+       same potential and the same trace as conforming RT's reduced route,
+       3.08934 and 3.31561 both ways. Lifting the guard would need the flux
+       unknown carried in the hat space instead, which is a different operator
+       size and a different caller contract, not a bug fix.
+
+       @note **A load assembled on the TRACE has no slot**, here or in the
+       reduced route: DarcyForm offers GetFluxRHS() and GetPotentialRHS() and
+       nothing for the skeleton, and @a b is (flux, potential). The caller
+       carries it instead, and where it goes is measured rather than inferred:
+       subtract it from @a r_tr between NPCResidual() and NPCReduce(), which is
+       the same r = F(x) - b convention NewtonSolver::Mult(b, x) applies on the
+       reduced route. Checked against that route at three load scales spanning
+       20x, |lambda| running 4.69 to 64.2 against 3.31 unloaded: the two agree
+       to 1.2e-13 - 2.9e-12 relative.
 
        @note **A parity test against the reduced trace operator must run on a
        resolved mesh.** The two routes reach the same discrete solution, and

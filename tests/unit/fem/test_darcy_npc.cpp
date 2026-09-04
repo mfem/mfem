@@ -1346,6 +1346,176 @@ NPCOutcome RunNPC(PedestalHDG &P, int max_it, bool line_search,
    return out;
 }
 
+
+/** @brief The same Darcy problem over an H(div)-shaped flux space, either
+    conforming (RT) or broken (BrokenRT).
+
+    The pair is the point. Both carry the same RT element and the same
+    discretisation; they differ only in whether the flux dofs on a shared face
+    are one unknown or two, which is exactly the difference NPC turns on. */
+struct HdivHDG
+{
+   enum class Space { RT, BrokenRT };
+
+   Mesh mesh;
+   std::unique_ptr<FiniteElementCollection> u_coll;
+   L2_FECollection p_coll;
+   DG_Interface_FECollection t_coll;
+   std::unique_ptr<FiniteElementSpace> Vh;
+   FiniteElementSpace Wh, Mh;
+   ConstantCoefficient one;
+   FunctionCoefficient src;
+   std::unique_ptr<DarcyForm> darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X, RHS;
+   OperatorPtr R;
+
+   HdivHDG(Space space, int n, int order, real_t sigma, real_t amp = 1.0)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
+        p_coll(order, 2), t_coll(order, 2),
+        Wh(&mesh, &p_coll), Mh(&mesh, &t_coll), one(1.0),
+        src([](const Vector &x)
+   { return std::sin(M_PI*x(0)) * std::sin(M_PI*x(1)); }),
+   offs(4)
+   {
+      if (space == Space::RT) { u_coll.reset(new RT_FECollection(order, 2)); }
+      else { u_coll.reset(new BrokenRT_FECollection(order, 2)); }
+      Vh.reset(new FiniteElementSpace(&mesh, u_coll.get()));
+      darcy.reset(new DarcyForm(Vh.get(), &Wh));
+
+      all.SetSize(mesh.bdr_attributes.Max());
+      all = 1;
+
+      darcy->GetFluxMassForm()->AddDomainIntegrator(
+         new VectorFEMassIntegrator(one));
+      NonlinearForm *Mnl_p = darcy->GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new PedestalSource(amp, sigma));
+      darcy->GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+
+      MixedBilinearForm *B = darcy->GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorFEDivergenceIntegrator());
+      // A MARKER, not an integrator to be evaluated: DarcyForm::Assemble()
+      // reads B->GetBFBFI_Marker() and installs constr_flux_integ on those
+      // attributes. Without it the constraint is interior-only and the
+      // essential trace never reaches the boundary elements.
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+      darcy->EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                 ess_flux);
+      darcy->GetHybridization()->SetEssentialBC(all);
+      darcy->GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton, 100, 1e-12, 1e-16, -1);
+      darcy->Assemble();
+
+      offs[0] = 0;
+      offs[1] = Vh->GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      FunctionCoefficient ramp([](const Vector &x)
+      { return 0.5*(x(1) - 0.6); });
+      GridFunction pgf, tgf;
+      pgf.MakeRef(&Wh, sol.GetBlock(1), 0);
+      pgf.ProjectCoefficient(ramp);
+      tgf.MakeRef(&Mh, sol.GetBlock(2), 0);
+      tgf.ProjectBdrCoefficient(ramp, all);
+
+      X.MakeRef(sol, offs[2], Mh.GetVSize());
+      RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+      BlockVector dsol(sol, darcy->GetOffsets()),
+                  drhs(rhs, darcy->GetOffsets());
+      darcy->FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+   }
+
+   Operator &op() { return *R.Ptr(); }
+   BlockVector load() { return BlockVector(rhs, darcy->GetOffsets()); }
+   BlockVector state() { return BlockVector(sol, darcy->GetOffsets()); }
+
+   /// The sum of the element flux dof counts -- the size of the BROKEN state.
+   int HatSize() const
+   {
+      int hat = 0;
+      Array<int> vdofs;
+      for (int el = 0; el < Vh->GetNE(); el++)
+      {
+         Vh->GetElementVDofs(el, vdofs);
+         hat += vdofs.Size();
+      }
+      return hat;
+   }
+
+   /// Solve by the reduced route, and leave the fields in @a fields.
+   void SolveReduced(BlockVector &fields, int &its)
+   {
+      GMRESSolver lin;
+      lin.SetKDim(500);
+      lin.SetMaxIter(5000);
+      lin.SetRelTol(1e-14);
+      lin.SetAbsTol(1e-16);
+      lin.SetPrintLevel(-1);
+      NewtonSolver newton;
+      newton.SetOperator(op());
+      newton.SetSolver(lin);
+      newton.SetRelTol(1e-12);
+      newton.SetAbsTol(1e-14);
+      newton.SetMaxIter(50);
+      newton.SetPrintLevel(-1);
+      newton.Mult(RHS, X);
+      REQUIRE(newton.GetConverged());
+      its = newton.GetNumIterations();
+      BlockVector ld = load();
+      fields.Update(darcy->GetOffsets());
+      darcy->GetHybridization()->ComputeSolution(ld, X, fields);
+   }
+};
+
+/// One NPC Newton loop over an HdivHDG problem; @a tload, when nonempty, is a
+/// load assembled on the TRACE, which the class carries no slot for.
+std::vector<real_t> RunNPCHdiv(HdivHDG &P, int max_it,
+                               const Vector *tload = nullptr)
+{
+   DarcyHybridization &dh = *P.darcy->GetHybridization();
+   BlockVector b = P.load(), x = P.state();
+   Vector &x_tr = P.X;
+   BlockVector r(P.darcy->GetOffsets()), dx(P.darcy->GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   std::vector<real_t> norms;
+
+   for (int it = 0; it <= max_it; it++)
+   {
+      dh.NPCResidual(b, x, x_tr, r, r_tr);
+      if (tload)
+      {
+         // The r = F(x) - b convention NewtonSolver::Mult(b, x) applies on the
+         // reduced route, here written out by the caller because @a b is
+         // (flux, potential) and has no trace block.
+         r_tr -= *tload;
+         r_tr.SetSubVector(dh.GetEssentialTrueDofs(), 0.0);
+      }
+      norms.push_back(std::sqrt(r*r + r_tr*r_tr));
+      if (norms.back() < 1e-12 || it == max_it) { break; }
+
+      Operator &S = dh.NPCGradient(x, x_tr);
+      dh.NPCReduce(r, r_tr, b_tr);
+      dtr.SetSize(b_tr.Size());
+      dtr = 0.0;
+      SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+      REQUIRE(Sm != nullptr);
+      UMFPackSolver lin(*Sm);
+      lin.Mult(b_tr, dtr);
+      dh.NPCRecover(r, dtr, dx);
+      x.Add(1.0, dx);
+      x_tr.Add(1.0, dtr);
+   }
+   return norms;
+}
 } // namespace darcy_npc
 
 TEST_CASE("A stiff source converges by condensation and by NPC alike",
@@ -1642,6 +1812,135 @@ TEST_CASE("The line search earns its place on the pedestal, and says which",
    const NPCOutcome undamped = RunNPC(Pu, 40, false, GM::Assembled);
    CAPTURE(undamped.norms.size(), undamped.norms.back());
    REQUIRE_FALSE(undamped.converged);
+}
+
+TEST_CASE("An H(div) element reaches NPC through a broken space",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+   using Space = HdivHDG::Space;
+
+   // NPCCheck() refuses a conforming H(div) flux, and this case is why. The
+   // reason is REPRESENTATIONAL, not a matter of sign conventions -- the guard
+   // used to say sign conventions and had not been measured.
+   //
+   // NPC iterates on the BROKEN state: each element owns its own copy of the
+   // flux dofs on a shared face, and the trace row is what makes the copies
+   // agree. A conforming space holds one value where the broken state has two,
+   // so both elements read the same number, their Ct blocks carry opposite
+   // signs, and the trace row cancels identically -- lambda is never driven.
+   //
+   // The refusal cannot be tested directly (MFEM_ABORT aborts rather than
+   // throws without MFEM_USE_EXCEPTIONS), so what is pinned here is the fact
+   // underneath it and the route around it.
+   HdivHDG rt(Space::RT, 6, 1, 0.05);
+   HdivHDG brt(Space::BrokenRT, 6, 1, 0.05);
+
+   SECTION("the conforming space is too small to hold the broken state")
+   {
+      // Exactly one flux dof per interior face is missing, which is the dof
+      // the trace row would otherwise have two of.
+      CAPTURE(rt.HatSize(), rt.Vh->GetVSize());
+      REQUIRE(rt.HatSize() > rt.Vh->GetVSize());
+
+      // The broken space is the same element on a space that has room, which
+      // is the whole of the difference between the two.
+      CAPTURE(brt.HatSize(), brt.Vh->GetVSize());
+      REQUIRE(brt.HatSize() == brt.Vh->GetVSize());
+      REQUIRE(brt.HatSize() == rt.HatSize());
+   }
+
+   SECTION("and NPC converges on the broken one, onto the conforming answer")
+   {
+      // The two are the same discrete problem -- hybridizing a conforming RT
+      // discretisation and hybridizing its broken twin with the continuity
+      // constraint give the same solution -- so this is a check against an
+      // independently computed answer and not against NPC's own.
+      BlockVector ref;
+      int ref_its = 0;
+      rt.SolveReduced(ref, ref_its);
+      CAPTURE(ref_its);
+
+      const std::vector<real_t> norms = RunNPCHdiv(brt, 12);
+      REQUIRE(norms.size() >= 3);
+      CAPTURE(norms.front(), norms.back(), norms.size());
+      REQUIRE(norms.front() > 1e-3);          // there was something to solve
+      REQUIRE(norms.back() < 1e-12);          // and NPC solved it
+      // Newton, not a fixed point: the last step before convergence squares.
+      const real_t before = norms[norms.size() - 2];
+      REQUIRE(norms.back() < before * before * 1e3);
+      // No element ran a local nonlinear solve -- the NPC acceptance signal.
+      REQUIRE(brt.darcy->GetHybridization()->GetNumLocalNLIterations() == 0);
+
+      // The potential and the trace live in the same spaces either way and
+      // must agree. The FLUX does not: it is the broken representation of the
+      // same field, on a strictly larger space, so its norm is legitimately
+      // different and nothing here compares it.
+      BlockVector npc(brt.darcy->GetOffsets());
+      npc = brt.state();
+      Vector dp(npc.GetBlock(1));
+      dp -= ref.GetBlock(1);
+      CAPTURE(dp.Norml2(), ref.GetBlock(1).Norml2());
+      REQUIRE(dp.Norml2() <= 1e-8 * ref.GetBlock(1).Norml2());
+
+      Vector dl(brt.X);
+      dl -= rt.X;
+      CAPTURE(dl.Norml2(), rt.X.Norml2());
+      REQUIRE(dl.Norml2() <= 1e-8 * rt.X.Norml2());
+   }
+}
+
+TEST_CASE("A trace-assembled load reaches NPC through the residual",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+   using Space = HdivHDG::Space;
+
+   // DarcyForm offers GetFluxRHS() and GetPotentialRHS() and nothing for the
+   // skeleton, so a load assembled on the TRACE has no slot in either route.
+   // On the reduced route the caller adds it to the right-hand side of
+   // NewtonSolver::Mult(b, x); under NPC there is no such argument, and this
+   // case pins where it goes instead -- subtracted from r_tr between
+   // NPCResidual() and NPCReduce(), which is the same r = F(x) - b convention.
+   //
+   // Both routes must reach the same trace, or the two ways of expressing the
+   // same datum are two different problems.
+   const real_t scale = GENERATE(0.05, 0.3, 1.0);
+   CAPTURE(scale);
+
+   Vector tload;
+   {
+      HdivHDG probe(Space::BrokenRT, 6, 1, 0.05);
+      tload.SetSize(probe.Mh.GetVSize());
+      tload.Randomize(7);
+      tload *= scale;
+      // Nothing on an essential trace dof can move, so a load there would be
+      // discarded by one route and not the other for reasons of its own.
+      tload.SetSubVector(
+         probe.darcy->GetHybridization()->GetEssentialTrueDofs(), 0.0);
+   }
+
+   HdivHDG red(Space::BrokenRT, 6, 1, 0.05);
+   red.RHS += tload;
+   BlockVector ref;
+   int ref_its = 0;
+   red.SolveReduced(ref, ref_its);
+   CAPTURE(ref_its);
+
+   HdivHDG npc(Space::BrokenRT, 6, 1, 0.05);
+   const std::vector<real_t> norms = RunNPCHdiv(npc, 20, &tload);
+   CAPTURE(norms.front(), norms.back(), norms.size());
+   REQUIRE(norms.back() < 1e-12);
+
+   // The load has to have done something, or the comparison is vacuous: it
+   // moves the trace well clear of the unloaded 3.31.
+   CAPTURE(npc.X.Norml2(), red.X.Norml2());
+   REQUIRE(npc.X.Norml2() > 4.0);
+
+   Vector d(red.X);
+   d -= npc.X;
+   CAPTURE(d.Norml2());
+   REQUIRE(d.Norml2() <= 1e-9 * red.X.Norml2());
 }
 
 TEST_CASE("ComputeSolution reproduces the fields NPC already holds",

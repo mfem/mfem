@@ -3726,11 +3726,29 @@ void DarcyHybridization::ProjectSolution(const BlockVector &sol,
 void DarcyHybridization::NPCCheck() const
 {
    MFEM_VERIFY(bfin, "DarcyHybridization must be finalized");
+   // The refusal is measured, not precautionary, and what it is about is the
+   // REPRESENTATION rather than the sign conventions an earlier version of
+   // this guard blamed. NPC iterates on the broken state -- one flux copy per
+   // element on a shared face, the trace row being what makes the copies agree
+   // -- and a conforming H(div) space is exactly one dof per interior face too
+   // small to hold it (192 element vdofs against a space of 144, RT order 1 on
+   // a 4x4 quad mesh). Both elements then read the same value, their Ct blocks
+   // carry opposite signs, and the trace row cancels identically: |C' q| came
+   // out 3.2e-16 against a flux row of 9.8 at five random states, where L2
+   // gives 7.9-9.0 and broken RT 7.1-8.0 on the same problem. With lambda
+   // undriven NPC stalls at |F| = 0.0804, 12% off in the flux and 44% off in
+   // the trace, on a problem the reduced route solves in 6 steps.
+   //
+   // BrokenRT_FECollection is the H(div)-shaped space that does have room, is
+   // DISCONTINUOUS and so passes here already, and converges quadratically to
+   // the same answer. See the note on NPCResidual().
    MFEM_VERIFY(fes.FEColl()->GetContType() ==
                FiniteElementCollection::DISCONTINUOUS,
-               "NPC needs a discontinuous flux space; an H(div) flux makes the "
-               "local rows a conforming scatter this has not been checked "
-               "against. See the note on NPCResidual().");
+               "NPC needs a discontinuous flux space. A conforming H(div) "
+               "space cannot represent the broken state NPC iterates on, so "
+               "the trace row cancels identically and lambda is never driven; "
+               "use BrokenRT_FECollection for an H(div) element. See the note "
+               "on NPCResidual().");
    // LocalOpType::FluxNL used to be refused here, because ComputeElementH()
    // discarded its Schur complement into a temporary and MultInv() then read
    // the factored linear potential mass in its place. ComputeElementH() now

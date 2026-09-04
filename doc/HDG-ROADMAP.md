@@ -233,9 +233,15 @@ identically zero and the check fails loudly if the flag stops taking effect.
 
 What is left:
 
-* **H(div) flux.** Refused rather than attempted: the local rows would be a
-  conforming scatter with RT sign conventions that have not been checked.
-  `doc/HDG-HDIV-OPTIONAL.md` §1.
+* **H(div) flux — attempted, measured, and the refusal stands for a better
+  reason.** Not sign conventions: NPC iterates on the broken state and a
+  conforming space has no room for it, so the trace row is annihilated for
+  every conforming state and lambda is never driven. `BrokenRT_FECollection`
+  is the H(div)-shaped space that does work and is now covered.
+  `doc/HDG-HDIV-OPTIONAL.md` §1; the numbers are on `NPCCheck()`.
+* **A trace-assembled load still has no slot** in `DarcyForm`, on either
+  route. Where the caller puts it instead is measured and pinned; adding a
+  real slot would move the reduced route too, and nobody has asked.
 * **A regression case is on offer and has not been taken.** meq's transport
   barrier is the case that used to throw out of `NewtonSolver::Mult`'s
   `IsFinite` check at iteration zero, and nothing here reproduces that fault —
