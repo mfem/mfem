@@ -666,6 +666,82 @@ FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
    return FTr;
 }
 
+void DarcyHybridization::BuildElementColouring() const
+{
+   if (colour_offsets.Size() > 0) { return; }
+
+   Mesh *mesh = fes.GetMesh();
+   const int NE = fes.GetNE();
+
+   Array<int> colours;
+   mesh->GetElementColoring(colours);
+
+   int ncol = 0;
+   for (int el = 0; el < NE; el++) { ncol = std::max(ncol, colours[el] + 1); }
+
+   // counting sort of the elements by colour
+   colour_offsets.SetSize(ncol + 1);
+   colour_offsets = 0;
+   for (int el = 0; el < NE; el++) { colour_offsets[colours[el] + 1]++; }
+   colour_offsets.PartialSum();
+
+   Array<int> fill(colour_offsets);
+   colour_order.SetSize(NE);
+   for (int el = 0; el < NE; el++) { colour_order[fill[colours[el]]++] = el; }
+
+   // Warm whatever the element loop would otherwise build lazily inside the
+   // parallel region. These are all const accessors that fill a shared table
+   // on first use, and a race there is not a wrong answer but a corrupt one.
+   // Cheap insurance, once, and it is why this lives with the colouring
+   // rather than beside it.
+   if (NE > 0)
+   {
+      Array<int> dofs, faces, oris;
+      switch (mesh->Dimension())
+      {
+         case 1: mesh->GetElementVertices(0, faces); break;
+         case 2: mesh->GetElementEdges(0, faces, oris); break;
+         case 3: mesh->GetElementFaces(0, faces, oris); break;
+      }
+      fes_p.GetElementVDofs(0, dofs);
+      GetFDofs(0, dofs);
+      for (int f = 0; f < faces.Size(); f++)
+      {
+         c_fes.GetFaceVDofs(faces[f], dofs);
+         c_fes.GetFaceElement(faces[f]);
+      }
+   }
+}
+
+FaceElementTransformations *DarcyHybridization::GetFaceTransformation(
+   int f, TransWorkspace &ws) const
+{
+   // The same three branches as the shared-cache overload above, through the
+   // caller-allocated Mesh/ParMesh entry points. Kept as a separate function
+   // rather than a defaulted argument so the serial path is provably the one
+   // it always was.
+   int el1, el2;
+   fes.GetMesh()->GetFaceElements(f, &el1, &el2);
+
+   if (el2 >= 0)
+   {
+      fes.GetMesh()->GetFaceElementTransformations(f, ws.face, ws.f1, ws.f2);
+   }
+#ifdef MFEM_USE_MPI
+   else if (ParallelC() && c_pfes->GetParMesh()->FaceIsTrueInterior(f))
+   {
+      c_pfes->GetParMesh()->GetSharedFaceTransformationsByLocalIndex(
+         f, ws.face, ws.f1, ws.f2);
+   }
+#endif
+   else
+   {
+      fes.GetMesh()->GetFaceElementTransformations(f, ws.face, ws.f1, ws.f2, 21);
+   }
+
+   return &ws.face;
+}
+
 void DarcyHybridization::AssembleCtFaceMatrix(int face,
                                               const DenseMatrix &elmat)
 {
@@ -1898,13 +1974,6 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
                "MultNlMode::AtFields has nowhere to put the local residual");
    const int NE = fes.GetNE();
    const int dim = fes.GetMesh()->Dimension();
-   DenseMatrix H;
-   BlockVector x_l;
-   Array<int> c_dofs;
-   Array<int> c_offsets;
-   Array<int> faces, oris;
-   Vector bu_l, bp_l, u_l, p_l, y_l;
-   Array<int> u_vdofs, p_dofs;
 
    BlockVector yb;
    if (mode == MultNlMode::Sol)
@@ -1921,292 +1990,325 @@ void DarcyHybridization::MultNL(MultNlMode mode, const Vector &bu,
       f_2_b = fes.GetMesh()->GetFaceToBdrElMap();
    }
 
-   for (int el = 0; el < NE; el++)
+   // Serial keeps the original element order exactly, so its answer is the one
+   // it always was; threaded walks the colours, and within a colour no two
+   // elements share a face. See BuildElementColouring().
+   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   if (threaded) { BuildElementColouring(); }
+   const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
+
+   for (int pass = 0; pass < npasses; pass++)
    {
-      //Load RHS
+      const int i0 = threaded ? colour_offsets[pass] : 0;
+      const int i1 = threaded ? colour_offsets[pass+1] : NE;
 
-      if (mode != MultNlMode::GradMult && mode != MultNlMode::GradAtFields)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel if (threaded)
+#endif
       {
-         GetFDofs(el, u_vdofs);
-         bu.GetSubVector(u_vdofs, bu_l);
+         // Per THREAD, not per element: the same reuse the serial loop got
+         // from declaring these once, without the sharing.
+         DenseMatrix H;
+         BlockVector x_l;
+         Array<int> c_dofs;
+         Array<int> c_offsets;
+         Array<int> faces, oris;
+         Vector bu_l, bp_l, u_l, p_l, y_l;
+         Array<int> u_vdofs, p_dofs;
+         TransWorkspace ws;
 
-         fes_p.GetElementVDofs(el, p_dofs);
-         bp.GetSubVector(p_dofs, bp_l);
-         if (bsym)
+#ifdef MFEM_USE_OPENMP
+         #pragma omp for schedule(dynamic)
+#endif
+         for (int i = i0; i < i1; i++)
          {
-            //In the case of the symmetrized system, the sign is oppposite!
-            bp_l.Neg();
-         }
-      }
-      else
-      {
-         // GradMult has no right-hand side, and GradAtFields does not read
-         // one: ConstructGrad() ignores it. Both still need the dof lists,
-         // GradAtFields because that is how it reaches the retained fields.
-         GetFDofs(el, u_vdofs);
-         fes_p.GetElementVDofs(el, p_dofs);
-         bu_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el]);
-         bu_l = 0.;
-         bp_l.SetSize(Df_f_offsets[el+1] - Df_f_offsets[el]);
-         bp_l = 0.;
-      }
+            const int el = threaded ? colour_order[i] : i;
+            //Load RHS
 
-      switch (dim)
-      {
-         case 1:
-            fes.GetMesh()->GetElementVertices(el, faces);
-            break;
-         case 2:
-            fes.GetMesh()->GetElementEdges(el, faces, oris);
-            break;
-         case 3:
-            fes.GetMesh()->GetElementFaces(el, faces, oris);
-            break;
-      }
-
-      c_offsets.SetSize(faces.Size()+1);
-      c_offsets[0] = 0;
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         const int c_size = c_fes.GetFaceElement(faces[f])->GetDof() * c_fes.GetVDim();
-         c_offsets[f+1] = c_offsets[f] + c_size;
-      }
-
-      x_l.Update(c_offsets);
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         x.GetSubVector(c_dofs, x_l.GetBlock(f));
-      }
-
-      // bu - C^T x
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         DenseMatrix Ct;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct);
-
-         const Vector &x_f = x_l.GetBlock(f);
-
-         Ct.AddMult_a(-1., x_f, bu_l);
-
-         //bp - E x
-         if (c_bfi_p || mode == MultNlMode::GradMult)
-         {
-            DenseMatrix E;
-            GetEFaceMatrix(faces[f], el1 != el, E);
-
-            E.AddMult_a(-1., x_f, bp_l);
-         }
-      }
-
-      if (mode != MultNlMode::GradMult)
-      {
-         if (mode == MultNlMode::AtFields || mode == MultNlMode::GradAtFields)
-         {
-            // NPC. The fields are Newton state and arrive in darcy_u/darcy_p;
-            // nothing here solves, substitutes or linearises. That is the
-            // whole difference from every other mode, and it is why NPC has no
-            // local nonlinear iteration to globalise.
-            darcy_u.GetSubVector(u_vdofs, u_l);
-            darcy_p.GetSubVector(p_dofs, p_l);
-
-            if (mode == MultNlMode::GradAtFields)
+            if (mode != MultNlMode::GradMult && mode != MultNlMode::GradAtFields)
             {
-               ConstructGrad(el, faces, x_l, u_l, p_l);
-               continue;
-            }
+               GetFDofs(el, u_vdofs);
+               bu.GetSubVector(u_vdofs, bu_l);
 
-            // The local rows of F, at exactly these fields. bu_l already
-            // carries -C^T x from the loop above and LocalNLOperator supplies
-            // E x on the potential row, so between them the trace coupling
-            // appears once on each row.
-            Vector ru_l, rp_l;
-            LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l);
-            r_local->GetBlock(0).AddElementVector(u_vdofs, ru_l);
-            r_local->GetBlock(1).AddElementVector(p_dofs, rp_l);
-            // and fall through to the trace row, which is the same assembly
-            // every other mode uses.
-         }
-         else
-         {
-            //local u
-            if (darcy_u.Size() > 0)
-            {
-               //load the initial guess from the non-reduced solution vector
-               darcy_u.GetSubVector(u_vdofs, u_l);
+               fes_p.GetElementVDofs(el, p_dofs);
+               bp.GetSubVector(p_dofs, bp_l);
+               if (bsym)
+               {
+                  //In the case of the symmetrized system, the sign is oppposite!
+                  bp_l.Neg();
+               }
             }
             else
             {
-               u_l.SetSize(u_vdofs.Size());
-               u_l = 0.;//initial guess?
-
+               // GradMult has no right-hand side, and GradAtFields does not read
+               // one: ConstructGrad() ignores it. Both still need the dof lists,
+               // GradAtFields because that is how it reaches the retained fields.
+               GetFDofs(el, u_vdofs);
+               fes_p.GetElementVDofs(el, p_dofs);
+               bu_l.SetSize(Af_f_offsets[el+1] - Af_f_offsets[el]);
+               bu_l = 0.;
+               bp_l.SetSize(Df_f_offsets[el+1] - Df_f_offsets[el]);
+               bp_l = 0.;
             }
 
-            //local p
-            if (darcy_p.Size() > 0)
+            switch (dim)
             {
-               //load the initial guess from the non-reduced solution vector
-               darcy_p.GetSubVector(p_dofs, p_l);
+               case 1:
+                  fes.GetMesh()->GetElementVertices(el, faces);
+                  break;
+               case 2:
+                  fes.GetMesh()->GetElementEdges(el, faces, oris);
+                  break;
+               case 3:
+                  fes.GetMesh()->GetElementFaces(el, faces, oris);
+                  break;
+            }
+
+            c_offsets.SetSize(faces.Size()+1);
+            c_offsets[0] = 0;
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               const int c_size = c_fes.GetFaceElement(faces[f])->GetDof() * c_fes.GetVDim();
+               c_offsets[f+1] = c_offsets[f] + c_size;
+            }
+
+            x_l.Update(c_offsets);
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               c_fes.GetFaceVDofs(faces[f], c_dofs);
+               x.GetSubVector(c_dofs, x_l.GetBlock(f));
+            }
+
+            // bu - C^T x
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               int el1, el2;
+               fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+               DenseMatrix Ct;
+               GetCtFaceMatrix(faces[f], el1 != el, Ct);
+
+               const Vector &x_f = x_l.GetBlock(f);
+
+               Ct.AddMult_a(-1., x_f, bu_l);
+
+               //bp - E x
+               if (c_bfi_p || mode == MultNlMode::GradMult)
+               {
+                  DenseMatrix E;
+                  GetEFaceMatrix(faces[f], el1 != el, E);
+
+                  E.AddMult_a(-1., x_f, bp_l);
+               }
+            }
+
+            if (mode != MultNlMode::GradMult)
+            {
+               if (mode == MultNlMode::AtFields || mode == MultNlMode::GradAtFields)
+               {
+                  // NPC. The fields are Newton state and arrive in darcy_u/darcy_p;
+                  // nothing here solves, substitutes or linearises. That is the
+                  // whole difference from every other mode, and it is why NPC has no
+                  // local nonlinear iteration to globalise.
+                  darcy_u.GetSubVector(u_vdofs, u_l);
+                  darcy_p.GetSubVector(p_dofs, p_l);
+
+                  if (mode == MultNlMode::GradAtFields)
+                  {
+                     ConstructGrad(el, faces, ws, x_l, u_l, p_l);
+                     continue;
+                  }
+
+                  // The local rows of F, at exactly these fields. bu_l already
+                  // carries -C^T x from the loop above and LocalNLOperator supplies
+                  // E x on the potential row, so between them the trace coupling
+                  // appears once on each row.
+                  Vector ru_l, rp_l;
+                  LocalResidual(el, faces, x_l, bu_l, bp_l, u_l, p_l, ru_l, rp_l);
+                  r_local->GetBlock(0).AddElementVector(u_vdofs, ru_l);
+                  r_local->GetBlock(1).AddElementVector(p_dofs, rp_l);
+                  // and fall through to the trace row, which is the same assembly
+                  // every other mode uses.
+               }
+               else
+               {
+                  //local u
+                  if (darcy_u.Size() > 0)
+                  {
+                     //load the initial guess from the non-reduced solution vector
+                     darcy_u.GetSubVector(u_vdofs, u_l);
+                  }
+                  else
+                  {
+                     u_l.SetSize(u_vdofs.Size());
+                     u_l = 0.;//initial guess?
+
+                  }
+
+                  //local p
+                  if (darcy_p.Size() > 0)
+                  {
+                     //load the initial guess from the non-reduced solution vector
+                     darcy_p.GetSubVector(p_dofs, p_l);
+                  }
+                  else
+                  {
+                     p_l.SetSize(p_dofs.Size());
+                     p_l = 0.;//initial guess?
+                  }
+
+                  //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+                  MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
+               }
+
+               if (mode == MultNlMode::Sol)
+               {
+                  yb.GetBlock(0).SetSubVector(u_vdofs, u_l);
+                  yb.GetBlock(1).SetSubVector(p_dofs, p_l);
+                  continue;
+               }
+               else if (mode == MultNlMode::Grad)
+               {
+                  ConstructGrad(el, faces, ws, x_l, u_l, p_l);
+                  continue;
+               }
             }
             else
             {
-               p_l.SetSize(p_dofs.Size());
-               p_l = 0.;//initial guess?
+               // (A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol), with the Jacobian's
+               // (0,1) block -- this is a gradient application, so d(flux
+               // residual)/dp belongs in it. Passing the linear -/+B^T alone is what
+               // made the matrix-free gradient disagree with the assembled one
+               // whenever the flux law depended on the potential.
+               MultInv(el, bu_l, bp_l, u_l, p_l, true);
             }
 
-            //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-            MultInvNL(el, bu_l, bp_l, x_l, u_l, p_l);
-         }
-
-         if (mode == MultNlMode::Sol)
-         {
-            yb.GetBlock(0).SetSubVector(u_vdofs, u_l);
-            yb.GetBlock(1).SetSubVector(p_dofs, p_l);
-            continue;
-         }
-         else if (mode == MultNlMode::Grad)
-         {
-            ConstructGrad(el, faces, x_l, u_l, p_l);
-            continue;
-         }
-      }
-      else
-      {
-         // (A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol), with the Jacobian's
-         // (0,1) block -- this is a gradient application, so d(flux
-         // residual)/dp belongs in it. Passing the linear -/+B^T alone is what
-         // made the matrix-free gradient disagree with the assembled one
-         // whenever the flux law depended on the potential.
-         MultInv(el, bu_l, bp_l, u_l, p_l, true);
-      }
-
-      // C u_l
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         DenseMatrix Ct;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct);
-
-         const Vector &x_f = x_l.GetBlock(f);
-
-         y_l.SetSize(x_f.Size());
-         Ct.MultTranspose(u_l, y_l);
-
-         //G p_l + H x_l
-         if (c_bfi_p || mode == MultNlMode::GradMult)
-         {
-            //linear
-            DenseMatrix G;
-            GetGFaceMatrix(faces[f], el1 != el, G);
-
-            G.AddMult(p_l, y_l);
-
-            //integrate the face contrbution only on one (first) side
-            if (el1 == el)
+            // C u_l
+            for (int f = 0; f < faces.Size(); f++)
             {
-               GetHFaceMatrix(faces[f], H);
-               H.AddMult(x_f, y_l);
-            }
-         }
-         else
-         {
-            //nonlinear
-            if (c_nlfi_p)
-            {
-               Vector GpHx_l;
-               int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
-                          | NonlinearFormIntegrator::HDGFaceType::FACE;
+               int el1, el2;
+               fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+               DenseMatrix Ct;
+               GetCtFaceMatrix(faces[f], el1 != el, Ct);
 
-               FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
+               const Vector &x_f = x_l.GetBlock(f);
 
-               if (FTr->Elem2No >= 0)
+               y_l.SetSize(x_f.Size());
+               Ct.MultTranspose(u_l, y_l);
+
+               //G p_l + H x_l
+               if (c_bfi_p || mode == MultNlMode::GradMult)
                {
-                  //interior
-                  if (FTr->Elem1No != el) { type |= 1; }
+                  //linear
+                  DenseMatrix G;
+                  GetGFaceMatrix(faces[f], el1 != el, G);
 
-                  c_nlfi_p->AssembleHDGFaceVector(type,
-                                                  *c_fes.GetFaceElement(faces[f]),
-                                                  *fes_p.GetFE(el),
-                                                  *FTr,
-                                                  x_f, p_l, GpHx_l);
+                  G.AddMult(p_l, y_l);
 
-                  y_l += GpHx_l;
+                  //integrate the face contrbution only on one (first) side
+                  if (el1 == el)
+                  {
+                     GetHFaceMatrix(faces[f], H);
+                     H.AddMult(x_f, y_l);
+                  }
                }
                else
                {
-                  //boundary
-                  const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
-
-                  for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+                  //nonlinear
+                  if (c_nlfi_p)
                   {
-                     if (boundary_constraint_pot_nonlin_integs_marker[i]
-                         && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+                     Vector GpHx_l;
+                     int type = NonlinearFormIntegrator::HDGFaceType::CONSTR
+                                | NonlinearFormIntegrator::HDGFaceType::FACE;
 
-                     boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                     *c_fes.GetFaceElement(faces[f]),
-                                                                                     *fes_p.GetFE(el),
-                                                                                     *FTr,
-                                                                                     x_f, p_l, GpHx_l);
+                     FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
 
-                     y_l += GpHx_l;
+                     if (FTr->Elem2No >= 0)
+                     {
+                        //interior
+                        if (FTr->Elem1No != el) { type |= 1; }
+
+                        c_nlfi_p->AssembleHDGFaceVector(type,
+                                                        *c_fes.GetFaceElement(faces[f]),
+                                                        *fes_p.GetFE(el),
+                                                        *FTr,
+                                                        x_f, p_l, GpHx_l);
+
+                        y_l += GpHx_l;
+                     }
+                     else
+                     {
+                        //boundary
+                        const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
+
+                        for (size_t i = 0; i < boundary_constraint_pot_nonlin_integs.size(); i++)
+                        {
+                           if (boundary_constraint_pot_nonlin_integs_marker[i]
+                               && (*boundary_constraint_pot_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                           boundary_constraint_pot_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                           *c_fes.GetFaceElement(faces[f]),
+                                                                                           *fes_p.GetFE(el),
+                                                                                           *FTr,
+                                                                                           x_f, p_l, GpHx_l);
+
+                           y_l += GpHx_l;
+                        }
+                     }
+                  }
+
+                  if (c_nlfi)
+                  {
+                     Vector GpHx_l;
+                     const FiniteElement *fe_u = fes.GetFE(el);
+                     const FiniteElement *fe_p = fes_p.GetFE(el);
+                     Array<const FiniteElement*> fe_arr({fe_u, fe_p});
+                     Array<const Vector*> x_arr({&u_l, &p_l});
+                     Array<Vector*> y_arr((Vector*[]) {NULL, NULL, &GpHx_l});
+
+                     int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
+                                | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
+
+                     FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
+
+                     if (FTr->Elem2No >= 0)
+                     {
+                        //interior
+                        if (FTr->Elem1No != el) { type |= 1; }
+
+                        c_nlfi->AssembleHDGFaceVector(type,
+                                                      *c_fes.GetFaceElement(faces[f]),
+                                                      fe_arr,
+                                                      *FTr,
+                                                      x_f, x_arr, y_arr);
+
+                        if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
+                     }
+                     else
+                     {
+                        //boundary
+                        const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
+
+                        for (size_t i = 0; i < boundary_constraint_nonlin_integs.size(); i++)
+                        {
+                           if (boundary_constraint_nonlin_integs_marker[i]
+                               && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
+
+                           boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
+                                                                                       *c_fes.GetFaceElement(faces[f]),
+                                                                                       fe_arr,
+                                                                                       *FTr,
+                                                                                       x_f, x_arr, y_arr);
+
+                           if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
+                        }
+                     }
                   }
                }
-            }
 
-            if (c_nlfi)
-            {
-               Vector GpHx_l;
-               const FiniteElement *fe_u = fes.GetFE(el);
-               const FiniteElement *fe_p = fes_p.GetFE(el);
-               Array<const FiniteElement*> fe_arr({fe_u, fe_p});
-               Array<const Vector*> x_arr({&u_l, &p_l});
-               Array<Vector*> y_arr((Vector*[]) {NULL, NULL, &GpHx_l});
-
-               int type = BlockNonlinearFormIntegrator::HDGFaceType::CONSTR
-                          | BlockNonlinearFormIntegrator::HDGFaceType::FACE;
-
-               FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
-
-               if (FTr->Elem2No >= 0)
-               {
-                  //interior
-                  if (FTr->Elem1No != el) { type |= 1; }
-
-                  c_nlfi->AssembleHDGFaceVector(type,
-                                                *c_fes.GetFaceElement(faces[f]),
-                                                fe_arr,
-                                                *FTr,
-                                                x_f, x_arr, y_arr);
-
-                  if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
-               }
-               else
-               {
-                  //boundary
-                  const int bdr_attr = fes.GetMesh()->GetBdrAttribute(f_2_b[faces[f]]);
-
-                  for (size_t i = 0; i < boundary_constraint_nonlin_integs.size(); i++)
-                  {
-                     if (boundary_constraint_nonlin_integs_marker[i]
-                         && (*boundary_constraint_nonlin_integs_marker[i])[bdr_attr-1] == 0) { continue; }
-
-                     boundary_constraint_nonlin_integs[i]->AssembleHDGFaceVector(type,
-                                                                                 *c_fes.GetFaceElement(faces[f]),
-                                                                                 fe_arr,
-                                                                                 *FTr,
-                                                                                 x_f, x_arr, y_arr);
-
-                     if (GpHx_l.Size() > 0) { y_l += GpHx_l; }
-                  }
-               }
+               c_fes.GetFaceVDofs(faces[f], c_dofs);
+               y.AddElementVector(c_dofs, y_l);
             }
          }
-
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         y.AddElementVector(c_dofs, y_l);
       }
    }
 
@@ -2770,7 +2872,16 @@ void DarcyHybridization::MultInvNL(int el, const Vector &bu_l,
       break;
    }
 
-   num_local_nl_iters += lsolver->GetNumIterations();
+   // The one shared write the colouring does not cover, because it is not
+   // per element: a plain += here loses counts under threading, and the count
+   // is what the NPC regression references compare.
+   {
+      const int nit = lsolver->GetNumIterations();
+#ifdef MFEM_USE_OPENMP
+      #pragma omp atomic
+#endif
+      num_local_nl_iters += nit;
+   }
 
    if (lsolver->GetConverged())
    {
@@ -3012,6 +3123,7 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
 }
 
 void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
+                                       TransWorkspace &ws,
                                        const BlockVector &x_l,
                                        const Vector &u_l, const Vector &p_l) const
 {
@@ -3019,7 +3131,8 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
    const FiniteElement *fe_p = fes_p.GetFE(el);
    const int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
    const int d_dofs_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-   ElementTransformation *Tr = fes.GetElementTransformation(el);
+   fes.GetMesh()->GetElementTransformation(el, &ws.elem);
+   ElementTransformation *Tr = &ws.elem;
 
    DenseMatrix A(&Af_data[Af_offsets[el]], a_dofs_size, a_dofs_size);
    DenseMatrix D(&Df_data[Df_offsets[el]], d_dofs_size, d_dofs_size);
@@ -3141,7 +3254,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       {
          const Vector &x_f = x_l.GetBlock(f);
 
-         FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
+         FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
 
          if (FTr->Elem2No >= 0)
          {
@@ -3172,7 +3285,7 @@ void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
       {
          const Vector &x_f = x_l.GetBlock(f);
 
-         FaceElementTransformations *FTr = GetFaceTransformation(faces[f]);
+         FaceElementTransformations *FTr = GetFaceTransformation(faces[f], ws);
 
          if (FTr->Elem2No >= 0)
          {

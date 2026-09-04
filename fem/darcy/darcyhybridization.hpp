@@ -199,10 +199,13 @@ public:
       /** @brief One thread, elements in order. The historical behaviour and
           the default: no existing caller pays anything for the other mode. */
       Serial,
-      /** @brief The element-local work -- factoring A, forming and factoring
-          the Schur complement, and evaluating the element's blocks of H -- is
-          run in parallel; the scatter into the trace matrix stays serial and
-          in element order. Requires MFEM_USE_OPENMP and MFEM_THREAD_SAFE. */
+      /** @brief The element-local loops run in parallel: ComputeH()'s, whose
+          scatter into the trace matrix stays serial and in element order, and
+          MultNL()'s -- the residual and the Jacobian assembly, and so
+          NPCResidual() and NPCGradient() -- which is walked in colour order
+          instead. Both agree with Serial bit for bit. Requires
+          MFEM_USE_OPENMP and MFEM_THREAD_SAFE, and obliges the caller's own
+          integrators to be thread-safe; see SetAssemblyMode(). */
       Threaded,
    };
 
@@ -379,6 +382,19 @@ private:
    mutable BlockVector darcy_rhs;
    Vector darcy_u, darcy_p;
    mutable Array<int> f_2_b;
+   /** @brief An element colouring, and the elements ordered by it. Built once,
+       lazily, and only when AssemblyMode::Threaded is asked for.
+
+       Two elements of one colour share no face -- Mesh::GetElementColoring()
+       colours the element-to-element graph, whose edges ARE the faces -- so
+       within a colour the trace dofs written by different elements are
+       disjoint. That is what makes MultNL()'s two shared writes safe without
+       atomics: the scatter of the trace row into @a y, and H_f's accumulation
+       in AssembleHDGGrad(), which both sides of a face add into.
+
+       E and G need no such protection and are left alone: they are stored per
+       (face, SIDE), so the two elements of a face write different halves. */
+   mutable Array<int> colour_order, colour_offsets;
 
    GradientMode grad_mode{GradientMode::Assembled};
    AssemblyMode asm_mode{AssemblyMode::Serial};
@@ -559,7 +575,40 @@ private:
 
    void GetFDofs(int el, Array<int> &fdofs) const;
    void GetEDofs(int el, Array<int> &edofs) const;
+   /** @brief Caller-allocated transformation storage for one thread of an
+       element loop.
+
+       Mesh keeps exactly ONE FaceElemTr, one Transformation and one
+       Transformation2, and GetFaceElementTransformations(f) hands back a
+       pointer into them -- so two threads in the same element loop overwrite
+       each other's geometry, silently and with no wrong answer that looks like
+       a race. Holding the objects here instead is the whole fix, and it needs
+       no change to Mesh: every caller-allocated overload exists and is const
+       (mesh.hpp, pmesh.hpp). LocalNLOperator already owns its transformations
+       for this reason, which is why the local nonlinear solve was never the
+       obstacle.
+
+       This is a TYPE, not a member, so it adds nothing to the class layout --
+       the trap that has cost this branch four rebuild cycles. It is passed as
+       a parameter, which is what the standing note recommends. */
+   struct TransWorkspace
+   {
+      IsoparametricTransformation elem;    ///< the element transformation
+      FaceElementTransformations face;     ///< one face at a time
+      IsoparametricTransformation f1, f2;  ///< that face's two side transforms
+   };
+
+   /// The shared Mesh cache. Valid only on a single-threaded path.
+   /** @brief Build @a colour_order / @a colour_offsets if they are not built,
+       and warm the lazily-built tables an element loop would otherwise race to
+       fill. Cheap, once, and only on the threaded path. */
+   void BuildElementColouring() const;
+
    FaceElementTransformations *GetFaceTransformation(int f) const;
+   /// @brief The same face transformation, built into @a ws instead of into
+   /// the Mesh's shared cache, so it is safe on a threaded element loop.
+   FaceElementTransformations *GetFaceTransformation(int f,
+                                                     TransWorkspace &ws) const;
    void AssembleCtFaceMatrix(int face, const DenseMatrix &elmat);
    void AssembleCtSubMatrix(int el, const DenseMatrix &elmat,
                             DenseMatrix &Ct, int ioff=0);
@@ -689,7 +738,8 @@ private:
                       Vector &ru_l, Vector &rp_l) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p, bool with_bnl = false) const;
-   void ConstructGrad(int el, const Array<int> &faces, const BlockVector &x_l,
+   void ConstructGrad(int el, const Array<int> &faces, TransWorkspace &ws,
+                      const BlockVector &x_l,
                       const Vector &u_l,
                       const Vector &p_l) const;
    /** @brief One face integrator's contribution to D, E, G and H.
@@ -796,6 +846,58 @@ public:
        measured and changed nothing. What exactness rests on is that the
        element-local arithmetic is per-element and so reassociates nothing.
        Element order is kept because it is free and deterministic.
+
+       **Two loops are threaded, and they are threaded differently.**
+       ComputeH()'s is the one described above: element-local work in parallel,
+       scatter serial and in element order. MultNL()'s -- which is the residual
+       and the Jacobian assembly, and so NPCResidual() and NPCGradient() too --
+       is walked in COLOUR order instead, Mesh::GetElementColoring() colouring
+       the element-to-element graph whose edges are the faces, so no two
+       elements of a colour share one. That is what makes its two shared writes
+       safe: the accumulation of the trace row into @a y, and H_f's in
+       AssembleHDGGrad(), which both sides of a face add into. E and G need
+       nothing, being stored per (face, SIDE).
+
+       **Why colouring works there and not in ComputeH().** The difference is
+       the target, not the loop. MultNL() scatters into a Vector, where
+       disjoint indices are genuinely independent; ComputeH() scatters into an
+       unfinalized SparseMatrix, where two threads on disjoint ROWS still
+       collide on @a current_row, the column-pointer scratch and the RowNode
+       allocator.
+
+       **Still bit for bit**, by the same two-term argument: colouring changes
+       the ORDER in which a face's two elements accumulate, and a + b == b + a
+       exactly. It would not survive a trace space whose dofs are shared
+       between faces -- an H1_Trace (EDG) one -- where a dof sees more than two
+       contributions and associativity would start to matter.
+
+       **What MultNL() needed beyond the colouring**, none of it visible here:
+       the integrators it calls had to become thread-safe (MFEM's
+       #ifndef MFEM_THREAD_SAFE convention, applied to
+       MixedConductionNLFIntegrator and the HDG face integrators), the Mesh
+       transformation cache had to stop being shared (TransWorkspace, since
+       Mesh keeps one FaceElemTr and one Transformation for the whole mesh),
+       and num_local_nl_iters had to become an atomic update.
+
+       **A caller obligation follows and there is no way to check it here.**
+       Any integrator the caller installs -- a source term in the potential
+       mass, a constraint integrator -- sits on this loop and must be
+       thread-safe too. An integrator holding per-point scratch as a plain
+       member will race, silently.
+
+       **Measured, on the pedestal problem at (n, k) = (32,1), (48,2), (64,2)
+       and (32,3), speedup at 8 threads against the serial mode:**
+
+           NPCResidual      5.6  5.8  5.8  6.1 x
+           NPCGradient      2.6  2.8  2.7  3.3 x
+           whole NPC step   1.9  1.9  1.9  2.1 x
+
+       NPCGradient lags NPCResidual because it carries the serial scatter --
+       40-47% of that call, measured separately; see the NPCResidual group.
+       The step number is bounded by that scatter and by the trace solve, which
+       is not element-local and does not move here. 1.9-2.1x is against a
+       predicted ceiling of about 2.3x, and the answer is identical to every
+       digit at every thread count.
 
        Aborts if the build cannot honour it: MFEM_USE_OPENMP is what makes it
        parallel, and MFEM_THREAD_SAFE is what stops GetElementFaces() keeping

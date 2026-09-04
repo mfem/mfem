@@ -13,13 +13,14 @@ condensation *is*.
 
 | function | shape | what it needs | state |
 |---|---|---|---|
-| `InvertA` | pure local write | `BatchedLinAlg`, uniform block sizes | **done**, §1 |
+| `ComputeH` | local + scatter to a `SparseMatrix` | serial scatter | **done**, §1 |
+| `InvertA` | pure local write | `BatchedLinAlg`, uniform blocks | **done**, §1 |
 | `InvertD` | pure local write | as above | **done**, §1 |
-| `ComputeSolution` | pure local write | as above | open |
-| `MultNL` | local nonlinear solve + scatter to a `Vector` | integrator thread-safety | open, §2 |
-| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring or atomics | open, §3 |
-| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring or atomics | open, §3 |
-| `ReduceRHS` | local + scatter to a `Vector` | colouring or atomics | open, §3 |
+| `MultNL` | local nonlinear solve + scatter to a `Vector` | integrator thread-safety, transformations, colouring | **done**, §2 |
+| `ComputeSolution` | pure local write | nothing | open, §3 — and cold |
+| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 — and cold |
+| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 — and cold |
+| `ReduceRHS` | local + scatter to a `Vector` | colouring | open, §3 — and cold |
 
 Offset construction and allocation (prefix sums over `NE`) run once and are not
 worth touching. Batching the factorisation that runs once per *linearisation*
@@ -44,85 +45,62 @@ element-local programme becomes measurable. Every number in §2 below was taken
 in one. **Any timing claim here needs that tree**; a claim taken in a committed
 tree is a claim about a serial loop.
 
-## 2. `MultNL`, which is the one that matters for stiff problems
+## 2. `MultNL` — DONE
 
-A stiff problem spends almost all its time here, and it is a bigger job than
-`ComputeH()` was, for a reason worth knowing first: `ComputeH()`'s loop calls
-**no integrator and constructs no transformation**, which is what made it
-separable. `MultNL` calls `ConstructGrad()`, hence
-`m_nlfi->AssembleElementGrad()` and `fes.GetElementTransformation(el)`, and both
-reach shared state outside `fem/darcy`.
+The loop that matters for a stiff problem, and the one that reached both kinds
+of shared state. What it took, in the order the obstacles actually bite:
 
-**The integrator half is DONE.** Scratch is now a member only when
-`MFEM_THREAD_SAFE` is off and method-local when it is on, MFEM's own
-convention — `FluxFunction::ComputeFluxDotN()` is the pattern. Ported:
-`MixedConductionNLFIntegrator` (`fem/nonlininteg_mixed.*`, six methods) and,
-in `fem/darcy/bilininteg_hdg.*`, `HDGDiffusionIntegrator` and the two
-`HDGConvection*Integrator`s (twelve methods across three classes, retiring the
-`// these are not thread-safe!` marker). `HyperbolicFormIntegrator` and
-`FluxFunction` were already guarded, so `navierstokes`'s hot path needed
-nothing.
+* **Thread-safe integrators**, by MFEM's `#ifndef MFEM_THREAD_SAFE`
+  convention — `MixedConductionNLFIntegrator` and the HDG face integrators.
+  `HyperbolicFormIntegrator` and `FluxFunction` were already guarded.
+* **Caller-allocated transformations**, because `Mesh` keeps one `FaceElemTr`
+  and one `Transformation` for the whole mesh. `DarcyHybridization::
+  TransWorkspace` holds them per thread; no change to `Mesh` was needed, every
+  overload being present and `const`. `LocalNLOperator` already owned its
+  own, which is why the local nonlinear solve was never the obstacle.
+* **An element colouring** for the two shared writes — the trace row into `y`,
+  and `H_f` in `AssembleHDGGrad()`, which both sides of a face add into. `E`
+  and `G` are stored per (face, side) and needed nothing.
+* **An atomic** on `num_local_nl_iters`.
 
-**Two things it turned up.** `HDGDiffusionIntegrator` is on the element-local
-hot path, which is not obvious and which an earlier note here got backwards: a
-`BilinearFormIntegrator` derives from `NonlinearFormIntegrator`, and
-`DarcyForm::Assemble()` collects the *nonlinear* potential form's face
-integrators into `c_nlfi_p`, which `ConstructGrad()` calls per element per
-evaluation. And **a caller's own integrators must be ported too** — the source
-term in a caller's problem sits in `m_nlfi_p` and is called on the same loop;
-the tree's own pedestal harness needed it.
+**Measured at 8 threads against the serial mode**, pedestal at
+`(n,k)` = (32,1), (48,2), (64,2), (32,3): `NPCResidual` **5.6–6.1x**,
+`NPCGradient` **2.6–3.3x**, a whole NPC step **1.9–2.1x** — against the ~2.3x
+ceiling §4 predicted from the phase shares. The answer is identical to every
+digit at every thread count, which the new case in
+`tests/unit/fem/test_darcy_threaded_assembly.cpp` asserts and which was checked
+to *discriminate*: with the colouring deliberately disabled it fails at
+`max_diff == 2`.
 
-**What is left of §2 is the transformation half**, below.
+`NPCGradient` lags `NPCResidual` because it carries the serial scatter, 40–47%
+of that call. That is not a defect and not fixable by threading — see §3.
 
-**The mesh's transformation cache**, and this half is cheaper than it reads.
-`Mesh` holds one `FaceElemTr`, one `Transformation`, one `Transformation2` and
-one `BdrTransformation`; `GetFaceElementTransformations(f)` returns
-`&FaceElemTr` and `GetElementTransformation(i)` returns `&Transformation`.
-`DarcyHybridization::GetFaceTransformation()` is one funnel with **four** call
-sites (this entry has said ten, then five), and every caller-allocated overload
-it would switch to exists and is `const`: `FiniteElementSpace::
-GetElementTransformation(i, IsoparametricTransformation*)` at `fespace.hpp:907`
-— whose own doxygen warns about the shared cache — plus `mesh.hpp:1787/1920`
-and `pmesh.hpp:626/646/666` for the shared-face and by-local-index variants the
-parallel branch needs. So this is a change to two functions inside `fem/darcy`,
-with none to `Mesh`.
+**One obligation this puts on callers** and there is no way to check it here:
+their own integrators sit on this loop and must be thread-safe too. The tree's
+own pedestal harness needed the same treatment.
 
-**Threading NPC does not avoid any of it**, and the measurement saying so is on
-the `NPCResidual` doxygen group: the two loops that reach no integrator and no
-transformation (`NPCReduce`, `NPCRecover`, both only `MultInv()`) are under 6%
-of a step, flat in mesh size and order, so Amdahl caps them. `NPCRecover` is
-still the easiest loop in the class to thread — it writes only its own
-element's L2 dofs, needing neither colouring nor atomics — and is worth doing
-first only to prove the harness against work that cannot fail interestingly.
+## 3. The remaining scatters — and they are the COLD path
 
-**The one number this entry said was missing has been taken, and it found a
-third part rather than settling a two-way split.** The question was whether
-`NPCGradient`'s 32–42% is mostly `ConstructGrad` (serial) or mostly
-`ComputeElementH` (already threaded), with the worry that the column might
-already be largely parallel. It is neither: `GradientMode::MatrixFree` runs the
-same threaded `ComputeElementH` and skips the scatter, so the mode difference
-*is* the scatter, and it is **40–47% of the column** — serial by design, for
-the reason `SetAssemblyMode()`'s doxygen gives. `ConstructGrad` is 45–58% and
-`ComputeElementH` only 2–12%. The full tables are on the `NPCResidual` doxygen
-group; the conclusion for this file is that **the integrator-bound share is
-essentially as claimed, and §2 is still the right next job.**
+`EliminateVDofsInRHS`, `EliminateTrueDofsInRHS`, `ReduceRHS` and
+`ComputeSolution` all scatter to a **`Vector`**, so `Mesh::GetElementColoring()`
+would make them safe exactly as it does `MultNL` — the machinery now exists and
+the change would be mechanical.
 
-Two things that came with it. **End to end, `AssemblyMode::Threaded` buys
-1.4–7.7% of an NPC step**, bit-identically at 1/2/4/8 threads — so the already
-finished work is worth single digits on this workload, which is what it was
-predicted to be and is now measured rather than inferred. And the **ceiling on
-threading an NPC step is about 2.3x** even with §2 and §3 done perfectly,
-because 12–17% of a step is the serial scatter and 26–31% is the trace solve.
-Anyone weighing §2's cost against its payoff should start from that number.
+**It is very likely not worth doing, and that is a structural fact rather than
+a measurement.** All four run **once per solve**, not once per iteration: the
+first three from `DarcyForm::FormLinearSystem()` and the last from
+`RecoverFEMSolution()`. A nonlinear solve of `N` Newton steps makes `2N` passes
+through `MultNL` and one through these, so their share is `O(1/2N)` — under a
+percent for any `N` worth calling nonlinear. This is §1's finding again: the
+cold path is cheap to thread and buys nothing.
 
-## 3. The remaining scatters
-
-`EliminateVDofsInRHS`, `EliminateTrueDofsInRHS` and `ReduceRHS` scatter to a
-**`Vector`**, and there `Mesh::GetElementColoring()` is the right tool:
-elements of one colour share no face, so their trace dofs are disjoint and the
-loop is conflict-free with no atomics. That is the case `SetAssemblyMode()`'s
-doxygen contrasts against — colouring is safe here and is *not* safe for a
-`SparseMatrix` target.
+**The exception, and it is the one case to check before dismissing this.** On a
+*linear* problem there is no Newton loop at all: `H` is assembled once in
+`Finalize()` and `MultNL` is never called, so `ReduceRHS` and
+`ComputeSolution` are the element-local work of the solve rather than a
+rounding error on it. Nobody has measured that case. If a caller's workload is
+many linear solves rather than few nonlinear ones, this section is worth more
+than the paragraph above suggests.
 
 ## 4. A device path, and what it would actually take
 
@@ -176,7 +154,37 @@ Krylov trace solve runs on device today; hypre's AMG has GPU support. What does
 *not* is the direct solve these tests and miniapps default to — UMFPACK and KLU
 are SuiteSparse and host-only.
 
-### So: custom kernels, and not Kokkos
+### "Custom kernels" means custom MFEM kernels, not hand-written CUDA
+
+Worth stating plainly, because "custom device kernels" reads like a promise of
+three hand-maintained vendor backends and it is not one. **`mfem::forall(N,
+[=] MFEM_HOST_DEVICE (int i) {...})` is the portability layer**: one lambda,
+compiled for whatever `mfem::Device` is configured. For the block-per-element
+shape a partial-assembly kernel wants there is more than the flat form —
+`forall_2D`, `forall_3D`, `forall_2D_batch` (`general/forall.hpp:1226-1256`)
+and the `MFEM_FORALL_2D/3D/3D_GRID` macros — with a device-agnostic vocabulary
+inside them: `MFEM_FOREACH_THREAD` for the thread-mapped loops, `MFEM_SHARED`,
+`MFEM_SYNC_THREAD`, `MFEM_UNROLL`. On the host these degrade to plain loops and
+empty macros (`general/backends.hpp:71-77`), so **the same source is the CPU
+kernel and the GPU kernel**, shared memory and barriers included. Inside them
+the `kernels::` namespace supplies `MFEM_HOST_DEVICE` dense linear algebra, and
+`MFEM_REGISTER_KERNELS` handles (dim, order) dispatch.
+
+**So the burden is one source, and the difficulty is the data model, not the
+kernel dialect.** What group 2 really costs is that an integrator must stop
+asking `ElementTransformation` and `Coefficient` for values at each quadrature
+point and start consuming precomputed arrays — `GeometricFactors` /
+`FaceGeometricFactors` for geometry, `QuadratureFunction`s for coefficients, and
+a restriction to gather dofs. Those exist for elements and for standard faces
+(`L2FaceRestriction`, `ConformingFaceRestriction` in `fem/restriction.hpp`) but
+**not for an HDG trace space**, which would need its own.
+
+**One caveat on hardware: there is no SYCL backend.** CUDA and HIP are native;
+RAJA and OCCA sit behind the same `forall`; libCEED provides optimized
+operator-evaluation backends. An Intel GPU would have to go through OCCA or
+libCEED, or not at all.
+
+### And not Kokkos
 
 **MFEM has no Kokkos backend and adding one is not the move.** Its portability
 layer is `mfem::forall` dispatching over `CPU`, `OMP`, `CUDA`, `HIP`,
