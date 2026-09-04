@@ -600,8 +600,8 @@ BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration
 ALGOIM_DIR = @MFEM_DIR@/../algoim
-ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
-ALGOIM_LIB = $(BLITZ_LIB)
+ALGOIM_OPT = -I$(ALGOIM_DIR)
+ALGOIM_LIB =
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark

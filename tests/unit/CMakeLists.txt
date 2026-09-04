@@ -134,6 +134,7 @@ set(UNIT_TESTS_SRCS
   fem/test_gslib.cpp
   fem/test_hp_transfer.cpp
   fem/test_intrules.cpp
+  fem/test_cut_quadrature.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
   fem/test_lexicographic_ordering.cpp

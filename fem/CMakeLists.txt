@@ -63,6 +63,8 @@ set(SRCS
   coefficient.cpp
   complex_fem.cpp
   convergence.cpp
+  cut_quadrature.cpp
+  cut_quadrature_algoim.cpp
   datacollection.cpp
   dgmassinv.cpp
   doftrans.cpp
@@ -215,6 +217,7 @@ set(HDRS
   coefficient.hpp
   complex_fem.hpp
   convergence.hpp
+  cut_quadrature.hpp
   datacollection.hpp
   dgmassinv.hpp
   dgmassinv_kernels.hpp
