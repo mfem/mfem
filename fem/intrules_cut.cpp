@@ -12,6 +12,7 @@
 // Implementation of Surface and Cutcell IntegrationRule(s) classes
 
 #include "fem.hpp"
+#include "cut_quadrature.hpp"
 #include <cmath>
 
 using namespace std;
@@ -31,171 +32,150 @@ void CutIntegrationRules::SetLevelSetProjectionOrder(int order)
    lsOrder = order;
 }
 
+
 #ifdef MFEM_USE_ALGOIM
-void AlgoimIntegrationRules::GetSurfaceIntegrationRule(ElementTransformation
-                                                       &Tr,
-                                                       IntegrationRule &result)
+
+struct AlgoimIntegrationRules::Impl
 {
-   GenerateLSVector(Tr,LvlSet);
+   CoefficientLevelSetProvider provider;
+   AlgoimCutQuadratureGenerator generator;
+   std::unique_ptr<CutQuadratureWorkspace> workspace;
 
-   const int dim=pe->GetDim();
-   int np1d=CutIntegrationRules::Order/2+1;
-   if (dim==2)
-   {
-      LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
-                                  2, -1, np1d);
-      result.SetSize(q.nodes.size());
-      result.SetOrder(CutIntegrationRules::Order);
-      for (size_t i=0; i<q.nodes.size(); i++)
-      {
-         IntegrationPoint& ip=result.IntPoint(i);
-         ip.Set2w(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].w);
-      }
-   }
-   else
-   {
-      LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
-                                  3, -1, np1d);
+   Impl(Coefficient &level_set, int order)
+      : provider(level_set, order), workspace(generator.CreateWorkspace()) { }
+};
 
-      result.SetSize(q.nodes.size());
-      result.SetOrder(CutIntegrationRules::Order);
-      for (size_t i=0; i<q.nodes.size(); i++)
-      {
-         IntegrationPoint& ip=result.IntPoint(i);
-         ip.Set(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].x(2),q.nodes[i].w);
-      }
-   }
-
+AlgoimIntegrationRules::AlgoimIntegrationRules(int order, Coefficient &level_set,
+                                               int level_set_order)
+   : CutIntegrationRules(order, level_set, level_set_order),
+     impl(new Impl(level_set, level_set_order))
+{
 }
 
-void AlgoimIntegrationRules::GetVolumeIntegrationRule(ElementTransformation &Tr,
-                                                      IntegrationRule &result,
-                                                      const IntegrationRule *sir)
+AlgoimIntegrationRules::~AlgoimIntegrationRules()
 {
-   GenerateLSVector(Tr,LvlSet);
+   delete impl;
+}
 
-   const int dim=pe->GetDim();
-   int np1d=CutIntegrationRules::Order/2+1;
-   if (dim==2)
-   {
-      LevelSet2D ls(pe,lsvec);
-      auto q = Algoim::quadGen<2>(ls,Algoim::BoundingBox<real_t,2>(0.0,1.0),
-                                  -1, -1, np1d);
-      result.SetSize(q.nodes.size());
-      result.SetOrder(CutIntegrationRules::Order);
-      for (size_t i=0; i<q.nodes.size(); i++)
-      {
-         IntegrationPoint& ip=result.IntPoint(i);
-         ip.Set2w(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].w);
-      }
-   }
-   else
-   {
-      LevelSet3D ls(pe,lsvec);
-      auto q = Algoim::quadGen<3>(ls,Algoim::BoundingBox<real_t,3>(0.0,1.0),
-                                  -1, -1, np1d);
+void AlgoimIntegrationRules::SetOrder(int order)
+{
+   MFEM_VERIFY(order > 0, "Invalid input");
+   Order = order;
+}
 
-      result.SetSize(q.nodes.size());
-      result.SetOrder(CutIntegrationRules::Order);
-      for (size_t i=0; i<q.nodes.size(); i++)
-      {
-         IntegrationPoint& ip=result.IntPoint(i);
-         ip.Set(q.nodes[i].x(0),q.nodes[i].x(1),q.nodes[i].x(2),q.nodes[i].w);
-      }
-   }
+void AlgoimIntegrationRules::SetLevelSetCoefficient(Coefficient &level_set)
+{
+   Impl *new_impl = new Impl(level_set, lsOrder);
+   LvlSet = &level_set;
+   delete impl;
+   impl = new_impl;
+}
 
+void AlgoimIntegrationRules::SetLevelSetProjectionOrder(int order)
+{
+   MFEM_VERIFY(order > 0, "Invalid input");
+   Impl *new_impl = new Impl(*LvlSet, order);
+   lsOrder = order;
+   delete impl;
+   impl = new_impl;
+}
+
+namespace
+{
+
+template <typename ImplType>
+ReferenceCutQuadrature GenerateLegacyRule(ImplType &impl,
+                                          int order,
+                                          ElementTransformation &Tr,
+                                          CutMeasure measures,
+                                          bool normals)
+{
+   ElementLevelSet level_set;
+   const CutQuadratureStatus extraction =
+      impl.provider.GetElementLevelSet(Tr.ElementNo, Tr, level_set);
+   MFEM_VERIFY(extraction == CutQuadratureStatus::Success,
+               "failed to extract the legacy Algoim level set");
+   CutQuadratureRequest request;
+   request.order = order;
+   request.region = CutRegion::Positive;
+   request.measures = measures;
+   request.compute_reference_normals = normals;
+   ReferenceCutQuadrature result;
+   const CutQuadratureStatus status = impl.generator.GenerateReference(
+                                        level_set, request, result,
+                                        *impl.workspace);
+   MFEM_VERIFY(status == CutQuadratureStatus::Success,
+               "legacy Algoim rule generation failed");
+   return result;
+}
+
+} // namespace
+
+void AlgoimIntegrationRules::GetSurfaceIntegrationRule(
+   ElementTransformation &Tr, IntegrationRule &result)
+{
+   result = GenerateLegacyRule(*impl, Order, Tr, CutMeasure::Interface,
+                               false).interface.rule;
+}
+
+void AlgoimIntegrationRules::GetVolumeIntegrationRule(
+   ElementTransformation &Tr, IntegrationRule &result, const IntegrationRule *)
+{
+   result = GenerateLegacyRule(*impl, Order, Tr, CutMeasure::Volume,
+                               false).volume;
 }
 
 void AlgoimIntegrationRules::GetSurfaceWeights(ElementTransformation &Tr,
                                                const IntegrationRule &sir,
                                                Vector &weights)
 {
-   GenerateLSVector(Tr,LvlSet);
+   ElementLevelSet level_set;
+   const CutQuadratureStatus extraction =
+      impl->provider.GetElementLevelSet(Tr.ElementNo, Tr, level_set);
+   MFEM_VERIFY(extraction == CutQuadratureStatus::Success,
+               "failed to extract the legacy Algoim level set");
 
-   DenseMatrix bmat; // gradients of the shape functions in isoparametric space
-   DenseMatrix pmat; // gradients of the shape functions in physical space
-   Vector inormal; // normal to the level set in isoparametric space
-   Vector tnormal; // normal to the level set in physical space
-   bmat.SetSize(pe->GetDof(),pe->GetDim());
-   pmat.SetSize(pe->GetDof(),pe->GetDim());
-   inormal.SetSize(pe->GetDim());
-   tnormal.SetSize(pe->GetDim());
+   std::unique_ptr<PositiveTensorFiniteElement> element;
+   if (level_set.geometry == Geometry::SQUARE)
+   {
+      element.reset(new H1Pos_QuadrilateralElement(level_set.order));
+   }
+   else if (level_set.geometry == Geometry::CUBE)
+   {
+      element.reset(new H1Pos_HexahedronElement(level_set.order));
+   }
+   else
+   {
+      MFEM_ABORT("legacy Algoim supports only quadrilaterals and hexahedra");
+   }
 
+   const int dim = Tr.GetDimension();
+   const int sdim = Tr.GetSpaceDim();
+   Vector coefficients(element->GetDof());
+   const Array<int> &dof_map = element->GetDofMap();
+   for (int i = 0; i < coefficients.Size(); i++)
+   {
+      coefficients(dof_map[i]) = level_set.coefficients(i);
+   }
+   DenseMatrix dshape(element->GetDof(), dim);
+   Vector nref(dim), mapped(sdim);
    weights.SetSize(sir.GetNPoints());
-
-   for (int j = 0; j < sir.GetNPoints(); j++)
+   for (int i = 0; i < sir.GetNPoints(); i++)
    {
-      const IntegrationPoint &ip = sir.IntPoint(j);
+      const IntegrationPoint &ip = sir.IntPoint(i);
       Tr.SetIntPoint(&ip);
-      pe->CalcDShape(ip,bmat);
-      Mult(bmat, Tr.InverseJacobian(), pmat);
-      // compute the normal to the LS in isoparametric space
-      bmat.MultTranspose(lsvec,inormal);
-      // compute the normal to the LS in physical space
-      pmat.MultTranspose(lsvec,tnormal);
-      weights[j]= tnormal.Norml2() / inormal.Norml2();
+      element->CalcDShape(ip, dshape);
+      dshape.MultTranspose(coefficients, nref);
+      const real_t reference_norm = nref.Norml2();
+      MFEM_VERIFY(reference_norm > 0.0,
+                  "degenerate reference interface normal");
+      nref /= reference_norm;
+      Tr.InverseJacobian().MultTranspose(nref, mapped);
+      weights(i) = mapped.Norml2();
    }
-
 }
 
-void AlgoimIntegrationRules::GenerateLSVector(ElementTransformation &Tr,
-                                              Coefficient* lvlset)
-{
-   //check if the coefficient is already projected
-   if (currentElementNo==Tr.ElementNo)
-   {
-      if (currentLvlSet==lvlset)
-      {
-         if (currentGeometry==Tr.GetGeometryType())
-         {
-            return;
-         }
-      }
-   }
-
-   currentElementNo=Tr.ElementNo;
-
-   if (currentGeometry!=Tr.GetGeometryType())
-   {
-      delete le;
-      delete pe;
-      currentGeometry=Tr.GetGeometryType();
-      if (Tr.GetGeometryType()==Geometry::Type::SQUARE)
-      {
-         pe=new H1Pos_QuadrilateralElement(lsOrder);
-         le=new H1_QuadrilateralElement(lsOrder);
-      }
-      else if (Tr.GetGeometryType()==Geometry::Type::CUBE)
-      {
-         pe=new H1Pos_HexahedronElement(lsOrder);
-         le=new H1_HexahedronElement(lsOrder);
-      }
-      else
-      {
-         MFEM_ABORT("Currently MFEM + Algoim supports only quads and hexes.");
-      }
-
-      T.SetSize(pe->GetDof());
-      pe->Project(*le,Tr,T);
-      //The transformation matrix depends only on the geometry for change of basis
-   }
-
-   currentLvlSet=lvlset;
-   const IntegrationRule &ir=le->GetNodes();
-   lsvec.SetSize(ir.GetNPoints());
-   lsfun.SetSize(ir.GetNPoints());
-   for (int i=0; i<ir.GetNPoints(); i++)
-   {
-      const IntegrationPoint &ip = ir.IntPoint(i);
-      Tr.SetIntPoint(&ip);
-      lsfun(i)=lvlset->Eval(Tr,ip);
-   }
-   T.Mult(lsfun,lsvec);
-}
-
-#endif
+#endif // MFEM_USE_ALGOIM
 
 #ifdef MFEM_USE_LAPACK
 
