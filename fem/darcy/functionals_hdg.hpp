@@ -63,6 +63,22 @@ namespace mfem
 real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
                           int ir_order = -1);
 
+/** @brief The same net outward flux, one value per field, for a total flux
+    carrying a system.
+
+    @a flux is sized to the number of fields, which is the total flux space's
+    `vdim` -- `ReconstructTotalFlux()` builds it as an H(div) space with one
+    field per potential field, so `vdim` counts fields and the vector range
+    counts space dimensions. Entry `e` is field `e`'s flux, and the
+    conservation identity holds field by field: each equals the integral of
+    that field's source over the same subdomain.
+
+    This is the per-field version the scalar overload refuses to fake. That
+    overload is exactly the `vdim == 1` case of this one and is implemented by
+    it, so the two cannot drift apart. */
+void ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
+                        Vector &flux, int ir_order = -1);
+
 /** @brief Flux of @a ut through the mesh boundary faces whose boundary
     attribute is marked in @a bdr_attr_marker, with the normal pointing out of
     the domain.
@@ -72,6 +88,12 @@ real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
 real_t ComputeBoundaryFlux(const GridFunction &ut,
                            const Array<int> &bdr_attr_marker,
                            int ir_order = -1);
+
+/// @brief The same boundary flux, one value per field. See the per-field
+/// ComputeOutwardFlux() above for what @a flux holds.
+void ComputeBoundaryFlux(const GridFunction &ut,
+                         const Array<int> &bdr_attr_marker,
+                         Vector &flux, int ir_order = -1);
 
 }
 

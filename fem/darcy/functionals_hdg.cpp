@@ -14,19 +14,51 @@
 namespace mfem
 {
 
-/// Integrate ut.n over one face, with the normal pointing from Elem1 to Elem2.
-/** Returns the integral with no sign applied; the callers below decide the
-    orientation. The normal comes from CalcOrtho(), which scales it by the face
-    Jacobian, so the integration weight is the reference one and no separate
-    face measure enters -- getting that wrong is a factor of the face area. */
-static real_t FaceNormalFlux(const GridFunction &ut,
-                             FaceElementTransformations &FTr, int ir_order)
+/// Add the integral of ut_e.n over one face, per field e, into @a sums.
+/** @a sgn orients the result; the callers below decide it. The normal comes
+    from CalcOrtho(), which scales it by the face Jacobian, so the integration
+    weight is the reference one and no separate face measure enters -- getting
+    that wrong is a factor of the face area.
+
+    The flux is read field by field rather than through
+    GridFunction::GetVectorValue(), which cannot do it: its H(div) branch does
+    vshape.MultTranspose(loc_data, val) with vshape of GetDof() rows against a
+    loc_data of GetDof()*vdim, so it consumes field 0's block and returns
+    field 0's flux alone. Here vshape is applied to each field's block in turn.
+    The blocks are field-outermost, which is what GetElementVDofs() produces
+    locally whatever the space's Ordering is -- the same layout the
+    reconstruction uses, and asserted under both orderings by the test. */
+static void AddFaceNormalFlux(const GridFunction &ut,
+                              FaceElementTransformations &FTr, int ir_order,
+                              real_t sgn, Vector &sums)
 {
+   const FiniteElementSpace &fes = *ut.FESpace();
    const int dim = FTr.GetSpaceDim();
+   const int neq = fes.GetVDim();
    const IntegrationRule &ir = IntRules.Get(FTr.GetGeometryType(), ir_order);
 
+   // Read from the Elem1 side. For a normally continuous ut the side does not
+   // matter, and that is exactly the property being used.
+   const int el = FTr.Elem1No;
+   const FiniteElement *fe = fes.GetFE(el);
+   const int nd = fe->GetDof();
+
+   Array<int> vdofs;
+   DofTransformation doftrans;
+   fes.GetElementVDofs(el, vdofs, doftrans);
+   MFEM_VERIFY(neq == 1 || doftrans.IsIdentity(),
+               "a total flux of " << neq << " fields on a space with a "
+               "non-trivial DofTransformation is not supported: the element "
+               "blocks are field-outermost and InvTransformPrimal() reads "
+               "byVDIM data as interleaved, and the two have not been "
+               "reconciled");
+
+   Vector loc;
+   ut.GetSubVector(vdofs, loc);
+   doftrans.InvTransformPrimal(loc);
+
+   DenseMatrix vshape(nd, dim);
    Vector nor(dim), val(dim);
-   real_t sum = 0.0;
    for (int q = 0; q < ir.GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir.IntPoint(q);
@@ -41,35 +73,48 @@ static real_t FaceNormalFlux(const GridFunction &ut,
          CalcOrtho(FTr.Jacobian(), nor);
       }
 
-      // Read the flux from the Elem1 side. For a normally continuous ut the
-      // side does not matter, and that is exactly the property being used.
-      ut.GetVectorValue(*FTr.Elem1, FTr.GetElement1IntPoint(), val);
+      // SetAllIntPoints() has already put Elem1 at the matching point.
+      fe->CalcVShape(*FTr.Elem1, vshape);
 
-      sum += ip.weight * (val * nor);
+      for (int e = 0; e < neq; e++)
+      {
+         const Vector blk(loc.GetData() + e * nd, nd);
+         vshape.MultTranspose(blk, val);
+         sums(e) += sgn * ip.weight * (val * nor);
+      }
    }
-   return sum;
 }
 
-/** @brief Refuse a total flux carrying more than one field.
+/** @brief Refuse a system from an overload that returns a single number.
 
-    Before DarcyForm::ReconstructTotalFlux() was general in vdim there was no
-    way to reach these functions with a system, so nothing checked. Now there
-    is, and what would happen is worse than an abort: FaceNormalFlux() reads
-    the flux through GridFunction::GetVectorValue(), whose H(div) branch does
-    vshape.MultTranspose(loc_data, val) with vshape of GetDof() rows against a
-    loc_data of GetDof()*vdim -- so it consumes field 0's block and returns
-    **field 0's flux alone**, with no indication that the other fields exist.
-    The size mismatch is an MFEM_ASSERT, so a debug build catches it and a
-    release build does not.
-
-    A per-field version of these functionals is the piece that is missing;
-    until it is written the refusal is loud. */
+    The per-field overloads take a Vector and are what a system wants; these
+    two return one real_t and there is no honest thing for that to be when
+    there are several fields. Returning field 0's would be the silent wrong
+    answer this refusal exists to prevent, so it stays loud even now that the
+    capability is beside it. */
 static void VerifyOneField(const FiniteElementSpace *fes)
 {
    MFEM_VERIFY(fes->GetVDim() == 1,
                "the total flux carries " << fes->GetVDim() << " fields; this "
-               "functional is stated for one and would silently return the "
-               "first field's flux");
+               "overload returns one number and would have to pick a field. "
+               "Use the overload taking a Vector, which fills one value per "
+               "field");
+}
+
+/// The shared preamble of all four entry points.
+static const FiniteElementSpace &FluxSpace(const GridFunction &ut)
+{
+   const FiniteElementSpace *fes = ut.FESpace();
+   MFEM_VERIFY(fes, "the total flux has no finite element space");
+   // A normally continuous flux is what these functionals are stated for, and
+   // it is what the arithmetic needs: a scalar-range space would make
+   // CalcVShape() meaningless here. The previous implementation required this
+   // too, through GetVectorValue(), but only by producing a size mismatch.
+   MFEM_VERIFY(fes->FEColl()->GetRangeType(fes->GetMesh()->Dimension()) ==
+               FiniteElement::VECTOR,
+               "the total flux must live in a vector-range (H(div)) space; "
+               "DarcyForm::ReconstructTotalFlux() builds one");
+   return *fes;
 }
 
 /// The quadrature order to integrate ut.n at, when the caller does not say.
@@ -80,20 +125,19 @@ static int DefaultIROrder(const GridFunction &ut, int ir_order)
    return 2 * fes->GetMaxElementOrder() + 2;
 }
 
-real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
-                          int ir_order)
+void ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
+                        Vector &flux, int ir_order)
 {
-   const FiniteElementSpace *fes = ut.FESpace();
-   MFEM_VERIFY(fes, "the total flux has no finite element space");
-   VerifyOneField(fes);
-   Mesh *mesh = fes->GetMesh();
+   const FiniteElementSpace &fes = FluxSpace(ut);
+   Mesh *mesh = fes.GetMesh();
    MFEM_VERIFY(elem_marker.Size() == mesh->GetNE(),
                "elem_marker must have one entry per element, got "
                << elem_marker.Size() << " for " << mesh->GetNE());
 
    const int iro = DefaultIROrder(ut, ir_order);
 
-   real_t total = 0.0;
+   flux.SetSize(fes.GetVDim());
+   flux = 0.0;
    for (int f = 0; f < mesh->GetNumFaces(); f++)
    {
       int e1, e2;
@@ -111,23 +155,30 @@ real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
 
       // CalcOrtho() orients the normal from Elem1 towards Elem2, so it already
       // points out of the subdomain when Elem1 is the marked side.
-      const real_t sgn = in1 ? 1.0 : -1.0;
-      total += sgn * FaceNormalFlux(ut, *FTr, iro);
+      AddFaceNormalFlux(ut, *FTr, iro, in1 ? 1.0 : -1.0, flux);
    }
-   return total;
 }
 
-real_t ComputeBoundaryFlux(const GridFunction &ut,
-                           const Array<int> &bdr_attr_marker, int ir_order)
+real_t ComputeOutwardFlux(const GridFunction &ut, const Array<int> &elem_marker,
+                          int ir_order)
 {
-   const FiniteElementSpace *fes = ut.FESpace();
-   MFEM_VERIFY(fes, "the total flux has no finite element space");
-   VerifyOneField(fes);
-   Mesh *mesh = fes->GetMesh();
+   VerifyOneField(ut.FESpace());
+   Vector flux;
+   ComputeOutwardFlux(ut, elem_marker, flux, ir_order);
+   return flux(0);
+}
+
+void ComputeBoundaryFlux(const GridFunction &ut,
+                         const Array<int> &bdr_attr_marker,
+                         Vector &flux, int ir_order)
+{
+   const FiniteElementSpace &fes = FluxSpace(ut);
+   Mesh *mesh = fes.GetMesh();
 
    const int iro = DefaultIROrder(ut, ir_order);
 
-   real_t total = 0.0;
+   flux.SetSize(fes.GetVDim());
+   flux = 0.0;
    for (int b = 0; b < mesh->GetNBE(); b++)
    {
       const int attr = mesh->GetBdrAttribute(b);
@@ -142,9 +193,17 @@ real_t ComputeBoundaryFlux(const GridFunction &ut,
 
       // A boundary face has only Elem1, so CalcOrtho() already points out of
       // the domain.
-      total += FaceNormalFlux(ut, *FTr, iro);
+      AddFaceNormalFlux(ut, *FTr, iro, 1.0, flux);
    }
-   return total;
+}
+
+real_t ComputeBoundaryFlux(const GridFunction &ut,
+                           const Array<int> &bdr_attr_marker, int ir_order)
+{
+   VerifyOneField(ut.FESpace());
+   Vector flux;
+   ComputeBoundaryFlux(ut, bdr_attr_marker, flux, ir_order);
+   return flux(0);
 }
 
 }

@@ -491,7 +491,23 @@ public:
        chosen. Measured on a block-diagonal two-field problem at k = 1 and
        k = 2, the postprocessed potential gains a full order over the computed
        one in every field, and field 0 of a system reproduces the same field
-       solved alone to the linear solver's tolerance. */
+       solved alone to the linear solver's tolerance.
+
+       @note **A system with a solution-dependent flux law needs a
+       discontinuous flux space.** The law is lifted onto the enriched space by
+       freezing it at the computed potential, and FrozenDualFluxCoefficient is
+       neq*dim square -- which is what the VectorMassIntegrator a scalar-range
+       flux space takes wants, and not what VectorFEMassIntegrator wants, that
+       reading a dim-square coefficient and returning an ndof-square block. At
+       neq > 1 on an H(div) flux the element matrix therefore came out neq
+       times too small in each direction and the local solve ran off the end of
+       it; it is a loud refusal now. A block-diagonal wrapper is not the
+       repair, because the law couples the fields and the coupled vector-FE
+       mass it would need does not exist in the tree. The discontinuous flux
+       space has this at every neq, measured on the coupled nonlinear
+       manufactured problem in tests/unit/fem/test_darcy_nonlinear_mms.cpp:
+       k+1 in the computed potential going to k+2 in the postprocessed one, in
+       both fields, at k = 1 and k = 2. */
    void ReconstructFluxAndPot(const BlockVector &sol, const GridFunction &ut,
                               GridFunction &u, GridFunction &p, GridFunction &tr) const;
 

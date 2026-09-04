@@ -489,22 +489,24 @@ namespace darcy_nl_mms
 // and potential one order higher, which is much of the point of an HDG
 // method.
 //
-// Two postprocessings now exist and they differ in what they generalise to.
-// DarcyForm::Reconstruct() is the richer one -- an enriched flux, potential
-// and traces from one mixed local problem -- and it is still *scalar* only:
-// it asserts fes_p->GetVDim() == 1, and the kernel under it indexes the
-// potential and trace spaces without vdim and builds those enriched spaces
-// with no vdim argument. HDGPotentialPostprocessor is the classic local
-// postprocessing (NPC eq (25)), which yields the potential alone but is
-// general in vdim, because its local problems do not couple the equations and
-// it needs neither the trace space nor the hybridization -- only the computed
-// flux and potential. A system is postprocessed by that one; see
+// Two postprocessings exist. DarcyForm::Reconstruct() is the richer one -- an
+// enriched flux, potential and traces from one mixed local problem.
+// HDGPotentialPostprocessor is the classic local postprocessing (NPC eq (25)),
+// which yields the potential alone and needs neither the trace space nor the
+// hybridization -- only the computed flux and potential; see
 // tests/unit/fem/test_darcy_postprocess.cpp.
 //
-// What follows measures the richer reconstruction, so it is the same
-// manufactured problem reduced to one field.
+// **This comment used to say the richer one was scalar only** -- that it
+// asserted fes_p->GetVDim() == 1 and built its enriched spaces with no vdim
+// argument -- and gave that as the reason the case below runs one field. It
+// has not been true for some time: ReconstructFluxAndPot() reads neq from the
+// potential, verifies the trace and the total flux carry the same, and builds
+// all three enriched spaces with it. The system case is SolvePostSys() below,
+// and it is what exercises the reconstruction's nonlinear branches at
+// neq > 1.
 //
-// One field means a scalar conductivity, and the existing
+// What follows stays at one field anyway, because a scalar problem is the
+// cleaner place to measure the rate and because the existing
 // FunctionDiffusionFlux takes 1/k and its derivative directly.
 
 real_t Kone(real_t p) { return 1.0 + p * p; }
@@ -698,6 +700,175 @@ PostResult SolvePost(Mesh &mesh, int order, Form form)
    return res;
 }
 
+
+// The same postprocessing on the COUPLED two-field problem.
+//
+// The note above SolvePost said the rich reconstruction was scalar only, that
+// it asserted fes_p->GetVDim() == 1 and built its enriched spaces with no vdim
+// argument. **That has not been true for some time** -- ReconstructFluxAndPot()
+// reads neq from the potential, verifies the trace and total flux carry the
+// same, and builds all three enriched spaces with it -- and the note has been
+// corrected. What had never been run was the reconstruction's *nonlinear*
+// branches at neq > 1: the flux law frozen at the computed potential
+// (FrozenDualFluxCoefficient, sized neq*dim) and the lifted Mp_nl gradient.
+// Both are written per field and neither was exercised by anything, every
+// system case in the branch being linear and every nonlinear case scalar.
+//
+// This is the same manufactured problem the System class above solves, kept at
+// NEQ fields, with the face stabilization moved onto the potential mass form
+// for the reason SolvePost gives: the reconstruction needs a linear potential
+// constraint integrator to build its local system from.
+
+/// L2 error of field @a e of a scalar-range grid function of `vdim == neq`.
+/// Under byNODES field e is the contiguous dof range [e*nd, (e+1)*nd).
+real_t FieldError(const GridFunction &gf, int e, int quad_order)
+{
+   const FiniteElementSpace *fes = gf.FESpace();
+   const int nd = fes->GetNDofs();
+   FiniteElementSpace scalar(fes->GetMesh(), fes->FEColl());
+   GridFunction blk(&scalar);
+   for (int i = 0; i < nd; i++) { blk(i) = gf(e * nd + i); }
+
+   FunctionCoefficient c([e](const Vector &x) { return Pex(e, x); });
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   { irs[i] = &(IntRules.Get(i, quad_order)); }
+   return blk.ComputeL2Error(c, irs);
+}
+
+struct PostSysResult
+{
+   real_t err_p, err_ps;
+   std::vector<real_t> err_p_e, err_ps_e;   ///< per field
+   int newton_its;
+};
+
+/// Solve the NEQ-field nonlinear problem hybridized, then postprocess.
+PostSysResult SolvePostSys(Mesh &mesh, int order, Form form)
+{
+   const int dim = mesh.Dimension();
+   const int neq = NEQ;
+   const bool dg = (form == Form::DG);
+   const bool ess_trace = dg;
+
+   std::unique_ptr<FiniteElementCollection> u_coll;
+   if (dg) { u_coll.reset(new L2_FECollection(order, dim)); }
+   else    { u_coll.reset(new RT_FECollection(order, dim)); }
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace fes_u(&mesh, u_coll.get(), dg ? neq * dim : neq,
+                            Ordering::byNODES);
+   FiniteElementSpace fes_p(&mesh, &p_coll, neq, Ordering::byNODES);
+   FiniteElementSpace fes_t(&mesh, &t_coll, neq, Ordering::byNODES);
+
+   DarcyForm darcy(&fes_u, &fes_p);
+   MMSFlux flux(dim);
+   darcy.GetBlockNonlinearForm()->AddDomainIntegrator(
+      new MixedConductionNLFIntegrator(flux));
+
+   MixedBilinearForm *Bform = darcy.GetFluxDivForm();
+   ConstantCoefficient one(1.0);
+   Array<int> bdr_ess(mesh.bdr_attributes.Max());
+   bdr_ess = 1;
+
+   if (dg)
+   {
+      Bform->AddDomainIntegrator(
+         new VectorBlockDiagonalIntegrator(neq, new VectorDivergenceIntegrator));
+      Bform->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-1.))));
+      Bform->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            neq, new TransposeIntegrator(new DGNormalTraceIntegrator(-2.))),
+         bdr_ess);
+
+      const real_t td = TAU * mesh.GetElementSize(0);
+      darcy.GetPotentialMassForm()->AddInteriorFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            neq, new HDGDiffusionIntegrator(one, td)));
+      darcy.GetPotentialMassForm()->AddBdrFaceIntegrator(
+         new VectorBlockDiagonalIntegrator(
+            neq, new HDGDiffusionIntegrator(one, td)), bdr_ess);
+   }
+   else
+   {
+      Bform->AddDomainIntegrator(
+         new VectorBlockDiagonalIntegrator(neq, new VectorFEDivergenceIntegrator));
+   }
+
+   VectorFunctionCoefficient natcoeff(neq, pNatural), gcoeff(neq, gExact),
+                             pcoeff(neq, pExact), ucoeff(neq * dim, uExact);
+   if (!ess_trace)
+   {
+      darcy.GetFluxRHS()->AddBoundaryIntegrator(
+         new VectorFEBoundaryFluxLFIntegrator(natcoeff));
+   }
+   darcy.GetPotentialRHS()->AddDomainIntegrator(
+      new VectorDomainLFIntegrator(gcoeff));
+
+   Array<int> ess;
+   darcy.EnableHybridization(
+      &fes_t, new VectorBlockDiagonalIntegrator(
+         neq, new NormalTraceJumpIntegrator), ess);
+   if (ess_trace) { darcy.GetHybridization()->SetEssentialBC(bdr_ess); }
+   darcy.Assemble();
+   darcy.GetHybridization()->SetLocalNLSolver(
+      DarcyHybridization::LSsolveType::Newton, 100, 1e-13, 1e-15, -1);
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+   OperatorPtr op;
+   Vector X, RHS;
+   if (ess_trace)
+   {
+      GridFunction tr0(&fes_t);
+      tr0 = 0.0;
+      tr0.ProjectBdrCoefficient(pcoeff, bdr_ess);
+      X = tr0;
+   }
+   darcy.FormLinearSystem(ess, x, op, X, RHS, true);
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(500);
+   lin.SetMaxIter(5000);
+   lin.SetRelTol(1e-13);
+   lin.SetAbsTol(0.0);
+   lin.SetPreconditioner(prec);
+
+   NewtonSolver newton;
+   newton.SetSolver(lin);
+   newton.SetOperator(*op);
+   newton.SetRelTol(1e-12);
+   newton.SetAbsTol(1e-14);
+   newton.SetMaxIter(50);
+   newton.SetPrintLevel(-1);
+   newton.Mult(RHS, X);
+   REQUIRE(newton.GetConverged());
+   darcy.RecoverFEMSolution(X, x);
+
+   GridFunction ut, u_s, p_s, tr_s;
+   darcy.Reconstruct(x, X, ut, u_s, p_s, tr_s);
+
+   GridFunction p_h(&fes_p, x.GetBlock(1));
+
+   const int quad_order = 2 * order + 6;
+   const IntegrationRule *irs[Geometry::NumGeom];
+   for (int i = 0; i < Geometry::NumGeom; i++)
+   { irs[i] = &(IntRules.Get(i, quad_order)); }
+
+   PostSysResult res;
+   res.err_p  = p_h.ComputeL2Error(pcoeff, irs);
+   res.err_ps = p_s.ComputeL2Error(pcoeff, irs);
+   for (int e = 0; e < neq; e++)
+   {
+      res.err_p_e.push_back(FieldError(p_h, e, quad_order));
+      res.err_ps_e.push_back(FieldError(p_s, e, quad_order));
+   }
+   res.newton_its = newton.GetNumIterations();
+   return res;
+}
 } // namespace darcy_nl_mms
 
 TEST_CASE("The manufactured coupled nonlinear solution is self-consistent",
@@ -1011,6 +1182,119 @@ TEST_CASE("Postprocessing lifts the potential a further order",
    // equations do -- and it closes as tau grows.
    REQUIRE(rate_ut > order + 0.7);
    REQUIRE(rate_us > order + 0.7);
+}
+
+TEST_CASE("Postprocessing lifts a coupled system's potential field by field",
+          "[DarcyForm][DarcyHybridization][NonlinearDarcy][HDG][System]")
+{
+   using namespace darcy_nl_mms;
+
+   // The scalar case above, at NEQ coupled fields. What it reaches that
+   // nothing else did is the reconstruction's NONLINEAR branches with more
+   // than one field: the flux law frozen at the computed potential, which
+   // FrozenDualFluxCoefficient sizes neq*dim and evaluates through
+   // GetVectorValue() on the potential, and the lifted Mp_nl gradient. Both
+   // were written per field and neither had ever been run -- every system case
+   // in the branch was linear and every nonlinear case scalar.
+   //
+   // The claim is the same one the scalar case makes and it has to hold for
+   // each field separately: the postprocessed potential converges an order
+   // faster than the computed one. Per field rather than in aggregate, because
+   // a combined norm is dominated by whichever field is worst and would hide a
+   // second field that did not improve at all.
+   //
+   // Measured, rates between the two finest of 2x2 .. 16x16, per field:
+   //
+   //     k   field   ||p_h - p||   ||p* - p||
+   //     0     0        0.980        0.980
+   //     0     1        1.000        1.001
+   //     1     0        1.885        2.834
+   //     1     1        1.926        2.854
+   //     2     0        2.885        3.895
+   //     2     1        2.909        3.893
+   //
+   // k+1 going to k+2 at k >= 1 in both fields, and the k = 0 row flat for
+   // the reason below.
+   // DG only, and that is a finding rather than a convenience. Running this
+   // with Form::RT is what turned up the gap recorded on the frozen-flux
+   // branch of ReconstructFluxAndPot(): FrozenDualFluxCoefficient is neq*dim
+   // square, which suits the VectorMassIntegrator a scalar-range flux space
+   // takes, while an H(div) space gets a VectorFEMassIntegrator, which reads a
+   // dim-square coefficient and returns an ndof-square block. At neq > 1 the
+   // element matrix came out neq times too small and the local solve
+   // segfaulted in LUFactors::Solve. It is a loud refusal now, and cannot be
+   // asserted here because MFEM_ABORT aborts rather than throws in this build.
+   const int order = GENERATE(0, 1, 2);
+   const Form form = Form::DG;
+   CAPTURE(order, int(form));
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL, false,
+                                     1.0, 1.0);
+
+   std::vector<real_t> ep, eps;
+   std::vector<std::vector<real_t>> ep_e(NEQ), eps_e(NEQ);
+   for (int ref = 0; ref < 4; ref++)
+   {
+      const PostSysResult r = SolvePostSys(mesh, order, form);
+      ep.push_back(r.err_p);
+      eps.push_back(r.err_ps);
+      for (int e = 0; e < NEQ; e++)
+      {
+         ep_e[e].push_back(r.err_p_e[e]);
+         eps_e[e].push_back(r.err_ps_e[e]);
+      }
+      mesh.UniformRefinement();
+   }
+
+   const int n = ep.size();
+   auto rate = [&](const std::vector<real_t> &e)
+   { return std::log2(e[n-2] / e[n-1]); };
+
+   INFO("combined ||p_h - p|| rate " << rate(ep)
+        << ", ||p* - p|| rate " << rate(eps));
+
+   for (int e = 0; e < NEQ; e++)
+   {
+      const real_t r_p = rate(ep_e[e]), r_ps = rate(eps_e[e]);
+      CAPTURE(e, r_p, r_ps, ep_e[e].back(), eps_e[e].back());
+
+      // The computed potential converges at its design order, k+1.
+      REQUIRE(r_p > order + 0.7);
+
+      // And the postprocessed one an order faster -- except for the fully
+      // discontinuous form at k = 0, where it does not, and that is the known
+      // restriction rather than a defect. The scalar case above records it
+      // with the reference: the local postprocessing needs the solved
+      // potential to be superconvergent in its own element averages, which
+      // for an L2 flux holds only from k = 1, and Chen, Cockburn, Singler and
+      // Zhang (J. Sci. Comput. 81 (2019) 2188, Table 1) report 0.97 at k = 0
+      // against 3.01 at k = 1. **The system reproduces that number
+      // independently** -- 0.98 here, per field -- which is worth more than
+      // the exemption costs: it says the two-field nonlinear path lands on
+      // the same known behaviour as the scalar one rather than on a
+      // restriction of its own.
+      if (order >= 1 || form == Form::RT)
+      {
+         REQUIRE(r_ps > r_p + 0.7);
+         // Only meaningful if it is also smaller, not merely steeper.
+         REQUIRE(eps_e[e].back() < ep_e[e].back());
+      }
+      else
+      {
+         REQUIRE(r_ps > order + 0.7);
+      }
+   }
+
+   // Both fields must actually be present and distinct. Pex(0,.) and Pex(1,.)
+   // differ, so equal errors would mean one field's result had been copied
+   // into the other -- which is exactly what a reconstruction that read only
+   // block 0 would produce.
+   for (int e = 1; e < NEQ; e++)
+   {
+      CAPTURE(e, eps_e[0].back(), eps_e[e].back());
+      REQUIRE(std::abs(eps_e[e].back() - eps_e[0].back())
+              > 1e-6 * eps_e[0].back());
+   }
 }
 
 TEST_CASE("A source that ignores the conductivity's variation does not",

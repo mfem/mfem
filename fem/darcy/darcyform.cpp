@@ -1297,6 +1297,31 @@ void DarcyForm::ReconstructFluxAndPot(const BlockVector &sol,
          const FiniteElement *fe_u = u.FESpace()->GetFE(0);
          if (fe_u->GetRangeType() == FiniteElement::VECTOR)
          {
+            // An H(div) flux carrying a system has no integrator to lift onto.
+            // FrozenDualFluxCoefficient is neq*dim square, which is what
+            // VectorMassIntegrator wants for a scalar-range flux space of that
+            // vdim; VectorFEMassIntegrator instead reads a dim-square
+            // coefficient and returns an ndof-square block, so at neq > 1 the
+            // element matrix comes out neq times too small in each direction
+            // and the local solve runs off the end of it -- a segfault in
+            // LUFactors::Solve, found by running this path rather than by
+            // reading it.
+            //
+            // A block-diagonal wrapper is NOT the repair. The law couples the
+            // fields -- D is neq-square -- so the flux mass block (i,j) is
+            // the integral of D_ij(p) phi_a . phi_b, which is not block
+            // diagonal and which no integrator in the tree assembles. What is
+            // missing is a genuinely coupled vector-FE mass, and writing one
+            // is a piece of work rather than a fix. The scalar-range flux
+            // space has this at every neq today.
+            MFEM_VERIFY(neq == 1,
+                        "the rich reconstruction cannot lift a solution-"
+                        "dependent flux law onto an H(div) flux space "
+                        "carrying " << neq << " fields: the frozen law "
+                        "couples them and VectorFEMassIntegrator assembles "
+                        "one field's block. Use a discontinuous flux space, "
+                        "or HDGPotentialPostprocessor, which is general in "
+                        "vdim");
             Mu_s->AddDomainIntegrator(new VectorFEMassIntegrator(*Mu_nl_coeff));
          }
          else

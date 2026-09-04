@@ -76,16 +76,25 @@ measurement, the closure-row argument and the ordering argument are in the
 doxygen on those two methods and in `tests/unit/fem/test_darcy_reconstruction.cpp`,
 whose four `[System]` cases are the pins.
 
-Three pieces are left:
+One piece is left, and two are done:
 
-* **The flux functionals**, `ComputeOutwardFlux` and `ComputeBoundaryFlux` in
-  `fem/darcy/functionals_hdg.hpp`. They *refuse* a system rather than silently
-  returning field 0's flux, which is what `GetVectorValue` gives them. A
-  per-field version wants an API decision: another argument, or a `Vector` of
-  one value per field.
-* **The nonlinear branches of the rich reconstruction** — the frozen flux law
-  and the lifted `Mp_nl` gradient. They are written per field and compile, but
-  nothing exercises them with `neq > 1`; every case is linear.
+* ~~The flux functionals refuse a system~~ — **done.** The API decision went to
+  a `Vector` of one value per field, overloaded beside the `real_t` entry
+  points, which now *are* the `vdim == 1` case of it and refuse a system for
+  the reason they always did: one number cannot answer for several fields. The
+  per-field read is on `AddFaceNormalFlux()`; the conservation identity is
+  pinned field by field, under both `Ordering`s, in
+  `tests/unit/fem/test_darcy_functionals.cpp`.
+* ~~The nonlinear branches of the rich reconstruction are unexercised at
+  `neq > 1`~~ — **done, and running them found a gap.** The coupled nonlinear
+  manufactured problem now goes through `Reconstruct()` at two fields and gets
+  `k+1 → k+2` in both, at `k = 1` and `k = 2`; the `k = 0` DG row is flat,
+  which is the known CCSZ restriction reproduced rather than a defect of the
+  system path. **The gap: an H(div) flux at `neq > 1` segfaulted** in the local
+  solve, because the frozen law's coefficient is `neq*dim` square and
+  `VectorFEMassIntegrator` reads a `dim`-square one. Now a loud refusal, with
+  what a real repair would take — a coupled vector-FE mass, which the tree does
+  not have — recorded on `ReconstructFluxAndPot()`.
 * **A hyperbolic system is not covered by the closure argument.** The closure
   drops one equation per field because the lifted local operator annihilates
   per-field constants (`darcyform.cpp:1673-1690`). A lifted
