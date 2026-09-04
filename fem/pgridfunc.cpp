@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -563,12 +563,18 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 
    if (delta_c == NULL)
    {
-      (*this) = std::numeric_limits<real_t>::min();
-      GridFunction::ProjectCoefficient(coeff,type);
-
-      // Accumulate for all vdofs.
       if (pfes->GetNURBSext())
       {
+         // The serial ProjectCoefficient() may not initialize every dof. Such
+         // dofs will be set using the neighbor communication below.
+         (*this) = -infinity();
+      }
+
+      GridFunction::ProjectCoefficient(coeff,type);
+
+      if (pfes->GetNURBSext())
+      {
+         // Replace uninitialized values with real values from neighbor ranks.
          GroupCommunicator &gcomm = pfes->GroupComm();
          gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
          gcomm.Bcast<real_t>(HostReadWrite());
@@ -591,11 +597,18 @@ void ParGridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
 void ParGridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
                                          ProjectType type)
 {
-   GridFunction::ProjectCoefficient(vcoeff, type);
-
-   // Accumulate for all vdofs.
    if (pfes->GetNURBSext())
    {
+      // The serial ProjectCoefficient() may not initialize every dof. Such
+      // dofs will be set using the neighbor communication below.
+      (*this) = -infinity();
+   }
+
+   GridFunction::ProjectCoefficient(vcoeff, type);
+
+   if (pfes->GetNURBSext())
+   {
+      // Replace uninitialized values with real values from neighbor ranks.
       GroupCommunicator &gcomm = pfes->GroupComm();
       gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Max);
       gcomm.Bcast<real_t>(HostReadWrite());
@@ -618,11 +631,11 @@ void ParGridFunction::ProjectCoefficientGlobalL2(Coefficient &coeff,
 
    // Configure solver
    OperatorPtr A;
-   Vector B, X, x(*this);
+   Vector B, X, &x(*this);
    Array<int> ess_tdof_list;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    Solver *prec = new HypreBoomerAMG;
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(pfes->GetComm());
    cg.SetRelTol(rtol);
    cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
@@ -670,12 +683,12 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
 
    // Configure solver
    OperatorPtr A;
-   Vector B, X, x(*this);
+   Vector B, X, &x(*this);
    x = 0.0;
    Array<int> ess_tdof_list;
    a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
    Solver *prec = new HypreBoomerAMG;
-   CGSolver cg(MPI_COMM_WORLD);
+   CGSolver cg(pfes->GetComm());
    cg.SetRelTol(rtol);
    cg.SetMaxIter(iter);
    cg.SetPrintLevel(0);
@@ -683,7 +696,6 @@ void ParGridFunction::ProjectCoefficientGlobalL2(VectorCoefficient &vcoeff,
    cg.SetOperator(*A);
    cg.Mult(B, X);
    a.RecoverFEMSolution(X, b, x);
-   x.Print();
    delete prec;
 }
 
