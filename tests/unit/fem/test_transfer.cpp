@@ -819,6 +819,9 @@ TEST_CASE("Generic Transfer Operator -- Vector", "[Dimension][Order][LOR]")
    // Check
    REQUIRE(nurbs_gf.ComputeL2Error(cf) == MFEM_Approx(0.0));
    */
+
+   delete h1_fec;
+   delete nurbs_fec;
 }
 
 
