@@ -65,8 +65,18 @@ struct TraceMatrix
 };
 
 /// Assemble the hybridized trace matrix once, in the given assembly mode.
-TraceMatrix Assemble(Mesh &mesh, int order, Form form,
-                     DarcyHybridization::AssemblyMode mode)
+/// Everything one linear hybridized solve produces that a threaded element
+/// loop could disturb: the trace matrix from ComputeH(), the reduced
+/// right-hand side from EliminateVDofsInRHS() and ReduceRHS(), and the fields
+/// recovered by ComputeSolution().
+struct LinearOutcome
+{
+   TraceMatrix H;
+   Vector rhs, flux, pot;
+};
+
+LinearOutcome Assemble(Mesh &mesh, int order, Form form,
+                       DarcyHybridization::AssemblyMode mode)
 {
    const int dim = mesh.Dimension();
 
@@ -141,8 +151,18 @@ TraceMatrix Assemble(Mesh &mesh, int order, Form form,
    SparseMatrix *H = A.As<SparseMatrix>();
    MFEM_VERIFY(H, "the hybridized system is not an assembled SparseMatrix");
 
-   TraceMatrix out;
-   out.CopyFrom(*H);
+   LinearOutcome out;
+   out.H.CopyFrom(*H);
+   out.rhs = B;
+
+   // Solving and recovering is what brings ComputeSolution() into the
+   // comparison. The solve itself is serial and identical either way, so any
+   // difference in the fields is the recovery's.
+   UMFPackSolver lin(*H);
+   lin.Mult(B, X);
+   darcy.RecoverFEMSolution(X, x, x);
+   out.flux = x.GetBlock(0);
+   out.pot = x.GetBlock(1);
    return out;
 }
 
@@ -316,6 +336,20 @@ NLOutcome EvaluateNL(Mesh &mesh, int order,
    return out;
 }
 
+
+/// Bitwise equality of two vectors, with which one it was in the failure.
+void RequireSameVector(const Vector &ref, const Vector &got, const char *what)
+{
+   CAPTURE(what);
+   REQUIRE(got.Size() == ref.Size());
+   real_t max_diff = 0.0;
+   for (int i = 0; i < ref.Size(); i++)
+   {
+      max_diff = std::max(max_diff, std::abs(got(i) - ref(i)));
+   }
+   REQUIRE(max_diff == 0.0);
+}
+
 } // namespace darcy_threaded_assembly
 
 using namespace darcy_threaded_assembly;
@@ -340,9 +374,9 @@ TEST_CASE("Threaded trace assembly is bit-for-bit the serial one",
             CAPTURE(int(form), order, mesh->Dimension());
 
             omp_set_num_threads(1);
-            const TraceMatrix ref = Assemble(
-                                       *mesh, order, form,
-                                       DarcyHybridization::AssemblyMode::Serial);
+            const LinearOutcome ref = Assemble(
+                                         *mesh, order, form,
+                                         DarcyHybridization::AssemblyMode::Serial);
 
             // A thread count of one must also agree, which separates "the
             // refactor changed something" from "the threading changed
@@ -351,10 +385,20 @@ TEST_CASE("Threaded trace assembly is bit-for-bit the serial one",
             {
                CAPTURE(nt);
                omp_set_num_threads(nt);
-               const TraceMatrix got = Assemble(
-                                          *mesh, order, form,
-                                          DarcyHybridization::AssemblyMode::Threaded);
-               RequireIdentical(ref, got);
+               const LinearOutcome got = Assemble(
+                                            *mesh, order, form,
+                                            DarcyHybridization::AssemblyMode::Threaded);
+               RequireIdentical(ref.H, got.H);
+
+               // Section 3's loops: the reduced right-hand side is
+               // EliminateVDofsInRHS() and ReduceRHS(), the fields are
+               // ComputeSolution(). Bitwise for the same two-term reason as
+               // the matrix -- and for the field loops, because with
+               // discontinuous spaces each element's dofs are its own, so
+               // there is only ONE term.
+               RequireSameVector(ref.rhs, got.rhs, "reduced rhs");
+               RequireSameVector(ref.flux, got.flux, "recovered flux");
+               RequireSameVector(ref.pot, got.pot, "recovered potential");
             }
          }
       }

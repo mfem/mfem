@@ -604,6 +604,29 @@ private:
        fill. Cheap, once, and only on the threaded path. */
    void BuildElementColouring() const;
 
+   /** @brief Whether an element loop that writes FIELD dofs may be threaded.
+
+       It may when both field spaces are discontinuous, and then each element's
+       flux and potential dofs are its own -- no colouring, no atomics. An
+       H(div) flux shares dofs across faces, and there these loops either
+       accumulate into a shared entry or, in ComputeSolution(), overwrite it,
+       where serial's last-writer-wins is element order and a colouring would
+       change which element wins. That is a question about the RT pathway, and
+       the standing instruction on this branch is to leave it alone: with a
+       non-discontinuous space these loops keep the serial loop they have
+       always had.
+
+       ReduceRHS() does not use this. It writes only TRACE dofs, so the
+       colouring covers it whatever the flux space is. */
+   bool CanThreadFieldLoop() const
+   {
+      return asm_mode == AssemblyMode::Threaded
+             && fes.FEColl()->GetContType() ==
+             FiniteElementCollection::DISCONTINUOUS
+             && fes_p.FEColl()->GetContType() ==
+             FiniteElementCollection::DISCONTINUOUS;
+   }
+
    FaceElementTransformations *GetFaceTransformation(int f) const;
    /// @brief The same face transformation, built into @a ws instead of into
    /// the Mesh's shared cache, so it is safe on a threaded element loop.

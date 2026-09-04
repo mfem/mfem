@@ -17,13 +17,14 @@ condensation *is*.
 | `InvertA` | pure local write | `BatchedLinAlg`, uniform blocks | **done**, §1 |
 | `InvertD` | pure local write | as above | **done**, §1 |
 | `MultNL` | local nonlinear solve + scatter to a `Vector` | integrator thread-safety, transformations, colouring | **done**, §2 |
-| `ComputeSolution` | pure local write | nothing | open, §3 |
-| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 |
-| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 |
-| `ReduceRHS` | local + scatter to a `Vector` | colouring | open, §3 |
+| `ComputeSolution` | pure local write | discontinuous spaces | **done**, §3 |
+| `EliminateVDofsInRHS` | local + write to own field dofs | as above | **done**, §3 |
+| `EliminateTrueDofsInRHS` | local + write to own field dofs | as above | **done**, §3 |
+| `ReduceRHS` | local + scatter to the trace | colouring | **done**, §3 |
 
-§3's four are once per *solve*: negligible against a Newton loop, a fifth of a
-linear solve. See §3 — the answer turns on the trace solver, not the problem.
+**Every element-local loop in the class is now threaded.** What is left in this
+file is §4, the device path, and the serial remainder §3 turned up inside
+`FormLinearSystem`.
 
 Offset construction and allocation (prefix sums over `NE`) run once and are not
 worth touching. Batching the factorisation that runs once per *linearisation*
@@ -95,50 +96,51 @@ of that call. That is not a defect and not fixable by threading — see §3.
 their own integrators sit on this loop and must be thread-safe too. The tree's
 own pedestal harness needed the same treatment.
 
-## 3. The remaining scatters — cold for Newton, NOT cold for a linear solve
+## 3. The remaining element loops — DONE, and worth 11-18% of a linear solve
 
-`EliminateVDofsInRHS`, `EliminateTrueDofsInRHS`, `ReduceRHS` and
-`ComputeSolution` all scatter to a **`Vector`**, so `Mesh::GetElementColoring()`
-makes them safe exactly as it does `MultNL` — the machinery exists now and the
-change is mechanical.
+All four are threaded under `AssemblyMode::Threaded`, and they split into two
+kinds rather than the one this section used to describe.
 
-**For a nonlinear solve they are negligible, and that is structural.** All four
-run once per solve — the first three from `DarcyForm::FormLinearSystem()`, the
-last from `RecoverFEMSolution()` — against `2N` passes through `MultNL`, so
-their share is `O(1/2N)`.
+**`ReduceRHS` scatters into the TRACE**, so it walks the colouring, exactly as
+`MultNL` does — and is then safe whatever the flux space is. Note it returns
+early for a nonlinear problem, so this loop is a linear-path loop only, which
+is consistent with the measurement below.
 
-**For a LINEAR solve they are not, and this entry used to dismiss them on the
-strength of the nonlinear argument alone.** With no Newton loop, `H` is
-assembled once in `Finalize()` and `MultNL` is never called, so these loops are
-the element-local work of the solve. Measured, order 2 quads, medians of
-five, with the non-threading part of `FormLinearSystem` separated by a thread
-fit and `RecoverFEMSolution` read directly:
+**The other three write FIELD dofs** — `EliminateVDofsInRHS`,
+`EliminateTrueDofsInRHS` and `ComputeSolution` — and this entry had them wrong:
+its table said all three scatters need a colouring. They do not. With
+discontinuous flux and potential spaces each element's dofs are its own, so
+they need no colouring and no atomics, only per-thread scratch. **What they do
+need is a guard**, because with an H(div) flux `GetFDofs()` and
+`GetElementVDofs()` return dofs shared across faces, where two elements either
+accumulate into one entry or — in `ComputeSolution` — overwrite it, and there
+serial's last-writer-wins is *element order* while a colouring would change
+which element wins. `CanThreadFieldLoop()` therefore threads them only for
+discontinuous spaces and leaves the RT pathway on the loop it has always had,
+which is also what the standing instruction on this branch requires.
 
-| | share of the solve |
-|---|---|
-| refinement `n` = 32 → 160 (25x the elements), UMFPACK | **21%, flat** |
-| `n` = 64, UMFPACK, conductivity contrast 1 → 10⁶ | 26% → 23% |
-| `n` = 64, GMRES+GS, contrast 1 (200 its) | 6.9% |
-| `n` = 64, GMRES+GS, contrast 10⁶ (490 its) | **3.6%** |
+**Measured, order 2 quads, medians of five, against the serial mode:**
 
-**So what decides it is the SOLVER, not the problem.** These loops cost a fixed
-`O(NE)` per solve, so their share is just `1 −` the trace solve's, and the
-trace solve is what "hard" changes: a direct solve barely notices a 10⁶
-contrast (163 ms against 175 ms, inside the noise — a clean control), while
-GMRES goes 200 → 490 iterations and swallows 91% of the run.
+| | n=64 | n=96 | n=128 |
+|---|---|---|---|
+| `RecoverFEMSolution` (`ComputeSolution` alone) | 4.3x | 5.2x | 4.0x |
+| `FormLinearSystem` (`ComputeH` + the two eliminations + `ReduceRHS`) | 1.80x | 1.68x | 1.89x |
+| **the whole linear solve** | **1.12x** | **1.12x** | **1.22x** |
 
-The honest recommendation, then. **Worth doing** for a workload of many linear
-solves with a cheap trace solve — threading it perfectly at eight threads would
-take about 22% off such a solve, and `SetReuseSymbolic()` on the direct branch
-would *raise* the share by making the factorisation cheaper. **Not worth doing**
-for the hard, ill-conditioned problems where an iterative trace solve dominates
-at 84–91%; there the whole of §3 is worth 3–6%.
+**And this settles the attribution the previous entry could not make.** The
+21% figure was an upper bound — the part of `FormLinearSystem` that did not
+thread, which included any other serial work in it. Threading §3 took 11-18%
+off the solve, so at `n = 128` the bound was about right and at the smaller
+sizes it was generous. The tell is that `FormLinearSystem` reaches only
+1.7-1.9x: **a substantial serial remainder lives in it that is NOT §3's
+element loops**, where `ComputeSolution`, which is nothing but an element
+loop, gets 4-5.2x. Naming that remainder is the next measurement for anyone
+who wants the rest — candidates are the `SparseMatrix::Finalize()` and
+diagonal-policy passes at the end of `ComputeH`, the `AllocEG`/`AllocH`
+zeroing, and the prolongation products.
 
-One caveat on the number: the "share" above is an **upper bound**. It is the
-part of `FormLinearSystem` that does not thread, and that includes whatever
-else in it is serial, not only §3's element loops. Attributing it exactly means
-instrumenting `FormLinearSystem`, which nobody has done — and which is the
-thing to do before threading anything here.
+The nonlinear case is unchanged and still negligible: these run once per solve
+against `2N` passes through `MultNL`, so `O(1/2N)`.
 
 ## 4. A device path, and what it would actually take
 

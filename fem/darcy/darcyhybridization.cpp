@@ -2512,45 +2512,56 @@ void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                "Wrong size of the rhs vector!");
 
    const int NE = fes.GetNE();
-   Vector u_e, bu_e, bp_e;
-   Array<int> u_vdofs, p_dofs, edofs;
 
    const Vector &xu = x.GetBlock(0);
    Vector &bu = b.GetBlock(0);
    Vector &bp = b.GetBlock(1);
 
-   for (int el = 0; el < NE; el++)
+   // Threaded only when both field spaces are discontinuous, so each
+   // element's dofs are its own; see CanThreadFieldLoop().
+   const bool threaded = CanThreadFieldLoop();
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
    {
-      GetEDofs(el, edofs);
-      if (edofs.Size() == 0) { continue; }
-
-      xu.GetSubVector(edofs, u_e);
-      u_e.Neg();
-
-      //bu -= A_e u_e
-      const int a_size = hat_offsets[el+1] - hat_offsets[el];
-      const DenseMatrix Ae(&Ae_data[Ae_offsets[el]], a_size, edofs.Size());
-
-      bu_e.SetSize(a_size);
-      Ae.Mult(u_e, bu_e);
-
-      fes.GetElementVDofs(el, u_vdofs);
-      bu.AddElementVector(u_vdofs, bu_e);
-
-      //bp -= B_e u_e
-      const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      const DenseMatrix Be(&Be_data[Be_offsets[el]], d_size, edofs.Size());
-
-      bp_e.SetSize(d_size);
-      Be.Mult(u_e, bp_e);
-      if (bsym)
+      Vector u_e, bu_e, bp_e;
+      Array<int> u_vdofs, p_dofs, edofs;
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+      for (int el = 0; el < NE; el++)
       {
-         //In the case of the symmetrized system, the sign is opposite!
-         bp_e.Neg();
-      }
+         GetEDofs(el, edofs);
+         if (edofs.Size() == 0) { continue; }
 
-      fes_p.GetElementVDofs(el, p_dofs);
-      bp.AddElementVector(p_dofs, bp_e);
+         xu.GetSubVector(edofs, u_e);
+         u_e.Neg();
+
+         //bu -= A_e u_e
+         const int a_size = hat_offsets[el+1] - hat_offsets[el];
+         const DenseMatrix Ae(&Ae_data[Ae_offsets[el]], a_size, edofs.Size());
+
+         bu_e.SetSize(a_size);
+         Ae.Mult(u_e, bu_e);
+
+         fes.GetElementVDofs(el, u_vdofs);
+         bu.AddElementVector(u_vdofs, bu_e);
+
+         //bp -= B_e u_e
+         const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+         const DenseMatrix Be(&Be_data[Be_offsets[el]], d_size, edofs.Size());
+
+         bp_e.SetSize(d_size);
+         Be.Mult(u_e, bp_e);
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is opposite!
+            bp_e.Neg();
+         }
+
+         fes_p.GetElementVDofs(el, p_dofs);
+         bp.AddElementVector(p_dofs, bp_e);
+      }
    }
 
    for (int vdof : vdofs_flux)
@@ -2606,41 +2617,53 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
    Vector &bp = b_t.GetBlock(1);
 
    const int NE = fes.GetNE();
-   Vector u_e, bu_e, bp_e;
-   Array<int> u_vdofs, p_dofs, edofs;
 
-   for (int el = 0; el < NE; el++)
+   // Threaded only when both field spaces are discontinuous, so each
+   // element's dofs are its own; see CanThreadFieldLoop().
+   const bool threaded = CanThreadFieldLoop();
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
    {
-      GetEDofs(el, edofs);
-      if (edofs.Size() == 0) { continue; }
+      Vector u_e, bu_e, bp_e;
+      Array<int> u_vdofs, p_dofs, edofs;
 
-      xu.GetSubVector(edofs, u_e);
-      u_e.Neg();
-
-      //bu -= A_e u_e
-      const int a_size = hat_offsets[el+1] - hat_offsets[el];
-      const DenseMatrix Ae(&Ae_data[Ae_offsets[el]], a_size, edofs.Size());
-
-      bu_e.SetSize(a_size);
-      Ae.Mult(u_e, bu_e);
-
-      fes.GetElementVDofs(el, u_vdofs);
-      bu.AddElementVector(u_vdofs, bu_e);
-
-      //bp -= B_e u_e
-      const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
-      const DenseMatrix Be(&Be_data[Be_offsets[el]], d_size, edofs.Size());
-
-      bp_e.SetSize(d_size);
-      Be.Mult(u_e, bp_e);
-      if (bsym)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+      for (int el = 0; el < NE; el++)
       {
-         //In the case of the symmetrized system, the sign is opposite!
-         bp_e.Neg();
-      }
+         GetEDofs(el, edofs);
+         if (edofs.Size() == 0) { continue; }
 
-      fes_p.GetElementVDofs(el, p_dofs);
-      bp.AddElementVector(p_dofs, bp_e);
+         xu.GetSubVector(edofs, u_e);
+         u_e.Neg();
+
+         //bu -= A_e u_e
+         const int a_size = hat_offsets[el+1] - hat_offsets[el];
+         const DenseMatrix Ae(&Ae_data[Ae_offsets[el]], a_size, edofs.Size());
+
+         bu_e.SetSize(a_size);
+         Ae.Mult(u_e, bu_e);
+
+         fes.GetElementVDofs(el, u_vdofs);
+         bu.AddElementVector(u_vdofs, bu_e);
+
+         //bp -= B_e u_e
+         const int d_size = Df_f_offsets[el+1] - Df_f_offsets[el];
+         const DenseMatrix Be(&Be_data[Be_offsets[el]], d_size, edofs.Size());
+
+         bp_e.SetSize(d_size);
+         Be.Mult(u_e, bp_e);
+         if (bsym)
+         {
+            //In the case of the symmetrized system, the sign is opposite!
+            bp_e.Neg();
+         }
+
+         fes_p.GetElementVDofs(el, p_dofs);
+         bp.AddElementVector(p_dofs, bp_e);
+      }
    }
 
    if (!ParallelU())
@@ -3545,55 +3568,78 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
    }
 
    const int NE = fes.GetNE();
-   Vector b_rl;
-   Array<int> c_dofs;
-   Array<int> faces;
-   Vector bu_l, bp_l, u_l, p_l;
-   Array<int> u_vdofs, p_dofs;
 
-   for (int el = 0; el < NE; el++)
+   // This loop scatters into the TRACE, so unlike the field loops it needs
+   // the colouring -- and unlike them it is then safe whatever the flux space
+   // is. Serial keeps the original element order exactly.
+   const bool threaded = (asm_mode == AssemblyMode::Threaded);
+   if (threaded) { BuildElementColouring(); }
+   const int npasses = threaded ? colour_offsets.Size() - 1 : 1;
+
+   for (int pass = 0; pass < npasses; pass++)
    {
-      // Load RHS
+      const int i0 = threaded ? colour_offsets[pass] : 0;
+      const int i1 = threaded ? colour_offsets[pass+1] : NE;
 
-      GetFDofs(el, u_vdofs);
-      bu.GetSubVector(u_vdofs, bu_l);
-
-      fes_p.GetElementVDofs(el, p_dofs);
-      bp.GetSubVector(p_dofs, bp_l);
-      if (bsym)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp parallel if (threaded)
+#endif
       {
-         //In the case of the symmetrized system, the sign is opposite!
-         bp_l.Neg();
-      }
+         Vector b_rl;
+         Array<int> c_dofs;
+         Array<int> faces;
+         Vector bu_l, bp_l, u_l, p_l;
+         Array<int> u_vdofs, p_dofs;
 
-      //-A^-1 bu - A^-1 B^T S^-1 B A^-1 bu
-      MultInv(el, bu_l, bp_l, u_l, p_l);
-      u_l.Neg();
-      p_l.Neg();
-
-      GetElementFaces(el, faces);
-
-      // Mult C u + G p
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         DenseMatrix Ct_l;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
-
-         b_rl.SetSize(Ct_l.Width());
-         Ct_l.MultTranspose(u_l, b_rl);
-
-         if (c_bfi_p)
+#ifdef MFEM_USE_OPENMP
+         #pragma omp for schedule(dynamic)
+#endif
+         for (int i = i0; i < i1; i++)
          {
-            DenseMatrix G;
-            GetGFaceMatrix(faces[f], el1 != el, G);
+            const int el = threaded ? colour_order[i] : i;
+            // Load RHS
 
-            G.AddMult(p_l, b_rl);
+            GetFDofs(el, u_vdofs);
+            bu.GetSubVector(u_vdofs, bu_l);
+
+            fes_p.GetElementVDofs(el, p_dofs);
+            bp.GetSubVector(p_dofs, bp_l);
+            if (bsym)
+            {
+               //In the case of the symmetrized system, the sign is opposite!
+               bp_l.Neg();
+            }
+
+            //-A^-1 bu - A^-1 B^T S^-1 B A^-1 bu
+            MultInv(el, bu_l, bp_l, u_l, p_l);
+            u_l.Neg();
+            p_l.Neg();
+
+            GetElementFaces(el, faces);
+
+            // Mult C u + G p
+            for (int f = 0; f < faces.Size(); f++)
+            {
+               int el1, el2;
+               fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+               DenseMatrix Ct_l;
+               GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+
+               b_rl.SetSize(Ct_l.Width());
+               Ct_l.MultTranspose(u_l, b_rl);
+
+               if (c_bfi_p)
+               {
+                  DenseMatrix G;
+                  GetGFaceMatrix(faces[f], el1 != el, G);
+
+                  G.AddMult(p_l, b_rl);
+               }
+
+               c_fes.GetFaceVDofs(faces[f], c_dofs);
+               b_r.AddElementVector(c_dofs, b_rl);
+            }
          }
-
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         b_r.AddElementVector(c_dofs, b_rl);
       }
    }
 
@@ -3992,57 +4038,70 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
    Vector &p = sol_t.GetBlock(1);
 
    const int NE = fes.GetNE();
-   Vector sol_rl;
-   Array<int> c_dofs;
-   Array<int> faces;
-   Vector bu_l, bp_l, u_l, p_l;
-   Array<int> u_vdofs, p_dofs;
 
-   for (int el = 0; el < NE; el++)
+   // Threaded only when both field spaces are discontinuous, so each
+   // element's dofs are its own; see CanThreadFieldLoop(). This loop only
+   // READS the trace, so it needs no colouring even then.
+   const bool threaded = CanThreadFieldLoop();
+#ifdef MFEM_USE_OPENMP
+   #pragma omp parallel if (threaded)
+#endif
    {
-      //Load RHS
+      Vector sol_rl;
+      Array<int> c_dofs;
+      Array<int> faces;
+      Vector bu_l, bp_l, u_l, p_l;
+      Array<int> u_vdofs, p_dofs;
 
-      GetFDofs(el, u_vdofs);
-      bu.GetSubVector(u_vdofs, bu_l);
-
-      fes_p.GetElementVDofs(el, p_dofs);
-      bp.GetSubVector(p_dofs, bp_l);
-      if (bsym)
+#ifdef MFEM_USE_OPENMP
+      #pragma omp for schedule(static)
+#endif
+      for (int el = 0; el < NE; el++)
       {
-         //In the case of the symmetrized system, the sign is opposite!
-         bp_l.Neg();
-      }
+         //Load RHS
 
-      GetElementFaces(el, faces);
+         GetFDofs(el, u_vdofs);
+         bu.GetSubVector(u_vdofs, bu_l);
 
-      // bu - C^T sol
-      for (int f = 0; f < faces.Size(); f++)
-      {
-         int el1, el2;
-         fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
-         DenseMatrix Ct_l;
-         GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
-
-         c_fes.GetFaceVDofs(faces[f], c_dofs);
-         sol_r.GetSubVector(c_dofs, sol_rl);
-
-         Ct_l.AddMult_a(-1., sol_rl, bu_l);
-
-         //bp - E sol
-         if (c_bfi_p)
+         fes_p.GetElementVDofs(el, p_dofs);
+         bp.GetSubVector(p_dofs, bp_l);
+         if (bsym)
          {
-            DenseMatrix E;
-            GetEFaceMatrix(faces[f], el1 != el, E);
-
-            E.AddMult_a(-1., sol_rl, bp_l);
+            //In the case of the symmetrized system, the sign is opposite!
+            bp_l.Neg();
          }
+
+         GetElementFaces(el, faces);
+
+         // bu - C^T sol
+         for (int f = 0; f < faces.Size(); f++)
+         {
+            int el1, el2;
+            fes.GetMesh()->GetFaceElements(faces[f], &el1, &el2);
+            DenseMatrix Ct_l;
+            GetCtFaceMatrix(faces[f], el1 != el, Ct_l);
+
+            c_fes.GetFaceVDofs(faces[f], c_dofs);
+            sol_r.GetSubVector(c_dofs, sol_rl);
+
+            Ct_l.AddMult_a(-1., sol_rl, bu_l);
+
+            //bp - E sol
+            if (c_bfi_p)
+            {
+               DenseMatrix E;
+               GetEFaceMatrix(faces[f], el1 != el, E);
+
+               E.AddMult_a(-1., sol_rl, bp_l);
+            }
+         }
+
+         //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+         MultInv(el, bu_l, bp_l, u_l, p_l);
+
+         u.SetSubVector(u_vdofs, u_l);
+         p.SetSubVector(p_dofs, p_l);
       }
-
-      //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
-      MultInv(el, bu_l, bp_l, u_l, p_l);
-
-      u.SetSubVector(u_vdofs, u_l);
-      p.SetSubVector(p_dofs, p_l);
    }
 
    if (!ParallelU())
