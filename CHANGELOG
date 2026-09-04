@@ -251,6 +251,10 @@ API changes
   (use GetRowl1).
 
 
+- Added support for (Par)MixedBilinearForm assembly over test and trial FE spaces 
+  where one is defined on a (Par)SubMesh of the other FE space's mesh.
+
+
 Version 4.9, released on Dec 11, 2025
 =====================================
 
