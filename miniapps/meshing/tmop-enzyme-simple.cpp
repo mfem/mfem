@@ -31,6 +31,9 @@
 //   3D constant ideal target:
 //     mpirun -np 4 tmop-enzyme-simple -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1
 //     mpirun -np 4 pmesh-optimizer     -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1 -pa
+//   3D constant ideal target with node limiting:
+//     mpirun -np 4 tmop-enzyme-simple -m stretched3D.mesh -rs 1 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1 -ex -lc 5000
+//     mpirun -np 4 pmesh-optimizer     -m stretched3D.mesh -rs 1 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -vl 1 -ex -lc 5000 -pa
 //   Constant ideal target with node limiting:
 //     mpirun -np 4 tmop-enzyme-simple -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 2 -art 1 -bnd -qt 1 -qo 8 -ex -lc 5000
 //     mpirun -np 4 pmesh-optimizer     -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 2 -art 1 -bnd -qt 1 -qo 8 -ex -lc 5000
@@ -265,14 +268,18 @@ TargetMatrix(const tensor<scalar_t, dim> &x,
       const auto yc = x(1) - 0.5_r;
       const auto zc = x(2) - 0.5_r;
       const auto r = sqrt(xc * xc + yc * yc + zc * zc);
-      const auto tan1 = tanh(30.0_r * (r - 0.15_r));
-      const auto tan2 = tanh(30.0_r * (r - 0.35_r));
-      auto ind = tan1 - tan2;
-      if (ind > 1.0_r) { ind = 1.0_r; }
-      if (ind < 0.0_r) { ind = 0.0_r; }
+      constexpr auto inner_radius = 0.15_r;
+      constexpr auto outer_radius = 0.35_r;
+      constexpr auto transition_scale = 10.0_r;
+      const auto tan1 = tanh(transition_scale * (r - inner_radius));
+      const auto tan2 = tanh(transition_scale * (r - outer_radius));
+      const auto normalization =
+         tanh(0.5_r * transition_scale * (outer_radius - inner_radius));
+      const auto ind = 0.5_r * (tan1 - tan2) / normalization;
 
       const auto size = ind * 0.005_r + (1.0_r - ind) * 0.1_r;
-      const auto scale = sqrt(size);
+      // Here size is det(W), so an isotropic 3D target uses its cube root.
+      const auto scale = pow(size, 1.0_r / 3.0_r);
       W(0,0) = scale;
       W(1,1) = scale;
       W(2,2) = scale;
@@ -1189,6 +1196,9 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(solver_art_type >= 0 && solver_art_type <= 2,
                "Unknown adaptive relative tolerance option: "
                << solver_art_type);
+   MFEM_VERIFY(mesh_node_order == Ordering::byNODES ||
+               mesh_node_order == Ordering::byVDIM,
+               "Mesh node ordering must be 0 (byNODES) or 1 (byVDIM).");
    MFEM_VERIFY(limit_const >= 0.0,
                "Node limiting constant must be nonnegative.");
    MFEM_VERIFY(limit_const == 0.0 || exact_action,

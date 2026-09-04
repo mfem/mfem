@@ -22,6 +22,10 @@
 // Sample runs and corresponding pmesh-fitting runs:
 // The third command in each case evaluates the level set directly with Enzyme
 // and performs no initial- or background-mesh interpolation.
+//   Adaptive surface-fitting coefficient (2D):
+//     mpirun -np 4 pmesh-fitting         -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -sfa 2 -sft 1e-4 -sfcmax 1e4 -ni 40 -rtol 1e-10 -resid -ae 1
+//     mpirun -np 4 pmesh-fitting-enzyme  -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -sfa 2 -sft 1e-4 -sfcmax 1e4 -ni 40 -rtol 1e-10 -resid -dls -dder 1
+//     mpirun -np 4 pmesh-fitting-enzyme  -o 2 -mid 2 -tid 1 -vl 1 -sfc 10 -sfa 2 -sft 1e-4 -sfcmax 1e4 -ni 40 -rtol 1e-10 -resid -als
 //   Initial-mesh interpolation versus direct analytic evaluation (2D):
 //     mpirun -np 4 pmesh-fitting         -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -ae 1
 //     mpirun -np 4 pmesh-fitting-enzyme  -o 3 -mid 58 -tid 1 -vl 1 -sfc 5e4 -rtol 1e-5 -dls -dder 1
@@ -539,6 +543,15 @@ public:
       if (count > 0) { err_avg /= count; }
    }
 
+   void ScaleCoefficient(real_t factor)
+   {
+      MFEM_VERIFY(factor >= 1.0,
+                  "Surface fitting coefficient scale must be at least one.");
+      coefficient *= factor;
+   }
+
+   real_t GetCoefficient() const { return coefficient; }
+
    /// Copy level-set values at the current mesh nodes for visualization.
    void GetCurrentLevelSet(ParGridFunction &level_set) const
    {
@@ -682,20 +695,28 @@ private:
       const int ndofs = current_fes.GetVSize();
       const int marked_count = marked_dof_indices.Size();
 
+      if (!discrete_from_background &&
+          discrete_derivative_mode == SurfaceFittingOptions::ELEMENT_LOCAL)
+      {
+         // ProjectGrad uses the complete element stencil, so element-local
+         // derivatives require sigma at every nodal DOF, including unmarked
+         // neighbors of fitting DOFs.
+         finder->FindPoints(current_node_pos, Ordering::byNODES);
+         finder->Interpolate(*source_sigma, sigma_samples,
+                             Ordering::byNODES);
+         current_sigma = sigma_samples;
+         return;
+      }
+
       // If no marked DOFs, nothing to interpolate
       if (marked_count == 0)
       {
          sigma_samples.SetSize(ndofs);
          sigma_samples = 0.0;
-         if (discrete_from_background ||
-             discrete_derivative_mode ==
-             SurfaceFittingOptions::INTERPOLATED_SOURCE)
-         {
-            grad_samples.SetSize(ndofs * dim);
-            grad_samples = 0.0;
-            hess_samples.SetSize(ndofs * dim * dim);
-            hess_samples = 0.0;
-         }
+         grad_samples.SetSize(ndofs * dim);
+         grad_samples = 0.0;
+         hess_samples.SetSize(ndofs * dim * dim);
+         hess_samples = 0.0;
          return;
       }
 
@@ -723,42 +744,32 @@ private:
          sigma_samples(marked_dof_indices[i]) = marked_sigma(i);
       }
 
-      if (discrete_from_background ||
-          discrete_derivative_mode ==
-          SurfaceFittingOptions::INTERPOLATED_SOURCE)
+      finder->Interpolate(*source_grad, marked_grad, Ordering::byNODES);
+      finder->Interpolate(*source_hess, marked_hess, Ordering::byNODES);
+
+      // Unpack gradient values
+      grad_samples.SetSize(ndofs * dim);
+      grad_samples = 0.0;
+      for (int d = 0; d < dim; d++)
       {
-         finder->Interpolate(*source_grad, marked_grad, Ordering::byNODES);
-         finder->Interpolate(*source_hess, marked_hess, Ordering::byNODES);
-
-         // Unpack gradient values
-         grad_samples.SetSize(ndofs * dim);
-         grad_samples = 0.0;
-         for (int d = 0; d < dim; d++)
+         for (int i = 0; i < marked_count; i++)
          {
-            for (int i = 0; i < marked_count; i++)
-            {
-               grad_samples(marked_dof_indices[i] + d * ndofs) =
-                  marked_grad(i + d * marked_count);
-            }
-         }
-
-         // Unpack Hessian values
-         const int hess_dim = dim * dim;
-         hess_samples.SetSize(ndofs * hess_dim);
-         hess_samples = 0.0;
-         for (int h = 0; h < hess_dim; h++)
-         {
-            for (int i = 0; i < marked_count; i++)
-            {
-               hess_samples(marked_dof_indices[i] + h * ndofs) =
-                  marked_hess(i + h * marked_count);
-            }
+            grad_samples(marked_dof_indices[i] + d * ndofs) =
+               marked_grad(i + d * marked_count);
          }
       }
-      else
+
+      // Unpack Hessian values
+      const int hess_dim = dim * dim;
+      hess_samples.SetSize(ndofs * hess_dim);
+      hess_samples = 0.0;
+      for (int h = 0; h < hess_dim; h++)
       {
-         // Element-local derivatives are packed later, one element at a time.
-         current_sigma = sigma_samples;
+         for (int i = 0; i < marked_count; i++)
+         {
+            hess_samples(marked_dof_indices[i] + h * ndofs) =
+               marked_hess(i + h * marked_count);
+         }
       }
 #else
       MFEM_ABORT("Discrete surface fitting requires GSLIB.");
@@ -972,6 +983,25 @@ public:
    void GetSurfaceErrors(real_t &err_avg, real_t &err_max) const
    {
       surface_data->GetErrors(err_avg, err_max);
+   }
+
+   void ScaleCoefficient(real_t factor)
+   {
+      surface_data->ScaleCoefficient(factor);
+      if (is_analytic)
+      {
+         surface_coeff_qdata *= factor;
+      }
+      else
+      {
+         surface_data->FillQuadratureData(*current_nodes, surface_qspace,
+                                          *surface_qdata);
+      }
+   }
+
+   real_t GetCoefficient() const
+   {
+      return surface_data->GetCoefficient();
    }
 
    /// Copy current level-set samples into a nodal grid function.
@@ -1198,6 +1228,16 @@ public:
    void GetSurfaceErrors(real_t &err_avg, real_t &err_max) const
    {
       surface_state_mgr.GetSurfaceErrors(err_avg, err_max);
+   }
+
+   void ScaleSurfaceFittingCoefficient(real_t factor)
+   {
+      surface_state_mgr.ScaleCoefficient(factor);
+   }
+
+   real_t GetSurfaceFittingCoefficient() const
+   {
+      return surface_state_mgr.GetCoefficient();
    }
 
    /// Expose state updates to the nonlinear solver callback.
@@ -1445,6 +1485,21 @@ public:
       functional.GetSurfaceStateManager().UpdateAfterMeshPositionChange(x_abs);
    }
 
+   void GetSurfaceFittingErrors(real_t &err_avg, real_t &err_max) const
+   {
+      functional.GetSurfaceErrors(err_avg, err_max);
+   }
+
+   void ScaleSurfaceFittingCoefficient(real_t factor)
+   {
+      functional.ScaleSurfaceFittingCoefficient(factor);
+   }
+
+   real_t GetSurfaceFittingCoefficient() const
+   {
+      return functional.GetSurfaceFittingCoefficient();
+   }
+
    /// Evaluate total energy for a displacement from the reference mesh.
    real_t GetEnergy(const Vector &dx) const override
    {
@@ -1490,6 +1545,54 @@ public:
       : TMOPNewtonSolver(comm, ir, 0),
         enzyme_nlf(nlf_) { }
 
+   void ConfigureAdaptiveSurfaceFitting(real_t scale_factor,
+                                        real_t max_error,
+                                        real_t weight_limit,
+                                        bool converge_by_error)
+   {
+      MFEM_VERIFY(scale_factor > 1.0,
+                  "Adaptive surface fitting scale must be greater than one.");
+      MFEM_VERIFY(weight_limit > 0.0,
+                  "Surface fitting weight limit must be positive.");
+      MFEM_VERIFY(!converge_by_error || max_error >= 0.0,
+                  "Error-based surface fitting requires a nonnegative "
+                  "error threshold.");
+      surf_fit_scale_factor = scale_factor;
+      surf_fit_max_err_limit = max_error;
+      surf_fit_weight_limit = weight_limit;
+      surf_fit_converge_error = converge_by_error;
+   }
+
+   void ResetAdaptiveSurfaceFittingState() const
+   {
+      previous_surf_fit_avg_error = 10000.0;
+      update_surface_fit_coefficient = false;
+      surf_fit_adapt_count = 0;
+   }
+
+   real_t ComputeScalingFactor(const Vector &dx,
+                               const Vector &b) const override
+   {
+      if (surf_fit_scale_factor > 0.0)
+      {
+         real_t avg_error = 0.0, max_error = 0.0;
+         enzyme_nlf.GetSurfaceFittingErrors(avg_error, max_error);
+         if ((surf_fit_converge_error &&
+              max_error <= surf_fit_max_err_limit) ||
+             surf_fit_adapt_count >= surf_fit_adapt_count_limit)
+         {
+            return 0.0;
+         }
+      }
+
+      const real_t scale = TMOPNewtonSolver::ComputeScalingFactor(dx, b);
+      if (scale > 0.0 && surf_fit_scale_factor > 0.0)
+      {
+         update_surface_fit_coefficient = true;
+      }
+      return scale;
+   }
+
    /// Synchronize fitting fields with each Newton or line-search state.
    void ProcessNewState(const Vector &dx) const override
    {
@@ -1499,10 +1602,54 @@ public:
       // Update the discrete fitting fields for every Newton or line-search
       // state before its energy, residual, or Hessian is evaluated.
       enzyme_nlf.UpdateSurfaceFittingState(x_abs);
+
+      if (!update_surface_fit_coefficient) { return; }
+
+      real_t avg_error = 0.0, max_error = 0.0;
+      enzyme_nlf.GetSurfaceFittingErrors(avg_error, max_error);
+      const real_t coefficient = enzyme_nlf.GetSurfaceFittingCoefficient();
+      const real_t relative_change =
+         (previous_surf_fit_avg_error - avg_error) /
+         previous_surf_fit_avg_error;
+      const bool should_increase =
+         relative_change < surf_fit_err_rel_change_limit &&
+         coefficient < surf_fit_weight_limit &&
+         (surf_fit_converge_error || max_error > surf_fit_max_err_limit);
+
+      if (should_increase)
+      {
+         const real_t factor =
+            std::min(surf_fit_scale_factor,
+                     surf_fit_weight_limit / coefficient);
+         enzyme_nlf.ScaleSurfaceFittingCoefficient(factor);
+         surf_fit_adapt_count++;
+         if (print_options.iterations && Mpi::Root())
+         {
+            std::cout << "Adaptive surface fitting: fit_avg=" << avg_error
+                      << ", fit_max=" << max_error
+                      << ", coefficient="
+                      << enzyme_nlf.GetSurfaceFittingCoefficient() << '\n';
+         }
+      }
+      else
+      {
+         surf_fit_adapt_count = 0;
+      }
+      previous_surf_fit_avg_error = avg_error;
+      update_surface_fit_coefficient = false;
    }
 
 private:
    EnzymeFittingNonlinearForm<dim> &enzyme_nlf;
+   real_t surf_fit_scale_factor = 0.0;
+   real_t surf_fit_max_err_limit = -1.0;
+   real_t surf_fit_err_rel_change_limit = 0.001;
+   real_t surf_fit_weight_limit = 1.0e20;
+   bool surf_fit_converge_error = false;
+   mutable real_t previous_surf_fit_avg_error = 10000.0;
+   mutable bool update_surface_fit_coefficient = false;
+   mutable int surf_fit_adapt_count = 0;
+   int surf_fit_adapt_count_limit = 10;
 };
 
 /// Compute the communicator-wide minimum element Jacobian determinant.
@@ -1733,6 +1880,10 @@ int RunOptimizer(ParMesh &pmesh,
                  int verbosity,
                  const SurfaceFittingOptions &surface_options,
                  real_t surface_fit_tolerance,
+                 real_t surface_fit_adapt,
+                 real_t surface_fit_threshold,
+                 real_t surface_fit_weight_limit,
+                 bool surface_fit_converge_error,
                  ParGridFunction &final_level_set)
 {
    Vector true_nodes(fes.GetTrueVSize());
@@ -1812,9 +1963,20 @@ int RunOptimizer(ParMesh &pmesh,
    solver.SetMaxIter(solver_iter);
    solver.SetRelTol(solver_rtol);
    solver.SetAbsTol(solver_atol);
-   if (solver_art_type > 0)
+   if (solver_art_type > 0 && surface_fit_adapt <= 0.0)
    {
       solver.SetAdaptiveLinRtol(solver_art_type, 0.5, 0.9);
+   }
+   else if (solver_art_type > 0 && Mpi::Root() && verbosity > 0)
+   {
+      std::cout << "Disabling adaptive linear tolerance while the surface "
+                << "fitting coefficient is adaptive.\n";
+   }
+   if (surface_fit_adapt > 0.0)
+   {
+      solver.ConfigureAdaptiveSurfaceFitting(
+         surface_fit_adapt, surface_fit_threshold,
+         surface_fit_weight_limit, surface_fit_converge_error);
    }
    IterativeSolver::PrintLevel newton_print;
    if (verbosity > 0) { newton_print.Errors().Warnings().Iterations(); }
@@ -1822,6 +1984,40 @@ int RunOptimizer(ParMesh &pmesh,
 
    Vector zero;
    solver.Mult(zero, true_nodes);
+
+   if (surface_fit_adapt > 0.0 && surface_fit_converge_error &&
+       surface_fit_tolerance >= 0.0)
+   {
+      for (int stage = 0; stage < 10; stage++)
+      {
+         functional.GetSurfaceStateManager().UpdateAfterMeshPositionChange(
+            true_nodes);
+         real_t stage_fit_avg = 0.0, stage_fit_max = 0.0;
+         functional.GetSurfaceErrors(stage_fit_avg, stage_fit_max);
+         if (stage_fit_max <= surface_fit_tolerance ||
+             functional.GetSurfaceFittingCoefficient() >=
+             surface_fit_weight_limit)
+         {
+            break;
+         }
+
+         const real_t factor = std::min(
+            surface_fit_adapt,
+            surface_fit_weight_limit /
+            functional.GetSurfaceFittingCoefficient());
+         functional.ScaleSurfaceFittingCoefficient(factor);
+         if (Mpi::Root() && verbosity > 0)
+         {
+            std::cout << "Restarting surface fit: fit_avg=" << stage_fit_avg
+                      << ", fit_max=" << stage_fit_max
+                      << ", coefficient="
+                      << functional.GetSurfaceFittingCoefficient() << '\n';
+         }
+         nonlinear_form.SetReference(true_nodes);
+         solver.ResetAdaptiveSurfaceFittingState();
+         solver.Mult(zero, true_nodes);
+      }
+   }
 
    nodes.SetFromTrueDofs(true_nodes);
    pmesh.SetNodalGridFunction(&nodes);
@@ -1838,7 +2034,10 @@ int RunOptimizer(ParMesh &pmesh,
    functional.GetSurfaceErrors(fit_avg, fit_max);
    functional.GetSurfaceStateManager().GetCurrentLevelSet(final_level_set);
 
-   bool converged = solver.GetConverged();
+   bool converged = surface_fit_converge_error &&
+                    surface_fit_tolerance >= 0.0 ?
+                    fit_max <= surface_fit_tolerance :
+                    solver.GetConverged();
    if (surface_fit_tolerance > 0.0 && fit_max <= surface_fit_tolerance)
    {
       converged = true;
@@ -1895,7 +2094,7 @@ int main(int argc, char *argv[])
    int rp_levels = 0;
    int metric_id = 2;
    int target_id = 1;
-   real_t surface_fit_const = 100.0;
+   real_t surface_fit_const = 10.0;
    int quad_type = 1;
    int quad_order = 8;
    int solver_type = 0;
@@ -1916,9 +2115,9 @@ int main(int argc, char *argv[])
    int discrete_derivative_mode =
       SurfaceFittingOptions::INTERPOLATED_SOURCE;
    const char *devopt = "cpu";
-   real_t surface_fit_adapt = 0.0;
-   real_t surface_fit_threshold = -10.0;
-   real_t surface_fit_const_max = 1e20;
+   real_t surface_fit_adapt = 2.0;
+   real_t surface_fit_threshold = 1.0e-4;
+   real_t surface_fit_const_max = 1.0e4;
    bool adapt_marking = false;
    bool surf_bg_mesh = false;
    bool comp_dist = false;
@@ -1985,11 +2184,12 @@ int main(int argc, char *argv[])
    args.AddOption(&devopt, "-d", "--device",
                   "Device configuration string, see Device::Configure().");
    args.AddOption(&surface_fit_adapt, "-sfa", "--adaptive-surface-fit",
-                  "Adaptive fitting-weight scaling (not yet supported).");
+                  "Factor (> 1) used to increase a stalled surface fitting "
+                  "weight; zero disables adaptation.");
    args.AddOption(&surface_fit_threshold, "-sft", "--surf-fit-threshold",
                   "Maximum fitting error for error-based termination.");
    args.AddOption(&surface_fit_const_max, "-sfcmax", "--surf-fit-const-max",
-                  "Maximum adaptive fitting weight (not yet supported).");
+                  "Maximum adaptive fitting weight.");
    args.AddOption(&adapt_marking, "-marking", "--adaptive-marking",
                   "-no-amarking", "--no-adaptive-marking",
                   "Adaptive marking (not yet supported).");
@@ -2064,15 +2264,16 @@ int main(int argc, char *argv[])
                "Surface fitting marking must be nonnegative.");
    MFEM_VERIFY(mesh_node_ordering == Ordering::byNODES ||
                mesh_node_ordering == Ordering::byVDIM,
-               "Mesh node ordering must be 0 or 1.");
+               "Mesh node ordering must be 0 (byNODES) or 1 (byVDIM).");
    MFEM_VERIFY(conv_residual || surface_fit_threshold > 0.0,
                "Error-based convergence (-no-resid) requires a positive "
                "surface fitting threshold (-sft).");
-   MFEM_VERIFY(surface_fit_adapt == 0.0,
-               "Adaptive surface fitting weights (-sfa) are not yet "
-               "supported by pmesh-fitting-enzyme.");
-   MFEM_VERIFY(surface_fit_const_max > 0.0,
-               "Maximum surface fitting coefficient must be positive.");
+   MFEM_VERIFY(surface_fit_adapt == 0.0 || surface_fit_adapt > 1.0,
+               "Adaptive surface fitting factor must be zero (disabled) "
+               "or greater than one.");
+   MFEM_VERIFY(surface_fit_const_max >= surface_fit_const,
+               "Maximum surface fitting coefficient must be at least the "
+               "initial coefficient.");
    MFEM_VERIFY(!adapt_marking && !material,
                "Adaptive marking and material-attribute marking are not yet "
                "supported by pmesh-fitting-enzyme.");
@@ -2299,7 +2500,9 @@ int main(int argc, char *argv[])
                          min_detJ, solver_iter, solver_rtol, solver_atol,
                          lin_solver, solver_art_type, max_lin_iter,
                          metric_id, verbosity, surface_options,
-                         fitting_tolerance, surface_gf0);
+                         fitting_tolerance, surface_fit_adapt,
+                         surface_fit_threshold, surface_fit_const_max,
+                         !conv_residual, surface_gf0);
 
    SaveMesh(pmesh, "optimized.mesh");
    if (visualization)

@@ -33,90 +33,92 @@
 //
 // Sample runs:
 //   Adapted analytic shape:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 2 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //   Adapted analytic size+orientation:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 14 -tid 4 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //   Adapted analytic shape+orientation (AD):
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 3 -rs 2 -mid 85 -tid 4 -ni 100 -bnd -qt 1 -qo 8 -rtol 1e-6 -no-vis
 //
 //   Adapted analytic shape and/or size with hr-adaptivity:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 10 -ni 50 -li 20 -hmid 55 -mid 7 -hr
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 9  -ni 50 -li 20 -hmid 55 -mid 7 -hr -no-vis
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 10 -ni 50 -li 20 -hmid 55 -mid 7 -hr -no-vis
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -tid 11 -ni 50 -li 20 -hmid 58 -mid 7 -hr -no-vis
 //
 //   Adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -no-vis
 //     (requires GSLIB):
-//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1
+//   * mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 80 -tid 5 -ni 50 -qo 4 -nor -mno 1 -ae 1 -no-vis
 //   Adapted discrete size NC mesh;
-//     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor
+//     mpirun -np 4 pmesh-optimizer -m amr-quad-q2.mesh -o 2 -rs 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -no-vis
 //   Adapted discrete size NC mesh (GPU+GSLIB);
-//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug
+//   * mpirun -np 4 pmesh-optimizer -m ../../data/amr-hex.mesh -o 2 -rs 1 -mid 321 -tid 5 -fix-bnd -ni 50 -qo 6 -nor -vl 2 -ae 1 -d debug -no-vis
 //   Adapted discrete size 3D with PA:
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -rtol 1e-8
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 321 -tid 5 -ls 3 -nor -pa -ae 1 -rtol 1e-8 -no-vis
 //   Adapted discrete size 3D with PA on device (requires CUDA):
-//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda
+//   * mpirun -n 4 pmesh-optimizer -m cube.mesh -o 3 -rs 3 -mid 321 -tid 5 -ls 3 -nor -lc 0.1 -pa -d cuda -no-vis
 //   Adapted discrete size; explicit combo of metrics; mixed tri/quad mesh:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor
+//     mpirun -np 4 pmesh-optimizer -m ../../data/square-mixed.mesh -o 2 -rs 2 -mid 2 -tid 5 -ni 200 -bnd -qo 6 -cmb 2 -nor -no-vis
 //   Adapted discrete size+aspect_ratio:
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 7 -tid 6 -ni 100 -no-vis
 //   Adapted discrete size+orientation (AD):
-//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6
+//     mpirun -np 4 pmesh-optimizer -m square01.mesh -o 2 -rs 2 -mid 36 -tid 8 -qo 4 -nor -rtol 1e-6 -no-vis
 //   Adapted discrete aspect ratio (3D):
-//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m cube.mesh -o 2 -rs 2 -mid 302 -tid 7 -ni 20 -bnd -qt 1 -qo 8 -no-vis
 //
 //   Periodic 2D + adapted discrete size:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor
-//     mpirun -np 4 pmesh-optimizer -m periodic-tri.mesh -o 2 -rs 3 -mid 94 -tid 5 -qo 4 -nor
+//     mpirun -np 4 pmesh-optimizer -m ../../data/periodic-square.mesh -o 2 -rs 4 -mid 94 -tid 5 -qo 4 -nor -no-vis
+//     mpirun -np 4 pmesh-optimizer -m periodic-tri.mesh -o 2 -rs 3 -mid 94 -tid 5 -qo 4 -nor -no-vis
 //   Periodic 3D + adapted discrete size + PA:
-//     mpirun -np 4 pmesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa
+//     mpirun -np 4 pmesh-optimizer -m periodic-cube.mesh -o 2 -rs 2 -mid 338 -tid 5 -nor -rtol 1e-6 -qo 4 -pa -no-vis
 //   Periodic 2D NC mesh + adapted discrete size + PA:
 //     (the mesh is in the mfem/data GitHub repository)
-//   * mpirun -np 4 pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa
+//   * mpirun -np 4 pmesh-optimizer -m ../../../data/periodic/per-amr-square.mesh -o 2 -mid 94 -tid 5 -ni 50 -qo 4 -nor -pa -no-vis
 //
 //   Adaptive limiting:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -rs 1 -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 1.0
-//     mpirun -np 8 pmesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -nor -vl 1 -alc 2.0 -pa
+//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -rs 1 -o 2 -mid 2 -tid 1 -ni 50 -qo 5 -nor -vl 1 -alc 1.0 -no-vis
+//     mpirun -np 8 pmesh-optimizer -m stretched3D.mesh -rs 2 -o 2 -mid 302 -tid 1 -rtol 1e-7 -qo 5 -nor -vl 1 -alc 2.0 -pa -no-vis
 //   Adaptive limiting through the L-BFGS solver:
-//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 1.0 -st 1 -rtol 1e-8
+//     mpirun -np 4 pmesh-optimizer -m stretched2D.mesh -o 2 -mid 2 -tid 1 -ni 400 -qo 5 -nor -vl 1 -alc 1.0 -st 1 -rtol 1e-8 -no-vis
 //
 //   Blade shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -no-vis
 //   Blade shape + bounded Jacobian determinant:
-//     * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -db
+//     * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -db -no-vis
 //   Blade shape (AD):
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 11 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -no-vis
 //     (requires CUDA):
-//   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda
+//   * mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -ni 30 -ls 3 -art 1 -bnd -qt 1 -qo 8 -d cuda -no-vis
 //   Blade limited shape:
-//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000
+//     mpirun -np 4 pmesh-optimizer -m blade.mesh -o 4 -mid 2 -tid 1 -bnd -qt 1 -qo 8 -lc 5000 -no-vis
 //   ICF shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 80 -bec -tid 2 -ni 25 -ls 3 -art 2 -qo 5 -no-vis
 //   ICF shape and initial size:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 9 -tid 3 -ni 30 -ls 3 -bnd -qt 1 -qo 8 -no-vis
 //   ICF shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -no-vis
 //   ICF limited shape:
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 100 -bnd -qt 1 -qo 8 -lc 10 -no-vis
 //   ICF combo shape + size (rings, slow convergence):
-//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1
+//     mpirun -np 4 pmesh-optimizer -o 3 -mid 1 -tid 1 -ni 1000 -bnd -qt 1 -qo 8 -cmb 1 -no-vis
 //   Mixed tet / cube / hex mesh with limiting:
-//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25
+//     mpirun -np 4 pmesh-optimizer -m ../../data/fichera-mixed-p2.mesh -o 4 -rs 1 -mid 301 -tid 1 -fix-bnd -qo 6 -nor -lc 0.25 -no-vis
 //   3D pinched sphere shape (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd
+//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/ball-pert.mesh -o 4 -mid 303 -tid 1 -ni 20 -li 500 -fix-bnd -no-vis
 //   2D non-conforming shape and equal size:
-//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8
+//     mpirun -np 4 pmesh-optimizer -m ./amr-quad-q2.mesh -o 2 -rs 1 -mid 9 -tid 2 -ni 200 -bnd -qt 1 -qo 8 -no-vis
 //
 //   2D untangling:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 22 -tid 1 -ni 50 -li 50 -qo 4 -fd -vl 1 -no-vis
 //   2D untangling with shifted barrier metric:
-//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -vl 1 -btype 1
+//     mpirun -np 4 pmesh-optimizer -m jagged.mesh -o 2 -mid 4 -tid 1 -ni 50 -qo 4 -vl 1 -btype 1 -no-vis
 //   3D untangling (the mesh is in the mfem/data GitHub repository):
-//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1
+//   * mpirun -np 4 pmesh-optimizer -m ../../../mfem_data/cube-holes-inv.mesh -o 3 -mid 313 -tid 1 -rtol 1e-5 -li 50 -qo 4 -fd -vl 1 -no-vis
 //   Shape optimization for a Kershaw transformed mesh using partial assembly:
 //   Mesh for Kershaw transformation must be a Cartesian mesh with nx % 6 = ny % 2 = nz % 2 = 0.
 //   Kershaw transformation can be imposed using the transformation ('t') feature in the mesh-explorer miniapp.
-//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -pa
+//   * mpirun - np 6 pmesh-optimizer -m kershaw-24x24x24.mesh -mid 303 -tid 1 -bnd -ni 100 -art 1 -ls 3 -qo 8 -li 40 -o 2 -pa -no-vis
+//   Generated 6x6x6 mesh with epsy = epsz = 0.3 and axis-aligned boundary attributes:
+//   * mpirun -np 6 pmesh-optimizer -m ../../data/kershaw-hex-6x6x6-eps0.3.mesh -o 2 -mid 303 -tid 1 -ni 100 -ls 3 -art 1 -bnd -qt 1 -qo 8 -pa -no-vis
 
 #include "mfem.hpp"
 #include "../common/mfem-common.hpp"
@@ -673,7 +675,11 @@ int main (int argc, char *argv[])
          }
          ConstructSizeGF(size);
          tc->SetParDiscreteTargetSize(size);
-         tc->SetMinSizeForTargets(size.Min());
+         real_t min_size = size.Min();
+         MPI_Allreduce(MPI_IN_PLACE, &min_size, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                       pmesh->GetComm());
+         tc->SetMinSizeForTargets(min_size);
          target_c = tc;
          break;
       }
@@ -776,7 +782,11 @@ int main (int argc, char *argv[])
          DiffuseField(aspr, 2);
 
          tc->SetParDiscreteTargetSize(size);
-         tc->SetMinSizeForTargets(size.Min());
+         real_t min_size = size.Min();
+         MPI_Allreduce(MPI_IN_PLACE, &min_size, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                       pmesh->GetComm());
+         tc->SetMinSizeForTargets(min_size);
          tc->SetParDiscreteTargetAspectRatio(aspr);
          target_c = tc;
          break;
@@ -823,7 +833,11 @@ int main (int argc, char *argv[])
          ConstantCoefficient size_coeff(0.1*0.1);
          size.ProjectCoefficient(size_coeff);
          tc->SetParDiscreteTargetSize(size);
-         tc->SetMinSizeForTargets(size.Min());
+         real_t min_size = size.Min();
+         MPI_Allreduce(MPI_IN_PLACE, &min_size, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                       pmesh->GetComm());
+         tc->SetMinSizeForTargets(min_size);
 
          FunctionCoefficient ori_coeff(discrete_ori_2d);
          ori.ProjectCoefficient(ori_coeff);

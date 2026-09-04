@@ -740,6 +740,7 @@ int main (int argc, char *argv[])
                  "Kershaw transform works for 2D meshes also.\n" << flush;
 
             real_t epsy, epsz = 0.0;
+            int smooth;
             cout << "Kershaw transform factor, epsy in (0, 1]) ---> " << flush;
             cin >> epsy;
             if (mesh->Dimension() == 3)
@@ -747,7 +748,10 @@ int main (int argc, char *argv[])
                cout << "Kershaw transform factor, epsz in (0, 1]) ---> " << flush;
                cin >> epsz;
             }
-            common::KershawTransformation kershawT(mesh->Dimension(), epsy, epsz);
+            cout << "Kershaw smoothing parameter in [1, 3] ---> " << flush;
+            cin >> smooth;
+            common::KershawTransformation kershawT(mesh->Dimension(), epsy,
+                                                    epsz, smooth);
             mesh->Transform(kershawT);
          }
          else if (type == 's')

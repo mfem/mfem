@@ -30,6 +30,9 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
 	phpref mesh-bounding-boxes pmesh-digital-twin
+ifeq ($(MFEM_USE_ENZYME),YES)
+   PAR_MINIAPPS += pmesh-optimizer-enzyme
+endif
 ifeq ($(MFEM_USE_ENZYME)-$(MFEM_USE_GSLIB),YES-YES)
    PAR_MINIAPPS += pmesh-fitting-enzyme
 endif
@@ -56,6 +59,8 @@ COMMON_LIB += $(if $(MFEM_SHARED:YES=),,\
 %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
 	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(COMMON_LIB) $(MFEM_LIBS)
 
+pmesh-optimizer-enzyme: $(SRC)pmesh-optimizer-enzyme-common.hpp
+
 all: $(MINIAPPS)
 
 # Rule for building lib-common
@@ -69,8 +74,8 @@ MESH_FILES = amr-quad-q2.mesh blade.mesh cube.mesh cube-tet.mesh icf.mesh\
 jagged.mesh square01.mesh square01-tri.mesh stretched2D.mesh stretched3D.mesh
 $(MESH_FILES): %: $(SRC)%
 	ln -sf $(<) .
-mesh-optimizer pmesh-optimizer pmesh-fitting pmesh-fitting-enzyme\
-fit-node-position: | $(MESH_FILES)
+mesh-optimizer pmesh-optimizer pmesh-optimizer-enzyme pmesh-fitting\
+pmesh-fitting-enzyme fit-node-position: | $(MESH_FILES)
 .PHONY: copy-data
 copy-data: | $(MESH_FILES)
 endif

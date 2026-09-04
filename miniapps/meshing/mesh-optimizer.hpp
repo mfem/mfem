@@ -133,7 +133,9 @@ void ConstructSizeGF(GridFunction &size)
    NCMesh *ncmesh = mesh.ncmesh;
    // For parallel NC meshes, all tasks have all root elements.
    NE = (ncmesh) ? ncmesh->GetNumRootElements() : NE;
-   const real_t size_ratio = (mesh.Dimension() == 2) ? 9 : 27;
+   // Keep the 2D linear-size ratio at 3 and make the 3D target moderately
+   // stronger by increasing its linear-size ratio from 3 to 4.
+   const real_t size_ratio = (mesh.Dimension() == 2) ? 9 : 64;
    const real_t small_el_size = volume_ind / NE +
                                 (volume - volume_ind) / (size_ratio * NE);
    const real_t big_el_size   = size_ratio * small_el_size;
@@ -319,23 +321,33 @@ public:
             const real_t zc = pos(2) - 0.5;
             r = sqrt(xc*xc + yc*yc + zc*zc);
          }
-         real_t r1 = 0.15; real_t r2 = 0.35; real_t sf=30.0;
+         const real_t r1 = 0.15, r2 = 0.35;
+         const real_t sf = (dim == 3) ? 10.0 : 30.0;
 
          const real_t tan1 = std::tanh(sf*(r-r1)),
                       tan2 = std::tanh(sf*(r-r2));
 
-         real_t ind = (tan1 - tan2);
-         if (ind > 1.0) {ind = 1.;}
-         if (ind < 0.0) {ind = 0.;}
+         real_t ind = tan1 - tan2;
+         if (dim == 3)
+         {
+            ind *= 0.5 / std::tanh(0.5 * sf * (r2 - r1));
+         }
+         else
+         {
+            if (ind > 1.0) { ind = 1.0; }
+            if (ind < 0.0) { ind = 0.0; }
+         }
          real_t val = ind * small + (1.0 - ind) * big;
+         // val is det(W), so the isotropic length scale is val^(1/dim).
+         const real_t scale = std::pow(val, 1.0 / dim);
          K = 0.0;
          K(0, 0) = 1.0;
          K(0, 1) = 0.0;
          K(1, 0) = 0.0;
          K(1, 1) = 1.0;
-         K(0, 0) *= pow(val,0.5);
-         K(1, 1) *= pow(val,0.5);
-         if (dim == 3) { K(2, 2) = pow(val,0.5); }
+         K(0, 0) *= scale;
+         K(1, 1) *= scale;
+         if (dim == 3) { K(2, 2) = scale; }
       }
       else if (hr_target_type == 1) // circle with size and AR
       {

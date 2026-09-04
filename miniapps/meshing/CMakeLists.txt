@@ -131,6 +131,14 @@ if (MFEM_USE_MPI)
     LIBRARIES mfem-common)
   add_dependencies(pmesh-optimizer copy_miniapps_meshing_data)
 
+  if (MFEM_USE_ENZYME)
+    add_mfem_miniapp(pmesh-optimizer-enzyme
+      MAIN pmesh-optimizer-enzyme.cpp
+      ${MFEM_MINIAPPS_COMMON_HEADERS}
+      LIBRARIES mfem-common)
+    add_dependencies(pmesh-optimizer-enzyme copy_miniapps_meshing_data)
+  endif()
+
   add_mfem_miniapp(pmesh-fitting
     MAIN pmesh-fitting.cpp
     ${MFEM_MINIAPPS_COMMON_HEADERS}
