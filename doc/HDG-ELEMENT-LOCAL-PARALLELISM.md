@@ -27,23 +27,36 @@ worth touching. Batching the factorisation that runs once per *linearisation*
 is a different job from §1's: it lives inside `ComputeElementH()`, already in
 the threaded loop, and would need a pre-pass before it.
 
-## 0. Neither *committed* tree can compile the threaded path
+## 0. Not a to-do: build flags are the end user's, not ours
 
-`MFEM_USE_OPENMP` and `MFEM_THREAD_SAFE` are both `NO` in
-`/home/ian/projects/mfem-hdg-dev` and `/home/ian/projects/mfem-hdg-par-dev`, so
-there `SetAssemblyMode(Threaded)` **aborts** rather than downgrading, by design;
-`tests/unit/fem/test_darcy_threaded_assembly.cpp` compiles to a bare `WARN`,
-leaving **the threaded path with no coverage in the suite as configured**; and
-`LocalFactorMode::Batched` runs only `BatchedLinAlg`'s NATIVE backend (no CUDA,
-no HIP, no MAGMA), an `mfem::forall` reducing to a serial host loop — so
-batching is covered for correctness and not for speed.
+**An earlier version of this section was miscast** and is corrected rather than
+edited away. It read as though this branch owed someone a configuration --
+"neither committed tree can compile the threaded path" listed as work. It is
+not work. MFEM configuration is not shipped: `config/user.mk` and the build
+trees here are developer-local, upstream discards them, and an end user picks
+their own flags when they build the library. That the two trees in this
+workspace happen to be `MFEM_USE_OPENMP=NO` is an operational fact about this
+workstation, and `CLAUDE.md` is where it belongs.
 
-**A third tree fixes all of that and the recipe is in `CLAUDE.md`.** Built
-out of source with `MFEM_USE_OPENMP=YES MFEM_THREAD_SAFE=YES`, the threaded
-assembly case runs **71,024 assertions** instead of warning, and the whole
-element-local programme becomes measurable. Every number in §2 below was taken
-in one. **Any timing claim here needs that tree**; a claim taken in a committed
-tree is a claim about a serial loop.
+What *is* worth knowing, and is about the tests rather than about us:
+
+**Nothing upstream currently builds would run either threading test case.**
+`AssemblyMode::Threaded` needs `MFEM_USE_OPENMP` **and** `MFEM_THREAD_SAFE`,
+and:
+
+* no GitHub workflow sets either -- every "openmp" string in `.github/` is
+  `openmpi`, which is a different flag and an easy grep to misread;
+* no GitLab job sets either;
+* the one in-tree target that enables OpenMP, `make hpc` (`makefile:545`),
+  sets `MFEM_USE_OPENMP=YES` but **not** `MFEM_THREAD_SAFE`, and additionally
+  requires OCCA and RAJA. Only the deprecated `MFEM_USE_LEGACY_OPENMP` forces
+  thread-safety (`makefile:298`).
+
+So both cases degrade to their `WARN` everywhere upstream builds. That is not
+a defect -- it is what an optional feature's tests do -- but it is unlike the
+`[Parallel]` tests, which have CI that runs them. A reviewer should know the
+coverage is conditional, and the `WARN` in the test says so at the point
+someone would ask.
 
 ## 2. `MultNL` — DONE
 

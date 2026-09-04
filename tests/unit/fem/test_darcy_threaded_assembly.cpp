@@ -431,7 +431,11 @@ TEST_CASE("A threaded nonlinear element loop is bit-for-bit the serial one",
    omp_set_num_threads(saved_threads);
 #else
    WARN("Threaded nonlinear assembly needs MFEM_USE_OPENMP and "
-        "MFEM_THREAD_SAFE; this build has neither or only one.");
+        "MFEM_THREAD_SAFE; this build has neither or only one, so nothing "
+        "was checked. No CI configuration in this repository sets both -- "
+        "make hpc enables OpenMP without thread safety, and only the "
+        "deprecated MFEM_USE_LEGACY_OPENMP forces it -- so this case is "
+        "inert unless someone configures for it deliberately.");
 #endif
 }
 
