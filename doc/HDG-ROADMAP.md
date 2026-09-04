@@ -135,8 +135,9 @@ not. The number is kept only so commit messages citing "§6" land somewhere.
 **`h` is done and tested. `p` is `gf-hdg-p-adaptivity`'s**, where steps 1–3 of
 the plan are built (a per-face trace order behind two accessors, the surplus
 constrained, `convdiff -pref`) along with an `hp` demonstrator, a smoothness
-sensor and the parallel port. `doc/HDG-P-ADAPTIVITY.md` here is a stub pointing
-there.
+sensor and the parallel port. **The plan lives on that branch** —
+`doc/HDG-P-ADAPTIVITY.md` plus `HDG-P-ADAPTIVITY-CONSTRAIN.md` and
+`HDG-P-ADAPTIVITY-MEQ-MERGE.md` — and not here, so read it there.
 
 What the scoping established, since it is why that is a separate branch at all:
 the element spaces are **already** `p`-adaptive and need no library change —
