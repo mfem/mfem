@@ -20,7 +20,7 @@ namespace mfem
 
 /// Forward declarations needed below
 class Field;
-class GraphNode;
+class GraphOperator;
 class DAGraph;
 class DualGraph;
 struct GraphOperation;
@@ -133,7 +133,7 @@ public:
 class Field
 {
 public:
-    friend class GraphNode;
+    friend class GraphOperator;
 
 private:
     inline static int next_id = 0;
@@ -386,7 +386,7 @@ struct GraphOperationGradient : GraphOperation
     }
 };
 
-class GraphNode : public Operator
+class GraphOperator : public Operator
 {
 public:
     enum ExecutionMode
@@ -407,11 +407,11 @@ protected:
 
 public:
 
-    GraphNode(int h, int w) : Operator(h,w), id(GetValidID(-1,next_id)),
-                              name("GraphNode_" + std::to_string(id))
+    GraphOperator(int h, int w) : Operator(h,w), id(GetValidID(-1,next_id)),
+                              name("GraphOperator_" + std::to_string(id))
                               { }
 
-    GraphNode(int s = 0) : GraphNode(s, s) { }
+    GraphOperator(int s = 0) : GraphOperator(s, s) { }
 
     void SetExecutionMode(ExecutionMode mode) { exec_mode = mode; }
     ExecutionMode GetExecutionMode() const { return exec_mode; }
@@ -445,7 +445,7 @@ public:
 
     // Register fields with that takes additional, auxiliary information
     template<typename AuxType,
-             typename GraphOpType = AbstractGraphOperation<GraphNode, AuxType>,
+             typename GraphOpType = AbstractGraphOperation<GraphOperator, AuxType>,
              typename ExecuteFunc = typename GraphOpType::ExecuteFunc,
              typename GradFunc =typename GraphOpType::GradFunc,
             // Disable to avoid conflict with other RegisterFields method when AuxType is a lambda
@@ -481,7 +481,7 @@ public:
                                            { this->GradientMultTransposeMV(x, dx, dy); };
 
             // Register the operation on the tape
-            auto *op = new AbstractGraphOperation<GraphNode, AuxType>(*this, inputs, outputs, auxiliary_data,
+            auto *op = new AbstractGraphOperation<GraphOperator, AuxType>(*this, inputs, outputs, auxiliary_data,
                                                                               def_exec, def_grad, def_grad_transpose);
             tape->RegisterOperation(op);
         }
@@ -492,7 +492,7 @@ public:
         }
     }
 
-    virtual ~GraphNode()
+    virtual ~GraphOperator()
     { }
 };
 
@@ -500,7 +500,7 @@ public:
 /**
    @brief A class to store and coupled multiple operators together.
  */
-class DAGraph : public GraphNode, public AbstractTape
+class DAGraph : public GraphOperator, public AbstractTape
 {
 public:
     inline static int max_ops = 1000;
@@ -616,7 +616,7 @@ public:
 
     void SetOffsets(const Array<int> &inoff, const Array<int> &outoff) override
     {
-        GraphNode::SetOffsets(inoff, outoff);
+        GraphOperator::SetOffsets(inoff, outoff);
         width = inoff.Last();
         height = outoff.Last();
     }

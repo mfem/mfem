@@ -239,7 +239,7 @@ public:
 };
 
 /// An application that takes an input field T, and computes an output field k(T)
-class DiffusionCoefficient : public GraphNode
+class DiffusionCoefficient : public GraphOperator
 {
 protected:
    ParFiniteElementSpace &fes;
@@ -259,7 +259,7 @@ protected:
 public:
    DiffusionCoefficient(ParFiniteElementSpace &fes, 
                         std::function<real_t(real_t, bool)> func) :
-                        GraphNode(fes.GetTrueVSize()), fes(fes),
+                        GraphOperator(fes.GetTrueVSize()), fes(fes),
                         lambda_func(func),
                         Nform(&fes), coeff_integrator(new CoefficientIntegrator(lambda_func)),
                         T_gf(&fes), k_gf(&fes),
@@ -297,7 +297,7 @@ public:
       k_gf.ProjectCoefficient(k_coeff);
       k_gf.GetTrueDofs(kdof);
 
-      if(exec_mode == GraphNode::GRADIENT_MODE)
+      if(exec_mode == GraphOperator::GRADIENT_MODE)
       {
          T_gf.SetFromTrueDofs(tdof);
          k_gf.ProjectCoefficient(dk_coeff);
@@ -330,7 +330,7 @@ public:
 
 /// An application that takes n input fields x_i, and computes an output 
 /// field prod(x) := y = prod_i x_i.
-class FieldProduct : public GraphNode
+class FieldProduct : public GraphOperator
 {
 protected:
    int ninputs;
@@ -344,7 +344,7 @@ protected:
 
 public:
    FieldProduct(ParFiniteElementSpace &fes, int n) :
-                GraphNode(fes.GetTrueVSize(), fes.GetTrueVSize() * n), ninputs(n),
+                GraphOperator(fes.GetTrueVSize(), fes.GetTrueVSize() * n), ninputs(n),
                 nd_fes(new ParFiniteElementSpace(fes.GetParMesh(), fes.FEColl(), n)),
                 x_gf(nd_fes), y_gf(&fes), prod_coeff(x_gf)
    {
@@ -415,7 +415,7 @@ public:
 
 /// An application that represents the nonlinear diffusion operator: f(T) = -Div(k(u) grad(T)) 
 /// with input field T and k, and output field f(T).
-class DiffusionOperator : public GraphNode
+class DiffusionOperator : public GraphOperator
 {
 public:
 
@@ -443,8 +443,8 @@ public:
 public:
 
    DiffusionOperator(ParFiniteElementSpace &fes_) :
-                     // GraphNode(fes_.GetTrueVSize()),
-                     GraphNode(fes_.GetTrueVSize(),2*fes_.GetTrueVSize()),
+                     // GraphOperator(fes_.GetTrueVSize()),
+                     GraphOperator(fes_.GetTrueVSize(),2*fes_.GetTrueVSize()),
                      mesh(*fes_.GetParMesh()), fes(fes_),
                      T(&fes), k(&fes), dk(&fes),
                      k_gfc(&k), dk_gfc(&dk),
@@ -517,7 +517,7 @@ public:
       fdofs += b; // Add the source term
       fdofs.SetSubVector(ess_tdofs, 0.0);
 
-      if(exec_mode == GraphNode::GRADIENT_MODE)
+      if(exec_mode == GraphOperator::GRADIENT_MODE)
       {
          if(dfdT_mat) delete dfdT_mat;
          if(dfdk_mat) delete dfdk_mat;
@@ -684,8 +684,8 @@ int main(int argc, char *argv[])
       prod_coeff.RegisterFields({k1_field, k2_field}, {kp_field});
       diff_op1.RegisterFields({T1_field, kp_field}, {f1_field});
       diff_op2.RegisterFields({T2_field, kp_field}, {f2_field}, // Possible to specify action lambdas
-  /* Force const if needed */   [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
-  /* Default for GraphNode */   [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultMV(x, dx, dy); },
+  /* Force const if needed */     [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
+  /* Default for GraphOperator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultMV(x, dx, dy); },
 ///* If using mfem::Operator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GetGradientMV(x).MultMV(dx, dy); },
                                 [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTransposeMV(x, dx, dy); }
                               );

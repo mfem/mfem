@@ -64,7 +64,7 @@ void GraphOperationGradient::Execute(const MultiVector &x, MultiVector &y) const
 }
 
 
-void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
+void GraphOperator::RegisterFields(std::initializer_list<Field*> inputs,
                                std::initializer_list<Field*> outputs,
                                GraphOperation::ExecuteFunc execute,
                                GraphOperation::GradFunc grad,
@@ -95,7 +95,7 @@ void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
     }
 }
 
-void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
+void GraphOperator::RegisterFields(std::initializer_list<Field*> inputs,
                                std::initializer_list<Field*> outputs)
 {
     auto execute = [this](const MultiVector &x, MultiVector &y) { this->MultMV(x, y); };
@@ -106,7 +106,7 @@ void GraphNode::RegisterFields(std::initializer_list<Field*> inputs,
     RegisterFields(inputs, outputs, execute, grad_mult, grad_mult_transpose);
 }
 
-DAGraph::DAGraph(const int nops, const int nfields) : GraphNode()
+DAGraph::DAGraph(const int nops, const int nfields) : GraphOperator()
 {
     int reserve_ops = (nops > 0) ? nops : max_ops;
     operations.Reserve(reserve_ops);
@@ -633,8 +633,8 @@ void DualGraph::UpdateState(const MultiVector &x)
     auto [inoffsets, outoffsets] = GetOffsets();
 
     int nop = primal_dag->operations.Size();
-    auto grad_mode = GraphNode::ExecutionMode::GRADIENT_MODE;
-    auto default_mode = GraphNode::ExecutionMode::DEFAULT_MODE;
+    auto grad_mode = GraphOperator::ExecutionMode::GRADIENT_MODE;
+    auto default_mode = GraphOperator::ExecutionMode::DEFAULT_MODE;
     const int ipgrad = primal_dag->GetGradientOrder();
 
     // -- EXPERIMENTAL: Copy input into the memory for input field
@@ -669,7 +669,7 @@ void DualGraph::UpdateState(const MultiVector &x)
         }
         // if(primal_dag->op_depth[iop] > 0) // Only execute nodes that are not leaves
         // {
-            GraphNode *gop = dynamic_cast<GraphNode*>(&(pop->GetOperator()));
+            GraphOperator *gop = dynamic_cast<GraphOperator*>(&(pop->GetOperator()));
             if(gop) { gop->SetExecutionMode(grad_mode); }
             pop->Execute(xmv, ymv);
             if(gop) { gop->SetExecutionMode(default_mode); }
