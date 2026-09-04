@@ -17,10 +17,13 @@ condensation *is*.
 | `InvertA` | pure local write | `BatchedLinAlg`, uniform blocks | **done**, §1 |
 | `InvertD` | pure local write | as above | **done**, §1 |
 | `MultNL` | local nonlinear solve + scatter to a `Vector` | integrator thread-safety, transformations, colouring | **done**, §2 |
-| `ComputeSolution` | pure local write | nothing | open, §3 — and cold |
-| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 — and cold |
-| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 — and cold |
-| `ReduceRHS` | local + scatter to a `Vector` | colouring | open, §3 — and cold |
+| `ComputeSolution` | pure local write | nothing | open, §3 |
+| `EliminateVDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 |
+| `EliminateTrueDofsInRHS` | local + scatter to a `Vector` | colouring | open, §3 |
+| `ReduceRHS` | local + scatter to a `Vector` | colouring | open, §3 |
+
+§3's four are once per *solve*: negligible against a Newton loop, a fifth of a
+linear solve. See §3 — the answer turns on the trace solver, not the problem.
 
 Offset construction and allocation (prefix sums over `NE`) run once and are not
 worth touching. Batching the factorisation that runs once per *linearisation*
@@ -92,28 +95,50 @@ of that call. That is not a defect and not fixable by threading — see §3.
 their own integrators sit on this loop and must be thread-safe too. The tree's
 own pedestal harness needed the same treatment.
 
-## 3. The remaining scatters — and they are the COLD path
+## 3. The remaining scatters — cold for Newton, NOT cold for a linear solve
 
 `EliminateVDofsInRHS`, `EliminateTrueDofsInRHS`, `ReduceRHS` and
 `ComputeSolution` all scatter to a **`Vector`**, so `Mesh::GetElementColoring()`
-would make them safe exactly as it does `MultNL` — the machinery now exists and
-the change would be mechanical.
+makes them safe exactly as it does `MultNL` — the machinery exists now and the
+change is mechanical.
 
-**It is very likely not worth doing, and that is a structural fact rather than
-a measurement.** All four run **once per solve**, not once per iteration: the
-first three from `DarcyForm::FormLinearSystem()` and the last from
-`RecoverFEMSolution()`. A nonlinear solve of `N` Newton steps makes `2N` passes
-through `MultNL` and one through these, so their share is `O(1/2N)` — under a
-percent for any `N` worth calling nonlinear. This is §1's finding again: the
-cold path is cheap to thread and buys nothing.
+**For a nonlinear solve they are negligible, and that is structural.** All four
+run once per solve — the first three from `DarcyForm::FormLinearSystem()`, the
+last from `RecoverFEMSolution()` — against `2N` passes through `MultNL`, so
+their share is `O(1/2N)`.
 
-**The exception, and it is the one case to check before dismissing this.** On a
-*linear* problem there is no Newton loop at all: `H` is assembled once in
-`Finalize()` and `MultNL` is never called, so `ReduceRHS` and
-`ComputeSolution` are the element-local work of the solve rather than a
-rounding error on it. Nobody has measured that case. If a caller's workload is
-many linear solves rather than few nonlinear ones, this section is worth more
-than the paragraph above suggests.
+**For a LINEAR solve they are not, and this entry used to dismiss them on the
+strength of the nonlinear argument alone.** With no Newton loop, `H` is
+assembled once in `Finalize()` and `MultNL` is never called, so these loops are
+the element-local work of the solve. Measured, order 2 quads, medians of
+five, with the non-threading part of `FormLinearSystem` separated by a thread
+fit and `RecoverFEMSolution` read directly:
+
+| | share of the solve |
+|---|---|
+| refinement `n` = 32 → 160 (25x the elements), UMFPACK | **21%, flat** |
+| `n` = 64, UMFPACK, conductivity contrast 1 → 10⁶ | 26% → 23% |
+| `n` = 64, GMRES+GS, contrast 1 (200 its) | 6.9% |
+| `n` = 64, GMRES+GS, contrast 10⁶ (490 its) | **3.6%** |
+
+**So what decides it is the SOLVER, not the problem.** These loops cost a fixed
+`O(NE)` per solve, so their share is just `1 −` the trace solve's, and the
+trace solve is what "hard" changes: a direct solve barely notices a 10⁶
+contrast (163 ms against 175 ms, inside the noise — a clean control), while
+GMRES goes 200 → 490 iterations and swallows 91% of the run.
+
+The honest recommendation, then. **Worth doing** for a workload of many linear
+solves with a cheap trace solve — threading it perfectly at eight threads would
+take about 22% off such a solve, and `SetReuseSymbolic()` on the direct branch
+would *raise* the share by making the factorisation cheaper. **Not worth doing**
+for the hard, ill-conditioned problems where an iterative trace solve dominates
+at 84–91%; there the whole of §3 is worth 3–6%.
+
+One caveat on the number: the "share" above is an **upper bound**. It is the
+part of `FormLinearSystem` that does not thread, and that includes whatever
+else in it is serial, not only §3's element loops. Attributing it exactly means
+instrumenting `FormLinearSystem`, which nobody has done — and which is the
+thing to do before threading anything here.
 
 ## 4. A device path, and what it would actually take
 
