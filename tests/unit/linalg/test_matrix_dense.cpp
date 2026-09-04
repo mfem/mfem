@@ -331,6 +331,35 @@ TEST_CASE("DenseMatrix A^T*B methods",
    }
 }
 
+TEST_CASE("LUFactors Det method", "[DenseMatrix]")
+{
+   SECTION("2x2_system")
+   {
+      constexpr int N = 2;
+
+      DenseMatrix A(N);
+      A(0,0) = 0.0; A(0,1) = 1.0;
+      A(1,0) = 1.0; A(1,1) = 0.0;
+      DenseMatrixInverse Af1(A);
+
+      REQUIRE( A.Det() == Af1.Det() );
+   }
+
+   SECTION("3x3_system")
+   {
+      constexpr int N = 3;
+
+      DenseMatrix A(N);
+      A(0,0) = 0; A(0,1) =  0; A(0,2) =  1;
+      A(1,0) = 0; A(1,1) =  1; A(1,2) =  0;
+      A(2,0) = 1; A(2,1) =  0; A(2,2) =  0;
+      DenseMatrixInverse Af1(A);
+
+      REQUIRE( A.Det() == Af1.Det() );
+   }
+}
+
+
 TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
 {
    real_t tol = 1e-12;
