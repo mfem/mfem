@@ -304,14 +304,23 @@ TEST_CASE("Laplacian",
           "[NURBS2DFiniteElement]"
           "[NURBS3DFiniteElement]")
 {
-   int order = 4;
-   std::string meshName = GENERATE("square-nurbs.mesh",
-                                   "cube-nurbs.mesh");
+
+   auto [meshName, NURBS, deformed, intorder, tol] = GENERATE(
+                                                        table<std::string, bool, bool, int, double>(
+   {
+      {"square-nurbs.mesh",            true,  true,  14, 1e-7},
+      {"square-nurbs.mesh",            false, true,  14, 1e-7},
+      {"disc-nurbs-single-patch.mesh", true,  false, 34, 1e-6},
+      {"cube-nurbs.mesh",              true,  true,  14, 1e-7},
+      {"cube-nurbs.mesh",              false, true,  14, 1e-7},
+      {"ball-nurbs-single-patch.mesh", true,  false, 34, 1e-6},
+   })
+                                                     );
+
    mfem::out<<"\nCheck laplacian for "<< meshName <<std::endl;
-   bool deformed = GENERATE(false,true);
-   if (deformed) { mfem::out<<"Mesh is deformed"<<std::endl; }
-   bool NURBS = GENERATE(false,true);
    if (NURBS) { mfem::out<<"Using NURBS"<<std::endl; }
+   if (deformed) { mfem::out<<"Mesh is deformed"<<std::endl; }
+   int order = 4;
 
    Mesh mesh("../../data/" + meshName, 1, 1);
    const int dim = mesh.Dimension();
@@ -336,33 +345,28 @@ TEST_CASE("Laplacian",
       mesh.SetNode(i, x1.GetData());
    }
 
-   // Distort mesh
-   real_t distort_scale = 0.05;
+   // Refine NURBS mesh
+   if (NURBS)
+   {
+      // We need a C1 smooth mesh
+      // otherwise the no-ibp matrix does not match the ibp matrix
+      if (deformed)
+      {
+         mesh.DegreeElevate(1);
+      }
+
+      // Refine mesh
+      mesh.UniformRefinement();
+   }
+
+   // Distort the mesh
+   real_t distort_scale = 0.1;
    if (deformed)
    {
       Vector dx(mesh.GetNodes()->Size());
       dx.Randomize(1234);
-      dx *= 2.0; dx -= 1.0; dx *= distort_scale;
+      dx *= distort_scale;
       mesh.MoveNodes(dx);
-   }
-
-   if (NURBS)
-   {
-      // We need a C1 smooth mesh
-      mesh.DegreeElevate(1);
-
-      // Refine mesh
-      mesh.UniformRefinement();
-
-      // Distort mesh
-      distort_scale = 0.01;
-      if (deformed)
-      {
-         Vector dx(mesh.GetNodes()->Size());
-         dx.Randomize(1234);
-         dx *= 2.0; dx -= 1.0; dx *= distort_scale;
-         mesh.MoveNodes(dx);
-      }
    }
 
    // Create Space
@@ -399,7 +403,6 @@ TEST_CASE("Laplacian",
       eltrans = fes.GetElementTransformation (e);
 
       // Integrand involves non-polynomial mapping
-      const int intorder = 3*fes.GetFE(e)->GetOrder();
       const IntegrationRule *ir = &IntRules.Get(fes.GetFE(e)->GetGeomType(),
                                                 intorder);
 
@@ -418,7 +421,6 @@ TEST_CASE("Laplacian",
          AddMult_a_AAt (w, dshape, elmat);
          AddMult_a_VWt (w, shape, lshape, elmat);
       }
-
       // Add to global matrix
       fes.GetElementVDofs (e, vdofs);
       gmat.AddSubMatrix (vdofs, vdofs, elmat, 1);
@@ -434,7 +436,7 @@ TEST_CASE("Laplacian",
    gmat.Finalize (1);
    mfem::out<<"Difference between matrices = "<< gmat.MaxNorm()  <<std::endl;
    // Tolerance can be tighter if intorder is increased
-   REQUIRE(gmat.MaxNorm() == MFEM_Approx(0.0, 1e-8));
+   REQUIRE(gmat.MaxNorm() == MFEM_Approx(0.0, tol));
 
    delete fe_coll;
 }
