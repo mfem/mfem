@@ -54,18 +54,15 @@ std::tuple< Array<int>, Array<int> >
 AddElementsToMesh(const Mesh& parent,
                   Mesh& mesh,
                   const Array<int> &attributes,
+                  const Array<int> &element_list,
                   bool from_boundary)
 {
    UniqueIndexGenerator vertex_ids;
    Array<int> parent_vertex_ids, parent_element_ids;
    Array<int> vert, submesh_vert;
 
-   const int ne = from_boundary ? parent.GetNBE() : parent.GetNE();
-   for (int i = 0; i < ne; i++)
+   auto add_element = [&](const Element *pel, int i)
    {
-      const Element *pel = from_boundary ?
-                           parent.GetBdrElement(i) : parent.GetElement(i);
-      if (!HasAttribute(*pel, attributes)) { continue; }
       pel->GetVertices(vert);
       submesh_vert.SetSize(vert.Size());
       for (int iv = 0; iv < vert.Size(); iv++)
@@ -86,6 +83,31 @@ AddElementsToMesh(const Mesh& parent,
       el->SetAttribute(pel->GetAttribute());
       mesh.AddElement(el);
       parent_element_ids.Append(i);
+   };
+
+   if (element_list.Size() > 0)
+   {
+      for (int i = 0; i < element_list.Size(); i++)
+      {
+         const int ei = element_list[i];
+         const Element *pel = from_boundary ?
+                              parent.GetBdrElement(ei) :
+                              parent.GetElement(ei);
+         add_element(pel, ei);
+      }
+   }
+   else
+   {
+      const int ne = from_boundary ? parent.GetNBE() : parent.GetNE();
+      for (int i = 0; i < ne; i++)
+      {
+         const Element *pel = from_boundary ?
+                              parent.GetBdrElement(i) : parent.GetElement(i);
+
+         if (!HasAttribute(*pel, attributes)) { continue; }
+
+         add_element(pel, i);
+      }
    }
    return {parent_vertex_ids, parent_element_ids};
 }

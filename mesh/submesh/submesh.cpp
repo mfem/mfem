@@ -24,31 +24,47 @@ SubMesh SubMesh::CreateFromDomain(const Mesh &parent,
    return SubMesh(parent, From::Domain, domain_attributes);
 }
 
+SubMesh SubMesh::CreateFromElements(const Mesh &parent,
+                                    const Array<int> &element_list)
+{
+   return SubMesh(parent, From::Domain, {}, element_list);
+}
+
 SubMesh SubMesh::CreateFromBoundary(const Mesh &parent,
                                     const Array<int> &boundary_attributes)
 {
    return SubMesh(parent, From::Boundary, boundary_attributes);
 }
 
+SubMesh SubMesh::CreateFromBdrElements(const Mesh &parent,
+                                       const Array<int> &element_list)
+{
+   return SubMesh(parent, From::Boundary, {}, element_list);
+}
+
 SubMesh::SubMesh(const Mesh &parent, From from,
-                 const Array<int> &attributes) : parent_(&parent), from_(from),
-   attributes_(attributes)
+                 const Array<int> &attributes,
+                 const Array<int> &element_list) :
+   parent_(&parent),
+   from_(from),
+   attributes_(attributes),
+   element_list_(element_list)
 {
    if (from == From::Domain)
    {
       InitMesh(parent.Dimension(), parent.SpaceDimension(), 0, 0, 0);
 
       std::tie(parent_vertex_ids_,
-               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent, *this,
-                                                                      attributes_);
+               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(
+                                         parent, *this, attributes_, element_list_);
    }
    else if (from == From::Boundary)
    {
       InitMesh(parent.Dimension() - 1, parent.SpaceDimension(), 0, 0, 0);
 
       std::tie(parent_vertex_ids_,
-               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(parent, *this,
-                                                                      attributes_, true);
+               parent_element_ids_) = SubMeshUtils::AddElementsToMesh(
+                                         parent, *this, attributes_, element_list_, true);
    }
 
    parent_to_submesh_vertex_ids_.SetSize(parent.GetNV());
