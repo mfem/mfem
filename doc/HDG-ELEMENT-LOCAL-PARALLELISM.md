@@ -96,7 +96,7 @@ of that call. That is not a defect and not fixable by threading — see §3.
 their own integrators sit on this loop and must be thread-safe too. The tree's
 own pedestal harness needed the same treatment.
 
-## 3. The remaining element loops — DONE, and worth 11-18% of a linear solve
+## 3. The remaining element loops — DONE, and worth about 4% of a linear solve
 
 All four are threaded under `AssemblyMode::Threaded`, and they split into two
 kinds rather than the one this section used to describe.
@@ -175,120 +175,28 @@ The question this raises is scope, and the answer differs per phase:
 The nonlinear case is unchanged and still negligible: these run once per solve
 against `2N` passes through `MultNL`, so `O(1/2N)`.
 
-## 4. A device path, and what it would actually take
+## 4. A device path — planned in `doc/HDG-DEVICE-OFFLOAD.md`
 
-**Not one loop in `fem/darcy` is an `mfem::forall`.** There is a single raw
-OpenMP pragma (`ComputeH`'s element loop) and everything else is a plain serial
-loop over `DenseMatrix` / `LUFactors` *objects*. So nothing here runs on a
-device by flipping `mfem::Device`. But "custom kernels" is not the answer for
-all of it either — the loops fall into four groups with very different costs,
-and the shares are the ones §2 measured.
+Nothing built. The plan is its own file because it is a body of work rather
+than a to-do, and the three things worth knowing from here:
 
-**Group 1: the local dense linear algebra. Nearly free, and no new kernels.**
-`InvertA`, `InvertD`, `ComputeSolution`, `MultInv` (hence `NPCReduce` and
-`NPCRecover`), and `ComputeElementH`'s factor-and-Schur. `kernels::LUFactor`
-and `kernels::LUSolve` are already `MFEM_HOST_DEVICE`, and `BatchedLinAlg`
-already wraps `LUFactor`/`LUSolve`/`Mult`/`MultTranspose`/`AddMult`/`Invert`
-with three backends — its NATIVE one *is* an `mfem::forall` over
-`MFEM_HOST_DEVICE` lambdas with `Read()`/`Write()` discipline, and `GPU_BLAS`
-(cuBLAS/hipBLAS) and `MAGMA` sit beside it. §1 already routes two of these
-through it.
+* **Not one loop in `fem/darcy` is an `mfem::forall`** — one raw OpenMP pragma
+  and otherwise plain serial loops over `DenseMatrix`/`LUFactors` *objects*, so
+  nothing runs on a device by flipping `mfem::Device`.
+* **But the kernels are portable when written.** `mfem::forall` plus
+  `forall_2D/3D` and `MFEM_FOREACH_THREAD`/`MFEM_SHARED`/`MFEM_SYNC_THREAD` are
+  one source for CPU and GPU. Not hand-written CUDA, not Kokkos — and there is
+  no SYCL backend.
+* **The local dense linear algebra is nearly free and the integrators are the
+  work.** `BatchedLinAlg`'s NATIVE backend is already a device path; what blocks
+  it is one call site wrapping a raw host pointer. The integrators cannot go
+  near a device lambda at all, `ElementTransformation` and `Coefficient` having
+  no `MFEM_HOST_DEVICE` between them, and that is 46–53% of an NPC step.
 
-*The catch, and it is one line.* `InvertA()` builds
-`DenseTensor A(Af_data.GetData(), n, n, NE)` — the raw-pointer constructor,
-which goes to `Memory::Wrap()` and sets `VALID_HOST` with no device type. **So
-the batched path is device-ready as an algorithm and host-bound at this call
-site.** Reaching a device needs the local blocks to carry a real
-device-capable `Memory` — either storing them as a `DenseTensor` when
-`CanBatchLocalFactor()` holds, or giving `DenseTensor` a constructor that
-aliases an existing `Memory`. That is the cheapest device work available here
-and it is a storage change, not a kernel.
-
-**Group 2: the integrators. Custom kernels, and a rewrite rather than a port.**
-`ConstructGrad` and `LocalResidual` — 46–53% of an NPC step. `ElementTransformation`
-and `Coefficient` carry **zero** `MFEM_HOST_DEVICE` between them, so they
-cannot appear in a device lambda at all, and every integrator in `fem/darcy`
-is built on both. MFEM's own answer is the partial-assembly pattern:
-precompute `GeometricFactors` / `FaceGeometricFactors` and quadrature-
-interpolated fields into device memory, then write the quadrature loop over
-plain arrays. **No integrator in `fem/darcy` has an `AssemblePA` or
-`AssembleEA` path**, so all of that is unwritten. This is the same 46–53% that
-blocks threading; a device does not route around it.
-
-**Group 3: the scatter into the `SparseMatrix`. A different algorithm.**
-12–17% of a step, and serial by design on the host for the reason
-`SetAssemblyMode()` gives. On a device the choice is MFEM's: either never
-assemble (`GradientMode::MatrixFree`, which deletes this group outright — see
-§2) or an `AssembleEA`-style element-matrix array plus an assembly kernel.
-
-**Group 4: the trace solve. Device-capable already, but not as configured.**
-26–31% of a step. `SparseMatrix::Mult` has a cuSPARSE/hipSPARSE path, so a
-Krylov trace solve runs on device today; hypre's AMG has GPU support. What does
-*not* is the direct solve these tests and miniapps default to — UMFPACK and KLU
-are SuiteSparse and host-only.
-
-### "Custom kernels" means custom MFEM kernels, not hand-written CUDA
-
-Worth stating plainly, because "custom device kernels" reads like a promise of
-three hand-maintained vendor backends and it is not one. **`mfem::forall(N,
-[=] MFEM_HOST_DEVICE (int i) {...})` is the portability layer**: one lambda,
-compiled for whatever `mfem::Device` is configured. For the block-per-element
-shape a partial-assembly kernel wants there is more than the flat form —
-`forall_2D`, `forall_3D`, `forall_2D_batch` (`general/forall.hpp:1226-1256`)
-and the `MFEM_FORALL_2D/3D/3D_GRID` macros — with a device-agnostic vocabulary
-inside them: `MFEM_FOREACH_THREAD` for the thread-mapped loops, `MFEM_SHARED`,
-`MFEM_SYNC_THREAD`, `MFEM_UNROLL`. On the host these degrade to plain loops and
-empty macros (`general/backends.hpp:71-77`), so **the same source is the CPU
-kernel and the GPU kernel**, shared memory and barriers included. Inside them
-the `kernels::` namespace supplies `MFEM_HOST_DEVICE` dense linear algebra, and
-`MFEM_REGISTER_KERNELS` handles (dim, order) dispatch.
-
-**So the burden is one source, and the difficulty is the data model, not the
-kernel dialect.** What group 2 really costs is that an integrator must stop
-asking `ElementTransformation` and `Coefficient` for values at each quadrature
-point and start consuming precomputed arrays — `GeometricFactors` /
-`FaceGeometricFactors` for geometry, `QuadratureFunction`s for coefficients, and
-a restriction to gather dofs. Those exist for elements and for standard faces
-(`L2FaceRestriction`, `ConformingFaceRestriction` in `fem/restriction.hpp`) but
-**not for an HDG trace space**, which would need its own.
-
-**One caveat on hardware: there is no SYCL backend.** CUDA and HIP are native;
-RAJA and OCCA sit behind the same `forall`; libCEED provides optimized
-operator-evaluation backends. An Intel GPU would have to go through OCCA or
-libCEED, or not at all.
-
-### And not Kokkos
-
-**MFEM has no Kokkos backend and adding one is not the move.** Its portability
-layer is `mfem::forall` dispatching over `CPU`, `OMP`, `CUDA`, `HIP`,
-`RAJA_{CPU,OMP,CUDA,HIP}`, `OCCA_{CPU,OMP,CUDA}` and `CEED_{CPU,CUDA,HIP}` —
-so RAJA and OCCA are already reachable *through* MFEM, and libCEED is there for
-exactly the operator-evaluation problem group 2 poses. Introducing Kokkos would
-put a second programming model inside a library that has one, would not be
-accepted upstream, and buys nothing group 1 does not already get from
-`BatchedLinAlg` or group 2 does not already need a PA rewrite for.
-
-### The order this argues for
-
-1. **Group 1's storage change**, because it is small, it is the only item that
-   is nearly free, and it makes the `GPU_BLAS`/`MAGMA` backends reachable so
-   the harness can be proved on work that cannot fail interestingly.
-2. **Group 4 by configuration**, not code: a Krylov trace solve instead of
-   UMFPACK is already a device solve.
-3. **Group 2, or nothing.** Groups 1 and 4 leave the integrators on the host,
-   which means a host/device transfer of the local blocks every iteration —
-   plausibly worse than staying on the host throughout. **The device story for
-   HDG static condensation is attractive only if the integrators go too**, and
-   that is a partial-assembly rewrite of `fem/darcy`'s face and element
-   integrators against geometric factors. It is the largest item in this file
-   by a wide margin, and it is the same 46–53% that §2 is about.
-
-The one configuration that maximises the device-friendly fraction is
-`LocalFactorMode::Batched` with `GradientMode::MatrixFree`: batched deletes
-group 1's serial loops and MatrixFree deletes group 3 entirely, leaving
-integrators and an unpreconditioned Krylov solve. What preconditions that is
-`doc/HDG-JACOBIAN-FREE-TRACE.md`'s open question, and this is a second reason
-to want it answered.
+The gate, which the plan opens with: doing the cheap groups alone leaves the
+integrators on the host and pays a transfer per iteration, so it is worse than
+staying on the host. The device path is worth starting only if the integrator
+rewrite is going to be finished.
 
 ## Acceptance, for §2 onward
 

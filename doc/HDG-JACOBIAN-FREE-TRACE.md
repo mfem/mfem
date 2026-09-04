@@ -29,3 +29,10 @@ was measured. So a preconditioner that works without `S` would buy back a
 substantial fraction of every Jacobian as well as the memory. What it pays
 today is an unpreconditioned trace solve at 8x, so it still loses; the tables
 are on `SetGradientMode()` and on the `NPCResidual` doxygen group.
+
+**And a third reason, from the device side.** That scatter is the one piece of
+the element-local work that cannot be threaded and cannot be a device kernel in
+its present form — it targets an unfinalized `SparseMatrix`. `MatrixFree`
+deletes it outright, so answering this question also removes group 3 of
+`doc/HDG-DEVICE-OFFLOAD.md` rather than needing an `AssembleEA` written for
+it.
