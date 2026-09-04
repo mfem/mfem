@@ -14,6 +14,8 @@
 namespace mfem
 {
 
+#define PRINT_MESSAGE(msg) \
+   { if (Mpi::Root()) { std::cout << msg << std::endl; } }
 
 int GetValidID(int id, int& current, int lb, int ub)
 {
@@ -27,14 +29,6 @@ void BlockVectorToMultiVector(BlockVector &bv, MultiVector &mv)
     for (int i = 0; i < nblocks; i++) { mv.MakeRef(i, bv.GetBlock(i)); }
 }
 
-void GraphOperation::Execute() const
-{
-    auto get = [](const Field *f) -> Vector& { return *f->Data(); };
-    IterableToMultiVector<Vector&>(inputs, xmv, get);
-    IterableToMultiVector<Vector&>(outputs, ymv, get);
-    if (execute) { execute(xmv, ymv); }
-}
-
 GraphOperation *GraphOperation::GetGradient() const
 {
     return new GraphOperationGradient(const_cast<GraphOperation&>(*this));
@@ -46,26 +40,27 @@ GraphOperationGradient::GraphOperationGradient(GraphOperation &oper):
 {
     inputs = oper.inputs;
     outputs = oper.outputs;
-    primal.SetSize(inputs.Size());
-    pmv.SetNumBlocks(inputs.Size());
-    for(int i = 0; i < inputs.Size(); i++)
-    {
-        primal[i] = new Vector(*inputs[i]->Data());
-        pmv.MakeRef(i, *primal[i]);
-    }
-
     execute_primal = oper.execute;
     execute = [func = grad, &x0 = pmv](const MultiVector &x, MultiVector &y)
                     { func(x0, x, y); };
 }
 
-void GraphOperationGradient::Execute() const
+void GraphOperationGradient::SetPrimal(MultiVector &x)
 {
-    auto get = [](const Field *f) -> Vector& { return *f->Adjoint(); };
-    IterableToMultiVector<Vector&>(inputs, xmv, get);
-    IterableToMultiVector<Vector&>(outputs, ymv, get);
-    if(execute) { execute(xmv, ymv); }
-    // grad(pmv,xmv, ymv);
+    int n = x.NumBlocks();
+    pmv.SetNumBlocks(n);
+    for(int i = 0; i < n; i++)
+    {
+        pmv.MakeRef(i, x[i]);
+        // pmv.MakeRef(i, std::as_const(x[i]));
+    }
+}
+
+void GraphOperationGradient::Execute(const MultiVector &x, MultiVector &y) const
+{
+    // if(execute) { grad(pmv, x, y); }
+    if(execute) { execute(x, y); }
+    else { MFEM_ABORT("Execute function not defined for this GraphOperationGradient."); }
 }
 
 
@@ -119,6 +114,10 @@ DAGraph::DAGraph(const int nops, const int nfields) : GraphNode()
 
     int reserve_fields = (nfields > 0) ? nfields : max_fields;
     fields.Reserve(reserve_fields);
+
+    // -- EXPERIMENTAL: Reserve state memory for each field
+    state_memory.reserve(reserve_fields);
+    // -- EXPERIMENTAL
 }
 
 DAGraph::~DAGraph()
@@ -145,6 +144,22 @@ void DAGraph::Reset()
 
     is_sorted = false;
     is_assembled = false;
+    if(fdj_op) { delete fdj_op; fdj_op = nullptr; }
+
+    // -- EXPERIMENTAL: Clear state memory
+    const int n = state_memory.size();
+    for(int i = 0; i < n; i++)
+    {
+        const int ngrad = state_memory[i].Size();
+        auto stmem = state_memory[i];
+        for(int j = 0; j < ngrad; j++)
+        {
+            if(stmem[j]) { delete stmem[j]; stmem[j] = nullptr; }
+        }
+        stmem.DeleteAll();
+    }
+    state_memory.clear();
+    // -- EXPERIMENTAL
 }
 
 void DAGraph::Assemble()
@@ -178,16 +193,16 @@ void DAGraph::Sort()
         if(visited[op_index]) return;
         visited[op_index] = true;
         auto iop = operations[op_index];
-        // Visit all nodes that this node depends on
-        for(auto input_field : iop->inputs)
+        for(auto input_field : iop->inputs) // Visit all dependencies
         {
+            const int in_id = input_field->ID();
             for(int j=0; j < nop; j++)
             {
                 auto jop = operations[j];
                 if(jop == iop) continue;
                 for(auto output_field : jop->outputs)
                 {
-                    if(input_field->ID() == output_field->ID()) // Compare by unique ID
+                    if(in_id == output_field->ID()) // Compare by unique ID
                     {
                         DepthFirstSearch(j);
                     }
@@ -197,10 +212,7 @@ void DAGraph::Sort()
         sorted_indices.push_back(op_index);
     };
 
-    for(int i=0; i < nop; i++)
-    {
-        DepthFirstSearch(i);
-    }
+    for(int i=0; i < nop; i++) { DepthFirstSearch(i); }
 
     // check if already sorted
     bool already_sorted = true;
@@ -227,7 +239,6 @@ void DAGraph::Sort()
             id_to_op_index.Register(f->ID(), i);
         }
     }
-
     is_sorted = true;
 }
 
@@ -247,6 +258,7 @@ void DAGraph::ComputeDepth(bool reverse)
         auto ifields = (reverse) ? iop->outputs : iop->inputs;
         for(auto input_field : ifields)
         {
+            const int in_id = input_field->ID();
             for(int j=0; j < i; j++)
             {
                 int jdx = get_index(j);
@@ -255,7 +267,7 @@ void DAGraph::ComputeDepth(bool reverse)
                 auto jfields = (reverse) ? jop->inputs : jop->outputs;
                 for(auto output_field : jfields)
                 {
-                    if(input_field->ID() == output_field->ID()) // Compare by unique ID
+                    if(in_id == output_field->ID()) // Compare by unique ID
                     {
                         maxdepth = std::max(maxdepth, op_depth[jdx] + 1);
                     }
@@ -270,6 +282,140 @@ void DAGraph::ComputeDepth(bool reverse)
 void DAGraph::UpdateState(const MultiVector &x)
 {
     MFEM_ABORT("Function not overridden for this class.")
+}
+
+void DAGraph::Watch(std::initializer_list<Field*> fields_list)
+{
+    // Clear the operation for the new recording
+    Reset();
+
+    dag_op = new GraphOperation(*this, fields_list, {});
+
+    // TODO: // -- EXPERIMENTAL: allocate state memory for dag inputs
+
+    // Set the tape for each watched field
+    for(auto &f : dag_op->inputs) { f->SetTape(this); }
+}
+
+void DAGraph::AddOperation(GraphOperation *op)
+{
+    operations.push_back(op);
+    // Register input fields and id->index mapping
+    const int grad_order = GetGradientOrder() + 1; // Instead of grad_order of dag,
+                                                  // we can use grad_order of operation
+                                                  // For finitely differetiable operators
+
+    for(auto *f : op->inputs)
+    {
+        if(!id_to_field_index.Has(f->ID()))
+        {
+            fields.push_back(f);
+            id_to_field_index.Register(f->ID(), fields.Size() - 1);
+
+            // -- EXPERIMENTAL: Reserve state memory for each field
+            state_memory.push_back(Array<StateType>());
+            auto &fmem = state_memory.back();
+            fmem.Reserve(grad_order);
+            for(int i = 0; i < grad_order; i++)
+            {
+                fmem.push_back(f->MakeNew()); // Allocate new memory (owned by dag)
+            }
+            // -- EXPERIMENTAL
+        }
+    }
+
+    // Register outputs fields and id->index mapping and
+    // id->operation that outputs the field
+    for(auto *f : op->outputs)
+    {
+        id_to_op_index.Register(f->ID(), operations.Size() - 1);
+        if(!id_to_field_index.Has(f->ID()))
+        {
+            fields.push_back(f);
+            id_to_field_index.Register(f->ID(), fields.Size() - 1);
+
+            // -- EXPERIMENTAL: Reserve state memory for each field
+            state_memory.push_back(Array<StateType>());
+            auto &fmem = state_memory.back();
+            fmem.Reserve(grad_order);
+            for(int i = 0; i < grad_order; i++)
+            {
+                fmem.push_back(f->MakeNew()); // Allocate new memory (owned by dag)
+            }
+            // -- EXPERIMENTAL
+        }
+    }
+    op_owned.push_back(true); // For now, we own the operations
+    is_sorted = false;
+    is_assembled = false;
+}
+
+void DAGraph::RegisterOperation(GraphOperation *op)
+{
+    if(is_recording)
+    {
+        for(auto &f : op->inputs)
+        {   // Check if this is the tape for input fields
+            if(f->GetTape() != this)
+            {
+                MFEM_ABORT("Input field " << f->Name() << " (ID: " << f->ID()
+                        << ") is not being recorded on this tape.");
+            }
+        }
+        for(auto &f : op->outputs)
+        {   // Check if output is already registered in the DAG
+            bool has_output = id_to_field_index.Has(f->ID());
+            if(has_output)
+            {
+                MFEM_ABORT("Output field " << f->Name() << " (ID: " << f->ID()
+                        << ") is already registered in the DAG.");
+            }
+        }
+    }
+
+    AddOperation(op);
+
+    if(is_recording)
+    {   // Set this as tape for all outputs to be watched
+        for(auto &f : op->outputs) { f->SetTape(this); }
+    }
+}
+
+void DAGraph::StopRecording(std::initializer_list<Field*> outputs_list)
+{
+    int ninputs = dag_op->inputs.Size();
+    int noutputs = outputs_list.size();
+
+    MFEM_ASSERT((ninputs > 0) && (noutputs > 0),
+                "Must have at least one input and one output field. Total inputs: "
+                << ninputs << ", total outputs: " << noutputs);
+
+    // Check if all output of DAG are output of operations in the DAG
+    // by checking if the fields are registered
+    for(auto &f : outputs_list)
+    {
+        if(!id_to_field_index.Has(f->ID()))
+        {
+            MFEM_ABORT("Output field " << f->Name() << " (ID: " << f->ID()
+                        << ") is not registered in the DAG.");
+        }
+    }
+
+    dag_op->outputs = Array<Field*>(outputs_list);
+
+    // Clear the recorded fields after stopping recording and
+    // nullifying the tape association for each tracked field
+    is_recording = false;
+    ClearTape();
+}
+
+void DAGraph::ClearTape()
+{
+    for (auto op : operations)
+    {
+        for (auto &f : op->inputs) { f->SetTape(nullptr); }
+        for (auto &f : op->outputs) { f->SetTape(nullptr); }
+    }
 }
 
 void DAGraph::Mult(const Vector &x, Vector &y) const
@@ -304,12 +450,74 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
     MFEM_ASSERT(outputs.Size() == y.NumBlocks(), "Number of output blocks (" << y.NumBlocks()
                 << ") must match number of output fields (" << outputs.Size() << ")");
 
-    MultiVectorToIterable(x, inputs, get_inputs_func);
-    MultiVectorToIterable(y, outputs, get_outputs_func);
+    // -- EXPERIMENTAL: Pass input and output to Execute()
+    // The memory for input and output does not need to be allocated
+    // It comes as arguments to this function loop over inputs and outputs.
+    int iin = 0, iout = 0;
+    const int igrad = GetGradientOrder();
+    for (auto &f : inputs)
+    {
+        bool has_state = id_to_field_index.Has(f->ID());
+        int idx = id_to_field_index.Get(f->ID());
+        MFEM_ASSERT(has_state, "Field with ID " << f->ID() << " is not registered in the DAG.");
 
-    for(auto op : operations) { op->Execute(); }
+        auto &fmem = state_memory[idx];
+        MFEM_ASSERT(fmem.Size() > igrad, "State memory for field " << f->Name() << " (ID: " << f->ID()
+                    << ") does not have enough derivatives. Expected at least "
+                    << igrad + 1 << ", but got " << fmem.Size() << ".");
+        if(fmem[igrad] != nullptr) { delete fmem[igrad]; } // Delete existing memory if any
+        fmem[igrad] = const_cast<StateType>(&x[iin++]); // Point dag's memory to inputs
+    }
+    for (auto &f : outputs)
+    {
+        bool has_state = id_to_field_index.Has(f->ID());
+        const int idx = id_to_field_index.Get(f->ID());
+        MFEM_ASSERT(has_state, "Field with ID " << f->ID() << " is not registered in the DAG.");
 
-    // Reset input and output data to null
+        auto &fmem = state_memory[idx];
+        MFEM_ASSERT(fmem.Size() > igrad, "State memory for field " << f->Name() << " (ID: " << f->ID()
+                    << ") does not have enough derivatives. Expected at least "
+                    << igrad + 1 << ", but got " << fmem.Size() << ".");
+
+        if(fmem[igrad] != nullptr) { delete fmem[igrad]; } // Delete existing memory if any
+        fmem[igrad] = &y[iout++]; // Point dag's memory to outputs
+    }
+    // -- EXPERIMENTAL
+
+    int iop = 0;
+    MultiVector xmv, ymv;
+    for(auto op : operations)
+    {
+        auto [isz, osz] = op->Size();
+        xmv.SetNumBlocks(isz);
+        ymv.SetNumBlocks(osz);
+        iin = 0;
+        for (auto &f : op->inputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            xmv.MakeRef(iin++,*state_memory[idx][igrad]);
+        }
+
+        iout = 0;
+        for (auto &f : op->outputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            ymv.MakeRef(iout++,*state_memory[idx][igrad]);
+        }
+
+        op->Execute(xmv, ymv);
+        iop++;
+    }
+
+    // -- EXPERIMENTAL: Resetting the state memory for the current
+    // gradient order to nullptr after execution
+    for (auto & inout : {inputs, outputs}) {
+        for (auto & f : inout) {
+            const int idx = id_to_field_index.Get(f->ID());
+            state_memory[idx][igrad] = nullptr; // Reset to nullptr after deletion
+        }
+    }
+    // -- EXPERIMENTAL
 }
 
 void DAGraph::MultTranspose(const Vector &x, Vector &y) const
@@ -343,7 +551,27 @@ Operator& DAGraph::GetGradient(const Vector &x) const
     BlockVector xb(x.GetData(), inoffsets);
     MultiVector xmv;
     BlockVectorToMultiVector(xb, xmv);
-    return GetGradientMV(xmv);
+
+    // -- EXPERIMENTAL: Possibly support both modes
+    // or remove the finite difference jacobian operator and use the gradient dag instead
+    if(gradient_mode == GradientMode::FINITE_DIFFERENCE)
+    {
+        if(!fdj_op)
+        {
+            fdj_op = new future::FDJacobian(*this, x);
+        }
+        else
+        {
+            auto fd_op = dynamic_cast<future::FDJacobian*>(fdj_op);
+            fd_op->GetGradient(x);
+        }
+        return *fdj_op;
+    }
+    else
+    {
+        return GetGradientMV(xmv);
+    }
+    // -- EXPERIMENTAL
 }
 
 Operator &DAGraph::GetGradientMV(const MultiVector &x) const
@@ -351,8 +579,8 @@ Operator &DAGraph::GetGradientMV(const MultiVector &x) const
     if(!grad_dag)
     {
         grad_dag = new DualGraph(*this);
-        grad_dag->UpdateState(x);
         grad_dag->Assemble();
+        grad_dag->UpdateState(x);
     }
     else
     {
@@ -361,75 +589,11 @@ Operator &DAGraph::GetGradientMV(const MultiVector &x) const
     return *grad_dag;
 }
 
-void DAGraph::Watch(std::initializer_list<Field*> fields_list)
-{
-    // Clear the operation for the new recording
-    Reset();
-
-    dag_op = new GraphOperation(*this, fields_list, {});
-
-    // TODO: Experimental, allocate state memory for dag inputs
-
-    // Set the tape for each watched field
-    for(auto &f : dag_op->inputs) { f->SetTape(this); }
-}
-
-void DAGraph::RegisterOperation(GraphOperation *op)
-{
-    if(is_recording)
-    {
-        for(auto &f : op->inputs)
-        {   // Check if this is the tape for input fields
-            if(f->GetTape() != this)
-            {
-                MFEM_ABORT("Input field " << f->Name() << " (ID: " << f->ID()
-                        << ") is not being recorded on this tape.");
-            }
-        }
-    }
-    AddOperation(op);
-
-    // TODO: Experimental, allocate state memory for outputs here
-
-    if(is_recording)
-    {   // Set this as tape for all outputs to be watched
-        for(auto &f : op->outputs) { f->SetTape(this); }
-    }
-}
-
-void DAGraph::StopRecording(std::initializer_list<Field*> outputs_list)
-{
-    int ninputs = dag_op->inputs.Size();
-    int noutputs = outputs_list.size();
-
-    MFEM_ASSERT((ninputs > 0) && (noutputs > 0),
-                "Must have at least one input and one output field. Total inputs: "
-                << ninputs << ", total outputs: " << noutputs);
-
-    dag_op->outputs = Array<Field*>(outputs_list);
-
-    get_inputs_func = [](Field *f, const Vector &v) { f->SetData(const_cast<Vector*>(&v)); };
-    get_outputs_func = [](Field *f, Vector &v) { f->SetData(&v); };
-
-    // Clear the recorded fields after stopping recording and
-    // nullifying the tape association for each tracked field
-    is_recording = false;
-    ClearTape();
-}
-
-void DAGraph::ClearTape()
-{
-    for (auto op : operations)
-    {
-        for (auto &f : op->inputs) { f->SetTape(nullptr); }
-        for (auto &f : op->outputs) { f->SetTape(nullptr); }
-    }
-}
-
 
 DualGraph::DualGraph(const DAGraph &primal) : DAGraph(primal.Size()),
                                             primal_dag(&primal)
 {
+    SetGradientOrder(primal.GetGradientOrder() + 1);
     auto [inoffsets, outoffsets] = primal_dag->GetOffsets();
     SetOffsets(inoffsets, outoffsets);
 
@@ -444,9 +608,8 @@ DualGraph::DualGraph(const DAGraph &primal) : DAGraph(primal.Size()),
 
 void DualGraph::Assemble()
 {
-    get_inputs_func = [](Field *f, const Vector &v) { f->SetAdjoint(const_cast<Vector*>(&v)); };
-    get_outputs_func = [](Field *f, Vector &v) { f->SetAdjoint(&v); };
-
+    // -- EXPERIMENTAL: Should we use the tape feather for the dual graph?
+    // For now, insert operations for the dual graph directly from the primal graph
     for (auto pop : primal_dag->operations)
     {
         auto dual_op = pop->GetGradient(); // Allocates new
@@ -455,7 +618,7 @@ void DualGraph::Assemble()
 
     DAGraph::Assemble();
     const bool reverse = true;
-    ComputeDepth(reverse); // Compute depth in reverse order
+    ComputeDepth(reverse); // Compute depth in reverse order to identify leaf nodes
 }
 
 void DualGraph::UpdateState(const MultiVector &x)
@@ -464,36 +627,54 @@ void DualGraph::UpdateState(const MultiVector &x)
     MFEM_ASSERT(inputs.Size() == x.NumBlocks(), "Number of input blocks (" << x.NumBlocks()
                 << ") must match number of input fields (" << inputs.Size() << ")");
 
-    for(int i=0; i < inputs.Size(); i++)
-    {
-        inputs[i]->SetData(const_cast<Vector*>(&x[i]));
-    }
-
     // Temporary vector to hold output data
     // Not needed if we dont operate the leaf nodes
     auto outputs = dag_op->outputs;
     auto [inoffsets, outoffsets] = GetOffsets();
-    Vector y(outoffsets.Last());
-    MultiVector ymv(outputs.Size());
-    for(int i=0; i < outputs.Size(); i++)
-    {
-        ymv.MakeRef(i, y);
-        outputs[i]->SetData(&ymv[i]);
-    }
 
     int nop = primal_dag->operations.Size();
     auto grad_mode = GraphNode::ExecutionMode::GRADIENT_MODE;
     auto default_mode = GraphNode::ExecutionMode::DEFAULT_MODE;
-    for (int i = 0; i < nop; i++)
+    const int ipgrad = primal_dag->GetGradientOrder();
+
+    // -- EXPERIMENTAL: Copy input into the memory for input field
+    int iin = 0, iout = 0;
+    for (auto &f : inputs)
     {
-        auto pop = primal_dag->operations[i];
-        GraphNode *gop = dynamic_cast<GraphNode*>(&(pop->GetOperator()));
-        if(gop) { gop->SetExecutionMode(grad_mode); }
-        // if(primal_dag->op_depth[i] > 0)
-        // {   // Only execute nodes that are not leaves
-            pop->Execute(); 
+        bool has_state = id_to_field_index.Has(f->ID());
+        int idx = id_to_field_index.Get(f->ID());
+        MFEM_ASSERT(has_state, "Field with ID " << f->ID() << " is not registered in the DAG.");
+        *state_memory[idx][ipgrad] = x[iin++];
+    }
+
+    MultiVector xmv, ymv;
+    for (int iop = 0; iop < nop; iop++)
+    {
+        auto pop = primal_dag->operations[iop];
+        auto [isz, osz] = pop->Size();
+        xmv.SetNumBlocks(isz);
+        ymv.SetNumBlocks(osz);
+
+        iin = 0; iout = 0;
+        for (auto &f : pop->inputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            xmv.MakeRef(iin++,*state_memory[idx][ipgrad]);
+        }
+
+        for (auto &f : pop->outputs)
+        {
+            const int idx = id_to_field_index.Get(f->ID());
+            ymv.MakeRef(iout++,*state_memory[idx][ipgrad]);
+        }
+        // if(primal_dag->op_depth[iop] > 0) // Only execute nodes that are not leaves
+        // {
+            GraphNode *gop = dynamic_cast<GraphNode*>(&(pop->GetOperator()));
+            if(gop) { gop->SetExecutionMode(grad_mode); }
+            pop->Execute(xmv, ymv);
+            if(gop) { gop->SetExecutionMode(default_mode); }
         // }
-        if(gop) { gop->SetExecutionMode(default_mode); }
+        operations[iop]->SetPrimal(xmv);
     }
 }
 

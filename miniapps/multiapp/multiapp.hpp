@@ -102,6 +102,32 @@ public:
 };
 
 
+struct State
+{
+public:
+    // The type of the state data (Vector)
+    using StateType = Vector*;
+
+private:
+    // TODO: Use hash map to store states with unique IDs
+    inline static int next_id = 0;
+    int id = -1; // initialized to invalid id
+    AbstractTape *tape = nullptr; // Tape tracking this state
+
+public:
+    State() : id(GetValidID(-1,next_id)) { } // Use hash map to store states with unique IDs
+
+    /// Make allocate a copy of the state and transfer ownership.
+    virtual StateType MakeCopy(const State original) const = 0;
+
+    /// Allocate a new state with the same type as this state and transfer ownership.
+    virtual StateType MakeNew() const = 0;
+
+    virtual void SetTape(AbstractTape *t) = 0;
+
+    virtual AbstractTape* GetTape() const = 0;
+};
+
 /// @brief Base class for storing data (Vector) and distinguishing
 /// fields variables
 class Field
@@ -218,6 +244,22 @@ public:
         if(data && own_data) { delete data; }
         if(adjoint && own_adj) { delete adjoint; }
     }
+
+    // EXPERIMENTAL
+    /// Make allocate a copy of the state and transfer ownership.
+    virtual Vector* MakeCopy(const Vector* original) const
+    {
+        return new Vector(*original);
+    }
+
+    /// Allocate a new state with the same type as this state and transfer ownership.
+    virtual Vector* MakeNew() const
+    {
+        MFEM_ASSERT(data != nullptr, "Data is not allocated for this Field.");
+        return new Vector(*data);;
+    }
+
+
 };
 
 
@@ -237,14 +279,12 @@ public:
     IndexMap input_index, output_index; ///< Field::ID to Array index
     ExecuteFunc execute;
     GradFunc grad, grad_transpose;
-    mutable MultiVector xmv, ymv;
 
     GraphOperation(Operator &oper, InputType in, OutputType out,
                    ExecuteFunc exec = nullptr, GradFunc grad = nullptr,
                    GradFunc grad_transpose = nullptr) :
                    op(&oper), inputs(in), outputs(out),
-                   execute(exec), grad(grad), grad_transpose(grad_transpose),
-                   xmv(inputs.Size()), ymv(outputs.Size())
+                   execute(exec), grad(grad), grad_transpose(grad_transpose)
     {
         int i = 0, o = 0;
         for(auto *f : in) { input_index.Register(f->ID(), i++); }
@@ -269,15 +309,25 @@ public:
     GraphOperation(ExecuteFunc exec, InputType in, OutputType out,
                    GradFunc grad = nullptr, GradFunc grad_transpose = nullptr) :
                    op(nullptr), inputs(in), outputs(out), execute(exec),
-                   grad(grad), grad_transpose(grad_transpose),
-                   xmv(inputs.Size()), ymv(outputs.Size())
+                   grad(grad), grad_transpose(grad_transpose)
     {
         int i = 0, o = 0;
         for(auto *f : in) { input_index.Register(f->ID(), i++); }
         for(auto *f : out) { output_index.Register(f->ID(), o++); }
     }
 
-    virtual void Execute() const;
+    std::tuple<int, int> Size() const { return std::make_tuple(inputs.Size(), outputs.Size()); }
+
+    virtual void SetPrimal(MultiVector &x)
+    {
+        MFEM_ABORT("SetPrimal is not implemented for this GraphOperation.");
+    }
+
+    virtual void Execute(const MultiVector &x, MultiVector &y) const
+    {
+        if (execute) { execute(x, y); }
+        else { MFEM_ABORT("Execute function not defined for this GraphOperation."); }
+    }
 
     GraphOperation *GetGradient() const;
 
@@ -315,14 +365,6 @@ struct AbstractGraphOperation : GraphOperation
                            GraphOperation(nullptr, in, out, nullptr, nullptr),
                            aux_data(&aux_data), execute(exec), grad(grad), grad_transpose(grad_transpose)
                            { }
-
-    void Execute() const override
-    {
-        auto get = [](const Field *f) -> Vector& { return *f->Data(); };
-        IterableToMultiVector<Vector&>(inputs, xmv, get);
-        IterableToMultiVector<Vector&>(outputs, ymv, get);
-        execute(*aux_data, xmv, ymv);
-    }
 };
 
 struct GraphOperationGradient : GraphOperation
@@ -333,12 +375,14 @@ struct GraphOperationGradient : GraphOperation
 
     GraphOperationGradient(GraphOperation &oper);
 
-    void Execute() const override;
+    virtual void Execute(const MultiVector &x, MultiVector &y) const;
+
+    virtual void SetPrimal(MultiVector &x) override;
 
     ~GraphOperationGradient()
     {
         primal.DeleteAll();
-        pmv.SetNumBlocks(0);
+        // pmv.SetNumBlocks(0);
     }
 };
 
@@ -464,7 +508,17 @@ public:
     inline static int max_derivatives = 1;
 
     using IndexMap = GenericFieldMap<int, int>;
+    using StateType = State::StateType;
 
+    // -- TEMPORARY:
+    enum class GradientMode
+    {
+        FINITE_DIFFERENCE = 0,
+        ALGORITHMIC_DIFFERENTIATION = 1
+    };
+    GradientMode gradient_mode = GradientMode::ALGORITHMIC_DIFFERENTIATION;
+    void SetGradientMode(GradientMode mode) { gradient_mode = mode; }
+    // --
 protected:
     Array<GraphOperation*> operations; ///< List of operations in the graph
     Array<bool> op_owned; ///< Ownership of operations (unused for now)
@@ -474,9 +528,15 @@ protected:
     Array<Field*> fields;  ///< List of all fields used in operations (not owned)
     IndexMap id_to_field_index; ///< Map from field ID to index in fields array
 
-    // Experimental state memory management by dag (not Field)
-    Array2D<Vector*> state_memory; ///< Owned: use id->field_index to index into this array
-                                   /// nfields x ngrad (to store primal and daul)
+    // -- EXPERIMENTAL: state memory management by dag (not Field)
+private:
+    int gradient_order = 0; ///< Order of the gradient (0 for primal, 1 for first-order, etc.)
+protected:
+    virtual void SetGradientOrder(int order) { gradient_order = order; }
+    int GetGradientOrder() const { return gradient_order; }
+    mutable std::vector<Array<StateType>> state_memory; ///< Owned: use id->field_index to index into this array
+                                                /// nfields x ngrad (to store primal and daul)
+    // -- EXPERIMENTAL
 
     int max_depth = 0; ///< Maximum depth of the graph
     bool is_sorted = false; ///< Is the graph topologically sorted?
@@ -484,9 +544,7 @@ protected:
 
     GraphOperation* dag_op = nullptr; ///< Pointer to the operation representing the entire DAG
     mutable DualGraph *grad_dag = nullptr; ///< Gradient dag operator
-
-    std::function<void(Field *f, const Vector &v)> get_inputs_func; ///< Function to get inputs for the DAG
-    std::function<void(Field *f, Vector &v)> get_outputs_func; ///< Function to get outputs for the DAG
+    mutable Operator *fdj_op = nullptr; ///< Finite difference jacobian operator (TODO: Remove this and use the gradient dag instead)
 
     friend class DualGraph; ///< Allow DualGraph to access protected members
 public:
@@ -498,33 +556,7 @@ public:
 
 protected:
     // Force tape use for now
-    void AddOperation(GraphOperation *op)
-    {
-        operations.push_back(op);
-        // Register input fields and id->index mapping
-        for(auto *f : op->inputs)
-        {
-            if(!id_to_field_index.Has(f->ID()))
-            {
-                fields.push_back(f);
-                id_to_field_index.Register(f->ID(), fields.Size() - 1);
-            }
-        }
-        // Register outputs fields and id->index mapping and
-        // id->operation that outputs the field
-        for(auto *f : op->outputs)
-        {
-            id_to_op_index.Register(f->ID(), operations.Size() - 1);
-            if(!id_to_field_index.Has(f->ID()))
-            {
-                fields.push_back(f);
-                id_to_field_index.Register(f->ID(), fields.Size() - 1);
-            }
-        }
-        op_owned.push_back(true); // For now, we own the operations
-        is_sorted = false;
-        is_assembled = false;
-    }
+    void AddOperation(GraphOperation *op);
 public:
 
     /// @brief Get the number of coupled operators
@@ -551,19 +583,17 @@ protected:
     // This changes intermediate state; restrict user call
     virtual void UpdateState(const MultiVector &x);
 
-    // Experimental: Get state memory to copy and store primal in dual graph
-    // virtual void GetState(Field &field, Array<Vector*> &state, int igrad = 0)
+    // -- EXPERIMENTAL: Get state memory to copy and store primal in dual graph
     virtual void GetState(Field &field, MultiVector &state, int igrad = 0)
     {
         MFEM_ASSERT(igrad >= 0, "The ith gradient must be non-negative.");
 
-        // MFEM_ASSERT(state.Size() > igrad, "State size " << state.Size()
-        //             << " is less than the requested gradient indices " << igrad);
         MFEM_ASSERT(state.NumBlocks() > igrad, "State size " << state.NumBlocks()
                     << " is less than the requested gradient indices " << igrad);
 
         bool dag_has_field = id_to_field_index.Has(field.ID());
-        MFEM_ASSERT(dag_has_field, "Field with ID " << field.ID() << " is not registered in the DAG.");
+        MFEM_ASSERT(dag_has_field, "Field with ID " << field.ID()
+                    << " is not registered in the DAG.");
 
         int idx = id_to_field_index.Get(field.ID());
 
@@ -575,12 +605,13 @@ protected:
         for(int i = 0; i <= igrad; ++i)
         {
             // Force storage as const to avoid accidental modification of the state memory
-            state.MakeRef(i, std::as_const(*state_memory(idx, i)));
+            // state.MakeRef(i, std::as_const(*state_memory[idx][i]));
             // Possibly allocate new and copy to avoid changing the state memory in the DAG
             // and handle the copy operation, if state is Array<Vector*> instead of MultiVector
             // state[i] = field.CreateCopy(state_memory(idx, i));
         }
     }
+    // -- EXPERIMENTAL
 public:
 
     void SetOffsets(const Array<int> &inoff, const Array<int> &outoff) override

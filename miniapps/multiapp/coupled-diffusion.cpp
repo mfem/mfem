@@ -35,27 +35,19 @@ void SetSolverParameters(IterativeSolver *solver, real_t rtol, real_t atol , int
 /// A functional diffusion coefficient (i.e., k(T))
 class LambdaCoefficient : public Coefficient
 {
-public:
-   enum Mode { FUNC = 0, GRAD = 1};
-
 protected:
    ParGridFunction *gf = nullptr;
-   std::function<real_t(real_t, bool)> func;
-   Mode mode = Mode::FUNC; // otherwise, grad
+   std::function<real_t(real_t)> func;
 
 public:
-   LambdaCoefficient(ParGridFunction *gf, std::function<real_t(real_t, bool)> func) :
+   LambdaCoefficient(ParGridFunction *gf, std::function<real_t(real_t)> func) :
                      gf(gf), func(func) { }
-
-    void SetMode(Mode mode) { this->mode = mode; }
-    Mode GetMode() const { return mode; }
 
     real_t Eval(ElementTransformation &Tr,
               const IntegrationPoint &ip) override
     {
         real_t x = gf ? gf->GetValue(Tr, ip) : 0.0;
-        bool eval_f = (mode == Mode::FUNC);
-        return func(x, eval_f);
+         return func(x);
     }
 };
 
@@ -102,17 +94,18 @@ public:
       elvect = 0.0;
 
       const IntegrationRule *ir = &el.GetNodes();
-
       for (int i = 0; i < ir->GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir->IntPoint(i);
-         el.CalcShape(ip, shape);
          Tr.SetIntPoint(&ip);
+         // el.CalcShape(ip, shape);
+         el.CalcPhysShape(Tr, shape);
+         const real_t w = Tr.Weight();
          real_t x = elfun * shape; // Evaluate the state at the integration point
          real_t f = func(x, true); // Evaluate the function value
          for (int j = 0; j < dof; j++)
          {
-            elvect(j) += f * shape(j);
+            elvect(j) += f * w;
          }
       }
    }
@@ -235,9 +228,9 @@ public:
 
          if(dk0 != 0.0) // grad(psi) * (k'(T0) * grad(T0)) * T
          {
-            dk0 = w*dk->Eval(Tr, ip);
+            real_t kdT = w*dk0;
             dshapedxt.MultTranspose(elfun, u); // grad(T0) in physical space
-            u *= dk0; // k'(T0) * grad(T0)
+            u *= kdT; // k'(T0) * grad(T0)
             dshapedxt.Mult(u, vec); // grad(psi) * k'(T0) * grad(T0)
             AddMultVWt(vec, shape, elmat); // grad(psi) * k'(T0) * grad(T0) * T
          }
@@ -251,21 +244,32 @@ class DiffusionCoefficient : public GraphNode
 protected:
    ParFiniteElementSpace &fes;
    Array<int> in_offsets, out_offsets;
+   std::function<real_t(real_t, bool)> lambda_func;
 
    mutable ParNonlinearForm Nform;
    mutable Operator *J = nullptr; // Jacobian for the nonlinear form
 
    CoefficientIntegrator *coeff_integrator = nullptr;
 
+   mutable Vector dk_dofs;
+   mutable ParGridFunction T_gf;
+   mutable ParGridFunction k_gf;
+   mutable LambdaCoefficient k_coeff, dk_coeff;
+
 public:
    DiffusionCoefficient(ParFiniteElementSpace &fes, 
                         std::function<real_t(real_t, bool)> func) :
                         GraphNode(fes.GetTrueVSize()), fes(fes),
-                        Nform(&fes), coeff_integrator(new CoefficientIntegrator(func))
+                        lambda_func(func),
+                        Nform(&fes), coeff_integrator(new CoefficientIntegrator(lambda_func)),
+                        T_gf(&fes), k_gf(&fes),
+                        k_coeff(&T_gf, [&](real_t x) { return lambda_func(x, true); }),
+                        dk_coeff(&T_gf, [&](real_t x) { return lambda_func(x, false); })
    {
       // Testing with the nonlinear form framework to compute k(T) and dk/dT
       Nform.AddDomainIntegrator(coeff_integrator); // Transfer ownership
       Nform.SetGradientType(Operator::Type::Hypre_ParCSR);
+      Nform.SetEssentialTrueDofs(Array<int>()); // No essential true dofs for this operator
       Nform.Setup();
 
       in_offsets = Array<int>({0, fes.GetTrueVSize()});
@@ -289,14 +293,19 @@ public:
       const Vector &tdof = x[0];
       Vector &kdof = y[0];
 
-      Nform.Mult(tdof, kdof);
+      T_gf.SetFromTrueDofs(tdof);
+      k_gf.ProjectCoefficient(k_coeff);
+      k_gf.GetTrueDofs(kdof);
+
       if(exec_mode == GraphNode::GRADIENT_MODE)
       {
-         J = &Nform.GetGradient(tdof); // Store jacobian for JVP
+         T_gf.SetFromTrueDofs(tdof);
+         k_gf.ProjectCoefficient(dk_coeff);
+         k_gf.GetTrueDofs(dk_dofs); // yadj = dk/dT * xadj
       }
       else
       {
-         J = nullptr; // Clear the Jacobian if not in gradient mode
+         dk_dofs = 0.0; // Clear the derivative dofs if not in gradient mode
       }
    }
 
@@ -306,15 +315,13 @@ public:
       const Vector &xadj = dx[0];
       Vector &yadj = dy[0];
 
-      if(J)
-      {
-         J->Mult(xadj, yadj);
-      }
-      else
-      {
-         J = &Nform.GetGradient(tdof); // Store jacobian for JVP
-         J->Mult(xadj, yadj);
-      }
+      // T_gf.SetFromTrueDofs(tdof);
+      // k_gf.ProjectCoefficient(dk_coeff);
+      // k_gf.GetTrueDofs(yadj); // yadj = dk/dT * xadj
+      // yadj *= xadj; // Element-wise multiplication for the Jacobian-vector product
+
+      yadj = xadj;
+      yadj *= dk_dofs; // Element-wise multiplication for the Jacobian-vector product
    }
 
    ~DiffusionCoefficient() override
@@ -480,6 +487,8 @@ public:
    {
       bform.Assemble();
       bform.ParallelAssemble(b);
+      b.SetSubVector(ess_tdofs, 0.0);
+      // b.Neg(); // f(T) = -Div(k grad(T)) + b
    }
 
    void Mult(const Vector &x, Vector &y) const override
@@ -502,6 +511,11 @@ public:
       Vector &fdofs = y[0];
 
       k.SetFromTrueDofs(kdofs); // update for use in k_gfc
+      Nform.Mult(tdofs, fdofs);
+      // fdofs.Neg();
+      // fdofs -= b; // Add the source term
+      fdofs += b; // Add the source term
+      fdofs.SetSubVector(ess_tdofs, 0.0);
 
       if(exec_mode == GraphNode::GRADIENT_MODE)
       {
@@ -523,9 +537,6 @@ public:
          if(dfdT_mat) { delete dfdT_mat; dfdT_mat = nullptr; }
          if(dfdk_mat) { delete dfdk_mat; dfdk_mat = nullptr; }
       }
-
-      Nform.Mult(tdofs, fdofs);
-      fdofs.SetSubVector(ess_tdofs, 0.0);
    }
 
    // Exact block jacobian [df/dT, df/dk]
@@ -544,11 +555,19 @@ public:
       const Vector &kadj = dx[1];
       Vector &yadj = dy[0];
 
-      const Vector &tdofs = x[0];
-      const Vector &kdofs = x[1];
+      const Vector &tdo = x[0];
+      const Vector &kdo = x[1];
 
-      dfdT_mat->Mult(Tadj, yadj);
-      dfdk_mat->AddMult(kadj, yadj);
+      if(dfdT_mat)
+      {
+         dfdT_mat->Mult(Tadj, yadj);
+      }
+      if(dfdk_mat)
+      {
+         dfdk_mat->AddMult(kadj, yadj);
+      }
+      // yadj.Neg();
+      // yadj.SetSubVector(ess_tdofs, 0.0);
    }
 
    /// @brief Destroy the DiffusionOperator object
@@ -565,8 +584,6 @@ int main(int argc, char *argv[])
    Mpi::Init();
    Hypre::Init();
 
-   // using GradMode = DAGraph::GradMode;
-
    OptionsParser args(argc, argv);
    args.AddOption(&ctx.order, "-o", "--order",
                   "Finite element order (polynomial degree).");
@@ -577,7 +594,7 @@ int main(int argc, char *argv[])
                   "Number of times to refine the mesh in serial.");
 
    args.AddOption(&ctx.grad_mode, "-gm", "--grad-mode",
-                  "Gradient mode for the coupled operator (0: exact, 1: finite difference, 2: algorithmic differentiation)");
+                  "Gradient mode for the coupled operator (0: finite difference, 1: algorithmic differentiation)");
    args.AddOption(&ctx.coupled, "-cp", "--coupled", "-ucp", "--uncoupled",
                   "Coupled (true) vs. uncoupled (false) solves.");
    args.ParseCheck();
@@ -600,19 +617,20 @@ int main(int argc, char *argv[])
    ParFiniteElementSpace fes(&pmesh, &fec);
 
    // Build all operator nodes
-   auto exp_func = [kref=1.0, a = 3.5e-2](real_t x, bool eval_f) -> real_t
+   auto exp_func = [kref=1.0, a = 3.5e-1](real_t x, bool eval_f) -> real_t
    {
       real_t k = kref * exp(a*x);
-      real_t dk = a * k;
-      return eval_f ? k : dk;
+      return eval_f ? k : a * k;
    };
-   DiffusionCoefficient diff_coeff_1(fes, exp_func);
-   diff_coeff_1.SetName("k(T1)");
 
-   auto poly_func = [kref=1.0, a0=1.0, a1=2.0, a2=0.0](real_t x, bool eval_f) -> real_t
+   auto poly_func = [kref=1.0, a0=1.0, a1=2.0, a2=3.0](real_t x, bool eval_f) -> real_t
    {
       return eval_f ? kref * (a0 + a1*x + a2*x*x) : kref * (a1 + 2*a2*x);
    };
+
+   DiffusionCoefficient diff_coeff_1(fes, exp_func);
+   diff_coeff_1.SetName("k(T1)");
+
    DiffusionCoefficient diff_coeff_2(fes, poly_func);
    diff_coeff_2.SetName("k(T2)");
 
@@ -628,6 +646,7 @@ int main(int argc, char *argv[])
    Vector k1vec(fes.GetTrueVSize()); k1vec = 0.0;
    Vector k1adj(fes.GetTrueVSize()); k1adj = 0.0;
    Vector kpvec(fes.GetTrueVSize()); kpvec = 0.0;
+   Vector T1vec(fes.GetTrueVSize()); T1vec = 0.0;
 
    // Input fields get data from 'x' in DAGraph::Mult(x, y)
    Field *T1_field = new Field();
@@ -647,6 +666,10 @@ int main(int argc, char *argv[])
    k1_field->SetData(&k1vec, &k1adj); // Use different provided memory for data and adjoint
    k2_field->AllocateData(k1vec); // Allocate memory for data and adjoint of same size and type
    kp_field->SetData(&kpvec); // Use same, provided memory for data and adjoint
+   T1_field->SetData(&T1vec); // Use same, provided memory for data and adjoint
+   T2_field->SetData(&T1vec); // Allocate memory for data and adjoint of same size and type
+   f1_field->SetData(&T1vec); // Allocate memory for data and adjoint of same size and type
+   f2_field->SetData(&T1vec); // Allocate memory for data and adjoint of same size and type
 
    // Define the DAG
    DAGraph dag;
@@ -661,7 +684,7 @@ int main(int argc, char *argv[])
       prod_coeff.RegisterFields({k1_field, k2_field}, {kp_field});
       diff_op1.RegisterFields({T1_field, kp_field}, {f1_field});
       diff_op2.RegisterFields({T2_field, kp_field}, {f2_field}, // Possible to specify action lambdas
-  /* force const if needed */   [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
+  /* Force const if needed */   [&op=std::as_const(diff_op2)](const MultiVector &x, MultiVector &y) { op.MultMV(x, y); },
   /* Default for GraphNode */   [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultMV(x, dx, dy); },
 ///* If using mfem::Operator */ [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GetGradientMV(x).MultMV(dx, dy); },
                                 [&op=diff_op2](const MultiVector &x, const MultiVector &dx, MultiVector &dy) { op.GradientMultTransposeMV(x, dx, dy); }
@@ -693,25 +716,17 @@ int main(int argc, char *argv[])
    // Outputs can also be intermediate fields.
    dag.StopRecording({f1_field, f2_field});
 
+   // Offsets needed to construct MultiVector from Vector in Mult()
    int sz = fes.GetTrueVSize();
-   // Needed to construct MultiVector from Vector in Mult()
    Array<int> dag_offsets({0, sz, 2*sz});
    dag.SetOffsets(dag_offsets, dag_offsets);
 
    // Assemble DAG: topological sort (if needed), validate nodes, etc.
    dag.Assemble();
 
-   std::string output_prefix = ctx.coupled ? "Coupled_Diffusion" : "Uncoupled_Diffusion";
+   dag.SetGradientMode(static_cast<DAGraph::GradientMode>(ctx.grad_mode));
 
-   if(Mpi::Root())
-   {
-      std::ofstream fout(output_prefix+"-dag.txt");
-      fout << "{\n";
-      // dag.Save(fout);
-      fout << "}\n";
-      fout << std::flush;
-      fout.close();
-   }
+   std::string output_prefix = ctx.coupled ? "Coupled_Diffusion" : "Uncoupled_Diffusion";
 
    // Set initial guess and boundary conditions for T1 and T2
    Array<int> ess_tdofs;
@@ -722,25 +737,34 @@ int main(int argc, char *argv[])
 
    BlockVector xb(dag_offsets);
    BlockVector yb(dag_offsets);
+   xb = 0.0; yb = 0.0;
 
-   xb.GetBlock(T1_idx).Randomize();
-   xb.GetBlock(T2_idx).Randomize();
-   xb.GetBlock(T1_idx).SetSubVector(ess_tdofs, 0.0);
-   xb.GetBlock(T2_idx).SetSubVector(ess_tdofs, 0.0);
+   xb.Randomize(10);
+   xb.GetBlock(T1_idx).SetSubVector(ess_tdofs, 1.0);
+   xb.GetBlock(T2_idx).SetSubVector(ess_tdofs, 1.0);
 
    // Build the nonlinear solver and linear solver for the DAG
    NewtonSolver newton_solver(pmesh.GetComm());
    GMRESSolver linear_solver(pmesh.GetComm());
    linear_solver.SetKDim(500);
-   SetSolverParameters(&newton_solver, ctx.tol_nsolve, 0.0, ctx.nl_iter, 1, true);
-   SetSolverParameters(&linear_solver, ctx.tol_lsolve, 0.0, ctx.lin_iter, 1, false);
-
-   newton_solver.SetPreconditioner(linear_solver);
-   linear_solver.SetPrintLevel(1);
 
    // Set the gradient mode for the DAG and solve the coupled system
-   newton_solver.SetOperator(dag);
-   newton_solver.Mult(xb, yb);
+   if(ctx.coupled)
+   {
+      SetSolverParameters(&newton_solver, ctx.tol_nsolve, 0.0, ctx.nl_iter, 1, true);
+      SetSolverParameters(&linear_solver, ctx.tol_lsolve, 0.0, ctx.lin_iter, 1, false);
+
+      newton_solver.SetPreconditioner(linear_solver);
+      linear_solver.SetPrintLevel(1);
+      newton_solver.SetOperator(dag);
+      newton_solver.Mult(yb, xb);
+   }
+   else
+   {
+      SetSolverParameters(&linear_solver, ctx.tol_lsolve, 0.0, ctx.lin_iter, 1, true);
+      linear_solver.SetOperator(dag);
+      linear_solver.Mult(yb, xb);
+   }
 
    ParaViewDataCollection *pv = nullptr;
    if (ctx.visualization)
@@ -760,11 +784,20 @@ int main(int argc, char *argv[])
 
       ParGridFunction T1_gf(&fes);
       ParGridFunction T2_gf(&fes);
-      T1_gf.SetFromTrueDofs(yb.GetBlock(T1_idx));
-      T2_gf.SetFromTrueDofs(yb.GetBlock(T2_idx));
+      ParGridFunction k1_gf(&fes);
+      ParGridFunction k2_gf(&fes);
+      T1_gf.SetFromTrueDofs(xb.GetBlock(T1_idx));
+      T2_gf.SetFromTrueDofs(xb.GetBlock(T2_idx));
+
+      diff_coeff_1.Mult(xb.GetBlock(T1_idx), k1vec);
+      diff_coeff_2.Mult(xb.GetBlock(T2_idx), kpvec);
+      k1_gf.SetFromTrueDofs(k1vec);
+      k2_gf.SetFromTrueDofs(kpvec);
 
       pv->RegisterField("T1", &T1_gf);
       pv->RegisterField("T2", &T2_gf);
+      pv->RegisterField("k1", &k1_gf);
+      pv->RegisterField("k2", &k2_gf);
       pv->Save();
       delete pv;
    }
