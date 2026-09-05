@@ -228,14 +228,36 @@ public:
     the flux rates are 2.08, 1.46, 1.53 against 2.09, 1.46, 1.53. Nothing moves
     beyond the fourth digit.
 
-    **So the overlap is not caused by the vertex directions.** What remains as
-    the candidate is the interpolation along a face between two vertex tangents
-    that a reentrant corner drives apart, or a boundary that folds back within
-    a mesh width -- not the choice of direction at a vertex, which is now
-    restricted as tightly as the reference asks. Blunting the tail with a
-    larger @c lambda still fixes it, taking the tiling residual to -3.6e-10 and
-    the flux to 2.03 and 2.01, so the loss remains the transfer's rather than
-    the mesh's or the discretisation's.
+    **So the overlap is not caused by the vertex directions**, and two further
+    measurements say what it is and what it does not explain.
+
+    Binning the swept quadrature weight spatially -- at a rule fine enough that
+    the blunt case's apparent excess converges away, which it does not at a
+    coarse one -- leaves the sharp case with **one** genuinely over-covered
+    cell, just beyond the tail tip, at a coverage ratio of 1.55, and **two**
+    faces contribute to it. It is therefore two path bundles arriving in the
+    same place from opposite sides of a tail thinner than a mesh width, and not
+    one face's region folding onto itself. A cone restricting each vertex to
+    its own background-edge fan cannot prevent that, because the two faces
+    concerned are nowhere near each other along @f$\Gamma_h@f$ -- which is why
+    building it changed nothing.
+
+    **And the flux order loss does not track the tiling residual at all.**
+    Sweeping the Joukowsky parameter at n = 16..64, residual against flux rate:
+    7.6e-10 / 2.03, 2.7e-6 / 2.01, 4.4e-4 / 2.01, 1.4e-3 / 2.03, and the
+    reference's own tail 1.1e-2 / 1.46. A residual of 1.4e-3 costs nothing, and
+    within the reference run the residual has fallen to about that value by
+    n = 128 where the rate is still 1.53. The exact solution there is
+    @f$\sin 3\pi x \sin 3\pi y@f$, analytic everywhere, so this is not a
+    regularity limit at the cusp either. **Repairing the tiling is therefore
+    not on its own the route to the reference's Table 6, and neither the cone
+    nor the overlap is the thing to fix next.**
+
+    One more fact for whoever picks it up: at @c lambda = 0.074 the run aborts
+    outright because a path INTERPOLATED along a face never meets @f$\Gamma@f$
+    within the search length, while both of its vertices found one. The
+    interpolation between two vertex tangents that a near-cusp drives apart is
+    the part of this construction that has never been examined.
 
     Must be evaluated through the FaceElementTransformations overload: a
     direction interpolated along a face is not a function of the point alone.

@@ -907,9 +907,30 @@ TEST_CASE("Extension from subdomains: a feature thinner than the mesh breaks "
    //
    // The overlap falls with the mesh -- 1.1e-2, 1.1e-2, 5.3e-3, 1.1e-3 as n
    // runs 16, 32, 64, 128 -- so it is a resolution effect and not a defect in
-   // the family. Closing it needs the cone of CS-Extensions section 2.4.1,
-   // which restricts the search to directions that cannot cross; only the
-   // half-space part of that restriction is built.
+   // the family.
+   //
+   // **This comment used to say closing it needs the cone of CS-Extensions
+   // section 2.4.1. The cone is built now and closes nothing**, which is
+   // recorded on VertexConePath. Two further measurements say what the overlap
+   // actually is and what it is not:
+   //
+   //  * Binning the swept quadrature weight, at a rule fine enough that the
+   //    blunt case's apparent excess converges to zero, leaves the sharp case
+   //    with ONE genuinely over-covered cell, just beyond the tail tip, at a
+   //    coverage ratio of 1.55 -- and TWO faces contribute to it. So it is two
+   //    path bundles arriving in the same place from opposite sides of a tail
+   //    thinner than a mesh width, not one face's region folding onto itself.
+   //    A cone restricting each vertex to its own background-edge fan cannot
+   //    reach that: the two faces are not adjacent.
+   //  * The flux order loss does not track this residual. Sweeping the
+   //    Joukowsky parameter at n = 16..64: lambda = 0.050, 0.065, 0.070 and
+   //    0.077 give residuals 7.6e-10, 2.7e-6, 4.4e-4 and 1.4e-3 with the flux
+   //    rate at 2.03, 2.01, 2.01 and 2.03, while the reference's own lambda
+   //    gives 1.1e-2 and 1.46. A residual of 1.4e-3 is harmless, and within
+   //    the reference run the residual has fallen to about that by n = 128
+   //    while the rate is still 1.53. **So the tiling residual is not what
+   //    sets the rate**, and repairing the tiling is not on its own the route
+   //    to the reference's Table 6.
    const int n = 32;
    const real_t thin = foil_R - std::sqrt(foil_s1 * foil_s1 + foil_s2 * foil_s2);
    const real_t blunt = 0.05;

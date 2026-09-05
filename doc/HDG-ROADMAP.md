@@ -74,17 +74,34 @@ is repeated here.
 
 Two things are left, and neither is what this list used to say:
 
-* **The aerofoil's flux order, and the cone is NOT the answer.** The entry here
-  said supplying CS-Extensions §2.4.1's cone `C(x)` was the only thing standing
-  between this and the reference's Table 6. **It is built now — recovered from
-  the SubMesh's parent rather than taken as an argument — and it changes
-  nothing.** It restricts every vertex of `Γ_h` at every refinement and is
-  strictly tighter than the half space at most of them, `π/2` becoming `π/8`,
-  and the tiling residual is 1.13e-2 either way with the flux rates equal to
-  the fourth digit. The numbers are on `VertexConePath`. So the overlap is not
-  the vertex directions; what is left to try is the interpolation along a face
-  between two tangents a reentrant corner drives apart, or the geometry of a
-  boundary folding back within a mesh width.
+* **The aerofoil's flux order — and two candidates are now ruled out, which is
+  most of what this entry is worth.** It used to say CS-Extensions §2.4.1's
+  cone `C(x)` was the only thing standing between this and the reference's
+  Table 6.
+
+  **The cone is built and changes nothing.** It restricts every vertex of `Γ_h`
+  at every refinement, `π/2` becoming `π/8` at most of them, and the tiling
+  residual is 1.13e-2 either way with the flux rates equal to the fourth digit.
+
+  **And the tiling residual is not what sets the rate.** Sweeping the Joukowsky
+  parameter, residual against flux rate: 7.6e-10 / 2.03, 2.7e-6 / 2.01,
+  4.4e-4 / 2.01, 1.4e-3 / 2.03, and the reference's own tail 1.1e-2 / 1.46. A
+  residual of 1.4e-3 costs nothing, and within the reference run the residual
+  has fallen to about that by `n = 128` where the rate is still 1.53. Nor is it
+  regularity: problem 3's exact solution is `sin 3πx sin 3πy`, analytic
+  everywhere. So repairing the tiling is not on its own the route to Table 6.
+
+  **What the overlap actually is**, since it was worth pinning even though it
+  is not the culprit: one over-covered cell just beyond the tail tip, coverage
+  ratio 1.55, with **two** faces contributing — two path bundles arriving from
+  opposite sides of a tail thinner than a mesh width, not a self-fold. That is
+  also why a per-vertex cone cannot touch it.
+
+  **What has never been examined** is the interpolation along a face between
+  two vertex tangents that a near-cusp drives apart. At `λ = 0.074` it fails
+  outright: a path interpolated along a face never meets `Γ` within the search
+  length, though both of its vertices found one. That is the next thing to
+  look at. All of this is on `VertexConePath`.
 * **Three dimensions, and the restriction is narrower than it reads.** The only
   refusal in the whole of `extension_hdg` is `VertexConePath`'s, at
   `extension_hdg.cpp:145`. `ClosestPointPath`, `LevelSetPath`,
