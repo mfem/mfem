@@ -209,6 +209,22 @@ public:
     Two dimensions only. The construction generalises, and the reference says
     so, but nothing here has been run in three.
 
+    **Only the half-space half of the reference's crossing restriction is
+    built.** CS-Extensions section 2.4.1 keeps neighbouring paths from crossing
+    with a cone @f$C(x)@f$ assembled from the *background* mesh's edges at each
+    vertex, intersected with a half space @f$H(x)@f$; this class is not given a
+    background mesh and applies @f$H(x)@f$ alone. Where the boundary has a
+    feature thinner than a mesh width -- an aerofoil's trailing edge is the
+    case that found it -- the interpolated paths of neighbouring faces cross
+    before reaching @f$\Gamma@f$, their swept regions overlap, and the measure
+    comes out too large: the tiling residual reads 1.1e-2, 1.1e-2, 5.3e-3 and
+    1.1e-3 as n runs 16 to 128, converging away rather than persisting. The
+    cost is the FLUX order and nothing else -- blunting the tail restores it to
+    2.03 and 2.01 while the potential sits at 2.01 either way, which is what
+    says the loss is the transfer's and not the mesh's or the geometry's.
+    Supplying the cone is what stands between this and the reference's
+    Table 6.
+
     Must be evaluated through the FaceElementTransformations overload: a
     direction interpolated along a face is not a function of the point alone.
     The mesh must outlive the path. */
