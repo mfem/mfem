@@ -607,6 +607,81 @@ void ExtensionRegionQuadrature(
    real_t fd_step = 1e-6);
 
 
+/** @brief A point of @f$\Gamma@f$ reached by the paths from one face of
+    @f$\Gamma_h@f$, with the surface quadrature weight and the normal there. */
+struct ExtensionBoundaryPoint
+{
+   const Vector &y;                  ///< the physical point, on @f$\Gamma@f$
+   const Vector &nu;                 ///< the OUTWARD UNIT normal of @f$\Gamma@f$
+   const IntegrationPoint &face_ip;  ///< where its path leaves @f$\Gamma_h@f$
+   /** @brief Surface weight, the Jacobian included, and **SIGNED**.
+
+       Negative where the path family's foot map reverses along @f$\Gamma@f$,
+       which for a staircase @f$\Gamma_h@f$ it does on some faces. Summing the
+       weights integrates over @f$\Gamma@f$; summing their absolute values
+       integrates the length the map traverses, which is a different quantity
+       and is larger. See ExtensionBoundaryQuadrature(). */
+   real_t weight;
+};
+
+
+/** @brief Quadrature over the piece of @f$\Gamma@f$ reached by the paths
+    issuing from one face of @f$\Gamma_h@f$: the @f$t=1@f$ face of the map
+    ExtensionRegionQuadrature() sweeps.
+
+    That map is @f$y(\xi,t) = x(\xi) + t\,(a(x(\xi)) - x(\xi))@f$, so at
+    @f$t=1@f$ it is @f$\xi \mapsto a(x(\xi))@f$ and its image is the piece of
+    @f$\Gamma@f$ the face is responsible for. The columns of that map's
+    Jacobian are @f$\partial a/\partial\xi_i@f$ alone -- the @f$(1-t)@f$ that
+    multiplies the face's own Jacobian has gone -- and they are taken by central
+    differences, because a path family is a map and is not required to supply a
+    derivative. CalcOrtho() turns them into the normal, whose magnitude IS the
+    surface Jacobian.
+
+    **The orientation is fixed by the paths, not by the face.** The normal is
+    signed so that @f$\nu\cdot(a(x)-x) > 0@f$: the paths run outward from
+    @f$D_h@f$, so a normal agreeing with them is the outward normal of
+    @f$\Gamma@f$. Taking the face's own normal instead would be wrong wherever
+    @f$\Gamma@f$ and @f$\Gamma_h@f$ are not parallel, which is everywhere that
+    matters.
+
+    **The weight is SIGNED, and that is what makes this a quadrature over
+    @f$\Gamma@f$ rather than over the path the foot map traces.** The map is
+    not required to be monotone along @f$\Gamma@f$, and for a staircase
+    @f$\Gamma_h@f$ it is not: measured on a circle cut from a diagonally split
+    Cartesian mesh, most faces traverse their arc once, while a short pinch face
+    runs forward, back and forward again -- traversing 0.0163 of arc length to
+    cover 0.0060 of @f$\Gamma@f$. Where the map reverses, so does
+    @f$\partial a/\partial\xi@f$, so CalcOrtho()'s normal turns inward, the
+    orientation test fires and the segment is subtracted. What survives is the
+    net multiplicity, which is one.
+
+    Summed over the faces this is therefore a quadrature over @f$\Gamma@f$
+    **provided the images cover it**, which is a property of the path family and
+    not of this routine -- the same hypothesis ExtensionRegionQuadrature() needs,
+    minus the monotonicity the signing removes. **It is checkable and should be
+    checked**: the weights must sum to @f$|\Gamma|@f$, exactly as the volume
+    weights must give @f$|\Omega| - |D_h|@f$.
+
+    **Why a visitor and not an integrator.** The caller decides what to build:
+    a boundary integral of an extended flux against a spectral basis is a row
+    vector rather than a form, so an Integrator subclass would be the wrong
+    object for it and would narrow this to one use. This is the shape
+    ExtensionRegionQuadrature() already has, for the same reason.
+
+    @param FTr       a boundary face of @f$\Gamma_h@f$.
+    @param path      the transferring paths.
+    @param face_ir   a rule on the face.
+    @param visit     called once per quadrature point.
+    @param fd_step   the central-difference step for @f$\partial a/\partial
+                     \xi@f$, as in ExtensionRegionQuadrature(). */
+void ExtensionBoundaryQuadrature(
+   FaceElementTransformations &FTr, const TransferPath &path,
+   const IntegrationRule &face_ir,
+   const std::function<void(const ExtensionBoundaryPoint &)> &visit,
+   real_t fd_step = 1e-6);
+
+
 /** @brief Selection of the polyhedral subdomain @f$D_h@f$ of a background mesh.
 
     @f$D_h@f$ is the set of elements lying entirely inside @f$\Omega@f$. For a

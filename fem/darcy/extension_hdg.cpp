@@ -660,6 +660,112 @@ void ExtensionRegionQuadrature(
    }
 }
 
+void ExtensionBoundaryQuadrature(
+   FaceElementTransformations &FTr, const TransferPath &path,
+   const IntegrationRule &face_ir,
+   const std::function<void(const ExtensionBoundaryPoint &)> &visit,
+   real_t fd_step)
+{
+   const int sdim = FTr.GetSpaceDim();
+   const int fdim = sdim - 1;
+
+   Vector x(sdim), xbar(sdim), m(sdim), nu(sdim);
+   Vector xbar_p(sdim), xbar_m(sdim), da(sdim);
+   DenseMatrix dadxi(sdim, std::max(fdim, 1));
+
+   for (int q = 0; q < face_ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = face_ir.IntPoint(q);
+
+      path.Endpoint(FTr, ip, xbar);
+      FTr.SetAllIntPoints(&ip);
+      FTr.Transform(ip, x);
+      subtract(xbar, x, m);
+
+      // The derivative of the path's endpoint along the face, which at t = 1
+      // is the WHOLE Jacobian of the map: the face's own dx/dxi is multiplied
+      // by (1-t) and has gone.  Same central difference
+      // ExtensionRegionQuadrature() takes, for the same reason -- a path family
+      // is a map and need not supply a derivative.
+      for (int i = 0; i < fdim; i++)
+      {
+         IntegrationPoint ip_p = ip, ip_m = ip;
+         real_t *cp = (i == 0) ? &ip_p.x : ((i == 1) ? &ip_p.y : &ip_p.z);
+         real_t *cm = (i == 0) ? &ip_m.x : ((i == 1) ? &ip_m.y : &ip_m.z);
+         *cp += fd_step;
+         *cm -= fd_step;
+
+         path.Endpoint(FTr, ip_p, xbar_p);
+         path.Endpoint(FTr, ip_m, xbar_m);
+         subtract(xbar_p, xbar_m, da);
+         da /= 2. * fd_step;
+         for (int d = 0; d < sdim; d++) { dadxi(d, i) = da(d); }
+      }
+      // Endpoint() moved the transformations; put them back.
+      FTr.SetAllIntPoints(&ip);
+
+      // A point face -- the boundary of a one-dimensional mesh -- has no
+      // tangent, and its image is a point of unit weight.  CalcOrtho() is not
+      // defined for that shape, so it is taken separately rather than guarded
+      // inside the loop above.
+      real_t measure = 1.;
+      if (fdim > 0)
+      {
+         CalcOrtho(dadxi, nu);
+         measure = nu.Norml2();
+         MFEM_VERIFY(measure > 0.,
+                     "the path map is degenerate at a quadrature point: "
+                     "da/dxi has no orthogonal direction, so Gamma has no "
+                     "normal there");
+         nu /= measure;
+      }
+      else
+      {
+         // In 1D the outward direction is the path's own.
+         nu = m;
+         const real_t length = nu.Norml2();
+         MFEM_VERIFY(length > 0., "the path has zero length");
+         nu /= length;
+      }
+
+      // THE ORIENTATION, AND IT IS THE PATHS THAT FIX IT.  CalcOrtho()'s sign
+      // follows the ordering of dadxi's columns, which is the face's
+      // parametrisation and carries no information about which side D_h is on.
+      // The paths do: they run outward, so a normal agreeing with them is the
+      // outward normal of Gamma.
+      //
+      // AND THE SAME TEST GIVES THE WEIGHT ITS SIGN, WHICH IS NOT COSMETIC.
+      // The map xi -> a(x(xi)) is not required to be monotone along Gamma, and
+      // for a staircase Gamma_h it is not: measured on a circle cut from a
+      // diagonally split Cartesian mesh, most faces traverse their arc once but
+      // a short "pinch" face runs forward, back and forward again, traversing
+      // 0.0163 of arc length to cover 0.0060 of Gamma.  An UNSIGNED weight
+      // integrates the traversed length, so those faces are counted two and
+      // three times over and the sweep overcounts |Gamma| by O(h) -- which is
+      // the accuracy the transfer technique exists to buy, thrown away in the
+      // quadrature.
+      //
+      // A SIGNED weight cancels the backtracking exactly: where the map
+      // reverses, dadxi reverses, CalcOrtho()'s normal turns inward, this test
+      // fires, and the segment is subtracted.  What survives is the net
+      // multiplicity, which is one.  So a caller integrating f over Gamma gets
+      // the integral over Gamma however the family wanders, and the tiling
+      // check becomes a statement about coverage rather than about
+      // monotonicity.
+      //
+      // The normal handed to the visitor is ALWAYS the outward one; only the
+      // weight carries the sign.  A visitor that ignores the sign -- summing
+      // std::abs(weight), say -- measures the traversed length instead, which
+      // is a different and occasionally useful quantity, but it is not a
+      // quadrature over Gamma.
+      real_t signed_weight = ip.weight * measure;
+      if (nu * m < 0.) { nu.Neg(); signed_weight = -signed_weight; }
+
+      const ExtensionBoundaryPoint pt{xbar, nu, ip, signed_weight};
+      visit(pt);
+   }
+}
+
 int MarkLevelSetSubdomain(const Mesh &mesh, const PositionFunction &phi,
                           real_t offset, Array<int> &marker, int extra_refine)
 {
