@@ -658,7 +658,17 @@ class VectorBlockDiagonalIntegrator : public BilinearFormIntegrator
    std::vector<BilinearFormIntegrator*> integs;
    bool own_integs{true};
 
+#ifndef MFEM_THREAD_SAFE
+   /** One block matrix per replicated integrator, shared across calls. In a
+       thread-safe build it becomes a local instead -- MFEM's usual convention,
+       and load-bearing here rather than cosmetic: a SYSTEM installs one of
+       these per term, and DarcyHybridization calls them from a threaded
+       element loop (AssemblyMode::Threaded), where sharing this silently
+       corrupts the assembly. The symptom is not an abort but a wrong answer
+       that grows with the thread count -- 1.4e-1, 2.3e-1, 4.0e-1 relative at
+       2, 4 and 8 threads on a Navier-Stokes case that is 9.5e-13 serial. */
    std::vector<DenseMatrix> elmats;
+#endif
 
    template<typename FType, typename... Args> void AssembleElementMat(
       FType f, DenseMatrix &elmat, Args&&... args)
@@ -1104,6 +1114,9 @@ void VectorBlockDiagonalIntegrator::AssembleMat(
    std::array<const FiniteElement*,M> test_fes,
    DenseMatrix &elmat, Args&&... args)
 {
+#ifdef MFEM_THREAD_SAFE
+   std::vector<DenseMatrix> elmats;
+#endif
    constexpr int NN = (N > 0)?(N):(1);
    constexpr int MM = (M > 0)?(M):(1);
    int tr_ndofs = 0, te_ndofs = 0;
