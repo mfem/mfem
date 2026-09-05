@@ -228,7 +228,8 @@ What is left:
 * **The DAE questions proper**: index, consistent initialisation of the
   algebraic trace block, and stage-order reduction on the constraint under a
   DIRK method.
-* The `vdim == 1` refusal in the H(div) time mass, noted under §4.
+* ~~The `vdim == 1` refusal in the H(div) time mass~~ — H(div), so not ours;
+  `doc/HDG-HDIV-OPTIONAL.md` §3 has it.
 
 **ARKODE is present and not usable here**, which is worth knowing before
 anyone tries to wire it. `ARKStepSolver` offers `IMPLICIT` and `IMEX` DIRK
@@ -277,15 +278,16 @@ identically zero and the check fails loudly if the flag stops taking effect.
 
 What is left:
 
-* **H(div) flux — attempted, measured, and the refusal stands for a better
-  reason.** Not sign conventions: NPC iterates on the broken state and a
-  conforming space has no room for it, so the trace row is annihilated for
-  every conforming state and lambda is never driven. `BrokenRT_FECollection`
-  is the H(div)-shaped space that does work and is now covered.
-  `doc/HDG-HDIV-OPTIONAL.md` §1; the numbers are on `NPCCheck()`.
+Settled, and no longer open: **the H(div) refusal**, which is measured and
+stands for a better reason than the one it used to give, with
+`BrokenRT_FECollection` as the H(div)-shaped space that does work and is
+covered. It is also not ours by the scope note. The numbers are on
+`NPCCheck()`.
+
 * **A trace-assembled load still has no slot** in `DarcyForm`, on either
   route. Where the caller puts it instead is measured and pinned; adding a
-  real slot would move the reduced route too, and nobody has asked.
+  real slot would move the reduced route too, and nobody has asked. Ours in
+  kind, unasked in fact.
 * **A regression case is on offer and has not been taken.** meq's transport
   barrier is the case that used to throw out of `NewtonSolver::Mult`'s
   `IsFinite` check at iteration zero, and nothing here reproduces that fault —

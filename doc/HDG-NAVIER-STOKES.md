@@ -23,13 +23,18 @@ The solve is **NPC**; `DarcyOperator` is not involved.
   has sharp structure both along and across the flow, which is what leaves the
   general form of the `τ` question open — §5 of `HDG-ROADMAP.md`, and the
   miniapp's header comment for why Kovasznay cannot supply one.
-* **Postprocessing.** Both reconstructions are general in `vdim` now, so the
-  obstacle is no longer a `vdim` refusal — **an earlier version of this entry
-  said it was, and that guard no longer exists.** What blocks it is §4's
-  closure argument: it drops one equation per field because the lifted local
-  operator annihilates per-field constants, and a lifted
-  `HyperbolicFormIntegrator` Jacobian does not. This miniapp does not call
-  `Reconstruct` at all today.
+* **Postprocessing — and this is NOT ours**, by the scope note at the top of
+  `HDG-ROADMAP.md`: the rich `ReconstructFluxAndPot()` is an inherited Darcy
+  pathway. Its closure condition is measured and written up at the closure
+  itself in `darcyform.cpp`. Two earlier versions of this entry were wrong —
+  first that a `vdim` refusal blocked it, then that a hyperbolic Jacobian did —
+  and the second named the wrong integrator set anyway; it is the conservative
+  form, not hyperbolicity.
+  **What is probably true and is unchecked**: `HDGPotentialPostprocessor` is
+  immune to that closure structurally, is `vdim`-general, and needs only the
+  computed flux and potential — so it could postprocess this miniapp today if
+  its `q = -K grad p` assumption suits the viscous flux. That is the thing to
+  check if postprocessing is ever wanted here, and it is a small one.
 * **Hagen-Poiseuille**, and axisymmetric support generally, which exists
   nowhere in the tree. The weak divergence in `(r,z)` is the Cartesian one
   under the measure `r dr dz`, so it needs the weight threaded through every
