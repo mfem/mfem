@@ -115,9 +115,15 @@ IrrotationalProjector
      ownsWeakDiv_(weakDiv == NULL),
      ownsGrad_(grad == NULL)
 {
+   int myid = H1FESpace_->GetMyRank();
+
    ess_bdr_.SetSize(H1FESpace_->GetParMesh()->bdr_attributes.Max());
-   ess_bdr_ = 1;
-   H1FESpace_->GetEssentialTrueDofs(ess_bdr_, ess_bdr_tdofs_);
+   ess_bdr_ = 0;
+   ess_bdr_tdofs_.SetSize((myid == 0) ? 1 : 0);
+   if (myid == 0)
+   {
+      ess_bdr_tdofs_[0] = 0;
+   }
 
    Geometry::Type geom = H1FESpace_->GetMesh()->GetTypicalElementGeometry();
    const IntegrationRule * ir = &IntRules.Get(geom, irOrder);
