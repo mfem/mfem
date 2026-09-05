@@ -138,6 +138,103 @@ public:
    void Reset() override { current_sequence = -1; }
 };
 
+/** @brief The boundary-datum term of a face-based error estimator: the
+    mismatch between a computed field and the datum actually imposed on marked
+    boundary faces.
+
+    This is @f$\eta_5@f$ of Sánchez-Vizuet, Solano & Cerfon eq. (20), and it
+    is the one term of that estimator HDGErrorEstimator above cannot express.
+    Both of its types are built from an HDG face integrator and measure
+    @f$|\hat p - \lambda|@f$ between the potential's trace and the trace
+    unknown; @f$\eta_5@f$ instead compares a field against a **coefficient**,
+    and on the extension path of the subdomain method that coefficient is
+    TransferredDatumCoefficient, the datum @f$\varphi_h = g\circ a +
+    L_e(\boldsymbol u_h)@f$ transferred along the paths. There is no integrator
+    to build it from, which is why it is a class of its own rather than a third
+    Type.
+
+    **Why it matters, measured on the application that asked for it.** On the
+    extension path the trace unknown on @f$\Gamma_h@f$ is pinned rather than
+    free, so an estimator omitting this term compares the postprocessed
+    potential against **zero**. The difference is then
+    @f$O(\mathrm{dist}(\Gamma_h, \Gamma)) = O(h)@f$ and swamps the rest: at
+    @f$k = 2@f$ the total read @f$\eta = 4.09\mathrm{e}{-1}@f$ against
+    @f$\eta_1 = 2.12\mathrm{e}{-3}@f$, converging at about one half. An
+    adaptive loop built on it runs, produces plausible pictures, and refines
+    the wrong elements. Excluding those faces restores the rate and is an
+    omission rather than a repair -- the term carries information and was
+    being discarded.
+
+    Each element's entry is @f$\sqrt{\int_F (u_h - \varphi)^2}@f$ summed over
+    its marked faces, and the total is the square root of the sum, which is the
+    convention HDGErrorEstimator's Type::Energy uses.
+
+    @note The estimator evaluates the coefficient through the
+    FaceElementTransformations and at the FACE integration point, because a
+    path family may need the outward normal and an interpolated direction is
+    not a function of the point alone. It also takes the weight and the field
+    value BEFORE evaluating the coefficient, because
+    PathLiftCoefficient::Eval() moves both transformations -- see the warning
+    on that class. Getting that order wrong does not fail loudly; it silently
+    integrates against a geometry that has walked off the face. */
+class HDGDatumErrorEstimator : public ErrorEstimator
+{
+   const GridFunction &sol;
+   Coefficient &datum;
+   Array<int> bdr_marker;
+   int ir_order;
+
+   // Mutable, and ComputeEstimates() is const, so that GetTotalError() can
+   // bring itself up to date. ErrorEstimator declares that method const, so an
+   // estimator holding its state non-mutably can only return whatever
+   // GetLocalErrors() last left there -- which is ZERO for a caller that asks
+   // for the total and never asks for the local errors. That is a silent wrong
+   // answer rather than an abort, it is what the first draft of this class
+   // did, and the test caught it only because it checked a value rather than a
+   // tolerance. HDGErrorEstimator above has the same shape and the same wart.
+   mutable long current_sequence{-1};
+   mutable Vector error_estimates;
+   mutable real_t total_error{};
+
+   bool MeshIsModified() const
+   {
+      long mesh_sequence = sol.FESpace()->GetMesh()->GetSequence();
+      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
+      return (mesh_sequence > current_sequence);
+   }
+
+   void ComputeEstimates() const;
+
+public:
+   /** @param sol_     the field to compare, typically the postprocessed
+                       potential.
+       @param datum_   the datum actually imposed on those faces.
+       @param marker_  boundary attributes to integrate over, one entry per
+                       attribute.
+       @param ir_ord   quadrature order along a face; negative takes twice the
+                       element order plus two. */
+   HDGDatumErrorEstimator(const GridFunction &sol_, Coefficient &datum_,
+                          const Array<int> &marker_, int ir_ord = -1)
+      : sol(sol_), datum(datum_), bdr_marker(marker_), ir_order(ir_ord) { }
+
+   /// Quadrature order along a face; negative restores the default.
+   void SetIntegrationOrder(int order) { ir_order = order; Reset(); }
+
+   real_t GetTotalError() const override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return total_error;
+   }
+
+   const Vector &GetLocalErrors() override
+   {
+      if (MeshIsModified()) { ComputeEstimates(); }
+      return error_estimates;
+   }
+
+   void Reset() override { current_sequence = -1; }
+};
+
 } // namespace mfem
 
 #endif // MFEM_ESTIMATORS_HDG

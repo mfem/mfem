@@ -199,4 +199,59 @@ void HDGErrorEstimator::ComputeFaceEstimate(int face, bool side2,
    }
 }
 
+void HDGDatumErrorEstimator::ComputeEstimates() const
+{
+   Mesh *mesh = sol.FESpace()->GetMesh();
+   const int NE = mesh->GetNE();
+
+   error_estimates.SetSize(NE);
+   error_estimates = 0.;
+
+   for (int b = 0; b < mesh->GetNBE(); b++)
+   {
+      const int attr = mesh->GetBdrAttribute(b);
+      MFEM_VERIFY(attr <= bdr_marker.Size(),
+                  "boundary attribute " << attr << " exceeds the marker size "
+                  << bdr_marker.Size());
+      if (!bdr_marker[attr - 1]) { continue; }
+
+      FaceElementTransformations *FTr = mesh->GetBdrFaceTransformations(b);
+      if (!FTr) { continue; }   // not a true boundary face on this rank
+
+      const FiniteElement *fe = sol.FESpace()->GetFE(FTr->Elem1No);
+      const int order = (ir_order >= 0) ? ir_order : 2 * fe->GetOrder() + 2;
+      const IntegrationRule &ir = IntRules.Get(FTr->GetGeometryType(), order);
+
+      real_t sum = 0.;
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         FTr->SetAllIntPoints(&ip);
+
+         // The weight and the field value are taken HERE, before the datum,
+         // because evaluating a transferred datum walks both transformations
+         // off the face -- see the warning on PathLiftCoefficient. Reordering
+         // these three lines does not fail loudly.
+         const real_t w = ip.weight * FTr->Weight();
+         const real_t u = sol.GetValue(*FTr->Elem1, FTr->GetElement1IntPoint());
+
+         // The coefficient gets the FACE transformation and the FACE point: a
+         // path family may need the outward normal, and an interpolated
+         // direction is not a function of the point alone.
+         const real_t phi = datum.Eval(*FTr, ip);
+
+         sum += w * (u - phi) * (u - phi);
+      }
+      error_estimates(FTr->Elem1No) += sum;
+   }
+
+   total_error = std::sqrt(error_estimates.Sum());
+   for (int i = 0; i < NE; i++)
+   {
+      error_estimates(i) = std::sqrt(error_estimates(i));
+   }
+
+   current_sequence = mesh->GetSequence();
+}
+
 } // namespace mfem

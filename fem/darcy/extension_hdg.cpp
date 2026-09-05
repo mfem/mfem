@@ -11,6 +11,7 @@
 
 #include "extension_hdg.hpp"
 #include "../geom.hpp"
+#include "../../mesh/submesh/submesh.hpp"
 
 #include <algorithm>
 #include <array>
@@ -179,6 +180,96 @@ VertexConePath::VertexConePath(const Mesh &mesh_, int gamma_h_attr,
       }
    }
 
+   // The cone C(x) of CS-Extensions section 2.4.1, when there is a background
+   // mesh to build it from. It is the angular hull of the BACKGROUND mesh's
+   // edges at the vertex that leave D_h, and restricting the search to it is
+   // what keeps the paths of neighbouring faces from crossing: a path stays
+   // inside the fan of background elements at its own vertex, and those fans
+   // tile. Without it only the half space H(x) is applied, the swept regions
+   // of neighbouring faces overlap wherever the boundary carries a feature
+   // thinner than a mesh width, and the flux loses its order while the
+   // potential keeps it.
+   //
+   // The background mesh is not an extra argument: a SubMesh knows its parent
+   // and its own vertex numbering within it. Handed anything else, there is no
+   // cone and the behaviour is what it was.
+   std::map<int, std::array<real_t, 2>> vertex_cone;   // centre, half width
+   const SubMesh *sub = dynamic_cast<const SubMesh *>(mesh);
+   if (sub && sub->GetParent())
+   {
+      have_cone = true;
+      const Mesh &bg = *sub->GetParent();
+      const Array<int> &pv = sub->GetParentVertexIDMap();
+
+      // Background edges incident on each parent vertex, once.
+      std::map<int, std::vector<int>> edges_at;
+      Array<int> ev;
+      for (int e = 0; e < bg.GetNEdges(); e++)
+      {
+         const_cast<Mesh &>(bg).GetEdgeVertices(e, ev);
+         edges_at[ev[0]].push_back(e);
+         edges_at[ev[1]].push_back(e);
+      }
+
+      for (auto &kv : vertex_normals)
+      {
+         const int sv = kv.first;
+         if (sv >= pv.Size()) { continue; }
+         auto it = edges_at.find(pv[sv]);
+         if (it == edges_at.end()) { continue; }
+
+         const real_t *c = bg.GetVertex(pv[sv]);
+         const Array<real_t> &ns = kv.second;
+         const int m_n = ns.Size() / 2;
+
+         // Keep the edge directions that leave D_h through every face of
+         // Gamma_h meeting here -- the same admissibility the half space
+         // uses, applied to the background's own edges rather than to a
+         // continuum of angles.
+         std::vector<real_t> ang;
+         for (int e : it->second)
+         {
+            const_cast<Mesh &>(bg).GetEdgeVertices(e, ev);
+            const int other = (ev[0] == pv[sv]) ? ev[1] : ev[0];
+            const real_t *o = bg.GetVertex(other);
+            real_t d0 = o[0] - c[0], d1 = o[1] - c[1];
+            const real_t dn = std::sqrt(d0 * d0 + d1 * d1);
+            if (dn < 1e-14) { continue; }
+            d0 /= dn; d1 /= dn;
+
+            // Against the MEAN normal, not against every one of them. The
+            // stricter test empties the cone at exactly the vertices that need
+            // it -- a reentrant corner has no direction leaving through both
+            // its faces -- which was measured: it restricted 10 vertices and
+            // moved neither the tiling error nor a single rate.
+            real_t mx = 0., my = 0.;
+            for (int i = 0; i < m_n; i++)
+            {
+               mx += ns[2 * i]; my += ns[2 * i + 1];
+            }
+            if (d0 * mx + d1 * my > 0.) { ang.push_back(atan2(d1, d0)); }
+         }
+         if (ang.empty()) { continue; }
+
+         // The smallest arc containing them. Sorting and taking the largest
+         // gap is what makes this right across the branch cut of atan2.
+         std::sort(ang.begin(), ang.end());
+         const int na = (int)ang.size();
+         real_t best_gap = 2. * M_PI + ang[0] - ang[na - 1];
+         int best_at = na - 1;
+         for (int i = 0; i + 1 < na; i++)
+         {
+            const real_t g = ang[i + 1] - ang[i];
+            if (g > best_gap) { best_gap = g; best_at = i; }
+         }
+         const real_t span = 2. * M_PI - best_gap;
+         const real_t lo = ang[(best_at + 1) % na];
+         vertex_cone[sv] = {{lo + 0.5 * span, 0.5 * span}};
+      }
+   }
+
+   n_gamma_h_vertices = (int)vertex_normals.size();
+
    // A direction at each of those vertices.
    std::map<int, std::array<real_t, 2>> vertex_tangent;
    Vector x(2), t(2);
@@ -186,7 +277,10 @@ VertexConePath::VertexConePath(const Mesh &mesh_, int gamma_h_attr,
    {
       const real_t *c = m.GetVertex(kv.first);
       x(0) = c[0]; x(1) = c[1];
-      MFEM_VERIFY(VertexDirection(x, kv.second, t),
+      real_t cc = 0., ch = -1.;
+      auto ic = vertex_cone.find(kv.first);
+      if (ic != vertex_cone.end()) { cc = ic->second[0]; ch = ic->second[1]; }
+      MFEM_VERIFY(VertexDirection(x, kv.second, cc, ch, t),
                   "no ray from the vertex (" << x(0) << ", " << x(1)
                   << ") of Gamma_h reaches Gamma within the search length "
                   << search_length);
@@ -232,7 +326,9 @@ VertexConePath::VertexConePath(const Mesh &mesh_, int gamma_h_attr,
 }
 
 bool VertexConePath::VertexDirection(const Vector &x,
-                                     const Array<real_t> &normals, Vector &t)
+                                     const Array<real_t> &normals,
+                                     real_t cone_centre, real_t cone_half,
+                                     Vector &t)
 {
    const int m = normals.Size() / 2;
    MFEM_VERIFY(m >= 1, "a vertex of Gamma_h with no face");
@@ -266,6 +362,18 @@ bool VertexConePath::VertexDirection(const Vector &x,
    {
       centre_angle = atan2(normals[1], normals[0]);
       half_width = -1.;
+   }
+
+   // The cone restricts the first pass and nothing else: it is a subset of the
+   // half space by construction, so where it exists it is the tighter of the
+   // two, and where it does not the arc is what it always was. The widenings
+   // below deliberately leave both behind.
+   if (cone_half > 0.)
+   {
+      if (half_width <= 0. || cone_half < half_width) { n_tighter++; }
+      centre_angle = cone_centre;
+      half_width = cone_half;
+      n_coned++;
    }
 
    // Search the admissible fan, then the half-circle about the mean normal,

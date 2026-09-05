@@ -209,21 +209,33 @@ public:
     Two dimensions only. The construction generalises, and the reference says
     so, but nothing here has been run in three.
 
-    **Only the half-space half of the reference's crossing restriction is
-    built.** CS-Extensions section 2.4.1 keeps neighbouring paths from crossing
-    with a cone @f$C(x)@f$ assembled from the *background* mesh's edges at each
-    vertex, intersected with a half space @f$H(x)@f$; this class is not given a
-    background mesh and applies @f$H(x)@f$ alone. Where the boundary has a
-    feature thinner than a mesh width -- an aerofoil's trailing edge is the
-    case that found it -- the interpolated paths of neighbouring faces cross
-    before reaching @f$\Gamma@f$, their swept regions overlap, and the measure
-    comes out too large: the tiling residual reads 1.1e-2, 1.1e-2, 5.3e-3 and
-    1.1e-3 as n runs 16 to 128, converging away rather than persisting. The
-    cost is the FLUX order and nothing else -- blunting the tail restores it to
-    2.03 and 2.01 while the potential sits at 2.01 either way, which is what
-    says the loss is the transfer's and not the mesh's or the geometry's.
-    Supplying the cone is what stands between this and the reference's
-    Table 6.
+    **Both halves of the reference's crossing restriction are built, and the
+    cone does not do what it was expected to.** CS-Extensions section 2.4.1
+    restricts the direction at a vertex to a half space @f$H(x)@f$ intersected
+    with a cone @f$C(x)@f$ assembled from the *background* mesh's edges there.
+    @f$C(x)@f$ needs a background mesh; rather than take one as an argument,
+    this class recovers it when the mesh it is given is a SubMesh, through
+    GetParent() and GetParentVertexIDMap(). Handed anything else there is no
+    cone and only @f$H(x)@f$ applies.
+
+    **The cone was built to close the aerofoil's flux order and it does not
+    move it at all**, which withdraws a claim this branch carried for several
+    sessions -- that supplying the cone was the only thing standing between
+    this and the reference's Table 6. Measured on the aerofoil at n = 16, the
+    cone restricts **16 of 16** vertices of @f$\Gamma_h@f$ and is strictly
+    tighter than the half space at 10 of them, @f$\pi/2@f$ becoming
+    @f$\pi/8@f$. With it the tiling residual is 1.13e-2 and without it 1.13e-2;
+    the flux rates are 2.08, 1.46, 1.53 against 2.09, 1.46, 1.53. Nothing moves
+    beyond the fourth digit.
+
+    **So the overlap is not caused by the vertex directions.** What remains as
+    the candidate is the interpolation along a face between two vertex tangents
+    that a reentrant corner drives apart, or a boundary that folds back within
+    a mesh width -- not the choice of direction at a vertex, which is now
+    restricted as tightly as the reference asks. Blunting the tail with a
+    larger @c lambda still fixes it, taking the tiling residual to -3.6e-10 and
+    the flux to 2.03 and 2.01, so the loss remains the transfer's rather than
+    the mesh's or the discretisation's.
 
     Must be evaluated through the FaceElementTransformations overload: a
     direction interpolated along a face is not a function of the point alone.
@@ -241,12 +253,18 @@ class VertexConePath : public TransferPath
    Array<real_t> tang;
    Array<int> has_tangent;
    int n_widened{};
+   int n_coned{};
+   int n_gamma_h_vertices{};
+   int n_tighter{};
+   bool have_cone{};
 
    /// Choose the direction at one vertex, given the outward normals of the
-   /// faces of @f$\Gamma_h@f$ meeting there. Returns false if no ray reached
-   /// @f$\Gamma@f$ even after the admissible fan was widened.
+   /// faces of @f$\Gamma_h@f$ meeting there and, when a background mesh
+   /// supplied one, the cone @f$C(x)@f$ as a centre angle and half width.
+   /// Returns false if no ray reached @f$\Gamma@f$ even after the admissible
+   /// fan was widened.
    bool VertexDirection(const Vector &x, const Array<real_t> &normals,
-                        Vector &t);
+                        real_t cone_centre, real_t cone_half, Vector &t);
 
 public:
    /** @param mesh_           the mesh of @f$D_h@f$.
@@ -283,6 +301,18 @@ public:
        it is worth reporting rather than hiding: the method may still run, and
        the estimate no longer covers it. */
    int NumWidened() const { return n_widened; }
+
+   /// Whether the cone @f$C(x)@f$ was available, i.e. whether the mesh handed
+   /// to the constructor was a SubMesh with a parent to read edges from.
+   bool HasCone() const { return have_cone; }
+
+   /// How many vertices had their search restricted by @f$C(x)@f$ rather than
+   /// by the half space alone. Zero with no background mesh.
+   int NumConeRestricted() const { return n_coned; }
+   int NumTighter() const { return n_tighter; }
+
+   /// Vertices of @f$\Gamma_h@f$ a direction was searched at.
+   int NumVertices() const { return n_gamma_h_vertices; }
 };
 
 

@@ -799,6 +799,100 @@ TEST_CASE("Extension from subdomains: the searched path family",
    REQUIRE(std::abs(swept - truth) < 1e-8 * truth);
 }
 
+TEST_CASE("Extension from subdomains: the estimator's boundary-datum term",
+          "[DarcyExtension]")
+{
+   // eta_5 of SSC eq (20): the mismatch between a computed field and the datum
+   // actually imposed on Gamma_h. Neither Type of HDGErrorEstimator can
+   // express it -- both are built from an HDG face integrator and compare the
+   // potential's trace against the trace unknown, where this compares a field
+   // against a COEFFICIENT.
+   //
+   // The check is exact rather than asymptotic, which is what makes it worth
+   // having: fed the exact flux, TransferredDatumCoefficient returns p on
+   // Gamma_h, because g(a(x)) = p(a(x)) and L_e of the exact flux is
+   // p(x) - p(a(x)). So with both exact the term must vanish.
+   //
+   // The two spaces differ by one order, and not as a convenience. uPoly is
+   // degree two and pPoly is degree THREE -- the x^2 y term -- so on this
+   // triangulation P^k contains the flux at k >= 2 and the potential only at
+   // k >= 3. (The comment above uPoly calls the pair "degree two", which is
+   // true of the flux and not of the potential; every other case here projects
+   // the flux, so this is the first to meet it.) One order apart is also what
+   // eta_5 is for: the field it judges is the POSTPROCESSED potential, which
+   // lives one order above the computed one.
+   const int n = GENERATE(8, 12);
+   const int order = GENERATE(2, 3);
+   CAPTURE(n, order);
+
+   Subdomain s = BuildSubdomain(n);
+
+   L2_FECollection ufec(order, 2, BasisType::GaussLobatto);
+   FiniteElementSpace ufes(s.D_h.get(), &ufec, 2);
+   GridFunction u_h(&ufes);
+   VectorFunctionCoefficient ucoeff(2, uPoly);
+   u_h.ProjectCoefficient(ucoeff);
+
+   L2_FECollection pfec(order + 1, 2, BasisType::GaussLobatto);
+   FiniteElementSpace pfes(s.D_h.get(), &pfec);
+   GridFunction p_h(&pfes);
+   FunctionCoefficient pcoeff(pPoly);
+   p_h.ProjectCoefficient(pcoeff);
+
+   Vector c; DiscCentre(c);
+   ClosestPointPath path(ClosestPointPath::Sphere(c, disc_R));
+   ConstantCoefficient C(1.0);
+   TransferredDatumCoefficient datum(path, pPoly, u_h, C, 8);
+
+   Array<int> marker(s.D_h->bdr_attributes.Max());
+   marker = 0;
+   marker[s.gamma_h_attr - 1] = 1;
+
+   HDGDatumErrorEstimator est(p_h, datum, marker, 8);
+
+   SECTION("vanishes when the field is the datum")
+   {
+      const Vector &loc = est.GetLocalErrors();
+      REQUIRE(loc.Size() == s.D_h->GetNE());
+      CAPTURE(est.GetTotalError(), loc.Normlinf());
+      REQUIRE(est.GetTotalError() < 1e-10);
+   }
+
+   SECTION("and is the size of a shift that is not the datum")
+   {
+      // A constant shift makes the answer arithmetic rather than a tolerance:
+      // the term is |c| times the square root of the measure of Gamma_h, and
+      // that measure is the one the estimator integrates, so this also checks
+      // the weight it applies. It is the discriminating half -- an estimator
+      // that returned zero regardless would pass the section above.
+      const real_t shift = 0.25;
+      p_h += shift;
+
+      // The length of Gamma_h, integrated the same way.
+      real_t len = 0.;
+      const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, 8);
+      for (int b = 0; b < s.D_h->GetNBE(); b++)
+      {
+         if (s.D_h->GetBdrAttribute(b) != s.gamma_h_attr) { continue; }
+         FaceElementTransformations *FTr = s.D_h->GetBdrFaceTransformations(b);
+         if (!FTr) { continue; }
+         for (int q = 0; q < ir.GetNPoints(); q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            FTr->SetAllIntPoints(&ip);
+            len += ip.weight * FTr->Weight();
+         }
+      }
+
+      est.Reset();
+      const real_t got = est.GetTotalError();
+      const real_t want = shift * std::sqrt(len);
+      CAPTURE(got, want, len);
+      REQUIRE(len > 0.);
+      REQUIRE(got == Approx(want).epsilon(1e-9));
+   }
+}
+
 TEST_CASE("Extension from subdomains: a feature thinner than the mesh breaks "
           "the tiling",
           "[DarcyExtension]")

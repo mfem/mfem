@@ -325,6 +325,11 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    {
       auto vcp = make_unique<VertexConePath>(*D_h, gamma_h, LevelSet, 4.0 / n);
       widened = vcp->NumWidened();
+      cout << "vertex-cone path: cone " << (vcp->HasCone() ? "available" : "NOT "
+                                            "available") << ", restricting " << vcp->NumConeRestricted()
+           << " of " << vcp->NumVertices() << " vertices ("
+           << vcp->NumTighter() << " strictly tighter than the half space), "
+           << widened << " widened" << endl;
       path = std::move(vcp);
    }
    else
