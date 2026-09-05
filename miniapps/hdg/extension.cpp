@@ -117,6 +117,7 @@ real_t foil_lambda = -1.0;   ///< negative takes the reference's R - |s|
 /// obstacle and still clip it, which puts a piece of D_h outside Omega and
 /// makes nonsense of everything downstream.
 int extra_refine = 0;
+bool use_cone = false;   ///< CS-Extensions 2.4.1 cone; see VertexConePath
 
 const real_t cx = 0.5, cy = 0.5;
 
@@ -347,7 +348,8 @@ Result Solve(int n, int order, real_t tau, real_t offset,
    }
    else if (path_family == PathFamily::VertexCone)
    {
-      auto vcp = make_unique<VertexConePath>(*D_h, gamma_h, LevelSet, 4.0 / n);
+      auto vcp = make_unique<VertexConePath>(*D_h, gamma_h, LevelSet, 4.0 / n,
+                                             16, 3, 32, 1e-13, 100, use_cone);
       widened = vcp->NumWidened();
       cout << "vertex-cone path: cone " << (vcp->HasCone() ? "available" : "NOT "
                                             "available") << ", restricting " << vcp->NumConeRestricted()
@@ -633,6 +635,14 @@ int main(int argc, char *argv[])
                   "The Joukowsky parameter; negative takes the reference's "
                   "R - |s|, which makes the circle internally tangent to "
                   "|z| = lambda and gives the airfoil its thin curled tail.");
+   args.AddOption(&use_cone, "-cone", "--vertex-cone", "-no-cone",
+                  "--no-vertex-cone",
+                  "Apply CS-Extensions section 2.4.1's cone to the vertex "
+                  "search of the 'vc' family. OFF by default: it does not "
+                  "close this problem's flux order, which is pre-asymptotic "
+                  "and recovers on its own, and it roughens the foot map along "
+                  "a face, which costs the boundary quadrature accuracy at a "
+                  "fixed rule. See VertexConePath.");
    args.AddOption(&path_type, "-path", "--path-family",
                   "'cp' for the closest-point map, 'ls' for a normal ray "
                   "bisected on the level set, 'vc' for the general family "

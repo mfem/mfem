@@ -875,6 +875,11 @@ TEST_CASE("Extension from subdomains: quadrature over Gamma",
                         ClosestPointPath::SphereJacobian(c, disc_R));
    LevelSetPath ls(DiscPhi, 8.0 / n);
    VertexConePath vc(*s.D_h, s.gamma_h_attr, DiscPhi, 4.0 / n);
+   // The same family with CS-Extensions section 2.4.1's cone asked for. It is
+   // off by default; see the note on the class for why, and the two sections
+   // below for what it does to this routine.
+   VertexConePath coned(*s.D_h, s.gamma_h_attr, DiscPhi, 4.0 / n,
+                        16, 3, 32, 1e-13, 100, true);
 
    SECTION("the images cover Gamma, for the families that tile")
    {
@@ -883,18 +888,20 @@ TEST_CASE("Extension from subdomains: quadrature over Gamma",
       // near the poles of the circle that is every second face. Such a face
       // covers zero arc and must contribute nothing; before it was skipped the
       // routine aborted on the simplest family there is.
-      // The tolerances differ by family and that is the point rather than a
-      // convenience: a closed-form map is accurate to the quadrature, while a
-      // family whose direction is SEARCHED at each vertex carries the search's
-      // own tolerance into every weight. Asking the same of both would either
-      // fail on the searched one or say nothing about the exact ones.
-      const TransferPath *fam[3] = { &cp, &cpj, &vc };
-      const real_t tol[3] = { 1e-9, 1e-9, 1e-5 };
-      for (int i = 0; i < 3; i++)
+      // One tolerance for all three, and an earlier version of this case had
+      // three -- it gave VertexConePath 1e-5 and blamed "the search's own
+      // tolerance", which was wrong. What cost it that accuracy was the CONE,
+      // which is off by default now; see the section below and the note on the
+      // class. A searched family is as accurate here as a closed-form one.
+      for (const TransferPath *p :
+           {
+              (const TransferPath *)&cp, (const TransferPath *)&cpj,
+              (const TransferPath *)&vc
+           })
       {
-         const real_t got = BoundarySum(*s.D_h, s.gamma_h_attr, *fam[i]);
-         CAPTURE(i, got, truth, (got - truth) / truth);
-         REQUIRE(got == Approx(truth).epsilon(tol[i]));
+         const real_t got = BoundarySum(*s.D_h, s.gamma_h_attr, *p);
+         CAPTURE(got, truth, (got - truth) / truth);
+         REQUIRE(got == Approx(truth).epsilon(1e-8));
       }
    }
 
@@ -926,13 +933,16 @@ TEST_CASE("Extension from subdomains: quadrature over Gamma",
       // So the two sums must DIFFER, and the signed one must be the right
       // answer. Both halves are asserted: a routine that returned |Gamma| by
       // accident would pass the section above and fail here.
-      // VertexConePath is the family that backtracks here; the closest-point
-      // map on a circle is monotone and its two sums agree to 4e-11, which is
-      // worth knowing because it means this section would prove nothing on it.
+      // THE CONED family is the one that backtracks here, and that is the
+      // sharpest thing this case knows about the cone: restricting the
+      // direction at each vertex is what drives neighbouring feet apart enough
+      // for the foot map to reverse. Without it -- and without it is the
+      // default -- VertexConePath is monotone like the closest-point map, and
+      // this section would prove nothing on either.
       const real_t signed_sum =
-         BoundarySum(*s.D_h, s.gamma_h_attr, vc, false);
+         BoundarySum(*s.D_h, s.gamma_h_attr, coned, false);
       const real_t traversed =
-         BoundarySum(*s.D_h, s.gamma_h_attr, vc, true);
+         BoundarySum(*s.D_h, s.gamma_h_attr, coned, true);
       const real_t cp_signed = BoundarySum(*s.D_h, s.gamma_h_attr, cp, false);
       const real_t cp_trav   = BoundarySum(*s.D_h, s.gamma_h_attr, cp, true);
       CAPTURE(signed_sum, traversed, truth, cp_signed, cp_trav);
@@ -950,6 +960,34 @@ TEST_CASE("Extension from subdomains: quadrature over Gamma",
       else { REQUIRE(traversed == Approx(signed_sum).epsilon(1e-12)); }
 
       REQUIRE(cp_trav == Approx(cp_signed).epsilon(1e-9));
+   }
+
+   SECTION("the cone costs the rule, not the coverage")
+   {
+      // Reported by MEQ against gf-hdg-subdomains-dev at 7255bd9ebd: with the
+      // cone on, this sum stops being a mesh-independent floor and becomes a
+      // converging rate, which reads as the images ceasing to cover Gamma.
+      // Reproduced here -- and it is not a coverage failure.
+      //
+      // The separating experiment is refining the RULE rather than the mesh.
+      // If the images had stopped covering Gamma, no rule would recover the
+      // answer; a curve the rule under-resolves is recovered by a better rule,
+      // and that is what happens. So the cone is paid for in quadrature
+      // smoothness -- it moves the two vertex directions being interpolated
+      // apart, and the foot map along the face roughens -- while coverage
+      // stays exact. That is the answer to MEQ's question of whether the cone
+      // is meant to preserve tiling: it does.
+      REQUIRE(coned.HasCone());
+      REQUIRE_FALSE(vc.HasCone());          // one variable, and it is the cone
+      REQUIRE(coned.NumConeRestricted() == coned.NumVertices());
+
+      const real_t coarse = BoundarySum(*s.D_h, s.gamma_h_attr, coned, false, 8);
+      const real_t fine   = BoundarySum(*s.D_h, s.gamma_h_attr, coned, false, 80);
+      CAPTURE(coarse, fine, truth);
+      // Whether a given mesh roughens a face at all is mesh-dependent, so the
+      // coarse rule is not asserted to be bad -- only that the fine one is
+      // good, which is the half that says coverage is intact.
+      REQUIRE(fine == Approx(truth).epsilon(1e-8));
    }
 
    SECTION("the reported normal is Gamma's own")

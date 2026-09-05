@@ -197,7 +197,7 @@ void LevelSetPath::Endpoint(const Vector &x, const Vector &n,
 VertexConePath::VertexConePath(const Mesh &mesh_, int gamma_h_attr,
                                PositionFunction phi_, real_t search_length_,
                                int n_rays_, int n_keep_, int search_steps_,
-                               real_t tol_, int max_iter_)
+                               real_t tol_, int max_iter_, bool use_cone_)
    : mesh(&mesh_), phi(std::move(phi_)), search_length(search_length_),
      n_rays(n_rays_), n_keep(n_keep_), search_steps(search_steps_),
      max_iter(max_iter_), tol(tol_)
@@ -253,7 +253,7 @@ VertexConePath::VertexConePath(const Mesh &mesh_, int gamma_h_attr,
    // and its own vertex numbering within it. Handed anything else, there is no
    // cone and the behaviour is what it was.
    std::map<int, std::array<real_t, 2>> vertex_cone;   // centre, half width
-   const SubMesh *sub = dynamic_cast<const SubMesh *>(mesh);
+   const SubMesh *sub = use_cone_ ? dynamic_cast<const SubMesh *>(mesh) : NULL;
    if (sub && sub->GetParent())
    {
       have_cone = true;

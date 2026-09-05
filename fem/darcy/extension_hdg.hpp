@@ -268,54 +268,42 @@ public:
     so, but nothing here has been run in three.
 
     **Both halves of the reference's crossing restriction are built, and the
-    cone does not do what it was expected to.** CS-Extensions section 2.4.1
-    restricts the direction at a vertex to a half space @f$H(x)@f$ intersected
-    with a cone @f$C(x)@f$ assembled from the *background* mesh's edges there.
-    @f$C(x)@f$ needs a background mesh; rather than take one as an argument,
-    this class recovers it when the mesh it is given is a SubMesh, through
-    GetParent() and GetParentVertexIDMap(). Handed anything else there is no
-    cone and only @f$H(x)@f$ applies.
+    cone is OFF BY DEFAULT because neither reason for wanting it survived
+    measurement.** CS-Extensions section 2.4.1 restricts the direction at a
+    vertex to a half space @f$H(x)@f$ intersected with a cone @f$C(x)@f$
+    assembled from the *background* mesh's edges there. @f$C(x)@f$ needs a
+    background mesh; rather than take one as an argument, this class recovers
+    it when the mesh it is given is a SubMesh, and @a use_cone asks for it.
 
-    **The cone was built to close the aerofoil's flux order and it does not
-    move it at all**, which withdraws a claim this branch carried for several
-    sessions -- that supplying the cone was the only thing standing between
-    this and the reference's Table 6. Measured on the aerofoil at n = 16, the
-    cone restricts **16 of 16** vertices of @f$\Gamma_h@f$ and is strictly
-    tighter than the half space at 10 of them, @f$\pi/2@f$ becoming
-    @f$\pi/8@f$. With it the tiling residual is 1.13e-2 and without it 1.13e-2;
-    the flux rates are 2.08, 1.46, 1.53 against 2.09, 1.46, 1.53. Nothing moves
-    beyond the fourth digit.
+    **It does not close the aerofoil's flux order**, which is what it was built
+    for and which this branch asserted for several sessions was the only thing
+    standing between the extension and the reference's Table 6. Measured, the
+    cone restricts every vertex of @f$\Gamma_h@f$ at every refinement and is
+    strictly tighter than the half space at most of them, @f$\pi/2@f$ becoming
+    @f$\pi/8@f$; the tiling residual is 1.13e-2 either way and the flux rates
+    agree to the fourth digit. That order loss turned out to be pre-asymptotic
+    and to recover on its own -- see the miniapp's header comment.
 
-    **So the overlap is not caused by the vertex directions**, and two further
-    measurements say what it is and what it does not explain.
+    **And it costs the far face's quadrature, which is how MEQ found it.**
+    Summing ExtensionBoundaryQuadrature() over a circle at a fixed rule, the
+    residual against @f$|\Gamma|@f$ is a mesh-independent 1e-11 floor without
+    the cone and as much as 6e-5 with it, converging with @f$h@f$ -- which
+    reads exactly like a coverage failure.
 
-    Binning the swept quadrature weight spatially -- at a rule fine enough that
-    the blunt case's apparent excess converges away, which it does not at a
-    coarse one -- leaves the sharp case with **one** genuinely over-covered
-    cell, just beyond the tail tip, at a coverage ratio of 1.55, and **two**
-    faces contribute to it. It is therefore two path bundles arriving in the
-    same place from opposite sides of a tail thinner than a mesh width, and not
-    one face's region folding onto itself. A cone restricting each vertex to
-    its own background-edge fan cannot prevent that, because the two faces
-    concerned are nowhere near each other along @f$\Gamma_h@f$ -- which is why
-    building it changed nothing.
+    **It is not one, and the test that separates them is refining the RULE
+    rather than the mesh.** At a 40th- and 80th-order face rule the same
+    cone-on sums fall to 1.5e-09 and 6.1e-10, the instrument's own floor. So
+    the images do cover @f$\Gamma@f$ exactly; what the cone costs is the
+    SMOOTHNESS of @f$\xi \mapsto a(x(\xi))@f$ along a face, because it moves
+    the two vertex directions being interpolated further apart. A fixed-order
+    Gauss rule then under-resolves the curve, and refining @f$h@f$ straightens
+    it, which is what makes the error look like a geometric rate. Whether a
+    given mesh produces a rough face at all is mesh-dependent: at n = 24 the
+    cone-on sum is already at the floor while at n = 20 and n = 40 it is not.
 
-    **And the flux order loss does not track the tiling residual at all.**
-    Sweeping the Joukowsky parameter at n = 16..64, residual against flux rate:
-    7.6e-10 / 2.03, 2.7e-6 / 2.01, 4.4e-4 / 2.01, 1.4e-3 / 2.03, and the
-    reference's own tail 1.1e-2 / 1.46. A residual of 1.4e-3 costs nothing, and
-    within the reference run the residual has fallen to about that value by
-    n = 128 where the rate is still 1.53. The exact solution there is
-    @f$\sin 3\pi x \sin 3\pi y@f$, analytic everywhere, so this is not a
-    regularity limit at the cusp either. **Repairing the tiling is therefore
-    not on its own the route to the reference's Table 6, and neither the cone
-    nor the overlap is the thing to fix next.**
-
-    One more fact for whoever picks it up: at @c lambda = 0.074 the run aborts
-    outright because a path INTERPOLATED along a face never meets @f$\Gamma@f$
-    within the search length, while both of its vertices found one. The
-    interpolation between two vertex tangents that a near-cusp drives apart is
-    the part of this construction that has never been examined.
+    So a caller who wants the cone should raise the face rule with it, and this
+    class does not choose that for them. Coverage is exact either way, which is
+    the property ExtensionBoundaryQuadrature() actually needs.
 
     Must be evaluated through the FaceElementTransformations overload: a
     direction interpolated along a face is not a function of the point alone.
@@ -356,11 +344,18 @@ public:
                               average before shooting once more along their
                               mean, which is what the reference does and what
                               keeps the direction from jumping between two
-                              nearly equal rays. */
+                              nearly equal rays.
+       @param use_cone_       apply CS-Extensions section 2.4.1's cone
+                              @f$C(x)@f$ as well as the half space
+                              @f$H(x)@f$. **Off by default, and the reasons are
+                              measured rather than stylistic** -- see the note
+                              above the class. It needs the mesh to be a
+                              SubMesh with a live parent; given anything else
+                              there is no cone whatever this says. */
    VertexConePath(const Mesh &mesh_, int gamma_h_attr, PositionFunction phi_,
                   real_t search_length_, int n_rays_ = 16, int n_keep_ = 3,
                   int search_steps_ = 32, real_t tol_ = 1e-13,
-                  int max_iter_ = 100);
+                  int max_iter_ = 100, bool use_cone_ = false);
 
    using TransferPath::Endpoint;
 
