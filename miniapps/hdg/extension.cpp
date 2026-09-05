@@ -45,6 +45,30 @@
 //                    the reference's most difficult case (section 3.4,
 //                    Table 6).
 //
+//                    ITS FLUX ORDER RECOVERS, AND THE DIP IS PRE-ASYMPTOTIC.
+//                    At the reference's own tail, order 1, the flux rate reads
+//                    2.08, 1.46, 1.53, 2.50 as n runs 32 to 256 -- it dips
+//                    while the tail is thinner than a mesh width and comes
+//                    back, overshooting to catch up the deficit, once the mesh
+//                    resolves it. The blunt tail (-lam 0.05), resolved at every
+//                    n, reads 2.01, 2.03, 2.01, 2.01 throughout, and the two
+//                    error curves converge: the sharp case is 1.0, 1.5, 2.1 and
+//                    1.5 times the blunt one over the same range. The potential
+//                    holds 2.00 the whole way in both.
+//
+//                    So there is no order loss to repair here, which is worth
+//                    saying because several things were tried as though there
+//                    were. The datum transferred from the exact flux is exact
+//                    at the cusp (2.3e-16), the datum from a projected flux
+//                    converges at k+2 like the blunt tail's, the flux mass
+//                    block M+L is as well conditioned there as anywhere
+//                    (25-44, no spike), and with the datum read on Gamma_h
+//                    instead the rate is 2.00 -- so the geometry, the paths,
+//                    the datum, the coupling and the discretisation on D_h are
+//                    each innocent. What the coarse meshes see is a feature
+//                    the mesh cannot yet represent, and the answer to it is a
+//                    finer mesh.
+//
 //               The miniapp solves on a sequence of background meshes and
 //               prints the history of convergence, because the claim being
 //               tested is a claim about rates. With -rec, the default, it
