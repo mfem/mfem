@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <vector>
+
 using namespace mfem;
 
 namespace darcy_degenerate
@@ -297,7 +299,9 @@ void Rates(int order, Degeneracy d, real_t &rate_p, real_t &rate_u,
            Form form = Form::RT, real_t T = 1.0, int nsolve = 3,
            bool fixed_tau = true, int ubasis = BasisType::GaussLobatto,
            int pbasis = BasisType::GaussLegendre, int qbump = 0,
-           const HDGStabilization *stab = nullptr)
+           const HDGStabilization *stab = nullptr,
+           std::vector<real_t> *seq_p = nullptr,
+           std::vector<real_t> *seq_u = nullptr)
 {
    active = d;
    Mesh mesh = MakeMesh(type);
@@ -317,6 +321,11 @@ void Rates(int order, Degeneracy d, real_t &rate_p, real_t &rate_u,
       {
          rate_p = std::log2(prev_p / r.err_p);
          rate_u = std::log2(prev_u / r.err_u);
+         // The WHOLE sequence, not just the last: a rate read off one pair
+         // cannot tell an order loss from a pre-asymptotic dip, and section
+         // 3(d) of the roadmap turns on exactly that distinction.
+         if (seq_p) { seq_p->push_back(rate_p); }
+         if (seq_u) { seq_u->push_back(rate_u); }
       }
       prev_p = r.err_p;
       prev_u = r.err_u;
@@ -554,22 +563,62 @@ TEST_CASE("HDG: a tau floor recovers the order a degeneracy costs",
 
    // The finding above, as a test. Both halves matter: that the built-in
    // coefficient-scaled tau loses order, and that a floored tau does not.
+   //
+   // **AND THE LOSS IS ASYMPTOTIC, WHICH THIS CASE ON ITS OWN CANNOT SAY.**
+   // Section 3(d) of the roadmap asked whether the order the degeneracy costs
+   // is really lost or is a pre-asymptotic dip, and noted that the measurement
+   // could not answer it: three meshes from n = 4 to 16, with only the last
+   // rate kept. Rates() keeps the whole sequence now, and a sweep to n = 128
+   // settles it. Design order is 3, and the rates over n = 4..128 are
+   //
+   //     degeneracy   scaled tau                        floored tau
+   //     point        2.71 2.18 2.16 2.24 2.30          3.09 3.06 2.99 2.94 2.92
+   //     line         2.27 2.36 2.43 2.46 2.48          3.12 3.13 3.09 3.05 3.03
+   //
+   // The floored column converges to the design order from above. The scaled
+   // one does NOT converge to it: the line degeneracy climbs to 2.48 with
+   // increments 0.089, 0.067, 0.036, 0.019 -- halving, so the limit is about
+   // **2.5, half an order below the design**, not 3. The point degeneracy is
+   // still climbing at n = 128 and is less settled, but it is nowhere near 3
+   // either.
+   //
+   // So the floor is not a convenience that buys back a transient: it recovers
+   // an order that is otherwise permanently lost, and half an order is the
+   // size of the loss. The sweep is not committed here because n = 128 at
+   // order 2 costs minutes; what is committed is one more refinement than the
+   // entry had, which is enough to see the scaled rate fail to climb.
    const Degeneracy d = GENERATE(Degeneracy::Point, Degeneracy::Line);
 
+   std::vector<real_t> seq_scaled, seq_floored;
    real_t scaled_p, scaled_u, l1;
    Rates(2, d, scaled_p, scaled_u, l1, Element::QUADRILATERAL, Form::DG, 1.0,
-         3, true);
+         4, true, BasisType::GaussLobatto, BasisType::GaussLegendre, 0,
+         nullptr, &seq_scaled);
 
    FloorTau floor(1.0);
    real_t floored_p, floored_u, l2;
    Rates(2, d, floored_p, floored_u, l2, Element::QUADRILATERAL, Form::DG, 1.0,
-         3, true, BasisType::GaussLobatto, BasisType::GaussLegendre, 0, &floor);
+         4, true, BasisType::GaussLobatto, BasisType::GaussLegendre, 0, &floor,
+         &seq_floored);
 
    CAPTURE(int(d), scaled_p, scaled_u, floored_p, floored_u, l1, l2);
 
    REQUIRE(scaled_p < 2.6);        // the coefficient-scaled tau loses order
    REQUIRE(floored_p > 2.9);       // the floored one does not
    REQUIRE(l2 < 0.5 * l1);         // and is several times more accurate
+
+   // The whole sequence, not just its last entry, which is what makes the
+   // statement "loses order" rather than "dips once". Every rate the scaled
+   // form produces is short of the design order, and every rate the floored
+   // one produces is at it.
+   REQUIRE(seq_scaled.size() == 3);
+   REQUIRE(seq_floored.size() == 3);
+   for (std::size_t k = 0; k < seq_scaled.size(); k++)
+   {
+      CAPTURE(k, seq_scaled[k], seq_floored[k]);
+      REQUIRE(seq_scaled[k] < 2.75);
+      REQUIRE(seq_floored[k] > 2.9);
+   }
 }
 
 TEST_CASE("HDG: the nodal basis is irrelevant to the degenerate case",
@@ -596,3 +645,4 @@ TEST_CASE("HDG: the nodal basis is irrelevant to the degenerate case",
    REQUIRE(alt_p == MFEM_Approx(lob_p, 1e-9, 1e-8));
    REQUIRE(l2 == MFEM_Approx(l1, 1e-12, 1e-10));
 }
+

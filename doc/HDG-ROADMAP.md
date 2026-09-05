@@ -84,10 +84,14 @@ Two things are left, and neither is what this list used to say:
   candidate innocent are in `miniapps/hdg/extension.cpp`'s header comment and
   on `VertexConePath`.
 
-  Two real things came out of chasing it and are kept: the cone `C(x)` is now
-  built, and `ExtensionRegionQuadrature()`'s weight is now signed, which took
-  the tiling residual from 1.13e-2 to −2.29e-04. Neither changes the flux, and
-  the second is the same defect meq found in `ExtensionBoundaryQuadrature()`.
+  Two real things came out of chasing it. `ExtensionRegionQuadrature()`'s
+  weight is now signed, which took the tiling residual from 1.13e-2 to
+  −2.29e-04 and is the same defect meq found in
+  `ExtensionBoundaryQuadrature()`. And the cone `C(x)` is built but **off by
+  default**: it closes nothing here, and meq reported that it costs the far
+  face's quadrature — coverage stays exact, but the foot map roughens and a
+  fixed-order rule under-resolves it. `doc/HDG-CONE-TILING-FROM-MEQ.md` is
+  their report with our reply; **it goes when meq accepts it.**
 
 * **Three dimensions, and the restriction is narrower than it reads.** The only
   refusal in the whole of `extension_hdg` is `VertexConePath`'s, at
@@ -125,13 +129,13 @@ Two things are left:
   check first whether they are wanted": the entry asks whether the singularity
   is a property of the problem or of a coordinate choice, and that question has
   not been put to the caller.
-* **Whether the degenerate order loss of (d) is asymptotic or pre-asymptotic.**
-  The practical answer is known — floor the stabilisation — but the measurement
-  cannot settle the question as written: `Rates()` in
-  `tests/unit/fem/test_darcy_degenerate.cpp` runs three meshes from n = 4 to
-  16 and overwrites `rate_p` at each refinement, so it computes two rates and
-  reports the last. A deeper sweep keeping the whole sequence is what would
-  settle it.
+* ~~Whether the degenerate order loss of (d) is asymptotic~~ — **settled: it
+  is asymptotic, and it is half an order.** `Rates()` keeps the whole sequence
+  now and a sweep to n = 128 says the floored `τ` converges to the design order
+  from above while the coefficient-scaled one converges to about 2.5 against a
+  design 3, its increments halving. So the floor recovers an order that is
+  otherwise permanently lost rather than smoothing a transient. The sequences
+  are on "HDG: a tau floor recovers the order a degeneracy costs".
 
 ## 4. Systems of coupled nonlinear Darcy-like problems, with exact Jacobians
 
