@@ -799,6 +799,194 @@ TEST_CASE("Extension from subdomains: the searched path family",
    REQUIRE(std::abs(swept - truth) < 1e-8 * truth);
 }
 
+namespace darcy_extension
+{
+
+/// Sum the boundary quadrature over Gamma_h. @a absolute sums |weight| instead,
+/// which is the length the foot map TRAVERSES rather than the measure of
+/// Gamma -- a different and larger quantity wherever the map backtracks.
+real_t BoundarySum(Mesh &D_h, int gamma_h_attr, const TransferPath &path,
+                   bool absolute = false, int ir_order = 20)
+{
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, ir_order);
+   real_t sum = 0.;
+   for (int be = 0; be < D_h.GetNBE(); be++)
+   {
+      if (D_h.GetBdrAttribute(be) != gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = D_h.GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+      ExtensionBoundaryQuadrature(*FTr, path, ir,
+                                  [&](const ExtensionBoundaryPoint &pt)
+      { sum += absolute ? std::abs(pt.weight) : pt.weight; });
+   }
+   return sum;
+}
+
+/// The worst departure of the reported normal from the disc's own.
+real_t WorstNormal(Mesh &D_h, int gamma_h_attr, const TransferPath &path,
+                   int ir_order = 20)
+{
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, ir_order);
+   Vector c; DiscCentre(c);
+   real_t worst = 0.;
+   for (int be = 0; be < D_h.GetNBE(); be++)
+   {
+      if (D_h.GetBdrAttribute(be) != gamma_h_attr) { continue; }
+      FaceElementTransformations *FTr = D_h.GetBdrFaceTransformations(be);
+      if (!FTr) { continue; }
+      ExtensionBoundaryQuadrature(*FTr, path, ir,
+                                  [&](const ExtensionBoundaryPoint &pt)
+      {
+         // On a circle the outward normal at y is (y - c)/R exactly.
+         const real_t ex0 = (pt.y(0) - c(0)) / disc_R;
+         const real_t ex1 = (pt.y(1) - c(1)) / disc_R;
+         const real_t d = std::sqrt((pt.nu(0)-ex0)*(pt.nu(0)-ex0)
+                                    + (pt.nu(1)-ex1)*(pt.nu(1)-ex1));
+         worst = std::max(worst, d);
+      });
+   }
+   return worst;
+}
+
+} // namespace darcy_extension
+
+TEST_CASE("Extension from subdomains: quadrature over Gamma",
+          "[DarcyExtension]")
+{
+   // ExtensionBoundaryQuadrature() is the t = 1 face of the same map the
+   // region sweep integrates over: the piece of Gamma each face of Gamma_h is
+   // responsible for. A coupled exterior problem assembles its boundary
+   // integrals on it, so what it has to deliver is that the images COVER
+   // Gamma -- once, net -- and that the normal it reports is Gamma's.
+   //
+   // The disc is the case to check it on, because both are known in closed
+   // form: |Gamma| = 2 pi R, and the outward normal at y is (y - c)/R.
+   using namespace darcy_extension;
+
+   const int n = GENERATE(10, 20, 40);
+   CAPTURE(n);
+
+   Subdomain s = BuildSubdomain(n);
+   Vector c; DiscCentre(c);
+   const real_t truth = 2. * M_PI * disc_R;
+
+   ClosestPointPath cp(ClosestPointPath::Sphere(c, disc_R));
+   ClosestPointPath cpj(ClosestPointPath::Sphere(c, disc_R),
+                        ClosestPointPath::SphereJacobian(c, disc_R));
+   LevelSetPath ls(DiscPhi, 8.0 / n);
+   VertexConePath vc(*s.D_h, s.gamma_h_attr, DiscPhi, 4.0 / n);
+
+   SECTION("the images cover Gamma, for the families that tile")
+   {
+      // Running this at all exercises the degenerate face: the closest-point
+      // map collapses a radial face of the staircase Gamma_h to a point, and
+      // near the poles of the circle that is every second face. Such a face
+      // covers zero arc and must contribute nothing; before it was skipped the
+      // routine aborted on the simplest family there is.
+      // The tolerances differ by family and that is the point rather than a
+      // convenience: a closed-form map is accurate to the quadrature, while a
+      // family whose direction is SEARCHED at each vertex carries the search's
+      // own tolerance into every weight. Asking the same of both would either
+      // fail on the searched one or say nothing about the exact ones.
+      const TransferPath *fam[3] = { &cp, &cpj, &vc };
+      const real_t tol[3] = { 1e-9, 1e-9, 1e-5 };
+      for (int i = 0; i < 3; i++)
+      {
+         const real_t got = BoundarySum(*s.D_h, s.gamma_h_attr, *fam[i]);
+         CAPTURE(i, got, truth, (got - truth) / truth);
+         REQUIRE(got == Approx(truth).epsilon(tol[i]));
+      }
+   }
+
+   SECTION("and LevelSetPath does not, which is why the others exist")
+   {
+      // Not a defect of the quadrature and not a gap in this case: a family
+      // following each face's OWN normal is documented not to tile the region
+      // beyond Gamma_h, adjacent faces diverging or crossing, and the far face
+      // inherits that. Measured, it covers Gamma about 1.6 times over and does
+      // not improve with the mesh -- 3.38, 4.36, 4.40 against 2.827 at
+      // n = 10, 20, 40. Asserting it keeps the contrast sharp: the sums above
+      // are a property of the FAMILY, and this routine reports whatever the
+      // family does rather than repairing it.
+      const real_t got = BoundarySum(*s.D_h, s.gamma_h_attr, ls);
+      CAPTURE(got, truth);
+      REQUIRE(got > truth * 1.15);
+   }
+
+   SECTION("and the weight has to be signed to say so")
+   {
+      // The discriminating half. The foot map is not monotone along Gamma: on
+      // a staircase Gamma_h a short pinch face runs forward, back and forward
+      // again. An UNSIGNED weight integrates the length traversed, counting
+      // those stretches two and three times, and the sum then overcounts
+      // |Gamma| by O(h) -- which is the accuracy the transfer technique exists
+      // to buy, thrown away in the quadrature. Signing cancels the
+      // backtracking exactly.
+      //
+      // So the two sums must DIFFER, and the signed one must be the right
+      // answer. Both halves are asserted: a routine that returned |Gamma| by
+      // accident would pass the section above and fail here.
+      // VertexConePath is the family that backtracks here; the closest-point
+      // map on a circle is monotone and its two sums agree to 4e-11, which is
+      // worth knowing because it means this section would prove nothing on it.
+      const real_t signed_sum =
+         BoundarySum(*s.D_h, s.gamma_h_attr, vc, false);
+      const real_t traversed =
+         BoundarySum(*s.D_h, s.gamma_h_attr, vc, true);
+      const real_t cp_signed = BoundarySum(*s.D_h, s.gamma_h_attr, cp, false);
+      const real_t cp_trav   = BoundarySum(*s.D_h, s.gamma_h_attr, cp, true);
+      CAPTURE(signed_sum, traversed, truth, cp_signed, cp_trav);
+      REQUIRE(signed_sum == Approx(truth).epsilon(1e-5));
+      // Traversing at least as much as you cover is the invariant, and holds
+      // whatever the family does.
+      REQUIRE(traversed >= signed_sum * (1. - 1e-9));
+
+      // WHETHER a face pinches is a property of the mesh, not of the family:
+      // at n = 10 none does and the two sums agree to 4e-16, while from n = 20
+      // the excess is 5.3e-2 and then 2.8e-2, halving with h. So the magnitude
+      // is asserted only where the phenomenon exists, and its absence at
+      // n = 10 is recorded rather than tolerated.
+      if (n >= 20) { REQUIRE(traversed > truth * (1. + 0.4 / n)); }
+      else { REQUIRE(traversed == Approx(signed_sum).epsilon(1e-12)); }
+
+      REQUIRE(cp_trav == Approx(cp_signed).epsilon(1e-9));
+   }
+
+   SECTION("the reported normal is Gamma's own")
+   {
+      // A caller integrating f against the basis never sees a wrong normal --
+      // the weight is proportional to the same vanishing measure, so a
+      // degenerate face contributes nothing either way. A transmission
+      // condition reading nu on its own does see it, which is why this is
+      // checked separately from the sums above.
+      CAPTURE(WorstNormal(*s.D_h, s.gamma_h_attr, cp),
+              WorstNormal(*s.D_h, s.gamma_h_attr, vc));
+      REQUIRE(WorstNormal(*s.D_h, s.gamma_h_attr, cp) < 1e-5);
+      REQUIRE(WorstNormal(*s.D_h, s.gamma_h_attr, vc) < 1e-4);
+   }
+
+   SECTION("a closed-form Jacobian is orders better than the difference")
+   {
+      // TransferPath::EndpointJacobian() is optional and returns false by
+      // default, because requiring a derivative would exclude the families
+      // defined by a search. Where it exists it should be used, and this is
+      // what says it is: the central difference divides by fd_step and so
+      // carries a noise floor of eps/fd_step, about 1e-10, while the closed
+      // form is accurate to rounding. Six orders separate them, so a test that
+      // the closed form is merely "small" would pass with it ignored.
+      const real_t d_diff = std::abs(
+                               BoundarySum(*s.D_h, s.gamma_h_attr, cp) - truth);
+      const real_t d_form = std::abs(
+                               BoundarySum(*s.D_h, s.gamma_h_attr, cpj) - truth);
+      const real_t nu_diff = WorstNormal(*s.D_h, s.gamma_h_attr, cp);
+      const real_t nu_form = WorstNormal(*s.D_h, s.gamma_h_attr, cpj);
+      CAPTURE(d_diff, d_form, nu_diff, nu_form);
+      REQUIRE(d_form < 1e-13 * truth);
+      REQUIRE(nu_form < 1e-13);
+      REQUIRE(nu_form < 1e-3 * nu_diff);
+   }
+}
+
 TEST_CASE("Extension from subdomains: the estimator's boundary-datum term",
           "[DarcyExtension]")
 {
