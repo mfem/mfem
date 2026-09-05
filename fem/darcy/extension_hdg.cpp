@@ -806,6 +806,32 @@ void ExtensionRegionQuadrature(
       // Endpoint() moved the transformations; put them back.
       FTr.SetAllIntPoints(&ip);
 
+      // THE WEIGHT IS SIGNED, FOR THE REASON ExtensionBoundaryQuadrature() IS.
+      // The map y(xi,t) is not required to be injective, and where a boundary
+      // feature is thinner than a mesh width it is not: near a cusp the paths
+      // of one face fan across the tip and the region folds back on itself. An
+      // UNSIGNED weight integrates the swept area WITH MULTIPLICITY, so a fold
+      // is counted twice instead of cancelling, and the sum overcounts
+      // |D_h^c| by O(h) -- 1.1e-2, 1.1e-2, 5.3e-3, 1.1e-3 on the reference's
+      // aerofoil as n runs 16 to 128, which is the accuracy the transfer
+      // technique exists to buy, thrown away in the quadrature. It is the same
+      // defect the sibling had, found there first.
+      //
+      // The reference orientation is the face's own at t = 0, where J is
+      // (dx/dxi, m): CalcOrtho()'s difficulty does not arise because nothing
+      // here needs an outward normal, only a consistent sign to measure the
+      // fold against. Where the map reverses, det J changes sign relative to
+      // it and the segment is subtracted; what survives is the net
+      // multiplicity, which is one.
+      for (int i = 0; i < fdim; i++)
+         for (int d = 0; d < sdim; d++) { J(d, i) = dxdxi(d, i); }
+      for (int d = 0; d < sdim; d++) { J(d, sdim - 1) = m(d); }
+      const real_t det0 = J.Det();
+      // A face whose reference cell is already degenerate contributes nothing
+      // and has no sign to take; the sibling skips the analogous case.
+      if (det0 == 0.) { continue; }
+      const real_t orient = (det0 > 0.) ? 1. : -1.;
+
       for (int t = 0; t < line_ir.GetNPoints(); t++)
       {
          const IntegrationPoint &tip = line_ir.IntPoint(t);
@@ -821,7 +847,7 @@ void ExtensionRegionQuadrature(
          for (int d = 0; d < sdim; d++) { J(d, sdim - 1) = m(d); }
 
          const ExtensionPoint pt{y, xbar, ip, tip.x,
-                                 ip.weight * tip.weight * std::abs(J.Det())};
+                                 ip.weight * tip.weight * orient * J.Det()};
          visit(pt);
       }
    }

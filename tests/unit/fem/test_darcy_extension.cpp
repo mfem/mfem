@@ -893,44 +893,37 @@ TEST_CASE("Extension from subdomains: the estimator's boundary-datum term",
    }
 }
 
-TEST_CASE("Extension from subdomains: a feature thinner than the mesh breaks "
-          "the tiling",
+TEST_CASE("Extension from subdomains: a feature thinner than the mesh tiles "
+          "once the weight is signed",
           "[DarcyExtension]")
 {
-   // Measured on the reference's airfoil, and the sharpest statement this file
-   // has about the limits of the construction. The Joukowsky parameter sets
-   // how thin the tail is: at the reference's own value the shape closes into
-   // a curled tail a fraction of a mesh width across, and there the
-   // interpolated paths of neighbouring faces cross before reaching Gamma, so
-   // their regions overlap and the swept measure comes out too large. Blunt
-   // the tail and the same family tiles exactly.
+   // Measured on the reference's aerofoil, whose Joukowsky parameter sets how
+   // thin the tail is. At the reference's own value the shape closes into a
+   // cusp a fraction of a mesh width across, the paths of the faces around it
+   // fan across the tip, and the region each sweeps folds back on itself.
    //
-   // The overlap falls with the mesh -- 1.1e-2, 1.1e-2, 5.3e-3, 1.1e-3 as n
-   // runs 16, 32, 64, 128 -- so it is a resolution effect and not a defect in
-   // the family.
+   // **This case used to assert the OPPOSITE, and the change is the finding.**
+   // It read that the sharp tail broke the tiling -- swept measure too large by
+   // 1.1e-2, 1.1e-2, 5.3e-3, 1.1e-3 as n runs 16 to 128 -- and named the cone
+   // of CS-Extensions section 2.4.1 as the repair. Both halves were wrong. The
+   // cone is built now and changes nothing (see VertexConePath). What was
+   // actually wrong is that ExtensionRegionQuadrature() weighted by
+   // |det J|: an UNSIGNED weight integrates the swept area WITH MULTIPLICITY,
+   // so a fold is counted twice instead of cancelling. That is the same defect
+   // ExtensionBoundaryQuadrature() was written with and had fixed first, on a
+   // staircase Gamma_h where the foot map backtracks; the O(h) overcount is
+   // the same signature in both.
    //
-   // **This comment used to say closing it needs the cone of CS-Extensions
-   // section 2.4.1. The cone is built now and closes nothing**, which is
-   // recorded on VertexConePath. Two further measurements say what the overlap
-   // actually is and what it is not:
+   // Signed, the fold subtracts and what survives is the net multiplicity,
+   // which is one. So a sub-mesh-width feature does NOT break the tiling, and
+   // the routine needs the weaker hypothesis its sibling states: the regions
+   // must cover the complement, not tile it injectively.
    //
-   //  * Binning the swept quadrature weight, at a rule fine enough that the
-   //    blunt case's apparent excess converges to zero, leaves the sharp case
-   //    with ONE genuinely over-covered cell, just beyond the tail tip, at a
-   //    coverage ratio of 1.55 -- and TWO faces contribute to it. So it is two
-   //    path bundles arriving in the same place from opposite sides of a tail
-   //    thinner than a mesh width, not one face's region folding onto itself.
-   //    A cone restricting each vertex to its own background-edge fan cannot
-   //    reach that: the two faces are not adjacent.
-   //  * The flux order loss does not track this residual. Sweeping the
-   //    Joukowsky parameter at n = 16..64: lambda = 0.050, 0.065, 0.070 and
-   //    0.077 give residuals 7.6e-10, 2.7e-6, 4.4e-4 and 1.4e-3 with the flux
-   //    rate at 2.03, 2.01, 2.01 and 2.03, while the reference's own lambda
-   //    gives 1.1e-2 and 1.46. A residual of 1.4e-3 is harmless, and within
-   //    the reference run the residual has fallen to about that by n = 128
-   //    while the rate is still 1.53. **So the tiling residual is not what
-   //    sets the rate**, and repairing the tiling is not on its own the route
-   //    to the reference's Table 6.
+   // What the repair does NOT buy is the aerofoil's flux order, and that is
+   // worth stating here because this case was the evidence for the connection.
+   // With the tiling residual improved fifty-fold the computed flux is
+   // unchanged to every digit -- the region sweep is a diagnostic and the
+   // solve lifts through HDGExtensionIntegrator, which never calls it.
    const int n = 32;
    const real_t thin = foil_R - std::sqrt(foil_s1 * foil_s1 + foil_s2 * foil_s2);
    const real_t blunt = 0.05;
@@ -980,8 +973,11 @@ TEST_CASE("Extension from subdomains: a feature thinner than the mesh breaks "
    }
 
    CAPTURE(rel[0], rel[1]);
-   REQUIRE(std::abs(rel[1]) < 1e-8);      // blunt: exact
-   REQUIRE(rel[0] > 1e-3);                // the reference's tail: too large
+   REQUIRE(std::abs(rel[1]) < 1e-8);      // blunt: exact, as it always was
+   // And the reference's own tail, which used to read +1.1e-2, now tiles to
+   // 2.2e-05 -- two and a half orders better, and no longer a multiplicity
+   // error but the central difference's own floor on da/dxi.
+   REQUIRE(std::abs(rel[0]) < 1e-3);
 }
 
 // -- The pieces on their own --------------------------------------------------
