@@ -72,20 +72,27 @@ the vertex-first construction exists for, and the `TransformBack` trap — that
 element comes back as a boundary point rather than as a failure. None of that
 is repeated here.
 
-Two things are left, and only two:
+Two things are left, and neither is what this list used to say:
 
-* **The cone restriction, which is the last piece between this and the
-  reference's Table 6.** `VertexConePath` builds only the half-space half
-  `H(x)` of CS-Extensions §2.4.1's crossing restriction; the cone `C(x)` needs
-  the *background* mesh, which the class is not given. Where the boundary has a
-  feature thinner than a mesh width — the aerofoil's trailing edge — neighbouring
-  paths cross, their swept regions overlap, and the flux loses its order while
-  the potential keeps it. The measurement and the numbers are on
-  `VertexConePath`'s doxygen, which is where someone changing it will meet
-  them.
-* **Three dimensions.** `extension_hdg.cpp:145` refuses anything else with an
-  `MFEM_VERIFY`. The construction generalises and the reference says so;
-  nothing here has been run in three.
+* **The aerofoil's flux order, and the cone is NOT the answer.** The entry here
+  said supplying CS-Extensions §2.4.1's cone `C(x)` was the only thing standing
+  between this and the reference's Table 6. **It is built now — recovered from
+  the SubMesh's parent rather than taken as an argument — and it changes
+  nothing.** It restricts every vertex of `Γ_h` at every refinement and is
+  strictly tighter than the half space at most of them, `π/2` becoming `π/8`,
+  and the tiling residual is 1.13e-2 either way with the flux rates equal to
+  the fourth digit. The numbers are on `VertexConePath`. So the overlap is not
+  the vertex directions; what is left to try is the interpolation along a face
+  between two tangents a reentrant corner drives apart, or the geometry of a
+  boundary folding back within a mesh width.
+* **Three dimensions, and the restriction is narrower than it reads.** The only
+  refusal in the whole of `extension_hdg` is `VertexConePath`'s, at
+  `extension_hdg.cpp:145`. `ClosestPointPath`, `LevelSetPath`,
+  `ElementExtension`, `HDGExtensionIntegrator` and the three coefficients carry
+  no dimension check at all. So this is not a port: it is running the
+  dimension-generic half in three dimensions to find out what breaks, and
+  generalising the vertex search — which is written in `atan2` and half-circles
+  — only if the rest holds up.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
@@ -166,25 +173,17 @@ gap. The number is kept so commit messages citing "§6" land somewhere.
 
 **`h` is done and tested. `p` is `gf-hdg-p-adaptivity`'s.**
 
-**`η₅` of the SSC estimator is the one open item, and this is the ONLY branch
-where it is actionable.** It compares a computed trace against the datum
-actually imposed on `Γ_h`, and that datum is `φ_h = g∘a + L_e(u_h)`. Both
-halves are reachable here and nowhere else: `PathTraceCoefficient` and
-`TransferredDatumCoefficient` are §1's, so they exist on this branch and on no
-sibling.
+**`η₅` is built.** `HDGDatumErrorEstimator` in `fem/darcy/estimators_hdg.hpp`,
+pinned by "the estimator's boundary-datum term" in
+`tests/unit/fem/test_darcy_extension.cpp`. It is a class of its own rather than
+a third `Type` because the other two are built from an HDG face integrator and
+this compares a field against a *coefficient*; why it matters, and the two
+ordering constraints the transferred datum imposes on any caller, are on the
+class.
 
-What stands in the way is one interface mismatch: `HDGErrorEstimator`
-(`estimators_hdg.hpp:52`) has exactly two terms, `Type::{Residual, Energy}`,
-and takes a `BilinearFormIntegrator &` rather than a coefficient. `η₅` needs
-either an adapter from a coefficient to that interface or a third entry point.
-
-**Why it is worth having**, measured on the application that reported it: with
-the term omitted the total still converges, but with the trace *pinned* rather
-than free on the extension path the term compares the post-processed potential
-against zero, the difference is `O(dist(Γ_h, Γ)) = O(h)`, and it swamps
-everything else — `η = 4.09e-1` against `η₁ = 2.12e-3` at `k = 2`, converging
-at about one half. An adaptive loop built on it runs, produces plausible
-pictures and refines the wrong elements.
+Nothing is left in this section beyond what a caller does with it: assembling
+the five terms of the SSC estimator into one indicator and driving a refiner
+with it is an application's business, not the library's.
 
 ## 8. Time integration of the DAE
 
