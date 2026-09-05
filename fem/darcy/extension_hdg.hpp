@@ -115,6 +115,31 @@ public:
    virtual void Endpoint(FaceElementTransformations &FTr,
                          const IntegrationPoint &ip, Vector &xbar) const;
 
+   /** @brief @f$\partial a/\partial\xi@f$ along the face, if the family has
+       it in closed form.
+
+       **Returns false by default, and a family is under no obligation to
+       override it.** A path family is a map; requiring a derivative of every
+       one would exclude the families defined by a search, which are the
+       general case. ExtensionBoundaryQuadrature() falls back to a central
+       difference when this returns false, and that fallback is the reference
+       behaviour rather than a degraded one.
+
+       **A family that CAN supply it should**, because the difference is not
+       free in either sense: it costs @f$2(d-1)@f$ extra Endpoint() calls per
+       quadrature point, and it carries an @f$O(\texttt{fd_step}^2)@f$
+       truncation against an @f$O(\epsilon/\texttt{fd_step})@f$ round-off,
+       which at the default step floors the quadrature near @f$10^{-10}@f$
+       where a closed form is exact.
+
+       @a dadxi is @f$d\times(d-1)@f$, its column @a i being
+       @f$\partial a/\partial\xi_i@f$. @a FTr must have its integration
+       points set to @a ip already. */
+   virtual bool EndpointJacobian(FaceElementTransformations &FTr,
+                                 const IntegrationPoint &ip,
+                                 DenseMatrix &dadxi) const
+   { return false; }
+
    virtual ~TransferPath() = default;
 };
 
@@ -129,18 +154,51 @@ public:
 class ClosestPointPath : public TransferPath
 {
    VectorPositionFunction cp;
+   /// @f$\partial a/\partial x@f$, if the caller supplied it. May be empty.
+   std::function<void(const Vector &, DenseMatrix &)> dcp;
 
 public:
    /// @param cp_  the closest-point map onto @f$\Gamma@f$.
    ClosestPointPath(VectorPositionFunction cp_) : cp(std::move(cp_)) { }
 
+   /** @brief With the map's own Jacobian, so the quadrature needs no
+       differences.
+
+       @param dcp_  fills a @f$d\times d@f$ matrix with @f$\partial
+                    a/\partial x@f$ at the given point. The derivative along a
+                    face then follows by the chain rule, @f$\partial
+                    a/\partial\xi = (\partial a/\partial x)(\partial
+                    x/\partial\xi)@f$, which is exact.
+
+       Worth supplying wherever the map is analytic, which is the case this
+       class exists for. SphereJacobian() is the one for Sphere(). */
+   ClosestPointPath(VectorPositionFunction cp_,
+                    std::function<void(const Vector &, DenseMatrix &)> dcp_)
+      : cp(std::move(cp_)), dcp(std::move(dcp_)) { }
+
    /// The closest-point map onto a sphere of centre @a c and radius @a R.
    static VectorPositionFunction Sphere(const Vector &c, real_t R);
+
+   /** @brief Its Jacobian, @f$\partial a/\partial x = \frac{R}{|x-c|}
+       (I - uu^T)@f$ with @f$u = (x-c)/|x-c|@f$.
+
+       Singular in the radial direction, which is the map rather than a defect:
+       every point of a ray has the same closest point, so @f$\partial
+       a/\partial x@f$ annihilates @f$u@f$. A face lying along a ray therefore
+       has @f$\partial a/\partial\xi = 0@f$ and covers nothing of
+       @f$\Gamma@f$ -- which ExtensionBoundaryQuadrature() skips, and which the
+       closed form makes an identity rather than a near-cancellation. */
+   static std::function<void(const Vector &, DenseMatrix &)>
+   SphereJacobian(const Vector &c, real_t R);
 
    using TransferPath::Endpoint;
 
    void Endpoint(const Vector &x, const Vector &n,
                  Vector &xbar) const override { cp(x, xbar); }
+
+   bool EndpointJacobian(FaceElementTransformations &FTr,
+                         const IntegrationPoint &ip,
+                         DenseMatrix &dadxi) const override;
 };
 
 
@@ -672,6 +730,105 @@ void ExtensionRegionQuadrature(
    FaceElementTransformations &FTr, const TransferPath &path,
    const IntegrationRule &face_ir, const IntegrationRule &line_ir,
    const std::function<void(const ExtensionPoint &)> &visit,
+   real_t fd_step = 1e-6);
+
+
+/** @brief A point of @f$\Gamma@f$ reached by the paths from one face of
+    @f$\Gamma_h@f$, with the surface quadrature weight and the normal there. */
+struct ExtensionBoundaryPoint
+{
+   const Vector &y;                  ///< the physical point, on @f$\Gamma@f$
+   const Vector &nu;                 ///< the OUTWARD UNIT normal of @f$\Gamma@f$
+   const IntegrationPoint &face_ip;  ///< where its path leaves @f$\Gamma_h@f$
+   /** @brief Surface weight, the Jacobian included, and **SIGNED**.
+
+       Negative where the path family's foot map reverses along @f$\Gamma@f$,
+       which for a staircase @f$\Gamma_h@f$ it does on some faces. Summing the
+       weights integrates over @f$\Gamma@f$; summing their absolute values
+       integrates the length the map traverses, which is a different quantity
+       and is larger. See ExtensionBoundaryQuadrature(). */
+   real_t weight;
+};
+
+
+/** @brief Quadrature over the piece of @f$\Gamma@f$ reached by the paths
+    issuing from one face of @f$\Gamma_h@f$: the @f$t=1@f$ face of the map
+    ExtensionRegionQuadrature() sweeps.
+
+    That map is @f$y(\xi,t) = x(\xi) + t\,(a(x(\xi)) - x(\xi))@f$, so at
+    @f$t=1@f$ it is @f$\xi \mapsto a(x(\xi))@f$ and its image is the piece of
+    @f$\Gamma@f$ the face is responsible for. The columns of that map's
+    Jacobian are @f$\partial a/\partial\xi_i@f$ alone -- the @f$(1-t)@f$ that
+    multiplies the face's own Jacobian has gone -- and they are taken by central
+    differences, because a path family is a map and is not required to supply a
+    derivative. CalcOrtho() turns them into the normal, whose magnitude IS the
+    surface Jacobian.
+
+    **The orientation is fixed by the paths, not by the face.** The normal is
+    signed so that @f$\nu\cdot(a(x)-x) > 0@f$: the paths run outward from
+    @f$D_h@f$, so a normal agreeing with them is the outward normal of
+    @f$\Gamma@f$. Taking the face's own normal instead would be wrong wherever
+    @f$\Gamma@f$ and @f$\Gamma_h@f$ are not parallel, which is everywhere that
+    matters.
+
+    **The weight is SIGNED, and that is what makes this a quadrature over
+    @f$\Gamma@f$ rather than over the path the foot map traces.** The map is
+    not required to be monotone along @f$\Gamma@f$, and for a staircase
+    @f$\Gamma_h@f$ it is not: measured on a circle cut from a diagonally split
+    Cartesian mesh, most faces traverse their arc once, while a short pinch face
+    runs forward, back and forward again -- traversing 0.0163 of arc length to
+    cover 0.0060 of @f$\Gamma@f$. Where the map reverses, so does
+    @f$\partial a/\partial\xi@f$, so CalcOrtho()'s normal turns inward, the
+    orientation test fires and the segment is subtracted. What survives is the
+    net multiplicity, which is one.
+
+    Summed over the faces this is therefore a quadrature over @f$\Gamma@f$
+    **provided the images cover it**, which is a property of the path family and
+    not of this routine -- the same hypothesis ExtensionRegionQuadrature() needs,
+    minus the monotonicity the signing removes. **It is checkable and should be
+    checked**: the weights must sum to @f$|\Gamma|@f$, exactly as the volume
+    weights must give @f$|\Omega| - |D_h|@f$.
+
+    **Why a visitor and not an integrator.** The caller decides what to build:
+    a boundary integral of an extended flux against a spectral basis is a row
+    vector rather than a form, so an Integrator subclass would be the wrong
+    object for it and would narrow this to one use. This is the shape
+    ExtensionRegionQuadrature() already has, for the same reason.
+
+    **A face whose image is a point is skipped, not refused.** A closest-point
+    family collapses a face lying along a ray to a single foot --- for
+    ClosestPointPath::Sphere, any radial face of a staircase @f$\Gamma_h@f$,
+    which near the poles is every second one. It covers zero of @f$\Gamma@f$,
+    its endpoint feet coincide, and its neighbours cover @f$\Gamma@f$ between
+    them, so the right contribution is none. @a visit is then not called for
+    that point.
+
+    The test is relative rather than against zero, and it has to be: a
+    Jacobian annihilates the degenerate direction exactly only in exact
+    arithmetic, and in floating point a radial face yields a residue pointing in
+    no particular direction. Its weight is of the same order, so a quadrature
+    sum is unharmed and the fault is invisible there --- but a caller reading
+    @a nu alone gets a normal measured at 90 degrees from the true one.
+
+    **The floor matches how the Jacobian was obtained.** A closed form from
+    EndpointJacobian() is accurate to rounding, so the floor is
+    @f$10^{-12}|\partial x/\partial\xi|@f$. A central difference divides by
+    @a fd_step and so has a noise floor of @f$\epsilon|a|/\texttt{fd_step}@f$
+    --- about @f$10^{-10}@f$ at the default step, six orders above
+    @f$\epsilon@f$ --- and gets a floor a hundred times that instead. A
+    legitimate face measures five orders clear of the looser of them.
+
+    @param FTr       a boundary face of @f$\Gamma_h@f$.
+    @param path      the transferring paths.
+    @param face_ir   a rule on the face.
+    @param visit     called once per quadrature point, EXCEPT where the image
+                     is degenerate; see above.
+    @param fd_step   the central-difference step for @f$\partial a/\partial
+                     \xi@f$, as in ExtensionRegionQuadrature(). */
+void ExtensionBoundaryQuadrature(
+   FaceElementTransformations &FTr, const TransferPath &path,
+   const IntegrationRule &face_ir,
+   const std::function<void(const ExtensionBoundaryPoint &)> &visit,
    real_t fd_step = 1e-6);
 
 
