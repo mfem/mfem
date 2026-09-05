@@ -1716,6 +1716,47 @@ const
       //
       // Which row within the block is free; the first is what the scalar code
       // used, so e == 0 reproduces it exactly.
+      //
+      // **The closure is unconditional, and it is only CORRECT while the
+      // lifted local operator keeps the per-field constant in its null space.**
+      // If that operator is full rank, replacing a row does not remove a
+      // redundancy -- it discards a real equation and adds one already implied.
+      // The matrix stays invertible, so there is no abort and no warning, only
+      // a wrong postprocessed field.
+      //
+      // Not every term lifted here keeps it. Measured, ||M.1||_inf / ||M||_inf
+      // on one element's potential block at order 2:
+      //
+      //     DiffusionIntegrator (control)            9.5e-17   keeps it
+      //     ConvectionIntegrator, (b.grad u, v)      1.7e-16   keeps it
+      //     ConservativeConvectionIntegrator         1.03      DOES NOT
+      //     HyperbolicFormIntegrator, neq = 1        1.03      DOES NOT
+      //     HyperbolicFormIntegrator, Euler, neq = 4 0.94      DOES NOT
+      //
+      // The split is the CONSERVATIVE (divergence) form, not hyperbolicity:
+      // (b.grad u, v) differentiates the state so a constant dies, while
+      // -(u, b.grad v) and (F(u), grad v) differentiate the test function and
+      // leave int_dK (J.n) phi_i. ConservativeConvectionIntegrator is bilinear
+      // and convdiff -p 2 puts it on the potential mass form, so the
+      // configuration is reachable at neq == 1 and not only for a system.
+      //
+      // **Whether anything actually breaks is NOT established**, and the two
+      // reasons matter more than the table. First, the null vector of this
+      // local problem is (u = 0, p = c, tr = c) -- the trace is an unknown here
+      // and each row's cancellation pairs a potential term with a trace one, so
+      // the element block alone is the wrong object to test. Second, an
+      // end-to-end sweep of convdiff -p 2 -rec against the convection-free -p 1
+      // gave the same rates either way, and both gave k+1 where the unit tests
+      // give k+2, because convdiff's error quadrature is 2*order+1 against an
+      // enriched field of order order+1: that study measures the miniapp's
+      // rule, not this closure. The decisive experiment is a manufactured
+      // problem with a constant divergence-free b at 2*order+6 quadrature.
+      //
+      // HDGPotentialPostprocessor is immune to all of it, structurally rather
+      // than by luck: its matrix is AddMult_a_AAt(w, dshape_s, A) and nothing
+      // else -- the Neumann stiffness, whatever the PDE -- with the physics
+      // entering only through its right-hand side. No convective term, no
+      // trace, no coupling between fields.
       {
          // adjust the element average of potential
          const FiniteElement *fe_pc = fes_pc->GetFE(z);

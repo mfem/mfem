@@ -10,6 +10,31 @@ cut down to a pointer rather than left here describing itself.
 Sections keep the numbers they had, so earlier commit messages citing "§4"
 still point somewhere sensible. Where a section is gone it says why.
 
+## What this branch family is FOR, and it is narrower than this file reads
+
+**The job on every `gf-*` branch is to make classic NPC HDG work well.** That
+is the Nguyen-Peraire-Cockburn method on the spaces this branch's users
+actually run -- a discontinuous L2 flux, an L2 potential, a `DG_Interface`
+trace, hybridized -- and the solver story around it.
+
+**Fixing the original Darcy pathways is not an obligation.** Clearly inherited
+and clearly not owed: the RT and broken-RT flux spaces, the two reductions, the
+rich reconstruction (`ReconstructFluxAndPot`), and the `H1_Trace` (EDG) trace
+space. They are not what this work is for, and a defect found in one of them is
+*recorded* rather than owed. This file has repeatedly grown entries that are
+true, interesting, and nobody's job here; a finding about an inherited pathway
+belongs in a comment on that pathway, and the entry here shrinks to a pointer.
+
+**Where the line falls elsewhere has not been drawn and should not be guessed.**
+§8's time integration in particular has had real work on this branch, and
+nothing here assumes it either way.
+
+Two consequences worth stating once. A section marked "not ours" is not
+thereby *wrong* or unimportant -- it is a note for whoever owns `fem/darcy`,
+which is why the measurement goes into the code where they will meet it. And
+directed work still overrides this: when the caller asks for one of them, it
+gets done, as §4's first two pieces were.
+
 ## The branch topology, because three sections turn on it
 
 ```
@@ -95,13 +120,23 @@ One piece is left, and two are done:
   `VectorFEMassIntegrator` reads a `dim`-square one. Now a loud refusal, with
   what a real repair would take — a coupled vector-FE mass, which the tree does
   not have — recorded on `ReconstructFluxAndPot()`.
-* **A hyperbolic system is not covered by the closure argument.** The closure
-  drops one equation per field because the lifted local operator annihilates
-  per-field constants (`darcyform.cpp:1673-1690`). A lifted
-  `HyperbolicFormIntegrator` Jacobian does not, so the local problem is then
-  over-determined in exactly the way the scalar path already is with such a
-  term. That is what stands between this and postprocessing
-  `miniapps/hdg/navierstokes`, which does not call `Reconstruct` at all today.
+* **A divergence-form term is not covered by the closure argument — and this
+  is NOT ours.** The closure is unconditional and is correct only while the
+  lifted local operator keeps the per-field constant in its null space; the
+  conservative form does not, which is measured and written up at the closure
+  itself in `darcyform.cpp`, along with the two reasons it is not yet shown to
+  break anything. `ReconstructFluxAndPot()` is an original Darcy pathway, so
+  this is recorded rather than owned. See the scope note at the top of this
+  file.
+
+  One thing to know before anyone reaches for it:
+  **`HDGPotentialPostprocessor` is immune, structurally** — its matrix is the
+  Neumann stiffness whatever the PDE is, with the physics only in the
+  right-hand side. So the sentence this entry used to carry, that the closure
+  is "what stands between this and postprocessing `miniapps/hdg/navierstokes`",
+  probably names the wrong obstacle: the classic postprocessing is
+  `vdim`-general and needs only the computed flux and potential. Whether its
+  `q = -K grad p` assumption suits the Navier-Stokes viscous flux is unchecked.
 
 Separately and smaller, and it is §8's rather than §4's:
 `miniapps/hdg/darcyop.cpp:370` and `:396` refuse `vdim > 1` for the H(div) flux
