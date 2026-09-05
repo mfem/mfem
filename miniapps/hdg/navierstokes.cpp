@@ -461,6 +461,8 @@ int main(int argc, char *argv[])
    real_t check_tol = -1.;
    bool line_search = false;
    int gradient_mode = -1;
+   bool threaded_assembly = false;
+   bool batched_factor = false;
    real_t hsign = -1.;
    bool bc_full = true;
    bool bc_flux = true;
@@ -471,6 +473,8 @@ int main(int argc, char *argv[])
    bool pgrad = false;
    bool bface = false;
    bool exact_init = false;
+   bool bc_lin = false;
+   real_t u_init = 0.;
    bool visualization = false;
    const char *device_config = "cpu";
 
@@ -581,6 +585,26 @@ int main(int argc, char *argv[])
                   "block and the flux and trace rows are linear, a full step "
                   "is exactly optimal for two of the three and damping can be "
                   "worse than none; see doc/HDG-ORDERING-API.md section 6.");
+   args.AddOption(&threaded_assembly, "-thr", "--threaded-assembly",
+                  "-no-thr", "--no-threaded-assembly",
+                  "Run the element-local half of the hybridized assembly on "
+                  "several threads: DarcyHybridization::AssemblyMode::"
+                  "Threaded. The scatter into the trace matrix stays serial "
+                  "and ordered, so the answer is identical to the serial run "
+                  "whatever OMP_NUM_THREADS says. Needs an MFEM_USE_OPENMP "
+                  "and MFEM_THREAD_SAFE build and aborts without one. This "
+                  "miniapp is the only driver that puts a SYSTEM and a "
+                  "HyperbolicFormIntegrator on that loop, so it is where "
+                  "their thread safety is exercised end to end.");
+   args.AddOption(&batched_factor, "-batch", "--batched-factor",
+                  "-no-batch", "--no-batched-factor",
+                  "Factor the element-local blocks through BatchedLinAlg in "
+                  "one call: DarcyHybridization::LocalFactorMode::Batched. "
+                  "Requires every element's block to be the same size, which "
+                  "a structured mesh at uniform order satisfies; the class "
+                  "falls back to the serial loop when it is not. The NATIVE "
+                  "backend is bit-for-bit the serial path, so this must not "
+                  "move any number here.");
    args.AddOption(&gradient_mode, "-gm", "--gradient-mode",
                   "How much of the hybridized trace system to build: "
                   "0=assemble and precondition directly, 1=assemble and "
@@ -678,6 +702,25 @@ int main(int argc, char *argv[])
                   "divergence form. Expected to be a no-op under "
                   "hybridization, where B's face integrators are never "
                   "evaluated; kept as the control that says so.");
+   args.AddOption(&bc_lin, "-bclin", "--bc-linearised-flux",
+                  "-no-bclin", "--no-bc-linearised-flux",
+                  "Linearise the boundary numerical flux about the prescribed "
+                  "exterior state on attributes carrying a free velocity "
+                  "trace, making that row linear in u_hat. Consistent -- the "
+                  "exact solution stays a root to 4.3e-16 -- and a no-op under "
+                  "-bcfull, where no trace component is free. **OFF by "
+                  "default, because it does NOT do what it was written for**: "
+                  "it was meant to remove the outflow's family of roots and "
+                  "only moves them, 3 spurious to 2 on the sweep in the "
+                  "boundary-condition step. What it bought instead is the "
+                  "attribution, which was wrong before it existed. See "
+                  "HDGLinearisedBdrFlux in nsflux.hpp.");
+   args.AddOption(&u_init, "-uinit", "--uniform-init",
+                  "Initialise the velocity to a uniform stream of this "
+                  "magnitude along x, and the trace with it. Zero leaves the "
+                  "state at zero. This exists to make the root sweep "
+                  "reproducible: sweeping it is how the outflow's root family "
+                  "was counted, and how -bclin was shown to collapse it.");
    args.AddOption(&exact_init, "-xinit", "--exact-init",
                   "-no-xinit", "--no-exact-init",
                   "Start from the exact solution in every field. For a problem "
@@ -870,6 +913,57 @@ int main(int argc, char *argv[])
       }
    }
 
+   // 6b. Which boundary attributes prescribe what.
+   //
+   //     This lives here, ahead of the forms, for one mechanical reason:
+   //     DarcyForm::EnableHybridization() reads the potential mass form's
+   //     face integrators AT CALL TIME and hands them to the hybridization,
+   //     so a boundary face integrator added after it is never seen. The
+   //     boundary numerical flux below is chosen per attribute from these
+   //     markers, so the markers have to exist first. Registering it after
+   //     EnableHybridization() instead cost a debugging cycle: the residual
+   //     loses its whole boundary inviscid term and every problem diverges to
+   //     inf, including -bcfull, where the change should have been a no-op.
+   //
+   //     The essential trace dof list built from the same markers stays in
+   //     step 9, where fes_t exists.
+
+   Array<int> bdr_vel(mesh.bdr_attributes.Max());   // velocity prescribed
+   Array<int> bdr_pres(mesh.bdr_attributes.Max());  // pressure prescribed
+   bdr_vel = 0; bdr_pres = 0;
+
+   switch (problem)
+   {
+      case Problem::PlanePoiseuille:
+         // No-slip walls top and bottom, velocity profile in at the left,
+         // pressure held at the right. The velocity is left free at the
+         // outlet and the pressure free everywhere else; that is what makes
+         // the outlet an outflow rather than a second inlet.
+         bdr_vel[BDR_BOTTOM - 1] = 1;
+         bdr_vel[BDR_TOP    - 1] = 1;
+         bdr_vel[BDR_LEFT   - 1] = 1;
+         bdr_pres[BDR_RIGHT - 1] = 1;
+         break;
+      case Problem::Kovasznay:
+      case Problem::UniformFlow:
+      case Problem::Couette:
+         // The velocity is given on the whole boundary; the pressure then
+         // needs one datum to fix its gauge, and the outflow edge carries it.
+         bdr_vel = 1;
+         bdr_pres[BDR_RIGHT - 1] = 1;
+         break;
+   }
+
+   if (bc_full) { bdr_vel = 1; bdr_pres = 1; }
+
+   //    A wholly natural attribute, for the measurement -bcnat documents.
+   if (bc_nat > 0)
+   {
+      MFEM_VERIFY(bc_nat <= mesh.bdr_attributes.Max(), "-bcnat out of range");
+      bdr_vel[bc_nat - 1] = 0;
+      bdr_pres[bc_nat - 1] = 0;
+   }
+
    // 7. The potential mass, carrying both halves of the stabilization and the
    //    whole of the inviscid flux. Everything goes on the *nonlinear* form:
    //    DarcyForm keeps one potential mass form, and the convective term is
@@ -916,7 +1010,38 @@ int main(int argc, char *argv[])
    Mtnl->AddDomainIntegrator(new HyperbolicFormIntegrator(*num_flux, 0, hsign));
    Mtnl->AddInteriorFaceIntegrator(new HyperbolicFormIntegrator(*num_flux, 0,
                                                                 hsign));
-   Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(*num_flux, 0, hsign));
+   //    The BOUNDARY one is split in two, and this is the outflow repair.
+   //
+   //    An attribute whose VELOCITY trace is free is where the row quadratic
+   //    in u_hat lives, and it is the only place the linearisation is wanted:
+   //    the pressure row is beta v_hat.n, already linear, so an attribute that
+   //    frees only the pressure needs nothing. Under -bcfull nothing is free,
+   //    bdr_lin is empty, and this reduces to the single unmarked registration
+   //    it replaced -- a no-op by construction rather than by a branch, the
+   //    same way the prescribed-flux datum is.
+   Array<int> bdr_lin(mesh.bdr_attributes.Max());
+   Array<int> bdr_ord(mesh.bdr_attributes.Max());
+   int n_lin = 0;
+   for (int a = 0; a < bdr_lin.Size(); a++)
+   {
+      bdr_lin[a] = (bc_lin && !bdr_vel[a]) ? 1 : 0;
+      bdr_ord[a] = 1 - bdr_lin[a];
+      n_lin += bdr_lin[a];
+   }
+   HDGLinearisedBdrFlux lin_flux(ac_flux, state_coeff, tau_const);
+   if (n_lin == 0)
+   {
+      Mtnl->AddBdrFaceIntegrator(new HyperbolicFormIntegrator(*num_flux, 0,
+                                                              hsign));
+   }
+   else
+   {
+      Mtnl->AddBdrFaceIntegrator(
+         new HyperbolicFormIntegrator(*num_flux, 0, hsign), bdr_ord);
+      Mtnl->AddBdrFaceIntegrator(
+         new HyperbolicFormIntegrator(lin_flux, 0, hsign), bdr_lin);
+   }
+   cout << "linearised boundary flux on " << n_lin << " attribute(s)" << endl;
 
    // 8. Hybridization. The constraint is `<[q.n], mu>`, again zero on the
    //    pressure row so that q_0 stays uncoupled; NormalTraceJumpIntegrator's
@@ -941,6 +1066,14 @@ int main(int argc, char *argv[])
       hyb->SetGradientMode((gradient_mode == 2)
                            ? DarcyHybridization::GradientMode::MatrixFree
                            : DarcyHybridization::GradientMode::Assembled);
+   }
+   if (threaded_assembly)
+   {
+      hyb->SetAssemblyMode(DarcyHybridization::AssemblyMode::Threaded);
+   }
+   if (batched_factor)
+   {
+      hyb->SetLocalFactorMode(DarcyHybridization::LocalFactorMode::Batched);
    }
 
    // 9. Boundary conditions, imposed essentially on the trace, per component.
@@ -1009,14 +1142,40 @@ int main(int argc, char *argv[])
    //    5.63 relative in q besides the true one, and six divergences. The
    //    cold start (uniform-stream 0) finds the 5.63 one.
    //
-   //    **The attribution, which is the part worth keeping.** v (x) v is
-   //    quadratic in the volume as well, so the family could have been the
-   //    equations' rather than the boundary condition's. Two controls say it
-   //    is the boundary condition's. -bcfull -- same flux, same mesh, same
-   //    solver, every trace component essential and hence no free row --
-   //    converges to the SAME root at round-off from all fifteen of those
-   //    starts. And -stokes, which makes the datum linear in the state,
-   //    converges in one step from any of them. Neither shows a second root.
+   //    **The attribution, and it was WRONG in the interesting half until
+   //    -bclin was built to test it.** v (x) v is quadratic in the volume as
+   //    well, so the family could have been the equations' rather than the
+   //    boundary condition's. This entry used to call two controls decisive:
+   //    -bcfull, every trace component essential and hence no free row,
+   //    converges to the SAME root from all fifteen starts; and -stokes,
+   //    linear in the state, converges in one step from any of them. Both are
+   //    true. **Neither separates "the row is quadratic in u_hat" from "the
+   //    row is free at all"** -- -bcfull removes the free dofs and -stokes
+   //    removes the interior nonlinearity, and the entry read the pair as
+   //    convicting the row's DEGREE.
+   //
+   //    -bclin is the experiment that separates them: it makes the outflow row
+   //    exactly linear in u_hat -- F(w).n + A_n(w)(u_hat - w) + S(w)(u - u_hat)
+   //    about the prescribed exterior state w -- and changes nothing else. It
+   //    is consistent, the exact solution staying a root to 4.3e-16. If the
+   //    row's degree were the mechanism the family would collapse. Measured at
+   //    order 2 on 8x8, sweeping -uinit over [-1.5, 3]:
+   //
+   //        -no-bclin   spurious roots 5.63, 1.31, 3.30    8 divergences
+   //        -bclin      spurious roots 1.18, 2.77         10 divergences
+   //
+   //    **The family moves and does not go.** So the row's degree is not the
+   //    mechanism. A Reynolds sweep says what is: at Re = 1 and Re = 5 BOTH
+   //    modes reach the true root from every start (1e-6 to 1e-12), and the
+   //    spurious roots appear only at Re = 40, in both. **It is the interior
+   //    convective nonlinearity, admitted by a free outlet trace; the boundary
+   //    row's own quadratic term is incidental to it.**
+   //
+   //    That leaves the cure where the measurements already put it: -cont,
+   //    which reaches the physical root at 1.6e-14. And it retires the claim
+   //    below that the reference's characteristic condition is the only real
+   //    one -- that is a linearisation too, and -bclin is the same idea inside
+   //    what the interface allows.
    //    (The beta sweep this entry used to rest on is weak evidence by
    //    comparison: 5.627, 5.612, 5.357 over a sixteenfold range.)
    //
@@ -1041,9 +1200,9 @@ int main(int argc, char *argv[])
    //    1.9e-3 where the exact solution is in the space -- with the exact
    //    solution still a root to 5.1e-16. A linear system with two solutions
    //    is a singular one: the outlet's essential pressure is what makes this
-   //    problem nonsingular, and it cannot simply be given up. The
-   //    characteristic condition above remains the only real cure, and it
-   //    still needs machinery DarcyHybridization does not have.
+   //    problem nonsingular, and it cannot simply be given up.
+   //    (The characteristic condition is no longer "the only real cure": see
+   //    the attribution above, which -bclin corrected.)
    //
    //    So -bcphys wants -cont on a convective problem, exactly as -bcfull
    //    does on Kovasznay.
@@ -1072,41 +1231,9 @@ int main(int argc, char *argv[])
    //    to a root at 0.175 / 0.0528 / 0.0165, stable over rtol 1e-10 to
    //    1e-14 and about three times -bcfull's error there.
 
-   Array<int> bdr_vel(mesh.bdr_attributes.Max());   // velocity prescribed
-   Array<int> bdr_pres(mesh.bdr_attributes.Max());  // pressure prescribed
-   bdr_vel = 0; bdr_pres = 0;
-
-   switch (problem)
-   {
-      case Problem::PlanePoiseuille:
-         // No-slip walls top and bottom, velocity profile in at the left,
-         // pressure held at the right. The velocity is left free at the
-         // outlet and the pressure free everywhere else; that is what makes
-         // the outlet an outflow rather than a second inlet.
-         bdr_vel[BDR_BOTTOM - 1] = 1;
-         bdr_vel[BDR_TOP    - 1] = 1;
-         bdr_vel[BDR_LEFT   - 1] = 1;
-         bdr_pres[BDR_RIGHT - 1] = 1;
-         break;
-      case Problem::Kovasznay:
-      case Problem::UniformFlow:
-      case Problem::Couette:
-         // The velocity is given on the whole boundary; the pressure then
-         // needs one datum to fix its gauge, and the outflow edge carries it.
-         bdr_vel = 1;
-         bdr_pres[BDR_RIGHT - 1] = 1;
-         break;
-   }
-
-   if (bc_full) { bdr_vel = 1; bdr_pres = 1; }
-
-   //    A wholly natural attribute, for the measurement -bcnat documents.
-   if (bc_nat > 0)
-   {
-      MFEM_VERIFY(bc_nat <= mesh.bdr_attributes.Max(), "-bcnat out of range");
-      bdr_vel[bc_nat - 1] = 0;
-      bdr_pres[bc_nat - 1] = 0;
-   }
+   //    The markers themselves are computed BEFORE the forms, because the
+   //    boundary numerical flux registration needs them; see step 6b. What
+   //    stays here is the per-component essential list, which needs fes_t.
 
    Array<int> ess_tdofs;
    {
@@ -1147,6 +1274,26 @@ int main(int argc, char *argv[])
    Array<int> all_bdr(mesh.bdr_attributes.Max());
    all_bdr = 1;
    tr_h.ProjectBdrCoefficient(state_coeff, all_bdr);
+
+   if (u_init != 0.)
+   {
+      // A uniform stream, pressure zero. Set on the fields and on the whole
+      // trace, so the start is a genuine state and not a half-set one; the
+      // essential components are then overwritten below by the projection
+      // that follows, which is what makes only the FREE ones vary.
+      VectorFunctionCoefficient stream(neq, [&](const Vector &, Vector &v)
+      {
+         v = 0.;
+         v(1) = u_init;
+      });
+      // The FIELD only. The trace space is face-based, so
+      // GridFunction::ProjectCoefficient() is not available on it -- it
+      // segfaults rather than refusing -- and the boundary trace is already
+      // the exact datum from the projection above. So what this sweeps is the
+      // interior state the Newton path starts from, which is exactly what the
+      // root count is a function of.
+      u_h.ProjectCoefficient(stream);
+   }
 
    if (exact_init)
    {

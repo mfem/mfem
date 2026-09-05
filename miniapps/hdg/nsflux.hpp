@@ -405,6 +405,126 @@ public:
 };
 
 
+/** @brief The HDG boundary numerical flux, LINEARISED about a prescribed
+    exterior state -- the cure for the outflow's family of roots.
+
+    **What it repairs.** On a boundary face whose trace is not essential, the
+    trace row reads `<(F^(u,uhat) + q^).n, mu> = <(F + G).n, mu>_datum`, and
+    `HDGLaxFriedrichsFlux` puts `F(uhat).n + S(uhat)(u - uhat)` on the left.
+    Both halves are QUADRATIC in `uhat` for this flux -- `v_i (v.n)` in the
+    first and `S(uhat) uhat` in the second -- so per quadrature point the
+    momentum row fixes `vhat.n` only up to sign, every free outlet velocity dof
+    enters its own row quadratically, and the number of roots is combinatorial.
+    Measured before this class existed, order 2 on 8x8 plane Poiseuille from
+    fifteen uniform-stream starts: FOUR distinct roots, each converged
+    quadratically to 1e-16, at 1.31, 3.30 and 5.63 relative in `q` besides the
+    true one, and six divergences. They are not solutions of the continuous
+    problem -- refining does not converge them.
+
+    **What it does.** Freeze the flux and the stabilization at the prescribed
+    exterior state `w = u_inf(x)`, so the row becomes
+
+        F(w).n + A_n(w) (uhat - w) + S(w) (u - uhat)
+
+    which is exactly LINEAR in `uhat` and in `u`. Consistency is unchanged:
+    at `uhat = w` this is `F(w).n + S(w)(u - w)`, which is what the
+    unlinearised flux gives there, so the exact solution remains a root of the
+    same datum. And `S` frozen at `w` costs nothing in the Jacobian -- the
+    `(u - uhat) dS/duhat^T` term that HDGLaxFriedrichsFlux carries is
+    identically absent here rather than dropped, so `-fstab` has no meaning on
+    this flux.
+
+    **Why not the reference's characteristic condition**, `B^ = A+_n(u - uhat)
+    - A-_n(u_inf - uhat)`, which was the other candidate and which the
+    boundary-condition step of navierstokes.cpp used to name as the only cure.
+    That form REPLACES the trace row rather than supplying a term of it, and
+    the row also carries `q^.n` from the constraint block `C`, which
+    `DarcyForm` installs from `B`'s boundary marker and which is needed by the
+    FLUX row on the same face. Suppressing `C` in one row and not the other is
+    machinery `DarcyHybridization` does not have. **Linearising the flux
+    reaches the same end -- a row linear in `uhat`, hence one root -- without
+    it**, and keeps the viscous half, which a viscous outflow wants anyway.
+
+    @note This is a boundary flux and nothing else. On an interior face `w`
+    has no meaning; register it with `AddBdrFaceIntegrator()` on the
+    attributes carrying a free trace component and leave the interior to the
+    ordinary flux. */
+class HDGLinearisedBdrFlux : public RusanovFlux
+{
+   const ArtificialCompressibilityFlux *acf;
+   VectorCoefficient &uinf;   ///< the prescribed exterior state
+   real_t tau_const;          ///< >= 0 uses it; < 0 uses S(w)
+
+   mutable Vector w;
+   mutable DenseMatrix An;
+
+   /// The exterior state at the current point, and the stabilization there.
+   real_t Exterior(const Vector &nor, FaceElementTransformations &Tr) const
+   {
+      // Elem1 at its own integration point is the physical point on the face,
+      // and is an element transformation, so a coefficient reading element
+      // attributes still works.
+      uinf.Eval(w, *Tr.Elem1, Tr.GetElement1IntPoint());
+      if (tau_const >= 0.) { return tau_const * nor.Norml2(); }
+      return acf ? acf->MaxCharSpeedDotN(w, nor) : 0.;
+   }
+
+public:
+   /** @param f    the same FluxFunction the rest of the residual uses
+       @param u    the prescribed exterior state, `num_equations` wide
+       @param tau  a constant stabilization, or negative for `S(w)` -- match
+                   whichever the interior faces are using */
+   HDGLinearisedBdrFlux(const FluxFunction &f, VectorCoefficient &u,
+                        real_t tau = -1.)
+      : RusanovFlux(f),
+        acf(dynamic_cast<const ArtificialCompressibilityFlux*>(&f)),
+        uinf(u), tau_const(tau) { }
+
+   real_t Average(const Vector &state1, const Vector &state2,
+                  const Vector &nor, FaceElementTransformations &Tr,
+                  Vector &flux) const override
+   {
+      const int neq = fluxFunction.num_equations;
+      flux.SetSize(neq);
+
+      const real_t S = Exterior(nor, Tr);
+      const real_t speed = fluxFunction.ComputeFluxDotN(w, nor, Tr, flux);
+      fluxFunction.ComputeFluxJacobianDotN(w, nor, Tr, An);
+
+      // state1 is the TRACE and state2 the element state; that is the order
+      // HyperbolicFormIntegrator::AssembleHDGFaceVector() calls with.
+      for (int i = 0; i < neq; i++)
+      {
+         real_t a = 0.;
+         for (int j = 0; j < neq; j++) { a += An(i, j) * (state1(j) - w(j)); }
+         flux(i) += a + S * (state2(i) - state1(i));
+      }
+      return std::max(speed, S);
+   }
+
+   void AverageGrad(int side, const Vector &state1, const Vector &state2,
+                    const Vector &nor, FaceElementTransformations &Tr,
+                    DenseMatrix &grad) const override
+   {
+      MFEM_ASSERT(side == 1 || side == 2, "Unknown side");
+      const int neq = fluxFunction.num_equations;
+      grad.SetSize(neq);
+
+      const real_t S = Exterior(nor, Tr);
+      if (side == 2)
+      {
+         grad = 0.;
+         for (int i = 0; i < neq; i++) { grad(i, i) = S; }
+         return;
+      }
+
+      // side == 1, the trace: d/duhat of the whole row is A_n(w) - S I, and
+      // it does not depend on either state -- which is the point.
+      fluxFunction.ComputeFluxJacobianDotN(w, nor, Tr, grad);
+      for (int i = 0; i < neq; i++) { grad(i, i) -= S; }
+   }
+};
+
 /** @brief The prescribed HDG numerical flux on a boundary face, assembled as a
     linear form on the TRACE space.
 
