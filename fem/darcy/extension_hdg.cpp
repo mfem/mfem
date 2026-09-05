@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "extension_hdg.hpp"
+
+#include <limits>
 #include "../geom.hpp"
 
 #include <algorithm>
@@ -115,6 +117,63 @@ bool FirstCrossing(const PositionFunction &phi, const Vector &x,
 }
 
 } // namespace
+
+std::function<void(const Vector &, DenseMatrix &)>
+ClosestPointPath::SphereJacobian(const Vector &c, real_t R)
+{
+   const Vector cc(c);
+   return [cc, R](const Vector &x, DenseMatrix &J)
+   {
+      const int dim = x.Size();
+      MFEM_ASSERT(cc.Size() == dim, "dimension mismatch");
+      J.SetSize(dim);
+
+      Vector u(dim);
+      real_t r = 0.;
+      for (int d = 0; d < dim; d++)
+      {
+         u(d) = x(d) - cc(d);
+         r += u(d) * u(d);
+      }
+      r = std::sqrt(r);
+      MFEM_VERIFY(r > 0., "the closest point to a sphere's own centre is not "
+                  "defined, so neither is the Jacobian there");
+      u /= r;
+
+      // d a/d x = ( R/|x-c| )( I - u u^T ).  The projector annihilates the
+      // radial direction because every point of a ray shares a closest point.
+      const real_t s = R / r;
+      for (int i = 0; i < dim; i++)
+         for (int j = 0; j < dim; j++)
+         {
+            J(i, j) = s * ((i == j ? 1. : 0.) - u(i) * u(j));
+         }
+   };
+}
+
+bool ClosestPointPath::EndpointJacobian(FaceElementTransformations &FTr,
+                                        const IntegrationPoint &ip,
+                                        DenseMatrix &dadxi) const
+{
+   if (!dcp) { return false; }
+
+   const int sdim = FTr.GetSpaceDim();
+   const int fdim = sdim - 1;
+   if (fdim < 1) { return false; }
+
+   Vector x(sdim);
+   FTr.SetAllIntPoints(&ip);
+   FTr.Transform(ip, x);
+
+   // The chain rule: d a/d xi = ( d a/d x )( d x/d xi ), the second factor
+   // being the face's own Jacobian.  Exact, where the difference is not.
+   DenseMatrix dadx(sdim);
+   dcp(x, dadx);
+
+   dadxi.SetSize(sdim, fdim);
+   Mult(dadx, FTr.Jacobian(), dadxi);
+   return true;
+}
 
 void LevelSetPath::Endpoint(const Vector &x, const Vector &n,
                             Vector &xbar) const
@@ -684,10 +743,18 @@ void ExtensionBoundaryQuadrature(
 
       // The derivative of the path's endpoint along the face, which at t = 1
       // is the WHOLE Jacobian of the map: the face's own dx/dxi is multiplied
-      // by (1-t) and has gone.  Same central difference
-      // ExtensionRegionQuadrature() takes, for the same reason -- a path family
-      // is a map and need not supply a derivative.
-      for (int i = 0; i < fdim; i++)
+      // by (1-t) and has gone.
+      //
+      // ASK THE FAMILY FIRST.  A family with a closed form gives an exact
+      // Jacobian and saves 2(d-1) Endpoint() calls per point; one without says
+      // so and the central difference below is taken instead, which is the
+      // reference behaviour rather than a fallback in the pejorative sense.
+      // Note the difference's own floor: O(fd_step^2) truncation against
+      // O(eps/fd_step) round-off puts it near 1e-10 at the default step, and a
+      // closed form removes that entirely.
+      const bool analytic = path.EndpointJacobian(FTr, ip, dadxi);
+
+      for (int i = 0; i < fdim && !analytic; i++)
       {
          IntegrationPoint ip_p = ip, ip_m = ip;
          real_t *cp = (i == 0) ? &ip_p.x : ((i == 1) ? &ip_p.y : &ip_p.z);
@@ -701,7 +768,8 @@ void ExtensionBoundaryQuadrature(
          da /= 2. * fd_step;
          for (int d = 0; d < sdim; d++) { dadxi(d, i) = da(d); }
       }
-      // Endpoint() moved the transformations; put them back.
+      // Endpoint() -- or EndpointJacobian() -- moved the transformations; put
+      // them back.
       FTr.SetAllIntPoints(&ip);
 
       // A point face -- the boundary of a one-dimensional mesh -- has no
@@ -713,10 +781,59 @@ void ExtensionBoundaryQuadrature(
       {
          CalcOrtho(dadxi, nu);
          measure = nu.Norml2();
-         MFEM_VERIFY(measure > 0.,
-                     "the path map is degenerate at a quadrature point: "
-                     "da/dxi has no orthogonal direction, so Gamma has no "
-                     "normal there");
+
+         // A FACE WHOSE IMAGE IS A POINT CONTRIBUTES NOTHING, AND THAT IS
+         // ORDINARY RATHER THAN AN ERROR.  A closest-point family collapses
+         // every point of a face lying along a ray to the same foot -- for
+         // ClosestPointPath::Sphere, a face of the staircase Gamma_h that
+         // happens to be radial, which near the poles of the circle is every
+         // second face.  Then da/dxi vanishes, Gamma has no normal to report,
+         // and the right contribution is none: the face covers zero arc, its
+         // two endpoint feet coincide, and its neighbours still cover Gamma
+         // between them.
+         //
+         // THE TEST IS RELATIVE TO THE FACE, AND AN EXACT-ZERO TEST IS NOT
+         // ENOUGH -- measured, not reasoned.  With ClosestPointPath's analytic
+         // Jacobian the radial direction is annihilated by (I - uu^T), which is
+         // exactly zero only in exact arithmetic; in floating point a radial
+         // face gives |da/dxi| ~ 1e-16 pointing ANYWHERE.  An exact-zero test
+         // passes that through, and the normal it yields is garbage -- measured
+         // at 90 degrees from the true one, |nu - exact| = sqrt(2).  The
+         // WEIGHT is ~1e-16 too, so a quadrature sum is unharmed and the fault
+         // hides; a caller reading nu on its own is not so lucky.
+         //
+         // Comparing against the face's own |dx/dxi| is the defensible test:
+         // both are lengths per unit reference coordinate, so the ratio is
+         // dimensionless, and an image twelve orders shorter than the face that
+         // produced it is degenerate on any reading.  A map that merely
+         // compresses -- a distant sphere of small radius, where |da/dxi| is
+         // R/|x-c| times |dx/dxi| -- is nowhere near this and is kept.
+         // AND THE THRESHOLD HAS TO MATCH HOW THE JACOBIAN WAS OBTAINED, which
+         // is the second half of the same lesson.  A closed form is accurate to
+         // rounding, so a residue of order eps|dx/dxi| is degeneracy.  A central
+         // difference is not: it divides by fd_step, so its own noise floor is
+         // eps|a|/fd_step -- about 1e-10 at the default step, SIX ORDERS above
+         // eps.  Measured, a radial face under the difference gives |da/dxi| ~
+         // 5e-11 against a face scale of 0.1, sails through a 1e-12 test, and
+         // hands back the same garbage normal at 90 degrees.
+         //
+         // So the two branches get their own floors, each a hundred times its
+         // own noise.  A legitimate face here measures ~0.1, five orders clear
+         // of the looser of them, so nothing real is at risk of being skipped.
+         real_t face_scale = 0.;
+         for (int i = 0; i < fdim; i++)
+            for (int d = 0; d < sdim; d++)
+            {
+               face_scale += FTr.Jacobian()(d, i) * FTr.Jacobian()(d, i);
+            }
+         face_scale = std::sqrt(face_scale);
+
+         const real_t eps = std::numeric_limits<real_t>::epsilon();
+         const real_t floor = analytic
+                              ? 1e-12 * face_scale
+                              : 100. * (eps / fd_step) * xbar.Norml2();
+
+         if (measure <= floor) { continue; }
          nu /= measure;
       }
       else

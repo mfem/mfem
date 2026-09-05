@@ -115,6 +115,31 @@ public:
    virtual void Endpoint(FaceElementTransformations &FTr,
                          const IntegrationPoint &ip, Vector &xbar) const;
 
+   /** @brief @f$\partial a/\partial\xi@f$ along the face, if the family has
+       it in closed form.
+
+       **Returns false by default, and a family is under no obligation to
+       override it.** A path family is a map; requiring a derivative of every
+       one would exclude the families defined by a search, which are the
+       general case. ExtensionBoundaryQuadrature() falls back to a central
+       difference when this returns false, and that fallback is the reference
+       behaviour rather than a degraded one.
+
+       **A family that CAN supply it should**, because the difference is not
+       free in either sense: it costs @f$2(d-1)@f$ extra Endpoint() calls per
+       quadrature point, and it carries an @f$O(\texttt{fd_step}^2)@f$
+       truncation against an @f$O(\epsilon/\texttt{fd_step})@f$ round-off,
+       which at the default step floors the quadrature near @f$10^{-10}@f$
+       where a closed form is exact.
+
+       @a dadxi is @f$d\times(d-1)@f$, its column @a i being
+       @f$\partial a/\partial\xi_i@f$. @a FTr must have its integration
+       points set to @a ip already. */
+   virtual bool EndpointJacobian(FaceElementTransformations &FTr,
+                                 const IntegrationPoint &ip,
+                                 DenseMatrix &dadxi) const
+   { return false; }
+
    virtual ~TransferPath() = default;
 };
 
@@ -129,18 +154,51 @@ public:
 class ClosestPointPath : public TransferPath
 {
    VectorPositionFunction cp;
+   /// @f$\partial a/\partial x@f$, if the caller supplied it. May be empty.
+   std::function<void(const Vector &, DenseMatrix &)> dcp;
 
 public:
    /// @param cp_  the closest-point map onto @f$\Gamma@f$.
    ClosestPointPath(VectorPositionFunction cp_) : cp(std::move(cp_)) { }
 
+   /** @brief With the map's own Jacobian, so the quadrature needs no
+       differences.
+
+       @param dcp_  fills a @f$d\times d@f$ matrix with @f$\partial
+                    a/\partial x@f$ at the given point. The derivative along a
+                    face then follows by the chain rule, @f$\partial
+                    a/\partial\xi = (\partial a/\partial x)(\partial
+                    x/\partial\xi)@f$, which is exact.
+
+       Worth supplying wherever the map is analytic, which is the case this
+       class exists for. SphereJacobian() is the one for Sphere(). */
+   ClosestPointPath(VectorPositionFunction cp_,
+                    std::function<void(const Vector &, DenseMatrix &)> dcp_)
+      : cp(std::move(cp_)), dcp(std::move(dcp_)) { }
+
    /// The closest-point map onto a sphere of centre @a c and radius @a R.
    static VectorPositionFunction Sphere(const Vector &c, real_t R);
+
+   /** @brief Its Jacobian, @f$\partial a/\partial x = \frac{R}{|x-c|}
+       (I - uu^T)@f$ with @f$u = (x-c)/|x-c|@f$.
+
+       Singular in the radial direction, which is the map rather than a defect:
+       every point of a ray has the same closest point, so @f$\partial
+       a/\partial x@f$ annihilates @f$u@f$. A face lying along a ray therefore
+       has @f$\partial a/\partial\xi = 0@f$ and covers nothing of
+       @f$\Gamma@f$ -- which ExtensionBoundaryQuadrature() skips, and which the
+       closed form makes an identity rather than a near-cancellation. */
+   static std::function<void(const Vector &, DenseMatrix &)>
+   SphereJacobian(const Vector &c, real_t R);
 
    using TransferPath::Endpoint;
 
    void Endpoint(const Vector &x, const Vector &n,
                  Vector &xbar) const override { cp(x, xbar); }
+
+   bool EndpointJacobian(FaceElementTransformations &FTr,
+                         const IntegrationPoint &ip,
+                         DenseMatrix &dadxi) const override;
 };
 
 
@@ -669,10 +727,34 @@ struct ExtensionBoundaryPoint
     object for it and would narrow this to one use. This is the shape
     ExtensionRegionQuadrature() already has, for the same reason.
 
+    **A face whose image is a point is skipped, not refused.** A closest-point
+    family collapses a face lying along a ray to a single foot --- for
+    ClosestPointPath::Sphere, any radial face of a staircase @f$\Gamma_h@f$,
+    which near the poles is every second one. It covers zero of @f$\Gamma@f$,
+    its endpoint feet coincide, and its neighbours cover @f$\Gamma@f$ between
+    them, so the right contribution is none. @a visit is then not called for
+    that point.
+
+    The test is relative rather than against zero, and it has to be: a
+    Jacobian annihilates the degenerate direction exactly only in exact
+    arithmetic, and in floating point a radial face yields a residue pointing in
+    no particular direction. Its weight is of the same order, so a quadrature
+    sum is unharmed and the fault is invisible there --- but a caller reading
+    @a nu alone gets a normal measured at 90 degrees from the true one.
+
+    **The floor matches how the Jacobian was obtained.** A closed form from
+    EndpointJacobian() is accurate to rounding, so the floor is
+    @f$10^{-12}|\partial x/\partial\xi|@f$. A central difference divides by
+    @a fd_step and so has a noise floor of @f$\epsilon|a|/\texttt{fd_step}@f$
+    --- about @f$10^{-10}@f$ at the default step, six orders above
+    @f$\epsilon@f$ --- and gets a floor a hundred times that instead. A
+    legitimate face measures five orders clear of the looser of them.
+
     @param FTr       a boundary face of @f$\Gamma_h@f$.
     @param path      the transferring paths.
     @param face_ir   a rule on the face.
-    @param visit     called once per quadrature point.
+    @param visit     called once per quadrature point, EXCEPT where the image
+                     is degenerate; see above.
     @param fd_step   the central-difference step for @f$\partial a/\partial
                      \xi@f$, as in ExtensionRegionQuadrature(). */
 void ExtensionBoundaryQuadrature(
