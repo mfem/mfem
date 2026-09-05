@@ -643,33 +643,23 @@ int main(int argc, char *argv[])
    DiffusionOperator diff_op2(fes);
    diff_op2.SetName("Div(k(T1,T2) grad(T2))");
 
-   Vector k1vec(fes.GetTrueVSize()); k1vec = 0.0;
-   Vector k1adj(fes.GetTrueVSize()); k1adj = 0.0;
-   Vector kpvec(fes.GetTrueVSize()); kpvec = 0.0;
-   Vector T1vec(fes.GetTrueVSize()); T1vec = 0.0;
+   // Size and memory type for the fields
+   int fsize = fes.GetTrueVSize();
+   MemoryType mem_type = MemoryType::HOST;
 
-   // Input fields get data from 'x' in DAGraph::Mult(x, y)
-   Field *T1_field = new Field();
-   Field *T2_field = new Field();
+   // Input fields get memory from 'x' in DAGraph::Mult(x, y)
+   Field *T1_field = new VectorField(fsize, mem_type);
+   Field *T2_field = new VectorField(fsize, mem_type);
 
    // Intermediate fields for the diffusion coefficients
-   Field *k1_field = new Field();
-   Field *k2_field = new Field();
-   Field *kp_field = new Field(); // Only needed for the coupled case
+   // Memory allocated internally in dag using Field::MakeNew()
+   Field *k1_field = new VectorField(fsize, mem_type);
+   Field *k2_field = new VectorField(fsize, mem_type);
+   Field *kp_field = new VectorField(fsize, mem_type);; // Only needed for the coupled case
 
-   // Output fields get data from 'y' in DAGraph::Mult(x, y)
-   Field *f1_field = new Field();
-   Field *f2_field = new Field();
-
-   // Write space for data and adjoint only needed
-   // for the intermediate fields k1, k2, and k_prod (if coupled)
-   k1_field->SetData(&k1vec, &k1adj); // Use different provided memory for data and adjoint
-   k2_field->AllocateData(k1vec); // Allocate memory for data and adjoint of same size and type
-   kp_field->SetData(&kpvec); // Use same, provided memory for data and adjoint
-   T1_field->SetData(&T1vec); // Use same, provided memory for data and adjoint
-   T2_field->SetData(&T1vec); // Allocate memory for data and adjoint of same size and type
-   f1_field->SetData(&T1vec); // Allocate memory for data and adjoint of same size and type
-   f2_field->SetData(&T1vec); // Allocate memory for data and adjoint of same size and type
+   // // Output fields get memory from 'y' in DAGraph::Mult(x, y)
+   Field *f1_field = new VectorField(fsize, mem_type);
+   Field *f2_field = new VectorField(fsize, mem_type);
 
    // Define the DAG
    DAGraph dag;
@@ -732,16 +722,13 @@ int main(int argc, char *argv[])
    Array<int> ess_tdofs;
    fes.GetBoundaryTrueDofs(ess_tdofs);
 
-   int T1_idx = 0;
-   int T2_idx = 1;
-
    BlockVector xb(dag_offsets);
    BlockVector yb(dag_offsets);
    xb = 0.0; yb = 0.0;
 
    xb.Randomize(10);
-   xb.GetBlock(T1_idx).SetSubVector(ess_tdofs, 1.0);
-   xb.GetBlock(T2_idx).SetSubVector(ess_tdofs, 1.0);
+   xb.GetBlock(0).SetSubVector(ess_tdofs, 1.0);
+   xb.GetBlock(1).SetSubVector(ess_tdofs, 1.0);
 
    // Build the nonlinear solver and linear solver for the DAG
    NewtonSolver newton_solver(pmesh.GetComm());
@@ -786,13 +773,16 @@ int main(int argc, char *argv[])
       ParGridFunction T2_gf(&fes);
       ParGridFunction k1_gf(&fes);
       ParGridFunction k2_gf(&fes);
-      T1_gf.SetFromTrueDofs(xb.GetBlock(T1_idx));
-      T2_gf.SetFromTrueDofs(xb.GetBlock(T2_idx));
+      Vector kvec(fes.GetTrueVSize());
 
-      diff_coeff_1.Mult(xb.GetBlock(T1_idx), k1vec);
-      diff_coeff_2.Mult(xb.GetBlock(T2_idx), kpvec);
-      k1_gf.SetFromTrueDofs(k1vec);
-      k2_gf.SetFromTrueDofs(kpvec);
+      T1_gf.SetFromTrueDofs(xb.GetBlock(0));
+      T2_gf.SetFromTrueDofs(xb.GetBlock(1));
+
+      diff_coeff_1.Mult(xb.GetBlock(0), kvec);
+      k1_gf.SetFromTrueDofs(kvec);
+
+      diff_coeff_2.Mult(xb.GetBlock(1), kvec);
+      k2_gf.SetFromTrueDofs(kvec);
 
       pv->RegisterField("T1", &T1_gf);
       pv->RegisterField("T2", &T2_gf);

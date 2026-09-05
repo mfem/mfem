@@ -102,135 +102,45 @@ public:
 };
 
 
-struct State
+/// @brief Base class for providing memory and distinguishing between
+/// fields variables
+class Field
 {
 public:
-    // The type of the state data (Vector)
-    using StateType = Vector*;
+    using StateType = Vector;
+    friend class GraphOperator;
 
 private:
     // TODO: Use hash map to store states with unique IDs
     inline static int next_id = 0;
     int id = -1; // initialized to invalid id
-    AbstractTape *tape = nullptr; // Tape tracking this state
-
-public:
-    State() : id(GetValidID(-1,next_id)) { } // Use hash map to store states with unique IDs
-
-    /// Make allocate a copy of the state and transfer ownership.
-    virtual StateType MakeCopy(const State original) const = 0;
-
-    /// Allocate a new state with the same type as this state and transfer ownership.
-    virtual StateType MakeNew() const = 0;
-
-    virtual void SetTape(AbstractTape *t) = 0;
-
-    virtual AbstractTape* GetTape() const = 0;
-};
-
-/// @brief Base class for storing data (Vector) and distinguishing
-/// fields variables
-class Field
-{
-public:
-    friend class GraphOperator;
-
-private:
-    inline static int next_id = 0;
+    AbstractTape *tape = nullptr; // Optional tape tracking this field
 
 protected:
-    Vector *data = nullptr;
-    Vector *adjoint = nullptr; // For storing derivative info
-    int id = -1; // initialized to invalid id
-    bool own_adj = false; // Whether this Field owns the adjoint Vector
-    bool own_data = false; // Whether this Field owns the data Vector
-
     std::string name; // Optional name for the field
-    Operator *oper  = nullptr; // Operator that outputs this field
-    AbstractTape *tape = nullptr; // Optional tape tracking this field
 
 public:
 
     ///@brief Constructor for a Field of type Type with optional ID
-    Field(Vector *field, Vector *adjoint, int id_ = -1) :
-          data(field), adjoint(adjoint), id(GetValidID(id_,next_id)),
-          name("Field_" + std::to_string(id)) { }
+    Field(int id_ = -1) : id(GetValidID(id_,next_id)),
+                          name("Field_" + std::to_string(id)) { }
 
-    ///@brief Constructor for an input field
-    Field(Vector *field, int id_ = -1) :
-          Field(field, nullptr, id_) { }
-
-    template<typename T,
-             typename std::enable_if<std::is_base_of<Vector,T>::value,bool>::type = true>
-    Field(const T &v, int id_ = -1) : Field(nullptr, nullptr, id_)
+    virtual void SetTape(AbstractTape *t)
     {
-        AllocateData(v);
-    }
-
-    Field(int id_ = -1) : Field(nullptr, nullptr, id_) { }
-
-    ///@brief Get the stored internally stored data pointer
-    Vector* Data() const { return data; }
-    Vector* Adjoint() const { return adjoint; }
-    Operator* GetOperator() const { return oper; }
-
-    template<typename T,
-             typename std::enable_if<std::is_base_of<Vector,T>::value,bool>::type = true>
-    void AllocateData(const T &v)
-    {
-        if(data && own_data) { delete data; }
-        if(adjoint && own_adj) { delete adjoint; }
-        data = new T(v); // Create a new Vector on device/host
-        adjoint = new T(v); // Might be unused (e.g., gradient calculation)
-        own_data = true;
-        own_adj = true;
-    }
-
-    ///@brief Set the internally stored data pointer
-    virtual void SetData(Vector *field, Vector *adj)
-    {
-        if(data && own_data) { delete data; }
-        if(adjoint && own_adj) { delete adjoint; }
-        data = field;
-        adjoint = adj;
-        own_data = false;
-        own_adj = false;
-    }
-
-    virtual void SetData(Vector *field)
-    {
-        if(data && own_data) { delete data; }
-        data = field;
-        own_data = false;
-        if(!adjoint)
-        {
-            adjoint = field;// If not set, use the same as data
-            own_adj = false;
-        }
-    }
-
-    virtual void SetAdjoint(Vector *adj)
-    {
-        if(adjoint && own_adj) { delete adjoint; }
-        adjoint = adj;
-        own_adj = false;
-    }
-
-    virtual void SetOperator(Operator *op) { oper = op; }
-
-    void SetTape(AbstractTape *t)
-    {
-        if((tape && t) && (tape != t))
+        auto current_tape = GetTape();
+        if((current_tape && t) && (current_tape != t))
         {
             MFEM_ABORT("Tape is already set for this Field.");
         }
         tape = t;
     }
 
-    AbstractTape* GetTape() const { return tape; }
+    virtual AbstractTape* GetTape() const { return tape; }
 
     std::string Name() const { return name; }
+
     void SetName(const std::string &n) { name = n; }
+
     int ID() const { return id; }
 
     void SetID(int i)
@@ -239,27 +149,47 @@ public:
         id = i;
     }
 
-    virtual ~Field()
-    {
-        if(data && own_data) { delete data; }
-        if(adjoint && own_adj) { delete adjoint; }
-    }
-
-    // EXPERIMENTAL
     /// Make allocate a copy of the state and transfer ownership.
-    virtual Vector* MakeCopy(const Vector* original) const
+    virtual StateType* MakeCopy(const StateType* original) const
+    { MFEM_ABORT("MakeCopy is not implemented in base class."); }
+
+    /// Allocate a new state with the same type as this state and transfer ownership.
+    virtual StateType* MakeNew() const
+    { MFEM_ABORT("MakeNew is not implemented in base class."); }
+};
+
+/// @brief Base class for storing data (Vector) and distinguishing
+/// fields variables
+class VectorField : public Field
+{
+public:
+    using StateType = Field::StateType;
+protected:
+    int size = 0; // size of the underlying Vector
+    MemoryType mt = MemoryType::HOST; // Memory type of the underlying Vector
+
+public:
+
+    ///@brief Constructor for a Field of type Type with optional ID
+    VectorField(const Vector &v, int id_ = -1) : Field(id_),
+                 size(v.Size()), mt(v.GetMemory().GetMemoryType()){ }
+
+    VectorField(int s, MemoryType mtype, int id_ = -1) : Field(id_),
+                size(s), mt(mtype) { }
+    
+    VectorField(int s, int id_ = -1) : VectorField(s, MemoryType::HOST, id_) { }
+
+    /// Make allocate a new copy of the state and transfer ownership.
+    Vector* MakeCopy(const Vector* original) const override
     {
         return new Vector(*original);
     }
 
     /// Allocate a new state with the same type as this state and transfer ownership.
-    virtual Vector* MakeNew() const
+    Vector* MakeNew() const override
     {
-        MFEM_ASSERT(data != nullptr, "Data is not allocated for this Field.");
-        return new Vector(*data);;
+        return new Vector(size, mt);
     }
-
-
 };
 
 
@@ -508,7 +438,7 @@ public:
     inline static int max_derivatives = 1;
 
     using IndexMap = GenericFieldMap<int, int>;
-    using StateType = State::StateType;
+    using StateType = Field::StateType;
 
     // -- TEMPORARY:
     enum class GradientMode
@@ -534,7 +464,7 @@ private:
 protected:
     virtual void SetGradientOrder(int order) { gradient_order = order; }
     int GetGradientOrder() const { return gradient_order; }
-    mutable std::vector<Array<StateType>> state_memory; ///< Owned: use id->field_index to index into this array
+    mutable std::vector<Array<StateType*>> state_memory; ///< Owned: use id->field_index to index into this array
                                                 /// nfields x ngrad (to store primal and daul)
     // -- EXPERIMENTAL
 

@@ -313,7 +313,7 @@ void DAGraph::AddOperation(GraphOperation *op)
             id_to_field_index.Register(f->ID(), fields.Size() - 1);
 
             // -- EXPERIMENTAL: Reserve state memory for each field
-            state_memory.push_back(Array<StateType>());
+            state_memory.push_back(Array<StateType*>());
             auto &fmem = state_memory.back();
             fmem.Reserve(grad_order);
             for(int i = 0; i < grad_order; i++)
@@ -335,7 +335,7 @@ void DAGraph::AddOperation(GraphOperation *op)
             id_to_field_index.Register(f->ID(), fields.Size() - 1);
 
             // -- EXPERIMENTAL: Reserve state memory for each field
-            state_memory.push_back(Array<StateType>());
+            state_memory.push_back(Array<StateType*>());
             auto &fmem = state_memory.back();
             fmem.Reserve(grad_order);
             for(int i = 0; i < grad_order; i++)
@@ -466,7 +466,7 @@ void DAGraph::MultMV(const MultiVector &x, MultiVector &y) const
                     << ") does not have enough derivatives. Expected at least "
                     << igrad + 1 << ", but got " << fmem.Size() << ".");
         if(fmem[igrad] != nullptr) { delete fmem[igrad]; } // Delete existing memory if any
-        fmem[igrad] = const_cast<StateType>(&x[iin++]); // Point dag's memory to inputs
+        fmem[igrad] = const_cast<StateType*>(&x[iin++]); // Point dag's memory to inputs
     }
     for (auto &f : outputs)
     {
