@@ -532,8 +532,20 @@ class SumNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    int own_integrators;
+#ifndef MFEM_THREAD_SAFE
+   /** Scratch for the second and later integrators of the sum. It is shared
+       across calls, so in a thread-safe build it becomes a local instead --
+       MFEM's usual convention, and here it is load-bearing rather than
+       cosmetic: DarcyHybridization wraps a potential mass form's face
+       integrators in one of these and calls it from a threaded element loop
+       (AssemblyMode::Threaded), where a shared accumulator is resized by one
+       thread while another reads it. The symptom was a DenseMatrix::CopyMN
+       size abort in the base-class AssembleHDGFaceGrad, and only with MORE
+       THAN ONE integrator in the sum, because integrators[0] writes the
+       caller's output directly and never touches this. */
    mutable DenseMatrix elem_mat;
    mutable Vector elem_vect;
+#endif
    Array<NonlinearFormIntegrator*> integrators;
 
 public:
