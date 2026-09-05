@@ -753,7 +753,7 @@ using Derivatives = std::integer_sequence<size_t, FieldIds...>;
 // Setup is not explicitly requested but triggered by kernels that need that (see NeedsQpCache()).
 enum class DerivativeKernels : unsigned
 {
-   None             = 0,
+   None             = 0,        // Primal action only
    Apply            = 1u << 0,  // DerivativeOperator::Mult
    ApplyTranspose   = 1u << 1,  // DerivativeOperator::MultTranspose
    AssembleMatrix   = 1u << 2,  // DerivativeOperator::Assemble

@@ -116,7 +116,7 @@ class DerivativeAction
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
    const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
+   const std::array<const real_t *, n_inputs> input_B, input_G, input_H;
    const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
    // outputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_outputs> output_dtq;
@@ -149,7 +149,7 @@ public:
                    ctx.unionfds,
                    ctx.ir)),
       input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
+      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)), input_H(get_H(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, idx, B, G, d1d, q1d, vdim
@@ -210,6 +210,7 @@ public:
                    input_idx,
                    input_B,
                    input_G,
+                   input_H,
                    input_vdim,
                    input_d1d,
                    input_q1d,
@@ -269,6 +270,7 @@ public:
       std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
       std::array<const real_t *, n_inputs> in_B;
       std::array<const real_t *, n_inputs> in_G;
+      std::array<const real_t *, n_inputs> in_H;
       std::array<int, n_inputs> in_d1d;
       std::array<int, n_inputs> in_q1d;
       std::array<const real_t *, n_outputs> out_B;
@@ -295,6 +297,7 @@ public:
       const auto &out_YE = data.out_YE;
       const auto &in_B = data.in_B;
       const auto &in_G = data.in_G;
+      const auto &in_H = data.in_H;
       const auto &in_d1d = data.in_d1d;
       const auto &in_q1d = data.in_q1d;
       const auto &out_B = data.out_B;
@@ -328,7 +331,7 @@ public:
          constexpr size_t i = ic.value;
          const auto &XE = in_XE[i];
          const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-         const real_t *B = in_B[i], *G = in_G[i];
+         const real_t *B = in_B[i], *G = in_G[i], *H = in_H[i];
          auto &rarg = get<i>(rargs);
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_value_fop<FOP>::value)
@@ -345,6 +348,18 @@ public:
                                              decltype(XE),
                                              FieldParamT>(
                                                 smem, e, d, q, Q1D, B, G, XE, rarg);
+         }
+         else if constexpr (is_hessian_fop_v<FOP>)
+         {
+            constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+            using FieldParamT =
+               typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+            backend_t::template LoadHessian<RNK,
+                                            decltype(rarg),
+                                            decltype(XE),
+                                            FieldParamT>(
+                                               smem, e, d, q, Q1D,
+                                               B, G, H, XE, rarg);
          }
          else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
          {
@@ -364,17 +379,17 @@ public:
          constexpr size_t i = ic.value;
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (input_activity[i] &&
-                       (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>))
+                       (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> || is_hessian_fop_v<FOP>))
          {
             const auto &XE = in_XE_dir[i];
             const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const real_t *B = in_B[i], *G = in_G[i], *H = in_H[i];
             auto &sarg = get<i>(sargs); // shadow argument register
             if constexpr (is_value_fop_v<FOP>)
             {
                backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, sarg);
             }
-            else
+            else if constexpr (is_gradient_fop_v<FOP>)
             {
                constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
                using FieldParamT =
@@ -384,6 +399,18 @@ public:
                                                 decltype(XE),
                                                 FieldParamT>(
                                                    smem, e, d, q, Q1D, B, G, XE, sarg);
+            }
+            else
+            {
+               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
+               using FieldParamT =
+                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
+               backend_t::template LoadHessian<RNK,
+                                               decltype(sarg),
+                                               decltype(XE),
+                                               FieldParamT>(
+                                                  smem, e, d, q, Q1D,
+                                                  B, G, H, XE, sarg);
             }
          }
          else
@@ -439,7 +466,8 @@ public:
                      parg = XE(qx, qy, qz, 0, 0);
                   }
                   else if constexpr (is_value_fop_v<FOP> ||
-                                     is_gradient_fop_v<FOP>)
+                                     is_gradient_fop_v<FOP> ||
+                                     is_hessian_fop_v<FOP>)
                   {
                      parg = backend_t::template qp_pull<ARG>(
                         get<i>(rargs), qx, qy, qz);
@@ -524,7 +552,8 @@ public:
                      qarg = XE(qx, qy, qz, 0, 0);
                   }
                   else if constexpr (is_value_fop_v<FOP> ||
-                                     is_gradient_fop_v<FOP>)
+                                     is_gradient_fop_v<FOP> ||
+                                     is_hessian_fop_v<FOP>)
                   {
                      qarg = backend_t::template qp_pull_directional<ARG>(
                         get<i>(rargs),
@@ -644,6 +673,7 @@ public:
                               const std::array<size_t, n_inputs> &in_idx,
                               const std::array<const real_t *, n_inputs> in_B,
                               const std::array<const real_t *, n_inputs> in_G,
+                              const std::array<const real_t *, n_inputs> in_H,
                               const std::array<int, n_inputs> &in_vdim,
                               const std::array<int, n_inputs> &in_d1d,
                               const std::array<int, n_inputs> &in_q1d,
@@ -685,7 +715,8 @@ public:
          const size_t k = in_idx[i];
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                       is_hessian_fop_v<FOP>)
          {
             MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
             in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
@@ -716,7 +747,8 @@ public:
          const size_t k = in_idx[i];
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                       is_hessian_fop_v<FOP>)
          {
             if constexpr (input_activity[i])
             {
@@ -788,6 +820,7 @@ public:
          out_YE,
          in_B,
          in_G,
+         in_H,
          in_d1d,
          in_q1d,
          out_B,
