@@ -231,14 +231,35 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
       "TPL_${Prefix}_LIBRARIES was found." FORCE)
   endif()
 
-  # Quick return
-  if (${Prefix}_FOUND)
-    return()
-  elseif (${Prefix}_INCLUDE_DIRS OR ${Prefix}_LIBRARIES)
-    # If ${Prefix}_INCLUDE_DIRS or ${Prefix}_LIBRARIES are defined, accept them
-    # silently.
-    set(${Prefix}_FOUND TRUE CACHE BOOL "${Name} was found." FORCE)
-    return()
+  # Which of the requested components have not already been searched for? The
+  # component list is part of the REQUEST, and ${Prefix}_FOUND records only
+  # that some earlier request succeeded. Without this, a build directory
+  # configured before a component joined ${Name}_FIND_COMPONENTS takes the
+  # quick return below and never looks at the components at all -- leaving an
+  # install whose libmfem references a component that ${Prefix}_LIBRARIES, and
+  # therefore the installed config.mk, does not link. The symptom is undefined
+  # references in an unrelated downstream link, which points nowhere near here.
+  set(MissingComponents "")
+  foreach(Comp ${${Name}_FIND_COMPONENTS})
+    if (NOT "${Comp}" IN_LIST ${Prefix}_CACHED_COMPONENTS)
+      list(APPEND MissingComponents "${Comp}")
+    endif()
+  endforeach()
+
+  # Quick return, but only when the cached answer answers the question asked.
+  if (NOT MissingComponents)
+    if (${Prefix}_FOUND)
+      return()
+    elseif (${Prefix}_INCLUDE_DIRS OR ${Prefix}_LIBRARIES)
+      # If ${Prefix}_INCLUDE_DIRS or ${Prefix}_LIBRARIES are defined, accept
+      # them silently.
+      set(${Prefix}_FOUND TRUE CACHE BOOL "${Name} was found." FORCE)
+      return()
+    endif()
+  elseif (${Prefix}_FOUND AND (NOT ${Name}_FIND_QUIETLY))
+    message(STATUS
+      "${Name}: re-running the search: component(s) not covered by the "
+      "cached result: ${MissingComponents}")
   endif()
 
   set(EnvDirVar "$ENV{${DirVar}}")
@@ -610,6 +631,11 @@ function(mfem_find_package Name Prefix DirVar IncSuffixes Header LibSuffixes
     set(${Prefix}_INCLUDE_DIRS ${${Prefix}_INCLUDE_DIRS} CACHE STRING
         "${IncDoc}" FORCE)
     set(${Prefix}_FOUND TRUE CACHE BOOL "${Name} was found." FORCE)
+    # Record the question, not just the answer, so that a later request naming
+    # a component this search did not cover falls through instead of being
+    # served a stale result. See the quick return above.
+    set(${Prefix}_CACHED_COMPONENTS "${${Name}_FIND_COMPONENTS}" CACHE INTERNAL
+        "Components of ${Name} that the cached result was searched for.")
     if (ReqHeaders AND (NOT ${Name}_FIND_QUIETLY))
       message(STATUS "${Prefix}_INCLUDE_DIRS=${${Prefix}_INCLUDE_DIRS}")
     endif()
