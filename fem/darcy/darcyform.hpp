@@ -242,7 +242,75 @@ public:
    ///@{
 
    /// Get the potential mass form (non-const)
-   /** @note The form is constructed if it has not been already. */
+   /** @note The form is constructed if it has not been already.
+
+       ### A singular reaction coefficient, and how to get the optimal rate
+
+       A zeroth-order term is installed here, as
+       `GetPotentialMassForm()->AddDomainIntegrator(new MassIntegrator(c))`.
+       Where @a c is singular -- @f$ \gamma/x^2 @f$ against a boundary,
+       @f$ \gamma/r @f$ about an interior point -- the rate that comes back
+       is decided by one property, and it is not the one most people reach
+       for.
+
+       **The criterion is compatibility, not integrability.** What matters is
+       whether the solution vanishes at the singular locus fast enough to meet
+       the coefficient there. Whether @f$ \int c\,\phi_i\phi_j @f$ itself
+       converges is not the question, and answers it wrongly in both
+       directions. Measured on the hybridized L2/L2/`DG_Interface` setting at
+       @f$ k = 2 @f$, against the L2 projection of the exact fields as the
+       control for what the space can do at all:
+
+   | @a c | entries | @a p there | best | attained |
+   |---|---|---|---|---|
+   | @f$ .75/x^2 @f$ on x=0 | div. | @f$ x^{1.5} @f$ | 2.17/1.00 | 1.94/0.99 |
+   | none, after @f$ p=x^{1.5}w @f$ | -- | smooth | 3.00/3.00 | 3.00/2.63 |
+   | @f$ .75/r @f$ at a vertex | fin. | @f$ O(1) @f$ | 3.00/3.00 | 1.05/0.75 |
+   | @f$ .75/r @f$ at a vertex | fin. | @f$ O(r^2) @f$ | 3.00/3.00 | 3.02/3.02 |
+
+       Read the last two rows together: one coefficient, one mesh, one
+       smoothness class, and the only difference is the solution. The
+       non-integrable case attains the best-approximation rate and the
+       integrable one loses two orders.
+
+       **So a rate below @f$ k+1 @f$ is not by itself a defect.** Row one is
+       capped at 2 because @f$ x^{1.5} @f$ is in @f$ H^s @f$ only for
+       @f$ s < 2 @f$; no method beats @f$ O(h^2) @f$ there. Take the
+       projection of the exact solution before concluding anything about the
+       discretisation -- without that control an order lost to regularity is
+       indistinguishable from an order lost to the method.
+
+       **What to do when the problem is incompatible.** Change the
+       independent variable. Substituting @f$ p = x^{\beta} w @f$ with
+       @f$ \beta(\beta-1) = \gamma @f$ cancels the reaction exactly and
+       leaves @f$ -\nabla\cdot(x^{2\beta}\nabla w) @f$: a *degenerate*
+       diffusion with no zeroth-order term, whose solution is smooth. That is
+       worth a whole order in the potential and better than an order and a
+       half in the flux (rows one and two). It is not that the discretisation
+       prefers the second chart -- it is optimal in both -- but that the same
+       physical answer is carried there by a smooth function. A vanishing
+       diffusion coefficient then needs a stabilization floor, for which see
+       HDGFloorStabilization.
+
+       **What does not help.** Not the solver: a direct solve reproduces the
+       iterative errors to every printed digit, so the growing iteration
+       counts are the cost of the conditioning and not a failure to converge.
+       Not the load rule: raising it by 8, 24 and 60 leaves the rate at 1.053
+       every time, even though the source carries the singularity too.
+       Raising the *reaction* rule buys accuracy -- 70x -- and pushes the
+       shortfall to finer meshes without removing it, reaching 2.44 against
+       the projection's 3.00. A fixed rule never resolves @f$ 1/r @f$; it
+       only samples nearer to it, and mesh refinement outruns whatever rule
+       was chosen.
+
+       @note Unbounded assembled entries are not by themselves a symptom. In
+       row one they grow from 6.0e4 to 2.1e7 as the quadrature is refined at
+       fixed mesh while the rate stays at 1.94, 1.91, 1.93. They cost
+       conditioning, not accuracy -- the same mechanism a vanishing diffusion
+       coefficient shows in the flux mass block.
+
+       @sa tests/unit/fem/test_darcy_singular.cpp, which pins all four rows.
+   */
    BilinearForm *GetPotentialMassForm();
 
    /// Get the potential mass form (const)

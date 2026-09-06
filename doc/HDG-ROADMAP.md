@@ -116,26 +116,31 @@ request from `meq` lives on `gf-hdg-linearise-first` as
 themselves plus an optimisation nobody needs yet, and **nothing in this tree
 has to change for them to start**.
 
-## 3. Genuinely general Darcy-like problems
+## 3. Genuinely general Darcy-like problems — DONE
 
 **(a), (b), (c) and (f) are built and composed.** `anisodiff -p 11` is the
 composing driver — a full varying conduction tensor, a convective term along
 the strong direction and a volumetric sink in one operator — and it converges.
-`HDGFloorStabilization` is in the library for (d)'s degenerate case.
 
-Two things are left:
+**(d) is settled**: the degenerate order loss is asymptotic and is half an
+order, so `HDGFloorStabilization` recovers an order that is otherwise
+permanently lost rather than smoothing a transient. The sequences are on
+"HDG: a tau floor recovers the order a degeneracy costs".
 
-* **(e) Singular coefficients**, which were always qualified as "wanted, but
-  check first whether they are wanted": the entry asks whether the singularity
-  is a property of the problem or of a coordinate choice, and that question has
-  not been put to the caller.
-* ~~Whether the degenerate order loss of (d) is asymptotic~~ — **settled: it
-  is asymptotic, and it is half an order.** `Rates()` keeps the whole sequence
-  now and a sweep to n = 128 says the floored `τ` converges to the design order
-  from above while the coefficient-scaled one converges to about 2.5 against a
-  design 3, its increments halving. So the floor recovers an order that is
-  otherwise permanently lost rather than smoothing a transient. The sequences
-  are on "HDG: a tau floor recovers the order a degeneracy costs".
+**(e) is settled too, and it turned out to be (d)'s mechanism rather than a
+second one.** The criterion for a singular reaction coefficient is whether the
+*solution* meets the singularity, not whether the coefficient is integrable —
+a non-integrable `γ/x²` against a boundary attains the best-approximation rate
+while an integrable `γ/r` at a vertex loses two orders, and the same `γ/r` is
+harmless once the solution vanishes on it. The report, the table and what to
+do about it are doxygen on `DarcyForm::GetPotentialMassForm()`, where a caller
+installs such a term; the four rows are pinned by
+`tests/unit/fem/test_darcy_singular.cpp`. The change of variable the entry
+recommended is confirmed as advice and its stated justification withdrawn: it
+is worth an order because it makes the *solution* smooth, not because the
+discretisation finds the singular chart harder — it is optimal in both.
+
+The number is kept so commit messages citing "§3" land somewhere.
 
 ## 4. Systems of coupled nonlinear Darcy-like problems, with exact Jacobians
 
