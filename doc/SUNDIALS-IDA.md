@@ -341,10 +341,10 @@ also the first SUNDIALS unit test in MFEM.
    seriously, since without it the error test is applied to a variable whose
    error estimate is meaningless.
 5. **Parallel.** `IDASolver(MPI_Comm)` over `SundialsNVector`'s parallel
-   path, verified rank-count independent. Note the local build: SUNDIALS at
-   `/home/ian/projects/sundials/install` has no MPI; `install-mpi` has
-   `libsundials_ida` and `libsundials_nvecparallel` and is the tree to
-   configure against for this item.
+   path, verified rank-count independent. This needs a SUNDIALS built with
+   MPI, so that `libsundials_nvecparallel` exists; a serial SUNDIALS install
+   will configure and build but has no parallel `N_Vector` to put the state
+   in.
 
 ## 8. Build plumbing
 
