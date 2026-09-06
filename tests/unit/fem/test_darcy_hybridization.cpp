@@ -722,3 +722,176 @@ TEST_CASE("A trace richer than both its elements is exactly redundant",
    REQUIRE(du.Normlinf() < 1e-10 * std::max(base.u.Normlinf(), real_t(1.0)));
    REQUIRE(dp.Normlinf() < 1e-10 * std::max(base.p.Normlinf(), real_t(1.0)));
 }
+
+namespace darcy_bdr_periodic
+{
+
+/// A constant stabilization, so the face blocks do not depend on the mesh.
+class FixedTau : public HDGStabilization
+{
+public:
+   explicit FixedTau(real_t t) : tau(t) { }
+   bool IsConstant() const override { return true; }
+   real_t Eval(real_t, real_t, real_t, real_t,
+               ElementTransformation &) const override { return tau; }
+private:
+   real_t tau;
+};
+
+/// A 2-D triangle mesh made periodic in y. The identification turns the y
+/// faces INTERIOR while leaving in the mesh the boundary elements that sat on
+/// them, which is the whole point of the case below.
+Mesh PeriodicTriMesh(int n)
+{
+   Mesh m = Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 2.0, 2.0);
+   std::vector<Vector> tr;
+   Vector t(2);
+   t = 0.0;
+   t(1) = 2.0;
+   tr.push_back(t);
+   return Mesh::MakePeriodic(m, m.CreatePeriodicVertexMapping(tr));
+}
+
+/** @brief The same hybridized Darcy problem every time, with one optional
+    extra: a boundary face integrator on the potential mass form whose
+    velocity is ZERO, so every block it assembles is identically zero. */
+struct PeriodicHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   ConstantCoefficient one, src;
+   Vector zerov;
+   VectorConstantCoefficient zerovel;
+   FixedTau tau;
+   DarcyForm darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X, RHS;
+   OperatorPtr R;
+
+   PeriodicHDG(int n, int order, bool inert_bdr_integ)
+      : mesh(PeriodicTriMesh(n)),
+        u_coll(order, 2, BasisType::GaussLobatto),
+        p_coll(order, 2, BasisType::GaussLobatto),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        one(1.0), src(1.0), zerov(2), zerovel((zerov = 0.0, zerov)),
+        tau(1.0), darcy(&Vh, &Wh), offs(4)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+
+      all.SetSize(mesh.bdr_attributes.Size() ? mesh.bdr_attributes.Max() : 0);
+      all = 1;
+
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      auto *interior = new HDGDiffusionIntegrator(one, 1.0);
+      interior->SetStabilization(tau);
+      M_p->AddInteriorFaceIntegrator(interior);
+
+      if (inert_bdr_integ && all.Size())
+      {
+         // Zero velocity: a = b = 0, so every block this writes is exactly
+         // zero and it cannot change the discrete problem by arithmetic.
+         M_p->AddBdrFaceIntegrator(
+            new HDGConvectionUpwindedIntegrator(zerovel), all);
+      }
+
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+      darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+      darcy.Assemble();
+
+      offs[0] = 0;
+      offs[1] = Vh.GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      // DarcyForm does not fold the potential load in on the hybridized path.
+      darcy.GetPotentialRHS()->Assemble();
+      rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+
+      X.MakeRef(sol, offs[2], Mh.GetVSize());
+      RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+      BlockVector dsol(sol, darcy.GetOffsets()), drhs(rhs, darcy.GetOffsets());
+      darcy.FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+   }
+
+   void Solve(BlockVector &out)
+   {
+      SparseMatrix *Hm = dynamic_cast<SparseMatrix*>(R.Ptr());
+      REQUIRE(Hm != nullptr);
+      UMFPackSolver lin(*Hm);
+      lin.Mult(RHS, X);
+      out.Update(sol, darcy.GetOffsets());
+      darcy.RecoverFEMSolution(X, out);
+   }
+};
+
+} // namespace darcy_bdr_periodic
+
+/**
+ * @brief A boundary face integrator on a PERIODIC mesh must not reach the
+ * interior faces the periodic identification created.
+ *
+ * Mesh::MakePeriodic identifies the two ends of the mesh, so the faces there
+ * become interior -- but the boundary ELEMENTS that sat on them remain, and
+ * Mesh::GetBdrElementFaceIndex() still hands back the now-interior face.
+ * DarcyForm::AssemblePotHDGFaces() used to assemble a potential-mass boundary
+ * face integrator on those faces. ComputeAndAssemblePotBdrFaceMatrix() writes
+ * ONE element's E, G and H with DenseMatrix::CopyMN, which ASSIGNS, while an
+ * interior face's slot holds TWO elements' blocks that the interior pass has
+ * already filled -- so the boundary write destroyed element 1's half of E and
+ * G and overwrote H, on every periodic-identified face.
+ *
+ * The integrator's VALUE is irrelevant, because the damage is an assignment
+ * rather than an accumulation. That is what this pins, and it is the sharp
+ * form: the boundary integrator here has a ZERO velocity, so every block it
+ * assembles is exactly zero and adding it must change nothing at all. Before
+ * the fix it moved the recovered potential by 23%.
+ *
+ * This is the potential-mass twin of "A boundary face term on the flux mass
+ * reaches the hybridized solve" above -- both are a boundary pass ASSIGNING
+ * where it had to accumulate or stay away.
+ *
+ * Reported by gffp against the NPC pathway, where it also makes the two
+ * routes disagree because H has a different destination there. It is not an
+ * NPC defect: the condensation route measured here is corrupted on its own.
+ */
+TEST_CASE("An inert boundary face integrator on a periodic mesh changes nothing",
+          "[DarcyForm][DarcyHybridization]")
+{
+   using namespace darcy_bdr_periodic;
+
+   const int order = GENERATE(0, 1, 2);
+   CAPTURE(order);
+
+   PeriodicHDG without(4, order, false);
+   PeriodicHDG with(4, order, true);
+
+   BlockVector a, b;
+   without.Solve(a);
+   with.Solve(b);
+
+   // There is something to get wrong.
+   REQUIRE(a.GetBlock(1).Norml2() > 1e-3);
+
+   Vector dp(b.GetBlock(1));
+   dp -= a.GetBlock(1);
+   Vector dq(b.GetBlock(0));
+   dq -= a.GetBlock(0);
+   CAPTURE(dp.Norml2(), dq.Norml2(), a.GetBlock(1).Norml2());
+   REQUIRE(dp.Norml2() < 1e-12 * a.GetBlock(1).Norml2());
+   REQUIRE(dq.Norml2() < 1e-12 * a.GetBlock(0).Norml2());
+}
