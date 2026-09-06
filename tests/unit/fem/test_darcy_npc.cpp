@@ -1262,6 +1262,180 @@ struct PedestalHDG
    BlockVector state() { return BlockVector(sol, darcy.GetOffsets()); }
 };
 
+/** @brief Sanchez-Vizuet, Solano & Cerfon, CPC 255 (2020) 107239, section 4.3,
+    eq (25): an internal transport barrier, the steepest of the four profiles in
+    their Figure 10.
+
+    @f$ p(u) = \frac{1 + H\,\mathrm{erf}(s(u-u_0))}{1+H}\,(1-(1-u)^a)^b @f$,
+    and the source is @f$ f = dp/du @f$, entered as @f$ -(f(u), w) @f$.
+
+    Supplied by the caller who asked for the divergence guard, transcribed from
+    the rendered page rather than from pdftotext -- that pair of papers loses
+    minus signs and radicals to text extraction, and an @a s of 40 inside an erf
+    is exactly what survives extraction looking plausible and wrong. The check
+    that the differentiation is right is their Figure 10's centre panel, which
+    peaks a little above 10 just below u = 0.4: this gives f(0.3) = 10.08. */
+class BarrierSource : public NonlinearFormIntegrator
+{
+public:
+   BarrierSource(real_t amp_, real_t H_, real_t s_, real_t u0_, int a_, int b_)
+      : amp(amp_), H(H_), s(s_), u0(u0_), a(a_), b(b_) { }
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elvect.SetSize(dof);
+      elvect = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 4);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcShape(ip, shape);
+         elvect.Add(-ip.weight * Tr.Weight() * f(shape * elfun), shape);
+      }
+   }
+
+   void AssembleElementGrad(const FiniteElement &el, ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      const int dof = el.GetDof();
+      shape.SetSize(dof);
+      elmat.SetSize(dof);
+      elmat = 0.0;
+      const IntegrationRule &ir = IntRules.Get(el.GetGeomType(),
+                                               2*el.GetOrder() + 4);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         Tr.SetIntPoint(&ip);
+         el.CalcShape(ip, shape);
+         AddMult_a_VVt(-ip.weight * Tr.Weight() * df(shape * elfun), shape,
+                       elmat);
+      }
+   }
+
+   real_t f(real_t u) const   // dp/du
+   { return amp*(A1(u)*B(u) + A(u)*B1(u)); }
+
+private:
+   real_t A(real_t u) const { return (1.0 + H*std::erf(s*(u - u0)))/(1.0 + H); }
+   real_t A1(real_t u) const
+   {
+      const real_t g = s*(u - u0);
+      return H*s*2.0*std::exp(-g*g)/(std::sqrt(M_PI)*(1.0 + H));
+   }
+   real_t w(real_t u) const { return 1.0 - std::pow(1.0 - u, (real_t) a); }
+   real_t B(real_t u) const { return std::pow(w(u), (real_t) b); }
+   real_t B1(real_t u) const
+   {
+      return b*std::pow(w(u), (real_t)(b - 1))*a*std::pow(1.0 - u,
+                                                          (real_t)(a - 1));
+   }
+   real_t df(real_t u) const
+   {
+      const real_t d = 1e-7;
+      return (f(u + d) - f(u - d))/(2.0*d);
+   }
+   real_t amp, H, s, u0;
+   int a, b;
+   Vector shape;
+};
+
+/// PedestalHDG with the source and the ramp changed, and nothing else. The
+/// Grad-Shafranov weights of the original are dropped for the same reason
+/// PedestalHDG drops them: the variable under test is the nonlinearity, and an
+/// O(1) radial modulation only makes the fixture harder to read.
+struct BarrierHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   ConstantCoefficient one;
+   ConstantTau tau;
+   DarcyForm darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X, RHS;
+   OperatorPtr R;
+
+   BarrierHDG(int n, int order)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
+        u_coll(order, 2, BasisType::GaussLobatto),
+        p_coll(order, 2, BasisType::GaussLobatto),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        one(1.0), tau(1.0), darcy(&Vh, &Wh), offs(4)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+
+      auto *interior = new HDGDiffusionIntegrator(one, 1.0);
+      auto *boundary = new HDGDiffusionIntegrator(one, 1.0);
+      interior->SetStabilization(tau);
+      boundary->SetStabilization(tau);
+
+      all.SetSize(mesh.bdr_attributes.Max());
+      all = 1;
+
+      NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+      Mnl_p->AddDomainIntegrator(new BarrierSource(1.0, 0.5, 40.0, 0.3, 4, 2));
+      Mnl_p->AddInteriorFaceIntegrator(interior);
+      Mnl_p->AddBdrFaceIntegrator(boundary, all);
+
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      darcy.GetHybridization()->SetEssentialBC(all);
+      darcy.GetHybridization()->SetLocalNLSolver(
+         DarcyHybridization::LSsolveType::Newton, 100, 1e-12, 1e-16, -1);
+      darcy.Assemble();
+
+      offs[0] = 0;
+      offs[1] = Vh.GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      // The barrier's own ramp: 0.2 at the bottom to 0.4 at the top, so that
+      // u0 = 0.3 is crossed INSIDE the box. PedestalHDG's ramp runs -0.3 to
+      // +0.3 and would put the feature exactly on the boundary, where the
+      // case shows nothing.
+      FunctionCoefficient ramp([](const Vector &x)
+      { return 0.2 + x(1)/1.2*0.2; });
+      GridFunction pgf, tgf;
+      pgf.MakeRef(&Wh, sol.GetBlock(1), 0);
+      pgf.ProjectCoefficient(ramp);
+      tgf.MakeRef(&Mh, sol.GetBlock(2), 0);
+      tgf.ProjectBdrCoefficient(ramp, all);
+
+      X.MakeRef(sol, offs[2], Mh.GetVSize());
+      RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+      BlockVector dsol(sol, darcy.GetOffsets()),
+                  drhs(rhs, darcy.GetOffsets());
+      darcy.FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+   }
+
+   Operator &op() { return *R.Ptr(); }
+   BlockVector load() { return BlockVector(rhs, darcy.GetOffsets()); }
+   BlockVector state() { return BlockVector(sol, darcy.GetOffsets()); }
+};
+
 struct NPCOutcome
 {
    std::vector<real_t> norms;   ///< the FULL residual, per Newton step
@@ -1277,7 +1451,8 @@ struct NPCOutcome
     @a line_search backtracks on that same full residual. It is well defined
     here precisely because the fields are Newton state, so the step scales the
     fields and the trace together. */
-NPCOutcome RunNPC(PedestalHDG &P, int max_it, bool line_search,
+template <typename Fixture>
+NPCOutcome RunNPC(Fixture &P, int max_it, bool line_search,
                   DarcyHybridization::GradientMode gmode)
 {
    DarcyHybridization &dh = *P.darcy.GetHybridization();
@@ -2262,6 +2437,94 @@ struct LinearFormHDG
 };
 
 } // namespace darcy_npc
+
+TEST_CASE("A transport barrier diverges without going non-finite",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+   using GM = DarcyHybridization::GradientMode;
+
+   // Sanchez-Vizuet, Solano & Cerfon section 4.3, supplied by the caller who
+   // asked for the divergence guard. The point of the case is NOT that it
+   // converges -- at n = 16 nothing makes it -- but that sixty Newton steps
+   // carrying the residual seventeen orders upward leave every norm finite
+   // and end in a reported non-convergence rather than a throw out of
+   // MFEM_VERIFY(IsFinite(norm)). Measured here, cap 60, UMFPack on the
+   // trace:
+   //
+   //   route          n   order   outcome        final |r|
+   //   condensation   16    1     fails at 60    3.6e+03
+   //   condensation   16    2     converges, 6   5.8e-12
+   //   NPC            16    1     fails at 60    1.5e+13
+   //   NPC            16    2     fails at 60    5.6e+17
+   //   condensation   32    1     converges, 6   1.7e-12
+   //   NPC            32    1     converges, 9   6.5e-12
+   //
+   // The n = 16 order 2 split is this branch's own parity gap showing up on a
+   // third source: condensation recovers and NPC does not.
+   SECTION("the guard holds while the residual runs away")
+   {
+      const int order = GENERATE(1, 2);
+      CAPTURE(order);
+      BarrierHDG P(16, order);
+      UMFPackSolver lin;
+      NewtonSolver newton;
+      newton.SetOperator(P.op());
+      newton.SetSolver(lin);
+      newton.SetRelTol(1e-10);
+      newton.SetAbsTol(0.0);
+      newton.SetMaxIter(60);
+      newton.SetPrintLevel(-1);
+      newton.iterative_mode = true;
+
+      REQUIRE_NOTHROW(newton.Mult(P.RHS, P.X));
+      REQUIRE(IsFinite(newton.GetFinalNorm()));
+   }
+
+   SECTION("and under NPC, where it runs away furthest")
+   {
+      // Every residual in the history is finite, which is stronger than the
+      // guard not throwing: it is what would catch a guard firing late.
+      BarrierHDG P(16, 2);
+      const NPCOutcome out = RunNPC(P, 60, false, GM::Assembled);
+      CAPTURE(out.norms.size(), out.norms.back());
+      REQUIRE(!out.converged);
+      for (real_t nrm : out.norms) { REQUIRE(IsFinite(nrm)); }
+      REQUIRE(out.norms.back() > out.norms.front());
+   }
+
+   // THE CONTROL, and it is not decoration. Refinement cures the case under
+   // both routes, which is what says the fixture and the transcribed source
+   // are sound and the failure above is under-resolution rather than a
+   // mis-typed profile that cannot be solved at all. If this ever stops
+   // converging the case is measuring something else and should be re-tuned
+   // -- a coarser mesh or a steeper s -- rather than deleted.
+   SECTION("refinement cures it, under condensation")
+   {
+      BarrierHDG P(32, 1);
+      UMFPackSolver lin;
+      NewtonSolver newton;
+      newton.SetOperator(P.op());
+      newton.SetSolver(lin);
+      newton.SetRelTol(1e-10);
+      newton.SetAbsTol(0.0);
+      newton.SetMaxIter(60);
+      newton.SetPrintLevel(-1);
+      newton.iterative_mode = true;
+      newton.Mult(P.RHS, P.X);
+      REQUIRE(newton.GetConverged());
+      REQUIRE(newton.GetNumIterations() <= 20);   // measured 6
+   }
+
+   SECTION("refinement cures it, under NPC")
+   {
+      BarrierHDG P(32, 1);
+      const NPCOutcome out = RunNPC(P, 30, false, GM::Assembled);
+      CAPTURE(out.norms.size());
+      REQUIRE(out.converged);
+      REQUIRE(out.norms.size() <= 20);            // measured 9
+   }
+}
 
 TEST_CASE("NPC runs on a DarcyForm with no nonlinear integrator",
           "[DarcyForm][NonlinearDarcy][HDG][NPC]")
