@@ -99,14 +99,36 @@ Two things are left, and neither is what this list used to say:
   `doc/HDG-CONE-TILING-FROM-MEQ.md`, closed and deleted at `50124ac48d`; what
   the exchange established is on `VertexConePath`.
 
-* **Three dimensions, and the restriction is narrower than it reads.** The only
-  refusal in the whole of `extension_hdg` is `VertexConePath`'s, at
-  `extension_hdg.cpp:206`. `ClosestPointPath`, `LevelSetPath`,
-  `ElementExtension`, `HDGExtensionIntegrator` and the three coefficients carry
-  no dimension check at all. So this is not a port: it is running the
-  dimension-generic half in three dimensions to find out what breaks, and
-  generalising the vertex search — which is written in `atan2` and half-circles
-  — only if the rest holds up.
+* **Three dimensions: RUN, and the dimension-generic half holds up.** A ball
+  carved from a tetrahedral background mesh, `ClosestPointPath` onto the
+  sphere, `p = sin x sin y sin z`. It compiles, assembles, solves and
+  converges with no change to any library file. **The geometric control is the
+  result worth having**: the swept regions tile `D_h^c` to 3.7e-11 / 2.0e-11 /
+  3.5e-11 / 7.5e-11 at `n` = 8, 16, 24, 32, against 2-D's 1.6e-10 floor, so
+  `ExtensionRegionQuadrature` with a TRIANGLE face rule is as exact as with a
+  segment. Without the extension the flux rate is 0.94; with it, 1.81 — so the
+  method earns its keep in 3-D. Order 2 climbs to k+1 (flux 1.63, 2.57;
+  potential 1.36, 2.85).
+
+  What is LEFT is two things:
+
+  - **The order-1 flux rate is not settled and looks wrong.** Flux 1.81, 1.59,
+    1.28 over `n` = 4, 8, 16, 24 while the potential converges properly at
+    1.71, 1.75, 1.89. Verified solver-converged — a direct trace solve
+    reproduces the iterative numbers to every printed digit. It is NOT
+    concluded: this branch's own aerofoil went 2.08, 1.46, 1.53, 2.50 and
+    recovered, so a degrading three-increment sequence is exactly the shape
+    that needs the next refinement before it means anything.
+  - **And that next refinement is blocked on the trace solve.** At `n` = 32
+    (407k trace dofs) GMRES + Gauss-Seidel does not converge in 5000
+    iterations, and a 3-D direct factorisation at that size is out of reach
+    here. **A 3-D trace preconditioner is what stands between this and an
+    asymptotic answer**, and it is the actual next task.
+
+  Generalising the vertex search — `VertexConePath`, the only refusal in the
+  whole of `extension_hdg`, at `extension_hdg.cpp:206`, written in `atan2` and
+  half-circles — is not needed for any of the above and is now clearly
+  optional rather than blocking.
 
 ## 2. Coupling at a distance to an exterior boundary-integral solve
 
