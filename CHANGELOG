@@ -11,6 +11,26 @@
 Version 4.10.1 (development)
 ============================
 
+- Added an interface to SUNDIALS' IDA integrator, mfem::IDASolver, for
+  differential-algebraic equations written in fully implicit residual form,
+  F(t,y,y') = 0. Unlike CVODE and ARKODE it does not require the mass matrix
+  to be invertible, so a mixed or constrained system whose algebraic rows
+  carry no time derivative can be integrated without eliminating those
+  unknowns first. The residual is built from the TimeDependentOperator's
+  declared Type, so an operator that already runs under CVODESolver runs
+  under IDASolver unchanged. TimeDependentOperator gains SUNImplicitSetupDAE()
+  and SUNImplicitSolveDAE() for the DAE system Jacobian; an operator that
+  implements SUNImplicitSetup() for CVODE or ARKODE need not implement them,
+  since the two matrices differ by the scalar cj alone, and
+  IDASolver::UseMFEMLinearSolverFromODEForm() takes that route. IDASolver also
+  offers the consistent-initial-condition calculation, the
+  differential/algebraic component marker and the algebraic error-test
+  suppression that a DAE needs and an ODE integrator has no use for.
+
+- Added examples/sundials/ex5, the transient mixed Darcy problem, as a
+  Hessenberg index-2 DAE integrated by IDA, and IDA as an option in
+  examples/sundials/ex16.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
