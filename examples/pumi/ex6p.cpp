@@ -343,7 +343,7 @@ int main(int argc, char *argv[])
       apf::destroyField(Tmag_field);
       apf::destroyField(ipfield);
 
-      // 18. Perform MesAdapt.
+      // 18. Perform MeshAdapt.
       auto erinput = ma::configure(pumi_mesh, sizefield);
       if ( geom_order > 1)
       {
