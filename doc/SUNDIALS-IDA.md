@@ -2,8 +2,11 @@
 
 Design for an `mfem::IDASolver` alongside the existing `CVODESolver`,
 `ARKStepSolver` and `KINSolver`. Branch `sundials-ida-integration`, off
-`master`. Nothing is implemented yet; this is the plan and the measurements
-that constrain it.
+`master`.
+
+**This is now built** -- see §11 for what was measured on the way and what is
+left. The design below is unchanged from before the implementation except
+where §11 records a departure, so the two can be read against each other.
 
 IDA integrates a DAE in fully implicit residual form,
 
@@ -493,3 +496,98 @@ would run unpreconditioned and is not the route to use here.
 * **Changing the CVODE/ARKODE/KINSOL wrappers.** Adding `numiters`/`resid`
   to the shared linear solver would be harmless but is not needed by any of
   them; the two new ops stay IDA-local.
+
+
+---
+
+## 11. Built. What changed, what was measured, what is left
+
+### Departures from the design above
+
+* **`ComputeConsistentIC()` takes the state as an argument.** §6 had it
+  acting on "the vector last passed to `Step()`", which cannot work: the
+  class only learns which vector holds the state when `Step()` is called with
+  it, and the whole point is to correct the pair *before* the first step.
+* **`GetResidual()` was added**, with the dispatch moved into a `Residual()`
+  member the SUNDIALS callback also uses. Without it the dispatch table of §3
+  could only be tested by whether an integration converged, and its
+  `IMPLICIT` row not at all.
+* **`SetSVtolerances()` does not mirror `CVODESolver`'s.** IDA combines the
+  tolerance vector with the state elementwise to build the error weights, and
+  those operations dispatch on their first argument's type -- so a
+  default-constructed (serial) `SundialsNVector` in a parallel run has a
+  serial content struct read through a parallel accessor. The vector is built
+  with the state's communicator instead. **`CVODESolver::SetSVtolerances()`
+  has the same defect and was deliberately left alone**, being pre-existing
+  and unrelated to this change.
+* **`Init()` drops the differential/algebraic marker on a resize**, so the
+  guards requiring it refuse loudly instead of passing while IDA holds
+  nothing.
+
+### Measured
+
+* **Unit suite: 415 cases / 4,207,835 assertions, all passing.** Excluding
+  `[IDA]` gives 410 / 4,207,678, so the delta is exactly the five new cases
+  and their 157 assertions.
+* **IDA against CVODE on `ex16`**, at a *common* final time -- the example
+  runs its SUNDIALS solvers in one-step mode, where they step past `t_final`
+  and do not interpolate back, so comparing the two final `.gf` files as they
+  stand compares states at different times and shows a spurious 1e-4 that
+  does not shrink:
+
+  | `reltol` = `abstol` | CVODE vs IDA (EXPLICIT form) | vs IDA (IMPLICIT form) |
+  |---|---|---|
+  | 1e-4 | 7.0e-06 | 7.0e-06 |
+  | 1e-6 | 8.5e-07 | 6.0e-07 |
+  | 1e-8 | 8.5e-08 | 8.5e-08 |
+  | 1e-10 | 8.5e-08 | 0.0 |
+
+  The floor at 8.5e-08 is the `.gf` file's eight-significant-digit print
+  resolution, not a discrepancy between the integrators.
+* **The inconsistent-IC warning fires.** Robertson from `y = (1, 0, 0.5)`
+  with `y' = 0`: it reports `|R| = 5.0e-01` against a `1.0e-06` threshold,
+  and IDA then gives up at `t = 0` with "the error test failed repeatedly or
+  with |h| = hmin" -- the symptom, with nothing about the cause. The same
+  start with a consistent `y'` warns not at all and integrates.
+* **Parallel is rank-count independent**, twelve Robertson systems
+  distributed over the ranks so the weighted RMS norm is a reduction over
+  every unknown. `y0[0]` at `t = 400`:
+
+  | `reltol` | 1 rank | 2 ranks | 4 ranks | spread |
+  |---|---|---|---|---|
+  | 1e-8 | 0.4505186813852 | 0.4505186684390 | 0.4505186796108 | 1.3e-08 |
+  | 1e-10 | 0.4505186687016 | 0.4505186686316 | 0.4505186686316 | 7.0e-11 |
+
+  The spread tracks the requested tolerance, which is what says the ranks are
+  solving one problem rather than agreeing by luck; at 1e-10 two and four
+  ranks agree to all sixteen digits.
+
+### Left
+
+1. **The parallel verification is a probe, not a committed test.** There is
+   no `[Parallel]` IDA case in `tests/unit`, so the table above is not
+   defended by the suite. That is the first thing to add.
+2. **§7's genuine DAE example** (transient Stokes, Hessenberg index 2) is not
+   written. `ex16` is an ODE that IDA treats as a trivial DAE, so nothing
+   committed exercises `SetDifferentialComponents()`,
+   `SetSuppressAlgebraic()` or `ComputeConsistentIC()` on a problem that
+   actually needs them -- only the unit tests do, on a 3x3 system.
+3. **Untested API**: `UseSundialsLinearSolver()`, `SetRootFinder()`,
+   `SetStepMode(IDA_ONE_STEP)` beyond `ex16` using it, `SetMaxOrder()` and
+   `SetLinearSolutionScaling()`.
+4. **No accessor for the Newton or Jacobian-setup counts.** `GetNumSteps()`
+   exists and `PrintInfo()` only prints, so "the two linear-system routes
+   cost about the same" cannot be asserted.
+5. **IDAS / adjoint sensitivity**, as §10 says. The library link is already
+   chosen to allow it.
+
+### One thing found that is not ours
+
+`config/defaults.mk` computes `SUNDIALS_CORE_PAT` with a `$(wildcard)` that
+is expanded while `defaults.mk` is read -- which is *before* `config/user.mk`
+sets `SUNDIALS_DIR`. So a build that sets `SUNDIALS_DIR` in `user.mk` never
+appends `-lsundials_core`, the library builds, and the first link of anything
+using it fails with `libsundials_core.so.7: DSO missing from command line`.
+Pre-existing, affects every SUNDIALS >= 7 user with a `user.mk`, and nothing
+to do with IDA; worked around in the build directory here rather than fixed
+on this branch, which should stay a clean single-purpose edit.
