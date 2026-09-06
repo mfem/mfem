@@ -2452,6 +2452,20 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
          const int bdr_attr = mesh->GetBdrAttribute(f);
          if (bdr_attr_marker[bdr_attr-1] == 0) { continue; }
 
+         // A PERIODIC MESH KEEPS THE BOUNDARY ELEMENTS WHOSE FACES THE
+         // IDENTIFICATION TURNED INTERIOR, and GetBdrElementFaceIndex then
+         // hands back an interior face. ComputeAndAssemblePotBdrFaceMatrix
+         // writes ONE element's E, G and H over that face's slot with
+         // CopyMN, which assigns -- so on an interior face it destroys the
+         // two-sided blocks the interior pass has already assembled, whatever
+         // the integrator's own value. An identically-zero boundary
+         // integrator was measured to take the reduced operator from
+         // bit-identical between the two routes to max|S-H| = 2.0.
+         // Every other boundary loop in this file and in
+         // DarcyHybridization::ConstructC drops these through
+         // GetBdrFaceTransformations returning null; this one has to as well.
+         if (!mesh->GetBdrFaceTransformations(f)) { continue; }
+
          hybridization->ComputeAndAssemblePotBdrFaceMatrix(f, elmat1, vdofs1);
 #ifndef MFEM_DARCY_HYBRIDIZATION_ELIM_BCS
          M_p->SpMat().AddSubMatrix(vdofs1, vdofs1, elmat1, skip_zeros);
