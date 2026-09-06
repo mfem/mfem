@@ -1846,7 +1846,17 @@ IntegrationRule *IntegrationRules::TriangleIntegrationRule(int Order)
          return ir;
 
       default:
-         // Grundmann-Moller fallback for orders beyond tabulated rules
+         // Grundmann-Moller fallback for orders beyond tabulated rules.
+         // Its weights are partly negative and grow about a decade per eight
+         // orders, so the rule loses accuracy in double precision well before
+         // its stated degree suggests: the constant 1 comes back to 3.2e-12
+         // at order 26 and 2.7e-05 at order 64. Warn rather than refuse -- the
+         // rule is exact in exact arithmetic and a caller may know what they
+         // are doing -- and only once per order, since rules are cached.
+         MFEM_WARNING("Triangle integration rules are tabulated only to order "
+                      "25; order " << Order << " falls back to Grundmann-"
+                      "Moller, whose negative weights lose accuracy in double "
+                      "precision. See IntegrationRules::Get().");
          int i = (Order / 2) * 2 + 1;   // closest odd >= Order
          AllocIntRule(TriangleIntRules, i);
          ir = new IntegrationRule;
@@ -2445,7 +2455,13 @@ IntegrationRule *IntegrationRules::TetrahedronIntegrationRule(int Order)
          return ir;
 
       default:
-         // Grundmann-Moller fallback for orders beyond tabulated rules
+         // As for triangles, and it bites five orders earlier: tetrahedra are
+         // tabulated only to 20, the weights are negative from 21, and the
+         // constant 1 comes back to 1.3e-03 at order 64.
+         MFEM_WARNING("Tetrahedron integration rules are tabulated only to "
+                      "order 20; order " << Order << " falls back to Grundmann-"
+                      "Moller, whose negative weights lose accuracy in double "
+                      "precision. See IntegrationRules::Get().");
          int i = (Order / 2) * 2 + 1;   // closest odd >= Order
          AllocIntRule(TetrahedronIntRules, i);
          ir = new IntegrationRule;

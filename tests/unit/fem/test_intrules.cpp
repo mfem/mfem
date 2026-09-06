@@ -425,6 +425,67 @@ TEST_CASE("Simplex rule positivity", "[IntegrationRules]")
          }
       }
    }
+
+   // The other side of the same boundary, and it is worth pinning because the
+   // sections above pin only where the tabulated rules END. Above it the rule
+   // is Grundmann-Moller, whose weights are partly negative -- a property of
+   // that family, not a defect -- and which therefore loses accuracy in double
+   // precision well before its stated degree suggests. A caller reaching this
+   // range silently is the failure mode; IntegrationRules::Get() documents it
+   // and the generator warns. If a future tabulation extends the range, these
+   // thresholds move and this section should move with them.
+   SECTION("above the tabulated range the weights go negative")
+   {
+      struct { Geometry::Type geom; int last, first_neg; } cases[] =
+      {
+         { Geometry::TRIANGLE,    25, 26 },
+         { Geometry::TETRAHEDRON, 20, 21 }
+      };
+      for (auto &c : cases)
+      {
+         CAPTURE(c.last, c.first_neg);
+         const IntegrationRule &ok = rules.Get(c.geom, c.last);
+         real_t wmin = 0.0;
+         for (int i = 0; i < ok.GetNPoints(); i++)
+         { wmin = std::min(wmin, ok.IntPoint(i).weight); }
+         REQUIRE(wmin == 0.0);          // nothing negative at the last one
+
+         const IntegrationRule &bad = rules.Get(c.geom, c.first_neg);
+         wmin = 0.0;
+         for (int i = 0; i < bad.GetNPoints(); i++)
+         { wmin = std::min(wmin, bad.IntPoint(i).weight); }
+         CAPTURE(wmin);
+         REQUIRE(wmin < 0.0);           // and something negative one past it
+      }
+   }
+
+   // The consequence, stated as a number rather than left to inference: the
+   // rule is asked for a degree it cannot deliver in double precision. Order
+   // 64 integrates the CONSTANT 1 to five digits on a triangle and three on a
+   // tetrahedron, where the tabulated rules are exact to round-off.
+   SECTION("and the accuracy loss is real, not just a sign")
+   {
+      struct { Geometry::Type geom; real_t measure; int tab; } cases[] =
+      {
+         { Geometry::TRIANGLE,    0.5,       25 },
+         { Geometry::TETRAHEDRON, 1.0/6.0,   20 }
+      };
+      for (auto &c : cases)
+      {
+         auto err = [&](int order)
+         {
+            const IntegrationRule &ir = rules.Get(c.geom, order);
+            real_t s = 0.0;
+            for (int i = 0; i < ir.GetNPoints(); i++)
+            { s += ir.IntPoint(i).weight; }
+            return std::abs(s - c.measure)/c.measure;
+         };
+         const real_t e_tab = err(c.tab), e_64 = err(64);
+         CAPTURE(c.tab, e_tab, e_64);
+         REQUIRE(e_tab < 1e-13);        // the tabulated rule is exact
+         REQUIRE(e_64 > 1e-6);          // the fallback at 64 is not
+      }
+   }
 }
 
 
