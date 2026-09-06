@@ -283,6 +283,7 @@ protected:
 
    bool bsym{};      ///< sign convention, see DarcyReduction()
    bool bfin{};      ///< indicates finalized hybridization
+   bool bnpc{};      ///< NPC requested on a form that may be linear
    DiagonalPolicy diag_policy{DIAG_ONE};  ///< diagonal policy
    /** @brief Essential *trace* true DOFs, in the constraint space @a c_fes.
 
@@ -563,6 +564,11 @@ private:
    };
 
    bool IsNonlinear() const { return c_nlfi || c_nlfi_p || m_nlfi || m_nlfi_u || m_nlfi_p; }
+   /** @brief True when the element-local blocks and the element-wise H
+       must be kept, which is what NPC reads and what a nonlinear form
+       needs anyway. IsNonlinear() alone was the test, and it is the
+       wrong one for NPC: a linear form needs exactly the same data. */
+   bool NPCEnabled() const { return bnpc || IsNonlinear(); }
 #ifdef MFEM_USE_MPI
    bool ParallelU() const { return pfes != NULL; }
    bool ParallelP() const { return pfes_p != NULL; }
@@ -1039,6 +1045,39 @@ public:
        built from S. See doc/HDG-JACOBIAN-FREE-TRACE.md, which is where that
        open question lives. */
    void SetGradientMode(GradientMode mode);
+
+   /** @brief Keep what NPC reads, on a form that carries no nonlinear
+       integrator at all.
+
+       Without this a linear DarcyForm cannot use the NPC pathway, and fails
+       by segfault rather than by refusal. Finalize() takes a route for the
+       linear case that factors each element's A and D in place and keeps no
+       copy, and routes the face H into the global sparse H instead of the
+       element-wise H_data -- both correct when the only thing that will ever
+       be asked is one reduced solve, and both fatal to NPC, which evaluates
+       the residual and the gradient at ARBITRARY states and so needs the
+       blocks rather than their factorisations.
+
+       A linear form wants NPC for the reason any DAE integrator does: the
+       condensation route iterates on the trace alone, so the vector it
+       iterates on is not the vector the integrator integrates and there is no
+       residual over the full (q, u, lambda) state to hand it. That is as true
+       of a linear problem as of a nonlinear one, and an integrator evaluating
+       at predictor states or finite-difference probes needs it just as much.
+
+       Opt-in rather than unconditional because the retained blocks are the
+       largest thing the hybridization owns and no reduced-route caller should
+       pay for them.
+
+       Call it any time before Assemble(); it allocates H itself if Init() has
+       already run, which it normally has -- the hybridization does not exist
+       until DarcyForm::EnableHybridization() has made it, and that is what
+       calls Init().
+
+       @note This forecloses the reduced route on the same assembly:
+       DarcyForm::FormLinearSystem() has no reduced H to hand back and aborts.
+       They are different methods; comparing them needs two assemblies. */
+   void EnableNPC();
 
    /** @name The NPC method: Newton on the full (q, u, lambda) system
 

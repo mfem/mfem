@@ -2154,4 +2154,226 @@ TEST_CASE("One NPC step is exact on a linear problem, in parallel",
    REQUIRE(dh.GetNumLocalNLIterations() == 0);
 }
 
+
 #endif // MFEM_USE_MPI
+
+namespace darcy_npc
+{
+
+/** @brief The same HDG problem as PedestalHDG at @a amp = 0, but with the face
+    terms on the LINEAR GetPotentialMassForm(), so the form carries no
+    nonlinear integrator at all and IsNonlinear() is false.
+
+    That distinction is structural rather than mathematical, and it is the one
+    the NPC pathway used to fail on. PedestalHDG at amp = 0 is a linear
+    PROBLEM on a nonlinear FORM -- it still populates
+    GetPotentialMassNonlinearForm(), so every gate keyed on IsNonlinear()
+    passes and nothing here was exercised. A caller driving a DAE integrator
+    over the full (q, u, lambda) state has a linear form and needs the same
+    residual and gradient, which is what EnableNPC() is for. */
+struct LinearFormHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   ConstantCoefficient one, src;
+   ConstantTau tau;
+   DarcyForm darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X, RHS;
+   OperatorPtr R;
+
+   LinearFormHDG(int n, int order, bool npc)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
+        u_coll(order, 2, BasisType::GaussLobatto),
+        p_coll(order, 2, BasisType::GaussLobatto),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        one(1.0), src(1.0), tau(1.0), darcy(&Vh, &Wh), offs(4)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(
+         new VectorMassIntegrator(one));
+
+      auto *interior = new HDGDiffusionIntegrator(one, 1.0);
+      auto *boundary = new HDGDiffusionIntegrator(one, 1.0);
+      interior->SetStabilization(tau);
+      boundary->SetStabilization(tau);
+
+      all.SetSize(mesh.bdr_attributes.Max());
+      all = 1;
+
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      M_p->AddInteriorFaceIntegrator(interior);
+      M_p->AddBdrFaceIntegrator(boundary, all);
+
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+      darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(),
+                                ess_flux);
+      darcy.GetHybridization()->SetEssentialBC(all);
+      if (npc) { darcy.GetHybridization()->EnableNPC(); }
+      darcy.Assemble();
+
+      offs[0] = 0;
+      offs[1] = Vh.GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      FunctionCoefficient ramp([](const Vector &x)
+      { return 0.5*(x(1) - 0.6); });
+      GridFunction pgf, tgf;
+      pgf.MakeRef(&Wh, sol.GetBlock(1), 0);
+      pgf.ProjectCoefficient(ramp);
+      tgf.MakeRef(&Mh, sol.GetBlock(2), 0);
+      tgf.ProjectBdrCoefficient(ramp, all);
+
+      // DarcyForm does not fold GetPotentialRHS() into the block b on the
+      // hybridized path, so a caller has to. Both routes must be given the
+      // same load or the comparison below measures the driver, not the
+      // method -- which is exactly the trap that made an earlier reading of
+      // this disagreement look like a defect in H.
+      darcy.GetPotentialRHS()->Assemble();
+      rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+
+      X.MakeRef(sol, offs[2], Mh.GetVSize());
+      RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+      BlockVector dsol(sol, darcy.GetOffsets()),
+                  drhs(rhs, darcy.GetOffsets());
+      darcy.FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+   }
+
+   Operator &op() { return *R.Ptr(); }
+   BlockVector load() { return BlockVector(rhs, darcy.GetOffsets()); }
+   BlockVector state() { return BlockVector(sol, darcy.GetOffsets()); }
+};
+
+} // namespace darcy_npc
+
+TEST_CASE("NPC runs on a DarcyForm with no nonlinear integrator",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+
+   // Reported from outside: a linear form could not use NPC at all, and it
+   // failed by segfault rather than by refusal. Two causes, both keyed on
+   // IsNonlinear(): Finalize() took a route that factors each element's A and
+   // D in place keeping no copy, so LocalNLOperator::AddMultA read an empty
+   // Af_lin_data; and the element-wise H was neither allocated nor written,
+   // so GetHFaceMatrix() returned a DenseMatrix over a null pointer. A third
+   // was found here rather than reported -- ReduceRHS() is what fills
+   // darcy_rhs, and it was gated the same way, so MultNL got an unsized
+   // BlockVector and corrupted the heap.
+   //
+   // Nothing in the suite covered this because the distinction is structural,
+   // not mathematical: PedestalHDG at amp = 0 is a linear problem on a
+   // nonlinear FORM, so IsNonlinear() is true there and every gate passes.
+   LinearFormHDG P(6, 1, true);
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   BlockVector b = P.load(), x = P.state();
+   Vector x_tr = P.X;
+   BlockVector r(P.darcy.GetOffsets()), dx(P.darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+
+   dh.NPCResidual(b, x, x_tr, r, r_tr);
+   const real_t n0 = std::sqrt(r*r + r_tr*r_tr);
+   REQUIRE(n0 > 1e-3);            // there was something to solve
+
+   Operator &S = dh.NPCGradient(x, x_tr);
+   dh.NPCReduce(r, r_tr, b_tr);
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   SparseMatrix *Sm = dynamic_cast<SparseMatrix*>(&S);
+   REQUIRE(Sm != nullptr);
+   {
+      UMFPackSolver lin(*Sm);
+      lin.Mult(b_tr, dtr);
+   }
+   dh.NPCRecover(r, dtr, dx);
+   x += dx;
+   x_tr += dtr;
+
+   // The problem is linear, so one Newton step must land on the root.
+   dh.NPCResidual(b, x, x_tr, r, r_tr);
+   const real_t n1 = std::sqrt(r*r + r_tr*r_tr);
+   CAPTURE(n0, n1);
+   REQUIRE(n1 < 1e-11);
+   REQUIRE(dh.GetNumLocalNLIterations() == 0);
+}
+
+TEST_CASE("NPC and condensation agree on a form with no nonlinear integrator",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_npc;
+
+   // The second half of the report, and it fails separately from the first:
+   // NPC crashing and NPC getting a different answer are different defects.
+   // The routes are mutually exclusive on one assembly -- EnableNPC() leaves
+   // no reduced H for FormLinearSystem() to hand back -- so this needs two
+   // assemblies of the same problem.
+   LinearFormHDG C(6, 1, false);      // condensation
+   LinearFormHDG P(6, 1, true);       // NPC
+   DarcyHybridization &dh = *P.darcy.GetHybridization();
+
+   SparseMatrix *Hm = dynamic_cast<SparseMatrix*>(&C.op());
+   REQUIRE(Hm != nullptr);
+   {
+      UMFPackSolver lin(*Hm);
+      lin.Mult(C.RHS, C.X);
+   }
+   BlockVector csol(C.sol, C.darcy.GetOffsets());
+   C.darcy.RecoverFEMSolution(C.X, csol);
+
+   BlockVector b = P.load(), x = P.state();
+   Vector x_tr = P.X;
+   BlockVector r(P.darcy.GetOffsets()), dx(P.darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+   for (int it = 0; it < 3; it++)
+   {
+      dh.NPCResidual(b, x, x_tr, r, r_tr);
+      if (std::sqrt(r*r + r_tr*r_tr) < 1e-11) { break; }
+      Operator &S = dh.NPCGradient(x, x_tr);
+      dh.NPCReduce(r, r_tr, b_tr);
+      dtr.SetSize(b_tr.Size());
+      dtr = 0.0;
+      UMFPackSolver lin(*dynamic_cast<SparseMatrix*>(&S));
+      lin.Mult(b_tr, dtr);
+      dh.NPCRecover(r, dtr, dx);
+      x += dx;
+      x_tr += dtr;
+   }
+
+   // The stronger statement of the same thing, and the one that says WHERE a
+   // disagreement would live: the condensation answer is a root of the NPC
+   // residual, in every block.
+   dh.NPCResidual(b, x, x_tr, r, r_tr);
+   BlockVector xc(P.darcy.GetOffsets());
+   xc.GetBlock(0) = csol.GetBlock(0);
+   xc.GetBlock(1) = csol.GetBlock(1);
+   Vector xc_tr(C.X);
+   dh.NPCResidual(b, xc, xc_tr, r, r_tr);
+   CAPTURE(r.GetBlock(0).Norml2(), r.GetBlock(1).Norml2(), r_tr.Norml2());
+   REQUIRE(r.GetBlock(0).Norml2() < 1e-10);
+   REQUIRE(r.GetBlock(1).Norml2() < 1e-10);
+   REQUIRE(r_tr.Norml2() < 1e-10);
+
+   Vector d(x.GetBlock(1));
+   d -= csol.GetBlock(1);
+   CAPTURE(d.Norml2(), csol.GetBlock(1).Norml2());
+   REQUIRE(d.Norml2() < 1e-9 * csol.GetBlock(1).Norml2());
+}
+

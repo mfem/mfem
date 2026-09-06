@@ -251,7 +251,7 @@ void DarcyHybridization::Init(const Array<int> &ess_flux_tdof_list)
    if (c_bfi_p)
    {
       AllocEG();
-      if (IsNonlinear())
+      if (NPCEnabled())
       {
          AllocH();
       }
@@ -489,8 +489,12 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       }
    }
 
-   // assemble H matrix
-   if (IsNonlinear())
+   // assemble H matrix. This is not merely allocation: it decides WHERE the
+   // face H goes -- element-wise into H_data, which NPC reads through
+   // GetHFaceMatrix(), or straight into the global sparse H, which only the
+   // reduced solve reads. A linear form used to take the second branch
+   // unconditionally, leaving GetHFaceMatrix() over a null pointer.
+   if (NPCEnabled())
    {
       if (face < num_faces)
       {
@@ -591,8 +595,8 @@ void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(
    DenseMatrix G_f(&G_data[G_offsets[face]], c_dof, ndof);
    G_f.CopyMN(elmat, c_dof, ndof, ndof, 0);
 
-   // assemble H matrix
-   if (IsNonlinear())
+   // assemble H matrix -- the same choice of destination as the interior case
+   if (NPCEnabled())
    {
       DenseMatrix H_f(&H_data[H_offsets[face]], c_dof, c_dof);
       H_f.CopyMN(elmat, c_dof, c_dof, ndof, ndof);
@@ -1627,7 +1631,7 @@ void DarcyHybridization::ScatterElementH(int el, const real_t *Hel,
 void DarcyHybridization::ComputeH(ComputeHMode mode,
                                   std::unique_ptr<SparseMatrix> &H_) const
 {
-   MFEM_ASSERT(mode != ComputeHMode::Linear || !IsNonlinear(),
+   MFEM_ASSERT(mode != ComputeHMode::Linear || !NPCEnabled(),
                "Cannot assemble H matrix in the non-linear regime");
 
    // Still needed by the Finalize() below; ScatterElementH() carries its own.
@@ -2431,7 +2435,13 @@ void DarcyHybridization::Finalize()
 {
    if (bfin) { return; }
 
-   if (!IsNonlinear())
+   // ComputeH(Linear) factors each element's A and D IN PLACE and keeps no
+   // copy, which is right when the only thing ever asked of the hybridization
+   // is one reduced solve and wrong for NPC, which needs the blocks
+   // themselves at arbitrary states. A form with EnableNPC() is therefore
+   // finalized as a fully nonlinear one -- blocks kept, no reduced H, which
+   // is correct because NPCGradient() assembles its own.
+   if (!NPCEnabled())
    {
 #ifndef MFEM_USE_MPI
       ComputeH(ComputeHMode::Linear, H);
@@ -2443,14 +2453,20 @@ void DarcyHybridization::Finalize()
    }
    else
    {
-      if (!m_nlfi_u && !m_nlfi && !c_nlfi)
+      // Each of the two specialised modes leaves one of Af_lin_data /
+      // Df_lin_data empty, on the guarantee that the corresponding NONLINEAR
+      // integrator supplies that block. IsNonlinear() provided that guarantee
+      // and bnpc does not, so a form with no nonlinear integrator at all must
+      // fall through to FullNL, which is the only branch that backs up both.
+      if (IsNonlinear() && !m_nlfi_u && !m_nlfi && !c_nlfi)
       {
          lop_type = LocalOpType::PotNL;
          // backup the data for gradient construction
          Af_lin_data = Af_data;
          InvertA();
       }
-      else if (!m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi && !c_nlfi)
+      else if (IsNonlinear() && !m_nlfi_p && !c_nlfi_p && !D_empty && !m_nlfi
+               && !c_nlfi)
       {
          lop_type = LocalOpType::FluxNL;
          // backup the data for gradient construction
@@ -2496,7 +2512,7 @@ void DarcyHybridization::Finalize()
 void DarcyHybridization::EliminateVDofsInRHS(const Array<int> &vdofs_flux,
                                              const BlockVector &x, BlockVector &b)
 {
-   if (IsNonlinear())
+   if (NPCEnabled())
    {
       MFEM_ASSERT(!ParallelU() && !ParallelP(),
                   "In parallel, use ParallelEliminateTDofsInRHS() instead!");
@@ -2607,7 +2623,7 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
       fes.GetRestrictionOperator()->MultTranspose(b_t.GetBlock(0), bu);
    }
 
-   if (IsNonlinear())
+   if (NPCEnabled())
    {
       //save the rhs for initial guess in the iterative local solve
       darcy_u = xu;
@@ -2688,7 +2704,7 @@ void DarcyHybridization::EliminateTrueDofsInRHS(
 void DarcyHybridization::EliminateTraceTrueDofs(const Array<int> &tdofs,
                                                 DiagonalPolicy dpolicy)
 {
-   if (IsNonlinear()) { return; } // not implemented
+   if (NPCEnabled()) { return; } // not implemented
 
    if (!ParallelC())
    {
@@ -2721,7 +2737,7 @@ void DarcyHybridization::EliminateTraceTrueDofs(DiagonalPolicy dpolicy)
 void DarcyHybridization::EliminateTraceTrueDofsInRHS(const Array<int> &tdofs_,
                                                      const Vector &x, Vector &b)
 {
-   if (IsNonlinear())
+   if (NPCEnabled())
    {
       // Nothing to eliminate -- the reduced operator is nonlinear and there is
       // no assembled matrix to move columns out of. The essential values ride
@@ -2993,6 +3009,21 @@ void DarcyHybridization::MarkEmptyTraceRows() const
    }
 }
 
+
+void DarcyHybridization::EnableNPC()
+{
+   MFEM_VERIFY(!bfin, "EnableNPC() must be called before the hybridization is "
+               "finalized; it changes what Finalize() keeps.");
+   if (bnpc) { return; }
+   bnpc = true;
+
+   // Init() gates AllocH() on NPCEnabled(), so a flag set after it has run
+   // leaves H_data empty and GetHFaceMatrix() over a null pointer. Init()
+   // normally HAS run by now: the hybridization does not exist until
+   // DarcyForm::EnableHybridization() has made it, and that is what calls
+   // Init(). Ct_data.Size() is Init()'s own "already run" test, reused here.
+   if (Ct_data.Size() && !H_data.Size()) { AllocH(); }
+}
 
 void DarcyHybridization::SetGradientMode(GradientMode mode)
 {
@@ -3474,7 +3505,7 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
    const Operator *tr_cP = NULL;
 
-   if (IsNonlinear())
+   if (NPCEnabled())
    {
       //store RHS for Mult
       if (!darcy_offsets.Size())
@@ -4000,7 +4031,7 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
 void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
                                          const Vector &sol_tr, BlockVector &sol_t) const
 {
-   if (IsNonlinear())
+   if (NPCEnabled())
    {
       ParMultNL(MultNlMode::Sol, b_t, sol_tr, sol_t);
       return;
