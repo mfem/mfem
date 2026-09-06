@@ -11,6 +11,7 @@
 
 set(SUNDIALS_EXAMPLES_SRCS)
 list(APPEND SUNDIALS_EXAMPLES_SRCS
+  ex5.cpp
   ex9.cpp
   ex10.cpp
   ex16.cpp
@@ -53,6 +54,8 @@ endforeach()
 
 if (MFEM_ENABLE_TESTING)
   # Command line options for the tests.
+  # Example 5: test IDA on a genuine (Hessenberg index-2) DAE
+  set(EX5_TEST_OPTS -r 1 -o 1 -tf 0.5 -dt 0.1)
   # Example 9: test CVODE with CV_ADAMS (non-stiff implicit) time stepping
   set(EX9_COMMON_OPTS -m ../../data/periodic-hexagon.mesh -p 0 -s 7)
   set(EX9_TEST_OPTS ${EX9_COMMON_OPTS}  -r  2 -dt 0.0018 -vs 25)

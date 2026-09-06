@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex9 ex10 ex16
+SEQ_EXAMPLES = ex5 ex9 ex10 ex16
 PAR_EXAMPLES = ex9p ex10p ex16p
 SEQ_DEVICE_EXAMPLES = ex9
 PAR_DEVICE_EXAMPLES = ex9p
@@ -73,6 +73,10 @@ PARALLEL_HIP_NAME := Parallel SUNDIALS HIP example
 	@$(call mfem-test,$<,, $(SERIAL_HIP_NAME),-d hip)
 
 # Testing: Specific execution options:
+# Example 5: test IDA on a genuine (Hessenberg index-2) DAE
+EX5_ARGS := -r 1 -o 1 -tf 0.5 -dt 0.1
+ex5-test-seq: ex5
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX5_ARGS))
 # Example 9: test CVODE with CV_ADAMS (non-stiff implicit) time stepping
 EX9_COMMON_ARGS := -m ../../data/periodic-hexagon.mesh -p 0 -s 7
 EX9_ARGS  := $(EX9_COMMON_ARGS) -r  2 -dt 0.0018 -vs 25
@@ -119,6 +123,8 @@ clean-build:
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
+	@rm -f ex5.mesh sol_u.gf sol_p.gf
+	@rm -rf Example5-Transient* ParaView
 	@rm -f ex9.mesh ex9-mesh.* ex9-init.* ex9-final.* Example9*
 	@rm -f deformed.* velocity.* elastic_energy.*
 	@rm -f ex16.mesh ex16-mesh.* ex16-init.* ex16-final.* Example16*

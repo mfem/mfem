@@ -564,22 +564,106 @@ would run unpreconditioned and is not the route to use here.
 
 ### Left
 
-1. **The parallel verification is a probe, not a committed test.** There is
-   no `[Parallel]` IDA case in `tests/unit`, so the table above is not
-   defended by the suite. That is the first thing to add.
-2. **§7's genuine DAE example** (transient Stokes, Hessenberg index 2) is not
-   written. `ex16` is an ODE that IDA treats as a trivial DAE, so nothing
-   committed exercises `SetDifferentialComponents()`,
-   `SetSuppressAlgebraic()` or `ComputeConsistentIC()` on a problem that
-   actually needs them -- only the unit tests do, on a 3x3 system.
-3. **Untested API**: `UseSundialsLinearSolver()`, `SetRootFinder()`,
-   `SetStepMode(IDA_ONE_STEP)` beyond `ex16` using it, `SetMaxOrder()` and
-   `SetLinearSolutionScaling()`.
-4. **No accessor for the Newton or Jacobian-setup counts.** `GetNumSteps()`
+1. **Untested API**: `UseSundialsLinearSolver()`, `SetRootFinder()`,
+   `SetMaxOrder()` and `SetLinearSolutionScaling()`.
+2. **No accessor for the Newton or Jacobian-setup counts.** `GetNumSteps()`
    exists and `PrintInfo()` only prints, so "the two linear-system routes
    cost about the same" cannot be asserted.
-5. **IDAS / adjoint sensitivity**, as §10 says. The library link is already
+3. **IDAS / adjoint sensitivity**, as §10 says. The library link is already
    chosen to allow it.
+4. **A parallel index-2 example.** `ex5` here is serial; there is no `ex5p`.
+
+Items 1 and 2 of the previous list are done -- see §12.
+
+## 12. The parallel case and the index-2 example
+
+### `tests/unit/linalg/test_sundials_ida.cpp` gained a `[Parallel]` case
+
+Seven Robertson systems distributed over the ranks -- seven because it
+divides evenly at neither two nor four, so the uneven local sizes exercise
+`SundialsNVector`'s global-length reduction. It asserts on **every** rank's
+own systems, `MPI_Allreduce`s the constraint defect so every rank asserts the
+same number, and `MPI_Allreduce`s the pass/fail with `MPI_LAND` -- the last
+because `punit_test_main.cpp` routes Catch2's output to a null stream off
+root, so a `REQUIRE` failing on rank 1 prints nothing at all.
+
+It uses `SetSVtolerances` deliberately: that is the method written to build a
+tolerance vector of the state's N_Vector type (§11), and this case is the
+only thing that would catch a regression in it.
+
+Passes at 1, 2, 3 and 4 ranks. Parallel suite **100 cases / 70,961
+assertions** on 2 ranks, against 99 / 70,938 excluding `[IDA]` -- the delta
+is exactly the one new case and its 23 assertions.
+
+**A rank owning no systems is refused, and the reason is a pre-existing
+`SundialsNVector` defect** shared by all four wrappers, not anything of IDA's.
+`_SetNvecDataAndSize_()`'s parallel branch guards its global-length reduction
+with `glob_size == 0 && glob_size != size`, and `glob_size` is zero on entry
+to that test, so the condition is just `size != 0`: an empty rank skips an
+`MPI_Allreduce` every other rank enters. Measured rather than read -- two
+systems over four ranks does **not** hang. The orphaned reduction pairs with
+the next collective the empty ranks reach, which is the `MPI_Allreduce`
+inside `N_VNewEmpty_Parallel()`, and SUNDIALS' own "global_length does not
+equal the computed global length" check then returns NULL, so it aborts in
+`SundialsNVector::MakeNVector()`. Loud, in a place that names nothing
+relevant.
+
+### `examples/sundials/ex5.cpp` is the index-2 example
+
+Transient mixed Darcy, `M u' + Mk u - B^T p = F(t)`, `-B u = G(t)`, RT/L2 as
+`examples/ex5.cpp` discretises the steady problem. `dR/dy'` is `diag(M, 0)`
+and the pressure is absent from the constraint row: Hessenberg index 2, where
+`ex16` is an ODE that IDA treats as a trivial DAE.
+
+The exact solution is chosen to lie in the discrete spaces --
+`u = a(t) x`, `p = a(t)(x_0 - x_1)`, `a(t) = 1 + sin(t)/2` -- so the spatial
+error is zero by construction and what the example reports is the **time**
+integration error alone. That also makes the consistent initial condition
+available in closed form, which matters because for an index-2 system it is
+two conditions and not one: the constraint `-B u_0 = G(0)`, and the hidden
+constraint `-B u'_0 = G'(0)` obtained by differentiating it, which is what
+determines `p_0` at all.
+
+Measured, `-r 1 -o 1 -tf 1.0 -dt 0.1`, relative L2 errors:
+
+| `-rtol` | `-atol` | u | p | steps |
+|---|---|---|---|---|
+| 1e-4 | 1e-6 | 7.86e-05 | 1.39e-04 | 16 |
+| 1e-6 | 1e-8 | 1.09e-06 | 1.29e-07 | 46 |
+| 1e-8 | 1e-10 | 1.32e-08 | 2.39e-09 | 66 |
+| 1e-10 | 1e-12 | corrector convergence fails at t = 0 | | |
+
+**The error tracks the tolerance over three decades and then the method
+stops, and the linear solver is not why.** That was established by
+elimination, not by argument: dropping the MINRES relative-tolerance floor
+from 1e-12 to zero changes nothing, raising its iteration cap from 1e3 to
+5e4 changes nothing, and a run that succeeds reports `LS fails = 0` beside
+`NLS fails = 6`. What is left is intrinsic to index two --
+`SetSuppressAlgebraic()` takes the algebraic block out of the **error** test,
+but IDA's **corrector** test is a weighted norm over the whole Newton
+correction, and the algebraic component of that correction scales like `1/h`.
+Shrink the step and the test stops being satisfiable however well the linear
+system is solved. Worth a reader's attention precisely because it presents
+as a linear-solver problem and is not.
+
+Two options exist to make the claims checkable rather than assertions:
+
+* **`-no-sa`** leaves the algebraic block in the error test. Measured: aborts
+  at `t = 0` with `h` at 3.9e-15. It is *expected* to abort; that is the
+  demonstration. (On a 2x2 Hessenberg system the error test gives out first
+  and on this one the corrector does -- which of the two goes first is not
+  worth relying on.)
+* **`-calcic`** discards the initial pressure and calls
+  `ComputeConsistentIC()`. Measured: `IDA_LINESEARCH_FAIL`, "Newton/Linesearch
+  algorithm failed to converge" -- `IDACalcIC` is documented for index-one
+  systems and this is what that means in practice. The option discards the
+  pressure first on purpose: a zero return from an already-consistent state
+  proves nothing, so the demonstration has to hand it real work.
+
+Also worth recording: my brief for this example specified `+B^T p` on the
+momentum row with `-B u` on the constraint row, and called the result
+symmetric. It is not -- integrating `(grad p, v)` by parts gives `-(p, div v)`
+-- and the sign was corrected against the brief rather than copied from it.
 
 ### One thing found that is not ours
 

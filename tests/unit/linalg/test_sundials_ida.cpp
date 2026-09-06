@@ -13,6 +13,7 @@
 #include "unit_tests.hpp"
 
 #include <cmath>
+#include <vector>
 
 using namespace mfem;
 
@@ -293,6 +294,193 @@ void RunRobertson(bool ode_form, DenseMatrix &traj)
       tout *= 10.0;
    }
 }
+
+#ifdef MFEM_USE_MPI
+
+/** @brief Number of independent Robertson systems the parallel case spreads
+    over the ranks.
+
+    Prime, and deliberately so: it does not divide evenly at either of the
+    rank counts the suite is run at, so the ranks hold local lengths that
+    differ. That is the case that exercises the global-length reduction
+    inside SundialsNVector; an evenly divided problem agrees with a wrong
+    reduction that merely multiplied the local length by the rank count. */
+const int robertson_systems = 7;
+
+/// Copy the three components of local system @a s of @a v into @a b.
+void GetSystem(const Vector &v, int s, Vector &b)
+{
+   b.SetSize(3);
+   for (int j = 0; j < 3; j++) { b[j] = v[3*s + j]; }
+}
+
+/// Write @a b into the three components of local system @a s of @a v.
+void SetSystem(Vector &v, int s, const Vector &b)
+{
+   for (int j = 0; j < 3; j++) { v[3*s + j] = b[j]; }
+}
+
+/** @brief The systems owned by rank @a rank of @a np, in @a nloc, and the
+    global index of the first of them, in @a first.
+
+    The remainder is spread one system per rank over the low ranks, so the
+    local lengths differ by at most one -- and, whenever np does not divide
+    robertson_systems, by exactly one somewhere. */
+void RobertsonPartition(int rank, int np, int &nloc, int &first)
+{
+   const int base = robertson_systems/np;
+   const int rem = robertson_systems%np;
+   nloc = base + ((rank < rem) ? 1 : 0);
+   first = rank*base + ((rank < rem) ? rank : rem);
+}
+
+/** @brief @a nsys independent copies of Robertson's DAE side by side in one
+    state vector of length 3 @a nsys: block s owns unknowns 3s, 3s+1 and
+    3s+2 and holds its own RobertsonDAE, so the residual and the Jacobian are
+    exactly the ones the serial cases assert and no arithmetic is restated
+    here.
+
+    The blocks do not couple, and that is the point. What a parallel case can
+    test that a serial one cannot is the distributed N_Vector -- the global
+    length reduced over the communicator, and the error weights and WRMS
+    norms IDA builds from it -- and an operator carrying communication of its
+    own would sit between that and any failure.
+
+    What identical copies therefore do NOT test: a permutation within a block
+    or between blocks is invisible here, every block holding the same
+    numbers. The distribution is under test; the layout within a rank is
+    not. */
+class RobertsonBlocks : public TimeDependentOperator
+{
+private:
+   const int nsys;
+
+   /** @brief One serial fixture per local system, each holding its own
+       factorization.
+
+       Sized once at construction and never resized: DenseMatrixInverse owns
+       a raw factor array and has only the implicit copy constructor, so a
+       reallocation of this vector would double-free it. */
+   std::vector<RobertsonDAE> sys;
+
+public:
+   explicit RobertsonBlocks(int nsys_)
+      : TimeDependentOperator(3*nsys_, (real_t) 0.0, HOMOGENEOUS),
+        nsys(nsys_), sys(nsys_) { }
+
+   /// The residual R(t, @a y, @a yp), block by block.
+   void ImplicitMult(const Vector &y, const Vector &yp,
+                     Vector &r) const override
+   {
+      Vector yb, ypb, rb(3);
+      for (int s = 0; s < nsys; s++)
+      {
+         GetSystem(y, s, yb);
+         GetSystem(yp, s, ypb);
+         sys[s].ImplicitMult(yb, ypb, rb);
+         SetSystem(r, s, rb);
+      }
+   }
+
+   /// J = dR/dy + cj dR/dy', which is block diagonal and factored per block.
+   int SUNImplicitSetupDAE(const Vector &y, const Vector &yp,
+                           const Vector &res, real_t cj) override
+   {
+      Vector yb, ypb, resb;
+      for (int s = 0; s < nsys; s++)
+      {
+         GetSystem(y, s, yb);
+         GetSystem(yp, s, ypb);
+         GetSystem(res, s, resb);
+         const int err = sys[s].SUNImplicitSetupDAE(yb, ypb, resb, cj);
+         if (err != 0) { return err; }
+      }
+      return 0;
+   }
+
+   int SUNImplicitSolveDAE(const Vector &b, Vector &x, real_t tol) override
+   {
+      Vector bb, xb(3);
+      for (int s = 0; s < nsys; s++)
+      {
+         GetSystem(b, s, bb);
+         const int err = sys[s].SUNImplicitSolveDAE(bb, xb, tol);
+         if (err != 0) { return err; }
+         SetSystem(x, s, xb);
+      }
+      return 0;
+   }
+};
+
+/** @brief Integrate @a nloc independent Robertson systems on @a comm, from
+    the standard consistent initial condition of each to t = 4e10 in the
+    decade outputs the serial case uses, leaving the final state in @a y.
+
+    Every option set here has a parallel path of its own that nothing else in
+    this file reaches: SetSVtolerances() builds its vector on the state's
+    communicator, SetDifferentialComponents() sizes the marker with the saved
+    global length, and SetInitialDerivative() and Step() carry the pair. */
+void RunRobertsonParallel(MPI_Comm comm, int nloc, Vector &y)
+{
+   RobertsonBlocks oper(nloc);
+   IDASolver ida(comm);
+   ida.Init(oper);
+   ida.UseMFEMLinearSolver();
+
+   const int n = 3*nloc;
+
+   // SetSVtolerances() rather than SetSStolerances(), and this is the one
+   // thing here that only a parallel run can check. IDA clones the tolerance
+   // vector and then combines it with the state elementwise to build the
+   // error weights, and those N_Vector operations dispatch on the type of
+   // their first argument -- so a serial tolerance vector in a parallel run
+   // does not merely make a norm local, it reads a serial content struct
+   // through a parallel accessor. IDASolver::SetSVtolerances() builds the
+   // vector with the state's communicator for exactly that reason, and this
+   // case is the only thing that would catch it if it stopped.
+   Vector atol(n);
+   Array<int> is_differential(n);
+   Vector yp(n);
+   y.SetSize(n);
+   for (int s = 0; s < nloc; s++)
+   {
+      // The serial case's per-component absolute tolerances, once per
+      // system.
+      atol[3*s + 0] = 1.0e-8;
+      atol[3*s + 1] = 1.0e-14;
+      atol[3*s + 2] = 1.0e-6;
+
+      // y2 of each system is its algebraic unknown: it carries no
+      // derivative, so it is kept out of the local error test as well.
+      is_differential[3*s + 0] = 1;
+      is_differential[3*s + 1] = 1;
+      is_differential[3*s + 2] = 0;
+
+      y[3*s + 0] = 1.0;
+      y[3*s + 1] = 0.0;
+      y[3*s + 2] = 0.0;
+
+      yp[3*s + 0] = -0.04;
+      yp[3*s + 1] = 0.04;
+      yp[3*s + 2] = 0.0;
+   }
+
+   ida.SetSVtolerances(1.0e-8, atol);
+   ida.SetDifferentialComponents(is_differential);
+   ida.SetSuppressAlgebraic(true);
+   ida.SetInitialDerivative(yp);
+
+   real_t t = 0.0;
+   real_t tout = 0.4;
+   for (int i = 0; i < robertson_outputs; i++)
+   {
+      real_t dt = tout - t;
+      ida.Step(y, t, dt);
+      tout *= 10.0;
+   }
+}
+
+#endif // MFEM_USE_MPI
 
 } // anonymous namespace
 
@@ -651,5 +839,144 @@ TEST_CASE("IDA builds the residual from the operator's expression form",
       }
    }
 }
+
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("IDA integrates a DAE distributed over the ranks",
+          "[Parallel][SUNDIALS][IDA]")
+{
+   const int np = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+
+   // A rank owning no system is NOT supported, and this refuses the rank
+   // count rather than letting it fail somewhere less legible.
+   //
+   // The cause is in SundialsNVector and predates IDA, so it is the same for
+   // CVODE, ARKODE and KINSOL. _SetNvecDataAndSize_()'s parallel branch
+   // guards its global-length reduction with
+   //     if (glob_size == 0) { glob_size = GlobalSize();
+   //        if (glob_size == 0 && glob_size != size) { MPI_Allreduce(...); } }
+   // and glob_size is zero on entry to the inner test, so the condition is
+   // just "size != 0". A rank whose local block is empty therefore SKIPS an
+   // MPI_Allreduce that every other rank enters.
+   //
+   // Measured, rather than left as a reading of the code: two systems over
+   // four ranks does not hang. The orphaned reduction on the non-empty ranks
+   // pairs with the next collective the empty ones reach, which is the
+   // MPI_Allreduce inside N_VNewEmpty_Parallel(), and SUNDIALS' own
+   // "global_length does not equal the computed global length" check then
+   // returns NULL -- so it aborts in SundialsNVector::MakeNVector(). Loud,
+   // and nothing to do with the arithmetic above it. Supporting an empty
+   // rank is a change to SundialsNVector, not to this case.
+   REQUIRE(np <= robertson_systems);
+
+   int nloc = 0;
+   int first = 0;
+   RobertsonPartition(rank, np, nloc, first);
+   REQUIRE(nloc > 0);
+
+   Vector y;
+   RunRobertsonParallel(MPI_COMM_WORLD, nloc, y);
+   REQUIRE(y.Size() == 3*nloc);
+
+   // idaRoberts_dns' published end state, and the tolerances the serial case
+   // holds it to: y0 and y1 have decayed below their own absolute tolerances
+   // (1e-8 and 1e-14) by t = 4e10 and are controlled to a few percent, y2 is
+   // O(1) and is controlled to the relative tolerance.
+   const real_t ref0 = 5.2083495e-08;
+   const real_t ref1 = 2.0833937e-13;
+   const real_t ref2 = 9.9999995e-01;
+   const real_t rel_small = 5.0e-2;
+   const real_t rel_one = 1.0e-8;
+
+   // As in the serial case: the constraint row is exactly linear, so an
+   // enforced constraint sits at round-off relative to |y| = 1 rather than
+   // at the 1e-8 relative integration tolerance a merely integrated one
+   // would drift by.
+   const real_t constraint_tol = 1.0e-12;
+
+   SECTION("Every locally owned system reaches the published answer")
+   {
+      // Every rank asserts, and on its own systems: a case that checked only
+      // rank 0's block would pass with the other ranks integrating nothing
+      // at all. Nothing collective follows these, so a rank that fails here
+      // cannot leave the others waiting in a reduction.
+      for (int s = 0; s < nloc; s++)
+      {
+         const int gs = first + s;
+         const real_t y0 = y[3*s + 0];
+         const real_t y1 = y[3*s + 1];
+         const real_t y2 = y[3*s + 2];
+         CAPTURE(rank, np, nloc, s, gs, y0, y1, y2);
+         REQUIRE(y0 == MFEM_Approx(ref0, 0.0, rel_small));
+         REQUIRE(y1 == MFEM_Approx(ref1, 0.0, rel_small));
+         REQUIRE(y2 == MFEM_Approx(ref2, 0.0, rel_one));
+      }
+   }
+
+   SECTION("The algebraic constraint holds across the whole state")
+   {
+      real_t local_defect = 0.0;
+      for (int s = 0; s < nloc; s++)
+      {
+         const real_t c = y[3*s + 0] + y[3*s + 1] + y[3*s + 2] - 1.0;
+         local_defect += std::abs(c);
+      }
+
+      // MPI_Allreduce and not MPI_Reduce: every rank then asserts the same
+      // number, where a REQUIRE that only the root evaluates would make a
+      // failure on any other rank invisible. The reduction is entered
+      // before the assertion, so a failure cannot strand the other ranks in
+      // a collective.
+      real_t global_defect = 0.0;
+      MPI_Allreduce(&local_defect, &global_defect, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+
+      // The sum runs over every system on every rank, so the bound is the
+      // per-system one times their number.
+      CAPTURE(rank, np, nloc, local_defect, global_defect);
+      REQUIRE(global_defect <= robertson_systems*constraint_tol);
+   }
+
+   SECTION("No rank passes while another fails")
+   {
+      // The same comparisons the two sections above make, reduced with
+      // MPI_LAND before anything is asserted, so that the root asserts what
+      // every rank found rather than only what it found itself.
+      //
+      // That is not belt and braces here: punit_test_main.cpp defines
+      // CATCH_CONFIG_NOSTDOUT and run_unit_tests.hpp routes Catch::cout()
+      // and Catch::cerr() to a null stream on every rank but the root, so a
+      // REQUIRE that fails on rank 1 prints nothing at all. Reducing the
+      // verdict first puts it in front of a REQUIRE that does print.
+      //
+      // The reduction comes before the assertion for a second reason: a rank
+      // that has thrown out of a REQUIRE is no longer in the collective the
+      // others are waiting in, so every collective in this case is entered
+      // before anything that can throw.
+      int local_ok = 1;
+      for (int s = 0; s < nloc; s++)
+      {
+         const real_t y0 = y[3*s + 0];
+         const real_t y1 = y[3*s + 1];
+         const real_t y2 = y[3*s + 2];
+         const real_t c = y0 + y1 + y2 - 1.0;
+         if (y0 != MFEM_Approx(ref0, 0.0, rel_small)) { local_ok = 0; }
+         if (y1 != MFEM_Approx(ref1, 0.0, rel_small)) { local_ok = 0; }
+         if (y2 != MFEM_Approx(ref2, 0.0, rel_one)) { local_ok = 0; }
+         if (std::abs(c) > constraint_tol) { local_ok = 0; }
+      }
+
+      int all_ok = 0;
+      MPI_Allreduce(&local_ok, &all_ok, 1, MPI_INT, MPI_LAND,
+                    MPI_COMM_WORLD);
+
+      CAPTURE(rank, np, nloc, first, local_ok);
+      REQUIRE(all_ok == 1);
+   }
+}
+
+#endif // MFEM_USE_MPI
 
 #endif // MFEM_USE_SUNDIALS
