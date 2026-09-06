@@ -50,21 +50,26 @@ plus upstream master.
 
 **Check what a branch contains with `git merge-base --is-ancestor` or
 `git ls-tree`, never by reasoning about it.** That has been wrong here
-repeatedly. This branch is 15 commits ahead of the trunk and 1 behind; the one
-behind is `0c3410ad51`, a CMake test-list fix whose four lines this branch's
-own `09c1761e61` already has, so the merge is content-neutral.
+repeatedly. This branch is 30 commits ahead of the trunk and 2 behind. Both
+of those are no-ops in content: `0c3410ad51` is a CMake test-list fix whose
+four lines this branch's own `09c1761e61` already has, and `14a69fdaad` deletes
+a document this branch does not carry. **Content-neutral is not conflict-free,
+though** — `git merge-tree` says the merge collides on
+`tests/unit/CMakeLists.txt`, because this branch adds `test_darcy_extension.cpp`
+and `test_darcy_singular.cpp` in the region the trunk edited. Resolve as ours;
+the trunk lists no test file this branch lacks.
 
 ## 1. Extension and lifting — solving on a subdomain of the true domain
 
 **Built, and this branch is where it lives.** `fem/darcy/extension_hdg.{hpp,cpp}`
-(nine classes), `miniapps/hdg/extension.cpp`, and 27 unit cases in
+(nine classes), `miniapps/hdg/extension.cpp`, and 29 unit cases in
 `tests/unit/fem/test_darcy_extension.cpp`. The method is Cockburn & Solano's:
 a Dirichlet datum given on the true boundary `Γ` is transferred to the
 computational boundary `Γ_h` by line integrals along a family of paths, so the
 design order survives a distance `dist(Γ_h, Γ) = O(h)` where earlier techniques
 needed `O(h^{k+1})`.
 
-**What it achieves, and where that is written**: the miniapp's 62-line header
+**What it achieves, and where that is written**: the miniapp's header
 comment carries the method, the three reproduced experiments and how to run
 them; `extension_hdg.hpp`'s doxygen carries the contracts, the tiling property
 the vertex-first construction exists for, and the `TransformBack` trap — that
@@ -90,12 +95,13 @@ Two things are left, and neither is what this list used to say:
   `ExtensionBoundaryQuadrature()`. And the cone `C(x)` is built but **off by
   default**: it closes nothing here, and meq reported that it costs the far
   face's quadrature — coverage stays exact, but the foot map roughens and a
-  fixed-order rule under-resolves it. `doc/HDG-CONE-TILING-FROM-MEQ.md` is
-  their report with our reply; **it goes when meq accepts it.**
+  fixed-order rule under-resolves it. Their report and our reply were
+  `doc/HDG-CONE-TILING-FROM-MEQ.md`, closed and deleted at `50124ac48d`; what
+  the exchange established is on `VertexConePath`.
 
 * **Three dimensions, and the restriction is narrower than it reads.** The only
   refusal in the whole of `extension_hdg` is `VertexConePath`'s, at
-  `extension_hdg.cpp:145`. `ClosestPointPath`, `LevelSetPath`,
+  `extension_hdg.cpp:206`. `ClosestPointPath`, `LevelSetPath`,
   `ElementExtension`, `HDGExtensionIntegrator` and the three coefficients carry
   no dimension check at all. So this is not a port: it is running the
   dimension-generic half in three dimensions to find out what breaks, and
@@ -122,10 +128,22 @@ has to change for them to start**.
 composing driver — a full varying conduction tensor, a convective term along
 the strong direction and a volumetric sink in one operator — and it converges.
 
-**(d) is settled**: the degenerate order loss is asymptotic and is half an
-order, so `HDGFloorStabilization` recovers an order that is otherwise
-permanently lost rather than smoothing a transient. The sequences are on
-"HDG: a tau floor recovers the order a degeneracy costs".
+**(d) is settled, and half of what it used to say is withdrawn.** The
+*degenerate* order loss is asymptotic and `HDGFloorStabilization` does recover
+it; the sequences are on "HDG: a tau floor recovers the order a degeneracy
+costs", pinned to `n = 128`. The *anisotropic* half — which claimed the same
+floor bought back 1.49 → 2.00 — is **wrong, and was measured over a window
+that was entirely pre-asymptotic**. Taken to `n = 256`, floored and unfloored
+are identical to every printed digit from `n = 128` on, and the flux rate is
+`k` either way. The withdrawal, the mechanism (a floor cannot change the
+scaling of `τ`, only lift faces where the coefficient collapses, and that set
+shrinks with `h` here) and the replacement rate table are on
+`HDGFloorStabilization` and `HDGDiffusionIntegrator`.
+
+The table is the durable part: the built-in `O(1/h)` `τ` gives flux `k` and
+potential `k+2`, an `O(1)` `τ` gives `k+1` in both and is the theoretical
+best, and anisotropy costs a further half order in the flux that no `τ` here
+repairs.
 
 **(e) is settled too, and it turned out to be (d)'s mechanism rather than a
 second one.** The criterion for a singular reaction coefficient is whether the
@@ -161,26 +179,58 @@ What is left here is **not this branch's**, and both halves say so:
   closure itself on that branch and is not owed here.
 
 ## 5. `τ` for problems that are convection- and diffusion-dominated at once
+— ANSWERED
 
-**The question is a problem, not a method**: can one scalar `τ` serve a problem
-convection-dominated in one *coordinate direction* and diffusion-dominated in
-another, everywhere at once.
+**No, one scalar cannot serve both, and the obstruction is symmetry rather
+than magnitude.** `Eval()` on `HDGStabilization` returns one number per
+quadrature point, which the integrator applies to both sides of a face, so
+every `τ` reachable through that hook is symmetric in the sign of `u·n`.
+Upwinding is exactly the antisymmetric half, `±½α(u·n)`. That is a property of
+the interface and is now written on it.
 
-`anisodiff -p 11` is the linear-diffusion shape of exactly that and is **on
-this branch**, which makes this section actionable here and awkward on the
-siblings. The nonlinear half was swept on `gf-hdg-linearise-first` against
-Navier-Stokes and is written into that miniapp's header comment; its conclusion
-— that a direction-aware `S = λ_max(û,n) I` is 2.0–3.6× *worse* than the best
-constant `τ` and wins only on solvability — was reached on exact solutions
-whose sharp structure is all across the flow, which is what leaves the general
-question open.
+The measurements are on `anisodiff -p 11`'s convection block (what the centred
+and upwinded fluxes are each worth, by order and by `c`) and on
+`HDGConvectiveFloorStabilization` (the `β_c` sweep showing magnitude is not
+the missing ingredient). `-up`, `-vs` and `-tc` are the knobs that reach them.
+None of it is repeated here.
 
-## 6. Functionals of the solution — DONE
+**What is left, and it is a different question from the one this section
+asked.** The split is 9.5x better where convection dominates and 30% *worse*
+where diffusion does, so the choice is per face rather than per problem, and
+nothing selects it per face today. A convection integrator whose upwind
+strength varies with the local balance is the shape of that, and it is a new
+integrator rather than a stabilization hook — which is precisely what the
+symmetry finding above says. Not started, and not obviously owed: the scope
+note's line is that the *classic* NPC method is the job, and NPC section 2.4
+prescribes the plain split.
 
-`fem/darcy/functionals_hdg.hpp` carries what it does and does not. The
-per-field version for a system is on `gf-hdg-linearise-first`; here the scalar
-entry points refuse a system loudly, which is correct behaviour rather than a
-gap. The number is kept so commit messages citing "§6" land somewhere.
+## 6. Functionals of the solution — one thing left
+
+`fem/darcy/functionals_hdg.hpp` carries what it does and does not, for one
+field, which is what this branch's callers run.
+
+**One claim here was wrong and is withdrawn.** This entry said the scalar entry
+points "refuse a system loudly, which is correct behaviour rather than a gap".
+There is no `vdim` check anywhere in `functionals_hdg.{hpp,cpp}` on this branch,
+so nothing refuses. `FaceNormalFlux()` reads the flux with
+`GridFunction::GetVectorValue()`, and at `vdim > 1` that lands on one of two
+size mismatches depending on the space's range type: a vector-valued element
+takes the documented `GetVectorValue()` defect, `vshape.MultTranspose(loc_data,
+val)` applying a `dof`-row `vshape` to a `dof*vdim` `loc_data`; a scalar-valued
+one returns `val` at length `vdim` to meet a `nor` of length `dim` in the dot
+product here. **Both are guarded by `MFEM_ASSERT` only, and this tree configures
+`MFEM_DEBUG = NO`** — so in the build anyone here actually runs, both are
+compiled out and a system gets a number rather than a diagnostic.
+
+The per-field version *and* the `MFEM_VERIFY` are on `gf-hdg-linearise-first`
+(`functionals_hdg.cpp:97` there); neither was ever here.
+
+**What is NOT claimed**: that anything reaches this. No caller on this branch
+builds a total flux at `vdim > 1` — that is why the refusal was written on the
+sibling, where systems exist, and why this is a one-line carry-back rather than
+a defect report. Recording it that way is this file's own rule about "X is
+unguarded" being two claims. Carrying the refusal back is the only thing left in
+this section. The number is kept so commit messages citing "§6" land somewhere.
 
 ## 7. Adaptive refinement, and the estimator's fifth term
 

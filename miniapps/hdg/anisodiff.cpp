@@ -183,6 +183,9 @@ int main(int argc, char *argv[])
    pars.c = 0.;
    real_t td = 0.5;
    real_t tau_floor = 0.;
+   bool upwind = false;
+   bool vel_stab = false;
+   real_t tau_conv = 0.;
    bool bc_neumann = false;
    bool reduction = false;
    bool hybridization = false;
@@ -257,6 +260,24 @@ int main(int argc, char *argv[])
                   "makes vanish on the faces across the weak direction.");
    args.AddOption(&td, "-td", "--stab_diff",
                   "Diffusion stabilization factor (1/2=default)");
+   args.AddOption(&upwind, "-up", "--upwind", "-no-up", "--no-upwind",
+                  "Upwind the flow term's face flux (problem 11), adding "
+                  "tau_conv = |c.n|/2 to the diffusive stabilization instead "
+                  "of leaving the centred flux to be stabilized by the "
+                  "diffusion alone. This is NPC's s = s_diff + s_conv; see "
+                  "the convection block for what it is worth and when.");
+   args.AddOption(&vel_stab, "-vs", "--velocity-stab", "-no-vs",
+                  "--no-velocity-stab",
+                  "Give the flow velocity to HDGDiffusionIntegrator, which "
+                  "switches its built-in tau to the upwind-biased "
+                  "(beta +- alpha/2)(n.Q.n)/h and is what makes u.n visible "
+                  "to a stabilization hook at all. This is the CONTROL for "
+                  "-tc: it changes tau without adding a convective term.");
+   args.AddOption(&tau_conv, "-tc", "--tau-conv",
+                  "Install HDGConvectiveFloorStabilization with this "
+                  "beta_c, so tau = max(tau_diff, beta_c |c.n|). Implies "
+                  "-vs, without which u.n is zero and the floor is inert. "
+                  "1/2 matches the upwinded face flux's own coefficient.");
    args.AddOption(&bc_neumann, "-bcn", "--bc-neumann", "-no-bcn",
                   "--no-bc-neumann", "Enable Neumann outflow boundary condition.");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
@@ -467,8 +488,16 @@ int main(int argc, char *argv[])
    // Darcy form
    // Referenced by the face integrators below, not owned by them, so it is
    // declared before the form that will hold them.
-   unique_ptr<HDGFloorStabilization> stab;
-   if (tau_floor > 0.) { stab.reset(new HDGFloorStabilization(tau_floor)); }
+   unique_ptr<HDGStabilization> stab;
+   if (tau_conv > 0.)
+   {
+      // tau = max(tau_diff, beta_c |c.n|), floored again by -tf if given.
+      stab.reset(new HDGConvectiveFloorStabilization(tau_conv, tau_floor));
+   }
+   else if (tau_floor > 0.)
+   {
+      stab.reset(new HDGFloorStabilization(tau_floor));
+   }
 
    auto darcy = make_unique<DarcyForm>(V_space.get(), W_space.get());
 
@@ -596,7 +625,12 @@ int main(int argc, char *argv[])
       {
          auto stabilized = [&](void) -> HDGDiffusionIntegrator*
          {
-            auto *hdi = new HDGDiffusionIntegrator(kcoeff, td);
+            // Passing the velocity is what makes u.n reach the hook; it
+            // also changes the built-in value to the upwind-biased form, so
+            // -vs exists to run that change on its own as the control.
+            auto *hdi = (bconv && (vel_stab || tau_conv > 0.))
+            ? new HDGDiffusionIntegrator(*ccoeff, kcoeff, td)
+            : new HDGDiffusionIntegrator(kcoeff, td);
             if (stab) { hdi->SetStabilization(*stab); }
             return hdi;
          };
@@ -656,16 +690,56 @@ int main(int argc, char *argv[])
                   "the nonlinear form, which is a different code path.");
 
       // The conservative form, div(c T), matching the source in GetFFun().
-      // The face terms are the centred ones: with the flow along the field
-      // and the field sheared, the normal velocity changes sign across the
-      // domain, and upwinding is a different method whose rates are section
-      // 5's question rather than this problem's.
+      //
+      // The face flux is centred by default and upwinded under -up, and the
+      // difference between them is exactly the question section 5 asks. The
+      // centred flux carries no stabilization of its own, so the whole face
+      // term is held by the diffusive tau = beta (n.Q.n)/h that
+      // HDGDiffusionIntegrator builds; the upwinded one adds
+      // tau_conv = beta_u |c.n| with beta_u = alpha/2, which is NPC's split
+      // s = s_diff + s_conv. With the flow along the field and the field
+      // sheared, the normal velocity changes sign across the domain, so the
+      // upwind direction is not a fixed one and this is a genuine test of the
+      // split rather than of a uniformly-signed flux.
+      //
+      // WHAT THE TWO ARE WORTH, measured here at ks=1e-2, a=0, on 32..128
+      // cells, taking the best td of a six-decade sweep for each. Relative L2
+      // flux error, and the ratio centred/upwinded:
+      //
+      //     order  c     centred    upwinded   ratio
+      //     1      10    1.54e-04   1.11e-04   1.4
+      //     1      100   9.96e-04   1.05e-04   9.5
+      //     2      10    3.93e-07   5.27e-07   0.7
+      //     2      100   2.17e-06   5.95e-07   3.6
+      //
+      // So the split wins by ~10x where convection dominates and LOSES 30%
+      // where diffusion already does -- it adds beta|c.n| whether the face
+      // needs it or not, which is ordinary excess dissipation. Neither is the
+      // default answer; -up is the knob because the right choice is the
+      // problem's, not the miniapp's.
+      //
+      // Two things that sweep did settle, and both cost a wrong guess first.
+      // No single scalar tau matches the split: a six-decade sweep of -td
+      // crossed with a five-decade sweep of -tf leaves the centred flux 9.5x
+      // behind at order 1, c=100, and its error SATURATES as td -> 0 because
+      // removing the diffusive tau leaves the centred flux with no
+      // stabilization at all. And the obstruction is symmetry rather than
+      // magnitude -- see -tc and HDGConvectiveFloorStabilization, which has
+      // the right magnitude by construction and recovers almost none of it.
+      //
+      // The coarse-mesh blow-up at large c is NOT a stabilization question:
+      // it tracks the parallel cell Peclet c*h/kappa_par, recovering near 30
+      // at ks = 1, 1e-1 and 1e-2 alike, so the anisotropy plays no part. No
+      // tau of any kind repairs it and refinement always does.
       BilinearForm *Mt = darcy->GetPotentialMassForm();
       Mt->AddDomainIntegrator(new ConservativeConvectionIntegrator(*ccoeff));
-      Mt->AddInteriorFaceIntegrator(
-         new HDGConvectionCenteredIntegrator(*ccoeff));
-      Mt->AddBdrFaceIntegrator(new HDGConvectionCenteredIntegrator(*ccoeff),
-                               bdr_is_neumann);
+      auto conv_int = [&](void) -> BilinearFormIntegrator*
+      {
+         if (upwind) { return new HDGConvectionUpwindedIntegrator(*ccoeff); }
+         return new HDGConvectionCenteredIntegrator(*ccoeff);
+      };
+      Mt->AddInteriorFaceIntegrator(conv_int());
+      Mt->AddBdrFaceIntegrator(conv_int(), bdr_is_neumann);
    }
 
    // Inertial term

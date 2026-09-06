@@ -131,6 +131,18 @@ public:
     A derived class that leaves IsConstant() true costs nothing at run time:
     the integrators query it once per face, never per quadrature point.
 
+    **What this hook cannot express, which is worth knowing before writing a
+    subclass.** Eval() returns ONE number per quadrature point and the
+    integrator applies it to both sides of the face, so every stabilization
+    reachable through here is *symmetric* in the sign of $u \cdot n$.
+    Upwinding is not: the upwinded face flux carries $\tau_\pm =
+    \beta|u\cdot n| \pm \tfrac12\alpha(u\cdot n)$, whose antisymmetric half
+    is the whole point of it. So a convection-dominated face cannot be served
+    by any $\tau$ from this interface, however it is scaled -- measured, and
+    the numbers are on HDGConvectiveFloorStabilization. Convective upwinding
+    belongs on the convection integrator; this hook is for shaping the
+    symmetric part.
+
     A class that returns false makes the face term nonlinear in the unknowns
     even for a linear equation, so it is only meaningful on the residual and
     gradient assembly, which are the only paths that see the state. The
@@ -182,16 +194,43 @@ public:
     * a coefficient that **degenerates** on part of the boundary, where
       $Q \to 0$ and the potential loses order -- 2.18 against a clean 2.99 at
       $k = 2$;
-    * a coefficient that is **anisotropic**, where $Q$ does not vanish at all
-      but $\hat n \cdot Q \hat n$ is $\kappa_\perp$ on a face whose normal
-      lies across the field, and the *flux* loses order -- 1.49 against 2.00 at
-      $k = 1$ and $\kappa_\perp/\kappa_\parallel = 10^{-2}$.
+    * ~~a coefficient that is **anisotropic**~~ -- **this second claim is
+      withdrawn; see below.** It read "the *flux* loses order -- 1.49 against
+      2.00 at $k = 1$ and $\kappa_\perp/\kappa_\parallel = 10^{-2}$", and a
+      floor does not buy that back.
 
-    In both the misbehaviour to fear is $\tau \to 0$ rather than
-    $\tau \to \infty$, and in both the remedy is the same: refuse the small
-    values and keep the large ones. That is what this does. It is a floor and
-    not a replacement, so on faces where the built-in value is already big
-    enough -- the ones aligned with the strong direction -- nothing changes.
+    For the degeneracy the misbehaviour to fear is $\tau \to 0$ and the remedy
+    is to refuse the small values and keep the large ones. That is what this
+    does. It is a floor and not a replacement, so on faces where the built-in
+    value is already big enough -- the ones aligned with the strong direction
+    -- nothing changes.
+
+    **What the anisotropic claim got wrong, measured over a longer sequence
+    than it was.** The original ran $n = 8$ to $64$, and on this problem every
+    mesh in that window is pre-asymptotic. Taken to $n = 256$ on
+    `anisodiff -p 11` at $\kappa_\perp/\kappa_\parallel = 10^{-2}$, `-tf 1`
+    against `-tf 0` differs by 27% at $n = 8$ and is **identical to every
+    printed digit from $n = 128$ onwards**, at $k = 1$ and $k = 2$ alike; the
+    flux rate converges to $1.00$ and $2.02$ -- that is $k$ -- with the floor
+    and without it. At $k = 2$ the pre-asymptotic rates read 3.28 and 3.25
+    before falling to 2.02, so a sweep stopping at $n = 32$ reports the design
+    order and is wrong.
+
+    The reason is structural rather than particular to that problem: this floor
+    binds only where $\hat n \cdot Q \hat n < \tau_{min} h / \beta$, and the
+    built-in value grows like $1/h$, so the binding set shrinks under
+    refinement -- on a sheared field it contracts onto the isolated points
+    where the field meets a mesh direction. **A floor cannot change the
+    scaling of $\tau$; it can only lift faces where the coefficient
+    collapses.** Where the collapse is on a fixed set, as in the degeneracy
+    above, it lifts a fixed set and the order really is recovered -- which is
+    why the degenerate half stands and is pinned to $n = 128$ by
+    "HDG: a tau floor recovers the order a degeneracy costs".
+
+    What the anisotropy actually costs, and what recovers what, is the rate
+    table on HDGDiffusionIntegrator: an $O(1)$ $\tau$ buys the flux order the
+    $O(1/h)$ default gives up, and half an order remains that belongs to the
+    anisotropy itself and that no $\tau$ here repairs.
 
     The floor is an absolute stabilization, so it is the $\eta_d = \kappa/\ell$
     of Nguyen, Peraire and Cockburn section 3.6.3 with $\ell$ a fixed problem
@@ -215,6 +254,78 @@ public:
 };
 
 
+/** @brief A stabilization that is never below the CONVECTIVE scale either.
+
+    `HDGFloorStabilization` above answers $\tau \to 0$ arriving from the
+    diffusion. This answers the other way a face can be under-stabilized: the
+    problem is convection-dominated there, and a $\tau$ built from the
+    diffusion alone knows nothing about it.
+
+    $$\tau = \max\left(s_{diff},\ \beta_c |u \cdot n|\right),$$
+    optionally floored again by an absolute @a tau_min.
+
+    **It does not do what it looks like it should, and the measurement is the
+    reason to keep reading.** The obvious use -- replacing the upwinded face
+    flux with a stabilization that carries the same convective magnitude --
+    does not work, and not because the magnitude is wrong. On
+    `anisodiff -p 11`, order 1, $\kappa_\perp/\kappa_\parallel = 10^{-2}$,
+    $c = 100$, $64\times64$, relative $L^2$ flux error:
+
+        beta_c        0.125    0.25     0.5      1        2        4        8       16
+        this class    3.555e-3 3.558e-3 3.566e-3 3.580e-3 3.609e-3 3.665e-3 3.772e-3 3.977e-3
+        -vs alone     3.551e-3     (the same tau without the convective floor)
+        no velocity   3.993e-3     (the plain symmetric built-in)
+        upwinded flux 1.467e-3     (HDGConvectionUpwindedIntegrator)
+
+    A 128x sweep of $\beta_c$ moves the error by 12%, *monotonically the wrong
+    way*, and interpolates between the two symmetric endpoints rather than
+    approaching the upwinded one. At $\beta_c = 16$ the floor binds on every
+    face with $|u\cdot n| > 0.02\,|c|$, so it is certainly firing.
+
+    **The obstruction is symmetry, not size.** `Eval` returns one number per
+    quadrature point, which the integrator applies to both sides of the face.
+    The upwinded flux applies $\tau_\pm = \beta|u\cdot n| \pm
+    \tfrac12\alpha(u\cdot n)$, which is *antisymmetric* in the sign of
+    $u\cdot n$ -- that is what upwinding is. No scalar returned from this hook
+    can express it, whatever it is scaled by.
+
+    Worse, it can destroy an asymmetry that is already there. Constructed as
+    `HDGDiffusionIntegrator(v, Q, a)` the built-in carries $\alpha = a$ and
+    $\beta = a/2$, so the weight is $\beta \pm \alpha/2$ -- $a$ on the upwind
+    side and **exactly zero on the downwind side**. A maximum lifts that
+    deliberate zero and symmetrizes the face. Combining this class with
+    `HDGConvectionUpwindedIntegrator` therefore diverges rather than
+    reinforcing: the same case gives a relative flux error of 7.6e+04.
+
+    So this is a floor for a $\tau$ that is *meant* to be symmetric -- the
+    convective analogue of HDGFloorStabilization, useful where the diffusive
+    scale collapses and some stabilization is wanted -- and it is **not** a
+    route to an upwinded method. For that, put the upwinded integrator on the
+    potential mass form.
+
+    Constant, so the bilinear assembly path accepts it. */
+class HDGConvectiveFloorStabilization : public HDGStabilization
+{
+   real_t beta_c, tau_min;
+
+public:
+   /** @param beta_c_ the multiple of $|u \cdot n|$ a face must carry; $1/2$
+                      matches `HDGConvectionUpwindedIntegrator`'s default.
+       @param tau_min_ an absolute floor applied after the maximum, as in
+                       HDGFloorStabilization. Zero disables it. */
+   HDGConvectiveFloorStabilization(real_t beta_c_ = 0.5, real_t tau_min_ = 0.)
+      : beta_c(beta_c_), tau_min(tau_min_) { }
+
+   real_t Eval(real_t s_diff, real_t un, real_t, real_t,
+               ElementTransformation &) const override
+   {
+      const real_t s_conv = beta_c * std::abs(un);
+      const real_t s = (s_diff > s_conv) ? s_diff : s_conv;
+      return (s > tau_min) ? s : tau_min;
+   }
+};
+
+
 /** Integrator for the H/LDG diffusion stabilization term
     The LDG stabilization takes the form
     $$
@@ -230,7 +341,51 @@ public:
     \end{align}$$
     where $\tau_\pm = (\beta \pm 1/2 \alpha (u \cdot n) / |u \cdot n|) \{h^{-1} Q\}$
     and $\lambda$, $\mu$ are the trial and test trace functions, respectively. The vector
-    coefficient $u$ is assumed continuous across the faces. */
+    coefficient $u$ is assumed continuous across the faces.
+
+    ### Which $\tau$ recovers which rate, and what this one costs
+
+    **The value built here is $O(1/h)$, and that is a trade rather than a
+    defect.** $\tau = \beta (\hat n \cdot Q \hat n)/h$ grows without bound
+    under refinement, which is the LDG-H regime that buys a superconvergent
+    potential at the price of a suboptimal flux. Measured on
+    `anisodiff -p 11` with no flow, quadrilaterals, equal-order $L^2$ flux,
+    potential and `DG_Interface` trace all of degree $k$, over $n = 8$ to
+    $256$ -- and taken to $256$ because everything below $64$ is still
+    pre-asymptotic here:
+
+        tau            aniso        k=1 flux  k=1 pot   k=2 flux  k=2 pot
+        beta Q/h       kperp/kpar=1     1.01     ~2.9       1.96     ~3.6
+        (this, O(1/h)) kperp/kpar=1e-2  1.00      2.86      2.02      3.98
+        O(1)           kperp/kpar=1     2.02      2.03      2.99      2.99
+        (beta ~ h)     kperp/kpar=1e-2  1.43      1.92      2.59      2.89
+
+    Read the two blocks against $k+1$, the best a degree-$k$ space can do:
+
+    * **$O(1/h)$ gives the flux $k$ and the potential $k+2$.** One order below
+      optimal in the flux, one *above* it in the potential -- the potential is
+      superconverging without any postprocessing. If the potential is the
+      quantity of interest this is the better default, and it is the default.
+    * **$O(1)$ gives $k+1$ in both, and that is the theoretical best.** It is
+      reached exactly: 2.02 and 2.99 in the flux, 2.03 and 2.99 in the
+      potential, flat over the last three refinements. Get it by scaling
+      $\beta \propto h$ -- `anisodiff -td` divided by the cell count is what
+      produced the rows above -- not by HDGFloorStabilization, which cannot
+      (see below).
+    * **Anisotropy costs a further half order in the flux and nothing in the
+      potential**, and it is the one loss no $\tau$ scaling here repairs:
+      $1.43$ and $2.59$ against $2.02$ and $2.99$, settled at $n = 256$. That
+      is $k+\tfrac12$, and it is a separate phenomenon from the scaling above.
+
+    **A floor cannot deliver the $O(1)$ row.** `HDGFloorStabilization` raises
+    $\tau$ where the built-in value is small, but the built-in value grows like
+    $1/h$, so any fixed floor is overtaken everywhere as the mesh refines. On
+    the anisotropic case the floor binds only where
+    $\hat n \cdot Q \hat n < \tau_{min} h/\beta$, a set that shrinks with
+    $h$; measured, `-tf 1` against `-tf 0` differs by 27% at $n=8$ and is
+    **identical to every printed digit at $n = 128$ and $n = 256$**, at both
+    orders. It is a repair for faces where the coefficient collapses, not a
+    route to a different scaling. */
 class HDGDiffusionIntegrator : public BilinearFormIntegrator
 {
 protected:
