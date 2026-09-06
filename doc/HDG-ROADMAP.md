@@ -224,12 +224,28 @@ entry claimed. The findings are in the code and in
 `tests/unit/fem/test_darcy_nullmode.cpp`; the number is kept for commit
 messages.
 
-## Optional A. Interpolatory evaluation of the nonlinear coefficient
+## Optional A. Interpolatory evaluation of the nonlinear coefficient — WITHDRAWN
 
-Optional, and *purely* so — the secondary payoff it used to claim, that it is
-what makes the classic local postprocessing general in `vdim`, has been
-overtaken: that postprocessing already is. Nothing in `fem/darcy` interpolates
-a coefficient or holds a `QuadratureFunction`. **CCSZ-I** is the reference.
+**Measured, and not worth building.** The measurement lives on the two rule
+selections in `MixedConductionNLFIntegrator`, `fem/nonlininteg_mixed.cpp`,
+which is what it is about; the two `//<---` markers that used to flag those
+lines as uncertain are answered and gone.
+
+The short of it. The entry's payoff was the over-integration an interpolant
+lets you skip, and **nothing here over-integrates** — bumping the rule by 16 on
+convdiff's nonlinear diffusion takes 193k quadrature points to 2.6M and moves
+neither L2 error in any printed digit. Nor would an interpolant evaluate the
+flux law less often: this rule carries `(k+1)^d` points on a tensor-product
+element and an L2 space of order `k` has `(k+1)^d` dofs, so the ratio is 1.00
+at every order. On the Gauss-Lobatto basis the miniapps build with, it is 4x
+to 260x *less* accurate than the rule it would replace; on the L2 default
+Gauss-Legendre basis it is bit-identical, the nodes being the quadrature
+points. The one structural win — an `O(nq)` cheaper gradient — is capped at
+6-11% of a solve, the two element routines being 9-21% of one.
+
+**CCSZ-I is not wrong**; its cost model assumes an over-integration this code
+does not do. The number is kept so commit messages citing "Optional A" land
+somewhere.
 
 ## Optional B. Superconvergence at `k = 0` — the HHO-inspired methods
 
@@ -264,7 +280,8 @@ the code that implements them.
   fifth term §7 wants.
 * **CCSZ-I** — Chen, Cockburn, Singler & Zhang, *Superconvergent interpolatory
   HDG methods for reaction diffusion equations I*, J. Sci. Comput. **81**
-  (2019) 2188. Optional A, and its Table 1 is the `k = 0` limit Optional B is
-  about.
+  (2019) 2188. Its Table 1 is the `k = 0` limit Optional B is about, which is
+  why it is still here; Optional A, which it was the reference for, is
+  withdrawn.
 * **CCSZ-II** — *… II: HHO-inspired methods*, Commun. Appl. Math. Comput. **4**
   (2022) 477. Optional B.
