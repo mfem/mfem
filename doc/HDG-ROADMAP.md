@@ -284,15 +284,21 @@ stands for a better reason than the one it used to give, with
 covered. It is also not ours by the scope note. The numbers are on
 `NPCCheck()`.
 
-* **A trace-assembled load still has no slot** in `DarcyForm`, on either
-  route. Where the caller puts it instead is measured and pinned; adding a
-  real slot would move the reduced route too, and nobody has asked. Ours in
-  kind, unasked in fact.
-* **A regression case is on offer and has not been taken.** meq's transport
-  barrier is the case that used to throw out of `NewtonSolver::Mult`'s
-  `IsFinite` check at iteration zero, and nothing here reproduces that fault —
-  the only evidence the divergence guard fixed it is theirs. Worth taking
-  before the guard is ever touched.
+* ~~A trace-assembled load still has no slot~~ — **built.**
+  `DarcyForm::GetTraceRHS()` is the third load beside `GetFluxRHS()` and
+  `GetPotentialRHS()`, and **both routes carry it with no caller wiring**:
+  `DarcyHybridization::ReduceRHS()` adds `P^T b_λ` to the reduced right-hand
+  side and `NPCResidual()` subtracts it from the trace block, which is the
+  same convention read off `r = A x - b`. The sign, the API and the reason
+  the registration happens at construction rather than at `Assemble()` are on
+  the accessor; the pin is "A load on the skeleton reaches both routes" in
+  `tests/unit/fem/test_darcy_npc.cpp`, which compares VECTORS against the
+  hand-added answer because a wrong sign converges.
+* ~~A regression case is on offer and has not been taken~~ — **taken**, in
+  `55465de4e9`: "A transport barrier diverges without going non-finite",
+  `tests/unit/fem/test_darcy_npc.cpp:2441`. This entry outlived the commit
+  that closed it by two sessions, which is the reason for the scope note at
+  the top of this file about what markdown is for.
 
 ## Deliberately not being done here
 

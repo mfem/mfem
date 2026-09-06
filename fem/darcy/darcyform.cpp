@@ -131,6 +131,26 @@ LinearForm *DarcyForm::GetPotentialRHS()
    return b_p.get();
 }
 
+LinearForm *DarcyForm::GetTraceRHS()
+{
+   if (!b_t)
+   {
+      MFEM_VERIFY(hybridization,
+                  "GetTraceRHS() needs the constraint space, so it has to "
+                  "follow EnableHybridization()");
+      b_t.reset(new LinearForm(
+                   const_cast<FiniteElementSpace*>(
+                      hybridization->ConstraintFESpace())));
+      // Registered HERE and not in Assemble(), so that the order the caller
+      // reaches for the form in cannot matter. Doing it in Assemble() meant a
+      // caller who filled the form afterwards -- which is the natural order
+      // for a load that is computed rather than assembled from integrators --
+      // silently got no load at all.
+      hybridization->SetTraceRHS(b_t.get());
+   }
+   return b_t.get();
+}
+
 void DarcyForm::SetAssemblyLevel(AssemblyLevel assembly_level)
 {
    assembly = assembly_level;
@@ -542,6 +562,11 @@ void DarcyForm::Assemble(int skip_zeros)
       b_p->Assemble();
       b_p->SyncAliasMemory(*block_b);
    }
+
+   // The skeleton load owns its storage and is not part of block_b, so it is
+   // assembled here and handed to the hybridization, which is what makes both
+   // routes carry it without the caller wiring anything.
+   if (b_t) { b_t->Assemble(); }
 }
 
 void DarcyForm::Finalize(int skip_zeros)
@@ -2089,6 +2114,9 @@ void DarcyForm::Update()
    if (Mnl) { Mnl->Update(); }
    if (b_u) { b_u->Update(fes_u, block_b->GetBlock(0), 0); }
    if (b_p) { b_p->Update(fes_p, block_b->GetBlock(1), 0); }
+   // The skeleton load owns its storage, so it re-sizes rather than
+   // re-references. The hybridization's borrowed pointer stays valid.
+   if (b_t) { b_t->Update(); }
 
    opBt.Clear();
 

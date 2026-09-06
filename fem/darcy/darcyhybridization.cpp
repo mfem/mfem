@@ -3501,6 +3501,27 @@ void DarcyHybridization::AssembleHDGGrad(
    if (elmat_H.Height() != 0) { H_f += elmat_H; }
 }
 
+void DarcyHybridization::AddTraceRHS(Vector &b_tr, real_t a) const
+{
+   if (!trace_rhs) { return; }
+
+   MFEM_VERIFY(trace_rhs->Size() == c_fes.GetVSize(),
+               "the skeleton load is " << trace_rhs->Size() << " long and the "
+               "constraint space has " << c_fes.GetVSize() << " L-dofs");
+
+   const Operator *tr_P = TraceProlongation();
+   if (tr_P)
+   {
+      // b_tr is in TRUE dofs and the load is assembled in L-dofs, so it
+      // arrives the way any linear form does: through P^T.
+      tr_P->AddMultTranspose(*trace_rhs, b_tr, a);
+   }
+   else
+   {
+      b_tr.Add(a, *trace_rhs);
+   }
+}
+
 void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 {
    const Operator *tr_cP = NULL;
@@ -3703,6 +3724,14 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
          tr_P->AddMultTranspose(b_r, b_tr);
       }
    }
+
+   // A load assembled on the SKELETON, if the caller registered one. It is a
+   // right-hand side, so it ADDS here and SUBTRACTS from the NPC residual --
+   // the two are the same convention read off r = A x - b. Getting this sign
+   // wrong does not stop the solve converging: it converges to a different
+   // answer, measured at 0.2% in the norm of the trace and 128.7 in the
+   // vector, so a test that compares norms passes on it.
+   AddTraceRHS(b_tr);
 }
 
 void DarcyHybridization::ProjectSolution(const BlockVector &sol,
@@ -3833,6 +3862,12 @@ void DarcyHybridization::NPCResidual(const BlockVector &b, const BlockVector &x,
    // The trace row is the only one shared between ranks, so it is the only
    // one that has to be assembled.
    if (tr_P) { tr_P->MultTranspose(r_tr_l, r_tr); }
+
+   // A load assembled on the SKELETON, if one is registered. It SUBTRACTS
+   // here and ADDS in ReduceRHS(), r = A x - b being the same convention read
+   // both ways. It goes in before the essential rows are cleared, so a load
+   // sitting on an essential dof is discarded rather than fighting the datum.
+   AddTraceRHS(r_tr, -1.0);
 
    // Essential trace dofs, carried exactly as Mult() carries them: the values
    // ride in x_tr, the residual is zero on those rows, and NPCGradient()

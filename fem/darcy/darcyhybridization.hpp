@@ -284,6 +284,15 @@ protected:
    bool bsym{};      ///< sign convention, see DarcyReduction()
    bool bfin{};      ///< indicates finalized hybridization
    bool bnpc{};      ///< NPC requested on a form that may be linear
+   /** @brief A load assembled on the SKELETON, in L-dofs of @a c_fes, or null.
+
+       DarcyForm owns it -- see DarcyForm::GetTraceRHS() -- and registers it
+       here through SetTraceRHS() so that BOTH routes carry it without the
+       caller wiring anything: ReduceRHS() adds @f$P^T b_\lambda@f$ to the
+       reduced right-hand side, and NPCResidual() subtracts it from the trace
+       block, which is the same convention read off
+       @f$r = A x - b@f$. Borrowed, not owned. */
+   const Vector *trace_rhs{};
    DiagonalPolicy diag_policy{DIAG_ONE};  ///< diagonal policy
    /** @brief Essential *trace* true DOFs, in the constraint space @a c_fes.
 
@@ -1077,6 +1086,24 @@ public:
        @note This forecloses the reduced route on the same assembly:
        DarcyForm::FormLinearSystem() has no reduced H to hand back and aborts.
        They are different methods; comparing them needs two assemblies. */
+   /** @brief Register a load assembled on the skeleton, in L-dofs of the
+       constraint space, or null to clear it.
+
+       Callers do not normally reach for this: DarcyForm::Assemble() registers
+       DarcyForm::GetTraceRHS() here. It is public because a caller driving
+       this class without a DarcyForm has no other way in.
+
+       The vector is BORROWED and must outlive the next ReduceRHS() or
+       NPCResidual(). */
+   void SetTraceRHS(const Vector *b_tr_load) { trace_rhs = b_tr_load; }
+
+   /// The registered skeleton load, or null.
+   const Vector *GetTraceRHS() const { return trace_rhs; }
+
+   /** @brief Add @f$P^T b_\lambda@f$ of the registered skeleton load into a
+       reduced (true-dof) trace vector. Does nothing if none is registered. */
+   void AddTraceRHS(Vector &b_tr, real_t a = 1.0) const;
+
    void EnableNPC();
 
    /** @name The NPC method: Newton on the full (q, u, lambda) system

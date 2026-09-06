@@ -115,6 +115,11 @@ protected:
    std::unique_ptr<BlockNonlinearForm> Mnl;
    std::unique_ptr<LinearForm> b_u;         ///< flux r.h.s
    std::unique_ptr<LinearForm> b_p;         ///< potential r.h.s.
+   /** @brief Skeleton r.h.s., on the hybridization's constraint space.
+
+       Unlike @a b_u and @a b_p this owns its storage: @a block_b has two
+       blocks and the skeleton is not one of them. */
+   std::unique_ptr<LinearForm> b_t;
 
    mutable OperatorHandle opM_u;    ///< flux mass operator
    mutable OperatorHandle opM_p;    ///< potential mass operator
@@ -289,6 +294,37 @@ public:
 
    /// Get the potential right-hand-side form (const)
    const LinearForm *GetPotentialRHS() const { return b_p.get(); }
+
+   ///@}
+
+   /// @name Skeleton r.h.s.
+   ///@{
+
+   /** @brief Get the right-hand-side form on the SKELETON (non-const).
+
+       The third load of the three, and the one this class went without for a
+       long time: a term tested against the trace unknown -- a prescribed
+       numerical flux, a Neumann datum taken weakly on the skeleton -- had no
+       slot, and callers added it by hand to whichever vector their route
+       exposed. Both routes carry it now, and neither needs the caller to do
+       anything beyond assembling into this form.
+
+       @note Requires EnableHybridization() first: the constraint space is not
+             known before that, and this form is built on it. The form is
+             constructed if it has not been already.
+
+       @note The sign is a right-hand side, matching GetFluxRHS() and
+             GetPotentialRHS(): it is ADDED to the reduced trace system and
+             SUBTRACTED from the NPC residual, which are the same convention
+             read off @f$r = A x - b@f$. Worth stating because getting it
+             wrong does NOT stop a solve converging -- it converges to a
+             different answer, by 0.2% in the norm of the trace and 128.7 in
+             the vector on the case that measured it. A test comparing norms,
+             or checking only that Newton converged, passes on a sign error. */
+   LinearForm *GetTraceRHS();
+
+   /// Get the skeleton right-hand-side form (const)
+   const LinearForm *GetTraceRHS() const { return b_t.get(); }
 
    ///@}
 

@@ -2805,3 +2805,245 @@ TEST_CASE("NPC agrees with condensation on a periodic mesh with a boundary term"
    REQUIRE(r.GetBlock(1).Norml2() < 1e-10);
    REQUIRE(r_tr.Norml2() < 1e-10);
 }
+
+namespace darcy_trace_load
+{
+
+/// A constant stabilization, so the face blocks do not depend on the mesh.
+class FixedTau : public HDGStabilization
+{
+public:
+   explicit FixedTau(real_t t) : tau(t) { }
+   bool IsConstant() const override { return true; }
+   real_t Eval(real_t, real_t, real_t, real_t,
+               ElementTransformation &) const override { return tau; }
+private:
+   real_t tau;
+};
+
+/// A linear hybridized Darcy problem, optionally carrying a load on the
+/// SKELETON through DarcyForm::GetTraceRHS().
+struct TraceLoadHDG
+{
+   Mesh mesh;
+   L2_FECollection u_coll, p_coll;
+   DG_Interface_FECollection t_coll;
+   FiniteElementSpace Vh, Wh, Mh;
+   ConstantCoefficient one, src;
+   FixedTau tau;
+   DarcyForm darcy;
+   Array<int> all, ess_flux, offs;
+   BlockVector sol, rhs;
+   Vector X, RHS;
+   OperatorPtr R;
+
+   TraceLoadHDG(int n, int order, bool npc)
+      : mesh(Mesh::MakeCartesian2D(n, n, Element::TRIANGLE, false, 0.8, 1.2)),
+        u_coll(order, 2, BasisType::GaussLobatto),
+        p_coll(order, 2, BasisType::GaussLobatto),
+        t_coll(order, 2),
+        Vh(&mesh, &u_coll, 2), Wh(&mesh, &p_coll), Mh(&mesh, &t_coll),
+        one(1.0), src(1.0), tau(1.0), darcy(&Vh, &Wh), offs(4)
+   {
+      darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+
+      all.SetSize(mesh.bdr_attributes.Max());
+      all = 1;
+
+      BilinearForm *M_p = darcy.GetPotentialMassForm();
+      auto *interior = new HDGDiffusionIntegrator(one, 1.0);
+      auto *boundary = new HDGDiffusionIntegrator(one, 1.0);
+      interior->SetStabilization(tau);
+      boundary->SetStabilization(tau);
+      M_p->AddInteriorFaceIntegrator(interior);
+      M_p->AddBdrFaceIntegrator(boundary, all);
+
+      MixedBilinearForm *B = darcy.GetFluxDivForm();
+      B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+      B->AddInteriorFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+      B->AddBdrFaceIntegrator(
+         new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+      darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+
+      darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+      // Matching LinearFormHDG above: without this the two routes do not
+      // agree on this problem at all, load or no load, and the case would be
+      // measuring that instead of the skeleton load.
+      darcy.GetHybridization()->SetEssentialBC(all);
+      if (npc) { darcy.GetHybridization()->EnableNPC(); }
+      darcy.Assemble();
+
+      offs[0] = 0;
+      offs[1] = Vh.GetVSize();
+      offs[2] = Wh.GetVSize();
+      offs[3] = Mh.GetVSize();
+      offs.PartialSum();
+      sol.Update(offs);
+      rhs.Update(offs);
+      sol = 0.0;
+      rhs = 0.0;
+
+      darcy.GetPotentialRHS()->Assemble();
+      rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+   }
+
+   /// A reproducible, sign-asymmetric skeleton load: no symmetry of the mesh
+   /// or the problem can make its sign invisible.
+   void SetLoad(real_t scale)
+   {
+      // LinearForm::operator() is the functional application against a
+      // GridFunction, so the Vector one has to be reached through the base.
+      Vector &bt = *darcy.GetTraceRHS();
+      for (int i = 0; i < bt.Size(); i++)
+      {
+         bt(i) = scale * (1.0 + std::sin(3.0 * i) + 0.25 * (i % 7));
+      }
+   }
+
+   void Form()
+   {
+      X.MakeRef(sol, offs[2], Mh.GetVSize());
+      RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+      BlockVector dsol(sol, darcy.GetOffsets()), drhs(rhs, darcy.GetOffsets());
+      darcy.FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+   }
+
+   void SolveCondensed(BlockVector &out)
+   {
+      SparseMatrix *Hm = dynamic_cast<SparseMatrix*>(R.Ptr());
+      REQUIRE(Hm != nullptr);
+      UMFPackSolver lin(*Hm);
+      lin.Mult(RHS, X);
+      out.Update(sol, darcy.GetOffsets());
+      darcy.RecoverFEMSolution(X, out);
+   }
+
+   BlockVector load() { return BlockVector(rhs, darcy.GetOffsets()); }
+};
+
+} // namespace darcy_trace_load
+
+/**
+ * @brief A load assembled on the SKELETON reaches both routes.
+ *
+ * DarcyForm offered GetFluxRHS() and GetPotentialRHS() and nothing for the
+ * trace, so a term tested against the trace unknown had no slot and callers
+ * added it by hand -- to the reduced right-hand side on one route, and
+ * between NPCResidual() and NPCReduce() on the other. GetTraceRHS() is that
+ * slot, and both routes carry it with no caller wiring.
+ *
+ * THE SIGN IS WHAT THIS PINS, and it is pinned by comparing VECTORS against
+ * the hand-added answer rather than norms. A wrong sign does not stop either
+ * route converging: it converges to a different answer, measured at 0.2% in
+ * the norm of the trace and 128.7 in the vector, so a test that compared
+ * norms, or only checked that Newton converged, would pass on it. The load
+ * below is deliberately sign-asymmetric for the same reason -- no symmetry of
+ * the mesh or the problem can hide a flip.
+ *
+ * The zero-load section is the inert control: registering a slot and putting
+ * nothing in it must reproduce the no-slot answer to the last bit.
+ */
+TEST_CASE("A load on the skeleton reaches both routes",
+          "[DarcyForm][NonlinearDarcy][HDG][NPC]")
+{
+   using namespace darcy_trace_load;
+
+   const int order = GENERATE(0, 1, 2);
+   const real_t scale = GENERATE(0.05, 1.0);
+   CAPTURE(order, scale);
+
+   // What a caller had to do before the slot existed: add the load to the
+   // reduced right-hand side by hand.
+   TraceLoadHDG manual(4, order, false);
+   manual.Form();
+   Vector byhand(manual.Mh.GetVSize());
+   for (int i = 0; i < byhand.Size(); i++)
+   {
+      byhand(i) = scale * (1.0 + std::sin(3.0 * i) + 0.25 * (i % 7));
+   }
+   // A load sitting on an ESSENTIAL trace dof is discarded -- the datum is
+   // prescribed there and a load has nothing to add to it -- so the
+   // hand-added comparison has to discard it too, or it is comparing two
+   // different problems rather than two routes through one.
+   byhand.SetSubVector(manual.darcy.GetHybridization()->GetEssentialTrueDofs(),
+                       0.0);
+   manual.RHS += byhand;
+   BlockVector msol;
+   manual.SolveCondensed(msol);
+
+   // And what it does now.
+   TraceLoadHDG slot(4, order, false);
+   slot.SetLoad(scale);
+   slot.Form();
+   BlockVector ssol;
+   slot.SolveCondensed(ssol);
+
+   SECTION("the reduced route reproduces the hand-added answer, vector by vector")
+   {
+      REQUIRE(msol.GetBlock(1).Norml2() > 1e-3);
+
+      Vector d(ssol.GetBlock(1));
+      d -= msol.GetBlock(1);
+      Vector dq(ssol.GetBlock(0));
+      dq -= msol.GetBlock(0);
+      CAPTURE(d.Norml2(), dq.Norml2(), msol.GetBlock(1).Norml2());
+      REQUIRE(d.Norml2() < 1e-11 * msol.GetBlock(1).Norml2());
+      REQUIRE(dq.Norml2() < 1e-11 * msol.GetBlock(0).Norml2());
+   }
+
+   SECTION("the load actually moves the answer")
+   {
+      // Otherwise the section above would pass on a slot that did nothing.
+      TraceLoadHDG none(4, order, false);
+      none.Form();
+      BlockVector nsol;
+      none.SolveCondensed(nsol);
+
+      Vector d(ssol.GetBlock(1));
+      d -= nsol.GetBlock(1);
+      CAPTURE(d.Norml2(), nsol.GetBlock(1).Norml2());
+      REQUIRE(d.Norml2() > 1e-6 * nsol.GetBlock(1).Norml2());
+   }
+
+   SECTION("an empty slot is inert")
+   {
+      TraceLoadHDG none(4, order, false);
+      none.Form();
+      BlockVector nsol;
+      none.SolveCondensed(nsol);
+
+      TraceLoadHDG empty(4, order, false);
+      empty.SetLoad(0.0);            // registers the slot, puts nothing in it
+      empty.Form();
+      BlockVector esol;
+      empty.SolveCondensed(esol);
+
+      Vector d(esol.GetBlock(1));
+      d -= nsol.GetBlock(1);
+      CAPTURE(d.Norml2());
+      REQUIRE(d.Norml2() < 1e-13 * std::max(nsol.GetBlock(1).Norml2(),
+                                            real_t(1.0)));
+   }
+
+   SECTION("NPC carries the same load, and the reduced answer is its root")
+   {
+      TraceLoadHDG P(4, order, true);
+      P.SetLoad(scale);
+      P.Form();
+
+      DarcyHybridization &dh = *P.darcy.GetHybridization();
+      BlockVector bl = P.load(), xc(P.darcy.GetOffsets()),
+                  r(P.darcy.GetOffsets());
+      xc.GetBlock(0) = ssol.GetBlock(0);
+      xc.GetBlock(1) = ssol.GetBlock(1);
+      Vector xc_tr(slot.X), r_tr;
+      dh.NPCResidual(bl, xc, xc_tr, r, r_tr);
+
+      CAPTURE(r.GetBlock(0).Norml2(), r.GetBlock(1).Norml2(), r_tr.Norml2());
+      REQUIRE(r.GetBlock(0).Norml2() < 1e-10);
+      REQUIRE(r.GetBlock(1).Norml2() < 1e-10);
+      REQUIRE(r_tr.Norml2() < 1e-10);
+   }
+}
