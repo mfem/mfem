@@ -363,6 +363,22 @@ int TimeDependentOperator::SUNMassMult(const Vector &, Vector &)
    return (-1);
 }
 
+int TimeDependentOperator::SUNImplicitSetupDAE(const Vector &, const Vector &,
+                                               const Vector &, real_t)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSetupDAE() is not "
+              "overridden!");
+   return (-1);
+}
+
+int TimeDependentOperator::SUNImplicitSolveDAE(const Vector &, Vector &,
+                                               real_t)
+{
+   mfem_error("TimeDependentOperator::SUNImplicitSolveDAE() is not "
+              "overridden!");
+   return (-1);
+}
+
 
 void SecondOrderTimeDependentOperator::Mult(const Vector &x,
                                             const Vector &dxdt,

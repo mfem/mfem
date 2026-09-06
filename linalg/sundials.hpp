@@ -44,6 +44,7 @@
 #include <sundials/sundials_matrix.h>
 #include <sundials/sundials_linearsolver.h>
 #include <arkode/arkode_arkstep.h>
+#include <ida/ida.h>
 #include <cvodes/cvodes.h>
 #include <kinsol/kinsol.h>
 #if defined(MFEM_USE_CUDA)
@@ -884,6 +885,301 @@ public:
 
    /// Destroy the associated ARKode memory and SUNDIALS objects.
    virtual ~ARKStepSolver();
+
+};
+
+
+// ---------------------------------------------------------------------------
+// Interface to the IDA library -- BDF methods for DAEs
+// ---------------------------------------------------------------------------
+
+/** @brief Interface to the IDA library -- variable-order variable-step BDF
+    methods for differential-algebraic equations.
+
+    IDA integrates a DAE written in fully implicit residual form,
+
+        R(t, y, y') = 0,
+
+    which is TimeDependentOperator's own form F(u,k,t) = G(u,t) with
+    R = F(y,y',t) - G(y,t). Unlike CVODE and ARKODE it does not require the
+    mass matrix to be invertible, so a mixed or hybridized system whose flux
+    or constraint rows carry no time derivative can be integrated without
+    the caller eliminating those unknowns first.
+
+    The residual is built from the operator's declared Type:
+
+    | Type          | residual                | methods used              |
+    | ------------- | ----------------------- | ------------------------- |
+    | EXPLICIT      | y' - f(y,t)             | Mult()                    |
+    | HOMOGENEOUS   | F(y,y',t)               | ImplicitMult()            |
+    | IMPLICIT      | F(y,y',t) - G(y,t)      | ImplicitMult(), ExplicitMult() |
+
+    so an operator that already runs under CVODESolver runs here unchanged,
+    as a DAE with an identity mass matrix.
+
+    Three things have no analogue in the other SUNDIALS wrappers and are
+    what makes this class worth having:
+
+    - the derivative y' is part of the state. It is owned here, seeded with
+      SetInitialDerivative(), and read back with GetDerivative();
+    - IDA needs R(t0, y0, y'0) = 0 to start. ComputeConsistentIC() finds a
+      consistent pair, which for a constrained system means computing the
+      algebraic unknowns from the differential ones;
+    - SetDifferentialComponents() marks which unknowns have dynamics, and
+      SetSuppressAlgebraic() keeps the ones that do not out of the local
+      error test. For a constraint block that is not a nicety: without it
+      the step size is controlled by unknowns whose error estimate means
+      nothing.
+
+    @note IDA is stricter than CVODE and KINSOL about the SUNLinearSolver
+    object it will accept: a non-DIRECT solver must supply the @a resid and
+    @a numiters operations. This class supplies them; see LSNumIters(). */
+class IDASolver : public ODESolver, public SundialsSolver
+{
+protected:
+   int step_mode;         ///< IDA step mode (IDA_NORMAL or IDA_ONE_STEP).
+   int root_components;   ///< Number of components in gout.
+
+   SundialsNVector *YP;   ///< Derivative vector y'. Owned by this class.
+   SundialsNVector *ID;   ///< Differential/algebraic marker, or NULL.
+
+   /// True to route the linear system through SUNImplicitSetup() instead.
+   bool ode_form_linsys;
+   /// Value of cj at the last linear system setup, for the ODE-form route.
+   real_t cj_saved;
+   /// True once the initial y' has been supplied or computed.
+   bool yp_set;
+   /// True until the first Step(), which checks the initial residual.
+   bool check_ic;
+
+   mutable Vector g_work;   ///< Scratch for G(u,t) in the residual.
+   mutable Vector b_work;   ///< Scratch for the scaled right-hand side.
+
+   /// Compute the DAE residual R(t, y, y') by the Type dispatch documented
+   /// on the class. Shared by the SUNDIALS callback and by GetResidual().
+   void Residual(real_t t, const Vector &y, const Vector &yp, Vector &r) const;
+
+   /// Wrapper to compute the DAE residual R(t, y, y').
+   static int Res(sunrealtype t, N_Vector yy, N_Vector yp, N_Vector rr,
+                  void *user_data);
+
+   /// Setup the linear system $ J = dR/dy + c_j dR/dy' $.
+   static int LinSysSetup(sunrealtype t, sunrealtype cj, N_Vector yy,
+                          N_Vector yp, N_Vector rr, SUNMatrix J,
+                          void *user_data, N_Vector tmp1, N_Vector tmp2,
+                          N_Vector tmp3);
+
+   /// Solve the linear system $ J x = b $.
+   static int LinSysSolve(SUNLinearSolver LS, SUNMatrix J, N_Vector x,
+                          N_Vector b, sunrealtype tol);
+
+   /** @brief Number of linear iterations reported to IDA.
+
+       IDA refuses a non-DIRECT SUNLinearSolver that does not provide this,
+       and takes the count of zero to mean "no iterations were needed, so
+       the preconditioned residual is the answer" -- whereupon it copies
+       SUNLinSolResid() over the right-hand side. That vector does not exist
+       for a solver like this one, so the value returned here must be
+       non-zero. It is a placeholder and the iteration count IDA reports is
+       therefore not meaningful; ask the MFEM solver instead. */
+   static int LSNumIters(SUNLinearSolver LS);
+
+   /// Residual vector reported to IDA. Never read, because LSNumIters() is
+   /// non-zero, but the operation must exist for IDA to accept the solver.
+   static N_Vector LSResid(SUNLinearSolver LS);
+
+   /// Prototype to define root finding for IDA.
+   static int root(sunrealtype t, N_Vector yy, N_Vector yp, sunrealtype *gout,
+                   void *user_data);
+
+   /// Typedef for root finding functions.
+   typedef std::function<int(sunrealtype t, Vector y, Vector yp, Vector gout,
+                             IDASolver *)> RootFunction;
+
+   /// A class member to facilitate pointing to a user-specified root function.
+   RootFunction root_func;
+
+   /// Attach the custom SUNMatrix and SUNLinearSolver pair to IDA.
+   void AllocateMFEMLinearSolver();
+
+public:
+   /// Construct a serial wrapper to SUNDIALS' IDA integrator.
+   IDASolver();
+
+#ifdef MFEM_USE_MPI
+   /// Construct a parallel wrapper to SUNDIALS' IDA integrator.
+   /** @param[in] comm The MPI communicator used to partition the DAE. */
+   IDASolver(MPI_Comm comm);
+#endif
+
+   /** @brief Initialize IDA: calls IDACreate() to create the IDA memory and
+       set some defaults.
+
+       If the IDA memory has already been created, it checks if the problem
+       size has changed since the last call to Init(). If the problem is the
+       same then IDAReInit() will be called in the next call to Step(). If
+       the problem size has changed, the IDA memory is freed and realloced
+       for the new problem size. */
+   /** @param[in] f_ The TimeDependentOperator that defines the DAE.
+
+       @note All other methods must be called after Init().
+
+       @note The derivative y' is reset to zero here. Supply it with
+       SetInitialDerivative(), or have it computed by
+       ComputeConsistentIC(), before the first Step(). */
+   void Init(TimeDependentOperator &f_) override;
+
+   /// Integrate the DAE with IDA using the specified step mode.
+   /** @param[in,out] x  On output, the solution vector at the requested
+                         output time tout = @a t + @a dt.
+       @param[in,out] t  On output, the output time reached.
+       @param[in,out] dt On output, the last time step taken.
+
+       @note On input, the values of @a t and @a dt are used to compute the
+       desired output time for the integration, tout = @a t + @a dt.
+
+       @note The first call checks that R(t0, y0, y'0) is small and warns if
+       it is not, naming ComputeConsistentIC(). It is a warning rather than
+       an abort because y' = 0 is sometimes genuinely consistent. */
+   void Step(Vector &x, real_t &t, real_t &dt) override;
+
+   /// Set the initial time derivative y'(t0).
+   /** Defaults to zero, which is a consistent initial derivative only by
+       accident. */
+   void SetInitialDerivative(const Vector &yp0);
+
+   /// The time derivative at the last time reached.
+   const Vector &GetDerivative() const { return *YP; }
+
+   /** @brief Evaluate the DAE residual R(t, @a y, @a yp) at the operator's
+       currently set time.
+
+       This is the quantity IDA drives to zero, assembled by the Type
+       dispatch documented on the class. It is public because a caller
+       putting an initial condition together needs to be able to check one:
+       ComputeConsistentIC() is the cure and this is the diagnosis. It is
+       also the only way to test the dispatch directly rather than by
+       whether an integration converges. */
+   void GetResidual(const Vector &y, const Vector &yp, Vector &r) const;
+
+   /** @brief Mark which components carry a time derivative.
+
+       @a is_differential must be as long as the state. An entry of 1 marks
+       a differential component and 0 an algebraic one. Required by
+       ComputeConsistentIC() with @a IDA_YA_YDP_INIT, and by
+       SetSuppressAlgebraic(). */
+   void SetDifferentialComponents(const Array<int> &is_differential);
+
+   /** @brief Exclude the algebraic components from the local error test.
+
+       Requires SetDifferentialComponents(). */
+   void SetSuppressAlgebraic(bool suppress = true);
+
+   /** @brief Correct (@a x, y'0) so that R(t0, @a x, y'0) = 0.
+
+       @param[in,out] x     On input, the initial state; on output, the
+                            corrected one.
+       @param[in]     tout1 A time at which output is next wanted. Only its
+                            sign and magnitude relative to the current time
+                            are used, to set the direction and scale of the
+                            first step.
+       @param[in]     icopt IDA_YA_YDP_INIT to compute the algebraic
+                            components of @a x and all of y' from the
+                            differential components of @a x -- which needs
+                            SetDifferentialComponents() -- or IDA_Y_INIT to
+                            compute @a x from a given y'.
+
+       The corrected derivative is left in GetDerivative(). Call this after
+       Init() and before the first Step(), on the same vector that will be
+       passed to Step(); doing so also suppresses that call's consistency
+       warning.
+
+       @note The state is an argument rather than being taken from the last
+       Step() because there has not been one yet: this class only learns
+       which vector holds the state when Step() is called with it. */
+   void ComputeConsistentIC(Vector &x, real_t tout1,
+                            int icopt = IDA_YA_YDP_INIT);
+
+   /** @brief Attach the DAE linear system setup and solve methods from the
+       TimeDependentOperator, i.e. SUNImplicitSetupDAE() and
+       SUNImplicitSolveDAE(), to IDA. This is the default. */
+   void UseMFEMLinearSolver();
+
+   /** @brief Attach the ODE-form linear system methods from the
+       TimeDependentOperator, i.e. SUNImplicitSetup() and SUNImplicitSolve(),
+       to IDA.
+
+       The matrix SUNImplicitSetup() documents,
+       A(gamma) = dF/dk + gamma (dF/du - dG/du), satisfies
+
+           J = cj A(1/cj)
+
+       identically, for any F and G. So an operator written for CVODE or
+       ARKODE can serve IDA's linear system with no new code: this route
+       calls SUNImplicitSetup() with gamma = 1/cj and scales the right-hand
+       side of SUNImplicitSolve() by 1/cj.
+
+       Two limits, both of which hold for every form MFEM documents but
+       neither of which can be checked here:
+
+       - the @a v argument of SUNImplicitSetup() means inv(M) g(y,t) for
+         F(u,k,t) = k and g(y,t) otherwise. It is recovered exactly in the
+         first case, and the residual is passed in the second. MFEM's own
+         implementations ignore it;
+       - dF/dk must not depend on k, which holds for F = k, F = M k and
+         F = M k - g.
+
+       An operator whose F is genuinely nonlinear in y' must implement
+       SUNImplicitSetupDAE() and use UseMFEMLinearSolver() instead. */
+   void UseMFEMLinearSolverFromODEForm();
+
+   /// Attach SUNDIALS' GMRES linear solver to IDA.
+   /** The Jacobian-vector product is formed by difference quotients of the
+       residual, and the solve is unpreconditioned. */
+   void UseSundialsLinearSolver();
+
+   /// Select the IDA step mode: IDA_NORMAL (default) or IDA_ONE_STEP.
+   /** @param[in] itask The desired step mode. */
+   void SetStepMode(int itask);
+
+   /// Set the scalar relative and scalar absolute tolerances.
+   void SetSStolerances(real_t reltol, real_t abstol);
+
+   /// Set the scalar relative and vector of absolute tolerances.
+   void SetSVtolerances(real_t reltol, Vector abstol);
+
+   /// Initialize Root Finder.
+   void SetRootFinder(int components, RootFunction func);
+
+   /// Set the maximum time step.
+   void SetMaxStep(real_t dt_max);
+
+   /// Set the maximum number of time steps.
+   void SetMaxNSteps(int steps);
+
+   /** @brief Set the maximum method order.
+
+       IDA uses variable-order BDF; @a max_order must be in [1,5] and
+       defaults to 5. */
+   void SetMaxOrder(int max_order);
+
+   /** @brief Enable or disable scaling of the linear system solution.
+
+       IDA lags the Jacobian setup, so the factorization held when a system
+       is solved was in general formed at a different cj. Scaling the
+       correction by 2/(1 + cj/cj_old) compensates. It is on by default and
+       is the right default for both linear system routes, since both hold a
+       factorization from the last setup. */
+   void SetLinearSolutionScaling(bool onoff);
+
+   /// Get the number of internal steps taken so far.
+   long GetNumSteps();
+
+   /// Print various IDA statistics.
+   void PrintInfo() const;
+
+   /// Destroy the associated IDA memory and SUNDIALS objects.
+   virtual ~IDASolver();
 
 };
 

@@ -316,7 +316,8 @@ SUNDIALS_OPT = -I$(SUNDIALS_DIR)/include
 SUNDIALS_LIB = $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib64\
  $(XLINKER)-rpath,$(SUNDIALS_DIR)/lib\
  -L$(SUNDIALS_DIR)/lib64 -L$(SUNDIALS_DIR)/lib\
- -lsundials_arkode -lsundials_cvodes -lsundials_nvecserial -lsundials_kinsol
+ -lsundials_arkode -lsundials_cvodes -lsundials_idas\
+ -lsundials_nvecserial -lsundials_kinsol
 ifeq ($(MFEM_USE_MPI),YES)
    SUNDIALS_LIB += -lsundials_nvecparallel -lsundials_nvecmpiplusx
 endif

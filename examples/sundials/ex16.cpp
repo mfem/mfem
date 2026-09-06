@@ -16,6 +16,8 @@
 //               ex16 -s 12 -a 0.5 -k 0.5 -o 4 -dt 1e-4 -tf 2e-2 -vs 25
 //               ex16 -s 10 -dt 1.0e-4 -tf 4.0e-2 -vs 40
 //               ex16 -s 13 -dt 1.0e-4 -tf 4.0e-2 -vs 40
+//               ex16 -s 16 -a 0.0 -k 1.0
+//               ex16 -s 17 -a 0.0 -k 1.0
 //               ex16 -m ../../data/fichera-q2.mesh
 //               ex16 -m ../../data/escher.mesh
 //               ex16 -m ../../data/beam-tet.mesh -tf 10 -dt 0.1
@@ -32,6 +34,15 @@
 //               ConductionOperator::ImplicitSolve is the only requirement for
 //               high-order implicit (SDIRK) time integration. By default, this
 //               example uses the SUNDIALS ODE solvers from CVODE and ARKODE.
+//
+//               The SUNDIALS IDA solver is also available. IDA integrates the
+//               fully implicit residual form R(t, u, u') = 0, which is the
+//               form F(u, k, t) = G(u, t) above with R = F - G. The heat
+//               equation is not a differential-algebraic system -- the mass
+//               matrix is non-singular -- so IDA treats it as a trivial one,
+//               and it needs no linear-algebra code beyond the
+//               SUNImplicitSetup and SUNImplicitSolve pair that CVODE and
+//               ARKODE already use; see the comments at ODE solver 16 below.
 //
 //               We recommend viewing examples 2, 9 and 10 before viewing this
 //               example.
@@ -94,6 +105,12 @@ public:
     operator, i.e., @a v = - K(u_n) @a u. Note that K(u_n) is an
       approximation to K(u). */
    void ExplicitMult(const Vector &u, Vector &v) const override;
+
+   /** Compute F(u, k, t) as defined in the IMPLICIT expression form of the
+       ODE operator, i.e., @a v = M @a k. Together with ExplicitMult() this
+       gives the residual R = F - G that IDA integrates. */
+   void ImplicitMult(const Vector &u, const Vector &k,
+                     Vector &v) const override;
 
    /** Solve for k in F(u, k, t) = G(u, t) for either EXPLICIT or IMPLICIT
        expression forms of the ODE operator, i.e., @a k = - inv(M) K(u_n) @a u.
@@ -158,7 +175,7 @@ int main(int argc, char *argv[])
    bool visit = false;
    int vis_steps = 5;
 
-   // Relative and absolute tolerances for CVODE and ARKODE.
+   // Relative and absolute tolerances for CVODE, ARKODE and IDA.
    const real_t reltol = 1e-4, abstol = 1e-4;
 
    int precision = 8;
@@ -187,7 +204,9 @@ int main(int argc, char *argv[])
                   "12 - ARKODE (default implicit),\n\t"
                   "13 - ARKODE (default explicit with MFEM mass solve),\n\t"
                   "14 - ARKODE (explicit Fehlberg-6-4-5 with MFEM mass solve),\n\t"
-                  "15 - ARKODE (default implicit with MFEM mass solve).");
+                  "15 - ARKODE (default implicit with MFEM mass solve),\n\t"
+                  "16 - IDA (EXPLICIT ODE expression form),\n\t"
+                  "17 - IDA (IMPLICIT ODE expression form).");
    args.AddOption(&t_final, "-tf", "--t-final",
                   "Final time; start time is 0.");
    args.AddOption(&dt, "-dt", "--time-step",
@@ -212,7 +231,13 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   bool use_mass_solver = ode_solver_type >= 13;
+   bool use_mass_solver = (ode_solver_type >= 13 && ode_solver_type <= 15);
+
+   // IDA is demonstrated with both expression forms. Option 16 uses EXPLICIT,
+   // where its residual u' - inv(M)(-K(u) u) needs only Mult(); option 17 uses
+   // IMPLICIT, where it is M u' + K(u) u and needs ImplicitMult() and
+   // ExplicitMult().
+   bool use_implicit_form = (use_mass_solver || ode_solver_type == 17);
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
@@ -246,7 +271,7 @@ int main(int argc, char *argv[])
 
    // 6. Initialize the conduction ODE operator and the visualization.
    ConductionOperator::Type ode_expression_type;
-   if (use_mass_solver)
+   if (use_implicit_form)
    {
       ode_expression_type = ConductionOperator::Type::IMPLICIT;
    }
@@ -366,6 +391,35 @@ int main(int argc, char *argv[])
          ode_solver = std::move(arkode);
          break;
       }
+      // IDA
+      case 16:
+      case 17:
+      {
+         std::unique_ptr<IDASolver> ida(new IDASolver());
+         ida->Init(oper);
+         ida->SetSStolerances(reltol, abstol);
+         ida->SetMaxStep(dt);
+         // ConductionOperator implements no SUNImplicitSetupDAE() /
+         // SUNImplicitSolveDAE() pair, and needs none: IDA's Jacobian
+         // J = dR/dy + cj dR/dy' and the matrix that SUNImplicitSetup()
+         // builds for CVODE and ARKODE, A(gam) = dF/dk + gam (dF/du - dG/du),
+         // satisfy J = cj A(1/cj) identically, for any F and G. So this route
+         // drives IDA's linear system with the solver already written above,
+         // called with gam = 1/cj and a right-hand side scaled by 1/cj.
+         ida->UseMFEMLinearSolverFromODEForm();
+         // IDA starts from a pair with R(t0, u0, u'0) = 0. Here u'(0) is
+         // determined by the initial condition and the operator can state it
+         // exactly: Mult() computes inv(M) (- K(u) u), which is du/dt.
+         // ComputeConsistentIC() is not needed -- the mass matrix is
+         // non-singular, so there are no algebraic components whose values
+         // would have to be solved for, and this is an ODE that IDA is
+         // integrating as a trivial DAE.
+         Vector dudt(u.Size());
+         oper.Mult(u, dudt);
+         ida->SetInitialDerivative(dudt);
+         ode_solver = std::move(ida);
+         break;
+      }
       default:
          cout << "Unknown ODE solver type: " << ode_solver_type << '\n';
          return 3;
@@ -383,6 +437,10 @@ int main(int argc, char *argv[])
    else if (ARKStepSolver* arkode = dynamic_cast<ARKStepSolver*>(ode_solver.get()))
    {
       arkode->SetStepMode(ARK_ONE_STEP);
+   }
+   else if (IDASolver* ida = dynamic_cast<IDASolver*>(ode_solver.get()))
+   {
+      ida->SetStepMode(IDA_ONE_STEP);
    }
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
@@ -415,6 +473,10 @@ int main(int argc, char *argv[])
          else if (ARKStepSolver* arkode = dynamic_cast<ARKStepSolver*>(ode_solver.get()))
          {
             arkode->PrintInfo();
+         }
+         else if (IDASolver* ida = dynamic_cast<IDASolver*>(ode_solver.get()))
+         {
+            ida->PrintInfo();
          }
 
          u_gf.SetFromTrueDofs(u);
@@ -496,6 +558,25 @@ void ConductionOperator::ExplicitMult(const Vector &u, Vector &v) const
    // Compute - K(u_n) u.
    Kmat.Mult(u, v);
    v.Neg();
+}
+
+void ConductionOperator::ImplicitMult(const Vector &u, const Vector &k,
+                                      Vector &v) const
+{
+   // Compute M k.
+   //
+   // The sign here and in ExplicitMult() above is the whole content of these
+   // two methods, and it was read off the code around them rather than
+   // guessed. The IMPLICIT expression form declared at the top of this file
+   // is F(u, k, t) = M k with G(u, t) = - K(u_n) u, and two neighbours say
+   // the same: Mult() must return k = inv(M) g(u, t) whatever the form, and
+   // it produces it by applying inv(M) to ExplicitMult(), so G carries the
+   // minus sign; and SUNImplicitSolve() documents its residual in this form
+   // as r = G - F = - K(u_n) u - M k, so F is + M k. IDA's residual is then
+   // R = F - G = M k + K(u_n) u, which vanishes exactly on M du/dt = - K u.
+   // The other sign on G would give M du/dt = + K u -- the backward heat
+   // equation, which integrates and reports nothing wrong.
+   Mmat.Mult(k, v);
 }
 
 void ConductionOperator::Mult(const Vector &u, Vector &k) const

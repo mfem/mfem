@@ -668,6 +668,56 @@ public:
        details, see the ARKode User Guide. */
    virtual int SUNMassMult(const Vector &x, Vector &v);
 
+   /** @brief Setup the DAE linear system needed by the SUNDIALS IDA
+       integrator, i.e. the Jacobian of the residual
+
+           R(t, y, y') = F(y, y', t) - G(y, t)
+
+       with respect to both of its arguments, combined as
+
+           J = dR/dy + @a cj dR/dy'.
+
+       IDA integrates R(t,y,y') = 0 directly, so unlike SUNImplicitSetup()
+       this is a Jacobian of the *residual* -- it carries the -dG/du term --
+       and it is evaluated at a given @a y **and** @a yp rather than at a
+       state and a slope related by a step size.
+
+       @param[in] y   The state at which J should be evaluated.
+       @param[in] yp  The time derivative at which J should be evaluated.
+       @param[in] res The residual R(t, @a y, @a yp) at that point, which
+                      SUNDIALS has already computed.
+       @param[in] cj  The scalar multiplying dR/dy'. It is positive and has
+                      units of one over time; for a BDF1 step it is 1/dt.
+
+       @note An operator that already implements SUNImplicitSetup() for CVODE
+       or ARKODE need not implement this: the matrix that method documents
+       satisfies J = @a cj A(1/@a cj) identically, and IDASolver can be told
+       to go that way with IDASolver::UseMFEMLinearSolverFromODEForm(). This
+       method is for operators whose F depends on y' in a way that
+       A(gamma)'s signature cannot express, and for those that would rather
+       state the DAE Jacobian directly.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by the SUNDIALS IDA integrator, for
+       more details, see the IDA User Guide. */
+   virtual int SUNImplicitSetupDAE(const Vector &y, const Vector &yp,
+                                   const Vector &res, real_t cj);
+
+   /** @brief Solve the DAE linear system J @a x = @a b, where J is defined
+       by the method SUNImplicitSetupDAE().
+
+       @param[in]      b   The linear system right-hand side.
+       @param[in,out]  x   On input, the initial guess. On output, the
+                           solution.
+       @param[in]      tol Linear solve tolerance.
+
+       If not re-implemented, this method simply generates an error.
+
+       Presently, this method is used by the SUNDIALS IDA integrator, for
+       more details, see the IDA User Guide. */
+   virtual int SUNImplicitSolveDAE(const Vector &b, Vector &x, real_t tol);
+
    virtual ~TimeDependentOperator() { }
 };
 
