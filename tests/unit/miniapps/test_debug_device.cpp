@@ -145,6 +145,165 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    REQUIRE(mm.PrintAliases(dev_null) == n_alias);
 }
 
+namespace darcy_alias
+{
+
+class FixedTau : public HDGStabilization
+{
+public:
+   explicit FixedTau(real_t t) : tau(t) { }
+   bool IsConstant() const override { return true; }
+   real_t Eval(real_t, real_t, real_t, real_t,
+               ElementTransformation &) const override { return tau; }
+private:
+   real_t tau;
+};
+
+/// A linear hybridized Darcy solve. @a sync selects how the caller gets the
+/// potential load into its own BlockVector: through the block with a
+/// SyncAliasMemory afterwards, or host-explicitly. The two must agree.
+void Solve(bool sync, Vector &trace, Vector &pot)
+{
+   const int n = 4, order = 1, dim = 2;
+   Mesh mesh = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL, false,
+                                     0.8, 1.2);
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim, BasisType::GaussLobatto);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim), Wh(&mesh, &p_coll),
+                      Mh(&mesh, &t_coll);
+
+   ConstantCoefficient one(1.0), src(1.0);
+   FixedTau tau(1.0);
+   DarcyForm darcy(&Vh, &Wh);
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+
+   Array<int> all(mesh.bdr_attributes.Max());
+   all = 1;
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   auto *fi = new HDGDiffusionIntegrator(one, 1.0);
+   auto *fb = new HDGDiffusionIntegrator(one, 1.0);
+   fi->SetStabilization(tau);
+   fb->SetStabilization(tau);
+   M_p->AddInteriorFaceIntegrator(fi);
+   M_p->AddBdrFaceIntegrator(fb, all);
+
+   MixedBilinearForm *B = darcy.GetFluxDivForm();
+   B->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   B->AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+   B->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-2.0)), all);
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+   darcy.GetHybridization()->SetEssentialBC(all);
+   darcy.Assemble();
+
+   Array<int> offs(4);
+   offs[0] = 0;
+   offs[1] = Vh.GetVSize();
+   offs[2] = Wh.GetVSize();
+   offs[3] = Mh.GetVSize();
+   offs.PartialSum();
+   BlockVector sol(offs), rhs(offs);
+   sol = 0.0;
+   rhs = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+
+   if (sync)
+   {
+      // The documented contract: `+=` through the block is a DEVICE operation
+      // on an alias, so its result has to be propagated to the parent.
+      rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+      rhs.GetBlock(1).SyncAliasMemory(rhs);
+   }
+   else
+   {
+      Vector &rb = rhs.GetBlock(1);
+      const Vector &lb = *darcy.GetPotentialRHS();
+      real_t *h = rb.HostReadWrite();
+      const real_t *l = lb.HostRead();
+      for (int i = 0; i < rb.Size(); i++) { h[i] += l[i]; }
+      rb.SyncAliasMemory(rhs);
+   }
+
+   Vector X, RHS;
+   X.MakeRef(sol, offs[2], Mh.GetVSize());
+   RHS.MakeRef(rhs, offs[2], Mh.GetVSize());
+   BlockVector dsol(sol, darcy.GetOffsets()), drhs(rhs, darcy.GetOffsets());
+   OperatorPtr R;
+   darcy.FormLinearSystem(ess_flux, dsol, drhs, R, X, RHS, true);
+
+   SparseMatrix *H = dynamic_cast<SparseMatrix *>(R.Ptr());
+   REQUIRE(H != nullptr);
+   RHS.HostReadWrite();
+   X.HostReadWrite();
+   UMFPackSolver lin(*H);
+   lin.Mult(RHS, X);
+   BlockVector csol(sol, darcy.GetOffsets());
+   darcy.RecoverFEMSolution(X, csol);
+
+   trace.SetSize(X.Size());
+   trace = X;
+   pot.SetSize(csol.GetBlock(1).Size());
+   pot = csol.GetBlock(1);
+   trace.HostRead();
+   pot.HostRead();
+}
+
+} // namespace darcy_alias
+
+/**
+ * @brief A caller accumulating into a block of its own BlockVector owes
+ * SyncAliasMemory, and under a device it is not optional.
+ *
+ * `rhs.GetBlock(1) += *darcy.GetPotentialRHS()` is a DEVICE operation on an
+ * ALIAS of rhs. It leaves the result in that alias's device buffer, and the
+ * second view the caller builds to hand FormLinearSystem() gets a FRESH alias
+ * marked host-valid whatever the real state -- so DarcyHybridization's host
+ * loops read stale zeros. Measured before the contract was documented: the
+ * reduced trace right-hand side came back EXACTLY zero, the trace solve
+ * returned zero, the recovered fields were quietly wrong, and nothing errored
+ * anywhere. The validity flags say hostvalid=1 devvalid=0 on the very block
+ * whose host buffer is zeros, so no HostRead() and no guard can catch it --
+ * which is why this is pinned by a test rather than by an assertion in the
+ * library.
+ *
+ * DarcyForm::Assemble() already does exactly this for its own b_u and b_p;
+ * the contract is on GetPotentialRHS().
+ *
+ * This case lives here, and not in the globbed set, because it needs a Device
+ * and the Device here is the binary's: constructing one inside a TEST_CASE
+ * linked into unit_tests would run mm.Destroy() at the end of the case and
+ * leave the remaining cases against a destroyed MemoryManager, and would trip
+ * "the mfem::Device is already configured!" in punit_tests.
+ */
+TEST_CASE("DarcyForm/BlockVector alias sync", "[DebugDevice]")
+{
+   using namespace darcy_alias;
+
+   Vector tr_sync, pot_sync, tr_host, pot_host;
+   Solve(true, tr_sync, pot_sync);
+   Solve(false, tr_host, pot_host);
+
+   // There is something to get wrong: without the sync the trace came back
+   // identically zero.
+   REQUIRE(tr_sync.Norml2() > 1e-6);
+   REQUIRE(pot_sync.Norml2() > 1e-6);
+
+   REQUIRE(tr_sync.Size() == tr_host.Size());
+   Vector d(tr_sync);
+   d -= tr_host;
+   REQUIRE(d.Norml2() <= 1e-12 * tr_host.Norml2());
+
+   Vector dp(pot_sync);
+   dp -= pot_host;
+   REQUIRE(dp.Norml2() <= 1e-12 * pot_host.Norml2());
+}
+
 #endif // _WIN32
 
 int main(int argc, char *argv[])
