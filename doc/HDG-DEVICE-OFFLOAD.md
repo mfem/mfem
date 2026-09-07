@@ -265,7 +265,56 @@ unpreconditioned trace solve at 8x, which is exactly the open question in
 answered. Otherwise: an `AssembleEA`-style element-matrix array plus an
 assembly kernel.
 
-## Step 4 — group 4, the trace solve, by configuration
+## Step 4 — SOLVED, by cuDSS, and it needed a compatibility fix
+
+**cuDSS is installed here and MFEM already wraps it**, so the trace solve can
+be direct AND on-device, which is what the full-device target needs. That
+removes the "a direct trace solve forces a host round trip" problem entirely,
+rather than trading it for an unpreconditioned Krylov method.
+
+* cuDSS **0.8.0**, system-wide from the CUDA apt repository
+  (`/usr/include/cudss.h`, `/usr/lib/x86_64-linux-gnu/libcudss.so`). Not part
+  of the CUDA toolkit -- `/usr/local/cuda/version.json` lists no cudss
+  component -- but already present, so nothing to obtain.
+* `CuDSSSolver` (`linalg/cudss.hpp:37`) takes a serial `SparseMatrix`, which
+  is exactly what `ComputeH()` produces.
+* Configure with **both directory variables**, because `CUDSS_DIR=/usr` yields
+  `/usr/lib`, which has no `libcudss.so` -- the libraries are multiarch:
+
+```
+make config MFEM_BUILD_DIR=<build> MFEM_USE_CUDA=YES CUDA_ARCH=sm_75 \
+     MFEM_USE_CUDSS=YES CUDSS_INCLUDE_DIR=/usr/include \
+     CUDSS_LIBRARY_DIR=/usr/lib/x86_64-linux-gnu
+```
+
+**MFEM's wrapper does not compile against 0.8.0 as it stands**, and the fix is
+in `linalg/cudss.cpp`: 0.8 split `cudssMatrixCreateCsr`'s single index type
+into `offsetType` and `indexType` (14 arguments where there were 13) and made
+`cudssDataType_t` an enum of its own, not implicitly convertible from
+`cudaDataType_t`. Guarded on cuDSS's own `CUDSS_VERSION_MAJOR/MINOR`, which is
+the SUNDIALS and PETSc pattern rather than the hypre one and needs no config
+plumbing. Version guards are thoroughly idiomatic here: hypre carries 84 of
+them, PETSc 27, SUNDIALS 23.
+
+Measured on the hybridized trace system, 2-D quads n=16 order 2, 32,544 nnz,
+both under `-d cuda`:
+
+| | trace solve | potential \|u\| |
+|---|---|---|
+| UMFPACK, host | 67.1 ms | `0x1.c21ebb4fbad9p+0` |
+| **cuDSS, device** | **52.1 ms** | `0x1.c21ebb4fbad97p+0` |
+
+Agreeing to twelve significant hex digits, which is two different direct
+factorisations of one matrix. The timing is not the point and this hardware is
+not a verdict; **the point is that nothing is pulled to the host.**
+
+One thing to know before wiring it into a miniapp: `regression_test.py`
+compares the solver NAME first, so a cuDSS run reports "SKIPPING --
+incompatible preconditioner" against every existing reference rather than
+failing it. A cuDSS run tells you nothing about correctness until a reference
+set is generated for it.
+
+## Step 4 — group 4, the trace solve, by configuration (superseded above)
 
 `SparseMatrix::Mult` has a cuSPARSE/hipSPARSE path and hypre's AMG has GPU
 support, so a **Krylov** trace solve runs on device today. What does not is the

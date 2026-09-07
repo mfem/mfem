@@ -15,6 +15,37 @@
 
 #ifdef MFEM_USE_CUDSS
 
+/* cuDSS 0.8 made cudssDataType_t an enum of its own (cudss_data_types.h:36),
+   aliasing the CUDA values but not implicitly convertible from them, and split
+   cudssMatrixCreateCsr's single index type into a separate offsetType and
+   indexType -- fourteen arguments where there were thirteen. The constants
+   below and the extra argument at each CSR call site are that difference and
+   nothing more. Reading cuDSS's own header macro rather than synthesising an
+   MFEM_CUDSS_VERSION at config time is the SUNDIALS and PETSc pattern
+   (SUNDIALS_VERSION_MAJOR, PETSC_VERSION) rather than the hypre one, and needs
+   no makefile or CMake plumbing.
+
+   THE THRESHOLD IS 0.8 BECAUSE 0.8.0 IS WHAT WAS TESTED, and not because the
+   change is known to have landed there. The code below this line is what the
+   wrapper has always had and is what some earlier version compiled against;
+   which version, and whether anything between it and 0.8 needs a third form,
+   is unverified -- there was no older cuDSS here to try. Narrow the bound if
+   you find out; do not widen it on a guess. */
+#if defined(CUDSS_VERSION_MAJOR) && \
+    (CUDSS_VERSION_MAJOR > 0 || CUDSS_VERSION_MINOR >= 8)
+#define MFEM_CUDSS_INDEX_T CUDSS_R_32I
+#ifdef MFEM_USE_SINGLE
+#define MFEM_CUDSS_REAL_T CUDSS_R_32F
+#else
+#define MFEM_CUDSS_REAL_T CUDSS_R_64F
+#endif
+#define MFEM_CUDSS_CSR_OFFSET_ARG MFEM_CUDSS_INDEX_T,
+#else
+#define MFEM_CUDSS_INDEX_T CUDA_R_32I
+#define MFEM_CUDSS_REAL_T CUDA_REAL_T
+#define MFEM_CUDSS_CSR_OFFSET_ARG
+#endif
+
 #ifdef MFEM_USE_SINGLE
 #define CUDA_REAL_T CUDA_R_32F
 #else
@@ -260,7 +291,8 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
                Ac.get(), n_global, n_global, nnz, csr_offsets_d, NULL,
-               csr_columns_d, csr_values_d, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
+               csr_columns_d, csr_values_d, MFEM_CUDSS_CSR_OFFSET_ARG
+               MFEM_CUDSS_INDEX_T, MFEM_CUDSS_REAL_T, mat_type, mview,
                CUDSS_BASE_ZERO));
       }
       else    // !reorder_reuse
@@ -272,7 +304,8 @@ void CuDSSSolver::SetMatrixCuDSS(int *csr_offsets, int *csr_columns,
          MFEM_CUDSS_CHECK(
             cudssMatrixCreateCsr(
                Ac.get(), n_global, n_global, nnz, csr_offsets, NULL, csr_columns,
-               csr_values_d, CUDA_R_32I, CUDA_REAL_T, mat_type, mview,
+               csr_values_d, MFEM_CUDSS_CSR_OFFSET_ARG
+               MFEM_CUDSS_INDEX_T, MFEM_CUDSS_REAL_T, mat_type, mview,
                CUDSS_BASE_ZERO));
       }
 #ifdef MFEM_USE_MPI
@@ -334,10 +367,10 @@ void CuDSSSolver::SetNumRHS(int nrhs_) const
       }
       // Create empty RHS and solution vectors
       MFEM_CUDSS_CHECK(cudssMatrixCreateDn(&xc, n_global, nrhs_, n_global, NULL,
-                                           CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+                                           MFEM_CUDSS_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
 
       MFEM_CUDSS_CHECK(cudssMatrixCreateDn(&yc, n_global, nrhs_, n_global, NULL,
-                                           CUDA_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
+                                           MFEM_CUDSS_REAL_T, CUDSS_LAYOUT_COL_MAJOR));
 
 #ifdef MFEM_USE_MPI
       MFEM_CUDSS_CHECK(cudssMatrixSetDistributionRow1d(xc, row_start, row_end));
