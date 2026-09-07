@@ -256,6 +256,40 @@ Four corrections to the recipe, each of which costs a cycle to rediscover:
   `host_config.h` refuses only `__GNUC__ > 15`. The link errors above are not
   that, and g++-10/12/13/14 are installed if a fallback is ever needed.
 
+## Step 2's items 1 and 3 are ALREADY AVAILABLE, measured
+
+The plan casts step 2 as "a rewrite of the integrators against a different
+data model, not a port", with four items. **Two of the four need no work at
+all**, which is the difference between building a data model and writing
+kernels against one that exists.
+
+**Item 3, the restriction, is not merely present -- its layout is already the
+hybridization's.** `L2InterfaceFaceRestriction` reproduces
+`c_fes.GetFaceVDofs()` **exactly, face for face**, which is how every face
+loop in `darcyhybridization.cpp` gathers the trace today:
+
+| | order 0 | order 1 | order 2 |
+|---|---|---|---|
+| 2-D quads | matches on all 24 faces | all 24 | all 24 |
+| 2-D triangles | all 40 | all 40 | all 40 |
+| 3-D hexes | all 54 | all 54 | all 54 |
+
+Compared value by value against a load carrying each dof's own index, so a
+permutation or a sign flip would show as a value and not only as a norm. So
+there is nothing to write and nothing to reconcile.
+
+**Item 1, the geometry, is served by `FaceGeometricFactors`**
+(`mesh/mesh.hpp:3155`), which carries `X`, `J`, `detJ` **and `normal`** in
+`(NQ x SDIM x NF)` column-major `Vector`s -- device memory, laid out the way a
+kernel wants, with `Mesh::GetFaceGeometricFactors(ir, flags, face_type)` the
+accessor that `bilininteg_mass_pa.cpp` and `lininteg_boundary.cpp` already
+use. `NORMALS` is the flag that matters for HDG and it is there.
+
+**What is left of step 2 is items 2 and 4**: coefficients evaluated into
+`QuadratureFunction`s, and the kernels themselves. That is still the bulk of
+the project, and steps 3 and 4 still fall out of it -- but it is writing
+kernels against an existing data model rather than building the model.
+
 ## The prerequisite with nothing behind it already exists
 
 Step 2's item 3 says a restriction for an HDG trace space "has to be written.
