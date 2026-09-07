@@ -51,6 +51,43 @@ library that has one would not be accepted upstream.
 **There is no SYCL backend**, so an Intel GPU goes through OCCA or libCEED or
 not at all.
 
+## Step 0 — THE PREREQUISITE THIS PLAN DID NOT HAVE, and it comes before everything
+
+**Configuring a CUDA `Device` silently breaks the existing host code**, before
+any offload is attempted. Measured on `gf-hdg-linearise-first`, order 1, 8x8
+quads, hybridized, `LocalFactorMode::Batched`:
+
+| quantity | `-d cpu` | `-d cuda` |
+|---|---|---|
+| assembled trace operator `H` (nnz, sum, maxabs) | identical | **identical, bit for bit** |
+| the load, `\|rhs_p\|` | `0x1.eb851eb851ec3p-5` | `0x1.eb851eb851eb9p-5` |
+| the REDUCED trace load `\|RHS\|` | `0x1.ec096b6d502eep-5` | **`0x0p+0`** |
+| trace solution `\|X\|` | `0x1.2c1d0cfe578fcp-1` | **`0x0p+0`** |
+
+**No error is raised anywhere.** The reduced right-hand side is exactly zero,
+the trace solve returns zero, and the recovered fields are quietly wrong.
+
+The mechanism, as far as it was chased: `DarcyHybridization`'s element loops
+read and write through raw host pointers (`Array::operator[]`, `DenseMatrix`
+over `&data[offset]`, `Vector::MakeRef`) and nothing in them tells the
+`Memory` that the host copy is now the valid one. Interleaved with them are
+ordinary `Vector` operations -- `b_tr = 0.`, `Operator::MultTranspose` -- which
+under a Device run on the device and claim it. The host writes then land in
+memory the vector believes is stale, and the next `HostRead()` copies the
+device side back over them.
+
+**Two attempts to retrofit this at single sites in `ReduceRHS()` did NOT fix
+it and were reverted** rather than shipped unverified: claiming the host side
+before the loop is undone by the `= 0.` that follows, and claiming it after
+still leaves the answer zero, so at least one more site upstream is involved.
+Finding the complete set is the work of this step. It is mechanical but it is
+not small, and **nothing in steps 1 to 4 can be verified on a device until it
+is done** -- a device run cannot be compared against a host one while the
+device run is silently returning zeros.
+
+Note what this does NOT say: the *assembly* path is fine. `H` comes back bit
+for bit identical, which is why step 1 below could be verified at all.
+
 ## Step 1 — group 1, and it is a storage change
 
 `BatchedLinAlg` already wraps every operation these loops need
@@ -78,6 +115,20 @@ Then extend the same treatment to `MultInv`, `ComputeSolution`,
 `NPCReduce`/`NPCRecover` and `ComputeElementH`'s factor+Schur, which are
 `LUFactors`/`DenseMatrix` object code today and must become raw-pointer or
 batched calls.
+
+**DONE, and smaller than this plan expected.** `DenseTensor::NewMemoryAndSize(
+const Memory<real_t> &, i, j, k, own_mem)` **already exists**
+(`linalg/densemat.hpp:1187`), so option 2 needs no addition to `densemat.hpp`
+and nothing has to go upstream. `InvertA()` and `InvertD()` now hand the
+tensor `Af_data`/`Df_data`'s `Memory` instead of `GetData()`, and sync back
+after. Verified: the assembled trace operator is **bit-for-bit identical**
+between `-d cpu` and `-d cuda` (see step 0's table), and the host Darcy suite
+is unmoved at 92 cases / 28,223 assertions.
+
+What is NOT done from the paragraph above: extending the same treatment to
+`MultInv`, `ComputeSolution`, `NPCReduce`/`NPCRecover` and `ComputeElementH`'s
+factor+Schur. Those are step 0's problem as much as this step's, since they
+are the raw-pointer readers that make the host/device split unsafe.
 
 **Acceptance.** The NATIVE backend on device must be **bit-for-bit** the host's,
 because it runs the identical `kernels::LUFactor`/`LUSolve` scalar code — the
@@ -140,6 +191,61 @@ the answer to the tolerance, unlike everything else here.
 2. **Step 2**, or stop. It is the majority of the time in both regimes and
    nothing else changes that.
 3. Steps 3 and 4 fall out of choices made in 2.
+
+## Prepared, and four things in this plan were wrong
+
+The tree exists: **`/home/ian/projects/mfem-hdg-cuda-dev`**, configured out of
+source, library builds clean (163 MB, zero errors), and **MFEM's own `ex1`
+runs on `-d cuda` there and prints output identical to `-d cpu`** but for the
+`--device` line. So the harness step 1 wants is proven before step 1 starts.
+
+**There is a GPU, which this plan only implied.** NVIDIA RTX 2070 SUPER,
+8 GB, driver 591.86, Turing, compute capability **7.5**. So correctness on
+device is checkable here.
+
+**Performance is NOT checkable here and a slow number from this box means
+nothing** — WSL2 sharing the GPU with the desktop, a consumer graphics card
+rather than a compute one, and an old one. Timing belongs on real hardware
+later. Everything below is about correctness and shape.
+
+Four corrections to the recipe, each of which costs a cycle to rediscover:
+
+* **`CUDA_ARCH = sm_60`, MFEM's default (`config/defaults.mk:49`), is REJECTED
+  by CUDA 13.3** — `nvcc fatal : Unsupported gpu architecture 'sm_60'`. So
+  `make config MFEM_USE_CUDA=YES` as written below fails outright. Pass
+  `CUDA_ARCH=sm_75`.
+* **`cp config/user.mk` breaks the CUDA build.** It enables SUNDIALS at
+  `/home/ian/projects/sundials/install`, which was built WITHOUT CUDA, and
+  `sundials.hpp:39` then refuses: "MFEM_USE_CUDA=TRUE requires SUNDIALS to be
+  built with CUDA support". Repoint it at
+  `/home/ian/projects/sundials/cuda-install`, which exists and has
+  `sunmemory/sunmemory_cuda.h`.
+* **The out-of-source tree leaves `MFEM_INC_DIR` and `MFEM_LIB_DIR` empty**, so
+  `make -C <build>/examples ex1` fails to link with undefined *MFEM* symbols
+  (`mfem::MemoryManager::Copy_`) alongside libstdc++ ones — which reads as a
+  host-compiler mismatch and is not one. Pass both explicitly. An empty
+  `MFEM_INC_DIR` additionally leaves a dangling `-I` that swallows the next
+  include path, so the failure surfaces as a missing SUNDIALS header.
+* g++ 15.2 and CUDA 13.3 **do** work together here; nvcc's own
+  `host_config.h` refuses only `__GNUC__ > 15`. The link errors above are not
+  that, and g++-10/12/13/14 are installed if a fallback is ever needed.
+
+## The prerequisite with nothing behind it already exists
+
+Step 2's item 3 says a restriction for an HDG trace space "has to be written.
+This is the prerequisite with nothing behind it." **It is written.**
+`L2InterfaceFaceRestriction` (`fem/restriction.hpp:1114`) is dispatched by
+`FiniteElementSpace::GetFaceRestriction()` at `fem/fespace.cpp:1533` for
+exactly `dynamic_cast<const DG_Interface_FECollection*>(fec)` — which is what
+the HDG trace space is. And it is not merely present: its `Mult` is already an
+`mfem::forall` over a `MFEM_HOST_DEVICE` lambda with `Read()`/`Write()`
+discipline (`fem/restriction.cpp:2356`), so it is device-ready as it stands.
+What is unverified is whether its dof ordering suits the hybridization's face
+loops; that is a much smaller question than writing one.
+
+The plan's other structural claims were checked and hold: `fem/eltrans.hpp`
+and `fem/coefficient.hpp` carry **zero** `MFEM_HOST_DEVICE` between them, and
+there is no `AssemblePA` or `AssembleEA` anywhere in `fem/darcy`.
 
 ## Where to build it
 

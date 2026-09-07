@@ -1301,8 +1301,21 @@ void DarcyHybridization::InvertA()
       // contiguous n*n blocks, Af_offsets[el] == el*n*n -- and the tensor is
       // a non-owning view of it, so this factors the same array in place.
       // Af_ipiv is likewise el*n, which is the (n, NE) shape LUFactor writes.
-      DenseTensor A(Af_data.GetData(), n, n, NE);
+      //
+      // NewMemoryAndSize AND NOT THE RAW-POINTER CONSTRUCTOR, which is what
+      // decides whether this can run on a device at all. DenseTensor(real_t*,
+      // ...) goes through Memory::Wrap() and sets VALID_HOST with no device
+      // type, so the batched backend -- which is an mfem::forall over
+      // ReadWrite() -- would be pinned to the host however the Device is
+      // configured. Passing the Memory carries its device state instead, and
+      // own_mem is false because Af_data owns it.
+      DenseTensor A;
+      A.NewMemoryAndSize(Af_data.GetMemory(), n, n, NE, false);
       BatchedLinAlg::LUFactor(A, Af_ipiv);
+      // The factors are Af_data's own memory, so whichever side the backend
+      // left valid is the side Af_data now reports; the host readers below
+      // and in MultInv() go through Array::operator[], which does not sync.
+      Af_data.GetMemory().Sync(A.GetMemory());
       return;
    }
 
@@ -1346,8 +1359,13 @@ void DarcyHybridization::InvertD()
                  ? UniformBlockSize(Df_f_offsets, NE) : -1;
    if (n > 0)
    {
-      DenseTensor D(Df_data.GetData(), n, n, NE);
+      // Carrying the Memory rather than a raw pointer, for the reason on
+      // InvertA(): the raw-pointer constructor pins the batched backend to
+      // the host whatever the Device is configured as.
+      DenseTensor D;
+      D.NewMemoryAndSize(Df_data.GetMemory(), n, n, NE, false);
       BatchedLinAlg::LUFactor(D, Df_ipiv);
+      Df_data.GetMemory().Sync(D.GetMemory());
       return;
    }
 
