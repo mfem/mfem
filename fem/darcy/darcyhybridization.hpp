@@ -281,11 +281,16 @@ private:
    } lsolve;
 
    Array<int> Ae_offsets;
-   Array<real_t> Af_lin_data, Ae_data;
+   /** @brief Still an Array, and deliberately: it is copy-assigned from and
+       Swap()ped with Hybridization::Af_data, which is the UPSTREAM base
+       class's. The two have to change type together, so both are left for a
+       separate pass over fem/hybridization.hpp. */
+   Array<real_t> Af_lin_data;
+   Vector Ae_data;
    bool A_empty{true};
 
    Array<int> Bf_offsets, Be_offsets;
-   Array<real_t> Bf_data, Be_data;
+   Vector Bf_data, Be_data;
 
    /** @brief The solution-dependent part of the local gradient's (0,1) block,
        d(flux residual)/dp.
@@ -305,7 +310,7 @@ private:
        every linear problem and every nonlinear one whose coefficients do not
        depend on the potential; @a Bnl_empty then short-circuits the extra
        work. */
-   mutable Array<real_t> Bnl_data;
+   mutable Vector Bnl_data;
    mutable bool Bnl_empty{true};
 
    /** @brief Load the (0,1) gradient block of element @a el into @a Bnl.
@@ -314,21 +319,21 @@ private:
    bool GetBnlMatrix(int el, DenseMatrix &Bnl) const;
 
    Array<int> Df_offsets, Df_f_offsets;
-   mutable Array<real_t> Df_data, Df_lin_data;
+   mutable Vector Df_data, Df_lin_data;
    mutable Array<int> Df_ipiv;
    bool D_empty{true};
 
    Array<int> Ct_offsets;
-   Array<real_t> Ct_data;
+   Vector Ct_data;
 
    mutable Array<int> E_offsets;
-   mutable Array<real_t> E_data;
+   mutable Vector E_data;
 
    Array<int> &G_offsets{E_offsets};
-   mutable Array<real_t> G_data;
+   mutable Vector G_data;
 
    mutable Array<int> H_offsets;
-   mutable Array<real_t> H_data;
+   mutable Vector H_data;
 
    mutable Array<int> darcy_offsets, darcy_toffsets;
    mutable BlockVector darcy_rhs;
