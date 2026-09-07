@@ -287,14 +287,39 @@ make config MFEM_BUILD_DIR=<build> MFEM_USE_CUDA=YES CUDA_ARCH=sm_75 \
      CUDSS_LIBRARY_DIR=/usr/lib/x86_64-linux-gnu
 ```
 
-**MFEM's wrapper does not compile against 0.8.0 as it stands**, and the fix is
-in `linalg/cudss.cpp`: 0.8 split `cudssMatrixCreateCsr`'s single index type
-into `offsetType` and `indexType` (14 arguments where there were 13) and made
-`cudssDataType_t` an enum of its own, not implicitly convertible from
-`cudaDataType_t`. Guarded on cuDSS's own `CUDSS_VERSION_MAJOR/MINOR`, which is
-the SUNDIALS and PETSc pattern rather than the hypre one and needs no config
-plumbing. Version guards are thoroughly idiomatic here: hypre carries 84 of
-them, PETSc 27, SUNDIALS 23.
+**MFEM's wrapper does not compile against 0.8.0 as it stands, AND UPSTREAM HAS
+ALREADY FIXED IT** -- `1416665dc3`, "Add support for cuDSS 0.8.0", John
+Pennycook of NVIDIA, on `origin/master` and not an ancestor of this branch.
+Cherry-picked rather than kept as a parallel fix, and doing so caught a site
+the parallel fix had missed.
+
+0.8.0 broke three things at once, all documented in NVIDIA's own *cuDSS 0.8.0
+Migration Guide*: `cudssMatrixCreateCsr` gained an `offsetType` parameter
+before `indexType` (14 arguments where there were 13); `cudaDataType_t` became
+`cudssDataType_t`, a distinct enum aliasing the CUDA values but not implicitly
+convertible; and **`CUDSS_DATA_COMM` was removed** in favour of
+`CUDSS_DATA_COMM_HOST` / `CUDSS_DATA_COMM_DEVICE`. That third one is in the
+MPI constructor, so a serial build never sees it -- which is exactly why a fix
+written from the compiler errors of a serial build misses it.
+
+`#if CUDSS_VERSION >= 800` is the right guard and one guard suffices, verified
+against real headers for 0.3.0 through 0.8.0 rather than inferred: the
+signature is 13 arguments with `cudaDataType_t` in every release up to and
+including 0.7.0. `CUDSS_VERSION` (`MAJOR*10000 + MINOR*100 + PATCH`) has
+existed since at least 0.3.0. Version guards are thoroughly idiomatic here:
+hypre carries 84, PETSc 27, SUNDIALS 23.
+
+Two version floors worth knowing, both from the same audit: MFEM's serial path
+already needs cuDSS >= 0.5.0 (`cudssSetThreadingLayer`) and its MPI path
+>= 0.6.0 (`cudssMatrixSetDistributionRow1d`). And 0.6.0 changed
+`cudssExecute`'s phase parameter and the `CUDSS_PHASE_*` values, so a header
+and library from different minors must never be mixed.
+
+**One thing to check before relying on cuDSS under MPI**, flagged rather than
+asserted since it has not been run here: the upstream commit sets
+`CUDSS_DATA_COMM_HOST` only, while the migration guide says MGMN users must
+set `CUDSS_DATA_COMM_HOST` *and* `CUDSS_DATA_COMM_DEVICE` whenever GPU-side
+communication takes place.
 
 Measured on the hybridized trace system, 2-D quads n=16 order 2, 32,544 nnz,
 both under `-d cuda`:
