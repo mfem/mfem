@@ -51,42 +51,59 @@ library that has one would not be accepted upstream.
 **There is no SYCL backend**, so an Intel GPU goes through OCCA or libCEED or
 not at all.
 
-## Step 0 — THE PREREQUISITE THIS PLAN DID NOT HAVE, and it comes before everything
+## Step 0 — a CALLER CONTRACT, and the library is not at fault
 
-**Configuring a CUDA `Device` silently breaks the existing host code**, before
-any offload is attempted. Measured on `gf-hdg-linearise-first`, order 1, 8x8
-quads, hybridized, `LocalFactorMode::Batched`:
+**Withdrawn: an earlier version of this section said "configuring a CUDA
+Device silently breaks the existing host code" and that finding the sites was
+"mechanical but not small". That was wrong on both counts.** The symptom was
+real and is reproduced below; the attribution was not, and the fix is one line
+in the CALLER.
 
-| quantity | `-d cpu` | `-d cuda` |
-|---|---|---|
-| assembled trace operator `H` (nnz, sum, maxabs) | identical | **identical, bit for bit** |
-| the load, `\|rhs_p\|` | `0x1.eb851eb851ec3p-5` | `0x1.eb851eb851eb9p-5` |
-| the REDUCED trace load `\|RHS\|` | `0x1.ec096b6d502eep-5` | **`0x0p+0`** |
-| trace solution `\|X\|` | `0x1.2c1d0cfe578fcp-1` | **`0x0p+0`** |
+The symptom, on `-d cuda` and identically on `-d debug`: the reduced trace
+right-hand side comes back **exactly zero**, the trace solve returns zero, the
+recovered fields are quietly wrong, and nothing errors.
 
-**No error is raised anywhere.** The reduced right-hand side is exactly zero,
-the trace solve returns zero, and the recovered fields are quietly wrong.
+The cause is the MFEM alias-memory idiom, not `fem/darcy`. Writing a block of
+a `BlockVector` through the block —
 
-The mechanism, as far as it was chased: `DarcyHybridization`'s element loops
-read and write through raw host pointers (`Array::operator[]`, `DenseMatrix`
-over `&data[offset]`, `Vector::MakeRef`) and nothing in them tells the
-`Memory` that the host copy is now the valid one. Interleaved with them are
-ordinary `Vector` operations -- `b_tr = 0.`, `Operator::MultTranspose` -- which
-under a Device run on the device and claim it. The host writes then land in
-memory the vector believes is stale, and the next `HostRead()` copies the
-device side back over them.
+```cpp
+rhs.GetBlock(1) += *darcy.GetPotentialRHS();   // device op on an ALIAS
+```
 
-**Two attempts to retrofit this at single sites in `ReduceRHS()` did NOT fix
-it and were reverted** rather than shipped unverified: claiming the host side
-before the loop is undone by the `= 0.` that follows, and claiming it after
-still leaves the answer zero, so at least one more site upstream is involved.
-Finding the complete set is the work of this step. It is mechanical but it is
-not small, and **nothing in steps 1 to 4 can be verified on a device until it
-is done** -- a device run cannot be compared against a host one while the
-device run is silently returning zeros.
+— leaves the result in that alias's device buffer. A second view over the same
+range (`BlockVector drhs(rhs, darcy.GetOffsets())`, which is what a caller
+hands `FormLinearSystem`) gets a **fresh alias marked host-valid** whatever the
+underlying state, so the host loops read stale zeros. `DarcyForm::Assemble()`
+already does the right thing for its own `b_u` / `b_p` — `b_p->Assemble();
+b_p->SyncAliasMemory(*block_b);` — and the caller owes the same:
 
-Note what this does NOT say: the *assembly* path is fine. `H` comes back bit
-for bit identical, which is why step 1 below could be verified at all.
+```cpp
+rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+rhs.GetBlock(1).SyncAliasMemory(rhs);          // <-- this
+```
+
+With that one line, `-d cpu` and `-d debug` agree **bit for bit, end to end**.
+
+Three things worth keeping from chasing it:
+
+* **`-d debug` reproduces it exactly and needs no GPU.** MFEM's debug backend
+  runs the device memory-validity machinery on the CPU, and it gave the same
+  zeros with otherwise bit-identical arithmetic. So device-correctness work on
+  this branch can be done and tested on any machine, in a serial build, with
+  two-minute rebuild cycles instead of ten-minute CUDA ones. **Reach for it
+  before configuring anything.**
+* **The validity flags LIE, so no guard can catch this.** Measured at the
+  entry to `ReduceRHS()` in the failing case: `hostvalid=1 devvalid=0` on the
+  very block whose host buffer is zeros. `HostRead()` is therefore correctly a
+  no-op, and an `MFEM_VERIFY` on `HostIsValid()` would pass. Three attempts to
+  repair it from inside `DarcyHybridization` failed for this reason and are
+  not in the tree.
+* **There is a device test harness already**, contrary to what the first pass
+  here assumed: `tests/unit/gpu_unit_test_main.cpp` builds `gpu_unit_tests`
+  with `Device device("gpu")` when `USE_GPU` is set, and
+  `tests/unit/miniapps/test_debug_device.cpp` is the precedent for a
+  `Device`-constructing case. That is where a device regression for this
+  belongs.
 
 ## Step 1 — group 1, and it is a storage change
 

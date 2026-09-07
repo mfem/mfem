@@ -288,8 +288,31 @@ public:
    /// @name Potential r.h.s.
    ///@{
 
-   /// Get the potential right-hand-side form (non-const)
-   /** @note The form is constructed if it has not been already. */
+   /** @brief Get the potential right-hand-side form (non-const)
+
+       @note The form is constructed if it has not been already.
+
+       @note WITH A DEVICE CONFIGURED, A CALLER WHO ACCUMULATES THIS INTO ITS
+       OWN BlockVector MUST SyncAliasMemory() AFTERWARDS. The hybridized
+       routines are host loops over raw pointers, and
+
+           rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+
+       is a DEVICE operation on an alias of @a rhs: it leaves the result in
+       that alias's device buffer, and the second view a caller builds to pass
+       to FormLinearSystem() gets a fresh alias marked host-valid whatever the
+       real state, so the loops read stale zeros. Measured under both
+       `-d cuda` and `-d debug`: the reduced trace right-hand side comes back
+       EXACTLY zero, the trace solve returns zero, the recovered fields are
+       quietly wrong, and nothing errors. The validity flags say
+       `hostvalid=1 devvalid=0` on the very block whose host buffer is zeros,
+       so neither a HostRead() nor a guard can catch it.
+
+           rhs.GetBlock(1) += *darcy.GetPotentialRHS();
+           rhs.GetBlock(1).SyncAliasMemory(rhs);      // <-- and this
+
+       Assemble() already does exactly this for the form's own b_u and b_p.
+       None of it applies to a host-only build. */
    LinearForm *GetPotentialRHS();
 
    /// Get the potential right-hand-side form (const)
