@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -24,7 +24,7 @@ SEQ_MINIAPPS = mobius-strip klein-bottle toroid trimmer twist mesh-explorer\
 	shaper extruder mesh-optimizer minimal-surface polar-nc reflector\
 	ref321 mesh-quality hpref
 PAR_MINIAPPS = pmesh-optimizer pminimal-surface pmesh-fitting fit-node-position\
-	phpref mesh-bounding-boxes
+	phpref pref321 mesh-bounding-boxes
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
 else
@@ -99,6 +99,8 @@ hpref-test-seq: hpref
 	@$(call mfem-test,$<,, Serial hp-refinement)
 phpref-test-par: phpref
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel hp-refinement)
+pref321-test-par: pref321
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel 3:1 refinement)
 mesh-bounding-boxes-test-par: mesh-bounding-boxes
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel bounding boxes)
 ref321-test-seq: ref321

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -358,6 +358,7 @@ public:
    /// Returns the diagonal of the matrix
    void GetDiag(Vector &d) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
+   /// @deprecated Use GetRowl1() instead.
    MFEM_DEPRECATED void Getl1Diag(Vector &l) const;
    /// Returns the l1 norm of the rows of the matrix v_i = sum_j |a_ij|
    void GetRowl1(Vector &l) const;
@@ -1003,7 +1004,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the parameters for
+    and right singular vectors can be chosen according to the parameters for
     the LAPACK DGESVD.
 
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
@@ -1021,7 +1022,7 @@ public:
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
     and right singular
-    vectors can be choosen according to the parameters for the LAPACK DGESVD.
+    vectors can be chosen according to the parameters for the LAPACK DGESVD.
 
     @param [in] h height of the matrix
     @param [in] w width of the matrix
@@ -1038,7 +1039,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the parameters for
+    and right singular vectors can be chosen according to the parameters for
     the LAPACK DGESVD.
 
     @param [in] M matrix to set the size to n=M.Height(), m=M.Width()
@@ -1063,7 +1064,7 @@ public:
     @brief Constructor for the DenseMatrixSVD
 
     Constructor for the DenseMatrixSVD with LAPACK. The parameters for the left
-    and right singular vectors can be choosen according to the
+    and right singular vectors can be chosen according to the
     parameters for the LAPACK DGESVD.
 
     @param [in] h height of the matrix
@@ -1141,6 +1142,17 @@ private:
 public:
    DenseTensor() : ni(0), nj(0), nk(0) { }
 
+   DenseTensor(const DenseTensor &other)
+      : tdata(other.tdata), ni(other.ni), nj(other.nj), nk(other.nk) { }
+
+   DenseTensor(DenseTensor &&other)
+      : tdata(std::move(other.tdata)), ni(other.ni), nj(other.nj), nk(other.nk)
+   {
+      // Reset other; other.tdata is reset in Array<T> move constructror.
+      other.Mk.ClearExternalData();
+      other.ni = other.nj = other.nk = 0;
+   }
+
    DenseTensor(int i, int j, int k) : tdata(i*j*k), ni(i), nj(j), nk(k) { }
 
    DenseTensor(real_t *d, int i, int j, int k)
@@ -1148,6 +1160,33 @@ public:
 
    DenseTensor(int i, int j, int k, MemoryType mt)
       : tdata(i*j*k, mt), ni(i), nj(j), nk(k) { }
+
+   DenseTensor &operator=(const DenseTensor &other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = other.tdata;
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+      return *this;
+   }
+
+   DenseTensor &operator=(DenseTensor &&other)
+   {
+      if (this == &other) { return *this; }
+      Mk.ClearExternalData();
+      tdata = std::move(other.tdata);
+      ni = other.ni;
+      nj = other.nj;
+      nk = other.nk;
+
+      // Reset other; other.tdata is reset in Array<T> move assignment.
+      other.Mk.ClearExternalData();
+      other.ni = other.nj = other.nk = 0;
+
+      return *this;
+   }
 
    int SizeI() const { return ni; }
    int SizeJ() const { return nj; }

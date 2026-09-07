@@ -174,7 +174,7 @@ public:
    {
       real_t ddt = dt-dt_;
 
-      // syncronize ddt across all processes
+      // synchronize ddt across all processes
       MPI_Comm comm = M.GetComm();
       int myrank;
       MPI_Comm_rank(comm, &myrank);
@@ -442,7 +442,7 @@ int main(int argc, char *argv[])
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
 
-   // For the preconditioner - create billinear form corresponding to
+   // For the preconditioner - create bilinear form corresponding to
    // operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);
