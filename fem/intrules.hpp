@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -268,6 +268,13 @@ public:
    /// @brief Return an integration rule for KnotVector @a kv, defined by
    /// applying this rule on each knot interval.
    IntegrationRule* ApplyToKnotIntervals(KnotVector const& kv) const;
+
+   /** @brief  Returns an integration rule such that the new IntegrationPoints
+    *  are re-ordered based on @a ordering.
+    *
+    *  @details In the new integration rule, ip_new[i] = ip_old[ordering[i]]
+    */
+   IntegrationRule Reorder(const Array<int> &ordering) const;
 
    /// Destroys an IntegrationRule object
    ~IntegrationRule() { }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -205,7 +205,7 @@ private:
    DenseMatrixInverse Ti;
 
 public:
-   /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
+   /// Construct the L2_FuentesPyramidElement of order @a p and BasisType @a btype
    L2_FuentesPyramidElement(const int p,
                             const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;
@@ -225,8 +225,10 @@ private:
 #endif
    DenseMatrixInverse Ti;
 
+   static constexpr real_t apex_tol = 1e-8;
+
 public:
-   /// Construct the L2_PyramidElement of order @a p and BasisType @a btype
+   /// Construct the L2_BergotPyramidElement of order @a p and BasisType @a btype
    L2_BergotPyramidElement(const int p,
                            const int btype = BasisType::GaussLegendre);
    virtual void CalcShape(const IntegrationPoint &ip, Vector &shape) const;

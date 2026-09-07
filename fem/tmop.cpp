@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -6087,7 +6087,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
       dynamic_cast<const ParFiniteElementSpace *>(&fes);
 #endif
 
-   if (wcuo && wcuo->GetBarrierType() ==
+   if (wcuo->GetBarrierType() ==
        TMOP_WorstCaseUntangleOptimizer_Metric::BarrierType::Shifted)
    {
       real_t min_detT = ComputeMinDetT(x_loc, fes);
@@ -6099,7 +6099,7 @@ ComputeUntangleMetricQuantiles(const Vector &d, const FiniteElementSpace &fes)
                        MPITypeMap<real_t>::mpi_type, MPI_MIN, pfes->GetComm());
       }
 #endif
-      if (wcuo) { wcuo->SetMinDetT(min_detT_all); }
+      wcuo->SetMinDetT(min_detT_all);
    }
 
    real_t max_muT = ComputeUntanglerMaxMuBarrier(x_loc, fes);

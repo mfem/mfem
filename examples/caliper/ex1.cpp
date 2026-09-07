@@ -3,30 +3,30 @@
 //
 // Compile with: make ex1
 //
-// Sample runs:  ex1 -m ../data/square-disc.mesh
-//               ex1 -m ../data/star.mesh
-//               ex1 -m ../data/star-mixed.mesh
-//               ex1 -m ../data/escher.mesh
-//               ex1 -m ../data/fichera.mesh
-//               ex1 -m ../data/fichera-mixed.mesh
-//               ex1 -m ../data/toroid-wedge.mesh
-//               ex1 -m ../data/periodic-annulus-sector.msh
-//               ex1 -m ../data/periodic-torus-sector.msh
-//               ex1 -m ../data/square-disc-p2.vtk -o 2
-//               ex1 -m ../data/square-disc-p3.mesh -o 3
-//               ex1 -m ../data/square-disc-nurbs.mesh -o -1
-//               ex1 -m ../data/star-mixed-p2.mesh -o 2
-//               ex1 -m ../data/disc-nurbs.mesh -o -1
-//               ex1 -m ../data/pipe-nurbs.mesh -o -1
-//               ex1 -m ../data/fichera-mixed-p2.mesh -o 2
-//               ex1 -m ../data/star-surf.mesh
-//               ex1 -m ../data/square-disc-surf.mesh
-//               ex1 -m ../data/inline-segment.mesh
-//               ex1 -m ../data/amr-quad.mesh
-//               ex1 -m ../data/amr-hex.mesh
-//               ex1 -m ../data/fichera-amr.mesh
-//               ex1 -m ../data/mobius-strip.mesh
-//               ex1 -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  ex1 -m ../../data/square-disc.mesh
+//               ex1 -m ../../data/star.mesh
+//               ex1 -m ../../data/star-mixed.mesh
+//               ex1 -m ../../data/escher.mesh
+//               ex1 -m ../../data/fichera.mesh
+//               ex1 -m ../../data/fichera-mixed.mesh
+//               ex1 -m ../../data/toroid-wedge.mesh
+//               ex1 -m ../../data/periodic-annulus-sector.msh
+//               ex1 -m ../../data/periodic-torus-sector.msh
+//               ex1 -m ../../data/square-disc-p2.vtk -o 2
+//               ex1 -m ../../data/square-disc-p3.mesh -o 3
+//               ex1 -m ../../data/square-disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/star-mixed-p2.mesh -o 2
+//               ex1 -m ../../data/disc-nurbs.mesh -o -1
+//               ex1 -m ../../data/pipe-nurbs.mesh -o -1
+//               ex1 -m ../../data/fichera-mixed-p2.mesh -o 2
+//               ex1 -m ../../data/star-surf.mesh
+//               ex1 -m ../../data/square-disc-surf.mesh
+//               ex1 -m ../../data/inline-segment.mesh
+//               ex1 -m ../../data/amr-quad.mesh
+//               ex1 -m ../../data/amr-hex.mesh
+//               ex1 -m ../../data/fichera-amr.mesh
+//               ex1 -m ../../data/mobius-strip.mesh
+//               ex1 -m ../../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
 //               ex1 -pa -d cuda
@@ -37,12 +37,12 @@
 //               ex1 -pa -d ceed-cpu
 //             * ex1 -pa -d ceed-cuda
 //               ex1 -pa -d ceed-cuda:/gpu/cuda/shared
-//               ex1 -m ../data/beam-hex.mesh -pa -d cuda
-//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cpu
-//               ex1 -m ../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
+//               ex1 -m ../../data/beam-hex.mesh -pa -d cuda
+//               ex1 -m ../../data/beam-tet.mesh -pa -d ceed-cpu
+//               ex1 -m ../../data/beam-tet.mesh -pa -d ceed-cuda:/gpu/cuda/ref
 //
 // Description: This example is a copy of Example 1 instrumented with the
-//              Caliper performance profilinh library. Any option supported by
+//              Caliper performance profiling library. Any option supported by
 //              the Caliper ConfigManager can be passed to the code using a
 //              configuration string after -p or --caliper flag. For more
 //              information, see the Caliper documentation.
