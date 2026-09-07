@@ -1357,6 +1357,21 @@ void DarcyHybridization::InvertA()
       // The factors are Af_data's own memory, so whichever side the backend
       // left valid is the side Af_data now reports; the host readers below
       // and in MultInv() go through Array::operator[], which does not sync.
+      //
+      // Af_ipiv is the sharper half of that and is worth stating: it is
+      // written through Array::Write(), whose default is on_dev = true, so on
+      // a device it comes back device-valid, and LUFactors uses its entries
+      // as ARRAY INDICES (ipiv[i] - 1). A host reader would index on
+      // uninitialised memory, which a synthetic probe duly segfaults on.
+      //
+      // NOTHING REACHES IT TODAY, and that is measured rather than assumed:
+      // InvertA() runs only for LocalOpType::PotNL and FluxNL, whose local
+      // solves are MultInvNL(), and a nonlinear local solve does not run with
+      // a device configured AT ALL -- it aborts in LBFGSSolver on a NaN,
+      // identically in LocalFactorMode::Serial, which is step 0's caller
+      // contract and predates all of this. So the gap is real in structure
+      // and unreached in practice, and the thing that would close it is the
+      // same host/device discipline step 0 asks for, not a sync here.
       Af_data.GetMemory().Sync(A.GetMemory());
       return;
    }
