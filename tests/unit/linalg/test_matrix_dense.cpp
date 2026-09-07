@@ -494,6 +494,107 @@ TEST_CASE("Batched Linear Algebra",
    }
 }
 
+TEST_CASE("Batched Linear Algebra, rectangular blocks",
+          "[DenseMatrix][GPU]")
+{
+   auto backend = GENERATE(BatchedLinAlg::NATIVE,
+                           BatchedLinAlg::GPU_BLAS,
+                           BatchedLinAlg::MAGMA);
+   // Skip unavailable backends
+   if (!BatchedLinAlg::IsAvailable(backend)) { return; }
+   CAPTURE(backend);
+
+   // The case above uses SQUARE blocks, so op(A)'s row count and A's own
+   // leading dimension coincide and a backend that confuses the two still
+   // returns the right answer. Both GPU backends did confuse them in the
+   // transposed product, and only a rectangular block says so: the wrong
+   // stride is still large enough to satisfy cuBLAS's own lda check, so
+   // there is no error, only a wrong result.
+   //
+   // The shape is the one a hybridized local solve has -- the divergence
+   // block is (potential dofs) x (flux dofs) and is applied both ways -- so
+   // m and n differ by the space dimension.
+   const int m = 4;
+   const int n = 9;
+   const int n_mat = 5;
+   const int n_rhs = 2;
+
+   DenseTensor A_batch(m, n, n_mat);
+   Vector x_batch(n * n_rhs * n_mat);   // for the untransposed product
+   Vector xt_batch(m * n_rhs * n_mat);  // for the transposed one
+   Vector y_batch(m * n_rhs * n_mat), yt_batch(n * n_rhs * n_mat);
+
+   std::vector<DenseMatrix> As, xs, xts, ys, yts;
+   int seed = 1;
+   for (int i = 0; i < n_mat; ++i)
+   {
+      As.emplace_back(m, n);
+      for (int j = 0; j < n; ++j)
+      {
+         Vector col;
+         As.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+      }
+      A_batch(i) = As.back();
+
+      xs.emplace_back(n, n_rhs);
+      xts.emplace_back(m, n_rhs);
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         Vector col;
+         xs.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         for (int k = 0; k < n; ++k)
+         {
+            x_batch[k + j*n + i*n*n_rhs] = xs.back()(k, j);
+         }
+         xts.back().GetColumnReference(j, col);
+         col.Randomize(seed++);
+         for (int k = 0; k < m; ++k)
+         {
+            xt_batch[k + j*m + i*m*n_rhs] = xts.back()(k, j);
+         }
+      }
+
+      ys.emplace_back(m, n_rhs);
+      ys.back() = 0.0;
+      AddMult_a(1.5, As.back(), xs.back(), ys.back());
+
+      yts.emplace_back(n, n_rhs);
+      yts.back() = 0.0;
+      AddMult_a_AtB(1.5, As.back(), xts.back(), yts.back());
+   }
+
+   y_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, x_batch, y_batch, 1.5, 1.0);
+   y_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < m; ++k)
+         {
+            REQUIRE(y_batch[k + j*m + i*m*n_rhs] == MFEM_Approx(ys[i](k, j)));
+         }
+      }
+   }
+
+   yt_batch = 0.0;
+   BatchedLinAlg::Get(backend).AddMult(A_batch, xt_batch, yt_batch, 1.5, 1.0,
+                                       BatchedLinAlg::Op::T);
+   yt_batch.HostReadWrite();
+   for (int i = 0; i < n_mat; ++i)
+   {
+      for (int j = 0; j < n_rhs; ++j)
+      {
+         for (int k = 0; k < n; ++k)
+         {
+            REQUIRE(yt_batch[k + j*n + i*n*n_rhs] == MFEM_Approx(yts[i](k, j)));
+         }
+      }
+   }
+}
+
 #ifdef MFEM_USE_EXCEPTIONS
 namespace
 {

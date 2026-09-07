@@ -99,10 +99,21 @@ void GPUBlasBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
    const auto op_A = tr ? MFEM_CU_or_HIP(BLAS_OP_T) : MFEM_CU_or_HIP(BLAS_OP_N);
    const auto op_B = MFEM_CU_or_HIP(BLAS_OP_N);
 
+   // The leading dimension of A is the leading dimension of the matrix AS
+   // STORED, which is A.SizeI() whatever op_A is -- gemm applies the
+   // transpose after reading it. Above, m and n are the shape of op(A), so
+   // they are swapped in the transposed case and neither of them is the
+   // stride. Passing m here was right only when the blocks are square, which
+   // every batched Op::T test in the tree happened to be; on a rectangular
+   // block it reads the matrix with the wrong stride and returns a wrong
+   // answer with no error, since cuBLAS only requires lda >= the number of
+   // rows of op(A)^T and A.SizeJ() >= A.SizeI() satisfies that.
+   const int lda = A.SizeI();
+
    const blasStatus_t status = MFEM_GPUBLAS_PREFIX(gemmStridedBatched)(
                                   GPUBlas::Handle(), op_A, op_B, m, k, n,
-                                  &alpha, d_A, m, m*n, d_x, n, n*k, &beta, d_y,
-                                  m, m*k, n_mat);
+                                  &alpha, d_A, lda, m*n, d_x, n, n*k, &beta,
+                                  d_y, m, m*k, n_mat);
    MFEM_VERIFY(status == MFEM_BLAS_SUCCESS, "GPU BLAS error.");
 }
 
