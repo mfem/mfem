@@ -1904,13 +1904,13 @@ void DarcyHybridization::GetGFaceMatrix(
 
    if (side == 0)
    {
-      G.Reset(G_data + G_offsets[f], c_size, d_size_1);
+      G.Reset(G_data.GetData() + G_offsets[f], c_size, d_size_1);
    }
    else
    {
       MFEM_ASSERT(el2 >= 0, "Invalid element");
       const int d_size_2 = Df_f_offsets[el2+1] - Df_f_offsets[el2];
-      G.Reset(G_data + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
+      G.Reset(G_data.GetData() + G_offsets[f] + d_size_1*c_size, c_size, d_size_2);
    }
 }
 
