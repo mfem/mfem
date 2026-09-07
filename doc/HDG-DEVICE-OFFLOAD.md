@@ -215,10 +215,51 @@ after. Verified: the assembled trace operator is **bit-for-bit identical**
 between `-d cpu` and `-d cuda` (see step 0's table), and the host Darcy suite
 is unmoved at 92 cases / 28,223 assertions.
 
-What is NOT done from the paragraph above: extending the same treatment to
-`MultInv`, `ComputeSolution`, `NPCReduce`/`NPCRecover` and `ComputeElementH`'s
-factor+Schur. Those are step 0's problem as much as this step's, since they
-are the raw-pointer readers that make the host/device split unsafe.
+**The local SOLVES are done too now.** `MultInvBatched()` is `MultInv()` for
+every element at once on element-blocked vectors -- three `LUSolve`s, a `B`
+product and a `B^T` product, all `BatchedLinAlg` -- and
+`LocalFactorMode::Batched` routes `ReduceRHS()`, `ComputeSolution()`,
+`NPCReduce()` and `NPCRecover()` through it. Bit-for-bit the per-element route
+on a host without LAPACK, pinned by two cases in
+`tests/unit/fem/test_darcy_batched_factor.cpp` -- one linear, since a linear
+problem is what reaches `ReduceRHS`/`ComputeSolution`, and one NPC step, since
+a nonlinear one never reaches either (`NPCEnabled()` is
+`bnpc || IsNonlinear()`).
+
+**Two upstream defects stood between this and a device, and neither was
+reachable from anything in the tree.** Both are fixed and pinned; the findings
+are on the code.
+
+* `GPUBlasBatchedLinAlg::AddMult` and `MagmaBatchedLinAlg::AddMult` passed the
+  shape of `op(A)` as the leading dimension of `A`. Right when the blocks are
+  square, and the only batched `Op::T` test in the tree used square blocks --
+  so `BatchedLinAlg::MultTranspose` returned a wrong answer, with no error,
+  on every rectangular batch. The HDG divergence block is `(potential dofs) x
+  (flux dofs)` and is applied both ways, so the local solve hits it squarely:
+  measured 0.355 against a scale of 0.267 before, 0.0 after.
+* `NativeBatchedLinAlg::LUSolve` took `x.Write()` for the right-hand side,
+  which on a device returns the device pointer *without* copying the host
+  contents up. Measured `max|A x - b| = 1` exactly on CUDA -- `x` came back as
+  zeros -- against 2.2e-16 on `GPU_BLAS`. Masked because `GPU_BLAS` is the
+  default wherever CUDA or HIP is on.
+
+**It does not pay yet, and that is the plan's own gate rather than a
+surprise.** In situ inside `RecoverFEMSolution` the batched route is 5 to 15%
+*slower* at every size tried, on host and device alike -- 68.5 -> 72.4 ms at
+order 2 on 160x160 quads under CUDA, 54.1 -> 76.3 ms at order 6 on 48x48 on
+the host. The local solve on its own is 1.35x to 3.53x on CUDA, so the device
+arithmetic is genuinely faster; it is simply not where the routine's time
+goes. Same conclusion as the factorisation reached in step 1's first half,
+and for the same reason.
+
+What is still NOT done: **the gather and the scatter**. Both routed loops
+build the element-blocked right-hand side on the host and read the answer back
+with one `HostRead()` per call, which is named in the source at each site
+precisely because it is the transfer the target forbids. Removing it needs the
+face terms batched too -- step 2's territory -- and an index-array gather in
+place of `GetFDofs`/`GetElementVDofs`. And `ComputeElementH`'s factor+Schur is
+untouched, which is the once-per-linearisation factorisation this step's own
+note above already calls the hot path.
 
 **Acceptance.** The NATIVE backend on device must be **bit-for-bit** the host's,
 because it runs the identical `kernels::LUFactor`/`LUSolve` scalar code — the

@@ -388,7 +388,7 @@ private:
        Allocated only when the mode calls for it. MultInv() reads these
        whenever it is applying the JACOBIAN's blocks, which is exactly its
        @a with_bnl argument. */
-   mutable Array<real_t> Sf_data;
+   mutable Vector Sf_data;
    mutable Array<int> Sf_ipiv;
    bool D_empty{true};
 
@@ -792,6 +792,22 @@ private:
                       Vector &ru_l, Vector &rp_l) const;
    void MultInv(int el, const Vector &bu, const Vector &bp, Vector &u,
                 Vector &p, bool with_bnl = false) const;
+   /** @brief MultInv() for every element at once, on element-blocked vectors.
+
+       @a bu and @a bp carry the elements' right-hand sides end to end in
+       element order -- sizes Af_f_offsets.Last() and Df_f_offsets.Last() --
+       and @a u and @a p come back the same way. Every step is a
+       BatchedLinAlg call, so on a device nothing is read back; the caller's
+       gather into @a bu / @a bp and scatter out of @a u / @a p are what
+       remain on the host.
+
+       Requires CanBatchLocalFactor(), since a DenseTensor is one block size.
+       Bit-for-bit the per-element route in a build without LAPACK, where
+       LUFactors::Solve() is the kernels::LSolve/USolve pair that
+       NativeBatchedLinAlg::LUSolve() calls; with LAPACK the per-element side
+       is dgetrs_ and only round-off agreement is claimed. See MultInv(). */
+   void MultInvBatched(const Vector &bu, const Vector &bp, Vector &u,
+                       Vector &p, bool with_bnl = false) const;
    void ConstructGrad(int el, const Array<int> &faces, TransWorkspace &ws,
                       const BlockVector &x_l,
                       const Vector &u_l,
@@ -1013,7 +1029,16 @@ public:
        for that work at all, not that it moves a host solve. Reaching the hot
        path means factoring all of A in one batched pre-pass before ComputeH()'s
        element loop and having ComputeElementH() skip it, which is a larger
-       change than this one and is not made here. */
+       change than this one and is not made here.
+
+       **The setting does more than its name says now**, and the name is kept
+       for compatibility. Batched also sends the local SOLVES through
+       MultInvBatched() -- every element's `M^-1 (bu, bp)` in one batch of
+       BatchedLinAlg calls rather than one LUFactors triple per element -- in
+       ReduceRHS(), ComputeSolution(), NPCReduce() and NPCRecover(). Unlike
+       the factorisation those are not a cold path: the last two run once per
+       NPC Newton step. CanBatchLocalSolve() answers whether it is taken and
+       carries what it costs. */
    void SetLocalFactorMode(LocalFactorMode mode);
 
    /** @brief Whether LocalFactorMode::Batched would actually be taken, which
@@ -1030,6 +1055,55 @@ public:
 
        Valid once Init() has built the offsets. */
    bool CanBatchLocalFactor() const;
+
+   /** @brief Whether the local SOLVES are batched too, not only the
+       factorisation.
+
+       LocalFactorMode::Batched asked for, uniform blocks, and a stored Schur
+       complement -- which the FullNL local operator has not got, its local
+       problem going through MultInvNL() and a local Newton instead. When this
+       is true, ReduceRHS() and ComputeSolution() do every element's local
+       solve in one batch of BatchedLinAlg calls rather than one LUFactors
+       triple per element.
+
+       **What it is worth, and the honest answer is "nothing yet".** Two
+       measurements, and the second is the one that matters.
+
+       The local solve ON ITS OWN, batched against the LUFactors loop, on
+       synthetic blocks of a hybridization's shape (n_a = dim*ND flux dofs,
+       n_d = ND potential):
+
+           n_d   NE      host (g++)   CUDA
+             9   2304        1.04x    0.67x
+            25   2304        0.71x    1.35x
+            49   2304        0.72x    2.64x
+            49   9216        0.69x    3.53x
+
+       So on a host it is level at small blocks and about 30% slower at large
+       ones -- same scalar work through the same kernels, but streaming the
+       whole blocked arrays six times where the per-element route keeps one
+       element's vectors in cache. On a device it crosses over around a
+       thousand elements and reaches 3.5x.
+
+       IN SITU, inside RecoverFEMSolution() on 2-D quads, it is **5 to 15%
+       slower at every size tried, on host and device alike** -- 58.9 -> 67.1
+       ms at order 2 on 160x160 (host), 68.5 -> 72.4 ms for the same case on
+       CUDA, 54.1 -> 76.3 ms at order 6 on 48x48 (host). The device's 3.5x on
+       the arithmetic does not show up because the arithmetic is not what the
+       routine spends its time on: the face loop around it is host dense work,
+       and the gather into the blocked vectors and the one HostRead() back out
+       are host work too.
+
+       That is the plan's own gate arriving on schedule (doc/HDG-DEVICE-
+       OFFLOAD.md): no step of the offload can be landed alone and show a
+       gain, because a device kernel whose neighbours are on the host pays
+       more in transfer than it saves. What this setting buys is that the
+       local solve is EXPRESSIBLE on a device at all, which the whole-chain
+       target requires and which it was not before -- see the two upstream
+       defects the attempt turned up, recorded on GPUBlasBatchedLinAlg::
+       AddMult and NativeBatchedLinAlg::LUSolve. Hence Serial by default, and
+       do not turn it on expecting a number to move. */
+   bool CanBatchLocalSolve() const;
 
    /** @brief Choose whether GetGradient() assembles the reduced system or only
        applies it. See GradientMode; the default is Assembled, which is what

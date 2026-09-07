@@ -190,6 +190,209 @@ Outcome Solve(Mesh &mesh, int order, real_t c,
    return out;
 }
 
+
+struct LinearOutcome
+{
+   Vector q, p, tr;
+   bool can_batch_factor = false;
+   bool can_batch_solve = false;
+};
+
+/// The same problem with a LINEAR potential mass, solved once in each mode.
+///
+/// The nonlinear case above exercises the local FACTORISATION, because
+/// LocalOpType::PotNL reaches InvertA() and then solves its local problems
+/// with MultInvNL(). A linear problem is what reaches MultInv(), through
+/// ReduceRHS() and ComputeSolution() -- so it is the linear case that says
+/// anything about the batched local SOLVE, and the two cases are not
+/// substitutes for one another.
+LinearOutcome SolveLinear(Mesh &mesh, int order,
+                          DarcyHybridization::LocalFactorMode mode)
+{
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim);
+   FiniteElementSpace Wh(&mesh, &p_coll);
+   FiniteElementSpace Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient src([](const Vector &X)
+   {
+      return std::sin(M_PI*X(0))*std::sin(M_PI*X(1));
+   });
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   BilinearForm *M_p = darcy.GetPotentialMassForm();
+   M_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   M_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetLocalFactorMode(mode);
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   dh->SetEssentialBC(ess_bdr);
+
+   darcy.Assemble();
+
+   BlockVector x(darcy.GetOffsets());
+   x = 0.0;
+
+   OperatorHandle R;
+   Vector X, B;
+   darcy.FormLinearSystem(ess_flux, x, R, X, B, true);
+
+   LinearOutcome out;
+   out.can_batch_factor = dh->CanBatchLocalFactor();
+   out.can_batch_solve = dh->CanBatchLocalSolve();
+
+   GSSmoother prec;
+   GMRESSolver lin;
+   lin.SetKDim(200);
+   lin.SetMaxIter(2000);
+   lin.SetRelTol(1e-14);
+   lin.SetAbsTol(0.0);
+   lin.SetPreconditioner(prec);
+   lin.SetOperator(*R.Ptr());
+   lin.SetPrintLevel(-1);
+   lin.Mult(B, X);
+
+   darcy.RecoverFEMSolution(X, x);
+   out.q = x.GetBlock(0);
+   out.p = x.GetBlock(1);
+   out.tr = X;
+   return out;
+}
+
+
+struct NPCOutcome
+{
+   BlockVector dx;
+   Vector dtr;
+   real_t n0 = 0.0, n1 = 0.0;
+   bool can_batch_solve = false;
+   NPCOutcome() : dx() { }
+};
+
+/// One NPC Newton step on the semilinear problem, in the given factor mode.
+///
+/// The linear case above reaches MultInv() through ReduceRHS() and
+/// ComputeSolution(). A NONLINEAR problem never reaches either --
+/// NPCEnabled() is `bnpc || IsNonlinear()`, so ReduceRHS() returns after
+/// stashing the load -- and its local solves go through NPCReduce() and
+/// NPCRecover() instead. Those are the ones that run once per Newton step,
+/// so they are where batching is worth the most, and nothing else here
+/// exercises them.
+///
+/// What this does NOT cover: the Bnl term inside MultInvBatched(). It is
+/// reached only when the flux law depends on the potential
+/// (LocalOpType::FluxNL), and a potential-mass nonlinearity leaves Bnl empty.
+void NPCStep(Mesh &mesh, int order, real_t c,
+             DarcyHybridization::LocalFactorMode mode, NPCOutcome &out)
+{
+   const int dim = mesh.Dimension();
+
+   L2_FECollection u_coll(order, dim, BasisType::GaussLobatto);
+   L2_FECollection p_coll(order, dim);
+   DG_Interface_FECollection t_coll(order, dim);
+   FiniteElementSpace Vh(&mesh, &u_coll, dim);
+   FiniteElementSpace Wh(&mesh, &p_coll);
+   FiniteElementSpace Mh(&mesh, &t_coll);
+
+   DarcyForm darcy(&Vh, &Wh);
+   ConstantCoefficient one(1.0);
+   FunctionCoefficient src([](const Vector &X)
+   {
+      return std::sin(M_PI*X(0))*std::sin(M_PI*X(1));
+   });
+
+   darcy.GetPotentialRHS()->AddDomainIntegrator(new DomainLFIntegrator(src));
+   darcy.GetFluxMassForm()->AddDomainIntegrator(new VectorMassIntegrator(one));
+   darcy.GetFluxDivForm()->AddDomainIntegrator(new VectorDivergenceIntegrator());
+   darcy.GetFluxDivForm()->AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGNormalTraceIntegrator(-1.0)));
+
+   NonlinearForm *Mnl_p = darcy.GetPotentialMassNonlinearForm();
+   Mnl_p->AddDomainIntegrator(new SquareSource(c));
+   Mnl_p->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+   Mnl_p->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(one, 1.0));
+
+   Array<int> ess_flux;
+   darcy.EnableHybridization(&Mh, new NormalTraceJumpIntegrator(), ess_flux);
+
+   DarcyHybridization *dh = darcy.GetHybridization();
+   dh->SetLocalFactorMode(mode);
+   dh->EnableNPC();
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 1;
+   dh->SetEssentialBC(ess_bdr);
+
+   darcy.Assemble();
+   darcy.Finalize();
+
+   BlockVector b(darcy.GetOffsets()), x(darcy.GetOffsets());
+   b = 0.0;
+   x = 0.0;
+   darcy.GetPotentialRHS()->Assemble();
+   b.GetBlock(1) += *darcy.GetPotentialRHS();
+
+   Vector x_tr(Mh.GetVSize());
+   x_tr = 0.0;
+
+   BlockVector r(darcy.GetOffsets());
+   Vector r_tr, b_tr, dtr;
+
+   auto full_norm = [](const BlockVector &rl, const Vector &rt)
+   {
+      return std::sqrt(rl*rl + rt*rt);
+   };
+
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   out.n0 = full_norm(r, r_tr);
+
+   Operator &S = dh->NPCGradient(x, x_tr);
+   out.can_batch_solve = dh->CanBatchLocalSolve();
+   dh->NPCReduce(r, r_tr, b_tr);
+
+   dtr.SetSize(b_tr.Size());
+   dtr = 0.0;
+   {
+      GSSmoother prec(*dynamic_cast<SparseMatrix*>(&S));
+      GMRESSolver gmres;
+      gmres.SetOperator(S);
+      gmres.SetPreconditioner(prec);
+      gmres.SetKDim(200);
+      gmres.SetMaxIter(2000);
+      gmres.SetRelTol(1e-14);
+      gmres.SetAbsTol(0.0);
+      gmres.SetPrintLevel(-1);
+      gmres.Mult(b_tr, dtr);
+   }
+
+   BlockVector dx(darcy.GetOffsets());
+   dh->NPCRecover(r, dtr, dx);
+   x += dx;
+   x_tr += dtr;
+
+   dh->NPCResidual(b, x, x_tr, r, r_tr);
+   out.n1 = full_norm(r, r_tr);
+
+   out.dx.Update(darcy.GetOffsets());
+   out.dx = dx;
+   out.dtr = dtr;
+}
+
 } // namespace darcy_batched_factor
 
 TEST_CASE("The batched local factorisation gives the serial one's answer",
@@ -331,4 +534,71 @@ TEST_CASE("Essential flux dofs alone break the uniform block size",
       REQUIRE(ess_flux.Size() == 0);
       REQUIRE(darcy.GetHybridization()->CanBatchLocalFactor());
    }
+}
+
+TEST_CASE("The batched local solve gives the serial one's answer",
+          "[DarcyHybridization][BatchedLinAlg]")
+{
+   using namespace darcy_batched_factor;
+   using LFM = DarcyHybridization::LocalFactorMode;
+
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(2, 4);
+   const bool tri = GENERATE(false, true);
+   CAPTURE(order, n, tri);
+
+   const auto et = tri ? Element::TRIANGLE : Element::QUADRILATERAL;
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, et);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, et);
+
+   const LinearOutcome ref = SolveLinear(mesh_a, order, LFM::Serial);
+   const LinearOutcome got = SolveLinear(mesh_b, order, LFM::Batched);
+
+   // The discriminating half: Serial must NOT take the batched solve and
+   // Batched must. Without this the comparison below is Serial against
+   // Serial, which passes while testing nothing -- the same trap the
+   // factorisation case above guards against.
+   REQUIRE_FALSE(ref.can_batch_solve);
+   REQUIRE(got.can_batch_solve);
+   REQUIRE(got.can_batch_factor);
+
+   // ReduceRHS() feeds the trace solve, so a difference there would show up
+   // in the trace before it showed up in the fields; checking the trace as
+   // well as the fields separates "the reduced right-hand side moved" from
+   // "the recovery moved".
+   RequireSame(ref.tr, got.tr);
+   RequireSame(ref.p, got.p);
+   RequireSame(ref.q, got.q);
+}
+
+TEST_CASE("The batched local solve gives the serial one's NPC step",
+          "[DarcyHybridization][BatchedLinAlg][NPC]")
+{
+   using namespace darcy_batched_factor;
+   using LFM = DarcyHybridization::LocalFactorMode;
+
+   const int order = GENERATE(0, 1, 2);
+   const int n = GENERATE(2, 4);
+   CAPTURE(order, n);
+
+   Mesh mesh_a = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+   Mesh mesh_b = Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL);
+
+   NPCOutcome ref, got;
+   NPCStep(mesh_a, order, 5.0, LFM::Serial, ref);
+   NPCStep(mesh_b, order, 5.0, LFM::Batched, got);
+
+   REQUIRE_FALSE(ref.can_batch_solve);
+   REQUIRE(got.can_batch_solve);
+
+   // There has to be a step to compare: a residual that starts small, or a
+   // Newton step that achieves nothing, would make the comparison below
+   // vacuous.
+   CAPTURE(ref.n0, ref.n1);
+   REQUIRE(ref.n0 > 1e-3);
+   REQUIRE(ref.n1 < 0.1 * ref.n0);
+
+   RequireSame(ref.dtr, got.dtr);
+   RequireSame(ref.dx.GetBlock(0), got.dx.GetBlock(0));
+   RequireSame(ref.dx.GetBlock(1), got.dx.GetBlock(1));
 }

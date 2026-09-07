@@ -3236,6 +3236,117 @@ void DarcyHybridization::MultInv(int el, const Vector &bu, const Vector &bp,
    else { u -= AiBtSiBAibu; }
 }
 
+bool DarcyHybridization::CanBatchLocalSolve() const
+{
+   const int NE = fes.GetNE();
+
+   // The condition is about STORAGE, not about which local operator is in
+   // play: MultInvBatched() is a transcription of MultInv() and is valid
+   // wherever MultInv() is, so what it needs is that the three arrays it
+   // views as DenseTensors are present, are one block size, and are laid out
+   // el*n*n. A first draft tested lop_type != FullNL instead and refused
+   // every LINEAR problem, because lop_type is assigned only in the nonlinear
+   // branch of Finalize() and its FullNL default therefore also means "not
+   // decided". The test's own REQUIRE(can_batch_solve) is what said so.
+   //
+   // A zero block size is uniform but degenerate here, unlike in
+   // CanBatchLocalFactor(): there is no solve to batch without a D block.
+   return lfac_mode == LocalFactorMode::Batched
+          && UniformBlockSize(Af_f_offsets, NE) > 0
+          && UniformBlockSize(Df_f_offsets, NE) > 0
+          && Af_data.Size() == Af_offsets.Last()
+          && Df_data.Size() == Df_offsets.Last()
+          && Bf_data.Size() == Bf_offsets.Last();
+}
+
+void DarcyHybridization::MultInvBatched(const Vector &bu, const Vector &bp,
+                                        Vector &u, Vector &p,
+                                        bool with_bnl) const
+{
+   const int NE = fes.GetNE();
+   const int na = UniformBlockSize(Af_f_offsets, NE);
+   const int nd = UniformBlockSize(Df_f_offsets, NE);
+
+   MFEM_VERIFY(na > 0 && nd > 0,
+               "The local blocks are not all one size; CanBatchLocalSolve() "
+               "answers that before this is called.");
+   MFEM_ASSERT(bu.Size() == na * NE && bp.Size() == nd * NE,
+               "Incompatible size");
+
+   // Which array holds the Schur complement -- the same question MultInv()
+   // asks, and for the same reason.
+   const bool fluxnl_schur = (with_bnl && lop_type == LocalOpType::FluxNL
+                              && Sf_data.Size() == Df_data.Size());
+   const Vector &S_data = fluxnl_schur ? Sf_data : Df_data;
+   const Array<int> &S_ipiv = fluxnl_schur ? Sf_ipiv : Df_ipiv;
+
+   // NewMemoryAndSize and not the raw-pointer constructor, for the reason
+   // spelled out in InvertA(): the latter goes through Memory::Wrap(), which
+   // sets VALID_HOST with no device type and pins every kernel below to the
+   // host however the Device is configured.
+   DenseTensor A, S, B;
+   A.NewMemoryAndSize(Af_data.GetMemory(), na, na, NE, false);
+   S.NewMemoryAndSize(S_data.GetMemory(), nd, nd, NE, false);
+   B.NewMemoryAndSize(Bf_data.GetMemory(), nd, na, NE, false);
+
+   u.SetSize(bu.Size());
+   p.SetSize(bp.Size());
+
+   // Every BatchedLinAlg entry point reads and writes through Read()/Write()
+   // with their default on_dev = true, so the tensors go to the device
+   // whatever their Memory says. The Vector element-wise operations between
+   // them do NOT -- they follow UseDevice() -- so without this the route
+   // ping-pongs: the batched product writes p on the device, `p -= bp` pulls
+   // it back to run on the host, the next solve pushes it up again. Correct
+   // either way, and three transfers per call slower.
+   bu.UseDevice(true);
+   bp.UseDevice(true);
+   u.UseDevice(true);
+   p.UseDevice(true);
+
+   //u = A^-1 bu
+   u = bu;
+   BatchedLinAlg::LUSolve(A, Af_ipiv, u);
+
+   //p = -S^-1 (B A^-1 bu - bp)
+   //
+   // beta = 0 and a separate subtraction, NOT beta = -1 folding bp into the
+   // product: the batched kernel scales y by beta BEFORE accumulating, so
+   // -bp + sum and sum - bp round differently and the route stops being
+   // bit-for-bit the per-element one. The extra pass is a vector's worth of
+   // work against a matrix's.
+   BatchedLinAlg::AddMult(B, u, p, 1.0, 0.0);
+   p -= bp;
+   BatchedLinAlg::LUSolve(S, S_ipiv, p);
+   p.Neg();
+
+   //u += -A^-1 (B^T + Bnl) S^-1 (B A^-1 bu - bp)
+   Vector t(na * NE);
+   t.UseDevice(true);
+   BatchedLinAlg::AddMult(B, p, t, 1.0, 0.0, BatchedLinAlg::Op::T);
+
+   if (with_bnl)
+   {
+      // The guard GetBnlMatrix() applies per element, applied once -- neither
+      // half of it depends on the element.
+      if (!Bnl_empty && Bnl_data.Size() == Bf_offsets.Last())
+      {
+         // Bnl is stored TRANSPOSED against B -- (a_dofs, d_dofs) per
+         // element, the shape GetBnlMatrix() hands out -- so this is an
+         // untransposed product, and it accumulates with the sign MultInv()
+         // gives it.
+         DenseTensor Bnl;
+         Bnl.NewMemoryAndSize(Bnl_data.GetMemory(), na, nd, NE, false);
+         BatchedLinAlg::AddMult(Bnl, p, t, (bsym) ? (-1.) : (1.), 1.0);
+      }
+   }
+
+   BatchedLinAlg::LUSolve(A, Af_ipiv, t);
+
+   if (bsym) { u += t; }
+   else { u -= t; }
+}
+
 void DarcyHybridization::ConstructGrad(int el, const Array<int> &faces,
                                        TransWorkspace &ws,
                                        const BlockVector &x_l,
@@ -3681,6 +3792,43 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
 
    const int NE = fes.GetNE();
 
+   // The local solves for every element in one batch, when that is asked for.
+   // The face work below then reads the answers out of these instead of
+   // calling MultInv(), and is otherwise untouched -- so the two routes run
+   // the same face loop in the same order over the same colouring.
+   Vector u_all, p_all;
+   const bool batched_solve = CanBatchLocalSolve();
+   if (batched_solve)
+   {
+      const int na = Af_f_offsets.Last(), nd = Df_f_offsets.Last();
+      Vector bu_all(na), bp_all(nd);
+      Array<int> u_vdofs, p_dofs;
+      for (int el = 0; el < NE; el++)
+      {
+         GetFDofs(el, u_vdofs);
+         bu.GetSubVector(u_vdofs, bu_all.GetData() + Af_f_offsets[el]);
+
+         fes_p.GetElementVDofs(el, p_dofs);
+         bp.GetSubVector(p_dofs, bp_all.GetData() + Df_f_offsets[el]);
+      }
+      if (bsym)
+      {
+         //In the case of the symmetrized system, the sign is opposite!
+         bp_all.Neg();
+      }
+      MultInvBatched(bu_all, bp_all, u_all, p_all);
+      u_all.Neg();
+      p_all.Neg();
+      // THE copy back, and the only one this route needs. The face loop below
+      // is host dense work reading u_l/p_l through GetData(), which does not
+      // sync, so without this it would read stale host memory -- the whole
+      // answer, silently, rather than an error. It is also the transfer a
+      // full-device path has to remove, and naming it here is the point of
+      // having it in one place.
+      u_all.HostRead();
+      p_all.HostRead();
+   }
+
    // This loop scatters into the TRACE, so unlike the field loops it needs
    // the colouring -- and unlike them it is then safe whatever the flux space
    // is. Serial keeps the original element order exactly.
@@ -3709,23 +3857,34 @@ void DarcyHybridization::ReduceRHS(const BlockVector &b_t, Vector &b_tr) const
          for (int i = i0; i < i1; i++)
          {
             const int el = threaded ? colour_order[i] : i;
-            // Load RHS
-
-            GetFDofs(el, u_vdofs);
-            bu.GetSubVector(u_vdofs, bu_l);
-
-            fes_p.GetElementVDofs(el, p_dofs);
-            bp.GetSubVector(p_dofs, bp_l);
-            if (bsym)
-            {
-               //In the case of the symmetrized system, the sign is opposite!
-               bp_l.Neg();
-            }
 
             //-A^-1 bu - A^-1 B^T S^-1 B A^-1 bu
-            MultInv(el, bu_l, bp_l, u_l, p_l);
-            u_l.Neg();
-            p_l.Neg();
+            if (batched_solve)
+            {
+               u_l.MakeRef(u_all, Af_f_offsets[el],
+                           Af_f_offsets[el+1] - Af_f_offsets[el]);
+               p_l.MakeRef(p_all, Df_f_offsets[el],
+                           Df_f_offsets[el+1] - Df_f_offsets[el]);
+            }
+            else
+            {
+               // Load RHS
+
+               GetFDofs(el, u_vdofs);
+               bu.GetSubVector(u_vdofs, bu_l);
+
+               fes_p.GetElementVDofs(el, p_dofs);
+               bp.GetSubVector(p_dofs, bp_l);
+               if (bsym)
+               {
+                  //In the case of the symmetrized system, the sign is opposite!
+                  bp_l.Neg();
+               }
+
+               MultInv(el, bu_l, bp_l, u_l, p_l);
+               u_l.Neg();
+               p_l.Neg();
+            }
 
             GetElementFaces(el, faces);
 
@@ -4019,17 +4178,52 @@ void DarcyHybridization::NPCReduce(const BlockVector &r, const Vector &r_tr,
    Array<int> u_vdofs, p_dofs, faces, c_dofs;
    Vector ru_l, rp_l, du_l, dp_l, b_rl;
 
+   // Every element's M^-1 F_local in one batch, when that is asked for. This
+   // is the loop that runs once per NPC Newton step, so it is where batching
+   // is worth the most; the face loop below is untouched and reads the
+   // answers out of the blocked vectors instead of calling MultInv().
+   Vector du_all, dp_all;
+   const bool batched_solve = CanBatchLocalSolve();
+   if (batched_solve)
+   {
+      Vector ru_all(Af_f_offsets.Last()), rp_all(Df_f_offsets.Last());
+      for (int el = 0; el < NE; el++)
+      {
+         GetFDofs(el, u_vdofs);
+         r.GetBlock(0).GetSubVector(u_vdofs,
+                                    ru_all.GetData() + Af_f_offsets[el]);
+         fes_p.GetElementVDofs(el, p_dofs);
+         r.GetBlock(1).GetSubVector(p_dofs,
+                                    rp_all.GetData() + Df_f_offsets[el]);
+      }
+      MultInvBatched(ru_all, rp_all, du_all, dp_all, true);
+      // The face loop is host dense work through GetData(), which does not
+      // sync; see ReduceRHS().
+      du_all.HostRead();
+      dp_all.HostRead();
+   }
+
    for (int el = 0; el < NE; el++)
    {
-      GetFDofs(el, u_vdofs);
-      r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
-      fes_p.GetElementVDofs(el, p_dofs);
-      r.GetBlock(1).GetSubVector(p_dofs, rp_l);
+      if (batched_solve)
+      {
+         du_l.MakeRef(du_all, Af_f_offsets[el],
+                      Af_f_offsets[el+1] - Af_f_offsets[el]);
+         dp_l.MakeRef(dp_all, Df_f_offsets[el],
+                      Df_f_offsets[el+1] - Df_f_offsets[el]);
+      }
+      else
+      {
+         GetFDofs(el, u_vdofs);
+         r.GetBlock(0).GetSubVector(u_vdofs, ru_l);
+         fes_p.GetElementVDofs(el, p_dofs);
+         r.GetBlock(1).GetSubVector(p_dofs, rp_l);
 
-      // M^-1 F_local, with the JACOBIAN's (0,1) block. ReduceRHS() passes the
-      // linear one, which is right for a linear system and would be a
-      // different operator from the Schur complement here.
-      MultInv(el, ru_l, rp_l, du_l, dp_l, true);
+         // M^-1 F_local, with the JACOBIAN's (0,1) block. ReduceRHS() passes
+         // the linear one, which is right for a linear system and would be a
+         // different operator from the Schur complement here.
+         MultInv(el, ru_l, rp_l, du_l, dp_l, true);
+      }
 
       GetElementFaces(el, faces);
       for (int f = 0; f < faces.Size(); f++)
@@ -4087,6 +4281,17 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
    Array<int> u_vdofs, p_dofs, faces, c_dofs;
    Vector ru_l, rp_l, du_l, dp_l, dtr_f;
 
+   // Two passes rather than one, as in ComputeSolution() and for the same
+   // reason: here the face terms build the local right-hand side BEFORE the
+   // solve, so every element's has to be in before any of them can be solved.
+   const bool batched_solve = CanBatchLocalSolve();
+   Vector ru_all, rp_all, du_all, dp_all;
+   if (batched_solve)
+   {
+      ru_all.SetSize(Af_f_offsets.Last());
+      rp_all.SetSize(Df_f_offsets.Last());
+   }
+
    for (int el = 0; el < NE; el++)
    {
       GetFDofs(el, u_vdofs);
@@ -4114,12 +4319,40 @@ void DarcyHybridization::NPCRecover(const BlockVector &r, const Vector &dtr,
          }
       }
 
+      if (batched_solve)
+      {
+         std::copy(ru_l.GetData(), ru_l.GetData() + ru_l.Size(),
+                   ru_all.GetData() + Af_f_offsets[el]);
+         std::copy(rp_l.GetData(), rp_l.GetData() + rp_l.Size(),
+                   rp_all.GetData() + Df_f_offsets[el]);
+         continue;
+      }
+
       MultInv(el, ru_l, rp_l, du_l, dp_l, true);
       du_l.Neg();
       dp_l.Neg();
 
       dx.GetBlock(0).SetSubVector(u_vdofs, du_l);
       dx.GetBlock(1).SetSubVector(p_dofs, dp_l);
+   }
+
+   if (batched_solve)
+   {
+      MultInvBatched(ru_all, rp_all, du_all, dp_all, true);
+      du_all.Neg();
+      dp_all.Neg();
+      du_all.HostRead();
+      dp_all.HostRead();
+
+      for (int el = 0; el < NE; el++)
+      {
+         GetFDofs(el, u_vdofs);
+         dx.GetBlock(0).SetSubVector(u_vdofs,
+                                     du_all.GetData() + Af_f_offsets[el]);
+         fes_p.GetElementVDofs(el, p_dofs);
+         dx.GetBlock(1).SetSubVector(p_dofs,
+                                     dp_all.GetData() + Df_f_offsets[el]);
+      }
    }
 }
 
@@ -4183,6 +4416,19 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
 
    const int NE = fes.GetNE();
 
+   // Unlike ReduceRHS(), the face terms here modify the local right-hand side
+   // BEFORE the solve, so the batched route is two passes over the elements
+   // rather than one: build every element's (bu - C^T sol, bp - E sol) into
+   // the blocked vectors, solve them all at once, then scatter. The face
+   // arithmetic itself is the same in both routes.
+   const bool batched_solve = CanBatchLocalSolve();
+   Vector bu_all, bp_all, u_all, p_all;
+   if (batched_solve)
+   {
+      bu_all.SetSize(Af_f_offsets.Last());
+      bp_all.SetSize(Df_f_offsets.Last());
+   }
+
    // Threaded only when both field spaces are discontinuous, so each
    // element's dofs are its own; see CanThreadFieldLoop(). This loop only
    // READS the trace, so it needs no colouring even then.
@@ -4241,10 +4487,39 @@ void DarcyHybridization::ComputeSolution(const BlockVector &b_t,
          }
 
          //(A^-1 - A^-1 B^T S^-1 B A^-1) (bu - C^T sol)
+         if (batched_solve)
+         {
+            // Park this element's right-hand side and come back for the
+            // answer once every element's is in.
+            std::copy(bu_l.GetData(), bu_l.GetData() + bu_l.Size(),
+                      bu_all.GetData() + Af_f_offsets[el]);
+            std::copy(bp_l.GetData(), bp_l.GetData() + bp_l.Size(),
+                      bp_all.GetData() + Df_f_offsets[el]);
+            continue;
+         }
+
          MultInv(el, bu_l, bp_l, u_l, p_l);
 
          u.SetSubVector(u_vdofs, u_l);
          p.SetSubVector(p_dofs, p_l);
+      }
+   }
+
+   if (batched_solve)
+   {
+      MultInvBatched(bu_all, bp_all, u_all, p_all);
+      // See ReduceRHS(): the scatter below is host work through GetData().
+      u_all.HostRead();
+      p_all.HostRead();
+
+      Array<int> u_vdofs, p_dofs;
+      for (int el = 0; el < NE; el++)
+      {
+         GetFDofs(el, u_vdofs);
+         u.SetSubVector(u_vdofs, u_all.GetData() + Af_f_offsets[el]);
+
+         fes_p.GetElementVDofs(el, p_dofs);
+         p.SetSubVector(p_dofs, p_all.GetData() + Df_f_offsets[el]);
       }
    }
 
