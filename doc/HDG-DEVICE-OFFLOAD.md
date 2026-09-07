@@ -84,6 +84,15 @@ rhs.GetBlock(1).SyncAliasMemory(rhs);          // <-- this
 
 With that one line, `-d cpu` and `-d debug` agree **bit for bit, end to end**.
 
+**Confirmed on the real GPU too, and the residue is worth reading carefully.**
+Against the CUDA build, every FIELD value is bit-identical -- the trace
+solution, the flux, the potential and each printed `u[i]`. Two printed numbers
+still differ, in the last one or two hex digits: `|rhs_p|` and `|RHS|`. Both
+are `Norml2()` results, and a norm is a reduction whose association order
+differs on a device. So the data agrees exactly and only the *summation of it*
+does not, which is the opposite of what the zero was and is not something to
+chase.
+
 Three things worth keeping from chasing it:
 
 * **`-d debug` reproduces it exactly and needs no GPU.** MFEM's debug backend
