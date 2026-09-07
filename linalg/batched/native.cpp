@@ -174,7 +174,14 @@ void NativeBatchedLinAlg::LUSolve(const DenseTensor &LU, const Array<int> &P,
 
    auto d_LU = Reshape(LU.Read(), m, m, n_mat);
    auto d_P = Reshape(P.Read(), m, n_mat);
-   auto d_x = Reshape(x.Write(), m, n_rhs, n_mat);
+   // ReadWrite and not Write: x arrives as the right-hand side and the kernel
+   // reads it in place. Write() returns the device pointer without copying the
+   // host contents up, so on a device this solved against whatever was in
+   // device memory -- measurably zeros, giving x = 0 back with no error. It
+   // went unnoticed because the GPU_BLAS backend is the default wherever CUDA
+   // or HIP is enabled and it already used ReadWrite, and because a caller
+   // that had read x on the device beforehand left the right values there.
+   auto d_x = Reshape(x.ReadWrite(), m, n_rhs, n_mat);
 
    mfem::forall(n_mat * n_rhs, [=] MFEM_HOST_DEVICE (int idx)
    {
