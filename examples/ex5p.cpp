@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
 
    // 8. Define the block structure of the problem. block_offsets is used
    //    for Vector based on dof (like ParGridFunction or ParLinearForm),
-   //    block_trueOffsets is used for Vector based on true dof (HypreParVector
+   //    block_trueOffsets is used for Vector based on trueDof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
    //    here are local to the processor.
    ParDarcyForm *darcy = new ParDarcyForm(R_space, W_space, false);

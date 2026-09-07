@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -109,7 +109,7 @@ public:
 
    /** @brief Set options that were captured from the command line.
 
-       These were captured in the constructer STRUMPACKSolverBase. Refer
+       These were captured in the constructor STRUMPACKSolverBase. Refer
        to the STRUMPACK documentation for details. */
    void SetFromCommandLine();
 
@@ -119,7 +119,7 @@ public:
    /// Set up verbose printing during the solve step
    void SetPrintSolveStatistics(bool print_stat);
 
-   /// Set the relative tolerance for interative solvers
+   /// Set the relative tolerance for iterative solvers
    void SetRelTol(double rtol);
 
    /// Set the absolute tolerance for iterative solvers
@@ -231,7 +231,7 @@ public:
     *  - LOSSY:          Lossy compression
     *
     * For versions of STRUMPACK < 5, we support only NONE, HSS, and BLR.
-    * BLR_HODLR and ZPR_BLR_HODLR are supported in STRUMPACK >= 6.
+    * BLR_HODLR and ZFP_BLR_HODLR are supported in STRUMPACK >= 6.
     */
    void SetCompression(strumpack::CompressionType type);
 

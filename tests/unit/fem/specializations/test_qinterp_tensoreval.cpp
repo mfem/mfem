@@ -1,0 +1,26 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+/// Tests which make sure adding user-defined kernel specializations work.
+/// These tests are compile/link-only tests
+
+#include "mfem.hpp"
+#include "unit_tests.hpp"
+
+#include "fem/qinterp/eval.hpp"
+
+TEST_CASE("QInterp TensorEval Kernel Specializations", "[Specializations]")
+{
+   using namespace mfem;
+
+   QuadratureInterpolator::AddTensorEvalSpecializations<
+   2, QVectorLayout::byNODES, 1, 3, 3, 2>();
+}

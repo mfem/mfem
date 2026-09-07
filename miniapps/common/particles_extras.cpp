@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -126,6 +126,7 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
    {
       Vector pcoords;
       pset.Coords().GetValues(i, pcoords);
+      pcoords.HostRead();
       if (dim == 2)
       {
          Add2DPoint(pcoords, particles_mesh, psize);
@@ -139,6 +140,7 @@ void VisualizeParticles(socketstream &sock, const char* vishost, int visport,
 
    FiniteElementSpace fes(&particles_mesh, &l2fec, 1);
    GridFunction gf(&fes);
+   gf.HostWrite();
 
    for (int i = 0; i < pset.GetNParticles(); i++)
    {
@@ -193,6 +195,7 @@ void ParticleTrajectories::AddSegmentStart()
    {
       Vector pcoords;
       pset.Coords().GetValues(i, pcoords);
+      pcoords.HostRead();
       segment_meshes.front().AddVertex(pcoords);
    }
 }
@@ -213,6 +216,7 @@ void ParticleTrajectories::SetSegmentEnd()
       {
          Vector pcoords;
          pset.Coords().GetValues(pidx, pcoords);
+         pcoords.HostRead();
          segment_meshes.front().AddVertex(pcoords);
       }
       else // Otherwise set its end vertex == start vertex
