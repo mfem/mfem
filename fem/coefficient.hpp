@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -1893,6 +1893,7 @@ public:
    VectorComponentCoefficient(VectorCoefficient &A)
       : a(&A), va(A.GetVDim()), component(0) {};
 
+   /// Construct with a vector coefficient and a component index @a c.
    VectorComponentCoefficient(VectorCoefficient &A, int c);
 
    /// Set the time for internally stored coefficients
@@ -1910,7 +1911,7 @@ public:
    /// Return the component
    int GetComponent() const { return component; }
 
-   /// Evaluate the trace coefficient at @a ip.
+   /// Evaluate the component coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
 };
@@ -1925,6 +1926,7 @@ private:
    int row_idx,col_idx;
 
 public:
+   /// Construct with a matrix coefficient.
    MatrixComponentCoefficient(MatrixCoefficient &A)
       : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {};
 
@@ -1953,7 +1955,7 @@ public:
    int GetColumnIndex() const { return col_idx; }
 
 
-   /// Evaluate the trace coefficient at @a ip.
+   /// Evaluate the component coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
 };
