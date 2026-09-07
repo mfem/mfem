@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -211,7 +211,7 @@ private:
    int32_t GLVISToVTKType(const int glvisType) const noexcept;
 
    /** sets the current vtk_schema from point data arrays to be parsed
-    *  in VTK for Paraview visualization */
+    *  in VTK for ParaView visualization */
    std::string VTKSchema() const noexcept;
 
    /**
