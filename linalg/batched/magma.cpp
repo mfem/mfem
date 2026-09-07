@@ -70,8 +70,15 @@ void MagmaBatchedLinAlg::AddMult(const DenseTensor &A, const Vector &x,
 
    magma_trans_t magma_op = tr ? MagmaTrans : MagmaNoTrans;
 
+   // lda is the stride of A AS STORED, so A.SizeI() and not m -- see the
+   // same correction in GPUBlasBatchedLinAlg::AddMult, where a rectangular
+   // block measurably returns the wrong answer. MAGMA is not built in either
+   // tree here, so this one is carried by the argument rather than by a
+   // measurement: gemm_batched_strided takes lda with the BLAS meaning.
+   const int lda = A.SizeI();
+
    MFEM_MAGMABLAS_PREFIX(gemm_batched_strided)(
-      magma_op, MagmaNoTrans, m, k, n, alpha, d_A, m, m*n, d_x, n, n*k,
+      magma_op, MagmaNoTrans, m, k, n, alpha, d_A, lda, m*n, d_x, n, n*k,
       beta, d_y, m, m*k, n_mat, Magma::Queue());
 }
 
