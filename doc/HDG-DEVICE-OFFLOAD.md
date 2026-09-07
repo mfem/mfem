@@ -43,6 +43,33 @@ Two consequences worth stating now:
 GPU timings here are from a consumer card shared with a desktop under WSL2 and
 are indicative of shape, not of achievable performance.
 
+### The scatter kernel, which is the shape the target needs
+
+`HDGDiffusionFaceScatterBatched()` writes E, G, H and D straight into the
+hybridization's own storage instead of into dense per-face matrices. **E, G
+and H come out bit-exact against the per-face integrator; D to 8.7e-17**,
+which is the atomic accumulation order. 2-D quads, n=64 order 3:
+
+| | per-face (host) | dense kernel + copy-back | scatter, no readback |
+|---|---|---|---|
+| `-d cpu` | 38.0 ms | 26.3 + 0.0 | 60.5 ms |
+| `-d cuda` | 41.6 ms | 32.7 + 10.9 | **43.5 ms** |
+
+Two things to read off it. **The copy-back is gone by construction**, not
+hidden -- the blocks are already where the local solves want them, which is
+what a full-device chain needs. And **the atomics make this a device path and
+not a host one**: D accumulates per element and two faces of an element
+collide, so it goes through `AtomicAdd`, which on the host costs where a plain
+`+=` does not (60.5 against 38.0). A host build wanting this shape should take
+the colouring `DarcyHybridization` already builds.
+
+Parity rather than a win on this hardware, which is a consumer card shared
+with a desktop under WSL2 and not a verdict.
+
+**Neither kernel is wired in.** Switching either on means the consumers --
+`ComputeAndAssemblePotFaceMatrix`, then the local factorisation and solves --
+moving with it, per the target above.
+
 ## The gate, before any of the steps
 
 **Two of the four groups are nearly free and doing only those is worse than

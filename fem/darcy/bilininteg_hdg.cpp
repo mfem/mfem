@@ -2336,4 +2336,189 @@ void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
    });
 
 }
+
+void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
+                                    const FiniteElementSpace &el_fes,
+                                    Coefficient *Q, real_t beta,
+                                    const HDGStabilization *stab,
+                                    const Array<int> &face_list,
+                                    const Array<int> &E_offsets,
+                                    const Array<int> &H_offsets,
+                                    const Array<int> &Df_offsets,
+                                    Vector &E_data, Vector &G_data,
+                                    Vector &H_data, Vector &Df_data)
+{
+   MFEM_VERIFY(HDGDiffusionFaceMatricesCanBatch(tr_fes, el_fes),
+               "the spaces do not admit the batched face assembly");
+   MFEM_VERIFY(!stab || stab->IsConstant(),
+               "a state dependent stabilization makes the face term nonlinear");
+
+   Mesh *mesh = el_fes.GetMesh();
+   const int NF = face_list.Size();
+   if (NF == 0) { return; }
+
+   const FiniteElement *tr_fe0 = tr_fes.GetFaceElement(face_list[0]);
+   const int TRD = tr_fe0->GetDof();
+   const int ND = el_fes.GetFE(0)->GetDof();
+
+   const int order = 2 * std::max(el_fes.GetFE(0)->GetOrder(),
+                                  tr_fe0->GetOrder());
+   FaceElementTransformations *ftr0 =
+      mesh->GetInteriorFaceTransformations(face_list[0]);
+   MFEM_VERIFY(ftr0, "no interior face transformation");
+   const IntegrationRule &ir = IntRules.Get(ftr0->GetGeometryType(), order);
+   const int NQ = ir.GetNPoints();
+
+   // Same host precompute as the dense form; see the note there on what it
+   // would take to remove it.
+   Vector w1(NQ * NF), w2(NQ * NF);
+   Vector sh1(NQ * ND * NF), sh2(NQ * ND * NF);
+   Vector trs(NQ * TRD);
+   Array<int> eo(NF), ho(NF), d1(NF), d2(NF);
+   w1.UseDevice(true);
+   w2.UseDevice(true);
+   sh1.UseDevice(true);
+   sh2.UseDevice(true);
+   trs.UseDevice(true);
+
+   {
+      Vector t(TRD);
+      for (int q = 0; q < NQ; q++)
+      {
+         tr_fe0->CalcShape(ir.IntPoint(q), t);
+         for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
+      }
+   }
+
+   {
+      const int dim = mesh->Dimension();
+      Vector nor(dim), s1(ND), s2(ND);
+      real_t *pw1 = w1.HostWrite(), *pw2 = w2.HostWrite();
+      real_t *ps1 = sh1.HostWrite(), *ps2 = sh2.HostWrite();
+
+      for (int fi = 0; fi < NF; fi++)
+      {
+         const int face = face_list[fi];
+         FaceElementTransformations *ftr =
+            mesh->GetInteriorFaceTransformations(face);
+         const FiniteElement &e1 = *el_fes.GetFE(ftr->Elem1No);
+         const FiniteElement &e2 = *el_fes.GetFE(ftr->Elem2No);
+         eo[fi] = E_offsets[face];
+         ho[fi] = H_offsets[face];
+         d1[fi] = Df_offsets[ftr->Elem1No];
+         d2[fi] = Df_offsets[ftr->Elem2No];
+
+         for (int q = 0; q < NQ; q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            ftr->SetAllIntPoints(&ip);
+            const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
+            const IntegrationPoint &eip2 = ftr->GetElement2IntPoint();
+
+            if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+            else { CalcOrtho(ftr->Jacobian(), nor); }
+
+            e1.CalcPhysShape(*ftr->Elem1, s1);
+            e2.CalcPhysShape(*ftr->Elem2, s2);
+
+            const real_t nn = nor * nor;
+            const real_t face_w = ip.weight * nor.Norml2();
+            real_t wn1 = ip.weight / ftr->Elem1->Weight();
+            if (Q) { wn1 *= Q->Eval(*ftr->Elem1, eip1); }
+            real_t wn2 = ip.weight / ftr->Elem2->Weight();
+            if (Q) { wn2 *= Q->Eval(*ftr->Elem2, eip2); }
+            const real_t wq1 = wn1 * nn, wq2 = wn2 * nn;
+            pw1[q + fi * NQ] = stab
+                               ? face_w * stab->Eval((face_w != 0.) ? (wq1 * beta / face_w) : 0.,
+                                                     0., 0., 0., *ftr->Elem1)
+                               : wq1 * beta;
+            pw2[q + fi * NQ] = stab
+                               ? face_w * stab->Eval((face_w != 0.) ? (wq2 * beta / face_w) : 0.,
+                                                     0., 0., 0., *ftr->Elem2)
+                               : wq2 * beta;
+            for (int i = 0; i < ND; i++)
+            {
+               ps1[q + NQ * (i + ND * fi)] = s1(i);
+               ps2[q + NQ * (i + ND * fi)] = s2(i);
+            }
+         }
+      }
+   }
+
+   const auto d_w1 = Reshape(w1.Read(), NQ, NF);
+   const auto d_w2 = Reshape(w2.Read(), NQ, NF);
+   const auto d_s1 = Reshape(sh1.Read(), NQ, ND, NF);
+   const auto d_s2 = Reshape(sh2.Read(), NQ, ND, NF);
+   const auto d_tr = Reshape(trs.Read(), NQ, TRD);
+   const int *d_eo = eo.Read(), *d_ho = ho.Read();
+   const int *d_d1 = d1.Read(), *d_d2 = d2.Read();
+
+   real_t *d_E = E_data.ReadWrite();
+   real_t *d_G = G_data.ReadWrite();
+   real_t *d_H = H_data.ReadWrite();
+   real_t *d_D = Df_data.ReadWrite();
+
+   const int nd = ND, trd = TRD, nq = NQ;
+
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+   {
+      const int e0 = d_eo[f], h0 = d_ho[f];
+      const int o1 = d_d1[f], o2 = d_d2[f];
+      const int e2off = e0 + trd * nd;      // side 2 follows side 1
+
+      // E, G and H belong to this face alone: overwrite, no atomics.
+      for (int j = 0; j < trd; j++)
+         for (int i = 0; i < nd; i++)
+         {
+            d_E[e0 + i + nd * j] = 0.0;
+            d_E[e2off + i + nd * j] = 0.0;
+            d_G[e0 + j + trd * i] = 0.0;
+            d_G[e2off + j + trd * i] = 0.0;
+         }
+      for (int j = 0; j < trd; j++)
+         for (int i = 0; i < trd; i++)
+         {
+            d_H[h0 + i + trd * j] = 0.0;
+         }
+
+      for (int q = 0; q < nq; q++)
+      {
+         const real_t a1 = d_w1(q, f), a2 = d_w2(q, f);
+
+         for (int i = 0; i < nd; i++)
+         {
+            const real_t b1 = a1 * d_s1(q, i, f);
+            const real_t b2 = a2 * d_s2(q, i, f);
+
+            // D accumulates per ELEMENT, and two faces of one element
+            // collide, so it is the one block that needs atomics.
+            for (int j = 0; j < nd; j++)
+            {
+               AtomicAdd(d_D[o1 + i + nd * j], b1 * d_s1(q, j, f));
+               AtomicAdd(d_D[o2 + i + nd * j], b2 * d_s2(q, j, f));
+            }
+            for (int j = 0; j < trd; j++)
+            {
+               const real_t e1v = b1 * d_tr(q, j);
+               const real_t e2v = b2 * d_tr(q, j);
+               d_E[e0 + i + nd * j]    -= e1v;
+               d_E[e2off + i + nd * j] -= e2v;
+               d_G[e0 + j + trd * i]    += e1v;
+               d_G[e2off + j + trd * i] += e2v;
+            }
+         }
+
+         const real_t aa = a1 + a2;
+         for (int i = 0; i < trd; i++)
+         {
+            const real_t t = aa * d_tr(q, i);
+            for (int j = 0; j < trd; j++)
+            {
+               d_H[h0 + i + trd * j] -= t * d_tr(q, j);
+            }
+         }
+      }
+   });
+}
+
 }

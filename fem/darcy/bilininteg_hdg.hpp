@@ -208,6 +208,49 @@ void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
                                      const HDGStabilization *stab,
                                      DenseTensor &elmats);
 
+/** @brief The same face term, SCATTERED STRAIGHT INTO the hybridization's
+    storage instead of into dense per-face matrices.
+
+    This is the version that serves a full-device path. The dense form above
+    has to be read back so host code can split it into E, G, H and D -- 193 MB
+    and 183 ms against an 85 ms kernel at n=96 order 3 -- and that transfer is
+    larger than the arithmetic it was meant to accelerate. Writing the blocks
+    where they belong removes it: nothing comes back.
+
+    @param face_list   the INTERIOR faces, in mesh face order.
+    @param E_offsets   per-face offsets into @a E_data and @a G_data; the side
+                       1 block is (ND x c_dof) at E_offsets[f] and side 2
+                       follows it at + c_dof*ND.
+    @param H_offsets   per-face offsets into @a H_data, (c_dof x c_dof).
+    @param Df_offsets  per-ELEMENT offsets into @a Df_data, (ND x ND).
+
+    @note E, G and H are written per face and race with nothing. D ACCUMULATES
+          per element, and two faces of the same element collide, so it goes
+          through AtomicAdd -- which is why this needs no colouring where the
+          host loop does.
+    @note @a Df_data is added to and must be zeroed by the caller;
+          @a E_data, @a G_data and @a H_data are overwritten.
+
+    @note MEASURED, and the atomics are why this is a DEVICE path and not a
+          host one. Correct either way -- E, G and H come out bit-exact
+          against the per-face integrator and D to 8.7e-17, which is the
+          accumulation order. But on the host AtomicAdd is a real atomic where
+          the per-face loop does a plain +=, and it costs: 2-D quads, n=64
+          order 3, per-face 38.0 ms against 60.5 ms scattered. On the device
+          the same call is 43.5 ms and, unlike the dense form, NOTHING COMES
+          BACK. A host build wanting this shape should take the colouring
+          DarcyHybridization already builds rather than the atomics. */
+void HDGDiffusionFaceScatterBatched(const FiniteElementSpace &tr_fes,
+                                    const FiniteElementSpace &el_fes,
+                                    Coefficient *Q, real_t beta,
+                                    const HDGStabilization *stab,
+                                    const Array<int> &face_list,
+                                    const Array<int> &E_offsets,
+                                    const Array<int> &H_offsets,
+                                    const Array<int> &Df_offsets,
+                                    Vector &E_data, Vector &G_data,
+                                    Vector &H_data, Vector &Df_data);
+
 /// Whether HDGDiffusionFaceMatricesBatched() can run on these spaces.
 bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
                                       const FiniteElementSpace &el_fes);
