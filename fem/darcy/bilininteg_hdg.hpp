@@ -175,6 +175,43 @@ public:
    { d1s = 0.; d2s = 0.; }
 };
 
+/** @brief Batched, device-capable assembly of HDGDiffusionIntegrator's
+    INTERIOR-face matrices: every face's matrix in one mfem::forall instead of
+    one host call per face.
+
+    Roadmap: step 2 of doc/HDG-DEVICE-OFFLOAD.md, and the first kernel of the
+    five. The face term reduces to two scalars per quadrature point -- the
+    stabilization weight on each side, which absorbs the coefficient, the
+    HDGStabilization hook and the geometry -- and a set of outer products in
+    the trace and element shapes. The outer products are O(NQ*SZ^2) against
+    O(NQ*ND) for the shapes, so they are the part worth moving.
+
+    @param tr_fes   the trace (constraint) space, a DG_Interface space.
+    @param el_fes   the potential space.
+    @param Q        the diffusion coefficient, or NULL for 1.
+    @param beta     the integrator's beta.
+    @param stab     an HDGStabilization hook, or NULL for the built-in.
+    @param elmats   filled with one (SZ x SZ) matrix per INTERIOR face, in mesh
+                    face order, SZ = 2*ND + TRD.
+
+    @note Uniform order and one element geometry, which CanBatch() checks.
+          Interior faces only; boundary faces stay on the per-face path.
+    @note The per-quadrature-point weights and shapes are precomputed on the
+          HOST, so this is element-assembly rather than partial assembly: it
+          moves the outer products to the device and leaves the geometry where
+          it was. Removing that precompute needs the ELEMENT Jacobian
+          determinant at FACE quadrature points, which FaceGeometricFactors
+          does not carry, and is the next piece. */
+void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
+                                     const FiniteElementSpace &el_fes,
+                                     Coefficient *Q, real_t beta,
+                                     const HDGStabilization *stab,
+                                     DenseTensor &elmats);
+
+/// Whether HDGDiffusionFaceMatricesBatched() can run on these spaces.
+bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
+                                      const FiniteElementSpace &el_fes);
+
 /** Integrator for the H/LDG diffusion stabilization term
     The LDG stabilization takes the form
     $$

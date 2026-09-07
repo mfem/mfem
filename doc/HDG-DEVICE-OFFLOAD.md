@@ -6,6 +6,43 @@ host-threading side of this and is **done**: every element-local loop in
 bound everything below. This file is the device plan and nothing in it is
 built.
 
+## THE TARGET, and it is stricter than "offload the hot groups"
+
+**A full-device code path, with no transfer back to the host until the outer
+driver needs to write output.** Stated by the caller, and the first kernel's
+measurement is the argument for it rather than against.
+
+`HDGDiffusionFaceMatricesBatched()` (step 2's first kernel, built and correct)
+computes every interior face matrix on the device. Its consumer is host code,
+so every matrix comes straight back. Steady state, 2-D quads:
+
+| n=64 order 3 | precompute (host) | kernel | copy-back |
+|---|---|---|---|
+| `-d cpu` | 16.8 ms | 26.3 ms | 0.0 ms |
+| `-d cuda` | 16.9 ms | 32.7 ms | **10.9 ms** |
+
+and at n=96 order 3 the copy-back is **183 ms against an 85 ms kernel**, being
+193 MB of dense face matrices. So an isolated device kernel whose consumer is
+on the host pays more in transfer than it saves in arithmetic. That is the
+gate below, arriving from the integrator side instead of the linear-algebra
+side, and it generalises the gate: **no step of this plan can be landed alone
+and show a gain. The whole chain -- face assembly, the E/G/H/D storage, the
+local factorisation and solves, the trace solve -- has to be device-resident
+together.**
+
+Two consequences worth stating now:
+
+* **Step 4 stops being a configuration choice and becomes a requirement.**
+  UMFPACK and KLU are host-only, so a direct trace solve forces exactly the
+  transfer this target forbids. The trace solve has to be Krylov +
+  cuSPARSE/AMG, or the chain is broken at its end.
+* **Step 1's storage change and step 2's kernels have to land together.**
+  Step 1 alone leaves the integrators on the host; step 2 alone leaves the
+  local blocks there. Either alone is the "worse than doing nothing" case.
+
+GPU timings here are from a consumer card shared with a desktop under WSL2 and
+are indicative of shape, not of achievable performance.
+
 ## The gate, before any of the steps
 
 **Two of the four groups are nearly free and doing only those is worse than

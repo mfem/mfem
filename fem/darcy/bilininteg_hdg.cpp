@@ -10,6 +10,8 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_hdg.hpp"
+#include "../../general/forall.hpp"
+#include "../../linalg/dtensor.hpp"
 
 using std::min;
 using std::max;
@@ -2109,5 +2111,229 @@ real_t HDGDiffusionIntegrator::ComputeHDGFaceEnergy(
    }
 
    return energy;
+}
+
+bool HDGDiffusionFaceMatricesCanBatch(const FiniteElementSpace &tr_fes,
+                                      const FiniteElementSpace &el_fes)
+{
+   const Mesh *mesh = el_fes.GetMesh();
+   if (!mesh || mesh->GetNE() == 0) { return false; }
+   if (mesh->Nonconforming()) { return false; }
+   if (tr_fes.GetVDim() != 1 || el_fes.GetVDim() != 1) { return false; }
+   if (!dynamic_cast<const DG_Interface_FECollection*>(tr_fes.FEColl()))
+   { return false; }
+
+   // One element geometry and one order, so every face matrix is the same
+   // size and the reference trace shapes are one table.
+   const Geometry::Type g = mesh->GetElementBaseGeometry(0);
+   const int nd = el_fes.GetFE(0)->GetDof();
+   for (int e = 1; e < mesh->GetNE(); e++)
+   {
+      if (mesh->GetElementBaseGeometry(e) != g) { return false; }
+      if (el_fes.GetFE(e)->GetDof() != nd) { return false; }
+   }
+   return true;
+}
+
+void HDGDiffusionFaceMatricesBatched(const FiniteElementSpace &tr_fes,
+                                     const FiniteElementSpace &el_fes,
+                                     Coefficient *Q, real_t beta,
+                                     const HDGStabilization *stab,
+                                     DenseTensor &elmats)
+{
+   MFEM_VERIFY(HDGDiffusionFaceMatricesCanBatch(tr_fes, el_fes),
+               "the spaces do not admit the batched face assembly");
+   MFEM_VERIFY(!stab || stab->IsConstant(),
+               "a state dependent stabilization makes the face term nonlinear");
+
+   Mesh *mesh = el_fes.GetMesh();
+   const int nfaces = mesh->GetNumFaces();
+
+   Array<int> flist;
+   for (int f = 0; f < nfaces; f++)
+   {
+      if (mesh->FaceIsInterior(f)) { flist.Append(f); }
+   }
+   const int NF = flist.Size();
+
+   const FiniteElement *tr_fe0 = tr_fes.GetFaceElement(flist.Size() ? flist[0] :
+                                                       0);
+   const int TRD = tr_fe0->GetDof();
+   const int ND = el_fes.GetFE(0)->GetDof();
+   const int SZ = 2 * ND + TRD;
+
+   elmats.SetSize(SZ, SZ, NF);
+   // Without this the kernel below runs on the HOST whatever the Device is
+   // configured as -- Read() hands back a host pointer and mfem::forall
+   // degrades to a plain loop. It is the same trap as the raw-pointer
+   // DenseTensor in DarcyHybridization::InvertA(), measured there and walked
+   // into again here: the first version of this kernel was silently host-only
+   // and 1.5x SLOWER under -d cuda than under -d cpu.
+   elmats.GetMemory().UseDevice(true);
+   if (NF == 0) { return; }
+
+   // The rule the per-face path would pick, so the two agree by construction.
+   const int order = 2 * std::max(el_fes.GetFE(0)->GetOrder(),
+                                  tr_fe0->GetOrder());
+   FaceElementTransformations *ftr0 = mesh->GetInteriorFaceTransformations(
+                                         flist[0]);
+   MFEM_VERIFY(ftr0, "no interior face transformation");
+   const IntegrationRule &ir = IntRules.Get(ftr0->GetGeometryType(), order);
+   const int NQ = ir.GetNPoints();
+
+   // ---- host precompute: two weights and the shapes per quadrature point ----
+   Vector w1(NQ * NF), w2(NQ * NF);
+   Vector sh1(NQ * ND * NF), sh2(NQ * ND * NF);
+   Vector trs(NQ * TRD);
+   w1.UseDevice(true);
+   w2.UseDevice(true);
+   sh1.UseDevice(true);
+   sh2.UseDevice(true);
+   trs.UseDevice(true);
+
+   {
+      Vector t(TRD);
+      for (int q = 0; q < NQ; q++)
+      {
+         tr_fe0->CalcShape(ir.IntPoint(q), t);
+         for (int i = 0; i < TRD; i++) { trs(q + i * NQ) = t(i); }
+      }
+   }
+
+   {
+      const int dim = mesh->Dimension();
+      Vector nor(dim), s1(ND), s2(ND);
+      real_t *pw1 = w1.HostWrite(), *pw2 = w2.HostWrite();
+      real_t *ps1 = sh1.HostWrite(), *ps2 = sh2.HostWrite();
+
+      for (int fi = 0; fi < NF; fi++)
+      {
+         FaceElementTransformations *ftr =
+            mesh->GetInteriorFaceTransformations(flist[fi]);
+         const FiniteElement &e1 = *el_fes.GetFE(ftr->Elem1No);
+         const FiniteElement &e2 = *el_fes.GetFE(ftr->Elem2No);
+
+         for (int q = 0; q < NQ; q++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            ftr->SetAllIntPoints(&ip);
+            const IntegrationPoint &eip1 = ftr->GetElement1IntPoint();
+            const IntegrationPoint &eip2 = ftr->GetElement2IntPoint();
+
+            if (dim == 1) { nor(0) = 2 * eip1.x - 1.0; }
+            else { CalcOrtho(ftr->Jacobian(), nor); }
+
+            e1.CalcPhysShape(*ftr->Elem1, s1);
+            e2.CalcPhysShape(*ftr->Elem2, s2);
+
+            const real_t nn = nor * nor;
+            const real_t face_w = ip.weight * nor.Norml2();
+
+            real_t wn1 = ip.weight / ftr->Elem1->Weight();
+            if (Q) { wn1 *= Q->Eval(*ftr->Elem1, eip1); }
+            real_t wn2 = ip.weight / ftr->Elem2->Weight();
+            if (Q) { wn2 *= Q->Eval(*ftr->Elem2, eip2); }
+
+            // v is null on this path, so un == 0 and a == 0, b == beta.
+            const real_t wq1 = wn1 * nn, wq2 = wn2 * nn;
+            const real_t v1 = stab
+                              ? face_w * stab->Eval((face_w != 0.) ? (wq1 * beta / face_w) : 0.,
+                                                    0., 0., 0., *ftr->Elem1)
+                              : wq1 * beta;
+            const real_t v2 = stab
+                              ? face_w * stab->Eval((face_w != 0.) ? (wq2 * beta / face_w) : 0.,
+                                                    0., 0., 0., *ftr->Elem2)
+                              : wq2 * beta;
+            pw1[q + fi * NQ] = v1;
+            pw2[q + fi * NQ] = v2;
+            for (int i = 0; i < ND; i++)
+            {
+               ps1[q + NQ * (i + ND * fi)] = s1(i);
+               ps2[q + NQ * (i + ND * fi)] = s2(i);
+            }
+         }
+      }
+   }
+
+   // ---- the kernel ----
+   // Measured, 2-D quads, steady state (first call is 100x on either backend,
+   // allocation and first touch -- do not time one call):
+   //
+   //   n=64 order 3   precompute   kernel   copy-back
+   //     -d cpu         16.8 ms    26.3 ms     0.0 ms
+   //     -d cuda        16.9 ms    32.7 ms    10.9 ms
+   //
+   // THE COPY-BACK IS THE FINDING, not the kernel time. This routine's output
+   // is consumed by host code (ComputeAndAssemblePotFaceMatrix splitting it
+   // into E/G/H/D), so every face matrix has to come back -- at n=96 order 3
+   // that is 193 MB and 183 ms against an 85 ms kernel. An isolated device
+   // kernel whose consumer is on the host pays more in transfer than it saves
+   // in arithmetic, which is the plan's own gate argument arriving from the
+   // integrator side. The kernel is worth having; it is not worth switching on
+   // until the consumers are device-resident too.
+   //
+   // The kernel share is what makes it worth having at all: 47% of this
+   // routine at order 1, 72% at order 2, 83% at order 3, because the outer
+   // products are O(NQ*SZ^2) against O(NQ*ND) for the shapes.
+   //
+   // GPU timings here are from a consumer card shared with a desktop under
+   // WSL2 and are not a verdict on the approach.
+   // ---- one face per thread ----
+   const auto d_w1 = Reshape(w1.Read(), NQ, NF);
+   const auto d_w2 = Reshape(w2.Read(), NQ, NF);
+   const auto d_s1 = Reshape(sh1.Read(), NQ, ND, NF);
+   const auto d_s2 = Reshape(sh2.Read(), NQ, ND, NF);
+   const auto d_tr = Reshape(trs.Read(), NQ, TRD);
+   auto d_M = Reshape(elmats.Write(), SZ, SZ, NF);
+
+   const int nd = ND, trd = TRD, nq = NQ, sz = SZ;
+
+   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+   {
+      for (int j = 0; j < sz; j++)
+         for (int i = 0; i < sz; i++)
+         {
+            d_M(i, j, f) = 0.0;
+         }
+
+      for (int q = 0; q < nq; q++)
+      {
+         const real_t a1 = d_w1(q, f), a2 = d_w2(q, f);
+
+         // D blocks, both sides
+         for (int i = 0; i < nd; i++)
+         {
+            const real_t b1 = a1 * d_s1(q, i, f);
+            const real_t b2 = a2 * d_s2(q, i, f);
+            for (int j = 0; j < nd; j++)
+            {
+               d_M(i, j, f)           += b1 * d_s1(q, j, f);
+               d_M(nd + i, nd + j, f) += b2 * d_s2(q, j, f);
+            }
+            // E blocks, and G = -E^T
+            for (int j = 0; j < trd; j++)
+            {
+               const real_t e1 = b1 * d_tr(q, j);
+               const real_t e2 = b2 * d_tr(q, j);
+               d_M(i, 2 * nd + j, f)      -= e1;
+               d_M(nd + i, 2 * nd + j, f) -= e2;
+               d_M(2 * nd + j, i, f)      += e1;
+               d_M(2 * nd + j, nd + i, f) += e2;
+            }
+         }
+
+         // the face block, once, with both sides' weights
+         const real_t aa = a1 + a2;
+         for (int i = 0; i < trd; i++)
+         {
+            const real_t t = aa * d_tr(q, i);
+            for (int j = 0; j < trd; j++)
+            {
+               d_M(2 * nd + i, 2 * nd + j, f) -= t * d_tr(q, j);
+            }
+         }
+      }
+   });
+
 }
 }
