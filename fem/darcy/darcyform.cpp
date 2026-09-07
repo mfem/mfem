@@ -2431,7 +2431,8 @@ void DarcyForm::AssemblePotHDGFaces(int skip_zeros)
    DenseMatrix elmat1, elmat2;
    Array<int> vdofs1, vdofs2;
 
-   if (hybridization->GetPotConstraintIntegrator())
+   if (hybridization->GetPotConstraintIntegrator() &&
+       !hybridization->AssemblePotFaceMatricesBatched())
    {
       int nfaces = mesh->GetNumFaces();
       for (int f = 0; f < nfaces; f++)

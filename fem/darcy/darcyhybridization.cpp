@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "darcyhybridization.hpp"
+#include "bilininteg_hdg.hpp"
 #include "../../linalg/batched/batched.hpp"
 
 #include <algorithm>
@@ -539,6 +540,47 @@ void DarcyHybridization::ComputeAndAssemblePotFaceMatrix(
       c_fes.GetFaceVDofs(face_master, c_dofs);
       H->AddSubMatrix(c_dofs, c_dofs, ItHI_f, skip_zeros);
    }
+}
+
+bool DarcyHybridization::AssemblePotFaceMatricesBatched()
+{
+   if (asm_mode != AssemblyMode::Batched) { return false; }
+
+   // A lone HDGDiffusionIntegrator, not a SumIntegrator wrapping several:
+   // the kernel implements that one face term and nothing else, and a
+   // conservative check is the right kind here because the fallback is the
+   // per-face loop rather than a refusal.
+   auto *hd = dynamic_cast<HDGDiffusionIntegrator*>(c_bfi_p.get());
+   if (!hd || !hd->IsPureDiffusion()) { return false; }
+   if (!HDGDiffusionFaceMatricesCanBatch(c_fes, fes_p)) { return false; }
+
+   Mesh *mesh = fes_p.GetMesh();
+   Array<int> flist;
+   for (int f = 0; f < mesh->GetNumFaces(); f++)
+   {
+      if (mesh->FaceIsInterior(f)) { flist.Append(f); }
+   }
+   if (flist.Size() == 0) { return true; }
+
+   // Vector views carrying the arrays' Memory -- not GetData(), for the
+   // reason on InvertA(): a raw pointer pins the kernel to the host.
+   Vector Ev, Gv, Hv, Dv;
+   Ev.NewMemoryAndSize(E_data.GetMemory(), E_data.Size(), false);
+   Gv.NewMemoryAndSize(G_data.GetMemory(), G_data.Size(), false);
+   Hv.NewMemoryAndSize(H_data.GetMemory(), H_data.Size(), false);
+   Dv.NewMemoryAndSize(Df_data.GetMemory(), Df_data.Size(), false);
+
+   HDGDiffusionFaceScatterBatched(c_fes, fes_p, hd->GetCoefficient(),
+                                  hd->GetBeta(), hd->GetStabilization(),
+                                  flist, E_offsets, H_offsets, Df_offsets,
+                                  Ev, Gv, Hv, Dv);
+
+   E_data.GetMemory().Sync(Ev.GetMemory());
+   G_data.GetMemory().Sync(Gv.GetMemory());
+   H_data.GetMemory().Sync(Hv.GetMemory());
+   Df_data.GetMemory().Sync(Dv.GetMemory());
+   D_empty = false;
+   return true;
 }
 
 void DarcyHybridization::ComputeAndAssemblePotBdrFaceMatrix(

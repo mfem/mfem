@@ -207,6 +207,17 @@ public:
           MFEM_USE_OPENMP and MFEM_THREAD_SAFE, and obliges the caller's own
           integrators to be thread-safe; see SetAssemblyMode(). */
       Threaded,
+      /** @brief The interior-face potential term is assembled by one batched
+          kernel that scatters straight into E, G, H and D, instead of one
+          host call per face.
+
+          A DEVICE mode: it needs the storage to be device-resident to be
+          worth anything, and its D accumulation goes through AtomicAdd, which
+          costs on a host where the per-face loop's plain += does not. Falls
+          back to Serial whenever the face term is not a single pure-diffusion
+          HDGDiffusionIntegrator, which is all the batched kernel covers.
+          See SetAssemblyMode(). */
+      Batched,
    };
 
    /** @brief How the element-local blocks are factored.
@@ -1380,6 +1391,19 @@ public:
 
    /// Returns the potential constraint integrator
    BilinearFormIntegrator* GetPotConstraintIntegrator() const { return c_bfi_p.get(); }
+
+   /** @brief Assemble the INTERIOR-face potential term with one batched
+       kernel, scattering straight into E, G, H and D.
+
+       @returns false, having done nothing, whenever it does not apply --
+       AssemblyMode is not Batched, the face term is not a single
+       pure-diffusion HDGDiffusionIntegrator, or the spaces do not admit the
+       batched form. The caller then takes the per-face loop, so this is an
+       optimisation and never a restriction.
+
+       Boundary faces are NOT covered and still go through
+       ComputeAndAssemblePotBdrFaceMatrix(). */
+   bool AssemblePotFaceMatricesBatched();
    NonlinearFormIntegrator* GetPotConstraintNonlinearIntegrator() const { return c_nlfi_p.get(); }
 
    /** @brief The nonlinear flux mass integrator, or NULL.

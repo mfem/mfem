@@ -287,6 +287,20 @@ protected:
        object sees s itself, and put back afterwards. @a u and @a uhat are only
        meaningful where the state is available; the bilinear paths pass zero,
        which is why they insist the object be constant. */
+public:
+   /** @brief Whether the face term is the pure diffusion one: no velocity and
+       a scalar (or absent) coefficient.
+
+       The batched assembly covers that case and nothing else, so it asks
+       before taking over. */
+   bool IsPureDiffusion() const { return v == nullptr && MQ == nullptr; }
+
+   /// The scalar coefficient, or null.
+   Coefficient *GetCoefficient() const { return Q; }
+   /// The beta the constructor took.
+   real_t GetBeta() const { return beta; }
+
+protected:
    inline real_t StabValue(real_t wq, real_t ba, real_t un, real_t face_w,
                            real_t u, real_t uhat,
                            ElementTransformation &Tr) const
