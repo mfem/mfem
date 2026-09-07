@@ -1789,6 +1789,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    Geometry::Type geom, DenseTensor &localP) const
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   if (!fe) { return; } // for trace spaces, the FiniteElement might not exist
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    const DenseTensor &pmats = rtrans.point_matrices[geom];
@@ -2270,6 +2271,7 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
       const FiniteElement *coarse_fe =
          c_fes->fec->FiniteElementForGeometry(geom);
       const DenseTensor &pmats = rtrans.point_matrices[geom];
+      if (!fine_fe || !coarse_fe) { continue; } // for trace spaces, the FiniteElement might not exist
 
       lP.SetSize(fine_fe->GetDof(), coarse_fe->GetDof(), pmats.SizeK());
       lM.SetSize(fine_fe->GetDof(),   fine_fe->GetDof(), pmats.SizeK());
@@ -2384,6 +2386,7 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
                                                       DenseTensor &localR) const
 {
    const FiniteElement *fe = fec->FiniteElementForGeometry(geom);
+   if (!fe) { return; } // for trace spaces, the FiniteElement might not exist
 
    const CoarseFineTransformations &dtrans =
       mesh->ncmesh->GetDerefinementTransforms();
@@ -2512,6 +2515,7 @@ void FiniteElementSpace::GetLocalRefinementMatrices(
    const FiniteElement *fine_fe = fec->FiniteElementForGeometry(geom);
    const FiniteElement *coarse_fe =
       coarse_fes.fec->FiniteElementForGeometry(geom);
+   if (!fine_fe || !coarse_fe) { return; } // for trace spaces, the FiniteElement might not exist
 
    const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
    const DenseTensor &pmats = rtrans.point_matrices[geom];
@@ -3881,7 +3885,7 @@ const FiniteElement *FiniteElementSpace::GetFE(int i) const
 #ifdef MFEM_DEBUG
       // consistency check: fec->GetOrder() and FE->GetOrder() should return
       // the same value (for standard, constant-order spaces)
-      if (!IsVariableOrder() && FE->GetDim() > 0)
+      if (!IsVariableOrder() && FE && FE->GetDim() > 0)
       {
          MFEM_ASSERT(FE->GetOrder() == fec->GetOrder(),
                      "internal error: " <<
